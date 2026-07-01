@@ -17852,6 +17852,36 @@ final class DocxOpenXmlReader
         ksort($relationshipTargetCaseFoldBaseNameCounts, SORT_STRING);
         ksort($relationshipTargetExistingCaseFoldBaseNameCounts, SORT_STRING);
         ksort($relationshipTargetMissingCaseFoldBaseNameCounts, SORT_STRING);
+        $relationshipTargetCaseFoldBaseNameStems = $this->relationshipTargetCaseFoldBaseNameStemSummary($relationshipTargets);
+        $relationshipTargetCaseFoldBaseNameStemCounts = [];
+        $relationshipTargetExistingCaseFoldBaseNameStemCounts = [];
+        $relationshipTargetMissingCaseFoldBaseNameStemCounts = [];
+        $duplicateRelationshipTargetCaseFoldBaseNameStems = [];
+        $duplicateRelationshipTargetCaseFoldBaseNameStemRelationshipCount = 0;
+        $duplicateRelationshipTargetCaseFoldBaseNameStemTargetCount = 0;
+        foreach ($relationshipTargetCaseFoldBaseNameStems as $caseFoldBaseNameStemSummary) {
+            $caseFoldBaseNameStem = (string) ($caseFoldBaseNameStemSummary['targetCaseFoldBaseNameStemKey'] ?? '');
+            $relationshipTargetCaseFoldBaseNameStemCounts[$caseFoldBaseNameStem] =
+                (int) ($caseFoldBaseNameStemSummary['relationshipCount'] ?? 0);
+            if ((int) ($caseFoldBaseNameStemSummary['existingTargetCount'] ?? 0) > 0) {
+                $relationshipTargetExistingCaseFoldBaseNameStemCounts[$caseFoldBaseNameStem] =
+                    (int) ($caseFoldBaseNameStemSummary['existingTargetCount'] ?? 0);
+            }
+            if ((int) ($caseFoldBaseNameStemSummary['missingTargetCount'] ?? 0) > 0) {
+                $relationshipTargetMissingCaseFoldBaseNameStemCounts[$caseFoldBaseNameStem] =
+                    (int) ($caseFoldBaseNameStemSummary['missingTargetCount'] ?? 0);
+            }
+            if ((int) ($caseFoldBaseNameStemSummary['baseNameStemVariantCount'] ?? 0) > 1) {
+                $duplicateRelationshipTargetCaseFoldBaseNameStems[] = $caseFoldBaseNameStem;
+                $duplicateRelationshipTargetCaseFoldBaseNameStemRelationshipCount +=
+                    (int) ($caseFoldBaseNameStemSummary['relationshipCount'] ?? 0);
+                $duplicateRelationshipTargetCaseFoldBaseNameStemTargetCount +=
+                    (int) ($caseFoldBaseNameStemSummary['targetPartVariantCount'] ?? 0);
+            }
+        }
+        ksort($relationshipTargetCaseFoldBaseNameStemCounts, SORT_STRING);
+        ksort($relationshipTargetExistingCaseFoldBaseNameStemCounts, SORT_STRING);
+        ksort($relationshipTargetMissingCaseFoldBaseNameStemCounts, SORT_STRING);
         ksort($relationshipTargetBaseNameCounts);
         ksort($relationshipTargetExistingBaseNameCounts);
         ksort($relationshipTargetMissingBaseNameCounts);
@@ -18730,6 +18760,15 @@ final class DocxOpenXmlReader
             'duplicateRelationshipTargetCaseFoldBaseNameTargetCount' => $duplicateRelationshipTargetCaseFoldBaseNameTargetCount,
             'duplicateRelationshipTargetCaseFoldBaseNames' => $duplicateRelationshipTargetCaseFoldBaseNames,
             'relationshipTargetCaseFoldBaseNames' => $relationshipTargetCaseFoldBaseNames,
+            'relationshipTargetCaseFoldBaseNameStemCount' => count($relationshipTargetCaseFoldBaseNameStems),
+            'relationshipTargetCaseFoldBaseNameStemCounts' => $relationshipTargetCaseFoldBaseNameStemCounts,
+            'relationshipTargetExistingCaseFoldBaseNameStemCounts' => $relationshipTargetExistingCaseFoldBaseNameStemCounts,
+            'relationshipTargetMissingCaseFoldBaseNameStemCounts' => $relationshipTargetMissingCaseFoldBaseNameStemCounts,
+            'duplicateRelationshipTargetCaseFoldBaseNameStemCount' => count($duplicateRelationshipTargetCaseFoldBaseNameStems),
+            'duplicateRelationshipTargetCaseFoldBaseNameStemRelationshipCount' => $duplicateRelationshipTargetCaseFoldBaseNameStemRelationshipCount,
+            'duplicateRelationshipTargetCaseFoldBaseNameStemTargetCount' => $duplicateRelationshipTargetCaseFoldBaseNameStemTargetCount,
+            'duplicateRelationshipTargetCaseFoldBaseNameStems' => $duplicateRelationshipTargetCaseFoldBaseNameStems,
+            'relationshipTargetCaseFoldBaseNameStems' => $relationshipTargetCaseFoldBaseNameStems,
             'relationshipTargetBaseNameCount' => count($relationshipTargetBaseNames),
             'relationshipTargetBaseNameCounts' => $relationshipTargetBaseNameCounts,
             'relationshipTargetExistingBaseNameCounts' => $relationshipTargetExistingBaseNameCounts,
@@ -24287,6 +24326,268 @@ final class DocxOpenXmlReader
         }
 
         return array_values($baseNames);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $relationshipTargets
+     * @return list<array<string, mixed>>
+     */
+    private function relationshipTargetCaseFoldBaseNameStemSummary(array $relationshipTargets): array
+    {
+        $baseNameStems = [];
+        foreach ($relationshipTargets as $target) {
+            $targetPart = is_string($target['targetPart'] ?? null) ? $target['targetPart'] : '';
+            if ($targetPart === '') {
+                continue;
+            }
+
+            $targetBaseName = is_string($target['targetBaseName'] ?? null)
+                ? $target['targetBaseName']
+                : $this->packagePartBaseName($targetPart);
+            $targetBaseNameStem = $targetBaseName === ''
+                ? ''
+                : $this->packagePartBaseNameStemFromBaseName($targetBaseName);
+            $targetCaseFoldBaseName = $targetBaseName === ''
+                ? ''
+                : $this->packagePartCaseFoldKey($targetBaseName);
+            $targetCaseFoldBaseNameStem = $targetBaseNameStem === ''
+                ? ''
+                : $this->packagePartCaseFoldKey($targetBaseNameStem);
+            $caseFoldBaseNameStemKey = $targetCaseFoldBaseNameStem === ''
+                ? '(invalid-target)'
+                : $targetCaseFoldBaseNameStem;
+            if (!isset($baseNameStems[$caseFoldBaseNameStemKey])) {
+                $baseNameStems[$caseFoldBaseNameStemKey] = [
+                    'targetCaseFoldBaseNameStemKey' => $caseFoldBaseNameStemKey,
+                    'targetCaseFoldBaseNameStem' => $targetCaseFoldBaseNameStem === '' ? null : $targetCaseFoldBaseNameStem,
+                    'baseNameStemVariantCount' => 0,
+                    'baseNameVariantCount' => 0,
+                    'extensionVariantCount' => 0,
+                    'targetPartVariantCount' => 0,
+                    'relationshipCount' => 0,
+                    'existingTargetCount' => 0,
+                    'missingTargetCount' => 0,
+                    'missingContentTypeTargetCount' => 0,
+                    'parameterizedTargetCount' => 0,
+                    'extensionlessTargetCount' => 0,
+                    'existingTargetByteLength' => 0,
+                    'baseNameStemCounts' => [],
+                    'baseNameCounts' => [],
+                    'targetPartExtensionCounts' => [],
+                    'targetPathDepthCounts' => [],
+                    'targetDirectoryCounts' => [],
+                    'contentTypeSourceCounts' => [],
+                    'contentTypeBaseCounts' => [],
+                    'relationshipTypeCounts' => [],
+                    'roleCounts' => [],
+                    'targetDirectories' => [],
+                    'sourceParts' => [],
+                    'relationshipParts' => [],
+                    'relationshipIds' => [],
+                    'relationshipTypes' => [],
+                    'contentTypes' => [],
+                    'targetParts' => [],
+                    'existingTargetParts' => [],
+                    'missingTargetParts' => [],
+                    'largestExistingTargetPart' => null,
+                    '_seenExistingTargetParts' => [],
+                ];
+            }
+
+            ++$baseNameStems[$caseFoldBaseNameStemKey]['relationshipCount'];
+
+            $baseNameStemKey = $targetBaseNameStem === '' ? '(invalid-target)' : $targetBaseNameStem;
+            $baseNameStems[$caseFoldBaseNameStemKey]['baseNameStemCounts'][$baseNameStemKey] =
+                ($baseNameStems[$caseFoldBaseNameStemKey]['baseNameStemCounts'][$baseNameStemKey] ?? 0) + 1;
+
+            $baseNameKey = $targetBaseName === '' ? '(invalid-target)' : $targetBaseName;
+            $baseNameStems[$caseFoldBaseNameStemKey]['baseNameCounts'][$baseNameKey] =
+                ($baseNameStems[$caseFoldBaseNameStemKey]['baseNameCounts'][$baseNameKey] ?? 0) + 1;
+
+            $targetPartExtension = is_string($target['targetPartExtension'] ?? null)
+                ? $target['targetPartExtension']
+                : $this->packagePartExtension($targetPart);
+            $targetPartExtensionKey = $targetPartExtension ?? '(none)';
+            $baseNameStems[$caseFoldBaseNameStemKey]['targetPartExtensionCounts'][$targetPartExtensionKey] =
+                ($baseNameStems[$caseFoldBaseNameStemKey]['targetPartExtensionCounts'][$targetPartExtensionKey] ?? 0) + 1;
+            if ($targetPartExtension === null) {
+                ++$baseNameStems[$caseFoldBaseNameStemKey]['extensionlessTargetCount'];
+            }
+
+            $targetPathDepth = is_int($target['targetPathDepth'] ?? null)
+                ? (int) $target['targetPathDepth']
+                : count($this->packagePartPathSegments($targetPart));
+            $baseNameStems[$caseFoldBaseNameStemKey]['targetPathDepthCounts'][(string) $targetPathDepth] =
+                ($baseNameStems[$caseFoldBaseNameStemKey]['targetPathDepthCounts'][(string) $targetPathDepth] ?? 0) + 1;
+
+            $targetDirectory = is_string($target['targetDirectory'] ?? null)
+                ? $target['targetDirectory']
+                : $this->packagePartDirectory($targetPart);
+            $targetDirectoryKey = $targetDirectory === '' ? '/' : $targetDirectory;
+            $baseNameStems[$caseFoldBaseNameStemKey]['targetDirectoryCounts'][$targetDirectoryKey] =
+                ($baseNameStems[$caseFoldBaseNameStemKey]['targetDirectoryCounts'][$targetDirectoryKey] ?? 0) + 1;
+
+            $targetContentTypeSource = is_string($target['targetContentTypeSource'] ?? null)
+                ? $target['targetContentTypeSource']
+                : 'missing';
+            if ($targetContentTypeSource === '') {
+                $targetContentTypeSource = 'missing';
+            }
+            $baseNameStems[$caseFoldBaseNameStemKey]['contentTypeSourceCounts'][$targetContentTypeSource] =
+                ($baseNameStems[$caseFoldBaseNameStemKey]['contentTypeSourceCounts'][$targetContentTypeSource] ?? 0) + 1;
+            if ($targetContentTypeSource === 'missing') {
+                ++$baseNameStems[$caseFoldBaseNameStemKey]['missingContentTypeTargetCount'];
+            }
+
+            $targetContentTypeBase = is_string($target['targetContentTypeBase'] ?? null)
+                ? $target['targetContentTypeBase']
+                : '';
+            $targetContentTypeBaseKey = $targetContentTypeBase === '' ? '(missing)' : $targetContentTypeBase;
+            $baseNameStems[$caseFoldBaseNameStemKey]['contentTypeBaseCounts'][$targetContentTypeBaseKey] =
+                ($baseNameStems[$caseFoldBaseNameStemKey]['contentTypeBaseCounts'][$targetContentTypeBaseKey] ?? 0) + 1;
+
+            $targetContentTypeHasParameters = ($target['targetContentTypeHasParameters'] ?? false) === true
+                || (int) ($target['targetContentTypeParameterCount'] ?? 0) > 0
+                || (is_array($target['targetContentTypeParameterMap'] ?? null) && $target['targetContentTypeParameterMap'] !== []);
+            if ($targetContentTypeHasParameters) {
+                ++$baseNameStems[$caseFoldBaseNameStemKey]['parameterizedTargetCount'];
+            }
+
+            $relationshipType = is_string($target['relationshipType'] ?? null) ? $target['relationshipType'] : '';
+            $relationshipTypeKey = is_string($target['relationshipTypeKey'] ?? null)
+                ? $target['relationshipTypeKey']
+                : ($relationshipType === '' ? '(missing-type)' : $relationshipType);
+            $baseNameStems[$caseFoldBaseNameStemKey]['relationshipTypeCounts'][$relationshipTypeKey] =
+                ($baseNameStems[$caseFoldBaseNameStemKey]['relationshipTypeCounts'][$relationshipTypeKey] ?? 0) + 1;
+
+            $targetRoles = is_array($target['targetRoles'] ?? null)
+                ? array_values(array_filter(
+                    array_map('strval', $target['targetRoles']),
+                    static fn (string $role): bool => $role !== '',
+                ))
+                : [];
+            foreach ($targetRoles as $targetRole) {
+                $baseNameStems[$caseFoldBaseNameStemKey]['roleCounts'][$targetRole] =
+                    ($baseNameStems[$caseFoldBaseNameStemKey]['roleCounts'][$targetRole] ?? 0) + 1;
+            }
+
+            $targetExists = ($target['targetExists'] ?? false) === true;
+            if ($targetExists) {
+                ++$baseNameStems[$caseFoldBaseNameStemKey]['existingTargetCount'];
+                $this->appendUniqueString($baseNameStems[$caseFoldBaseNameStemKey]['existingTargetParts'], $targetPart);
+            } else {
+                ++$baseNameStems[$caseFoldBaseNameStemKey]['missingTargetCount'];
+                $this->appendUniqueString($baseNameStems[$caseFoldBaseNameStemKey]['missingTargetParts'], $targetPart);
+            }
+
+            $this->appendUniqueString($baseNameStems[$caseFoldBaseNameStemKey]['targetDirectories'], $targetDirectoryKey);
+            $this->appendUniqueString(
+                $baseNameStems[$caseFoldBaseNameStemKey]['sourceParts'],
+                is_string($target['sourcePart'] ?? null) ? $target['sourcePart'] : null,
+            );
+            $this->appendUniqueString(
+                $baseNameStems[$caseFoldBaseNameStemKey]['relationshipParts'],
+                is_string($target['relationshipsPart'] ?? null) ? $target['relationshipsPart'] : null,
+            );
+            $this->appendUniqueString(
+                $baseNameStems[$caseFoldBaseNameStemKey]['relationshipIds'],
+                is_string($target['relationshipId'] ?? null) ? $target['relationshipId'] : null,
+            );
+            $this->appendUniqueString($baseNameStems[$caseFoldBaseNameStemKey]['relationshipTypes'], $relationshipType);
+            $this->appendUniqueString(
+                $baseNameStems[$caseFoldBaseNameStemKey]['contentTypes'],
+                is_string($target['targetContentType'] ?? null) ? $target['targetContentType'] : null,
+            );
+            $this->appendUniqueString($baseNameStems[$caseFoldBaseNameStemKey]['targetParts'], $targetPart);
+
+            $targetBytes = is_int($target['targetBytes'] ?? null) ? (int) $target['targetBytes'] : null;
+            if (
+                !$targetExists
+                || $targetBytes === null
+                || isset($baseNameStems[$caseFoldBaseNameStemKey]['_seenExistingTargetParts'][$targetPart])
+            ) {
+                continue;
+            }
+
+            $baseNameStems[$caseFoldBaseNameStemKey]['_seenExistingTargetParts'][$targetPart] = true;
+            $targetSummary = [
+                'partName' => $targetPart,
+                'targetPart' => $targetPart,
+                'directory' => $targetDirectoryKey,
+                'targetDirectory' => $targetDirectoryKey,
+                'baseName' => $targetBaseName,
+                'targetBaseName' => $targetBaseName,
+                'caseFoldBaseName' => $targetCaseFoldBaseName === '' ? null : $targetCaseFoldBaseName,
+                'targetCaseFoldBaseName' => $targetCaseFoldBaseName === '' ? null : $targetCaseFoldBaseName,
+                'baseNameStem' => $targetBaseNameStem === '' ? null : $targetBaseNameStem,
+                'targetBaseNameStem' => $targetBaseNameStem === '' ? null : $targetBaseNameStem,
+                'caseFoldBaseNameStem' => $targetCaseFoldBaseNameStem === '' ? null : $targetCaseFoldBaseNameStem,
+                'targetCaseFoldBaseNameStem' => $targetCaseFoldBaseNameStem === '' ? null : $targetCaseFoldBaseNameStem,
+                'targetPathDepth' => $targetPathDepth,
+                'partExtension' => $targetPartExtension,
+                'targetPartExtension' => $targetPartExtension,
+                'bytes' => $targetBytes,
+                'targetBytes' => $targetBytes,
+                'crc32' => is_string($target['targetCrc32'] ?? null) ? $target['targetCrc32'] : null,
+                'targetCrc32' => is_string($target['targetCrc32'] ?? null) ? $target['targetCrc32'] : null,
+                'sha256' => is_string($target['targetSha256'] ?? null) ? $target['targetSha256'] : null,
+                'targetSha256' => is_string($target['targetSha256'] ?? null) ? $target['targetSha256'] : null,
+                'contentType' => is_string($target['targetContentType'] ?? null) ? $target['targetContentType'] : '',
+                'targetContentType' => is_string($target['targetContentType'] ?? null) ? $target['targetContentType'] : '',
+                'contentTypeBase' => $targetContentTypeBase,
+                'targetContentTypeBase' => $targetContentTypeBase,
+                'contentTypeSource' => $targetContentTypeSource,
+                'targetContentTypeSource' => $targetContentTypeSource,
+                'targetContentTypeHasParameters' => $targetContentTypeHasParameters,
+                'targetContentTypeParameterCount' => is_int($target['targetContentTypeParameterCount'] ?? null)
+                    ? (int) $target['targetContentTypeParameterCount']
+                    : 0,
+                'roles' => $targetRoles,
+                'targetRoles' => $targetRoles,
+            ];
+            $baseNameStems[$caseFoldBaseNameStemKey]['existingTargetByteLength'] += $targetBytes;
+            $largestTarget = $baseNameStems[$caseFoldBaseNameStemKey]['largestExistingTargetPart'];
+            if (
+                !is_array($largestTarget)
+                || $targetBytes > (int) ($largestTarget['targetBytes'] ?? 0)
+                || (
+                    $targetBytes === (int) ($largestTarget['targetBytes'] ?? 0)
+                    && strcmp($targetPart, (string) ($largestTarget['targetPart'] ?? '')) < 0
+                )
+            ) {
+                $baseNameStems[$caseFoldBaseNameStemKey]['largestExistingTargetPart'] = $targetSummary;
+            }
+        }
+
+        ksort($baseNameStems, SORT_STRING);
+        foreach ($baseNameStems as $caseFoldBaseNameStemKey => $summary) {
+            ksort($summary['baseNameStemCounts'], SORT_STRING);
+            ksort($summary['baseNameCounts'], SORT_STRING);
+            ksort($summary['targetPartExtensionCounts'], SORT_STRING);
+            ksort($summary['targetPathDepthCounts'], SORT_NUMERIC);
+            ksort($summary['targetDirectoryCounts'], SORT_STRING);
+            ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['contentTypeBaseCounts'], SORT_STRING);
+            ksort($summary['relationshipTypeCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            sort($summary['targetDirectories'], SORT_STRING);
+            sort($summary['sourceParts'], SORT_STRING);
+            sort($summary['relationshipParts'], SORT_STRING);
+            sort($summary['relationshipIds'], SORT_STRING);
+            sort($summary['relationshipTypes'], SORT_STRING);
+            sort($summary['contentTypes'], SORT_STRING);
+            sort($summary['targetParts'], SORT_STRING);
+            sort($summary['existingTargetParts'], SORT_STRING);
+            sort($summary['missingTargetParts'], SORT_STRING);
+            $summary['baseNameStemVariantCount'] = count($summary['baseNameStemCounts']);
+            $summary['baseNameVariantCount'] = count($summary['baseNameCounts']);
+            $summary['extensionVariantCount'] = count($summary['targetPartExtensionCounts']);
+            $summary['targetPartVariantCount'] = count($summary['targetParts']);
+            unset($summary['_seenExistingTargetParts']);
+            $baseNameStems[$caseFoldBaseNameStemKey] = $summary;
+        }
+
+        return array_values($baseNameStems);
     }
 
     /**
