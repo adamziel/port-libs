@@ -18775,6 +18775,8 @@ final class DocxOpenXmlReader
             $relationshipSourcePathSegmentCounts[$segment] = (int) ($sourcePathSegmentSummary['sourceCount'] ?? 0);
         }
         ksort($relationshipSourcePathSegmentCounts, SORT_STRING);
+        $relationshipSourcePathSegmentNameCharacters =
+            $this->relationshipSourcePathSegmentNameCharacterSummary($relationshipSources);
         $relationshipSourceCaseFoldPathSegments = $this->relationshipSourceCaseFoldPathSegmentSummary($relationshipSources);
         $relationshipSourceCaseFoldPathSegmentOccurrenceCount = 0;
         $relationshipSourceCaseFoldPathSegmentCounts = [];
@@ -19669,6 +19671,31 @@ final class DocxOpenXmlReader
             'relationshipSourcePathSegmentOccurrenceCount' => $relationshipSourcePathSegmentOccurrenceCount,
             'relationshipSourcePathSegmentCounts' => $relationshipSourcePathSegmentCounts,
             'relationshipSourcePathSegments' => $relationshipSourcePathSegments,
+            'relationshipSourcePathSegmentNameCharacterReviewSegmentCount' => $relationshipSourcePathSegmentNameCharacters['segmentCount'],
+            'relationshipSourcePathSegmentNameCharacterReviewOccurrenceCount' => $relationshipSourcePathSegmentNameCharacters['occurrenceCount'],
+            'relationshipSourcePathSegmentNameCharacterReviewSourceCount' => $relationshipSourcePathSegmentNameCharacters['sourceCount'],
+            'relationshipSourcePathSegmentNameCharacterReviewRelationshipCount' => $relationshipSourcePathSegmentNameCharacters['relationshipCount'],
+            'relationshipSourcePathSegmentNameCharacterReviewRelationshipRecordCount' => $relationshipSourcePathSegmentNameCharacters['relationshipRecordCount'],
+            'relationshipSourcePathSegmentNameCharacterReviewSourcePartCount' => $relationshipSourcePathSegmentNameCharacters['sourcePartCount'],
+            'relationshipSourcePathSegmentNameUppercaseOccurrenceCount' => (int) ($relationshipSourcePathSegmentNameCharacters['flagOccurrenceCounts']['uppercase'] ?? 0),
+            'relationshipSourcePathSegmentNameWhitespaceOccurrenceCount' => (int) ($relationshipSourcePathSegmentNameCharacters['flagOccurrenceCounts']['whitespace'] ?? 0),
+            'relationshipSourcePathSegmentNamePercentEncodedOctetOccurrenceCount' => (int) ($relationshipSourcePathSegmentNameCharacters['flagOccurrenceCounts']['percent-encoded-octet'] ?? 0),
+            'relationshipSourcePathSegmentNameNonAsciiOccurrenceCount' => (int) ($relationshipSourcePathSegmentNameCharacters['flagOccurrenceCounts']['non-ascii'] ?? 0),
+            'relationshipSourcePathSegmentNameUppercaseSourceCount' => (int) ($relationshipSourcePathSegmentNameCharacters['flagSourceCounts']['uppercase'] ?? 0),
+            'relationshipSourcePathSegmentNameWhitespaceSourceCount' => (int) ($relationshipSourcePathSegmentNameCharacters['flagSourceCounts']['whitespace'] ?? 0),
+            'relationshipSourcePathSegmentNamePercentEncodedOctetSourceCount' => (int) ($relationshipSourcePathSegmentNameCharacters['flagSourceCounts']['percent-encoded-octet'] ?? 0),
+            'relationshipSourcePathSegmentNameNonAsciiSourceCount' => (int) ($relationshipSourcePathSegmentNameCharacters['flagSourceCounts']['non-ascii'] ?? 0),
+            'relationshipSourcePathSegmentNameUppercaseRelationshipCount' => (int) ($relationshipSourcePathSegmentNameCharacters['flagRelationshipCounts']['uppercase'] ?? 0),
+            'relationshipSourcePathSegmentNameWhitespaceRelationshipCount' => (int) ($relationshipSourcePathSegmentNameCharacters['flagRelationshipCounts']['whitespace'] ?? 0),
+            'relationshipSourcePathSegmentNamePercentEncodedOctetRelationshipCount' => (int) ($relationshipSourcePathSegmentNameCharacters['flagRelationshipCounts']['percent-encoded-octet'] ?? 0),
+            'relationshipSourcePathSegmentNameNonAsciiRelationshipCount' => (int) ($relationshipSourcePathSegmentNameCharacters['flagRelationshipCounts']['non-ascii'] ?? 0),
+            'relationshipSourcePathSegmentNameCharacterFlagOccurrenceCounts' => $relationshipSourcePathSegmentNameCharacters['flagOccurrenceCounts'],
+            'relationshipSourcePathSegmentNameCharacterFlagSourceCounts' => $relationshipSourcePathSegmentNameCharacters['flagSourceCounts'],
+            'relationshipSourcePathSegmentNameCharacterFlagRelationshipCounts' => $relationshipSourcePathSegmentNameCharacters['flagRelationshipCounts'],
+            'relationshipSourcePathSegmentNameCharacterFlagSegments' => $relationshipSourcePathSegmentNameCharacters['flagSegments'],
+            'relationshipSourcePathSegmentNameCharacterFlagSourceParts' => $relationshipSourcePathSegmentNameCharacters['flagSourceParts'],
+            'relationshipSourcePathSegmentNameCharacterReviewSegmentNames' => $relationshipSourcePathSegmentNameCharacters['segmentNames'],
+            'relationshipSourcePathSegmentNameCharacterReviewSegments' => $relationshipSourcePathSegmentNameCharacters['segments'],
             'relationshipSourceCaseFoldPathSegmentCount' => count($relationshipSourceCaseFoldPathSegments),
             'relationshipSourceCaseFoldPathSegmentOccurrenceCount' => $relationshipSourceCaseFoldPathSegmentOccurrenceCount,
             'relationshipSourceCaseFoldPathSegmentCounts' => $relationshipSourceCaseFoldPathSegmentCounts,
@@ -25882,6 +25909,364 @@ final class DocxOpenXmlReader
         }
 
         return array_values($segments);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $relationshipSources
+     * @return array{segmentCount:int, occurrenceCount:int, sourceCount:int, relationshipCount:int, relationshipRecordCount:int, sourcePartCount:int, segmentNames:list<string>, flagOccurrenceCounts:array<string, int>, flagSourceCounts:array<string, int>, flagRelationshipCounts:array<string, int>, flagSegments:array<string, list<string>>, flagSourceParts:array<string, list<string>>, segments:list<array<string, mixed>>}
+     */
+    private function relationshipSourcePathSegmentNameCharacterSummary(array $relationshipSources): array
+    {
+        $segments = [];
+        $flagOccurrenceCounts = [];
+        $flagSourceCounts = [];
+        $flagRelationshipCounts = [];
+        $flagSegments = [];
+        $flagSourceParts = [];
+        $sourceParts = [];
+        $sourceCount = 0;
+        $relationshipCount = 0;
+        $relationshipRecordCount = 0;
+        $occurrenceCount = 0;
+
+        foreach ($relationshipSources as $source) {
+            $sourcePart = is_string($source['sourcePart'] ?? null) ? $source['sourcePart'] : '';
+            if ($sourcePart === '' || $sourcePart === '/') {
+                continue;
+            }
+
+            $pathSegments = is_array($source['sourcePathSegments'] ?? null)
+                ? array_values(array_filter(
+                    array_map(
+                        static fn (mixed $segment): string => is_scalar($segment) ? (string) $segment : '',
+                        $source['sourcePathSegments'],
+                    ),
+                    static fn (string $segment): bool => $segment !== '',
+                ))
+                : $this->packagePartPathSegments($sourcePart);
+            if ($pathSegments === []) {
+                continue;
+            }
+
+            $sourceDirectory = is_string($source['sourceDirectory'] ?? null)
+                ? $source['sourceDirectory']
+                : $this->packagePartDirectory($sourcePart);
+            $sourceDirectoryKey = $sourceDirectory === '' ? '/' : $sourceDirectory;
+            $sourceBaseName = is_string($source['sourceBaseName'] ?? null)
+                ? $source['sourceBaseName']
+                : $this->packagePartBaseName($sourcePart);
+            $sourceBaseNameKey = $sourceBaseName === '' ? '(invalid-source)' : $sourceBaseName;
+            $sourcePathSegmentCount = is_int($source['sourcePathSegmentCount'] ?? null)
+                ? (int) $source['sourcePathSegmentCount']
+                : count($pathSegments);
+            $sourcePathDepth = is_int($source['sourcePathDepth'] ?? null)
+                ? (int) $source['sourcePathDepth']
+                : $sourcePathSegmentCount;
+            $sourceDirectoryDepth = is_int($source['sourceDirectoryDepth'] ?? null)
+                ? (int) $source['sourceDirectoryDepth']
+                : $this->packagePartDirectoryDepth($sourceDirectory);
+            $sourceTopLevelSegment = $pathSegments[0] ?? '';
+            $sourceTopLevelSegmentKey = $sourceTopLevelSegment === '' ? '(none)' : $sourceTopLevelSegment;
+            $sourcePartExtension = array_key_exists('sourcePartExtension', $source) && $source['sourcePartExtension'] !== null
+                ? (string) $source['sourcePartExtension']
+                : $this->packagePartExtension($sourcePart);
+            $sourcePartExtensionKey = ($sourcePartExtension === null || $sourcePartExtension === '') ? '(none)' : $sourcePartExtension;
+            $sourceExists = ($source['sourceExists'] ?? false) === true;
+            $sourceContentType = is_string($source['sourceContentType'] ?? null)
+                ? $source['sourceContentType']
+                : '';
+            $sourceContentTypeBase = is_string($source['sourceContentTypeBase'] ?? null)
+                ? $source['sourceContentTypeBase']
+                : '';
+            $sourceContentTypeBaseKey = $sourceContentTypeBase === '' ? '(missing)' : $sourceContentTypeBase;
+            $sourceContentTypeSource = is_string($source['sourceContentTypeSource'] ?? null)
+                ? $source['sourceContentTypeSource']
+                : 'missing';
+            if ($sourceContentTypeSource === '') {
+                $sourceContentTypeSource = 'missing';
+            }
+            $sourceContentTypeParameterCount = (int) ($source['sourceContentTypeParameterCount'] ?? 0);
+            $sourceContentTypeParameters = is_array($source['sourceContentTypeParameters'] ?? null)
+                ? $source['sourceContentTypeParameters']
+                : [];
+            $sourceContentTypeParameterMap = is_array($source['sourceContentTypeParameterMap'] ?? null)
+                ? $source['sourceContentTypeParameterMap']
+                : [];
+            $sourceContentTypeHasParameters = ($source['sourceContentTypeHasParameters'] ?? false) === true
+                || $sourceContentTypeParameterCount > 0
+                || $sourceContentTypeParameters !== []
+                || $sourceContentTypeParameterMap !== [];
+            $sourceRelationshipCount = (int) ($source['relationshipCount'] ?? 0);
+            $sourceRelationshipRecordCount = (int) ($source['relationshipRecordCount'] ?? 0);
+            $sourceKind = is_string($source['relationshipSourceKind'] ?? null)
+                ? $source['relationshipSourceKind']
+                : 'invalid-source';
+            $relationshipPart = is_string($source['relationshipsPart'] ?? null) ? $source['relationshipsPart'] : '';
+            $sourceRoles = array_values(array_filter(
+                array_map('strval', $source['sourceRoles'] ?? []),
+                static fn (string $role): bool => $role !== '',
+            ));
+            $sourceBytes = is_int($source['sourceBytes'] ?? null) ? (int) $source['sourceBytes'] : null;
+
+            $sourceHasFlaggedSegment = false;
+            $flagsSeenInSource = [];
+            $segmentsSeenInSource = [];
+            foreach ($pathSegments as $pathSegmentIndex => $segment) {
+                $flags = $this->packagePartNameCharacterFlags($segment);
+                $flags = array_values(array_filter($flags, static fn (string $flag): bool => $flag !== ''));
+                if ($flags === []) {
+                    continue;
+                }
+
+                $isOnly = $sourcePathSegmentCount === 1;
+                $pathSegmentPosition = match (true) {
+                    $isOnly => 'only',
+                    $pathSegmentIndex === 0 => 'first',
+                    $pathSegmentIndex === $sourcePathSegmentCount - 1 => 'last',
+                    default => 'middle',
+                };
+
+                if (!isset($segments[$segment])) {
+                    $segments[$segment] = [
+                        'segment' => $segment,
+                        'caseFoldSegment' => $this->packagePartCaseFoldKey($segment),
+                        'occurrenceCount' => 0,
+                        'sourceCount' => 0,
+                        'sourcePartCount' => 0,
+                        'relationshipCount' => 0,
+                        'relationshipRecordCount' => 0,
+                        'existingSourceCount' => 0,
+                        'nonExistingSourceCount' => 0,
+                        'missingContentTypeSourceCount' => 0,
+                        'parameterizedSourceCount' => 0,
+                        'existingSourceByteLength' => 0,
+                        'flags' => $flags,
+                        'flagOccurrenceCounts' => [],
+                        'flagSourceCounts' => [],
+                        'flagRelationshipCounts' => [],
+                        'pathSegmentIndexCounts' => [],
+                        'pathSegmentPositionCounts' => [],
+                        'sourcePathDepthCounts' => [],
+                        'sourceTopLevelSegmentCounts' => [],
+                        'sourceDirectoryCounts' => [],
+                        'sourceBaseNameCounts' => [],
+                        'sourcePartExtensionCounts' => [],
+                        'sourceContentTypeBaseCounts' => [],
+                        'sourceContentTypeSourceCounts' => [],
+                        'relationshipSourceKindCounts' => [],
+                        'sourceRoleCounts' => [],
+                        'sourceParts' => [],
+                        'existingSourceParts' => [],
+                        'nonExistingSourceParts' => [],
+                        'relationshipParts' => [],
+                        'contentTypes' => [],
+                        'largestExistingSourcePart' => null,
+                        'reviewPolicy' => 'relationship-source-path-segment-name-character-metadata-only',
+                        '_seenSourceParts' => [],
+                        '_seenExistingSourceParts' => [],
+                    ];
+                }
+
+                $sourceHasFlaggedSegment = true;
+                ++$occurrenceCount;
+                ++$segments[$segment]['occurrenceCount'];
+                $segments[$segment]['pathSegmentIndexCounts'][$pathSegmentIndex] =
+                    ($segments[$segment]['pathSegmentIndexCounts'][$pathSegmentIndex] ?? 0) + 1;
+                $segments[$segment]['pathSegmentPositionCounts'][$pathSegmentPosition] =
+                    ($segments[$segment]['pathSegmentPositionCounts'][$pathSegmentPosition] ?? 0) + 1;
+
+                foreach ($flags as $flag) {
+                    $flagOccurrenceCounts[$flag] = ($flagOccurrenceCounts[$flag] ?? 0) + 1;
+                    $flagSegments[$flag][$segment] = true;
+                    $flagSourceParts[$flag][$sourcePart] = true;
+                    $flagsSeenInSource[$flag] = true;
+                    $segments[$segment]['flagOccurrenceCounts'][$flag] =
+                        ($segments[$segment]['flagOccurrenceCounts'][$flag] ?? 0) + 1;
+                }
+
+                if (isset($segmentsSeenInSource[$segment])) {
+                    continue;
+                }
+                $segmentsSeenInSource[$segment] = true;
+
+                ++$segments[$segment]['sourceCount'];
+                if (!isset($segments[$segment]['_seenSourceParts'][$sourcePart])) {
+                    $segments[$segment]['_seenSourceParts'][$sourcePart] = true;
+                    ++$segments[$segment]['sourcePartCount'];
+                }
+                $segments[$segment]['relationshipCount'] += $sourceRelationshipCount;
+                $segments[$segment]['relationshipRecordCount'] += $sourceRelationshipRecordCount;
+                if ($sourceExists) {
+                    ++$segments[$segment]['existingSourceCount'];
+                    $this->appendUniqueString($segments[$segment]['existingSourceParts'], $sourcePart);
+                } else {
+                    ++$segments[$segment]['nonExistingSourceCount'];
+                    $this->appendUniqueString($segments[$segment]['nonExistingSourceParts'], $sourcePart);
+                }
+                if ($sourceContentTypeSource === 'missing') {
+                    ++$segments[$segment]['missingContentTypeSourceCount'];
+                }
+                if ($sourceContentTypeHasParameters) {
+                    ++$segments[$segment]['parameterizedSourceCount'];
+                }
+
+                foreach ($flags as $flag) {
+                    $segments[$segment]['flagSourceCounts'][$flag] =
+                        ($segments[$segment]['flagSourceCounts'][$flag] ?? 0) + 1;
+                    $segments[$segment]['flagRelationshipCounts'][$flag] =
+                        ($segments[$segment]['flagRelationshipCounts'][$flag] ?? 0) + $sourceRelationshipCount;
+                }
+
+                $segments[$segment]['sourcePathDepthCounts'][$sourcePathSegmentCount] =
+                    ($segments[$segment]['sourcePathDepthCounts'][$sourcePathSegmentCount] ?? 0) + 1;
+                $segments[$segment]['sourceTopLevelSegmentCounts'][$sourceTopLevelSegmentKey] =
+                    ($segments[$segment]['sourceTopLevelSegmentCounts'][$sourceTopLevelSegmentKey] ?? 0) + 1;
+                $segments[$segment]['sourceDirectoryCounts'][$sourceDirectoryKey] =
+                    ($segments[$segment]['sourceDirectoryCounts'][$sourceDirectoryKey] ?? 0) + 1;
+                $segments[$segment]['sourceBaseNameCounts'][$sourceBaseNameKey] =
+                    ($segments[$segment]['sourceBaseNameCounts'][$sourceBaseNameKey] ?? 0) + 1;
+                $segments[$segment]['sourcePartExtensionCounts'][$sourcePartExtensionKey] =
+                    ($segments[$segment]['sourcePartExtensionCounts'][$sourcePartExtensionKey] ?? 0) + 1;
+                $segments[$segment]['sourceContentTypeBaseCounts'][$sourceContentTypeBaseKey] =
+                    ($segments[$segment]['sourceContentTypeBaseCounts'][$sourceContentTypeBaseKey] ?? 0) + 1;
+                $segments[$segment]['sourceContentTypeSourceCounts'][$sourceContentTypeSource] =
+                    ($segments[$segment]['sourceContentTypeSourceCounts'][$sourceContentTypeSource] ?? 0) + 1;
+                $segments[$segment]['relationshipSourceKindCounts'][$sourceKind] =
+                    ($segments[$segment]['relationshipSourceKindCounts'][$sourceKind] ?? 0) + 1;
+                foreach ($sourceRoles as $sourceRole) {
+                    $segments[$segment]['sourceRoleCounts'][$sourceRole] =
+                        ($segments[$segment]['sourceRoleCounts'][$sourceRole] ?? 0) + 1;
+                }
+
+                $this->appendUniqueString($segments[$segment]['sourceParts'], $sourcePart);
+                $this->appendUniqueString($segments[$segment]['relationshipParts'], $relationshipPart === '' ? null : $relationshipPart);
+                $this->appendUniqueString($segments[$segment]['contentTypes'], $sourceContentType === '' ? null : $sourceContentType);
+
+                if (
+                    $sourceExists
+                    && $sourceBytes !== null
+                    && !isset($segments[$segment]['_seenExistingSourceParts'][$sourcePart])
+                ) {
+                    $segments[$segment]['_seenExistingSourceParts'][$sourcePart] = true;
+                    $segments[$segment]['existingSourceByteLength'] += $sourceBytes;
+                    $sourceSummary = [
+                        'sourcePart' => $sourcePart,
+                        'relationshipsPart' => $relationshipPart,
+                        'relationshipSourceKind' => $sourceKind,
+                        'sourceDirectory' => $sourceDirectoryKey,
+                        'sourceDirectoryDepth' => $sourceDirectoryDepth,
+                        'sourceBaseName' => $sourceBaseName,
+                        'sourcePathDepth' => $sourcePathDepth,
+                        'sourcePathSegmentCount' => $sourcePathSegmentCount,
+                        'sourcePathSegments' => $pathSegments,
+                        'segment' => $segment,
+                        'pathSegmentIndex' => $pathSegmentIndex,
+                        'pathSegmentPosition' => $pathSegmentPosition,
+                        'sourceTopLevelSegment' => $sourceTopLevelSegment === '' ? null : $sourceTopLevelSegment,
+                        'sourcePartExtension' => $sourcePartExtension,
+                        'sourceBytes' => $sourceBytes,
+                        'sourceCrc32' => is_string($source['sourceCrc32'] ?? null) ? $source['sourceCrc32'] : null,
+                        'sourceSha256' => is_string($source['sourceSha256'] ?? null) ? $source['sourceSha256'] : null,
+                        'sourceContentType' => $sourceContentType,
+                        'sourceContentTypeBase' => $sourceContentTypeBase,
+                        'sourceContentTypeSource' => $sourceContentTypeSource,
+                        'sourceContentTypeHasParameters' => $sourceContentTypeHasParameters,
+                        'sourceContentTypeParameterCount' => $sourceContentTypeParameterCount,
+                        'sourceRoles' => $sourceRoles,
+                        'relationshipCount' => $sourceRelationshipCount,
+                        'relationshipRecordCount' => $sourceRelationshipRecordCount,
+                    ];
+                    $largestSource = $segments[$segment]['largestExistingSourcePart'];
+                    if (
+                        !is_array($largestSource)
+                        || $sourceBytes > (int) ($largestSource['sourceBytes'] ?? 0)
+                        || (
+                            $sourceBytes === (int) ($largestSource['sourceBytes'] ?? 0)
+                            && strcmp($sourcePart, (string) ($largestSource['sourcePart'] ?? '')) < 0
+                        )
+                    ) {
+                        $segments[$segment]['largestExistingSourcePart'] = $sourceSummary;
+                    }
+                }
+            }
+
+            if (!$sourceHasFlaggedSegment) {
+                continue;
+            }
+
+            ++$sourceCount;
+            $relationshipCount += $sourceRelationshipCount;
+            $relationshipRecordCount += $sourceRelationshipRecordCount;
+            $sourceParts[$sourcePart] = true;
+            foreach (array_keys($flagsSeenInSource) as $flag) {
+                $flagSourceCounts[$flag] = ($flagSourceCounts[$flag] ?? 0) + 1;
+                $flagRelationshipCounts[$flag] = ($flagRelationshipCounts[$flag] ?? 0) + $sourceRelationshipCount;
+            }
+        }
+
+        ksort($flagOccurrenceCounts, SORT_STRING);
+        ksort($flagSourceCounts, SORT_STRING);
+        ksort($flagRelationshipCounts, SORT_STRING);
+
+        ksort($flagSegments, SORT_STRING);
+        foreach ($flagSegments as &$segmentNames) {
+            $segmentNames = array_keys($segmentNames);
+            sort($segmentNames, SORT_STRING);
+        }
+        unset($segmentNames);
+
+        ksort($flagSourceParts, SORT_STRING);
+        foreach ($flagSourceParts as &$flaggedSourceParts) {
+            $flaggedSourceParts = array_keys($flaggedSourceParts);
+            sort($flaggedSourceParts, SORT_STRING);
+        }
+        unset($flaggedSourceParts);
+
+        ksort($segments, SORT_STRING);
+        foreach ($segments as &$segmentSummary) {
+            sort($segmentSummary['flags'], SORT_STRING);
+            ksort($segmentSummary['flagOccurrenceCounts'], SORT_STRING);
+            ksort($segmentSummary['flagSourceCounts'], SORT_STRING);
+            ksort($segmentSummary['flagRelationshipCounts'], SORT_STRING);
+            ksort($segmentSummary['pathSegmentIndexCounts'], SORT_NUMERIC);
+            ksort($segmentSummary['pathSegmentPositionCounts'], SORT_STRING);
+            ksort($segmentSummary['sourcePathDepthCounts'], SORT_NUMERIC);
+            ksort($segmentSummary['sourceTopLevelSegmentCounts'], SORT_STRING);
+            ksort($segmentSummary['sourceDirectoryCounts'], SORT_STRING);
+            ksort($segmentSummary['sourceBaseNameCounts'], SORT_STRING);
+            ksort($segmentSummary['sourcePartExtensionCounts'], SORT_STRING);
+            ksort($segmentSummary['sourceContentTypeBaseCounts'], SORT_STRING);
+            ksort($segmentSummary['sourceContentTypeSourceCounts'], SORT_STRING);
+            ksort($segmentSummary['relationshipSourceKindCounts'], SORT_STRING);
+            ksort($segmentSummary['sourceRoleCounts'], SORT_STRING);
+            sort($segmentSummary['sourceParts'], SORT_STRING);
+            sort($segmentSummary['existingSourceParts'], SORT_STRING);
+            sort($segmentSummary['nonExistingSourceParts'], SORT_STRING);
+            sort($segmentSummary['relationshipParts'], SORT_STRING);
+            sort($segmentSummary['contentTypes'], SORT_STRING);
+            unset($segmentSummary['_seenSourceParts'], $segmentSummary['_seenExistingSourceParts']);
+        }
+        unset($segmentSummary);
+
+        $segmentNames = array_keys($segments);
+        $sourceParts = array_keys($sourceParts);
+        sort($sourceParts, SORT_STRING);
+
+        return [
+            'segmentCount' => count($segments),
+            'occurrenceCount' => $occurrenceCount,
+            'sourceCount' => $sourceCount,
+            'relationshipCount' => $relationshipCount,
+            'relationshipRecordCount' => $relationshipRecordCount,
+            'sourcePartCount' => count($sourceParts),
+            'segmentNames' => $segmentNames,
+            'flagOccurrenceCounts' => $flagOccurrenceCounts,
+            'flagSourceCounts' => $flagSourceCounts,
+            'flagRelationshipCounts' => $flagRelationshipCounts,
+            'flagSegments' => $flagSegments,
+            'flagSourceParts' => $flagSourceParts,
+            'segments' => array_values($segments),
+        ];
     }
 
     /**
