@@ -12428,10 +12428,19 @@ final class DocxOpenXmlReader
     {
         $targetReferenceSuffix = $this->targetReferenceSuffix($relationship['resolvedTarget']);
         $contentTypeResolution = $this->contentTypeResolutionForPart($targetPart, $contentTypes);
+        $typeUri = $this->relationshipTypeUriProvenance($relationship['type']);
 
         return [
             'id' => $relationship['id'],
             'type' => $relationship['type'],
+            'typeUriKind' => $typeUri['kind'],
+            'typeUriScheme' => $typeUri['scheme'],
+            'typeUriHost' => $typeUri['host'],
+            'typeUriPath' => $typeUri['path'],
+            'typeUriPathSegments' => $typeUri['pathSegments'],
+            'typeUriPathPrefix' => $typeUri['pathPrefix'],
+            'typeUriLeaf' => $typeUri['leaf'],
+            'typeUriNamespace' => $typeUri['namespace'],
             'sourcePart' => $sourcePart,
             'relationshipsPart' => $relationshipsPart,
             'target' => $relationship['target'],
@@ -16182,6 +16191,15 @@ final class DocxOpenXmlReader
         $existingRelationshipTargetCount = 0;
         $missingRelationshipTargetCount = 0;
         $relationshipTypeCounts = [];
+        $relationshipTypeUriDeclarationCount = 0;
+        $relationshipTypeMissingDeclarationCount = 0;
+        $relationshipTypeUriKindCounts = [];
+        $relationshipTypeUriSchemeCounts = [];
+        $relationshipTypeUriHostCounts = [];
+        $relationshipTypeUriPathPrefixCounts = [];
+        $relationshipTypeUriLeafCounts = [];
+        $relationshipTypeUriNamespaceCounts = [];
+        $relationshipTypeUriNamespaces = [];
         $missingRelationshipTargets = [];
         $externalRelationshipTargets = [];
         $unsafeExternalRelationshipTargets = [];
@@ -16552,6 +16570,72 @@ final class DocxOpenXmlReader
                 $type = (string) ($relationship['type'] ?? '');
                 $typeKey = $type === '' ? '(missing-type)' : $type;
                 $relationshipTypeCounts[$typeKey] = ($relationshipTypeCounts[$typeKey] ?? 0) + 1;
+                $typeUri = [
+                    'kind' => is_string($relationship['typeUriKind'] ?? null) ? $relationship['typeUriKind'] : null,
+                    'scheme' => is_string($relationship['typeUriScheme'] ?? null) ? $relationship['typeUriScheme'] : null,
+                    'host' => is_string($relationship['typeUriHost'] ?? null) ? $relationship['typeUriHost'] : null,
+                    'pathPrefix' => is_string($relationship['typeUriPathPrefix'] ?? null) ? $relationship['typeUriPathPrefix'] : '',
+                    'leaf' => is_string($relationship['typeUriLeaf'] ?? null) ? $relationship['typeUriLeaf'] : null,
+                    'namespace' => is_string($relationship['typeUriNamespace'] ?? null) ? $relationship['typeUriNamespace'] : '',
+                ];
+                if (!is_string($typeUri['kind'])) {
+                    $typeUri = $this->relationshipTypeUriProvenance($type);
+                }
+                $relationshipTypeUriKindCounts[$typeUri['kind']] =
+                    ($relationshipTypeUriKindCounts[$typeUri['kind']] ?? 0) + 1;
+                if ($type === '') {
+                    ++$relationshipTypeMissingDeclarationCount;
+                } else {
+                    ++$relationshipTypeUriDeclarationCount;
+                    $schemeKey = $typeUri['scheme'] ?? '(none)';
+                    $hostKey = $typeUri['host'] ?? '(none)';
+                    $pathPrefixKey = $typeUri['pathPrefix'] === '' ? '(none)' : $typeUri['pathPrefix'];
+                    $leafKey = $typeUri['leaf'] ?? '(none)';
+                    $namespaceKey = $typeUri['namespace'] === '' ? '(none)' : $typeUri['namespace'];
+                    $relationshipTypeUriSchemeCounts[$schemeKey] =
+                        ($relationshipTypeUriSchemeCounts[$schemeKey] ?? 0) + 1;
+                    $relationshipTypeUriHostCounts[$hostKey] =
+                        ($relationshipTypeUriHostCounts[$hostKey] ?? 0) + 1;
+                    $relationshipTypeUriPathPrefixCounts[$pathPrefixKey] =
+                        ($relationshipTypeUriPathPrefixCounts[$pathPrefixKey] ?? 0) + 1;
+                    $relationshipTypeUriLeafCounts[$leafKey] =
+                        ($relationshipTypeUriLeafCounts[$leafKey] ?? 0) + 1;
+                    $relationshipTypeUriNamespaceCounts[$namespaceKey] =
+                        ($relationshipTypeUriNamespaceCounts[$namespaceKey] ?? 0) + 1;
+                    if (!isset($relationshipTypeUriNamespaces[$namespaceKey])) {
+                        $relationshipTypeUriNamespaces[$namespaceKey] = [
+                            'namespace' => $typeUri['namespace'],
+                            'scheme' => $typeUri['scheme'],
+                            'host' => $typeUri['host'],
+                            'pathPrefix' => $typeUri['pathPrefix'],
+                            'relationshipCount' => 0,
+                            'relationshipTypes' => [],
+                            'relationshipTypeCounts' => [],
+                            'relationshipParts' => [],
+                            'sourceParts' => [],
+                            'relationshipIds' => [],
+                            'leafCounts' => [],
+                        ];
+                    }
+                    ++$relationshipTypeUriNamespaces[$namespaceKey]['relationshipCount'];
+                    $relationshipTypeUriNamespaces[$namespaceKey]['relationshipTypeCounts'][$typeKey] =
+                        ($relationshipTypeUriNamespaces[$namespaceKey]['relationshipTypeCounts'][$typeKey] ?? 0) + 1;
+                    $relationshipTypeUriNamespaces[$namespaceKey]['leafCounts'][$leafKey] =
+                        ($relationshipTypeUriNamespaces[$namespaceKey]['leafCounts'][$leafKey] ?? 0) + 1;
+                    $this->appendUniqueString($relationshipTypeUriNamespaces[$namespaceKey]['relationshipTypes'], $type);
+                    $this->appendUniqueString(
+                        $relationshipTypeUriNamespaces[$namespaceKey]['relationshipParts'],
+                        is_string($relationship['relationshipsPart'] ?? null) ? $relationship['relationshipsPart'] : null,
+                    );
+                    $this->appendUniqueString(
+                        $relationshipTypeUriNamespaces[$namespaceKey]['sourceParts'],
+                        is_string($relationship['sourcePart'] ?? null) ? $relationship['sourcePart'] : null,
+                    );
+                    $this->appendUniqueString(
+                        $relationshipTypeUriNamespaces[$namespaceKey]['relationshipIds'],
+                        is_string($relationship['id'] ?? null) ? $relationship['id'] : null,
+                    );
+                }
 
                 $targetReferenceSuffix = is_string($relationship['targetReferenceSuffix'] ?? null)
                     ? $relationship['targetReferenceSuffix']
@@ -18141,6 +18225,22 @@ final class DocxOpenXmlReader
         }
 
         ksort($relationshipTypeCounts);
+        ksort($relationshipTypeUriKindCounts, SORT_STRING);
+        ksort($relationshipTypeUriSchemeCounts, SORT_STRING);
+        ksort($relationshipTypeUriHostCounts, SORT_STRING);
+        ksort($relationshipTypeUriPathPrefixCounts, SORT_STRING);
+        ksort($relationshipTypeUriLeafCounts, SORT_STRING);
+        ksort($relationshipTypeUriNamespaceCounts, SORT_STRING);
+        ksort($relationshipTypeUriNamespaces, SORT_STRING);
+        foreach ($relationshipTypeUriNamespaces as &$typeUriNamespace) {
+            ksort($typeUriNamespace['relationshipTypeCounts'], SORT_STRING);
+            ksort($typeUriNamespace['leafCounts'], SORT_STRING);
+            sort($typeUriNamespace['relationshipTypes'], SORT_STRING);
+            sort($typeUriNamespace['relationshipParts'], SORT_STRING);
+            sort($typeUriNamespace['sourceParts'], SORT_STRING);
+            sort($typeUriNamespace['relationshipIds'], SORT_STRING);
+        }
+        unset($typeUriNamespace);
         ksort($externalRelationshipTargetKindCounts);
         ksort($externalRelationshipTargetSchemeCounts);
         ksort($externalRelationshipTargetIssueCounts);
@@ -20124,6 +20224,21 @@ final class DocxOpenXmlReader
             'roleCounts' => $roleCounts,
             'roleByteLengths' => $roleByteLengths,
             'relationshipTypeCounts' => $relationshipTypeCounts,
+            'relationshipTypeUriDeclarationCount' => $relationshipTypeUriDeclarationCount,
+            'relationshipTypeMissingDeclarationCount' => $relationshipTypeMissingDeclarationCount,
+            'relationshipTypeUriKindCount' => count($relationshipTypeUriKindCounts),
+            'relationshipTypeUriKindCounts' => $relationshipTypeUriKindCounts,
+            'relationshipTypeUriSchemeCount' => count($relationshipTypeUriSchemeCounts),
+            'relationshipTypeUriSchemeCounts' => $relationshipTypeUriSchemeCounts,
+            'relationshipTypeUriHostCount' => count($relationshipTypeUriHostCounts),
+            'relationshipTypeUriHostCounts' => $relationshipTypeUriHostCounts,
+            'relationshipTypeUriPathPrefixCount' => count($relationshipTypeUriPathPrefixCounts),
+            'relationshipTypeUriPathPrefixCounts' => $relationshipTypeUriPathPrefixCounts,
+            'relationshipTypeUriLeafCount' => count($relationshipTypeUriLeafCounts),
+            'relationshipTypeUriLeafCounts' => $relationshipTypeUriLeafCounts,
+            'relationshipTypeUriNamespaceCount' => count($relationshipTypeUriNamespaceCounts),
+            'relationshipTypeUriNamespaceCounts' => $relationshipTypeUriNamespaceCounts,
+            'relationshipTypeUriNamespaces' => array_values($relationshipTypeUriNamespaces),
             'partDirectories' => $partDirectories,
             'partDirectoryBaseNameCount' => count($partDirectoryBaseNames),
             'partDirectoryBaseNameCounts' => $partDirectoryBaseNameCounts,
@@ -40865,6 +40980,16 @@ final class DocxOpenXmlReader
         return [
             'id' => $relationship['id'] ?? '',
             'type' => $relationship['type'] ?? '',
+            'typeUriKind' => is_string($relationship['typeUriKind'] ?? null) ? $relationship['typeUriKind'] : null,
+            'typeUriScheme' => is_string($relationship['typeUriScheme'] ?? null) ? $relationship['typeUriScheme'] : null,
+            'typeUriHost' => is_string($relationship['typeUriHost'] ?? null) ? $relationship['typeUriHost'] : null,
+            'typeUriPath' => is_string($relationship['typeUriPath'] ?? null) ? $relationship['typeUriPath'] : '',
+            'typeUriPathSegments' => is_array($relationship['typeUriPathSegments'] ?? null)
+                ? array_values(array_map('strval', $relationship['typeUriPathSegments']))
+                : [],
+            'typeUriPathPrefix' => is_string($relationship['typeUriPathPrefix'] ?? null) ? $relationship['typeUriPathPrefix'] : '',
+            'typeUriLeaf' => is_string($relationship['typeUriLeaf'] ?? null) ? $relationship['typeUriLeaf'] : null,
+            'typeUriNamespace' => is_string($relationship['typeUriNamespace'] ?? null) ? $relationship['typeUriNamespace'] : '',
             'sourcePart' => $relationship['sourcePart'] ?? '',
             'relationshipsPart' => $relationship['relationshipsPart'] ?? '',
             'target' => $relationship['target'] ?? '',
@@ -41154,9 +41279,18 @@ final class DocxOpenXmlReader
                 $type = is_string($relationship['type'] ?? null) ? $relationship['type'] : '';
                 $typeKey = $type === '' ? '(missing-type)' : $type;
                 if (!isset($types[$typeKey])) {
+                    $typeUri = $this->relationshipTypeUriProvenance($type);
                     $types[$typeKey] = [
                         'type' => $type,
                         'label' => $this->relationshipTypeLabel($type),
+                        'typeUriKind' => $typeUri['kind'],
+                        'typeUriScheme' => $typeUri['scheme'],
+                        'typeUriHost' => $typeUri['host'],
+                        'typeUriPath' => $typeUri['path'],
+                        'typeUriPathSegments' => $typeUri['pathSegments'],
+                        'typeUriPathPrefix' => $typeUri['pathPrefix'],
+                        'typeUriLeaf' => $typeUri['leaf'],
+                        'typeUriNamespace' => $typeUri['namespace'],
                         'count' => 0,
                         'internalCount' => 0,
                         'externalCount' => 0,
@@ -41386,6 +41520,16 @@ final class DocxOpenXmlReader
                 $this->appendUniqueString($types[$typeKey]['contentTypes'], $contentType);
                 $types[$typeKey]['relationships'][] = [
                     'id' => is_string($relationship['id'] ?? null) ? $relationship['id'] : '',
+                    'typeUriKind' => is_string($relationship['typeUriKind'] ?? null) ? $relationship['typeUriKind'] : null,
+                    'typeUriScheme' => is_string($relationship['typeUriScheme'] ?? null) ? $relationship['typeUriScheme'] : null,
+                    'typeUriHost' => is_string($relationship['typeUriHost'] ?? null) ? $relationship['typeUriHost'] : null,
+                    'typeUriPath' => is_string($relationship['typeUriPath'] ?? null) ? $relationship['typeUriPath'] : '',
+                    'typeUriPathSegments' => is_array($relationship['typeUriPathSegments'] ?? null)
+                        ? array_values(array_map('strval', $relationship['typeUriPathSegments']))
+                        : [],
+                    'typeUriPathPrefix' => is_string($relationship['typeUriPathPrefix'] ?? null) ? $relationship['typeUriPathPrefix'] : '',
+                    'typeUriLeaf' => is_string($relationship['typeUriLeaf'] ?? null) ? $relationship['typeUriLeaf'] : null,
+                    'typeUriNamespace' => is_string($relationship['typeUriNamespace'] ?? null) ? $relationship['typeUriNamespace'] : '',
                     'sourcePart' => $sourcePart,
                     'relationshipsPart' => $relationshipsPart,
                     'relationshipSourceKind' => $sourceKind,
@@ -41477,6 +41621,88 @@ final class DocxOpenXmlReader
         return $position >= 0 && $position < strlen($trimmed) - 1
             ? substr($trimmed, $position + 1)
             : $trimmed;
+    }
+
+    /**
+     * @return array{kind:string, scheme:?string, host:?string, path:string, pathSegments:list<string>, pathPrefix:string, leaf:?string, namespace:string}
+     */
+    private function relationshipTypeUriProvenance(string $type): array
+    {
+        $type = trim($type);
+        if ($type === '') {
+            return [
+                'kind' => 'missing-type',
+                'scheme' => null,
+                'host' => null,
+                'path' => '',
+                'pathSegments' => [],
+                'pathPrefix' => '',
+                'leaf' => null,
+                'namespace' => '',
+            ];
+        }
+
+        $kind = 'relative-reference';
+        $scheme = null;
+        $host = null;
+        $path = $type;
+        if (preg_match('/^([A-Za-z][A-Za-z0-9+.-]*):(.*)$/', $type, $match) === 1) {
+            $kind = 'absolute-uri';
+            $scheme = strtolower($match[1]);
+            $remainder = $match[2];
+            $parsed = parse_url($type);
+            if (is_array($parsed)) {
+                $host = is_string($parsed['host'] ?? null) ? strtolower($parsed['host']) : null;
+                $path = is_string($parsed['path'] ?? null) ? $parsed['path'] : '';
+            } else {
+                $path = $remainder;
+            }
+        } elseif (str_starts_with($type, '//')) {
+            $kind = 'network-path-reference';
+            $parsed = parse_url($type);
+            if (is_array($parsed)) {
+                $host = is_string($parsed['host'] ?? null) ? strtolower($parsed['host']) : null;
+                $path = is_string($parsed['path'] ?? null) ? $parsed['path'] : '';
+            }
+        }
+
+        $path = preg_replace('/[?#].*$/', '', $path) ?? $path;
+        $path = trim($path);
+        $pathSegmentSource = trim($path, '/');
+        if ($scheme !== null && $host === null && $pathSegmentSource !== '' && !str_contains($pathSegmentSource, '/')) {
+            $segments = preg_split('/:+/', $pathSegmentSource) ?: [];
+        } else {
+            $segments = explode('/', $pathSegmentSource);
+        }
+        $segments = array_values(array_filter(
+            array_map('strval', $segments),
+            static fn (string $segment): bool => $segment !== '',
+        ));
+        $leaf = $segments === [] ? null : $segments[array_key_last($segments)];
+        $pathPrefixSegments = $segments;
+        if ($pathPrefixSegments !== []) {
+            array_pop($pathPrefixSegments);
+        }
+        $pathPrefix = implode('/', $pathPrefixSegments);
+        $namespace = $pathPrefix;
+        if ($scheme !== null && $host !== null) {
+            $namespace = $scheme . '://' . $host . ($pathPrefix === '' ? '' : '/' . $pathPrefix);
+        } elseif ($scheme !== null) {
+            $namespace = $scheme . ':' . $pathPrefix;
+        } elseif ($host !== null) {
+            $namespace = '//' . $host . ($pathPrefix === '' ? '' : '/' . $pathPrefix);
+        }
+
+        return [
+            'kind' => $kind,
+            'scheme' => $scheme,
+            'host' => $host,
+            'path' => $path,
+            'pathSegments' => $segments,
+            'pathPrefix' => $pathPrefix,
+            'leaf' => $leaf,
+            'namespace' => $namespace,
+        ];
     }
 
     /**
@@ -42887,6 +43113,7 @@ final class DocxOpenXmlReader
         string $relationshipsPart,
         array $contentTypes,
     ): array {
+        $typeUri = $this->relationshipTypeUriProvenance($relationship['type']);
         $external = $this->isExternalRelationshipTarget($relationship);
         $externalPolicy = $external ? $this->externalRelationshipTargetPolicy($relationship['target']) : null;
         $targetPart = $external || $relationship['target'] === ''
@@ -42915,6 +43142,14 @@ final class DocxOpenXmlReader
         return [
             'id' => $relationship['id'],
             'type' => $relationship['type'],
+            'typeUriKind' => $typeUri['kind'],
+            'typeUriScheme' => $typeUri['scheme'],
+            'typeUriHost' => $typeUri['host'],
+            'typeUriPath' => $typeUri['path'],
+            'typeUriPathSegments' => $typeUri['pathSegments'],
+            'typeUriPathPrefix' => $typeUri['pathPrefix'],
+            'typeUriLeaf' => $typeUri['leaf'],
+            'typeUriNamespace' => $typeUri['namespace'],
             'sourcePart' => $sourcePart,
             'relationshipsPart' => $relationshipsPart,
             'target' => $relationship['target'],
