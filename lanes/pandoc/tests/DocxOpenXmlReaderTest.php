@@ -841,6 +841,111 @@ return [
         $t->same($expectedByMethod[8]['largestCompressedPart']['sha256'], $deflated['largestCompressedPart']['sha256']);
         $t->same(true, $deflated['largestCompressedPart']['compressionSupported']);
     },
+    'summarizes docx zip expansion ratios for package review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $expansionPart = 'customXml/zip-expansion-review.xml';
+        $parts[$expansionPart] = str_repeat('<review>zip expansion ratio</review>', 512);
+        $storedNames = [
+            'word/media/' => true,
+            '[Content_Types].xml' => true,
+            'word/media/review.png' => true,
+        ];
+        $zipParts = [
+            ['name' => 'word/media/', 'data' => '', 'compressionMethod' => 0],
+        ];
+        $expectedZipCompressedBytes = 0;
+        $expectedZipUncompressedBytes = 0;
+        $expectedByMethod = [
+            0 => ['compressedByteLength' => 0, 'uncompressedByteLength' => 0],
+            8 => ['compressedByteLength' => 0, 'uncompressedByteLength' => 0],
+        ];
+        $expectedPartCompressedBytes = 0;
+        $expectedPartUncompressedBytes = 0;
+        $expectedEntryRatios = [];
+        $ratio = static function (int $uncompressedBytes, int $compressedBytes): ?float {
+            if ($uncompressedBytes === 0) {
+                return 0.0;
+            }
+
+            return $compressedBytes === 0 ? null : $uncompressedBytes / $compressedBytes;
+        };
+
+        foreach ($parts as $name => $data) {
+            $method = isset($storedNames[$name]) ? 0 : 8;
+            $compressed = $method === 8 ? gzdeflate($data) : $data;
+            $t->true(is_string($compressed), "fixture {$name} should compress");
+            $compressedLength = strlen($compressed);
+            $uncompressedLength = strlen($data);
+            $zipParts[] = [
+                'name' => $name,
+                'data' => $data,
+                'compressionMethod' => $method,
+            ];
+            $expectedZipCompressedBytes += $compressedLength;
+            $expectedZipUncompressedBytes += $uncompressedLength;
+            $expectedPartCompressedBytes += $compressedLength;
+            $expectedPartUncompressedBytes += $uncompressedLength;
+            $expectedByMethod[$method]['compressedByteLength'] += $compressedLength;
+            $expectedByMethod[$method]['uncompressedByteLength'] += $uncompressedLength;
+            $expectedEntryRatios[$name] = $ratio($uncompressedLength, $compressedLength);
+        }
+
+        $document = (new DocxOpenXmlReader())->readZipPackage(ZipPackage::fromParts($zipParts));
+        $package = $document->attr('docx')['packageProvenance'];
+        $zipPackage = $package['zipPackage'];
+        $summary = $package['summary'];
+        $entry = $zipPackage['byPackagePath'][$expansionPart];
+        $inventory = $package['parts'][$expansionPart];
+        $partBuckets = [];
+        foreach ($summary['partZipCompressionMethods'] as $bucket) {
+            $partBuckets[(int) $bucket['compressionMethod']] = $bucket;
+        }
+        $zipBuckets = [];
+        foreach ($summary['zipCompressionMethods'] as $bucket) {
+            $zipBuckets[(int) $bucket['compressionMethod']] = $bucket;
+        }
+
+        $t->same('Imported DOCX Heading', $document->children[0]->attr('text'));
+        $t->same($expectedZipCompressedBytes, $zipPackage['compressedByteLength']);
+        $t->same($expectedZipUncompressedBytes, $zipPackage['uncompressedByteLength']);
+        $t->same($ratio($expectedZipUncompressedBytes, $expectedZipCompressedBytes), $zipPackage['expansionRatio']);
+        $t->same(1, $zipPackage['zeroByteEntryCount']);
+        $t->same(0, $zipPackage['zeroByteFileCount']);
+        $t->same(1, $zipPackage['emptyDirectoryEntryCount']);
+        $t->same(true, $zipPackage['hasZeroByteEntries']);
+        $t->same(0, $zipPackage['unknownExpansionRatioEntryCount']);
+        $t->same(false, $zipPackage['hasUnknownExpansionRatioEntries']);
+        $t->same([], $zipPackage['unknownExpansionRatioEntries']);
+        $t->same($expansionPart, $zipPackage['largestUncompressedEntry']['name']);
+        $t->same($expectedEntryRatios[$expansionPart], $zipPackage['largestUncompressedEntry']['expansionRatio']);
+
+        $t->same($expectedEntryRatios[$expansionPart], $entry['expansionRatio']);
+        $t->same(false, $entry['hasUnknownExpansionRatio']);
+        $t->same($expectedEntryRatios[$expansionPart], $inventory['zipExpansionRatio']);
+        $t->same(false, $inventory['zipHasUnknownExpansionRatio']);
+        $t->same('docx-zip-entry-metadata-only', $entry['byteExposurePolicy']);
+        $t->same(false, $entry['canExposeBytes']);
+
+        $t->same($expectedZipCompressedBytes, $summary['zipCompressedByteLength']);
+        $t->same($expectedZipUncompressedBytes, $summary['zipUncompressedByteLength']);
+        $t->same($ratio($expectedZipUncompressedBytes, $expectedZipCompressedBytes), $summary['zipExpansionRatio']);
+        $t->same(1, $summary['zipZeroByteEntryCount']);
+        $t->same(1, $summary['zipEmptyDirectoryEntryCount']);
+        $t->same(false, $summary['zipHasUnknownExpansionRatioEntries']);
+        $t->same($expectedPartCompressedBytes, $summary['partZipCompressedByteLength']);
+        $t->same($expectedPartUncompressedBytes, $summary['partZipUncompressedByteLength']);
+        $t->same($ratio($expectedPartUncompressedBytes, $expectedPartCompressedBytes), $summary['partZipExpansionRatio']);
+        $t->same(0, $summary['partZipUnknownExpansionRatioPartCount']);
+        $t->same([], $summary['partZipUnknownExpansionRatioPartNames']);
+
+        $t->same($ratio($expectedByMethod[0]['uncompressedByteLength'], $expectedByMethod[0]['compressedByteLength']), $zipBuckets[0]['expansionRatio']);
+        $t->same($ratio($expectedByMethod[8]['uncompressedByteLength'], $expectedByMethod[8]['compressedByteLength']), $zipBuckets[8]['expansionRatio']);
+        $t->same($ratio($expectedByMethod[0]['uncompressedByteLength'], $expectedByMethod[0]['compressedByteLength']), $partBuckets[0]['expansionRatio']);
+        $t->same($ratio($expectedByMethod[8]['uncompressedByteLength'], $expectedByMethod[8]['compressedByteLength']), $partBuckets[8]['expansionRatio']);
+        $t->same(0, $partBuckets[8]['unknownExpansionRatioPartCount']);
+        $t->same([], $partBuckets[8]['unknownExpansionRatioPartNames']);
+        $t->true(in_array($expansionPart, $partBuckets[8]['partNames'], true), 'expansion fixture should stay in deflated part bucket');
+    },
     'preserves docx zip data descriptor provenance across package ingestion' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $zipParts = docx_openxml_reader_zip_parts($parts);
