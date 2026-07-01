@@ -1148,8 +1148,17 @@ XML,
             'hasPackageComment' => 'packageManifestHasPackageComment',
             'hasCentralDirectorySignature' => 'packageManifestHasCentralDirectorySignature',
             'centralDirectorySignatureOffset' => 'packageManifestCentralDirectorySignatureOffset',
+            'centralDirectorySignatureDataOffset' => 'packageManifestCentralDirectorySignatureDataOffset',
+            'centralDirectorySignatureEnd' => 'packageManifestCentralDirectorySignatureEnd',
             'centralDirectorySignatureBytes' => 'packageManifestCentralDirectorySignatureBytes',
+            'centralDirectorySignatureRecordBytes' => 'packageManifestCentralDirectorySignatureRecordBytes',
+            'centralDirectorySignaturePreviewHex' => 'packageManifestCentralDirectorySignaturePreviewHex',
+            'centralDirectorySignaturePreviewByteCount' => 'packageManifestCentralDirectorySignaturePreviewByteCount',
             'centralDirectorySignatureSha256' => 'packageManifestCentralDirectorySignatureSha256',
+            'centralDirectorySignatureLocation' => 'packageManifestCentralDirectorySignatureLocation',
+            'centralDirectorySignatureVerification' => 'packageManifestCentralDirectorySignatureVerification',
+            'centralDirectorySignatureByteExposurePolicy' => 'packageManifestCentralDirectorySignatureByteExposurePolicy',
+            'centralDirectorySignatureCanExposeBytes' => 'packageManifestCentralDirectorySignatureCanExposeBytes',
             'entryCount' => 'packageManifestEntryCount',
             'fileEntryCount' => 'packageManifestFileEntryCount',
             'directoryEntryCount' => 'packageManifestDirectoryEntryCount',
@@ -2200,6 +2209,67 @@ XML,
         $t->same(true, $mediaPart['zipEntryHasComment']);
         $t->same('docx-zip-entry-metadata-only', $mediaPart['zipByteExposurePolicy']);
         $t->same(false, $mediaPart['zipCanExposeBytes']);
+    },
+    'preserves docx central directory signature metadata without exposing bytes' => static function (TestRunner $t): void {
+        $signatureData = 'docx-central-directory-signature-review';
+        $signatureRecord = "PK\x05\x05" . pack('v', strlen($signatureData)) . $signatureData;
+        $zip = docx_openxml_reader_zip_package_with_central_directory_signature(
+            docx_openxml_reader_zip_package(docx_openxml_reader_fixture_parts()),
+            $signatureData,
+        );
+        $manifest = $zip->packageManifestPreflight();
+        $document = (new DocxOpenXmlReader())->readZipPackage($zip);
+        $package = $document->attr('docx')['packageProvenance'];
+        $zipPackage = $package['zipPackage'];
+        $summary = $package['summary'];
+        $previewByteCount = min(16, strlen($signatureData));
+        $expectedSignatureProvenance = [
+            'hasCentralDirectorySignature' => true,
+            'centralDirectorySignatureOffset' => $manifest['centralDirectoryEnd'],
+            'centralDirectorySignatureDataOffset' => $manifest['centralDirectorySignatureOffset'] + 6,
+            'centralDirectorySignatureEnd' => $manifest['endOfCentralDirectoryOffset'],
+            'centralDirectorySignatureBytes' => strlen($signatureData),
+            'centralDirectorySignatureRecordBytes' => strlen($signatureRecord),
+            'centralDirectorySignaturePreviewHex' => bin2hex(substr($signatureData, 0, $previewByteCount)),
+            'centralDirectorySignaturePreviewByteCount' => $previewByteCount,
+            'centralDirectorySignatureSha256' => hash('sha256', $signatureData),
+            'centralDirectorySignatureLocation' => 'between-central-directory-and-eocd',
+            'centralDirectorySignatureVerification' => 'not-performed-native-bounded-reader',
+            'centralDirectorySignatureByteExposurePolicy' => 'central-directory-signature-metadata-only',
+            'centralDirectorySignatureCanExposeBytes' => false,
+        ];
+
+        $t->same('Imported DOCX Heading', $document->children[0]->attr('text'));
+        $t->same($manifest, $zipPackage['packageManifest']);
+        $t->same($manifest['packageSource'], $zipPackage['packageManifestPackageSource']);
+        $t->same($manifest['packageSource'], $summary['zipPackageManifestPackageSource']);
+        $t->same(strlen($signatureRecord), $manifest['centralDirectoryToEocdGapBytes']);
+        $t->same(hash('sha256', $signatureRecord), $manifest['centralDirectoryToEocdGapSha256']);
+        $t->same($manifest['centralDirectoryToEocdGapBytes'], $zipPackage['packageManifestCentralDirectoryToEocdGapBytes']);
+        $t->same($manifest['centralDirectoryToEocdGapSha256'], $zipPackage['packageManifestCentralDirectoryToEocdGapSha256']);
+        $t->same($manifest['centralDirectoryToEocdGapBytes'], $summary['zipPackageManifestCentralDirectoryToEocdGapBytes']);
+        $t->same($manifest['centralDirectoryToEocdGapSha256'], $summary['zipPackageManifestCentralDirectoryToEocdGapSha256']);
+
+        foreach ($expectedSignatureProvenance as $key => $expected) {
+            $packageManifestKey = 'packageManifest' . ucfirst($key);
+            $summaryKey = 'zipPackageManifest' . ucfirst($key);
+            $t->same($expected, $manifest[$key], "{$key} package manifest");
+            $t->same($expected, $manifest['packageSource'][$key], "{$key} package source");
+            $t->same($expected, $zipPackage[$packageManifestKey], "{$packageManifestKey} zip package");
+            $t->same($expected, $summary[$summaryKey], "{$summaryKey} summary");
+        }
+
+        foreach ([
+            $manifest,
+            $manifest['packageSource'],
+            $zipPackage['packageManifestPackageSource'],
+            $summary['zipPackageManifestPackageSource'],
+        ] as $metadata) {
+            $t->same(false, array_key_exists('centralDirectorySignatureData', $metadata));
+            $t->same(false, array_key_exists('signatureData', $metadata));
+        }
+        $t->same('docx-zip-entry-metadata-only', $zipPackage['byteExposurePolicy']);
+        $t->same(false, $zipPackage['canExposeBytes']);
     },
     'preserves docx package inventory CRC32 provenance for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
@@ -24938,6 +25008,25 @@ function docx_openxml_reader_zip_package_with_compression_methods(array $parts, 
 function docx_openxml_reader_zip_package(array $parts): ZipPackage
 {
     return ZipPackage::fromParts(docx_openxml_reader_zip_parts($parts));
+}
+
+function docx_openxml_reader_zip_package_with_central_directory_signature(
+    ZipPackage $package,
+    string $signatureData
+): ZipPackage {
+    $bytes = $package->bytes();
+    $eocdOffset = strrpos($bytes, "PK\x05\x06");
+    if ($eocdOffset === false) {
+        throw new RuntimeException('Unable to locate DOCX ZIP end of central directory record');
+    }
+
+    $signatureRecord = "PK\x05\x05" . pack('v', strlen($signatureData)) . $signatureData;
+
+    return ZipPackage::fromString(
+        substr($bytes, 0, $eocdOffset)
+        . $signatureRecord
+        . substr($bytes, $eocdOffset)
+    );
 }
 
 /**

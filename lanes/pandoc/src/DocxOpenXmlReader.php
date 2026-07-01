@@ -12184,10 +12184,31 @@ final class DocxOpenXmlReader
         $summary['zipPackageManifestCentralDirectorySignatureOffset'] = is_int($zipPackageManifest['centralDirectorySignatureOffset'] ?? null)
             ? $zipPackageManifest['centralDirectorySignatureOffset']
             : null;
+        $summary['zipPackageManifestCentralDirectorySignatureDataOffset'] = is_int($zipPackageManifest['centralDirectorySignatureDataOffset'] ?? null)
+            ? $zipPackageManifest['centralDirectorySignatureDataOffset']
+            : null;
+        $summary['zipPackageManifestCentralDirectorySignatureEnd'] = is_int($zipPackageManifest['centralDirectorySignatureEnd'] ?? null)
+            ? $zipPackageManifest['centralDirectorySignatureEnd']
+            : null;
         $summary['zipPackageManifestCentralDirectorySignatureBytes'] = (int) ($zipPackageManifest['centralDirectorySignatureBytes'] ?? 0);
+        $summary['zipPackageManifestCentralDirectorySignatureRecordBytes'] = (int) ($zipPackageManifest['centralDirectorySignatureRecordBytes'] ?? 0);
+        $summary['zipPackageManifestCentralDirectorySignaturePreviewHex'] = is_string($zipPackageManifest['centralDirectorySignaturePreviewHex'] ?? null)
+            ? $zipPackageManifest['centralDirectorySignaturePreviewHex']
+            : '';
+        $summary['zipPackageManifestCentralDirectorySignaturePreviewByteCount'] = (int) ($zipPackageManifest['centralDirectorySignaturePreviewByteCount'] ?? 0);
         $summary['zipPackageManifestCentralDirectorySignatureSha256'] = is_string($zipPackageManifest['centralDirectorySignatureSha256'] ?? null)
             ? $zipPackageManifest['centralDirectorySignatureSha256']
             : null;
+        $summary['zipPackageManifestCentralDirectorySignatureLocation'] = is_string($zipPackageManifest['centralDirectorySignatureLocation'] ?? null)
+            ? $zipPackageManifest['centralDirectorySignatureLocation']
+            : null;
+        $summary['zipPackageManifestCentralDirectorySignatureVerification'] = is_string($zipPackageManifest['centralDirectorySignatureVerification'] ?? null)
+            ? $zipPackageManifest['centralDirectorySignatureVerification']
+            : 'not-present';
+        $summary['zipPackageManifestCentralDirectorySignatureByteExposurePolicy'] = is_string($zipPackageManifest['centralDirectorySignatureByteExposurePolicy'] ?? null)
+            ? $zipPackageManifest['centralDirectorySignatureByteExposurePolicy']
+            : 'not-present';
+        $summary['zipPackageManifestCentralDirectorySignatureCanExposeBytes'] = ($zipPackageManifest['centralDirectorySignatureCanExposeBytes'] ?? false) === true;
         $summary['zipPackageManifestFileEntryCount'] = (int) ($zipPackageManifest['fileEntryCount'] ?? 0);
         $summary['zipPackageManifestDirectoryEntryCount'] = (int) ($zipPackageManifest['directoryEntryCount'] ?? 0);
         $summary['zipPackageManifestCompressedBytes'] = (int) ($zipPackageManifest['compressedBytes'] ?? 0);
@@ -13043,8 +13064,17 @@ final class DocxOpenXmlReader
             'hasPackageComment' => false,
             'hasCentralDirectorySignature' => false,
             'centralDirectorySignatureOffset' => null,
+            'centralDirectorySignatureDataOffset' => null,
+            'centralDirectorySignatureEnd' => null,
             'centralDirectorySignatureBytes' => 0,
+            'centralDirectorySignatureRecordBytes' => 0,
+            'centralDirectorySignaturePreviewHex' => '',
+            'centralDirectorySignaturePreviewByteCount' => 0,
             'centralDirectorySignatureSha256' => null,
+            'centralDirectorySignatureLocation' => null,
+            'centralDirectorySignatureVerification' => 'not-present',
+            'centralDirectorySignatureByteExposurePolicy' => 'not-present',
+            'centralDirectorySignatureCanExposeBytes' => false,
             'entryCount' => 0,
             'fileEntryCount' => 0,
             'directoryEntryCount' => 0,
@@ -13181,10 +13211,31 @@ final class DocxOpenXmlReader
             'packageManifestCentralDirectorySignatureOffset' => is_int($packageManifest['centralDirectorySignatureOffset'] ?? null)
                 ? $packageManifest['centralDirectorySignatureOffset']
                 : null,
+            'packageManifestCentralDirectorySignatureDataOffset' => is_int($packageManifest['centralDirectorySignatureDataOffset'] ?? null)
+                ? $packageManifest['centralDirectorySignatureDataOffset']
+                : null,
+            'packageManifestCentralDirectorySignatureEnd' => is_int($packageManifest['centralDirectorySignatureEnd'] ?? null)
+                ? $packageManifest['centralDirectorySignatureEnd']
+                : null,
             'packageManifestCentralDirectorySignatureBytes' => (int) ($packageManifest['centralDirectorySignatureBytes'] ?? 0),
+            'packageManifestCentralDirectorySignatureRecordBytes' => (int) ($packageManifest['centralDirectorySignatureRecordBytes'] ?? 0),
+            'packageManifestCentralDirectorySignaturePreviewHex' => is_string($packageManifest['centralDirectorySignaturePreviewHex'] ?? null)
+                ? $packageManifest['centralDirectorySignaturePreviewHex']
+                : '',
+            'packageManifestCentralDirectorySignaturePreviewByteCount' => (int) ($packageManifest['centralDirectorySignaturePreviewByteCount'] ?? 0),
             'packageManifestCentralDirectorySignatureSha256' => is_string($packageManifest['centralDirectorySignatureSha256'] ?? null)
                 ? $packageManifest['centralDirectorySignatureSha256']
                 : null,
+            'packageManifestCentralDirectorySignatureLocation' => is_string($packageManifest['centralDirectorySignatureLocation'] ?? null)
+                ? $packageManifest['centralDirectorySignatureLocation']
+                : null,
+            'packageManifestCentralDirectorySignatureVerification' => is_string($packageManifest['centralDirectorySignatureVerification'] ?? null)
+                ? $packageManifest['centralDirectorySignatureVerification']
+                : 'not-present',
+            'packageManifestCentralDirectorySignatureByteExposurePolicy' => is_string($packageManifest['centralDirectorySignatureByteExposurePolicy'] ?? null)
+                ? $packageManifest['centralDirectorySignatureByteExposurePolicy']
+                : 'not-present',
+            'packageManifestCentralDirectorySignatureCanExposeBytes' => ($packageManifest['centralDirectorySignatureCanExposeBytes'] ?? false) === true,
             'packageManifestEntryCount' => (int) ($packageManifest['entryCount'] ?? 0),
             'packageManifestFileEntryCount' => (int) ($packageManifest['fileEntryCount'] ?? 0),
             'packageManifestDirectoryEntryCount' => (int) ($packageManifest['directoryEntryCount'] ?? 0),
