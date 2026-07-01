@@ -511,9 +511,17 @@ return [
     'preserves docx source zip package manifest hashes across package ingestion' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $zipParts = docx_openxml_reader_zip_parts($parts);
+        $manifestExtraPayload = 'docx-manifest-extra';
+        $manifestExtraField = pack('vva*', 0xd0c0, strlen($manifestExtraPayload), $manifestExtraPayload);
         foreach ($zipParts as &$zipPart) {
             if ($zipPart['name'] === '[Content_Types].xml' || $zipPart['name'] === 'word/media/review.png') {
                 $zipPart['compressionMethod'] = 0;
+            }
+            if ($zipPart['name'] === 'word/document.xml') {
+                $zipPart['extraFieldData'] = $manifestExtraField;
+            }
+            if ($zipPart['name'] === 'word/media/review.png') {
+                $zipPart['comment'] = 'manifest media review';
             }
         }
         unset($zipPart);
@@ -546,6 +554,51 @@ return [
         $t->same($manifest['entryCount'], $summary['zipPackageManifestLocalHeaderHashCount']);
         $t->same($manifest['entryCount'], $summary['zipPackageManifestCompressedDataHashCount']);
         $t->same($manifest['entryCount'], $summary['zipPackageManifestCentralDirectoryRecordHashCount']);
+        $t->same($manifest['packageSource'], $summary['zipPackageManifestPackageSource']);
+        $t->same($manifest['archiveBytes'], $summary['zipPackageManifestArchiveBytes']);
+        $t->same($manifest['archiveSha256'], $summary['zipPackageManifestArchiveSha256']);
+        $t->same($manifest['fileEntryCount'], $summary['zipPackageManifestFileEntryCount']);
+        $t->same($manifest['directoryEntryCount'], $summary['zipPackageManifestDirectoryEntryCount']);
+        $t->same($manifest['compressedBytes'], $summary['zipPackageManifestCompressedBytes']);
+        $t->same($manifest['uncompressedBytes'], $summary['zipPackageManifestUncompressedBytes']);
+        $t->same($manifest['localHeaderBytes'], $summary['zipPackageManifestLocalHeaderBytes']);
+        $t->same($manifest['localHeaderFixedHeaderBytes'], $summary['zipPackageManifestLocalHeaderFixedHeaderBytes']);
+        $t->same($manifest['localHeaderVariableFieldBytes'], $summary['zipPackageManifestLocalHeaderVariableFieldBytes']);
+        $t->same($manifest['localHeaderRawNameBytes'], $summary['zipPackageManifestLocalHeaderRawNameBytes']);
+        $t->same($manifest['localHeaderExtraFieldBytes'], $summary['zipPackageManifestLocalHeaderExtraFieldBytes']);
+        $t->same($manifest['localHeaderReviewFieldBytes'], $summary['zipPackageManifestLocalHeaderReviewFieldBytes']);
+        $t->same($manifest['localExtraFieldEntryCount'], $summary['zipPackageManifestLocalExtraFieldEntryCount']);
+        $t->same(true, $summary['zipPackageManifestHasLocalHeaderReviewFields']);
+        $t->same($manifest['localRecordBytes'], $summary['zipPackageManifestLocalRecordBytes']);
+        $t->same($manifest['dataDescriptorEntryCount'], $summary['zipPackageManifestDataDescriptorEntryCount']);
+        $t->same($manifest['dataDescriptorBytes'], $summary['zipPackageManifestDataDescriptorBytes']);
+        $t->same($manifest['storedEntryCount'], $summary['zipPackageManifestStoredEntryCount']);
+        $t->same($manifest['deflatedEntryCount'], $summary['zipPackageManifestDeflatedEntryCount']);
+        $t->same($manifest['unsupportedCompressionMethodCount'], $summary['zipPackageManifestUnsupportedCompressionMethodCount']);
+        $t->same($manifest['centralDirectoryBytes'], $summary['zipPackageManifestCentralDirectoryBytes']);
+        $t->same($manifest['centralDirectorySha256'], $summary['zipPackageManifestCentralDirectorySha256']);
+        $t->same($manifest['endOfCentralDirectoryBytes'], $summary['zipPackageManifestEndOfCentralDirectoryBytes']);
+        $t->same($manifest['endOfCentralDirectorySha256'], $summary['zipPackageManifestEndOfCentralDirectorySha256']);
+        $t->same($manifest['packageCommentBytes'], $summary['zipPackageManifestPackageCommentBytes']);
+        $t->same($manifest['packageCommentSha256'], $summary['zipPackageManifestPackageCommentSha256']);
+        $t->same($manifest['centralDirectoryRecordBytes'], $summary['zipPackageManifestCentralDirectoryRecordBytes']);
+        $t->same($manifest['centralDirectoryFixedHeaderBytes'], $summary['zipPackageManifestCentralDirectoryFixedHeaderBytes']);
+        $t->same($manifest['centralDirectoryVariableFieldBytes'], $summary['zipPackageManifestCentralDirectoryVariableFieldBytes']);
+        $t->same($manifest['centralDirectoryRawNameBytes'], $summary['zipPackageManifestCentralDirectoryRawNameBytes']);
+        $t->same($manifest['centralDirectoryExtraFieldBytes'], $summary['zipPackageManifestCentralDirectoryExtraFieldBytes']);
+        $t->same($manifest['centralDirectoryRawCommentBytes'], $summary['zipPackageManifestCentralDirectoryRawCommentBytes']);
+        $t->same($manifest['centralDirectoryReviewFieldBytes'], $summary['zipPackageManifestCentralDirectoryReviewFieldBytes']);
+        $t->same($manifest['centralExtraFieldEntryCount'], $summary['zipPackageManifestCentralExtraFieldEntryCount']);
+        $t->same($manifest['entryCommentCount'], $summary['zipPackageManifestEntryCommentCount']);
+        $t->same(true, $summary['zipPackageManifestHasCentralDirectoryReviewFields']);
+        $t->same($manifest['compressionMethodSummaryCount'], $summary['zipPackageManifestCompressionMethodSummaryCount']);
+        $t->same($manifest['compressionMethodSummaries'], $summary['zipPackageManifestCompressionMethodSummaries']);
+        $t->same($manifest['directoryRootCount'], $summary['zipPackageManifestDirectoryRootCount']);
+        $t->same($manifest['directoryRoots'], $summary['zipPackageManifestDirectoryRoots']);
+        $t->same($manifest['directoryRootSummaries'], $summary['zipPackageManifestDirectoryRootSummaries']);
+        $t->same($manifest['centralDirectoryOrderNames'], $summary['zipPackageManifestCentralDirectoryOrderNames']);
+        $t->same($manifest['localHeaderOrderNames'], $summary['zipPackageManifestLocalHeaderOrderNames']);
+        $t->same($manifest['centralDirectoryOrderMatchesLocalHeaderOrder'], $summary['zipPackageManifestCentralDirectoryOrderMatchesLocalHeaderOrder']);
 
         $t->same($documentManifest['localHeaderLength'], $documentEntry['localHeaderLength']);
         $t->same($documentManifest['localHeaderSha256'], $documentEntry['localHeaderSha256']);

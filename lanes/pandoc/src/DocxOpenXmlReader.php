@@ -11091,6 +11091,71 @@ final class DocxOpenXmlReader
         $summary['zipPackageManifestLocalHeaderHashCount'] = $zipManifestHashCounts['localHeaderHashCount'];
         $summary['zipPackageManifestCompressedDataHashCount'] = $zipManifestHashCounts['compressedDataHashCount'];
         $summary['zipPackageManifestCentralDirectoryRecordHashCount'] = $zipManifestHashCounts['centralDirectoryRecordHashCount'];
+        $summary['zipPackageManifestPackageSource'] = is_array($zipPackageManifest['packageSource'] ?? null)
+            ? $zipPackageManifest['packageSource']
+            : [];
+        $summary['zipPackageManifestArchiveBytes'] = (int) ($zipPackageManifest['archiveBytes'] ?? 0);
+        $summary['zipPackageManifestArchiveSha256'] = is_string($zipPackageManifest['archiveSha256'] ?? null)
+            ? $zipPackageManifest['archiveSha256']
+            : null;
+        $summary['zipPackageManifestFileEntryCount'] = (int) ($zipPackageManifest['fileEntryCount'] ?? 0);
+        $summary['zipPackageManifestDirectoryEntryCount'] = (int) ($zipPackageManifest['directoryEntryCount'] ?? 0);
+        $summary['zipPackageManifestCompressedBytes'] = (int) ($zipPackageManifest['compressedBytes'] ?? 0);
+        $summary['zipPackageManifestUncompressedBytes'] = (int) ($zipPackageManifest['uncompressedBytes'] ?? 0);
+        $summary['zipPackageManifestLocalHeaderBytes'] = (int) ($zipPackageManifest['localHeaderBytes'] ?? 0);
+        $summary['zipPackageManifestLocalHeaderFixedHeaderBytes'] = (int) ($zipPackageManifest['localHeaderFixedHeaderBytes'] ?? 0);
+        $summary['zipPackageManifestLocalHeaderVariableFieldBytes'] = (int) ($zipPackageManifest['localHeaderVariableFieldBytes'] ?? 0);
+        $summary['zipPackageManifestLocalHeaderRawNameBytes'] = (int) ($zipPackageManifest['localHeaderRawNameBytes'] ?? 0);
+        $summary['zipPackageManifestLocalHeaderExtraFieldBytes'] = (int) ($zipPackageManifest['localHeaderExtraFieldBytes'] ?? 0);
+        $summary['zipPackageManifestLocalHeaderReviewFieldBytes'] = (int) ($zipPackageManifest['localHeaderReviewFieldBytes'] ?? 0);
+        $summary['zipPackageManifestLocalExtraFieldEntryCount'] = (int) ($zipPackageManifest['localExtraFieldEntryCount'] ?? 0);
+        $summary['zipPackageManifestHasLocalHeaderReviewFields'] = ($zipPackageManifest['hasLocalHeaderReviewFields'] ?? false) === true;
+        $summary['zipPackageManifestLocalRecordBytes'] = (int) ($zipPackageManifest['localRecordBytes'] ?? 0);
+        $summary['zipPackageManifestDataDescriptorEntryCount'] = (int) ($zipPackageManifest['dataDescriptorEntryCount'] ?? 0);
+        $summary['zipPackageManifestDataDescriptorBytes'] = (int) ($zipPackageManifest['dataDescriptorBytes'] ?? 0);
+        $summary['zipPackageManifestStoredEntryCount'] = (int) ($zipPackageManifest['storedEntryCount'] ?? 0);
+        $summary['zipPackageManifestDeflatedEntryCount'] = (int) ($zipPackageManifest['deflatedEntryCount'] ?? 0);
+        $summary['zipPackageManifestUnsupportedCompressionMethodCount'] = (int) ($zipPackageManifest['unsupportedCompressionMethodCount'] ?? 0);
+        $summary['zipPackageManifestCentralDirectoryBytes'] = (int) ($zipPackageManifest['centralDirectoryBytes'] ?? 0);
+        $summary['zipPackageManifestCentralDirectorySha256'] = is_string($zipPackageManifest['centralDirectorySha256'] ?? null)
+            ? $zipPackageManifest['centralDirectorySha256']
+            : null;
+        $summary['zipPackageManifestEndOfCentralDirectoryBytes'] = (int) ($zipPackageManifest['endOfCentralDirectoryBytes'] ?? 0);
+        $summary['zipPackageManifestEndOfCentralDirectorySha256'] = is_string($zipPackageManifest['endOfCentralDirectorySha256'] ?? null)
+            ? $zipPackageManifest['endOfCentralDirectorySha256']
+            : null;
+        $summary['zipPackageManifestPackageCommentBytes'] = (int) ($zipPackageManifest['packageCommentBytes'] ?? 0);
+        $summary['zipPackageManifestPackageCommentSha256'] = is_string($zipPackageManifest['packageCommentSha256'] ?? null)
+            ? $zipPackageManifest['packageCommentSha256']
+            : null;
+        $summary['zipPackageManifestCentralDirectoryRecordBytes'] = (int) ($zipPackageManifest['centralDirectoryRecordBytes'] ?? 0);
+        $summary['zipPackageManifestCentralDirectoryFixedHeaderBytes'] = (int) ($zipPackageManifest['centralDirectoryFixedHeaderBytes'] ?? 0);
+        $summary['zipPackageManifestCentralDirectoryVariableFieldBytes'] = (int) ($zipPackageManifest['centralDirectoryVariableFieldBytes'] ?? 0);
+        $summary['zipPackageManifestCentralDirectoryRawNameBytes'] = (int) ($zipPackageManifest['centralDirectoryRawNameBytes'] ?? 0);
+        $summary['zipPackageManifestCentralDirectoryExtraFieldBytes'] = (int) ($zipPackageManifest['centralDirectoryExtraFieldBytes'] ?? 0);
+        $summary['zipPackageManifestCentralDirectoryRawCommentBytes'] = (int) ($zipPackageManifest['centralDirectoryRawCommentBytes'] ?? 0);
+        $summary['zipPackageManifestCentralDirectoryReviewFieldBytes'] = (int) ($zipPackageManifest['centralDirectoryReviewFieldBytes'] ?? 0);
+        $summary['zipPackageManifestCentralExtraFieldEntryCount'] = (int) ($zipPackageManifest['centralExtraFieldEntryCount'] ?? 0);
+        $summary['zipPackageManifestEntryCommentCount'] = (int) ($zipPackageManifest['entryCommentCount'] ?? 0);
+        $summary['zipPackageManifestHasCentralDirectoryReviewFields'] = ($zipPackageManifest['hasCentralDirectoryReviewFields'] ?? false) === true;
+        $summary['zipPackageManifestCompressionMethodSummaryCount'] = (int) ($zipPackageManifest['compressionMethodSummaryCount'] ?? 0);
+        $summary['zipPackageManifestCompressionMethodSummaries'] = is_array($zipPackageManifest['compressionMethodSummaries'] ?? null)
+            ? $zipPackageManifest['compressionMethodSummaries']
+            : [];
+        $summary['zipPackageManifestDirectoryRootCount'] = (int) ($zipPackageManifest['directoryRootCount'] ?? 0);
+        $summary['zipPackageManifestDirectoryRoots'] = is_array($zipPackageManifest['directoryRoots'] ?? null)
+            ? $zipPackageManifest['directoryRoots']
+            : [];
+        $summary['zipPackageManifestDirectoryRootSummaries'] = is_array($zipPackageManifest['directoryRootSummaries'] ?? null)
+            ? $zipPackageManifest['directoryRootSummaries']
+            : [];
+        $summary['zipPackageManifestCentralDirectoryOrderNames'] = is_array($zipPackageManifest['centralDirectoryOrderNames'] ?? null)
+            ? $zipPackageManifest['centralDirectoryOrderNames']
+            : [];
+        $summary['zipPackageManifestLocalHeaderOrderNames'] = is_array($zipPackageManifest['localHeaderOrderNames'] ?? null)
+            ? $zipPackageManifest['localHeaderOrderNames']
+            : [];
+        $summary['zipPackageManifestCentralDirectoryOrderMatchesLocalHeaderOrder'] = $zipPackageManifest['centralDirectoryOrderMatchesLocalHeaderOrder'] ?? null;
         $zipDataDescriptors = $zipPackage['dataDescriptors'];
         $summary['zipDataDescriptorEntryCount'] = $zipDataDescriptors['descriptorEntryCount'];
         $summary['zipSignedDataDescriptorEntryCount'] = $zipDataDescriptors['signedDescriptorEntryCount'];
