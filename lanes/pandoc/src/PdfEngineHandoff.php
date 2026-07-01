@@ -722,6 +722,15 @@ final class PdfEngineHandoff
             if (($typstBoundarySummary['executionPolicyIssueCount'] ?? 0) > 0) {
                 $diagnostics[] = 'typst-boundary-summary-execution-policy-issues:' . $typstBoundarySummary['executionPolicyIssueCount'];
             }
+            if (($typstBoundarySummary['creationTimestampControlCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-boundary-summary-creation-timestamps:' . $typstBoundarySummary['creationTimestampControlCount'];
+            }
+            if (($typstBoundarySummary['invalidCreationTimestampCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-boundary-summary-invalid-creation-timestamps:' . $typstBoundarySummary['invalidCreationTimestampCount'];
+            }
+            if (($typstBoundarySummary['creationTimestampEnvironmentShadowed'] ?? false) === true) {
+                $diagnostics[] = 'typst-boundary-summary-creation-timestamp-shadowed';
+            }
             if ($typstBoundarySummary['issueCount'] > 0) {
                 $diagnostics[] = 'typst-boundary-summary-issues:' . $typstBoundarySummary['issueCount'];
             }
@@ -9613,6 +9622,46 @@ final class PdfEngineHandoff
         $selectedExecutionJobMode = is_string($executionJobs['mode'] ?? null) ? $executionJobs['mode'] : null;
         $selectedExecutionJobCount = is_int($executionJobs['jobCount'] ?? null) ? $executionJobs['jobCount'] : null;
         $executionJobObservationCount = $executionJobHistory === [] ? (int) ($executionJobs !== []) : count($executionJobHistory);
+        $creationTimestamp = is_array($provenance['creationTimestamp'] ?? null) ? $provenance['creationTimestamp'] : [];
+        $creationTimestampEnvironment = is_array($provenance['creationTimestampEnvironment'] ?? null) ? $provenance['creationTimestampEnvironment'] : [];
+        $creationTimestampHistory = is_array($provenance['creationTimestampHistory'] ?? null) ? $provenance['creationTimestampHistory'] : [];
+        $creationTimestampOverrides = array_values(array_filter(
+            is_array($provenance['overrides'] ?? null) ? $provenance['overrides'] : [],
+            static fn (mixed $entry): bool => is_array($entry) && ($entry['option'] ?? null) === 'creationTimestamp'
+        ));
+        $creationTimestampEntries = $creationTimestampHistory;
+        if ($creationTimestampEntries === [] && $creationTimestamp !== []) {
+            $creationTimestampEntries[] = $creationTimestamp;
+        }
+        if ($creationTimestampEnvironment !== []) {
+            $creationTimestampEntries[] = $creationTimestampEnvironment;
+        }
+        $deterministicCreationTimestampCount = 0;
+        $invalidCreationTimestampCount = 0;
+        $unixCreationTimestampCount = 0;
+        foreach ($creationTimestampEntries as $timestampEntry) {
+            if (!is_array($timestampEntry)) {
+                ++$invalidCreationTimestampCount;
+                continue;
+            }
+            if (($timestampEntry['deterministic'] ?? false) === true) {
+                ++$deterministicCreationTimestampCount;
+            }
+            if (($timestampEntry['safe'] ?? false) !== true) {
+                ++$invalidCreationTimestampCount;
+            }
+            if (($timestampEntry['kind'] ?? null) === 'unix-seconds') {
+                ++$unixCreationTimestampCount;
+            }
+        }
+        $selectedCreationTimestamp = is_string($creationTimestamp['value'] ?? null) ? $creationTimestamp['value'] : null;
+        $selectedCreationTimestampUnix = is_int($creationTimestamp['timestamp'] ?? null) ? $creationTimestamp['timestamp'] : null;
+        $selectedCreationTimestampIso8601 = is_string($creationTimestamp['iso8601'] ?? null) ? $creationTimestamp['iso8601'] : null;
+        $creationTimestampEnvironmentVariable = is_string($creationTimestamp['environmentVariable'] ?? null)
+            ? $creationTimestamp['environmentVariable']
+            : (is_string($creationTimestampEnvironment['environmentVariable'] ?? null) ? $creationTimestampEnvironment['environmentVariable'] : null);
+        $creationTimestampEnvironmentPresent = $creationTimestampEnvironment !== [] || $creationTimestampEnvironmentVariable !== null;
+        $creationTimestampEnvironmentShadowed = is_string($creationTimestampEnvironment['shadowedBy'] ?? null);
         $pdfExport = is_array($provenance['pdfExport'] ?? null) ? $provenance['pdfExport'] : [];
         $pdfExportControlCount = 0;
         foreach ([
@@ -9767,6 +9816,18 @@ final class PdfEngineHandoff
             'fixedExecutionJobCount' => $fixedExecutionJobCount,
             'autoExecutionJobCount' => $autoExecutionJobCount,
             'invalidExecutionJobCount' => $invalidExecutionJobCount,
+            'creationTimestampControlCount' => count($creationTimestampEntries),
+            'creationTimestampHistoryCount' => count($creationTimestampHistory),
+            'creationTimestampOverrideCount' => count($creationTimestampOverrides),
+            'deterministicCreationTimestampCount' => $deterministicCreationTimestampCount,
+            'invalidCreationTimestampCount' => $invalidCreationTimestampCount,
+            'unixCreationTimestampCount' => $unixCreationTimestampCount,
+            'selectedCreationTimestamp' => $selectedCreationTimestamp,
+            'selectedCreationTimestampUnix' => $selectedCreationTimestampUnix,
+            'selectedCreationTimestampIso8601' => $selectedCreationTimestampIso8601,
+            'creationTimestampEnvironmentPresent' => $creationTimestampEnvironmentPresent,
+            'creationTimestampEnvironmentShadowed' => $creationTimestampEnvironmentShadowed,
+            'creationTimestampEnvironmentVariable' => $creationTimestampEnvironmentVariable,
             'openOutputSideEffectCount' => is_int($openOutput['flagCount'] ?? null) ? $openOutput['flagCount'] : 0,
             'openOutputViewerCount' => count($openOutputViewers),
             'openOutputDefaultViewerCount' => $openOutputDefaultViewerCount,

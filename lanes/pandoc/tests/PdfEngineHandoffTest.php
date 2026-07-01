@@ -401,6 +401,18 @@ return [
             'fixedExecutionJobCount' => 0,
             'autoExecutionJobCount' => 1,
             'invalidExecutionJobCount' => 0,
+            'creationTimestampControlCount' => 0,
+            'creationTimestampHistoryCount' => 0,
+            'creationTimestampOverrideCount' => 0,
+            'deterministicCreationTimestampCount' => 0,
+            'invalidCreationTimestampCount' => 0,
+            'unixCreationTimestampCount' => 0,
+            'selectedCreationTimestamp' => null,
+            'selectedCreationTimestampUnix' => null,
+            'selectedCreationTimestampIso8601' => null,
+            'creationTimestampEnvironmentPresent' => false,
+            'creationTimestampEnvironmentShadowed' => false,
+            'creationTimestampEnvironmentVariable' => null,
             'openOutputSideEffectCount' => 1,
             'openOutputViewerCount' => 1,
             'openOutputDefaultViewerCount' => 0,
@@ -5990,10 +6002,24 @@ return [
 
         $t->same($expected, $plan['typstBoundaryProvenance']);
         $t->same(1, $plan['typstBoundarySummary']['issueCount']);
+        $t->same(2, $plan['typstBoundarySummary']['creationTimestampControlCount']);
+        $t->same(0, $plan['typstBoundarySummary']['creationTimestampHistoryCount']);
+        $t->same(0, $plan['typstBoundarySummary']['creationTimestampOverrideCount']);
+        $t->same(2, $plan['typstBoundarySummary']['deterministicCreationTimestampCount']);
+        $t->same(0, $plan['typstBoundarySummary']['invalidCreationTimestampCount']);
+        $t->same(2, $plan['typstBoundarySummary']['unixCreationTimestampCount']);
+        $t->same($selectedTimestamp, $plan['typstBoundarySummary']['selectedCreationTimestamp']);
+        $t->same(1700000100, $plan['typstBoundarySummary']['selectedCreationTimestampUnix']);
+        $t->same(gmdate('Y-m-d\TH:i:s\Z', 1700000100), $plan['typstBoundarySummary']['selectedCreationTimestampIso8601']);
+        $t->same(true, $plan['typstBoundarySummary']['creationTimestampEnvironmentPresent']);
+        $t->same(true, $plan['typstBoundarySummary']['creationTimestampEnvironmentShadowed']);
+        $t->same('SOURCE_DATE_EPOCH', $plan['typstBoundarySummary']['creationTimestampEnvironmentVariable']);
         $t->contains('typst-boundary-environment:1', implode(',', $plan['diagnostics']));
         $t->contains('typst-creation-timestamp:1700000100', implode(',', $plan['diagnostics']));
         $t->contains('typst-creation-timestamp-environment:1700000000', implode(',', $plan['diagnostics']));
         $t->contains('typst-creation-timestamp-environment-shadowed', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-summary-creation-timestamps:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-summary-creation-timestamp-shadowed', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-issues:1', implode(',', $plan['diagnostics']));
         $t->same(true, $result['ok']);
         $t->same($expected, $result['typstBoundaryProvenance']);
