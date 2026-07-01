@@ -2357,6 +2357,10 @@ XML;
         foreach ($summary['entries'] as $entry) {
             $entries[$entry['entryName']] = $entry;
         }
+        $centralEntries = [];
+        foreach ($centralSummary['entries'] as $entry) {
+            $centralEntries[$entry['entryName']] = $entry;
+        }
 
         $expectedRootCounts = [
             '/' => 1,
@@ -2479,6 +2483,22 @@ XML;
             ['word/media/image.png'],
             $summary['entryNamesByPathSegmentPositionHandoffKind']['middle']['media']
         );
+        $t->same(
+            $summary['pathSegmentPositionRoleEntryCounts'],
+            $centralSummary['pathSegmentPositionRoleEntryCounts']
+        );
+        $t->same(
+            $summary['entryNamesByPathSegmentPositionRole'],
+            $centralSummary['entryNamesByPathSegmentPositionRole']
+        );
+        $t->same(
+            $summary['pathSegmentPositionHandoffKindEntryCounts'],
+            $centralSummary['pathSegmentPositionHandoffKindEntryCounts']
+        );
+        $t->same(
+            $summary['entryNamesByPathSegmentPositionHandoffKind'],
+            $centralSummary['entryNamesByPathSegmentPositionHandoffKind']
+        );
         $t->same([
             'word/_rels/document.xml.rels',
             'word/document.xml',
@@ -2499,6 +2519,22 @@ XML;
         );
         $t->same(1, $entries['[Content_Types].xml']['pathSegmentCount']);
         $t->same(0, $entries['[Content_Types].xml']['directoryDepth']);
+        $t->same(
+            $entries['[Content_Types].xml']['pathSegments'],
+            $centralEntries['[Content_Types].xml']['pathSegments']
+        );
+        $t->same(
+            $entries['[Content_Types].xml']['pathSegmentPositionReviews'],
+            $centralEntries['[Content_Types].xml']['pathSegmentPositionReviews']
+        );
+        $t->same(
+            $entries['[Content_Types].xml']['pathSegmentCount'],
+            $centralEntries['[Content_Types].xml']['pathSegmentCount']
+        );
+        $t->same(
+            $entries['[Content_Types].xml']['directoryDepth'],
+            $centralEntries['[Content_Types].xml']['directoryDepth']
+        );
         $t->same('word/', $entries['word/media/image.png']['directoryRoot']);
         $t->same(['word', 'media', 'image.png'], $entries['word/media/image.png']['pathSegments']);
         $t->same(
@@ -2507,6 +2543,22 @@ XML;
         );
         $t->same(3, $entries['word/media/image.png']['pathSegmentCount']);
         $t->same(2, $entries['word/media/image.png']['directoryDepth']);
+        $t->same(
+            $entries['word/media/image.png']['pathSegments'],
+            $centralEntries['word/media/image.png']['pathSegments']
+        );
+        $t->same(
+            $entries['word/media/image.png']['pathSegmentPositionReviews'],
+            $centralEntries['word/media/image.png']['pathSegmentPositionReviews']
+        );
+        $t->same(
+            $entries['word/media/image.png']['pathSegmentCount'],
+            $centralEntries['word/media/image.png']['pathSegmentCount']
+        );
+        $t->same(
+            $entries['word/media/image.png']['directoryDepth'],
+            $centralEntries['word/media/image.png']['directoryDepth']
+        );
         $t->same('customXml/', $entries['customXml/item1.xml']['directoryRoot']);
         $t->same(['customXml', 'item1.xml'], $entries['customXml/item1.xml']['pathSegments']);
         $t->same(
@@ -2515,6 +2567,22 @@ XML;
         );
         $t->same(2, $entries['customXml/item1.xml']['pathSegmentCount']);
         $t->same(1, $entries['customXml/item1.xml']['directoryDepth']);
+        $t->same(
+            $entries['customXml/item1.xml']['pathSegments'],
+            $centralEntries['customXml/item1.xml']['pathSegments']
+        );
+        $t->same(
+            $entries['customXml/item1.xml']['pathSegmentPositionReviews'],
+            $centralEntries['customXml/item1.xml']['pathSegmentPositionReviews']
+        );
+        $t->same(
+            $entries['customXml/item1.xml']['pathSegmentCount'],
+            $centralEntries['customXml/item1.xml']['pathSegmentCount']
+        );
+        $t->same(
+            $entries['customXml/item1.xml']['directoryDepth'],
+            $centralEntries['customXml/item1.xml']['directoryDepth']
+        );
     },
     'preflights OPC ZIP entry manifest content type declarations before graph construction' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'

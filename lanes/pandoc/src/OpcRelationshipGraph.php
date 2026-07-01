@@ -1081,36 +1081,13 @@ final class OpcRelationshipGraph
             }
 
             $roleCounts[$entry['role']] = ($roleCounts[$entry['role']] ?? 0) + 1;
-            $entryPathSegmentPositions = [];
-            foreach ($entry['pathSegmentPositionReviews'] as $review) {
-                $position = is_array($review) && is_string($review['position'] ?? null)
-                    ? $review['position']
-                    : '';
-                if ($position !== '') {
-                    $entryPathSegmentPositions[$position] = true;
-                }
-            }
-            foreach (array_keys($entryPathSegmentPositions) as $position) {
-                $pathSegmentPositionRoleEntryCounts[$position] ??= [];
-                $pathSegmentPositionRoleEntryCounts[$position][$entry['role']] =
-                    ($pathSegmentPositionRoleEntryCounts[$position][$entry['role']] ?? 0) + 1;
-                $entryNamesByPathSegmentPositionRole[$position] ??= [];
-                $entryNamesByPathSegmentPositionRole[$position][$entry['role']] ??= [];
-                self::appendUniqueString(
-                    $entryNamesByPathSegmentPositionRole[$position][$entry['role']],
-                    $entry['entryName']
-                );
-
-                $pathSegmentPositionHandoffKindEntryCounts[$position] ??= [];
-                $pathSegmentPositionHandoffKindEntryCounts[$position][$entry['handoffKind']] =
-                    ($pathSegmentPositionHandoffKindEntryCounts[$position][$entry['handoffKind']] ?? 0) + 1;
-                $entryNamesByPathSegmentPositionHandoffKind[$position] ??= [];
-                $entryNamesByPathSegmentPositionHandoffKind[$position][$entry['handoffKind']] ??= [];
-                self::appendUniqueString(
-                    $entryNamesByPathSegmentPositionHandoffKind[$position][$entry['handoffKind']],
-                    $entry['entryName']
-                );
-            }
+            self::recordZipEntryManifestPathSegmentPositionProvenance(
+                $pathSegmentPositionRoleEntryCounts,
+                $entryNamesByPathSegmentPositionRole,
+                $pathSegmentPositionHandoffKindEntryCounts,
+                $entryNamesByPathSegmentPositionHandoffKind,
+                $entry,
+            );
             self::incrementZipEntryManifestByteBucket(
                 $byteCountsByRole,
                 $entry['role'],
@@ -1345,18 +1322,12 @@ final class OpcRelationshipGraph
         self::sortZipManifestIssueProvenance($partNamesByIssue);
         ksort($contentTypeOverrideDeclarationIssueCounts);
         ksort($roleCounts);
-        foreach ($pathSegmentPositionRoleEntryCounts as &$roleCountsByPosition) {
-            ksort($roleCountsByPosition, SORT_STRING);
-        }
-        unset($roleCountsByPosition);
-        ksort($pathSegmentPositionRoleEntryCounts, SORT_STRING);
-        self::sortNestedStringListMap($entryNamesByPathSegmentPositionRole);
-        foreach ($pathSegmentPositionHandoffKindEntryCounts as &$handoffKindCountsByPosition) {
-            ksort($handoffKindCountsByPosition, SORT_STRING);
-        }
-        unset($handoffKindCountsByPosition);
-        ksort($pathSegmentPositionHandoffKindEntryCounts, SORT_STRING);
-        self::sortNestedStringListMap($entryNamesByPathSegmentPositionHandoffKind);
+        self::sortZipEntryManifestPathSegmentPositionProvenance(
+            $pathSegmentPositionRoleEntryCounts,
+            $entryNamesByPathSegmentPositionRole,
+            $pathSegmentPositionHandoffKindEntryCounts,
+            $entryNamesByPathSegmentPositionHandoffKind,
+        );
         ksort($byteCountsByRole);
         ksort($byteCountsByHandoffKind);
         ksort($byteCountsByContentType);
@@ -2013,11 +1984,18 @@ final class OpcRelationshipGraph
                 $dataDescriptorSha256 = hash('sha256', substr($bytes, $dataDescriptorOffset, $dataDescriptorBytes));
             }
             $sourceRecordBytes = $localRecordBytes === null ? null : $localRecordBytes + $centralDirectoryRecordBytes;
+            $pathSegments = self::zipEntryManifestPathSegments($centralEntry['name']);
+            $pathSegmentPositionReviews = self::zipEntryManifestPathSegmentPositionReviews($pathSegments);
+            $pathSegmentCount = count($pathSegments);
 
             $entries[] = [
                 'entryIndex' => $entryIndex,
                 'entryName' => $centralEntry['name'],
                 'directoryRoot' => self::zipEntryManifestDirectoryRoot($centralEntry['name']),
+                'pathSegments' => $pathSegments,
+                'pathSegmentPositionReviews' => $pathSegmentPositionReviews,
+                'pathSegmentCount' => $pathSegmentCount,
+                'directoryDepth' => max(0, $pathSegmentCount - 1),
                 'versionMadeBy' => $creatorHostEntry['versionMadeBy'] ?? $centralDirectoryFixedHeaderEntry['versionMadeBy'] ?? null,
                 'madeByHostSystem' => $creatorHostEntry['madeByHostSystem'] ?? $centralDirectoryFixedHeaderEntry['creatorHostSystem'] ?? null,
                 'madeByHostSystemName' => $creatorHostEntry['madeByHostSystemName'] ?? null,
@@ -2323,6 +2301,10 @@ final class OpcRelationshipGraph
         $creatorHostSystemIssueCounts = [];
         $entryNamesByCreatorHostSystemIssue = [];
         $crc32SummariesByHex = [];
+        $pathSegmentPositionRoleEntryCounts = [];
+        $entryNamesByPathSegmentPositionRole = [];
+        $pathSegmentPositionHandoffKindEntryCounts = [];
+        $entryNamesByPathSegmentPositionHandoffKind = [];
         $directoryRootCounts = [];
         $entryNamesByDirectoryRoot = [];
         $directoryRootSummariesByRoot = [];
@@ -2423,6 +2405,13 @@ final class OpcRelationshipGraph
             }
 
             $roleCounts[$entry['role']] = ($roleCounts[$entry['role']] ?? 0) + 1;
+            self::recordZipEntryManifestPathSegmentPositionProvenance(
+                $pathSegmentPositionRoleEntryCounts,
+                $entryNamesByPathSegmentPositionRole,
+                $pathSegmentPositionHandoffKindEntryCounts,
+                $entryNamesByPathSegmentPositionHandoffKind,
+                $entry,
+            );
             self::incrementZipEntryManifestByteBucket(
                 $byteCountsByRole,
                 $entry['role'],
@@ -2575,6 +2564,12 @@ final class OpcRelationshipGraph
         self::sortZipManifestIssueProvenance($entryNamesByIssue);
         self::sortZipManifestIssueProvenance($partNamesByIssue);
         ksort($roleCounts);
+        self::sortZipEntryManifestPathSegmentPositionProvenance(
+            $pathSegmentPositionRoleEntryCounts,
+            $entryNamesByPathSegmentPositionRole,
+            $pathSegmentPositionHandoffKindEntryCounts,
+            $entryNamesByPathSegmentPositionHandoffKind,
+        );
         ksort($byteCountsByRole);
         ksort($byteCountsByHandoffKind);
         ksort($directoryRootCounts, SORT_STRING);
@@ -2723,6 +2718,10 @@ final class OpcRelationshipGraph
             'directoryRootCounts' => $directoryRootCounts,
             'entryNamesByDirectoryRoot' => $entryNamesByDirectoryRoot,
             'directoryRootSummaries' => $directoryRootSummaries,
+            'pathSegmentPositionRoleEntryCounts' => $pathSegmentPositionRoleEntryCounts,
+            'entryNamesByPathSegmentPositionRole' => $entryNamesByPathSegmentPositionRole,
+            'pathSegmentPositionHandoffKindEntryCounts' => $pathSegmentPositionHandoffKindEntryCounts,
+            'entryNamesByPathSegmentPositionHandoffKind' => $entryNamesByPathSegmentPositionHandoffKind,
             'contentTypesItemCount' => count($contentTypesItems),
             'extensionlessPackagePartCount' => $extensionlessPackagePartCount,
             'packagePartExtensionCounts' => $packagePartExtensionCounts,
@@ -10339,6 +10338,109 @@ final class OpcRelationshipGraph
         self::sortStringListMap($flagNamesByHandoffKind);
         ksort($issueCounts, SORT_STRING);
         self::sortStringListMap($entryNamesByIssue);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function zipEntryManifestPathSegments(string $entryName): array
+    {
+        $path = rtrim($entryName, '/');
+
+        return $path === '' ? [] : explode('/', $path);
+    }
+
+    /**
+     * @param list<string> $segments
+     * @return list<array{pathSegmentIndex:int, segment:string, position:string, isFirst:bool, isLast:bool, isOnly:bool}>
+     */
+    private static function zipEntryManifestPathSegmentPositionReviews(array $segments): array
+    {
+        $reviews = [];
+        $segmentCount = count($segments);
+        foreach ($segments as $segmentIndex => $segment) {
+            if (!is_string($segment) || $segment === '') {
+                continue;
+            }
+
+            $isFirst = $segmentIndex === 0;
+            $isLast = $segmentIndex === $segmentCount - 1;
+            $isOnly = $segmentCount === 1;
+            $position = match (true) {
+                $isOnly => 'only',
+                $isFirst => 'first',
+                $isLast => 'last',
+                default => 'middle',
+            };
+
+            $reviews[] = [
+                'pathSegmentIndex' => $segmentIndex,
+                'segment' => $segment,
+                'position' => $position,
+                'isFirst' => $isFirst,
+                'isLast' => $isLast,
+                'isOnly' => $isOnly,
+            ];
+        }
+
+        return $reviews;
+    }
+
+    private static function recordZipEntryManifestPathSegmentPositionProvenance(
+        array &$roleEntryCounts,
+        array &$entryNamesByRole,
+        array &$handoffKindEntryCounts,
+        array &$entryNamesByHandoffKind,
+        array $entry
+    ): void {
+        $entryPathSegmentPositions = [];
+        foreach (is_array($entry['pathSegmentPositionReviews'] ?? null) ? $entry['pathSegmentPositionReviews'] : [] as $review) {
+            $position = is_array($review) && is_string($review['position'] ?? null)
+                ? $review['position']
+                : '';
+            if ($position !== '') {
+                $entryPathSegmentPositions[$position] = true;
+            }
+        }
+
+        $role = is_string($entry['role'] ?? null) ? $entry['role'] : 'unknown';
+        $handoffKind = is_string($entry['handoffKind'] ?? null) ? $entry['handoffKind'] : 'unknown';
+        $entryName = is_string($entry['entryName'] ?? null) ? $entry['entryName'] : '';
+        foreach (array_keys($entryPathSegmentPositions) as $position) {
+            $roleEntryCounts[$position] ??= [];
+            $roleEntryCounts[$position][$role] = ($roleEntryCounts[$position][$role] ?? 0) + 1;
+            $entryNamesByRole[$position] ??= [];
+            $entryNamesByRole[$position][$role] ??= [];
+            self::appendUniqueString($entryNamesByRole[$position][$role], $entryName);
+
+            $handoffKindEntryCounts[$position] ??= [];
+            $handoffKindEntryCounts[$position][$handoffKind] =
+                ($handoffKindEntryCounts[$position][$handoffKind] ?? 0) + 1;
+            $entryNamesByHandoffKind[$position] ??= [];
+            $entryNamesByHandoffKind[$position][$handoffKind] ??= [];
+            self::appendUniqueString($entryNamesByHandoffKind[$position][$handoffKind], $entryName);
+        }
+    }
+
+    private static function sortZipEntryManifestPathSegmentPositionProvenance(
+        array &$roleEntryCounts,
+        array &$entryNamesByRole,
+        array &$handoffKindEntryCounts,
+        array &$entryNamesByHandoffKind
+    ): void {
+        foreach ($roleEntryCounts as &$roleCountsByPosition) {
+            ksort($roleCountsByPosition, SORT_STRING);
+        }
+        unset($roleCountsByPosition);
+        ksort($roleEntryCounts, SORT_STRING);
+        self::sortNestedStringListMap($entryNamesByRole);
+
+        foreach ($handoffKindEntryCounts as &$handoffKindCountsByPosition) {
+            ksort($handoffKindCountsByPosition, SORT_STRING);
+        }
+        unset($handoffKindCountsByPosition);
+        ksort($handoffKindEntryCounts, SORT_STRING);
+        self::sortNestedStringListMap($entryNamesByHandoffKind);
     }
 
     private static function recordZipEntryManifestCrc32Summary(array &$summaries, array $entry): void
