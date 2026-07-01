@@ -504,6 +504,128 @@ XML;
         $t->same([], $missingContentTypes['entryNamesByIssue']);
         $t->same(['missing-content-types-item' => ['/[Content_Types].xml']], $missingContentTypes['partNamesByIssue']);
     },
+    'summarizes OPC ZIP creator host systems before XML package handoff' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>
+XML;
+        $parts = [
+            [
+                'name' => '[Content_Types].xml',
+                'data' => $contentTypesXml,
+                'compressionMethod' => 0,
+                'creatorHostSystem' => 0,
+            ],
+            [
+                'name' => '_rels/.rels',
+                'data' => '<Relationships/>',
+                'compressionMethod' => 0,
+                'creatorHostSystem' => 3,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:body><w:p>creator host</w:p></w:body></w:document>',
+                'compressionMethod' => 0,
+                'creatorHostSystem' => 10,
+            ],
+            [
+                'name' => 'word/media/',
+                'data' => '',
+                'compressionMethod' => 0,
+                'creatorHostSystem' => 0,
+            ],
+            [
+                'name' => 'word/media/review.png',
+                'data' => 'PNG',
+                'compressionMethod' => 0,
+                'creatorHostSystem' => 19,
+            ],
+        ];
+        $zip = ZipPackage::build($parts);
+        $zipManifest = ZipPackage::fromString($zip)->packageManifestPreflight();
+        $summary = OpcRelationshipGraph::preflightZipEntryManifest(ZipPackage::fromString($zip));
+        $rawSummary = OpcRelationshipGraph::preflightZipCentralDirectoryManifest($zip);
+        $creatorFields = [
+            'creatorHostSystemCounts',
+            'entryNamesByCreatorHostSystem',
+            'creatorHostSystemNamesByRole',
+            'creatorHostSystemNamesByHandoffKind',
+            'creatorVersionComparisonCounts',
+            'entryNamesByCreatorVersionComparison',
+            'creatorVersionComparisonsByRole',
+            'creatorVersionComparisonsByHandoffKind',
+            'creatorHostSystemIssueCounts',
+            'entryNamesByCreatorHostSystemIssue',
+        ];
+
+        $t->same(true, $summary['valid']);
+        $t->same(true, $rawSummary['valid']);
+        foreach ($creatorFields as $field) {
+            $t->same($summary[$field], $rawSummary[$field], "{$field} raw central directory parity");
+        }
+        $t->same($zipManifest['creatorVersionComparisonCounts'], $summary['creatorVersionComparisonCounts']);
+
+        $t->same([
+            'ms-dos-fat' => 2,
+            'os-x' => 1,
+            'unix' => 1,
+            'windows-ntfs' => 1,
+        ], $summary['creatorHostSystemCounts']);
+        $t->same([
+            'ms-dos-fat' => ['[Content_Types].xml', 'word/media/'],
+            'os-x' => ['word/media/review.png'],
+            'unix' => ['_rels/.rels'],
+            'windows-ntfs' => ['word/document.xml'],
+        ], $summary['entryNamesByCreatorHostSystem']);
+        $t->same([
+            'content-types' => ['ms-dos-fat'],
+            'directory' => ['ms-dos-fat'],
+            'media' => ['os-x'],
+            'package-relationships' => ['unix'],
+            'xml-part' => ['windows-ntfs'],
+        ], $summary['creatorHostSystemNamesByRole']);
+        $t->same([
+            'content-types+xml' => ['ms-dos-fat'],
+            'directory' => ['ms-dos-fat'],
+            'media' => ['os-x'],
+            'relationships+xml' => ['unix'],
+            'xml' => ['windows-ntfs'],
+        ], $summary['creatorHostSystemNamesByHandoffKind']);
+        $t->same([
+            'below-needed' => 0,
+            'equals-needed' => 5,
+            'above-needed' => 0,
+        ], $summary['creatorVersionComparisonCounts']);
+        $t->same([
+            'equals-needed' => [
+                '[Content_Types].xml',
+                '_rels/.rels',
+                'word/document.xml',
+                'word/media/',
+                'word/media/review.png',
+            ],
+        ], $summary['entryNamesByCreatorVersionComparison']);
+        $t->same([
+            'content-types' => ['equals-needed'],
+            'directory' => ['equals-needed'],
+            'media' => ['equals-needed'],
+            'package-relationships' => ['equals-needed'],
+            'xml-part' => ['equals-needed'],
+        ], $summary['creatorVersionComparisonsByRole']);
+        $t->same([
+            'content-types+xml' => ['equals-needed'],
+            'directory' => ['equals-needed'],
+            'media' => ['equals-needed'],
+            'relationships+xml' => ['equals-needed'],
+            'xml' => ['equals-needed'],
+        ], $summary['creatorVersionComparisonsByHandoffKind']);
+        $t->same([], $summary['creatorHostSystemIssueCounts']);
+        $t->same([], $summary['entryNamesByCreatorHostSystemIssue']);
+    },
     'carries OPC ZIP central directory source record provenance through manifest preflights' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

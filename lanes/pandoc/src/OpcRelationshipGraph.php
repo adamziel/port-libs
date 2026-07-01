@@ -971,6 +971,20 @@ final class OpcRelationshipGraph
         $generalPurposeFlagNamesByHandoffKind = [];
         $generalPurposeFlagIssueCounts = [];
         $entryNamesByGeneralPurposeFlagIssue = [];
+        $creatorHostSystemCounts = [];
+        $entryNamesByCreatorHostSystem = [];
+        $creatorHostSystemNamesByRole = [];
+        $creatorHostSystemNamesByHandoffKind = [];
+        $creatorVersionComparisonCounts = [
+            'below-needed' => 0,
+            'equals-needed' => 0,
+            'above-needed' => 0,
+        ];
+        $entryNamesByCreatorVersionComparison = [];
+        $creatorVersionComparisonsByRole = [];
+        $creatorVersionComparisonsByHandoffKind = [];
+        $creatorHostSystemIssueCounts = [];
+        $entryNamesByCreatorHostSystemIssue = [];
         $pathSegmentPositionRoleEntryCounts = [];
         $entryNamesByPathSegmentPositionRole = [];
         $pathSegmentPositionHandoffKindEntryCounts = [];
@@ -1175,6 +1189,19 @@ final class OpcRelationshipGraph
                 $entryNamesByGeneralPurposeFlagIssue,
                 $entry,
             );
+            self::recordZipEntryManifestCreatorHostProvenance(
+                $creatorHostSystemCounts,
+                $entryNamesByCreatorHostSystem,
+                $creatorHostSystemNamesByRole,
+                $creatorHostSystemNamesByHandoffKind,
+                $creatorVersionComparisonCounts,
+                $entryNamesByCreatorVersionComparison,
+                $creatorVersionComparisonsByRole,
+                $creatorVersionComparisonsByHandoffKind,
+                $creatorHostSystemIssueCounts,
+                $entryNamesByCreatorHostSystemIssue,
+                $entry,
+            );
 
             if (
                 $largestPayloadEntry === null
@@ -1355,6 +1382,18 @@ final class OpcRelationshipGraph
             $generalPurposeFlagNamesByHandoffKind,
             $generalPurposeFlagIssueCounts,
             $entryNamesByGeneralPurposeFlagIssue,
+        );
+        self::sortZipManifestCreatorHostProvenance(
+            $creatorHostSystemCounts,
+            $entryNamesByCreatorHostSystem,
+            $creatorHostSystemNamesByRole,
+            $creatorHostSystemNamesByHandoffKind,
+            $creatorVersionComparisonCounts,
+            $entryNamesByCreatorVersionComparison,
+            $creatorVersionComparisonsByRole,
+            $creatorVersionComparisonsByHandoffKind,
+            $creatorHostSystemIssueCounts,
+            $entryNamesByCreatorHostSystemIssue,
         );
         sort($contentTypesItems, SORT_STRING);
         sort($contentTypeUnusedOverridePartNames, SORT_STRING);
@@ -1545,6 +1584,16 @@ final class OpcRelationshipGraph
             'generalPurposeFlagNamesByHandoffKind' => $generalPurposeFlagNamesByHandoffKind,
             'generalPurposeFlagIssueCounts' => $generalPurposeFlagIssueCounts,
             'entryNamesByGeneralPurposeFlagIssue' => $entryNamesByGeneralPurposeFlagIssue,
+            'creatorHostSystemCounts' => $creatorHostSystemCounts,
+            'entryNamesByCreatorHostSystem' => $entryNamesByCreatorHostSystem,
+            'creatorHostSystemNamesByRole' => $creatorHostSystemNamesByRole,
+            'creatorHostSystemNamesByHandoffKind' => $creatorHostSystemNamesByHandoffKind,
+            'creatorVersionComparisonCounts' => $creatorVersionComparisonCounts,
+            'entryNamesByCreatorVersionComparison' => $entryNamesByCreatorVersionComparison,
+            'creatorVersionComparisonsByRole' => $creatorVersionComparisonsByRole,
+            'creatorVersionComparisonsByHandoffKind' => $creatorVersionComparisonsByHandoffKind,
+            'creatorHostSystemIssueCounts' => $creatorHostSystemIssueCounts,
+            'entryNamesByCreatorHostSystemIssue' => $entryNamesByCreatorHostSystemIssue,
             'largestPayloadEntry' => $largestPayloadEntry,
             'largestPayloadEntryLimit' => self::ZIP_MANIFEST_LARGEST_PAYLOAD_ENTRY_LIMIT,
             'largestPayloadEntryCount' => count($largestPayloadEntries),
@@ -2242,6 +2291,20 @@ final class OpcRelationshipGraph
         $generalPurposeFlagNamesByHandoffKind = [];
         $generalPurposeFlagIssueCounts = [];
         $entryNamesByGeneralPurposeFlagIssue = [];
+        $creatorHostSystemCounts = [];
+        $entryNamesByCreatorHostSystem = [];
+        $creatorHostSystemNamesByRole = [];
+        $creatorHostSystemNamesByHandoffKind = [];
+        $creatorVersionComparisonCounts = [
+            'below-needed' => 0,
+            'equals-needed' => 0,
+            'above-needed' => 0,
+        ];
+        $entryNamesByCreatorVersionComparison = [];
+        $creatorVersionComparisonsByRole = [];
+        $creatorVersionComparisonsByHandoffKind = [];
+        $creatorHostSystemIssueCounts = [];
+        $entryNamesByCreatorHostSystemIssue = [];
         $directoryRootCounts = [];
         $entryNamesByDirectoryRoot = [];
         $directoryRootSummariesByRoot = [];
@@ -2373,6 +2436,19 @@ final class OpcRelationshipGraph
                 $entryNamesByGeneralPurposeFlagIssue,
                 $entry,
             );
+            self::recordZipEntryManifestCreatorHostProvenance(
+                $creatorHostSystemCounts,
+                $entryNamesByCreatorHostSystem,
+                $creatorHostSystemNamesByRole,
+                $creatorHostSystemNamesByHandoffKind,
+                $creatorVersionComparisonCounts,
+                $entryNamesByCreatorVersionComparison,
+                $creatorVersionComparisonsByRole,
+                $creatorVersionComparisonsByHandoffKind,
+                $creatorHostSystemIssueCounts,
+                $entryNamesByCreatorHostSystemIssue,
+                $entry,
+            );
 
             if (!$entry['byteCountsAreExact']) {
                 $unknownByteCountEntries[] = [
@@ -2501,6 +2577,18 @@ final class OpcRelationshipGraph
             $generalPurposeFlagNamesByHandoffKind,
             $generalPurposeFlagIssueCounts,
             $entryNamesByGeneralPurposeFlagIssue,
+        );
+        self::sortZipManifestCreatorHostProvenance(
+            $creatorHostSystemCounts,
+            $entryNamesByCreatorHostSystem,
+            $creatorHostSystemNamesByRole,
+            $creatorHostSystemNamesByHandoffKind,
+            $creatorVersionComparisonCounts,
+            $entryNamesByCreatorVersionComparison,
+            $creatorVersionComparisonsByRole,
+            $creatorVersionComparisonsByHandoffKind,
+            $creatorHostSystemIssueCounts,
+            $entryNamesByCreatorHostSystemIssue,
         );
         sort($contentTypesItems, SORT_STRING);
         usort(
@@ -2653,6 +2741,16 @@ final class OpcRelationshipGraph
             'generalPurposeFlagNamesByHandoffKind' => $generalPurposeFlagNamesByHandoffKind,
             'generalPurposeFlagIssueCounts' => $generalPurposeFlagIssueCounts,
             'entryNamesByGeneralPurposeFlagIssue' => $entryNamesByGeneralPurposeFlagIssue,
+            'creatorHostSystemCounts' => $creatorHostSystemCounts,
+            'entryNamesByCreatorHostSystem' => $entryNamesByCreatorHostSystem,
+            'creatorHostSystemNamesByRole' => $creatorHostSystemNamesByRole,
+            'creatorHostSystemNamesByHandoffKind' => $creatorHostSystemNamesByHandoffKind,
+            'creatorVersionComparisonCounts' => $creatorVersionComparisonCounts,
+            'entryNamesByCreatorVersionComparison' => $entryNamesByCreatorVersionComparison,
+            'creatorVersionComparisonsByRole' => $creatorVersionComparisonsByRole,
+            'creatorVersionComparisonsByHandoffKind' => $creatorVersionComparisonsByHandoffKind,
+            'creatorHostSystemIssueCounts' => $creatorHostSystemIssueCounts,
+            'entryNamesByCreatorHostSystemIssue' => $entryNamesByCreatorHostSystemIssue,
             'largestPayloadEntry' => $largestPayloadEntry,
             'largestPayloadEntryLimit' => self::ZIP_MANIFEST_LARGEST_PAYLOAD_ENTRY_LIMIT,
             'largestPayloadEntryCount' => count($largestPayloadEntries),
@@ -10208,6 +10306,108 @@ final class OpcRelationshipGraph
         self::sortStringListMap($entryNamesByFlag);
         self::sortStringListMap($flagNamesByRole);
         self::sortStringListMap($flagNamesByHandoffKind);
+        ksort($issueCounts, SORT_STRING);
+        self::sortStringListMap($entryNamesByIssue);
+    }
+
+    /**
+     * @param array<string, int> $hostSystemCounts
+     * @param array<string, list<string>> $entryNamesByHostSystem
+     * @param array<string, list<string>> $hostSystemNamesByRole
+     * @param array<string, list<string>> $hostSystemNamesByHandoffKind
+     * @param array<string, int> $versionComparisonCounts
+     * @param array<string, list<string>> $entryNamesByVersionComparison
+     * @param array<string, list<string>> $versionComparisonsByRole
+     * @param array<string, list<string>> $versionComparisonsByHandoffKind
+     * @param array<string, int> $issueCounts
+     * @param array<string, list<string>> $entryNamesByIssue
+     * @param array<string, mixed> $entry
+     */
+    private static function recordZipEntryManifestCreatorHostProvenance(
+        array &$hostSystemCounts,
+        array &$entryNamesByHostSystem,
+        array &$hostSystemNamesByRole,
+        array &$hostSystemNamesByHandoffKind,
+        array &$versionComparisonCounts,
+        array &$entryNamesByVersionComparison,
+        array &$versionComparisonsByRole,
+        array &$versionComparisonsByHandoffKind,
+        array &$issueCounts,
+        array &$entryNamesByIssue,
+        array $entry
+    ): void {
+        $entryName = is_string($entry['entryName'] ?? null) ? $entry['entryName'] : '';
+        $role = is_string($entry['role'] ?? null) ? $entry['role'] : 'unknown';
+        $handoffKind = is_string($entry['handoffKind'] ?? null) ? $entry['handoffKind'] : 'unknown';
+        $hostSystemName = is_string($entry['madeByHostSystemName'] ?? null)
+            ? $entry['madeByHostSystemName']
+            : 'unknown';
+
+        $hostSystemCounts[$hostSystemName] = ($hostSystemCounts[$hostSystemName] ?? 0) + 1;
+        $entryNamesByHostSystem[$hostSystemName] ??= [];
+        self::appendUniqueString($entryNamesByHostSystem[$hostSystemName], $entryName);
+
+        $hostSystemNamesByRole[$role] ??= [];
+        self::appendUniqueString($hostSystemNamesByRole[$role], $hostSystemName);
+        $hostSystemNamesByHandoffKind[$handoffKind] ??= [];
+        self::appendUniqueString($hostSystemNamesByHandoffKind[$handoffKind], $hostSystemName);
+
+        $versionComparison = is_string($entry['creatorVersionComparison'] ?? null)
+            ? $entry['creatorVersionComparison']
+            : null;
+        if ($versionComparison !== null) {
+            $versionComparisonCounts[$versionComparison] = ($versionComparisonCounts[$versionComparison] ?? 0) + 1;
+            $entryNamesByVersionComparison[$versionComparison] ??= [];
+            self::appendUniqueString($entryNamesByVersionComparison[$versionComparison], $entryName);
+
+            $versionComparisonsByRole[$role] ??= [];
+            self::appendUniqueString($versionComparisonsByRole[$role], $versionComparison);
+            $versionComparisonsByHandoffKind[$handoffKind] ??= [];
+            self::appendUniqueString($versionComparisonsByHandoffKind[$handoffKind], $versionComparison);
+        }
+
+        foreach (is_array($entry['creatorHostSystemIssues'] ?? null) ? $entry['creatorHostSystemIssues'] : [] as $issue) {
+            if (!is_string($issue)) {
+                continue;
+            }
+
+            $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
+            $entryNamesByIssue[$issue] ??= [];
+            self::appendUniqueString($entryNamesByIssue[$issue], $entryName);
+        }
+    }
+
+    /**
+     * @param array<string, int> $hostSystemCounts
+     * @param array<string, list<string>> $entryNamesByHostSystem
+     * @param array<string, list<string>> $hostSystemNamesByRole
+     * @param array<string, list<string>> $hostSystemNamesByHandoffKind
+     * @param array<string, int> $versionComparisonCounts
+     * @param array<string, list<string>> $entryNamesByVersionComparison
+     * @param array<string, list<string>> $versionComparisonsByRole
+     * @param array<string, list<string>> $versionComparisonsByHandoffKind
+     * @param array<string, int> $issueCounts
+     * @param array<string, list<string>> $entryNamesByIssue
+     */
+    private static function sortZipManifestCreatorHostProvenance(
+        array &$hostSystemCounts,
+        array &$entryNamesByHostSystem,
+        array &$hostSystemNamesByRole,
+        array &$hostSystemNamesByHandoffKind,
+        array &$versionComparisonCounts,
+        array &$entryNamesByVersionComparison,
+        array &$versionComparisonsByRole,
+        array &$versionComparisonsByHandoffKind,
+        array &$issueCounts,
+        array &$entryNamesByIssue
+    ): void {
+        ksort($hostSystemCounts, SORT_STRING);
+        self::sortStringListMap($entryNamesByHostSystem);
+        self::sortStringListMap($hostSystemNamesByRole);
+        self::sortStringListMap($hostSystemNamesByHandoffKind);
+        self::sortStringListMap($entryNamesByVersionComparison);
+        self::sortStringListMap($versionComparisonsByRole);
+        self::sortStringListMap($versionComparisonsByHandoffKind);
         ksort($issueCounts, SORT_STRING);
         self::sortStringListMap($entryNamesByIssue);
     }
