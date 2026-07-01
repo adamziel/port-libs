@@ -289,20 +289,20 @@ XML,
     <numFmt numFmtId="165" formatCode="[h]:mm:ss"/>
   </numFmts>
   <fonts count="2">
-    <font><u val="double"/><color rgb="FF336699"/><sz val="11"/><name val="Aptos"/><family val="2"/><charset val="1"/><scheme val="minor"/><vertAlign val="superscript"/></font>
+    <font><u val="double"/><color rgb="FF336699" tint="-0.25"/><sz val="11"/><name val="Aptos"/><family val="2"/><charset val="1"/><scheme val="minor"/><vertAlign val="superscript"/></font>
     <font><b/><strike/><name val="Aptos"/></font>
   </fonts>
   <fills count="3">
     <fill><patternFill patternType="none"/></fill>
     <fill><patternFill patternType="gray125"/></fill>
-    <fill><patternFill patternType="solid"><fgColor rgb="FFFFCC00"/><bgColor indexed="64"/></patternFill></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FFFFCC00" tint="0.4"/><bgColor indexed="64"/></patternFill></fill>
   </fills>
   <borders count="2">
     <border><left/><right/><top/><bottom/><diagonal/></border>
     <border diagonalUp="1" outline="0">
       <left style="thin"><color rgb="FF112233"/></left>
       <right style="double"><color indexed="64"/></right>
-      <top style="dashed"><color theme="4"/></top>
+      <top style="dashed"><color theme="4" tint="-0.25"/></top>
       <bottom style="medium"><color auto="1"/></bottom>
       <diagonal style="hair"><color rgb="FFABCDEF"/></diagonal>
     </border>
@@ -902,12 +902,30 @@ return [
         $t->same('Aptos', $moneyCell->attr('xlsxFontName'));
         $t->same(11.0, $moneyCell->attr('xlsxFontSize'));
         $t->same('rgb:FF336699', $moneyCell->attr('xlsxFontColor'));
+        $t->same([
+            'source' => 'rgb',
+            'value' => 'FF336699',
+            'token' => 'rgb:FF336699',
+            'argb' => 'FF336699',
+            'alpha' => 'FF',
+            'rgb' => '336699',
+            'tint' => -0.25,
+        ], $moneyCell->attr('xlsxFontColorMetadata'));
         $t->same(2, $moneyCell->attr('xlsxFontFamily'));
         $t->same(1, $moneyCell->attr('xlsxFontCharset'));
         $t->same('minor', $moneyCell->attr('xlsxFontScheme'));
         $t->same('double', $moneyCell->attr('xlsxFontUnderlineStyle'));
         $t->same('superscript', $moneyCell->attr('xlsxFontVerticalAlign'));
         $t->same('rgb:FFFFCC00', $moneyCell->attr('xlsxFillForegroundColor'));
+        $t->same([
+            'source' => 'rgb',
+            'value' => 'FFFFCC00',
+            'token' => 'rgb:FFFFCC00',
+            'argb' => 'FFFFCC00',
+            'alpha' => 'FF',
+            'rgb' => 'FFCC00',
+            'tint' => 0.4,
+        ], $moneyCell->attr('xlsxFillForegroundColorMetadata'));
         $t->same(true, $moneyCell->attr('xlsxWrapText'));
         $t->same(45, $moneyCell->attr('xlsxTextRotation'));
         $t->same(false, $moneyCell->attr('xlsxLocked'));
@@ -1016,8 +1034,21 @@ return [
         $t->same('indexed:64', $moneyCell->attr('xlsxBorderRightColor'));
         $t->same('dashed', $moneyCell->attr('xlsxBorderTopStyle'));
         $t->same('theme:4', $moneyCell->attr('xlsxBorderTopColor'));
+        $t->same([
+            'source' => 'theme',
+            'value' => '4',
+            'token' => 'theme:4',
+            'theme' => 4,
+            'tint' => -0.25,
+        ], $moneyCell->attr('xlsxBorderTopColorMetadata'));
         $t->same('medium', $moneyCell->attr('xlsxBorderBottomStyle'));
         $t->same('auto:1', $moneyCell->attr('xlsxBorderBottomColor'));
+        $t->same([
+            'source' => 'auto',
+            'value' => '1',
+            'token' => 'auto:1',
+            'auto' => true,
+        ], $moneyCell->attr('xlsxBorderBottomColorMetadata'));
         $t->same('hair', $moneyCell->attr('xlsxBorderDiagonalStyle'));
         $t->same('rgb:FFABCDEF', $moneyCell->attr('xlsxBorderDiagonalColor'));
         $t->same(true, $moneyCell->attr('xlsxBorderDiagonalUp'));
@@ -1116,10 +1147,14 @@ return [
         $t->same(1, $visibleSheet['tableParts'][0]['totalsRowCount'] ?? null);
         $t->same(true, $visibleSheet['tableParts'][0]['published'] ?? null);
         $t->same(3, $visibleSheet['tableParts'][0]['columnCount'] ?? null);
+        $t->same(['Formula', 'Result', 'Error'], $visibleSheet['tableParts'][0]['columnNames'] ?? null);
         $t->same('Formula', $visibleSheet['tableParts'][0]['columns'][0]['name'] ?? null);
         $t->same('sum', $visibleSheet['tableParts'][0]['columns'][0]['totalsRowFunction'] ?? null);
         $t->same('Total', $visibleSheet['tableParts'][0]['columns'][1]['totalsRowLabel'] ?? null);
         $t->same(5, $visibleSheet['tableParts'][0]['columns'][2]['dataDxfId'] ?? null);
+        $t->same(1, $visibleSheet['tableParts'][0]['autoFilterColumnCount'] ?? null);
+        $t->same('dynamicFilter', $visibleSheet['tableParts'][0]['autoFilterColumns'][0]['filterType'] ?? null);
+        $t->same('thisYear', $visibleSheet['tableParts'][0]['autoFilterColumns'][0]['details']['type'] ?? null);
         $t->same('TableStyleMedium2', $visibleSheet['tableParts'][0]['tableStyleInfo']['name'] ?? null);
         $t->same(false, $visibleSheet['tableParts'][0]['tableStyleInfo']['showFirstColumn'] ?? null);
         $t->same(true, $visibleSheet['tableParts'][0]['tableStyleInfo']['showLastColumn'] ?? null);

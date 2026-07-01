@@ -1366,6 +1366,7 @@ final class XlsxReader
             $style['fontName'] = $font['name'];
             $style['fontSize'] = $font['size'];
             $style['fontColor'] = $font['color'];
+            $style['fontColorMetadata'] = $font['colorMetadata'];
             $style['fontFamily'] = $font['family'];
             $style['fontCharset'] = $font['charset'];
             $style['fontScheme'] = $font['scheme'];
@@ -1380,6 +1381,8 @@ final class XlsxReader
             $style['fillPatternType'] = $fill['patternType'];
             $style['fillForegroundColor'] = $fill['foregroundColor'];
             $style['fillBackgroundColor'] = $fill['backgroundColor'];
+            $style['fillForegroundColorMetadata'] = $fill['foregroundColorMetadata'];
+            $style['fillBackgroundColorMetadata'] = $fill['backgroundColorMetadata'];
         }
 
         $borderId = $this->integerAttribute($xfElement, 'borderId');
@@ -1396,6 +1399,11 @@ final class XlsxReader
             $style['borderBottomColor'] = $border['bottomColor'];
             $style['borderDiagonalStyle'] = $border['diagonalStyle'];
             $style['borderDiagonalColor'] = $border['diagonalColor'];
+            $style['borderLeftColorMetadata'] = $border['leftColorMetadata'];
+            $style['borderRightColorMetadata'] = $border['rightColorMetadata'];
+            $style['borderTopColorMetadata'] = $border['topColorMetadata'];
+            $style['borderBottomColorMetadata'] = $border['bottomColorMetadata'];
+            $style['borderDiagonalColorMetadata'] = $border['diagonalColorMetadata'];
             $style['borderDiagonalUp'] = $border['diagonalUp'];
             $style['borderDiagonalDown'] = $border['diagonalDown'];
             $style['borderOutline'] = $border['outline'];
@@ -1496,6 +1504,7 @@ final class XlsxReader
         $charset = $this->firstChildElement($fontElement, 'charset');
         $scheme = $this->firstChildElement($fontElement, 'scheme');
         $verticalAlign = $this->firstChildElement($fontElement, 'vertAlign');
+        $colorMetadata = $color instanceof \DOMElement ? $this->styleColorMetadata($color) : [];
         $underlineStyle = null;
         if ($underline instanceof \DOMElement) {
             $underlineValue = strtolower(trim($underline->getAttribute('val')));
@@ -1509,7 +1518,8 @@ final class XlsxReader
             'strike' => $this->firstChildElement($fontElement, 'strike') instanceof \DOMElement,
             'name' => $name instanceof \DOMElement && trim($name->getAttribute('val')) !== '' ? trim($name->getAttribute('val')) : null,
             'size' => $size instanceof \DOMElement && is_numeric(trim($size->getAttribute('val'))) ? (float) trim($size->getAttribute('val')) : null,
-            'color' => $color instanceof \DOMElement ? $this->styleColorValue($color) : null,
+            'color' => $colorMetadata['token'] ?? null,
+            'colorMetadata' => $colorMetadata,
             'family' => $family instanceof \DOMElement ? $this->integerAttribute($family, 'val') : null,
             'charset' => $charset instanceof \DOMElement ? $this->integerAttribute($charset, 'val') : null,
             'scheme' => $scheme instanceof \DOMElement && trim($scheme->getAttribute('val')) !== '' ? trim($scheme->getAttribute('val')) : null,
@@ -1531,6 +1541,7 @@ final class XlsxReader
             'name' => null,
             'size' => null,
             'color' => null,
+            'colorMetadata' => [],
             'family' => null,
             'charset' => null,
             'scheme' => null,
@@ -1551,11 +1562,15 @@ final class XlsxReader
 
         $foreground = $this->firstChildElement($patternFill, 'fgColor');
         $background = $this->firstChildElement($patternFill, 'bgColor');
+        $foregroundMetadata = $foreground instanceof \DOMElement ? $this->styleColorMetadata($foreground) : [];
+        $backgroundMetadata = $background instanceof \DOMElement ? $this->styleColorMetadata($background) : [];
 
         return [
             'patternType' => trim($patternFill->getAttribute('patternType')) !== '' ? trim($patternFill->getAttribute('patternType')) : null,
-            'foregroundColor' => $foreground instanceof \DOMElement ? $this->styleColorValue($foreground) : null,
-            'backgroundColor' => $background instanceof \DOMElement ? $this->styleColorValue($background) : null,
+            'foregroundColor' => $foregroundMetadata['token'] ?? null,
+            'backgroundColor' => $backgroundMetadata['token'] ?? null,
+            'foregroundColorMetadata' => $foregroundMetadata,
+            'backgroundColorMetadata' => $backgroundMetadata,
         ];
     }
 
@@ -1568,6 +1583,8 @@ final class XlsxReader
             'patternType' => null,
             'foregroundColor' => null,
             'backgroundColor' => null,
+            'foregroundColorMetadata' => [],
+            'backgroundColorMetadata' => [],
         ];
     }
 
@@ -1593,6 +1610,11 @@ final class XlsxReader
             'bottomColor' => $bottom['color'],
             'diagonalStyle' => $diagonal['style'],
             'diagonalColor' => $diagonal['color'],
+            'leftColorMetadata' => $left['colorMetadata'],
+            'rightColorMetadata' => $right['colorMetadata'],
+            'topColorMetadata' => $top['colorMetadata'],
+            'bottomColorMetadata' => $bottom['colorMetadata'],
+            'diagonalColorMetadata' => $diagonal['colorMetadata'],
             'diagonalUp' => $this->booleanAttribute($borderElement, 'diagonalUp'),
             'diagonalDown' => $this->booleanAttribute($borderElement, 'diagonalDown'),
             'outline' => $this->booleanAttribute($borderElement, 'outline'),
@@ -1600,7 +1622,7 @@ final class XlsxReader
     }
 
     /**
-     * @return array{style:?string, color:?string}
+     * @return array{style:?string, color:?string, colorMetadata:array<string, mixed>}
      */
     private function parseStyleBorderSide(?\DOMElement $sideElement): array
     {
@@ -1608,14 +1630,17 @@ final class XlsxReader
             return [
                 'style' => null,
                 'color' => null,
+                'colorMetadata' => [],
             ];
         }
 
         $color = $this->firstChildElement($sideElement, 'color');
+        $colorMetadata = $color instanceof \DOMElement ? $this->styleColorMetadata($color) : [];
 
         return [
             'style' => trim($sideElement->getAttribute('style')) !== '' ? trim($sideElement->getAttribute('style')) : null,
-            'color' => $color instanceof \DOMElement ? $this->styleColorValue($color) : null,
+            'color' => $colorMetadata['token'] ?? null,
+            'colorMetadata' => $colorMetadata,
         ];
     }
 
@@ -1635,6 +1660,11 @@ final class XlsxReader
             'bottomColor' => null,
             'diagonalStyle' => null,
             'diagonalColor' => null,
+            'leftColorMetadata' => [],
+            'rightColorMetadata' => [],
+            'topColorMetadata' => [],
+            'bottomColorMetadata' => [],
+            'diagonalColorMetadata' => [],
             'diagonalUp' => null,
             'diagonalDown' => null,
             'outline' => null,
@@ -1643,14 +1673,49 @@ final class XlsxReader
 
     private function styleColorValue(\DOMElement $colorElement): ?string
     {
+        $metadata = $this->styleColorMetadata($colorElement);
+
+        return is_string($metadata['token'] ?? null) ? $metadata['token'] : null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function styleColorMetadata(\DOMElement $colorElement): array
+    {
         foreach (['rgb', 'indexed', 'theme', 'auto'] as $attribute) {
             $value = trim($colorElement->getAttribute($attribute));
             if ($value !== '') {
-                return $attribute . ':' . $value;
+                $metadata = [
+                    'source' => $attribute,
+                    'value' => $value,
+                    'token' => $attribute . ':' . $value,
+                ];
+                if ($attribute === 'rgb') {
+                    $argb = strtoupper($value);
+                    if (preg_match('/^[0-9A-F]{8}$/', $argb) === 1) {
+                        $metadata['argb'] = $argb;
+                        $metadata['alpha'] = substr($argb, 0, 2);
+                        $metadata['rgb'] = substr($argb, 2);
+                    } elseif (preg_match('/^[0-9A-F]{6}$/', $argb) === 1) {
+                        $metadata['rgb'] = $argb;
+                    }
+                } elseif (in_array($attribute, ['indexed', 'theme'], true) && preg_match('/^-?\d+$/', $value) === 1) {
+                    $metadata[$attribute] = (int) $value;
+                } elseif ($attribute === 'auto') {
+                    $metadata['auto'] = in_array(strtolower($value), ['1', 'true', 'on'], true);
+                }
+
+                $tint = trim($colorElement->getAttribute('tint'));
+                if ($tint !== '' && is_numeric($tint)) {
+                    $metadata['tint'] = (float) $tint;
+                }
+
+                return $metadata;
             }
         }
 
-        return null;
+        return [];
     }
 
     /**
@@ -1673,6 +1738,7 @@ final class XlsxReader
             'fontName' => null,
             'fontSize' => null,
             'fontColor' => null,
+            'fontColorMetadata' => [],
             'fontFamily' => null,
             'fontCharset' => null,
             'fontScheme' => null,
@@ -1681,6 +1747,8 @@ final class XlsxReader
             'fillPatternType' => null,
             'fillForegroundColor' => null,
             'fillBackgroundColor' => null,
+            'fillForegroundColorMetadata' => [],
+            'fillBackgroundColorMetadata' => [],
             'numFmtId' => null,
             'formatCode' => null,
             'horizontalAlign' => null,
@@ -1712,6 +1780,11 @@ final class XlsxReader
             'borderBottomColor' => null,
             'borderDiagonalStyle' => null,
             'borderDiagonalColor' => null,
+            'borderLeftColorMetadata' => [],
+            'borderRightColorMetadata' => [],
+            'borderTopColorMetadata' => [],
+            'borderBottomColorMetadata' => [],
+            'borderDiagonalColorMetadata' => [],
             'borderDiagonalUp' => null,
             'borderDiagonalDown' => null,
             'borderOutline' => null,
@@ -2275,6 +2348,7 @@ final class XlsxReader
                 'fontName' => $font['name'] ?? null,
                 'fontSize' => $font['size'] ?? null,
                 'fontColor' => $font['color'] ?? null,
+                'fontColorMetadata' => $font['colorMetadata'] ?? [],
                 'fontFamily' => $font['family'] ?? null,
                 'fontCharset' => $font['charset'] ?? null,
                 'fontScheme' => $font['scheme'] ?? null,
@@ -2475,6 +2549,7 @@ final class XlsxReader
             'fontName' => 'xlsxFontName',
             'fontSize' => 'xlsxFontSize',
             'fontColor' => 'xlsxFontColor',
+            'fontColorMetadata' => 'xlsxFontColorMetadata',
             'fontFamily' => 'xlsxFontFamily',
             'fontCharset' => 'xlsxFontCharset',
             'fontScheme' => 'xlsxFontScheme',
@@ -2484,17 +2559,24 @@ final class XlsxReader
             'fillPatternType' => 'xlsxFillPatternType',
             'fillForegroundColor' => 'xlsxFillForegroundColor',
             'fillBackgroundColor' => 'xlsxFillBackgroundColor',
+            'fillForegroundColorMetadata' => 'xlsxFillForegroundColorMetadata',
+            'fillBackgroundColorMetadata' => 'xlsxFillBackgroundColorMetadata',
             'borderId' => 'xlsxBorderId',
             'borderLeftStyle' => 'xlsxBorderLeftStyle',
             'borderLeftColor' => 'xlsxBorderLeftColor',
+            'borderLeftColorMetadata' => 'xlsxBorderLeftColorMetadata',
             'borderRightStyle' => 'xlsxBorderRightStyle',
             'borderRightColor' => 'xlsxBorderRightColor',
+            'borderRightColorMetadata' => 'xlsxBorderRightColorMetadata',
             'borderTopStyle' => 'xlsxBorderTopStyle',
             'borderTopColor' => 'xlsxBorderTopColor',
+            'borderTopColorMetadata' => 'xlsxBorderTopColorMetadata',
             'borderBottomStyle' => 'xlsxBorderBottomStyle',
             'borderBottomColor' => 'xlsxBorderBottomColor',
+            'borderBottomColorMetadata' => 'xlsxBorderBottomColorMetadata',
             'borderDiagonalStyle' => 'xlsxBorderDiagonalStyle',
             'borderDiagonalColor' => 'xlsxBorderDiagonalColor',
+            'borderDiagonalColorMetadata' => 'xlsxBorderDiagonalColorMetadata',
             'borderDiagonalUp' => 'xlsxBorderDiagonalUp',
             'borderDiagonalDown' => 'xlsxBorderDiagonalDown',
             'borderOutline' => 'xlsxBorderOutline',
@@ -2843,12 +2925,17 @@ final class XlsxReader
                 'published' => null,
                 'columnCount' => 0,
                 'columns' => [],
+                'columnNames' => [],
+                'autoFilterColumnCount' => 0,
+                'autoFilterColumns' => [],
                 'tableStyleInfo' => null,
             ];
         }
 
         $autoFilter = $this->firstChildElement($root, 'autoFilter');
         $tableColumns = $this->firstChildElement($root, 'tableColumns');
+        $columns = $tableColumns instanceof \DOMElement ? $this->parseTableColumns($tableColumns) : [];
+        $autoFilterMetadata = $autoFilter instanceof \DOMElement ? $this->parseAutoFilter($autoFilter, 'table') : null;
 
         return [
             'id' => $this->integerAttribute($root, 'id'),
@@ -2858,13 +2945,22 @@ final class XlsxReader
             'autoFilterRef' => $autoFilter instanceof \DOMElement && trim($autoFilter->getAttribute('ref')) !== ''
                 ? trim($autoFilter->getAttribute('ref'))
                 : null,
-            'autoFilter' => $autoFilter instanceof \DOMElement ? $this->parseAutoFilter($autoFilter, 'table') : null,
+            'autoFilter' => $autoFilterMetadata,
             'headerRowCount' => $this->integerAttribute($root, 'headerRowCount'),
             'totalsRowCount' => $this->integerAttribute($root, 'totalsRowCount'),
             'totalsRowShown' => $this->booleanAttribute($root, 'totalsRowShown'),
             'published' => $this->booleanAttribute($root, 'published'),
-            'columnCount' => $tableColumns instanceof \DOMElement ? count($this->childElements($tableColumns, 'tableColumn')) : 0,
-            'columns' => $tableColumns instanceof \DOMElement ? $this->parseTableColumns($tableColumns) : [],
+            'columnCount' => count($columns),
+            'columns' => $columns,
+            'columnNames' => array_values(array_filter(
+                array_map(
+                    static fn (array $column): ?string => is_string($column['name'] ?? null) ? $column['name'] : null,
+                    $columns
+                ),
+                static fn (?string $name): bool => $name !== null && $name !== ''
+            )),
+            'autoFilterColumnCount' => is_array($autoFilterMetadata) ? (int) ($autoFilterMetadata['filterColumnCount'] ?? 0) : 0,
+            'autoFilterColumns' => is_array($autoFilterMetadata['filterColumns'] ?? null) ? $autoFilterMetadata['filterColumns'] : [],
             'tableStyleInfo' => $this->parseTableStyleInfo($this->firstChildElement($root, 'tableStyleInfo')),
         ];
     }
