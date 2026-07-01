@@ -44,6 +44,12 @@ final class BibliographyReader
             $attrs['cslJsonReview'] = $review;
             $attrs['cslJsonItemReviews'] = $review['items'];
         }
+        if ($this->format === 'ris') {
+            $review = $this->risReview($items, $ids);
+            $attrs['bibliography']['risReview'] = $review;
+            $attrs['risReview'] = $review;
+            $attrs['risItemReviews'] = $review['items'];
+        }
 
         return new AstNode('document', $attrs, $bibliography->children === [] ? [] : [$bibliography]);
     }
@@ -207,6 +213,161 @@ final class BibliographyReader
             'linkFields' => $linkFields,
             'relationFieldCount' => count($relationFields),
             'relationFields' => $relationFields,
+            'payloadExposurePolicy' => 'source-values-omitted',
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @param list<string> $ids
+     * @return array<string, mixed>
+     */
+    private function risReview(array $items, array $ids): array
+    {
+        $reviews = [];
+        $recordTypeCounts = [];
+        $cslTypeCounts = [];
+        $fieldTagCounts = [];
+        $attachmentTagCounts = [];
+        $mappedFieldCounts = [];
+        $duplicateMappedFieldCount = 0;
+        $conflictingMappedFieldCount = 0;
+        $sourceFileCandidateCount = 0;
+
+        foreach ($items as $index => $item) {
+            $review = $this->risItemReview($item, $index);
+            $reviews[] = $review;
+
+            $recordType = (string) $review['recordType'];
+            if ($recordType !== '') {
+                $recordTypeCounts[$recordType] = ($recordTypeCounts[$recordType] ?? 0) + 1;
+            }
+
+            $cslType = (string) $review['cslType'];
+            if ($cslType !== '') {
+                $cslTypeCounts[$cslType] = ($cslTypeCounts[$cslType] ?? 0) + 1;
+            }
+
+            foreach ($review['fieldValueCounts'] as $tag => $count) {
+                $fieldTagCounts[$tag] = ($fieldTagCounts[$tag] ?? 0) + $count;
+            }
+            foreach ($review['attachmentTagCounts'] as $tag => $count) {
+                $attachmentTagCounts[$tag] = ($attachmentTagCounts[$tag] ?? 0) + $count;
+            }
+            foreach ($review['mappedFields'] as $fieldName) {
+                $mappedFieldCounts[$fieldName] = ($mappedFieldCounts[$fieldName] ?? 0) + 1;
+            }
+
+            $duplicateMappedFieldCount += $review['duplicateMappedFieldCount'];
+            $conflictingMappedFieldCount += $review['conflictingMappedFieldCount'];
+            $sourceFileCandidateCount += $review['sourceFileCandidateCount'];
+        }
+
+        ksort($recordTypeCounts);
+        ksort($cslTypeCounts);
+        ksort($fieldTagCounts);
+        ksort($attachmentTagCounts);
+        ksort($mappedFieldCounts);
+
+        return [
+            'scope' => 'ris-bibliography',
+            'byteExposurePolicy' => 'metadata-only',
+            'externalTooling' => false,
+            'itemCount' => count($items),
+            'itemIds' => $ids,
+            'recordTypeCounts' => $recordTypeCounts,
+            'cslTypeCounts' => $cslTypeCounts,
+            'fieldTagCount' => count($fieldTagCounts),
+            'fieldValueCounts' => $fieldTagCounts,
+            'attachmentTagCounts' => $attachmentTagCounts,
+            'sourceFileCandidateCount' => $sourceFileCandidateCount,
+            'mappedFieldCounts' => $mappedFieldCounts,
+            'duplicateMappedFieldCount' => $duplicateMappedFieldCount,
+            'conflictingMappedFieldCount' => $conflictingMappedFieldCount,
+            'items' => $reviews,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array<string, mixed>
+     */
+    private function risItemReview(array $item, int $index): array
+    {
+        $rawRis = $item['rawRis'] ?? [];
+        $fields = is_array($rawRis) && is_array($rawRis['fields'] ?? null) ? $rawRis['fields'] : [];
+        $recordType = is_array($rawRis) && is_scalar($rawRis['type'] ?? null) ? trim((string) $rawRis['type']) : '';
+        $fieldValueCounts = [];
+        foreach ($fields as $tag => $values) {
+            if (!is_array($values)) {
+                continue;
+            }
+
+            $count = 0;
+            foreach ($values as $value) {
+                if (is_scalar($value) && trim((string) $value) !== '') {
+                    $count++;
+                }
+            }
+            if ($count > 0) {
+                $fieldValueCounts[(string) $tag] = $count;
+            }
+        }
+        ksort($fieldValueCounts);
+
+        $attachmentTagCounts = [];
+        foreach (['L1', 'L2', 'L3', 'L4'] as $tag) {
+            if (isset($fieldValueCounts[$tag])) {
+                $attachmentTagCounts[$tag] = $fieldValueCounts[$tag];
+            }
+        }
+
+        $mappedFields = [];
+        $duplicateMappedFields = [];
+        $conflictingMappedFields = [];
+        $provenance = is_array($item['risFieldProvenance'] ?? null) ? $item['risFieldProvenance'] : [];
+        foreach ($provenance as $row) {
+            if (!is_array($row) || !is_scalar($row['field'] ?? null)) {
+                continue;
+            }
+
+            $field = trim((string) $row['field']);
+            if ($field === '') {
+                continue;
+            }
+
+            $mappedFields[] = $field;
+            if (($row['duplicate'] ?? false) === true) {
+                $duplicateMappedFields[] = $field;
+            }
+            if (($row['conflict'] ?? false) === true) {
+                $conflictingMappedFields[] = $field;
+            }
+        }
+
+        $mappedFields = $this->uniqueSortedStrings($mappedFields);
+        $duplicateMappedFields = $this->uniqueSortedStrings($duplicateMappedFields);
+        $conflictingMappedFields = $this->uniqueSortedStrings($conflictingMappedFields);
+        $id = $item['id'] ?? '';
+        $type = $item['type'] ?? '';
+
+        return [
+            'index' => $index,
+            'id' => is_scalar($id) ? trim((string) $id) : '',
+            'recordType' => $recordType,
+            'cslType' => is_scalar($type) ? trim((string) $type) : '',
+            'fieldTagCount' => count($fieldValueCounts),
+            'fieldValueCount' => array_sum($fieldValueCounts),
+            'fieldTags' => array_keys($fieldValueCounts),
+            'fieldValueCounts' => $fieldValueCounts,
+            'attachmentTagCounts' => $attachmentTagCounts,
+            'sourceFileCandidateCount' => array_sum($attachmentTagCounts),
+            'mappedFields' => $mappedFields,
+            'mappedFieldCount' => count($mappedFields),
+            'duplicateMappedFields' => $duplicateMappedFields,
+            'duplicateMappedFieldCount' => count($duplicateMappedFields),
+            'conflictingMappedFields' => $conflictingMappedFields,
+            'conflictingMappedFieldCount' => count($conflictingMappedFields),
             'payloadExposurePolicy' => 'source-values-omitted',
         ];
     }

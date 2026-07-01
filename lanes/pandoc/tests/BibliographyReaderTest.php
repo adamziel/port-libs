@@ -221,6 +221,92 @@ XML;
         $t->same(false, str_contains($reviewJson, 'private reference payload'));
         $t->same(false, str_contains($reviewJson, '978-private-isbn'));
     },
+    'records metadata only ris reader review provenance' => static function (TestRunner $t): void {
+        $ris = <<<'RIS'
+TY  - JOUR
+ID  - ris-private-one
+AU  - Ng, Nia
+AU  - Roe, Pat
+TI  - Secret RIS Packet Title
+T1  - Private Alternate Packet Title
+RI  - Private Reviewed Manual
+RI  - Conflicting Reviewed Manual
+PY  - 2026/07/01/
+DO  - 10.5555/private-ris
+UR  - https://example.test/private-ris
+L1  - attachments/private.pdf
+L2  - https://example.test/private.pdf
+ER  -
+
+TY  - RPRT
+ID  - ris-private-two
+AU  - Migration Review Desk
+TI  - Private RIS Report
+PY  - 2025
+KW  - private-keyword
+KW  - source-review
+U1  - review channel
+C1  - verbatim private note
+ER  -
+RIS;
+
+        $document = (new BibliographyReader('ris'))->read($ris);
+        $review = $document->attr('risReview');
+        $items = $review['items'];
+
+        $t->same($review, $document->attr('bibliography')['risReview'] ?? null);
+        $t->same($items, $document->attr('risItemReviews'));
+        $t->same('ris-bibliography', $review['scope']);
+        $t->same('metadata-only', $review['byteExposurePolicy']);
+        $t->same(false, $review['externalTooling']);
+        $t->same(2, $review['itemCount']);
+        $t->same(['ris-private-one', 'ris-private-two'], $review['itemIds']);
+        $t->same(['JOUR' => 1, 'RPRT' => 1], $review['recordTypeCounts']);
+        $t->same(['article-journal' => 1, 'report' => 1], $review['cslTypeCounts']);
+        $t->same(14, $review['fieldTagCount']);
+        $t->same(3, $review['fieldValueCounts']['AU'] ?? null);
+        $t->same(2, $review['fieldValueCounts']['KW'] ?? null);
+        $t->same(2, $review['fieldValueCounts']['RI'] ?? null);
+        $t->same(['L1' => 1, 'L2' => 1], $review['attachmentTagCounts']);
+        $t->same(2, $review['sourceFileCandidateCount']);
+        $t->same(['reviewed-title' => 1, 'title' => 1, 'usera' => 1, 'verba' => 1], $review['mappedFieldCounts']);
+        $t->same(2, $review['duplicateMappedFieldCount']);
+        $t->same(2, $review['conflictingMappedFieldCount']);
+
+        $first = $items[0];
+        $t->same(0, $first['index']);
+        $t->same('ris-private-one', $first['id']);
+        $t->same('JOUR', $first['recordType']);
+        $t->same('article-journal', $first['cslType']);
+        $t->same(11, $first['fieldTagCount']);
+        $t->same(13, $first['fieldValueCount']);
+        $t->same(['L1' => 1, 'L2' => 1], $first['attachmentTagCounts']);
+        $t->same(['reviewed-title', 'title'], $first['mappedFields']);
+        $t->same(['reviewed-title', 'title'], $first['duplicateMappedFields']);
+        $t->same(['reviewed-title', 'title'], $first['conflictingMappedFields']);
+        $t->same('source-values-omitted', $first['payloadExposurePolicy']);
+
+        $second = $items[1];
+        $t->same('RPRT', $second['recordType']);
+        $t->same('report', $second['cslType']);
+        $t->same(8, $second['fieldTagCount']);
+        $t->same(9, $second['fieldValueCount']);
+        $t->same([], $second['attachmentTagCounts']);
+        $t->same(['usera', 'verba'], $second['mappedFields']);
+        $t->same([], $second['duplicateMappedFields']);
+        $t->same([], $second['conflictingMappedFields']);
+
+        $reviewJson = json_encode($review, JSON_THROW_ON_ERROR);
+        $t->same(false, str_contains($reviewJson, 'Secret RIS Packet Title'));
+        $t->same(false, str_contains($reviewJson, 'Private Alternate Packet Title'));
+        $t->same(false, str_contains($reviewJson, 'Private Reviewed Manual'));
+        $t->same(false, str_contains($reviewJson, 'Conflicting Reviewed Manual'));
+        $t->same(false, str_contains($reviewJson, '10.5555/private-ris'));
+        $t->same(false, str_contains($reviewJson, 'https://example.test/private-ris'));
+        $t->same(false, str_contains($reviewJson, 'attachments/private.pdf'));
+        $t->same(false, str_contains($reviewJson, 'private-keyword'));
+        $t->same(false, str_contains($reviewJson, 'verbatim private note'));
+    },
     'rejects malformed bibliography inputs through converter dispatch' => static function (TestRunner $t): void {
         $t->throws(\InvalidArgumentException::class, static function (): void {
             PandocConverter::read('@book{missing,title={Bad}', 'bibtex');
