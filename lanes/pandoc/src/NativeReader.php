@@ -72,7 +72,7 @@ final class NativeReader
 
         if ($this->acceptIdentifier('Pandoc')) {
             $wrappedMeta = $this->acceptSymbol('(');
-            $meta = $this->parseMeta();
+            [$meta, $metaNativeValues, $metaConstructorProvenance] = $this->parseMeta();
             if ($wrappedMeta) {
                 $this->expectSymbol(')');
             }
@@ -82,6 +82,12 @@ final class NativeReader
             $attrs = ['nativeFormat' => 'pandoc-native-text'];
             if ($meta !== []) {
                 $attrs['meta'] = $meta;
+            }
+            if ($metaNativeValues !== []) {
+                $attrs['metaNativeValues'] = $metaNativeValues;
+            }
+            if ($metaConstructorProvenance !== []) {
+                $attrs['metaConstructorProvenance'] = $metaConstructorProvenance;
             }
 
             return new AstNode('document', $attrs, $blocks);
@@ -676,6 +682,9 @@ final class NativeReader
         return null;
     }
 
+    /**
+     * @return array{0:array<string, mixed>, 1:array<string, array<string, mixed>>, 2:array<string, array{constructor:string, native:array<string, mixed>}>}
+     */
     private function parseMeta(): array
     {
         $this->expectIdentifier('Meta');
@@ -687,17 +696,29 @@ final class NativeReader
         $this->expectSymbol('}');
 
         $meta = [];
-        foreach ($entries as $key => $value) {
-            if ($key === 'title' && $this->isTypedValue($value, 'MetaInlines')) {
-                $meta['titleInlines'] = $value['value'];
-                $meta['title'] = $this->plainInlineText($value['value']);
+        $metaNativeValues = [];
+        $metaConstructorProvenance = [];
+        foreach ($entries as $key => $entry) {
+            if (!is_array($entry) || !array_key_exists('value', $entry) || !is_array($entry['native'] ?? null)) {
                 continue;
             }
 
-            if ($key === 'author' && $this->isTypedValue($value, 'MetaList')) {
+            $value = $entry['value'];
+            $native = $entry['native'];
+            $metaNativeValues[(string) $key] = $native;
+            $this->collectTextMetaConstructorProvenance($native, [(string) $key], $metaConstructorProvenance);
+
+            if ($key === 'title' && $this->isTypedValue($entry, 'MetaInlines')) {
+                $meta['titleInlines'] = $entry['value'];
+                $meta['title'] = $this->plainInlineText($entry['value']);
+                continue;
+            }
+
+            if ($key === 'author' && $this->isTypedValue($entry, 'MetaList')) {
                 $authorInlines = [];
                 $authors = [];
-                foreach ($value['value'] as $author) {
+                $authorItems = is_array($entry['items'] ?? null) ? $entry['items'] : [];
+                foreach ($authorItems as $author) {
                     if ($this->isTypedValue($author, 'MetaInlines')) {
                         $authorInlines[] = $author['value'];
                         $authors[] = $this->plainInlineText($author['value']);
@@ -710,35 +731,81 @@ final class NativeReader
                 }
             }
 
-            if ($key === 'date' && $this->isTypedValue($value, 'MetaInlines')) {
-                $meta['dateInlines'] = $value['value'];
-                $meta['date'] = $this->plainInlineText($value['value']);
+            if ($key === 'date' && $this->isTypedValue($entry, 'MetaInlines')) {
+                $meta['dateInlines'] = $entry['value'];
+                $meta['date'] = $this->plainInlineText($entry['value']);
                 continue;
             }
 
             $meta[$key] = $value;
         }
 
-        return $meta;
+        return [$meta, $metaNativeValues, $metaConstructorProvenance];
     }
 
-    private function parseMetaValue(): mixed
+    /**
+     * @return array{type:string, value:mixed, native:array<string, mixed>}
+     */
+    private function parseMetaValue(): array
     {
         $type = $this->expectAnyIdentifier();
 
         return match ($type) {
-            'MetaInlines' => ['type' => 'MetaInlines', 'value' => $this->parseInlineList()],
-            'MetaBlocks' => ['type' => 'MetaBlocks', 'value' => $this->parseBlockList()],
-            'MetaList' => ['type' => 'MetaList', 'value' => $this->parseList(fn (): mixed => $this->parseMetaValue())],
+            'MetaInlines' => $this->parseMetaInlinesValue(),
+            'MetaBlocks' => $this->parseMetaBlocksValue(),
+            'MetaList' => $this->parseMetaListValue(),
             'MetaMap' => $this->parseMetaMap(),
-            'MetaBool' => $this->parseBool(),
-            'MetaString' => $this->expectString(),
+            'MetaBool' => $this->parseMetaBoolValue(),
+            'MetaString' => $this->parseMetaStringValue(),
             default => throw new \InvalidArgumentException("Unsupported Native meta value '{$type}'"),
         };
     }
 
     /**
-     * @return array<string, mixed>
+     * @return array{type:string, value:list<AstNode>, native:array{t:string, c:list<array<string, mixed>>}}
+     */
+    private function parseMetaInlinesValue(): array
+    {
+        $inlines = $this->parseInlineList();
+
+        return [
+            'type' => 'MetaInlines',
+            'value' => $inlines,
+            'native' => ['t' => 'MetaInlines', 'c' => $this->nativeInlineListPayload($inlines) ?? []],
+        ];
+    }
+
+    /**
+     * @return array{type:string, value:list<AstNode>, native:array{t:string, c:list<array<string, mixed>>}}
+     */
+    private function parseMetaBlocksValue(): array
+    {
+        $blocks = $this->parseBlockList();
+
+        return [
+            'type' => 'MetaBlocks',
+            'value' => $blocks,
+            'native' => ['t' => 'MetaBlocks', 'c' => $this->nativeBlockListPayload($blocks) ?? []],
+        ];
+    }
+
+    /**
+     * @return array{type:string, value:list<mixed>, items:list<array{type:string, value:mixed, native:array<string, mixed>}>, native:array{t:string, c:list<array<string, mixed>>}}
+     */
+    private function parseMetaListValue(): array
+    {
+        $items = $this->parseList(fn (): array => $this->parseMetaValue());
+
+        return [
+            'type' => 'MetaList',
+            'value' => array_map(static fn (array $item): mixed => $item['value'], $items),
+            'items' => $items,
+            'native' => ['t' => 'MetaList', 'c' => array_map(static fn (array $item): array => $item['native'], $items)],
+        ];
+    }
+
+    /**
+     * @return array{type:string, value:array<string, mixed>, native:array{t:string, c:array<string, array<string, mixed>>}}
      */
     private function parseMetaMap(): array
     {
@@ -747,7 +814,105 @@ final class NativeReader
         $entries = $this->parsePairList(fn (): mixed => $this->parseMetaValue());
         $this->expectSymbol(')');
 
-        return $entries;
+        $values = [];
+        $native = [];
+        foreach ($entries as $key => $entry) {
+            if (!is_array($entry) || !array_key_exists('value', $entry) || !is_array($entry['native'] ?? null)) {
+                continue;
+            }
+            $values[(string) $key] = $entry['value'];
+            $native[(string) $key] = $entry['native'];
+        }
+
+        return [
+            'type' => 'MetaMap',
+            'value' => $values,
+            'native' => ['t' => 'MetaMap', 'c' => $native],
+        ];
+    }
+
+    /**
+     * @return array{type:string, value:bool, native:array{t:string, c:bool}}
+     */
+    private function parseMetaBoolValue(): array
+    {
+        $value = $this->parseBool();
+
+        return [
+            'type' => 'MetaBool',
+            'value' => $value,
+            'native' => ['t' => 'MetaBool', 'c' => $value],
+        ];
+    }
+
+    /**
+     * @return array{type:string, value:string, native:array{t:string, c:string}}
+     */
+    private function parseMetaStringValue(): array
+    {
+        $value = $this->expectString();
+
+        return [
+            'type' => 'MetaString',
+            'value' => $value,
+            'native' => ['t' => 'MetaString', 'c' => $value],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $native
+     * @param list<string> $path
+     * @param array<string, array{constructor:string, native:array<string, mixed>}> $provenance
+     */
+    private function collectTextMetaConstructorProvenance(array $native, array $path, array &$provenance): void
+    {
+        $constructor = $native['t'] ?? null;
+        if (!is_string($constructor) || !in_array($constructor, self::META_CONSTRUCTORS, true)) {
+            return;
+        }
+
+        $provenance[$this->metaProvenancePath($path)] = [
+            'constructor' => $constructor,
+            'native' => $native,
+        ];
+
+        if ($constructor === 'MetaMap') {
+            $content = $native['c'] ?? [];
+            if (is_array($content) && !array_is_list($content)) {
+                foreach ($content as $key => $item) {
+                    if (is_array($item) && !array_is_list($item)) {
+                        $this->collectTextMetaConstructorProvenance($item, [...$path, (string) $key], $provenance);
+                    }
+                }
+            }
+            return;
+        }
+
+        if ($constructor === 'MetaList') {
+            $content = $native['c'] ?? [];
+            if (is_array($content) && array_is_list($content)) {
+                foreach ($content as $index => $item) {
+                    if (is_array($item) && !array_is_list($item)) {
+                        $this->collectTextMetaConstructorProvenance($item, [...$path, (string) $index], $provenance);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * @param list<string> $path
+     */
+    private function metaProvenancePath(array $path): string
+    {
+        if ($path === []) {
+            return '/';
+        }
+
+        return '/' . implode('/', array_map(
+            static fn (string $part): string => strtr($part, ['~' => '~0', '/' => '~1']),
+            $path
+        ));
     }
 
     /**
