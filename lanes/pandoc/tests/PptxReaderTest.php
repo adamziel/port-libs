@@ -5686,13 +5686,20 @@ XML);
 XML);
     $zip->addFromString('ppt/diagrams/data1.xml', <<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
-<dgm:dataModel xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+<dgm:dataModel xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:q="urn:qualified-smartart-attrs">
   <dgm:ptLst>
     <dgm:pt modelId="parent"><dgm:t><a:p><a:r><a:t>Visible parent</a:t></a:r></a:p></dgm:t></dgm:pt>
     <dgm:pt modelId="child"><dgm:t><a:p><a:r><a:t>Visible child</a:t></a:r></a:p></dgm:t></dgm:pt>
     <dgm:pt modelId="orphan"><dgm:t><a:p><a:r><a:t>Orphan text</a:t></a:r></a:p></dgm:t></dgm:pt>
     <dgm:pt modelId="typedParent"><dgm:t><a:p><a:r><a:t>Typed parent</a:t></a:r></a:p></dgm:t></dgm:pt>
     <dgm:pt modelId="typedChild"><dgm:t><a:p><a:r><a:t>Typed child</a:t></a:r></a:p></dgm:t></dgm:pt>
+    <dgm:pt q:modelId="qualifiedOnly"><dgm:t><a:p><a:r><a:t>Qualified modelId text</a:t></a:r></a:p></dgm:t></dgm:pt>
+    <dgm:pt modelId="qualifiedTypeParent"><dgm:t><a:p><a:r><a:t>Qualified type parent</a:t></a:r></a:p></dgm:t></dgm:pt>
+    <dgm:pt modelId="qualifiedTypeChild"><dgm:t><a:p><a:r><a:t>Qualified type child</a:t></a:r></a:p></dgm:t></dgm:pt>
+    <dgm:pt modelId="qualifiedSrcParent"><dgm:t><a:p><a:r><a:t>Qualified src parent</a:t></a:r></a:p></dgm:t></dgm:pt>
+    <dgm:pt modelId="qualifiedSrcChild"><dgm:t><a:p><a:r><a:t>Qualified src child</a:t></a:r></a:p></dgm:t></dgm:pt>
+    <dgm:pt modelId="qualifiedDestParent"><dgm:t><a:p><a:r><a:t>Qualified dest parent</a:t></a:r></a:p></dgm:t></dgm:pt>
+    <dgm:pt modelId="qualifiedDestChild"><dgm:t><a:p><a:r><a:t>Qualified dest child</a:t></a:r></a:p></dgm:t></dgm:pt>
     <dgm:pt modelId="endpointParent"><dgm:t><a:p><a:r><a:t>Endpoint parent</a:t></a:r></a:p></dgm:t></dgm:pt>
     <dgm:pt modelId="endpointChild"><dgm:t><a:p><a:r><a:t>Endpoint child</a:t></a:r></a:p></dgm:t></dgm:pt>
     <dgm:pt modelId="lonelyParent"><dgm:t><a:p><a:r><a:t>Parent without visible child</a:t></a:r></a:p></dgm:t></dgm:pt>
@@ -5700,8 +5707,12 @@ XML);
   </dgm:ptLst>
   <dgm:cxnLst>
     <dgm:cxn srcId="parent" destId="child"/>
+    <dgm:cxn srcId="parent" destId="qualifiedOnly"/>
     <dgm:cxn srcId="lonelyParent" destId="blankChild"/>
     <dgm:cxn type="parOf" srcId="typedParent" destId="typedChild"/>
+    <dgm:cxn q:type="parOf" srcId="qualifiedTypeParent" destId="qualifiedTypeChild"/>
+    <dgm:cxn q:srcId="qualifiedSrcParent" destId="qualifiedSrcChild"/>
+    <dgm:cxn srcId="qualifiedDestParent" q:destId="qualifiedDestChild"/>
     <dgm:cxn srcId="endpointParent"/>
     <dgm:cxn destId="endpointChild"/>
   </dgm:cxnLst>
@@ -10654,7 +10665,7 @@ return [
         $t->true(!str_contains($native, 'Diagram parse error'), 'Missing cxnLst should produce an empty SmartArt hierarchy rather than a diagnostic');
     },
 
-    'filters orphan typed malformed and empty-child pptx SmartArt connections like upstream' => static function (TestRunner $t) use ($buildFilteredSmartArtConnectionsPptxPackage, $nodesOfType, $nodesWithClass): void {
+    'filters orphan typed malformed qualified and empty-child pptx SmartArt connections like upstream' => static function (TestRunner $t) use ($buildFilteredSmartArtConnectionsPptxPackage, $nodesOfType, $nodesWithClass): void {
         $document = (new PptxReader())->read($buildFilteredSmartArtConnectionsPptxPackage());
         $review = $document->attr('pptx');
         $divs = $nodesOfType($document, 'div');
@@ -10665,15 +10676,22 @@ return [
         $t->same(1, count($smartArtDivs));
         $t->same(['smartart', 'basicBlockList'], $smartArtDivs[0]->attr('classes'));
         $t->same(['layout' => 'basicBlockList'], $smartArtDivs[0]->attr('attributes'));
-        $t->same(3, count($smartArtDivs[0]->children));
-        $t->same(1, count($bulletLists));
+        $t->same(5, count($smartArtDivs[0]->children));
+        $t->same(2, count($bulletLists));
         $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
         $t->contains('Strong [ Str "Parent" , Space , Str "without" , Space , Str "visible" , Space , Str "child" ]', $native);
         $t->contains('Strong [ Str "Visible" , Space , Str "parent" ]', $native);
         $t->contains('BulletList [ [ Plain [ Str "Visible" , Space , Str "child"', $native);
+        $t->contains('Strong [ Str "Qualified" , Space , Str "type" , Space , Str "parent" ]', $native);
+        $t->contains('BulletList [ [ Plain [ Str "Qualified" , Space , Str "type" , Space , Str "child"', $native);
         $t->true(!str_contains($native, 'Orphan text'), 'SmartArt nodes without outgoing untyped connections should stay hidden like upstream');
         $t->true(!str_contains($native, 'Typed parent'), 'Typed SmartArt connections should not make visible hierarchy parents');
         $t->true(!str_contains($native, 'Typed child'), 'Children reachable only through typed SmartArt connections should stay hidden');
+        $t->true(!str_contains($native, 'Qualified modelId text'), 'Qualified SmartArt modelId attributes should not create node text entries');
+        $t->true(!str_contains($native, 'Qualified src parent'), 'Qualified SmartArt srcId attributes should make connections malformed like upstream');
+        $t->true(!str_contains($native, 'Qualified src child'), 'Children reachable only through qualified SmartArt srcId attributes should stay hidden');
+        $t->true(!str_contains($native, 'Qualified dest parent'), 'Qualified SmartArt destId attributes should make connections malformed like upstream');
+        $t->true(!str_contains($native, 'Qualified dest child'), 'Children reachable only through qualified SmartArt destId attributes should stay hidden');
         $t->true(!str_contains($native, 'Endpoint parent'), 'SmartArt connections without destId should be ignored');
         $t->true(!str_contains($native, 'Endpoint child'), 'SmartArt connections without srcId should be ignored');
         $t->true(str_contains($native, 'Para [ Strong [ Str "Parent" , Space , Str "without" , Space , Str "visible" , Space , Str "child" ] ]'), 'A parent whose children filter empty should stay a standalone paragraph');
