@@ -533,6 +533,18 @@ final class PdfEngineHandoff
                     $diagnostics[] = 'typst-diagnostics-output-issues:' . count($diagnosticOutput['issues']);
                 }
             }
+            if (($typstBoundaryProvenance['diagnosticOutputPolicy'] ?? []) !== []) {
+                $diagnosticOutputPolicy = $typstBoundaryProvenance['diagnosticOutputPolicy'];
+                if (is_array($diagnosticOutputPolicy) && is_string($diagnosticOutputPolicy['reviewStatus'] ?? null)) {
+                    $diagnostics[] = 'typst-diagnostic-output-policy:' . $diagnosticOutputPolicy['reviewStatus'];
+                }
+                if (is_array($diagnosticOutputPolicy) && is_int($diagnosticOutputPolicy['invalidControlCount'] ?? null) && $diagnosticOutputPolicy['invalidControlCount'] > 0) {
+                    $diagnostics[] = 'typst-diagnostic-output-invalid:' . $diagnosticOutputPolicy['invalidControlCount'];
+                }
+                if (is_array($diagnosticOutputPolicy) && is_int($diagnosticOutputPolicy['overrideCount'] ?? null) && $diagnosticOutputPolicy['overrideCount'] > 0) {
+                    $diagnostics[] = 'typst-diagnostic-output-overrides:' . $diagnosticOutputPolicy['overrideCount'];
+                }
+            }
             if (($typstBoundaryProvenance['dependencyOutput'] ?? null) !== null) {
                 $dependencyOutput = $typstBoundaryProvenance['dependencyOutput'];
                 if (is_array($dependencyOutput) && is_array($dependencyOutput['file'] ?? null)) {
@@ -7991,6 +8003,11 @@ final class PdfEngineHandoff
         array_push($overrides, ...$this->typstInputVariableOverrideOptionEntries($inputVariables));
         $outputFormatPolicy = $this->typstOutputFormatBoundaryPolicy($outputFormatHistory, $overrides);
         $bundleExportPolicy = $this->typstBundleExportPolicy($outputFormat, $featureGates);
+        $diagnosticOutputPolicy = $this->typstDiagnosticOutputPolicy(
+            $diagnosticFormatHistory,
+            $diagnosticColorHistory,
+            $overrides
+        );
         $pdfTagIssues = [];
         if ($noPdfTagsCount > 0 && $this->typstPdfStandardRequestsPdfUa($pdfStandard)) {
             $pdfTagIssues[] = 'pdf-tags-disabled-for-pdfua';
@@ -8148,6 +8165,9 @@ final class PdfEngineHandoff
                 'color' => $diagnosticColor,
                 'issues' => array_values(array_unique($diagnosticOutputIssues)),
             ];
+        }
+        if ($diagnosticOutputPolicy !== []) {
+            $provenance['diagnosticOutputPolicy'] = $diagnosticOutputPolicy;
         }
         if ($dependencyOutputFile !== null || $dependencyFormat !== null) {
             $dependencyOutputIssues = [];
@@ -8389,6 +8409,108 @@ final class PdfEngineHandoff
             'distinctFormats' => $distinctFormats,
             'formatEntryCount' => count($formatHistory),
             'issues' => array_values(array_unique($issues)),
+        ];
+    }
+
+    /**
+     * @param list<array{raw:string, value:string, format:string|null, machineReadable:bool, safe:bool, issues:list<string>}> $formatHistory
+     * @param list<array{raw:string, value:string, color:string|null, ansiColor:string, safe:bool, issues:list<string>}> $colorHistory
+     * @param list<array{option:string, count:int, values:list<string>, selected:string, issue:string}> $overrides
+     * @return array<string, mixed>
+     */
+    private function typstDiagnosticOutputPolicy(array $formatHistory, array $colorHistory, array $overrides): array
+    {
+        if ($formatHistory === [] && $colorHistory === []) {
+            return [];
+        }
+
+        $formatOptions = [];
+        $colorOptions = [];
+        $issues = [];
+        $validFormatCount = 0;
+        $invalidFormatCount = 0;
+        foreach ($formatHistory as $entry) {
+            foreach ($entry['issues'] as $issue) {
+                $issues[] = $issue;
+            }
+            if ($entry['format'] !== null) {
+                $formatOptions[] = $entry['format'];
+            }
+            if ($entry['safe']) {
+                ++$validFormatCount;
+            } else {
+                ++$invalidFormatCount;
+            }
+        }
+
+        $validColorCount = 0;
+        $invalidColorCount = 0;
+        foreach ($colorHistory as $entry) {
+            foreach ($entry['issues'] as $issue) {
+                $issues[] = $issue;
+            }
+            if ($entry['color'] !== null) {
+                $colorOptions[] = $entry['color'];
+            }
+            if ($entry['safe']) {
+                ++$validColorCount;
+            } else {
+                ++$invalidColorCount;
+            }
+        }
+
+        $diagnosticOverrides = array_values(array_filter(
+            $overrides,
+            static fn (array $entry): bool => in_array($entry['option'], ['diagnosticFormat', 'diagnosticColor'], true)
+        ));
+        $formatOverrides = array_values(array_filter(
+            $diagnosticOverrides,
+            static fn (array $entry): bool => $entry['option'] === 'diagnosticFormat'
+        ));
+        $colorOverrides = array_values(array_filter(
+            $diagnosticOverrides,
+            static fn (array $entry): bool => $entry['option'] === 'diagnosticColor'
+        ));
+        foreach ($diagnosticOverrides as $override) {
+            $issues[] = $override['issue'];
+        }
+
+        $selectedFormat = $formatHistory === [] ? null : $formatHistory[count($formatHistory) - 1];
+        $selectedColor = $colorHistory === [] ? null : $colorHistory[count($colorHistory) - 1];
+        $distinctFormats = array_values(array_unique($formatOptions));
+        sort($distinctFormats);
+        $distinctColors = array_values(array_unique($colorOptions));
+        sort($distinctColors);
+        $issues = array_values(array_unique(array_filter(
+            $issues,
+            static fn (mixed $issue): bool => is_string($issue) && $issue !== ''
+        )));
+        sort($issues);
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'controlCount' => (int) ($formatHistory !== []) + (int) ($colorHistory !== []),
+            'formatEntryCount' => count($formatHistory),
+            'colorEntryCount' => count($colorHistory),
+            'selectedFormat' => is_array($selectedFormat) ? $selectedFormat['format'] : null,
+            'selectedFormatMachineReadable' => is_array($selectedFormat) && $selectedFormat['machineReadable'],
+            'selectedFormatSafe' => is_array($selectedFormat) && $selectedFormat['safe'],
+            'formatOptions' => $formatOptions,
+            'distinctFormats' => $distinctFormats,
+            'validFormatCount' => $validFormatCount,
+            'invalidFormatCount' => $invalidFormatCount,
+            'selectedColor' => is_array($selectedColor) ? $selectedColor['color'] : null,
+            'selectedAnsiColor' => is_array($selectedColor) ? $selectedColor['ansiColor'] : null,
+            'selectedColorSafe' => is_array($selectedColor) && $selectedColor['safe'],
+            'colorOptions' => $colorOptions,
+            'distinctColors' => $distinctColors,
+            'validColorCount' => $validColorCount,
+            'invalidColorCount' => $invalidColorCount,
+            'invalidControlCount' => $invalidFormatCount + $invalidColorCount,
+            'overrideCount' => count($diagnosticOverrides),
+            'formatOverrideCount' => count($formatOverrides),
+            'colorOverrideCount' => count($colorOverrides),
+            'issues' => $issues,
         ];
     }
 
