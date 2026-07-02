@@ -938,6 +938,69 @@ return [
         $t->same('legacy-top-level-filter', $roundTripMeta['source']);
         $t->same('wp-import', $roundTripMeta['review']['items']['queue']);
     },
+    'writes direct top-level pandoc meta envelopes as canonical document metadata' => static function (TestRunner $t): void {
+        $writer = new PandocJsonWriter();
+        $reader = new PandocJsonReader();
+        $sourceNative = ['t' => 'MetaString', 'c' => 'direct-meta-envelope', 'reviewQueue' => 'source-meta'];
+        $reviewNative = ['t' => 'MetaMap', 'c' => [
+            'queue' => ['t' => 'MetaString', 'c' => 'json-import'],
+            'ready' => ['t' => 'MetaBool', 'c' => true],
+        ], 'reviewQueue' => 'review-meta'];
+        $directEnvelope = [
+            't' => 'Meta',
+            'c' => [
+                'unMeta' => [
+                    'source' => $sourceNative,
+                    'review' => $reviewNative,
+                ],
+            ],
+            'reviewQueue' => 'root-meta',
+        ];
+        $wrappedMap = [
+            't' => 'MetaMap',
+            'c' => [[
+                'source' => ['t' => 'MetaString', 'c' => 'single-wrapped-root-map'],
+                'draft' => ['t' => 'MetaBool', 'c' => false],
+            ]],
+        ];
+        $legacyMap = [
+            't' => 'MetaMap',
+            'c' => [
+                'unMeta' => [
+                    'source' => ['t' => 'MetaString', 'c' => 'legacy-root-map'],
+                    'tags' => ['t' => 'MetaList', 'c' => [
+                        ['t' => 'MetaString', 'c' => 'json'],
+                        ['t' => 'MetaString', 'c' => 'metadata'],
+                    ]],
+                ],
+            ],
+        ];
+
+        $envelopePacket = $writer->toArray(new AstNode('document', ['meta' => $directEnvelope]));
+        $wrappedPacket = $writer->toArray(new AstNode('document', ['meta' => $wrappedMap]));
+        $legacyPacket = $writer->toArray(new AstNode('document', ['meta' => $legacyMap]));
+        $envelopeMeta = $reader->readPacket($envelopePacket)->attr('meta');
+        $wrappedMeta = $reader->readPacket($wrappedPacket)->attr('meta');
+        $legacyMeta = $reader->readPacket($legacyPacket)->attr('meta');
+
+        $t->same(false, array_key_exists('t', $envelopePacket['meta']));
+        $t->same($sourceNative, $envelopePacket['meta']['source']);
+        $t->same($reviewNative, $envelopePacket['meta']['review']);
+        $t->same('direct-meta-envelope', $envelopeMeta['source']);
+        $t->same('json-import', $envelopeMeta['review']['items']['queue']);
+        $t->same(true, $envelopeMeta['review']['items']['ready']);
+
+        $t->same(false, array_key_exists('t', $wrappedPacket['meta']));
+        $t->same('MetaString', $wrappedPacket['meta']['source']['t']);
+        $t->same('single-wrapped-root-map', $wrappedMeta['source']);
+        $t->same(false, $wrappedMeta['draft']);
+
+        $t->same(false, array_key_exists('unMeta', $legacyPacket['meta']));
+        $t->same('MetaString', $legacyPacket['meta']['source']['t']);
+        $t->same('MetaList', $legacyPacket['meta']['tags']['t']);
+        $t->same('legacy-root-map', $legacyMeta['source']);
+        $t->same(['json', 'metadata'], $legacyMeta['tags']['items']);
+    },
     'writes shared ast documents as pandoc json filter exchange shape' => static function (TestRunner $t): void {
         $document = new AstNode('document', [
             'pandocApiVersion' => [1, 23, 1],

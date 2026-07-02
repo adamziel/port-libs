@@ -127,10 +127,16 @@ final class PandocJsonWriter
             return [];
         }
 
-        if (($meta['t'] ?? null) === 'MetaMap') {
-            $content = $meta['c'] ?? [];
+        if (($meta['t'] ?? null) === 'Meta') {
+            $content = $this->topLevelMetaEnvelopeContent($meta['c'] ?? null);
 
-            return is_array($content) && !array_is_list($content) ? $this->normalizeStandardMeta($content) : [];
+            return $content !== null ? $this->normalizeStandardMeta($content) : [];
+        }
+
+        if (($meta['t'] ?? null) === 'MetaMap') {
+            $content = $this->topLevelMetaMapContent($meta['c'] ?? null);
+
+            return $content !== null ? $this->normalizeStandardMeta($content) : [];
         }
 
         if (($meta['type'] ?? null) === 'map') {
@@ -196,6 +202,59 @@ final class PandocJsonWriter
         }
 
         return $normalized;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function topLevelMetaEnvelopeContent(mixed $content): ?array
+    {
+        if (is_array($content) && array_is_list($content) && count($content) === 1) {
+            $content = $content[0];
+        }
+
+        if (is_array($content) && !array_is_list($content) && ($content['t'] ?? null) === 'MetaMap') {
+            return $this->topLevelMetaMapContent($content['c'] ?? null);
+        }
+
+        if (!is_array($content) || array_is_list($content) || count($content) !== 1 || !array_key_exists('unMeta', $content)) {
+            return null;
+        }
+
+        $unMeta = $content['unMeta'];
+        if (is_array($unMeta) && !array_is_list($unMeta) && ($unMeta['t'] ?? null) === 'MetaMap') {
+            return $this->topLevelMetaMapContent($unMeta['c'] ?? null);
+        }
+
+        return is_array($unMeta) && !array_is_list($unMeta) ? $unMeta : null;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function topLevelMetaMapContent(mixed $content): ?array
+    {
+        if (
+            is_array($content)
+            && array_is_list($content)
+            && count($content) === 1
+            && is_array($content[0])
+            && !array_is_list($content[0])
+        ) {
+            $content = $content[0];
+        }
+
+        if (!is_array($content) || array_is_list($content)) {
+            return null;
+        }
+
+        if (count($content) !== 1 || !array_key_exists('unMeta', $content) || $this->isTaggedObject($content['unMeta'])) {
+            return $content;
+        }
+
+        $unMeta = $content['unMeta'];
+
+        return is_array($unMeta) && !array_is_list($unMeta) ? $unMeta : null;
     }
 
     /**
