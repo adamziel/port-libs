@@ -9811,6 +9811,36 @@ final class PdfEngineHandoff
             static fn (mixed $entry): bool => is_array($entry)
                 && in_array($entry['option'] ?? null, ['diagnosticFormat', 'diagnosticColor'], true)
         ));
+        $diagnosticOutputIssues = [];
+        foreach ([$diagnosticOutput, $diagnosticFormat, $diagnosticColor] as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            foreach (is_array($entry['issues'] ?? null) ? $entry['issues'] : [] as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $diagnosticOutputIssues[] = $issue;
+                }
+            }
+        }
+        foreach ([$diagnosticFormatHistory, $diagnosticColorHistory] as $history) {
+            foreach ($history as $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+                foreach (is_array($entry['issues'] ?? null) ? $entry['issues'] : [] as $issue) {
+                    if (is_string($issue) && $issue !== '') {
+                        $diagnosticOutputIssues[] = $issue;
+                    }
+                }
+            }
+        }
+        foreach ($diagnosticOutputOverrides as $override) {
+            if (is_array($override) && is_string($override['issue'] ?? null) && $override['issue'] !== '') {
+                $diagnosticOutputIssues[] = $override['issue'];
+            }
+        }
+        $diagnosticOutputIssues = array_values(array_unique($diagnosticOutputIssues));
+        sort($diagnosticOutputIssues);
         $systemFontAccess = is_array($provenance['systemFonts'] ?? null) ? $provenance['systemFonts'] : [];
         $embeddedFontAccess = is_array($provenance['embeddedFonts'] ?? null) ? $provenance['embeddedFonts'] : [];
         $systemFontAccessDisabled = ($systemFontAccess['systemFontAccess'] ?? null) === 'disabled';
@@ -10263,10 +10293,20 @@ final class PdfEngineHandoff
             'sidecarOutputIssueCount' => count($sidecarOutputIssues),
             'diagnosticOutputPresent' => $diagnosticOutput !== [],
             'diagnosticOutputControlCount' => (int) ($diagnosticFormat !== []) + (int) ($diagnosticColor !== []),
+            'diagnosticFormat' => is_string($diagnosticFormat['format'] ?? null) ? $diagnosticFormat['format'] : null,
+            'diagnosticFormatMachineReadable' => ($diagnosticFormat['machineReadable'] ?? false) === true,
+            'diagnosticFormatSafe' => ($diagnosticFormat['safe'] ?? false) === true,
+            'diagnosticColor' => is_string($diagnosticColor['color'] ?? null) ? $diagnosticColor['color'] : null,
+            'diagnosticAnsiColor' => is_string($diagnosticColor['ansiColor'] ?? null) ? $diagnosticColor['ansiColor'] : null,
+            'diagnosticColorSafe' => ($diagnosticColor['safe'] ?? false) === true,
             'diagnosticFormatHistoryCount' => count($diagnosticFormatHistory),
             'diagnosticColorHistoryCount' => count($diagnosticColorHistory),
             'diagnosticOutputOverrideCount' => count($diagnosticOutputOverrides),
+            'invalidDiagnosticFormatCount' => $invalidDiagnosticFormatCount,
+            'invalidDiagnosticColorCount' => $invalidDiagnosticColorCount,
             'invalidDiagnosticOutputCount' => $invalidDiagnosticFormatCount + $invalidDiagnosticColorCount,
+            'diagnosticOutputIssueCount' => count($diagnosticOutputIssues),
+            'diagnosticOutputIssues' => $diagnosticOutputIssues,
             'fontAccessControlCount' => (int) $systemFontAccessDisabled + (int) $embeddedFontAccessDisabled,
             'systemFontAccessDisabled' => $systemFontAccessDisabled,
             'systemFontAccessFlagCount' => $systemFontAccessFlagCount,

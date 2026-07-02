@@ -408,10 +408,20 @@ return [
             'sidecarOutputIssueCount' => 0,
             'diagnosticOutputPresent' => true,
             'diagnosticOutputControlCount' => 2,
+            'diagnosticFormat' => 'json',
+            'diagnosticFormatMachineReadable' => true,
+            'diagnosticFormatSafe' => true,
+            'diagnosticColor' => 'never',
+            'diagnosticAnsiColor' => 'disabled',
+            'diagnosticColorSafe' => true,
             'diagnosticFormatHistoryCount' => 0,
             'diagnosticColorHistoryCount' => 0,
             'diagnosticOutputOverrideCount' => 0,
+            'invalidDiagnosticFormatCount' => 0,
+            'invalidDiagnosticColorCount' => 0,
             'invalidDiagnosticOutputCount' => 0,
+            'diagnosticOutputIssueCount' => 0,
+            'diagnosticOutputIssues' => [],
             'fontAccessControlCount' => 2,
             'systemFontAccessDisabled' => true,
             'systemFontAccessFlagCount' => 1,
@@ -5089,10 +5099,25 @@ return [
         $t->contains('typst-boundary-overrides:2', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-issues:4', implode(',', $plan['diagnostics']));
         $t->same(2, $plan['typstBoundarySummary']['diagnosticOutputControlCount']);
+        $t->same('json', $plan['typstBoundarySummary']['diagnosticFormat']);
+        $t->same(true, $plan['typstBoundarySummary']['diagnosticFormatMachineReadable']);
+        $t->same(true, $plan['typstBoundarySummary']['diagnosticFormatSafe']);
+        $t->same('never', $plan['typstBoundarySummary']['diagnosticColor']);
+        $t->same('disabled', $plan['typstBoundarySummary']['diagnosticAnsiColor']);
+        $t->same(true, $plan['typstBoundarySummary']['diagnosticColorSafe']);
         $t->same(2, $plan['typstBoundarySummary']['diagnosticFormatHistoryCount']);
         $t->same(2, $plan['typstBoundarySummary']['diagnosticColorHistoryCount']);
         $t->same(2, $plan['typstBoundarySummary']['diagnosticOutputOverrideCount']);
+        $t->same(1, $plan['typstBoundarySummary']['invalidDiagnosticFormatCount']);
+        $t->same(1, $plan['typstBoundarySummary']['invalidDiagnosticColorCount']);
         $t->same(2, $plan['typstBoundarySummary']['invalidDiagnosticOutputCount']);
+        $t->same(4, $plan['typstBoundarySummary']['diagnosticOutputIssueCount']);
+        $t->same([
+            'diagnostic-color-boundary-overridden',
+            'diagnostic-color-invalid-boundary',
+            'diagnostic-format-boundary-overridden',
+            'diagnostic-format-invalid-boundary',
+        ], $plan['typstBoundarySummary']['diagnosticOutputIssues']);
         $t->same(true, $result['ok']);
         $t->same($expected, $result['typstBoundaryProvenance']);
         $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
