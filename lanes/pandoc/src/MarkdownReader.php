@@ -1589,13 +1589,22 @@ final class MarkdownReader
             return $this->readRawHtmlUntilBlankLine($lines, $index);
         }
 
-        if (
-            $tag !== null
-            && (
-                $this->isCommonMarkBlankTerminatedRawHtmlTag($tag['name'])
-                || $this->isRawHtmlCustomTagName($tag['name'])
-            )
-        ) {
+        if ($tag !== null && $this->isCommonMarkBlankTerminatedRawHtmlTag($tag['name'])) {
+            return $this->readRawHtmlUntilBlankLine($lines, $index);
+        }
+
+        if ($tag !== null && $this->isRawHtmlCustomTagName($tag['name'])) {
+            if (
+                !$this->commonMarkRawHtmlBlockPrecedenceEnabled()
+                || $this->rawHtmlOpeningTagIsLineAlone($line, $tag)
+            ) {
+                return $this->readRawHtmlUntilBlankLine($lines, $index);
+            }
+
+            return null;
+        }
+
+        if ($tag !== null && $this->isCommonMarkType7RawHtmlOpeningLine($line, $tag)) {
             return $this->readRawHtmlUntilBlankLine($lines, $index);
         }
 
@@ -1754,6 +1763,10 @@ final class MarkdownReader
      */
     private function tryReadRawHtmlSingleLineContainerBlock(array $lines, int &$index): ?array
     {
+        if ($this->commonMarkRawHtmlBlockPrecedenceEnabled()) {
+            return null;
+        }
+
         $line = $lines[$index] ?? '';
         if (preg_match('/^ {0,3}(<(del|ins|button)(?:\s+(?:"[^"]*"|\'[^\']*\'|[^\'"<>])*)?>)(.*)(<\/\2\s*>)[ \t]*$/isu', $line, $m) !== 1) {
             return null;
@@ -2773,6 +2786,10 @@ final class MarkdownReader
     private function tryReadHtmlInlineFragmentBlock(array $lines, int &$index): ?AstNode
     {
         $line = $lines[$index] ?? '';
+        if ($this->lineStartsCommonMarkType7RawHtmlBlock($line)) {
+            return null;
+        }
+
         if (preg_match('/^ {0,3}<br\b[^>]*>/i', $line) === 1) {
             return $this->parseHtmlInlineFragmentParagraph(trim($line));
         }
@@ -8397,7 +8414,7 @@ final class MarkdownReader
     }
 
     /**
-     * @return array{name:string, selfClosing:bool}|null
+     * @return array{name:string, selfClosing:bool, endOffset:int}|null
      */
     private function tryParseRawHtmlOpeningTag(string $line): ?array
     {
@@ -8421,6 +8438,7 @@ final class MarkdownReader
                 return [
                     'name' => strtolower($match[1][0]),
                     'selfClosing' => false,
+                    'endOffset' => $cursor + 1,
                 ];
             }
 
@@ -8428,6 +8446,7 @@ final class MarkdownReader
                 return [
                     'name' => strtolower($match[1][0]),
                     'selfClosing' => true,
+                    'endOffset' => $cursor + 2,
                 ];
             }
 
@@ -9196,8 +9215,48 @@ final class MarkdownReader
             return true;
         }
 
-        return $this->isCommonMarkBlankTerminatedRawHtmlTag($tag['name'])
-            || $this->isRawHtmlCustomTagName($tag['name']);
+        if ($this->isCommonMarkBlankTerminatedRawHtmlTag($tag['name'])) {
+            return true;
+        }
+
+        if ($this->isRawHtmlCustomTagName($tag['name'])) {
+            return !$this->commonMarkRawHtmlBlockPrecedenceEnabled()
+                || $this->rawHtmlOpeningTagIsLineAlone($expanded, $tag);
+        }
+
+        return $this->isCommonMarkType7RawHtmlOpeningLine($expanded, $tag);
+    }
+
+    /**
+     * @param array{name:string, selfClosing:bool, endOffset:int} $tag
+     */
+    private function isCommonMarkType7RawHtmlOpeningLine(string $line, array $tag): bool
+    {
+        return $this->commonMarkRawHtmlBlockPrecedenceEnabled()
+            && !in_array($tag['name'], ['pre', 'script', 'style', 'textarea'], true)
+            && !$this->isCommonMarkBlankTerminatedRawHtmlTag($tag['name'])
+            && $this->rawHtmlOpeningTagIsLineAlone($line, $tag);
+    }
+
+    private function lineStartsCommonMarkType7RawHtmlBlock(string $line): bool
+    {
+        if (!$this->commonMarkRawHtmlBlockPrecedenceEnabled()) {
+            return false;
+        }
+
+        $tag = $this->tryParseRawHtmlOpeningTag($line);
+
+        return $tag !== null && $this->isCommonMarkType7RawHtmlOpeningLine($line, $tag);
+    }
+
+    /**
+     * @param array{name:string, selfClosing:bool, endOffset:int} $tag
+     */
+    private function rawHtmlOpeningTagIsLineAlone(string $line, array $tag): bool
+    {
+        $expanded = $this->expandTabsToSpaces($line);
+
+        return preg_match('/^[ \t]*$/', substr($expanded, $tag['endOffset'])) === 1;
     }
 
     /**

@@ -99,7 +99,7 @@ return [
 
             $t->same(['paragraph'], $blockTypes($document));
             $t->same(['text', 'softbreak', 'raw_html_inline', 'softbreak', 'text'], $inlineTypes($paragraph));
-            $t->same('before  after', $paragraph->attr('text'));
+            $t->same('before </section> after', $paragraph->attr('text'));
         },
 
     'records commonmark raw closing boundary mapped-case count' =>

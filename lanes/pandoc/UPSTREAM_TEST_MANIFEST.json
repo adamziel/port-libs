@@ -1425,6 +1425,8 @@
         "mappedMarkdownReaderCommonMarkRawClosingBoundaryCases": 5,
         "markdownReaderCommonMarkRawPrecedenceCases": 5,
         "mappedMarkdownReaderCommonMarkRawPrecedenceCases": 5,
+        "markdownReaderCommonMarkRawHtmlInterruptCases": 17,
+        "mappedMarkdownReaderCommonMarkRawHtmlInterruptCases": 17,
         "mappedTestsuiteDefinitionListSectionCases": 2,
         "mappedTestsuiteHtmlBlocksCases": 3,
         "mappedTestsuiteInlineMarkupCases": 5,

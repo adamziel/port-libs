@@ -15,6 +15,17 @@ $inlineTypes = static fn (AstNode $node): array => array_map(
     $node->children
 );
 
+$rawHtmlInlines = static function (AstNode $node): array {
+    $raw = [];
+    foreach ($node->children as $child) {
+        if ($child instanceof AstNode && $child->type === 'raw_html_inline') {
+            $raw[] = (string) $child->attr('html', '');
+        }
+    }
+
+    return $raw;
+};
+
 $specialRawHtmlCases = [
     'comment' => [
         "before\n<!-- raw note -->\nafter",
@@ -68,6 +79,30 @@ $blockTagRawHtmlCases = [
     ],
 ];
 
+$typeSevenRawHtmlCases = [
+    'anchor line-alone tag' => [
+        "<a href=\"foo\">\n*raw anchor* source\n</a>\n\nAfter",
+        "<a href=\"foo\">\n*raw anchor* source\n</a>",
+    ],
+    'custom warning line-alone tag' => [
+        "<Warning data-review=\"type7\">\n**raw custom** source\n</Warning>\n\nAfter",
+        "<Warning data-review=\"type7\">\n**raw custom** source\n</Warning>",
+    ],
+];
+
+$typeSevenInlineHtmlCases = [
+    'custom same-line paired content' => [
+        'markdown' => '<x-review>inline **custom** source</x-review>',
+        'inlineTypes' => ['raw_html_inline', 'text', 'strong', 'text', 'raw_html_inline'],
+        'raw' => ['<x-review>', '</x-review>'],
+    ],
+    'custom same-line self-closing content' => [
+        'markdown' => '<x-review data-case="self" /> inline **custom** source',
+        'inlineTypes' => ['raw_html_inline', 'text', 'strong', 'text'],
+        'raw' => ['<x-review data-case="self" />'],
+    ],
+];
+
 return [
     'maps commonmark special raw html starts as paragraph interrupting blocks' =>
         static function (TestRunner $t) use ($blockTypes, $specialRawHtmlCases): void {
@@ -105,6 +140,29 @@ return [
             }
         },
 
+    'maps commonmark type seven line-alone raw html starts to blank line boundary blocks' =>
+        static function (TestRunner $t) use ($blockTypes, $typeSevenRawHtmlCases): void {
+            foreach ($typeSevenRawHtmlCases as $name => [$markdown, $expectedRaw]) {
+                $document = (new MarkdownReader(['format' => 'commonmark']))->read($markdown);
+
+                $t->same(['raw_html', 'paragraph'], $blockTypes($document), $name);
+                $t->same($expectedRaw, $document->children[0]->attr('html'), $name . ' raw html');
+                $t->same('After', $document->children[1]->attr('text'), $name . ' trailing paragraph');
+            }
+        },
+
+    'keeps commonmark type seven same-line html content as inline html' =>
+        static function (TestRunner $t) use ($blockTypes, $inlineTypes, $rawHtmlInlines, $typeSevenInlineHtmlCases): void {
+            foreach ($typeSevenInlineHtmlCases as $name => $case) {
+                $document = (new MarkdownReader(['format' => 'commonmark']))->read($case['markdown'] . "\n\nAfter");
+                $paragraph = $document->children[0] ?? new AstNode('missing');
+
+                $t->same(['paragraph', 'paragraph'], $blockTypes($document), $name);
+                $t->same($case['inlineTypes'], $inlineTypes($paragraph), $name . ' inline types');
+                $t->same($case['raw'], $rawHtmlInlines($paragraph), $name . ' raw inline tags');
+            }
+        },
+
     'keeps commonmark standalone generic raw html tag lines as blank line blocks' =>
         static function (TestRunner $t) use ($blockTypes, $inlineTypes): void {
             $document = (new MarkdownReader(['format' => 'commonmark']))->read(implode("\n", [
@@ -131,13 +189,13 @@ return [
 
             $t->same(['paragraph'], $blockTypes($document));
             $t->same(['text', 'softbreak', 'raw_html_inline', 'softbreak', 'text'], $inlineTypes($paragraph));
-            $t->same('before  after', $paragraph->attr('text'));
+            $t->same('before <custom-tag> after', $paragraph->attr('text'));
             $t->same('<custom-tag>', $raw->attr('html'));
             $t->same('raw_html_inline', $raw->type);
         },
 
     'records commonmark raw html paragraph interrupt completion mapped-case count' =>
-        static function (TestRunner $t) use ($specialRawHtmlCases, $namedRawHtmlCases, $blockTagRawHtmlCases): void {
-            $t->same(13, count($specialRawHtmlCases) + count($namedRawHtmlCases) + count($blockTagRawHtmlCases) + 2);
+        static function (TestRunner $t) use ($specialRawHtmlCases, $namedRawHtmlCases, $blockTagRawHtmlCases, $typeSevenRawHtmlCases, $typeSevenInlineHtmlCases): void {
+            $t->same(17, count($specialRawHtmlCases) + count($namedRawHtmlCases) + count($blockTagRawHtmlCases) + count($typeSevenRawHtmlCases) + count($typeSevenInlineHtmlCases) + 2);
         },
 ];
