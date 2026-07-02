@@ -991,6 +991,87 @@ XML);
     }
 };
 
+$buildDirectTableChildrenPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-direct-table-children-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Direct table children</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="8" name="Direct Table Children"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl>
+        <a:tblPr/>
+        <a:tblGrid><a:gridCol w="1828800"/></a:tblGrid>
+        <a:tr>
+          <a:tc><a:txBody><a:p><a:r><a:t>Direct header</a:t></a:r></a:p></a:txBody></a:tc>
+          <a:extLst><a:tc><a:txBody><a:p><a:r><a:t>Nested header cell</a:t></a:r></a:p></a:txBody></a:tc></a:extLst>
+        </a:tr>
+        <a:wrapper>
+          <a:tr>
+            <a:tc><a:txBody><a:p><a:r><a:t>Nested row cell</a:t></a:r></a:p></a:txBody></a:tc>
+          </a:tr>
+        </a:wrapper>
+        <a:tr>
+          <a:tc><a:txBody><a:p><a:r><a:t>Direct body</a:t></a:r></a:p></a:txBody></a:tc>
+          <a:wrapper><a:tc><a:txBody><a:p><a:r><a:t>Nested body cell</a:t></a:r></a:p></a:txBody></a:tc></a:wrapper>
+        </a:tr>
+      </a:tbl></a:graphicData></a:graphic>
+    </p:graphicFrame>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildEmptyTextPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-empty-text-');
     if ($path === false) {
@@ -13855,6 +13936,27 @@ return [
         $t->contains('Str "Body" , Space , Str "C"', $native);
         $t->contains('Str "Short" , Space , Str "A"', $native);
         $t->true(!str_contains($native, 'Ragged Body Row Table'), 'Ragged table shape names should not leak into visible output');
+    },
+
+    'uses only direct pptx table rows and cells like upstream' => static function (TestRunner $t) use ($buildDirectTableChildrenPptxPackage, $nodesOfType): void {
+        $document = (new PptxReader())->read($buildDirectTableChildrenPptxPackage());
+        $review = $document->attr('pptx');
+        $tables = $nodesOfType($document, 'table');
+        $cellTexts = array_map(static fn (AstNode $cell): string => (string) $cell->attr('text'), $nodesOfType($document, 'table_cell'));
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same(1, count($tables));
+        $t->same(1, $tables[0]->attr('nativeColumnCount'));
+        $t->same(['Direct header', 'Direct body'], $cellTexts);
+        $t->same(1, count($tables[0]->children[0]->children[0]->children));
+        $t->same(1, count($tables[0]->children[1]->children));
+        $t->same(1, count($tables[0]->children[1]->children[0]->children));
+        $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
+        $t->contains('Str "Direct" , Space , Str "header"', $native);
+        $t->contains('Str "Direct" , Space , Str "body"', $native);
+        $t->true(!str_contains($native, 'Nested header cell'), 'Nested table cells should not be read as direct row cells');
+        $t->true(!str_contains($native, 'Nested row cell'), 'Nested table rows should not be read as direct table rows');
+        $t->true(!str_contains($native, 'Nested body cell'), 'Nested body cells should not be read as direct row cells');
     },
 
     'preserves upstream empty pptx text as explicit empty text nodes' => static function (TestRunner $t) use ($buildEmptyTextPptxPackage, $nodesOfType): void {
