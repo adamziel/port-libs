@@ -1442,6 +1442,16 @@ final class DelimitedTextReader
         $rowsSummary = [];
         $paddedRows = [];
         $truncatedRows = [];
+        $changedRows = [];
+        $repairCounts = [
+            'padded' => 0,
+            'unchanged' => 0,
+            'truncated' => 0,
+        ];
+        $rowRoleRepairCounts = [
+            'header' => $repairCounts,
+            'body' => $repairCounts,
+        ];
 
         foreach ($widths as $index => $width) {
             $sourceRow = $sourceRowIndexes[$index] ?? $index;
@@ -1461,11 +1471,16 @@ final class DelimitedTextReader
                 'extraFieldsDropped' => $extraFields,
             ];
             $rowsSummary[] = $rowSummary;
+            $repairCounts[$repair]++;
+            $rowRoleRepairCounts[$rowRole][$repair]++;
             if ($repair === 'padded') {
                 $paddedRows[] = $rowSummary;
             }
             if ($repair === 'truncated') {
                 $truncatedRows[] = $rowSummary;
+            }
+            if ($repair !== 'unchanged') {
+                $changedRows[] = $rowSummary;
             }
         }
 
@@ -1480,6 +1495,10 @@ final class DelimitedTextReader
             'changedRowCount' => count($paddedRows) + count($truncatedRows),
             'paddedRowCount' => count($paddedRows),
             'truncatedRowCount' => count($truncatedRows),
+            'repairCounts' => $repairCounts,
+            'rowRoleRepairCounts' => $rowRoleRepairCounts,
+            'changedSourceRows' => array_column($changedRows, 'sourceRow'),
+            'changedRows' => $changedRows,
             'paddedRows' => $paddedRows,
             'truncatedRows' => $truncatedRows,
             'rows' => $rowsSummary,

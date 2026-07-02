@@ -761,6 +761,11 @@ return [
         $t->same(3, $repairSummary['changedRowCount'] ?? null);
         $t->same(3, $repairSummary['paddedRowCount'] ?? null);
         $t->same(0, $repairSummary['truncatedRowCount'] ?? null);
+        $t->same(['padded' => 3, 'unchanged' => 1, 'truncated' => 0], $repairSummary['repairCounts'] ?? null);
+        $t->same(['padded' => 1, 'unchanged' => 0, 'truncated' => 0], $repairSummary['rowRoleRepairCounts']['header'] ?? null);
+        $t->same(['padded' => 2, 'unchanged' => 1, 'truncated' => 0], $repairSummary['rowRoleRepairCounts']['body'] ?? null);
+        $t->same([0, 1, 3], $repairSummary['changedSourceRows'] ?? null);
+        $t->same(['source-row-0', 'source-row-1', 'source-row-3'], array_column($repairSummary['changedRows'] ?? [], 'rowLabel'));
         $t->same('padded', $repairSummary['rows'][0]['repair'] ?? null);
         $t->same(3, $repairSummary['rows'][0]['originalColumnCount'] ?? null);
         $t->same(4, $repairSummary['rows'][0]['repairedColumnCount'] ?? null);
@@ -838,6 +843,11 @@ return [
         $t->same(1, $repairSummary['changedRowCount'] ?? null);
         $t->same(1, $repairSummary['paddedRowCount'] ?? null);
         $t->same(0, $repairSummary['truncatedRowCount'] ?? null);
+        $t->same(['padded' => 1, 'unchanged' => 3, 'truncated' => 0], $repairSummary['repairCounts'] ?? null);
+        $t->same(['padded' => 0, 'unchanged' => 1, 'truncated' => 0], $repairSummary['rowRoleRepairCounts']['header'] ?? null);
+        $t->same(['padded' => 1, 'unchanged' => 2, 'truncated' => 0], $repairSummary['rowRoleRepairCounts']['body'] ?? null);
+        $t->same([3], $repairSummary['changedSourceRows'] ?? null);
+        $t->same(['source-row-3'], array_column($repairSummary['changedRows'] ?? [], 'rowLabel'));
         $t->same('padded', $repairSummary['paddedRows'][0]['repair'] ?? null);
         $t->same(2, $repairSummary['paddedRows'][0]['originalColumnCount'] ?? null);
         $t->same(3, $repairSummary['paddedRows'][0]['repairedColumnCount'] ?? null);
