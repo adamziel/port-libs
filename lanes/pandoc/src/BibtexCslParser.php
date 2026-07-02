@@ -752,9 +752,11 @@ final class BibtexCslParser
         }
         $archive = self::firstField($fields, ['archiveprefix', 'eprinttype', 'archive']);
         $archiveCollection = self::firstField($fields, ['archivecollection', 'archive-collection', 'archive_collection']);
-        $archivePlace = self::firstField($fields, ['eprintclass', 'archiveplace', 'archive-place']);
+        $archivePlace = self::firstField($fields, ['eprintclass', 'primaryclass', 'primary-class', 'archiveplace', 'archive-place']);
         $archiveLocation = self::firstField($fields, ['eprint', 'archive_location', 'archive-location', 'archivelocation']);
         $patentType = self::patentType($type, $fields);
+        $originalPage = self::normalizePages(self::firstField($fields, ['origpages', 'orig-pages', 'origpage', 'orig-page', 'originalpages', 'original-pages', 'originalpage', 'original-page']));
+        $reprintPage = self::normalizePages(self::firstField($fields, ['reprintpages', 'reprint-pages', 'reprintpage', 'reprint-page']));
         $item = [
             'id' => $key,
             'type' => self::cslTypeForEntry($type, $fields),
@@ -782,11 +784,13 @@ final class BibtexCslParser
             'extra-date' => self::firstField($fields, ['extradate', 'extra-date']),
             'extra-title' => self::firstField($fields, ['extratitle', 'extra-title']),
             'title' => self::composedTitle($fields, ['title'], ['subtitle']),
+            'subtitle' => self::firstField($fields, ['subtitle']),
             'short-title' => self::firstField($fields, ['shorttitle', 'short-title', 'title-short']),
             'title-addon' => self::firstField($fields, ['titleaddon', 'title-addon']),
             'translated-title' => self::firstField($fields, ['titletranslation', 'title-translation', 'translatedtitle', 'translated-title']),
             'translated-subtitle' => self::firstField($fields, ['subtitletranslation', 'subtitle-translation', 'translatedsubtitle', 'translated-subtitle', 'titletranslationsubtitle', 'title-translation-subtitle']),
             'reviewed-title' => self::composedTitle($fields, ['reviewtitle', 'reviewedtitle', 'reviewed-title'], ['reviewsubtitle', 'reviewedsubtitle', 'reviewed-subtitle']),
+            'reviewed-subtitle' => self::firstField($fields, ['reviewsubtitle', 'reviewedsubtitle', 'reviewed-subtitle']),
             'reviewed-genre' => self::firstField($fields, ['reviewedgenre', 'reviewed-genre', 'reviewgenre', 'review-genre']),
             'container-title' => self::composedTitle(
                 $fields,
@@ -805,14 +809,18 @@ final class BibtexCslParser
                 ],
                 ['journalsubtitle', 'journal-subtitle', 'booksubtitle', 'book-subtitle', 'container-subtitle', 'containersubtitle', 'publication-subtitle', 'publicationsubtitle']
             ),
+            'container-subtitle' => self::firstField($fields, ['journalsubtitle', 'journal-subtitle', 'booksubtitle', 'book-subtitle', 'container-subtitle', 'containersubtitle', 'publication-subtitle', 'publicationsubtitle']),
             'container-title-short' => self::firstField($fields, ['shortjournal', 'shortjournaltitle', 'shortjournal-title', 'journaltitle-short', 'journalabbreviation', 'journal-abbreviation', 'container-title-short', 'containertitleshort']),
             'journalAbbreviation' => self::firstField($fields, ['shortjournal', 'shortjournaltitle', 'shortjournal-title', 'journaltitle-short', 'journalabbreviation', 'journal-abbreviation', 'container-title-short', 'containertitleshort']),
             'container-title-addon' => self::firstField($fields, ['journaltitleaddon', 'booktitleaddon', 'journal-title-addon', 'book-title-addon', 'container-title-addon', 'containertitleaddon']),
             'main-title' => self::composedTitle($fields, ['maintitle', 'main-title', 'maintitletext', 'main-title-text'], ['mainsubtitle', 'main-subtitle']),
+            'main-subtitle' => self::firstField($fields, ['mainsubtitle', 'main-subtitle']),
             'main-title-addon' => self::firstField($fields, ['maintitleaddon', 'main-title-addon']),
             'volume-title' => self::composedTitle($fields, ['volumetitle', 'volume-title', 'volumetitletext', 'volume-title-text'], ['volumesubtitle', 'volume-subtitle']),
+            'volume-subtitle' => self::firstField($fields, ['volumesubtitle', 'volume-subtitle']),
             'volume-title-short' => self::firstField($fields, ['shortvolumetitle', 'short-volume-title', 'volumetitleshort', 'volume-title-short']),
             'part-title' => self::composedTitle($fields, ['parttitle', 'part-title', 'parttitletext', 'part-title-text'], ['partsubtitle', 'part-subtitle']),
+            'part-subtitle' => self::firstField($fields, ['partsubtitle', 'part-subtitle']),
             'event' => self::firstField($fields, ['eventtitle', 'event-title', 'event']),
             'event-title-addon' => self::firstField($fields, ['eventtitleaddon', 'event-title-addon']),
             'event-place' => $eventPlace,
@@ -833,6 +841,7 @@ final class BibtexCslParser
             'volume' => self::firstField($fields, ['volume']),
             'issue' => self::issueField($type, $fields),
             'issue-title' => self::composedTitle($fields, ['issuetitle', 'issue-title', 'issuetitletext', 'issue-title-text'], ['issuesubtitle', 'issue-subtitle']),
+            'issue-subtitle' => self::firstField($fields, ['issuesubtitle', 'issue-subtitle']),
             'issue-title-addon' => self::firstField($fields, ['issuetitleaddon', 'issue-title-addon', 'issuetitle-addon']),
             'edition' => self::firstField($fields, ['edition']),
             'collection-title' => self::firstField($fields, ['series', 'series-title', 'seriestitle', 'series-title-text', 'seriestitletext', 'collection-title', 'collectiontitle', 'collection-title-text', 'collectiontitletext']),
@@ -896,13 +905,26 @@ final class BibtexCslParser
             'container-author-type' => self::firstField($fields, ['bookauthortype', 'bookauthor-type', 'container-author-type']),
             'date-addon' => self::firstField($fields, ['dateaddon', 'date-addon', 'dateaddendum', 'date-addendum']),
             'original-title' => self::composedTitle($fields, ['origtitle', 'originaltitle', 'original-title'], ['origsubtitle', 'originalsubtitle', 'original-subtitle']),
+            'original-subtitle' => self::firstField($fields, ['origsubtitle', 'originalsubtitle', 'original-subtitle']),
             'original-title-addon' => self::firstField($fields, ['origtitleaddon', 'origtitle-addon', 'originaltitleaddon', 'original-title-addon']),
             'original-genre' => self::firstField($fields, ['origtype', 'origgenre', 'originaltype', 'original-type', 'originalgenre', 'original-genre']),
+            'original-page' => $originalPage,
+            'original-page-first' => self::firstField($fields, ['origpagefirst', 'orig-page-first', 'originalpagefirst', 'original-page-first']) ?: self::firstPageFromRange($originalPage),
+            'original-volume' => self::firstField($fields, ['origvolume', 'orig-volume', 'originalvolume', 'original-volume']),
+            'original-issue' => self::firstField($fields, ['origissue', 'orig-issue', 'originalissue', 'original-issue']),
+            'original-number' => self::firstField($fields, ['orignumber', 'orig-number', 'originalnumber', 'original-number']),
+            'original-edition' => self::firstField($fields, ['origedition', 'orig-edition', 'originaledition', 'original-edition']),
             'original-date-addon' => self::firstField($fields, ['origdateaddon', 'origdate-addon', 'orig-date-addon', 'originaldateaddon', 'original-date-addon']),
             'original-publisher' => self::literalListDisplay($originalPublisherList),
             'original-publisher-place' => self::literalListDisplay($originalPublisherPlaceList),
             'original-language' => self::literalListDisplay($originalLanguageList),
             'reprint-title' => self::firstField($fields, ['reprinttitle', 'reprint-title']),
+            'reprint-page' => $reprintPage,
+            'reprint-page-first' => self::firstField($fields, ['reprintpagefirst', 'reprint-page-first']) ?: self::firstPageFromRange($reprintPage),
+            'reprint-volume' => self::firstField($fields, ['reprintvolume', 'reprint-volume']),
+            'reprint-issue' => self::firstField($fields, ['reprintissue', 'reprint-issue']),
+            'reprint-number' => self::firstField($fields, ['reprintnumber', 'reprint-number']),
+            'reprint-edition' => self::firstField($fields, ['reprintedition', 'reprint-edition']),
             'reprint-date-addon' => self::firstField($fields, ['reprintdateaddon', 'reprintdate-addon', 'reprint-date-addon', 'reprintdateaddendum', 'reprint-date-addendum']),
             'event-date-addon' => self::firstField($fields, ['eventdateaddon', 'eventdate-addon', 'event-date-addon']),
             'accessed-date-addon' => self::firstField($fields, ['urldateaddon', 'urldate-addon', 'url-date-addon', 'accesseddateaddon', 'accessed-date-addon']),

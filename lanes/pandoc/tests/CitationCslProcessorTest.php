@@ -3291,7 +3291,7 @@ BIB;
         $t->same('Edición revisada', $item['originalTitleAddon'] ?? null);
         $t->same('(García 2026)', $processor->renderCitationCluster([$citation('original-subtitle-manual', '[@original-subtitle-manual]')]));
         $t->same(
-            'García, Gia. Migration Manual. Review Press, 2026. Translated by Curator, Eli. Original title: Manual de Migración: Archivo de Fuentes. Original title addendum: Edición revisada. Original work published 2020-05. Original publisher: Archivo Press, Madrid. Original language: spanish.',
+            'García, Gia. Migration Manual. Review Press, 2026. Original subtitle: Archivo de Fuentes. Translated by Curator, Eli. Original title: Manual de Migración: Archivo de Fuentes. Original title addendum: Edición revisada. Original work published 2020-05. Original publisher: Archivo Press, Madrid. Original language: spanish.',
             $processor->renderBibliographyEntry('original-subtitle-manual')
         );
 
@@ -3333,7 +3333,7 @@ XML);
         $document = (new MarkdownReader())->read('Original subtitle source @original-subtitle-manual keeps original-title review metadata.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Original subtitle source García (2026) keeps original-title review metadata.</p>', $blocks);
-        $t->contains('<dt>García 2026</dt><dd>García, Gia. Migration Manual. Review Press, 2026. Translated by Curator, Eli. Original title: Manual de Migración: Archivo de Fuentes. Original title addendum: Edición revisada. Original work published 2020-05. Original publisher: Archivo Press, Madrid. Original language: spanish.</dd>', $blocks);
+        $t->contains('<dt>García 2026</dt><dd>García, Gia. Migration Manual. Review Press, 2026. Original subtitle: Archivo de Fuentes. Translated by Curator, Eli. Original title: Manual de Migración: Archivo de Fuentes. Original title addendum: Edición revisada. Original work published 2020-05. Original publisher: Archivo Press, Madrid. Original language: spanish.</dd>', $blocks);
     },
     'maps bounded biblatex original language lists into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -6677,19 +6677,47 @@ XML);
   archive = {HAL},
   eprint  = {hal-041234}
 }
+
+@online{primaryclass-source,
+  author        = {Ng, Nia},
+  title         = {Primary Class Archive Packet},
+  date          = {2026},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CL},
+  eprint        = {2601.00001}
+}
+
+@online{hyphen-primary-class-source,
+  author        = {Roe, Pat},
+  title         = {Hyphen Primary Class Archive Packet},
+  date          = {2025},
+  archiveprefix = {arXiv},
+  primary-class = {math.AG},
+  eprint        = {2601.00002}
+}
 BIB;
 
         $items = CitationCslProcessor::bibtexItems($bibtex);
-        $t->same(2, count($items));
+        $t->same(4, count($items));
         $t->same('arXiv:2401.01234 [cs.DL]', $items[0]['archive-summary'] ?? null);
         $t->same('HAL:hal-041234', $items[1]['archive-summary'] ?? null);
+        $t->same('cs.CL', $items[2]['archive-place'] ?? null);
+        $t->same('math.AG', $items[3]['archive-place'] ?? null);
         $t->same('arXiv', $items[0]['rawBibtex']['fields']['eprinttype'] ?? null);
+        $t->same('cs.CL', $items[2]['rawBibtex']['fields']['primaryclass'] ?? null);
+        $t->same('math.AG', $items[3]['rawBibtex']['fields']['primary-class'] ?? null);
 
         $processor = CitationCslProcessor::fromBibtex($bibtex);
         $source = $processor->item('eprint-source');
         $archiveOnly = $processor->item('archive-only-source');
+        $primaryClass = $processor->item('primaryclass-source');
+        $hyphenPrimaryClass = $processor->item('hyphen-primary-class-source');
         $t->same('arXiv:2401.01234 [cs.DL]', $source['archiveSummary'] ?? null);
         $t->same('HAL:hal-041234', $archiveOnly['archiveSummary'] ?? null);
+        $t->same('cs.CL', $primaryClass['archivePlace'] ?? null);
+        $t->same('math.AG', $hyphenPrimaryClass['archivePlace'] ?? null);
+        $t->same('arXiv:2601.00001 [cs.CL]', $primaryClass['archiveSummary'] ?? null);
+        $t->same('arXiv:2601.00002 [math.AG]', $hyphenPrimaryClass['archiveSummary'] ?? null);
         $t->same(
             'Doe, Jane. Eprint Archive Packet. 2026. Archive: arXiv cs.DL 2401.01234.',
             $processor->renderBibliographyEntry('eprint-source')
@@ -6719,6 +6747,12 @@ XML);
             $citation('archive-only-source', '[@archive-only-source]'),
         ]));
         $t->same('Eprint Archive Packet :: arXiv:2401.01234 [cs.DL]', $styled->renderBibliographyEntry('eprint-source'));
+        $t->same('[Ng | arXiv:2601.00001 [cs.CL]; Roe | arXiv:2601.00002 [math.AG]]', $styled->renderCitationCluster([
+            $citation('primaryclass-source', '[@primaryclass-source]'),
+            $citation('hyphen-primary-class-source', '[@hyphen-primary-class-source]'),
+        ]));
+        $t->same('Primary Class Archive Packet :: arXiv:2601.00001 [cs.CL]', $styled->renderBibliographyEntry('primaryclass-source'));
+        $t->same('Hyphen Primary Class Archive Packet :: arXiv:2601.00002 [math.AG]', $styled->renderBibliographyEntry('hyphen-primary-class-source'));
 
         $direct = CitationCslProcessor::fromItems([[
             'id' => 'manual-eprint',
@@ -16930,6 +16964,83 @@ XML);
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Locator summaries (Vale | page | plate A | explicit | page plate A [citation-locator-unlabeled-page-fallback/info] | citation-locator-unlabeled-page-fallback; Vale | page | plate B | explicit | page plate B [citation-locator-unlabeled-page-fallback/info] | citation-locator-unlabeled-page-fallback) remain visible.</p>', $blocks);
         $t->contains('<dt>Vale 2026</dt><dd>Locator Summary Packet</dd>', $blocks);
+    },
+    'exposes bounded citation locator diagnostic count and severity rollups' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'locator-rollup-source',
+                'type' => 'report',
+                'title' => 'Locator Rollup Packet',
+                'author' => [
+                    ['family' => 'Vale', 'given' => 'Rae'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Locator Diagnostic Rollup Review</title>
+    <id>https://example.test/styles/bounded-locator-diagnostic-rollup-review</id>
+    <updated>2026-07-01T17:20:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="citation-locator-diagnostic-count"/>
+        <text variable="citation-locator-diagnostic-severity-summary"/>
+        <text variable="citation-locator-diagnostic-reasons"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $defaulted = new AstNode('citation', [
+            'id' => 'locator-rollup-source',
+            'text' => '[@locator-rollup-source, appendix A]',
+            'locatorValue' => 'appendix A',
+        ]);
+        $unsupported = new AstNode('citation', [
+            'id' => 'locator-rollup-source',
+            'text' => '[@locator-rollup-source, scene]',
+            'locatorLabel' => 'scene',
+        ]);
+        $group = new AstNode('citation_group', [], [$defaulted, $unsupported]);
+        $normalized = $processor->normalizeCitationGroup($group);
+
+        $t->same(3, $normalized->attr('cslLocatorDiagnosticCount'));
+        $t->same(['warning' => 2, 'info' => 1], $normalized->attr('cslLocatorDiagnosticSeverityCounts'));
+        $t->same('warning: 2; info: 1', $normalized->attr('cslLocatorDiagnosticSeveritySummary'));
+        $t->same('citation-locator-explicit-value-defaulted-page; citation-locator-label-without-value; citation-locator-unsupported-label', $normalized->attr('cslLocatorDiagnosticReasons'));
+        $t->same(1, $normalized->children[0]->attr('cslLocatorDiagnosticCount'));
+        $t->same(['info' => 1], $normalized->children[0]->attr('cslLocatorDiagnosticSeverityCounts'));
+        $t->same('info: 1', $normalized->children[0]->attr('cslLocatorDiagnosticSeveritySummary'));
+        $t->same(2, $normalized->children[1]->attr('cslLocatorDiagnosticCount'));
+        $t->same(['warning' => 2], $normalized->children[1]->attr('cslLocatorDiagnosticSeverityCounts'));
+        $t->same('warning: 2', $normalized->children[1]->attr('cslLocatorDiagnosticSeveritySummary'));
+
+        $t->same(
+            '[Vale | 1 | info: 1 | citation-locator-explicit-value-defaulted-page; Vale | 2 | warning: 2 | citation-locator-label-without-value; citation-locator-unsupported-label]',
+            $processor->renderCitationCluster([$defaulted, $unsupported])
+        );
+
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Locator rollups ']),
+                $group,
+                new AstNode('text', ['text' => ' stay reviewable.']),
+            ]),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Locator rollups [Vale | 1 | info: 1 | citation-locator-explicit-value-defaulted-page; Vale | 2 | warning: 2 | citation-locator-label-without-value; citation-locator-unsupported-label] stay reviewable.</p>', $blocks);
+        $t->contains('<dt>Vale 2026</dt><dd>Locator Rollup Packet</dd>', $blocks);
     },
     'distinguishes bounded direct ast locator source metadata for defaulted page values' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -28134,7 +28245,7 @@ XML);
 
         $default = CitationCslProcessor::fromBibtex($bibtex);
         $t->same(
-            'Diaz, Dee. Alias Review Manual. Review Press, 2026. Original title: Manual Fuente: Archivo Appendix. Original title addendum: source leaf. Original work published 1999-03. Original publisher: Archivo Press; Migration Desk, Madrid; Barcelona. Original language: spanish; catalan.',
+            'Diaz, Dee. Alias Review Manual. Review Press, 2026. Original subtitle: Archivo Appendix. Original title: Manual Fuente: Archivo Appendix. Original title addendum: source leaf. Original work published 1999-03. Original publisher: Archivo Press; Migration Desk, Madrid; Barcelona. Original language: spanish; catalan.',
             $default->renderBibliographyEntry('hyphen-original')
         );
 
