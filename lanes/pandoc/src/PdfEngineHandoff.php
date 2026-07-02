@@ -8935,6 +8935,11 @@ final class PdfEngineHandoff
                 'unsafeStorageEntryCount' => is_int($packageStoragePolicy['unsafeStorageEntryCount'] ?? null) ? $packageStoragePolicy['unsafeStorageEntryCount'] : 0,
                 'packagePathCount' => is_int($packageStoragePolicy['packagePathCount'] ?? null) ? $packageStoragePolicy['packagePathCount'] : 0,
                 'packageCacheCount' => is_int($packageStoragePolicy['packageCacheCount'] ?? null) ? $packageStoragePolicy['packageCacheCount'] : 0,
+                'relativeStorageEntryCount' => is_int($packageStoragePolicy['relativeStorageEntryCount'] ?? null) ? $packageStoragePolicy['relativeStorageEntryCount'] : 0,
+                'workspaceStorageEntryCount' => is_int($packageStoragePolicy['workspaceStorageEntryCount'] ?? null) ? $packageStoragePolicy['workspaceStorageEntryCount'] : 0,
+                'absoluteStorageEntryCount' => is_int($packageStoragePolicy['absoluteStorageEntryCount'] ?? null) ? $packageStoragePolicy['absoluteStorageEntryCount'] : 0,
+                'uriStorageEntryCount' => is_int($packageStoragePolicy['uriStorageEntryCount'] ?? null) ? $packageStoragePolicy['uriStorageEntryCount'] : 0,
+                'invalidStorageEntryCount' => is_int($packageStoragePolicy['invalidStorageEntryCount'] ?? null) ? $packageStoragePolicy['invalidStorageEntryCount'] : 0,
             ], $packageStorageIssues);
         }
 
