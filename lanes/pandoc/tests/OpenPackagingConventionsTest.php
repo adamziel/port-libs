@@ -78,8 +78,8 @@ XML;
 /**
  * @param list<array{name:string, data:string, centralIndex?:int, method?:int, flags?:int, descriptor?:bool, descriptorSignature?:bool, centralExtra?:string, localExtra?:string, extraFieldData?:string}> $entries
  */
-$buildOpcZipPackage = static function (array $entries): string {
-    $body = '';
+$buildOpcZipPackage = static function (array $entries, string $prefix = ''): string {
+    $body = $prefix;
     $centralRecords = [];
 
     foreach ($entries as $entryIndex => $entry) {
@@ -1084,12 +1084,50 @@ XML;
         $zipManifest = $package->packageManifestPreflight();
         $summary = OpcRelationshipGraph::preflightZipEntryManifest($package);
         $rawSummary = OpcRelationshipGraph::preflightZipCentralDirectoryManifest($zip);
+        $prefixFields = [
+            'hasPackagePrefix',
+            'packagePrefixOffset',
+            'packagePrefixBytes',
+            'packagePrefixSha256',
+            'packagePrefixPreviewHex',
+            'packagePrefixPreviewByteCount',
+            'packagePrefixSignature',
+            'hasExecutableStubPackagePrefix',
+            'firstLocalHeaderOffset',
+            'centralDirectoryOffsetAfterPackagePrefix',
+            'endOfCentralDirectoryOffsetAfterPackagePrefix',
+            'packagePrefixByteExposurePolicy',
+            'canExposePackagePrefixBytes',
+            'packagePrefixIssueCount',
+            'packagePrefixIssues',
+            'packageLayoutWithoutPrefixSupported',
+        ];
 
         foreach ([$summary, $rawSummary] as $manifest) {
             $t->same(true, $manifest['valid']);
             $t->same($zipManifest['packageSource'], $manifest['packageSource']);
+            foreach ($prefixFields as $field) {
+                $t->same($zipManifest[$field], $manifest[$field], "{$field} top-level manifest");
+                $t->same($manifest[$field], $manifest['packageSource'][$field], "{$field} package source");
+            }
             $t->same(strlen($zip), $manifest['archiveLength']);
             $t->same(hash('sha256', $zip), $manifest['archiveSha256']);
+            $t->same(false, $manifest['hasPackagePrefix']);
+            $t->same(null, $manifest['packagePrefixOffset']);
+            $t->same(0, $manifest['packagePrefixBytes']);
+            $t->same(null, $manifest['packagePrefixSha256']);
+            $t->same('', $manifest['packagePrefixPreviewHex']);
+            $t->same(0, $manifest['packagePrefixPreviewByteCount']);
+            $t->same(null, $manifest['packagePrefixSignature']);
+            $t->same(false, $manifest['hasExecutableStubPackagePrefix']);
+            $t->same(0, $manifest['firstLocalHeaderOffset']);
+            $t->same($manifest['centralDirectoryOffset'], $manifest['centralDirectoryOffsetAfterPackagePrefix']);
+            $t->same($manifest['endOfCentralDirectoryOffset'], $manifest['endOfCentralDirectoryOffsetAfterPackagePrefix']);
+            $t->same('not-present', $manifest['packagePrefixByteExposurePolicy']);
+            $t->same(false, $manifest['canExposePackagePrefixBytes']);
+            $t->same(0, $manifest['packagePrefixIssueCount']);
+            $t->same([], $manifest['packagePrefixIssues']);
+            $t->same(true, $manifest['packageLayoutWithoutPrefixSupported']);
             $t->same($zipManifest['centralDirectoryOffset'], $manifest['centralDirectoryOffset']);
             $t->same($zipManifest['centralDirectoryBytes'], $manifest['centralDirectoryBytes']);
             $t->same($zipManifest['centralDirectoryEnd'], $manifest['centralDirectoryEnd']);
@@ -1132,6 +1170,53 @@ XML;
         $t->same($summary['packageSource'], $rawSummary['packageSource']);
         $t->same($summary['endOfCentralDirectorySha256'], $rawSummary['endOfCentralDirectorySha256']);
         $t->same($summary['packageCommentSha256'], $rawSummary['packageCommentSha256']);
+    },
+    'carries raw OPC ZIP package prefix source policy before package construction' => static function (TestRunner $t) use ($buildOpcZipPackage): void {
+        $prefix = "MZopc-review-stub\n";
+        $zip = $buildOpcZipPackage([
+            ['name' => '[Content_Types].xml', 'data' => '<Types/>', 'method' => 0],
+            ['name' => '_rels/.rels', 'data' => '<Relationships/>', 'method' => 0],
+            ['name' => 'word/document.xml', 'data' => '<w:document/>', 'method' => 0],
+        ], $prefix);
+        $prefixSummary = ZipPackage::packagePrefixPreflight($zip);
+
+        $t->throws(RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip));
+
+        $summary = OpcRelationshipGraph::preflightZipCentralDirectoryManifest($zip);
+        $source = $summary['packageSource'];
+
+        foreach ([$summary, $source] as $manifest) {
+            $t->same(true, $manifest['hasPackagePrefix']);
+            $t->same(0, $manifest['packagePrefixOffset']);
+            $t->same(strlen($prefix), $manifest['packagePrefixBytes']);
+            $t->same(hash('sha256', $prefix), $manifest['packagePrefixSha256']);
+            $t->same(bin2hex(substr($prefix, 0, 16)), $manifest['packagePrefixPreviewHex']);
+            $t->same(16, $manifest['packagePrefixPreviewByteCount']);
+            $t->same('mz-executable-stub', $manifest['packagePrefixSignature']);
+            $t->same(true, $manifest['hasExecutableStubPackagePrefix']);
+            $t->same(strlen($prefix), $manifest['firstLocalHeaderOffset']);
+            $t->same(
+                $prefixSummary['centralDirectoryOffsetAfterPrefix'],
+                $manifest['centralDirectoryOffsetAfterPackagePrefix']
+            );
+            $t->same(
+                $prefixSummary['eocdOffsetAfterPrefix'],
+                $manifest['endOfCentralDirectoryOffsetAfterPackagePrefix']
+            );
+            $t->same('zip-package-prefix-source-metadata-only', $manifest['packagePrefixByteExposurePolicy']);
+            $t->same(false, $manifest['canExposePackagePrefixBytes']);
+            $t->same(2, $manifest['packagePrefixIssueCount']);
+            $t->same(['package-prefix-bytes', 'package-prefix-mz-executable-stub'], $manifest['packagePrefixIssues']);
+            $t->same(true, $manifest['packageLayoutWithoutPrefixSupported']);
+        }
+
+        $t->same(false, $summary['valid']);
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same(true, $summary['zipCentralDirectoryValid']);
+        $t->contains('package-prefix-bytes', implode(',', $summary['issues']));
+        $t->contains('package-prefix-mz-executable-stub', implode(',', $summary['issues']));
+        $t->same(1, $summary['issueCounts']['package-prefix-bytes']);
+        $t->same(1, $summary['issueCounts']['package-prefix-mz-executable-stub']);
     },
     'carries OPC ZIP central directory signature source policy through manifest preflights' => static function (TestRunner $t) use ($buildSignedOpcZipPackage): void {
         $zip = $buildSignedOpcZipPackage();
