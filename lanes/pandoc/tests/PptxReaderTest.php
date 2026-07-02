@@ -9763,6 +9763,91 @@ XML);
     }
 };
 
+$buildNamespaceAgnosticTableTextPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-ns-agnostic-table-text-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:bad="urn:not-drawingml">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Namespace agnostic table text</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="8" name="Namespace Agnostic Table Text"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl>
+        <a:tblGrid><a:gridCol w="1828800"/></a:tblGrid>
+        <a:tr>
+          <a:tc>
+            <a:txBody><a:p>
+              <a:r><a:t>Drawing header</a:t></a:r>
+              <bad:r><bad:t>Foreign header</bad:t></bad:r>
+              <bad:wrapper><bad:t>Nested foreign header</bad:t></bad:wrapper>
+            </a:p></a:txBody>
+          </a:tc>
+        </a:tr>
+        <a:tr>
+          <a:tc>
+            <a:txBody><a:p>
+              <a:r><a:t>Drawing body</a:t></a:r>
+              <bad:t>Foreign body</bad:t>
+            </a:p></a:txBody>
+          </a:tc>
+        </a:tr>
+      </a:tbl></a:graphicData></a:graphic>
+    </p:graphicFrame>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildFirstOfficeDocumentRelationshipPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-first-office-doc-');
     if ($path === false) {
@@ -13964,6 +14049,20 @@ return [
         $t->true(!str_contains($native, 'Wrong namespace cell'), 'Non-drawing namespace table cells should stay out of upstream-compatible output');
         $t->true(!str_contains($native, 'Wrong namespace row'), 'Non-drawing namespace table rows should stay out of upstream-compatible output');
         $t->true(!str_contains($native, 'Wrong namespace text body'), 'Non-drawing namespace table text bodies should stay out of upstream-compatible output');
+    },
+
+    'uses namespace-agnostic pptx table cell text elements like upstream' => static function (TestRunner $t) use ($buildNamespaceAgnosticTableTextPptxPackage, $nodesOfType): void {
+        $document = (new PptxReader())->read($buildNamespaceAgnosticTableTextPptxPackage());
+        $tables = $nodesOfType($document, 'table');
+        $cellTexts = array_map(static fn (AstNode $cell): string => (string) $cell->attr('text'), $nodesOfType($document, 'table_cell'));
+        $native = PandocConverter::write($document, 'native');
+        $review = $document->attr('pptx');
+
+        $t->same(1, count($tables));
+        $t->same(['Drawing header Foreign header Nested foreign header', 'Drawing body Foreign body'], $cellTexts);
+        $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
+        $t->contains('Plain [ Str "Drawing" , Space , Str "header" , Space , Str "Foreign" , Space , Str "header" , Space , Str "Nested" , Space , Str "foreign" , Space , Str "header" ]', $native);
+        $t->contains('Plain [ Str "Drawing" , Space , Str "body" , Space , Str "Foreign" , Space , Str "body" ]', $native);
     },
 
     'uses the first root officeDocument relationship like upstream' => static function (TestRunner $t) use ($buildFirstOfficeDocumentRelationshipPptxPackage): void {
