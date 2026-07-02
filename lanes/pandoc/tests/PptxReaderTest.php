@@ -8179,6 +8179,103 @@ XML);
     }
 };
 
+$buildFirstSmartArtPointTextPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-first-smartart-point-text-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/_rels/slide1.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdData" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData" Target="../diagrams/first-point-text.xml"/>
+  <Relationship Id="rIdLayout" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramLayout" Target="../diagrams/first-point-text-layout.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>First SmartArt point text</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="10" name="First Point Text SmartArt"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"><dgm:relIds r:dm="rIdData" r:lo="rIdLayout"/></a:graphicData></a:graphic>
+    </p:graphicFrame>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->addFromString('ppt/diagrams/first-point-text-layout.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<dgm:layoutDef xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" uniqueId="urn:example/layout/firstPointTextLayout"/>
+XML);
+    $zip->addFromString('ppt/diagrams/first-point-text.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<dgm:dataModel xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"
+               xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <dgm:ptLst>
+    <dgm:pt modelId="parent">
+      <dgm:t><a:p><a:r><a:t>First parent text</a:t></a:r></a:p></dgm:t>
+      <dgm:t><a:p><a:r><a:t>Ignored later parent text</a:t></a:r></a:p></dgm:t>
+    </dgm:pt>
+    <dgm:pt modelId="child">
+      <dgm:t/>
+      <dgm:t><a:p><a:r><a:t>Ignored later child text</a:t></a:r></a:p></dgm:t>
+    </dgm:pt>
+  </dgm:ptLst>
+  <dgm:cxnLst>
+    <dgm:cxn srcId="parent" destId="child"/>
+  </dgm:cxnLst>
+</dgm:dataModel>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildQualifiedGraphicDataUriPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-qualified-graphic-uri-');
     if ($path === false) {
@@ -14803,6 +14900,28 @@ XML);
         $t->true(!str_contains($native, 'Later point-list child'), 'Later SmartArt point-list child text should not become visible through a second ptLst sibling');
         $t->true(!str_contains($native, 'Later connection-list parent'), 'A later valid cxnLst should not create visible SmartArt hierarchy when the first direct cxnLst is empty');
         $t->true(!str_contains($native, 'Later connection-list child'), 'Later SmartArt connection-list child text should stay hidden behind the first empty cxnLst');
+    },
+
+    'uses only the first pptx SmartArt point text child like upstream' => static function (TestRunner $t) use ($buildFirstSmartArtPointTextPptxPackage, $nodesOfType, $nodesWithClass): void {
+        $document = (new PptxReader())->read($buildFirstSmartArtPointTextPptxPackage());
+        $review = $document->attr('pptx');
+        $smartArtDivs = $nodesWithClass($nodesOfType($document, 'div'), 'smartart');
+        $bulletLists = $nodesOfType($document, 'bullet_list');
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same('First SmartArt point text', $document->children[0]->attr('text'));
+        $t->same(1, count($smartArtDivs));
+        $t->same(['smartart', 'firstPointTextLayout'], $smartArtDivs[0]->attr('classes'));
+        $t->same(['layout' => 'firstPointTextLayout'], $smartArtDivs[0]->attr('attributes'));
+        $t->same('First Point Text SmartArt', $smartArtDivs[0]->attr('pptxShape')['name'] ?? null);
+        $t->same(1, count($smartArtDivs[0]->children));
+        $t->same(0, count($bulletLists));
+        $t->same(2, $review['slides'][0]['blockCount'] ?? null);
+        $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
+        $t->contains('Strong [ Str "First" , Space , Str "parent" , Space , Str "text" ]', $native);
+        $t->true(!str_contains($native, 'Ignored later parent text'), 'Later SmartArt point text siblings should stay hidden behind the first dgm:t child');
+        $t->true(!str_contains($native, 'Ignored later child text'), 'A child whose first dgm:t is empty should stay out of the visible hierarchy');
+        $t->true(!str_contains($native, 'BulletList'), 'Filtered empty child text should leave the parent as a standalone SmartArt paragraph');
     },
 
     'requires unqualified pptx graphicData uri attributes like upstream' => static function (TestRunner $t) use ($buildQualifiedGraphicDataUriPptxPackage, $nodesOfType): void {
