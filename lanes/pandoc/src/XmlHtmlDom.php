@@ -24023,6 +24023,7 @@ final class XmlHtmlDom
 
         return [
             'autofocusReviewPolicy' => 'document-autofocus-candidate-review',
+            'autofocusReviewStatus' => $issueCodes === [] && $orderIssueCodes === [] ? 'ok' : 'review',
             'autofocusCandidateCount' => count($candidates),
             'autofocusIndex' => $currentIndex,
             'autofocusFirst' => $currentIndex === 0,
@@ -24039,7 +24040,12 @@ final class XmlHtmlDom
             'autofocusPreviousCandidate' => $previousCandidate,
             'autofocusCandidates' => $candidates,
             'autofocusIssueCodes' => $issueCodes,
+            'autofocusIssueCount' => count($issueCodes),
             'autofocusOrderIssueCodes' => $orderIssueCodes,
+            'autofocusOrderIssueCount' => count($orderIssueCodes),
+            'autofocusBrowserFocusApplied' => false,
+            'autofocusReviewOnlyNoBrowserFocus' => true,
+            'autofocusReviewHandoffPolicy' => 'metadata-only-no-browser-focus',
         ];
     }
 
