@@ -27641,6 +27641,13 @@ final class XmlHtmlDom
             return [];
         }
 
+        $reviewAttributes = [];
+        foreach (['autocomplete', 'dirname', 'max', 'maxlength', 'min', 'minlength', 'multiple', 'pattern', 'readonly', 'size', 'step'] as $attribute) {
+            if ($control->hasAttribute($attribute)) {
+                $reviewAttributes[] = $attribute;
+            }
+        }
+
         $summary = ['constraintValidation' => 'form-control'];
 
         if (($name === 'input' || $name === 'textarea') && $control->hasAttribute('readonly')) {
@@ -27712,7 +27719,106 @@ final class XmlHtmlDom
             $summary['controlSizeValid'] = $size !== null;
         }
 
-        return $summary;
+        return $summary + self::formControlConstraintReviewSummary($summary, $reviewAttributes);
+    }
+
+    /**
+     * @param array<string, mixed> $summary
+     * @param list<string> $attributes
+     * @return array<string, mixed>
+     */
+    private static function formControlConstraintReviewSummary(array $summary, array $attributes): array
+    {
+        $issues = [];
+
+        if (($summary['minLengthValid'] ?? null) === false) {
+            $issues[] = [
+                'code' => 'invalid-form-control-minlength',
+                'minLengthRaw' => $summary['minLengthRaw'] ?? null,
+            ];
+        }
+        if (($summary['maxLengthValid'] ?? null) === false) {
+            $issues[] = [
+                'code' => 'invalid-form-control-maxlength',
+                'maxLengthRaw' => $summary['maxLengthRaw'] ?? null,
+            ];
+        }
+        if (($summary['lengthRangeValid'] ?? null) === false) {
+            $issues[] = [
+                'code' => 'form-control-minlength-exceeds-maxlength',
+                'minLength' => $summary['minLength'] ?? null,
+                'maxLength' => $summary['maxLength'] ?? null,
+            ];
+        }
+        if (($summary['constraintMinValid'] ?? null) === false) {
+            $issues[] = [
+                'code' => 'invalid-form-control-min',
+                'minRaw' => $summary['constraintMinRaw'] ?? null,
+            ];
+        }
+        if (($summary['constraintMaxValid'] ?? null) === false) {
+            $issues[] = [
+                'code' => 'invalid-form-control-max',
+                'maxRaw' => $summary['constraintMaxRaw'] ?? null,
+            ];
+        }
+        if (($summary['constraintRangeValid'] ?? null) === false) {
+            $issues[] = [
+                'code' => 'form-control-min-exceeds-max',
+                'min' => $summary['constraintMin'] ?? null,
+                'max' => $summary['constraintMax'] ?? null,
+            ];
+        }
+        if (($summary['constraintStepValid'] ?? null) === false) {
+            $issues[] = [
+                'code' => 'invalid-form-control-step',
+                'stepRaw' => $summary['constraintStepRaw'] ?? null,
+            ];
+        }
+        if (($summary['dirnameValid'] ?? null) === false) {
+            $issues[] = [
+                'code' => 'invalid-form-control-dirname',
+                'dirnameRaw' => $summary['dirnameRaw'] ?? null,
+            ];
+        }
+        if (($summary['controlSizeValid'] ?? null) === false) {
+            $issues[] = [
+                'code' => 'invalid-form-control-size',
+                'sizeRaw' => $summary['controlSizeRaw'] ?? null,
+            ];
+        }
+
+        foreach (($summary['autocompleteIssues'] ?? []) as $autocompleteIssue) {
+            if (!is_array($autocompleteIssue)) {
+                continue;
+            }
+            $code = $autocompleteIssue['code'] ?? null;
+            if (!is_string($code) || $code === '') {
+                continue;
+            }
+
+            $autocompleteIssue['attribute'] = 'autocomplete';
+            $issues[] = $autocompleteIssue;
+        }
+
+        $issueCodes = [];
+        foreach ($issues as $issue) {
+            $code = $issue['code'] ?? null;
+            if (is_string($code)) {
+                self::appendUniqueString($issueCodes, $code);
+            }
+        }
+
+        return [
+            'formControlConstraintReviewPolicy' => 'html-form-control-constraint-attribute-review',
+            'formControlConstraintAttributes' => $attributes,
+            'formControlConstraintIssues' => $issues,
+            'formControlConstraintIssueCodes' => $issueCodes,
+            'formControlConstraintIssueCount' => count($issues),
+            'formControlConstraintValid' => $issueCodes === [],
+            'formControlConstraintConforming' => $issueCodes === [],
+            'formControlConstraintReviewOnlyNoBrowserValidation' => true,
+        ];
     }
 
     /**
