@@ -9635,6 +9635,95 @@ XML);
     }
 };
 
+$buildFirstShapeTreePptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-first-shape-tree-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide1"/>
+    <p:sldId id="462" r:id="rIdSlide2"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+  <Relationship Id="rIdSlide2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide2.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <p:cSld/>
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Later Common Slide Data Title"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Later common slide data title</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="3" name="Later Common Slide Data Body"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Later common slide data body</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->addFromString('ppt/slides/slide2.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <p:cSld>
+    <p:spTree/>
+    <p:spTree>
+      <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+      <p:grpSpPr/>
+      <p:sp>
+        <p:nvSpPr><p:cNvPr id="2" name="Later Shape Tree Title"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+        <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Later shape tree title</a:t></a:r></a:p></p:txBody>
+      </p:sp>
+      <p:sp>
+        <p:nvSpPr><p:cNvPr id="3" name="Later Shape Tree Body"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+        <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Later shape tree body</a:t></a:r></a:p></p:txBody>
+      </p:sp>
+    </p:spTree>
+  </p:cSld>
+</p:sld>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildInvalidSlideSizePptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-invalid-slide-size-');
     if ($path === false) {
@@ -14702,6 +14791,28 @@ return [
         $t->contains('Header 2 ( "slide-2" , [  ] , [  ] ) [ Str "Slide" , Space , Str "2" ]', $native);
         $t->true(!str_contains($native, 'Outside shape tree title'), 'Shapes outside p:spTree should not become slide titles or body content');
         $t->true(!str_contains($native, 'Outside common slide data title'), 'Shapes outside p:cSld should not become slide titles or body content');
+    },
+
+    'uses only the first direct pptx common slide data and shape tree like upstream' => static function (TestRunner $t) use ($buildFirstShapeTreePptxPackage, $nodesOfType): void {
+        $document = (new PptxReader())->read($buildFirstShapeTreePptxPackage());
+        $review = $document->attr('pptx');
+        $headings = $nodesOfType($document, 'heading');
+        $headingTexts = array_map(static fn (AstNode $heading): string => (string) $heading->attr('text'), $headings);
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same(2, $review['slideCount'] ?? null);
+        $t->same(1, $review['slides'][0]['blockCount'] ?? null);
+        $t->same(1, $review['slides'][1]['blockCount'] ?? null);
+        $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
+        $t->same(0, $review['slides'][1]['shapeIssueCount'] ?? null);
+        $t->same(['Slide 1', 'Slide 2'], $headingTexts);
+        $t->same([], $nodesOfType($document, 'paragraph'));
+        $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Slide" , Space , Str "1" ]', $native);
+        $t->contains('Header 2 ( "slide-2" , [  ] , [  ] ) [ Str "Slide" , Space , Str "2" ]', $native);
+        $t->true(!str_contains($native, 'Later common slide data title'), 'Later p:cSld siblings should stay hidden like upstream');
+        $t->true(!str_contains($native, 'Later common slide data body'), 'Later p:cSld body shapes should stay hidden like upstream');
+        $t->true(!str_contains($native, 'Later shape tree title'), 'Later p:spTree siblings should stay hidden like upstream');
+        $t->true(!str_contains($native, 'Later shape tree body'), 'Later p:spTree body shapes should stay hidden like upstream');
     },
 
     'falls back to zero for invalid pptx slide sizes like upstream' => static function (TestRunner $t) use ($buildInvalidSlideSizePptxPackage): void {
