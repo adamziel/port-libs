@@ -31335,6 +31335,8 @@ XML);
         $t->same('Madrid', $camel['originalPublisherPlace'] ?? null);
         $t->same('spanish', $camel['originalLanguage'] ?? null);
         $t->same('facsimile', $camel['originalGenre'] ?? null);
+        $t->same('Archive Press; Migration Desk', $list['originalPublisher'] ?? null);
+        $t->same('Paris; Lyon', $list['originalPublisherPlace'] ?? null);
         $t->same(['Archive Press', 'Migration Desk'], $list['originalPublisherList'] ?? null);
         $t->same(['Paris', 'Lyon'], $list['originalPublisherPlaceList'] ?? null);
         $t->same(['french', 'latin'], $list['originalLanguageList'] ?? null);
@@ -31389,7 +31391,7 @@ XML);
         $t->same('origlocation', $citationChildren[5]['variable'] ?? null);
         $t->same('origlanguage', $citationChildren[6]['variable'] ?? null);
         $t->same('origgenre', $citationChildren[7]['variable'] ?? null);
-        $t->same('[Ng | Manual Fuente | 1999-03-05 | source date note | Legacy Press | Madrid | spanish | facsimile | Legacy Press | Madrid | spanish; Roe | french; latin | Archive Press; Migration Desk | Paris; Lyon | french; latin]', $styled->renderCitationCluster([
+        $t->same('[Ng | Manual Fuente | 1999-03-05 | source date note | Legacy Press | Madrid | spanish | facsimile | Legacy Press | Madrid | spanish; Roe | Archive Press; Migration Desk | Paris; Lyon | french; latin | Archive Press; Migration Desk | Paris; Lyon | french; latin]', $styled->renderCitationCluster([
             $citation('direct-orig-camel', '[@direct-orig-camel]'),
             $citation('direct-orig-list-camel', '[@direct-orig-list-camel]'),
         ]));
@@ -31402,7 +31404,7 @@ XML);
 
         $document = (new MarkdownReader())->read('Camel orig aliases [@direct-orig-camel; @direct-orig-list-camel] keep original publication metadata visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
-        $t->contains('<p>Camel orig aliases [Ng | Manual Fuente | 1999-03-05 | source date note | Legacy Press | Madrid | spanish | facsimile | Legacy Press | Madrid | spanish; Roe | french; latin | Archive Press; Migration Desk | Paris; Lyon | french; latin] keep original publication metadata visible.</p>', $blocks);
+        $t->contains('<p>Camel orig aliases [Ng | Manual Fuente | 1999-03-05 | source date note | Legacy Press | Madrid | spanish | facsimile | Legacy Press | Madrid | spanish; Roe | Archive Press; Migration Desk | Paris; Lyon | french; latin | Archive Press; Migration Desk | Paris; Lyon | french; latin] keep original publication metadata visible.</p>', $blocks);
         $t->contains('<dt>Ng 2026</dt><dd>Direct Orig Camel Packet :: Manual Fuente :: 1999-03-05 :: source date note :: Legacy Press :: Madrid :: spanish :: facsimile</dd>', $blocks);
         $t->contains('<dt>Roe 2025</dt><dd>Direct Orig List Camel Packet :: Archive Press; Migration Desk :: Paris; Lyon :: french; latin</dd>', $blocks);
     },
