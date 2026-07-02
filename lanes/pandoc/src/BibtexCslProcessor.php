@@ -453,6 +453,8 @@ final class BibtexCslProcessor
             'extra-title' => 'Extra title',
             'date-addon' => 'Date addendum',
             'original-date-addon' => 'Original date addendum',
+            'original-container-title' => 'Original container title',
+            'original-container-title-addon' => 'Original container title addendum',
             'original-genre' => 'Original genre',
             'original-edition' => 'Original edition',
             'original-isbn' => 'Original ISBN',
@@ -832,6 +834,60 @@ final class BibtexCslProcessor
             $item['original-title'] = $originalTitle;
         }
 
+        $originalContainerTitle = $this->composedTitle(
+            $fields,
+            [
+                'origjournaltitle',
+                'origjournal-title',
+                'origjournal',
+                'origbooktitle',
+                'origbook-title',
+                'origcontainertitle',
+                'orig-container-title',
+                'originalcontainertitle',
+                'original-container-title',
+                'originaljournaltitle',
+                'original-journal-title',
+                'originaljournal',
+                'originalbooktitle',
+                'original-book-title',
+            ],
+            [
+                'origjournalsubtitle',
+                'origjournal-subtitle',
+                'origbooksubtitle',
+                'origbook-subtitle',
+                'origcontainersubtitle',
+                'orig-container-subtitle',
+                'originalcontainersubtitle',
+                'original-container-subtitle',
+                'originaljournalsubtitle',
+                'original-journal-subtitle',
+                'originalbooksubtitle',
+                'original-book-subtitle',
+            ]
+        );
+        if ($originalContainerTitle !== null && $originalContainerTitle !== '') {
+            $item['original-container-title'] = $originalContainerTitle;
+        }
+        $originalContainerSubtitle = $this->firstField($fields, [
+            'origjournalsubtitle',
+            'origjournal-subtitle',
+            'origbooksubtitle',
+            'origbook-subtitle',
+            'origcontainersubtitle',
+            'orig-container-subtitle',
+            'originalcontainersubtitle',
+            'original-container-subtitle',
+            'originaljournalsubtitle',
+            'original-journal-subtitle',
+            'originalbooksubtitle',
+            'original-book-subtitle',
+        ]);
+        if ($originalContainerSubtitle !== null && $originalContainerSubtitle !== '') {
+            $item['original-container-subtitle'] = $originalContainerSubtitle;
+        }
+
         $translatedSubtitleFields = [
             'subtitletranslation',
             'subtitle-translation',
@@ -985,6 +1041,20 @@ final class BibtexCslProcessor
             'call-number' => ['callnumber', 'call-number', 'library', 'shelfmark', 'shelf-mark'],
             'language' => ['language', 'langid', 'hyphenation'],
             'original-title-addon' => ['origtitleaddon', 'origtitle-addon', 'originaltitleaddon', 'original-title-addon'],
+            'original-container-title-addon' => [
+                'origjournaltitleaddon',
+                'origjournal-title-addon',
+                'origbooktitleaddon',
+                'origbook-title-addon',
+                'origcontainertitleaddon',
+                'orig-container-title-addon',
+                'originalcontainertitleaddon',
+                'original-container-title-addon',
+                'originaljournaltitleaddon',
+                'original-journal-title-addon',
+                'originalbooktitleaddon',
+                'original-book-title-addon',
+            ],
             'original-publisher' => ['origpublisher', 'originalpublisher', 'original-publisher'],
             'original-publisher-place' => ['origlocation', 'origaddress', 'originalpublisherplace', 'original-publisher-place'],
             'original-language' => ['origlanguage', 'originallanguage', 'original-language'],

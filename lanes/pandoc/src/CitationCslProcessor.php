@@ -848,6 +848,16 @@ final class CitationCslProcessor
             $parts[] = 'Original title addendum: ' . $originalTitleAddon . '.';
         }
 
+        $originalContainerTitle = (string) ($item['originalContainerTitle'] ?? '');
+        if ($originalContainerTitle !== '') {
+            $parts[] = 'Original container title: ' . $originalContainerTitle . '.';
+        }
+
+        $originalContainerTitleAddon = (string) ($item['originalContainerTitleAddon'] ?? '');
+        if ($originalContainerTitleAddon !== '') {
+            $parts[] = 'Original container title addendum: ' . $originalContainerTitleAddon . '.';
+        }
+
         $originalGenre = (string) ($item['originalGenre'] ?? '');
         if ($originalGenre !== '') {
             $parts[] = 'Original genre: ' . $originalGenre . '.';
@@ -1394,6 +1404,59 @@ final class CitationCslProcessor
         ];
         $originalTitleKeys = ['original-title', 'originalTitle', 'originaltitle', 'origtitle', 'origTitle'];
         $originalSubtitleKeys = ['original-subtitle', 'originalSubtitle', 'originalsubtitle', 'origsubtitle', 'origSubtitle'];
+        $originalContainerTitleKeys = [
+            'original-container-title',
+            'originalContainerTitle',
+            'originalcontainertitle',
+            'origcontainertitle',
+            'origContainerTitle',
+            'orig-container-title',
+            'origjournaltitle',
+            'origJournalTitle',
+            'origjournal-title',
+            'origjournal',
+            'origJournal',
+            'origbooktitle',
+            'origBookTitle',
+            'origbook-title',
+            'original-journal-title',
+            'originalJournalTitle',
+            'originaljournaltitle',
+            'originaljournal',
+            'originalJournal',
+            'original-book-title',
+            'originalBookTitle',
+            'originalbooktitle',
+        ];
+        $originalContainerSubtitleKeys = [
+            'original-container-subtitle',
+            'originalContainerSubtitle',
+            'originalcontainersubtitle',
+            'origcontainersubtitle',
+            'origContainerSubtitle',
+            'orig-container-subtitle',
+            'origjournalsubtitle',
+            'origJournalSubtitle',
+            'origjournal-subtitle',
+            'origbooksubtitle',
+            'origBookSubtitle',
+            'origbook-subtitle',
+            'original-journal-subtitle',
+            'originalJournalSubtitle',
+            'originaljournalsubtitle',
+            'original-book-subtitle',
+            'originalBookSubtitle',
+            'originalbooksubtitle',
+        ];
+        $originalContainerSubtitle = self::firstStringField($item, $originalContainerSubtitleKeys);
+        $originalContainerTitle = self::firstStringField($item, [
+            'original-container-title',
+            'originalContainerTitle',
+            'originalcontainertitle',
+        ]);
+        if ($originalContainerTitle === '') {
+            $originalContainerTitle = self::composedStringField($item, $originalContainerTitleKeys, $originalContainerSubtitleKeys);
+        }
 
         return [
             'id' => $id,
@@ -1684,6 +1747,28 @@ final class CitationCslProcessor
             'originalTitle' => self::composedStringField($item, $originalTitleKeys, $originalSubtitleKeys),
             'originalSubtitle' => self::firstStringField($item, $originalSubtitleKeys),
             'originalTitleAddon' => self::firstStringField($item, ['original-title-addon', 'originalTitleAddon', 'originaltitleaddon', 'original-titleaddon', 'origtitleaddon', 'origTitleAddon', 'origtitle-addon']),
+            'originalContainerTitle' => $originalContainerTitle,
+            'originalContainerSubtitle' => $originalContainerSubtitle,
+            'originalContainerTitleAddon' => self::firstStringField($item, [
+                'original-container-title-addon',
+                'originalContainerTitleAddon',
+                'originalcontainertitleaddon',
+                'origcontainertitleaddon',
+                'origContainerTitleAddon',
+                'orig-container-title-addon',
+                'origjournaltitleaddon',
+                'origJournalTitleAddon',
+                'origjournal-title-addon',
+                'origbooktitleaddon',
+                'origBookTitleAddon',
+                'origbook-title-addon',
+                'original-journal-title-addon',
+                'originalJournalTitleAddon',
+                'originaljournaltitleaddon',
+                'original-book-title-addon',
+                'originalBookTitleAddon',
+                'originalbooktitleaddon',
+            ]),
             'originalPublisher' => $originalPublisher,
             'originalPublisherPlace' => $originalPublisherPlace,
             'originalPublisherList' => $originalPublisherList !== [] ? $originalPublisherList : ($originalPublisher !== '' ? [$originalPublisher] : []),
@@ -6915,6 +7000,9 @@ final class CitationCslProcessor
             'original-title', 'originaltitle', 'origtitle' => $this->normalizeSortText((string) ($item['originalTitle'] ?? '')),
             'original-subtitle', 'originalsubtitle', 'origsubtitle' => $this->normalizeSortText((string) ($item['originalSubtitle'] ?? '')),
             'original-title-addon', 'originaltitleaddon', 'original-titleaddon', 'origtitleaddon', 'origtitle-addon' => $this->normalizeSortText((string) ($item['originalTitleAddon'] ?? '')),
+            'original-container-title', 'originalcontainertitle', 'origcontainertitle', 'orig-container-title', 'origjournaltitle', 'origjournal-title', 'origjournal', 'origbooktitle', 'origbook-title', 'original-journal-title', 'originaljournaltitle', 'originaljournal', 'original-book-title', 'originalbooktitle' => $this->normalizeSortText((string) ($item['originalContainerTitle'] ?? '')),
+            'original-container-subtitle', 'originalcontainersubtitle', 'origcontainersubtitle', 'orig-container-subtitle', 'origjournalsubtitle', 'origjournal-subtitle', 'origbooksubtitle', 'origbook-subtitle', 'original-journal-subtitle', 'originaljournalsubtitle', 'original-book-subtitle', 'originalbooksubtitle' => $this->normalizeSortText((string) ($item['originalContainerSubtitle'] ?? '')),
+            'original-container-title-addon', 'originalcontainertitleaddon', 'origcontainertitleaddon', 'orig-container-title-addon', 'origjournaltitleaddon', 'origjournal-title-addon', 'origbooktitleaddon', 'origbook-title-addon', 'original-journal-title-addon', 'originaljournaltitleaddon', 'original-book-title-addon', 'originalbooktitleaddon' => $this->normalizeSortText((string) ($item['originalContainerTitleAddon'] ?? '')),
             'container-title', 'containertitle', 'container', 'container-title-text', 'containertitletext' => $this->normalizeSortText((string) $item['containerTitle']),
             'collection-title', 'collectiontitle', 'collection', 'collection-title-text', 'collectiontitletext', 'series', 'series-title', 'seriestitle', 'series-title-text', 'seriestitletext' => $this->normalizeSortText((string) ($item['collectionTitle'] ?? '')),
             'collection-title-short', 'collectiontitleshort', 'shortseries', 'short-series', 'shortcollection', 'short-collection', 'series-short', 'seriesshort', 'series-title-short', 'seriestitleshort' => $this->normalizeSortText((string) ($item['collectionTitleShort'] ?? '')),
@@ -11216,6 +11304,11 @@ final class CitationCslProcessor
             'original-title-raw', 'originaltitleraw', 'orig-title-raw', 'origtitleraw' => $this->rawAliasedVariableValue($item, $variable, ['original-title', 'originalTitle', 'originaltitle', 'origtitle', 'origTitle']),
             'original-subtitle-raw', 'originalsubtitleraw', 'orig-subtitle-raw', 'origsubtitleraw' => $this->rawAliasedVariableValue($item, $variable, ['original-subtitle', 'originalSubtitle', 'originalsubtitle', 'origsubtitle', 'origSubtitle']),
             'original-title-addon', 'originaltitleaddon', 'original-titleaddon', 'origtitleaddon', 'origtitle-addon' => (string) ($item['originalTitleAddon'] ?? ''),
+            'original-container-title', 'originalcontainertitle', 'origcontainertitle', 'orig-container-title', 'origjournaltitle', 'origjournal-title', 'origjournal', 'origbooktitle', 'origbook-title', 'original-journal-title', 'originaljournaltitle', 'originaljournal', 'original-book-title', 'originalbooktitle' => (string) ($item['originalContainerTitle'] ?? ''),
+            'original-container-subtitle', 'originalcontainersubtitle', 'origcontainersubtitle', 'orig-container-subtitle', 'origjournalsubtitle', 'origjournal-subtitle', 'origbooksubtitle', 'origbook-subtitle', 'original-journal-subtitle', 'originaljournalsubtitle', 'original-book-subtitle', 'originalbooksubtitle' => (string) ($item['originalContainerSubtitle'] ?? ''),
+            'original-container-title-raw', 'originalcontainertitleraw', 'orig-container-title-raw', 'origcontainertitleraw', 'origjournaltitle-raw', 'origjournaltitleraw', 'origbooktitle-raw', 'origbooktitleraw' => $this->rawAliasedVariableValue($item, $variable, ['original-container-title', 'originalContainerTitle', 'originalcontainertitle', 'origcontainertitle', 'orig-container-title', 'origjournaltitle', 'origjournal-title', 'origjournal', 'origbooktitle', 'origbook-title']),
+            'original-container-subtitle-raw', 'originalcontainersubtitleraw', 'orig-container-subtitle-raw', 'origcontainersubtitleraw', 'origjournalsubtitle-raw', 'origjournalsubtitleraw', 'origbooksubtitle-raw', 'origbooksubtitleraw' => $this->rawAliasedVariableValue($item, $variable, ['original-container-subtitle', 'originalContainerSubtitle', 'originalcontainersubtitle', 'origcontainersubtitle', 'orig-container-subtitle', 'origjournalsubtitle', 'origjournal-subtitle', 'origbooksubtitle', 'origbook-subtitle']),
+            'original-container-title-addon', 'originalcontainertitleaddon', 'origcontainertitleaddon', 'orig-container-title-addon', 'origjournaltitleaddon', 'origjournal-title-addon', 'origbooktitleaddon', 'origbook-title-addon', 'original-journal-title-addon', 'originaljournaltitleaddon', 'original-book-title-addon', 'originalbooktitleaddon' => (string) ($item['originalContainerTitleAddon'] ?? ''),
             'original-genre', 'origtype', 'origgenre' => (string) ($item['originalGenre'] ?? ''),
             'original-collection-title', 'originalcollectiontitle', 'origseries', 'orig-series', 'original-series', 'originalseries' => (string) ($item['originalCollectionTitle'] ?? ''),
             'original-collection-number', 'originalcollectionnumber', 'origseriesnumber', 'orig-series-number', 'original-series-number', 'originalseriesnumber' => (string) ($item['originalCollectionNumber'] ?? ''),
