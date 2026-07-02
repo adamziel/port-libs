@@ -2729,6 +2729,7 @@ final class OdfReader
             }
         }
         $pathSegmentCharacters = self::packagePathSegmentCharacterSummary($parts);
+        $manifestPackageOrder = self::manifestPackageOrderSummary($manifest, $parts);
         ksort($roleCounts, SORT_STRING);
         ksort($undeclaredRoleCounts, SORT_STRING);
         ksort($roleByteLengths, SORT_STRING);
@@ -2881,6 +2882,9 @@ final class OdfReader
             'unicodePathExtraEntryCount' => $unicodePathExtraEntryCount,
             'decodedNameDiffersFromRawNameEntryCount' => $decodedNameDiffersFromRawNameEntryCount,
             'rawNameProvenanceEntries' => $rawNameProvenanceEntries,
+            'manifestPackageOrder' => $manifestPackageOrder,
+            'manifestPackageOrderMatchesCentralDirectoryOrder' => $manifestPackageOrder['matchesCentralDirectoryOrder'],
+            'manifestPackageOrderMismatchCount' => $manifestPackageOrder['orderMismatchCount'],
             'zipSourceRecords' => self::zipSourceRecordSummary($packageManifest, $parts),
             'centralDirectorySourceRecordEntryCount' => $centralDirectorySourceRecordEntryCount,
             'centralDirectorySourceRecordByteLength' => $centralDirectorySourceRecordByteLength,
@@ -3569,6 +3573,152 @@ final class OdfReader
     }
 
     /**
+     * @param list<array<string, mixed>> $manifestEntries
+     * @param array<string, array<string, mixed>> $parts
+     * @return array<string, mixed>
+     */
+    private static function manifestPackageOrderSummary(array $manifestEntries, array $parts): array
+    {
+        $items = [];
+        $existingItems = [];
+        $missingItems = [];
+        $undeclaredItems = [];
+        $manifestPackagePaths = [];
+        $existingManifestPackagePaths = [];
+        $missingManifestPackagePaths = [];
+        $undeclaredPackagePaths = [];
+        $manifestOrder = 0;
+
+        foreach ($manifestEntries as $entry) {
+            $packagePath = $entry['part'] ?? $entry['packagePath'] ?? null;
+            if (!is_string($packagePath) || $packagePath === '') {
+                continue;
+            }
+
+            $part = is_array($parts[$packagePath] ?? null) ? $parts[$packagePath] : null;
+            $exists = is_array($part);
+            $centralDirectoryIndex = $exists && is_int($part['centralDirectoryIndex'] ?? null)
+                ? $part['centralDirectoryIndex']
+                : null;
+            $manifestPath = $entry['fullPath'] ?? $entry['path'] ?? null;
+            $item = [
+                'manifestIndex' => $entry['manifestIndex'] ?? null,
+                'manifestOrder' => $manifestOrder,
+                'fullPath' => is_string($manifestPath) ? $manifestPath : null,
+                'path' => is_string($manifestPath) ? $manifestPath : null,
+                'part' => $packagePath,
+                'packagePath' => $packagePath,
+                'mediaType' => $entry['mediaType'] ?? null,
+                'exists' => $exists,
+                'missing' => !$exists,
+                'centralDirectoryIndex' => $centralDirectoryIndex,
+                'localHeaderOrder' => is_array($part) ? ($part['localHeaderOrder'] ?? null) : null,
+                'roles' => is_array($part) && is_array($part['roles'] ?? null) ? $part['roles'] : [],
+                'canExposeBytes' => is_array($part) && ($part['canExposeBytes'] ?? false) === true,
+                'byteExposurePolicy' => is_array($part) ? ($part['byteExposurePolicy'] ?? null) : null,
+                'issues' => $exists ? [] : ['odf-manifest-package-order-missing-part'],
+            ];
+
+            $manifestPackagePaths[] = $packagePath;
+            if ($exists && $centralDirectoryIndex !== null) {
+                $existingManifestPackagePaths[] = $packagePath;
+                $existingItems[] = $item;
+            } else {
+                $missingManifestPackagePaths[] = $packagePath;
+                $missingItems[] = $item;
+            }
+
+            $items[] = $item;
+            ++$manifestOrder;
+        }
+
+        $centralOrderedItems = $existingItems;
+        usort(
+            $centralOrderedItems,
+            static function (array $left, array $right): int {
+                $byCentralDirectory = ((int) ($left['centralDirectoryIndex'] ?? 0))
+                    <=> ((int) ($right['centralDirectoryIndex'] ?? 0));
+
+                return $byCentralDirectory !== 0
+                    ? $byCentralDirectory
+                    : ((int) ($left['manifestOrder'] ?? 0) <=> (int) ($right['manifestOrder'] ?? 0));
+            }
+        );
+
+        $centralOrderByPackagePath = [];
+        foreach ($centralOrderedItems as $centralOrder => $item) {
+            $centralOrderByPackagePath[(string) $item['packagePath']] = $centralOrder;
+        }
+
+        $mismatchItems = [];
+        $maxAbsoluteOrderDelta = 0;
+        $existingManifestOrder = 0;
+        foreach ($items as $index => $item) {
+            $packagePath = (string) $item['packagePath'];
+            if (!isset($centralOrderByPackagePath[$packagePath])) {
+                continue;
+            }
+
+            $centralOrder = $centralOrderByPackagePath[$packagePath];
+            $orderDelta = $centralOrder - $existingManifestOrder;
+            $orderMismatch = $orderDelta !== 0;
+            $items[$index]['manifestExistingOrder'] = $existingManifestOrder;
+            $items[$index]['centralDirectoryDeclaredOrder'] = $centralOrder;
+            $items[$index]['orderDelta'] = $orderDelta;
+            $items[$index]['orderMismatch'] = $orderMismatch;
+            if ($orderMismatch) {
+                $items[$index]['issues'][] = 'odf-manifest-package-order-mismatch';
+                $mismatchItems[] = $items[$index];
+                $maxAbsoluteOrderDelta = max($maxAbsoluteOrderDelta, abs($orderDelta));
+            }
+
+            ++$existingManifestOrder;
+        }
+
+        foreach ($parts as $partName => $part) {
+            if (($part['undeclared'] ?? false) !== true) {
+                continue;
+            }
+
+            $partName = is_string($part['part'] ?? null)
+                ? $part['part']
+                : (is_string($part['path'] ?? null) ? $part['path'] : (string) $partName);
+            $undeclaredPackagePaths[] = $partName;
+            $undeclaredItems[] = self::withoutEmpty([
+                'part' => $partName,
+                'packagePath' => $partName,
+                'centralDirectoryIndex' => $part['centralDirectoryIndex'] ?? null,
+                'localHeaderOrder' => $part['localHeaderOrder'] ?? null,
+                'roles' => is_array($part['roles'] ?? null) ? $part['roles'] : [],
+                'byteExposurePolicy' => $part['byteExposurePolicy'] ?? null,
+                'issues' => ['odf-manifest-package-order-undeclared-entry'],
+            ]);
+        }
+
+        return [
+            'manifestDeclaredPartCount' => count($manifestPackagePaths),
+            'existingManifestDeclaredPartCount' => count($existingManifestPackagePaths),
+            'missingManifestDeclaredPartCount' => count($missingManifestPackagePaths),
+            'packageEntryCount' => count($parts),
+            'undeclaredPackageEntryCount' => count($undeclaredPackagePaths),
+            'matchesCentralDirectoryOrder' => $mismatchItems === [],
+            'orderMismatchCount' => count($mismatchItems),
+            'maxAbsoluteOrderDelta' => $maxAbsoluteOrderDelta,
+            'manifestPackagePaths' => $manifestPackagePaths,
+            'existingManifestPackagePaths' => $existingManifestPackagePaths,
+            'centralDirectoryDeclaredPackagePaths' => array_column($centralOrderedItems, 'packagePath'),
+            'missingManifestDeclaredPackagePaths' => $missingManifestPackagePaths,
+            'undeclaredPackagePaths' => $undeclaredPackagePaths,
+            'mismatchItems' => $mismatchItems,
+            'missingItems' => $missingItems,
+            'undeclaredItems' => $undeclaredItems,
+            'items' => $items,
+            'byteExposurePolicy' => 'odf-manifest-package-order-metadata-only',
+            'canExposeBytes' => false,
+        ];
+    }
+
+    /**
      * @return list<string>
      */
     private static function packagePathSegments(string $path): array
@@ -4084,6 +4234,9 @@ final class OdfReader
             'totalCompressedByteLength' => $provenance['totalCompressedByteLength'] ?? 0,
             'fileEntryCount' => $provenance['fileEntryCount'] ?? 0,
             'directoryEntryCount' => $provenance['directoryEntryCount'] ?? 0,
+            'manifestPackageOrder' => $provenance['manifestPackageOrder'] ?? [],
+            'manifestPackageOrderMatchesCentralDirectoryOrder' => ($provenance['manifestPackageOrderMatchesCentralDirectoryOrder'] ?? false) === true,
+            'manifestPackageOrderMismatchCount' => $provenance['manifestPackageOrderMismatchCount'] ?? 0,
             'undeclaredEntryCount' => $provenance['undeclaredEntryCount'] ?? 0,
             'embeddedObjectPackageCount' => $provenance['embeddedObjectPackageCount'] ?? 0,
             'scriptPackagePartCount' => $provenance['scriptPackagePartCount'] ?? 0,
@@ -4212,6 +4365,9 @@ final class OdfReader
             'zipExtraFieldIdUsage' => $provenance['zipExtraFieldIdUsage'] ?? [],
             'manifestEntries' => $manifestEntries,
             'packageEntries' => $packageEntries,
+            'manifestPackageOrder' => $provenance['manifestPackageOrder'] ?? [],
+            'manifestPackageOrderMatchesCentralDirectoryOrder' => ($provenance['manifestPackageOrderMatchesCentralDirectoryOrder'] ?? false) === true,
+            'manifestPackageOrderMismatchCount' => $provenance['manifestPackageOrderMismatchCount'] ?? 0,
             'scriptPackagePartCount' => $provenance['scriptPackagePartCount'] ?? 0,
             'packageSignaturePartCount' => $provenance['packageSignaturePartCount'] ?? 0,
             'packageThumbnailPartCount' => $provenance['packageThumbnailPartCount'] ?? 0,
