@@ -41,6 +41,12 @@ $encryptedManifestXml = str_replace(
     $manifestXml
 );
 
+$invalidSizeManifestXml = str_replace(
+    'manifest:full-path="layout-cache" manifest:media-type="application/binary" manifest:size="' . $layoutCacheSize . '"',
+    'manifest:full-path="layout-cache" manifest:media-type="application/binary" manifest:size="layout-cache-bytes"',
+    $manifestXml
+);
+
 $contentXml = <<<'XML'
 <office:document-content
   xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
@@ -107,6 +113,7 @@ return [
         $missingManifestXml,
         $invalidManifestXml,
         $encryptedManifestXml,
+        $invalidSizeManifestXml,
         $layoutCacheBytes,
         $encryptedLayoutCacheBytes,
         $heroBytes
@@ -188,6 +195,21 @@ return [
         $t->same(['odf-layout-cache-invalid-media-type'], $invalid['issues']);
         $t->same('layout-cache-package-bytes-blocked', $invalid['byteExposurePolicy']);
 
+        $invalidSizeResult = (new OdfReader())->readPackage($buildPackage($invalidSizeManifestXml, [
+            ['name' => 'layout-cache', 'data' => $layoutCacheBytes, 'compressionMethod' => 0],
+        ]));
+        $invalidSizeCaches = $invalidSizeResult['packageLayoutCaches'];
+        $invalidSize = $invalidSizeCaches['items'][0];
+        $invalidSizeManifest = $indexBy($invalidSizeResult['manifest'], 'part')['layout-cache'];
+        $t->same(1, $invalidSizeCaches['invalidDeclaredSizeCount']);
+        $t->same(1, $invalidSizeCaches['issueCount']);
+        $t->same(['odf-layout-cache-invalid-declared-size'], $invalidSizeCaches['issueCodes']);
+        $t->same('layout-cache-bytes', $invalidSize['declaredSizeRaw']);
+        $t->same(false, $invalidSize['declaredSizeValid']);
+        $t->same(true, $invalidSize['declaredSizeInvalid']);
+        $t->same(['odf-layout-cache-invalid-declared-size'], $invalidSize['issues']);
+        $t->same(['odf-manifest-invalid-declared-size'], $invalidSizeManifest['diagnostics']);
+
         $encrypted = (new OdfReader())->readPackage($buildPackage($encryptedManifestXml, [
             ['name' => 'layout-cache', 'data' => $encryptedLayoutCacheBytes, 'compressionMethod' => 0],
         ]))['packageLayoutCaches']['items'][0];
@@ -226,6 +248,7 @@ return [
         $t->same(0, $compactLayoutCaches['missingCount']);
         $t->same(0, $compactLayoutCaches['encryptedCount']);
         $t->same(0, $compactLayoutCaches['invalidMediaTypeCount']);
+        $t->same(0, $compactLayoutCaches['invalidDeclaredSizeCount']);
         $t->same('layout-cache-package-bytes-blocked', $compactLayoutCaches['byteExposurePolicy']);
         $t->same('layout-cache-metadata-only', $compactLayoutCaches['reviewPolicy']);
 
@@ -256,5 +279,18 @@ return [
         $t->same(['layout-cache', 'manifest-declared'], $inventory['parts']['layout-cache']['roles']);
         $t->same(true, $inventory['parts']['layout-cache']['layoutCachePackagePart']);
         $t->same(false, $inventory['parts']['layout-cache']['canExposeBytes']);
+
+        $compactInvalidSizeSummary = OpenDocumentPackage::fromPackage($buildPackage($invalidSizeManifestXml, [
+            ['name' => 'layout-cache', 'data' => $layoutCacheBytes, 'compressionMethod' => 0],
+        ]))->summarize();
+        $compactInvalidSize = $compactInvalidSizeSummary['packageLayoutCaches']['items'][0];
+        $compactInvalidSizeReview = $indexBy($compactInvalidSizeSummary['manifestReview']['items'], 'path')['layout-cache'];
+        $t->same(1, $compactInvalidSizeSummary['packageLayoutCaches']['invalidDeclaredSizeCount']);
+        $t->same(['odf-layout-cache-invalid-declared-size'], $compactInvalidSizeSummary['packageLayoutCaches']['issueCodes']);
+        $t->same('layout-cache-bytes', $compactInvalidSize['declaredSizeRaw']);
+        $t->same(false, $compactInvalidSize['declaredSizeValid']);
+        $t->same(true, $compactInvalidSize['declaredSizeInvalid']);
+        $t->same(['odf-layout-cache-invalid-declared-size'], $compactInvalidSize['issues']);
+        $t->same(['odf-manifest-invalid-declared-size'], $compactInvalidSizeReview['diagnostics']);
     },
 ];
