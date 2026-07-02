@@ -20205,18 +20205,25 @@ final class XmlHtmlDom
         if (array_key_exists('part', $attributes)) {
             $parts = self::partTokenListSummary($attributes['part']);
             $summary['partReviewPolicy'] = 'html-part-token-list-review';
+            $summary['partReviewStatus'] = $parts['issueCodes'] === [] ? 'ok' : 'review';
             $summary['partRaw'] = $attributes['part'];
             $summary['partTokens'] = $parts['tokens'];
             $summary['partNames'] = $parts['names'];
             $summary['invalidPartTokens'] = $parts['invalid'];
             $summary['duplicatePartTokens'] = $parts['duplicates'];
+            $summary['partTokenCount'] = count($parts['tokens']);
+            $summary['partNameCount'] = count($parts['names']);
+            $summary['invalidPartTokenCount'] = count($parts['invalid']);
+            $summary['duplicatePartTokenCount'] = count($parts['duplicates']);
             $summary['partIssueCodes'] = $parts['issueCodes'];
+            $summary['partIssueCount'] = count($parts['issueCodes']);
             $summary['partValid'] = $parts['valid'];
         }
 
         if (array_key_exists('exportparts', $attributes)) {
             $exportParts = self::exportPartsSummary($attributes['exportparts']);
             $summary['exportPartsReviewPolicy'] = 'html-exportparts-mapping-review';
+            $summary['exportPartsReviewStatus'] = $exportParts['issueCodes'] === [] ? 'ok' : 'review';
             $summary['exportPartsRaw'] = $attributes['exportparts'];
             $summary['exportParts'] = $exportParts['items'];
             $summary['exportPartNames'] = $exportParts['names'];
@@ -20224,7 +20231,14 @@ final class XmlHtmlDom
             $summary['invalidExportParts'] = $exportParts['invalid'];
             $summary['duplicateExportPartNames'] = $exportParts['duplicateNames'];
             $summary['duplicateExportPartAliases'] = $exportParts['duplicateAliases'];
+            $summary['exportPartsMappingCount'] = count($exportParts['items']);
+            $summary['exportPartNameCount'] = count($exportParts['names']);
+            $summary['exportPartAliasCount'] = count($exportParts['aliases']);
+            $summary['invalidExportPartCount'] = count($exportParts['invalid']);
+            $summary['duplicateExportPartNameCount'] = count($exportParts['duplicateNames']);
+            $summary['duplicateExportPartAliasCount'] = count($exportParts['duplicateAliases']);
             $summary['exportPartsIssueCodes'] = $exportParts['issueCodes'];
+            $summary['exportPartsIssueCount'] = count($exportParts['issueCodes']);
             $summary['exportPartsValid'] = $exportParts['valid'];
         }
 
@@ -23388,6 +23402,7 @@ final class XmlHtmlDom
 
         return [
             'partExportReviewPolicy' => 'html-part-exportparts-fragment-review',
+            'partExportReviewStatus' => $issueCodes === [] ? 'ok' : 'review',
             'partExportElement' => self::htmlElementName($element),
             'partExportElementId' => self::attributeOrNull($element, 'id'),
             'partDuplicateTokens' => $duplicatePartTokens,
@@ -23403,7 +23418,9 @@ final class XmlHtmlDom
             'duplicateExportPartSources' => $duplicateExportPartSources,
             'duplicateExportPartAliases' => $duplicateExportPartAliases,
             'partExportIssueCodes' => $issueCodes,
+            'partExportIssueCount' => count($issueCodes),
             'partExportValid' => $issueCodes === [],
+            'partExportReviewOnlyNoShadowDom' => true,
         ];
     }
 

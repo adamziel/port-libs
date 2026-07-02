@@ -28,6 +28,7 @@ return [
         $label = $clean['children'][0];
 
         $t->same('html-part-exportparts-fragment-review', $host['partExportReviewPolicy']);
+        $t->same('review', $host['partExportReviewStatus']);
         $t->same('article', $host['partExportElement']);
         $t->same('host', $host['partExportElementId']);
         $t->same(['card'], $host['partDuplicateTokens']);
@@ -48,7 +49,9 @@ return [
             'duplicate-exportparts-alias',
             'unobserved-exportparts-source',
         ], $host['partExportIssueCodes']);
+        $t->same(4, $host['partExportIssueCount']);
         $t->same(false, $host['partExportValid']);
+        $t->same(true, $host['partExportReviewOnlyNoShadowDom']);
 
         $t->same(true, $host['exportPartMappings'][0]['sourceObservedInFragment']);
         $t->same(['host', 'title-part'], $host['exportPartMappings'][0]['sourceElementIds']);
@@ -59,9 +62,12 @@ return [
         $t->same(false, $host['exportPartMappings'][5]['valid']);
 
         $t->same('html-part-exportparts-fragment-review', $clean['partExportReviewPolicy']);
+        $t->same('ok', $clean['partExportReviewStatus']);
         $t->same(['region', 'label'], $clean['visiblePartNames']);
         $t->same(0, $clean['exportPartMappingCount']);
+        $t->same(0, $clean['partExportIssueCount']);
         $t->same(true, $clean['partExportValid']);
+        $t->same(true, $clean['partExportReviewOnlyNoShadowDom']);
         $t->same(['label'], $label['visiblePartNames']);
 
         $t->same(
