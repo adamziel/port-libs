@@ -1625,6 +1625,7 @@ final class OpenDocumentPackage
         $manifestPackageCoverage = self::manifestPackageCoverageProvenance($this->manifestEntries, $parts, $undeclaredEntries);
         $packageByteHandoff = OpenDocumentPackageByteHandoff::summarize($this->package, $parts, 'path');
         $centralDirectoryOrderMismatchRoles = self::centralDirectoryOrderMismatchRoleInventory($parts);
+        $packagePlatformAttributeIssues = self::packagePlatformAttributeIssueInventory($parts);
 
         return [
             'entryCount' => count($parts),
@@ -1876,6 +1877,19 @@ final class OpenDocumentPackage
             'centralDirectoryOrderMismatchRoleByteLengths' => $centralDirectoryOrderMismatchRoles['roleByteLengths'],
             'centralDirectoryOrderMismatchRoleCompressedByteLengths' => $centralDirectoryOrderMismatchRoles['roleCompressedByteLengths'],
             'centralDirectoryOrderMismatchRoleSummaries' => $centralDirectoryOrderMismatchRoles['roleSummaries'],
+            'packagePlatformAttributeIssueEntryCount' => $packagePlatformAttributeIssues['packagePlatformAttributeIssueEntryCount'],
+            'packagePlatformAttributeIssueOccurrenceCount' => $packagePlatformAttributeIssues['packagePlatformAttributeIssueOccurrenceCount'],
+            'packagePlatformAttributeIssueCounts' => $packagePlatformAttributeIssues['packagePlatformAttributeIssueCounts'],
+            'packagePlatformAttributeIssueByteLengths' => $packagePlatformAttributeIssues['packagePlatformAttributeIssueByteLengths'],
+            'packagePlatformAttributeIssueCompressedByteLengths' => $packagePlatformAttributeIssues['packagePlatformAttributeIssueCompressedByteLengths'],
+            'entryNamesByPackagePlatformAttributeIssue' => $packagePlatformAttributeIssues['entryNamesByPackagePlatformAttributeIssue'],
+            'packagePlatformAttributeIssueRoleCount' => $packagePlatformAttributeIssues['packagePlatformAttributeIssueRoleCount'],
+            'packagePlatformAttributeIssueRoleCounts' => $packagePlatformAttributeIssues['packagePlatformAttributeIssueRoleCounts'],
+            'entryNamesByPackagePlatformAttributeIssueRole' => $packagePlatformAttributeIssues['entryNamesByPackagePlatformAttributeIssueRole'],
+            'packagePlatformAttributeIssueManifestMediaFamilyCount' => $packagePlatformAttributeIssues['packagePlatformAttributeIssueManifestMediaFamilyCount'],
+            'packagePlatformAttributeIssueManifestMediaFamilyCounts' => $packagePlatformAttributeIssues['packagePlatformAttributeIssueManifestMediaFamilyCounts'],
+            'entryNamesByPackagePlatformAttributeIssueManifestMediaFamily' => $packagePlatformAttributeIssues['entryNamesByPackagePlatformAttributeIssueManifestMediaFamily'],
+            'packagePlatformAttributeIssueSummaries' => $packagePlatformAttributeIssues['packagePlatformAttributeIssueSummaries'],
             'zipPackageManifest' => $packageManifest,
             'zipPackageManifestSha256' => $packageManifest['manifestSha256'],
             ...$zipPackageManifestSummary,
@@ -3199,6 +3213,19 @@ final class OpenDocumentPackage
             'centralDirectoryOrderMismatchRoleByteLengths' => $packageInventory['centralDirectoryOrderMismatchRoleByteLengths'] ?? [],
             'centralDirectoryOrderMismatchRoleCompressedByteLengths' => $packageInventory['centralDirectoryOrderMismatchRoleCompressedByteLengths'] ?? [],
             'centralDirectoryOrderMismatchRoleSummaries' => $packageInventory['centralDirectoryOrderMismatchRoleSummaries'] ?? [],
+            'packagePlatformAttributeIssueEntryCount' => $packageInventory['packagePlatformAttributeIssueEntryCount'] ?? 0,
+            'packagePlatformAttributeIssueOccurrenceCount' => $packageInventory['packagePlatformAttributeIssueOccurrenceCount'] ?? 0,
+            'packagePlatformAttributeIssueCounts' => $packageInventory['packagePlatformAttributeIssueCounts'] ?? [],
+            'packagePlatformAttributeIssueByteLengths' => $packageInventory['packagePlatformAttributeIssueByteLengths'] ?? [],
+            'packagePlatformAttributeIssueCompressedByteLengths' => $packageInventory['packagePlatformAttributeIssueCompressedByteLengths'] ?? [],
+            'entryNamesByPackagePlatformAttributeIssue' => $packageInventory['entryNamesByPackagePlatformAttributeIssue'] ?? [],
+            'packagePlatformAttributeIssueRoleCount' => $packageInventory['packagePlatformAttributeIssueRoleCount'] ?? 0,
+            'packagePlatformAttributeIssueRoleCounts' => $packageInventory['packagePlatformAttributeIssueRoleCounts'] ?? [],
+            'entryNamesByPackagePlatformAttributeIssueRole' => $packageInventory['entryNamesByPackagePlatformAttributeIssueRole'] ?? [],
+            'packagePlatformAttributeIssueManifestMediaFamilyCount' => $packageInventory['packagePlatformAttributeIssueManifestMediaFamilyCount'] ?? 0,
+            'packagePlatformAttributeIssueManifestMediaFamilyCounts' => $packageInventory['packagePlatformAttributeIssueManifestMediaFamilyCounts'] ?? [],
+            'entryNamesByPackagePlatformAttributeIssueManifestMediaFamily' => $packageInventory['entryNamesByPackagePlatformAttributeIssueManifestMediaFamily'] ?? [],
+            'packagePlatformAttributeIssueSummaries' => $packageInventory['packagePlatformAttributeIssueSummaries'] ?? [],
             'undeclaredEntryCount' => $packageInventory['undeclaredEntryCount'] ?? 0,
             'unsupportedCompressionMethodCount' => $packageInventory['unsupportedCompressionMethodCount'] ?? 0,
             'encryptedCount' => count($this->encryptedManifestEntries()),
@@ -3942,6 +3969,138 @@ final class OpenDocumentPackage
             'roleByteLengths' => $roleByteLengths,
             'roleCompressedByteLengths' => $roleCompressedByteLengths,
             'roleSummaries' => array_values($summaries),
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $parts
+     * @return array<string, mixed>
+     */
+    private static function packagePlatformAttributeIssueInventory(array $parts): array
+    {
+        $issueCounts = [];
+        $issueByteLengths = [];
+        $issueCompressedByteLengths = [];
+        $entryNamesByIssue = [];
+        $issueRoleCounts = [];
+        $entryNamesByIssueRole = [];
+        $issueManifestMediaFamilyCounts = [];
+        $entryNamesByIssueManifestMediaFamily = [];
+        $summaries = [];
+        $entryCount = 0;
+        $occurrenceCount = 0;
+
+        foreach ($parts as $fallbackName => $part) {
+            $entryName = is_string($part['path'] ?? null) && $part['path'] !== ''
+                ? $part['path']
+                : (is_string($part['part'] ?? null) && $part['part'] !== '' ? $part['part'] : (string) $fallbackName);
+            if ($entryName === '') {
+                continue;
+            }
+
+            $issues = array_values(array_unique(array_filter(
+                array_map('strval', is_array($part['platformAttributeIssues'] ?? null) ? $part['platformAttributeIssues'] : []),
+                static fn (string $issue): bool => $issue !== ''
+            )));
+            if ($issues === []) {
+                continue;
+            }
+
+            ++$entryCount;
+            $byteLength = is_int($part['byteLength'] ?? null) ? $part['byteLength'] : 0;
+            $compressedByteLength = is_int($part['compressedByteLength'] ?? null) ? $part['compressedByteLength'] : 0;
+            $roles = array_values(array_unique(array_filter(
+                array_map('strval', is_array($part['roles'] ?? null) ? $part['roles'] : []),
+                static fn (string $role): bool => $role !== ''
+            )));
+            $manifestMediaFamily = is_string($part['manifestMediaFamily'] ?? null) && $part['manifestMediaFamily'] !== ''
+                ? $part['manifestMediaFamily']
+                : '(missing)';
+
+            foreach ($issues as $issue) {
+                ++$occurrenceCount;
+                $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
+                $issueByteLengths[$issue] = ($issueByteLengths[$issue] ?? 0) + $byteLength;
+                $issueCompressedByteLengths[$issue] = ($issueCompressedByteLengths[$issue] ?? 0) + $compressedByteLength;
+                $entryNamesByIssue[$issue] ??= [];
+                $entryNamesByIssue[$issue][$entryName] = true;
+
+                if (!isset($summaries[$issue])) {
+                    $summaries[$issue] = [
+                        'issueCode' => $issue,
+                        'entryCount' => 0,
+                        'byteLength' => 0,
+                        'compressedByteLength' => 0,
+                        'roleCount' => 0,
+                        'roles' => [],
+                        'roleCounts' => [],
+                        'manifestMediaFamilyCount' => 0,
+                        'manifestMediaFamilies' => [],
+                        'manifestMediaFamilyCounts' => [],
+                        'entryNames' => [],
+                    ];
+                }
+
+                ++$summaries[$issue]['entryCount'];
+                $summaries[$issue]['byteLength'] += $byteLength;
+                $summaries[$issue]['compressedByteLength'] += $compressedByteLength;
+                $summaries[$issue]['entryNames'][$entryName] = true;
+
+                foreach ($roles as $role) {
+                    $issueRoleCounts[$issue] ??= [];
+                    $issueRoleCounts[$issue][$role] = ($issueRoleCounts[$issue][$role] ?? 0) + 1;
+                    $entryNamesByIssueRole[$issue] ??= [];
+                    $entryNamesByIssueRole[$issue][$role] ??= [];
+                    $entryNamesByIssueRole[$issue][$role][$entryName] = true;
+                    $summaries[$issue]['roleCounts'][$role] = ($summaries[$issue]['roleCounts'][$role] ?? 0) + 1;
+                }
+
+                $issueManifestMediaFamilyCounts[$issue] ??= [];
+                $issueManifestMediaFamilyCounts[$issue][$manifestMediaFamily] =
+                    ($issueManifestMediaFamilyCounts[$issue][$manifestMediaFamily] ?? 0) + 1;
+                $entryNamesByIssueManifestMediaFamily[$issue] ??= [];
+                $entryNamesByIssueManifestMediaFamily[$issue][$manifestMediaFamily] ??= [];
+                $entryNamesByIssueManifestMediaFamily[$issue][$manifestMediaFamily][$entryName] = true;
+                $summaries[$issue]['manifestMediaFamilyCounts'][$manifestMediaFamily] =
+                    ($summaries[$issue]['manifestMediaFamilyCounts'][$manifestMediaFamily] ?? 0) + 1;
+            }
+        }
+
+        ksort($issueCounts, SORT_STRING);
+        ksort($issueByteLengths, SORT_STRING);
+        ksort($issueCompressedByteLengths, SORT_STRING);
+        self::sortPackageStringListMap($entryNamesByIssue, SORT_STRING);
+        self::sortPackageNestedCountMap($issueRoleCounts);
+        self::sortPackageNestedStringListMap($entryNamesByIssueRole);
+        self::sortPackageNestedCountMap($issueManifestMediaFamilyCounts);
+        self::sortPackageNestedStringListMap($entryNamesByIssueManifestMediaFamily);
+        ksort($summaries, SORT_STRING);
+        foreach ($summaries as &$summary) {
+            ksort($summary['roleCounts'], SORT_STRING);
+            ksort($summary['manifestMediaFamilyCounts'], SORT_STRING);
+            $summary['roleCount'] = count($summary['roleCounts']);
+            $summary['roles'] = array_keys($summary['roleCounts']);
+            $summary['manifestMediaFamilyCount'] = count($summary['manifestMediaFamilyCounts']);
+            $summary['manifestMediaFamilies'] = array_keys($summary['manifestMediaFamilyCounts']);
+            $summary['entryNames'] = array_keys($summary['entryNames']);
+            sort($summary['entryNames'], SORT_STRING);
+        }
+        unset($summary);
+
+        return [
+            'packagePlatformAttributeIssueEntryCount' => $entryCount,
+            'packagePlatformAttributeIssueOccurrenceCount' => $occurrenceCount,
+            'packagePlatformAttributeIssueCounts' => $issueCounts,
+            'packagePlatformAttributeIssueByteLengths' => $issueByteLengths,
+            'packagePlatformAttributeIssueCompressedByteLengths' => $issueCompressedByteLengths,
+            'entryNamesByPackagePlatformAttributeIssue' => $entryNamesByIssue,
+            'packagePlatformAttributeIssueRoleCount' => count($issueRoleCounts),
+            'packagePlatformAttributeIssueRoleCounts' => $issueRoleCounts,
+            'entryNamesByPackagePlatformAttributeIssueRole' => $entryNamesByIssueRole,
+            'packagePlatformAttributeIssueManifestMediaFamilyCount' => count($issueManifestMediaFamilyCounts),
+            'packagePlatformAttributeIssueManifestMediaFamilyCounts' => $issueManifestMediaFamilyCounts,
+            'entryNamesByPackagePlatformAttributeIssueManifestMediaFamily' => $entryNamesByIssueManifestMediaFamily,
+            'packagePlatformAttributeIssueSummaries' => array_values($summaries),
         ];
     }
 
