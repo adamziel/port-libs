@@ -4446,6 +4446,104 @@ XML);
     }
 };
 
+$buildFilteredSmartArtConnectionsPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-filtered-smartart-cxns-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Filtered SmartArt connections</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="20" name="Filtered SmartArt"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"><dgm:relIds r:dm="rIdData" r:lo="rIdLayout"/></a:graphicData></a:graphic>
+    </p:graphicFrame>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->addFromString('ppt/slides/_rels/slide1.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdData" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData" Target="../diagrams/data1.xml"/>
+  <Relationship Id="rIdLayout" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramLayout" Target="../diagrams/layout1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/diagrams/layout1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<dgm:layoutDef xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" uniqueId="urn:microsoft.com/office/officeart/2005/8/layout/basicBlockList"/>
+XML);
+    $zip->addFromString('ppt/diagrams/data1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<dgm:dataModel xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <dgm:ptLst>
+    <dgm:pt modelId="parent"><dgm:t><a:p><a:r><a:t>Visible parent</a:t></a:r></a:p></dgm:t></dgm:pt>
+    <dgm:pt modelId="child"><dgm:t><a:p><a:r><a:t>Visible child</a:t></a:r></a:p></dgm:t></dgm:pt>
+    <dgm:pt modelId="orphan"><dgm:t><a:p><a:r><a:t>Orphan text</a:t></a:r></a:p></dgm:t></dgm:pt>
+    <dgm:pt modelId="typedParent"><dgm:t><a:p><a:r><a:t>Typed parent</a:t></a:r></a:p></dgm:t></dgm:pt>
+    <dgm:pt modelId="typedChild"><dgm:t><a:p><a:r><a:t>Typed child</a:t></a:r></a:p></dgm:t></dgm:pt>
+    <dgm:pt modelId="endpointParent"><dgm:t><a:p><a:r><a:t>Endpoint parent</a:t></a:r></a:p></dgm:t></dgm:pt>
+    <dgm:pt modelId="endpointChild"><dgm:t><a:p><a:r><a:t>Endpoint child</a:t></a:r></a:p></dgm:t></dgm:pt>
+  </dgm:ptLst>
+  <dgm:cxnLst>
+    <dgm:cxn srcId="parent" destId="child"/>
+    <dgm:cxn type="parOf" srcId="typedParent" destId="typedChild"/>
+    <dgm:cxn srcId="endpointParent"/>
+    <dgm:cxn destId="endpointChild"/>
+  </dgm:cxnLst>
+</dgm:dataModel>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildUnknownLayoutSmartArtPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-unknown-layout-smartart-');
     if ($path === false) {
@@ -7603,6 +7701,29 @@ return [
         $t->contains('BulletList [ [ Plain [ Str "Untyped" , Space , Str "SmartArt" , Space , Str "child"', $native);
         $t->true(!str_contains($native, 'Diagram parse error'), 'Untyped SmartArt relationships should still resolve by relationship id');
         $t->true(!str_contains($native, '[Graphic: diagram-missing-rels]'), 'Untyped SmartArt relationships should not be treated as missing relIds');
+    },
+
+    'filters orphan typed and malformed pptx SmartArt connections like upstream' => static function (TestRunner $t) use ($buildFilteredSmartArtConnectionsPptxPackage, $nodesOfType, $nodesWithClass): void {
+        $document = (new PptxReader())->read($buildFilteredSmartArtConnectionsPptxPackage());
+        $review = $document->attr('pptx');
+        $divs = $nodesOfType($document, 'div');
+        $smartArtDivs = $nodesWithClass($divs, 'smartart');
+        $bulletLists = $nodesOfType($document, 'bullet_list');
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same(1, count($smartArtDivs));
+        $t->same(['smartart', 'basicBlockList'], $smartArtDivs[0]->attr('classes'));
+        $t->same(['layout' => 'basicBlockList'], $smartArtDivs[0]->attr('attributes'));
+        $t->same(2, count($smartArtDivs[0]->children));
+        $t->same(1, count($bulletLists));
+        $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
+        $t->contains('Strong [ Str "Visible" , Space , Str "parent" ]', $native);
+        $t->contains('BulletList [ [ Plain [ Str "Visible" , Space , Str "child"', $native);
+        $t->true(!str_contains($native, 'Orphan text'), 'SmartArt nodes without outgoing untyped connections should stay hidden like upstream');
+        $t->true(!str_contains($native, 'Typed parent'), 'Typed SmartArt connections should not make visible hierarchy parents');
+        $t->true(!str_contains($native, 'Typed child'), 'Children reachable only through typed SmartArt connections should stay hidden');
+        $t->true(!str_contains($native, 'Endpoint parent'), 'SmartArt connections without destId should be ignored');
+        $t->true(!str_contains($native, 'Endpoint child'), 'SmartArt connections without srcId should be ignored');
     },
 
     'uses unknown SmartArt layout names when uniqueId and title are absent like upstream' => static function (TestRunner $t) use ($buildUnknownLayoutSmartArtPptxPackage, $nodesOfType, $nodesWithClass): void {
