@@ -7068,6 +7068,87 @@ XML);
     }
 };
 
+$buildUnqualifiedRelationshipAttributesPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-unqualified-rel-attrs-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"
+               xmlns:q="urn:qualified-relationship-attributes">
+  <Relationship q:Id="rIdQualifiedPresentation" q:Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" q:Target="ppt/qualified-presentation.xml"/>
+  <Relationship Id="rIdPresentation" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"
+               xmlns:q="urn:qualified-relationship-attributes">
+  <Relationship q:Id="rIdSlide" Target="slides/qualified-id.xml"/>
+  <Relationship Id="rIdSlide" q:Target="slides/qualified-target.xml"/>
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Unqualified relationship attributes</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:pic>
+      <p:nvPicPr><p:cNvPr id="3" name="Unqualified Attribute Picture" descr="Unqualified attribute alt"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>
+      <p:blipFill><a:blip r:embed="rIdImage"/></p:blipFill>
+    </p:pic>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->addFromString('ppt/slides/_rels/slide1.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"
+               xmlns:q="urn:qualified-relationship-attributes">
+  <Relationship q:Id="rIdImage" Target="../media/qualified-id.png"/>
+  <Relationship Id="rIdImage" q:Target="../media/qualified-target.png"/>
+  <Relationship Id="rIdImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/unqualified-relationship-attribute.png"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/media/unqualified-relationship-attribute.png', 'unqualified-relationship-attribute-image-bytes');
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildEmptyRelationshipIdPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-empty-rid-');
     if ($path === false) {
@@ -8750,6 +8831,23 @@ return [
         $t->same(0, $review['slides'][0]['imageIssueCount'] ?? null);
         $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Relationship" , Space , Str "child" , Space , Str "names" ]', $native);
         $t->contains('Image ( "" , [  ] , [  ] ) [ Str "Odd" , Space , Str "child" , Space , Str "alt" ] ( "ppt/media/non-relationship-child.png" , "Odd Child Picture" )', $native);
+    },
+
+    'uses only unqualified pptx relationship attributes like upstream' => static function (TestRunner $t) use ($buildUnqualifiedRelationshipAttributesPptxPackage, $nodesOfType): void {
+        $document = (new PptxReader())->read($buildUnqualifiedRelationshipAttributesPptxPackage());
+        $review = $document->attr('pptx');
+        $images = $nodesOfType($document, 'image');
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same(1, $review['slideCount'] ?? null);
+        $t->same('ppt/slides/slide1.xml', $review['slides'][0]['partName'] ?? null);
+        $t->same('Unqualified relationship attributes', $document->children[0]->attr('text'));
+        $t->same(1, count($images));
+        $t->same('ppt/media/unqualified-relationship-attribute.png', $images[0]->attr('url'));
+        $t->same('Unqualified Attribute Picture', $images[0]->attr('title'));
+        $t->same(0, $review['slides'][0]['imageIssueCount'] ?? null);
+        $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Unqualified" , Space , Str "relationship" , Space , Str "attributes" ]', $native);
+        $t->contains('Image ( "" , [  ] , [  ] ) [ Str "Unqualified" , Space , Str "attribute" , Space , Str "alt" ] ( "ppt/media/unqualified-relationship-attribute.png" , "Unqualified Attribute Picture" )', $native);
     },
 
     'ignores pptx presentation slide id attributes like upstream' => static function (TestRunner $t) use ($buildIgnoredPresentationSlideIdsPptxPackage): void {
