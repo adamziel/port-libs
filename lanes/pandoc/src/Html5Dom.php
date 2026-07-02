@@ -172,6 +172,56 @@ final class Html5Dom
         return $attributes;
     }
 
+    /**
+     * @return list<array{name:string, rawName:string, qualifiedName:string, localName:string, prefix:string, namespaceUri:string, value:string, isNamespaced:bool, isNamespaceDeclaration:bool, isHtmlDocument:bool, isHtmlForeignElement:bool, isHtmlNameAdjusted:bool, localCollisionKey:string, namespaceCollisionKey:string}>
+     */
+    public static function attributeRecords(\DOMElement $element): array
+    {
+        $records = [];
+        $isHtmlDocument = self::isHtmlDocumentElement($element);
+        $isHtmlForeignElement = $isHtmlDocument && self::isHtmlForeignElement($element);
+
+        foreach ($element->attributes as $attribute) {
+            if (!$attribute instanceof \DOMAttr) {
+                continue;
+            }
+
+            $rawName = $attribute->name;
+            $prefix = (string) $attribute->prefix;
+            $localName = (string) $attribute->localName;
+            $namespaceUri = (string) ($attribute->namespaceURI ?? '');
+            $qualifiedName = $prefix !== '' ? $prefix . ':' . $localName : $rawName;
+            $name = $isHtmlDocument
+                ? strtolower($rawName)
+                : $qualifiedName;
+
+            if ($isHtmlForeignElement) {
+                $name = XmlHtmlDom::adjustHtmlForeignAttributeName($name);
+            }
+
+            $records[] = [
+                'name' => $name,
+                'rawName' => $rawName,
+                'qualifiedName' => $qualifiedName,
+                'localName' => $localName,
+                'prefix' => $prefix,
+                'namespaceUri' => $namespaceUri,
+                'value' => $attribute->value,
+                'isNamespaced' => $namespaceUri !== '',
+                'isNamespaceDeclaration' => $namespaceUri === 'http://www.w3.org/2000/xmlns/'
+                    || $rawName === 'xmlns'
+                    || str_starts_with($rawName, 'xmlns:'),
+                'isHtmlDocument' => $isHtmlDocument,
+                'isHtmlForeignElement' => $isHtmlForeignElement,
+                'isHtmlNameAdjusted' => $name !== ($isHtmlDocument ? strtolower($rawName) : $qualifiedName),
+                'localCollisionKey' => $localName,
+                'namespaceCollisionKey' => $namespaceUri . '|' . $localName,
+            ];
+        }
+
+        return $records;
+    }
+
     public static function normalizedText(\DOMNode $node): string
     {
         $raw = self::textForNormalization($node);

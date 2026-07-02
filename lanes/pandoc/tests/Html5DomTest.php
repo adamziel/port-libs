@@ -297,6 +297,30 @@ return [
         );
         $t->true(!str_contains($serialized, 'stitchtiles='), 'Expected SVG stitchTiles attribute to serialize with HTML5 foreign-content casing');
     },
+    'surfaces html foreign attribute records with adjusted names and raw provenance' => static function (TestRunner $t): void {
+        $body = Html5Dom::parseHtmlFragment(
+            '<svg viewBox="0 0 1 1" preserveAspectRatio="xMidYMid meet" xlink:href="#sprite" xml:lang="en"></svg>'
+        );
+        $svg = Html5Dom::firstChildElement($body, 'svg');
+        $records = $svg instanceof DOMElement ? Html5Dom::attributeRecords($svg) : [];
+        $byName = [];
+        foreach ($records as $record) {
+            $byName[$record['name']] = $record;
+        }
+
+        $t->same(['viewBox', 'preserveAspectRatio', 'xlink:href', 'xml:lang'], array_column($records, 'name'));
+        $t->same('viewbox', $byName['viewBox']['rawName'] ?? null);
+        $t->same('viewbox', $byName['viewBox']['localName'] ?? null);
+        $t->same('', $byName['viewBox']['namespaceUri'] ?? null);
+        $t->same('|viewbox', $byName['viewBox']['namespaceCollisionKey'] ?? null);
+        $t->same(true, $byName['viewBox']['isHtmlDocument'] ?? null);
+        $t->same(true, $byName['viewBox']['isHtmlForeignElement'] ?? null);
+        $t->same(true, $byName['viewBox']['isHtmlNameAdjusted'] ?? null);
+        $t->same(false, $byName['xlink:href']['isNamespaced'] ?? null);
+        $t->same('xlink:href', $byName['xlink:href']['rawName'] ?? null);
+        $t->same('xlink:href', $byName['xlink:href']['localCollisionKey'] ?? null);
+        $t->same(false, $byName['xml:lang']['isNamespaceDeclaration'] ?? null);
+    },
     'treats svg foreignObject and math annotation html descendants as html' => static function (TestRunner $t): void {
         $body = Html5Dom::parseHtmlFragment(
             '<svg><foreignObject><div viewBox="html attr"><linearGradient>HTML child</linearGradient><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></div></foreignObject></svg>'
@@ -616,6 +640,29 @@ return [
         $t->same('x reviewer text', Html5Dom::normalizedText($fragment));
         $t->contains('<m:math xmlns:m="urn:math"><m:mi>x</m:mi></m:math>', $serialized);
         $t->contains('<w:t xmlns:w="urn:word" xml:space="preserve"> reviewer text </w:t>', $serialized);
+    },
+    'surfaces XML namespaced attribute records without collapsing local-name collisions' => static function (TestRunner $t): void {
+        $fragment = Html5Dom::parseXmlFragment(
+            '<item xmlns="urn:item" xmlns:dc="urn:dc" dc:code="namespaced" code="plain" xml:lang="en"/>'
+        );
+        $item = Html5Dom::childElements($fragment, 'item', 'urn:item')[0] ?? null;
+        $records = $item instanceof DOMElement ? Html5Dom::attributeRecords($item) : [];
+        $byQualifiedName = [];
+        foreach ($records as $record) {
+            $byQualifiedName[$record['qualifiedName']] = $record;
+        }
+
+        $t->same(['dc:code', 'code', 'xml:lang'], array_column($records, 'qualifiedName'));
+        $t->same('dc:code', $byQualifiedName['dc:code']['name'] ?? null);
+        $t->same('dc', $byQualifiedName['dc:code']['prefix'] ?? null);
+        $t->same('urn:dc', $byQualifiedName['dc:code']['namespaceUri'] ?? null);
+        $t->same('code', $byQualifiedName['dc:code']['localCollisionKey'] ?? null);
+        $t->same('urn:dc|code', $byQualifiedName['dc:code']['namespaceCollisionKey'] ?? null);
+        $t->same('|code', $byQualifiedName['code']['namespaceCollisionKey'] ?? null);
+        $t->same('http://www.w3.org/XML/1998/namespace|lang', $byQualifiedName['xml:lang']['namespaceCollisionKey'] ?? null);
+        $t->same(false, $byQualifiedName['code']['isNamespaced'] ?? null);
+        $t->same(true, $byQualifiedName['dc:code']['isNamespaced'] ?? null);
+        $t->same(false, $byQualifiedName['dc:code']['isHtmlDocument'] ?? null);
     },
     'parses XML documents with declarations and rejects processing instruction nodes' => static function (TestRunner $t): void {
         $dom = Html5Dom::parseXmlDocument(
