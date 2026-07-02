@@ -2205,6 +2205,7 @@ final class OdfReader
         $packageZipSourceRecordDirectoryRoots = self::packageZipSourceRecordDirectoryRootInventory($parts);
         $packageZipSourceRecordPackagePartExtensions = self::packageZipSourceRecordPackagePartExtensionInventory($parts);
         $packageZipSourceRecordPackagePartBaseNameStems = self::packageZipSourceRecordPackagePartBaseNameStemInventory($parts);
+        $packageZipSourceRecordPathDepths = self::packageZipSourceRecordPathDepthInventory($parts);
         $packageZipSourceRecordCompressionMethods = self::packageZipSourceRecordCompressionMethodInventory($parts);
         $packageZipSourceRecordRoles = self::packageZipSourceRecordRoleInventory($parts);
         $packageCrc32s = OdfPackageCrc32Inventory::summarize($parts);
@@ -2376,6 +2377,13 @@ final class OdfReader
             'packageZipSourceRecordDuplicatePackagePartBaseNameStemEntryCount' => $packageZipSourceRecordPackagePartBaseNameStems['packageZipSourceRecordDuplicatePackagePartBaseNameStemEntryCount'],
             'packageZipSourceRecordDuplicatePackagePartBaseNameStems' => $packageZipSourceRecordPackagePartBaseNameStems['packageZipSourceRecordDuplicatePackagePartBaseNameStems'],
             'packageZipSourceRecordPackagePartBaseNameStems' => $packageZipSourceRecordPackagePartBaseNameStems['packageZipSourceRecordPackagePartBaseNameStems'],
+            'packageZipSourceRecordPathDepthCount' => $packageZipSourceRecordPathDepths['packageZipSourceRecordPathDepthCount'],
+            'packageZipSourceRecordPathDepthCounts' => $packageZipSourceRecordPathDepths['packageZipSourceRecordPathDepthCounts'],
+            'packageZipSourceRecordPathDepthBytes' => $packageZipSourceRecordPathDepths['packageZipSourceRecordPathDepthBytes'],
+            'packageZipSourceRecordPathDepthDataDescriptorEntryCount' => $packageZipSourceRecordPathDepths['packageZipSourceRecordPathDepthDataDescriptorEntryCount'],
+            'packageZipSourceRecordPathDepthIssueEntryCount' => $packageZipSourceRecordPathDepths['packageZipSourceRecordPathDepthIssueEntryCount'],
+            'packageZipSourceRecordMaxPathDepth' => $packageZipSourceRecordPathDepths['packageZipSourceRecordMaxPathDepth'],
+            'packageZipSourceRecordPathDepths' => $packageZipSourceRecordPathDepths['packageZipSourceRecordPathDepths'],
             'packageZipSourceRecordCompressionMethodCount' => $packageZipSourceRecordCompressionMethods['packageZipSourceRecordCompressionMethodCount'],
             'packageZipSourceRecordCompressionMethodCounts' => $packageZipSourceRecordCompressionMethods['packageZipSourceRecordCompressionMethodCounts'],
             'packageZipSourceRecordCompressionMethodBytes' => $packageZipSourceRecordCompressionMethods['packageZipSourceRecordCompressionMethodBytes'],
@@ -3779,6 +3787,13 @@ final class OdfReader
             'packageZipSourceRecordDuplicatePackagePartBaseNameStemEntryCount' => $provenance['packageZipSourceRecordDuplicatePackagePartBaseNameStemEntryCount'] ?? 0,
             'packageZipSourceRecordDuplicatePackagePartBaseNameStems' => $provenance['packageZipSourceRecordDuplicatePackagePartBaseNameStems'] ?? [],
             'packageZipSourceRecordPackagePartBaseNameStems' => $provenance['packageZipSourceRecordPackagePartBaseNameStems'] ?? [],
+            'packageZipSourceRecordPathDepthCount' => $provenance['packageZipSourceRecordPathDepthCount'] ?? 0,
+            'packageZipSourceRecordPathDepthCounts' => $provenance['packageZipSourceRecordPathDepthCounts'] ?? [],
+            'packageZipSourceRecordPathDepthBytes' => $provenance['packageZipSourceRecordPathDepthBytes'] ?? [],
+            'packageZipSourceRecordPathDepthDataDescriptorEntryCount' => $provenance['packageZipSourceRecordPathDepthDataDescriptorEntryCount'] ?? 0,
+            'packageZipSourceRecordPathDepthIssueEntryCount' => $provenance['packageZipSourceRecordPathDepthIssueEntryCount'] ?? 0,
+            'packageZipSourceRecordMaxPathDepth' => $provenance['packageZipSourceRecordMaxPathDepth'] ?? 0,
+            'packageZipSourceRecordPathDepths' => $provenance['packageZipSourceRecordPathDepths'] ?? [],
             'packageZipSourceRecordCompressionMethodCount' => $provenance['packageZipSourceRecordCompressionMethodCount'] ?? 0,
             'packageZipSourceRecordCompressionMethodCounts' => $provenance['packageZipSourceRecordCompressionMethodCounts'] ?? [],
             'packageZipSourceRecordCompressionMethodBytes' => $provenance['packageZipSourceRecordCompressionMethodBytes'] ?? [],
@@ -4149,6 +4164,13 @@ final class OdfReader
             'packageZipSourceRecordDuplicatePackagePartBaseNameStemEntryCount' => $provenance['packageZipSourceRecordDuplicatePackagePartBaseNameStemEntryCount'] ?? 0,
             'packageZipSourceRecordDuplicatePackagePartBaseNameStems' => $provenance['packageZipSourceRecordDuplicatePackagePartBaseNameStems'] ?? [],
             'packageZipSourceRecordPackagePartBaseNameStems' => $provenance['packageZipSourceRecordPackagePartBaseNameStems'] ?? [],
+            'packageZipSourceRecordPathDepthCount' => $provenance['packageZipSourceRecordPathDepthCount'] ?? 0,
+            'packageZipSourceRecordPathDepthCounts' => $provenance['packageZipSourceRecordPathDepthCounts'] ?? [],
+            'packageZipSourceRecordPathDepthBytes' => $provenance['packageZipSourceRecordPathDepthBytes'] ?? [],
+            'packageZipSourceRecordPathDepthDataDescriptorEntryCount' => $provenance['packageZipSourceRecordPathDepthDataDescriptorEntryCount'] ?? 0,
+            'packageZipSourceRecordPathDepthIssueEntryCount' => $provenance['packageZipSourceRecordPathDepthIssueEntryCount'] ?? 0,
+            'packageZipSourceRecordMaxPathDepth' => $provenance['packageZipSourceRecordMaxPathDepth'] ?? 0,
+            'packageZipSourceRecordPathDepths' => $provenance['packageZipSourceRecordPathDepths'] ?? [],
             'packageZipSourceRecordCompressionMethodCount' => $provenance['packageZipSourceRecordCompressionMethodCount'] ?? 0,
             'packageZipSourceRecordCompressionMethodCounts' => $provenance['packageZipSourceRecordCompressionMethodCounts'] ?? [],
             'packageZipSourceRecordCompressionMethodBytes' => $provenance['packageZipSourceRecordCompressionMethodBytes'] ?? [],
@@ -5691,6 +5713,247 @@ final class OdfReader
             'packageZipSourceRecordDuplicatePackagePartBaseNameStemEntryCount' => $duplicateBaseNameStemEntryCount,
             'packageZipSourceRecordDuplicatePackagePartBaseNameStems' => $duplicateBaseNameStems,
             'packageZipSourceRecordPackagePartBaseNameStems' => array_values($baseNameStems),
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $parts
+     * @return array<string, mixed>
+     */
+    private static function packageZipSourceRecordPathDepthInventory(array $parts): array
+    {
+        $intField = static function (array $part, string $field): int {
+            $value = $part[$field] ?? null;
+
+            return is_int($value) ? $value : 0;
+        };
+        $pathDepths = [];
+        $maxPathDepth = 0;
+
+        foreach ($parts as $name => $part) {
+            if (($part['zipHasSourceRecordProvenance'] ?? false) !== true || ($part['isDirectory'] ?? false) === true) {
+                continue;
+            }
+
+            $entryName = is_string($part['path'] ?? null)
+                ? $part['path']
+                : (is_string($part['part'] ?? null) ? $part['part'] : (string) $name);
+            $pathShape = is_array($part['pathShape'] ?? null)
+                ? $part['pathShape']
+                : (is_array($part['packagePathShape'] ?? null) ? $part['packagePathShape'] : self::pathShape($entryName));
+            $pathDepth = is_int($part['packagePathDepth'] ?? null)
+                ? $part['packagePathDepth']
+                : self::packagePathDepthFromPathShape($pathShape);
+
+            if (!isset($pathDepths[$pathDepth])) {
+                $pathDepths[$pathDepth] = [
+                    'pathDepth' => $pathDepth,
+                    'entryCount' => 0,
+                    'sourceRecordBytes' => 0,
+                    'localRecordBytes' => 0,
+                    'localHeaderBytes' => 0,
+                    'localHeaderFixedHeaderBytes' => 0,
+                    'localHeaderVariableFieldBytes' => 0,
+                    'localHeaderRawNameBytes' => 0,
+                    'localHeaderExtraFieldBytes' => 0,
+                    'localHeaderReviewFieldBytes' => 0,
+                    'compressedDataBytes' => 0,
+                    'dataDescriptorBytes' => 0,
+                    'dataDescriptorEntryCount' => 0,
+                    'centralDirectoryRecordBytes' => 0,
+                    'centralDirectoryFixedHeaderBytes' => 0,
+                    'centralDirectoryVariableFieldBytes' => 0,
+                    'centralDirectoryRawNameBytes' => 0,
+                    'centralDirectoryExtraFieldBytes' => 0,
+                    'centralDirectoryRawCommentBytes' => 0,
+                    'centralDirectoryReviewFieldBytes' => 0,
+                    'sourceRecordIssueEntryCount' => 0,
+                    'sourceRecordIssueCount' => 0,
+                    'exposableEntryCount' => 0,
+                    'blockedEntryCount' => 0,
+                    'directoryRootCounts' => [],
+                    'compressionMethodCounts' => [],
+                    'byteExposurePolicyCounts' => [],
+                    'manifestMediaFamilyCounts' => [],
+                    'manifestMediaTypeBaseCounts' => [],
+                    'roleCounts' => [],
+                    'entryNames' => [],
+                    'largestSourceRecordEntry' => null,
+                ];
+            }
+
+            $directoryRoot = is_string($part['zipPackageManifestDirectoryRoot'] ?? null)
+                ? $part['zipPackageManifestDirectoryRoot']
+                : self::packageDirectoryRoot($entryName);
+            if ($directoryRoot === '') {
+                $directoryRoot = '/';
+            }
+
+            $partExtension = is_string($part['zipPackageManifestPackagePartExtension'] ?? null)
+                ? $part['zipPackageManifestPackagePartExtension']
+                : (is_string($part['packagePartExtension'] ?? null) ? $part['packagePartExtension'] : null);
+            $sourceRecordBytes = $intField($part, 'zipSourceRecordBytes');
+            $localRecordBytes = $intField($part, 'zipLocalRecordBytes');
+            $localHeaderBytes = $intField($part, 'zipLocalHeaderBytes');
+            $localHeaderFixedHeaderBytes = $intField($part, 'zipLocalHeaderFixedHeaderBytes');
+            $localHeaderVariableFieldBytes = $intField($part, 'zipLocalHeaderVariableFieldBytes');
+            $localHeaderRawNameBytes = $intField($part, 'zipLocalHeaderRawNameBytes');
+            $localHeaderExtraFieldBytes = $intField($part, 'zipLocalHeaderExtraFieldBytes');
+            $localHeaderReviewFieldBytes = $intField($part, 'zipLocalHeaderReviewFieldBytes');
+            $compressedDataBytes = $intField($part, 'zipCompressedDataBytes');
+            $dataDescriptorBytes = $intField($part, 'zipDataDescriptorBytes');
+            $centralDirectoryRecordBytes = $intField($part, 'zipCentralDirectoryRecordBytes');
+            $centralDirectoryFixedHeaderBytes = $intField($part, 'zipCentralDirectoryFixedHeaderBytes');
+            $centralDirectoryVariableFieldBytes = $intField($part, 'zipCentralDirectoryVariableFieldBytes');
+            $centralDirectoryRawNameBytes = $intField($part, 'zipCentralDirectoryRawNameBytes');
+            $centralDirectoryExtraFieldBytes = $intField($part, 'zipCentralDirectoryExtraFieldBytes');
+            $centralDirectoryRawCommentBytes = $intField($part, 'zipCentralDirectoryRawCommentBytes');
+            $centralDirectoryReviewFieldBytes = $intField($part, 'zipCentralDirectoryReviewFieldBytes');
+            $sourceRecordIssues = self::zipSourceRecordIssueCodesForPart($part);
+            $compressionMethod = is_int($part['compressionMethod'] ?? null) ? (string) $part['compressionMethod'] : '(missing)';
+            $byteExposurePolicy = is_string($part['byteExposurePolicy'] ?? null) && $part['byteExposurePolicy'] !== ''
+                ? $part['byteExposurePolicy']
+                : '(missing)';
+            $manifestMediaFamily = is_string($part['manifestMediaFamily'] ?? null) && $part['manifestMediaFamily'] !== ''
+                ? $part['manifestMediaFamily']
+                : '(missing)';
+            $manifestMediaTypeBase = is_string($part['manifestMediaTypeBase'] ?? null) && $part['manifestMediaTypeBase'] !== ''
+                ? $part['manifestMediaTypeBase']
+                : '(missing)';
+            $roles = array_values(array_unique(array_filter(
+                array_map('strval', is_array($part['roles'] ?? null) ? $part['roles'] : []),
+                static fn (string $role): bool => $role !== ''
+            )));
+
+            ++$pathDepths[$pathDepth]['entryCount'];
+            $pathDepths[$pathDepth]['sourceRecordBytes'] += $sourceRecordBytes;
+            $pathDepths[$pathDepth]['localRecordBytes'] += $localRecordBytes;
+            $pathDepths[$pathDepth]['localHeaderBytes'] += $localHeaderBytes;
+            $pathDepths[$pathDepth]['localHeaderFixedHeaderBytes'] += $localHeaderFixedHeaderBytes;
+            $pathDepths[$pathDepth]['localHeaderVariableFieldBytes'] += $localHeaderVariableFieldBytes;
+            $pathDepths[$pathDepth]['localHeaderRawNameBytes'] += $localHeaderRawNameBytes;
+            $pathDepths[$pathDepth]['localHeaderExtraFieldBytes'] += $localHeaderExtraFieldBytes;
+            $pathDepths[$pathDepth]['localHeaderReviewFieldBytes'] += $localHeaderReviewFieldBytes;
+            $pathDepths[$pathDepth]['compressedDataBytes'] += $compressedDataBytes;
+            $pathDepths[$pathDepth]['dataDescriptorBytes'] += $dataDescriptorBytes;
+            $pathDepths[$pathDepth]['centralDirectoryRecordBytes'] += $centralDirectoryRecordBytes;
+            $pathDepths[$pathDepth]['centralDirectoryFixedHeaderBytes'] += $centralDirectoryFixedHeaderBytes;
+            $pathDepths[$pathDepth]['centralDirectoryVariableFieldBytes'] += $centralDirectoryVariableFieldBytes;
+            $pathDepths[$pathDepth]['centralDirectoryRawNameBytes'] += $centralDirectoryRawNameBytes;
+            $pathDepths[$pathDepth]['centralDirectoryExtraFieldBytes'] += $centralDirectoryExtraFieldBytes;
+            $pathDepths[$pathDepth]['centralDirectoryRawCommentBytes'] += $centralDirectoryRawCommentBytes;
+            $pathDepths[$pathDepth]['centralDirectoryReviewFieldBytes'] += $centralDirectoryReviewFieldBytes;
+            $pathDepths[$pathDepth]['sourceRecordIssueCount'] += count($sourceRecordIssues);
+            $pathDepths[$pathDepth]['entryNames'][] = $entryName;
+            $pathDepths[$pathDepth]['directoryRootCounts'][$directoryRoot] =
+                ($pathDepths[$pathDepth]['directoryRootCounts'][$directoryRoot] ?? 0) + 1;
+            $pathDepths[$pathDepth]['compressionMethodCounts'][$compressionMethod] =
+                ($pathDepths[$pathDepth]['compressionMethodCounts'][$compressionMethod] ?? 0) + 1;
+            $pathDepths[$pathDepth]['byteExposurePolicyCounts'][$byteExposurePolicy] =
+                ($pathDepths[$pathDepth]['byteExposurePolicyCounts'][$byteExposurePolicy] ?? 0) + 1;
+            $pathDepths[$pathDepth]['manifestMediaFamilyCounts'][$manifestMediaFamily] =
+                ($pathDepths[$pathDepth]['manifestMediaFamilyCounts'][$manifestMediaFamily] ?? 0) + 1;
+            $pathDepths[$pathDepth]['manifestMediaTypeBaseCounts'][$manifestMediaTypeBase] =
+                ($pathDepths[$pathDepth]['manifestMediaTypeBaseCounts'][$manifestMediaTypeBase] ?? 0) + 1;
+            if ($dataDescriptorBytes > 0 || ($part['zipUsesDataDescriptor'] ?? false) === true) {
+                ++$pathDepths[$pathDepth]['dataDescriptorEntryCount'];
+            }
+            if ($sourceRecordIssues !== []) {
+                ++$pathDepths[$pathDepth]['sourceRecordIssueEntryCount'];
+            }
+            if (($part['canExposeBytes'] ?? false) === true) {
+                ++$pathDepths[$pathDepth]['exposableEntryCount'];
+            } else {
+                ++$pathDepths[$pathDepth]['blockedEntryCount'];
+            }
+            foreach ($roles as $role) {
+                $pathDepths[$pathDepth]['roleCounts'][$role] =
+                    ($pathDepths[$pathDepth]['roleCounts'][$role] ?? 0) + 1;
+            }
+
+            $entrySummary = [
+                'entryName' => $entryName,
+                'pathDepth' => $pathDepth,
+                'packagePathDepth' => $pathDepth,
+                'directoryRoot' => $directoryRoot,
+                'packageDirectory' => is_string($part['packageDirectory'] ?? null)
+                    ? $part['packageDirectory']
+                    : (is_string($pathShape['directory'] ?? null) ? $pathShape['directory'] : null),
+                'packageBasename' => is_string($part['packageBasename'] ?? null)
+                    ? $part['packageBasename']
+                    : (is_string($pathShape['basename'] ?? null) ? $pathShape['basename'] : null),
+                'packagePartExtension' => $partExtension,
+                'extensionlessPackagePart' => $partExtension === null,
+                'byteLength' => $intField($part, 'byteLength'),
+                'compressedByteLength' => $intField($part, 'compressedByteLength'),
+                'compressionMethod' => is_int($part['compressionMethod'] ?? null) ? $part['compressionMethod'] : null,
+                'compressionMethodName' => is_string($part['compressionMethodName'] ?? null) ? $part['compressionMethodName'] : null,
+                'sourceRecordBytes' => $sourceRecordBytes,
+                'localRecordBytes' => $localRecordBytes,
+                'localHeaderBytes' => $localHeaderBytes,
+                'localHeaderFixedHeaderBytes' => $localHeaderFixedHeaderBytes,
+                'localHeaderVariableFieldBytes' => $localHeaderVariableFieldBytes,
+                'localHeaderRawNameBytes' => $localHeaderRawNameBytes,
+                'localHeaderExtraFieldBytes' => $localHeaderExtraFieldBytes,
+                'localHeaderReviewFieldBytes' => $localHeaderReviewFieldBytes,
+                'compressedDataBytes' => $compressedDataBytes,
+                'dataDescriptorBytes' => $dataDescriptorBytes,
+                'centralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
+                'centralDirectoryFixedHeaderBytes' => $centralDirectoryFixedHeaderBytes,
+                'centralDirectoryVariableFieldBytes' => $centralDirectoryVariableFieldBytes,
+                'centralDirectoryRawNameBytes' => $centralDirectoryRawNameBytes,
+                'centralDirectoryExtraFieldBytes' => $centralDirectoryExtraFieldBytes,
+                'centralDirectoryRawCommentBytes' => $centralDirectoryRawCommentBytes,
+                'centralDirectoryReviewFieldBytes' => $centralDirectoryReviewFieldBytes,
+                'sourceRecordIssueCount' => count($sourceRecordIssues),
+                'sourceRecordIssues' => $sourceRecordIssues,
+                'roles' => $roles,
+                'byteExposurePolicy' => $byteExposurePolicy === '(missing)' ? null : $byteExposurePolicy,
+                'manifestMediaFamily' => $manifestMediaFamily === '(missing)' ? null : $manifestMediaFamily,
+                'manifestMediaTypeBase' => $manifestMediaTypeBase === '(missing)' ? null : $manifestMediaTypeBase,
+                'declaredInManifest' => ($part['declaredInManifest'] ?? false) === true,
+                'undeclared' => ($part['undeclared'] ?? false) === true,
+                'canExposeBytes' => ($part['canExposeBytes'] ?? false) === true,
+            ];
+            $largestEntry = $pathDepths[$pathDepth]['largestSourceRecordEntry'];
+            if (
+                !is_array($largestEntry)
+                || $sourceRecordBytes > (int) ($largestEntry['sourceRecordBytes'] ?? 0)
+                || ($sourceRecordBytes === (int) ($largestEntry['sourceRecordBytes'] ?? 0) && strcmp($entryName, (string) ($largestEntry['entryName'] ?? '')) < 0)
+            ) {
+                $pathDepths[$pathDepth]['largestSourceRecordEntry'] = $entrySummary;
+            }
+            $maxPathDepth = max($maxPathDepth, $pathDepth);
+        }
+
+        $pathDepthCounts = [];
+        $pathDepthBytes = [];
+        $dataDescriptorEntryCount = 0;
+        $issueEntryCount = 0;
+        ksort($pathDepths, SORT_NUMERIC);
+        foreach ($pathDepths as $pathDepth => $summary) {
+            sort($summary['entryNames'], SORT_STRING);
+            ksort($summary['directoryRootCounts'], SORT_STRING);
+            ksort($summary['compressionMethodCounts'], SORT_STRING);
+            ksort($summary['byteExposurePolicyCounts'], SORT_STRING);
+            ksort($summary['manifestMediaFamilyCounts'], SORT_STRING);
+            ksort($summary['manifestMediaTypeBaseCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            $pathDepths[$pathDepth] = $summary;
+            $pathDepthCounts[$pathDepth] = $summary['entryCount'];
+            $pathDepthBytes[$pathDepth] = $summary['sourceRecordBytes'];
+            $dataDescriptorEntryCount += $summary['dataDescriptorEntryCount'];
+            $issueEntryCount += $summary['sourceRecordIssueEntryCount'];
+        }
+
+        return [
+            'packageZipSourceRecordPathDepthCount' => count($pathDepths),
+            'packageZipSourceRecordPathDepthCounts' => $pathDepthCounts,
+            'packageZipSourceRecordPathDepthBytes' => $pathDepthBytes,
+            'packageZipSourceRecordPathDepthDataDescriptorEntryCount' => $dataDescriptorEntryCount,
+            'packageZipSourceRecordPathDepthIssueEntryCount' => $issueEntryCount,
+            'packageZipSourceRecordMaxPathDepth' => $maxPathDepth,
+            'packageZipSourceRecordPathDepths' => array_values($pathDepths),
         ];
     }
 
