@@ -49,6 +49,21 @@ return [
         $t->same(strlen($parts['docProps/thumbnail.png']), $summary['roleByteLengths']['package-thumbnail']);
         $t->same(strlen($parts['_xmlsignatures/origin.sigs']), $summary['roleByteLengths']['digital-signature-origin']);
         $t->same(strlen($parts['_xmlsignatures/sig1.xml']), $summary['roleByteLengths']['digital-signature-signature']);
+        $t->same(['docProps/core.xml'], $summary['partNamesByRole']['core-properties']);
+        $t->same(['docProps/app.xml'], $summary['partNamesByRole']['extended-properties']);
+        $t->same(['docProps/custom.xml'], $summary['partNamesByRole']['custom-properties']);
+        $t->same(['docProps/thumbnail.png'], $summary['partNamesByRole']['package-thumbnail']);
+        $t->same(['_xmlsignatures/origin.sigs'], $summary['partNamesByRole']['digital-signature-origin']);
+        $t->same(['_xmlsignatures/sig1.xml'], $summary['partNamesByRole']['digital-signature-signature']);
+        $t->same('docProps/thumbnail.png', $summary['largestPartsByRole']['package-thumbnail']['partName'] ?? null);
+        $t->same(strlen($parts['docProps/thumbnail.png']), $summary['largestPartsByRole']['package-thumbnail']['bytes'] ?? null);
+        $t->same('_xmlsignatures/sig1.xml', $summary['deepestPartsByRole']['digital-signature-signature']['partName'] ?? null);
+        $t->same(1, $summary['deepestPartsByRole']['digital-signature-signature']['directoryDepth'] ?? null);
+        $t->same(['docProps' => 1], $summary['roleTopLevelSegmentCounts']['core-properties']);
+        $t->same(['_xmlsignatures' => 1], $summary['roleTopLevelSegmentCounts']['digital-signature-signature']);
+        $t->same(['override' => 1], $summary['roleContentTypeSourceCounts']['custom-properties']);
+        $t->same(['default' => 1], $summary['roleContentTypeSourceCounts']['package-thumbnail']);
+        $t->same(['image/png' => 1], $summary['roleContentTypeBaseCounts']['package-thumbnail']);
 
         $t->same(1, $summary['packageThumbnailCount']);
         $t->same(1, $summary['digitalSignatureOriginCount']);
