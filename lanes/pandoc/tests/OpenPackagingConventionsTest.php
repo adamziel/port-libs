@@ -1741,6 +1741,83 @@ XML;
         $t->same($packageSummary['zipCentralOnlyExtraFieldIdHexes'], $rawSummary['zipCentralOnlyExtraFieldIdHexes']);
         $t->same($packageSummary['zipLocalOnlyExtraFieldIdHexes'], $rawSummary['zipLocalOnlyExtraFieldIdHexes']);
     },
+    'carries OPC ZIP extra field value mismatch rollups through manifest preflights' => static function (TestRunner $t) use ($buildOpcZipPackage): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="bin" ContentType="application/octet-stream"/>
+</Types>
+XML;
+        $timestampExtra = pack('vvCV', 0x5455, 5, 0x01, 1780479017);
+        $centralReviewExtra = pack('vva*', 0xcafe, strlen('central-review'), 'central-review');
+        $localReviewExtra = pack('vva*', 0xcafe, strlen('local-review'), 'local-review');
+        $centralAuditExtra = pack('vva*', 0xbeef, strlen('central-audit'), 'central-audit');
+        $localAuditExtra = pack('vva*', 0xbeef, strlen('local-audit'), 'local-audit');
+        $zip = $buildOpcZipPackage([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>'],
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:body><w:p>extra field value mismatch</w:p></w:body></w:document>',
+                'centralExtra' => $timestampExtra . $centralReviewExtra,
+                'localExtra' => $timestampExtra . $localReviewExtra,
+            ],
+            [
+                'name' => 'word/media/audit.bin',
+                'data' => 'same extra-field id with different central/local values',
+                'centralExtra' => $centralAuditExtra,
+                'localExtra' => $localAuditExtra,
+            ],
+        ]);
+
+        $packageSummary = OpcRelationshipGraph::preflightZipEntryManifest(ZipPackage::fromString($zip));
+        $rawSummary = OpcRelationshipGraph::preflightZipCentralDirectoryManifest($zip);
+        foreach ([$packageSummary, $rawSummary] as $summary) {
+            $entries = [];
+            foreach ($summary['entries'] as $entry) {
+                $entries[$entry['entryName']] = $entry;
+            }
+
+            $t->same(false, $summary['valid']);
+            $t->same(false, $summary['isSupportedByBoundedReader']);
+            $t->same(false, $summary['zipExtraFieldsValid']);
+            $t->same(['central-local-extra-field-value-mismatch'], $summary['zipExtraFieldIssues']);
+            $t->same(2, $summary['zipExtraFieldEntryCount']);
+            $t->same(3, $summary['zipExtraFieldIdCount']);
+            $t->same(3, $summary['zipCentralExtraFieldIdCount']);
+            $t->same(3, $summary['zipLocalExtraFieldIdCount']);
+            $t->same(3, $summary['zipSharedExtraFieldIdCount']);
+            $t->same(0, $summary['zipMismatchedExtraFieldEntryCount']);
+            $t->same(0, $summary['zipCentralOnlyExtraFieldIdCount']);
+            $t->same(0, $summary['zipLocalOnlyExtraFieldIdCount']);
+            $t->same(2, $summary['zipMismatchedExtraFieldValueEntryCount']);
+            $t->same(2, $summary['zipMismatchedExtraFieldValueIdCount']);
+            $t->same([0xbeef, 0xcafe], $summary['zipMismatchedExtraFieldValueIds']);
+            $t->same(['0xbeef', '0xcafe'], $summary['zipMismatchedExtraFieldValueIdHexes']);
+            $t->same(2, $summary['issueCounts']['central-local-extra-field-value-mismatch']);
+
+            $documentEntry = $entries['word/document.xml'];
+            $mediaEntry = $entries['word/media/audit.bin'];
+            $t->same(['0x5455', '0xcafe'], $documentEntry['centralExtraFieldIdHexes']);
+            $t->same(['0x5455', '0xcafe'], $documentEntry['localExtraFieldIdHexes']);
+            $t->same(['0xcafe'], $documentEntry['mismatchedExtraFieldValueIdHexes']);
+            $t->same(['central-local-extra-field-value-mismatch'], $documentEntry['zipExtraFieldIssues']);
+            $t->same(false, $documentEntry['hasMismatchedExtraFieldIds']);
+            $t->same(true, $documentEntry['hasMismatchedExtraFieldValues']);
+            $t->same(['0xbeef'], $mediaEntry['mismatchedExtraFieldValueIdHexes']);
+            $t->same(['central-local-extra-field-value-mismatch'], $mediaEntry['zipExtraFieldIssues']);
+            $t->same(false, $mediaEntry['hasMismatchedExtraFieldIds']);
+            $t->same(true, $mediaEntry['hasMismatchedExtraFieldValues']);
+        }
+
+        $t->same($packageSummary['zipMismatchedExtraFieldValueIds'], $rawSummary['zipMismatchedExtraFieldValueIds']);
+        $t->same($packageSummary['zipMismatchedExtraFieldValueIdHexes'], $rawSummary['zipMismatchedExtraFieldValueIdHexes']);
+        $t->same(
+            $packageSummary['zipExtraFields']['mismatchedExtraFieldValueIdHexes'],
+            $rawSummary['zipExtraFields']['mismatchedExtraFieldValueIdHexes']
+        );
+    },
     'preflights OPC ZIP entry manifest equivalent package part name collisions before XML handoff' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

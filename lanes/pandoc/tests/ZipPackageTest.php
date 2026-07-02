@@ -11107,6 +11107,9 @@ return [
         $t->same(0, $summary['duplicateExtraFieldEntryCount']);
         $t->same(0, $summary['mismatchedExtraFieldEntryCount']);
         $t->same(1, $summary['mismatchedExtraFieldValueEntryCount']);
+        $t->same(1, $summary['mismatchedExtraFieldValueIdCount']);
+        $t->same([0xcafe], $summary['mismatchedExtraFieldValueIds']);
+        $t->same(['0xcafe'], $summary['mismatchedExtraFieldValueIdHexes']);
         $t->same(0, $summary['centralOnlyExtraFieldEntryCount']);
         $t->same(0, $summary['localOnlyExtraFieldEntryCount']);
         $t->same([], $summary['mismatchedEntries']);
@@ -11140,6 +11143,9 @@ return [
 
         $t->same(1, $safeSummary['entryCount']);
         $t->same(0, $safeSummary['mismatchedExtraFieldValueEntryCount']);
+        $t->same(0, $safeSummary['mismatchedExtraFieldValueIdCount']);
+        $t->same([], $safeSummary['mismatchedExtraFieldValueIds']);
+        $t->same([], $safeSummary['mismatchedExtraFieldValueIdHexes']);
         $t->same([], $safeSummary['valueMismatchedEntries']);
         $t->same([0x5455, 0xcafe], $safeSummary['entries'][0]['centralExtraFieldIds']);
         $t->same(['0x5455', '0xcafe'], $safeSummary['entries'][0]['centralExtraFieldIdHexes']);
@@ -11212,8 +11218,15 @@ return [
         $t->same($summary['sharedExtraFieldIdHexes'], $rawSummary['sharedExtraFieldIdHexes']);
         $t->same($summary['centralOnlyExtraFieldIdHexes'], $rawSummary['centralOnlyExtraFieldIdHexes']);
         $t->same($summary['localOnlyExtraFieldIdHexes'], $rawSummary['localOnlyExtraFieldIdHexes']);
+        $t->same(1, $summary['mismatchedExtraFieldValueIdCount']);
+        $t->same([0xcafe], $summary['mismatchedExtraFieldValueIds']);
+        $t->same(['0xcafe'], $summary['mismatchedExtraFieldValueIdHexes']);
+        $t->same($summary['mismatchedExtraFieldValueIds'], $rawSummary['mismatchedExtraFieldValueIds']);
+        $t->same($summary['mismatchedExtraFieldValueIdHexes'], $rawSummary['mismatchedExtraFieldValueIdHexes']);
         $t->same($summary['extraFieldIdHexes'], $strict['extraFields']['extraFieldIdHexes']);
         $t->same($summary['extraFieldIdHexes'], $rawStrict['extraFields']['extraFieldIdHexes']);
+        $t->same($summary['mismatchedExtraFieldValueIdHexes'], $strict['extraFields']['mismatchedExtraFieldValueIdHexes']);
+        $t->same($summary['mismatchedExtraFieldValueIdHexes'], $rawStrict['extraFields']['mismatchedExtraFieldValueIdHexes']);
         $t->same($summary['extraFieldIdUsage'], $rawSummary['extraFieldIdUsage']);
         $t->same($summary['extraFieldIdUsage'], $strict['extraFields']['extraFieldIdUsage']);
         $t->same($summary['extraFieldIdUsage'], $rawStrict['extraFields']['extraFieldIdUsage']);

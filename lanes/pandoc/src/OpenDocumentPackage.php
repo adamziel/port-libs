@@ -3002,6 +3002,10 @@ final class OpenDocumentPackage
         $comments = is_array($packageInventory['comments'] ?? null) ? $packageInventory['comments'] : [];
         $preferredViewModes = self::manifestPreferredViewModeSummary($this->manifestEntries);
         $manifestDeclaredSizeRoles = self::manifestDeclaredSizeRoleSummary($this->manifestEntries);
+        $manifestNamespaceDeclarations = self::manifestNamespaceDeclarationUriSummary(
+            $this->manifestEntries,
+            $this->manifestRootAttributes
+        );
         $payload = [
             'identityVersion' => 1,
             'packageType' => 'opendocument-text',
@@ -3025,6 +3029,13 @@ final class OpenDocumentPackage
             'manifestPartReferenceQueryCount' => $manifestPartReferenceQueryCount,
             'manifestPartReferenceFragmentCount' => $manifestPartReferenceFragmentCount,
             'manifestPartReferenceSuffixItems' => $manifestPartReferenceSuffixItems,
+            'manifestNamespaceDeclarationScopeCount' => $manifestNamespaceDeclarations['manifestNamespaceDeclarationScopeCount'],
+            'manifestNamespaceDeclarationUriCount' => $manifestNamespaceDeclarations['manifestNamespaceDeclarationUriCount'],
+            'manifestNamespaceDeclarationUris' => $manifestNamespaceDeclarations['manifestNamespaceDeclarationUris'],
+            'manifestNamespaceDeclarationUriCounts' => $manifestNamespaceDeclarations['manifestNamespaceDeclarationUriCounts'],
+            'manifestNamespaceDeclarationNamesByUri' => $manifestNamespaceDeclarations['manifestNamespaceDeclarationNamesByUri'],
+            'manifestNamespaceDeclarationUriSummaries' => $manifestNamespaceDeclarations['manifestNamespaceDeclarationUriSummaries'],
+            'manifestNamespaceDeclarationScopeItems' => $manifestNamespaceDeclarations['manifestNamespaceDeclarationScopeItems'],
             'manifestEncryption' => self::manifestEncryptionSummary($this->manifestEntries),
             'preferredViewModes' => $preferredViewModes,
             'manifestDeclaredSizeRoleCount' => $manifestDeclaredSizeRoles['manifestDeclaredSizeRoleCount'],
@@ -11349,6 +11360,10 @@ final class OpenDocumentPackage
         );
         $summary['largestDeclaredSizeItemCount'] = count($summary['largestDeclaredSizeItems']);
         $summary += self::manifestDeclaredSizeRoleSummary($entries);
+        $summary = array_merge(
+            $summary,
+            self::manifestNamespaceDeclarationUriSummary($entries, $manifestRootAttributes)
+        );
         sort($summary['manifestCustomAttributeNames'], SORT_STRING);
         sort($summary['manifestCustomChildElementNames'], SORT_STRING);
         ksort($summary['manifestPathKindCounts'], SORT_STRING);
@@ -11364,6 +11379,114 @@ final class OpenDocumentPackage
         ksort($summary['diagnosticCodeCounts'], SORT_STRING);
 
         return $summary;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @param array<string, mixed> $manifestRootAttributes
+     * @return array<string, mixed>
+     */
+    private static function manifestNamespaceDeclarationUriSummary(array $entries, array $manifestRootAttributes): array
+    {
+        $uriCounts = [];
+        $namesByUri = [];
+        $scopeItems = [];
+
+        $recordScope = static function (
+            string $scope,
+            ?int $manifestIndex,
+            ?string $fullPath,
+            ?string $part,
+            array $declarationMap
+        ) use (&$uriCounts, &$namesByUri, &$scopeItems): void {
+            $normalizedMap = [];
+            $names = [];
+            $uris = [];
+
+            foreach ($declarationMap as $name => $namespaceUri) {
+                if (!is_string($name) || $name === '' || !is_string($namespaceUri) || $namespaceUri === '') {
+                    continue;
+                }
+
+                $normalizedMap[$name] = $namespaceUri;
+                $uriCounts[$namespaceUri] = ($uriCounts[$namespaceUri] ?? 0) + 1;
+                if (!isset($namesByUri[$namespaceUri])) {
+                    $namesByUri[$namespaceUri] = [];
+                }
+                if (!in_array($name, $namesByUri[$namespaceUri], true)) {
+                    $namesByUri[$namespaceUri][] = $name;
+                }
+                if (!in_array($name, $names, true)) {
+                    $names[] = $name;
+                }
+                if (!in_array($namespaceUri, $uris, true)) {
+                    $uris[] = $namespaceUri;
+                }
+            }
+
+            if ($normalizedMap === []) {
+                return;
+            }
+
+            ksort($normalizedMap, SORT_STRING);
+            sort($names, SORT_STRING);
+            sort($uris, SORT_STRING);
+            $scopeItems[] = self::withoutEmptyValues([
+                'scope' => $scope,
+                'manifestIndex' => $manifestIndex,
+                'fullPath' => $fullPath,
+                'part' => $part,
+                'namespaceDeclarationCount' => count($normalizedMap),
+                'namespaceDeclarationNames' => $names,
+                'namespaceDeclarationUris' => $uris,
+                'namespaceDeclarationMap' => $normalizedMap,
+            ]);
+        };
+
+        $rootMap = is_array($manifestRootAttributes['namespaceDeclarationMap'] ?? null)
+            ? $manifestRootAttributes['namespaceDeclarationMap']
+            : [];
+        $recordScope('manifest-root', null, null, null, $rootMap);
+
+        foreach ($entries as $entry) {
+            $manifestIndex = is_int($entry['manifestIndex'] ?? null) ? $entry['manifestIndex'] : null;
+            $fullPath = is_string($entry['path'] ?? null)
+                ? $entry['path']
+                : (is_string($entry['fullPath'] ?? null) ? $entry['fullPath'] : null);
+            $part = is_string($entry['packagePath'] ?? null)
+                ? $entry['packagePath']
+                : (is_string($entry['part'] ?? null) ? $entry['part'] : null);
+            $declarationMap = is_array($entry['manifestNamespaceDeclarationMap'] ?? null)
+                ? $entry['manifestNamespaceDeclarationMap']
+                : [];
+            $recordScope('manifest-file-entry', $manifestIndex, $fullPath, $part, $declarationMap);
+        }
+
+        ksort($uriCounts, SORT_STRING);
+        foreach ($namesByUri as &$names) {
+            sort($names, SORT_STRING);
+        }
+        unset($names);
+        ksort($namesByUri, SORT_STRING);
+
+        $summaries = [];
+        foreach ($uriCounts as $namespaceUri => $declarationCount) {
+            $summaries[] = [
+                'namespaceUri' => $namespaceUri,
+                'declarationCount' => $declarationCount,
+                'declarationNames' => $namesByUri[$namespaceUri] ?? [],
+            ];
+        }
+
+        return [
+            'manifestNamespaceDeclarationScopeCount' => count($scopeItems),
+            'manifestNamespaceDeclarationUriCount' => count($uriCounts),
+            'manifestNamespaceDeclarationUris' => array_keys($uriCounts),
+            'manifestNamespaceDeclarationUriCounts' => $uriCounts,
+            'manifestNamespaceDeclarationNamesByUri' => $namesByUri,
+            'manifestNamespaceDeclarationUriSummaries' => $summaries,
+            'manifestNamespaceDeclarationScopeItems' => $scopeItems,
+        ];
     }
 
     /**
