@@ -21883,6 +21883,64 @@ XML);
         $t->same('D', $direct['sortInitial'] ?? null);
         $t->same('hash-direct', $direct['sortInitialHash'] ?? null);
 
+        $directPlural = CitationCslProcessor::fromItems([
+            [
+                'id' => 'direct-plural-adams',
+                'type' => 'book',
+                'title' => 'Direct Plural Adams Source',
+                'author' => [['family' => 'Adams', 'given' => 'Ada']],
+                'issued' => ['date-parts' => [[2026]]],
+                'sort-initials' => 'A',
+            ],
+            [
+                'id' => 'direct-plural-zed',
+                'type' => 'book',
+                'title' => 'Direct Plural Zed Source',
+                'author' => [['family' => 'Zed', 'given' => 'Zoe']],
+                'issued' => ['date-parts' => [[2026]]],
+                'sortInitials' => 'Z',
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <sort>
+      <key variable="sort-initials"/>
+    </sort>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="sort-initials"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <sort>
+      <key variable="sort-initials"/>
+    </sort>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="sort-initials"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('A', $directPlural->item('direct-plural-adams')['sortInitial'] ?? null);
+        $t->same('Z', $directPlural->item('direct-plural-zed')['sortInitial'] ?? null);
+        $t->same('[Direct Plural Adams Source | A; Direct Plural Zed Source | Z]', $directPlural->renderCitationCluster([
+            $citation('direct-plural-zed', '[@direct-plural-zed]'),
+            $citation('direct-plural-adams', '[@direct-plural-adams]'),
+        ]));
+        $pluralBlocks = (new WordPressBlockWriter())->write($directPlural->appendBibliography(
+            (new MarkdownReader())->read('Direct plural sort initials [@direct-plural-zed; @direct-plural-adams] stay visible.'),
+            'Works Cited'
+        ));
+        $t->contains('<dt>Adams 2026</dt><dd>Direct Plural Adams Source :: A</dd>', $pluralBlocks);
+        $t->contains('<dt>Zed 2026</dt><dd>Direct Plural Zed Source :: Z</dd>', $pluralBlocks);
+        $pluralAdamsPosition = strpos($pluralBlocks, '<dt>Adams 2026</dt><dd>Direct Plural Adams Source :: A</dd>');
+        $pluralZedPosition = strpos($pluralBlocks, '<dt>Zed 2026</dt><dd>Direct Plural Zed Source :: Z</dd>');
+        $t->true(is_int($pluralAdamsPosition) && is_int($pluralZedPosition) && $pluralAdamsPosition < $pluralZedPosition, 'Plural direct sort-initials should order WordPress bibliography review entries');
+
         $document = (new MarkdownReader())->read('Label-prefix source [@label-prefix-zed; @label-prefix-adams] keeps generated bibliography grouping visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Label-prefix source [Adams | Media | a | A | hash-adams; Zed | WP | c | Z | hash-zed] keeps generated bibliography grouping visible.</p>', $blocks);
