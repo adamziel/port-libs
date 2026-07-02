@@ -5293,8 +5293,13 @@ return [
                     ]),
                 ])), true, 512, JSON_THROW_ON_ERROR),
             ] as $writer => $encoded) {
-                $t->same(['https://example.test/edited', 'Tagged source'], $encoded['blocks'][0]['c'][0]['c'][2], "{$source} {$writer} edited link target drops tagged sidecar");
-                $t->same(['media/tagged-cover.png', 'Edited tagged cover'], $encoded['blocks'][0]['c'][2]['c'][2], "{$source} {$writer} edited image target drops tagged sidecar");
+                $editedLinkTarget = $encoded['blocks'][0]['c'][0]['c'][2];
+                $editedImageTarget = $encoded['blocks'][0]['c'][2]['c'][2];
+
+                $t->same(['t' => 'Target', 'c' => ['https://example.test/edited', 'Tagged source']], $editedLinkTarget, "{$source} {$writer} edited link target keeps constructor");
+                $t->same(['t' => 'Target', 'c' => [['media/tagged-cover.png', 'Edited tagged cover']]], $editedImageTarget, "{$source} {$writer} edited image target keeps wrapped constructor");
+                $t->same(false, array_key_exists('reviewQueue', $editedLinkTarget), "{$source} {$writer} edited link target drops stale sidecar");
+                $t->same(false, array_key_exists('reviewQueue', $editedImageTarget), "{$source} {$writer} edited image target drops stale sidecar");
             }
         }
     },

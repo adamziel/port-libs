@@ -2202,7 +2202,7 @@ final class PandocJsonWriter
     }
 
     /**
-     * @return list<mixed>
+     * @return array<string, mixed>|list<mixed>
      */
     private function targetTuple(AstNode $node): array
     {
@@ -2214,7 +2214,11 @@ final class PandocJsonWriter
             return $native;
         }
 
-        return [$url, $title];
+        $payload = [$url, $title];
+
+        return $target !== null
+            ? ($this->updatedTargetNative($native, $payload) ?? $payload)
+            : $payload;
     }
 
     /**
@@ -2242,6 +2246,55 @@ final class PandocJsonWriter
         }
 
         return count($native) >= 2 && is_string($native[0]) && is_string($native[1]) ? $native : null;
+    }
+
+    /**
+     * @param array{0:string, 1:string} $payload
+     * @return array<string, mixed>|list<mixed>|null
+     */
+    private function updatedTargetNative(mixed $native, array $payload): ?array
+    {
+        if (!is_array($native)) {
+            return null;
+        }
+
+        if (!array_is_list($native)) {
+            if (($native['t'] ?? null) !== 'Target') {
+                return null;
+            }
+
+            return [
+                't' => 'Target',
+                'c' => $this->updatedTargetNativeContent($native['c'] ?? null, $payload),
+            ];
+        }
+
+        if (count($native) !== 1 || !is_array($native[0])) {
+            return null;
+        }
+
+        $updated = $this->updatedTargetNative($native[0], $payload);
+
+        return $updated === null ? null : [$updated];
+    }
+
+    /**
+     * @param array{0:string, 1:string} $payload
+     * @return list<mixed>
+     */
+    private function updatedTargetNativeContent(mixed $content, array $payload): array
+    {
+        if (
+            is_array($content)
+            && array_is_list($content)
+            && count($content) === 1
+            && is_array($content[0])
+            && array_is_list($content[0])
+        ) {
+            return [$payload];
+        }
+
+        return $payload;
     }
 
     /**
