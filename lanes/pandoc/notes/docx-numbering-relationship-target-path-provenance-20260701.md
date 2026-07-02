@@ -24,4 +24,3 @@ Accounting:
 - `mappedDocxNumberingRelationshipTargetPathCases`: 1
 - `docxNumberingRelationshipTargetPathAssertions`: 44
 - `benchmarkDenominator.mapped`: 2,464 -> 2,465
-
