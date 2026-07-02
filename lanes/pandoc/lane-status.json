@@ -18,14 +18,15 @@
         "verdict": "ship-ready",
         "upstreamFormatCases": 20,
         "upstreamFormatAssertions": 575,
-        "localMappedCases": 98,
-        "localFocusedAssertions": 2132,
-        "caseCoveragePercent": 490,
-        "assertionCoveragePercent": 370.8,
+        "localMappedCases": 99,
+        "localFocusedAssertions": 2154,
+        "caseCoveragePercent": 495,
+        "assertionCoveragePercent": 374.6,
         "remainingCriticalGaps": [],
         "uncoveredUpstreamCriticalTests": [],
         "localFocusedTestFiles": [
             "lanes/pandoc/tests/OdfManifestMediaTypeSummaryCompactParityTest.php",
+            "lanes/pandoc/tests/OdfManifestPathBasenameBucketParityTest.php",
             "lanes/pandoc/tests/OdfPackagePathByteLengthBucketsTest.php",
             "lanes/pandoc/tests/OdfPackageXmlCommentProvenanceTest.php",
             "lanes/pandoc/tests/OdfPackageXmlRootElementProvenanceTest.php",
@@ -39,9 +40,10 @@
         ],
         "evidence": [
             "ODF/ODT package ingestion now records metadata-only XML root element provenance for valid XML package parts while excluding invalid XML and non-XML entries without exposing XML values.",
+            "ODF/ODT package ingestion now carries manifest path basename and basename-stem bucket rollups through compact review and rich package/document identity handoffs.",
             "ODF/ODT package ingestion covers manifest custom attributes, namespace declarations, sidecars, XML comments/processing-instructions/CDATA provenance, ZIP timestamp provenance, package identity, media resources, compact manifest media-type summaries, package path byte-length buckets, and rich reader handoff.",
             "No external Pandoc, office suite, zip/unzip, browser renderer, or validator was invoked."
         ]
     },
-    "lastUpdated": "2026-07-01"
+    "lastUpdated": "2026-07-02"
 }

@@ -11047,6 +11047,8 @@ final class OpenDocumentPackage
             'manifestPathKindCounts' => [],
             'manifestTopLevelSegmentCounts' => [],
             'manifestPathExtensionCounts' => [],
+            'manifestPathBaseNameCounts' => [],
+            'manifestPathBaseNameStemCounts' => [],
             'manifestPathShapeItems' => [],
             'manifestMediaFamilyCounts' => [],
             'manifestMediaFamilyByteLengths' => [],
@@ -11137,6 +11139,14 @@ final class OpenDocumentPackage
             $pathExtension = $pathShape['extension'] ?? null;
             if (is_string($pathExtension) && $pathExtension !== '') {
                 $summary['manifestPathExtensionCounts'][$pathExtension] = ($summary['manifestPathExtensionCounts'][$pathExtension] ?? 0) + 1;
+            }
+            $pathBaseName = $pathShape['basename'] ?? null;
+            if (is_string($pathBaseName) && $pathBaseName !== '') {
+                $summary['manifestPathBaseNameCounts'][$pathBaseName] = ($summary['manifestPathBaseNameCounts'][$pathBaseName] ?? 0) + 1;
+            }
+            $pathBaseNameStem = $pathShape['basenameStem'] ?? null;
+            if (is_string($pathBaseNameStem) && $pathBaseNameStem !== '') {
+                $summary['manifestPathBaseNameStemCounts'][$pathBaseNameStem] = ($summary['manifestPathBaseNameStemCounts'][$pathBaseNameStem] ?? 0) + 1;
             }
             if (is_string($entry['pathSuffix'] ?? null)) {
                 $summary['manifestPartReferenceSuffixItems'][] = self::manifestPartReferenceSuffixItem($entry);
@@ -11354,6 +11364,8 @@ final class OpenDocumentPackage
         ksort($summary['manifestPathKindCounts'], SORT_STRING);
         ksort($summary['manifestTopLevelSegmentCounts'], SORT_STRING);
         ksort($summary['manifestPathExtensionCounts'], SORT_STRING);
+        ksort($summary['manifestPathBaseNameCounts'], SORT_STRING);
+        ksort($summary['manifestPathBaseNameStemCounts'], SORT_STRING);
         ksort($summary['manifestMediaFamilyCounts'], SORT_STRING);
         ksort($summary['manifestMediaFamilyByteLengths'], SORT_STRING);
         ksort($summary['manifestMediaFamilyCompressedByteLengths'], SORT_STRING);
@@ -13759,6 +13771,9 @@ final class OpenDocumentPackage
         $trimmed = trim($path, '/');
         $segments = $trimmed === '' ? [] : explode('/', $trimmed);
         $basename = $segments === [] ? null : $segments[count($segments) - 1];
+        $basenameStem = is_string($basename) && $basename !== ''
+            ? self::packagePartBasenameStem($basename)
+            : null;
         $directorySegments = $isDirectory ? $segments : array_slice($segments, 0, -1);
         $directory = $directorySegments === [] ? null : implode('/', $directorySegments) . '/';
         $directoryBaseName = $directorySegments === [] ? null : $directorySegments[count($directorySegments) - 1];
@@ -13782,6 +13797,8 @@ final class OpenDocumentPackage
             'directoryBaseNameStem' => $directoryBaseNameStem,
             'caseFoldDirectoryBaseNameStem' => is_string($directoryBaseNameStem) ? strtolower($directoryBaseNameStem) : null,
             'basename' => $basename,
+            'basenameStem' => $basenameStem,
+            'caseFoldBasenameStem' => is_string($basenameStem) ? strtolower($basenameStem) : null,
             'extension' => $extension,
             'segments' => $segments,
             'pathSegmentPositionReviews' => self::pathSegmentPositionReviews($segments),

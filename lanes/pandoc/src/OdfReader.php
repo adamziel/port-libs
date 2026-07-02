@@ -1483,6 +1483,8 @@ final class OdfReader
         $manifestPathKindCounts = [];
         $manifestTopLevelSegmentCounts = [];
         $manifestPathExtensionCounts = [];
+        $manifestPathBaseNameCounts = [];
+        $manifestPathBaseNameStemCounts = [];
         $manifestPathShapeItems = [];
         $manifestFileEntryOrder = [];
         $manifestByteExposurePolicyCounts = [];
@@ -1776,6 +1778,14 @@ final class OdfReader
             $manifestPathExtension = $manifestPathShape['extension'] ?? null;
             if (is_string($manifestPathExtension) && $manifestPathExtension !== '') {
                 $manifestPathExtensionCounts[$manifestPathExtension] = ($manifestPathExtensionCounts[$manifestPathExtension] ?? 0) + 1;
+            }
+            $manifestPathBaseName = $manifestPathShape['basename'] ?? null;
+            if (is_string($manifestPathBaseName) && $manifestPathBaseName !== '') {
+                $manifestPathBaseNameCounts[$manifestPathBaseName] = ($manifestPathBaseNameCounts[$manifestPathBaseName] ?? 0) + 1;
+            }
+            $manifestPathBaseNameStem = $manifestPathShape['basenameStem'] ?? null;
+            if (is_string($manifestPathBaseNameStem) && $manifestPathBaseNameStem !== '') {
+                $manifestPathBaseNameStemCounts[$manifestPathBaseNameStem] = ($manifestPathBaseNameStemCounts[$manifestPathBaseNameStem] ?? 0) + 1;
             }
             $manifestPathShapeItems[] = self::manifestPathShapeItem($item);
             if (is_string($item['partQuery'] ?? null)) {
@@ -2174,6 +2184,8 @@ final class OdfReader
         ksort($manifestPathKindCounts, SORT_STRING);
         ksort($manifestTopLevelSegmentCounts, SORT_STRING);
         ksort($manifestPathExtensionCounts, SORT_STRING);
+        ksort($manifestPathBaseNameCounts, SORT_STRING);
+        ksort($manifestPathBaseNameStemCounts, SORT_STRING);
         ksort($packagePartByteExposurePolicyCounts, SORT_STRING);
         ksort($packagePartByteExposurePolicyByteLengths, SORT_STRING);
         ksort($packagePartByteExposurePolicyCompressedByteLengths, SORT_STRING);
@@ -2281,6 +2293,8 @@ final class OdfReader
             'manifestPathKindCounts' => $manifestPathKindCounts,
             'manifestTopLevelSegmentCounts' => $manifestTopLevelSegmentCounts,
             'manifestPathExtensionCounts' => $manifestPathExtensionCounts,
+            'manifestPathBaseNameCounts' => $manifestPathBaseNameCounts,
+            'manifestPathBaseNameStemCounts' => $manifestPathBaseNameStemCounts,
             'manifestPathShapeItems' => $manifestPathShapeItems,
             'undeclaredEntryCount' => count($undeclaredEntries),
             'packageDirectoryCount' => $packageDirectoryCount,
@@ -3680,6 +3694,8 @@ final class OdfReader
             'manifestPathKindCounts' => $provenance['manifestPathKindCounts'] ?? [],
             'manifestTopLevelSegmentCounts' => $provenance['manifestTopLevelSegmentCounts'] ?? [],
             'manifestPathExtensionCounts' => $provenance['manifestPathExtensionCounts'] ?? [],
+            'manifestPathBaseNameCounts' => $provenance['manifestPathBaseNameCounts'] ?? [],
+            'manifestPathBaseNameStemCounts' => $provenance['manifestPathBaseNameStemCounts'] ?? [],
             'manifestPathShapeItems' => $provenance['manifestPathShapeItems'] ?? [],
             'manifestMediaTypeSummary' => $manifestMediaTypeSummary,
             'manifestMediaTypeCount' => $manifestMediaTypeSummary['mediaTypeCount'] ?? 0,
@@ -4042,6 +4058,8 @@ final class OdfReader
             'manifestPathKindCounts' => $provenance['manifestPathKindCounts'] ?? [],
             'manifestTopLevelSegmentCounts' => $provenance['manifestTopLevelSegmentCounts'] ?? [],
             'manifestPathExtensionCounts' => $provenance['manifestPathExtensionCounts'] ?? [],
+            'manifestPathBaseNameCounts' => $provenance['manifestPathBaseNameCounts'] ?? [],
+            'manifestPathBaseNameStemCounts' => $provenance['manifestPathBaseNameStemCounts'] ?? [],
             'manifestPathShapeItems' => $provenance['manifestPathShapeItems'] ?? [],
             'manifestMediaTypeSummary' => $manifestMediaTypeSummary,
             'manifestMediaTypeCount' => $manifestMediaTypeSummary['mediaTypeCount'] ?? 0,
@@ -7154,6 +7172,9 @@ final class OdfReader
         $trimmed = trim($path, '/');
         $segments = $trimmed === '' ? [] : explode('/', $trimmed);
         $basename = $segments === [] ? null : $segments[count($segments) - 1];
+        $basenameStem = is_string($basename) && $basename !== ''
+            ? self::packagePartBasenameStem($basename)
+            : null;
         $directorySegments = $pathIsDirectory ? $segments : array_slice($segments, 0, -1);
         $directory = $directorySegments === [] ? null : implode('/', $directorySegments) . '/';
         $directoryBaseName = $directorySegments === [] ? null : $directorySegments[count($directorySegments) - 1];
@@ -7177,6 +7198,8 @@ final class OdfReader
             'directoryBaseNameStem' => $directoryBaseNameStem,
             'caseFoldDirectoryBaseNameStem' => is_string($directoryBaseNameStem) ? strtolower($directoryBaseNameStem) : null,
             'basename' => $basename,
+            'basenameStem' => $basenameStem,
+            'caseFoldBasenameStem' => is_string($basenameStem) ? strtolower($basenameStem) : null,
             'extension' => $extension,
             'segments' => $segments,
             'segmentCount' => count($segments),
@@ -7213,6 +7236,9 @@ final class OdfReader
         $trimmed = trim($path, '/');
         $segments = $trimmed === '' ? [] : explode('/', $trimmed);
         $basename = $segments === [] ? null : $segments[count($segments) - 1];
+        $basenameStem = is_string($basename) && $basename !== ''
+            ? self::packagePartBasenameStem($basename)
+            : null;
         $directorySegments = $isDirectory ? $segments : array_slice($segments, 0, -1);
         $directory = $directorySegments === [] ? null : implode('/', $directorySegments) . '/';
         $directoryBaseName = $directorySegments === [] ? null : $directorySegments[count($directorySegments) - 1];
@@ -7236,6 +7262,8 @@ final class OdfReader
             'directoryBaseNameStem' => $directoryBaseNameStem,
             'caseFoldDirectoryBaseNameStem' => is_string($directoryBaseNameStem) ? strtolower($directoryBaseNameStem) : null,
             'basename' => $basename,
+            'basenameStem' => $basenameStem,
+            'caseFoldBasenameStem' => is_string($basenameStem) ? strtolower($basenameStem) : null,
             'extension' => $extension,
             'segments' => $segments,
             'pathSegmentPositionReviews' => self::pathSegmentPositionReviews($segments),
@@ -7303,6 +7331,8 @@ final class OdfReader
             'topLevelSegment' => $pathShape['topLevelSegment'] ?? null,
             'directory' => $pathShape['directory'] ?? null,
             'basename' => $pathShape['basename'] ?? null,
+            'basenameStem' => $pathShape['basenameStem'] ?? null,
+            'caseFoldBasenameStem' => $pathShape['caseFoldBasenameStem'] ?? null,
             'extension' => $pathShape['extension'] ?? null,
             'segmentCount' => $pathShape['segmentCount'] ?? null,
             'directorySegmentCount' => $pathShape['directorySegmentCount'] ?? null,
