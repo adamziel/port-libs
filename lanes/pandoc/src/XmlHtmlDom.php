@@ -33695,6 +33695,8 @@ final class XmlHtmlDom
             ];
         }
 
+        $issueRollup = self::selectOptionStateIssueRollup($issues);
+
         return [
             'selectOptionStateReviewPolicy' => 'html-select-option-state-review',
             'selectReviewOnlyNoBrowserStateMutation' => true,
@@ -33728,6 +33730,11 @@ final class XmlHtmlDom
             'selectEffectiveSelectedOptions' => $effectiveRecords,
             'selectRequiredValueMissing' => $valueMissing,
             'selectSuccessfulValueCandidates' => $effectiveEnabledNonEmptyValues,
+            'selectIssueCount' => count($issues),
+            'selectIssueCodeCounts' => $issueRollup['codeCounts'],
+            'selectIssueValuesByCode' => $issueRollup['valuesByCode'],
+            'selectIssueGroupsByCode' => $issueRollup['groupsByCode'],
+            'selectIssueSelectionSourcesByCode' => $issueRollup['selectionSourcesByCode'],
             'selectIssues' => $issues,
             'selectIssueCodes' => array_values(array_unique(array_map(
                 static fn (array $issue): string => (string) ($issue['code'] ?? ''),
@@ -33735,6 +33742,84 @@ final class XmlHtmlDom
             ))),
             'selectOptionStateValid' => $issues === [],
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $issues
+     * @return array{codeCounts:array<string, int>, valuesByCode:array<string, list<string>>, groupsByCode:array<string, list<string>>, selectionSourcesByCode:array<string, list<string>>}
+     */
+    private static function selectOptionStateIssueRollup(array $issues): array
+    {
+        $codeCounts = [];
+        $valuesByCode = [];
+        $groupsByCode = [];
+        $selectionSourcesByCode = [];
+
+        foreach ($issues as $issue) {
+            $code = $issue['code'] ?? null;
+            if (!is_string($code) || $code === '') {
+                continue;
+            }
+
+            $codeCounts[$code] = ($codeCounts[$code] ?? 0) + 1;
+            foreach (self::selectOptionStateIssueValues($issue) as $value) {
+                $valuesByCode[$code] ??= [];
+                if (!in_array($value, $valuesByCode[$code], true)) {
+                    $valuesByCode[$code][] = $value;
+                }
+            }
+
+            $group = $issue['group'] ?? null;
+            if (is_string($group) && $group !== '') {
+                $groupsByCode[$code] ??= [];
+                self::appendUniqueString($groupsByCode[$code], $group);
+            }
+
+            $selectionSource = $issue['selectionSource'] ?? null;
+            if (is_string($selectionSource) && $selectionSource !== '') {
+                $selectionSourcesByCode[$code] ??= [];
+                self::appendUniqueString($selectionSourcesByCode[$code], $selectionSource);
+            }
+        }
+
+        ksort($codeCounts, SORT_STRING);
+        ksort($valuesByCode, SORT_STRING);
+        ksort($groupsByCode, SORT_STRING);
+        ksort($selectionSourcesByCode, SORT_STRING);
+
+        return [
+            'codeCounts' => $codeCounts,
+            'valuesByCode' => $valuesByCode,
+            'groupsByCode' => $groupsByCode,
+            'selectionSourcesByCode' => $selectionSourcesByCode,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $issue
+     * @return list<string>
+     */
+    private static function selectOptionStateIssueValues(array $issue): array
+    {
+        $values = [];
+        $value = $issue['value'] ?? null;
+        if (is_string($value)) {
+            $values[] = $value;
+        }
+
+        foreach (['values', 'effectiveValues'] as $field) {
+            $fieldValues = $issue[$field] ?? null;
+            if (!is_array($fieldValues)) {
+                continue;
+            }
+            foreach ($fieldValues as $fieldValue) {
+                if (is_string($fieldValue)) {
+                    $values[] = $fieldValue;
+                }
+            }
+        }
+
+        return $values;
     }
 
     /**

@@ -49,6 +49,11 @@ return [
         $t->same(['Choose'], $required['selectEffectiveSelectedTexts']);
         $t->same([], $required['selectSuccessfulValueCandidates']);
         $t->same(true, $required['selectRequiredValueMissing']);
+        $t->same(1, $required['selectIssueCount']);
+        $t->same(['required-select-missing-value' => 1], $required['selectIssueCodeCounts']);
+        $t->same(['required-select-missing-value' => ['']], $required['selectIssueValuesByCode']);
+        $t->same([], $required['selectIssueGroupsByCode']);
+        $t->same(['required-select-missing-value' => ['first-option-fallback']], $required['selectIssueSelectionSourcesByCode']);
         $t->same(['required-select-missing-value'], $required['selectIssueCodes']);
         $t->same(false, $required['selectOptionStateValid']);
 
@@ -58,6 +63,11 @@ return [
         $t->same(['ca'], $country['selectEffectiveSelectedValues']);
         $t->same(['ca'], $country['selectSuccessfulValueCandidates']);
         $t->same(false, $country['selectRequiredValueMissing']);
+        $t->same(0, $country['selectIssueCount']);
+        $t->same([], $country['selectIssueCodeCounts']);
+        $t->same([], $country['selectIssueValuesByCode']);
+        $t->same([], $country['selectIssueGroupsByCode']);
+        $t->same([], $country['selectIssueSelectionSourcesByCode']);
         $t->same([], $country['selectIssueCodes']);
         $t->same(true, $country['selectOptionStateValid']);
 
@@ -67,6 +77,17 @@ return [
         $t->same(['a', 'b'], $dupe['selectEffectiveSelectedValues']);
         $t->same(1, $dupe['selectSelectedDisabledOptionCount']);
         $t->same(['b'], $dupe['selectSelectedDisabledValues']);
+        $t->same(2, $dupe['selectIssueCount']);
+        $t->same([
+            'multiple-selected-options-for-single-select' => 1,
+            'selected-disabled-option' => 1,
+        ], $dupe['selectIssueCodeCounts']);
+        $t->same([
+            'multiple-selected-options-for-single-select' => ['a', 'b'],
+            'selected-disabled-option' => ['b'],
+        ], $dupe['selectIssueValuesByCode']);
+        $t->same([], $dupe['selectIssueGroupsByCode']);
+        $t->same([], $dupe['selectIssueSelectionSourcesByCode']);
         $t->same([
             'multiple-selected-options-for-single-select',
             'selected-disabled-option',
@@ -82,6 +103,17 @@ return [
         $t->same(['archived'], $multi['selectEffectiveSelectedValues']);
         $t->same([], $multi['selectSuccessfulValueCandidates']);
         $t->same(true, $multi['selectRequiredValueMissing']);
+        $t->same(2, $multi['selectIssueCount']);
+        $t->same([
+            'required-select-missing-value' => 1,
+            'selected-disabled-option' => 1,
+        ], $multi['selectIssueCodeCounts']);
+        $t->same([
+            'required-select-missing-value' => ['archived'],
+            'selected-disabled-option' => ['archived'],
+        ], $multi['selectIssueValuesByCode']);
+        $t->same(['selected-disabled-option' => ['Closed']], $multi['selectIssueGroupsByCode']);
+        $t->same(['required-select-missing-value' => ['selected-attribute']], $multi['selectIssueSelectionSourcesByCode']);
         $t->same([
             'selected-disabled-option',
             'required-select-missing-value',
