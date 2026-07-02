@@ -256,6 +256,11 @@ XML;
             'odf-style-missing-parent' => 2,
         ], $provenance['diagnosticCodeCounts']);
         $t->same(['content.xml', 'styles.xml'], $provenance['diagnosticSourceParts']);
+        $t->same(['office:automatic-styles', 'office:styles'], $provenance['diagnosticSourceContainers']);
+        $t->same([
+            'office:automatic-styles' => 1,
+            'office:styles' => 1,
+        ], $provenance['diagnosticSourceContainerCounts']);
 
         $content = $itemsByPart['content.xml'];
         $t->same(2, $content['diagnosticCount']);
@@ -263,6 +268,8 @@ XML;
             'odf-content-missing-style' => 1,
             'odf-style-missing-parent' => 1,
         ], $content['diagnosticCodeCounts']);
+        $t->same(['office:automatic-styles'], $content['diagnosticSourceContainers']);
+        $t->same(['office:automatic-styles' => 1], $content['diagnosticSourceContainerCounts']);
         $t->same('AutoBroken', $content['diagnostics'][0]['styleName']);
         $t->same('content.xml', $content['diagnostics'][0]['sourcePart']);
         $t->same('office:automatic-styles', $content['diagnostics'][0]['sourceContainer']);
@@ -272,6 +279,8 @@ XML;
         $styles = $itemsByPart['styles.xml'];
         $t->same(1, $styles['diagnosticCount']);
         $t->same(['odf-style-missing-parent' => 1], $styles['diagnosticCodeCounts']);
+        $t->same(['office:styles'], $styles['diagnosticSourceContainers']);
+        $t->same(['office:styles' => 1], $styles['diagnosticSourceContainerCounts']);
         $t->same('ReviewBody', $styles['diagnostics'][0]['styleName']);
         $t->same('styles.xml', $styles['diagnostics'][0]['sourcePart']);
         $t->same('office:styles', $styles['diagnostics'][0]['sourceContainer']);
