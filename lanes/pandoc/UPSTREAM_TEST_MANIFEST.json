@@ -2037,6 +2037,8 @@
         "mappedJsonNativeTextualInlinePartCases": 2,
         "mappedJsonNativeTextualNullaryBlockCases": 1,
         "jsonNativeTextualNullaryBlockAssertions": 12,
+        "mappedJsonNativeMixedCaptionNativeWriterCases": 1,
+        "jsonNativeMixedCaptionNativeWriterAssertions": 23,
         "mappedOdfReaderZipTimestampProvenanceCases": 1,
         "odfReaderZipTimestampProvenanceAssertions": 31,
         "legacyBiblatexAuxiliaryEditorialRoleCases": 1,
