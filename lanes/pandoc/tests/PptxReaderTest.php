@@ -6484,6 +6484,65 @@ XML);
     }
 };
 
+$buildMissingShapeTreePptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-missing-shape-tree-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <p:cSld>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Outside Shape Tree"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Outside shape tree title</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+  </p:cSld>
+</p:sld>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildInvalidSlideSizePptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-invalid-slide-size-');
     if ($path === false) {
@@ -10034,6 +10093,21 @@ return [
         $t->same(6858000, $review['slideSize']['cy'] ?? null);
         $t->same([], $review['tableStyles'] ?? null);
         $t->true(!str_contains($native, 'Unreferenced slide body'), 'Unreferenced slide parts should not become visible without p:sldIdLst entries');
+    },
+
+    'uses fallback pptx slide headers when shape trees are missing like upstream' => static function (TestRunner $t) use ($buildMissingShapeTreePptxPackage, $nodesOfType): void {
+        $document = (new PptxReader())->read($buildMissingShapeTreePptxPackage());
+        $review = $document->attr('pptx');
+        $headings = $nodesOfType($document, 'heading');
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same(1, $review['slideCount'] ?? null);
+        $t->same(1, $review['slides'][0]['blockCount'] ?? null);
+        $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
+        $t->same('Slide 1', $headings[0]->attr('text'));
+        $t->same([], $nodesOfType($document, 'paragraph'));
+        $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Slide" , Space , Str "1" ]', $native);
+        $t->true(!str_contains($native, 'Outside shape tree title'), 'Shapes outside p:spTree should not become slide titles or body content');
     },
 
     'falls back to zero for invalid pptx slide sizes like upstream' => static function (TestRunner $t) use ($buildInvalidSlideSizePptxPackage): void {
