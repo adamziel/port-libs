@@ -13113,6 +13113,12 @@ final class DocxOpenXmlReader
         $summary['packageIdentityPackageAreaByteLengths'] = $packageIdentity['packageAreaByteLengths'];
         $summary['packageIdentityPackageAreaCompressedByteLengths'] =
             $packageIdentity['packageAreaCompressedByteLengths'];
+        $summary['packageIdentityPackageContentTypeFamilyCount'] =
+            $packageIdentity['packageContentTypeFamilyCount'];
+        $summary['packageIdentityPackageContentTypeFamilyCounts'] =
+            $packageIdentity['packageContentTypeFamilyCounts'];
+        $summary['packageIdentityPackageContentTypeFamilyByteLengths'] =
+            $packageIdentity['packageContentTypeFamilyByteLengths'];
 
         return [
             'contentTypesPart' => $contentTypesPart,
@@ -15984,6 +15990,22 @@ final class DocxOpenXmlReader
             $partContentTypeMediaTypeCounts[$mediaTypeKey] = (int) ($mediaTypeSummary['partCount'] ?? 0);
         }
         ksort($partContentTypeMediaTypeCounts, SORT_STRING);
+        $partContentTypeFamilies = $this->packagePartContentTypeFamilySummary($partInventory);
+        $partContentTypeFamilyCounts = [];
+        $partContentTypeFamilyByteLengths = [];
+        $partNamesByContentTypeFamily = [];
+        foreach ($partContentTypeFamilies as $familySummary) {
+            $family = (string) ($familySummary['contentTypeFamily'] ?? '(missing)');
+            $partContentTypeFamilyCounts[$family] = (int) ($familySummary['partCount'] ?? 0);
+            $partContentTypeFamilyByteLengths[$family] = (int) ($familySummary['byteLength'] ?? 0);
+            $partNamesByContentTypeFamily[$family] = array_values(array_map(
+                'strval',
+                $familySummary['partNames'] ?? []
+            ));
+        }
+        ksort($partContentTypeFamilyCounts, SORT_STRING);
+        ksort($partContentTypeFamilyByteLengths, SORT_STRING);
+        ksort($partNamesByContentTypeFamily, SORT_STRING);
         $partContentTypeSubtypes = $this->packagePartContentTypeSubtypeSummary($partInventory);
         $partContentTypeSubtypeCounts = [];
         foreach ($partContentTypeSubtypes as $subtypeSummary) {
@@ -19740,6 +19762,10 @@ final class DocxOpenXmlReader
             'partContentTypeParameterSourceCounts' => $partContentTypeParameterSourceCounts,
             'partContentTypeMediaTypeCount' => count($partContentTypeMediaTypes),
             'partContentTypeMediaTypeCounts' => $partContentTypeMediaTypeCounts,
+            'partContentTypeFamilyCount' => count($partContentTypeFamilies),
+            'partContentTypeFamilyCounts' => $partContentTypeFamilyCounts,
+            'partContentTypeFamilyByteLengths' => $partContentTypeFamilyByteLengths,
+            'partNamesByContentTypeFamily' => $partNamesByContentTypeFamily,
             'partContentTypeSubtypeCount' => count($partContentTypeSubtypes),
             'partContentTypeSubtypeCounts' => $partContentTypeSubtypeCounts,
             'contentTypeExtensionMismatchCount' => $contentTypeExtensionMismatches['count'],
@@ -20551,6 +20577,7 @@ final class DocxOpenXmlReader
             'partContentTypeParameterValues' => $partContentTypeParameterValues,
             'partContentTypeParameterSources' => $partContentTypeParameterSources,
             'partContentTypeMediaTypes' => $partContentTypeMediaTypes,
+            'partContentTypeFamilies' => $partContentTypeFamilies,
             'partContentTypeSubtypes' => $partContentTypeSubtypes,
             'partRoles' => $partRoles,
             'largestPart' => $largestPart,
@@ -24108,6 +24135,119 @@ final class DocxOpenXmlReader
         }
 
         return array_values($contentTypes);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return list<array<string, mixed>>
+     */
+    private function packagePartContentTypeFamilySummary(array $partInventory): array
+    {
+        $families = [];
+        foreach ($partInventory as $partName => $part) {
+            $contentTypeBase = is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '';
+            $isRelationshipPart = ($part['isRelationshipPart'] ?? false) === true;
+            $family = $this->packageContentTypeFamily($contentTypeBase, $isRelationshipPart);
+            if (!isset($families[$family])) {
+                $families[$family] = [
+                    'contentTypeFamily' => $family,
+                    'partCount' => 0,
+                    'byteLength' => 0,
+                    'relationshipPartCount' => 0,
+                    'missingContentTypePartCount' => 0,
+                    'parameterizedPartCount' => 0,
+                    'contentTypeBaseCounts' => [],
+                    'contentTypeMediaTypeCounts' => [],
+                    'contentTypeSourceCounts' => [],
+                    'roleCounts' => [],
+                    'partNames' => [],
+                    'largestPart' => null,
+                ];
+            }
+
+            ++$families[$family]['partCount'];
+            $bytes = (int) ($part['bytes'] ?? 0);
+            $families[$family]['byteLength'] += $bytes;
+            $partName = (string) ($part['partName'] ?? $partName);
+            $families[$family]['partNames'][] = $partName;
+            if ($isRelationshipPart) {
+                ++$families[$family]['relationshipPartCount'];
+            }
+            if ($contentTypeBase === '') {
+                ++$families[$family]['missingContentTypePartCount'];
+            }
+            if (($part['contentTypeHasParameters'] ?? false) === true) {
+                ++$families[$family]['parameterizedPartCount'];
+            }
+
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            $families[$family]['contentTypeBaseCounts'][$contentTypeBaseKey] =
+                ($families[$family]['contentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
+
+            $mediaTypeKey = $this->contentTypeMediaTypeKey($contentTypeBase);
+            $families[$family]['contentTypeMediaTypeCounts'][$mediaTypeKey] =
+                ($families[$family]['contentTypeMediaTypeCounts'][$mediaTypeKey] ?? 0) + 1;
+
+            $contentTypeSource = is_string($part['contentTypeSource'] ?? null)
+                ? $part['contentTypeSource']
+                : 'missing';
+            if ($contentTypeSource === '') {
+                $contentTypeSource = 'missing';
+            }
+            $families[$family]['contentTypeSourceCounts'][$contentTypeSource] =
+                ($families[$family]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+
+            foreach (($part['roles'] ?? []) as $role) {
+                $role = (string) $role;
+                if ($role === '') {
+                    continue;
+                }
+
+                $families[$family]['roleCounts'][$role] =
+                    ($families[$family]['roleCounts'][$role] ?? 0) + 1;
+            }
+
+            $partSummary = [
+                'partName' => $partName,
+                'directory' => is_string($part['directory'] ?? null)
+                    ? $part['directory']
+                    : $this->packagePartDirectory($partName),
+                'baseName' => is_string($part['baseName'] ?? null)
+                    ? $part['baseName']
+                    : $this->packagePartBaseName($partName),
+                'bytes' => $bytes,
+                'crc32' => is_string($part['crc32'] ?? null) ? $part['crc32'] : null,
+                'sha256' => is_string($part['sha256'] ?? null) ? $part['sha256'] : null,
+                'contentType' => is_string($part['contentType'] ?? null) ? $part['contentType'] : '',
+                'contentTypeBase' => $contentTypeBase,
+                'contentTypeFamily' => $family,
+                'contentTypeSource' => $contentTypeSource,
+                'roles' => array_values(array_map('strval', $part['roles'] ?? [])),
+            ];
+            $largestPart = $families[$family]['largestPart'];
+            if (
+                !is_array($largestPart)
+                || $partSummary['bytes'] > (int) ($largestPart['bytes'] ?? 0)
+                || (
+                    $partSummary['bytes'] === (int) ($largestPart['bytes'] ?? 0)
+                    && strcmp($partSummary['partName'], (string) ($largestPart['partName'] ?? '')) < 0
+                )
+            ) {
+                $families[$family]['largestPart'] = $partSummary;
+            }
+        }
+
+        ksort($families, SORT_STRING);
+        foreach ($families as $family => $summary) {
+            sort($summary['partNames'], SORT_STRING);
+            ksort($summary['contentTypeBaseCounts'], SORT_STRING);
+            ksort($summary['contentTypeMediaTypeCounts'], SORT_STRING);
+            ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            $families[$family] = $summary;
+        }
+
+        return array_values($families);
     }
 
     /**
@@ -44965,6 +45105,19 @@ final class DocxOpenXmlReader
             'partRawExtensions' => is_array($summary['partRawExtensions'] ?? null)
                 ? array_values($summary['partRawExtensions'])
                 : [],
+            'packageContentTypeFamilyCount' => (int) ($summary['partContentTypeFamilyCount'] ?? 0),
+            'packageContentTypeFamilyCounts' => $this->packageIdentityCountMap(
+                $summary['partContentTypeFamilyCounts'] ?? []
+            ),
+            'packageContentTypeFamilyByteLengths' => $this->packageIdentityCountMap(
+                $summary['partContentTypeFamilyByteLengths'] ?? []
+            ),
+            'entryNamesByPackageContentTypeFamily' => $this->packageIdentityStringListMap(
+                $summary['partNamesByContentTypeFamily'] ?? []
+            ),
+            'packageContentTypeFamilies' => is_array($summary['partContentTypeFamilies'] ?? null)
+                ? array_values($summary['partContentTypeFamilies'])
+                : [],
             'packageBasenameCount' => (int) ($summary['partBaseNameCount'] ?? 0),
             'packageBasenameCounts' => $this->packageIdentityCountMap($summary['partBaseNameCounts'] ?? []),
             'entryNamesByPackageBasename' => $this->packageIdentityStringListMap(
@@ -45137,6 +45290,10 @@ final class DocxOpenXmlReader
                 'contentType' => is_string($part['contentType'] ?? null) ? $part['contentType'] : '',
                 'contentTypeBase' => is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '',
                 'contentTypeSource' => is_string($part['contentTypeSource'] ?? null) ? $part['contentTypeSource'] : 'missing',
+                'contentTypeFamily' => $this->packageContentTypeFamily(
+                    is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '',
+                    ($part['isRelationshipPart'] ?? false) === true
+                ),
                 'contentTypeHasParameters' => ($part['contentTypeHasParameters'] ?? false) === true,
                 'contentTypeParameterCount' => (int) ($part['contentTypeParameterCount'] ?? 0),
                 'isRelationshipPart' => ($part['isRelationshipPart'] ?? false) === true,
@@ -45803,6 +45960,82 @@ final class DocxOpenXmlReader
         $segments[] = $current;
 
         return $segments;
+    }
+
+    private function packageContentTypeFamily(string $contentTypeBase, bool $isRelationshipPart = false): string
+    {
+        $contentTypeBase = strtolower(trim($contentTypeBase));
+        if ($contentTypeBase === '') {
+            return '(missing)';
+        }
+
+        if (
+            $isRelationshipPart
+            || $contentTypeBase === 'application/vnd.openxmlformats-package.relationships+xml'
+        ) {
+            return 'relationships';
+        }
+
+        $mediaType = $this->contentTypeMediaTypeKey($contentTypeBase);
+        if ($mediaType === '(invalid)') {
+            return '(invalid)';
+        }
+
+        if ($contentTypeBase === 'application/xml' || $contentTypeBase === 'text/xml') {
+            return 'xml';
+        }
+
+        if (str_contains($contentTypeBase, 'wordprocessingml') || str_starts_with($contentTypeBase, 'application/vnd.ms-word.')) {
+            return 'wordprocessingml';
+        }
+
+        if (str_contains($contentTypeBase, 'spreadsheetml')) {
+            return 'spreadsheetml';
+        }
+
+        if (str_contains($contentTypeBase, 'presentationml')) {
+            return 'presentationml';
+        }
+
+        if (str_contains($contentTypeBase, 'drawingml')) {
+            return 'drawingml';
+        }
+
+        if (
+            $contentTypeBase === 'application/vnd.openxmlformats-package.core-properties+xml'
+            || str_starts_with($contentTypeBase, 'application/vnd.openxmlformats-package.digital-signature')
+        ) {
+            return 'package-metadata';
+        }
+
+        if (
+            $contentTypeBase === 'application/vnd.openxmlformats-officedocument.extended-properties+xml'
+            || $contentTypeBase === 'application/vnd.openxmlformats-officedocument.custom-properties+xml'
+        ) {
+            return 'office-properties';
+        }
+
+        if ($mediaType === 'image' || $mediaType === 'audio' || $mediaType === 'video') {
+            return $mediaType;
+        }
+
+        if ($contentTypeBase === 'application/octet-stream') {
+            return 'binary';
+        }
+
+        if ($this->contentTypeStructuredSyntaxSuffix($contentTypeBase) === 'xml') {
+            return 'xml';
+        }
+
+        if (str_starts_with($contentTypeBase, 'application/vnd.openxmlformats-officedocument.')) {
+            return 'openxml-office-document';
+        }
+
+        if (str_starts_with($contentTypeBase, 'application/vnd.openxmlformats-package.')) {
+            return 'package-metadata';
+        }
+
+        return $mediaType === '(missing)' ? '(missing)' : $mediaType;
     }
 
     private function contentTypeStructuredSyntaxSuffix(string $contentTypeBase): ?string
