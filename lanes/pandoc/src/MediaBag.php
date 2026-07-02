@@ -158,6 +158,109 @@ final class MediaBag
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public function resourceMappingSummary(AstNode $document, string $destination): array
+    {
+        $extracted = $this->extractMedia($document, $destination);
+        $entries = $extracted['entries'];
+        $diagnostics = $extracted['diagnostics'];
+
+        $sources = [];
+        $canonicalSourceBySource = [];
+        $sourcePathBySource = [];
+        $mediaPathBySource = [];
+        $targetPathBySource = [];
+        $mimeTypeBySource = [];
+        $mimeTypeCounts = [];
+        $mimeTypeSourceCounts = [];
+        $sourceClassCounts = [];
+        $pathRepairSummaryCounts = [];
+        $extractionPathRepairSummaryCounts = [];
+        $totalBytes = 0;
+        $sourcePathRepairCount = 0;
+        $extractionPathRepairCount = 0;
+        foreach ($entries as $entry) {
+            $source = $entry['source'];
+            $sources[$source] = true;
+            $canonicalSourceBySource[$source] = $entry['canonicalSource'];
+            $sourcePathBySource[$source] = $entry['sourcePath'];
+            $mediaPathBySource[$source] = $entry['mediaPath'];
+            $targetPathBySource[$source] = $entry['path'];
+            $mimeTypeBySource[$source] = $entry['mimeType'];
+            $totalBytes += $entry['byteLength'];
+
+            self::incrementStringCount($mimeTypeCounts, $entry['mimeType']);
+            self::incrementStringCount($mimeTypeSourceCounts, $entry['mimeTypeSource']);
+            self::incrementStringCount($sourceClassCounts, self::mediaSourceClass($source));
+            self::incrementStringCount($pathRepairSummaryCounts, $entry['pathRepairSummary']);
+            self::incrementStringCount($extractionPathRepairSummaryCounts, $entry['extractionPathRepairSummary']);
+            if ($entry['pathRepairSummary'] !== 'safe-relative-path') {
+                ++$sourcePathRepairCount;
+            }
+            if ($entry['extractionPathRepairSummary'] !== 'safe-relative-path') {
+                ++$extractionPathRepairCount;
+            }
+        }
+
+        $diagnosticCounts = [];
+        $diagnosticSourcesByCode = [];
+        foreach ($diagnostics as $diagnostic) {
+            [$code, $source] = self::diagnosticParts($diagnostic);
+            self::incrementStringCount($diagnosticCounts, $code);
+            if ($source !== '') {
+                $diagnosticSourcesByCode[$code][$source] = true;
+            }
+        }
+
+        $diagnosticSources = [];
+        foreach ($diagnosticSourcesByCode as $code => $sourceMap) {
+            $sourceList = array_keys($sourceMap);
+            sort($sourceList, SORT_STRING);
+            $diagnosticSources[$code] = $sourceList;
+        }
+
+        ksort($canonicalSourceBySource, SORT_STRING);
+        ksort($sourcePathBySource, SORT_STRING);
+        ksort($mediaPathBySource, SORT_STRING);
+        ksort($targetPathBySource, SORT_STRING);
+        ksort($mimeTypeBySource, SORT_STRING);
+        ksort($diagnosticSources, SORT_STRING);
+
+        $sourceList = array_keys($sources);
+        sort($sourceList, SORT_STRING);
+
+        $reviewDiagnostics = array_filter(
+            array_keys($diagnosticCounts),
+            static fn (string $code): bool => !in_array($code, ['media-resource-mapped', 'media-resource-link-mapped'], true)
+        );
+
+        return [
+            'entryCount' => count($entries),
+            'mappedImageCount' => $diagnosticCounts['media-resource-mapped'] ?? 0,
+            'mappedLinkCount' => $diagnosticCounts['media-resource-link-mapped'] ?? 0,
+            'totalBytes' => $totalBytes,
+            'sourcePathRepairCount' => $sourcePathRepairCount,
+            'extractionPathRepairCount' => $extractionPathRepairCount,
+            'sources' => $sourceList,
+            'canonicalSourceBySource' => $canonicalSourceBySource,
+            'sourcePathBySource' => $sourcePathBySource,
+            'mediaPathBySource' => $mediaPathBySource,
+            'targetPathBySource' => $targetPathBySource,
+            'mimeTypeBySource' => $mimeTypeBySource,
+            'mimeTypeCounts' => self::sortedStringCounts($mimeTypeCounts),
+            'mimeTypeSourceCounts' => self::sortedStringCounts($mimeTypeSourceCounts),
+            'sourceClassCounts' => self::sortedStringCounts($sourceClassCounts),
+            'pathRepairSummaryCounts' => self::sortedStringCounts($pathRepairSummaryCounts),
+            'extractionPathRepairSummaryCounts' => self::sortedStringCounts($extractionPathRepairSummaryCounts),
+            'diagnosticCounts' => self::sortedStringCounts($diagnosticCounts),
+            'diagnosticSourcesByCode' => $diagnosticSources,
+            'reviewStatus' => $reviewDiagnostics === [] ? 'mapped' : 'needs-review',
+            'byteExposurePolicy' => 'metadata-only',
+        ];
+    }
+
+    /**
      * @param array<string, string|array{contents?:string, data?:string, mimeType?:string|null}> $resources
      * @return array{document:AstNode, diagnostics:list<string>}
      */
@@ -1247,5 +1350,57 @@ final class MediaBag
         }
 
         return $source;
+    }
+
+    /**
+     * @param array<string, int> $counts
+     */
+    private static function incrementStringCount(array &$counts, string $key): void
+    {
+        $counts[$key] = ($counts[$key] ?? 0) + 1;
+    }
+
+    /**
+     * @param array<string, int> $counts
+     * @return array<string, int>
+     */
+    private static function sortedStringCounts(array $counts): array
+    {
+        ksort($counts, SORT_STRING);
+
+        return $counts;
+    }
+
+    /**
+     * @return array{0:string, 1:string}
+     */
+    private static function diagnosticParts(string $diagnostic): array
+    {
+        $position = strpos($diagnostic, ':');
+        if ($position === false) {
+            return [$diagnostic, ''];
+        }
+
+        return [substr($diagnostic, 0, $position), substr($diagnostic, $position + 1)];
+    }
+
+    private static function mediaSourceClass(string $source): string
+    {
+        if (str_starts_with($source, 'data:')) {
+            return 'data-uri';
+        }
+
+        $pathSource = str_replace('\\', '/', $source);
+        if (self::isWindowsDrivePath($pathSource)) {
+            return 'windows-absolute-path';
+        }
+        if (str_starts_with($pathSource, '/')) {
+            return 'absolute-path';
+        }
+        if (self::isUri($source)) {
+            return 'uri';
+        }
+
+        return 'relative-path';
     }
 }

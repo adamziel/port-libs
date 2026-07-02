@@ -44,7 +44,7 @@ final class MarkdownWriter
     private array $plainTemplatePartialStack = [];
 
     /**
-     * @param array{variant?: string, setextHeadings?: bool, referenceLinks?: bool, referenceLocation?: string, linkAttributes?: bool, headerAttributes?: bool, fencedCodeBlocks?: bool, backtickCodeBlocks?: bool, fencedCodeAttributes?: bool, definitionLists?: bool, lineBlocks?: bool, bracketedSpans?: bool, nativeSpans?: bool, fencedDivs?: bool, nativeDivs?: bool, implicitFigures?: bool, markdownInHtmlBlocks?: bool, markdownAttribute?: bool, rawAttribute?: bool, rawHtml?: bool, rawTex?: bool, simpleTables?: bool, pipeTables?: bool, multilineTables?: bool, gridTables?: bool, tableCaptions?: bool, columns?: int, tabStop?: int, wrap?: string, strikeout?: bool, superscript?: bool, subscript?: bool, preferAscii?: bool, smart?: bool, escapedLineBreaks?: bool, hardLineBreaks?: bool, wikilinksTitleAfterPipe?: bool, wikilinksTitleBeforePipe?: bool, gutenberg?: bool, template?: bool|string, templatePath?: string, standalone?: bool, tableOfContents?: bool, toc?: bool, tocDepth?: int, numberSections?: bool, variables?: array<string, mixed>, partials?: array<string, string>, headerIncludes?: mixed, includeBefore?: mixed, includeAfter?: mixed, opmlNoteMarkdown?: bool} $options
+     * @param array{variant?: string, setextHeadings?: bool, referenceLinks?: bool, referenceLocation?: string, linkAttributes?: bool, headerAttributes?: bool, fencedCodeBlocks?: bool, backtickCodeBlocks?: bool, fencedCodeAttributes?: bool, definitionLists?: bool, lineBlocks?: bool, bracketedSpans?: bool, nativeSpans?: bool, fencedDivs?: bool, nativeDivs?: bool, implicitFigures?: bool, markdownInHtmlBlocks?: bool, markdownAttribute?: bool, rawAttribute?: bool, rawHtml?: bool, rawTex?: bool, simpleTables?: bool, pipeTables?: bool, multilineTables?: bool, gridTables?: bool, tableCaptions?: bool, columns?: int, tabStop?: int, wrap?: string, strikeout?: bool, superscript?: bool, subscript?: bool, preferAscii?: bool, smart?: bool, escapedLineBreaks?: bool, hardLineBreaks?: bool, inlineNotes?: bool, wikilinksTitleAfterPipe?: bool, wikilinksTitleBeforePipe?: bool, gutenberg?: bool, template?: bool|string, templatePath?: string, standalone?: bool, tableOfContents?: bool, toc?: bool, tocDepth?: int, numberSections?: bool, variables?: array<string, mixed>, partials?: array<string, string>, headerIncludes?: mixed, includeBefore?: mixed, includeAfter?: mixed, opmlNoteMarkdown?: bool} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -7479,9 +7479,35 @@ final class MarkdownWriter
 
     private function renderNoteReference(AstNode $node): string
     {
+        if ($this->inlineNotesEnabled()) {
+            $inlineNote = $this->renderInlineNote($node);
+            if ($inlineNote !== null) {
+                return $inlineNote;
+            }
+        }
+
         $label = $this->registerNote($node);
 
         return '[^' . $label . ']';
+    }
+
+    private function renderInlineNote(AstNode $node): ?string
+    {
+        if (count($node->children) !== 1) {
+            return null;
+        }
+
+        $body = $node->children[0] ?? null;
+        if (!$body instanceof AstNode || !in_array($body->type, ['paragraph', 'plain'], true)) {
+            return null;
+        }
+
+        $rendered = $this->renderInlines($body->children);
+        if (str_contains($rendered, "\n") || str_contains($rendered, "\r")) {
+            return null;
+        }
+
+        return '^[' . $rendered . ']';
     }
 
     private function renderPlainNoteReference(AstNode $node): string
@@ -9019,6 +9045,15 @@ final class MarkdownWriter
     private function opmlNoteMarkdownEnabled(): bool
     {
         return (bool) ($this->options['opmlNoteMarkdown'] ?? false);
+    }
+
+    private function inlineNotesEnabled(): bool
+    {
+        if (array_key_exists('inlineNotes', $this->options)) {
+            return (bool) $this->options['inlineNotes'];
+        }
+
+        return $this->markdownExtensionOverride('inline_notes') === true;
     }
 
     private function simpleTablesEnabled(): bool
