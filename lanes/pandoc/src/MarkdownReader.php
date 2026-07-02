@@ -184,6 +184,11 @@ final class MarkdownReader
                 $blocks[] = $blockQuote;
                 continue;
             }
+            $divBlock = $paragraph === [] && $listStack === [] ? $this->tryReadFencedDivBlock($lines, $index) : null;
+            if ($divBlock !== null) {
+                $blocks[] = $divBlock;
+                continue;
+            }
             $divBlock = $paragraph === [] && $listStack === [] ? $this->tryReadDivBlock($lines, $index) : null;
             if ($divBlock !== null) {
                 $blocks[] = $divBlock;
@@ -439,6 +444,10 @@ final class MarkdownReader
         $this->flushParagraph($paragraph, $blocks);
         $this->flushListStack($listStack, $blocks);
 
+        if (($this->options['sectionDivs'] ?? false) === true) {
+            $blocks = $this->sectionizeHeadingBlocks($blocks);
+        }
+
         $document = new AstNode('document', $documentAttrs, $blocks);
         $this->referenceLinks = $previousReferenceLinks;
         $this->footnoteDefinitions = $previousFootnoteDefinitions;
@@ -448,6 +457,61 @@ final class MarkdownReader
         $this->htmlQuoteDepth = $previousHtmlQuoteDepth;
 
         return $document;
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @return list<AstNode>
+     */
+    private function sectionizeHeadingBlocks(array $blocks): array
+    {
+        $result = [];
+        $count = count($blocks);
+        $index = 0;
+
+        while ($index < $count) {
+            $block = $blocks[$index];
+            if ($block->type !== 'heading') {
+                $result[] = $block;
+                $index++;
+                continue;
+            }
+
+            $level = (int) $block->attr('level', 1);
+            $index++;
+            $sectionBlocks = [];
+            while ($index < $count) {
+                $next = $blocks[$index];
+                if ($next->type === 'heading' && (int) $next->attr('level', 1) <= $level) {
+                    break;
+                }
+                $sectionBlocks[] = $next;
+                $index++;
+            }
+
+            $result[] = $this->sectionDivFromHeading($block, $level, $this->sectionizeHeadingBlocks($sectionBlocks));
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param list<AstNode> $children
+     */
+    private function sectionDivFromHeading(AstNode $heading, int $level, array $children): AstNode
+    {
+        $headingClasses = $heading->attr('classes', []);
+        $classes = array_merge(['section', 'level' . $level], is_array($headingClasses) ? $headingClasses : []);
+        $attributes = $heading->attr('attributes', []);
+        $attrs = $this->markdownAttributeAstAttrs((string) $heading->attr('id', ''), $classes, is_array($attributes) ? $attributes : []);
+        $headingAttrs = $heading->attrs;
+        $headingAttrs['id'] = '';
+        unset($headingAttrs['classes'], $headingAttrs['attributes'], $headingAttrs['htmlAttributes']);
+
+        return new AstNode('div', $attrs, [
+            new AstNode('heading', $headingAttrs, $heading->children),
+            ...$children,
+        ]);
     }
 
     /**
@@ -840,7 +904,7 @@ final class MarkdownReader
         $classes = [];
         $attributes = [];
 
-        if (preg_match('/^(.*?)[ \t]*\{([^{}]+)\}[ \t]*$/', $text, $attrs) === 1) {
+        if ($this->headerAttributeExtensionEnabled() && preg_match('/^(.*?)[ \t]*\{([^{}]+)\}[ \t]*$/', $text, $attrs) === 1) {
             $text = rtrim($attrs[1]);
             [$id, $classes, $attributes] = $this->parseMarkdownAttributeSpec($attrs[2]);
         }
@@ -866,27 +930,107 @@ final class MarkdownReader
         $id = null;
         $classes = [];
         $attributes = [];
-        preg_match_all('/(?:^|\s)(#[^\s]+|\.[^\s]+|[A-Za-z_:][A-Za-z0-9_.:-]*=(?:"[^"]*"|\'[^\']*\'|[^\s]+))/', $source, $matches);
 
-        foreach ($matches[1] as $token) {
+        foreach ($this->tokenizeMarkdownAttributeSpec($source) as $token) {
             if ($token[0] === '#') {
-                $id = substr($token, 1);
+                $id = $this->decodeHtmlEntities($this->unescapeMarkdownAttributeToken(substr($token, 1)));
                 continue;
             }
             if ($token[0] === '.') {
-                $classes[] = substr($token, 1);
+                $classes[] = $this->decodeHtmlEntities($this->unescapeMarkdownAttributeToken(substr($token, 1)));
+                continue;
+            }
+
+            if (!str_contains($token, '=')) {
                 continue;
             }
 
             [$name, $value] = explode('=', $token, 2);
+            if (preg_match('/^[A-Za-z_:][A-Za-z0-9_.:-]*$/', $name) !== 1) {
+                continue;
+            }
             $value = trim($value);
             if ($value !== '' && (($value[0] === '"' && str_ends_with($value, '"')) || ($value[0] === "'" && str_ends_with($value, "'")))) {
                 $value = substr($value, 1, -1);
             }
-            $attributes[$name] = $this->decodeHtmlEntities($this->unescapeLinkComponent($value));
+            $attributes[$name] = $this->decodeHtmlEntities($this->unescapeMarkdownAttributeToken($value));
         }
 
         return [$id, $classes, $attributes];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function tokenizeMarkdownAttributeSpec(string $source): array
+    {
+        $tokens = [];
+        $length = strlen($source);
+        $offset = 0;
+
+        while ($offset < $length) {
+            while ($offset < $length && ctype_space($source[$offset])) {
+                $offset++;
+            }
+            if ($offset >= $length) {
+                break;
+            }
+
+            $token = '';
+            $quote = null;
+            while ($offset < $length) {
+                $char = $source[$offset];
+                if ($char === '\\') {
+                    $token .= $char;
+                    if ($offset + 1 < $length) {
+                        $offset++;
+                        $token .= $source[$offset];
+                    }
+                    $offset++;
+                    continue;
+                }
+                if ($quote !== null) {
+                    $token .= $char;
+                    if ($char === $quote) {
+                        $quote = null;
+                    }
+                    $offset++;
+                    continue;
+                }
+                if ($char === '"' || $char === "'") {
+                    $quote = $char;
+                    $token .= $char;
+                    $offset++;
+                    continue;
+                }
+                if (ctype_space($char)) {
+                    break;
+                }
+
+                $token .= $char;
+                $offset++;
+            }
+
+            if ($token !== '') {
+                $tokens[] = $token;
+            }
+        }
+
+        return $tokens;
+    }
+
+    private function unescapeMarkdownAttributeToken(string $token): string
+    {
+        $unescaped = '';
+        $length = strlen($token);
+        for ($offset = 0; $offset < $length; $offset++) {
+            if ($token[$offset] === '\\' && $offset + 1 < $length) {
+                $offset++;
+            }
+            $unescaped .= $token[$offset];
+        }
+
+        return $unescaped;
     }
 
     /**
@@ -1230,10 +1374,14 @@ final class MarkdownReader
         $count = count($lines);
         while ($cursor < $count) {
             if ($this->isClosingCodeFence($lines[$cursor], $fenceChar, $fenceLength)) {
-                $attrs = $this->parseCodeInfo($info);
+                $attrs = $this->parseCodeInfo($info, $this->fencedCodeAttributeExtensionEnabled());
                 $attrs['text'] = implode("\n", $content);
-                $rawAttribute = $this->tryParseRawAttributeSpec($info, 0);
-                if ($rawAttribute !== null && $rawAttribute['next'] === strlen($info)) {
+                $rawAttribute = $this->rawAttributeEnabled() ? $this->tryParseRawAttributeSpec($info, 0) : null;
+                if (
+                    $rawAttribute !== null
+                    && $rawAttribute['next'] === strlen($info)
+                    && $this->rawAttributeFormatEnabled($rawAttribute['format'])
+                ) {
                     $index = $cursor;
 
                     return $this->rawBlockNode($rawAttribute['format'], $attrs['text']);
@@ -1250,10 +1398,14 @@ final class MarkdownReader
             $cursor++;
         }
 
-        $attrs = $this->parseCodeInfo($info);
+        $attrs = $this->parseCodeInfo($info, $this->fencedCodeAttributeExtensionEnabled());
         $attrs['text'] = implode("\n", $content);
-        $rawAttribute = $this->tryParseRawAttributeSpec($info, 0);
-        if ($rawAttribute !== null && $rawAttribute['next'] === strlen($info)) {
+        $rawAttribute = $this->rawAttributeEnabled() ? $this->tryParseRawAttributeSpec($info, 0) : null;
+        if (
+            $rawAttribute !== null
+            && $rawAttribute['next'] === strlen($info)
+            && $this->rawAttributeFormatEnabled($rawAttribute['format'])
+        ) {
             $index = $cursor - 1;
 
             return $this->rawBlockNode($rawAttribute['format'], $attrs['text']);
@@ -1347,6 +1499,10 @@ final class MarkdownReader
      */
     private function tryReadLineBlock(array $lines, int &$index): ?AstNode
     {
+        if (!$this->lineBlockExtensionEnabled()) {
+            return null;
+        }
+
         $line = $lines[$index] ?? '';
         if (preg_match('/^ {0,3}\|(.*)$/', $this->expandTabsToSpaces($line), $m) !== 1) {
             return null;
@@ -1388,6 +1544,68 @@ final class MarkdownReader
         $index = $cursor - 1;
 
         return new AstNode('line_block', [], $lineNodes);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function tryReadFencedDivBlock(array $lines, int &$index): ?AstNode
+    {
+        if (!$this->fencedDivExtensionEnabled()) {
+            return null;
+        }
+
+        $line = $lines[$index] ?? '';
+        if (preg_match('/^ {0,3}(:{3,})[ \t]*(.*)$/', $line, $m) !== 1) {
+            return null;
+        }
+
+        $fenceLength = strlen($m[1]);
+        $info = trim($m[2]);
+        if ($info === '') {
+            return null;
+        }
+
+        $content = [];
+        $fenceStack = [$fenceLength];
+        $cursor = $index + 1;
+        $count = count($lines);
+        while ($cursor < $count) {
+            $candidate = $lines[$cursor];
+            if (preg_match('/^ {0,3}(:{3,})[ \t]*$/', $candidate, $closing) === 1) {
+                $currentFenceLength = $fenceStack[array_key_last($fenceStack)];
+                if (strlen($closing[1]) >= $currentFenceLength) {
+                    array_pop($fenceStack);
+                }
+                if ($fenceStack === []) {
+                    $inner = $this->read(implode("\n", $content));
+                    $index = $cursor;
+
+                    return new AstNode('div', $this->parseFencedDivAttrs($info), $inner->children);
+                }
+            } elseif (preg_match('/^ {0,3}(:{3,})[ \t]+\S/', $candidate, $opening) === 1) {
+                $fenceStack[] = strlen($opening[1]);
+            }
+
+            $content[] = $candidate;
+            $cursor++;
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function parseFencedDivAttrs(string $info): array
+    {
+        if (str_starts_with($info, '{') && str_ends_with($info, '}')) {
+            [$id, $classes, $attributes] = $this->parseMarkdownAttributeSpec(substr($info, 1, -1));
+
+            return $this->markdownAttributeAstAttrs($id, $classes, $attributes);
+        }
+
+        return $this->markdownAttributeAstAttrs(null, [$this->decodeHtmlEntities($this->unescapeMarkdownAttributeToken($info))], []);
     }
 
     private function normalizeLineBlockMarkerContent(string $content): string
@@ -5836,7 +6054,13 @@ final class MarkdownReader
 
     private function htmlRawHtmlEnabled(): bool
     {
-        return (bool) ($this->options['htmlRawHtml'] ?? $this->options['rawHtml'] ?? true);
+        $options = $this->options;
+        if (array_key_exists('htmlRawHtml', $options) && !array_key_exists('rawHtml', $options)) {
+            $options['rawHtml'] = $options['htmlRawHtml'];
+        }
+        $options['format'] = $this->markdownFormatWithExtensionOption();
+
+        return MarkdownFormatProfile::rawHtmlEnabled($options, true);
     }
 
     private function htmlElementIsCheckboxInput(\DOMElement $element): bool
@@ -9675,7 +9899,7 @@ final class MarkdownReader
     /**
      * @return array<string, mixed>
      */
-    private function parseCodeInfo(string $info): array
+    private function parseCodeInfo(string $info, bool $attributesEnabled = true): array
     {
         $info = trim($info);
         if ($info === '') {
@@ -9686,23 +9910,8 @@ final class MarkdownReader
         $attributes = [];
         $id = null;
 
-        if (str_starts_with($info, '{') && str_ends_with($info, '}')) {
-            $inside = trim(substr($info, 1, -1));
-            $tokens = preg_split('/\s+/', $inside, -1, PREG_SPLIT_NO_EMPTY) ?: [];
-            foreach ($tokens as $token) {
-                if (str_starts_with($token, '.')) {
-                    $classes[] = substr($token, 1);
-                    continue;
-                }
-                if (str_starts_with($token, '#')) {
-                    $id = substr($token, 1);
-                    continue;
-                }
-                if (str_contains($token, '=')) {
-                    [$name, $value] = explode('=', $token, 2);
-                    $attributes[$name] = trim($value, "\"'");
-                }
-            }
+        if ($attributesEnabled && str_starts_with($info, '{') && str_ends_with($info, '}')) {
+            [$id, $classes, $attributes] = $this->parseMarkdownAttributeSpec(substr($info, 1, -1));
         } else {
             $tokens = preg_split('/\s+/', $info, -1, PREG_SPLIT_NO_EMPTY) ?: [];
             if ($tokens !== []) {
@@ -10125,6 +10334,11 @@ final class MarkdownReader
                     $next = $end + $tickCount;
                     $rawAttribute = $this->rawAttributeEnabled() ? $this->tryParseRawAttributeSpec($text, $next) : null;
                     if ($rawAttribute !== null) {
+                        if (!$this->rawAttributeFormatEnabled($rawAttribute['format'])) {
+                            $rawAttribute = null;
+                        }
+                    }
+                    if ($rawAttribute !== null) {
                         $this->flushText($buffer, $nodes);
                         $nodes[] = $this->rawInlineNode($rawAttribute['format'], $code);
                         $offset = $rawAttribute['next'];
@@ -10162,7 +10376,7 @@ final class MarkdownReader
                 continue;
             }
 
-            $math = $this->dollarMathExtensionEnabled() ? $this->tryParseMath($text, $offset) : null;
+            $math = $this->tryParseMath($text, $offset);
             if ($math !== null) {
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $math['node'];
@@ -11069,6 +11283,60 @@ final class MarkdownReader
         return in_array($canonical, ['markdown', 'commonmark_x'], true);
     }
 
+    private function headerAttributeExtensionEnabled(): bool
+    {
+        $overrides = $this->markdownExtensionOverrides();
+        if (array_key_exists('header_attributes', $overrides)) {
+            return $overrides['header_attributes'];
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['markdown', 'commonmark_x', 'markdown_mmd', 'markdown_phpextra'], true);
+    }
+
+    private function fencedDivExtensionEnabled(): bool
+    {
+        $overrides = $this->markdownExtensionOverrides();
+        foreach (['fenced_divs', 'native_divs'] as $extension) {
+            if (array_key_exists($extension, $overrides)) {
+                return $overrides[$extension];
+            }
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['markdown', 'commonmark_x'], true);
+    }
+
+    private function fencedCodeAttributeExtensionEnabled(): bool
+    {
+        $overrides = $this->markdownExtensionOverrides();
+        if (array_key_exists('fenced_code_attributes', $overrides)) {
+            return $overrides['fenced_code_attributes'];
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['markdown', 'commonmark_x', 'markdown_mmd', 'markdown_phpextra'], true);
+    }
+
+    private function lineBlockExtensionEnabled(): bool
+    {
+        $overrides = $this->markdownExtensionOverrides();
+        if (array_key_exists('line_blocks', $overrides)) {
+            return $overrides['line_blocks'];
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['markdown', 'commonmark_x'], true);
+    }
+
     private function emojiExtensionEnabled(): bool
     {
         $overrides = $this->markdownExtensionOverrides();
@@ -11177,6 +11445,26 @@ final class MarkdownReader
         $canonical = MarkdownFormatProfile::canonicalFormat($format);
 
         return in_array($canonical, ['markdown', 'commonmark_x', 'markdown_mmd'], true);
+    }
+
+    private function singleBackslashMathExtensionEnabled(): bool
+    {
+        $overrides = $this->markdownExtensionOverrides();
+        if (array_key_exists('tex_math_single_backslash', $overrides)) {
+            return $overrides['tex_math_single_backslash'];
+        }
+
+        return (bool) ($this->options['texMathSingleBackslash'] ?? false);
+    }
+
+    private function doubleBackslashMathExtensionEnabled(): bool
+    {
+        $overrides = $this->markdownExtensionOverrides();
+        if (array_key_exists('tex_math_double_backslash', $overrides)) {
+            return $overrides['tex_math_double_backslash'];
+        }
+
+        return (bool) ($this->options['texMathDoubleBackslash'] ?? false);
     }
 
     private function wikilinkExtensionEnabled(): bool
@@ -11514,12 +11802,21 @@ final class MarkdownReader
         }
 
         $inside = trim(substr($text, $offset + 1, $end - $offset - 1));
-        if (preg_match('/^=([A-Za-z0-9_.:+-]+)$/', $inside, $match) !== 1) {
+        $format = null;
+        foreach ($this->tokenizeMarkdownAttributeSpec($inside) as $token) {
+            if (preg_match('/^=([A-Za-z0-9_.:+-]+)$/', $token, $match) !== 1) {
+                continue;
+            }
+            $format = $match[1];
+            break;
+        }
+
+        if ($format === null) {
             return null;
         }
 
         return [
-            'format' => $match[1],
+            'format' => $format,
             'next' => $end + 1,
         ];
     }
@@ -11558,22 +11855,6 @@ final class MarkdownReader
 
     private function rawBlockNode(string $format, string $text): AstNode
     {
-        $normalized = strtolower($format);
-        if (in_array($normalized, ['html', 'html4', 'html5'], true)) {
-            return new AstNode('raw_html', [
-                'format' => $format,
-                'html' => $text,
-                'text' => $text,
-            ]);
-        }
-        if ($normalized === 'tex') {
-            return new AstNode('raw_tex', [
-                'format' => $format,
-                'tex' => $text,
-                'text' => $text,
-            ]);
-        }
-
         return new AstNode('raw_block', [
             'format' => $format,
             'text' => $text,
@@ -11586,6 +11867,24 @@ final class MarkdownReader
         $options['format'] = $this->markdownFormatWithExtensionOption();
 
         return MarkdownFormatProfile::rawTexEnabled($options, true);
+    }
+
+    private function rawMarkdownEnabled(): bool
+    {
+        $options = $this->options;
+        $options['format'] = $this->markdownFormatWithExtensionOption();
+
+        return MarkdownFormatProfile::rawMarkdownEnabled($options, true);
+    }
+
+    private function rawAttributeFormatEnabled(string $format): bool
+    {
+        return match (MarkdownFormatProfile::rawFamily($format)) {
+            'html' => $this->htmlRawHtmlEnabled(),
+            'tex' => $this->rawTexEnabled(),
+            'markdown' => $this->rawMarkdownEnabled(),
+            default => true,
+        };
     }
 
     /**
@@ -12486,42 +12785,119 @@ final class MarkdownReader
      */
     private function tryParseMath(string $text, int $offset): ?array
     {
-        if (($text[$offset] ?? '') !== '$' || $this->isEscapedInlinePosition($text, $offset)) {
+        if ($this->isEscapedInlinePosition($text, $offset)) {
             return null;
         }
 
-        if (substr($text, $offset, 2) === '$$') {
+        if (($text[$offset] ?? '') === '$' && !$this->dollarMathExtensionEnabled()) {
+            return null;
+        }
+
+        if (($text[$offset] ?? '') === '$' && substr($text, $offset, 2) === '$$') {
             $end = $this->findClosingDisplayMath($text, $offset + 2);
             if ($end === null || $end === $offset + 2) {
                 return null;
             }
 
-            return [
-                'node' => new AstNode('math', [
-                    'text' => $this->expandRawTexMathMacros(trim(substr($text, $offset + 2, $end - $offset - 2))),
-                    'display' => true,
-                ]),
-                'next' => $end + 2,
-            ];
+            return $this->mathNodeResult(
+                trim(substr($text, $offset + 2, $end - $offset - 2)),
+                true,
+                $text,
+                $end + 2
+            );
         }
 
-        $next = $text[$offset + 1] ?? '';
-        if ($next === '' || ctype_space($next)) {
-            return null;
+        if (($text[$offset] ?? '') === '$') {
+            $next = $text[$offset + 1] ?? '';
+            if ($next === '' || ctype_space($next)) {
+                return null;
+            }
+
+            $end = $this->findClosingInlineMath($text, $offset + 1);
+            if ($end === null || $end === $offset + 1) {
+                return null;
+            }
+
+            return $this->mathNodeResult(
+                trim(substr($text, $offset + 1, $end - $offset - 1)),
+                false,
+                $text,
+                $end + 1
+            );
         }
 
-        $end = $this->findClosingInlineMath($text, $offset + 1);
-        if ($end === null || $end === $offset + 1) {
-            return null;
+        if ($this->singleBackslashMathExtensionEnabled()) {
+            foreach ([['\\(', '\\)', false], ['\\[', '\\]', true]] as [$open, $close, $display]) {
+                if (substr($text, $offset, strlen($open)) !== $open) {
+                    continue;
+                }
+                $end = $this->findClosingMathDelimiter($text, $offset + strlen($open), $close);
+                if ($end === null || $end === $offset + strlen($open)) {
+                    return null;
+                }
+
+                return $this->mathNodeResult(
+                    trim(substr($text, $offset + strlen($open), $end - $offset - strlen($open))),
+                    $display,
+                    $text,
+                    $end + strlen($close)
+                );
+            }
+        }
+
+        if ($this->doubleBackslashMathExtensionEnabled() && substr($text, $offset, 3) === '\\\\(') {
+            $end = $this->findClosingMathDelimiter($text, $offset + 3, '\\\\)');
+            if ($end === null || $end === $offset + 3) {
+                return null;
+            }
+
+            return $this->mathNodeResult(
+                trim(substr($text, $offset + 3, $end - $offset - 3)),
+                false,
+                $text,
+                $end + 3
+            );
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{node: AstNode, next: int}
+     */
+    private function mathNodeResult(string $math, bool $display, string $source, int $next): array
+    {
+        $attrs = [
+            'text' => $this->expandRawTexMathMacros($math),
+            'display' => $display,
+        ];
+
+        $attribute = $this->inlineAttributeExtensionEnabled()
+            ? $this->tryParseInlineAttributeSpec($source, $next)
+            : null;
+        if ($attribute !== null) {
+            $attrs = array_replace($attrs, $attribute['attrs']);
+            $next = $attribute['next'];
         }
 
         return [
-            'node' => new AstNode('math', [
-                'text' => $this->expandRawTexMathMacros(trim(substr($text, $offset + 1, $end - $offset - 1))),
-                'display' => false,
-            ]),
-            'next' => $end + 1,
+            'node' => new AstNode('math', $attrs),
+            'next' => $next,
         ];
+    }
+
+    private function findClosingMathDelimiter(string $text, int $offset, string $delimiter): ?int
+    {
+        $position = strpos($text, $delimiter, $offset);
+        while ($position !== false) {
+            if (!$this->isEscapedInlinePosition($text, $position)) {
+                return $position;
+            }
+
+            $position = strpos($text, $delimiter, $position + strlen($delimiter));
+        }
+
+        return null;
     }
 
     private function findClosingDisplayMath(string $text, int $offset): ?int
@@ -12811,6 +13187,10 @@ final class MarkdownReader
             return false;
         }
 
+        if ($this->isInsideMarkdownAttributeLiteral($text, $offset)) {
+            return false;
+        }
+
         $next = $text[$offset + 1] ?? '';
         if ($next === '' || ctype_space($next)) {
             return false;
@@ -12821,6 +13201,47 @@ final class MarkdownReader
         }
 
         return !$this->hasWordCharacterBeforeOffset($text, $offset);
+    }
+
+    private function isInsideMarkdownAttributeLiteral(string $text, int $offset): bool
+    {
+        $start = null;
+        for ($cursor = 0; $cursor < $offset; $cursor++) {
+            if ($text[$cursor] === '\\') {
+                $cursor++;
+                continue;
+            }
+            if ($text[$cursor] === '{') {
+                $start = $cursor;
+                continue;
+            }
+            if ($text[$cursor] === '}') {
+                $start = null;
+            }
+        }
+
+        if ($start === null) {
+            return false;
+        }
+
+        $end = $this->findUnescapedCharacter($text, '}', $offset + 1);
+        if ($end === null) {
+            return false;
+        }
+
+        $inside = substr($text, $start + 1, $end - $start - 1);
+        [$id, $classes, $attributes] = $this->parseMarkdownAttributeSpec($inside);
+        if ($id !== null || $classes !== [] || $attributes !== []) {
+            return true;
+        }
+
+        foreach ($this->tokenizeMarkdownAttributeSpec($inside) as $token) {
+            if (preg_match('/^=[A-Za-z0-9_.:+-]+$/', $token) === 1) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function findClosingSmartQuote(string $text, int $offset, string $delimiter): ?int
@@ -12888,11 +13309,17 @@ final class MarkdownReader
             return ['text' => "\u{2013}", 'next' => $offset + 2];
         }
 
-        if (($text[$offset] ?? '') === "'" && $this->isRightSingleQuoteReplacement($text, $offset)) {
+        if (
+            ($text[$offset] ?? '') === "'"
+            && !$this->isInsideMarkdownAttributeLiteral($text, $offset)
+            && $this->isRightSingleQuoteReplacement($text, $offset)
+        ) {
             return ['text' => "\u{2019}", 'next' => $offset + 1];
         }
 
-        $unclosedQuote = $this->tryReadUnclosedSmartQuoteReplacement($text, $offset);
+        $unclosedQuote = $this->isInsideMarkdownAttributeLiteral($text, $offset)
+            ? null
+            : $this->tryReadUnclosedSmartQuoteReplacement($text, $offset);
         if ($unclosedQuote !== null) {
             return $unclosedQuote;
         }
