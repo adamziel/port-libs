@@ -8216,6 +8216,7 @@ XML);
 <?xml version="1.0" encoding="UTF-8"?>
 <dgm:layoutDef xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" xmlns:q="urn:qualified-layout-title">
   <dgm:title q:val="QualifiedTitleShouldNotWin"/>
+  <dgm:title val="LaterTitleShouldStayHidden"/>
 </dgm:layoutDef>
 XML);
     $zip->addFromString('ppt/diagrams/data1.xml', <<<'XML'
@@ -14971,6 +14972,7 @@ return [
         $t->same(['layout' => 'unknown'], $smartArtDivs[0]->attr('attributes'));
         $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
         $t->true(!str_contains($native, 'QualifiedTitleShouldNotWin'), 'Qualified SmartArt layout title val attributes should not become native layout names');
+        $t->true(!str_contains($native, 'LaterTitleShouldStayHidden'), 'Later SmartArt layout titles should stay hidden behind the first direct title child');
         $t->contains('Strong [ Str "Unknown" , Space , Str "layout" , Space , Str "parent" ]', $native);
         $t->contains('BulletList [ [ Plain [ Str "Unknown" , Space , Str "layout" , Space , Str "child"', $native);
         $t->true(!str_contains($native, 'Diagram parse error'), 'Missing SmartArt layout labels should not make the diagram fail');
