@@ -16216,7 +16216,9 @@ final class XmlHtmlDom
         ];
 
         if ($httpEquiv === 'refresh') {
-            $summary['refresh'] = self::metaRefreshSummary($content);
+            $refresh = self::metaRefreshSummary($content);
+            $summary['refresh'] = $refresh;
+            $summary += self::metaRefreshReviewSummary($refresh);
         }
         if ($httpEquiv === 'content-security-policy' || $httpEquiv === 'content-security-policy-report-only') {
             $summary += self::metaContentSecurityPolicySummary($content, $httpEquiv);
@@ -16691,6 +16693,83 @@ final class XmlHtmlDom
             'delay' => $delay,
             'urlRaw' => $urlRaw,
             'url' => $url,
+        ];
+    }
+
+    /**
+     * @param array{contentRaw:?string, delayRaw:?string, delay:?float, urlRaw:?string, url:?string} $refresh
+     * @return array<string, mixed>
+     */
+    private static function metaRefreshReviewSummary(array $refresh): array
+    {
+        $raw = $refresh['contentRaw'];
+        $delayRaw = $refresh['delayRaw'];
+        $delay = $refresh['delay'];
+        $urlRaw = $refresh['urlRaw'];
+        $url = $refresh['url'];
+        $urlReview = self::hyperlinkUrlReviewSummary($url);
+        $issues = [];
+
+        if ($raw === null) {
+            $issues[] = ['code' => 'missing-meta-refresh-content'];
+        } elseif (trim($raw) === '') {
+            $issues[] = ['code' => 'empty-meta-refresh-content'];
+        }
+
+        if ($raw !== null && trim($raw) !== '' && $delayRaw === null) {
+            $issues[] = ['code' => 'missing-meta-refresh-delay'];
+        } elseif ($delayRaw !== null && $delay === null) {
+            $issues[] = [
+                'code' => 'invalid-meta-refresh-delay',
+                'delayRaw' => $delayRaw,
+            ];
+        }
+
+        if ($raw !== null && str_contains($raw, ';') && $urlRaw === null) {
+            $issues[] = [
+                'code' => 'invalid-meta-refresh-url-parameter',
+                'contentRaw' => $raw,
+            ];
+        }
+
+        if ($urlRaw !== null && $url === '') {
+            $issues[] = ['code' => 'empty-meta-refresh-url'];
+        } elseif ($url !== null && ($urlReview['kind'] ?? null) === 'invalid') {
+            $issues[] = [
+                'code' => 'invalid-meta-refresh-url',
+                'url' => $url,
+            ];
+        } elseif ($url !== null && ($urlReview['unsafe'] ?? false) === true) {
+            $issues[] = [
+                'code' => 'unsafe-meta-refresh-url',
+                'url' => $url,
+                'scheme' => $urlReview['scheme'],
+            ];
+        }
+
+        $issueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
+
+        return [
+            'metaRefreshReviewPolicy' => 'html-meta-refresh-navigation-review',
+            'metaRefreshRaw' => $raw,
+            'metaRefreshContentPresent' => $raw !== null,
+            'metaRefreshDelayRaw' => $delayRaw,
+            'metaRefreshDelay' => $delay,
+            'metaRefreshDelayValid' => $delayRaw === null ? null : $delay !== null,
+            'metaRefreshImmediate' => $delay === 0.0,
+            'metaRefreshUrlRaw' => $urlRaw,
+            'metaRefreshUrl' => $url === '' ? null : $url,
+            'metaRefreshUrlQuoted' => $urlRaw !== null && $url !== null && $urlRaw !== $url,
+            'metaRefreshUrlKind' => $urlReview['kind'],
+            'metaRefreshUrlScheme' => $urlReview['scheme'],
+            'metaRefreshUrlUnsafe' => $urlReview['unsafe'],
+            'metaRefreshRedirect' => $url !== null && $url !== '',
+            'metaRefreshIssues' => $issues,
+            'metaRefreshIssueCodes' => $issueCodes,
+            'metaRefreshValid' => $issues === [],
         ];
     }
 
