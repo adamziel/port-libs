@@ -39,6 +39,7 @@ jobs:
         run: |
           php -l lanes/pandoc/src/PptxReader.php
           php -l lanes/pandoc/src/PptxNativeAstComparisonHarness.php
+          php -l lanes/pandoc/src/PptxExecutableNativeAstComparisonHarness.php
           php -l lanes/pandoc/src/PptxUpstreamReaderEvidence.php
           php -l lanes/pandoc/src/NativeReader.php
           php -l lanes/pandoc/src/NativeWriter.php
@@ -46,8 +47,10 @@ jobs:
           php -l lanes/pandoc/src/ZipPackageEntry.php
           php -l lanes/pandoc/tests/PptxReaderTest.php
           php -l lanes/pandoc/tests/PptxNativeAstComparisonHarnessTest.php
+          php -l lanes/pandoc/tests/PptxExecutableNativeAstComparisonHarnessTest.php
           php -l lanes/pandoc/tests/PptxUpstreamReaderEvidenceTest.php
           php -l tools/pandoc-pptx-native-ast.php
+          php -l tools/pandoc-pptx-executable-native-ast.php
           php -l tools/pandoc-pptx-reader-evidence.php
 
       - name: Restore pinned Pandoc PPTX upstream cache
@@ -105,9 +108,17 @@ jobs:
             summary \
             --require-mapped-parity=1
 
+      - name: Run optional pandoc executable PPTX comparison
+        run: |
+          php tools/pandoc-pptx-executable-native-ast.php \
+            --pptx-dir=.upstream-cache/pandoc-current/test/pptx-reader \
+            --json \
+            summary
+
       - name: Run focused PPTX parity tests
         run: |
           php tools/run-tests.php \
             lanes/pandoc/tests/PptxNativeAstComparisonHarnessTest.php \
+            lanes/pandoc/tests/PptxExecutableNativeAstComparisonHarnessTest.php \
             lanes/pandoc/tests/PptxUpstreamReaderEvidenceTest.php \
             lanes/pandoc/tests/PptxReaderTest.php

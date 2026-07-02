@@ -1,0 +1,155 @@
+<?php
+
+declare(strict_types=1);
+
+use PortLibs\Pandoc\PptxExecutableNativeAstComparisonHarness;
+
+$makeTempDir = static function (): string {
+    $base = tempnam(sys_get_temp_dir(), 'pandoc-pptx-exec-ast-');
+    if ($base === false) {
+        throw new RuntimeException('Unable to allocate temporary PPTX executable AST directory');
+    }
+    @unlink($base);
+    if (!mkdir($base, 0777, true) && !is_dir($base)) {
+        throw new RuntimeException("Unable to create temporary PPTX executable AST directory {$base}");
+    }
+
+    return $base;
+};
+
+$removeTree = static function (string $path) use (&$removeTree): void {
+    if (!is_dir($path)) {
+        return;
+    }
+
+    foreach (scandir($path) ?: [] as $entry) {
+        if ($entry === '.' || $entry === '..') {
+            continue;
+        }
+        $child = $path . DIRECTORY_SEPARATOR . $entry;
+        if (is_dir($child)) {
+            $removeTree($child);
+        } else {
+            @unlink($child);
+        }
+    }
+    @rmdir($path);
+};
+
+$writeFakePandoc = static function (string $path, string $nativePath): void {
+    file_put_contents($path, "#!/bin/sh\nif [ \"\$1\" = \"--version\" ]; then echo \"pandoc fake 1.0\"; exit 0; fi\ncat " . escapeshellarg($nativePath) . "\n");
+    chmod($path, 0755);
+};
+
+$copyBasicFixture = static function (string $root): void {
+    $fixtureRoot = dirname(__DIR__) . '/fixtures/upstream-current-pptx-reader';
+    copy($fixtureRoot . '/basic.pptx', $root . '/basic.pptx');
+    copy($fixtureRoot . '/basic.native', $root . '/basic.native');
+};
+
+return [
+    'skips pptx executable comparison when pandoc is absent' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $copyBasicFixture): void {
+        $root = $makeTempDir();
+        try {
+            $copyBasicFixture($root);
+            $report = (new PptxExecutableNativeAstComparisonHarness())->run($root, [
+                'pandocBin' => $root . '/missing-pandoc',
+            ]);
+            $text = (new PptxExecutableNativeAstComparisonHarness())->formatReport($report);
+
+            $t->same('skipped', $report['status']);
+            $t->same(true, $report['skipped']);
+            $t->same('pandoc-executable-missing', $report['reason']);
+            $t->same(1, $report['totalPptxCount']);
+            $t->same(0, $report['comparedPptxCount']);
+            $t->same('not-evaluated-pandoc-executable-missing', $report['astParityStatus']);
+            $t->same('not-evaluated', $report['orderedRemainingGaps'][0]['status']);
+            $t->contains('Pandoc PPTX executable/native AST comparison: skipped', $text);
+        } finally {
+            $removeTree($root);
+        }
+    },
+    'matches local pptx reader output against fake pandoc native output' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $copyBasicFixture, $writeFakePandoc): void {
+        $root = $makeTempDir();
+        try {
+            $copyBasicFixture($root);
+            $fakePandoc = $root . '/pandoc';
+            $writeFakePandoc($fakePandoc, $root . '/basic.native');
+
+            $report = (new PptxExecutableNativeAstComparisonHarness())->run($root, [
+                'pandocBin' => $fakePandoc,
+            ]);
+
+            $t->same('completed', $report['status']);
+            $t->same(false, $report['skipped']);
+            $t->same(1, $report['totalPptxCount']);
+            $t->same(1, $report['comparedPptxCount']);
+            $t->same(1, $report['localParsedCount']);
+            $t->same(1, $report['pandocParsedCount']);
+            $t->same(0, $report['parseFailureCount']);
+            $t->same(1, $report['normalizedAstMatchCount']);
+            $t->same(0, $report['normalizedAstMismatchCount']);
+            $t->same('pandoc fake 1.0', $report['pandocVersion']);
+            $t->same('normalized-ast-equality-observed-against-pandoc-executable', $report['astParityStatus']);
+            $t->same(true, PptxExecutableNativeAstComparisonHarness::hasRequiredExecutableParity($report, 1));
+        } finally {
+            $removeTree($root);
+        }
+    },
+    'reports executable native ast mismatches without claiming parity' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $copyBasicFixture, $writeFakePandoc): void {
+        $root = $makeTempDir();
+        try {
+            $copyBasicFixture($root);
+            file_put_contents($root . '/mismatch.native', '[Para [Str "different"]]');
+            $fakePandoc = $root . '/pandoc';
+            $writeFakePandoc($fakePandoc, $root . '/mismatch.native');
+
+            $report = (new PptxExecutableNativeAstComparisonHarness())->run($root, [
+                'pandocBin' => $fakePandoc,
+            ]);
+
+            $t->same('completed', $report['status']);
+            $t->same(1, $report['normalizedAstMismatchCount']);
+            $t->same('normalized-ast-mismatches-observed', $report['astParityStatus']);
+            $t->same('basic', $report['mismatchComparisons'][0]['fixture']);
+            $t->contains('root.children keys', $report['mismatchComparisons'][0]['firstDifference']);
+            $t->same(false, PptxExecutableNativeAstComparisonHarness::hasRequiredExecutableParity($report, 1));
+        } finally {
+            $removeTree($root);
+        }
+    },
+    'cli gates required executable pptx parity with fake pandoc' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $copyBasicFixture, $writeFakePandoc): void {
+        $root = $makeTempDir();
+        try {
+            $copyBasicFixture($root);
+            $fakePandoc = $root . '/pandoc';
+            $writeFakePandoc($fakePandoc, $root . '/basic.native');
+            $command = escapeshellarg(PHP_BINARY)
+                . ' '
+                . escapeshellarg(dirname(__DIR__, 3) . '/tools/pandoc-pptx-executable-native-ast.php')
+                . ' --pptx-dir=' . escapeshellarg($root)
+                . ' --pandoc-bin=' . escapeshellarg($fakePandoc)
+                . ' --json'
+                . ' summary'
+                . ' --require-executable-parity=1';
+            $output = [];
+            $exitCode = 0;
+            exec($command, $output, $exitCode);
+            $decoded = json_decode(implode("\n", $output), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same(0, $exitCode);
+            $t->same(1, $decoded['normalizedAstMatchCount']);
+            $t->same(0, $decoded['normalizedAstMismatchCount']);
+            $t->same(true, PptxExecutableNativeAstComparisonHarness::hasRequiredExecutableParity($decoded, 1));
+
+            $missingCommand = str_replace('--pandoc-bin=' . escapeshellarg($fakePandoc), '--pandoc-bin=' . escapeshellarg($root . '/missing'), $command) . ' 2>/dev/null';
+            $missingOutput = [];
+            $missingExitCode = 0;
+            exec($missingCommand, $missingOutput, $missingExitCode);
+
+            $t->same(1, $missingExitCode);
+        } finally {
+            $removeTree($root);
+        }
+    },
+];

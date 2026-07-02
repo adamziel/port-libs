@@ -261,6 +261,14 @@ final class PptxNativeAstComparisonHarness
     }
 
     /**
+     * @return array{type:string, attrs:array<string, mixed>, children:list<array<string, mixed>>}
+     */
+    public function normalizedDocument(AstNode $document): array
+    {
+        return $this->normalizedNode($document);
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private static function normalizationPolicy(): array
