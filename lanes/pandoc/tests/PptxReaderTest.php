@@ -2319,6 +2319,79 @@ XML);
     }
 };
 
+$buildIdOnlyPictureBlipPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-picture-id-blip-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>ID-only picture blip</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:pic>
+      <p:nvPicPr><p:cNvPr id="7" name="ID-only Picture" descr="ID-only alt"/></p:nvPicPr>
+      <p:blipFill><a:blip r:id="rIdImage"/></p:blipFill>
+    </p:pic>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->addFromString('ppt/slides/_rels/slide1.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/id-only.png"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/media/id-only.png', 'id-only-image-bytes');
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildExternalLinkedImagePptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-linked-image-');
     if ($path === false) {
@@ -9160,6 +9233,21 @@ return [
         $t->true(!str_contains($native, 'Missing BlipFill Picture'), 'Picture without p:blipFill should be skipped before visible image output');
         $t->true(!str_contains($native, 'Missing Blip Picture'), 'Picture without a:blip should be skipped before visible image output');
         $t->true(!str_contains($native, 'unreferenced-no-blip.png'), 'Unreferenced image media should not become visible without a blip relationship');
+    },
+
+    'ignores pptx picture blip r:id attributes like upstream' => static function (TestRunner $t) use ($buildIdOnlyPictureBlipPptxPackage, $nodesOfType): void {
+        $document = (new PptxReader())->read($buildIdOnlyPictureBlipPptxPackage());
+        $review = $document->attr('pptx');
+        $issue = $review['slides'][0]['imageIssues'][0] ?? [];
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same([], $nodesOfType($document, 'image'));
+        $t->same(1, $review['slides'][0]['imageIssueCount'] ?? null);
+        $t->same('missing-image-relationship-id', $issue['issue'] ?? null);
+        $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "ID-only" , Space , Str "picture" , Space , Str "blip" ]', $native);
+        $t->true(!str_contains($native, 'Image'), 'PPTX picture blips with r:id should not emit a native Image inline');
+        $t->true(!str_contains($native, 'ID-only Picture'), 'Picture metadata should stay hidden when the blip relationship attribute is not r:embed');
+        $t->true(!str_contains($native, 'ppt/media/id-only.png'), 'Existing image media should not become visible through a non-embed blip relationship attribute');
     },
 
     'ignores pptx embedded image TargetMode like upstream' => static function (TestRunner $t) use ($buildExternalModeEmbeddedImagePptxPackage, $nodesOfType): void {
