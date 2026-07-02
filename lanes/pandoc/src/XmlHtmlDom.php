@@ -28546,6 +28546,7 @@ final class XmlHtmlDom
                 }
             }
         }
+        $valueValid = $valueRaw === null || ($valueNumber !== null && !$valueClamped);
 
         $summary = [
             'meterReviewPolicy' => 'html-meter-measurement-review',
@@ -28556,7 +28557,7 @@ final class XmlHtmlDom
             'min' => $min,
             'max' => $max,
             'value' => $value,
-            'meterValueValid' => $valueRaw === null || ($valueNumber !== null && !$valueClamped),
+            'meterValueValid' => $valueValid,
             'meterMinValid' => $minRaw === null || $minNumber !== null,
             'meterMaxValid' => $maxRaw === null || $maxNumber !== null,
             'meterRangeValid' => $rangeValid,
@@ -28604,6 +28605,28 @@ final class XmlHtmlDom
             );
         }
 
+        $low = $thresholdNumbers['low'];
+        $high = $thresholdNumbers['high'];
+        $optimum = $thresholdNumbers['optimum'];
+        $lowHighValid = $rangeValid
+            && $low !== null
+            && $high !== null
+            && $low >= $min
+            && $low <= $max
+            && $high >= $min
+            && $high <= $max
+            && $low <= $high;
+        $optimumValid = $rangeValid
+            && $optimum !== null
+            && $optimum >= $min
+            && $optimum <= $max;
+        $valueRegion = $lowHighValid && $valueValid
+            ? self::meterThresholdRegion($value, $low, $high)
+            : null;
+        $optimumRegion = $lowHighValid && $optimumValid
+            ? self::meterThresholdRegion($optimum, $low, $high)
+            : null;
+
         $thresholdsValid = true;
         foreach ($issues as $issue) {
             $code = (string) ($issue['code'] ?? '');
@@ -28613,12 +28636,33 @@ final class XmlHtmlDom
             }
         }
 
+        $summary['meterPosition'] = $rangeValid && $valueValid && $max > $min
+            ? ($value - $min) / ($max - $min)
+            : null;
+        $summary['meterValueRegion'] = $valueRegion;
+        $summary['meterOptimumRegion'] = $optimumRegion;
+        $summary['meterValueMatchesOptimumRegion'] = $valueRegion !== null && $optimumRegion !== null
+            ? $valueRegion === $optimumRegion
+            : null;
         $summary['meterThresholdsValid'] = $thresholdsValid;
         $summary['meterIssues'] = $issues;
         $summary['meterIssueCodes'] = self::measurementIssueCodes($issues);
         $summary['meterValid'] = $issues === [];
 
         return $summary;
+    }
+
+    private static function meterThresholdRegion(float $value, float $low, float $high): string
+    {
+        if ($value < $low) {
+            return 'low';
+        }
+
+        if ($value > $high) {
+            return 'high';
+        }
+
+        return 'middle';
     }
 
     private static function measurementNumber(?string $raw): ?float
