@@ -29797,7 +29797,7 @@ final class XmlHtmlDom
     }
 
     /**
-     * @return array{imageMap:string, mapNameRaw:?string, mapName:?string, mapNameValid:bool, areaCount:int, areaHrefs:list<string>, areaLabels:list<string>, areas:list<array<string, mixed>>, defaultAreaCount:int, firstDefaultAreaIndex:?int, defaultAreaPrecedenceIssue:?array<string, mixed>, areaGeometryIssueCount:int, areaGeometryIssues:list<array<string, mixed>>}
+     * @return array<string, mixed>
      */
     private static function imageMapSummary(\DOMElement $map): array
     {
@@ -29822,9 +29822,14 @@ final class XmlHtmlDom
             }
         }
         $areaGeometry = self::imageMapAreaGeometryDiagnostics($areas);
+        $issueCodes = self::reviewIssueCodes($issues);
+        $areaGeometryIssueCodes = self::reviewIssueCodes($areaGeometry['areaGeometryIssues']);
+        $imageMapClean = $issueCodes === [] && $areaGeometryIssueCodes === [];
 
         return [
             'imageMap' => 'map',
+            'imageMapReviewPolicy' => 'html-client-image-map-association-review',
+            'imageMapReviewStatus' => $imageMapClean ? 'ok' : 'review',
             'mapNameRaw' => $name,
             'mapName' => $normalizedName,
             'mapNameValid' => $nameValid,
@@ -29851,8 +29856,14 @@ final class XmlHtmlDom
             'firstDefaultAreaIndex' => $areaGeometry['firstDefaultAreaIndex'],
             'defaultAreaPrecedenceIssue' => $areaGeometry['defaultAreaPrecedenceIssue'],
             'areaGeometryIssueCount' => count($areaGeometry['areaGeometryIssues']),
+            'areaGeometryIssueCodes' => $areaGeometryIssueCodes,
+            'areaGeometryValid' => $areaGeometryIssueCodes === [],
             'areaGeometryIssues' => $areaGeometry['areaGeometryIssues'],
             'imageMapIssues' => $issues,
+            'imageMapIssueCodes' => $issueCodes,
+            'imageMapIssueCount' => count($issueCodes),
+            'imageMapValid' => $imageMapClean,
+            'imageMapReviewOnlyNoBrowserHitTesting' => true,
         ];
     }
 
@@ -30057,16 +30068,24 @@ final class XmlHtmlDom
     private static function imageUseMapAssociationSummary(\DOMElement $image, array $useMap): array
     {
         if ($useMap['valid'] !== true || $useMap['name'] === null) {
+            $issues = [[
+                'code' => 'invalid-usemap-reference',
+                'useMapRaw' => $useMap['raw'],
+            ]];
+            $issueCodes = self::reviewIssueCodes($issues);
+
             return [
+                'useMapAssociationReviewPolicy' => 'html-image-usemap-association-review',
                 'useMapAssociationState' => 'invalid-reference',
                 'useMapTargetCount' => 0,
                 'useMapAreaCount' => 0,
                 'useMapAreaHrefs' => [],
                 'useMapAreaLabels' => [],
-                'useMapIssues' => [[
-                    'code' => 'invalid-usemap-reference',
-                    'useMapRaw' => $useMap['raw'],
-                ]],
+                'useMapIssues' => $issues,
+                'useMapIssueCodes' => $issueCodes,
+                'useMapIssueCount' => count($issueCodes),
+                'useMapAssociationValid' => false,
+                'useMapReviewOnlyNoBrowserHitTesting' => true,
             ];
         }
 
@@ -30095,8 +30114,10 @@ final class XmlHtmlDom
         } elseif (count($maps) > 1) {
             $issues[] = ['code' => 'duplicate-map-name', 'mapName' => $useMap['name'], 'count' => count($maps)];
         }
+        $issueCodes = self::reviewIssueCodes($issues);
 
         return [
+            'useMapAssociationReviewPolicy' => 'html-image-usemap-association-review',
             'useMapAssociationState' => $maps === []
                 ? 'missing-map'
                 : (count($maps) > 1 ? 'duplicate-map-name' : 'resolved'),
@@ -30105,6 +30126,10 @@ final class XmlHtmlDom
             'useMapAreaHrefs' => $areaHrefs,
             'useMapAreaLabels' => $areaLabels,
             'useMapIssues' => $issues,
+            'useMapIssueCodes' => $issueCodes,
+            'useMapIssueCount' => count($issueCodes),
+            'useMapAssociationValid' => $issueCodes === [],
+            'useMapReviewOnlyNoBrowserHitTesting' => true,
         ];
     }
 
