@@ -82,6 +82,28 @@ $buildPackage = static fn (): ZipPackage => ZipPackage::fromParts([
     ['name' => 'Links/cache/orphan.dat', 'data' => $orphanBytes, 'compressionMethod' => 0],
 ], 'odt linked resource cache package');
 
+$buildInvalidSizePackage = static function () use ($manifestXml, $linkManifestXml, $contentXml, $stylesXml, $metaXml, $previewBytes, $encryptedBytes, $orphanBytes): ZipPackage {
+    $invalidSizeManifest = str_replace(
+        'manifest:full-path="Links/cache/preview.png" manifest:media-type="image/png" manifest:size="' . strlen($previewBytes) . '"',
+        'manifest:full-path="Links/cache/preview.png" manifest:media-type="image/png" manifest:size="linked-cache-bytes"',
+        $manifestXml
+    );
+
+    return ZipPackage::fromParts([
+        ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
+        ['name' => 'META-INF/manifest.xml', 'data' => $invalidSizeManifest, 'compressionMethod' => 0],
+        ['name' => 'content.xml', 'data' => $contentXml, 'compressionMethod' => 0],
+        ['name' => 'styles.xml', 'data' => $stylesXml, 'compressionMethod' => 0],
+        ['name' => 'meta.xml', 'data' => $metaXml, 'compressionMethod' => 0],
+        ['name' => 'Pictures/hero.png', 'data' => 'PNGDATA', 'compressionMethod' => 0],
+        ['name' => 'Links/manifest.xml', 'data' => $linkManifestXml, 'compressionMethod' => 0],
+        ['name' => 'Links/cache/', 'data' => '', 'compressionMethod' => 0],
+        ['name' => 'Links/cache/preview.png', 'data' => $previewBytes, 'compressionMethod' => 0],
+        ['name' => 'Links/cache/encrypted.bin', 'data' => $encryptedBytes, 'compressionMethod' => 0],
+        ['name' => 'Links/cache/orphan.dat', 'data' => $orphanBytes, 'compressionMethod' => 0],
+    ], 'odt linked resource invalid declared-size package');
+};
+
 $indexBy = static function (array $items, string $key): array {
     $indexed = [];
     foreach ($items as $item) {
@@ -277,5 +299,75 @@ return [
         $t->same(false, $inventory['parts']['Links/cache/']['canExposeBytes']);
         $t->same(true, $inventory['parts']['Links/cache/preview.png']['linkedResourcePackagePart']);
         $t->same(false, $inventory['parts']['Links/cache/preview.png']['canExposeBytes']);
+    },
+    'preserves ODT linked resource invalid declared-size diagnostics as metadata only' => static function (TestRunner $t) use (
+        $buildInvalidSizePackage,
+        $previewBytes,
+        $indexBy
+    ): void {
+        $package = $buildInvalidSizePackage();
+        $result = (new OdfReader())->readPackage($package);
+        $linkedResources = $result['packageLinkedResources'];
+        $items = $indexBy($linkedResources['items'], 'part');
+        $manifestByPart = $indexBy($result['manifest'], 'part');
+
+        $t->same($linkedResources, $result['document']->attr('packageLinkedResources'));
+        $t->same($linkedResources, $result['importReport']['packageLinkedResources']);
+        $t->same(1, $linkedResources['invalidDeclaredSizeCount']);
+        $t->same([
+            'odf-linked-resource-package-encrypted-part',
+            'odf-linked-resource-package-invalid-declared-size',
+            'odf-linked-resource-package-missing-part',
+            'odf-linked-resource-package-undeclared-part',
+        ], $linkedResources['issueCodes']);
+
+        $preview = $items['Links/cache/preview.png'];
+        $t->same(null, $preview['declaredSize']);
+        $t->same('linked-cache-bytes', $preview['declaredSizeRaw']);
+        $t->same(false, $preview['declaredSizeValid']);
+        $t->same(true, $preview['declaredSizeInvalid']);
+        $t->same(false, $preview['declaredSizeMismatch']);
+        $t->same(strlen($previewBytes), $preview['byteLength']);
+        $t->same(false, $preview['canExposeBytes']);
+        $t->same(false, $preview['canExposeAsDocumentMedia']);
+        $t->same('linked-resource-package-bytes-blocked', $preview['byteExposurePolicy']);
+        $t->same(['odf-linked-resource-package-invalid-declared-size'], $preview['issues']);
+
+        $manifestPreview = $manifestByPart['Links/cache/preview.png'];
+        $t->same('linked-cache-bytes', $manifestPreview['declaredSizeRaw']);
+        $t->same(false, $manifestPreview['declaredSizeValid']);
+        $t->same(true, $manifestPreview['declaredSizeInvalid']);
+        $t->same(['odf-manifest-invalid-declared-size'], $manifestPreview['diagnostics']);
+        $t->same(false, $manifestPreview['canExposeBytes']);
+        $t->same(null, $manifestPreview['byteLength']);
+        $t->same(strlen($previewBytes), $manifestPreview['storedByteLength']);
+        $t->same(null, $manifestPreview['byteSha256']);
+        $t->same('linked-resource-package-bytes-blocked', $manifestPreview['byteExposurePolicy']);
+
+        $compactSummary = OpenDocumentPackage::fromPackage($package)->summarize();
+        $compactLinkedResources = $compactSummary['packageLinkedResources'];
+        $compactItems = $indexBy($compactLinkedResources['items'], 'packagePath');
+        $reviewByPath = $indexBy($compactSummary['manifestReview']['items'], 'path');
+
+        $t->same(1, $compactLinkedResources['invalidDeclaredSizeCount']);
+        $t->same($linkedResources['issueCodes'], $compactLinkedResources['issueCodes']);
+
+        $compactPreview = $compactItems['Links/cache/preview.png'];
+        $t->same(null, $compactPreview['declaredSize']);
+        $t->same('linked-cache-bytes', $compactPreview['declaredSizeRaw']);
+        $t->same(false, $compactPreview['declaredSizeValid']);
+        $t->same(true, $compactPreview['declaredSizeInvalid']);
+        $t->same(['odf-linked-resource-package-invalid-declared-size'], $compactPreview['issues']);
+        $t->same(false, $compactPreview['canExposeBytes']);
+        $t->same('linked-resource-package-bytes-blocked', $compactPreview['byteExposurePolicy']);
+
+        $compactReviewPreview = $reviewByPath['Links/cache/preview.png'];
+        $t->same('linked-cache-bytes', $compactReviewPreview['declaredSizeRaw']);
+        $t->same(false, $compactReviewPreview['declaredSizeValid']);
+        $t->same(true, $compactReviewPreview['declaredSizeInvalid']);
+        $t->same(['odf-manifest-invalid-declared-size'], $compactReviewPreview['diagnostics']);
+        $t->same(false, $compactReviewPreview['canExposeBytes']);
+        $t->same(null, $compactReviewPreview['byteSha256']);
+        $t->same('linked-resource-package-bytes-blocked', $compactReviewPreview['byteExposurePolicy']);
     },
 ];
