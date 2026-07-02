@@ -296,6 +296,7 @@ return [
         foreach ($summary['manifestReview']['items'] as $item) {
             $reviewByPath[$item['path']] = $item;
         }
+        $order = $summary['manifestReview']['manifestFileEntryOrder'];
         $inventoryHero = $summary['packageInventory']['parts']['Pictures/hero.png'];
 
         $expectedParameters = [
@@ -316,6 +317,11 @@ return [
         $t->same($expectedMap, $media['mediaTypeParameterMap']);
         $t->same('image/jpeg', $reviewByPath['Pictures/hero.png']['mediaTypeBase']);
         $t->same($expectedParameters, $reviewByPath['Pictures/hero.png']['mediaTypeParameters']);
+        $t->same('image/jpeg', $order[4]['mediaTypeBase']);
+        $t->same(true, $order[4]['mediaTypeHasParameters']);
+        $t->same(2, $order[4]['mediaTypeParameterCount']);
+        $t->same($expectedParameters, $order[4]['mediaTypeParameters']);
+        $t->same($expectedMap, $order[4]['mediaTypeParameterMap']);
         $t->same('image/jpeg', $inventoryHero['manifestMediaTypeBase']);
         $t->same(2, $inventoryHero['manifestMediaTypeParameterCount']);
         $t->same($expectedMap, $inventoryHero['manifestMediaTypeParameterMap']);
@@ -347,6 +353,7 @@ return [
         foreach ($summary['manifestReview']['items'] as $item) {
             $reviewByPath[$item['path']] = $item;
         }
+        $order = $summary['manifestReview']['manifestFileEntryOrder'];
         $mediaByPath = [];
         foreach ($summary['mediaParts'] as $media) {
             $mediaByPath[$media['path']] = $media;
@@ -368,6 +375,12 @@ return [
         $t->same('page-preview', $reviewByPath['content.xml']['preferredViewMode']);
         $t->same('1.1', $reviewByPath['Pictures/hero.png']['version']);
         $t->same('thumbnail', $reviewByPath['Pictures/hero.png']['preferredViewMode']);
+
+        $t->same(['1.4', '1.2', null, null, '1.1'], array_column($order, 'version'));
+        $t->same(['edit', 'page-preview', null, null, 'thumbnail'], array_column($order, 'preferredViewMode'));
+        $t->same([null, null, null, null, 7], array_column($order, 'declaredSize'));
+        $t->same('image/png', $order[4]['mediaTypeBase']);
+        $t->same(false, $order[4]['declaredSizeMismatch']);
 
         $t->same('1.1', $mediaByPath['Pictures/hero.png']['version']);
         $t->same('thumbnail', $mediaByPath['Pictures/hero.png']['preferredViewMode']);
