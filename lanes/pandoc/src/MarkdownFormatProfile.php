@@ -52,10 +52,17 @@ final class MarkdownFormatProfile
     private const EXTENSION_ALIASES = [
         'bracketed_span' => 'bracketed_spans',
         'emoji_shortcode' => 'emoji_shortcodes',
+        'hard-line-breaks' => 'hard_line_breaks',
+        'hard-line-break' => 'hard_line_breaks',
         'header_attrs' => 'header_attributes',
         'header_attribute' => 'header_attributes',
+        'ignore-line-breaks' => 'ignore_line_breaks',
+        'inline-note' => 'inline_notes',
+        'inline-notes' => 'inline_notes',
         'inline_attribute' => 'inline_attributes',
         'markdown_attribute' => 'inline_attributes',
+        'east-asian-line-breaks' => 'east_asian_line_breaks',
+        'east-asian-line-break' => 'east_asian_line_breaks',
         'line_block' => 'line_blocks',
         'raw_latex' => 'raw_tex',
         'latex_macros' => 'raw_tex',
@@ -177,6 +184,7 @@ final class MarkdownFormatProfile
             return [];
         }
 
+        $suffix = self::normalizeKnownHyphenatedExtensions($suffix);
         if (preg_match_all('/([+-])([A-Za-z0-9_]+)/', $suffix, $matches, PREG_SET_ORDER) === false) {
             return [];
         }
@@ -229,6 +237,19 @@ final class MarkdownFormatProfile
     private static function canonicalExtension(string $extension): string
     {
         return self::EXTENSION_ALIASES[$extension] ?? $extension;
+    }
+
+    private static function normalizeKnownHyphenatedExtensions(string $suffix): string
+    {
+        foreach (self::EXTENSION_ALIASES as $alias => $_canonical) {
+            if (!str_contains($alias, '-')) {
+                continue;
+            }
+
+            $suffix = str_replace($alias, str_replace('-', '_', $alias), $suffix);
+        }
+
+        return $suffix;
     }
 
     /**
