@@ -19725,6 +19725,11 @@ final class DocxOpenXmlReader
             'partXmlProcessingInstructionTargets' => $partXmlProcessingInstructions['targets'],
             'partXmlProcessingInstructionPartNames' => $partXmlProcessingInstructions['partNames'],
             'partXmlProcessingInstructions' => $partXmlProcessingInstructions['instructions'],
+            'partXmlProcessingInstructionDataAttributeCount' => $partXmlProcessingInstructions['dataAttributeCount'],
+            'partXmlProcessingInstructionDataAttributeNameCount' => count($partXmlProcessingInstructions['dataAttributeNameCounts']),
+            'partXmlProcessingInstructionDataAttributeNameCounts' => $partXmlProcessingInstructions['dataAttributeNameCounts'],
+            'partXmlProcessingInstructionDataAttributeNames' => $partXmlProcessingInstructions['dataAttributeNames'],
+            'partXmlProcessingInstructionDataAttributeValueByteLength' => $partXmlProcessingInstructions['dataAttributeValueByteLength'],
             'partXmlProcessingInstructionsTruncated' => $partXmlProcessingInstructions['truncated'],
             'partContentTypeSyntaxSuffixCount' => count($partContentTypeSyntaxSuffixes),
             'partContentTypeSyntaxSuffixCounts' => $partContentTypeSyntaxSuffixCounts,
@@ -37590,7 +37595,7 @@ final class DocxOpenXmlReader
 
     /**
      * @param array<string, array<string, mixed>> $partInventory
-     * @return array{partCount:int, instructionCount:int, dataByteLength:int, targets:list<string>, partNames:list<string>, instructions:list<array<string, mixed>>, truncated:bool}
+     * @return array{partCount:int, instructionCount:int, dataByteLength:int, targets:list<string>, partNames:list<string>, instructions:list<array<string, mixed>>, dataAttributeCount:int, dataAttributeNameCounts:array<string, int>, dataAttributeNames:list<string>, dataAttributeValueByteLength:int, truncated:bool}
      */
     private function packagePartXmlProcessingInstructionSummary(array $partInventory): array
     {
@@ -37598,6 +37603,10 @@ final class DocxOpenXmlReader
         $instructions = [];
         $instructionCount = 0;
         $dataByteLength = 0;
+        $dataAttributeCount = 0;
+        $dataAttributeNameCounts = [];
+        $dataAttributeNames = [];
+        $dataAttributeValueByteLength = 0;
         $targets = [];
         $truncated = false;
         $summaryLimit = 64;
@@ -37611,6 +37620,16 @@ final class DocxOpenXmlReader
 
             $instructionCount += $partInstructionCount;
             $dataByteLength += (int) ($part['xmlProcessingInstructionDataByteLength'] ?? 0);
+            $dataAttributeCount += (int) ($part['xmlProcessingInstructionDataAttributeCount'] ?? 0);
+            $dataAttributeValueByteLength += (int) ($part['xmlProcessingInstructionDataAttributeValueByteLength'] ?? 0);
+            foreach (($part['xmlProcessingInstructionDataAttributeNameCounts'] ?? []) as $name => $count) {
+                if (!is_string($name) || $name === '') {
+                    continue;
+                }
+
+                $dataAttributeNameCounts[$name] = ($dataAttributeNameCounts[$name] ?? 0) + (int) $count;
+                $this->appendUniqueString($dataAttributeNames, $name);
+            }
             $this->appendUniqueString($partNames, $partName);
             foreach (($part['xmlProcessingInstructionTargets'] ?? []) as $target) {
                 if (is_string($target)) {
@@ -37636,6 +37655,8 @@ final class DocxOpenXmlReader
 
         sort($partNames, SORT_STRING);
         sort($targets, SORT_STRING);
+        ksort($dataAttributeNameCounts, SORT_STRING);
+        sort($dataAttributeNames, SORT_STRING);
 
         return [
             'partCount' => count($partNames),
@@ -37644,6 +37665,10 @@ final class DocxOpenXmlReader
             'targets' => $targets,
             'partNames' => $partNames,
             'instructions' => $instructions,
+            'dataAttributeCount' => $dataAttributeCount,
+            'dataAttributeNameCounts' => $dataAttributeNameCounts,
+            'dataAttributeNames' => $dataAttributeNames,
+            'dataAttributeValueByteLength' => $dataAttributeValueByteLength,
             'truncated' => $truncated,
         ];
     }
@@ -37785,7 +37810,7 @@ final class DocxOpenXmlReader
     }
 
     /**
-     * @return array{count:int, dataByteLength:int, targets:list<string>, instructions:list<array<string, mixed>>, truncated:bool}
+     * @return array{count:int, dataByteLength:int, targets:list<string>, instructions:list<array<string, mixed>>, dataAttributeCount:int, dataAttributeNameCounts:array<string, int>, dataAttributeNames:list<string>, dataAttributeValueByteLength:int, truncated:bool}
      */
     private function packagePartXmlProcessingInstructionMetadata(
         string $xml,
@@ -37798,6 +37823,10 @@ final class DocxOpenXmlReader
             'dataByteLength' => 0,
             'targets' => [],
             'instructions' => [],
+            'dataAttributeCount' => 0,
+            'dataAttributeNameCounts' => [],
+            'dataAttributeNames' => [],
+            'dataAttributeValueByteLength' => 0,
             'truncated' => false,
         ];
         if (!$this->isXmlPackagePart($partName, $contentTypeBase, $partExtension)) {
@@ -37813,16 +37842,39 @@ final class DocxOpenXmlReader
         $targets = [];
         $count = 0;
         $dataByteLength = 0;
+        $dataAttributeCount = 0;
+        $dataAttributeNameCounts = [];
+        $dataAttributeNames = [];
+        $dataAttributeValueByteLength = 0;
         $truncated = false;
         $itemLimit = 32;
-        $walk = function (\DOMNode $node) use (&$walk, &$instructions, &$targets, &$count, &$dataByteLength, &$truncated, $itemLimit): void {
+        $walk = function (\DOMNode $node) use (
+            &$walk,
+            &$instructions,
+            &$targets,
+            &$count,
+            &$dataByteLength,
+            &$dataAttributeCount,
+            &$dataAttributeNameCounts,
+            &$dataAttributeNames,
+            &$dataAttributeValueByteLength,
+            &$truncated,
+            $itemLimit
+        ): void {
             if ($node instanceof \DOMProcessingInstruction) {
                 $target = (string) $node->target;
                 if ($target !== '' && strtolower($target) !== 'xml') {
                     ++$count;
                     $data = (string) $node->data;
                     $dataLength = strlen($data);
+                    $pseudoAttributes = $this->xmlProcessingInstructionPseudoAttributes($data);
                     $dataByteLength += $dataLength;
+                    $dataAttributeCount += $pseudoAttributes['count'];
+                    $dataAttributeValueByteLength += $pseudoAttributes['valueByteLength'];
+                    foreach ($pseudoAttributes['nameCounts'] as $name => $attributeCount) {
+                        $dataAttributeNameCounts[$name] = ($dataAttributeNameCounts[$name] ?? 0) + $attributeCount;
+                        $this->appendUniqueString($dataAttributeNames, $name);
+                    }
                     $this->appendUniqueString($targets, $target);
                     if (count($instructions) >= $itemLimit) {
                         $truncated = true;
@@ -37837,6 +37889,9 @@ final class DocxOpenXmlReader
                             'dataByteLength' => $dataLength,
                             'dataCrc32' => sprintf('%08x', crc32($data)),
                             'dataSha256' => hash('sha256', $data),
+                            'dataAttributeCount' => $pseudoAttributes['count'],
+                            'dataAttributeNames' => $pseudoAttributes['names'],
+                            'dataAttributes' => $pseudoAttributes['items'],
                         ];
                     }
                 }
@@ -37850,13 +37905,67 @@ final class DocxOpenXmlReader
         };
         $walk($dom);
         sort($targets, SORT_STRING);
+        ksort($dataAttributeNameCounts, SORT_STRING);
+        sort($dataAttributeNames, SORT_STRING);
 
         return [
             'count' => $count,
             'dataByteLength' => $dataByteLength,
             'targets' => $targets,
             'instructions' => $instructions,
+            'dataAttributeCount' => $dataAttributeCount,
+            'dataAttributeNameCounts' => $dataAttributeNameCounts,
+            'dataAttributeNames' => $dataAttributeNames,
+            'dataAttributeValueByteLength' => $dataAttributeValueByteLength,
             'truncated' => $truncated,
+        ];
+    }
+
+    /**
+     * @return array{count:int, nameCounts:array<string, int>, names:list<string>, valueByteLength:int, items:list<array{name:string, valueByteLength:int, valueCrc32:?string, valueSha256:?string}>}
+     */
+    private function xmlProcessingInstructionPseudoAttributes(string $data): array
+    {
+        preg_match_all('/([A-Za-z_][A-Za-z0-9_.:-]*)\s*=\s*(["\'])(.*?)\2/s', $data, $matches, PREG_SET_ORDER);
+
+        $items = [];
+        $nameCounts = [];
+        $names = [];
+        $seen = [];
+        $valueByteLength = 0;
+        foreach ($matches as $match) {
+            $name = (string) $match[1];
+            if ($name === '' || isset($seen[$name])) {
+                continue;
+            }
+
+            $value = (string) $match[3];
+            $valueLength = strlen($value);
+            $seen[$name] = true;
+            $nameCounts[$name] = ($nameCounts[$name] ?? 0) + 1;
+            $names[] = $name;
+            $valueByteLength += $valueLength;
+            $items[] = [
+                'name' => $name,
+                'valueByteLength' => $valueLength,
+                'valueCrc32' => $value === '' ? null : sprintf('%08x', crc32($value)),
+                'valueSha256' => $value === '' ? null : hash('sha256', $value),
+            ];
+        }
+
+        ksort($nameCounts, SORT_STRING);
+        sort($names, SORT_STRING);
+        usort(
+            $items,
+            static fn (array $left, array $right): int => strcmp((string) $left['name'], (string) $right['name']),
+        );
+
+        return [
+            'count' => count($items),
+            'nameCounts' => $nameCounts,
+            'names' => $names,
+            'valueByteLength' => $valueByteLength,
+            'items' => $items,
         ];
     }
 
@@ -44169,6 +44278,10 @@ final class DocxOpenXmlReader
                 'xmlProcessingInstructionDataByteLength' => $xmlProcessingInstructions['dataByteLength'],
                 'xmlProcessingInstructionTargets' => $xmlProcessingInstructions['targets'],
                 'xmlProcessingInstructions' => $xmlProcessingInstructions['instructions'],
+                'xmlProcessingInstructionDataAttributeCount' => $xmlProcessingInstructions['dataAttributeCount'],
+                'xmlProcessingInstructionDataAttributeNameCounts' => $xmlProcessingInstructions['dataAttributeNameCounts'],
+                'xmlProcessingInstructionDataAttributeNames' => $xmlProcessingInstructions['dataAttributeNames'],
+                'xmlProcessingInstructionDataAttributeValueByteLength' => $xmlProcessingInstructions['dataAttributeValueByteLength'],
                 'xmlProcessingInstructionsTruncated' => $xmlProcessingInstructions['truncated'],
                 'isRelationshipPart' => $this->isRelationshipPartName($partName),
                 'roles' => $roles,
