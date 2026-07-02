@@ -1668,6 +1668,15 @@ final class PdfEngineHandoff
             if ($typstWarningSourcePolicy['packageReferenceCount'] > 0) {
                 $diagnostics[] = 'typst-warning-source-packages:' . $typstWarningSourcePolicy['packageReferenceCount'];
             }
+            if (($typstWarningSourcePolicy['rangedSourceCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-warning-source-ranges:' . $typstWarningSourcePolicy['rangedSourceCount'];
+            }
+            if (($typstWarningSourcePolicy['distinctSourceLocationCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-warning-source-locations:' . $typstWarningSourcePolicy['distinctSourceLocationCount'];
+            }
+            if (($typstWarningSourcePolicy['hintCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-warning-source-hints:' . $typstWarningSourcePolicy['hintCount'];
+            }
         }
         if ($typstErrorProvenance !== []) {
             $diagnostics[] = 'typst-error-provenance:' . count($typstErrorProvenance);
@@ -1694,6 +1703,15 @@ final class PdfEngineHandoff
             }
             if ($typstErrorSourcePolicy['packageReferenceCount'] > 0) {
                 $diagnostics[] = 'typst-error-source-packages:' . $typstErrorSourcePolicy['packageReferenceCount'];
+            }
+            if (($typstErrorSourcePolicy['rangedSourceCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-error-source-ranges:' . $typstErrorSourcePolicy['rangedSourceCount'];
+            }
+            if (($typstErrorSourcePolicy['distinctSourceLocationCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-error-source-locations:' . $typstErrorSourcePolicy['distinctSourceLocationCount'];
+            }
+            if (($typstErrorSourcePolicy['hintCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-error-source-hints:' . $typstErrorSourcePolicy['hintCount'];
             }
         }
         $typstBoundaryMatrix = $this->typstBoundaryMatrixFor(
@@ -9502,6 +9520,11 @@ final class PdfEngineHandoff
                 'externalSourceCount' => $externalSourceCount,
                 'unknownSourceCount' => $unknownSourceCount,
                 'hintCount' => $hintCount,
+                'lineColumnSourceCount' => is_int($warningSourcePolicy['lineColumnSourceCount'] ?? null) ? $warningSourcePolicy['lineColumnSourceCount'] : 0,
+                'rangedSourceCount' => is_int($warningSourcePolicy['rangedSourceCount'] ?? null) ? $warningSourcePolicy['rangedSourceCount'] : 0,
+                'distinctSourceLocationCount' => is_int($warningSourcePolicy['distinctSourceLocationCount'] ?? null) ? $warningSourcePolicy['distinctSourceLocationCount'] : 0,
+                'sourceLocations' => is_array($warningSourcePolicy['sourceLocations'] ?? null) ? $warningSourcePolicy['sourceLocations'] : [],
+                'rangedSourceFiles' => is_array($warningSourcePolicy['rangedSourceFiles'] ?? null) ? $warningSourcePolicy['rangedSourceFiles'] : [],
                 'totalSourceIssueCount' => is_int($warningSourcePolicy['sourceIssueCount'] ?? null) ? $warningSourcePolicy['sourceIssueCount'] : count($warningIssues),
                 'sourceKindCounts' => is_array($warningSourcePolicy['sourceKindCounts'] ?? null) ? $warningSourcePolicy['sourceKindCounts'] : [],
                 'sourceClassCounts' => is_array($warningSourcePolicy['sourceClassCounts'] ?? null) ? $warningSourcePolicy['sourceClassCounts'] : [],
@@ -9548,6 +9571,11 @@ final class PdfEngineHandoff
                 'externalSourceCount' => $externalSourceCount,
                 'unknownSourceCount' => $unknownSourceCount,
                 'hintCount' => $hintCount,
+                'lineColumnSourceCount' => is_int($errorSourcePolicy['lineColumnSourceCount'] ?? null) ? $errorSourcePolicy['lineColumnSourceCount'] : 0,
+                'rangedSourceCount' => is_int($errorSourcePolicy['rangedSourceCount'] ?? null) ? $errorSourcePolicy['rangedSourceCount'] : 0,
+                'distinctSourceLocationCount' => is_int($errorSourcePolicy['distinctSourceLocationCount'] ?? null) ? $errorSourcePolicy['distinctSourceLocationCount'] : 0,
+                'sourceLocations' => is_array($errorSourcePolicy['sourceLocations'] ?? null) ? $errorSourcePolicy['sourceLocations'] : [],
+                'rangedSourceFiles' => is_array($errorSourcePolicy['rangedSourceFiles'] ?? null) ? $errorSourcePolicy['rangedSourceFiles'] : [],
                 'totalSourceIssueCount' => is_int($errorSourcePolicy['sourceIssueCount'] ?? null) ? $errorSourcePolicy['sourceIssueCount'] : count($errorIssues),
                 'sourceKindCounts' => is_array($errorSourcePolicy['sourceKindCounts'] ?? null) ? $errorSourcePolicy['sourceKindCounts'] : [],
                 'sourceClassCounts' => is_array($errorSourcePolicy['sourceClassCounts'] ?? null) ? $errorSourcePolicy['sourceClassCounts'] : [],
@@ -14269,6 +14297,11 @@ final class PdfEngineHandoff
         $boundaryStatusCounts = [];
         $sourceFiles = [];
         $locatedSourceCount = 0;
+        $lineColumnSourceCount = 0;
+        $rangedSourceCount = 0;
+        $hintCount = 0;
+        $sourceLocations = [];
+        $rangedSourceFiles = [];
         $packageReferences = [];
         $issues = [];
         $sourceIssueCount = 0;
@@ -14283,6 +14316,21 @@ final class PdfEngineHandoff
                 ++$locatedSourceCount;
                 $sourceFiles[$sourceFile] = true;
             }
+            $line = is_int($diagnostic['line'] ?? null) ? $diagnostic['line'] : null;
+            $column = is_int($diagnostic['column'] ?? null) ? $diagnostic['column'] : null;
+            $endLine = is_int($diagnostic['endLine'] ?? null) ? $diagnostic['endLine'] : null;
+            $endColumn = is_int($diagnostic['endColumn'] ?? null) ? $diagnostic['endColumn'] : null;
+            if ($sourceFile !== null && $sourceFile !== '' && $line !== null && $column !== null) {
+                ++$lineColumnSourceCount;
+                $sourceLocations[$sourceFile . ':' . $line . ':' . $column] = true;
+            }
+            if ($endLine !== null || $endColumn !== null) {
+                ++$rangedSourceCount;
+                if ($sourceFile !== null && $sourceFile !== '') {
+                    $rangedSourceFiles[$sourceFile] = true;
+                }
+            }
+            $hintCount += count(is_array($diagnostic['hints'] ?? null) ? $diagnostic['hints'] : []);
 
             $sourceKind = $this->typstWarningSourceKindFor($diagnostic);
             $sourceClass = $this->typstWarningSourceClassFor($diagnostic, $sourceKind);
@@ -14319,6 +14367,10 @@ final class PdfEngineHandoff
         ksort($boundaryStatusCounts);
         $sourceFileList = array_keys($sourceFiles);
         sort($sourceFileList);
+        $sourceLocationList = array_keys($sourceLocations);
+        sort($sourceLocationList);
+        $rangedSourceFileList = array_keys($rangedSourceFiles);
+        sort($rangedSourceFileList);
         $packageReferenceList = array_keys($packageReferences);
         sort($packageReferenceList);
         $issues = array_values(array_unique($issues));
@@ -14328,6 +14380,12 @@ final class PdfEngineHandoff
             'reviewStatus' => $sourceIssueCount === 0 ? 'ok' : 'review',
             $severity . 'Count' => count($diagnostics),
             'locatedSourceCount' => $locatedSourceCount,
+            'lineColumnSourceCount' => $lineColumnSourceCount,
+            'rangedSourceCount' => $rangedSourceCount,
+            'hintCount' => $hintCount,
+            'distinctSourceLocationCount' => count($sourceLocationList),
+            'sourceLocations' => $sourceLocationList,
+            'rangedSourceFiles' => $rangedSourceFileList,
             'sourceFileCount' => count($sourceFileList),
             'sourceFiles' => $sourceFileList,
             'sourceKindCounts' => $sourceKindCounts,
