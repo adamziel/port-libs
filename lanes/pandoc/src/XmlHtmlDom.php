@@ -14963,6 +14963,12 @@ final class XmlHtmlDom
             'dataAttributeNames' => [],
             'ariaAttributeCount' => 0,
             'ariaAttributeNames' => [],
+            'translateAttributeCount' => 0,
+            'invalidTranslateAttributeCount' => 0,
+            'effectiveTranslateElementCount' => 0,
+            'effectiveTranslateEnabledElementCount' => 0,
+            'effectiveTranslateDisabledElementCount' => 0,
+            'inheritedTranslateElementCount' => 0,
         ];
 
         foreach ($nodes as $node) {
@@ -15004,6 +15010,12 @@ final class XmlHtmlDom
             'dataAttributeNames' => $state['dataAttributeNames'],
             'ariaAttributeCount' => $state['ariaAttributeCount'],
             'ariaAttributeNames' => $state['ariaAttributeNames'],
+            'translateAttributeCount' => $state['translateAttributeCount'],
+            'invalidTranslateAttributeCount' => $state['invalidTranslateAttributeCount'],
+            'effectiveTranslateElementCount' => $state['effectiveTranslateElementCount'],
+            'effectiveTranslateEnabledElementCount' => $state['effectiveTranslateEnabledElementCount'],
+            'effectiveTranslateDisabledElementCount' => $state['effectiveTranslateDisabledElementCount'],
+            'inheritedTranslateElementCount' => $state['inheritedTranslateElementCount'],
         ];
     }
 
@@ -15107,6 +15119,25 @@ final class XmlHtmlDom
                 if (is_string($attributeName)) {
                     self::appendUniqueString($state['ariaAttributeNames'], $attributeName);
                 }
+            }
+        }
+
+        if (array_key_exists('translateRaw', $node)) {
+            ++$state['translateAttributeCount'];
+            if (($node['translateValid'] ?? null) === false) {
+                ++$state['invalidTranslateAttributeCount'];
+            }
+        }
+
+        if (array_key_exists('effectiveTranslate', $node) && is_bool($node['effectiveTranslate'])) {
+            ++$state['effectiveTranslateElementCount'];
+            if ($node['effectiveTranslate']) {
+                ++$state['effectiveTranslateEnabledElementCount'];
+            } else {
+                ++$state['effectiveTranslateDisabledElementCount'];
+            }
+            if (($node['translateInherited'] ?? null) === true) {
+                ++$state['inheritedTranslateElementCount'];
             }
         }
     }
@@ -20786,10 +20817,7 @@ final class XmlHtmlDom
         $summary += self::effectiveInertSummary($element, $attributes);
 
         if (array_key_exists('translate', $attributes)) {
-            $translate = self::htmlTranslateState($attributes['translate']);
-            $summary['translateRaw'] = $attributes['translate'];
-            $summary['translate'] = $translate;
-            $summary['translateValid'] = $translate !== null;
+            $summary += self::htmlTranslateAttributeSummary($attributes['translate']);
         }
 
         $summary += self::effectiveTranslateSummary($element, $attributes);
@@ -22097,13 +22125,41 @@ final class XmlHtmlDom
 
     private static function htmlTranslateState(string $value): ?bool
     {
-        $translate = strtolower(trim($value));
-
-        return match ($translate) {
-            '', 'yes' => true,
+        return match (self::htmlTranslateKeyword($value)) {
+            'yes' => true,
             'no' => false,
             default => null,
         };
+    }
+
+    private static function htmlTranslateKeyword(string $value): ?string
+    {
+        $translate = strtolower(trim($value));
+
+        return match ($translate) {
+            '', 'yes' => 'yes',
+            'no' => 'no',
+            default => null,
+        };
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function htmlTranslateAttributeSummary(string $raw): array
+    {
+        $keyword = self::htmlTranslateKeyword($raw);
+        $valid = $keyword !== null;
+
+        return [
+            'translateReviewPolicy' => 'html-translate-token-inheritance-review',
+            'translateRaw' => $raw,
+            'translateKeyword' => $keyword,
+            'translate' => self::htmlTranslateState($raw),
+            'translateValid' => $valid,
+            'translateInvalidValueIgnored' => !$valid,
+            'translateIssueCodes' => $valid ? [] : ['invalid-html-translate-value'],
+        ];
     }
 
     private static function htmlDraggableKeyword(string $value): ?string
