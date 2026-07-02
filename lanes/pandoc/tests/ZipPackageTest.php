@@ -1339,6 +1339,9 @@ return [
             'entryCommentSummaryCount' => 0,
             'entryCommentSourceRecordBytes' => 0,
             'entryCommentSummaries' => [],
+            'entryCommentByteLengthBucketSummaryCount' => 0,
+            'entryCommentByteLengthBuckets' => [],
+            'entryCommentByteLengthBucketSummaries' => [],
             'maxPathSegmentCount' => 2,
             'maxDirectoryDepth' => 1,
             'deepestEntryNames' => ['OEBPS/content.xhtml', 'OEBPS/images/'],
@@ -2915,6 +2918,175 @@ return [
         $t->same($manifest, $raw['strictImport']['packageManifest']);
     },
 
+    'rolls up zip package manifest entry comment byte length buckets before shared package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $shortName = 'mimetype';
+        $mediumName = 'word/document.xml';
+        $secondMediumName = 'customXml/item1.xml';
+        $longName = 'word/media/review.bin';
+        $veryLongName = 'word/media/provenance.bin';
+        $shortComment = 'mime-note';
+        $mediumComment = str_repeat('m', 48);
+        $secondMediumComment = str_repeat('c', 24);
+        $longComment = str_repeat('l', 80);
+        $veryLongComment = str_repeat('v', 130);
+        $zip = $buildZipPackage([
+            [
+                'name' => $shortName,
+                'data' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'method' => 0,
+                'comment' => $shortComment,
+            ],
+            [
+                'name' => $mediumName,
+                'data' => '<w:document><w:p>comment bucket document</w:p></w:document>',
+                'method' => 0,
+                'comment' => $mediumComment,
+            ],
+            [
+                'name' => $secondMediumName,
+                'data' => '<item><p>comment bucket custom xml</p></item>',
+                'method' => 8,
+                'comment' => $secondMediumComment,
+            ],
+            [
+                'name' => $longName,
+                'data' => 'review media bytes',
+                'method' => 0,
+                'comment' => $longComment,
+            ],
+            [
+                'name' => $veryLongName,
+                'data' => 'large comment provenance bytes',
+                'method' => 0,
+                'comment' => $veryLongComment,
+            ],
+            [
+                'name' => 'word/styles.xml',
+                'data' => '<w:styles/>',
+                'method' => 0,
+            ],
+        ]);
+        $package = ZipPackage::fromString($zip);
+        $manifest = $package->packageManifestPreflight();
+        $strict = $package->strictImportPreflight(4096, 100.0, 4096);
+        $raw = ZipPackage::rawStrictImportPreflight($zip, 4096, 100.0, 4096);
+
+        $entriesByName = array_column($manifest['entries'], null, 'name');
+        $buckets = array_column(
+            $manifest['entryCommentByteLengthBucketSummaries'],
+            null,
+            'entryCommentByteLengthBucket'
+        );
+        $expectedBucket = static function (
+            string $bucket,
+            int $minCommentBytes,
+            ?int $maxCommentBytes,
+            array $names,
+            array $comments
+        ) use ($entriesByName): array {
+            $commentLengths = array_map('strlen', $comments);
+            $maxEntryCommentBytes = max($commentLengths);
+            $longestCommentEntryNames = [];
+            foreach ($names as $index => $name) {
+                if ($commentLengths[$index] === $maxEntryCommentBytes) {
+                    $longestCommentEntryNames[] = $name;
+                }
+            }
+            sort($longestCommentEntryNames, SORT_STRING);
+
+            $uniqueSorted = static function (array $values): array {
+                $values = array_values(array_unique($values));
+                sort($values, SORT_STRING);
+
+                return $values;
+            };
+
+            return [
+                'entryCommentByteLengthBucket' => $bucket,
+                'minCommentBytes' => $minCommentBytes,
+                'maxCommentBytes' => $maxCommentBytes,
+                'entryCount' => count($names),
+                'centralDirectoryRawCommentBytes' => array_sum($commentLengths),
+                'centralDirectoryRecordBytes' => array_sum(array_map(
+                    static fn (string $name): int => (int) $entriesByName[$name]['centralDirectoryRecordBytes'],
+                    $names
+                )),
+                'centralDirectoryReviewFieldBytes' => array_sum(array_map(
+                    static fn (string $name): int => (int) $entriesByName[$name]['centralDirectoryReviewFieldBytes'],
+                    $names
+                )),
+                'sourceRecordBytes' => array_sum(array_map(
+                    static fn (string $name): int => (int) $entriesByName[$name]['sourceRecordBytes'],
+                    $names
+                )),
+                'directoryRoots' => $uniqueSorted(array_map(
+                    static fn (string $name): string => (string) $entriesByName[$name]['directoryRoot'],
+                    $names
+                )),
+                'packagePartExtensionKeys' => $uniqueSorted(array_map(
+                    static fn (string $name): string => (string) $entriesByName[$name]['packagePartExtensionKey'],
+                    $names
+                )),
+                'compressionMethodNames' => $uniqueSorted(array_map(
+                    static fn (string $name): string => (string) $entriesByName[$name]['compressionMethodName'],
+                    $names
+                )),
+                'entryNames' => $names,
+                'minEntryCommentBytes' => min($commentLengths),
+                'maxEntryCommentBytes' => $maxEntryCommentBytes,
+                'longestCommentEntryNames' => $longestCommentEntryNames,
+            ];
+        };
+
+        $t->same(5, $manifest['entryCommentCount']);
+        $t->same(true, $manifest['hasEntryComments']);
+        $t->same([$shortName, $mediumName, $secondMediumName, $longName, $veryLongName], $manifest['commentedEntryNames']);
+        $t->same(4, $manifest['entryCommentByteLengthBucketSummaryCount']);
+        $t->same(
+            ['up-to-15-bytes', '16-to-63-bytes', '64-to-127-bytes', '128-plus-bytes'],
+            $manifest['entryCommentByteLengthBuckets']
+        );
+        $t->same($shortComment, $package->entry($shortName)->comment);
+        $t->same($mediumComment, $package->entry($mediumName)->comment);
+        $t->same($veryLongComment, $package->entry($veryLongName)->comment);
+
+        $t->same(
+            $expectedBucket('up-to-15-bytes', 1, 15, [$shortName], [$shortComment]),
+            $buckets['up-to-15-bytes']
+        );
+        $t->same(
+            $expectedBucket(
+                '16-to-63-bytes',
+                16,
+                63,
+                [$mediumName, $secondMediumName],
+                [$mediumComment, $secondMediumComment]
+            ),
+            $buckets['16-to-63-bytes']
+        );
+        $t->same(
+            $expectedBucket('64-to-127-bytes', 64, 127, [$longName], [$longComment]),
+            $buckets['64-to-127-bytes']
+        );
+        $t->same(
+            $expectedBucket('128-plus-bytes', 128, null, [$veryLongName], [$veryLongComment]),
+            $buckets['128-plus-bytes']
+        );
+
+        $t->same(
+            $manifest['entryCommentByteLengthBucketSummaries'],
+            $strict['packageManifest']['entryCommentByteLengthBucketSummaries']
+        );
+        $t->same(
+            $manifest['entryCommentByteLengthBucketSummaries'],
+            $raw['packageManifest']['entryCommentByteLengthBucketSummaries']
+        );
+        $t->same(
+            $manifest['entryCommentByteLengthBucketSummaries'],
+            $raw['strictImport']['packageManifest']['entryCommentByteLengthBucketSummaries']
+        );
+    },
+
     'preflights zip package manifest compressed payload hashes for package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>manifest payload hash</w:p></w:body></w:document>';
         $mediaBytes = "stored image bytes\n";
@@ -3390,6 +3562,9 @@ return [
             'entryCommentSummaryCount' => $manifest['entryCommentSummaryCount'],
             'entryCommentSourceRecordBytes' => $manifest['entryCommentSourceRecordBytes'],
             'entryCommentSummaries' => $manifest['entryCommentSummaries'],
+            'entryCommentByteLengthBucketSummaryCount' => $manifest['entryCommentByteLengthBucketSummaryCount'],
+            'entryCommentByteLengthBuckets' => $manifest['entryCommentByteLengthBuckets'],
+            'entryCommentByteLengthBucketSummaries' => $manifest['entryCommentByteLengthBucketSummaries'],
             'maxPathSegmentCount' => 2,
             'maxDirectoryDepth' => 1,
             'deepestEntryNames' => ['word/document.xml', 'word/comments.xml'],
