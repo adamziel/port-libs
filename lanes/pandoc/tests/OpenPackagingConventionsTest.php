@@ -1133,6 +1133,97 @@ XML;
         $t->same($summary['endOfCentralDirectorySha256'], $rawSummary['endOfCentralDirectorySha256']);
         $t->same($summary['packageCommentSha256'], $rawSummary['packageCommentSha256']);
     },
+    'carries raw OPC ZIP package byte layout diagnostics before package construction' => static function (TestRunner $t) use ($buildOpcZipPackage): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+</Types>
+XML;
+        $prefixBytes = "stub-prefix";
+        $baseZip = $buildOpcZipPackage([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'method' => 0],
+            ['name' => '_rels/.rels', 'data' => '<Relationships/>', 'method' => 0],
+            ['name' => 'word/document.xml', 'data' => '<w:document/>', 'method' => 0],
+        ]);
+        $eocdOffset = strrpos($baseZip, "PK\x05\x06");
+        if (!is_int($eocdOffset)) {
+            throw new RuntimeException('Unable to locate EOCD in raw package byte-layout fixture');
+        }
+        $centralDirectorySize = unpack('V', substr($baseZip, $eocdOffset + 12, 4))[1];
+        $centralDirectoryOffset = unpack('V', substr($baseZip, $eocdOffset + 16, 4))[1];
+        $prefixLength = strlen($prefixBytes);
+        $zip = $prefixBytes . $baseZip;
+        $zip = substr_replace(
+            $zip,
+            pack('V', $centralDirectoryOffset + $prefixLength),
+            $prefixLength + $eocdOffset + 16,
+            4
+        );
+        $centralCursor = $prefixLength + $centralDirectoryOffset;
+        $centralEnd = $centralCursor + $centralDirectorySize;
+        while ($centralCursor < $centralEnd) {
+            if (substr($zip, $centralCursor, 4) !== "PK\x01\x02") {
+                throw new RuntimeException('Unable to patch central directory local-header offsets');
+            }
+
+            $nameLength = unpack('v', substr($zip, $centralCursor + 28, 2))[1];
+            $extraLength = unpack('v', substr($zip, $centralCursor + 30, 2))[1];
+            $commentLength = unpack('v', substr($zip, $centralCursor + 32, 2))[1];
+            $localHeaderOffset = unpack('V', substr($zip, $centralCursor + 42, 4))[1];
+            $zip = substr_replace(
+                $zip,
+                pack('V', $localHeaderOffset + $prefixLength),
+                $centralCursor + 42,
+                4
+            );
+            $centralCursor += 46 + $nameLength + $extraLength + $commentLength;
+        }
+
+        $rawSummary = OpcRelationshipGraph::preflightZipCentralDirectoryManifest($zip);
+        $layout = $rawSummary['packageByteLayout'];
+
+        $t->same(false, $rawSummary['valid']);
+        $t->same(false, $rawSummary['isSupportedByBoundedReader']);
+        $t->same(null, $rawSummary['packageByteLayoutPreflightError']);
+        $t->same('zip-package-byte-layout-summary-v1', $rawSummary['packageByteLayoutVersion']);
+        $t->same(2, $rawSummary['packageByteLayoutIssueCount']);
+        $t->same(['local-header-prefix-bytes', 'package-prefix-bytes'], $rawSummary['packageByteLayoutIssues']);
+        $t->same(false, $rawSummary['packageByteLayoutIsArchiveLayoutContiguous']);
+        $t->same(true, $rawSummary['packageByteLayoutIsLocalRegionContiguous']);
+        $t->same(0, $rawSummary['packageByteLayoutTrailingByteCount']);
+        $t->same(0, $rawSummary['packageByteLayoutUnclaimedLocalBytes']);
+        $t->same(0, $rawSummary['packageByteLayoutInterEntryGapCount']);
+        $t->same(0, $rawSummary['packageByteLayoutUnaccountedArchiveBytes']);
+        $t->same(0, $rawSummary['centralDirectoryToEocdGapBytes']);
+        $t->same(null, $rawSummary['centralDirectoryToEocdGapSha256']);
+        $t->same(true, in_array('package-prefix-bytes', $rawSummary['issues'], true));
+        $t->same(true, ($rawSummary['issueCounts']['package-prefix-bytes'] ?? 0) >= 1);
+
+        $t->same('zip-package-byte-layout-summary-v1', $layout['layoutVersion']);
+        $t->same(3, $layout['entryCount']);
+        $t->same(strlen($zip), $layout['archiveLength']);
+        $t->same(hash('sha256', $zip), $layout['archiveSha256']);
+        $t->same(strlen($prefixBytes), $layout['prefixByteCount']);
+        $t->same(hash('sha256', $prefixBytes), $layout['prefixSha256']);
+        $t->same(0, $layout['trailingByteCount']);
+        $t->same(null, $layout['trailingBytesSha256']);
+        $t->same(0, $layout['centralDirectoryToEocdGapBytes']);
+        $t->same(null, $layout['centralDirectoryToEocdGapSha256']);
+        $t->same($rawSummary['centralDirectoryOffset'], $layout['centralDirectoryOffset']);
+        $t->same($rawSummary['centralDirectoryBytes'], $layout['centralDirectoryBytes']);
+        $t->same($rawSummary['centralDirectoryEnd'], $layout['centralDirectoryEnd']);
+        $t->same($rawSummary['endOfCentralDirectoryEnd'], $layout['declaredArchiveEndOffset']);
+        $t->same(false, $layout['isArchiveLayoutContiguous']);
+        $t->same(true, $layout['isLocalRegionContiguous']);
+        $t->same(['local-header-prefix-bytes', 'package-prefix-bytes'], $layout['issues']);
+        $t->same(3, count($layout['entries']));
+
+        $encoded = json_encode($layout);
+        $t->true(is_string($encoded), 'raw package byte-layout metadata should encode for review');
+        $t->true(!str_contains((string) $encoded, $contentTypesXml), 'raw package byte-layout metadata should not expose package XML payloads');
+        $t->true(!str_contains((string) $encoded, $prefixBytes), 'raw package byte-layout metadata should not expose prefix bytes');
+    },
     'carries OPC ZIP central directory signature source policy through manifest preflights' => static function (TestRunner $t) use ($buildSignedOpcZipPackage): void {
         $zip = $buildSignedOpcZipPackage();
         $package = ZipPackage::fromString($zip);

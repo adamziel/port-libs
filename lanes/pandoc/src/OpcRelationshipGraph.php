@@ -1808,6 +1808,17 @@ final class OpcRelationshipGraph
     {
         $centralDirectory = ZipPackage::centralDirectorySizePreflight($bytes);
         $packageSource = self::zipPackageSourcePreflightFromBytes($bytes);
+        $packageByteLayout = null;
+        $packageByteLayoutPreflightError = null;
+        if (($centralDirectory['totalsAreExact'] ?? true) === true) {
+            try {
+                $packageByteLayout = ZipPackage::packageManifestByteLayoutSummary(
+                    ZipPackage::packageByteLayoutPreflight($bytes)
+                );
+            } catch (\Throwable $exception) {
+                $packageByteLayoutPreflightError = $exception->getMessage();
+            }
+        }
         $localHeaderOrder = ZipPackage::centralDirectoryLocalHeaderOrderPreflight($bytes);
         $zipExtraFields = null;
         $zipExtraFieldPreflightError = null;
@@ -2371,6 +2382,20 @@ final class OpcRelationshipGraph
             $issueCounts['local-header-metadata-preflight-error'] = 1;
             self::appendUniqueString($issues, 'local-header-metadata-preflight-error');
         }
+        if ($packageByteLayoutPreflightError !== null) {
+            $issueCounts['package-byte-layout-preflight-error'] = 1;
+            self::appendUniqueString($issues, 'package-byte-layout-preflight-error');
+        }
+        if ($packageByteLayout !== null && !$packageByteLayout['isSupportedByBoundedReader']) {
+            foreach ($packageByteLayout['issues'] as $layoutIssue) {
+                if (!is_string($layoutIssue) || $layoutIssue === '') {
+                    continue;
+                }
+
+                $issueCounts[$layoutIssue] = ($issueCounts[$layoutIssue] ?? 0) + 1;
+                self::appendUniqueString($issues, $layoutIssue);
+            }
+        }
         $roleCounts = [];
         $byteCountsByRole = [];
         $byteCountsByHandoffKind = [];
@@ -2718,6 +2743,21 @@ final class OpcRelationshipGraph
             'valid' => $issues === [],
             'isSupportedByBoundedReader' => $issues === [],
             'packageSource' => $packageSource['packageSource'],
+            'packageByteLayout' => $packageByteLayout,
+            'packageByteLayoutVersion' => $packageByteLayout['layoutVersion'] ?? null,
+            'packageByteLayoutIssueCount' => $packageByteLayout['issueCount'] ?? 0,
+            'packageByteLayoutIssues' => $packageByteLayout['issues'] ?? (
+                $packageByteLayoutPreflightError === null ? [] : ['package-byte-layout-preflight-error']
+            ),
+            'packageByteLayoutPreflightError' => $packageByteLayoutPreflightError,
+            'packageByteLayoutIsLocalRegionContiguous' =>
+                ($packageByteLayout['isLocalRegionContiguous'] ?? false) === true,
+            'packageByteLayoutIsArchiveLayoutContiguous' =>
+                ($packageByteLayout['isArchiveLayoutContiguous'] ?? false) === true,
+            'packageByteLayoutUnclaimedLocalBytes' => (int) ($packageByteLayout['unclaimedLocalBytes'] ?? 0),
+            'packageByteLayoutInterEntryGapCount' => (int) ($packageByteLayout['interEntryGapCount'] ?? 0),
+            'packageByteLayoutUnaccountedArchiveBytes' => (int) ($packageByteLayout['unaccountedArchiveBytes'] ?? 0),
+            'packageByteLayoutTrailingByteCount' => (int) ($packageByteLayout['trailingByteCount'] ?? 0),
             'archiveLength' => $packageSource['archiveLength'],
             'archiveSha256' => $packageSource['archiveSha256'],
             'centralDirectoryOffset' => $packageSource['centralDirectoryOffset'],
