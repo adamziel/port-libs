@@ -32,6 +32,7 @@ final class PandocJsonWriter
         'columnWidthNatives',
         'constructor',
         'definitionDefinitionsNative',
+        'definitionItemsNative',
         'definitionItemNative',
         'definitionNative',
         'definitionTermNative',
@@ -41,10 +42,12 @@ final class PandocJsonWriter
         'formatNative',
         'legacyTableCellBlocksNative',
         'lineNative',
+        'lineBlockLinesNative',
         'listAttributesConstructor',
         'listAttributesNative',
         'listDelimiterConstructor',
         'listDelimiterNative',
+        'listItemsNative',
         'listItemNative',
         'listStyleConstructor',
         'listStyleNative',
@@ -613,11 +616,11 @@ final class PandocJsonWriter
             'blockquote' => ['t' => 'BlockQuote', 'c' => $this->writeBlockQuoteBlocks($node)],
             'ordered_list' => ['t' => 'OrderedList', 'c' => [
                 $this->listAttributesPayload($node),
-                $this->writeListItems($node->children),
+                $this->writeListItemCollection($node),
             ]],
-            'bullet_list' => ['t' => 'BulletList', 'c' => $this->writeListItems($node->children)],
-            'definition_list' => ['t' => 'DefinitionList', 'c' => $this->writeDefinitionItems($node->children)],
-            'line_block' => ['t' => 'LineBlock', 'c' => $this->writeLineBlockLines($node->children)],
+            'bullet_list' => ['t' => 'BulletList', 'c' => $this->writeListItemCollection($node)],
+            'definition_list' => ['t' => 'DefinitionList', 'c' => $this->writeDefinitionItemCollection($node)],
+            'line_block' => ['t' => 'LineBlock', 'c' => $this->writeLineBlockLineCollection($node)],
             'horizontal_rule' => ['t' => 'HorizontalRule'],
             'null_block' => ['t' => 'Null'],
             'div' => ['t' => 'Div', 'c' => [$this->attrTuple($node), $this->writeDivBlocks($node)]],
@@ -710,6 +713,16 @@ final class PandocJsonWriter
     }
 
     /**
+     * @return list<mixed>
+     */
+    private function writeListItemCollection(AstNode $node): array
+    {
+        $items = $this->writeListItems($node->children);
+
+        return $this->reusableCollectionPayload($node->attr('listItemsNative'), $items) ?? $items;
+    }
+
+    /**
      * @param list<array<string, mixed>> $blocks
      * @return list<array<string, mixed>>
      */
@@ -765,6 +778,16 @@ final class PandocJsonWriter
     }
 
     /**
+     * @return list<mixed>
+     */
+    private function writeDefinitionItemCollection(AstNode $node): array
+    {
+        $items = $this->writeDefinitionItems($node->children);
+
+        return $this->reusableCollectionPayload($node->attr('definitionItemsNative'), $items) ?? $items;
+    }
+
+    /**
      * @param list<mixed> $payload
      * @return list<mixed>|null
      */
@@ -797,6 +820,16 @@ final class PandocJsonWriter
     }
 
     /**
+     * @return list<mixed>
+     */
+    private function writeLineBlockLineCollection(AstNode $node): array
+    {
+        $lines = $this->writeLineBlockLines($node->children);
+
+        return $this->reusableCollectionPayload($node->attr('lineBlockLinesNative'), $lines) ?? $lines;
+    }
+
+    /**
      * @param list<array<string, mixed>> $blocks
      * @return list<mixed>|null
      */
@@ -811,6 +844,23 @@ final class PandocJsonWriter
         }
 
         return $this->singleWrappedReusableListPayload($native, $blocks);
+    }
+
+    /**
+     * @param list<mixed> $generated
+     * @return list<mixed>|null
+     */
+    private function reusableCollectionPayload(mixed $native, array $generated): ?array
+    {
+        if (!is_array($native) || !array_is_list($native)) {
+            return null;
+        }
+
+        if ($native === $generated) {
+            return $native;
+        }
+
+        return $this->singleWrappedReusableListPayload($native, $generated);
     }
 
     /**
