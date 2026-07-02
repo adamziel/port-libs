@@ -824,15 +824,21 @@ final class NativeReader
         $this->expectSymbol('(');
         $start = (int) $this->expectNumber();
         $this->expectSymbol(',');
-        $style = $this->parseOrderedListStyle($this->expectAnyIdentifier());
+        $styleConstructor = $this->parseOrderedListStyleConstructor($this->expectAnyIdentifier());
+        $style = $this->parseOrderedListStyle($styleConstructor);
         $this->expectSymbol(',');
-        $delimiter = $this->parseOrderedListDelimiter($this->expectAnyIdentifier());
+        $delimiterConstructor = $this->parseOrderedListDelimiterConstructor($this->expectAnyIdentifier());
+        $delimiter = $this->parseOrderedListDelimiter($delimiterConstructor);
         $this->expectSymbol(')');
 
         return [
             'start' => $start,
             'style' => $style,
             'delimiter' => $delimiter,
+            'listStyleConstructor' => $styleConstructor,
+            'listStyleNative' => ['t' => $styleConstructor],
+            'listDelimiterConstructor' => $delimiterConstructor,
+            'listDelimiterNative' => ['t' => $delimiterConstructor],
         ];
     }
 
@@ -876,12 +882,25 @@ final class NativeReader
     {
         $attrs = $this->parseAttrTuple();
         $attrs = array_replace($attrs, $this->parseCaptionAttrs());
-        [$alignments, $widths] = $this->parseTableColSpecs();
+        [
+            $alignments,
+            $widths,
+            $alignmentConstructors,
+            $alignmentNatives,
+            $columnWidthConstructors,
+            $columnWidthNatives,
+            $columnSpecNatives,
+        ] = $this->parseTableColSpecs();
         if ($alignments !== []) {
             $attrs['alignments'] = $alignments;
+            $attrs['alignmentConstructors'] = $alignmentConstructors;
+            $attrs['alignmentNatives'] = $alignmentNatives;
+            $attrs['columnSpecNatives'] = $columnSpecNatives;
         }
         if ($widths !== []) {
             $attrs['widths'] = $widths;
+            $attrs['columnWidthConstructors'] = $columnWidthConstructors;
+            $attrs['columnWidthNatives'] = $columnWidthNatives;
         }
 
         $children = [$this->parseTableHead()];
@@ -1267,41 +1286,74 @@ final class NativeReader
     }
 
     /**
-     * @return array{0:list<string>, 1:list<float>}
+     * @return array{0:list<string>, 1:list<float|null>, 2:list<string>, 3:list<array{t:string}>, 4:list<string>, 5:list<array<string, mixed>>, 6:list<array{0:array{t:string}, 1:array<string, mixed>}>}
      */
     private function parseTableColSpecs(): array
     {
         $specs = $this->parseList(function (): array {
             $this->expectSymbol('(');
-            $alignment = $this->parseAlignment($this->expectAnyIdentifier());
+            $alignmentConstructor = $this->parseAlignmentConstructor($this->expectAnyIdentifier());
+            $alignmentNative = ['t' => $alignmentConstructor];
+            $alignment = $this->parseAlignment($alignmentConstructor);
             $this->expectSymbol(',');
-            $width = $this->parseColumnWidth();
+            [$width, $widthConstructor, $widthNative] = $this->parseColumnWidth();
             $this->expectSymbol(')');
 
-            return [$alignment, $width];
+            return [
+                $alignment,
+                $width,
+                $alignmentConstructor,
+                $alignmentNative,
+                $widthConstructor,
+                $widthNative,
+                [$alignmentNative, $widthNative],
+            ];
         });
 
         $alignments = [];
         $widths = [];
-        foreach ($specs as [$alignment, $width]) {
+        $alignmentConstructors = [];
+        $alignmentNatives = [];
+        $columnWidthConstructors = [];
+        $columnWidthNatives = [];
+        $columnSpecNatives = [];
+        foreach ($specs as [$alignment, $width, $alignmentConstructor, $alignmentNative, $widthConstructor, $widthNative, $columnSpecNative]) {
             $alignments[] = $alignment;
             $widths[] = $width;
+            $alignmentConstructors[] = $alignmentConstructor;
+            $alignmentNatives[] = $alignmentNative;
+            $columnWidthConstructors[] = $widthConstructor;
+            $columnWidthNatives[] = $widthNative;
+            $columnSpecNatives[] = $columnSpecNative;
         }
 
-        return [$alignments, $widths];
+        return [
+            $alignments,
+            $widths,
+            $alignmentConstructors,
+            $alignmentNatives,
+            $columnWidthConstructors,
+            $columnWidthNatives,
+            $columnSpecNatives,
+        ];
     }
 
-    private function parseColumnWidth(): float
+    /**
+     * @return array{0:float|null, 1:string, 2:array<string, mixed>}
+     */
+    private function parseColumnWidth(): array
     {
         $type = $this->expectAnyIdentifier();
         if ($type === 'ColWidthDefault') {
-            return 0.0;
+            return [null, 'ColWidthDefault', ['t' => 'ColWidthDefault']];
         }
         if ($type !== 'ColWidth') {
             throw new \InvalidArgumentException("Unsupported Native column width '{$type}'");
         }
 
-        return (float) $this->expectNumber();
+        $width = (float) $this->expectNumber();
+
+        return [$width, 'ColWidth', ['t' => 'ColWidth', 'c' => $width]];
     }
 
     private function parseTableHead(): AstNode
@@ -1328,7 +1380,10 @@ final class NativeReader
             $attrs = $this->parseAttrTuple();
             $this->expectSymbol('(');
             $this->expectIdentifier('RowHeadColumns');
-            $attrs['rowHeadColumns'] = (int) $this->expectNumber();
+            $rowHeadColumns = (int) $this->expectNumber();
+            $attrs['rowHeadColumns'] = $rowHeadColumns;
+            $attrs['rowHeadColumnsConstructor'] = 'RowHeadColumns';
+            $attrs['rowHeadColumnsNative'] = ['t' => 'RowHeadColumns', 'c' => $rowHeadColumns];
             $this->expectSymbol(')');
             $headRows = $this->parseTableRows();
             if ($headRows !== []) {
@@ -1378,10 +1433,13 @@ final class NativeReader
     {
         $this->expectIdentifier('Cell');
         $attrs = $this->parseAttrTuple();
-        $alignment = $this->parseAlignment($this->expectAnyIdentifier());
+        $alignmentConstructor = $this->parseAlignmentConstructor($this->expectAnyIdentifier());
+        $alignment = $this->parseAlignment($alignmentConstructor);
         if ($alignment !== 'default') {
             $attrs['align'] = $alignment;
         }
+        $attrs['alignmentConstructor'] = $alignmentConstructor;
+        $attrs['alignmentNative'] = ['t' => $alignmentConstructor];
         $this->expectSymbol('(');
         $this->expectIdentifier('RowSpan');
         $rowspan = (int) $this->expectNumber();
@@ -1389,6 +1447,8 @@ final class NativeReader
         if ($rowspan > 1) {
             $attrs['rowspan'] = $rowspan;
         }
+        $attrs['rowSpanConstructor'] = 'RowSpan';
+        $attrs['rowSpanNative'] = ['t' => 'RowSpan', 'c' => $rowspan];
         $this->expectSymbol('(');
         $this->expectIdentifier('ColSpan');
         $colspan = (int) $this->expectNumber();
@@ -1396,6 +1456,8 @@ final class NativeReader
         if ($colspan > 1) {
             $attrs['colspan'] = $colspan;
         }
+        $attrs['colSpanConstructor'] = 'ColSpan';
+        $attrs['colSpanNative'] = ['t' => 'ColSpan', 'c' => $colspan];
 
         return new AstNode('table_cell', $attrs, $this->parseBlockList());
     }
@@ -1502,6 +1564,19 @@ final class NativeReader
         };
     }
 
+    private function parseOrderedListStyleConstructor(string $style): string
+    {
+        return in_array($style, [
+            'DefaultStyle',
+            'Decimal',
+            'LowerAlpha',
+            'UpperAlpha',
+            'LowerRoman',
+            'UpperRoman',
+            'Example',
+        ], true) ? $style : 'DefaultStyle';
+    }
+
     private function parseOrderedListDelimiter(string $delimiter): string
     {
         return match ($delimiter) {
@@ -1513,6 +1588,16 @@ final class NativeReader
         };
     }
 
+    private function parseOrderedListDelimiterConstructor(string $delimiter): string
+    {
+        return in_array($delimiter, [
+            'DefaultDelim',
+            'Period',
+            'OneParen',
+            'TwoParens',
+        ], true) ? $delimiter : 'Period';
+    }
+
     private function parseAlignment(string $alignment): string
     {
         return match ($alignment) {
@@ -1521,6 +1606,16 @@ final class NativeReader
             'AlignCenter' => 'center',
             default => 'default',
         };
+    }
+
+    private function parseAlignmentConstructor(string $alignment): string
+    {
+        return in_array($alignment, [
+            'AlignLeft',
+            'AlignRight',
+            'AlignCenter',
+            'AlignDefault',
+        ], true) ? $alignment : 'AlignDefault';
     }
 
     private function parseCitationMode(string $mode): string
