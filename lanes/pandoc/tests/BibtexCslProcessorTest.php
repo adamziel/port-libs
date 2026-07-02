@@ -3169,10 +3169,12 @@ BIB;
     'carries biblatex citation aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @book{canonical-source,
-  ids    = {legacy-source, alt-source},
-  author = {Ng, Nia},
-  title  = {Alias Source Manual},
-  date   = {2026}
+  ids              = {legacy-source, alt-source},
+  citation-alias   = {migrated-source},
+  citation-aliases = {legacy-source; imported-source},
+  author           = {Ng, Nia},
+  title            = {Alias Source Manual},
+  date             = {2026}
 }
 BIB;
 
@@ -3181,27 +3183,28 @@ BIB;
         $item = $items['canonical-source'];
 
         $t->same(['canonical-source'], array_keys($items));
-        $t->same(['legacy-source', 'alt-source'], $item['citation-aliases']);
-        $t->same('Nia Ng. Alias Source Manual. Citation aliases: legacy-source; alt-source. 2026.', $processor->renderBibliographyText($item));
+        $t->same(['legacy-source', 'alt-source', 'migrated-source', 'imported-source'], $item['citation-aliases']);
+        $t->same('Nia Ng. Alias Source Manual. Citation aliases: legacy-source; alt-source; migrated-source; imported-source. 2026.', $processor->renderBibliographyText($item));
 
-        $document = (new MarkdownReader())->read('Alias review cites @legacy-source, [@alt-source], and @canonical-source.');
+        $document = (new MarkdownReader())->read('Alias review cites @legacy-source, [@alt-source], @migrated-source, @imported-source, and @canonical-source.');
         $handoff = $processor->citationHandoff($document, $source);
         $bibliographyDocument = new AstNode('document', [], [$handoff['bibliography']]);
         $markdown = (new MarkdownWriter())->write($bibliographyDocument);
         $blocks = (new WordPressBlockWriter())->write($bibliographyDocument);
 
-        $t->same(['legacy-source', 'alt-source', 'canonical-source'], $handoff['citedKeys']);
+        $t->same(['legacy-source', 'alt-source', 'migrated-source', 'imported-source', 'canonical-source'], $handoff['citedKeys']);
         $t->same([], $handoff['missingKeys']);
         $t->same(['canonical-source'], array_map(static fn (array $item): string => (string) $item['id'], $handoff['items']));
-        $t->same(['legacy-source', 'alt-source'], $handoff['bibliography']->children[0]->attr('cslItem')['citation-aliases'] ?? null);
-        $t->contains('Citation aliases: legacy-source; alt-source', $markdown);
+        $t->same(['legacy-source', 'alt-source', 'migrated-source', 'imported-source'], $handoff['bibliography']->children[0]->attr('cslItem')['citation-aliases'] ?? null);
+        $t->contains('Citation aliases: legacy-source; alt-source; migrated-source; imported-source', $markdown);
         $t->contains('<dt>canonical-source</dt>', $blocks);
-        $t->contains('Citation aliases: legacy-source; alt-source', $blocks);
+        $t->contains('Citation aliases: legacy-source; alt-source; migrated-source; imported-source', $blocks);
 
         $styled = CitationCslProcessor::fromItems(array_values($items));
         $t->same('Alias Source Manual', $styled->item('legacy-source')['title'] ?? null);
+        $t->same('Alias Source Manual', $styled->item('imported-source')['title'] ?? null);
         $t->same('(Ng 2026)', $styled->renderCitationCluster([
-            new AstNode('citation', ['id' => 'alt-source', 'text' => '[@alt-source]']),
+            new AstNode('citation', ['id' => 'migrated-source', 'text' => '[@migrated-source]']),
         ]));
     },
     'carries biblatex custom fields lists and names in legacy csl handoff' => static function (TestRunner $t): void {

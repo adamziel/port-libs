@@ -3062,15 +3062,26 @@ final class BibtexCslProcessor
      */
     private function citationAliases(array $fields): array
     {
-        $value = $this->firstField($fields, ['ids', 'citation-aliases', 'citationaliases', 'citation-alias', 'citationalias']);
-        if ($value === null || trim($value) === '') {
-            return [];
+        $aliases = [];
+        $seen = [];
+        foreach (['ids', 'citation-alias', 'citationalias', 'citation-aliases', 'citationaliases'] as $field) {
+            $value = trim($fields[$field] ?? '');
+            if ($value === '') {
+                continue;
+            }
+
+            foreach (preg_split('/[,;]+/', $value) ?: [] as $alias) {
+                $alias = trim($alias);
+                if ($alias === '' || isset($seen[$alias])) {
+                    continue;
+                }
+
+                $aliases[] = $alias;
+                $seen[$alias] = true;
+            }
         }
 
-        return array_values(array_filter(
-            array_map(static fn (string $alias): string => trim($alias), preg_split('/[,;]+/', $value) ?: []),
-            static fn (string $alias): bool => $alias !== ''
-        ));
+        return $aliases;
     }
 
     /**

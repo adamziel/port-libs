@@ -26645,6 +26645,64 @@ XML);
         $t->contains('<dt>Smith 2026</dt><dd>Printed Source Packet :: printing number second :: supplement number i</dd>', $blocks);
         $t->contains('<dt>Ng 2025</dt><dd>Range Supplement Packet :: printing numbers third-fourth :: supplement numbers ii-iii</dd>', $blocks);
     },
+    'maps compact biblatex publisher place and printing aliases into csl variables' => static function (TestRunner $t): void {
+        $bibtex = <<<'BIB'
+@book{compact-imprint-printing,
+  author          = {Roe, Riley},
+  title           = {Compact Imprint Printing Packet},
+  date            = {2026},
+  publisher       = {Review Press},
+  publisher-place = {Portland},
+  printing        = {3}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $t->same('Portland', $items[0]['publisher-place'] ?? null);
+        $t->same(['Portland'], $items[0]['publisher-place-list'] ?? null);
+        $t->same('3', $items[0]['printing-number'] ?? null);
+        $t->same('Portland', $items[0]['rawBibtex']['fields']['publisher-place'] ?? null);
+        $t->same('3', $items[0]['rawBibtex']['fields']['printing'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('compact-imprint-printing');
+        $t->same('Portland', $item['publisherPlace'] ?? null);
+        $t->same(['Portland'], $item['publisherPlaceList'] ?? null);
+        $t->same('3', $item['printingNumber'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="publisher-place"/>
+        <number variable="printing-number" form="ordinal"/>
+        <text variable="printing"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="publisher-place"/>
+      <text variable="printing"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Roe | Portland | 3rd | 3]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'compact-imprint-printing', 'text' => '[@compact-imprint-printing]']),
+        ]));
+        $t->same('Compact Imprint Printing Packet :: Portland :: 3', $styled->renderBibliographyEntry('compact-imprint-printing'));
+
+        $document = (new MarkdownReader())->read('Compact imprint [@compact-imprint-printing] remains reviewable.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Compact imprint [Roe | Portland | 3rd | 3] remains reviewable.</p>', $blocks);
+        $t->contains('<dt>Roe 2026</dt><dd>Compact Imprint Printing Packet :: Portland :: 3</dd>', $blocks);
+    },
     'maps bounded bibtex volume and part titles into csl output' => static function (TestRunner $t): void {
         $bibtex = <<<'BIB'
 @book{volume-part-source,
