@@ -7157,6 +7157,92 @@ XML);
     }
 };
 
+$buildFirstGraphicDataPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-first-graphic-data-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>First graphic data</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="10" name="Later Graphic Ignored"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic/>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl>
+        <a:tr><a:tc><a:txBody><a:p><a:r><a:t>Later graphic table cell</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
+      </a:tbl></a:graphicData></a:graphic>
+    </p:graphicFrame>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="11" name="Later GraphicData Ignored"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic>
+        <a:graphicData/>
+        <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl>
+          <a:tr><a:tc><a:txBody><a:p><a:r><a:t>Later graphicData table cell</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
+        </a:tbl></a:graphicData>
+      </a:graphic>
+    </p:graphicFrame>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="12" name="Later Table Child Ignored"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic>
+        <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"/>
+        <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl>
+          <a:tr><a:tc><a:txBody><a:p><a:r><a:t>Later table child cell</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
+        </a:tbl></a:graphicData>
+      </a:graphic>
+    </p:graphicFrame>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildQualifiedGraphicDataUriPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-qualified-graphic-uri-');
     if ($path === false) {
@@ -13114,6 +13200,30 @@ XML);
         $t->true(!str_contains($native, 'Missing GraphicData'), 'Graphic frames without graphicData should be skipped like upstream');
         $t->true(!str_contains($native, 'Missing Graphic'), 'Graphic frames without a:graphic should be skipped like upstream');
         $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
+    },
+
+    'uses only the first pptx graphic and graphicData children like upstream' => static function (TestRunner $t) use ($buildFirstGraphicDataPptxPackage, $nodesOfType): void {
+        $document = (new PptxReader())->read($buildFirstGraphicDataPptxPackage());
+        $review = $document->attr('pptx');
+        $paragraphs = $nodesOfType($document, 'paragraph');
+        $native = PandocConverter::write($document, 'native');
+        $graphicParagraphs = array_values(array_filter(
+            $paragraphs,
+            static fn (AstNode $paragraph): bool => (string) $paragraph->attr('text') === '[Graphic: no-uri]'
+        ));
+
+        $t->same('First graphic data', $document->children[0]->attr('text'));
+        $t->same([], $nodesOfType($document, 'table'));
+        $t->same(1, count($graphicParagraphs));
+        $t->same('Later GraphicData Ignored', $graphicParagraphs[0]->attr('pptxShape')['name'] ?? null);
+        $t->same(2, $review['slides'][0]['blockCount'] ?? null);
+        $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
+        $t->same(0, $review['slides'][0]['chartCount'] ?? null);
+        $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "First" , Space , Str "graphic" , Space , Str "data" ]', $native);
+        $t->contains('Para [ Str "[Graphic:" , Space , Str "no-uri]" ]', $native);
+        $t->true(!str_contains($native, 'Later graphic table cell'), 'Later a:graphic siblings should stay hidden when the first a:graphic has no a:graphicData');
+        $t->true(!str_contains($native, 'Later graphicData table cell'), 'Later a:graphicData siblings should stay hidden when the first a:graphicData has no uri');
+        $t->true(!str_contains($native, 'Later table child cell'), 'Later a:graphicData siblings should stay hidden when the first table graphicData has no a:tbl');
     },
 
     'requires unqualified pptx graphicData uri attributes like upstream' => static function (TestRunner $t) use ($buildQualifiedGraphicDataUriPptxPackage, $nodesOfType): void {
