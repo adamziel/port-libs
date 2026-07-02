@@ -768,6 +768,7 @@ final class PdfEngineHandoff
      *     pdfPageBoxes: list<array{page:int, pageObject:string|null, mediaBox:list<float>|null, cropBox:list<float>|null, bleedBox:list<float>|null, trimBox:list<float>|null, artBox:list<float>|null, rotation:int|null, inherited:list<string>}>,
      *     pdfPageRotations: array<int, int>,
      *     pdfPageProductionMetadata: list<array{page:int, pageObject:string|null, boxColorInfoObject:string|null, boxColorInfo:list<array{box:string, color:list<float>|null, width:float|null, style:string|null}>, separationInfoObject:string|null, separationPages:list<string>, separationDeviceColorant:string|null, separationColorSpace:string|null, presStepsObject:string|null, presStepsSubtype:string|null, presStepsNext:list<string>}>,
+     *     pdfPageProductionPolicy: array<string, mixed>,
      *     pdfPageDisplayMetadata: list<array{page:int, pageObject:string|null, language:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}>,
      *     pdfPageDisplayPolicy: array<string, mixed>,
      *     pdfPageThumbnails: list<array{page:int, pageObject:string|null, thumbnailObject:string|null, valueKind:string, subtype:string|null, validImage:bool, width:int|null, height:int|null, bitsPerComponent:int|null, colorSpace:string|null, filters:list<string>, interpolate:bool|null, imageMask:bool|null, softMask:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, reviewStatus:string, issues:list<string>}>,
@@ -1536,6 +1537,7 @@ final class PdfEngineHandoff
         $pdfPageBoxes = [];
         $pdfPageRotations = [];
         $pdfPageProductionMetadata = [];
+        $pdfPageProductionPolicy = [];
         $pdfPageDisplayMetadata = [];
         $pdfPageDisplayPolicy = [];
         $pdfPageThumbnails = [];
@@ -1697,6 +1699,7 @@ final class PdfEngineHandoff
                 $pdfPageBoxes = $pdfInspection['pageBoxes'];
                 $pdfPageRotations = $pdfInspection['pageRotations'];
                 $pdfPageProductionMetadata = $pdfInspection['pageProductionMetadata'];
+                $pdfPageProductionPolicy = $pdfInspection['pageProductionPolicy'];
                 $pdfPageDisplayMetadata = $pdfInspection['pageDisplayMetadata'];
                 $pdfPageDisplayPolicy = $pdfInspection['pageDisplayPolicy'];
                 $pdfPageThumbnails = $pdfInspection['pageThumbnails'];
@@ -1920,6 +1923,44 @@ final class PdfEngineHandoff
                     }
                     if ($presentationStepsCount > 0) {
                         $diagnostics[] = 'pdf-byte-page-presentation-steps:' . $presentationStepsCount;
+                    }
+                }
+                if ($pdfPageProductionPolicy !== []) {
+                    $diagnostics[] = 'pdf-byte-page-production-policy:' . ($pdfPageProductionPolicy['reviewStatus'] ?? 'unknown');
+                    foreach ([
+                        'pageCount' => 'pages',
+                        'metadataPageCount' => 'metadata-pages',
+                        'boxColorInfoCount' => 'box-color-info',
+                        'separationInfoCount' => 'separation-info',
+                        'presentationStepsCount' => 'presentation-steps',
+                        'presentationStepsNextCount' => 'presentation-next',
+                        'missingSeparationPageCount' => 'missing-separation-pages',
+                    ] as $policyKey => $diagnosticName) {
+                        if (isset($pdfPageProductionPolicy[$policyKey]) && is_int($pdfPageProductionPolicy[$policyKey]) && $pdfPageProductionPolicy[$policyKey] > 0) {
+                            $diagnostics[] = 'pdf-byte-page-production-policy-' . $diagnosticName . ':' . $pdfPageProductionPolicy[$policyKey];
+                        }
+                    }
+                    foreach ([
+                        'boxNames' => 'box',
+                        'boxStyles' => 'box-style',
+                        'separationColorSpaces' => 'separation-color-space',
+                        'presentationStepSubtypes' => 'presentation-step',
+                    ] as $policyKey => $diagnosticName) {
+                        if (isset($pdfPageProductionPolicy[$policyKey]) && is_array($pdfPageProductionPolicy[$policyKey])) {
+                            foreach ($pdfPageProductionPolicy[$policyKey] as $value => $count) {
+                                if (is_string($value) && is_int($count) && $count > 0) {
+                                    $diagnostics[] = 'pdf-byte-page-production-policy-' . $diagnosticName . ':' . $value . ':' . $count;
+                                }
+                            }
+                        }
+                    }
+                    if (isset($pdfPageProductionPolicy['issues']) && is_array($pdfPageProductionPolicy['issues']) && $pdfPageProductionPolicy['issues'] !== []) {
+                        $diagnostics[] = 'pdf-byte-page-production-policy-issues:' . count($pdfPageProductionPolicy['issues']);
+                        foreach ($pdfPageProductionPolicy['issues'] as $issue) {
+                            if (is_string($issue) && $issue !== '') {
+                                $diagnostics[] = 'pdf-byte-page-production-policy-issue:' . $issue . ':1';
+                            }
+                        }
                     }
                 }
                 if ($pdfPageDisplayMetadata !== []) {
@@ -5510,6 +5551,7 @@ final class PdfEngineHandoff
             'pdfPageBoxes' => $pdfPageBoxes,
             'pdfPageRotations' => $pdfPageRotations,
             'pdfPageProductionMetadata' => $pdfPageProductionMetadata,
+            'pdfPageProductionPolicy' => $pdfPageProductionPolicy,
             'pdfPageDisplayMetadata' => $pdfPageDisplayMetadata,
             'pdfPageDisplayPolicy' => $pdfPageDisplayPolicy,
             'pdfPageThumbnails' => $pdfPageThumbnails,
@@ -5681,6 +5723,7 @@ final class PdfEngineHandoff
      *     finalPdfPageBoxes: list<array{page:int, pageObject:string|null, mediaBox:list<float>|null, cropBox:list<float>|null, bleedBox:list<float>|null, trimBox:list<float>|null, artBox:list<float>|null, rotation:int|null, inherited:list<string>}>,
      *     finalPdfPageRotations: array<int, int>,
      *     finalPdfPageProductionMetadata: list<array{page:int, pageObject:string|null, boxColorInfoObject:string|null, boxColorInfo:list<array{box:string, color:list<float>|null, width:float|null, style:string|null}>, separationInfoObject:string|null, separationPages:list<string>, separationDeviceColorant:string|null, separationColorSpace:string|null, presStepsObject:string|null, presStepsSubtype:string|null, presStepsNext:list<string>}>,
+     *     finalPdfPageProductionPolicy: array<string, mixed>,
      *     finalPdfPageDisplayMetadata: list<array{page:int, pageObject:string|null, language:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}>,
      *     finalPdfPageDisplayPolicy: array<string, mixed>,
      *     finalPdfPageThumbnails: list<array{page:int, pageObject:string|null, thumbnailObject:string|null, valueKind:string, subtype:string|null, validImage:bool, width:int|null, height:int|null, bitsPerComponent:int|null, colorSpace:string|null, filters:list<string>, interpolate:bool|null, imageMask:bool|null, softMask:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, reviewStatus:string, issues:list<string>}>,
@@ -6020,6 +6063,7 @@ final class PdfEngineHandoff
             'finalPdfPageBoxes' => is_array($finalRun) && is_array($finalRun['pdfPageBoxes'] ?? null) ? $finalRun['pdfPageBoxes'] : [],
             'finalPdfPageRotations' => is_array($finalRun) && is_array($finalRun['pdfPageRotations'] ?? null) ? $finalRun['pdfPageRotations'] : [],
             'finalPdfPageProductionMetadata' => is_array($finalRun) && is_array($finalRun['pdfPageProductionMetadata'] ?? null) ? $finalRun['pdfPageProductionMetadata'] : [],
+            'finalPdfPageProductionPolicy' => is_array($finalRun) && is_array($finalRun['pdfPageProductionPolicy'] ?? null) ? $finalRun['pdfPageProductionPolicy'] : [],
             'finalPdfPageDisplayMetadata' => is_array($finalRun) && is_array($finalRun['pdfPageDisplayMetadata'] ?? null) ? $finalRun['pdfPageDisplayMetadata'] : [],
             'finalPdfPageDisplayPolicy' => is_array($finalRun) && is_array($finalRun['pdfPageDisplayPolicy'] ?? null) ? $finalRun['pdfPageDisplayPolicy'] : [],
             'finalPdfPageThumbnails' => is_array($finalRun) && is_array($finalRun['pdfPageThumbnails'] ?? null) ? $finalRun['pdfPageThumbnails'] : [],
@@ -13077,6 +13121,8 @@ final class PdfEngineHandoff
      *     pageCount:int|null,
      *     pageBoxes:list<array{page:int, pageObject:string|null, mediaBox:list<float>|null, cropBox:list<float>|null, bleedBox:list<float>|null, trimBox:list<float>|null, artBox:list<float>|null, rotation:int|null, inherited:list<string>}>,
      *     pageRotations:array<int, int>,
+     *     pageProductionMetadata:list<array{page:int, pageObject:string|null, boxColorInfoObject:string|null, boxColorInfo:list<array{box:string, color:list<float>|null, width:float|null, style:string|null}>, separationInfoObject:string|null, separationPages:list<string>, separationDeviceColorant:string|null, separationColorSpace:string|null, presStepsObject:string|null, presStepsSubtype:string|null, presStepsNext:list<string>}>,
+     *     pageProductionPolicy:array<string, mixed>,
      *     pageDisplayMetadata:list<array{page:int, pageObject:string|null, language:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}>,
      *     pageThumbnails:list<array{page:int, pageObject:string|null, thumbnailObject:string|null, valueKind:string, subtype:string|null, validImage:bool, width:int|null, height:int|null, bitsPerComponent:int|null, colorSpace:string|null, filters:list<string>, interpolate:bool|null, imageMask:bool|null, softMask:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, reviewStatus:string, issues:list<string>}>,
      *     pageThumbnailPolicy:array{reviewStatus:string, pageCount:int|null, thumbnailCount:int, thumbnailPages:list<int>, imageThumbnailCount:int, missingObjectCount:int, nonImageCount:int, missingStreamCount:int, skippedStreamCount:int, streamCount:int, colorSpaces:array<string, int>, filters:array<string, int>, issues:list<string>}|array{},
@@ -13334,6 +13380,7 @@ final class PdfEngineHandoff
             'pageBoxes' => $pageBoxes,
             'pageRotations' => $this->summarizePdfPageRotations($pageBoxes),
             'pageProductionMetadata' => $pageProductionMetadata,
+            'pageProductionPolicy' => $this->summarizePdfPageProductionPolicy($pageProductionMetadata, $this->extractPdfPageCount($pdfBytes)),
             'pageDisplayMetadata' => $pageDisplayMetadata,
             'pageDisplayPolicy' => $this->summarizePdfPageDisplayPolicy($pageDisplayMetadata, $this->extractPdfPageCount($pdfBytes)),
             'pageThumbnails' => $pageThumbnails,
@@ -27890,6 +27937,150 @@ final class PdfEngineHandoff
             'presStepsNext' => $presStepsDictionary === null
                 ? []
                 : $this->collectPdfReferencesFromValue($this->extractPdfValueForName($presStepsDictionary, 'Next'), $objects),
+        ];
+    }
+
+    /**
+     * @param list<array{page:int, pageObject:string|null, boxColorInfoObject:string|null, boxColorInfo:list<array{box:string, color:list<float>|null, width:float|null, style:string|null}>, separationInfoObject:string|null, separationPages:list<string>, separationDeviceColorant:string|null, separationColorSpace:string|null, presStepsObject:string|null, presStepsSubtype:string|null, presStepsNext:list<string>}> $metadata
+     * @return array<string, mixed>
+     */
+    private function summarizePdfPageProductionPolicy(array $metadata, ?int $pageCount): array
+    {
+        if ($metadata === []) {
+            return [];
+        }
+
+        $metadataPages = [];
+        $pageObjects = [];
+        foreach ($metadata as $entry) {
+            if (is_int($entry['page'] ?? null)) {
+                $metadataPages[$entry['page']] = true;
+            }
+            if (is_string($entry['pageObject'] ?? null) && $entry['pageObject'] !== '') {
+                $pageObjects[$entry['pageObject']] = true;
+            }
+        }
+
+        $boxColorInfoCount = 0;
+        $boxNames = [];
+        $boxStyles = [];
+        $boxMissingColorCount = 0;
+        $boxMissingWidthCount = 0;
+        $boxMissingStyleCount = 0;
+        $separationInfoCount = 0;
+        $separationPageCount = 0;
+        $missingSeparationPageCount = 0;
+        $deviceColorants = [];
+        $separationColorSpaces = [];
+        $missingDeviceColorantCount = 0;
+        $missingSeparationColorSpaceCount = 0;
+        $presentationStepsCount = 0;
+        $presentationStepsNextCount = 0;
+        $presentationStepSubtypes = [];
+        $issues = [];
+
+        $addCount = static function (array &$counts, ?string $value): void {
+            if ($value === null || $value === '') {
+                return;
+            }
+            $counts[$value] = ($counts[$value] ?? 0) + 1;
+        };
+        $addIssue = static function (array &$issues, string $issue): void {
+            $issues[$issue] = true;
+        };
+
+        foreach ($metadata as $entry) {
+            $boxColorInfo = is_array($entry['boxColorInfo'] ?? null) ? $entry['boxColorInfo'] : [];
+            if ($boxColorInfo !== []) {
+                $addIssue($issues, 'page-production-box-color-info');
+            }
+            foreach ($boxColorInfo as $boxInfo) {
+                $boxColorInfoCount++;
+                $addCount($boxNames, is_string($boxInfo['box'] ?? null) ? $boxInfo['box'] : null);
+                $addCount($boxStyles, is_string($boxInfo['style'] ?? null) ? $boxInfo['style'] : null);
+                if (!is_array($boxInfo['color'] ?? null) || $boxInfo['color'] === []) {
+                    $boxMissingColorCount++;
+                    $addIssue($issues, 'page-production-box-color-missing-color');
+                }
+                if (!is_float($boxInfo['width'] ?? null) && !is_int($boxInfo['width'] ?? null)) {
+                    $boxMissingWidthCount++;
+                    $addIssue($issues, 'page-production-box-color-missing-width');
+                }
+                if (!is_string($boxInfo['style'] ?? null) || $boxInfo['style'] === '') {
+                    $boxMissingStyleCount++;
+                    $addIssue($issues, 'page-production-box-color-missing-style');
+                }
+            }
+
+            if (($entry['separationInfoObject'] ?? null) !== null) {
+                $separationInfoCount++;
+                $addIssue($issues, 'page-production-separation-info');
+                if (!is_string($entry['separationDeviceColorant'] ?? null) || $entry['separationDeviceColorant'] === '') {
+                    $missingDeviceColorantCount++;
+                    $addIssue($issues, 'page-production-separation-missing-colorant');
+                }
+                if (!is_string($entry['separationColorSpace'] ?? null) || $entry['separationColorSpace'] === '') {
+                    $missingSeparationColorSpaceCount++;
+                    $addIssue($issues, 'page-production-separation-missing-color-space');
+                }
+            }
+            $addCount($deviceColorants, is_string($entry['separationDeviceColorant'] ?? null) ? $entry['separationDeviceColorant'] : null);
+            $addCount($separationColorSpaces, is_string($entry['separationColorSpace'] ?? null) ? $entry['separationColorSpace'] : null);
+
+            $separationPages = is_array($entry['separationPages'] ?? null) ? $entry['separationPages'] : [];
+            $separationPageCount += count($separationPages);
+            foreach ($separationPages as $separationPage) {
+                if (!is_string($separationPage) || $separationPage === '' || !isset($pageObjects[$separationPage])) {
+                    $missingSeparationPageCount++;
+                    $addIssue($issues, 'page-production-separation-missing-page');
+                }
+            }
+
+            if (($entry['presStepsObject'] ?? null) !== null) {
+                $presentationStepsCount++;
+                $addIssue($issues, 'page-production-presentation-steps');
+            }
+            $addCount($presentationStepSubtypes, is_string($entry['presStepsSubtype'] ?? null) ? $entry['presStepsSubtype'] : null);
+            $presStepsNext = is_array($entry['presStepsNext'] ?? null) ? $entry['presStepsNext'] : [];
+            $presentationStepsNextCount += count($presStepsNext);
+            if ($presStepsNext !== []) {
+                $addIssue($issues, 'page-production-presentation-step-chain');
+            }
+        }
+
+        ksort($boxNames, SORT_STRING);
+        ksort($boxStyles, SORT_STRING);
+        ksort($deviceColorants, SORT_STRING);
+        ksort($separationColorSpaces, SORT_STRING);
+        ksort($presentationStepSubtypes, SORT_STRING);
+        ksort($issues, SORT_STRING);
+
+        $pagesWithProduction = array_map('intval', array_keys($metadataPages));
+        sort($pagesWithProduction);
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'pageCount' => $pageCount,
+            'metadataPageCount' => count($metadataPages),
+            'pagesWithProduction' => $pagesWithProduction,
+            'boxColorInfoCount' => $boxColorInfoCount,
+            'boxNames' => $boxNames,
+            'boxStyles' => $boxStyles,
+            'boxMissingColorCount' => $boxMissingColorCount,
+            'boxMissingWidthCount' => $boxMissingWidthCount,
+            'boxMissingStyleCount' => $boxMissingStyleCount,
+            'separationInfoCount' => $separationInfoCount,
+            'separationPageCount' => $separationPageCount,
+            'missingSeparationPageCount' => $missingSeparationPageCount,
+            'deviceColorantCount' => count($deviceColorants),
+            'deviceColorants' => $deviceColorants,
+            'separationColorSpaces' => $separationColorSpaces,
+            'missingDeviceColorantCount' => $missingDeviceColorantCount,
+            'missingSeparationColorSpaceCount' => $missingSeparationColorSpaceCount,
+            'presentationStepsCount' => $presentationStepsCount,
+            'presentationStepsNextCount' => $presentationStepsNextCount,
+            'presentationStepSubtypes' => $presentationStepSubtypes,
+            'issues' => array_keys($issues),
         ];
     }
 
