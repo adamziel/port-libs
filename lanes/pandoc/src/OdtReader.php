@@ -147,6 +147,10 @@ final class OdtReader
             $metadata['odtManifestMissingEntries'] = $manifest['missingEntries'];
             $metadata['odtManifestEncryptedEntries'] = $manifest['encryptedEntries'];
             $metadata['odtManifestImageResources'] = $manifest['imageResources'];
+            if (($manifest['diagnostics'] ?? []) !== []) {
+                $metadata['odtPackageDiagnostics'] = $manifest['diagnostics'];
+                $metadata['odtPackageDiagnosticCount'] = count($manifest['diagnostics']);
+            }
         }
 
         return new AstNode('document', ['meta' => $metadata], $children);
@@ -161,7 +165,8 @@ final class OdtReader
      *     mediaTypes:array<string, int>,
      *     missingEntries:list<string>,
      *     encryptedEntries:list<string>,
-     *     imageResources:list<string>
+     *     imageResources:list<string>,
+     *     diagnostics:list<array<string, mixed>>
      * }
      */
     private function manifestMetadata(string $manifest_xml, array $packageEntries): array
@@ -179,6 +184,8 @@ final class OdtReader
         $missingEntries = [];
         $encryptedEntries = [];
         $imageResources = [];
+        $diagnostics = [];
+        $seenFullPaths = [];
         $rootMediaType = null;
         $hasContentXml = false;
 
@@ -189,14 +196,29 @@ final class OdtReader
 
             $fullPath = $this->attr($child, self::MANIFEST_NS, 'full-path');
             if ($fullPath === '') {
+                $diagnostics[] = ['code' => 'missing-manifest-full-path'];
                 continue;
             }
+            if (isset($seenFullPaths[$fullPath])) {
+                $diagnostics[] = [
+                    'code' => 'duplicate-manifest-full-path',
+                    'path' => $fullPath,
+                ];
+            }
+            $seenFullPaths[$fullPath] = true;
 
             $mediaType = $this->attr($child, self::MANIFEST_NS, 'media-type');
             $entryVersion = $this->attr($child, self::MANIFEST_NS, 'version');
             $declaredSize = $this->manifestDeclaredSize($this->attr($child, self::MANIFEST_NS, 'size'));
-            $packagePath = $fullPath === '/' ? '' : $this->normalizePackagePath($fullPath);
-            $exists = $fullPath === '/' || ($packagePath !== '' && isset($packageEntryLookup[$packagePath]));
+            $pathIssue = $fullPath === '/' ? null : $this->manifestPathIssue($fullPath);
+            if ($pathIssue !== null) {
+                $diagnostics[] = array_merge([
+                    'code' => 'invalid-manifest-full-path',
+                    'path' => $fullPath,
+                ], $pathIssue);
+            }
+            $packagePath = $fullPath === '/' || $pathIssue !== null ? '' : $this->normalizePackagePath($fullPath);
+            $exists = $fullPath === '/' || ($pathIssue === null && $packagePath !== '' && isset($packageEntryLookup[$packagePath]));
             $encrypted = $this->firstChildElementByLocalName($child, 'encryption-data') instanceof \DOMElement;
 
             if ($fullPath === '/') {
@@ -208,13 +230,17 @@ final class OdtReader
             if ($mediaType !== '') {
                 $mediaTypes[$mediaType] = ($mediaTypes[$mediaType] ?? 0) + 1;
             }
-            if (!$exists && $fullPath !== '/') {
+            if (!$exists && $fullPath !== '/' && $pathIssue === null) {
                 $missingEntries[] = $fullPath;
+                $diagnostics[] = [
+                    'code' => 'missing-manifest-resource',
+                    'path' => $fullPath,
+                ];
             }
             if ($encrypted && $fullPath !== '/') {
                 $encryptedEntries[] = $fullPath;
             }
-            if ($this->pathLooksLikeImage($fullPath)) {
+            if ($pathIssue === null && $this->pathLooksLikeImage($fullPath)) {
                 $imageResources[] = $packagePath === '' ? $fullPath : $packagePath;
             }
 
@@ -229,11 +255,15 @@ final class OdtReader
             ];
         }
 
-        if ($rootMediaType !== self::ODT_MIMETYPE) {
-            throw new \RuntimeException('ODT manifest root must identify an OpenDocument text package.');
+        if ($rootMediaType !== null && $rootMediaType !== self::ODT_MIMETYPE) {
+            $diagnostics[] = [
+                'code' => 'invalid-manifest-root-media-type',
+                'expected' => self::ODT_MIMETYPE,
+                'actual' => $rootMediaType,
+            ];
         }
         if (!$hasContentXml) {
-            throw new \RuntimeException('ODT manifest is missing content.xml.');
+            $diagnostics[] = ['code' => 'missing-manifest-content-entry'];
         }
 
         ksort($mediaTypes, SORT_STRING);
@@ -246,6 +276,7 @@ final class OdtReader
             'missingEntries' => array_values(array_unique($missingEntries)),
             'encryptedEntries' => array_values(array_unique($encryptedEntries)),
             'imageResources' => array_values(array_unique($imageResources)),
+            'diagnostics' => $diagnostics,
         ];
     }
 
@@ -838,6 +869,26 @@ final class OdtReader
     private function pathLooksLikeImage(string $path): bool
     {
         return (bool) preg_match('/\.(?:apng|avif|bmp|gif|ico|jpe?g|png|svgz?|tiff?|webp)$/i', $path);
+    }
+
+    /**
+     * @return array{reason:string}|null
+     */
+    private function manifestPathIssue(string $path): ?array
+    {
+        if (str_starts_with($path, '/') || str_starts_with($path, '\\')) {
+            return ['reason' => 'absolute'];
+        }
+        if (str_contains($path, '\\')) {
+            return ['reason' => 'backslash'];
+        }
+        foreach (explode('/', $path) as $part) {
+            if ($part === '..') {
+                return ['reason' => 'traversal'];
+            }
+        }
+
+        return null;
     }
 
     private function manifestDeclaredSize(string $value): ?int
