@@ -98,6 +98,13 @@ return [
         $t->same(true, $summary['hasSplitArchiveMarkers']);
         $t->same(false, $summary['isSupportedByBoundedReader']);
         $t->same(['split-archive-eocd', 'split-entry-disk-start'], $summary['issues']);
+        $t->same(3, $summary['eocdSplitMarkerCount']);
+        $t->same(['diskNumber', 'centralDirectoryDisk', 'diskEntryCount'], $summary['eocdSplitMarkerFields']);
+        $t->same([
+            ['field' => 'diskNumber', 'value' => 2, 'expected' => 0, 'issue' => 'split-archive-eocd'],
+            ['field' => 'centralDirectoryDisk', 'value' => 2, 'expected' => 0, 'issue' => 'split-archive-eocd'],
+            ['field' => 'diskEntryCount', 'value' => 2, 'expected' => 4, 'issue' => 'split-archive-eocd'],
+        ], $summary['eocdSplitMarkers']);
         $t->same(3, $summary['splitArchiveEntryCount']);
         $t->same(3, $summary['diskStartSummaryCount']);
         $t->same(2, $summary['splitArchiveDiskStartSummaryCount']);
@@ -120,6 +127,8 @@ return [
         $t->same(false, $rawStrict['canInstantiate']);
         $t->contains('split-archive-eocd', implode(',', $rawStrict['diagnostics']));
         $t->contains('split-entry-disk-start', implode(',', $rawStrict['diagnostics']));
+        $t->same($summary['eocdSplitMarkers'], $rawStrict['splitArchive']['eocdSplitMarkers']);
+        $t->same($summary['eocdSplitMarkerFields'], $rawStrict['splitArchive']['eocdSplitMarkerFields']);
         $t->same($summary['diskStartEntryCounts'], $rawStrict['splitArchive']['diskStartEntryCounts']);
         $t->same($summary['splitArchiveDiskStartSummaries'], $rawStrict['splitArchive']['splitArchiveDiskStartSummaries']);
     },
