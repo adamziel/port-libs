@@ -1578,6 +1578,7 @@ final class PdfEngineHandoff
         $pdfOutputIntents = [];
         $pdfPageOutputIntents = [];
         $pdfOutputIntentPolicy = [];
+        $pdfOutputIntentProfilePolicy = [];
         $pdfConformancePolicy = [];
         $pdfAssociatedFilePolicy = [];
         $pdfLanguage = null;
@@ -1739,6 +1740,7 @@ final class PdfEngineHandoff
                 $pdfOutputIntents = $pdfInspection['outputIntents'];
                 $pdfPageOutputIntents = $pdfInspection['pageOutputIntents'];
                 $pdfOutputIntentPolicy = $pdfInspection['outputIntentPolicy'];
+                $pdfOutputIntentProfilePolicy = $pdfInspection['outputIntentProfilePolicy'];
                 $pdfConformancePolicy = $pdfInspection['conformancePolicy'];
                 $pdfAssociatedFilePolicy = $pdfInspection['associatedFilePolicy'];
                 $pdfLanguage = $pdfInspection['language'];
@@ -3040,6 +3042,56 @@ final class PdfEngineHandoff
                         ksort($issueCounts);
                         foreach ($issueCounts as $issue => $count) {
                             $diagnostics[] = 'pdf-byte-output-intent-policy-issue:' . $issue . ':' . $count;
+                        }
+                    }
+                }
+                if ($pdfOutputIntentProfilePolicy !== []) {
+                    $policyStatus = is_string($pdfOutputIntentProfilePolicy['reviewStatus'] ?? null)
+                        ? $pdfOutputIntentProfilePolicy['reviewStatus']
+                        : 'unknown';
+                    $diagnostics[] = 'pdf-byte-output-profile-policy:' . $policyStatus;
+                    foreach ([
+                        'intentCount' => 'intents',
+                        'pdfaIntentCount' => 'pdfa-intents',
+                        'pdfxIntentCount' => 'pdfx-intents',
+                        'profileIntentCount' => 'profiles',
+                        'documentProfileIntentCount' => 'document-profiles',
+                        'pageProfileIntentCount' => 'page-profiles',
+                        'profileHashCount' => 'hashed-profiles',
+                        'profileSkippedCount' => 'skipped-profiles',
+                        'profileByteCount' => 'profile-bytes',
+                    ] as $key => $label) {
+                        if (isset($pdfOutputIntentProfilePolicy[$key]) && is_int($pdfOutputIntentProfilePolicy[$key]) && $pdfOutputIntentProfilePolicy[$key] > 0) {
+                            $diagnostics[] = 'pdf-byte-output-profile-policy-' . $label . ':' . $pdfOutputIntentProfilePolicy[$key];
+                        }
+                    }
+                    foreach (($pdfOutputIntentProfilePolicy['profileComponentCounts'] ?? []) as $component => $count) {
+                        if ((is_string($component) || is_int($component)) && is_int($count)) {
+                            $diagnostics[] = 'pdf-byte-output-profile-policy-component:' . $component . ':' . $count;
+                        }
+                    }
+                    foreach (($pdfOutputIntentProfilePolicy['profileAlternateCounts'] ?? []) as $alternate => $count) {
+                        if (is_string($alternate) && is_int($count)) {
+                            $diagnostics[] = 'pdf-byte-output-profile-policy-alternate:' . $alternate . ':' . $count;
+                        }
+                    }
+                    foreach (($pdfOutputIntentProfilePolicy['profileSkippedReasons'] ?? []) as $reason => $count) {
+                        if (is_string($reason) && is_int($count)) {
+                            $diagnostics[] = 'pdf-byte-output-profile-policy-skipped:' . $reason . ':' . $count;
+                        }
+                    }
+                    if (isset($pdfOutputIntentProfilePolicy['issues']) && is_array($pdfOutputIntentProfilePolicy['issues']) && $pdfOutputIntentProfilePolicy['issues'] !== []) {
+                        $diagnostics[] = 'pdf-byte-output-profile-policy-issues:' . count($pdfOutputIntentProfilePolicy['issues']);
+                        $issueCounts = [];
+                        foreach ($pdfOutputIntentProfilePolicy['issues'] as $issue) {
+                            if (!is_string($issue) || $issue === '') {
+                                continue;
+                            }
+                            $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
+                        }
+                        ksort($issueCounts);
+                        foreach ($issueCounts as $issue => $count) {
+                            $diagnostics[] = 'pdf-byte-output-profile-policy-issue:' . $issue . ':' . $count;
                         }
                     }
                 }
@@ -5552,6 +5604,7 @@ final class PdfEngineHandoff
             'pdfOutputIntents' => $pdfOutputIntents,
             'pdfPageOutputIntents' => $pdfPageOutputIntents,
             'pdfOutputIntentPolicy' => $pdfOutputIntentPolicy,
+            'pdfOutputIntentProfilePolicy' => $pdfOutputIntentProfilePolicy,
             'pdfConformancePolicy' => $pdfConformancePolicy,
             'pdfAssociatedFilePolicy' => $pdfAssociatedFilePolicy,
             'pdfLanguage' => $pdfLanguage,
@@ -6072,6 +6125,7 @@ final class PdfEngineHandoff
             'finalPdfOutputIntents' => is_array($finalRun) && is_array($finalRun['pdfOutputIntents'] ?? null) ? $finalRun['pdfOutputIntents'] : [],
             'finalPdfPageOutputIntents' => is_array($finalRun) && is_array($finalRun['pdfPageOutputIntents'] ?? null) ? $finalRun['pdfPageOutputIntents'] : [],
             'finalPdfOutputIntentPolicy' => is_array($finalRun) && is_array($finalRun['pdfOutputIntentPolicy'] ?? null) ? $finalRun['pdfOutputIntentPolicy'] : [],
+            'finalPdfOutputIntentProfilePolicy' => is_array($finalRun) && is_array($finalRun['pdfOutputIntentProfilePolicy'] ?? null) ? $finalRun['pdfOutputIntentProfilePolicy'] : [],
             'finalPdfConformancePolicy' => is_array($finalRun) && is_array($finalRun['pdfConformancePolicy'] ?? null) ? $finalRun['pdfConformancePolicy'] : [],
             'finalPdfAssociatedFilePolicy' => is_array($finalRun) && is_array($finalRun['pdfAssociatedFilePolicy'] ?? null) ? $finalRun['pdfAssociatedFilePolicy'] : [],
             'finalPdfLanguage' => is_array($finalRun) && is_string($finalRun['pdfLanguage'] ?? null) ? $finalRun['pdfLanguage'] : null,
@@ -13376,6 +13430,7 @@ final class PdfEngineHandoff
             'outputIntents' => $outputIntents,
             'pageOutputIntents' => $pageOutputIntents,
             'outputIntentPolicy' => $this->summarizePdfOutputIntentPolicy($xmpMetadata, $outputIntents, $pageOutputIntents),
+            'outputIntentProfilePolicy' => $this->summarizePdfOutputIntentProfilePolicy($outputIntents, $pageOutputIntents),
             'conformancePolicy' => $this->summarizePdfConformancePolicy($xmpMetadata, $outputIntents, $language, $taggingMetadata, $encryption),
             'associatedFilePolicy' => $this->summarizePdfAssociatedFilePolicy($xmpMetadata, $embeddedFiles),
             'language' => $language,
@@ -16660,6 +16715,223 @@ final class PdfEngineHandoff
             'embeddedProfileCount' => $embeddedProfileCount,
             'issues' => $issues,
             'intents' => $intents,
+        ];
+    }
+
+    /**
+     * @param list<array{type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}> $outputIntents
+     * @param list<array{page:int, pageObject:string|null, source:string, type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}> $pageOutputIntents
+     * @return array<string, mixed>
+     */
+    private function summarizePdfOutputIntentProfilePolicy(array $outputIntents, array $pageOutputIntents): array
+    {
+        if ($outputIntents === [] && $pageOutputIntents === []) {
+            return [];
+        }
+
+        $profiles = [];
+        $profileComponentCounts = [];
+        $profileAlternateCounts = [];
+        $profileSkippedReasons = [];
+        $issues = [];
+        $pdfaIntentCount = 0;
+        $pdfxIntentCount = 0;
+        $profileIntentCount = 0;
+        $documentProfileIntentCount = 0;
+        $pageProfileIntentCount = 0;
+        $profileHashCount = 0;
+        $profileSkippedCount = 0;
+        $profileByteCount = 0;
+
+        foreach ($outputIntents as $index => $intent) {
+            $entry = $this->pdfOutputIntentProfilePolicyEntry($intent, 'document', null, 'catalog.OutputIntents[' . $index . ']');
+            $this->accumulatePdfOutputIntentProfilePolicyEntry(
+                $entry,
+                $profiles,
+                $profileComponentCounts,
+                $profileAlternateCounts,
+                $profileSkippedReasons,
+                $issues,
+                $pdfaIntentCount,
+                $pdfxIntentCount,
+                $profileIntentCount,
+                $documentProfileIntentCount,
+                $pageProfileIntentCount,
+                $profileHashCount,
+                $profileSkippedCount,
+                $profileByteCount
+            );
+        }
+
+        foreach ($pageOutputIntents as $intent) {
+            $page = is_int($intent['page'] ?? null) ? $intent['page'] : null;
+            $source = is_string($intent['source'] ?? null) && $intent['source'] !== ''
+                ? $intent['source']
+                : 'page.OutputIntents';
+            $entry = $this->pdfOutputIntentProfilePolicyEntry($intent, 'page', $page, $source);
+            $this->accumulatePdfOutputIntentProfilePolicyEntry(
+                $entry,
+                $profiles,
+                $profileComponentCounts,
+                $profileAlternateCounts,
+                $profileSkippedReasons,
+                $issues,
+                $pdfaIntentCount,
+                $pdfxIntentCount,
+                $profileIntentCount,
+                $documentProfileIntentCount,
+                $pageProfileIntentCount,
+                $profileHashCount,
+                $profileSkippedCount,
+                $profileByteCount
+            );
+        }
+
+        ksort($profileComponentCounts);
+        ksort($profileAlternateCounts);
+        ksort($profileSkippedReasons);
+        $issues = array_keys($issues);
+        sort($issues, SORT_STRING);
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'intentCount' => count($outputIntents) + count($pageOutputIntents),
+            'pdfaIntentCount' => $pdfaIntentCount,
+            'pdfxIntentCount' => $pdfxIntentCount,
+            'profileIntentCount' => $profileIntentCount,
+            'documentProfileIntentCount' => $documentProfileIntentCount,
+            'pageProfileIntentCount' => $pageProfileIntentCount,
+            'profileHashCount' => $profileHashCount,
+            'profileSkippedCount' => $profileSkippedCount,
+            'profileByteCount' => $profileByteCount,
+            'profileComponentCounts' => $profileComponentCounts,
+            'profileAlternateCounts' => $profileAlternateCounts,
+            'profileSkippedReasons' => $profileSkippedReasons,
+            'issues' => $issues,
+            'profiles' => $profiles,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $intent
+     * @return array{scope:string, page:int|null, source:string, subtype:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null, pdfaIntent:bool, pdfxIntent:bool}
+     */
+    private function pdfOutputIntentProfilePolicyEntry(array $intent, string $scope, ?int $page, string $source): array
+    {
+        $subtype = is_string($intent['subtype'] ?? null) && $intent['subtype'] !== ''
+            ? $intent['subtype']
+            : null;
+        $subtypeUpper = $subtype === null ? '' : strtoupper($subtype);
+        $destOutputProfile = is_string($intent['destOutputProfile'] ?? null) && $intent['destOutputProfile'] !== ''
+            ? $intent['destOutputProfile']
+            : null;
+        $profileAlternate = is_string($intent['profileAlternate'] ?? null) && $intent['profileAlternate'] !== ''
+            ? $intent['profileAlternate']
+            : null;
+        $profileSha256 = is_string($intent['profileSha256'] ?? null) && $intent['profileSha256'] !== ''
+            ? $intent['profileSha256']
+            : null;
+        $profileSkipped = is_string($intent['profileSkipped'] ?? null) && $intent['profileSkipped'] !== ''
+            ? $intent['profileSkipped']
+            : null;
+
+        return [
+            'scope' => $scope,
+            'page' => $page,
+            'source' => $source,
+            'subtype' => $subtype,
+            'destOutputProfile' => $destOutputProfile,
+            'profileComponents' => is_int($intent['profileComponents'] ?? null) ? $intent['profileComponents'] : null,
+            'profileAlternate' => $profileAlternate,
+            'profileBytes' => is_int($intent['profileBytes'] ?? null) ? $intent['profileBytes'] : null,
+            'profileSha256' => $profileSha256,
+            'profileSkipped' => $profileSkipped,
+            'pdfaIntent' => $subtypeUpper !== '' && str_contains($subtypeUpper, 'PDFA'),
+            'pdfxIntent' => $subtypeUpper !== '' && str_contains($subtypeUpper, 'PDFX'),
+        ];
+    }
+
+    /**
+     * @param array{scope:string, page:int|null, source:string, subtype:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null, pdfaIntent:bool, pdfxIntent:bool} $entry
+     * @param list<array{scope:string, page:int|null, source:string, subtype:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}> $profiles
+     * @param array<int|string, int> $profileComponentCounts
+     * @param array<string, int> $profileAlternateCounts
+     * @param array<string, int> $profileSkippedReasons
+     * @param array<string, bool> $issues
+     */
+    private function accumulatePdfOutputIntentProfilePolicyEntry(
+        array $entry,
+        array &$profiles,
+        array &$profileComponentCounts,
+        array &$profileAlternateCounts,
+        array &$profileSkippedReasons,
+        array &$issues,
+        int &$pdfaIntentCount,
+        int &$pdfxIntentCount,
+        int &$profileIntentCount,
+        int &$documentProfileIntentCount,
+        int &$pageProfileIntentCount,
+        int &$profileHashCount,
+        int &$profileSkippedCount,
+        int &$profileByteCount
+    ): void {
+        if ($entry['pdfaIntent']) {
+            $pdfaIntentCount++;
+        }
+        if ($entry['pdfxIntent']) {
+            $pdfxIntentCount++;
+        }
+
+        if ($entry['destOutputProfile'] === null) {
+            if ($entry['pdfaIntent']) {
+                $issues['pdfa-output-intent-missing-dest-output-profile'] = true;
+            }
+            if ($entry['pdfxIntent']) {
+                $issues['pdfx-output-intent-missing-dest-output-profile'] = true;
+            }
+
+            return;
+        }
+
+        $profileIntentCount++;
+        if ($entry['scope'] === 'document') {
+            $documentProfileIntentCount++;
+        } elseif ($entry['scope'] === 'page') {
+            $pageProfileIntentCount++;
+        }
+        if ($entry['profileComponents'] !== null) {
+            $profileComponentCounts[$entry['profileComponents']] = ($profileComponentCounts[$entry['profileComponents']] ?? 0) + 1;
+        } else {
+            $issues['output-profile-missing-components'] = true;
+        }
+        if ($entry['profileAlternate'] !== null) {
+            $profileAlternateCounts[$entry['profileAlternate']] = ($profileAlternateCounts[$entry['profileAlternate']] ?? 0) + 1;
+        }
+        if ($entry['profileBytes'] !== null) {
+            $profileByteCount += $entry['profileBytes'];
+        } else {
+            $issues['output-profile-missing-stream-bytes'] = true;
+        }
+        if ($entry['profileSha256'] !== null) {
+            $profileHashCount++;
+        }
+        if ($entry['profileSkipped'] !== null) {
+            $profileSkippedCount++;
+            $profileSkippedReasons[$entry['profileSkipped']] = ($profileSkippedReasons[$entry['profileSkipped']] ?? 0) + 1;
+            $issues['output-profile-stream-skipped'] = true;
+        }
+
+        $profiles[] = [
+            'scope' => $entry['scope'],
+            'page' => $entry['page'],
+            'source' => $entry['source'],
+            'subtype' => $entry['subtype'],
+            'destOutputProfile' => $entry['destOutputProfile'],
+            'profileComponents' => $entry['profileComponents'],
+            'profileAlternate' => $entry['profileAlternate'],
+            'profileBytes' => $entry['profileBytes'],
+            'profileSha256' => $entry['profileSha256'],
+            'profileSkipped' => $entry['profileSkipped'],
         ];
     }
 
