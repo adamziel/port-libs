@@ -1687,6 +1687,8 @@
         "xmlHtmlDomPopoverStateReviewAssertions": 39,
         "mappedXmlHtmlDomElementTimingReviewCases": 1,
         "xmlHtmlDomElementTimingReviewAssertions": 43,
+        "mappedXmlHtmlDomPartExportReviewCases": 2,
+        "xmlHtmlDomPartExportReviewAssertions": 84,
         "mappedXmlHtmlDomOrderedListOrdinalReviewCases": 1,
         "xmlHtmlDomOrderedListOrdinalReviewAssertions": 66,
         "xmlHtmlDomSpellcheckReviewCases": 1,
