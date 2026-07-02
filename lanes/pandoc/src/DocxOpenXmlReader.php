@@ -1604,6 +1604,14 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['activeXBinaryAllowedExternalCount'] = $activeXControls['allowedExternalBinaryCount'];
         $packageProvenance['summary']['activeXBinaryUnsafeExternalCount'] = $activeXControls['unsafeExternalBinaryCount'];
         $packageProvenance['summary']['activeXBinaryExternalTargetIssueCodes'] = $activeXControls['binaryExternalTargetIssueCodes'];
+        $packageProvenance['summary']['activeXBinaryRelationshipRecordCount'] = $activeXControls['binaryRelationshipRecordCount'];
+        $packageProvenance['summary']['activeXBinaryValidRelationshipRecordCount'] = $activeXControls['binaryValidRelationshipRecordCount'];
+        $packageProvenance['summary']['activeXBinaryInvalidRelationshipRecordCount'] = $activeXControls['binaryInvalidRelationshipRecordCount'];
+        $packageProvenance['summary']['activeXBinaryDuplicateRelationshipIdCount'] = $activeXControls['binaryDuplicateRelationshipIdCount'];
+        $packageProvenance['summary']['activeXBinaryDuplicateRelationshipRecordCount'] = $activeXControls['binaryDuplicateRelationshipRecordCount'];
+        $packageProvenance['summary']['activeXBinaryRelationshipRecordIssueCount'] = $activeXControls['binaryRelationshipRecordIssueCount'];
+        $packageProvenance['summary']['activeXBinaryDuplicateRelationshipIds'] = $activeXControls['binaryDuplicateRelationshipIds'];
+        $packageProvenance['summary']['activeXBinaryRelationshipRecordIssueCodes'] = $activeXControls['binaryRelationshipRecordIssueCodes'];
         $packageProvenance['summary']['activeXIssueCount'] = $activeXControls['issueCount'];
         $packageProvenance['summary']['activeXIssueCodes'] = $activeXControls['issueCodes'];
         $packageProvenance['vbaProjects'] = $vbaProjects;
@@ -1626,6 +1634,14 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['vbaProjectSignatureExternalTargetKindCounts'] = $vbaProjects['signatureExternalTargetKindCounts'];
         $packageProvenance['summary']['vbaProjectSignatureExternalTargetSchemeCounts'] = $vbaProjects['signatureExternalTargetSchemeCounts'];
         $packageProvenance['summary']['vbaProjectSignatureExternalTargetIssueCodes'] = $vbaProjects['signatureExternalTargetIssueCodes'];
+        $packageProvenance['summary']['vbaProjectSignatureRelationshipRecordCount'] = $vbaProjects['signatureRelationshipRecordCount'];
+        $packageProvenance['summary']['vbaProjectSignatureValidRelationshipRecordCount'] = $vbaProjects['signatureValidRelationshipRecordCount'];
+        $packageProvenance['summary']['vbaProjectSignatureInvalidRelationshipRecordCount'] = $vbaProjects['signatureInvalidRelationshipRecordCount'];
+        $packageProvenance['summary']['vbaProjectSignatureDuplicateRelationshipIdCount'] = $vbaProjects['signatureDuplicateRelationshipIdCount'];
+        $packageProvenance['summary']['vbaProjectSignatureDuplicateRelationshipRecordCount'] = $vbaProjects['signatureDuplicateRelationshipRecordCount'];
+        $packageProvenance['summary']['vbaProjectSignatureRelationshipRecordIssueCount'] = $vbaProjects['signatureRelationshipRecordIssueCount'];
+        $packageProvenance['summary']['vbaProjectSignatureDuplicateRelationshipIds'] = $vbaProjects['signatureDuplicateRelationshipIds'];
+        $packageProvenance['summary']['vbaProjectSignatureRelationshipRecordIssueCodes'] = $vbaProjects['signatureRelationshipRecordIssueCodes'];
         $packageProvenance['summary']['vbaDataPartCount'] = $vbaProjects['dataPartCount'];
         $packageProvenance['summary']['vbaDataExistingCount'] = $vbaProjects['existingDataPartCount'];
         $packageProvenance['summary']['vbaDataMissingCount'] = $vbaProjects['missingDataPartCount'];
@@ -1635,6 +1651,14 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['vbaDataExternalTargetKindCounts'] = $vbaProjects['dataPartExternalTargetKindCounts'];
         $packageProvenance['summary']['vbaDataExternalTargetSchemeCounts'] = $vbaProjects['dataPartExternalTargetSchemeCounts'];
         $packageProvenance['summary']['vbaDataExternalTargetIssueCodes'] = $vbaProjects['dataPartExternalTargetIssueCodes'];
+        $packageProvenance['summary']['vbaDataRelationshipRecordCount'] = $vbaProjects['dataPartRelationshipRecordCount'];
+        $packageProvenance['summary']['vbaDataValidRelationshipRecordCount'] = $vbaProjects['dataPartValidRelationshipRecordCount'];
+        $packageProvenance['summary']['vbaDataInvalidRelationshipRecordCount'] = $vbaProjects['dataPartInvalidRelationshipRecordCount'];
+        $packageProvenance['summary']['vbaDataDuplicateRelationshipIdCount'] = $vbaProjects['dataPartDuplicateRelationshipIdCount'];
+        $packageProvenance['summary']['vbaDataDuplicateRelationshipRecordCount'] = $vbaProjects['dataPartDuplicateRelationshipRecordCount'];
+        $packageProvenance['summary']['vbaDataRelationshipRecordIssueCount'] = $vbaProjects['dataPartRelationshipRecordIssueCount'];
+        $packageProvenance['summary']['vbaDataDuplicateRelationshipIds'] = $vbaProjects['dataPartDuplicateRelationshipIds'];
+        $packageProvenance['summary']['vbaDataRelationshipRecordIssueCodes'] = $vbaProjects['dataPartRelationshipRecordIssueCodes'];
         $packageProvenance['summary']['vbaDataInvalidXmlCount'] = $vbaProjects['dataPartInvalidXmlCount'];
         $packageProvenance['summary']['vbaDataUnexpectedRootCount'] = $vbaProjects['dataPartUnexpectedRootCount'];
         $packageProvenance['summary']['vbaProjectIssueCount'] = $vbaProjects['issueCount'];
@@ -3389,6 +3413,70 @@ final class DocxOpenXmlReader
             'relationshipRecordsByOrdinal' => $byOrdinal,
             'relationshipRecordsById' => $byRelationshipId,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $recordReview
+     * @return array<string, mixed>
+     */
+    private function relationshipRecordReviewSummary(array $recordReview): array
+    {
+        return [
+            'relationshipRecordCount' => (int) ($recordReview['relationshipRecordCount'] ?? 0),
+            'validRelationshipRecordCount' => (int) ($recordReview['validRelationshipRecordCount'] ?? 0),
+            'invalidRelationshipRecordCount' => (int) ($recordReview['invalidRelationshipRecordCount'] ?? 0),
+            'duplicateRelationshipIdCount' => (int) ($recordReview['duplicateRelationshipIdCount'] ?? 0),
+            'duplicateRelationshipRecordCount' => (int) ($recordReview['duplicateRelationshipRecordCount'] ?? 0),
+            'duplicateRelationshipIds' => is_array($recordReview['duplicateRelationshipIds'] ?? null) ? array_values($recordReview['duplicateRelationshipIds']) : [],
+            'duplicateRelationshipIdItems' => is_array($recordReview['duplicateRelationshipIdItems'] ?? null) ? array_values($recordReview['duplicateRelationshipIdItems']) : [],
+            'relationshipRecordIssueCount' => (int) ($recordReview['relationshipRecordIssueCount'] ?? 0),
+            'relationshipRecordIssueCodes' => is_array($recordReview['relationshipRecordIssueCodes'] ?? null) ? array_values($recordReview['relationshipRecordIssueCodes']) : [],
+            'relationshipRecordIds' => is_array($recordReview['relationshipRecordIds'] ?? null) ? array_values($recordReview['relationshipRecordIds']) : [],
+            'relationshipRecordTargetParts' => is_array($recordReview['relationshipRecordTargetParts'] ?? null) ? array_values($recordReview['relationshipRecordTargetParts']) : [],
+            'relationshipRecordExternalTargets' => is_array($recordReview['relationshipRecordExternalTargets'] ?? null) ? array_values($recordReview['relationshipRecordExternalTargets']) : [],
+            'relationshipRecordContentTypes' => is_array($recordReview['relationshipRecordContentTypes'] ?? null) ? array_values($recordReview['relationshipRecordContentTypes']) : [],
+            'invalidRelationshipRecords' => is_array($recordReview['invalidRelationshipRecords'] ?? null) ? array_values($recordReview['invalidRelationshipRecords']) : [],
+            'relationshipRecords' => is_array($recordReview['relationshipRecords'] ?? null) ? array_values($recordReview['relationshipRecords']) : [],
+            'relationshipRecordsByOrdinal' => is_array($recordReview['relationshipRecordsByOrdinal'] ?? null) ? $recordReview['relationshipRecordsByOrdinal'] : [],
+            'relationshipRecordsById' => is_array($recordReview['relationshipRecordsById'] ?? null) ? $recordReview['relationshipRecordsById'] : [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyRelationshipRecordReviewTotals(): array
+    {
+        return [
+            'relationshipRecordCount' => 0,
+            'validRelationshipRecordCount' => 0,
+            'invalidRelationshipRecordCount' => 0,
+            'duplicateRelationshipIdCount' => 0,
+            'duplicateRelationshipRecordCount' => 0,
+            'relationshipRecordIssueCount' => 0,
+            'duplicateRelationshipIds' => [],
+            'relationshipRecordIssueCodes' => [],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $totals
+     * @param array<string, mixed> $recordReview
+     */
+    private function addRelationshipRecordReviewTotals(array &$totals, array $recordReview): void
+    {
+        $totals['relationshipRecordCount'] += (int) ($recordReview['relationshipRecordCount'] ?? 0);
+        $totals['validRelationshipRecordCount'] += (int) ($recordReview['validRelationshipRecordCount'] ?? 0);
+        $totals['invalidRelationshipRecordCount'] += (int) ($recordReview['invalidRelationshipRecordCount'] ?? 0);
+        $totals['duplicateRelationshipIdCount'] += (int) ($recordReview['duplicateRelationshipIdCount'] ?? 0);
+        $totals['duplicateRelationshipRecordCount'] += (int) ($recordReview['duplicateRelationshipRecordCount'] ?? 0);
+        $totals['relationshipRecordIssueCount'] += (int) ($recordReview['relationshipRecordIssueCount'] ?? 0);
+        foreach (($recordReview['duplicateRelationshipIds'] ?? []) as $relationshipId) {
+            $this->appendUniqueString($totals['duplicateRelationshipIds'], is_string($relationshipId) ? $relationshipId : null);
+        }
+        foreach (($recordReview['relationshipRecordIssueCodes'] ?? []) as $issueCode) {
+            $this->appendUniqueString($totals['relationshipRecordIssueCodes'], is_string($issueCode) ? $issueCode : null);
+        }
     }
 
     /**
@@ -9111,6 +9199,7 @@ final class DocxOpenXmlReader
         $binaryExternalTargetIssueCodes = [];
         $allowedExternalBinaryCount = 0;
         $unsafeExternalBinaryCount = 0;
+        $binaryRecordTotals = $this->emptyRelationshipRecordReviewTotals();
         foreach ($items as $item) {
             $this->appendUniqueString($partNames, is_string($item['partName'] ?? null) ? $item['partName'] : null);
             $this->appendUniqueString($contentTypesSeen, is_string($item['contentType'] ?? null) ? $item['contentType'] : null);
@@ -9122,7 +9211,9 @@ final class DocxOpenXmlReader
                     $issueCodes[$issue] = true;
                 }
             }
-            foreach (($item['binaries']['items'] ?? []) as $binary) {
+            $binaries = is_array($item['binaries'] ?? null) ? $item['binaries'] : [];
+            $this->addRelationshipRecordReviewTotals($binaryRecordTotals, $binaries);
+            foreach (($binaries['items'] ?? []) as $binary) {
                 if (!is_array($binary)) {
                     continue;
                 }
@@ -9151,6 +9242,8 @@ final class DocxOpenXmlReader
         }
         ksort($issueCodes, SORT_STRING);
         ksort($binaryExternalTargetIssueCodes, SORT_STRING);
+        sort($binaryRecordTotals['duplicateRelationshipIds'], SORT_STRING);
+        sort($binaryRecordTotals['relationshipRecordIssueCodes'], SORT_STRING);
 
         return [
             'count' => count($items),
@@ -9176,6 +9269,12 @@ final class DocxOpenXmlReader
             'allowedExternalBinaryCount' => $allowedExternalBinaryCount,
             'unsafeExternalBinaryCount' => $unsafeExternalBinaryCount,
             'unexpectedBinaryContentTypeCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['binaries']['unexpectedContentTypeCount'] ?? 0), $items)),
+            'binaryRelationshipRecordCount' => $binaryRecordTotals['relationshipRecordCount'],
+            'binaryValidRelationshipRecordCount' => $binaryRecordTotals['validRelationshipRecordCount'],
+            'binaryInvalidRelationshipRecordCount' => $binaryRecordTotals['invalidRelationshipRecordCount'],
+            'binaryDuplicateRelationshipIdCount' => $binaryRecordTotals['duplicateRelationshipIdCount'],
+            'binaryDuplicateRelationshipRecordCount' => $binaryRecordTotals['duplicateRelationshipRecordCount'],
+            'binaryRelationshipRecordIssueCount' => $binaryRecordTotals['relationshipRecordIssueCount'],
             'issueCount' => count(array_filter(
                 $items,
                 static fn (array $item): bool => $item['issues'] !== [] || (int) ($item['binaries']['issueCount'] ?? 0) > 0,
@@ -9190,6 +9289,8 @@ final class DocxOpenXmlReader
             'contentTypes' => $contentTypesSeen,
             'issueCodes' => array_keys($issueCodes),
             'binaryExternalTargetIssueCodes' => array_keys($binaryExternalTargetIssueCodes),
+            'binaryDuplicateRelationshipIds' => $binaryRecordTotals['duplicateRelationshipIds'],
+            'binaryRelationshipRecordIssueCodes' => $binaryRecordTotals['relationshipRecordIssueCodes'],
             'byRelationshipId' => $byRelationshipId,
             'items' => $items,
             'byteExposurePolicy' => 'activex-bytes-blocked',
@@ -9412,7 +9513,7 @@ final class DocxOpenXmlReader
             'issueCodes' => [],
             'byRelationshipId' => [],
             'items' => [],
-        ];
+        ] + $this->relationshipRecordReviewSummary([]);
     }
 
     /**
@@ -9432,6 +9533,13 @@ final class DocxOpenXmlReader
             return $this->emptyActiveXBinaryParts();
         }
 
+        $recordReview = $this->relationshipRecordReviewSummary($this->relationshipRecordsForTypeReview(
+            $parts,
+            $relationshipsPart,
+            $sourcePart,
+            $contentTypes,
+            self::ACTIVEX_BINARY_REL,
+        ));
         $items = [];
         $byRelationshipId = [];
         $relationshipIds = [];
@@ -9490,7 +9598,7 @@ final class DocxOpenXmlReader
             'issueCodes' => array_keys($issueCodes),
             'byRelationshipId' => $byRelationshipId,
             'items' => $items,
-        ];
+        ] + $recordReview;
     }
 
     /**
@@ -9598,6 +9706,8 @@ final class DocxOpenXmlReader
         $dataPartExternalTargetKindCounts = [];
         $dataPartExternalTargetSchemeCounts = [];
         $dataPartExternalTargetIssueCodes = [];
+        $signatureRecordTotals = $this->emptyRelationshipRecordReviewTotals();
+        $dataPartRecordTotals = $this->emptyRelationshipRecordReviewTotals();
         $relationshipsPart = $this->relationshipsPartFor($documentPart);
 
         foreach ($relationships as $relationship) {
@@ -9634,7 +9744,12 @@ final class DocxOpenXmlReader
                 }
             }
 
-            foreach (($item['signatureParts']['items'] ?? []) as $signature) {
+            $signatureParts = is_array($item['signatureParts'] ?? null) ? $item['signatureParts'] : [];
+            $dataParts = is_array($item['dataParts'] ?? null) ? $item['dataParts'] : [];
+            $this->addRelationshipRecordReviewTotals($signatureRecordTotals, $signatureParts);
+            $this->addRelationshipRecordReviewTotals($dataPartRecordTotals, $dataParts);
+
+            foreach (($signatureParts['items'] ?? []) as $signature) {
                 if (!is_array($signature)) {
                     continue;
                 }
@@ -9664,7 +9779,7 @@ final class DocxOpenXmlReader
                 }
             }
 
-            foreach (($item['dataParts']['items'] ?? []) as $dataPart) {
+            foreach (($dataParts['items'] ?? []) as $dataPart) {
                 if (!is_array($dataPart)) {
                     continue;
                 }
@@ -9706,6 +9821,10 @@ final class DocxOpenXmlReader
         ksort($dataPartExternalTargetKindCounts, SORT_STRING);
         ksort($dataPartExternalTargetSchemeCounts, SORT_STRING);
         ksort($dataPartExternalTargetIssueCodes, SORT_STRING);
+        sort($signatureRecordTotals['duplicateRelationshipIds'], SORT_STRING);
+        sort($signatureRecordTotals['relationshipRecordIssueCodes'], SORT_STRING);
+        sort($dataPartRecordTotals['duplicateRelationshipIds'], SORT_STRING);
+        sort($dataPartRecordTotals['relationshipRecordIssueCodes'], SORT_STRING);
 
         return [
             'count' => count($items),
@@ -9723,12 +9842,24 @@ final class DocxOpenXmlReader
             'externalSignatureCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['signatureParts']['externalCount'] ?? 0), $items)),
             'allowedExternalSignatureCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['signatureParts']['allowedExternalTargetCount'] ?? 0), $items)),
             'unsafeExternalSignatureCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['signatureParts']['unsafeExternalTargetCount'] ?? 0), $items)),
+            'signatureRelationshipRecordCount' => $signatureRecordTotals['relationshipRecordCount'],
+            'signatureValidRelationshipRecordCount' => $signatureRecordTotals['validRelationshipRecordCount'],
+            'signatureInvalidRelationshipRecordCount' => $signatureRecordTotals['invalidRelationshipRecordCount'],
+            'signatureDuplicateRelationshipIdCount' => $signatureRecordTotals['duplicateRelationshipIdCount'],
+            'signatureDuplicateRelationshipRecordCount' => $signatureRecordTotals['duplicateRelationshipRecordCount'],
+            'signatureRelationshipRecordIssueCount' => $signatureRecordTotals['relationshipRecordIssueCount'],
             'dataPartCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['dataParts']['count'] ?? 0), $items)),
             'existingDataPartCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['dataParts']['existingCount'] ?? 0), $items)),
             'missingDataPartCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['dataParts']['missingCount'] ?? 0), $items)),
             'externalDataPartCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['dataParts']['externalCount'] ?? 0), $items)),
             'allowedExternalDataPartCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['dataParts']['allowedExternalTargetCount'] ?? 0), $items)),
             'unsafeExternalDataPartCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['dataParts']['unsafeExternalTargetCount'] ?? 0), $items)),
+            'dataPartRelationshipRecordCount' => $dataPartRecordTotals['relationshipRecordCount'],
+            'dataPartValidRelationshipRecordCount' => $dataPartRecordTotals['validRelationshipRecordCount'],
+            'dataPartInvalidRelationshipRecordCount' => $dataPartRecordTotals['invalidRelationshipRecordCount'],
+            'dataPartDuplicateRelationshipIdCount' => $dataPartRecordTotals['duplicateRelationshipIdCount'],
+            'dataPartDuplicateRelationshipRecordCount' => $dataPartRecordTotals['duplicateRelationshipRecordCount'],
+            'dataPartRelationshipRecordIssueCount' => $dataPartRecordTotals['relationshipRecordIssueCount'],
             'dataPartInvalidXmlCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['dataParts']['invalidXmlCount'] ?? 0), $items)),
             'dataPartUnexpectedRootCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['dataParts']['unexpectedRootCount'] ?? 0), $items)),
             'issueCount' => count(array_filter(
@@ -9753,9 +9884,13 @@ final class DocxOpenXmlReader
             'signatureExternalTargetKindCounts' => $signatureExternalTargetKindCounts,
             'signatureExternalTargetSchemeCounts' => $signatureExternalTargetSchemeCounts,
             'signatureExternalTargetIssueCodes' => array_keys($signatureExternalTargetIssueCodes),
+            'signatureDuplicateRelationshipIds' => $signatureRecordTotals['duplicateRelationshipIds'],
+            'signatureRelationshipRecordIssueCodes' => $signatureRecordTotals['relationshipRecordIssueCodes'],
             'dataPartExternalTargetKindCounts' => $dataPartExternalTargetKindCounts,
             'dataPartExternalTargetSchemeCounts' => $dataPartExternalTargetSchemeCounts,
             'dataPartExternalTargetIssueCodes' => array_keys($dataPartExternalTargetIssueCodes),
+            'dataPartDuplicateRelationshipIds' => $dataPartRecordTotals['duplicateRelationshipIds'],
+            'dataPartRelationshipRecordIssueCodes' => $dataPartRecordTotals['relationshipRecordIssueCodes'],
             'byRelationshipId' => $byRelationshipId,
             'items' => $items,
             'byteExposurePolicy' => 'vba-project-bytes-blocked',
@@ -9891,7 +10026,7 @@ final class DocxOpenXmlReader
             'issueCodes' => [],
             'byRelationshipId' => [],
             'items' => [],
-        ];
+        ] + $this->relationshipRecordReviewSummary([]);
     }
 
     /**
@@ -9914,6 +10049,13 @@ final class DocxOpenXmlReader
             return $this->emptyVbaProjectRelatedParts();
         }
 
+        $recordReview = $this->relationshipRecordReviewSummary($this->relationshipRecordsForTypeReview(
+            $parts,
+            $relationshipsPart,
+            $sourcePart,
+            $contentTypes,
+            $relationshipType,
+        ));
         $items = [];
         $byRelationshipId = [];
         $relationshipIds = [];
@@ -9993,7 +10135,7 @@ final class DocxOpenXmlReader
             'issueCodes' => array_keys($issueCodes),
             'byRelationshipId' => $byRelationshipId,
             'items' => $items,
-        ];
+        ] + $recordReview;
     }
 
     /**
