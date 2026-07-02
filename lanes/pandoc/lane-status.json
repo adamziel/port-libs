@@ -43,5 +43,7 @@
             "No external Pandoc, office suite, zip/unzip, browser renderer, or validator was invoked."
         ]
     },
+    "mappedDocxPackageXmlDeclarationProvenanceCases": 1,
+    "docxPackageXmlDeclarationProvenanceAssertions": 37,
     "lastUpdated": "2026-07-01"
 }
