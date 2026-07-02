@@ -30,10 +30,10 @@ return [
         $t->same(9, $report['denominators']['sourceAliasExtensions']);
         $t->same(9, $report['denominators']['richPackageExtensions']);
         $t->same(['supported' => 6, 'unsupported' => 0, 'total' => 6], $report['directSupport']['input']);
-        $t->same(['supported' => 3, 'unsupported' => 8, 'total' => 11], $report['directSupport']['output']);
+        $t->same(['supported' => 4, 'unsupported' => 7, 'total' => 11], $report['directSupport']['output']);
         $t->same(0, count($report['unsupportedDiagnostics']['input']));
-        $t->same(8, count($report['unsupportedDiagnostics']['output']));
-        $t->same(7, count($report['extensionDiagnostics']));
+        $t->same(7, count($report['unsupportedDiagnostics']['output']));
+        $t->same(6, count($report['extensionDiagnostics']));
     },
 
     'summarizes rich package unsupported format review buckets' => static function (TestRunner $t): void {
@@ -93,6 +93,7 @@ return [
         $epubInput = RichPackageUnsupportedFormatRegistry::formatStatus('epub', 'input');
         $ipynbInput = RichPackageUnsupportedFormatRegistry::formatStatus('ipynb', 'input');
         $pptxInput = RichPackageUnsupportedFormatRegistry::formatStatus('pptx', 'input');
+        $pptxOutput = RichPackageUnsupportedFormatRegistry::formatStatus('pptx', 'output');
         $xlsxInput = RichPackageUnsupportedFormatRegistry::formatStatus('xlsx', 'input');
 
         $t->same('bounded-native-rich-package-input', $docxInput['state']);
@@ -122,6 +123,12 @@ return [
         $t->same('PptxReader', $pptxInput['component']);
         $t->same(['shared-zip-package-core', 'opc-xml-relationships-core', 'pptx-openxml-core'], $pptxInput['gates']);
         $t->same([], $pptxInput['diagnostics']);
+        $t->same('bounded-native-rich-package-output', $pptxOutput['state']);
+        $t->same('pandoc.rich-package.output.bounded-native', $pptxOutput['code']);
+        $t->same(true, $pptxOutput['countsAsDirectSupport']);
+        $t->same('PptxWriter', $pptxOutput['component']);
+        $t->same(['shared-zip-package-core', 'opc-xml-relationships-core', 'pptx-openxml-writer-core'], $pptxOutput['gates']);
+        $t->same([], $pptxOutput['diagnostics']);
         $t->same('bounded-native-rich-package-input', $xlsxInput['state']);
         $t->same('pandoc.rich-package.input.bounded-native', $xlsxInput['code']);
         $t->same(true, $xlsxInput['countsAsDirectSupport']);
@@ -132,6 +139,7 @@ return [
 
     'reports unsupported package inputs and outputs without external conversion claims' => static function (TestRunner $t): void {
         $pptxInput = RichPackageUnsupportedFormatRegistry::formatStatus('pptx', 'input');
+        $pptxOutput = RichPackageUnsupportedFormatRegistry::formatStatus('pptx', 'output');
         $xlsxInput = RichPackageUnsupportedFormatRegistry::formatStatus('xlsx', 'input');
         $ipynbOutput = RichPackageUnsupportedFormatRegistry::formatStatus('ipynb', 'output');
         $epub3Output = RichPackageUnsupportedFormatRegistry::formatStatus('epub3', 'output');
@@ -153,6 +161,10 @@ return [
         $t->same('PptxReader', $pptxInput['component']);
         $t->same(['shared-zip-package-core', 'opc-xml-relationships-core', 'pptx-openxml-core'], $pptxInput['gates']);
         $t->same([], $pptxInput['diagnostics']);
+        $t->same('bounded-native-rich-package-output', $pptxOutput['state']);
+        $t->same('PptxWriter', $pptxOutput['component']);
+        $t->same(true, $pptxOutput['countsAsDirectSupport']);
+        $t->same([], $pptxOutput['diagnostics']);
 
         $t->same('bounded-native-rich-package-input', $xlsxInput['state']);
         $t->same(['shared-zip-package-core', 'opc-xml-relationships-core', 'xlsx-openxml-core'], $xlsxInput['gates']);
@@ -176,7 +188,6 @@ return [
             'opendocument',
             'epub2',
             'ipynb',
-            'pptx',
             'chunkedhtml',
             'icml',
             'pdf',
@@ -276,10 +287,12 @@ return [
         $t->same(['output'], $fodt['unsupportedDirections']);
 
         $t->same(['pptx'], $pptx['inputFormats']);
+        $t->same(['pptx'], $pptx['outputFormats']);
         $t->same(['pptx'], $pptx['directInputFormats']);
-        $t->same(['output'], $pptx['unsupportedDirections']);
+        $t->same(['pptx'], $pptx['directOutputFormats']);
+        $t->same([], $pptx['unsupportedDirections']);
         $t->same([], $pptx['unsupportedInputFormats']);
-        $t->same(['pptx'], $pptx['unsupportedOutputFormats']);
+        $t->same([], $pptx['unsupportedOutputFormats']);
         $t->same(['xlsx'], $xlsx['inputFormats']);
         $t->same(['xlsx'], $xlsx['directInputFormats']);
         $t->same([], $xlsx['unsupportedInputFormats']);
@@ -292,7 +305,6 @@ return [
             '.ipynb',
             '.odt',
             '.pdf',
-            '.pptx',
         ], $diagnosticExtensions);
     },
 ];

@@ -206,6 +206,7 @@ final class PandocConverter
     private static function writer(string $implementation, string $format, array $options): object
     {
         return match ($implementation) {
+            DocxWriter::class => new DocxWriter($options),
             EpubWriter::class => new EpubWriter($options),
             HtmlWriter::class => new HtmlWriter($options),
             JsonWriter::class => new JsonWriter(),
@@ -214,6 +215,7 @@ final class PandocConverter
             NativeWriter::class => new NativeWriter($options),
             OpmlWriter::class => new OpmlWriter($options),
             PlainWriter::class => new PlainWriter($options),
+            PptxWriter::class => new PptxWriter($options),
             default => throw new \InvalidArgumentException("Unsupported Pandoc writer implementation '{$implementation}'."),
         };
     }

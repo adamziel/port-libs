@@ -7,9 +7,25 @@ namespace PortLibs\Pandoc;
 final class PptxReader
 {
     private const OFFICE_DOCUMENT_RELATIONSHIP = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
+    private const MISSING_RELATIONSHIP_TYPE = 'urn:port-libs:pandoc:pptx:missing-relationship-type';
     private const RELATIONSHIP_NAMESPACE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+    private const PRESENTATION_NAMESPACE = 'http://schemas.openxmlformats.org/presentationml/2006/main';
+    private const DRAWING_NAMESPACE = 'http://schemas.openxmlformats.org/drawingml/2006/main';
+    private const DIAGRAM_NAMESPACE = 'http://schemas.openxmlformats.org/drawingml/2006/diagram';
     private const COMMENT_AUTHORS_PART = '/ppt/commentAuthors.xml';
+    private const CORE_PROPERTIES_RELATIONSHIP_SUFFIX = '/metadata/core-properties';
+    private const EXTENDED_PROPERTIES_RELATIONSHIP_SUFFIX = '/extended-properties';
+    private const CUSTOM_PROPERTIES_RELATIONSHIP_SUFFIX = '/custom-properties';
     private const MAX_XML_PART_BYTES = 8_388_608;
+    private const EMUS_PER_INCH = 914_400;
+    private const DEFAULT_SLIDE_WIDTH_EMU = 9_144_000;
+    private const DEFAULT_SLIDE_HEIGHT_EMU = 6_858_000;
+    private const HASKELL_INT_MAX_DECIMAL = '9223372036854775807';
+    private const HASKELL_INT_MIN_ABS_DECIMAL = '9223372036854775808';
+    private const HASKELL_INT_MAX_HEX = '7fffffffffffffff';
+    private const HASKELL_INT_MIN_ABS_HEX = '8000000000000000';
+    private const HASKELL_INT_MAX_OCTAL = '777777777777777777777';
+    private const HASKELL_INT_MIN_ABS_OCTAL = '1000000000000000000000';
 
     public function read(string $bytes): AstNode
     {
@@ -20,38 +36,42 @@ final class PptxReader
 
     private function readPackage(ZipPackage $package, int $sourceBytes): AstNode
     {
-        $rootRelationships = OpcRelationships::fromPackage($package, '/');
-        $presentationRelationship = $this->presentationRelationship($rootRelationships);
-        $presentationPart = OpcPackagePath::stripQueryAndFragment($rootRelationships->resolveTarget($presentationRelationship));
-        $presentation = $this->loadPackageXml($package, $presentationPart, 'PPTX presentation');
+        $rootRelationships = $this->relationshipsOrEmpty($package, '/');
+        $presentationRelationship = $this->presentationRelationship($package);
+        $presentationPart = $presentationRelationship->target;
+        $presentation = $this->loadPackageXmlFromUpstreamPath($package, $presentationPart, 'PPTX presentation');
         $slides = $this->parsePresentationSlides($presentation);
+        $slideSize = $this->presentationSlideSize($presentation);
         $presentationRelationships = $this->relationshipsOrEmpty($package, $presentationPart);
         $tableStyles = $this->presentationTableStyles($package, $presentationRelationships);
         $commentAuthors = $this->commentAuthors($package);
+        $documentProperties = $this->documentProperties($package, $rootRelationships);
 
         $blocks = [];
         $slideReviews = [];
         foreach ($slides as $slide) {
             $relationship = $presentationRelationships->byId($slide['relationshipId']);
             if (!$relationship instanceof OpcRelationship) {
-                throw new \RuntimeException('PPTX slide relationship not found: ' . $slide['relationshipId']);
-            }
-            if ($relationship->isExternal()) {
-                throw new \RuntimeException('PPTX external slide relationships are not supported');
+                throw new \RuntimeException('Relationship not found: ' . $slide['relationshipId']);
             }
 
-            $slidePart = OpcPackagePath::stripQueryAndFragment($presentationRelationships->resolveTarget($relationship));
+            $slidePart = $this->upstreamPresentationSlidePart($relationship->target);
             $slideDocument = $this->loadPackageXml($package, $slidePart, 'PPTX slide ' . $slide['index']);
             $slideRelationships = $this->relationshipsOrEmpty($package, $slidePart);
             $slideContext = $this->slideContext($package, $slideRelationships);
             $slideComments = $this->slideComments($package, $slideRelationships, $commentAuthors);
-            $slideBlocks = $this->slideToBlocks($package, $slide['index'], $slideDocument, $slideRelationships, $slideContext, $slideComments, $tableStyles);
+            $slideSpeakerNotes = $this->slideSpeakerNotes($package, $slideRelationships);
+            $slideBackgrounds = $this->slideBackgrounds($package, $slideDocument, $slideRelationships);
+            $imageIssues = [];
+            $shapeIssues = [];
+            $richMedia = [];
+            $slideBlocks = $this->slideToBlocks($package, $slide['index'], $slideDocument, $slideRelationships, $slideContext, $slideComments, $slideSpeakerNotes, $tableStyles, $imageIssues, $shapeIssues, $richMedia);
             foreach ($slideBlocks as $block) {
                 $blocks[] = $block;
             }
 
-            $richMedia = $this->collectRichMediaReviews($slideBlocks);
             $charts = $this->collectChartReviews($slideBlocks);
+            $links = $this->collectLinkReviews($slideBlocks);
             $slideReviews[] = [
                 'index' => $slide['index'],
                 'relationshipId' => $slide['relationshipId'],
@@ -60,8 +80,18 @@ final class PptxReader
                 'context' => $this->slideContextReview($slideContext),
                 'commentCount' => count($slideComments),
                 'comments' => $slideComments,
+                'speakerNoteCount' => count($slideSpeakerNotes),
+                'speakerNotes' => $this->speakerNoteReviews($slideSpeakerNotes),
+                'backgroundCount' => count($slideBackgrounds),
+                'backgrounds' => $slideBackgrounds,
+                'imageIssueCount' => count($imageIssues),
+                'imageIssues' => $imageIssues,
+                'shapeIssueCount' => count($shapeIssues),
+                'shapeIssues' => $shapeIssues,
                 'richMediaCount' => count($richMedia),
                 'richMedia' => $richMedia,
+                'linkCount' => count($links),
+                'links' => $links,
                 'chartCount' => count($charts),
                 'charts' => $charts,
             ];
@@ -77,50 +107,150 @@ final class PptxReader
                 'entryCount' => count($package->names()),
                 'presentationPart' => ltrim($presentationPart, '/'),
                 'slideCount' => count($slides),
+                'slideSize' => $slideSize,
                 'slides' => $slideReviews,
+                'documentProperties' => $documentProperties,
                 'commentAuthors' => $commentAuthors,
                 'tableStyles' => $tableStyles,
                 'payloadExposurePolicy' => 'xml-text-and-media-reference-only',
                 'upstreamEvidence' => [
                     'denominator' => 1,
+                    'covered' => 1,
                     'fixtures' => [
                         'test/pptx-reader/basic.pptx',
                         'test/pptx-reader/basic.native',
                     ],
-                    'source' => 'Pandoc 912bfa5e src/Text/Pandoc/Readers/Pptx.hs and src/Text/Pandoc/Readers/Pptx/{Parse,Slides,Shapes,SmartArt}.hs',
+                    'fixtureCommit' => '4f5226df4faa0d66dd2c089465b13886360ab3c2',
+                    'source' => 'Pandoc test/Tests/Readers/Pptx.hs plus src/Text/Pandoc/Readers/Pptx.hs and src/Text/Pandoc/Readers/Pptx/{Parse,Slides,Shapes,SmartArt}.hs',
                 ],
             ],
         ], $blocks);
     }
 
-    private function presentationRelationship(OpcRelationships $relationships): OpcRelationship
+    private function presentationRelationship(ZipPackage $package): OpcRelationship
     {
-        foreach ($relationships->all() as $relationship) {
-            if (str_ends_with($relationship->type, '/officeDocument') && str_contains($relationship->target, 'presentation')) {
-                return $relationship;
+        $relationshipPart = $this->upstreamRelationshipPart('/');
+        if (!$package->has($relationshipPart)) {
+            throw new \RuntimeException('Missing _rels/.rels');
+        }
+
+        $document = $this->loadPackageXml($package, $relationshipPart, 'PPTX relationships');
+        $root = XmlHtmlDom::rootElement($document);
+        $relationshipCount = 0;
+        if ($root instanceof \DOMElement) {
+            foreach ($this->childElements($root, null) as $relationshipElement) {
+                $relationshipCount++;
+                $type = $relationshipElement->getAttribute('Type');
+                if (!str_ends_with($type, '/officeDocument')) {
+                    continue;
+                }
+                if (!$relationshipElement->hasAttribute('Target')) {
+                    throw new \RuntimeException('Missing Target attribute');
+                }
+
+                $targetMode = $relationshipElement->getAttribute('TargetMode');
+
+                return new OpcRelationship(
+                    $relationshipElement->hasAttribute('Id') ? $relationshipElement->getAttribute('Id') : '',
+                    $type,
+                    $relationshipElement->getAttribute('Target'),
+                    $targetMode === OpcRelationship::TARGET_MODE_EXTERNAL
+                        ? OpcRelationship::TARGET_MODE_EXTERNAL
+                        : OpcRelationship::TARGET_MODE_INTERNAL,
+                    $targetMode !== '',
+                    false,
+                    false
+                );
             }
         }
 
-        $relationship = $relationships->firstOfType(self::OFFICE_DOCUMENT_RELATIONSHIP);
-        if ($relationship instanceof OpcRelationship) {
-            return $relationship;
-        }
-
-        throw new \RuntimeException('PPTX package does not declare a presentation relationship');
+        throw new \RuntimeException('No presentation.xml relationship found. Found ' . $relationshipCount . ' relationships.');
     }
 
     private function relationshipsOrEmpty(ZipPackage $package, string $sourcePart): OpcRelationships
     {
-        if (!OpcRelationships::packageHasRelationshipsForSource($package, $sourcePart)) {
+        $relationshipPart = $this->upstreamRelationshipPart($sourcePart);
+        if (!in_array($relationshipPart, $package->names(), true)) {
             return new OpcRelationships($sourcePart);
         }
 
-        return OpcRelationships::fromPackage($package, $sourcePart);
+        $document = $this->loadPackageXml($package, $relationshipPart, 'PPTX relationships');
+        $root = XmlHtmlDom::rootElement($document);
+        $relationships = new OpcRelationships($sourcePart);
+        if (!$root instanceof \DOMElement) {
+            return $relationships;
+        }
+
+        foreach ($this->childElements($root, null) as $relationshipElement) {
+            if (!$relationshipElement->hasAttribute('Id') || !$relationshipElement->hasAttribute('Target')) {
+                continue;
+            }
+            $id = $relationshipElement->getAttribute('Id');
+            $target = $relationshipElement->getAttribute('Target');
+            if ($relationships->byId($id) instanceof OpcRelationship) {
+                continue;
+            }
+
+            $type = $relationshipElement->getAttribute('Type');
+            $targetMode = $relationshipElement->getAttribute('TargetMode');
+            $relationships->add(new OpcRelationship(
+                $id,
+                $type !== '' ? $type : self::MISSING_RELATIONSHIP_TYPE,
+                $target,
+                $targetMode === OpcRelationship::TARGET_MODE_EXTERNAL
+                    ? OpcRelationship::TARGET_MODE_EXTERNAL
+                    : OpcRelationship::TARGET_MODE_INTERNAL,
+                $targetMode !== '',
+                false,
+                false
+            ));
+        }
+
+        return $relationships;
     }
 
-    private function loadPackageXml(ZipPackage $package, string $partName, string $label): \DOMDocument
+    private function optionalRelationshipsOrEmpty(ZipPackage $package, string $sourcePart): OpcRelationships
     {
+        try {
+            return $this->relationshipsOrEmpty($package, $sourcePart);
+        } catch (\InvalidArgumentException | \RuntimeException) {
+            return new OpcRelationships($sourcePart);
+        }
+    }
+
+    private function upstreamRelationshipPart(string $sourcePart): string
+    {
+        if ($sourcePart === '/' || $sourcePart === '') {
+            return '_rels/.rels';
+        }
+
+        $path = ltrim($sourcePart, '/');
+        $directory = dirname($path);
+        $file = basename($path);
+
+        return ($directory === '.' ? '/' : $directory . '/') . '_rels/' . $file . '.rels';
+    }
+
+    private function upstreamPresentationSlidePart(string $target): string
+    {
+        return 'ppt/' . $target;
+    }
+
+    private function loadPackageXml(ZipPackage $package, string $partName, string $label, bool $literalPath = true): \DOMDocument
+    {
+        if ($literalPath && !in_array($partName, $package->names(), true)) {
+            throw new \RuntimeException('Entry not found: ' . $partName);
+        }
+        if (!$literalPath && !$package->has($partName)) {
+            throw new \RuntimeException('Entry not found: ' . $partName);
+        }
+
         return XmlHtmlDom::loadXmlDocument($package->read($partName, self::MAX_XML_PART_BYTES), $label, false);
+    }
+
+    private function loadPackageXmlFromUpstreamPath(ZipPackage $package, string $path, string $label): \DOMDocument
+    {
+        return $this->loadPackageXml($package, $path, $label);
     }
 
     /**
@@ -128,22 +258,24 @@ final class PptxReader
      */
     private function parsePresentationSlides(\DOMDocument $document): array
     {
-        $root = XmlHtmlDom::rootElement($document, 'presentation');
+        $root = XmlHtmlDom::rootElement($document);
         if (!$root instanceof \DOMElement) {
-            throw new \RuntimeException('PPTX presentation XML must have a presentation root');
+            throw new \RuntimeException('PPTX presentation XML must have a root element');
         }
 
-        $slideIdList = $this->firstChildElement($root, 'sldIdLst');
+        $presentationNamespace = $this->localNamespaceForPrefix($root, 'p');
+        $slideIdList = $this->firstChildElementForPrefix($root, 'p', 'sldIdLst', $presentationNamespace);
         if (!$slideIdList instanceof \DOMElement) {
             return [];
         }
 
+        $relationshipNamespace = $this->localNamespaceForPrefix($root, 'r');
         $slides = [];
         $index = 1;
-        foreach ($this->childElements($slideIdList, 'sldId') as $slideIdElement) {
-            $relationshipId = $this->relationshipId($slideIdElement, 'id');
-            if ($relationshipId === '') {
-                throw new \RuntimeException('PPTX presentation slide is missing r:id');
+        foreach ($this->childElementsForPrefix($slideIdList, 'p', 'sldId', $presentationNamespace) as $slideIdElement) {
+            $relationshipId = $this->relationshipAttributeForPrefix($slideIdElement, 'r', 'id', $relationshipNamespace);
+            if ($relationshipId === null) {
+                throw new \RuntimeException('Missing r:id in slide ' . $index);
             }
 
             $slides[] = ['index' => $index, 'relationshipId' => $relationshipId];
@@ -154,22 +286,67 @@ final class PptxReader
     }
 
     /**
+     * @return array{cx:int, cy:int, width:int, height:int, emusPerInch:int, source:string}
+     */
+    private function presentationSlideSize(\DOMDocument $document): array
+    {
+        $root = XmlHtmlDom::rootElement($document);
+        if (!$root instanceof \DOMElement) {
+            throw new \RuntimeException('PPTX presentation XML must have a root element');
+        }
+
+        $presentationNamespace = $this->localNamespaceForPrefix($root, 'p');
+        $sizeElement = $this->firstChildElementForPrefix($root, 'p', 'sldSz', $presentationNamespace);
+        $source = 'default';
+        $widthEmu = self::DEFAULT_SLIDE_WIDTH_EMU;
+        $heightEmu = self::DEFAULT_SLIDE_HEIGHT_EMU;
+        if ($sizeElement instanceof \DOMElement) {
+            $source = 'presentation';
+            $widthEmu = $this->presentationSizeAttribute($sizeElement, 'cx');
+            $heightEmu = $this->presentationSizeAttribute($sizeElement, 'cy');
+        }
+
+        return [
+            'cx' => $widthEmu,
+            'cy' => $heightEmu,
+            'width' => $this->haskellIntegerDiv($widthEmu, self::EMUS_PER_INCH),
+            'height' => $this->haskellIntegerDiv($heightEmu, self::EMUS_PER_INCH),
+            'emusPerInch' => self::EMUS_PER_INCH,
+            'source' => $source,
+        ];
+    }
+
+    private function presentationSizeAttribute(\DOMElement $element, string $name): int
+    {
+        return $this->integerAttribute($element, $name) ?? 0;
+    }
+
+    private function haskellIntegerDiv(int $numerator, int $denominator): int
+    {
+        $quotient = intdiv($numerator, $denominator);
+        $remainder = $numerator % $denominator;
+
+        return $numerator < 0 && $remainder !== 0 ? $quotient - 1 : $quotient;
+    }
+
+    /**
      * @param array<string, mixed> $slideContext
      * @param list<array<string, mixed>> $slideComments
      * @param array<string, mixed> $tableStyles
+     * @param list<array<string, mixed>> $imageIssues
+     * @param list<array<string, mixed>> $shapeIssues
+     * @param list<array<string, string|bool|array<string, mixed>>> $richMedia
      * @return list<AstNode>
      */
-    private function slideToBlocks(ZipPackage $package, int $slideIndex, \DOMDocument $document, OpcRelationships $slideRelationships, array $slideContext, array $slideComments, array $tableStyles): array
+    private function slideToBlocks(ZipPackage $package, int $slideIndex, \DOMDocument $document, OpcRelationships $slideRelationships, array $slideContext, array $slideComments, array $slideSpeakerNotes, array $tableStyles, array &$imageIssues, array &$shapeIssues, array &$richMedia): array
     {
-        $root = XmlHtmlDom::rootElement($document, 'sld');
+        $root = XmlHtmlDom::rootElement($document);
         if (!$root instanceof \DOMElement) {
-            throw new \RuntimeException('PPTX slide XML must have a slide root');
+            throw new \RuntimeException('PPTX slide XML must have a root element');
         }
 
-        $title = $this->slideTitle($root);
-        if ($title === '') {
-            $title = (string) ($slideContext['layoutTitle'] ?? $slideContext['masterTitle'] ?? '');
-        }
+        $presentationNamespace = $this->localNamespaceForPrefix($root, 'p');
+        $title = $this->slideTitle($root, $presentationNamespace);
         if ($title === '') {
             $title = 'Slide ' . $slideIndex;
         }
@@ -177,48 +354,47 @@ final class PptxReader
         $blocks = [
             new AstNode('heading', ['level' => 2, 'id' => 'slide-' . $slideIndex, 'text' => $title], $this->textInlines($title)),
         ];
-        $spTree = $this->shapeTree($root);
+        $spTree = $this->shapeTree($root, $presentationNamespace);
         if (!$spTree instanceof \DOMElement) {
             return $blocks;
         }
 
+        $relationshipNamespace = $this->localNamespaceForPrefix($root, 'r');
+        $drawingNamespace = $this->localNamespaceForPrefix($root, 'a');
         $zOrder = 0;
         foreach ($this->childElements($spTree, null) as $shapeElement) {
-            if (!$this->isDrawableShapeElement($shapeElement)) {
+            if (!$this->isDrawableShapeElement($shapeElement, $presentationNamespace)) {
                 continue;
             }
             $zOrder++;
-            if ($this->isTitlePlaceholder($shapeElement)) {
+            if ($this->isTitlePlaceholderForPrefix($shapeElement, $presentationNamespace)) {
                 continue;
             }
-            foreach ($this->shapeToBlocks($package, $shapeElement, $slideRelationships, $slideContext, $tableStyles, $zOrder) as $block) {
+            foreach ($this->shapeToBlocks($package, $shapeElement, $slideRelationships, $slideContext, $tableStyles, $presentationNamespace, $relationshipNamespace, $drawingNamespace, $zOrder, $imageIssues, $shapeIssues, $richMedia) as $block) {
                 $blocks[] = $block;
             }
-        }
-
-        foreach ($this->commentsToBlocks($slideComments) as $commentBlock) {
-            $blocks[] = $commentBlock;
         }
 
         return $blocks;
     }
 
-    private function shapeTree(\DOMElement $slide): ?\DOMElement
+    private function shapeTree(\DOMElement $slide, ?string $presentationNamespace = null): ?\DOMElement
     {
-        $commonSlideData = $this->firstChildElement($slide, 'cSld');
+        $presentationNamespace ??= $this->localNamespaceForPrefix($slide, 'p');
+        $commonSlideData = $this->firstChildElementForPrefix($slide, 'p', 'cSld', $presentationNamespace);
 
-        return $commonSlideData instanceof \DOMElement ? $this->firstChildElement($commonSlideData, 'spTree') : null;
+        return $commonSlideData instanceof \DOMElement ? $this->firstChildElementForPrefix($commonSlideData, 'p', 'spTree', $presentationNamespace) : null;
     }
 
-    private function slideTitle(\DOMElement $slide): string
+    private function slideTitle(\DOMElement $slide, ?string $presentationNamespace = null): string
     {
-        $spTree = $this->shapeTree($slide);
+        $spTree = $this->shapeTree($slide, $presentationNamespace);
         if (!$spTree instanceof \DOMElement) {
             return '';
         }
 
-        foreach ($this->childElements($spTree, 'sp') as $shapeElement) {
-            if ($this->isTitlePlaceholder($shapeElement)) {
+        foreach ($this->childElements($spTree, null) as $shapeElement) {
+            if ($this->isTitlePlaceholderForPrefix($shapeElement, $presentationNamespace)) {
                 return $this->drawingText($shapeElement);
             }
         }
@@ -247,7 +423,10 @@ final class PptxReader
             return $context;
         }
 
-        $layoutPart = OpcPackagePath::stripQueryAndFragment($slideRelationships->resolveTarget($layoutRelationship));
+        $layoutPart = $this->reviewRelationshipPart($slideRelationships, $layoutRelationship);
+        if ($layoutPart === null) {
+            return $context;
+        }
         $context['layoutPart'] = ltrim($layoutPart, '/');
         $layoutDocument = $this->optionalPackageXml($package, $layoutPart, 'PPTX slide layout');
         if (!$layoutDocument instanceof \DOMDocument) {
@@ -263,13 +442,16 @@ final class PptxReader
             }
         }
 
-        $layoutRelationships = $this->relationshipsOrEmpty($package, $layoutPart);
+        $layoutRelationships = $this->optionalRelationshipsOrEmpty($package, $layoutPart);
         $masterRelationship = $this->firstRelationshipWithTypeSuffix($layoutRelationships, '/slideMaster');
         if (!$masterRelationship instanceof OpcRelationship || $masterRelationship->isExternal()) {
             return $context;
         }
 
-        $masterPart = OpcPackagePath::stripQueryAndFragment($layoutRelationships->resolveTarget($masterRelationship));
+        $masterPart = $this->reviewRelationshipPart($layoutRelationships, $masterRelationship);
+        if ($masterPart === null) {
+            return $context;
+        }
         $context['masterPart'] = ltrim($masterPart, '/');
         $masterDocument = $this->optionalPackageXml($package, $masterPart, 'PPTX slide master');
         if (!$masterDocument instanceof \DOMDocument) {
@@ -285,13 +467,16 @@ final class PptxReader
             }
         }
 
-        $masterRelationships = $this->relationshipsOrEmpty($package, $masterPart);
+        $masterRelationships = $this->optionalRelationshipsOrEmpty($package, $masterPart);
         $themeRelationship = $this->firstRelationshipWithTypeSuffix($masterRelationships, '/theme');
         if (!$themeRelationship instanceof OpcRelationship || $themeRelationship->isExternal()) {
             return $context;
         }
 
-        $themePart = OpcPackagePath::stripQueryAndFragment($masterRelationships->resolveTarget($themeRelationship));
+        $themePart = $this->reviewRelationshipPart($masterRelationships, $themeRelationship);
+        if ($themePart === null) {
+            return $context;
+        }
         $context['themePart'] = ltrim($themePart, '/');
         $themeDocument = $this->optionalPackageXml($package, $themePart, 'PPTX theme');
         if (!$themeDocument instanceof \DOMDocument) {
@@ -488,7 +673,12 @@ final class PptxReader
             return $summary;
         }
 
-        $partName = OpcPackagePath::stripQueryAndFragment($presentationRelationships->resolveTarget($relationship));
+        $partName = $this->reviewRelationshipPart($presentationRelationships, $relationship);
+        if ($partName === null) {
+            $summary['issues'][] = 'invalid-table-styles-target';
+
+            return $summary;
+        }
         $summary['partName'] = ltrim($partName, '/');
         $document = $this->optionalPackageXml($package, $partName, 'PPTX table styles');
         if (!$document instanceof \DOMDocument) {
@@ -542,6 +732,308 @@ final class PptxReader
         $summary['styleCount'] = count($styles);
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    private function documentProperties(ZipPackage $package, OpcRelationships $rootRelationships): array
+    {
+        return [
+            'core' => $this->documentPropertyPart(
+                $package,
+                $rootRelationships,
+                self::CORE_PROPERTIES_RELATIONSHIP_SUFFIX,
+                'docProps/core.xml',
+                'PPTX core properties',
+                fn (\DOMDocument $document): array => $this->coreDocumentProperties($document)
+            ),
+            'extended' => $this->documentPropertyPart(
+                $package,
+                $rootRelationships,
+                self::EXTENDED_PROPERTIES_RELATIONSHIP_SUFFIX,
+                'docProps/app.xml',
+                'PPTX extended properties',
+                fn (\DOMDocument $document): array => $this->extendedDocumentProperties($document)
+            ),
+            'custom' => $this->documentPropertyPart(
+                $package,
+                $rootRelationships,
+                self::CUSTOM_PROPERTIES_RELATIONSHIP_SUFFIX,
+                'docProps/custom.xml',
+                'PPTX custom properties',
+                fn (\DOMDocument $document): array => $this->customDocumentProperties($document)
+            ),
+        ];
+    }
+
+    /**
+     * @param callable(\DOMDocument): array<string, mixed> $extract
+     * @return array<string, mixed>
+     */
+    private function documentPropertyPart(ZipPackage $package, OpcRelationships $rootRelationships, string $relationshipTypeSuffix, string $fallbackPartName, string $label, callable $extract): array
+    {
+        $relationship = $this->firstRelationshipWithTypeSuffix($rootRelationships, $relationshipTypeSuffix);
+        $partName = $fallbackPartName;
+        $review = [
+            'partName' => $fallbackPartName,
+            'exists' => false,
+            'relationshipId' => '',
+            'relationshipType' => '',
+            'target' => '',
+            'external' => false,
+            'issues' => [],
+        ];
+
+        if ($relationship instanceof OpcRelationship) {
+            $review['relationshipId'] = $relationship->id;
+            $review['relationshipType'] = $relationship->type;
+            $review['target'] = $relationship->target;
+            $review['external'] = $relationship->isExternal();
+            if ($relationship->isExternal()) {
+                $review['externalTargetPolicy'] = $relationship->externalTargetPreflight();
+                $review['issues'][] = 'external-document-properties-part';
+
+                return $review;
+            }
+
+            $resolvedPartName = $this->reviewRelationshipPart($rootRelationships, $relationship);
+            if ($resolvedPartName === null) {
+                $review['issues'][] = 'invalid-document-properties-target';
+
+                return $review;
+            }
+
+            $partName = ltrim($resolvedPartName, '/');
+            $review['partName'] = $partName;
+        }
+
+        if (!$package->has($partName)) {
+            $review['issues'][] = 'missing-document-properties-part';
+
+            return $review;
+        }
+
+        $document = $this->optionalPackageXml($package, $partName, $label);
+        if (!$document instanceof \DOMDocument) {
+            $review['issues'][] = 'invalid-document-properties-part';
+
+            return $review;
+        }
+
+        $review['exists'] = true;
+
+        return array_replace($review, $extract($document));
+    }
+
+    /**
+     * @return array{values:array<string, string>, valueCount:int}
+     */
+    private function coreDocumentProperties(\DOMDocument $document): array
+    {
+        $values = [];
+        foreach ($document->getElementsByTagName('*') as $element) {
+            if (!$element instanceof \DOMElement) {
+                continue;
+            }
+
+            $key = match ($element->localName) {
+                'title' => 'title',
+                'creator' => 'creator',
+                'lastModifiedBy' => 'lastModifiedBy',
+                'revision' => 'revision',
+                'subject' => 'subject',
+                'keywords' => 'keywords',
+                'description' => 'description',
+                'category' => 'category',
+                'contentStatus' => 'contentStatus',
+                'created' => 'created',
+                'modified' => 'modified',
+                default => '',
+            };
+            if ($key === '') {
+                continue;
+            }
+
+            $value = $this->documentPropertyText($element);
+            if ($value !== '') {
+                $values[$key] = $value;
+            }
+        }
+
+        return [
+            'values' => $values,
+            'valueCount' => count($values),
+        ];
+    }
+
+    /**
+     * @return array{values:array<string, string|int|bool>, valueCount:int}
+     */
+    private function extendedDocumentProperties(\DOMDocument $document): array
+    {
+        $root = $document->documentElement;
+        if (!$root instanceof \DOMElement) {
+            return ['values' => [], 'valueCount' => 0];
+        }
+
+        $integerKeys = array_fill_keys([
+            'bytes',
+            'characters',
+            'charactersWithSpaces',
+            'docSecurity',
+            'hiddenSlides',
+            'lines',
+            'linksDirty',
+            'mmClips',
+            'notes',
+            'pages',
+            'paragraphs',
+            'slides',
+            'totalTime',
+            'words',
+        ], true);
+        $booleanKeys = array_fill_keys([
+            'hyperlinksChanged',
+            'linksUpToDate',
+            'scaleCrop',
+            'sharedDoc',
+        ], true);
+        $values = [];
+        foreach ($this->childElements($root, null) as $element) {
+            $key = $this->lowerCamelName($element->localName);
+            if ($key === 'headingPairs' || $key === 'titlesOfParts') {
+                continue;
+            }
+
+            $text = $this->documentPropertyText($element);
+            if ($text === '') {
+                continue;
+            }
+            if (isset($integerKeys[$key]) && preg_match('/^-?\d+$/', $text) === 1) {
+                $values[$key] = (int) $text;
+                continue;
+            }
+            if (isset($booleanKeys[$key])) {
+                $values[$key] = $this->documentPropertyBoolean($text);
+                continue;
+            }
+
+            $values[$key] = $text;
+        }
+
+        return [
+            'values' => $values,
+            'valueCount' => count($values),
+        ];
+    }
+
+    /**
+     * @return array{count:int, duplicateNameCount:int, duplicateNames:list<string>, items:list<array<string, mixed>>, byName:array<string, mixed>}
+     */
+    private function customDocumentProperties(\DOMDocument $document): array
+    {
+        $root = $document->documentElement;
+        if (!$root instanceof \DOMElement) {
+            return ['count' => 0, 'duplicateNameCount' => 0, 'duplicateNames' => [], 'items' => [], 'byName' => []];
+        }
+
+        $items = [];
+        $byName = [];
+        $seen = [];
+        $duplicates = [];
+        foreach ($this->childElements($root, 'property') as $property) {
+            $name = trim($property->getAttribute('name'));
+            if ($name === '') {
+                continue;
+            }
+
+            $valueElement = null;
+            foreach ($this->childElements($property, null) as $child) {
+                $valueElement = $child;
+                break;
+            }
+            if (!$valueElement instanceof \DOMElement) {
+                continue;
+            }
+
+            $value = $this->documentPropertyTypedValue($valueElement);
+            $duplicate = isset($seen[$name]);
+            $seen[$name] = true;
+            if ($duplicate) {
+                $duplicates[$name] = true;
+            } else {
+                $byName[$name] = $value;
+            }
+
+            $item = [
+                'name' => $name,
+                'valueType' => $valueElement->localName,
+                'value' => $value,
+                'duplicate' => $duplicate,
+            ];
+            $pid = $property->getAttribute('pid');
+            if ($pid !== '' && preg_match('/^-?\d+$/', $pid) === 1) {
+                $item['pid'] = (int) $pid;
+            }
+            $fmtid = trim($property->getAttribute('fmtid'));
+            if ($fmtid !== '') {
+                $item['fmtid'] = $fmtid;
+            }
+            $items[] = $item;
+        }
+
+        $duplicateNames = array_keys($duplicates);
+        sort($duplicateNames, SORT_STRING);
+        ksort($byName, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'duplicateNameCount' => count($duplicateNames),
+            'duplicateNames' => $duplicateNames,
+            'items' => $items,
+            'byName' => $byName,
+        ];
+    }
+
+    private function documentPropertyTypedValue(\DOMElement $element): mixed
+    {
+        if (in_array($element->localName, ['array', 'vector'], true)) {
+            $values = [];
+            foreach ($this->childElements($element, null) as $child) {
+                $values[] = $this->documentPropertyTypedValue($child);
+            }
+
+            return $values;
+        }
+
+        $text = $this->documentPropertyText($element);
+
+        return match ($element->localName) {
+            'bool' => $this->documentPropertyBoolean($text),
+            'i1', 'i2', 'i4', 'i8', 'int', 'ui1', 'ui2', 'ui4', 'ui8', 'uint' => preg_match('/^-?\d+$/', $text) === 1 ? (int) $text : $text,
+            'decimal', 'r4', 'r8' => is_numeric($text) ? (float) $text : $text,
+            default => $text,
+        };
+    }
+
+    private function documentPropertyBoolean(string $value): bool
+    {
+        return in_array(strtolower(trim($value)), ['1', 'true', 'on', 'yes'], true);
+    }
+
+    private function documentPropertyText(\DOMElement $element): string
+    {
+        return trim(preg_replace('/\s+/', ' ', $element->textContent) ?? $element->textContent);
+    }
+
+    private function lowerCamelName(string $name): string
+    {
+        if ($name === 'MMClips') {
+            return 'mmClips';
+        }
+
+        return $name === '' ? '' : strtolower($name[0]) . substr($name, 1);
     }
 
     /**
@@ -834,7 +1326,7 @@ final class PptxReader
     private function optionalPackageXml(ZipPackage $package, string $partName, string $label): ?\DOMDocument
     {
         try {
-            return $this->loadPackageXml($package, $partName, $label);
+            return $this->loadPackageXml($package, $partName, $label, false);
         } catch (\InvalidArgumentException | \RuntimeException) {
             return null;
         }
@@ -891,7 +1383,10 @@ final class PptxReader
                 continue;
             }
 
-            $partName = OpcPackagePath::stripQueryAndFragment($slideRelationships->resolveTarget($relationship));
+            $partName = $this->reviewRelationshipPart($slideRelationships, $relationship);
+            if ($partName === null) {
+                continue;
+            }
             $document = $this->optionalPackageXml($package, $partName, 'PPTX slide comments');
             if (!$document instanceof \DOMDocument) {
                 continue;
@@ -954,79 +1449,275 @@ final class PptxReader
     }
 
     /**
-     * @param list<array<string, mixed>> $comments
-     * @return list<AstNode>
+     * @return list<array<string, mixed>>
      */
-    private function commentsToBlocks(array $comments): array
+    private function slideBackgrounds(ZipPackage $package, \DOMDocument $document, OpcRelationships $slideRelationships): array
     {
-        if ($comments === []) {
+        $root = XmlHtmlDom::rootElement($document, 'sld');
+        if (!$root instanceof \DOMElement) {
             return [];
         }
 
-        $children = [];
-        foreach ($comments as $comment) {
-            $id = (string) ($comment['id'] ?? '');
-            $author = (string) ($comment['author'] ?? '');
-            $date = (string) ($comment['date'] ?? '');
-            $text = (string) ($comment['text'] ?? '');
-            $label = $author !== '' ? 'Comment by ' . $author : 'Comment';
-            $children[] = new AstNode('paragraph', ['text' => $label . ': ' . $text], [
-                new AstNode('span', [
-                    'classes' => ['comment-start'],
-                    'attributes' => array_filter([
-                        'id' => $id,
-                        'author' => $author,
-                        'date' => $date,
-                    ], static fn (string $value): bool => $value !== ''),
-                ], $this->textInlines($label)),
-                new AstNode('text', ['text' => ': ' . $text]),
-            ]);
+        $commonSlideData = $this->firstPresentationChildElement($root, 'cSld');
+        $background = $commonSlideData instanceof \DOMElement ? $this->firstPresentationChildElement($commonSlideData, 'bg') : null;
+        if (!$background instanceof \DOMElement) {
+            return [];
         }
 
-        return [new AstNode('div', [
-            'classes' => ['pptx-comments'],
-            'attributes' => ['count' => (string) count($comments)],
-            'pptxComments' => $comments,
-        ], $children)];
+        $backgrounds = [];
+        foreach ($background->getElementsByTagName('*') as $element) {
+            if (!$element instanceof \DOMElement || $element->namespaceURI !== self::DRAWING_NAMESPACE || $element->localName !== 'blip') {
+                continue;
+            }
+
+            $backgrounds[] = $this->backgroundMediaReview($package, $element, $slideRelationships);
+        }
+
+        return $backgrounds;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function backgroundMediaReview(ZipPackage $package, \DOMElement $blip, OpcRelationships $slideRelationships): array
+    {
+        $relationshipAttribute = 'embed';
+        $relationshipId = $this->relationshipAttribute($blip, $relationshipAttribute);
+        if ($relationshipId === null) {
+            $relationshipAttribute = 'link';
+            $relationshipId = $this->relationshipAttribute($blip, $relationshipAttribute);
+        }
+
+        $review = [
+            'relationshipId' => $relationshipId ?? '',
+            'relationshipAttribute' => $relationshipAttribute,
+            'relationshipType' => '',
+            'target' => '',
+            'external' => false,
+            'exists' => false,
+            'issues' => [],
+        ];
+
+        if ($relationshipId === null) {
+            $review['issues'][] = 'missing-background-relationship-id';
+
+            return $review;
+        }
+
+        $relationship = $slideRelationships->byId($relationshipId);
+        if (!$relationship instanceof OpcRelationship) {
+            $review['issues'][] = 'unknown-background-relationship';
+
+            return $review;
+        }
+
+        $review['relationshipType'] = $relationship->type;
+        $review['target'] = $relationship->target;
+        $review['external'] = $relationship->isExternal();
+        if ($relationship->isExternal()) {
+            $review['externalTargetPolicy'] = $relationship->externalTargetPreflight();
+            $review['issues'][] = 'external-background-target';
+
+            return $review;
+        }
+
+        if ($relationshipAttribute === 'link') {
+            $partName = $this->reviewRelationshipPart($slideRelationships, $relationship);
+            if ($partName === null) {
+                $review['issues'][] = 'invalid-background-target';
+
+                return $review;
+            }
+            $partName = ltrim($partName, '/');
+            $review['partName'] = $partName;
+            if (in_array($partName, $package->names(), true)) {
+                $review['exists'] = true;
+            } else {
+                $review['issues'][] = 'missing-background-image-part';
+            }
+            $review['issues'][] = 'linked-background-target';
+
+            return $review;
+        }
+
+        $mediaPart = $this->upstreamPictureMediaPart($relationship->target);
+        $review['partName'] = $mediaPart;
+        if (!in_array($mediaPart, $package->names(), true)) {
+            $review['issues'][] = 'missing-background-image-part';
+
+            return $review;
+        }
+
+        $review['exists'] = true;
+
+        return $review;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function slideSpeakerNotes(ZipPackage $package, OpcRelationships $slideRelationships): array
+    {
+        $notes = [];
+        foreach ($slideRelationships->all() as $relationship) {
+            if (!str_ends_with($relationship->type, '/notesSlide') || $relationship->isExternal()) {
+                continue;
+            }
+
+            $partName = $this->reviewRelationshipPart($slideRelationships, $relationship);
+            if ($partName === null) {
+                continue;
+            }
+            $document = $this->optionalPackageXml($package, $partName, 'PPTX notes slide');
+            if (!$document instanceof \DOMDocument) {
+                continue;
+            }
+
+            $root = XmlHtmlDom::rootElement($document, 'notes');
+            if (!$root instanceof \DOMElement) {
+                continue;
+            }
+
+            $noteRelationships = $this->optionalRelationshipsOrEmpty($package, $partName);
+            $blocks = [];
+            $texts = [];
+            $spTree = $this->shapeTree($root);
+            if ($spTree instanceof \DOMElement) {
+                foreach ($this->childElements($spTree, 'sp') as $shapeElement) {
+                    if ($this->isNotesNonBodyPlaceholder($shapeElement)) {
+                        continue;
+                    }
+
+                    $textBody = $this->firstChildElement($shapeElement, 'txBody');
+                    if (!$textBody instanceof \DOMElement) {
+                        continue;
+                    }
+
+                    $paragraphs = $this->parseParagraphs($textBody, $noteRelationships);
+                    if (!$this->paragraphsContainText($paragraphs)) {
+                        continue;
+                    }
+
+                    foreach ($paragraphs as $paragraph) {
+                        $text = trim((string) ($paragraph['text'] ?? ''));
+                        if ($text !== '') {
+                            $texts[] = $text;
+                        }
+                    }
+                    array_push($blocks, ...$this->paragraphsToBlocks($paragraphs));
+                }
+            }
+
+            if ($blocks === []) {
+                continue;
+            }
+
+            $notes[] = [
+                'relationshipId' => $relationship->id,
+                'relationshipType' => $relationship->type,
+                'target' => $relationship->target,
+                'partName' => ltrim($partName, '/'),
+                'text' => implode("\n", $texts),
+                'blockCount' => count($blocks),
+                'blocks' => $blocks,
+            ];
+        }
+
+        return $notes;
+    }
+
+    private function isNotesNonBodyPlaceholder(\DOMElement $shapeElement): bool
+    {
+        $placeholder = $this->placeholderElement($shapeElement);
+        if (!$placeholder instanceof \DOMElement) {
+            return false;
+        }
+
+        $type = $placeholder->getAttribute('type') !== '' ? $placeholder->getAttribute('type') : 'obj';
+
+        return in_array($type, ['sldImg', 'sldNum', 'dt', 'hdr', 'ftr'], true);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $notes
+     * @return list<array<string, mixed>>
+     */
+    private function speakerNoteReviews(array $notes): array
+    {
+        return array_map(fn (array $note): array => $this->speakerNoteReview($note), $notes);
+    }
+
+    /**
+     * @param array<string, mixed> $note
+     * @return array<string, mixed>
+     */
+    private function speakerNoteReview(array $note): array
+    {
+        unset($note['blocks']);
+
+        return $note;
     }
 
     /**
      * @param list<AstNode> $blocks
-     * @return list<array<string, string|bool>>
+     * @return list<array<string, mixed>>
      */
-    private function collectRichMediaReviews(array $blocks): array
+    private function collectLinkReviews(array $blocks): array
     {
-        $media = [];
+        $links = [];
         $seen = [];
         foreach ($blocks as $block) {
-            foreach ($this->collectRichMediaReviewsFromNode($block) as $record) {
-                $key = (string) ($record['relationshipId'] ?? '') . "\0" . (string) ($record['partName'] ?? '') . "\0" . (string) ($record['target'] ?? '');
+            foreach ($this->collectLinkReviewsFromNode($block) as $record) {
+                $key = (string) ($record['relationshipId'] ?? '') . "\0" . (string) ($record['url'] ?? '') . "\0" . (string) ($record['title'] ?? '');
                 if (isset($seen[$key])) {
                     continue;
                 }
                 $seen[$key] = true;
-                $media[] = $record;
+                $links[] = $record;
             }
         }
 
-        return $media;
+        return $links;
     }
 
     /**
-     * @return list<array<string, string|bool>>
+     * @return list<array<string, mixed>>
      */
-    private function collectRichMediaReviewsFromNode(AstNode $node): array
+    private function collectLinkReviewsFromNode(AstNode $node): array
     {
-        $media = [];
-        $record = $node->attr('pptxMedia');
-        if (is_array($record)) {
-            $media[] = $record;
+        $links = [];
+        if ($node->type === 'link') {
+            $record = [];
+            foreach ([
+                'url',
+                'title',
+                'relationshipId',
+                'relationshipType',
+                'relationshipIssue',
+                'hyperlinkKind',
+                'target',
+                'targetMode',
+                'external',
+                'externalTargetAllowed',
+                'externalTargetIssues',
+                'externalTargetScheme',
+                'action',
+                'targetFrame',
+            ] as $attribute) {
+                $value = $node->attr($attribute);
+                if ($value !== null && $value !== '' && $value !== []) {
+                    $record[$attribute] = $value;
+                }
+            }
+            if ($record !== []) {
+                $links[] = $record;
+            }
         }
         foreach ($node->children as $child) {
-            array_push($media, ...$this->collectRichMediaReviewsFromNode($child));
+            array_push($links, ...$this->collectLinkReviewsFromNode($child));
         }
 
-        return $media;
+        return $links;
     }
 
     /**
@@ -1039,7 +1730,14 @@ final class PptxReader
         $seen = [];
         foreach ($blocks as $block) {
             foreach ($this->collectChartReviewsFromNode($block) as $record) {
-                $key = (string) ($record['relationshipId'] ?? '') . "\0" . (string) ($record['partName'] ?? '') . "\0" . (string) ($record['title'] ?? '');
+                $issues = is_array($record['issues'] ?? null)
+                    ? array_map(static fn ($issue): string => (string) $issue, $record['issues'])
+                    : [];
+                $key = (string) ($record['graphicUri'] ?? '') . "\0"
+                    . (string) ($record['relationshipId'] ?? '') . "\0"
+                    . (string) ($record['partName'] ?? '') . "\0"
+                    . (string) ($record['title'] ?? '') . "\0"
+                    . implode("\0", $issues);
                 if (isset($seen[$key])) {
                     continue;
                 }
@@ -1077,6 +1775,15 @@ final class PptxReader
         }
 
         return null;
+    }
+
+    private function reviewRelationshipPart(OpcRelationships $relationships, OpcRelationship $relationship): ?string
+    {
+        try {
+            return OpcPackagePath::stripQueryAndFragment($relationships->resolveTarget($relationship));
+        } catch (\InvalidArgumentException | \RuntimeException) {
+            return null;
+        }
     }
 
     /**
@@ -1208,13 +1915,13 @@ final class PptxReader
     private function placeholderElement(\DOMElement $shapeElement): ?\DOMElement
     {
         foreach ($this->childElements($shapeElement, null) as $child) {
-            if (!str_starts_with($child->localName, 'nv')) {
+            if ($child->namespaceURI !== self::PRESENTATION_NAMESPACE || !str_starts_with($child->localName, 'nv')) {
                 continue;
             }
 
-            $nonVisualProperties = $this->firstChildElement($child, 'nvPr');
+            $nonVisualProperties = $this->firstPresentationChildElement($child, 'nvPr');
 
-            return $nonVisualProperties instanceof \DOMElement ? $this->firstChildElement($nonVisualProperties, 'ph') : null;
+            return $nonVisualProperties instanceof \DOMElement ? $this->firstPresentationChildElement($nonVisualProperties, 'ph') : null;
         }
 
         return null;
@@ -1223,77 +1930,90 @@ final class PptxReader
     /**
      * @param array<string, mixed> $slideContext
      * @param array<string, mixed> $tableStyles
+     * @param list<array<string, mixed>> $imageIssues
+     * @param list<array<string, mixed>> $shapeIssues
+     * @param list<array<string, string|bool|array<string, mixed>>> $richMedia
      * @return list<AstNode>
      */
-    private function shapeToBlocks(ZipPackage $package, \DOMElement $shapeElement, OpcRelationships $slideRelationships, array $slideContext, array $tableStyles, int $zOrder): array
+    private function shapeToBlocks(ZipPackage $package, \DOMElement $shapeElement, OpcRelationships $slideRelationships, array $slideContext, array $tableStyles, ?string $presentationNamespace, ?string $relationshipNamespace, ?string $drawingNamespace, int $zOrder, array &$imageIssues, array &$shapeIssues, array &$richMedia): array
     {
         if ($shapeElement->localName === 'sp') {
-            $textBody = $this->firstChildElement($shapeElement, 'txBody');
+            $textBody = $this->firstChildElementForOuterPrefix($shapeElement, 'p', 'txBody', $presentationNamespace);
             if (!$textBody instanceof \DOMElement) {
-                return $this->withShapeMetadata(
-                    $this->inheritedPlaceholderBlocks($shapeElement, $slideContext),
-                    $shapeElement,
-                    $zOrder
-                );
+                return [];
             }
 
-            $paragraphs = $this->parseParagraphs($textBody);
-            if ($this->paragraphsContainText($paragraphs)) {
-                return $this->withShapeMetadata(
-                    $this->paragraphsToBlocks($paragraphs),
-                    $shapeElement,
-                    $zOrder
-                );
-            }
+            $paragraphs = $this->parseParagraphs($textBody, $slideRelationships, $drawingNamespace);
 
-            $blocks = $this->inheritedPlaceholderBlocks($shapeElement, $slideContext);
-            $blocks = $blocks !== [] ? $blocks : $this->paragraphsToBlocks($paragraphs);
-
-            return $this->withShapeMetadata($blocks, $shapeElement, $zOrder);
+            return $this->withShapeMetadata(
+                $this->paragraphsToBlocks($paragraphs),
+                $shapeElement,
+                $zOrder
+            );
         }
 
         if ($shapeElement->localName === 'pic') {
-            $image = $this->pictureNode($shapeElement, $slideRelationships);
-            $blocks = $image instanceof AstNode ? [new AstNode('paragraph', [], [$image])] : [];
-            foreach ($this->richMediaBlocks($shapeElement, $slideRelationships) as $mediaBlock) {
-                $blocks[] = $mediaBlock;
-            }
+            $this->appendRichMediaReviews($richMedia, $shapeElement, $slideRelationships, $zOrder);
+            $image = $this->pictureNode($package, $shapeElement, $slideRelationships, $presentationNamespace, $relationshipNamespace, $drawingNamespace, $imageIssues);
 
-            return $this->withShapeMetadata($blocks, $shapeElement, $zOrder);
+            return $this->withShapeMetadata($image instanceof AstNode ? [new AstNode('paragraph', [], [$image])] : [], $shapeElement, $zOrder);
         }
 
         if ($shapeElement->localName !== 'graphicFrame') {
-            return $this->withShapeMetadata($this->richMediaBlocks($shapeElement, $slideRelationships), $shapeElement, $zOrder);
+            return $this->unsupportedDrawableShapeBlocks($shapeElement, $slideRelationships, $zOrder, $shapeIssues, $richMedia);
         }
 
-        $graphicData = $this->graphicDataElement($shapeElement);
+        $graphicData = $this->graphicDataElement($shapeElement, $drawingNamespace);
         if (!$graphicData instanceof \DOMElement) {
-            return $this->withShapeMetadata($this->richMediaBlocks($shapeElement, $slideRelationships), $shapeElement, $zOrder);
+            return [];
+        }
+
+        if (!$graphicData->hasAttribute('uri')) {
+            return $this->withShapeMetadata([$this->paragraph('[Graphic: no-uri]')], $shapeElement, $zOrder);
         }
 
         $uri = $graphicData->getAttribute('uri');
         if (str_contains($uri, 'table')) {
-            $table = $this->firstDescendantElement($graphicData, 'tbl');
+            $table = $this->firstChildElementForOuterPrefix($graphicData, 'a', 'tbl', $drawingNamespace);
+            $tableNode = $table instanceof \DOMElement ? $this->tableNode($table, $tableStyles, $slideContext, $drawingNamespace) : null;
 
-            return $this->withShapeMetadata($table instanceof \DOMElement ? [$this->tableNode($table, $tableStyles, $slideContext)] : [], $shapeElement, $zOrder);
+            return $this->withShapeMetadata($tableNode instanceof AstNode ? [$tableNode] : [], $shapeElement, $zOrder);
+        }
+        if (str_contains($uri, 'diagram')) {
+            $diagram = $this->diagramNode($package, $graphicData, $slideRelationships, $relationshipNamespace);
+
+            return $this->withShapeMetadata($diagram instanceof AstNode ? [$diagram] : [], $shapeElement, $zOrder);
         }
         if (str_contains($uri, 'chart')) {
             $chart = $this->chartNode($package, $graphicData, $slideRelationships);
 
             return $this->withShapeMetadata($chart instanceof AstNode ? [$chart] : [], $shapeElement, $zOrder);
         }
-        if (str_contains($uri, 'diagram')) {
-            $diagram = $this->diagramNode($package, $graphicData, $slideRelationships);
-
-            return $this->withShapeMetadata($diagram instanceof AstNode ? [$diagram] : [], $shapeElement, $zOrder);
-        }
 
         return $this->withShapeMetadata([$this->paragraph('[Graphic: other: ' . $uri . ']')], $shapeElement, $zOrder);
     }
 
-    private function isDrawableShapeElement(\DOMElement $element): bool
+    /**
+     * @param list<array<string, mixed>> $shapeIssues
+     * @param list<array<string, string|bool|array<string, mixed>>> $richMedia
+     * @return list<AstNode>
+     */
+    private function unsupportedDrawableShapeBlocks(\DOMElement $shapeElement, OpcRelationships $slideRelationships, int $zOrder, array &$shapeIssues, array &$richMedia): array
     {
-        return in_array($element->localName, ['sp', 'pic', 'graphicFrame', 'grpSp', 'cxnSp', 'contentPart'], true);
+        if (!$this->appendRichMediaReviews($richMedia, $shapeElement, $slideRelationships, $zOrder)) {
+            $shapeIssues[] = array_replace(
+                ['issue' => 'unsupported-drawable-shape'],
+                $this->shapeMetadata($shapeElement, $zOrder)
+            );
+        }
+
+        return [];
+    }
+
+    private function isDrawableShapeElement(\DOMElement $element, ?string $presentationNamespace): bool
+    {
+        return $element->namespaceURI === $presentationNamespace
+            && in_array($element->localName, ['sp', 'pic', 'graphicFrame', 'grpSp', 'cxnSp', 'contentPart'], true);
     }
 
     /**
@@ -1323,7 +2043,7 @@ final class PptxReader
         $children = [];
         $changed = false;
         foreach ($node->children as $child) {
-            if ($child->type === 'image') {
+            if (in_array($child->type, ['image', 'link'], true)) {
                 $children[] = $this->withShapeMetadataNode($child, $metadata);
                 $changed = true;
                 continue;
@@ -1375,11 +2095,11 @@ final class PptxReader
     private function nonVisualDrawingProperties(\DOMElement $shapeElement): ?\DOMElement
     {
         foreach ($this->childElements($shapeElement, null) as $child) {
-            if (!str_starts_with($child->localName, 'nv')) {
+            if ($child->namespaceURI !== self::PRESENTATION_NAMESPACE || !str_starts_with($child->localName, 'nv')) {
                 continue;
             }
 
-            $properties = $this->firstChildElement($child, 'cNvPr');
+            $properties = $this->firstPresentationChildElement($child, 'cNvPr');
             if ($properties instanceof \DOMElement) {
                 return $properties;
             }
@@ -1432,9 +2152,143 @@ final class PptxReader
 
     private function integerAttribute(\DOMElement $element, string $name): ?int
     {
-        $value = $element->getAttribute($name);
+        return $this->integerText($element->getAttribute($name));
+    }
 
-        return preg_match('/^-?\d+$/', $value) === 1 ? (int) $value : null;
+    private function integerText(string $value): ?int
+    {
+        $literal = $this->integerLiteralParts($value);
+        if ($literal === null) {
+            return null;
+        }
+
+        return $this->integerLiteralToInt($literal);
+    }
+
+    /**
+     * @return array{sign:int, base:int, digits:string}|null
+     */
+    private function integerLiteralParts(string $value): ?array
+    {
+        $value = $this->trimUnicodeWhitespace($value);
+        while (str_starts_with($value, '(') && str_ends_with($value, ')')) {
+            $inner = $this->trimUnicodeWhitespace(substr($value, 1, -1));
+            if ($inner === $value) {
+                break;
+            }
+            $value = $inner;
+        }
+
+        $sign = 1;
+        $digits = $value;
+        if (str_starts_with($digits, '-')) {
+            $sign = -1;
+            $digits = substr($digits, 1);
+        }
+        if ($digits === '') {
+            return null;
+        }
+
+        if (preg_match('/^0[xX]([0-9A-Fa-f]+)$/', $digits, $matches) === 1) {
+            return ['sign' => $sign, 'base' => 16, 'digits' => strtolower($matches[1])];
+        }
+        if (preg_match('/^0[oO]([0-7]+)$/', $digits, $matches) === 1) {
+            return ['sign' => $sign, 'base' => 8, 'digits' => $matches[1]];
+        }
+
+        return preg_match('/^[0-9]+$/', $digits) === 1 ? ['sign' => $sign, 'base' => 10, 'digits' => $digits] : null;
+    }
+
+    /**
+     * @param array{sign:int, base:int, digits:string} $literal
+     */
+    private function integerLiteralToInt(array $literal): int
+    {
+        if ($this->integerLiteralIsHaskellIntMin($literal)) {
+            return PHP_INT_MIN;
+        }
+
+        $magnitude = match ($literal['base']) {
+            16 => (int) hexdec($literal['digits']),
+            8 => intval($literal['digits'], 8),
+            default => (int) $literal['digits'],
+        };
+
+        return $literal['sign'] < 0 ? -$magnitude : $magnitude;
+    }
+
+    private function readMaybeIntText(string $value): ?int
+    {
+        $literal = $this->integerLiteralParts($value);
+        if ($literal === null || !$this->integerLiteralFitsHaskellInt($literal)) {
+            return null;
+        }
+
+        return $this->integerLiteralToInt($literal);
+    }
+
+    /**
+     * @param array{sign:int, base:int, digits:string} $literal
+     */
+    private function integerLiteralFitsHaskellInt(array $literal): bool
+    {
+        $limit = $literal['sign'] < 0
+            ? $this->haskellIntMinAbsLimit($literal['base'])
+            : $this->haskellIntMaxLimit($literal['base']);
+
+        return $this->compareIntegerLiteralDigits($this->normalizedIntegerLiteralDigits($literal), $limit) <= 0;
+    }
+
+    /**
+     * @param array{sign:int, base:int, digits:string} $literal
+     */
+    private function integerLiteralIsHaskellIntMin(array $literal): bool
+    {
+        return $literal['sign'] < 0
+            && $this->normalizedIntegerLiteralDigits($literal) === $this->haskellIntMinAbsLimit($literal['base']);
+    }
+
+    private function haskellIntMaxLimit(int $base): string
+    {
+        return match ($base) {
+            16 => self::HASKELL_INT_MAX_HEX,
+            8 => self::HASKELL_INT_MAX_OCTAL,
+            default => self::HASKELL_INT_MAX_DECIMAL,
+        };
+    }
+
+    private function haskellIntMinAbsLimit(int $base): string
+    {
+        return match ($base) {
+            16 => self::HASKELL_INT_MIN_ABS_HEX,
+            8 => self::HASKELL_INT_MIN_ABS_OCTAL,
+            default => self::HASKELL_INT_MIN_ABS_DECIMAL,
+        };
+    }
+
+    /**
+     * @param array{sign:int, base:int, digits:string} $literal
+     */
+    private function normalizedIntegerLiteralDigits(array $literal): string
+    {
+        $digits = ltrim(strtolower($literal['digits']), '0');
+
+        return $digits === '' ? '0' : $digits;
+    }
+
+    private function compareIntegerLiteralDigits(string $left, string $right): int
+    {
+        $length = strlen($left) <=> strlen($right);
+        if ($length !== 0) {
+            return $length;
+        }
+
+        return $left <=> $right;
+    }
+
+    private function trimUnicodeWhitespace(string $value): string
+    {
+        return preg_replace('/^\s+|\s+$/u', '', $value) ?? trim($value);
     }
 
     private function xmlBooleanAttribute(\DOMElement $element, string $name): ?bool
@@ -1552,35 +2406,6 @@ final class PptxReader
     }
 
     /**
-     * @return list<AstNode>
-     */
-    private function richMediaBlocks(\DOMElement $shapeElement, OpcRelationships $slideRelationships): array
-    {
-        $blocks = [];
-        foreach ($this->richMediaReferences($shapeElement, $slideRelationships) as $media) {
-            $label = $this->richMediaLabel($media);
-            $attributes = [
-                'kind' => (string) $media['kind'],
-                'relationship-id' => (string) $media['relationshipId'],
-            ];
-            if (($media['partName'] ?? '') !== '') {
-                $attributes['src'] = (string) $media['partName'];
-            } else {
-                $attributes['target'] = (string) $media['target'];
-                $attributes['target-mode'] = 'external';
-            }
-
-            $blocks[] = new AstNode('div', [
-                'classes' => ['pptx-rich-media', 'pptx-' . (string) $media['kind']],
-                'attributes' => $attributes,
-                'pptxMedia' => $media,
-            ], [$this->paragraph('[PPTX ' . (string) $media['kind'] . ': ' . $label . ']')]);
-        }
-
-        return $blocks;
-    }
-
-    /**
      * @return list<array<string, string|bool>>
      */
     private function richMediaReferences(\DOMElement $shapeElement, OpcRelationships $slideRelationships): array
@@ -1611,7 +2436,11 @@ final class PptxReader
                 $seen[$relationshipId] = true;
                 $partName = '';
                 if (!$relationship->isExternal()) {
-                    $partName = ltrim(OpcPackagePath::stripQueryAndFragment($slideRelationships->resolveTarget($relationship)), '/');
+                    $resolvedPartName = $this->reviewRelationshipPart($slideRelationships, $relationship);
+                    if ($resolvedPartName === null) {
+                        continue;
+                    }
+                    $partName = ltrim($resolvedPartName, '/');
                 }
 
                 $media[] = [
@@ -1626,6 +2455,36 @@ final class PptxReader
         }
 
         return $media;
+    }
+
+    /**
+     * @param list<array<string, string|bool|array<string, mixed>>> $richMedia
+     */
+    private function appendRichMediaReviews(array &$richMedia, \DOMElement $shapeElement, OpcRelationships $slideRelationships, int $zOrder): bool
+    {
+        $added = false;
+        $shape = $this->shapeMetadata($shapeElement, $zOrder);
+        foreach ($this->richMediaReferences($shapeElement, $slideRelationships) as $media) {
+            $record = $media;
+            $record['shape'] = $shape;
+            $key = (string) ($record['relationshipId'] ?? '') . "\0" . (string) ($record['partName'] ?? '') . "\0" . (string) ($record['target'] ?? '');
+            $duplicate = false;
+            foreach ($richMedia as $existing) {
+                $existingKey = (string) ($existing['relationshipId'] ?? '') . "\0" . (string) ($existing['partName'] ?? '') . "\0" . (string) ($existing['target'] ?? '');
+                if ($existingKey === $key) {
+                    $duplicate = true;
+                    break;
+                }
+            }
+            if ($duplicate) {
+                continue;
+            }
+
+            $richMedia[] = $record;
+            $added = true;
+        }
+
+        return $added;
     }
 
     private function isRichMediaElement(\DOMElement $element): bool
@@ -1648,25 +2507,7 @@ final class PptxReader
     }
 
     /**
-     * @param array<string, string|bool> $media
-     */
-    private function richMediaLabel(array $media): string
-    {
-        $partName = (string) ($media['partName'] ?? '');
-        if ($partName !== '') {
-            $base = basename($partName);
-
-            return $base === '' ? $partName : $base;
-        }
-
-        $target = (string) ($media['target'] ?? '');
-        $base = basename(strtok($target, '?#') ?: $target);
-
-        return $base === '' ? $target : $base;
-    }
-
-    /**
-     * @param list<array{level:int, bullet:bool, text:string}> $paragraphs
+     * @param list<array{level:int, bullet:bool, listType:string, text:string, continuation?:bool, inlines?:list<AstNode>}> $paragraphs
      * @return list<AstNode>
      */
     private function paragraphsToBlocks(array $paragraphs): array
@@ -1675,15 +2516,15 @@ final class PptxReader
             return [];
         }
 
-        $hasBullets = false;
+        $hasLists = false;
         foreach ($paragraphs as $paragraph) {
-            if ($paragraph['bullet']) {
-                $hasBullets = true;
+            if (($paragraph['listType'] ?? '') !== '') {
+                $hasLists = true;
                 break;
             }
         }
-        if (!$hasBullets) {
-            return array_map(fn (array $paragraph): AstNode => $this->paragraph($paragraph['text']), $paragraphs);
+        if (!$hasLists) {
+            return array_map(fn (array $paragraph): AstNode => $this->parsedParagraphBlock($paragraph), $paragraphs);
         }
 
         $blocks = [];
@@ -1691,62 +2532,166 @@ final class PptxReader
         $count = count($paragraphs);
         while ($index < $count) {
             $paragraph = $paragraphs[$index];
-            if (!$paragraph['bullet']) {
-                $blocks[] = $this->paragraph($paragraph['text']);
+            $listType = (string) ($paragraph['listType'] ?? '');
+            if ($listType === '') {
+                $blocks[] = $this->parsedParagraphBlock($paragraph);
                 $index++;
                 continue;
             }
 
+            $level = (int) ($paragraph['level'] ?? 0);
             $items = [];
-            $level = $paragraph['level'];
-            while ($index < $count && $paragraphs[$index]['bullet'] && $paragraphs[$index]['level'] === $level) {
+            while ($index < $count) {
+                $current = $paragraphs[$index];
+                if (($current['listType'] ?? '') !== $listType || (int) ($current['level'] ?? 0) !== $level) {
+                    break;
+                }
+
                 $items[] = new AstNode('list_item', [], [
-                    new AstNode('plain', [], $this->textInlines($paragraphs[$index]['text'])),
+                    new AstNode('plain', [], $this->parsedParagraphInlines($current)),
                 ]);
                 $index++;
             }
-            $blocks[] = new AstNode('bullet_list', [], $items);
+            $blocks[] = new AstNode($listType, [], $items);
         }
 
         return $blocks;
     }
 
     /**
-     * @return list<array{level:int, bullet:bool, text:string}>
+     * @param array{level:int, bullet:bool, listType:string, text:string, continuation?:bool, inlines?:list<AstNode>} $paragraph
      */
-    private function parseParagraphs(\DOMElement $textBody): array
+    private function parsedParagraphBlock(array $paragraph): AstNode
     {
+        return new AstNode('paragraph', ['text' => $paragraph['text']], $this->parsedParagraphInlines($paragraph));
+    }
+
+    /**
+     * @param array{level:int, bullet:bool, listType:string, text:string, continuation?:bool, inlines?:list<AstNode>} $paragraph
+     * @return list<AstNode>
+     */
+    private function parsedParagraphInlines(array $paragraph): array
+    {
+        return isset($paragraph['inlines']) && is_array($paragraph['inlines'])
+            ? $paragraph['inlines']
+            : $this->pptxTextInlines($paragraph['text']);
+    }
+
+    /**
+     * @return list<array{level:int, bullet:bool, listType:string, text:string, continuation?:bool, inlines?:list<AstNode>}>
+     */
+    private function parseParagraphs(\DOMElement $textBody, ?OpcRelationships $relationships = null, ?string $drawingNamespace = self::DRAWING_NAMESPACE): array
+    {
+        $paragraphNamespace = $drawingNamespace ?? $this->localNamespaceForPrefix($textBody, 'a');
+
         return array_map(
-            fn (\DOMElement $paragraphElement): array => [
-                'level' => $this->paragraphLevel($paragraphElement),
-                'bullet' => $this->paragraphHasBullet($paragraphElement),
-                'text' => $this->drawingText($paragraphElement),
-            ],
-            $this->childElements($textBody, 'p')
+            function (\DOMElement $paragraphElement) use ($relationships, $drawingNamespace): array {
+                $paragraph = array_replace([
+                    'level' => $this->paragraphLevel($paragraphElement, $drawingNamespace),
+                    'bullet' => false,
+                    'listType' => '',
+                    'text' => $this->drawingText($paragraphElement),
+                ], $this->paragraphListMetadata($paragraphElement, $drawingNamespace));
+                if ($relationships instanceof OpcRelationships) {
+                    $inlines = $this->drawingParagraphStructuredInlines($paragraphElement, $relationships);
+                } else {
+                    $inlines = $this->drawingParagraphStructuredInlines($paragraphElement, null);
+                }
+                if ($inlines !== []) {
+                    $paragraph['inlines'] = $inlines;
+                }
+
+                return $paragraph;
+            },
+            $this->childElementsForPrefix($textBody, 'a', 'p', $paragraphNamespace)
         );
     }
 
-    private function paragraphLevel(\DOMElement $paragraphElement): int
+    /**
+     * @return list<AstNode>
+     */
+    private function drawingParagraphStructuredInlines(\DOMElement $paragraphElement, ?OpcRelationships $relationships): array
     {
-        $properties = $this->firstChildElement($paragraphElement, 'pPr');
+        $inlines = [];
+        $hasStructuredInline = false;
+        foreach ($this->childElements($paragraphElement, null) as $child) {
+            if ($child->namespaceURI !== self::DRAWING_NAMESPACE || !in_array($child->localName, ['r', 'fld'], true)) {
+                continue;
+            }
+
+            $runInlines = $this->drawingRunStructuredInlines($child);
+            if ($runInlines === []) {
+                continue;
+            }
+
+            foreach ($runInlines as $inline) {
+                if ($inline->type !== 'text') {
+                    $hasStructuredInline = true;
+                }
+                $inlines[] = $inline;
+            }
+        }
+
+        return $hasStructuredInline ? $inlines : [];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function drawingRunStructuredInlines(\DOMElement $runElement): array
+    {
+        $inlines = [];
+        foreach ($this->childElements($runElement, null) as $child) {
+            if ($child->namespaceURI === self::DRAWING_NAMESPACE && $child->localName === 't') {
+                if ($child->textContent !== '') {
+                    $inlines[] = new AstNode('text', ['text' => $child->textContent]);
+                }
+                continue;
+            }
+        }
+
+        return $inlines;
+    }
+
+    private function paragraphLevel(\DOMElement $paragraphElement, ?string $drawingNamespace): int
+    {
+        $properties = $this->firstChildElementForOuterPrefix($paragraphElement, 'a', 'pPr', $drawingNamespace);
         if (!$properties instanceof \DOMElement) {
             return 0;
         }
 
-        $level = $properties->getAttribute('lvl');
-
-        return preg_match('/^\d+$/', $level) === 1 ? (int) $level : 0;
+        return $this->readMaybeIntText($properties->getAttribute('lvl')) ?? 0;
     }
 
-    private function paragraphHasBullet(\DOMElement $paragraphElement): bool
+    /**
+     * @return array{bullet:bool, listType:string, continuation?:bool}
+     */
+    private function paragraphListMetadata(\DOMElement $paragraphElement, ?string $drawingNamespace): array
     {
-        $properties = $this->firstChildElement($paragraphElement, 'pPr');
-        if ($properties instanceof \DOMElement && $this->firstChildElement($properties, 'buChar') instanceof \DOMElement) {
-            return true;
+        $properties = $this->firstChildElementForOuterPrefix($paragraphElement, 'a', 'pPr', $drawingNamespace);
+        if ($properties instanceof \DOMElement) {
+            if ($this->firstChildElementForOuterPrefix($properties, 'a', 'buChar', $drawingNamespace) instanceof \DOMElement) {
+                return ['bullet' => true, 'listType' => 'bullet_list'];
+            }
         }
 
-        foreach ($paragraphElement->getElementsByTagName('*') as $descendant) {
-            if ($descendant instanceof \DOMElement && $descendant->localName === 'sym' && str_contains($descendant->getAttribute('typeface'), 'Wingdings')) {
+        if ($this->paragraphHasWingdingsRunSymbol($paragraphElement, $drawingNamespace)) {
+            return ['bullet' => true, 'listType' => 'bullet_list'];
+        }
+
+        if ($properties instanceof \DOMElement && $this->firstChildElementForOuterPrefix($properties, 'a', 'buNone', $drawingNamespace) instanceof \DOMElement) {
+            return ['bullet' => false, 'listType' => '', 'continuation' => true];
+        }
+
+        return ['bullet' => false, 'listType' => ''];
+    }
+
+    private function paragraphHasWingdingsRunSymbol(\DOMElement $paragraphElement, ?string $drawingNamespace): bool
+    {
+        foreach ($this->childElementsForOuterPrefix($paragraphElement, 'a', 'r', $drawingNamespace) as $runElement) {
+            $properties = $this->firstChildElementForOuterPrefix($runElement, 'a', 'rPr', $drawingNamespace);
+            $symbol = $properties instanceof \DOMElement ? $this->firstChildElementForOuterPrefix($properties, 'a', 'sym', $drawingNamespace) : null;
+            if ($symbol instanceof \DOMElement && str_contains($symbol->getAttribute('typeface'), 'Wingdings')) {
                 return true;
             }
         }
@@ -1755,7 +2700,7 @@ final class PptxReader
     }
 
     /**
-     * @param list<array{level:int, bullet:bool, text:string}> $paragraphs
+     * @param list<array{level:int, bullet:bool, listType:string, text:string, continuation?:bool, inlines?:list<AstNode>}> $paragraphs
      */
     private function paragraphsContainText(array $paragraphs): bool
     {
@@ -1768,54 +2713,130 @@ final class PptxReader
         return false;
     }
 
-    private function pictureNode(\DOMElement $pictureElement, OpcRelationships $slideRelationships): ?AstNode
+    /**
+     * @param list<array<string, mixed>> $imageIssues
+     */
+    private function pictureNode(ZipPackage $package, \DOMElement $pictureElement, OpcRelationships $slideRelationships, ?string $presentationNamespace, ?string $relationshipNamespace, ?string $drawingNamespace, array &$imageIssues): ?AstNode
     {
-        $nonVisual = $this->firstChildElement($pictureElement, 'nvPicPr');
-        $properties = $nonVisual instanceof \DOMElement ? $this->firstChildElement($nonVisual, 'cNvPr') : null;
-        $title = $properties instanceof \DOMElement ? $properties->getAttribute('name') : '';
-        $alt = $properties instanceof \DOMElement ? $properties->getAttribute('descr') : '';
-        $blipFill = $this->firstChildElement($pictureElement, 'blipFill');
-        $blip = $blipFill instanceof \DOMElement ? $this->firstChildElement($blipFill, 'blip') : null;
+        $nonVisual = $this->firstChildElementForOuterPrefix($pictureElement, 'p', 'nvPicPr', $presentationNamespace);
+        $properties = $nonVisual instanceof \DOMElement ? $this->firstChildElementForOuterPrefix($nonVisual, 'p', 'cNvPr', $presentationNamespace) : null;
+        if (!$properties instanceof \DOMElement) {
+            $imageIssues[] = ['issue' => 'missing-picture-nonvisual-properties'];
+
+            return null;
+        }
+
+        $title = $properties->getAttribute('name');
+        $alt = $properties->getAttribute('descr');
+        $blipFill = $this->firstChildElementForOuterPrefix($pictureElement, 'p', 'blipFill', $presentationNamespace);
+        $blip = $blipFill instanceof \DOMElement ? $this->firstChildElementForOuterPrefix($blipFill, 'a', 'blip', $drawingNamespace) : null;
         if (!$blip instanceof \DOMElement) {
             return null;
         }
 
-        $relationshipId = $this->relationshipId($blip, 'embed');
-        if ($relationshipId === '') {
+        $relationshipAttribute = 'embed';
+        $relationshipId = $this->relationshipAttributeForPrefix($blip, 'r', $relationshipAttribute, $relationshipNamespace);
+        if ($relationshipId === null) {
+            $relationshipAttribute = 'link';
+            $relationshipId = $this->relationshipAttributeForPrefix($blip, 'r', $relationshipAttribute, $relationshipNamespace);
+        }
+        if ($relationshipId === null) {
+            $imageIssues[] = ['issue' => 'missing-image-relationship-id'];
+
             return null;
         }
 
         $relationship = $slideRelationships->byId($relationshipId);
-        if (!$relationship instanceof OpcRelationship || $relationship->isExternal()) {
+        if (!$relationship instanceof OpcRelationship) {
+            $imageIssues[] = [
+                'issue' => 'unknown-image-relationship',
+                'relationshipId' => $relationshipId,
+                'relationshipAttribute' => $relationshipAttribute,
+            ];
+
             return null;
         }
 
-        $mediaPart = OpcPackagePath::stripQueryAndFragment($slideRelationships->resolveTarget($relationship));
+        if ($relationshipAttribute === 'link') {
+            $issue = [
+                'issue' => $relationship->isExternal() ? 'external-image-target' : 'linked-image-target',
+                'relationshipId' => $relationshipId,
+                'relationshipAttribute' => $relationshipAttribute,
+                'target' => $relationship->target,
+            ];
+            if ($relationship->isExternal()) {
+                $issue['externalTargetPolicy'] = $relationship->externalTargetPreflight();
+            } else {
+                $partName = $this->reviewRelationshipPart($slideRelationships, $relationship);
+                if ($partName === null) {
+                    $issue['issue'] = 'invalid-linked-image-target';
+                } else {
+                    $issue['partName'] = ltrim($partName, '/');
+                }
+            }
+            $imageIssues[] = $issue;
 
-        return new AstNode('image', [
-            'url' => ltrim($mediaPart, '/'),
-            'src' => ltrim($mediaPart, '/'),
+            return null;
+        }
+
+        $mediaPart = $this->upstreamPictureMediaPart($relationship->target);
+        if (!in_array($mediaPart, $package->names(), true)) {
+            $imageIssues[] = [
+                'issue' => 'missing-image-part',
+                'relationshipId' => $relationshipId,
+                'relationshipAttribute' => $relationshipAttribute,
+                'target' => $relationship->target,
+                'partName' => $mediaPart,
+            ];
+
+            return null;
+        }
+
+        $altInlines = $alt === ''
+            ? []
+            : [new AstNode('text', [
+                'text' => $alt,
+            ])];
+
+        $image = new AstNode('image', [
+            'url' => $mediaPart,
+            'src' => $mediaPart,
             'title' => $title,
             'alt' => $alt,
-        ], $this->textInlines($alt));
+            'singleStrAlt' => true,
+            'relationshipId' => $relationshipId,
+            'relationshipAttribute' => $relationshipAttribute,
+        ], $altInlines);
+
+        return $image;
     }
 
-    private function graphicDataElement(\DOMElement $graphicFrame): ?\DOMElement
+    private function upstreamPictureMediaPart(string $target): string
     {
-        $graphic = $this->firstChildElement($graphicFrame, 'graphic');
+        if (str_starts_with($target, '../media/')) {
+            return 'ppt/media/' . substr($target, strlen('../media/'));
+        }
+        if (str_starts_with($target, 'media/')) {
+            return 'ppt/' . $target;
+        }
 
-        return $graphic instanceof \DOMElement ? $this->firstChildElement($graphic, 'graphicData') : null;
+        return $target;
+    }
+
+    private function graphicDataElement(\DOMElement $graphicFrame, ?string $drawingNamespace): ?\DOMElement
+    {
+        $graphic = $this->firstChildElementForOuterPrefix($graphicFrame, 'a', 'graphic', $drawingNamespace);
+
+        return $graphic instanceof \DOMElement ? $this->firstChildElementForOuterPrefix($graphic, 'a', 'graphicData', $drawingNamespace) : null;
     }
 
     private function chartNode(ZipPackage $package, \DOMElement $graphicData, OpcRelationships $slideRelationships): ?AstNode
     {
+        $graphicUri = $graphicData->getAttribute('uri');
         $chartElement = $this->firstDescendantElement($graphicData, 'chart');
-        if (!$chartElement instanceof \DOMElement) {
-            return null;
-        }
-
-        $relationshipId = $this->relationshipId($chartElement, 'id');
+        $relationshipId = $chartElement instanceof \DOMElement ? $this->relationshipId($chartElement, 'id') : '';
         $chart = [
+            'graphicUri' => $graphicUri,
             'relationshipId' => $relationshipId,
             'relationshipType' => '',
             'target' => '',
@@ -1829,6 +2850,12 @@ final class PptxReader
             'byteExposurePolicy' => 'chart-part-bytes-blocked',
             'reviewPolicy' => 'chart-metadata-and-cache-values-only',
         ];
+        if (!$chartElement instanceof \DOMElement) {
+            $chart['issues'][] = 'missing-chart-element';
+
+            return $this->chartReviewNode($chart);
+        }
+
         if ($relationshipId === '') {
             $chart['issues'][] = 'missing-chart-relationship-id';
 
@@ -1851,7 +2878,12 @@ final class PptxReader
             return $this->chartReviewNode($chart);
         }
 
-        $chartPart = OpcPackagePath::stripQueryAndFragment($slideRelationships->resolveTarget($relationship));
+        $chartPart = $this->reviewRelationshipPart($slideRelationships, $relationship);
+        if ($chartPart === null) {
+            $chart['issues'][] = 'invalid-chart-part-target';
+
+            return $this->chartReviewNode($chart);
+        }
         $chart['partName'] = ltrim($chartPart, '/');
         $document = $this->optionalPackageXml($package, $chartPart, 'PPTX chart');
         if (!$document instanceof \DOMDocument) {
@@ -1867,7 +2899,7 @@ final class PptxReader
             return $this->chartReviewNode($chart);
         }
 
-        $chartRelationships = $this->relationshipsOrEmpty($package, $chartPart);
+        $chartRelationships = $this->optionalRelationshipsOrEmpty($package, $chartPart);
 
         return $this->chartReviewNode(array_replace($chart, $this->chartSummary($root, $chartRelationships)));
     }
@@ -1877,36 +2909,12 @@ final class PptxReader
      */
     private function chartReviewNode(array $chart): AstNode
     {
-        $chartType = (string) ($chart['chartType'] ?? 'unknown');
-        $chartClass = strtolower((string) preg_replace('/[^a-z0-9_-]+/i', '-', $chartType));
-        $chartClass = trim($chartClass, '-') !== '' ? trim($chartClass, '-') : 'unknown';
-        $title = (string) ($chart['title'] ?? '');
-        $label = $title !== '' ? $title : ((string) ($chart['partName'] ?? '') !== '' ? (string) $chart['partName'] : (string) ($chart['relationshipId'] ?? 'unknown'));
-        $attributes = array_filter([
-            'type' => $chartType,
-            'relationship-id' => (string) ($chart['relationshipId'] ?? ''),
-            'src' => (string) ($chart['partName'] ?? ''),
-            'title' => $title,
-            'series-count' => (string) count(is_array($chart['series'] ?? null) ? $chart['series'] : []),
-            'plot-count' => (string) count(is_array($chart['plots'] ?? null) ? $chart['plots'] : []),
-        ], static fn (string $value): bool => $value !== '');
+        $label = '[Graphic: other: ' . (string) ($chart['graphicUri'] ?? '') . ']';
 
-        $children = [$this->paragraph('[PPTX chart: ' . $label . ']')];
-        foreach ((is_array($chart['series'] ?? null) ? $chart['series'] : []) as $series) {
-            if (!is_array($series)) {
-                continue;
-            }
-            $summary = $this->chartSeriesSummaryText($series);
-            if ($summary !== '') {
-                $children[] = $this->paragraph($summary);
-            }
-        }
-
-        return new AstNode('div', [
-            'classes' => ['pptx-chart', 'pptx-chart-' . $chartClass],
-            'attributes' => $attributes,
+        return new AstNode('paragraph', [
+            'text' => $label,
             'pptxChart' => $chart,
-        ], $children);
+        ], $this->textInlines($label));
     }
 
     /**
@@ -2380,9 +3388,11 @@ final class PptxReader
             return $metadata;
         }
 
-        $partName = OpcPackagePath::stripQueryAndFragment($chartRelationships->resolveTarget($relationship));
-        if ($partName !== '') {
+        $partName = $this->reviewRelationshipPart($chartRelationships, $relationship);
+        if ($partName !== null && $partName !== '') {
             $metadata['partName'] = ltrim($partName, '/');
+        } elseif ($partName === null) {
+            $metadata['targetIssue'] = 'invalid-chart-relationship-target';
         }
 
         return $metadata;
@@ -2799,64 +3809,42 @@ final class PptxReader
     }
 
     /**
-     * @param array<string, mixed> $series
-     */
-    private function chartSeriesSummaryText(array $series): string
-    {
-        $name = (string) ($series['name'] ?? '');
-        $categories = is_array($series['categories'] ?? null) ? $series['categories'] : [];
-        $values = is_array($series['values'] ?? null) ? $series['values'] : [];
-        $pairs = [];
-        $count = max(count($categories), count($values));
-        for ($index = 0; $index < $count; $index++) {
-            $category = is_string($categories[$index] ?? null) ? $categories[$index] : '';
-            $value = is_string($values[$index] ?? null) ? $values[$index] : '';
-            if ($category === '' && $value === '') {
-                continue;
-            }
-            $pairs[] = $category !== '' ? $category . '=' . $value : $value;
-        }
-
-        if ($pairs === []) {
-            return $name;
-        }
-
-        return ($name !== '' ? $name : 'Series') . ': ' . implode('; ', $pairs);
-    }
-
-    /**
      * @param array<string, mixed> $tableStyles
      */
-    private function tableNode(\DOMElement $tableElement, array $tableStyles, array $slideContext): AstNode
+    private function tableNode(\DOMElement $tableElement, array $tableStyles, array $slideContext, ?string $drawingNamespace): ?AstNode
     {
         $theme = is_array($slideContext['theme'] ?? null) ? $slideContext['theme'] : [];
         $style = $this->tableStyleMetadata($tableElement, $tableStyles);
-        $rowElements = $this->childElements($tableElement, 'tr');
+        $rowElements = $this->childElementsForOuterPrefix($tableElement, 'a', 'tr', $drawingNamespace);
         $rowCount = count($rowElements);
         $columnCount = 0;
         foreach ($rowElements as $rowElement) {
-            $columnCount = max($columnCount, count($this->childElements($rowElement, 'tc')));
+            $columnCount = max($columnCount, count($this->childElementsForOuterPrefix($rowElement, 'a', 'tc', $drawingNamespace)));
         }
 
         $rows = [];
         foreach ($rowElements as $rowIndex => $rowElement) {
             $row = [];
-            foreach ($this->childElements($rowElement, 'tc') as $columnIndex => $cellElement) {
-                $row[] = $this->tableCellData($cellElement, $theme, $style, $rowIndex, $columnIndex, $rowCount, $columnCount);
+            foreach ($this->childElementsForOuterPrefix($rowElement, 'a', 'tc', $drawingNamespace) as $columnIndex => $cellElement) {
+                $row[] = $this->tableCellData($cellElement, $theme, $drawingNamespace, $style, $rowIndex, $columnIndex, $rowCount, $columnCount);
             }
             $rows[] = $row;
+        }
+        if ($rows === []) {
+            return null;
         }
 
         $header = array_shift($rows) ?? [];
         $attrs = [
             'caption' => '',
             'alignments' => array_fill(0, count($header), 'default'),
+            'nativeColumnCount' => count($header),
             'pptxTable' => true,
         ];
         if ($style !== []) {
             $attrs['pptxTableStyle'] = $style;
         }
-        $columnWidths = $this->tableColumnWidths($tableElement);
+        $columnWidths = $this->tableColumnWidths($tableElement, $drawingNamespace);
         if ($columnWidths !== []) {
             $attrs['columnWidths'] = $columnWidths;
         }
@@ -2867,19 +3855,19 @@ final class PptxReader
         ]);
     }
 
-    /**
+     /**
      * @return array{attrs:array<string, mixed>, text:string}
      */
-    private function tableCellData(\DOMElement $cellElement, array $theme, array $tableStyle = [], int $rowIndex = 0, int $columnIndex = 0, int $rowCount = 0, int $columnCount = 0): array
+    private function tableCellData(\DOMElement $cellElement, array $theme, ?string $drawingNamespace, array $tableStyle = [], int $rowIndex = 0, int $columnIndex = 0, int $rowCount = 0, int $columnCount = 0): array
     {
-        $text = $this->drawingText($cellElement);
+        $textBody = $this->firstChildElementForOuterPrefix($cellElement, 'a', 'txBody', $drawingNamespace);
+        $text = $textBody instanceof \DOMElement ? $this->drawingText($textBody) : '';
         $attrs = ['text' => $text];
         $pptxCell = [];
 
-        foreach (['gridSpan' => 'colspan', 'rowSpan' => 'rowspan'] as $source => $target) {
+        foreach (['gridSpan', 'rowSpan'] as $source) {
             $value = $this->integerAttribute($cellElement, $source);
             if ($value !== null && $value > 1) {
-                $attrs[$target] = $value;
                 $pptxCell[$source] = $value;
             }
         }
@@ -2935,7 +3923,7 @@ final class PptxReader
         $text = $cell['text'];
 
         return new AstNode('table_cell', $attrs, [
-            new AstNode('plain', [], $this->textInlines($text)),
+            new AstNode('plain', [], $this->pptxTextInlines($text)),
         ]);
     }
 
@@ -3096,15 +4084,15 @@ final class PptxReader
     /**
      * @return list<int>
      */
-    private function tableColumnWidths(\DOMElement $tableElement): array
+    private function tableColumnWidths(\DOMElement $tableElement, ?string $drawingNamespace): array
     {
-        $grid = $this->firstChildElement($tableElement, 'tblGrid');
+        $grid = $this->firstChildElementForOuterPrefix($tableElement, 'a', 'tblGrid', $drawingNamespace);
         if (!$grid instanceof \DOMElement) {
             return [];
         }
 
         $widths = [];
-        foreach ($this->childElements($grid, 'gridCol') as $column) {
+        foreach ($this->childElementsForOuterPrefix($grid, 'a', 'gridCol', $drawingNamespace) as $column) {
             $width = $this->integerAttribute($column, 'w');
             if ($width !== null) {
                 $widths[] = $width;
@@ -3454,38 +4442,62 @@ final class PptxReader
         return $style;
     }
 
-    private function diagramNode(ZipPackage $package, \DOMElement $graphicData, OpcRelationships $slideRelationships): ?AstNode
+    private function diagramNode(ZipPackage $package, \DOMElement $graphicData, OpcRelationships $slideRelationships, ?string $relationshipNamespace): ?AstNode
     {
         $relIds = $this->firstChildElement($graphicData, 'relIds');
         if (!$relIds instanceof \DOMElement) {
-            return $this->paragraph('[Diagram parse error: diagram-no-relIds]');
+            return $this->paragraph('[Graphic: diagram-no-relIds]');
         }
 
-        $dataRelId = $this->relationshipId($relIds, 'dm');
-        $layoutRelId = $this->relationshipId($relIds, 'lo');
-        if ($dataRelId === '' || $layoutRelId === '') {
-            return $this->paragraph('[Diagram parse error: diagram-missing-rels]');
+        $dataRelId = $this->relationshipAttributeForPrefix($relIds, 'r', 'dm', $relationshipNamespace);
+        $layoutRelId = $this->relationshipAttributeForPrefix($relIds, 'r', 'lo', $relationshipNamespace);
+        if ($dataRelId === null || $layoutRelId === null) {
+            return $this->paragraph('[Graphic: diagram-missing-rels]');
         }
 
         $dataRelationship = $slideRelationships->byId($dataRelId);
         $layoutRelationship = $slideRelationships->byId($layoutRelId);
-        if (!$dataRelationship instanceof OpcRelationship || !$layoutRelationship instanceof OpcRelationship || $dataRelationship->isExternal() || $layoutRelationship->isExternal()) {
-            return $this->paragraph('[Diagram parse error: diagram-missing-rels]');
+        if (!$dataRelationship instanceof OpcRelationship) {
+            return $this->paragraph('[Diagram parse error: Relationship not found: ' . $dataRelId . ']');
+        }
+        if (!$layoutRelationship instanceof OpcRelationship) {
+            return $this->paragraph('[Diagram parse error: Relationship not found: ' . $layoutRelId . ']');
         }
 
-        $dataPart = OpcPackagePath::stripQueryAndFragment($slideRelationships->resolveTarget($dataRelationship));
-        $layoutPart = OpcPackagePath::stripQueryAndFragment($slideRelationships->resolveTarget($layoutRelationship));
-        $dataDocument = $this->loadPackageXml($package, $dataPart, 'PPTX SmartArt data');
-        $layoutDocument = $this->loadPackageXml($package, $layoutPart, 'PPTX SmartArt layout');
-        $dataRoot = XmlHtmlDom::rootElement($dataDocument, 'dataModel');
-        $layoutRoot = XmlHtmlDom::rootElement($layoutDocument, 'layoutDef');
+        $dataPart = $this->upstreamDiagramPart($dataRelationship->target);
+        $layoutPart = $this->upstreamDiagramPart($layoutRelationship->target);
+        if (!in_array($dataPart, $package->names(), true)) {
+            return $this->paragraph('[Diagram parse error: File not found in archive: ' . $dataPart . ']');
+        }
+
+        $dataDocument = $this->diagramPackageXml($package, $dataPart, 'PPTX SmartArt data', $dataError);
+        if (!$dataDocument instanceof \DOMDocument) {
+            return $this->paragraph('[Diagram parse error: ' . $dataError . ']');
+        }
+
+        if (!in_array($layoutPart, $package->names(), true)) {
+            return $this->paragraph('[Diagram parse error: File not found in archive: ' . $layoutPart . ']');
+        }
+
+        $layoutDocument = $this->diagramPackageXml($package, $layoutPart, 'PPTX SmartArt layout', $layoutError);
+        if (!$layoutDocument instanceof \DOMDocument) {
+            return $this->paragraph('[Diagram parse error: ' . $layoutError . ']');
+        }
+
+        $dataRoot = XmlHtmlDom::rootElement($dataDocument);
+        $layoutRoot = XmlHtmlDom::rootElement($layoutDocument);
         if (!$dataRoot instanceof \DOMElement || !$layoutRoot instanceof \DOMElement) {
             return $this->paragraph('[Diagram parse error: diagram-invalid-xml]');
         }
+        $dataDiagramNamespace = $this->localNamespaceForPrefix($dataRoot, 'dgm');
+        $layoutDiagramNamespace = $this->localNamespaceForPrefix($layoutRoot, 'dgm');
+        if (!$this->firstDiagramChildElement($dataRoot, 'ptLst', $dataDiagramNamespace) instanceof \DOMElement) {
+            return $this->paragraph('[Diagram parse error: Missing dgm:ptLst]');
+        }
 
-        $layoutType = $this->diagramLayoutType($layoutRoot);
+        $layoutType = $this->diagramLayoutType($layoutRoot, $layoutDiagramNamespace);
         $children = [];
-        foreach ($this->diagramNodes($dataRoot) as $node) {
+        foreach ($this->diagramNodes($dataRoot, $dataDiagramNamespace) as $node) {
             $children[] = new AstNode('paragraph', [], [
                 new AstNode('strong', [], $this->textInlines($node['text'])),
             ]);
@@ -3505,16 +4517,38 @@ final class PptxReader
         ], $children);
     }
 
-    private function diagramLayoutType(\DOMElement $layoutRoot): string
+    private function diagramPackageXml(ZipPackage $package, string $partName, string $label, ?string &$error): ?\DOMDocument
     {
-        $uniqueId = $layoutRoot->getAttribute('uniqueId');
-        if ($uniqueId !== '') {
+        try {
+            $error = null;
+
+            return $this->loadPackageXml($package, $partName, $label);
+        } catch (\InvalidArgumentException | \RuntimeException $exception) {
+            $error = $exception->getMessage();
+
+            return null;
+        }
+    }
+
+    private function upstreamDiagramPart(string $target): string
+    {
+        if (str_starts_with($target, '../diagrams/')) {
+            return 'ppt/diagrams/' . substr($target, strlen('../diagrams/'));
+        }
+
+        return $target;
+    }
+
+    private function diagramLayoutType(\DOMElement $layoutRoot, ?string $diagramNamespace): string
+    {
+        if ($layoutRoot->hasAttribute('uniqueId')) {
+            $uniqueId = $layoutRoot->getAttribute('uniqueId');
             $position = strrpos($uniqueId, '/');
 
             return $position === false ? $uniqueId : substr($uniqueId, $position + 1);
         }
 
-        $title = $this->firstChildElement($layoutRoot, 'title');
+        $title = $this->firstDiagramChildElement($layoutRoot, 'title', $diagramNamespace);
 
         return $title instanceof \DOMElement && $title->hasAttribute('val') ? $title->getAttribute('val') : 'unknown';
     }
@@ -3522,36 +4556,41 @@ final class PptxReader
     /**
      * @return list<array{text:string, children:list<string>}>
      */
-    private function diagramNodes(\DOMElement $dataRoot): array
+    private function diagramNodes(\DOMElement $dataRoot, ?string $diagramNamespace): array
     {
-        $pointList = $this->firstChildElement($dataRoot, 'ptLst');
-        $connectionList = $this->firstChildElement($dataRoot, 'cxnLst');
-        if (!$pointList instanceof \DOMElement || !$connectionList instanceof \DOMElement) {
+        $pointList = $this->firstDiagramChildElement($dataRoot, 'ptLst', $diagramNamespace);
+        if (!$pointList instanceof \DOMElement) {
             return [];
         }
 
         $nodeText = [];
-        foreach ($this->childElements($pointList, 'pt') as $pointElement) {
+        foreach ($this->diagramChildElements($pointList, 'pt', $diagramNamespace) as $pointElement) {
+            if (!$pointElement->hasAttribute('modelId')) {
+                continue;
+            }
             $modelId = $pointElement->getAttribute('modelId');
-            $textElement = $this->firstChildElement($pointElement, 't');
+            $textElement = $this->firstDiagramChildElement($pointElement, 't', $diagramNamespace);
             $text = $textElement instanceof \DOMElement ? $this->allDescendantText($textElement) : '';
-            if ($modelId !== '' && trim($text) !== '') {
+            if ($this->hasNonWhitespaceText($text)) {
                 $nodeText[$modelId] = $text;
             }
         }
 
         $childrenByParent = [];
-        foreach ($this->childElements($connectionList, 'cxn') as $connectionElement) {
-            if ($connectionElement->hasAttribute('type')) {
-                continue;
+        $connectionList = $this->firstDiagramChildElement($dataRoot, 'cxnLst', $diagramNamespace);
+        if ($connectionList instanceof \DOMElement) {
+            foreach ($this->diagramChildElements($connectionList, 'cxn', $diagramNamespace) as $connectionElement) {
+                if ($connectionElement->getAttribute('type') !== '') {
+                    continue;
+                }
+                if (!$connectionElement->hasAttribute('srcId') || !$connectionElement->hasAttribute('destId')) {
+                    continue;
+                }
+                $sourceId = $connectionElement->getAttribute('srcId');
+                $destinationId = $connectionElement->getAttribute('destId');
+                $childrenByParent[$sourceId] ??= [];
+                $childrenByParent[$sourceId][] = $destinationId;
             }
-            $sourceId = $connectionElement->getAttribute('srcId');
-            $destinationId = $connectionElement->getAttribute('destId');
-            if ($sourceId === '' || $destinationId === '') {
-                continue;
-            }
-            $childrenByParent[$sourceId] ??= [];
-            $childrenByParent[$sourceId][] = $destinationId;
         }
 
         $parentIds = array_keys($childrenByParent);
@@ -3576,9 +4615,102 @@ final class PptxReader
         return $nodes;
     }
 
+    private function hasNonWhitespaceText(string $text): bool
+    {
+        return preg_match('/\S/u', $text) === 1;
+    }
+
+    private function firstDiagramChildElement(\DOMElement $parent, string $localName, ?string $diagramNamespace): ?\DOMElement
+    {
+        foreach ($this->diagramChildElements($parent, $localName, $diagramNamespace) as $child) {
+            return $child;
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private function diagramChildElements(\DOMElement $parent, string $localName, ?string $diagramNamespace): array
+    {
+        return array_values(array_filter(
+            $this->childElements($parent, $localName),
+            static fn (\DOMElement $child): bool => $child->namespaceURI === $diagramNamespace
+                && ($diagramNamespace !== null || $child->prefix === 'dgm')
+        ));
+    }
+
+    private function firstPresentationChildElement(\DOMElement $parent, string $localName): ?\DOMElement
+    {
+        return $this->firstNamespacedChildElement($parent, $localName, self::PRESENTATION_NAMESPACE);
+    }
+
+    private function firstDrawingChildElement(\DOMElement $parent, string $localName): ?\DOMElement
+    {
+        return $this->firstNamespacedChildElement($parent, $localName, self::DRAWING_NAMESPACE);
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private function presentationChildElements(\DOMElement $parent, string $localName): array
+    {
+        return $this->namespacedChildElements($parent, $localName, self::PRESENTATION_NAMESPACE);
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private function drawingChildElements(\DOMElement $parent, string $localName): array
+    {
+        return $this->namespacedChildElements($parent, $localName, self::DRAWING_NAMESPACE);
+    }
+
+    private function firstNamespacedChildElement(\DOMElement $parent, string $localName, string $namespace): ?\DOMElement
+    {
+        foreach ($this->namespacedChildElements($parent, $localName, $namespace) as $child) {
+            return $child;
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private function namespacedChildElements(\DOMElement $parent, string $localName, string $namespace): array
+    {
+        return array_values(array_filter(
+            $this->childElements($parent, $localName),
+            static fn (\DOMElement $child): bool => $child->namespaceURI === $namespace
+        ));
+    }
+
+    private function isPresentationElement(\DOMElement $element, string $localName): bool
+    {
+        return $element->localName === $localName && $element->namespaceURI === self::PRESENTATION_NAMESPACE;
+    }
+
     private function isTitlePlaceholder(\DOMElement $shapeElement): bool
     {
-        $placeholder = $this->placeholderElement($shapeElement);
+        $nonVisualProperties = $this->firstPresentationChildElement($shapeElement, 'nvSpPr');
+        $placeholderContainer = $nonVisualProperties instanceof \DOMElement ? $this->firstPresentationChildElement($nonVisualProperties, 'nvPr') : null;
+        $placeholder = $placeholderContainer instanceof \DOMElement ? $this->firstPresentationChildElement($placeholderContainer, 'ph') : null;
+        if (!$placeholder instanceof \DOMElement) {
+            return false;
+        }
+
+        $type = $placeholder->getAttribute('type');
+
+        return $type === 'title' || $type === 'ctrTitle';
+    }
+
+    private function isTitlePlaceholderForPrefix(\DOMElement $shapeElement, ?string $presentationNamespace): bool
+    {
+        $nonVisualProperties = $this->firstChildElementForOuterPrefix($shapeElement, 'p', 'nvSpPr', $presentationNamespace);
+        $placeholderContainer = $nonVisualProperties instanceof \DOMElement ? $this->firstChildElementForOuterPrefix($nonVisualProperties, 'p', 'nvPr', $presentationNamespace) : null;
+        $placeholder = $placeholderContainer instanceof \DOMElement ? $this->firstChildElementForOuterPrefix($placeholderContainer, 'p', 'ph', $presentationNamespace) : null;
         if (!$placeholder instanceof \DOMElement) {
             return false;
         }
@@ -3599,6 +4731,22 @@ final class PptxReader
     private function textInlines(string $text): array
     {
         return $text === '' ? [] : [new AstNode('text', ['text' => $text])];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function pptxTextInlines(string $text): array
+    {
+        if ($text !== '') {
+            return $this->textInlines($text);
+        }
+
+        return [
+            new AstNode('text', [
+                'text' => '',
+            ]),
+        ];
     }
 
     private function drawingText(\DOMElement $element): string
@@ -3636,18 +4784,91 @@ final class PptxReader
 
     private function relationshipId(\DOMElement $element, string $localName): string
     {
-        $value = $element->getAttributeNS(self::RELATIONSHIP_NAMESPACE, $localName);
-        if ($value !== '') {
-            return $value;
+        return $this->relationshipAttribute($element, $localName) ?? '';
+    }
+
+    private function relationshipAttribute(\DOMElement $element, string $localName): ?string
+    {
+        return $element->hasAttributeNS(self::RELATIONSHIP_NAMESPACE, $localName)
+            ? $element->getAttributeNS(self::RELATIONSHIP_NAMESPACE, $localName)
+            : null;
+    }
+
+    private function relationshipAttributeForPrefix(\DOMElement $element, string $prefix, string $localName, ?string $outerNamespace): ?string
+    {
+        $namespace = $outerNamespace ?? $this->localNamespaceForPrefix($element, $prefix);
+        if ($namespace === null) {
+            return null;
         }
 
         foreach ($element->attributes ?? [] as $attribute) {
-            if ($attribute instanceof \DOMAttr && $attribute->localName === $localName) {
+            if (!$attribute instanceof \DOMAttr) {
+                continue;
+            }
+            if ($attribute->localName === $localName && $attribute->prefix === $prefix && $attribute->namespaceURI === $namespace) {
                 return $attribute->value;
             }
         }
 
-        return '';
+        return null;
+    }
+
+    private function localNamespaceForPrefix(\DOMElement $element, string $prefix): ?string
+    {
+        $attribute = $prefix === '' ? 'xmlns' : 'xmlns:' . $prefix;
+        if ($element->hasAttribute($attribute)) {
+            return $element->getAttribute($attribute);
+        }
+
+        if ($prefix !== '' && $element->hasAttributeNS('http://www.w3.org/2000/xmlns/', $prefix)) {
+            return $element->getAttributeNS('http://www.w3.org/2000/xmlns/', $prefix);
+        }
+
+        return null;
+    }
+
+    private function firstChildElementForPrefix(\DOMElement $parent, string $prefix, string $localName, ?string $namespace): ?\DOMElement
+    {
+        foreach ($this->childElementsForPrefix($parent, $prefix, $localName, $namespace) as $child) {
+            return $child;
+        }
+
+        return null;
+    }
+
+    private function firstChildElementForOuterPrefix(\DOMElement $parent, string $prefix, string $localName, ?string $outerNamespace): ?\DOMElement
+    {
+        return $this->firstChildElementForPrefix(
+            $parent,
+            $prefix,
+            $localName,
+            $outerNamespace ?? $this->localNamespaceForPrefix($parent, $prefix)
+        );
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private function childElementsForOuterPrefix(\DOMElement $parent, string $prefix, string $localName, ?string $outerNamespace): array
+    {
+        return $this->childElementsForPrefix(
+            $parent,
+            $prefix,
+            $localName,
+            $outerNamespace ?? $this->localNamespaceForPrefix($parent, $prefix)
+        );
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private function childElementsForPrefix(\DOMElement $parent, string $prefix, string $localName, ?string $namespace): array
+    {
+        return array_values(array_filter(
+            $this->childElements($parent, $localName),
+            static fn (\DOMElement $child): bool => $child->namespaceURI === $namespace
+                && ($namespace !== null || $child->prefix === $prefix)
+        ));
     }
 
     /**

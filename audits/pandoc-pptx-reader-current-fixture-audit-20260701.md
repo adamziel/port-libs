@@ -1,0 +1,71 @@
+# Pandoc PPTX Reader Current Fixture Audit - 2026-07-01
+
+Scope: native PHP `PortLibs\Pandoc\PptxReader` coverage for the upstream Pandoc PPTX reader golden fixture. PPTX writer package parity remains out of scope for this reader audit.
+
+## Upstream Basis
+
+- Upstream repository: `jgm/pandoc`.
+- Fixture/source commit: `4f5226df4faa0d66dd2c089465b13886360ab3c2` (`main`, checked 2026-07-01). The PPTX reader source files and `test/pptx-reader/basic.*` fixture bytes are unchanged from the previously pinned `d8ea25c10e980105d4d023d656990a56e295ccb4` / `612e143fbe6d735b612c4800d21e61b7d44e4dca` evidence.
+- Reader test source: `test/Tests/Readers/Pptx.hs`.
+- Fixture pair:
+  - `test/pptx-reader/basic.pptx`
+  - `test/pptx-reader/basic.native`
+
+## Checked-In Fixture Evidence
+
+- Local fixture directory: `lanes/pandoc/fixtures/upstream-current-pptx-reader`.
+- `basic.pptx` SHA-256: `e48fd9c2f8369d1792197e301d5fea676bf6e51097a24af7d85831a6f96dc2dc`.
+- `basic.native` SHA-256: `42804b9b1954094a4b0ff0be20084e2e6d9bc0a84272f34f7f219f82505da6b4`.
+
+## Local Gate
+
+`lanes/pandoc/tests/PptxReaderTest.php` now parses `basic.native` through `NativeReader`, parses `basic.pptx` through `PptxReader`, and compares a normalized Pandoc-reader content signature. The normalization excludes local package review sidecars, local native pretty-printer tokenization differences, and empty table-foot representation differences while preserving the golden document block tree, heading ids, text content, list structure, table content, image target/title, SmartArt classes, and SmartArt nested blocks.
+
+The focused reader suite also locks a missing-image relationship case against the upstream visible-content behavior: an image relationship whose internal package part is absent no longer emits a visible `image` node. The reader records `missing-image-part` with relationship id, target, and package part name in slide review metadata so the omission remains auditable.
+
+Linked image relationships using `a:blip r:link` are now distinguished from embedded image relationships. External linked images remain out of visible content and produce `external-image-target` review metadata with the `link` relationship attribute and external-target preflight result instead of a generic missing-image diagnostic. Internal `r:link` image targets also remain out of visible content, matching upstream's `r:embed`-only picture parser, while preserving the resolved package part in `linked-image-target` review metadata.
+
+Embedded image relationships whose strict OPC slide-relative package part is absent now fall back through upstream Pandoc's PPTX picture resolver branches: `../media/...` and `media/...` resolve to `ppt/media/...`, and other internal targets are tried as direct package paths. Missing-image diagnostics still report the strict resolved package part when no upstream-compatible fallback exists.
+
+Malformed `p:pic` elements without the upstream-required `p:nvPicPr/p:cNvPr` non-visual properties now stay out of visible reader content even when an embedded media relationship and package part exist. The reader records `missing-picture-nonvisual-properties` in slide image diagnostics.
+
+The reader now also exposes upstream-style presentation slide-size metadata from `p:sldSz`, including the raw EMU dimensions and the same integer `EMU / 914400` width/height values used by upstream's intermediate parser. Presentations without `p:sldSz` receive the upstream default `9144000 x 6858000` EMU size.
+
+Slides without a slide-local title placeholder now use the upstream fallback heading `Slide N` instead of promoting layout or master title placeholders into visible content. Layout/master relationships remain available through slide context review metadata.
+
+Grouped `p:grpSp` containers now follow upstream `Shapes.parseShape` output semantics: the reader does not recurse into grouped child shapes for visible AST content. The skipped group container is still recorded as an unsupported drawable-shape review issue with non-visual properties and transform metadata.
+
+Unsupported drawable shapes such as `p:cxnSp` connectors now produce slide-level `shapeIssues` review metadata instead of disappearing silently. The diagnostic preserves the element type, non-visual drawing properties, z-order, and transform metadata while avoiding fabricated visible content.
+
+DrawingML `a:hlinkClick` relationships on text runs, text boxes, and pictures now follow upstream's current reader model and do not create visible Pandoc `Link` inlines. Embedded picture media remains visible as an image; hyperlink targets stay out of the native output.
+
+DrawingML text boxes now follow upstream text extraction for explicit `a:br` and `a:tab` markers: only `<a:t>` descendants contribute visible text, joined with spaces, so break/tab markers do not become native `LineBreak` or tab-like inline nodes.
+
+DrawingML auto-numbered paragraphs using `a:buAutoNum` now follow upstream's current bullet detector and remain plain paragraphs. Only explicit `a:buChar` bullets and Wingdings symbol bullets start visible list grouping.
+
+DrawingML list paragraph levels now follow upstream's adjacent grouping behavior instead of nesting. Consecutive explicit bullet paragraphs at the same `lvl` become a list; level changes split the visible lists.
+
+DrawingML `a:buNone` paragraphs now remain plain paragraphs, matching upstream's current bullet detector instead of becoming list-item continuation blocks.
+
+Empty DrawingML text paragraphs and empty DrawingML table cells now preserve explicit empty `text` inline nodes in the reader AST, matching upstream's visible empty paragraph/cell semantics. The local native pretty-printer still normalizes empty text tokens differently, so the checked-in upstream comparison continues to compare semantic content rather than byte-for-byte native rendering.
+
+Rowless DrawingML tables now emit no visible table block, matching upstream's `PptxTable []` behavior rather than fabricating an empty table in the AST.
+
+Chart graphic frames now emit the upstream generic `[Graphic: other: ...]` visible paragraph instead of local chart-summary blocks. Parsed chart metadata, cached series values, axes, and external workbook relationships remain available through review sidecars and block metadata.
+
+Graphic frames with missing `uri` attributes or incomplete SmartArt relationship stubs now emit upstream generic `[Graphic: ...]` placeholders (`no-uri`, `diagram-no-relIds`, `diagram-missing-rels`) while preserving shape metadata.
+
+Broken SmartArt diagram relationships now fail soft into visible parse-diagnostic paragraphs instead of aborting the PPTX import when referenced diagram data/layout parts are missing or invalid. The fallback block keeps shape metadata so the unsupported/broken drawing frame remains traceable.
+
+Slide-level `notesSlide` relationships now remain out of visible output, matching upstream's current slide conversion. The reader still extracts note-body DrawingML paragraphs for review metadata, skips notes-page slide-image and slide-number placeholders, and records relationship id, target, package part, text, and block count without embedding AST nodes in the review sidecar. Slide comments are also review metadata only and do not emit visible comment blocks.
+
+Latest focused verification:
+
+- `php -l lanes/pandoc/src/PptxReader.php`
+- `php -l lanes/pandoc/tests/PptxReaderTest.php`
+- `php -l lanes/pandoc/src/PandocFormatRegistry.php`
+- `php tools/run-tests.php lanes/pandoc/tests/PptxReaderTest.php`: `328` assertions, `0` failures.
+- `php tools/run-tests.php lanes/pandoc/tests/PptxReaderTest.php lanes/pandoc/tests/PptxWriterTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php lanes/pandoc/tests/RichPackageUnsupportedFormatRegistryTest.php`: `1185` assertions, `0` failures.
+- `php tools/run-tests.php lanes/pandoc/tests/PptxReaderTest.php lanes/pandoc/tests/PptxWriterTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php lanes/pandoc/tests/RichPackageUnsupportedFormatRegistryTest.php lanes/pandoc/tests/DocxWriterTest.php`: `1618` assertions, `0` failures.
+
+This closes the current upstream PPTX reader golden fixture content gate. It does not claim full PPTX writer parity or full PowerPoint package round-trip parity.
