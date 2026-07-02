@@ -7881,6 +7881,44 @@ XML);
     }
 };
 
+$buildNegativeSlideSizePptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-negative-slide-size-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+  <p:sldSz cx="-1" cy="-9144001"/>
+</p:presentation>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildPartialSlideSizePptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-partial-slide-size-');
     if ($path === false) {
@@ -12040,6 +12078,23 @@ return [
             'cy' => 0,
             'width' => 0,
             'height' => 0,
+            'emusPerInch' => 914400,
+            'source' => 'presentation',
+        ], $review['slideSize'] ?? null);
+    },
+
+    'uses Haskell div semantics for negative pptx slide sizes like upstream' => static function (TestRunner $t) use ($buildNegativeSlideSizePptxPackage): void {
+        $document = (new PptxReader())->read($buildNegativeSlideSizePptxPackage());
+        $review = $document->attr('pptx');
+
+        $t->same(0, $review['slideCount'] ?? null);
+        $t->same([], $review['slides'] ?? null);
+        $t->same([], $document->children);
+        $t->same([
+            'cx' => -1,
+            'cy' => -9144001,
+            'width' => -1,
+            'height' => -11,
             'emusPerInch' => 914400,
             'source' => 'presentation',
         ], $review['slideSize'] ?? null);

@@ -309,8 +309,8 @@ final class PptxReader
         return [
             'cx' => $widthEmu,
             'cy' => $heightEmu,
-            'width' => intdiv($widthEmu, self::EMUS_PER_INCH),
-            'height' => intdiv($heightEmu, self::EMUS_PER_INCH),
+            'width' => $this->haskellIntegerDiv($widthEmu, self::EMUS_PER_INCH),
+            'height' => $this->haskellIntegerDiv($heightEmu, self::EMUS_PER_INCH),
             'emusPerInch' => self::EMUS_PER_INCH,
             'source' => $source,
         ];
@@ -319,6 +319,14 @@ final class PptxReader
     private function presentationSizeAttribute(\DOMElement $element, string $name): int
     {
         return $this->integerAttribute($element, $name) ?? 0;
+    }
+
+    private function haskellIntegerDiv(int $numerator, int $denominator): int
+    {
+        $quotient = intdiv($numerator, $denominator);
+        $remainder = $numerator % $denominator;
+
+        return $numerator < 0 && $remainder !== 0 ? $quotient - 1 : $quotient;
     }
 
     /**
