@@ -39,13 +39,16 @@ jobs:
         run: |
           php -l lanes/pandoc/src/PptxReader.php
           php -l lanes/pandoc/src/PptxNativeAstComparisonHarness.php
+          php -l lanes/pandoc/src/PptxUpstreamReaderEvidence.php
           php -l lanes/pandoc/src/NativeReader.php
           php -l lanes/pandoc/src/NativeWriter.php
           php -l lanes/pandoc/src/ZipPackage.php
           php -l lanes/pandoc/src/ZipPackageEntry.php
           php -l lanes/pandoc/tests/PptxReaderTest.php
           php -l lanes/pandoc/tests/PptxNativeAstComparisonHarnessTest.php
+          php -l lanes/pandoc/tests/PptxUpstreamReaderEvidenceTest.php
           php -l tools/pandoc-pptx-native-ast.php
+          php -l tools/pandoc-pptx-reader-evidence.php
 
       - name: Restore pinned Pandoc PPTX upstream cache
         id: pandoc-pptx-upstream-cache
@@ -85,6 +88,15 @@ jobs:
           test -f "$target/src/Text/Pandoc/Readers/Pptx/Slides.hs"
           test -f "$target/src/Text/Pandoc/Readers/Pptx/SmartArt.hs"
 
+      - name: Require upstream PPTX reader denominator evidence
+        run: |
+          php tools/pandoc-pptx-reader-evidence.php \
+            --upstream-root=.upstream-cache/pandoc-current \
+            --json \
+            --require-test-count=1 \
+            --require-fixture-pair-count=1 \
+            --require-no-validation-issues
+
       - name: Require upstream PPTX native AST parity fixture
         run: |
           php tools/pandoc-pptx-native-ast.php \
@@ -97,4 +109,5 @@ jobs:
         run: |
           php tools/run-tests.php \
             lanes/pandoc/tests/PptxNativeAstComparisonHarnessTest.php \
+            lanes/pandoc/tests/PptxUpstreamReaderEvidenceTest.php \
             lanes/pandoc/tests/PptxReaderTest.php
