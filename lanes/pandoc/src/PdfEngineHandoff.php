@@ -607,8 +607,16 @@ final class PdfEngineHandoff
         if ($typstBoundarySummary !== []) {
             $diagnostics[] = 'typst-boundary-summary:' . $typstBoundarySummary['reviewStatus'];
             $diagnostics[] = 'typst-boundary-summary-paths:' . $typstBoundarySummary['pathEntryCount'];
+            $pathEntryCountsByCategory = is_array($typstBoundarySummary['pathEntryCountsByCategory'] ?? null) ? $typstBoundarySummary['pathEntryCountsByCategory'] : [];
+            if ($pathEntryCountsByCategory !== []) {
+                $diagnostics[] = 'typst-boundary-summary-categories:' . count($pathEntryCountsByCategory);
+            }
             if ($typstBoundarySummary['unsafePathEntryCount'] > 0) {
                 $diagnostics[] = 'typst-boundary-summary-unsafe-paths:' . $typstBoundarySummary['unsafePathEntryCount'];
+            }
+            $unsafePathEntryCountsByCategory = is_array($typstBoundarySummary['unsafePathEntryCountsByCategory'] ?? null) ? $typstBoundarySummary['unsafePathEntryCountsByCategory'] : [];
+            if ($unsafePathEntryCountsByCategory !== []) {
+                $diagnostics[] = 'typst-boundary-summary-unsafe-categories:' . count($unsafePathEntryCountsByCategory);
             }
             if ($typstBoundarySummary['sidecarOutputCount'] > 0) {
                 $diagnostics[] = 'typst-boundary-summary-sidecars:' . $typstBoundarySummary['sidecarOutputCount'];
@@ -768,6 +776,7 @@ final class PdfEngineHandoff
      *     pdfPageBoxes: list<array{page:int, pageObject:string|null, mediaBox:list<float>|null, cropBox:list<float>|null, bleedBox:list<float>|null, trimBox:list<float>|null, artBox:list<float>|null, rotation:int|null, inherited:list<string>}>,
      *     pdfPageRotations: array<int, int>,
      *     pdfPageProductionMetadata: list<array{page:int, pageObject:string|null, boxColorInfoObject:string|null, boxColorInfo:list<array{box:string, color:list<float>|null, width:float|null, style:string|null}>, separationInfoObject:string|null, separationPages:list<string>, separationDeviceColorant:string|null, separationColorSpace:string|null, presStepsObject:string|null, presStepsSubtype:string|null, presStepsNext:list<string>}>,
+     *     pdfPageProductionPolicy: array<string, mixed>,
      *     pdfPageDisplayMetadata: list<array{page:int, pageObject:string|null, language:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}>,
      *     pdfPageDisplayPolicy: array<string, mixed>,
      *     pdfPageThumbnails: list<array{page:int, pageObject:string|null, thumbnailObject:string|null, valueKind:string, subtype:string|null, validImage:bool, width:int|null, height:int|null, bitsPerComponent:int|null, colorSpace:string|null, filters:list<string>, interpolate:bool|null, imageMask:bool|null, softMask:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, reviewStatus:string, issues:list<string>}>,
@@ -829,6 +838,7 @@ final class PdfEngineHandoff
      *     pdfCatalogRequirementPolicy: array<string, mixed>,
      *     pdfLegalAttestationMetadata: array{object:string|null, type:string|null, language:string|null, status:string|null, jurisdiction:string|null, attestation:string|null, attestationObject:string|null, attestationBytes:int|null, attestationSha256:string|null, attestationSkipped:string|null, associatedFiles:list<string>, keys:list<string>}|array{},
      *     pdfTaggingMetadata: array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{},
+     *     pdfTaggingPolicy: array<string, mixed>,
      *     pdfStructureNamespaces: list<array{object:string|null, type:string|null, namespace:string|null, schemaObject:string|null, schemaType:string|null, roleMap:array<string, string>, keys:list<string>}>,
      *     pdfPageStructureParents: list<array{page:int, pageObject:string|null, structParents:int, source:string}>,
      *     pdfStructureParentTree: list<array{source:string, nodeObject:string|null, mcid:int, valueKind:string, valueObject:string|null, arrayCount:int|null, structureReferences:list<string>, missingReferences:list<string>, limits:list<int>}>,
@@ -1536,6 +1546,7 @@ final class PdfEngineHandoff
         $pdfPageBoxes = [];
         $pdfPageRotations = [];
         $pdfPageProductionMetadata = [];
+        $pdfPageProductionPolicy = [];
         $pdfPageDisplayMetadata = [];
         $pdfPageDisplayPolicy = [];
         $pdfPageThumbnails = [];
@@ -1598,6 +1609,7 @@ final class PdfEngineHandoff
         $pdfLegalAttestationMetadata = [];
         $pdfLegalAttestationPolicy = [];
         $pdfTaggingMetadata = [];
+        $pdfTaggingPolicy = [];
         $pdfStructureNamespaces = [];
         $pdfPageStructureParents = [];
         $pdfStructureParentTree = [];
@@ -1697,6 +1709,7 @@ final class PdfEngineHandoff
                 $pdfPageBoxes = $pdfInspection['pageBoxes'];
                 $pdfPageRotations = $pdfInspection['pageRotations'];
                 $pdfPageProductionMetadata = $pdfInspection['pageProductionMetadata'];
+                $pdfPageProductionPolicy = $pdfInspection['pageProductionPolicy'];
                 $pdfPageDisplayMetadata = $pdfInspection['pageDisplayMetadata'];
                 $pdfPageDisplayPolicy = $pdfInspection['pageDisplayPolicy'];
                 $pdfPageThumbnails = $pdfInspection['pageThumbnails'];
@@ -1759,6 +1772,7 @@ final class PdfEngineHandoff
                 $pdfLegalAttestationMetadata = $pdfInspection['legalAttestationMetadata'];
                 $pdfLegalAttestationPolicy = $pdfInspection['legalAttestationPolicy'];
                 $pdfTaggingMetadata = $pdfInspection['taggingMetadata'];
+                $pdfTaggingPolicy = $pdfInspection['taggingPolicy'];
                 $pdfStructureNamespaces = $pdfInspection['structureNamespaces'];
                 $pdfPageStructureParents = $pdfInspection['pageStructureParents'];
                 $pdfStructureParentTree = $pdfInspection['structureParentTree'];
@@ -1920,6 +1934,44 @@ final class PdfEngineHandoff
                     }
                     if ($presentationStepsCount > 0) {
                         $diagnostics[] = 'pdf-byte-page-presentation-steps:' . $presentationStepsCount;
+                    }
+                }
+                if ($pdfPageProductionPolicy !== []) {
+                    $diagnostics[] = 'pdf-byte-page-production-policy:' . ($pdfPageProductionPolicy['reviewStatus'] ?? 'unknown');
+                    foreach ([
+                        'pageCount' => 'pages',
+                        'metadataPageCount' => 'metadata-pages',
+                        'boxColorInfoCount' => 'box-color-info',
+                        'separationInfoCount' => 'separation-info',
+                        'presentationStepsCount' => 'presentation-steps',
+                        'presentationStepsNextCount' => 'presentation-next',
+                        'missingSeparationPageCount' => 'missing-separation-pages',
+                    ] as $policyKey => $diagnosticName) {
+                        if (isset($pdfPageProductionPolicy[$policyKey]) && is_int($pdfPageProductionPolicy[$policyKey]) && $pdfPageProductionPolicy[$policyKey] > 0) {
+                            $diagnostics[] = 'pdf-byte-page-production-policy-' . $diagnosticName . ':' . $pdfPageProductionPolicy[$policyKey];
+                        }
+                    }
+                    foreach ([
+                        'boxNames' => 'box',
+                        'boxStyles' => 'box-style',
+                        'separationColorSpaces' => 'separation-color-space',
+                        'presentationStepSubtypes' => 'presentation-step',
+                    ] as $policyKey => $diagnosticName) {
+                        if (isset($pdfPageProductionPolicy[$policyKey]) && is_array($pdfPageProductionPolicy[$policyKey])) {
+                            foreach ($pdfPageProductionPolicy[$policyKey] as $value => $count) {
+                                if (is_string($value) && is_int($count) && $count > 0) {
+                                    $diagnostics[] = 'pdf-byte-page-production-policy-' . $diagnosticName . ':' . $value . ':' . $count;
+                                }
+                            }
+                        }
+                    }
+                    if (isset($pdfPageProductionPolicy['issues']) && is_array($pdfPageProductionPolicy['issues']) && $pdfPageProductionPolicy['issues'] !== []) {
+                        $diagnostics[] = 'pdf-byte-page-production-policy-issues:' . count($pdfPageProductionPolicy['issues']);
+                        foreach ($pdfPageProductionPolicy['issues'] as $issue) {
+                            if (is_string($issue) && $issue !== '') {
+                                $diagnostics[] = 'pdf-byte-page-production-policy-issue:' . $issue . ':1';
+                            }
+                        }
                     }
                 }
                 if ($pdfPageDisplayMetadata !== []) {
@@ -3381,6 +3433,32 @@ final class PdfEngineHandoff
                     }
                     if (isset($pdfTaggingMetadata['structureChildren']) && is_int($pdfTaggingMetadata['structureChildren'])) {
                         $diagnostics[] = 'pdf-byte-structure-children:' . $pdfTaggingMetadata['structureChildren'];
+                    }
+                }
+                if ($pdfTaggingPolicy !== []) {
+                    $policyStatus = is_string($pdfTaggingPolicy['reviewStatus'] ?? null)
+                        ? $pdfTaggingPolicy['reviewStatus']
+                        : 'unknown';
+                    $diagnostics[] = 'pdf-byte-tagging-policy:' . $policyStatus;
+                    foreach ([
+                        'structureElementCount' => 'structure-elements',
+                        'parentTreeEntryCount' => 'parent-tree-entries',
+                        'idTreeEntryCount' => 'id-tree-entries',
+                        'pageStructParentCount' => 'page-struct-parents',
+                        'markedContentPropertyCount' => 'marked-content-properties',
+                        'markedContentArtifactCount' => 'marked-content-artifacts',
+                    ] as $policyKey => $diagnosticName) {
+                        if (isset($pdfTaggingPolicy[$policyKey]) && is_int($pdfTaggingPolicy[$policyKey]) && $pdfTaggingPolicy[$policyKey] > 0) {
+                            $diagnostics[] = 'pdf-byte-tagging-policy-' . $diagnosticName . ':' . $pdfTaggingPolicy[$policyKey];
+                        }
+                    }
+                    if (isset($pdfTaggingPolicy['issues']) && is_array($pdfTaggingPolicy['issues']) && $pdfTaggingPolicy['issues'] !== []) {
+                        $diagnostics[] = 'pdf-byte-tagging-policy-issues:' . count($pdfTaggingPolicy['issues']);
+                        foreach ($pdfTaggingPolicy['issues'] as $issue) {
+                            if (is_string($issue) && $issue !== '') {
+                                $diagnostics[] = 'pdf-byte-tagging-policy-issue:' . $issue;
+                            }
+                        }
                     }
                 }
                 if ($pdfStructureNamespaces !== []) {
@@ -5510,6 +5588,7 @@ final class PdfEngineHandoff
             'pdfPageBoxes' => $pdfPageBoxes,
             'pdfPageRotations' => $pdfPageRotations,
             'pdfPageProductionMetadata' => $pdfPageProductionMetadata,
+            'pdfPageProductionPolicy' => $pdfPageProductionPolicy,
             'pdfPageDisplayMetadata' => $pdfPageDisplayMetadata,
             'pdfPageDisplayPolicy' => $pdfPageDisplayPolicy,
             'pdfPageThumbnails' => $pdfPageThumbnails,
@@ -5572,6 +5651,7 @@ final class PdfEngineHandoff
             'pdfLegalAttestationMetadata' => $pdfLegalAttestationMetadata,
             'pdfLegalAttestationPolicy' => $pdfLegalAttestationPolicy,
             'pdfTaggingMetadata' => $pdfTaggingMetadata,
+            'pdfTaggingPolicy' => $pdfTaggingPolicy,
             'pdfStructureNamespaces' => $pdfStructureNamespaces,
             'pdfPageStructureParents' => $pdfPageStructureParents,
             'pdfStructureParentTree' => $pdfStructureParentTree,
@@ -5681,6 +5761,7 @@ final class PdfEngineHandoff
      *     finalPdfPageBoxes: list<array{page:int, pageObject:string|null, mediaBox:list<float>|null, cropBox:list<float>|null, bleedBox:list<float>|null, trimBox:list<float>|null, artBox:list<float>|null, rotation:int|null, inherited:list<string>}>,
      *     finalPdfPageRotations: array<int, int>,
      *     finalPdfPageProductionMetadata: list<array{page:int, pageObject:string|null, boxColorInfoObject:string|null, boxColorInfo:list<array{box:string, color:list<float>|null, width:float|null, style:string|null}>, separationInfoObject:string|null, separationPages:list<string>, separationDeviceColorant:string|null, separationColorSpace:string|null, presStepsObject:string|null, presStepsSubtype:string|null, presStepsNext:list<string>}>,
+     *     finalPdfPageProductionPolicy: array<string, mixed>,
      *     finalPdfPageDisplayMetadata: list<array{page:int, pageObject:string|null, language:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}>,
      *     finalPdfPageDisplayPolicy: array<string, mixed>,
      *     finalPdfPageThumbnails: list<array{page:int, pageObject:string|null, thumbnailObject:string|null, valueKind:string, subtype:string|null, validImage:bool, width:int|null, height:int|null, bitsPerComponent:int|null, colorSpace:string|null, filters:list<string>, interpolate:bool|null, imageMask:bool|null, softMask:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, reviewStatus:string, issues:list<string>}>,
@@ -5752,6 +5833,7 @@ final class PdfEngineHandoff
      *     finalPdfCatalogRequirementPolicy: array<string, mixed>,
      *     finalPdfLegalAttestationMetadata: array{object:string|null, type:string|null, language:string|null, status:string|null, jurisdiction:string|null, attestation:string|null, attestationObject:string|null, attestationBytes:int|null, attestationSha256:string|null, attestationSkipped:string|null, associatedFiles:list<string>, keys:list<string>}|array{},
      *     finalPdfTaggingMetadata: array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{},
+     *     finalPdfTaggingPolicy: array<string, mixed>,
      *     finalPdfStructureNamespaces: list<array{object:string|null, type:string|null, namespace:string|null, schemaObject:string|null, schemaType:string|null, roleMap:array<string, string>, keys:list<string>}>,
      *     finalPdfPageStructureParents: list<array{page:int, pageObject:string|null, structParents:int, source:string}>,
      *     finalPdfStructureParentTree: list<array{source:string, nodeObject:string|null, mcid:int, valueKind:string, valueObject:string|null, arrayCount:int|null, structureReferences:list<string>, missingReferences:list<string>, limits:list<int>}>,
@@ -6020,6 +6102,7 @@ final class PdfEngineHandoff
             'finalPdfPageBoxes' => is_array($finalRun) && is_array($finalRun['pdfPageBoxes'] ?? null) ? $finalRun['pdfPageBoxes'] : [],
             'finalPdfPageRotations' => is_array($finalRun) && is_array($finalRun['pdfPageRotations'] ?? null) ? $finalRun['pdfPageRotations'] : [],
             'finalPdfPageProductionMetadata' => is_array($finalRun) && is_array($finalRun['pdfPageProductionMetadata'] ?? null) ? $finalRun['pdfPageProductionMetadata'] : [],
+            'finalPdfPageProductionPolicy' => is_array($finalRun) && is_array($finalRun['pdfPageProductionPolicy'] ?? null) ? $finalRun['pdfPageProductionPolicy'] : [],
             'finalPdfPageDisplayMetadata' => is_array($finalRun) && is_array($finalRun['pdfPageDisplayMetadata'] ?? null) ? $finalRun['pdfPageDisplayMetadata'] : [],
             'finalPdfPageDisplayPolicy' => is_array($finalRun) && is_array($finalRun['pdfPageDisplayPolicy'] ?? null) ? $finalRun['pdfPageDisplayPolicy'] : [],
             'finalPdfPageThumbnails' => is_array($finalRun) && is_array($finalRun['pdfPageThumbnails'] ?? null) ? $finalRun['pdfPageThumbnails'] : [],
@@ -6092,6 +6175,7 @@ final class PdfEngineHandoff
             'finalPdfLegalAttestationMetadata' => is_array($finalRun) && is_array($finalRun['pdfLegalAttestationMetadata'] ?? null) ? $finalRun['pdfLegalAttestationMetadata'] : [],
             'finalPdfLegalAttestationPolicy' => is_array($finalRun) && is_array($finalRun['pdfLegalAttestationPolicy'] ?? null) ? $finalRun['pdfLegalAttestationPolicy'] : [],
             'finalPdfTaggingMetadata' => is_array($finalRun) && is_array($finalRun['pdfTaggingMetadata'] ?? null) ? $finalRun['pdfTaggingMetadata'] : [],
+            'finalPdfTaggingPolicy' => is_array($finalRun) && is_array($finalRun['pdfTaggingPolicy'] ?? null) ? $finalRun['pdfTaggingPolicy'] : [],
             'finalPdfStructureNamespaces' => is_array($finalRun) && is_array($finalRun['pdfStructureNamespaces'] ?? null) ? $finalRun['pdfStructureNamespaces'] : [],
             'finalPdfPageStructureParents' => is_array($finalRun) && is_array($finalRun['pdfPageStructureParents'] ?? null) ? $finalRun['pdfPageStructureParents'] : [],
             'finalPdfStructureParentTree' => is_array($finalRun) && is_array($finalRun['pdfStructureParentTree'] ?? null) ? $finalRun['pdfStructureParentTree'] : [],
@@ -8888,30 +8972,60 @@ final class PdfEngineHandoff
         }
 
         $pathEntries = [];
-        $appendPathEntry = static function (mixed $entry) use (&$pathEntries): void {
+        $pathEntryCountsByCategory = [];
+        $pathEntryKindCountsByCategory = [];
+        $unsafePathEntryCountsByCategory = [];
+        $appendPathEntry = static function (mixed $entry, string $category) use (
+            &$pathEntries,
+            &$pathEntryCountsByCategory,
+            &$pathEntryKindCountsByCategory,
+            &$unsafePathEntryCountsByCategory
+        ): void {
             if (!is_array($entry) || !is_string($entry['kind'] ?? null)) {
                 return;
             }
 
+            $kind = $entry['kind'];
+            if (!in_array($kind, ['relative', 'workspace', 'absolute', 'uri', 'stdout', 'invalid'], true)) {
+                $kind = 'invalid';
+            }
+
             $pathEntries[] = $entry;
+            $pathEntryCountsByCategory[$category] = ($pathEntryCountsByCategory[$category] ?? 0) + 1;
+            if (!isset($pathEntryKindCountsByCategory[$category])) {
+                $pathEntryKindCountsByCategory[$category] = [];
+            }
+            $pathEntryKindCountsByCategory[$category][$kind] = ($pathEntryKindCountsByCategory[$category][$kind] ?? 0) + 1;
+            if (($entry['safe'] ?? false) !== true) {
+                $unsafePathEntryCountsByCategory[$category] = ($unsafePathEntryCountsByCategory[$category] ?? 0) + 1;
+            }
         };
 
-        $appendPathEntry($provenance['root'] ?? null);
-        $appendPathEntry($provenance['rootEnvironment'] ?? null);
-        foreach (['fontPaths', 'certificates'] as $listKey) {
-            foreach (is_array($provenance[$listKey] ?? null) ? $provenance[$listKey] : [] as $entry) {
-                $appendPathEntry($entry);
-            }
+        $appendPathEntry($provenance['root'] ?? null, 'root');
+        $appendPathEntry($provenance['rootEnvironment'] ?? null, 'rootEnvironment');
+        foreach (is_array($provenance['fontPaths'] ?? null) ? $provenance['fontPaths'] : [] as $entry) {
+            $appendPathEntry($entry, 'fontPath');
         }
-        $appendPathEntry($provenance['certificateEnvironment'] ?? null);
-        $appendPathEntry($provenance['packagePath'] ?? null);
-        $appendPathEntry($provenance['packagePathEnvironment'] ?? null);
-        $appendPathEntry($provenance['packageCache'] ?? null);
-        $appendPathEntry($provenance['packageCacheEnvironment'] ?? null);
+        foreach (is_array($provenance['certificates'] ?? null) ? $provenance['certificates'] : [] as $entry) {
+            $appendPathEntry($entry, 'certificate');
+        }
+        $appendPathEntry($provenance['certificateEnvironment'] ?? null, 'certificateEnvironment');
+        $appendPathEntry($provenance['packagePath'] ?? null, 'packagePath');
+        $appendPathEntry($provenance['packagePathEnvironment'] ?? null, 'packagePathEnvironment');
+        $appendPathEntry($provenance['packageCache'] ?? null, 'packageCache');
+        $appendPathEntry($provenance['packageCacheEnvironment'] ?? null, 'packageCacheEnvironment');
         if (is_array($provenance['dependencyOutput'] ?? null)) {
-            $appendPathEntry($provenance['dependencyOutput']['file'] ?? null);
+            $appendPathEntry($provenance['dependencyOutput']['file'] ?? null, 'dependencyOutput');
         }
-        $appendPathEntry($provenance['timingsOutput'] ?? null);
+        $appendPathEntry($provenance['timingsOutput'] ?? null, 'timingsOutput');
+
+        ksort($pathEntryCountsByCategory);
+        ksort($unsafePathEntryCountsByCategory);
+        foreach ($pathEntryKindCountsByCategory as &$kindCountsByCategory) {
+            ksort($kindCountsByCategory);
+        }
+        unset($kindCountsByCategory);
+        ksort($pathEntryKindCountsByCategory);
 
         $kindCounts = [
             'relative' => 0,
@@ -9011,6 +9125,9 @@ final class PdfEngineHandoff
             'uriPathEntryCount' => $kindCounts['uri'],
             'stdoutPathEntryCount' => $kindCounts['stdout'],
             'invalidPathEntryCount' => $kindCounts['invalid'],
+            'pathEntryCountsByCategory' => $pathEntryCountsByCategory,
+            'pathEntryKindCountsByCategory' => $pathEntryKindCountsByCategory,
+            'unsafePathEntryCountsByCategory' => $unsafePathEntryCountsByCategory,
             'fontPathCount' => is_array($provenance['fontPaths'] ?? null) ? count($provenance['fontPaths']) : 0,
             'certificateCount' => is_array($provenance['certificates'] ?? null) ? count($provenance['certificates']) : 0,
             'packageStorageEntryCount' => is_array($provenance['packageStoragePolicy'] ?? null) && is_int($provenance['packageStoragePolicy']['storageEntryCount'] ?? null)
@@ -13077,6 +13194,8 @@ final class PdfEngineHandoff
      *     pageCount:int|null,
      *     pageBoxes:list<array{page:int, pageObject:string|null, mediaBox:list<float>|null, cropBox:list<float>|null, bleedBox:list<float>|null, trimBox:list<float>|null, artBox:list<float>|null, rotation:int|null, inherited:list<string>}>,
      *     pageRotations:array<int, int>,
+     *     pageProductionMetadata:list<array{page:int, pageObject:string|null, boxColorInfoObject:string|null, boxColorInfo:list<array{box:string, color:list<float>|null, width:float|null, style:string|null}>, separationInfoObject:string|null, separationPages:list<string>, separationDeviceColorant:string|null, separationColorSpace:string|null, presStepsObject:string|null, presStepsSubtype:string|null, presStepsNext:list<string>}>,
+     *     pageProductionPolicy:array<string, mixed>,
      *     pageDisplayMetadata:list<array{page:int, pageObject:string|null, language:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}>,
      *     pageThumbnails:list<array{page:int, pageObject:string|null, thumbnailObject:string|null, valueKind:string, subtype:string|null, validImage:bool, width:int|null, height:int|null, bitsPerComponent:int|null, colorSpace:string|null, filters:list<string>, interpolate:bool|null, imageMask:bool|null, softMask:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, reviewStatus:string, issues:list<string>}>,
      *     pageThumbnailPolicy:array{reviewStatus:string, pageCount:int|null, thumbnailCount:int, thumbnailPages:list<int>, imageThumbnailCount:int, missingObjectCount:int, nonImageCount:int, missingStreamCount:int, skippedStreamCount:int, streamCount:int, colorSpaces:array<string, int>, filters:array<string, int>, issues:list<string>}|array{},
@@ -13304,6 +13423,17 @@ final class PdfEngineHandoff
             $pageStructureParents
         );
         $structureIdTreePolicy = $this->summarizePdfStructureIdTreePolicy($structureIdTree, $structureElements);
+        $taggingPolicy = $this->summarizePdfTaggingPolicy(
+            $taggingMetadata,
+            $structureElements,
+            $structureParentTree,
+            $structureIdTree,
+            $markedContentProperties,
+            $markedContentArtifacts,
+            $pageStructureParents,
+            $structureParentTreePolicy,
+            $structureIdTreePolicy
+        );
         $encryption = $this->extractPdfEncryptionInfo($pdfBytes);
         $embeddedFileNames = $this->extractPdfEmbeddedFileNames($pdfBytes);
         foreach ($embeddedFiles as $embeddedFile) {
@@ -13334,6 +13464,7 @@ final class PdfEngineHandoff
             'pageBoxes' => $pageBoxes,
             'pageRotations' => $this->summarizePdfPageRotations($pageBoxes),
             'pageProductionMetadata' => $pageProductionMetadata,
+            'pageProductionPolicy' => $this->summarizePdfPageProductionPolicy($pageProductionMetadata, $this->extractPdfPageCount($pdfBytes)),
             'pageDisplayMetadata' => $pageDisplayMetadata,
             'pageDisplayPolicy' => $this->summarizePdfPageDisplayPolicy($pageDisplayMetadata, $this->extractPdfPageCount($pdfBytes)),
             'pageThumbnails' => $pageThumbnails,
@@ -13396,6 +13527,7 @@ final class PdfEngineHandoff
             'legalAttestationMetadata' => $legalAttestationMetadata,
             'legalAttestationPolicy' => $this->summarizePdfLegalAttestationPolicy($legalAttestationMetadata),
             'taggingMetadata' => $taggingMetadata,
+            'taggingPolicy' => $taggingPolicy,
             'structureNamespaces' => $structureNamespaces,
             'pageStructureParents' => $pageStructureParents,
             'structureParentTree' => $structureParentTree,
@@ -16465,6 +16597,115 @@ final class PdfEngineHandoff
             'tagged' => $tagged,
             'structTreeRoot' => $structTreeRoot,
             'outputIntentCount' => count($outputIntents),
+            'issues' => $issues,
+        ];
+    }
+
+    /**
+     * @param array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{} $taggingMetadata
+     * @param list<array{object:string, type:string|null, parent:string|null, pageObject:string|null, id:string|null, alt:string|null, actualText:string|null, language:string|null, title:string|null, childCount:int|null}> $structureElements
+     * @param list<array{source:string, nodeObject:string|null, mcid:int, valueKind:string, valueObject:string|null, arrayCount:int|null, structureReferences:list<string>, missingReferences:list<string>, limits:list<int>}> $structureParentTree
+     * @param list<array{source:string, nodeObject:string|null, id:string, valueKind:string, valueObject:string|null, structureReferences:list<string>, missingReferences:list<string>, limits:list<string>}> $structureIdTree
+     * @param list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, mcid:int|null, language:string|null, alt:string|null, actualText:string|null, expanded:string|null, associatedFiles:list<string>}> $markedContentProperties
+     * @param list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, operator:string, type:string|null, subtype:string|null, bbox:list<float>|null, attached:list<string>, mcid:int|null, propertyName:string|null}> $markedContentArtifacts
+     * @param list<array{page:int, pageObject:string|null, structParents:int, source:string}> $pageStructureParents
+     * @param array<string, mixed> $structureParentTreePolicy
+     * @param array<string, mixed> $structureIdTreePolicy
+     * @return array<string, mixed>
+     */
+    private function summarizePdfTaggingPolicy(
+        array $taggingMetadata,
+        array $structureElements,
+        array $structureParentTree,
+        array $structureIdTree,
+        array $markedContentProperties,
+        array $markedContentArtifacts,
+        array $pageStructureParents,
+        array $structureParentTreePolicy,
+        array $structureIdTreePolicy
+    ): array {
+        if (
+            $taggingMetadata === []
+            && $structureElements === []
+            && $structureParentTree === []
+            && $structureIdTree === []
+            && $markedContentProperties === []
+            && $markedContentArtifacts === []
+            && $pageStructureParents === []
+        ) {
+            return [];
+        }
+
+        $marked = is_bool($taggingMetadata['marked'] ?? null) ? $taggingMetadata['marked'] : null;
+        $userProperties = is_bool($taggingMetadata['userProperties'] ?? null) ? $taggingMetadata['userProperties'] : null;
+        $suspects = is_bool($taggingMetadata['suspects'] ?? null) ? $taggingMetadata['suspects'] : null;
+        $structTreeRoot = is_string($taggingMetadata['structTreeRoot'] ?? null) && $taggingMetadata['structTreeRoot'] !== ''
+            ? $taggingMetadata['structTreeRoot']
+            : null;
+        $roleMapCount = isset($taggingMetadata['roleMap']) && is_array($taggingMetadata['roleMap'])
+            ? count($taggingMetadata['roleMap'])
+            : 0;
+        $structureChildren = is_int($taggingMetadata['structureChildren'] ?? null)
+            ? $taggingMetadata['structureChildren']
+            : null;
+        $parentTreePresent = is_string($taggingMetadata['parentTree'] ?? null) && $taggingMetadata['parentTree'] !== '';
+        $idTreePresent = is_string($taggingMetadata['idTree'] ?? null) && $taggingMetadata['idTree'] !== '';
+        $parentTreePolicyStatus = is_string($structureParentTreePolicy['reviewStatus'] ?? null)
+            ? $structureParentTreePolicy['reviewStatus']
+            : null;
+        $idTreePolicyStatus = is_string($structureIdTreePolicy['reviewStatus'] ?? null)
+            ? $structureIdTreePolicy['reviewStatus']
+            : null;
+
+        $issues = [];
+        if ($marked === true && $structTreeRoot === null) {
+            $issues[] = 'tagged-without-structure-tree';
+        }
+        if ($structTreeRoot !== null && $marked !== true) {
+            $issues[] = 'structure-tree-without-marked-flag';
+        }
+        if ($suspects === true) {
+            $issues[] = 'suspect-tagging-boundary';
+        }
+        if ($userProperties === true && $structureElements === []) {
+            $issues[] = 'user-properties-without-structure-elements';
+        }
+        if ($structTreeRoot !== null && $structureElements === []) {
+            $issues[] = 'structure-tree-without-elements';
+        }
+        if ($pageStructureParents !== [] && $structureParentTree === []) {
+            $issues[] = 'page-structparents-without-parent-tree';
+        }
+        if ($markedContentProperties !== [] && $structureParentTree === []) {
+            $issues[] = 'marked-content-without-parent-tree';
+        }
+        if ($parentTreePolicyStatus === 'review') {
+            $issues[] = 'parent-tree-policy-review';
+        }
+        if ($idTreePolicyStatus === 'review') {
+            $issues[] = 'id-tree-policy-review';
+        }
+        $issues = array_values(array_unique($issues));
+        sort($issues, SORT_STRING);
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'marked' => $marked,
+            'userProperties' => $userProperties,
+            'suspects' => $suspects,
+            'structTreeRoot' => $structTreeRoot,
+            'roleMapCount' => $roleMapCount,
+            'structureChildren' => $structureChildren,
+            'structureElementCount' => count($structureElements),
+            'parentTreePresent' => $parentTreePresent,
+            'parentTreeEntryCount' => count($structureParentTree),
+            'idTreePresent' => $idTreePresent,
+            'idTreeEntryCount' => count($structureIdTree),
+            'pageStructParentCount' => count($pageStructureParents),
+            'markedContentPropertyCount' => count($markedContentProperties),
+            'markedContentArtifactCount' => count($markedContentArtifacts),
+            'parentTreePolicyStatus' => $parentTreePolicyStatus,
+            'idTreePolicyStatus' => $idTreePolicyStatus,
             'issues' => $issues,
         ];
     }
@@ -27890,6 +28131,150 @@ final class PdfEngineHandoff
             'presStepsNext' => $presStepsDictionary === null
                 ? []
                 : $this->collectPdfReferencesFromValue($this->extractPdfValueForName($presStepsDictionary, 'Next'), $objects),
+        ];
+    }
+
+    /**
+     * @param list<array{page:int, pageObject:string|null, boxColorInfoObject:string|null, boxColorInfo:list<array{box:string, color:list<float>|null, width:float|null, style:string|null}>, separationInfoObject:string|null, separationPages:list<string>, separationDeviceColorant:string|null, separationColorSpace:string|null, presStepsObject:string|null, presStepsSubtype:string|null, presStepsNext:list<string>}> $metadata
+     * @return array<string, mixed>
+     */
+    private function summarizePdfPageProductionPolicy(array $metadata, ?int $pageCount): array
+    {
+        if ($metadata === []) {
+            return [];
+        }
+
+        $metadataPages = [];
+        $pageObjects = [];
+        foreach ($metadata as $entry) {
+            if (is_int($entry['page'] ?? null)) {
+                $metadataPages[$entry['page']] = true;
+            }
+            if (is_string($entry['pageObject'] ?? null) && $entry['pageObject'] !== '') {
+                $pageObjects[$entry['pageObject']] = true;
+            }
+        }
+
+        $boxColorInfoCount = 0;
+        $boxNames = [];
+        $boxStyles = [];
+        $boxMissingColorCount = 0;
+        $boxMissingWidthCount = 0;
+        $boxMissingStyleCount = 0;
+        $separationInfoCount = 0;
+        $separationPageCount = 0;
+        $missingSeparationPageCount = 0;
+        $deviceColorants = [];
+        $separationColorSpaces = [];
+        $missingDeviceColorantCount = 0;
+        $missingSeparationColorSpaceCount = 0;
+        $presentationStepsCount = 0;
+        $presentationStepsNextCount = 0;
+        $presentationStepSubtypes = [];
+        $issues = [];
+
+        $addCount = static function (array &$counts, ?string $value): void {
+            if ($value === null || $value === '') {
+                return;
+            }
+            $counts[$value] = ($counts[$value] ?? 0) + 1;
+        };
+        $addIssue = static function (array &$issues, string $issue): void {
+            $issues[$issue] = true;
+        };
+
+        foreach ($metadata as $entry) {
+            $boxColorInfo = is_array($entry['boxColorInfo'] ?? null) ? $entry['boxColorInfo'] : [];
+            if ($boxColorInfo !== []) {
+                $addIssue($issues, 'page-production-box-color-info');
+            }
+            foreach ($boxColorInfo as $boxInfo) {
+                $boxColorInfoCount++;
+                $addCount($boxNames, is_string($boxInfo['box'] ?? null) ? $boxInfo['box'] : null);
+                $addCount($boxStyles, is_string($boxInfo['style'] ?? null) ? $boxInfo['style'] : null);
+                if (!is_array($boxInfo['color'] ?? null) || $boxInfo['color'] === []) {
+                    $boxMissingColorCount++;
+                    $addIssue($issues, 'page-production-box-color-missing-color');
+                }
+                if (!is_float($boxInfo['width'] ?? null) && !is_int($boxInfo['width'] ?? null)) {
+                    $boxMissingWidthCount++;
+                    $addIssue($issues, 'page-production-box-color-missing-width');
+                }
+                if (!is_string($boxInfo['style'] ?? null) || $boxInfo['style'] === '') {
+                    $boxMissingStyleCount++;
+                    $addIssue($issues, 'page-production-box-color-missing-style');
+                }
+            }
+
+            if (($entry['separationInfoObject'] ?? null) !== null) {
+                $separationInfoCount++;
+                $addIssue($issues, 'page-production-separation-info');
+                if (!is_string($entry['separationDeviceColorant'] ?? null) || $entry['separationDeviceColorant'] === '') {
+                    $missingDeviceColorantCount++;
+                    $addIssue($issues, 'page-production-separation-missing-colorant');
+                }
+                if (!is_string($entry['separationColorSpace'] ?? null) || $entry['separationColorSpace'] === '') {
+                    $missingSeparationColorSpaceCount++;
+                    $addIssue($issues, 'page-production-separation-missing-color-space');
+                }
+            }
+            $addCount($deviceColorants, is_string($entry['separationDeviceColorant'] ?? null) ? $entry['separationDeviceColorant'] : null);
+            $addCount($separationColorSpaces, is_string($entry['separationColorSpace'] ?? null) ? $entry['separationColorSpace'] : null);
+
+            $separationPages = is_array($entry['separationPages'] ?? null) ? $entry['separationPages'] : [];
+            $separationPageCount += count($separationPages);
+            foreach ($separationPages as $separationPage) {
+                if (!is_string($separationPage) || $separationPage === '' || !isset($pageObjects[$separationPage])) {
+                    $missingSeparationPageCount++;
+                    $addIssue($issues, 'page-production-separation-missing-page');
+                }
+            }
+
+            if (($entry['presStepsObject'] ?? null) !== null) {
+                $presentationStepsCount++;
+                $addIssue($issues, 'page-production-presentation-steps');
+            }
+            $addCount($presentationStepSubtypes, is_string($entry['presStepsSubtype'] ?? null) ? $entry['presStepsSubtype'] : null);
+            $presStepsNext = is_array($entry['presStepsNext'] ?? null) ? $entry['presStepsNext'] : [];
+            $presentationStepsNextCount += count($presStepsNext);
+            if ($presStepsNext !== []) {
+                $addIssue($issues, 'page-production-presentation-step-chain');
+            }
+        }
+
+        ksort($boxNames, SORT_STRING);
+        ksort($boxStyles, SORT_STRING);
+        ksort($deviceColorants, SORT_STRING);
+        ksort($separationColorSpaces, SORT_STRING);
+        ksort($presentationStepSubtypes, SORT_STRING);
+        ksort($issues, SORT_STRING);
+
+        $pagesWithProduction = array_map('intval', array_keys($metadataPages));
+        sort($pagesWithProduction);
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'pageCount' => $pageCount,
+            'metadataPageCount' => count($metadataPages),
+            'pagesWithProduction' => $pagesWithProduction,
+            'boxColorInfoCount' => $boxColorInfoCount,
+            'boxNames' => $boxNames,
+            'boxStyles' => $boxStyles,
+            'boxMissingColorCount' => $boxMissingColorCount,
+            'boxMissingWidthCount' => $boxMissingWidthCount,
+            'boxMissingStyleCount' => $boxMissingStyleCount,
+            'separationInfoCount' => $separationInfoCount,
+            'separationPageCount' => $separationPageCount,
+            'missingSeparationPageCount' => $missingSeparationPageCount,
+            'deviceColorantCount' => count($deviceColorants),
+            'deviceColorants' => $deviceColorants,
+            'separationColorSpaces' => $separationColorSpaces,
+            'missingDeviceColorantCount' => $missingDeviceColorantCount,
+            'missingSeparationColorSpaceCount' => $missingSeparationColorSpaceCount,
+            'presentationStepsCount' => $presentationStepsCount,
+            'presentationStepsNextCount' => $presentationStepsNextCount,
+            'presentationStepSubtypes' => $presentationStepSubtypes,
+            'issues' => array_keys($issues),
         ];
     }
 

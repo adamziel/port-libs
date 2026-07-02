@@ -395,6 +395,45 @@ return [
             'uriPathEntryCount' => 2,
             'stdoutPathEntryCount' => 0,
             'invalidPathEntryCount' => 0,
+            'pathEntryCountsByCategory' => [
+                'certificate' => 2,
+                'dependencyOutput' => 1,
+                'fontPath' => 2,
+                'packageCache' => 1,
+                'packagePath' => 1,
+                'root' => 1,
+                'timingsOutput' => 1,
+            ],
+            'pathEntryKindCountsByCategory' => [
+                'certificate' => [
+                    'relative' => 1,
+                    'uri' => 1,
+                ],
+                'dependencyOutput' => [
+                    'relative' => 1,
+                ],
+                'fontPath' => [
+                    'absolute' => 1,
+                    'relative' => 1,
+                ],
+                'packageCache' => [
+                    'uri' => 1,
+                ],
+                'packagePath' => [
+                    'relative' => 1,
+                ],
+                'root' => [
+                    'relative' => 1,
+                ],
+                'timingsOutput' => [
+                    'relative' => 1,
+                ],
+            ],
+            'unsafePathEntryCountsByCategory' => [
+                'certificate' => 1,
+                'fontPath' => 1,
+                'packageCache' => 1,
+            ],
             'fontPathCount' => 2,
             'certificateCount' => 2,
             'packageStorageEntryCount' => 2,
@@ -447,7 +486,9 @@ return [
         $t->same($expectedSummary, $plan['typstBoundarySummary']);
         $t->contains('typst-boundary-summary:review', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-summary-paths:9', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-summary-categories:7', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-summary-unsafe-paths:3', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-summary-unsafe-categories:3', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-summary-sidecars:2', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-summary-font-access-controls:2', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-summary-issues:4', implode(',', $plan['diagnostics']));
@@ -10942,15 +10983,73 @@ MARKDOWN);
                 'presStepsNext' => ['8 0 R', '9 0 R'],
             ],
         ];
+        $expectedPolicy = [
+            'reviewStatus' => 'review',
+            'pageCount' => 2,
+            'metadataPageCount' => 2,
+            'pagesWithProduction' => [1, 2],
+            'boxColorInfoCount' => 4,
+            'boxNames' => [
+                'ArtBox' => 1,
+                'BleedBox' => 1,
+                'CropBox' => 1,
+                'TrimBox' => 1,
+            ],
+            'boxStyles' => [
+                'D' => 2,
+                'S' => 2,
+            ],
+            'boxMissingColorCount' => 0,
+            'boxMissingWidthCount' => 0,
+            'boxMissingStyleCount' => 0,
+            'separationInfoCount' => 1,
+            'separationPageCount' => 2,
+            'missingSeparationPageCount' => 0,
+            'deviceColorantCount' => 1,
+            'deviceColorants' => [
+                'PANTONE 123 C' => 1,
+            ],
+            'separationColorSpaces' => [
+                'DeviceCMYK' => 1,
+            ],
+            'missingDeviceColorantCount' => 0,
+            'missingSeparationColorSpaceCount' => 0,
+            'presentationStepsCount' => 2,
+            'presentationStepsNextCount' => 3,
+            'presentationStepSubtypes' => [
+                'NA' => 1,
+                'Render' => 1,
+            ],
+            'issues' => [
+                'page-production-box-color-info',
+                'page-production-presentation-step-chain',
+                'page-production-presentation-steps',
+                'page-production-separation-info',
+            ],
+        ];
 
         $t->same(true, $result['ok']);
         $t->same($expected, $result['pdfPageProductionMetadata'] ?? null);
+        $t->same($expectedPolicy, $result['pdfPageProductionPolicy'] ?? null);
         $t->contains('pdf-byte-page-production-metadata:2', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-page-box-color-info:4', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-page-separation-info:1', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-page-presentation-steps:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-production-policy:review', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-production-policy-metadata-pages:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-production-policy-box-color-info:4', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-production-policy-separation-info:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-production-policy-presentation-steps:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-production-policy-presentation-next:3', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-production-policy-box:ArtBox:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-production-policy-box-style:D:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-production-policy-separation-color-space:DeviceCMYK:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-production-policy-presentation-step:Render:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-production-policy-issues:4', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-production-policy-issue:page-production-separation-info:1', implode(',', $result['diagnostics']));
         $t->same(true, $sequence['ok']);
         $t->same($expected, $sequence['finalPdfPageProductionMetadata'] ?? null);
+        $t->same($expectedPolicy, $sequence['finalPdfPageProductionPolicy'] ?? null);
     },
 
     'fake runner extracts bounded pdf page display metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
@@ -15139,6 +15238,87 @@ MARKDOWN);
         $t->contains('pdf-byte-structure-children:2', implode(',', $result['diagnostics']));
         $t->same(true, $sequence['ok']);
         $t->same($expected, $sequence['finalPdfTaggingMetadata']);
+    },
+
+    'fake runner summarizes bounded pdf tagging review policy from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/tagging-policy.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /MarkInfo << /Marked false /UserProperties true /Suspects true >> /StructTreeRoot 9 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /StructParents 0 >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /StructTreeRoot /K [10 0 R] /RoleMap << /ReviewNote /Note >> /ParentTree 12 0 R /IDTree 13 0 R >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /StructElem /S /ReviewNote /P 9 0 R /K 0 /ID (intro) >>',
+            'endobj',
+            '12 0 obj',
+            '<< /Nums [0 [10 0 R]] >>',
+            'endobj',
+            '13 0 obj',
+            '<< /Names [(intro) 10 0 R] >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/tagging-policy.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/tagging-policy.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+        $expected = [
+            'reviewStatus' => 'review',
+            'marked' => false,
+            'userProperties' => true,
+            'suspects' => true,
+            'structTreeRoot' => '9 0 R',
+            'roleMapCount' => 1,
+            'structureChildren' => 1,
+            'structureElementCount' => 1,
+            'parentTreePresent' => true,
+            'parentTreeEntryCount' => 1,
+            'idTreePresent' => true,
+            'idTreeEntryCount' => 1,
+            'pageStructParentCount' => 1,
+            'markedContentPropertyCount' => 0,
+            'markedContentArtifactCount' => 0,
+            'parentTreePolicyStatus' => 'ok',
+            'idTreePolicyStatus' => 'ok',
+            'issues' => [
+                'structure-tree-without-marked-flag',
+                'suspect-tagging-boundary',
+            ],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfTaggingPolicy']);
+        $t->contains('pdf-byte-tagging-policy:review', $diagnostics);
+        $t->contains('pdf-byte-tagging-policy-structure-elements:1', $diagnostics);
+        $t->contains('pdf-byte-tagging-policy-parent-tree-entries:1', $diagnostics);
+        $t->contains('pdf-byte-tagging-policy-id-tree-entries:1', $diagnostics);
+        $t->contains('pdf-byte-tagging-policy-page-struct-parents:1', $diagnostics);
+        $t->contains('pdf-byte-tagging-policy-issue:structure-tree-without-marked-flag', $diagnostics);
+        $t->contains('pdf-byte-tagging-policy-issue:suspect-tagging-boundary', $diagnostics);
+        $t->same($expected, $sequence['finalPdfTaggingPolicy']);
     },
 
     'fake runner extracts bounded pdf structure namespace provenance from produced bytes' => static function (TestRunner $t) use ($document): void {
