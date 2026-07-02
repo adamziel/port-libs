@@ -9638,6 +9638,7 @@ final class OpcRelationshipGraph
     private static function zipExtraFieldManifestSummaryFields(?array $extraFields, ?string $preflightError): array
     {
         $issues = self::zipExtraFieldSummaryIssues($extraFields, $preflightError);
+        $mismatchedValueIds = $extraFields['mismatchedExtraFieldValueIds'] ?? [];
 
         return [
             'zipExtraFieldsValid' => $extraFields !== null && $issues === [],
@@ -9649,6 +9650,9 @@ final class OpcRelationshipGraph
             'zipDuplicateLocalExtraFieldEntryCount' => (int) ($extraFields['duplicateLocalExtraFieldEntryCount'] ?? 0),
             'zipMismatchedExtraFieldEntryCount' => (int) ($extraFields['mismatchedExtraFieldEntryCount'] ?? 0),
             'zipMismatchedExtraFieldValueEntryCount' => (int) ($extraFields['mismatchedExtraFieldValueEntryCount'] ?? 0),
+            'zipMismatchedExtraFieldValueIdCount' => (int) ($extraFields['mismatchedExtraFieldValueIdCount'] ?? count($mismatchedValueIds)),
+            'zipMismatchedExtraFieldValueIds' => $mismatchedValueIds,
+            'zipMismatchedExtraFieldValueIdHexes' => $extraFields['mismatchedExtraFieldValueIdHexes'] ?? [],
             'zipCentralOnlyExtraFieldEntryCount' => (int) ($extraFields['centralOnlyExtraFieldEntryCount'] ?? 0),
             'zipLocalOnlyExtraFieldEntryCount' => (int) ($extraFields['localOnlyExtraFieldEntryCount'] ?? 0),
             'zipExtraFieldIdCount' => (int) ($extraFields['extraFieldIdCount'] ?? 0),

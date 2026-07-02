@@ -3066,6 +3066,9 @@ final class ZipPackage
      *     duplicateLocalExtraFieldEntryCount:int,
      *     mismatchedExtraFieldEntryCount:int,
      *     mismatchedExtraFieldValueEntryCount:int,
+     *     mismatchedExtraFieldValueIdCount:int,
+     *     mismatchedExtraFieldValueIds:list<int>,
+     *     mismatchedExtraFieldValueIdHexes:list<string>,
      *     centralOnlyExtraFieldEntryCount:int,
      *     localOnlyExtraFieldEntryCount:int,
      *     extraFieldIdCount:int,
@@ -3173,6 +3176,7 @@ final class ZipPackage
             }
         }
         $idUsage = self::extraFieldIdUsageSummary($entries);
+        $mismatchedValueIds = self::extraFieldValueMismatchIds($valueMismatchedEntries);
 
         return [
             'entryCount' => count($this->entries),
@@ -3182,6 +3186,9 @@ final class ZipPackage
             'duplicateLocalExtraFieldEntryCount' => $duplicateLocalExtraFieldEntryCount,
             'mismatchedExtraFieldEntryCount' => count($mismatchedEntries),
             'mismatchedExtraFieldValueEntryCount' => count($valueMismatchedEntries),
+            'mismatchedExtraFieldValueIdCount' => count($mismatchedValueIds),
+            'mismatchedExtraFieldValueIds' => $mismatchedValueIds,
+            'mismatchedExtraFieldValueIdHexes' => self::extraFieldIdHexes($mismatchedValueIds),
             'centralOnlyExtraFieldEntryCount' => $centralOnlyExtraFieldEntryCount,
             'localOnlyExtraFieldEntryCount' => $localOnlyExtraFieldEntryCount,
             'extraFieldIdCount' => $idUsage['extraFieldIdCount'],
@@ -3213,6 +3220,9 @@ final class ZipPackage
      *     duplicateLocalExtraFieldEntryCount:int,
      *     mismatchedExtraFieldEntryCount:int,
      *     mismatchedExtraFieldValueEntryCount:int,
+     *     mismatchedExtraFieldValueIdCount:int,
+     *     mismatchedExtraFieldValueIds:list<int>,
+     *     mismatchedExtraFieldValueIdHexes:list<string>,
      *     centralOnlyExtraFieldEntryCount:int,
      *     localOnlyExtraFieldEntryCount:int,
      *     duplicateEntries:list<array<string, mixed>>,
@@ -4371,6 +4381,9 @@ final class ZipPackage
      *     duplicateLocalExtraFieldEntryCount:int,
      *     mismatchedExtraFieldEntryCount:int,
      *     mismatchedExtraFieldValueEntryCount:int,
+     *     mismatchedExtraFieldValueIdCount:int,
+     *     mismatchedExtraFieldValueIds:list<int>,
+     *     mismatchedExtraFieldValueIdHexes:list<string>,
      *     centralOnlyExtraFieldEntryCount:int,
      *     localOnlyExtraFieldEntryCount:int,
      *     localHeaderUnavailableEntryCount:int,
@@ -4574,6 +4587,7 @@ final class ZipPackage
             throw new \RuntimeException('Unexpected ZIP bytes inside the central directory');
         }
         $idUsage = self::extraFieldIdUsageSummary($entries);
+        $mismatchedValueIds = self::extraFieldValueMismatchIds($valueMismatchedEntries);
 
         return [
             'entryCount' => count($entries),
@@ -4583,6 +4597,9 @@ final class ZipPackage
             'duplicateLocalExtraFieldEntryCount' => $duplicateLocalExtraFieldEntryCount,
             'mismatchedExtraFieldEntryCount' => count($mismatchedEntries),
             'mismatchedExtraFieldValueEntryCount' => count($valueMismatchedEntries),
+            'mismatchedExtraFieldValueIdCount' => count($mismatchedValueIds),
+            'mismatchedExtraFieldValueIds' => $mismatchedValueIds,
+            'mismatchedExtraFieldValueIdHexes' => self::extraFieldIdHexes($mismatchedValueIds),
             'centralOnlyExtraFieldEntryCount' => $centralOnlyExtraFieldEntryCount,
             'localOnlyExtraFieldEntryCount' => $localOnlyExtraFieldEntryCount,
             'localHeaderUnavailableEntryCount' => count($localHeaderUnavailableEntries),
@@ -20534,6 +20551,24 @@ final class ZipPackage
             'localOnlyExtraFieldIdHexes' => $localOnlyExtraFieldIdHexes,
             'extraFieldIdUsage' => $rows,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<int>
+     */
+    private static function extraFieldValueMismatchIds(array $entries): array
+    {
+        $ids = [];
+        foreach ($entries as $entry) {
+            foreach (($entry['mismatchedExtraFieldValueIds'] ?? []) as $id) {
+                $ids[(int) $id] = (int) $id;
+            }
+        }
+
+        ksort($ids, SORT_NUMERIC);
+
+        return array_values($ids);
     }
 
     /**
