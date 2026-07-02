@@ -3026,6 +3026,23 @@ final class XmlHtmlDom
         $mediaTargetManifest = self::docBookReviewMediaTargetManifest($mediaObjects['items']);
         $repeatedMediaRoleTargetPairs = self::docBookRepeatedMediaRoleTargetPairs($mediaObjects['items']);
         $mediaDiagnostics = self::docBookMediaObjectDiagnostics($mediaObjects['items'], $repeatedMediaRoleTargetPairs);
+        $captionedMediaObjects = array_values(array_filter(
+            $mediaObjects['items'],
+            static fn (array $mediaObject): bool => ($mediaObject['hasCaption'] ?? null) === true
+        ));
+        $captionlessMediaObjects = array_values(array_filter(
+            $mediaObjects['items'],
+            static fn (array $mediaObject): bool => ($mediaObject['hasCaption'] ?? null) !== true
+        ));
+        $mediaObjectsWithTextAlternatives = array_values(array_filter(
+            $mediaObjects['items'],
+            static fn (array $mediaObject): bool => ($mediaObject['hasTextAlternative'] ?? null) === true
+        ));
+        $mediaObjectsMissingTextAlternatives = array_values(array_filter(
+            $mediaObjects['items'],
+            static fn (array $mediaObject): bool => ($mediaObject['hasTextAlternative'] ?? null) !== true
+                && ($mediaObject['targetRecords'] ?? []) !== []
+        ));
         $imageDataRefs = self::docBookImageDataReferences($root);
         $targetSummary = self::docBookTargetSummary($root);
         $crossReferences = self::docBookCrossReferenceSummaries($root, self::docBookElementIdMap($root));
@@ -3091,11 +3108,26 @@ final class XmlHtmlDom
             'figuresTruncated' => $figures['truncated'],
             'mediaObjects' => $mediaObjects['items'],
             'mediaObjectCount' => $mediaObjects['count'],
+            'mediaObjectIds' => self::docBookMediaObjectIdValues($mediaObjects['items'], 'id'),
+            'mediaObjectXmlIds' => self::docBookMediaObjectIdValues($mediaObjects['items'], 'xmlId'),
             'mediaObjectRoles' => self::docBookMediaObjectStringValues($mediaObjects['items'], 'roles'),
             'mediaCaptionTexts' => self::docBookMediaObjectStringValues($mediaObjects['items'], 'captionText'),
+            'captionedMediaObjectCount' => count($captionedMediaObjects),
+            'captionedMediaObjectIds' => self::docBookMediaObjectIdValues($captionedMediaObjects, 'id'),
+            'captionedMediaObjectXmlIds' => self::docBookMediaObjectIdValues($captionedMediaObjects, 'xmlId'),
+            'captionlessMediaObjectCount' => count($captionlessMediaObjects),
+            'captionlessMediaObjectIds' => self::docBookMediaObjectIdValues($captionlessMediaObjects, 'id'),
+            'captionlessMediaObjectXmlIds' => self::docBookMediaObjectIdValues($captionlessMediaObjects, 'xmlId'),
             'mediaTextAlternativeTexts' => self::docBookMediaObjectStringValues($mediaObjects['items'], 'textAlternativeTexts'),
+            'mediaObjectsWithTextAlternativeCount' => count($mediaObjectsWithTextAlternatives),
+            'mediaObjectsWithTextAlternativeIds' => self::docBookMediaObjectIdValues($mediaObjectsWithTextAlternatives, 'id'),
+            'mediaObjectsWithTextAlternativeXmlIds' => self::docBookMediaObjectIdValues($mediaObjectsWithTextAlternatives, 'xmlId'),
+            'mediaObjectsMissingTextAlternativeCount' => count($mediaObjectsMissingTextAlternatives),
+            'mediaObjectsMissingTextAlternativeIds' => self::docBookMediaObjectIdValues($mediaObjectsMissingTextAlternatives, 'id'),
+            'mediaObjectsMissingTextAlternativeXmlIds' => self::docBookMediaObjectIdValues($mediaObjectsMissingTextAlternatives, 'xmlId'),
             'mediaTargetManifest' => $mediaTargetManifest,
             'mediaTargetManifestCount' => count($mediaTargetManifest),
+            'mediaTargetManifestTargets' => self::docBookMediaTargetManifestTargets($mediaTargetManifest),
             'repeatedMediaRoleTargetPairs' => $repeatedMediaRoleTargetPairs,
             'repeatedMediaRoleTargetPairCount' => count($repeatedMediaRoleTargetPairs),
             'mediaDiagnosticCodes' => array_map(
@@ -7146,6 +7178,40 @@ final class XmlHtmlDom
         }
 
         return $values;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $mediaObjects
+     * @return list<string>
+     */
+    private static function docBookMediaObjectIdValues(array $mediaObjects, string $key): array
+    {
+        $values = [];
+        foreach ($mediaObjects as $mediaObject) {
+            $value = $mediaObject[$key] ?? null;
+            if (is_string($value)) {
+                self::docBookAppendUniqueReviewString($values, $value);
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifest
+     * @return list<string>
+     */
+    private static function docBookMediaTargetManifestTargets(array $manifest): array
+    {
+        $targets = [];
+        foreach ($manifest as $row) {
+            $target = $row['target'] ?? null;
+            if (is_string($target)) {
+                self::docBookAppendUniqueReviewString($targets, $target);
+            }
+        }
+
+        return $targets;
     }
 
     /**
