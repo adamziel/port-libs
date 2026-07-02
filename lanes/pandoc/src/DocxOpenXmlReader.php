@@ -15810,10 +15810,18 @@ final class DocxOpenXmlReader
         $partPathByteLengths = $this->packagePartPathByteLengthBucketSummary($partInventory);
         $partPathDepths = $this->packagePartPathDepthSummary($partInventory);
         $partPathDepthRoleBuckets = $this->packagePartPathDepthRoleBucketSummary($partInventory);
+        $partPathDepthCounts = [];
+        $partNamesByPartPathDepth = [];
         $parameterizedPartPathDepthCount = 0;
         $parameterizedPartPathDepthBucketCount = 0;
         $missingContentTypePartPathDepthCount = 0;
         foreach ($partPathDepths as $pathDepthSummary) {
+            $pathSegmentCount = (int) ($pathDepthSummary['pathSegmentCount'] ?? 0);
+            $partPathDepthCounts[$pathSegmentCount] = (int) ($pathDepthSummary['partCount'] ?? 0);
+            $partNamesByPartPathDepth[$pathSegmentCount] = array_values(array_map(
+                'strval',
+                is_array($pathDepthSummary['partNames'] ?? null) ? $pathDepthSummary['partNames'] : []
+            ));
             $parameterizedPartCount = (int) ($pathDepthSummary['parameterizedPartCount'] ?? 0);
             if ($parameterizedPartCount > 0) {
                 $parameterizedPartPathDepthBucketCount++;
@@ -15823,6 +15831,8 @@ final class DocxOpenXmlReader
                 $missingContentTypePartPathDepthCount++;
             }
         }
+        ksort($partPathDepthCounts, SORT_NUMERIC);
+        ksort($partNamesByPartPathDepth, SORT_NUMERIC);
         $partExtensions = $this->packagePartExtensionSummary($partInventory);
         $partRawExtensions = $this->packagePartRawExtensionSummary($partInventory);
         $contentTypeExtensionMismatches = $this->packagePartContentTypeExtensionMismatchSummary($partInventory);
@@ -19622,6 +19632,8 @@ final class DocxOpenXmlReader
             'entryNamesByPackagePathByteLengthByteExposurePolicy' => $partPathByteLengths['entryNamesByPackagePathByteLengthByteExposurePolicy'],
             'packagePathByteLengthBucketSummaries' => $partPathByteLengths['packagePathByteLengthBucketSummaries'],
             'partPathDepthCount' => count($partPathDepths),
+            'partPathDepthCounts' => $partPathDepthCounts,
+            'partNamesByPartPathDepth' => $partNamesByPartPathDepth,
             'partPathDepthParameterizedBucketCount' => $parameterizedPartPathDepthBucketCount,
             'partPathDepthParameterizedPartCount' => $parameterizedPartPathDepthCount,
             'partPathDepthMissingContentTypeBucketCount' => $missingContentTypePartPathDepthCount,
@@ -45017,6 +45029,15 @@ final class DocxOpenXmlReader
                 ? array_values($summary['packagePathByteLengthBucketSummaries'])
                 : [],
             'packagePathDepthCount' => (int) ($summary['partPathDepthCount'] ?? 0),
+            'packagePathDepthCounts' => $this->packageIdentityCountMap(
+                $summary['partPathDepthCounts'] ?? []
+            ),
+            'entryNamesByPackagePathDepth' => $this->packageIdentityStringListMap(
+                $summary['partNamesByPartPathDepth'] ?? []
+            ),
+            'packagePathDepths' => is_array($summary['partPathDepths'] ?? null)
+                ? array_values($summary['partPathDepths'])
+                : [],
             'packagePathDepthRoleBucketCount' => (int) ($summary['partPathDepthRoleBucketCount'] ?? 0),
             'packagePathDepthRoleCounts' => $this->packageIdentityNestedCountMap(
                 $summary['partPathDepthRoleCounts'] ?? []
