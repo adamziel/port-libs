@@ -9142,6 +9142,8 @@ XML;
         $t->same(3, $provenance['manifestPartReferenceSuffixCount']);
         $t->same(2, $provenance['manifestPartReferenceQueryCount']);
         $t->same(2, $provenance['manifestPartReferenceFragmentCount']);
+        $t->same(['image' => 1, 'xml' => 2], $provenance['manifestPartReferenceSuffixMediaFamilyCounts']);
+        $t->same(['missing-package-part' => 1, 'package-bytes-exposable' => 2], $provenance['manifestPartReferenceSuffixByteExposurePolicyCounts']);
         $t->same([
             'content.xml?role=body#content',
             'styles.xml#styledefs',
@@ -9154,6 +9156,7 @@ XML;
         $t->same('?role=body#content', $content['partSuffix']);
         $t->same('role=body', $content['partQuery']);
         $t->same('content', $content['partFragment']);
+        $t->same('xml', $content['manifestMediaFamily']);
         $t->same(true, $content['exists']);
         $t->same(true, $content['canExposeBytes']);
         $t->same(strlen($contentXml), $provenance['parts']['content.xml']['byteLength']);
@@ -9164,6 +9167,7 @@ XML;
         $t->same('#styledefs', $styles['partSuffix']);
         $t->same(null, $styles['partQuery']);
         $t->same('styledefs', $styles['partFragment']);
+        $t->same('xml', $styles['manifestMediaFamily']);
         $t->same(true, $styles['exists']);
 
         $missing = $suffixItems['Pictures/missing.png?missing=true'];
@@ -9171,6 +9175,7 @@ XML;
         $t->same('?missing=true', $missing['partSuffix']);
         $t->same('missing=true', $missing['partQuery']);
         $t->same(null, $missing['partFragment']);
+        $t->same('image', $missing['manifestMediaFamily']);
         $t->same(false, $missing['exists']);
         $t->same(false, $missing['canExposeBytes']);
         $t->same(1, count($result['importReport']['manifest']['missingItems']));
