@@ -16221,7 +16221,7 @@ final class ZipPackage
      * @param array<string, mixed> $layout
      * @return array<string, mixed>
      */
-    private static function packageManifestByteLayoutSummary(array $layout): array
+    public static function packageManifestByteLayoutSummary(array $layout): array
     {
         $entrySummaries = [];
         foreach (($layout['entries'] ?? []) as $entry) {
