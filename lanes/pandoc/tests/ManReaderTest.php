@@ -129,6 +129,53 @@ return [
         $t->same('f', $plainText($longCell->children[1]->children[1]->children[0]));
     },
 
+    'keeps common generated manpage requests out of visible text' => static function (TestRunner $t) use ($read, $plainText): void {
+        $document = $read(<<<'ROFF'
+.TH "TOOL" "1" "July 2026" "tool 1.0" "User Commands"
+.nh
+.if n .ad l
+.SH NAME
+.B tool
+\- do work
+.PP
+The \fBtool\fR command prints \(dqquoted\(dq text\&.
+.TP
+.BI -o " file"
+Write output file.
+.TP
+.IR input
+Read input.
+.nf
+.sp
+.RS 4n
+tool --flag
+.RE
+.fi
+ROFF);
+
+        $types = array_map(static fn (AstNode $node): string => $node->type, $document->children);
+        $visible = $plainText($document);
+        $definitionList = $document->children[4];
+        $secondDefinition = $definitionList->children[1]->children[1];
+
+        $t->same(['heading', 'paragraph', 'paragraph', 'paragraph', 'definition_list'], $types);
+        $t->same('NAME', $plainText($document->children[0]));
+        $t->same('tool', $plainText($document->children[1]));
+        $t->same('- do work', $plainText($document->children[2]));
+        $t->contains('The tool command prints "quoted" text.', $visible);
+        $t->true(!str_contains($visible, '.TH'), 'TH request leaked into visible text');
+        $t->true(!str_contains($visible, '.nh'), 'nh request leaked into visible text');
+        $t->true(!str_contains($visible, '.if'), 'if request leaked into visible text');
+        $t->same('definition_list', $definitionList->type);
+        $t->same('-o file', $plainText($definitionList->children[0]->children[0]));
+        $t->same('Write output file.', $plainText($definitionList->children[0]->children[1]));
+        $t->same('input', $plainText($definitionList->children[1]->children[0]));
+        $t->same('definition', $secondDefinition->type);
+        $t->same('paragraph', $secondDefinition->children[0]->type);
+        $t->same('code_block', $secondDefinition->children[1]->type);
+        $t->same('tool --flag', $secondDefinition->children[1]->attr('text'));
+    },
+
     'reads man through converter and renders shared ast outputs' => static function (TestRunner $t): void {
         $document = PandocConverter::read(".SH Name\n.B tool\n", 'man');
         $native = PandocConverter::write($document, 'native');
