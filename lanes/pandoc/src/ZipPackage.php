@@ -12983,6 +12983,7 @@ final class ZipPackage
         $unsupportedCompressionMethodCount = 0;
         $compressedBytes = 0;
         $uncompressedBytes = 0;
+        $crc32SummaryEntries = [];
 
         foreach ($this->entries as $centralDirectoryIndex => $entry) {
             $localHeader = $this->readLocalHeader($entry);
@@ -13006,6 +13007,18 @@ final class ZipPackage
             $localHeaderOrder = $localOrderByName[$entry->name] ?? null;
             $localHeaderLength = (int) $localHeader['localHeaderLength'];
             $compressedDataOffset = (int) $localHeader['dataStart'];
+            $compressedDataEnd = $compressedDataOffset + $entry->compressedSize;
+            $usesDataDescriptor = ($entry->generalPurposeFlags & 0x0008) !== 0;
+            $dataDescriptorBytes = 0;
+            if ($usesDataDescriptor) {
+                $descriptor = $this->dataDescriptorMetadata(
+                    $entry,
+                    $compressedDataEnd,
+                    $this->nextEntryOrCentralDirectoryOffset($entry)
+                );
+                $dataDescriptorBytes = (int) $descriptor['descriptorLength'];
+            }
+            $localRecordBytes = $localHeaderLength + $entry->compressedSize + $dataDescriptorBytes;
             $compressedDataSha256 = hash(
                 'sha256',
                 substr($this->bytes, $compressedDataOffset, $entry->compressedSize)
@@ -13039,13 +13052,20 @@ final class ZipPackage
                 'localHeaderLength' => $localHeaderLength,
                 'localHeaderSha256' => $localHeaderSha256,
                 'compressedDataOffset' => $compressedDataOffset,
-                'compressedDataEnd' => $compressedDataOffset + $entry->compressedSize,
+                'compressedDataEnd' => $compressedDataEnd,
                 'compressedDataSha256' => $compressedDataSha256,
                 'centralDirectoryRecordOffset' => $entry->centralDirectoryRecordOffset,
                 'centralDirectoryRecordEnd' => $entry->centralDirectoryRecordEnd,
                 'centralDirectoryRecordSha256' => $centralDirectoryRecordSha256,
             ];
             $entries[] = $summary;
+            $crc32SummaryEntries[] = $summary + [
+                'directoryRoot' => self::entryHandoffDirectoryRoot($entry->name),
+                'localRecordBytes' => $localRecordBytes,
+                'sourceRecordBytes' => $localRecordBytes + max(0, $centralDirectoryRecordBytes ?? 0),
+                'usesDataDescriptor' => $usesDataDescriptor,
+                'dataDescriptorBytes' => $dataDescriptorBytes,
+            ];
             $manifestEntries[] = [
                 'name' => $summary['name'],
                 'isDirectory' => $summary['isDirectory'],
@@ -13061,6 +13081,19 @@ final class ZipPackage
             ];
         }
 
+        $crc32Summaries = self::packageManifestCrc32Summaries($crc32SummaryEntries);
+        $duplicateCrc32Summaries = array_values(array_filter(
+            $crc32Summaries,
+            static fn (array $summary): bool => (int) $summary['entryCount'] > 1
+        ));
+        $duplicateCrc32Hexes = array_map(
+            static fn (array $summary): string => (string) $summary['crc32Hex'],
+            $duplicateCrc32Summaries
+        );
+        $duplicateCrc32EntryCount = array_sum(array_map(
+            static fn (array $summary): int => (int) $summary['entryCount'],
+            $duplicateCrc32Summaries
+        ));
         $centralDirectoryOrderNames = $this->names();
         $localHeaderOrderNames = $this->localNames();
         $manifestPayload = [
@@ -13088,8 +13121,82 @@ final class ZipPackage
             'centralDirectoryOrderNames' => $centralDirectoryOrderNames,
             'localHeaderOrderNames' => $localHeaderOrderNames,
             'centralDirectoryOrderMatchesLocalHeaderOrder' => $centralDirectoryOrderNames === $localHeaderOrderNames,
+            'crc32SummaryCount' => count($crc32Summaries),
+            'crc32Summaries' => $crc32Summaries,
+            'duplicateCrc32HexCount' => count($duplicateCrc32Summaries),
+            'duplicateCrc32EntryCount' => $duplicateCrc32EntryCount,
+            'hasDuplicateCrc32Entries' => $duplicateCrc32Summaries !== [],
+            'duplicateCrc32Hexes' => $duplicateCrc32Hexes,
+            'duplicateCrc32Summaries' => $duplicateCrc32Summaries,
             'entries' => $entries,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function packageManifestCrc32Summaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $crc32Hex = (string) ($entry['crc32Hex'] ?? '');
+            if ($crc32Hex === '') {
+                continue;
+            }
+
+            $summaries[$crc32Hex] ??= [
+                'crc32Hex' => $crc32Hex,
+                'entryCount' => 0,
+                'fileEntryCount' => 0,
+                'directoryEntryCount' => 0,
+                'compressedBytes' => 0,
+                'uncompressedBytes' => 0,
+                'localRecordBytes' => 0,
+                'sourceRecordBytes' => 0,
+                'dataDescriptorEntryCount' => 0,
+                'dataDescriptorBytes' => 0,
+                'directoryRoots' => [],
+                'compressionMethodNames' => [],
+                'entryNames' => [],
+            ];
+
+            ++$summaries[$crc32Hex]['entryCount'];
+            if (($entry['isDirectory'] ?? false) === true) {
+                ++$summaries[$crc32Hex]['directoryEntryCount'];
+            } else {
+                ++$summaries[$crc32Hex]['fileEntryCount'];
+            }
+
+            $summaries[$crc32Hex]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+            $summaries[$crc32Hex]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+            $summaries[$crc32Hex]['localRecordBytes'] += (int) ($entry['localRecordBytes'] ?? 0);
+            $summaries[$crc32Hex]['sourceRecordBytes'] += (int) ($entry['sourceRecordBytes'] ?? 0);
+            if (($entry['usesDataDescriptor'] ?? false) === true) {
+                ++$summaries[$crc32Hex]['dataDescriptorEntryCount'];
+                $summaries[$crc32Hex]['dataDescriptorBytes'] += (int) ($entry['dataDescriptorBytes'] ?? 0);
+            }
+
+            foreach ([
+                'directoryRoots' => (string) ($entry['directoryRoot'] ?? ''),
+                'compressionMethodNames' => (string) ($entry['compressionMethodName'] ?? ''),
+                'entryNames' => (string) ($entry['name'] ?? ''),
+            ] as $field => $value) {
+                if ($value !== '' && !in_array($value, $summaries[$crc32Hex][$field], true)) {
+                    $summaries[$crc32Hex][$field][] = $value;
+                }
+            }
+        }
+
+        ksort($summaries, SORT_STRING);
+        foreach ($summaries as &$summary) {
+            sort($summary['directoryRoots'], SORT_STRING);
+            sort($summary['compressionMethodNames'], SORT_STRING);
+            sort($summary['entryNames'], SORT_STRING);
+        }
+        unset($summary);
+
+        return array_values($summaries);
     }
 
     /**
