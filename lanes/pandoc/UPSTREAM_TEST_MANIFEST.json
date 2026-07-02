@@ -1702,7 +1702,9 @@
         "mappedDocxPackageIdentityRelationshipTargetByteLengthBucketCases": 1,
         "docxPackageIdentityRelationshipTargetByteLengthBucketAssertions": 11,
         "mappedDocxOpenXmlUnixOwnerMetadataProvenanceCases": 1,
-        "docxOpenXmlUnixOwnerMetadataProvenanceAssertions": 95
+        "docxOpenXmlUnixOwnerMetadataProvenanceAssertions": 95,
+        "mappedDocxPackageIdentityPlatformAttributeCases": 1,
+        "docxPackageIdentityPlatformAttributeAssertions": 35
     },
     "nativeImplementation": {
         "language": "PHP",

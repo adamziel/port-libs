@@ -33089,7 +33089,12 @@ XML;
         $zipPackage = $package['zipPackage'];
         $summary = $package['summary'];
         $inventory = $package['parts'];
+        $identity = $package['packageIdentity'];
         $platformAttributes = $zipPackage['platformAttributes'];
+        $identityEntries = [];
+        foreach ($identity['packageEntries'] as $identityEntry) {
+            $identityEntries[$identityEntry['partName']] = $identityEntry;
+        }
         $hostSystemsByName = [];
         foreach ($zipPackage['creatorHostSystems']['hostSystems'] as $hostSystem) {
             $hostSystemsByName[$hostSystem['name']] = $hostSystem;
@@ -33116,6 +33121,17 @@ XML;
         $t->same(3, $summary['zipPlatformAttributeProvenanceEntryCount']);
         $t->same(3, $summary['zipPlatformAttributeIssueEntryCount']);
         $t->same(['dos-hidden-attribute', 'internal-text-attribute', 'unix-executable-file'], $summary['zipPlatformAttributeIssueCodes']);
+        $t->same($summary['zipUnixModeEntryCount'], $identity['zipUnixModeEntryCount']);
+        $t->same($summary['zipExecutableFileCount'], $identity['zipExecutableFileCount']);
+        $t->same($summary['zipWritablePermissionEntryCount'], $identity['zipWritablePermissionEntryCount']);
+        $t->same($summary['zipDosAttributeEntryCount'], $identity['zipDosAttributeEntryCount']);
+        $t->same($summary['zipHiddenSystemOrVolumeLabelEntryCount'], $identity['zipHiddenSystemOrVolumeLabelEntryCount']);
+        $t->same($summary['zipInternalAttributeEntryCount'], $identity['zipInternalAttributeEntryCount']);
+        $t->same($summary['zipTextInternalAttributeEntryCount'], $identity['zipTextInternalAttributeEntryCount']);
+        $t->same($summary['zipPlatformAttributeProvenanceEntryCount'], $identity['zipPlatformAttributeProvenanceEntryCount']);
+        $t->same($summary['zipPlatformAttributeIssueEntryCount'], $identity['zipPlatformAttributeIssueEntryCount']);
+        $t->same($summary['zipPlatformAttributeIssueCount'], $identity['zipPlatformAttributeIssueCount']);
+        $t->same($summary['zipPlatformAttributeIssueCodes'], $identity['zipPlatformAttributeIssueCodes']);
         $t->same(count($zipParts) - 1, $hostSystemsByName['unix']['entryCount']);
         $t->same(1, $hostSystemsByName['windows-ntfs']['entryCount']);
 
@@ -33125,6 +33141,9 @@ XML;
         $executablePart = $inventory['word/media/executable.png'];
         $hiddenPart = $inventory['word/media/hidden.png'];
         $textPart = $inventory['word/media/text-attr.png'];
+        $identityExecutable = $identityEntries['word/media/executable.png'];
+        $identityHidden = $identityEntries['word/media/hidden.png'];
+        $identityText = $identityEntries['word/media/text-attr.png'];
 
         $t->same('unix', $executableEntry['madeByHostSystemName']);
         $t->same(0x81ed0000, $executableEntry['externalAttributes']);
@@ -33143,6 +33162,14 @@ XML;
         $t->same(true, $executablePart['isUnixExecutableFile']);
         $t->same(['unix-executable-file'], $executablePart['platformAttributeIssues']);
         $t->same('docx-zip-platform-attributes-metadata-only', $executablePart['zipPlatformAttributeReviewPolicy']);
+        $t->same('unix', $identityExecutable['madeByHostSystemName']);
+        $t->same(0x81ed0000, $identityExecutable['externalAttributes']);
+        $t->same('81ed0000', $identityExecutable['externalAttributesHex']);
+        $t->same('100755', $identityExecutable['unixModeOctal']);
+        $t->same('0755', $identityExecutable['unixPermissionsOctal']);
+        $t->same(true, $identityExecutable['isUnixExecutableFile']);
+        $t->same(['unix-executable-file'], $identityExecutable['platformAttributeIssues']);
+        $t->same('docx-zip-platform-attributes-metadata-only', $identityExecutable['platformAttributeReviewPolicy']);
 
         $t->same('windows-ntfs', $hiddenEntry['madeByHostSystemName']);
         $t->same(0x00000022, $hiddenEntry['externalAttributes']);
@@ -33155,6 +33182,13 @@ XML;
         $t->same('windows-ntfs', $hiddenPart['madeByHostSystemName']);
         $t->same(['hidden', 'archive'], $hiddenPart['dosAttributeNames']);
         $t->same(['dos-hidden-attribute'], $hiddenPart['platformAttributeIssues']);
+        $t->same('windows-ntfs', $identityHidden['madeByHostSystemName']);
+        $t->same(0x00000022, $identityHidden['externalAttributes']);
+        $t->same('00000022', $identityHidden['externalAttributesHex']);
+        $t->same(['hidden', 'archive'], $identityHidden['dosAttributeNames']);
+        $t->same(true, $identityHidden['hasDosHiddenAttribute']);
+        $t->same(false, $identityHidden['hasUnixMode']);
+        $t->same(['dos-hidden-attribute'], $identityHidden['platformAttributeIssues']);
 
         $t->same(0x0001, $textEntry['internalFileAttributes']);
         $t->same('0001', $textEntry['internalFileAttributesHex']);
@@ -33169,6 +33203,15 @@ XML;
         $t->same('0001', $textPart['internalFileAttributesHex']);
         $t->same(['apparently-text'], $textPart['internalAttributeNames']);
         $t->same(['internal-text-attribute'], $textPart['platformAttributeIssues']);
+        $t->same(0x0001, $identityText['internalFileAttributes']);
+        $t->same('0001', $identityText['internalFileAttributesHex']);
+        $t->same(['apparently-text'], $identityText['internalAttributeNames']);
+        $t->same(true, $identityText['hasTextInternalAttribute']);
+        $t->same('100644', $identityText['unixModeOctal']);
+        $t->same('0644', $identityText['unixPermissionsOctal']);
+        $t->same(false, $identityText['isUnixExecutableFile']);
+        $t->same(['internal-text-attribute'], $identityText['platformAttributeIssues']);
+        $t->same('docx-package-part-metadata-only', $identityText['byteExposurePolicy']);
     },
     'summarizes docx source zip timestamps without exposing entry bytes' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
