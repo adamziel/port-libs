@@ -878,6 +878,27 @@ return [
                     'creatorVersionDelta' => 0,
                     'creatorHostSystemIsKnown' => true,
                     'creatorHostSystemIssues' => [],
+                    'externalFileAttributes' => 0,
+                    'externalFileAttributesHex' => '00000000',
+                    'hasExternalFileAttributes' => false,
+                    'dosAttributes' => 0,
+                    'dosAttributesHex' => '00',
+                    'dosAttributeNames' => [],
+                    'hasDosAttributes' => false,
+                    'hasDosReadOnlyAttribute' => false,
+                    'hasDosHiddenAttribute' => false,
+                    'hasDosSystemAttribute' => false,
+                    'hasDosVolumeLabelAttribute' => false,
+                    'hasDosDirectoryAttribute' => false,
+                    'hasDosArchiveAttribute' => false,
+                    'internalFileAttributes' => 0,
+                    'internalFileAttributesHex' => '0000',
+                    'internalAttributeNames' => [],
+                    'hasInternalFileAttributes' => false,
+                    'hasTextInternalAttribute' => false,
+                    'unknownInternalAttributeBits' => 0,
+                    'unknownInternalAttributeBitsHex' => '0000',
+                    'hasUnknownInternalAttributeBits' => false,
                     'directoryRoot' => $entry['directoryRoot'],
                     'entryNameBytes' => strlen($entry['name']),
                     'entryNameLengthBucket' => strlen($entry['name']) <= 15
@@ -1367,6 +1388,38 @@ return [
             'creatorVersionComparisonCounts' => $expectedCreatorVersionComparisonCounts,
             'unknownCreatorHostSystemEntries' => [],
             'creatorVersionBelowNeededEntries' => [],
+            'externalFileAttributeEntryCount' => $manifest['externalFileAttributeEntryCount'],
+            'hasExternalFileAttributes' => $manifest['hasExternalFileAttributes'],
+            'externalFileAttributeSummaryCount' => $manifest['externalFileAttributeSummaryCount'],
+            'externalFileAttributeValues' => $manifest['externalFileAttributeValues'],
+            'externalFileAttributeHexes' => $manifest['externalFileAttributeHexes'],
+            'externalFileAttributeSummaries' => $manifest['externalFileAttributeSummaries'],
+            'dosAttributeEntryCount' => $manifest['dosAttributeEntryCount'],
+            'dosReadOnlyAttributeEntryCount' => $manifest['dosReadOnlyAttributeEntryCount'],
+            'dosHiddenAttributeEntryCount' => $manifest['dosHiddenAttributeEntryCount'],
+            'dosSystemAttributeEntryCount' => $manifest['dosSystemAttributeEntryCount'],
+            'dosVolumeLabelAttributeEntryCount' => $manifest['dosVolumeLabelAttributeEntryCount'],
+            'dosDirectoryAttributeEntryCount' => $manifest['dosDirectoryAttributeEntryCount'],
+            'dosArchiveAttributeEntryCount' => $manifest['dosArchiveAttributeEntryCount'],
+            'dosHiddenSystemOrVolumeLabelEntryCount' => $manifest['dosHiddenSystemOrVolumeLabelEntryCount'],
+            'hasDosHiddenSystemOrVolumeLabelEntries' => $manifest['hasDosHiddenSystemOrVolumeLabelEntries'],
+            'dosAttributeSummaryCount' => $manifest['dosAttributeSummaryCount'],
+            'dosAttributeValues' => $manifest['dosAttributeValues'],
+            'dosAttributeHexes' => $manifest['dosAttributeHexes'],
+            'dosAttributeSummaries' => $manifest['dosAttributeSummaries'],
+            'dosHiddenSystemOrVolumeLabelEntries' => $manifest['dosHiddenSystemOrVolumeLabelEntries'],
+            'internalAttributeEntryCount' => $manifest['internalAttributeEntryCount'],
+            'textInternalAttributeEntryCount' => $manifest['textInternalAttributeEntryCount'],
+            'unknownInternalAttributeEntryCount' => $manifest['unknownInternalAttributeEntryCount'],
+            'hasInternalFileAttributes' => $manifest['hasInternalFileAttributes'],
+            'hasUnknownInternalAttributeBits' => $manifest['hasUnknownInternalAttributeBits'],
+            'internalFileAttributeSummaryCount' => $manifest['internalFileAttributeSummaryCount'],
+            'internalFileAttributeValues' => $manifest['internalFileAttributeValues'],
+            'internalFileAttributeHexes' => $manifest['internalFileAttributeHexes'],
+            'internalFileAttributeSummaries' => $manifest['internalFileAttributeSummaries'],
+            'internalAttributeEntries' => $manifest['internalAttributeEntries'],
+            'textInternalAttributeEntries' => $manifest['textInternalAttributeEntries'],
+            'unknownInternalAttributeEntries' => $manifest['unknownInternalAttributeEntries'],
             'directoryRootSummaries' => $expectedDirectoryRootSummaries,
             'extensionlessPackagePartCount' => 1,
             'packagePartExtensions' => $expectedPackagePartExtensions,
@@ -1529,6 +1582,35 @@ return [
         $t->same($expectedCreatorHostSystemSummaries, $manifest['creatorHostSystemSummaries']);
         $t->same([], $manifest['unknownCreatorHostSystemEntries']);
         $t->same([], $manifest['creatorVersionBelowNeededEntries']);
+        $t->same(0, $manifest['externalFileAttributeEntryCount']);
+        $t->same(false, $manifest['hasExternalFileAttributes']);
+        $t->same(1, $manifest['externalFileAttributeSummaryCount']);
+        $t->same([0], $manifest['externalFileAttributeValues']);
+        $t->same(['00000000'], $manifest['externalFileAttributeHexes']);
+        $t->same(0, $manifest['dosAttributeEntryCount']);
+        $t->same(0, $manifest['dosReadOnlyAttributeEntryCount']);
+        $t->same(0, $manifest['dosHiddenAttributeEntryCount']);
+        $t->same(0, $manifest['dosSystemAttributeEntryCount']);
+        $t->same(0, $manifest['dosVolumeLabelAttributeEntryCount']);
+        $t->same(0, $manifest['dosDirectoryAttributeEntryCount']);
+        $t->same(0, $manifest['dosArchiveAttributeEntryCount']);
+        $t->same(0, $manifest['dosHiddenSystemOrVolumeLabelEntryCount']);
+        $t->same(false, $manifest['hasDosHiddenSystemOrVolumeLabelEntries']);
+        $t->same(1, $manifest['dosAttributeSummaryCount']);
+        $t->same([0], $manifest['dosAttributeValues']);
+        $t->same(['00'], $manifest['dosAttributeHexes']);
+        $t->same([], $manifest['dosHiddenSystemOrVolumeLabelEntries']);
+        $t->same(0, $manifest['internalAttributeEntryCount']);
+        $t->same(0, $manifest['textInternalAttributeEntryCount']);
+        $t->same(0, $manifest['unknownInternalAttributeEntryCount']);
+        $t->same(false, $manifest['hasInternalFileAttributes']);
+        $t->same(false, $manifest['hasUnknownInternalAttributeBits']);
+        $t->same(1, $manifest['internalFileAttributeSummaryCount']);
+        $t->same([0], $manifest['internalFileAttributeValues']);
+        $t->same(['0000'], $manifest['internalFileAttributeHexes']);
+        $t->same([], $manifest['internalAttributeEntries']);
+        $t->same([], $manifest['textInternalAttributeEntries']);
+        $t->same([], $manifest['unknownInternalAttributeEntries']);
         $t->same(2, $manifest['directoryRootCount']);
         $t->same($expectedDirectoryRoots, $manifest['directoryRoots']);
         $t->same($expectedDirectoryRootSummaries, $manifest['directoryRootSummaries']);
@@ -1576,6 +1658,27 @@ return [
                 'creatorVersionDelta' => $entry['creatorVersionDelta'],
                 'creatorHostSystemIsKnown' => $entry['creatorHostSystemIsKnown'],
                 'creatorHostSystemIssues' => $entry['creatorHostSystemIssues'],
+                'externalFileAttributes' => $entry['externalFileAttributes'],
+                'externalFileAttributesHex' => $entry['externalFileAttributesHex'],
+                'hasExternalFileAttributes' => $entry['hasExternalFileAttributes'],
+                'dosAttributes' => $entry['dosAttributes'],
+                'dosAttributesHex' => $entry['dosAttributesHex'],
+                'dosAttributeNames' => $entry['dosAttributeNames'],
+                'hasDosAttributes' => $entry['hasDosAttributes'],
+                'hasDosReadOnlyAttribute' => $entry['hasDosReadOnlyAttribute'],
+                'hasDosHiddenAttribute' => $entry['hasDosHiddenAttribute'],
+                'hasDosSystemAttribute' => $entry['hasDosSystemAttribute'],
+                'hasDosVolumeLabelAttribute' => $entry['hasDosVolumeLabelAttribute'],
+                'hasDosDirectoryAttribute' => $entry['hasDosDirectoryAttribute'],
+                'hasDosArchiveAttribute' => $entry['hasDosArchiveAttribute'],
+                'internalFileAttributes' => $entry['internalFileAttributes'],
+                'internalFileAttributesHex' => $entry['internalFileAttributesHex'],
+                'internalAttributeNames' => $entry['internalAttributeNames'],
+                'hasInternalFileAttributes' => $entry['hasInternalFileAttributes'],
+                'hasTextInternalAttribute' => $entry['hasTextInternalAttribute'],
+                'unknownInternalAttributeBits' => $entry['unknownInternalAttributeBits'],
+                'unknownInternalAttributeBitsHex' => $entry['unknownInternalAttributeBitsHex'],
+                'hasUnknownInternalAttributeBits' => $entry['hasUnknownInternalAttributeBits'],
                 'directoryRoot' => $entry['directoryRoot'],
                 'entryNameBytes' => $entry['entryNameBytes'],
                 'entryNameLengthBucket' => $entry['entryNameLengthBucket'],
@@ -1637,6 +1740,115 @@ return [
         $t->same($manifest, $strict['packageManifest']);
         $t->same($manifest, $raw['packageManifest']);
         $t->same($manifest, $raw['strictImport']['packageManifest']);
+    },
+
+    'preflights zip package manifest file attribute rollups for package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>attribute manifest</w:p></w:body></w:document>';
+        $hiddenBytes = "hidden media bytes\n";
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 8,
+                'externalAttributes' => 0x81a40021,
+                'internalAttributes' => 0x0001,
+            ],
+            [
+                'name' => 'word/media/hidden.bin',
+                'data' => $hiddenBytes,
+                'method' => 0,
+                'externalAttributes' => 0x00000022,
+                'internalAttributes' => 0x8002,
+            ],
+            [
+                'name' => 'word/media/',
+                'data' => '',
+                'method' => 0,
+                'externalAttributes' => 0x41ed0010,
+            ],
+        ]);
+
+        $package = ZipPackage::fromString($zip);
+        $manifest = $package->packageManifestPreflight();
+        $strict = $package->strictImportPreflight(4096, 100.0, 4096);
+        $raw = ZipPackage::rawStrictImportPreflight($zip, 4096, 100.0, 4096);
+        $entriesByName = array_column($manifest['entries'], null, 'name');
+        $summariesByHex = static function (array $summaries, string $field): array {
+            $indexed = [];
+            foreach ($summaries as $summary) {
+                $indexed[(string) $summary[$field]] = $summary;
+            }
+
+            return $indexed;
+        };
+        $externalSummaries = $summariesByHex($manifest['externalFileAttributeSummaries'], 'externalFileAttributesHex');
+        $dosSummaries = $summariesByHex($manifest['dosAttributeSummaries'], 'dosAttributesHex');
+        $internalSummaries = $summariesByHex($manifest['internalFileAttributeSummaries'], 'internalFileAttributesHex');
+
+        $t->same(3, $manifest['externalFileAttributeEntryCount']);
+        $t->same(true, $manifest['hasExternalFileAttributes']);
+        $t->same(3, $manifest['externalFileAttributeSummaryCount']);
+        $t->same([0x00000022, 0x41ed0010, 0x81a40021], $manifest['externalFileAttributeValues']);
+        $t->same(['00000022', '41ed0010', '81a40021'], $manifest['externalFileAttributeHexes']);
+        $t->same(['word/document.xml'], $externalSummaries['81a40021']['entryNames']);
+        $t->same(['read-only', 'archive'], $externalSummaries['81a40021']['dosAttributeNames']);
+        $t->same(['word/media/hidden.bin'], $externalSummaries['00000022']['entryNames']);
+        $t->same(['hidden', 'archive'], $externalSummaries['00000022']['dosAttributeNames']);
+        $t->same(['word/media/'], $externalSummaries['41ed0010']['entryNames']);
+        $t->same(['directory'], $externalSummaries['41ed0010']['dosAttributeNames']);
+
+        $t->same(3, $manifest['dosAttributeEntryCount']);
+        $t->same(1, $manifest['dosReadOnlyAttributeEntryCount']);
+        $t->same(1, $manifest['dosHiddenAttributeEntryCount']);
+        $t->same(0, $manifest['dosSystemAttributeEntryCount']);
+        $t->same(0, $manifest['dosVolumeLabelAttributeEntryCount']);
+        $t->same(1, $manifest['dosDirectoryAttributeEntryCount']);
+        $t->same(2, $manifest['dosArchiveAttributeEntryCount']);
+        $t->same(1, $manifest['dosHiddenSystemOrVolumeLabelEntryCount']);
+        $t->same(true, $manifest['hasDosHiddenSystemOrVolumeLabelEntries']);
+        $t->same(3, $manifest['dosAttributeSummaryCount']);
+        $t->same([0x10, 0x21, 0x22], $manifest['dosAttributeValues']);
+        $t->same(['10', '21', '22'], $manifest['dosAttributeHexes']);
+        $t->same(['word/media/'], $dosSummaries['10']['entryNames']);
+        $t->same(['word/document.xml'], $dosSummaries['21']['entryNames']);
+        $t->same(['word/media/hidden.bin'], $dosSummaries['22']['entryNames']);
+        $t->same('word/media/hidden.bin', $manifest['dosHiddenSystemOrVolumeLabelEntries'][0]['name']);
+        $t->same(['dos-hidden-attribute'], $manifest['dosHiddenSystemOrVolumeLabelEntries'][0]['issues']);
+
+        $t->same(2, $manifest['internalAttributeEntryCount']);
+        $t->same(1, $manifest['textInternalAttributeEntryCount']);
+        $t->same(1, $manifest['unknownInternalAttributeEntryCount']);
+        $t->same(true, $manifest['hasInternalFileAttributes']);
+        $t->same(true, $manifest['hasUnknownInternalAttributeBits']);
+        $t->same(3, $manifest['internalFileAttributeSummaryCount']);
+        $t->same([0x0000, 0x0001, 0x8002], $manifest['internalFileAttributeValues']);
+        $t->same(['0000', '0001', '8002'], $manifest['internalFileAttributeHexes']);
+        $t->same(['word/media/'], $internalSummaries['0000']['entryNames']);
+        $t->same(['word/document.xml'], $internalSummaries['0001']['entryNames']);
+        $t->same(['apparently-text'], $internalSummaries['0001']['internalAttributeNames']);
+        $t->same(['word/media/hidden.bin'], $internalSummaries['8002']['entryNames']);
+        $t->same(['unknown-0x8002'], $internalSummaries['8002']['internalAttributeNames']);
+        $t->same(['word/document.xml', 'word/media/hidden.bin'], array_column($manifest['internalAttributeEntries'], 'name'));
+        $t->same(['word/document.xml'], array_column($manifest['textInternalAttributeEntries'], 'name'));
+        $t->same(['word/media/hidden.bin'], array_column($manifest['unknownInternalAttributeEntries'], 'name'));
+
+        $t->same(0x81a40021, $entriesByName['word/document.xml']['externalFileAttributes']);
+        $t->same('81a40021', $entriesByName['word/document.xml']['externalFileAttributesHex']);
+        $t->same(['read-only', 'archive'], $entriesByName['word/document.xml']['dosAttributeNames']);
+        $t->same(0x0001, $entriesByName['word/document.xml']['internalFileAttributes']);
+        $t->same(['apparently-text'], $entriesByName['word/document.xml']['internalAttributeNames']);
+        $t->same(0x8002, $entriesByName['word/media/hidden.bin']['internalFileAttributes']);
+        $t->same('8002', $entriesByName['word/media/hidden.bin']['unknownInternalAttributeBitsHex']);
+        $t->same(['unknown-0x8002'], $entriesByName['word/media/hidden.bin']['internalAttributeNames']);
+
+        $t->same(false, $strict['isValid']);
+        $t->contains('hidden-system-or-volume-label-entries', implode(',', $strict['diagnostics']));
+        $t->contains('internal-file-attributes', implode(',', $strict['diagnostics']));
+        $t->same($manifest, $strict['packageManifest']);
+        $t->same($manifest, $raw['packageManifest']);
+        $t->same($manifest, $raw['strictImport']['packageManifest']);
+        $t->same($documentXml, $package->read('/word/document.xml'));
+        $t->same($hiddenBytes, $package->read('/word/media/hidden.bin'));
     },
 
     'preflights zip package manifest local fixed fields for package handoff' => static function (TestRunner $t) use ($buildZipPackage, $crc32): void {
@@ -3013,6 +3225,27 @@ return [
                 'creatorVersionDelta' => 0,
                 'creatorHostSystemIsKnown' => true,
                 'creatorHostSystemIssues' => [],
+                'externalFileAttributes' => 0,
+                'externalFileAttributesHex' => '00000000',
+                'hasExternalFileAttributes' => false,
+                'dosAttributes' => 0,
+                'dosAttributesHex' => '00',
+                'dosAttributeNames' => [],
+                'hasDosAttributes' => false,
+                'hasDosReadOnlyAttribute' => false,
+                'hasDosHiddenAttribute' => false,
+                'hasDosSystemAttribute' => false,
+                'hasDosVolumeLabelAttribute' => false,
+                'hasDosDirectoryAttribute' => false,
+                'hasDosArchiveAttribute' => false,
+                'internalFileAttributes' => 0,
+                'internalFileAttributesHex' => '0000',
+                'internalAttributeNames' => [],
+                'hasInternalFileAttributes' => false,
+                'hasTextInternalAttribute' => false,
+                'unknownInternalAttributeBits' => 0,
+                'unknownInternalAttributeBitsHex' => '0000',
+                'hasUnknownInternalAttributeBits' => false,
                 'directoryRoot' => 'word/',
                 'entryNameBytes' => strlen('word/document.xml'),
                 'entryNameLengthBucket' => '16-to-63-bytes',
@@ -3094,6 +3327,27 @@ return [
                 'creatorVersionDelta' => 0,
                 'creatorHostSystemIsKnown' => true,
                 'creatorHostSystemIssues' => [],
+                'externalFileAttributes' => 0,
+                'externalFileAttributesHex' => '00000000',
+                'hasExternalFileAttributes' => false,
+                'dosAttributes' => 0,
+                'dosAttributesHex' => '00',
+                'dosAttributeNames' => [],
+                'hasDosAttributes' => false,
+                'hasDosReadOnlyAttribute' => false,
+                'hasDosHiddenAttribute' => false,
+                'hasDosSystemAttribute' => false,
+                'hasDosVolumeLabelAttribute' => false,
+                'hasDosDirectoryAttribute' => false,
+                'hasDosArchiveAttribute' => false,
+                'internalFileAttributes' => 0,
+                'internalFileAttributesHex' => '0000',
+                'internalAttributeNames' => [],
+                'hasInternalFileAttributes' => false,
+                'hasTextInternalAttribute' => false,
+                'unknownInternalAttributeBits' => 0,
+                'unknownInternalAttributeBitsHex' => '0000',
+                'hasUnknownInternalAttributeBits' => false,
                 'directoryRoot' => 'word/',
                 'entryNameBytes' => strlen('word/comments.xml'),
                 'entryNameLengthBucket' => '16-to-63-bytes',
@@ -3418,6 +3672,38 @@ return [
             'creatorVersionComparisonCounts' => $expectedCreatorVersionComparisonCounts,
             'unknownCreatorHostSystemEntries' => [],
             'creatorVersionBelowNeededEntries' => [],
+            'externalFileAttributeEntryCount' => $manifest['externalFileAttributeEntryCount'],
+            'hasExternalFileAttributes' => $manifest['hasExternalFileAttributes'],
+            'externalFileAttributeSummaryCount' => $manifest['externalFileAttributeSummaryCount'],
+            'externalFileAttributeValues' => $manifest['externalFileAttributeValues'],
+            'externalFileAttributeHexes' => $manifest['externalFileAttributeHexes'],
+            'externalFileAttributeSummaries' => $manifest['externalFileAttributeSummaries'],
+            'dosAttributeEntryCount' => $manifest['dosAttributeEntryCount'],
+            'dosReadOnlyAttributeEntryCount' => $manifest['dosReadOnlyAttributeEntryCount'],
+            'dosHiddenAttributeEntryCount' => $manifest['dosHiddenAttributeEntryCount'],
+            'dosSystemAttributeEntryCount' => $manifest['dosSystemAttributeEntryCount'],
+            'dosVolumeLabelAttributeEntryCount' => $manifest['dosVolumeLabelAttributeEntryCount'],
+            'dosDirectoryAttributeEntryCount' => $manifest['dosDirectoryAttributeEntryCount'],
+            'dosArchiveAttributeEntryCount' => $manifest['dosArchiveAttributeEntryCount'],
+            'dosHiddenSystemOrVolumeLabelEntryCount' => $manifest['dosHiddenSystemOrVolumeLabelEntryCount'],
+            'hasDosHiddenSystemOrVolumeLabelEntries' => $manifest['hasDosHiddenSystemOrVolumeLabelEntries'],
+            'dosAttributeSummaryCount' => $manifest['dosAttributeSummaryCount'],
+            'dosAttributeValues' => $manifest['dosAttributeValues'],
+            'dosAttributeHexes' => $manifest['dosAttributeHexes'],
+            'dosAttributeSummaries' => $manifest['dosAttributeSummaries'],
+            'dosHiddenSystemOrVolumeLabelEntries' => $manifest['dosHiddenSystemOrVolumeLabelEntries'],
+            'internalAttributeEntryCount' => $manifest['internalAttributeEntryCount'],
+            'textInternalAttributeEntryCount' => $manifest['textInternalAttributeEntryCount'],
+            'unknownInternalAttributeEntryCount' => $manifest['unknownInternalAttributeEntryCount'],
+            'hasInternalFileAttributes' => $manifest['hasInternalFileAttributes'],
+            'hasUnknownInternalAttributeBits' => $manifest['hasUnknownInternalAttributeBits'],
+            'internalFileAttributeSummaryCount' => $manifest['internalFileAttributeSummaryCount'],
+            'internalFileAttributeValues' => $manifest['internalFileAttributeValues'],
+            'internalFileAttributeHexes' => $manifest['internalFileAttributeHexes'],
+            'internalFileAttributeSummaries' => $manifest['internalFileAttributeSummaries'],
+            'internalAttributeEntries' => $manifest['internalAttributeEntries'],
+            'textInternalAttributeEntries' => $manifest['textInternalAttributeEntries'],
+            'unknownInternalAttributeEntries' => $manifest['unknownInternalAttributeEntries'],
             'directoryRootSummaries' => $expectedDirectoryRootSummaries,
             'extensionlessPackagePartCount' => 0,
             'packagePartExtensions' => $expectedPackagePartExtensions,
@@ -3552,6 +3838,27 @@ return [
                 'creatorVersionDelta' => $entry['creatorVersionDelta'],
                 'creatorHostSystemIsKnown' => $entry['creatorHostSystemIsKnown'],
                 'creatorHostSystemIssues' => $entry['creatorHostSystemIssues'],
+                'externalFileAttributes' => $entry['externalFileAttributes'],
+                'externalFileAttributesHex' => $entry['externalFileAttributesHex'],
+                'hasExternalFileAttributes' => $entry['hasExternalFileAttributes'],
+                'dosAttributes' => $entry['dosAttributes'],
+                'dosAttributesHex' => $entry['dosAttributesHex'],
+                'dosAttributeNames' => $entry['dosAttributeNames'],
+                'hasDosAttributes' => $entry['hasDosAttributes'],
+                'hasDosReadOnlyAttribute' => $entry['hasDosReadOnlyAttribute'],
+                'hasDosHiddenAttribute' => $entry['hasDosHiddenAttribute'],
+                'hasDosSystemAttribute' => $entry['hasDosSystemAttribute'],
+                'hasDosVolumeLabelAttribute' => $entry['hasDosVolumeLabelAttribute'],
+                'hasDosDirectoryAttribute' => $entry['hasDosDirectoryAttribute'],
+                'hasDosArchiveAttribute' => $entry['hasDosArchiveAttribute'],
+                'internalFileAttributes' => $entry['internalFileAttributes'],
+                'internalFileAttributesHex' => $entry['internalFileAttributesHex'],
+                'internalAttributeNames' => $entry['internalAttributeNames'],
+                'hasInternalFileAttributes' => $entry['hasInternalFileAttributes'],
+                'hasTextInternalAttribute' => $entry['hasTextInternalAttribute'],
+                'unknownInternalAttributeBits' => $entry['unknownInternalAttributeBits'],
+                'unknownInternalAttributeBitsHex' => $entry['unknownInternalAttributeBitsHex'],
+                'hasUnknownInternalAttributeBits' => $entry['hasUnknownInternalAttributeBits'],
                 'directoryRoot' => $entry['directoryRoot'],
                 'entryNameBytes' => $entry['entryNameBytes'],
                 'entryNameLengthBucket' => $entry['entryNameLengthBucket'],

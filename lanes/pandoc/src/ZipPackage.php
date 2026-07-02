@@ -15045,6 +15045,10 @@ final class ZipPackage
             if (!$creatorVersionMeetsNeeded) {
                 $creatorHostSystemIssues[] = 'creator-version-below-version-needed';
             }
+            $externalFileAttributes = $entry->externalFileAttributes;
+            $dosAttributes = $externalFileAttributes & 0xff;
+            $internalFileAttributes = $entry->internalFileAttributes;
+            $unknownInternalAttributeBits = $entry->unknownInternalAttributeBits();
             $packagePartExtension = self::zipPackagePartExtension($entry->name, $isDirectory);
             $packagePartExtensionKey = $isDirectory
                 ? '(directory)'
@@ -15452,6 +15456,27 @@ final class ZipPackage
                 'creatorVersionDelta' => $creatorVersionDelta,
                 'creatorHostSystemIsKnown' => $creatorHostSystemIsKnown,
                 'creatorHostSystemIssues' => $creatorHostSystemIssues,
+                'externalFileAttributes' => $externalFileAttributes,
+                'externalFileAttributesHex' => sprintf('%08x', $externalFileAttributes),
+                'hasExternalFileAttributes' => $externalFileAttributes !== 0,
+                'dosAttributes' => $dosAttributes,
+                'dosAttributesHex' => sprintf('%02x', $dosAttributes),
+                'dosAttributeNames' => $entry->dosAttributeNames(),
+                'hasDosAttributes' => $dosAttributes !== 0,
+                'hasDosReadOnlyAttribute' => $entry->hasDosReadOnlyAttribute(),
+                'hasDosHiddenAttribute' => $entry->hasDosHiddenAttribute(),
+                'hasDosSystemAttribute' => $entry->hasDosSystemAttribute(),
+                'hasDosVolumeLabelAttribute' => $entry->hasDosVolumeLabelAttribute(),
+                'hasDosDirectoryAttribute' => $entry->hasDosDirectoryAttribute(),
+                'hasDosArchiveAttribute' => $entry->hasDosArchiveAttribute(),
+                'internalFileAttributes' => $internalFileAttributes,
+                'internalFileAttributesHex' => sprintf('%04x', $internalFileAttributes),
+                'internalAttributeNames' => $entry->internalAttributeNames(),
+                'hasInternalFileAttributes' => $internalFileAttributes !== 0,
+                'hasTextInternalAttribute' => $entry->hasTextInternalAttribute(),
+                'unknownInternalAttributeBits' => $unknownInternalAttributeBits,
+                'unknownInternalAttributeBitsHex' => sprintf('%04x', $unknownInternalAttributeBits),
+                'hasUnknownInternalAttributeBits' => $unknownInternalAttributeBits !== 0,
                 'directoryRoot' => self::entryHandoffDirectoryRoot($entry->name),
                 'entryNameBytes' => $entryNameBytes,
                 'entryNameLengthBucket' => $entryNameLengthBucket['nameLengthBucket'],
@@ -15606,6 +15631,27 @@ final class ZipPackage
                 'creatorVersionDelta' => $summary['creatorVersionDelta'],
                 'creatorHostSystemIsKnown' => $summary['creatorHostSystemIsKnown'],
                 'creatorHostSystemIssues' => $summary['creatorHostSystemIssues'],
+                'externalFileAttributes' => $summary['externalFileAttributes'],
+                'externalFileAttributesHex' => $summary['externalFileAttributesHex'],
+                'hasExternalFileAttributes' => $summary['hasExternalFileAttributes'],
+                'dosAttributes' => $summary['dosAttributes'],
+                'dosAttributesHex' => $summary['dosAttributesHex'],
+                'dosAttributeNames' => $summary['dosAttributeNames'],
+                'hasDosAttributes' => $summary['hasDosAttributes'],
+                'hasDosReadOnlyAttribute' => $summary['hasDosReadOnlyAttribute'],
+                'hasDosHiddenAttribute' => $summary['hasDosHiddenAttribute'],
+                'hasDosSystemAttribute' => $summary['hasDosSystemAttribute'],
+                'hasDosVolumeLabelAttribute' => $summary['hasDosVolumeLabelAttribute'],
+                'hasDosDirectoryAttribute' => $summary['hasDosDirectoryAttribute'],
+                'hasDosArchiveAttribute' => $summary['hasDosArchiveAttribute'],
+                'internalFileAttributes' => $summary['internalFileAttributes'],
+                'internalFileAttributesHex' => $summary['internalFileAttributesHex'],
+                'internalAttributeNames' => $summary['internalAttributeNames'],
+                'hasInternalFileAttributes' => $summary['hasInternalFileAttributes'],
+                'hasTextInternalAttribute' => $summary['hasTextInternalAttribute'],
+                'unknownInternalAttributeBits' => $summary['unknownInternalAttributeBits'],
+                'unknownInternalAttributeBitsHex' => $summary['unknownInternalAttributeBitsHex'],
+                'hasUnknownInternalAttributeBits' => $summary['hasUnknownInternalAttributeBits'],
                 'directoryRoot' => $summary['directoryRoot'],
                 'entryNameBytes' => $summary['entryNameBytes'],
                 'entryNameLengthBucket' => $summary['entryNameLengthBucket'],
@@ -15819,6 +15865,89 @@ final class ZipPackage
             static fn (array $summary): string => (string) $summary['nameLengthBucket'],
             $nameLengthBucketSummaries
         );
+        $externalFileAttributeSummaries = self::packageManifestExternalFileAttributeSummaries($entries);
+        $externalFileAttributeValues = array_map(
+            static fn (array $summary): int => (int) $summary['externalFileAttributes'],
+            $externalFileAttributeSummaries
+        );
+        $externalFileAttributeHexes = array_map(
+            static fn (array $summary): string => (string) $summary['externalFileAttributesHex'],
+            $externalFileAttributeSummaries
+        );
+        $externalFileAttributeEntryCount = array_sum(array_map(
+            static fn (array $summary): int => $summary['hasExternalFileAttributes']
+                ? (int) $summary['entryCount']
+                : 0,
+            $externalFileAttributeSummaries
+        ));
+        $dosAttributeSummaries = self::packageManifestDosAttributeSummaries($entries);
+        $dosAttributeValues = array_map(
+            static fn (array $summary): int => (int) $summary['dosAttributes'],
+            $dosAttributeSummaries
+        );
+        $dosAttributeHexes = array_map(
+            static fn (array $summary): string => (string) $summary['dosAttributesHex'],
+            $dosAttributeSummaries
+        );
+        $dosAttributeEntryCount = array_sum(array_map(
+            static fn (array $summary): int => $summary['hasDosAttributes'] ? (int) $summary['entryCount'] : 0,
+            $dosAttributeSummaries
+        ));
+        $dosReadOnlyAttributeEntryCount = array_sum(array_map(
+            static fn (array $summary): int => $summary['hasDosReadOnlyAttribute'] ? (int) $summary['entryCount'] : 0,
+            $dosAttributeSummaries
+        ));
+        $dosHiddenAttributeEntryCount = array_sum(array_map(
+            static fn (array $summary): int => $summary['hasDosHiddenAttribute'] ? (int) $summary['entryCount'] : 0,
+            $dosAttributeSummaries
+        ));
+        $dosSystemAttributeEntryCount = array_sum(array_map(
+            static fn (array $summary): int => $summary['hasDosSystemAttribute'] ? (int) $summary['entryCount'] : 0,
+            $dosAttributeSummaries
+        ));
+        $dosVolumeLabelAttributeEntryCount = array_sum(array_map(
+            static fn (array $summary): int => $summary['hasDosVolumeLabelAttribute'] ? (int) $summary['entryCount'] : 0,
+            $dosAttributeSummaries
+        ));
+        $dosDirectoryAttributeEntryCount = array_sum(array_map(
+            static fn (array $summary): int => $summary['hasDosDirectoryAttribute'] ? (int) $summary['entryCount'] : 0,
+            $dosAttributeSummaries
+        ));
+        $dosArchiveAttributeEntryCount = array_sum(array_map(
+            static fn (array $summary): int => $summary['hasDosArchiveAttribute'] ? (int) $summary['entryCount'] : 0,
+            $dosAttributeSummaries
+        ));
+        $dosHiddenSystemOrVolumeLabelEntries = self::packageManifestDosHiddenSystemOrVolumeLabelEntries($entries);
+        $internalFileAttributeSummaries = self::packageManifestInternalFileAttributeSummaries($entries);
+        $internalFileAttributeValues = array_map(
+            static fn (array $summary): int => (int) $summary['internalFileAttributes'],
+            $internalFileAttributeSummaries
+        );
+        $internalFileAttributeHexes = array_map(
+            static fn (array $summary): string => (string) $summary['internalFileAttributesHex'],
+            $internalFileAttributeSummaries
+        );
+        $internalAttributeEntryCount = array_sum(array_map(
+            static fn (array $summary): int => $summary['hasInternalFileAttributes']
+                ? (int) $summary['entryCount']
+                : 0,
+            $internalFileAttributeSummaries
+        ));
+        $textInternalAttributeEntryCount = array_sum(array_map(
+            static fn (array $summary): int => $summary['hasTextInternalAttribute']
+                ? (int) $summary['entryCount']
+                : 0,
+            $internalFileAttributeSummaries
+        ));
+        $unknownInternalAttributeEntryCount = array_sum(array_map(
+            static fn (array $summary): int => $summary['hasUnknownInternalAttributeBits']
+                ? (int) $summary['entryCount']
+                : 0,
+            $internalFileAttributeSummaries
+        ));
+        $internalAttributeEntries = self::packageManifestInternalAttributeEntries($entries, 'hasInternalFileAttributes');
+        $textInternalAttributeEntries = self::packageManifestInternalAttributeEntries($entries, 'hasTextInternalAttribute');
+        $unknownInternalAttributeEntries = self::packageManifestInternalAttributeEntries($entries, 'hasUnknownInternalAttributeBits');
         $expansionRatio = self::expansionRatio($uncompressedBytes, $compressedBytes);
         $manifestPayload = [
             'manifestVersion' => 'zip-package-manifest-v1',
@@ -15945,6 +16074,38 @@ final class ZipPackage
             'creatorVersionComparisonCounts' => $creatorVersionComparisonCounts,
             'unknownCreatorHostSystemEntries' => $unknownCreatorHostSystemEntries,
             'creatorVersionBelowNeededEntries' => $creatorVersionBelowNeededEntries,
+            'externalFileAttributeEntryCount' => $externalFileAttributeEntryCount,
+            'hasExternalFileAttributes' => $externalFileAttributeEntryCount > 0,
+            'externalFileAttributeSummaryCount' => count($externalFileAttributeSummaries),
+            'externalFileAttributeValues' => $externalFileAttributeValues,
+            'externalFileAttributeHexes' => $externalFileAttributeHexes,
+            'externalFileAttributeSummaries' => $externalFileAttributeSummaries,
+            'dosAttributeEntryCount' => $dosAttributeEntryCount,
+            'dosReadOnlyAttributeEntryCount' => $dosReadOnlyAttributeEntryCount,
+            'dosHiddenAttributeEntryCount' => $dosHiddenAttributeEntryCount,
+            'dosSystemAttributeEntryCount' => $dosSystemAttributeEntryCount,
+            'dosVolumeLabelAttributeEntryCount' => $dosVolumeLabelAttributeEntryCount,
+            'dosDirectoryAttributeEntryCount' => $dosDirectoryAttributeEntryCount,
+            'dosArchiveAttributeEntryCount' => $dosArchiveAttributeEntryCount,
+            'dosHiddenSystemOrVolumeLabelEntryCount' => count($dosHiddenSystemOrVolumeLabelEntries),
+            'hasDosHiddenSystemOrVolumeLabelEntries' => $dosHiddenSystemOrVolumeLabelEntries !== [],
+            'dosAttributeSummaryCount' => count($dosAttributeSummaries),
+            'dosAttributeValues' => $dosAttributeValues,
+            'dosAttributeHexes' => $dosAttributeHexes,
+            'dosAttributeSummaries' => $dosAttributeSummaries,
+            'dosHiddenSystemOrVolumeLabelEntries' => $dosHiddenSystemOrVolumeLabelEntries,
+            'internalAttributeEntryCount' => $internalAttributeEntryCount,
+            'textInternalAttributeEntryCount' => $textInternalAttributeEntryCount,
+            'unknownInternalAttributeEntryCount' => $unknownInternalAttributeEntryCount,
+            'hasInternalFileAttributes' => $internalAttributeEntryCount > 0,
+            'hasUnknownInternalAttributeBits' => $unknownInternalAttributeEntryCount > 0,
+            'internalFileAttributeSummaryCount' => count($internalFileAttributeSummaries),
+            'internalFileAttributeValues' => $internalFileAttributeValues,
+            'internalFileAttributeHexes' => $internalFileAttributeHexes,
+            'internalFileAttributeSummaries' => $internalFileAttributeSummaries,
+            'internalAttributeEntries' => $internalAttributeEntries,
+            'textInternalAttributeEntries' => $textInternalAttributeEntries,
+            'unknownInternalAttributeEntries' => $unknownInternalAttributeEntries,
             'directoryRootSummaries' => $directoryRootSummaries,
             'extensionlessPackagePartCount' => $extensionlessPackagePartCount,
             'packagePartExtensions' => $packagePartExtensions,
@@ -16152,6 +16313,38 @@ final class ZipPackage
             'creatorHostSystemSummaries' => $creatorHostSystemSummaries,
             'unknownCreatorHostSystemEntries' => $unknownCreatorHostSystemEntries,
             'creatorVersionBelowNeededEntries' => $creatorVersionBelowNeededEntries,
+            'externalFileAttributeEntryCount' => $externalFileAttributeEntryCount,
+            'hasExternalFileAttributes' => $externalFileAttributeEntryCount > 0,
+            'externalFileAttributeSummaryCount' => count($externalFileAttributeSummaries),
+            'externalFileAttributeValues' => $externalFileAttributeValues,
+            'externalFileAttributeHexes' => $externalFileAttributeHexes,
+            'externalFileAttributeSummaries' => $externalFileAttributeSummaries,
+            'dosAttributeEntryCount' => $dosAttributeEntryCount,
+            'dosReadOnlyAttributeEntryCount' => $dosReadOnlyAttributeEntryCount,
+            'dosHiddenAttributeEntryCount' => $dosHiddenAttributeEntryCount,
+            'dosSystemAttributeEntryCount' => $dosSystemAttributeEntryCount,
+            'dosVolumeLabelAttributeEntryCount' => $dosVolumeLabelAttributeEntryCount,
+            'dosDirectoryAttributeEntryCount' => $dosDirectoryAttributeEntryCount,
+            'dosArchiveAttributeEntryCount' => $dosArchiveAttributeEntryCount,
+            'dosHiddenSystemOrVolumeLabelEntryCount' => count($dosHiddenSystemOrVolumeLabelEntries),
+            'hasDosHiddenSystemOrVolumeLabelEntries' => $dosHiddenSystemOrVolumeLabelEntries !== [],
+            'dosAttributeSummaryCount' => count($dosAttributeSummaries),
+            'dosAttributeValues' => $dosAttributeValues,
+            'dosAttributeHexes' => $dosAttributeHexes,
+            'dosAttributeSummaries' => $dosAttributeSummaries,
+            'dosHiddenSystemOrVolumeLabelEntries' => $dosHiddenSystemOrVolumeLabelEntries,
+            'internalAttributeEntryCount' => $internalAttributeEntryCount,
+            'textInternalAttributeEntryCount' => $textInternalAttributeEntryCount,
+            'unknownInternalAttributeEntryCount' => $unknownInternalAttributeEntryCount,
+            'hasInternalFileAttributes' => $internalAttributeEntryCount > 0,
+            'hasUnknownInternalAttributeBits' => $unknownInternalAttributeEntryCount > 0,
+            'internalFileAttributeSummaryCount' => count($internalFileAttributeSummaries),
+            'internalFileAttributeValues' => $internalFileAttributeValues,
+            'internalFileAttributeHexes' => $internalFileAttributeHexes,
+            'internalFileAttributeSummaries' => $internalFileAttributeSummaries,
+            'internalAttributeEntries' => $internalAttributeEntries,
+            'textInternalAttributeEntries' => $textInternalAttributeEntries,
+            'unknownInternalAttributeEntries' => $unknownInternalAttributeEntries,
             'directoryRootCount' => count($directoryRootSummaries),
             'directoryRoots' => $directoryRoots,
             'directoryRootSummaries' => $directoryRootSummaries,
@@ -16669,6 +16862,327 @@ final class ZipPackage
         }
 
         return $summaries;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function packageManifestExternalFileAttributeSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $attributes = is_int($entry['externalFileAttributes'] ?? null)
+                ? (int) $entry['externalFileAttributes']
+                : 0;
+            $dosAttributes = $attributes & 0xff;
+            $key = sprintf('%08x', $attributes);
+            if (!isset($summaries[$key])) {
+                $summaries[$key] = [
+                    'externalFileAttributes' => $attributes,
+                    'externalFileAttributesHex' => $key,
+                    'hasExternalFileAttributes' => $attributes !== 0,
+                    'dosAttributes' => $dosAttributes,
+                    'dosAttributesHex' => sprintf('%02x', $dosAttributes),
+                    'dosAttributeNames' => array_values(array_filter(
+                        $entry['dosAttributeNames'] ?? [],
+                        'is_string'
+                    )),
+                    'hasDosAttributes' => $dosAttributes !== 0,
+                    'hasDosReadOnlyAttribute' => ($entry['hasDosReadOnlyAttribute'] ?? false) === true,
+                    'hasDosHiddenAttribute' => ($entry['hasDosHiddenAttribute'] ?? false) === true,
+                    'hasDosSystemAttribute' => ($entry['hasDosSystemAttribute'] ?? false) === true,
+                    'hasDosVolumeLabelAttribute' => ($entry['hasDosVolumeLabelAttribute'] ?? false) === true,
+                    'hasDosDirectoryAttribute' => ($entry['hasDosDirectoryAttribute'] ?? false) === true,
+                    'hasDosArchiveAttribute' => ($entry['hasDosArchiveAttribute'] ?? false) === true,
+                ] + self::emptyPackageManifestAttributeSummaryRollup();
+            }
+
+            self::addPackageManifestAttributeSummaryEntry($summaries[$key], $entry, $name);
+        }
+
+        ksort($summaries, SORT_STRING);
+        self::sortPackageManifestAttributeSummaryLists($summaries);
+
+        return array_values($summaries);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function packageManifestDosAttributeSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $dosAttributes = is_int($entry['dosAttributes'] ?? null) ? (int) $entry['dosAttributes'] : 0;
+            $key = sprintf('%02x', $dosAttributes);
+            if (!isset($summaries[$key])) {
+                $summaries[$key] = [
+                    'dosAttributes' => $dosAttributes,
+                    'dosAttributesHex' => $key,
+                    'dosAttributeNames' => array_values(array_filter(
+                        $entry['dosAttributeNames'] ?? [],
+                        'is_string'
+                    )),
+                    'hasDosAttributes' => $dosAttributes !== 0,
+                    'hasDosReadOnlyAttribute' => ($entry['hasDosReadOnlyAttribute'] ?? false) === true,
+                    'hasDosHiddenAttribute' => ($entry['hasDosHiddenAttribute'] ?? false) === true,
+                    'hasDosSystemAttribute' => ($entry['hasDosSystemAttribute'] ?? false) === true,
+                    'hasDosVolumeLabelAttribute' => ($entry['hasDosVolumeLabelAttribute'] ?? false) === true,
+                    'hasDosDirectoryAttribute' => ($entry['hasDosDirectoryAttribute'] ?? false) === true,
+                    'hasDosArchiveAttribute' => ($entry['hasDosArchiveAttribute'] ?? false) === true,
+                ] + self::emptyPackageManifestAttributeSummaryRollup();
+            }
+
+            self::addPackageManifestAttributeSummaryEntry($summaries[$key], $entry, $name);
+        }
+
+        ksort($summaries, SORT_STRING);
+        self::sortPackageManifestAttributeSummaryLists($summaries);
+
+        return array_values($summaries);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function packageManifestInternalFileAttributeSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $attributes = is_int($entry['internalFileAttributes'] ?? null)
+                ? (int) $entry['internalFileAttributes']
+                : 0;
+            $unknownBits = is_int($entry['unknownInternalAttributeBits'] ?? null)
+                ? (int) $entry['unknownInternalAttributeBits']
+                : ($attributes & ~self::INTERNAL_TEXT_ATTRIBUTE);
+            $key = sprintf('%04x', $attributes);
+            if (!isset($summaries[$key])) {
+                $summaries[$key] = [
+                    'internalFileAttributes' => $attributes,
+                    'internalFileAttributesHex' => $key,
+                    'internalAttributeNames' => array_values(array_filter(
+                        $entry['internalAttributeNames'] ?? [],
+                        'is_string'
+                    )),
+                    'hasInternalFileAttributes' => $attributes !== 0,
+                    'hasTextInternalAttribute' => ($entry['hasTextInternalAttribute'] ?? false) === true,
+                    'unknownInternalAttributeBits' => $unknownBits,
+                    'unknownInternalAttributeBitsHex' => sprintf('%04x', $unknownBits),
+                    'hasUnknownInternalAttributeBits' => $unknownBits !== 0,
+                ] + self::emptyPackageManifestAttributeSummaryRollup();
+            }
+
+            self::addPackageManifestAttributeSummaryEntry($summaries[$key], $entry, $name);
+        }
+
+        ksort($summaries, SORT_STRING);
+        self::sortPackageManifestAttributeSummaryLists($summaries);
+
+        return array_values($summaries);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function packageManifestDosHiddenSystemOrVolumeLabelEntries(array $entries): array
+    {
+        $reviewEntries = [];
+        foreach ($entries as $entry) {
+            if (
+                ($entry['hasDosHiddenAttribute'] ?? false) !== true
+                && ($entry['hasDosSystemAttribute'] ?? false) !== true
+                && ($entry['hasDosVolumeLabelAttribute'] ?? false) !== true
+            ) {
+                continue;
+            }
+
+            $issues = [];
+            if (($entry['hasDosHiddenAttribute'] ?? false) === true) {
+                $issues[] = 'dos-hidden-attribute';
+            }
+            if (($entry['hasDosSystemAttribute'] ?? false) === true) {
+                $issues[] = 'dos-system-attribute';
+            }
+            if (($entry['hasDosVolumeLabelAttribute'] ?? false) === true) {
+                $issues[] = 'dos-volume-label-attribute';
+            }
+
+            $reviewEntries[] = [
+                'name' => is_string($entry['name'] ?? null) ? $entry['name'] : '',
+                'isDirectory' => ($entry['isDirectory'] ?? false) === true,
+                'centralDirectoryIndex' => is_int($entry['centralDirectoryIndex'] ?? null)
+                    ? $entry['centralDirectoryIndex']
+                    : null,
+                'externalFileAttributes' => (int) ($entry['externalFileAttributes'] ?? 0),
+                'externalFileAttributesHex' => is_string($entry['externalFileAttributesHex'] ?? null)
+                    ? $entry['externalFileAttributesHex']
+                    : sprintf('%08x', (int) ($entry['externalFileAttributes'] ?? 0)),
+                'dosAttributes' => (int) ($entry['dosAttributes'] ?? 0),
+                'dosAttributesHex' => is_string($entry['dosAttributesHex'] ?? null)
+                    ? $entry['dosAttributesHex']
+                    : sprintf('%02x', (int) ($entry['dosAttributes'] ?? 0)),
+                'dosAttributeNames' => array_values(array_filter($entry['dosAttributeNames'] ?? [], 'is_string')),
+                'hasDosReadOnlyAttribute' => ($entry['hasDosReadOnlyAttribute'] ?? false) === true,
+                'hasDosHiddenAttribute' => ($entry['hasDosHiddenAttribute'] ?? false) === true,
+                'hasDosSystemAttribute' => ($entry['hasDosSystemAttribute'] ?? false) === true,
+                'hasDosVolumeLabelAttribute' => ($entry['hasDosVolumeLabelAttribute'] ?? false) === true,
+                'hasDosDirectoryAttribute' => ($entry['hasDosDirectoryAttribute'] ?? false) === true,
+                'hasDosArchiveAttribute' => ($entry['hasDosArchiveAttribute'] ?? false) === true,
+                'sourceRecordBytes' => (int) ($entry['sourceRecordBytes'] ?? 0),
+                'issues' => $issues,
+            ];
+        }
+
+        return $reviewEntries;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function packageManifestInternalAttributeEntries(array $entries, string $selector): array
+    {
+        $reviewEntries = [];
+        foreach ($entries as $entry) {
+            if (($entry[$selector] ?? false) !== true) {
+                continue;
+            }
+
+            $issues = [];
+            if (($entry['hasTextInternalAttribute'] ?? false) === true) {
+                $issues[] = 'internal-text-attribute';
+            }
+            if (($entry['hasUnknownInternalAttributeBits'] ?? false) === true) {
+                $issues[] = 'unknown-internal-file-attribute-bits';
+            }
+
+            $reviewEntries[] = [
+                'name' => is_string($entry['name'] ?? null) ? $entry['name'] : '',
+                'isDirectory' => ($entry['isDirectory'] ?? false) === true,
+                'centralDirectoryIndex' => is_int($entry['centralDirectoryIndex'] ?? null)
+                    ? $entry['centralDirectoryIndex']
+                    : null,
+                'internalFileAttributes' => (int) ($entry['internalFileAttributes'] ?? 0),
+                'internalFileAttributesHex' => is_string($entry['internalFileAttributesHex'] ?? null)
+                    ? $entry['internalFileAttributesHex']
+                    : sprintf('%04x', (int) ($entry['internalFileAttributes'] ?? 0)),
+                'internalAttributeNames' => array_values(array_filter($entry['internalAttributeNames'] ?? [], 'is_string')),
+                'hasTextInternalAttribute' => ($entry['hasTextInternalAttribute'] ?? false) === true,
+                'unknownInternalAttributeBits' => (int) ($entry['unknownInternalAttributeBits'] ?? 0),
+                'unknownInternalAttributeBitsHex' => is_string($entry['unknownInternalAttributeBitsHex'] ?? null)
+                    ? $entry['unknownInternalAttributeBitsHex']
+                    : sprintf('%04x', (int) ($entry['unknownInternalAttributeBits'] ?? 0)),
+                'hasUnknownInternalAttributeBits' => ($entry['hasUnknownInternalAttributeBits'] ?? false) === true,
+                'sourceRecordBytes' => (int) ($entry['sourceRecordBytes'] ?? 0),
+                'issues' => $issues,
+            ];
+        }
+
+        return $reviewEntries;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function emptyPackageManifestAttributeSummaryRollup(): array
+    {
+        return [
+            'entryCount' => 0,
+            'fileEntryCount' => 0,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => 0,
+            'uncompressedBytes' => 0,
+            'localRecordBytes' => 0,
+            'sourceRecordBytes' => 0,
+            'dataDescriptorEntryCount' => 0,
+            'dataDescriptorBytes' => 0,
+            'directoryRoots' => [],
+            'compressionMethodNames' => [],
+            'madeByHostSystems' => [],
+            'madeByHostSystemNames' => [],
+            'entryNames' => [],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $summary
+     * @param array<string, mixed> $entry
+     */
+    private static function addPackageManifestAttributeSummaryEntry(array &$summary, array $entry, string $name): void
+    {
+        ++$summary['entryCount'];
+        if (($entry['isDirectory'] ?? false) === true) {
+            ++$summary['directoryEntryCount'];
+        } else {
+            ++$summary['fileEntryCount'];
+        }
+
+        $summary['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+        $summary['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+        $summary['localRecordBytes'] += (int) ($entry['localRecordBytes'] ?? 0);
+        $summary['sourceRecordBytes'] += (int) ($entry['sourceRecordBytes'] ?? 0);
+        if (($entry['usesDataDescriptor'] ?? false) === true) {
+            ++$summary['dataDescriptorEntryCount'];
+            $summary['dataDescriptorBytes'] += (int) ($entry['dataDescriptorBytes'] ?? 0);
+        }
+        $summary['entryNames'][] = $name;
+
+        $directoryRoot = is_string($entry['directoryRoot'] ?? null) ? $entry['directoryRoot'] : '';
+        if ($directoryRoot !== '' && !in_array($directoryRoot, $summary['directoryRoots'], true)) {
+            $summary['directoryRoots'][] = $directoryRoot;
+        }
+
+        $compressionMethodName = is_string($entry['compressionMethodName'] ?? null)
+            ? $entry['compressionMethodName']
+            : '';
+        if ($compressionMethodName !== '' && !in_array($compressionMethodName, $summary['compressionMethodNames'], true)) {
+            $summary['compressionMethodNames'][] = $compressionMethodName;
+        }
+
+        $madeByHostSystem = is_int($entry['madeByHostSystem'] ?? null) ? $entry['madeByHostSystem'] : null;
+        if ($madeByHostSystem !== null && !in_array($madeByHostSystem, $summary['madeByHostSystems'], true)) {
+            $summary['madeByHostSystems'][] = $madeByHostSystem;
+        }
+
+        $madeByHostSystemName = is_string($entry['madeByHostSystemName'] ?? null)
+            ? $entry['madeByHostSystemName']
+            : '';
+        if ($madeByHostSystemName !== '' && !in_array($madeByHostSystemName, $summary['madeByHostSystemNames'], true)) {
+            $summary['madeByHostSystemNames'][] = $madeByHostSystemName;
+        }
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $summaries
+     */
+    private static function sortPackageManifestAttributeSummaryLists(array &$summaries): void
+    {
+        foreach ($summaries as &$summary) {
+            sort($summary['directoryRoots'], SORT_STRING);
+            sort($summary['compressionMethodNames'], SORT_STRING);
+            sort($summary['madeByHostSystems'], SORT_NUMERIC);
+            sort($summary['madeByHostSystemNames'], SORT_STRING);
+        }
+        unset($summary);
     }
 
     /**
