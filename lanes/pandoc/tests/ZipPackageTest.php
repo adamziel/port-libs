@@ -2087,6 +2087,9 @@ return [
 
         $package = ZipPackage::fromString($zip);
         $descriptorPreflight = $package->dataDescriptorPreflight();
+        $manifest = $package->packageManifestPreflight();
+        $documentManifest = $manifest['entries'][0];
+        $footnotesManifest = $manifest['entries'][1];
 
         $t->same($documentXml, $package->read('word/document.xml'));
         $t->same($footnotesXml, $package->read('word/footnotes.xml'));
@@ -2121,6 +2124,28 @@ return [
         $t->same(true, $descriptorPreflight['descriptorEntries'][0]['descriptorOffset'] < $descriptorPreflight['descriptorEntries'][1]['descriptorOffset']);
         $t->same($descriptorPreflight['descriptorEntries'][0]['descriptorOffset'] + 4, $descriptorPreflight['descriptorEntries'][0]['valueOffset']);
         $t->same($descriptorPreflight['descriptorEntries'][1]['descriptorOffset'], $descriptorPreflight['descriptorEntries'][1]['valueOffset']);
+        $t->same('ok', $manifest['dataDescriptorReviewStatus']);
+        $t->same([], $manifest['dataDescriptorIssueCodes']);
+        $t->same(0, $manifest['dataDescriptorIssueCount']);
+        $t->same(0, $manifest['dataDescriptorIssueEntryCount']);
+        $t->same(2, $manifest['dataDescriptorEntryCount']);
+        $t->same(1, $manifest['signedDataDescriptorEntryCount']);
+        $t->same(1, $manifest['unsignedDataDescriptorEntryCount']);
+        $t->same(0, $manifest['zip64SizedDataDescriptorEntryCount']);
+        $t->same(2, $manifest['zeroLocalHeaderPlaceholderEntryCount']);
+        $t->same(2, $manifest['dataDescriptorValuesMatchCentralEntryCount']);
+        $t->same(['word/document.xml', 'word/footnotes.xml'], array_column($manifest['dataDescriptorEntries'], 'name'));
+        $t->same([], $manifest['dataDescriptorIssueEntries']);
+        $t->same(true, $documentManifest['sourceByteSpanIncludesDataDescriptor']);
+        $t->same(16, $documentManifest['dataDescriptorBytes']);
+        $t->same($descriptorPreflight['descriptorEntries'][0]['descriptorOffset'], $documentManifest['dataDescriptorOffset']);
+        $t->same($descriptorPreflight['descriptorEntries'][0]['descriptorEnd'], $documentManifest['dataDescriptorEnd']);
+        $t->same(hash('sha256', substr($zip, $documentManifest['dataDescriptorOffset'], 16)), $documentManifest['dataDescriptorSha256']);
+        $t->same(true, $footnotesManifest['sourceByteSpanIncludesDataDescriptor']);
+        $t->same(12, $footnotesManifest['dataDescriptorBytes']);
+        $t->same($descriptorPreflight['descriptorEntries'][1]['descriptorOffset'], $footnotesManifest['dataDescriptorOffset']);
+        $t->same($descriptorPreflight['descriptorEntries'][1]['descriptorEnd'], $footnotesManifest['dataDescriptorEnd']);
+        $t->same(hash('sha256', substr($zip, $footnotesManifest['dataDescriptorOffset'], 12)), $footnotesManifest['dataDescriptorSha256']);
     },
 
     'reads unsigned data descriptors whose crc bytes equal the optional signature marker' => static function (TestRunner $t) use ($buildZipPackage, $crc32): void {
