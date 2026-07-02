@@ -1147,6 +1147,81 @@ XML);
     }
 };
 
+$buildNestedSlideImageRelationshipPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-nested-slide-image-rel-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Nested slide relationship</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:pic>
+      <p:nvPicPr><p:cNvPr id="7" name="Nested Slide Relationship Picture" descr="Nested slide relationship alt"/></p:nvPicPr>
+      <p:blipFill><a:blip r:embed="rIdImage"/></p:blipFill>
+    </p:pic>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->addFromString('ppt/slides/_rels/slide1.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Wrapper>
+    <Relationship Id="rIdImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/nested-slide-rel.png"/>
+  </Wrapper>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/media/nested-slide-rel.png', 'nested-slide-image-bytes');
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildMediaRelativeImagePptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-media-relative-image-');
     if ($path === false) {
@@ -9311,6 +9386,23 @@ return [
         $t->true(!str_contains($native, 'Image'), 'Unknown image relationship IDs should not emit native Image inlines');
         $t->true(!str_contains($native, 'Unknown Relationship Picture'), 'Picture metadata should stay hidden when the embed relationship is unknown');
         $t->true(!str_contains($native, 'ppt/media/unreferenced.png'), 'Unreferenced image media should not become visible for an unknown relationship ID');
+    },
+
+    'ignores nested pptx slide image relationships like upstream' => static function (TestRunner $t) use ($buildNestedSlideImageRelationshipPptxPackage, $nodesOfType): void {
+        $document = (new PptxReader())->read($buildNestedSlideImageRelationshipPptxPackage());
+        $review = $document->attr('pptx');
+        $issue = $review['slides'][0]['imageIssues'][0] ?? [];
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same([], $nodesOfType($document, 'image'));
+        $t->same(1, $review['slides'][0]['imageIssueCount'] ?? null);
+        $t->same('unknown-image-relationship', $issue['issue'] ?? null);
+        $t->same('rIdImage', $issue['relationshipId'] ?? null);
+        $t->same('embed', $issue['relationshipAttribute'] ?? null);
+        $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Nested" , Space , Str "slide" , Space , Str "relationship" ]', $native);
+        $t->true(!str_contains($native, 'Image'), 'Nested slide relationships should not emit native Image inlines');
+        $t->true(!str_contains($native, 'Nested Slide Relationship Picture'), 'Picture metadata should stay hidden when the matching relationship is nested');
+        $t->true(!str_contains($native, 'nested-slide-rel.png'), 'Nested relationship media should not become visible when upstream ignores the relationship element');
     },
 
     'resolves upstream pptx media-relative image targets' => static function (TestRunner $t) use ($buildMediaRelativeImagePptxPackage, $buildRootTargetImagePptxPackage, $nodesOfType): void {
