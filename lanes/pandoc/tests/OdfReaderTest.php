@@ -146,6 +146,21 @@ $buildOdtPackage = static function (
     ], $extraParts));
 };
 
+$addCentralDirectorySignature = static function (
+    ZipPackage $package,
+    string $signatureData = 'odt-central-signature'
+): ZipPackage {
+    $bytes = $package->bytes();
+    $eocdOffset = $package->archivePreflight()['eocdOffset'];
+    $signatureRecord = pack('Vv', 0x05054b50, strlen($signatureData)) . $signatureData;
+
+    return ZipPackage::fromString(
+        substr($bytes, 0, $eocdOffset)
+        . $signatureRecord
+        . substr($bytes, $eocdOffset)
+    );
+};
+
 $buildZipPackageWithCentralDirectoryOrder = static function (array $parts, array $centralOrder): ZipPackage {
     $crc32 = static fn (string $bytes): int => (int) sprintf('%u', crc32($bytes));
     $body = '';
@@ -13167,6 +13182,71 @@ XML;
         $t->same(1, count($result['media']));
         $t->same('Pictures/hero.png', $result['media'][0]['part']);
         $t->same(0, $provenance['undeclaredEntryCount']);
+    },
+    'surfaces ODT ZIP archive and central directory signature provenance in rich package handoff' => static function (
+        TestRunner $t
+    ) use ($addCentralDirectorySignature, $buildOdtPackage): void {
+        $signatureData = 'odt-central-signature';
+        $package = $addCentralDirectorySignature($buildOdtPackage(), $signatureData);
+        $expectedArchive = $package->archivePreflight();
+        $expectedSignature = ZipPackage::centralDirectorySignaturePolicyPreflight($package->bytes());
+        $expectedHash = hash('sha256', $signatureData);
+
+        $result = (new OdfReader())->readPackage($package);
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $documentProvenance = $result['document']->attr('manifest')['packageProvenance'];
+        $archive = $provenance['zipArchive'];
+        $signature = $provenance['zipCentralDirectorySignature'];
+        $identity = $provenance['packageIdentity'];
+        $changedIdentity = (new OdfReader())->readPackage($addCentralDirectorySignature(
+            $buildOdtPackage(),
+            'odt-central-signature-2'
+        ))['importReport']['manifest']['packageProvenance']['packageIdentity'];
+
+        $t->same($provenance, $documentProvenance);
+        $t->same(strlen($package->bytes()), $archive['archiveLength']);
+        $t->same($expectedArchive['eocdOffset'], $archive['eocdOffset']);
+        $t->same($expectedArchive['centralDirectoryOffset'], $archive['centralDirectoryOffset']);
+        $t->same($expectedArchive['centralDirectorySize'], $archive['centralDirectorySize']);
+        $t->same($expectedArchive['centralDirectoryEnd'], $archive['centralDirectoryEnd']);
+        $t->same(false, $archive['hasPackageComment']);
+        $t->same(null, $archive['packageCommentSha256']);
+        $t->same(true, $archive['isSingleDisk']);
+        $t->same(false, $archive['requiresZip64']);
+        $t->same(true, $archive['isArchiveLayoutSupported']);
+        $t->same(true, $archive['hasCentralDirectorySignature']);
+        $t->same($expectedSignature['offset'], $archive['centralDirectorySignatureOffset']);
+        $t->same(strlen($signatureData), $archive['centralDirectorySignatureLength']);
+        $t->same($expectedHash, $archive['centralDirectorySignatureSha256']);
+        $t->same('not-performed-native-bounded-reader', $archive['centralDirectorySignatureVerification']);
+        $t->same(0, $archive['issueCount']);
+        $t->same([], $archive['issueCodes']);
+        $t->same('odf-zip-archive-metadata-only', $archive['byteExposurePolicy']);
+        $t->same(false, $archive['canExposeBytes']);
+
+        $t->same(true, $signature['present']);
+        $t->same($expectedSignature['offset'], $signature['offset']);
+        $t->same($expectedSignature['dataOffset'], $signature['dataOffset']);
+        $t->same($expectedSignature['endOffset'], $signature['endOffset']);
+        $t->same('between-central-directory-and-eocd', $signature['location']);
+        $t->same(strlen($signatureData), $signature['signatureLength']);
+        $t->same($expectedHash, $signature['signatureSha256']);
+        $t->same('not-performed-native-bounded-reader', $signature['cryptographicVerification']);
+        $t->same(false, $signature['isSupportedByBoundedReader']);
+        $t->same(['central-directory-signature-unverified'], $signature['issueCodes']);
+        $t->same('odf-zip-central-directory-signature-metadata-only', $signature['byteExposurePolicy']);
+        $t->same(false, $signature['canExposeBytes']);
+        $t->same(false, array_key_exists('signatureData', $signature));
+        $t->same(false, array_key_exists('signaturePreviewHex', $signature));
+        $t->same(false, str_contains(json_encode($provenance, JSON_THROW_ON_ERROR), $signatureData));
+
+        $t->same($archive, $identity['zipArchive']);
+        $t->same($signature, $identity['zipCentralDirectorySignature']);
+        $t->same(true, $identity['zipCentralDirectorySignaturePresent']);
+        $t->same($expectedHash, $identity['zipCentralDirectorySignatureSha256']);
+        $t->same(true, $provenance['zipCentralDirectorySignaturePresent']);
+        $t->same($expectedHash, $provenance['zipCentralDirectorySignatureSha256']);
+        $t->true($identity['identitySha256'] !== $changedIdentity['identitySha256']);
     },
     'surfaces ODT ZIP general purpose flags in manifest and package provenance' => static function (
         TestRunner $t
