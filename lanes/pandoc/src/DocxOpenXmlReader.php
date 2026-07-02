@@ -282,6 +282,14 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['digitalSignatureReferenceCount'] = $digitalSignatures['referenceCount'];
         $packageProvenance['summary']['digitalSignatureReferenceUriKindCounts'] = $digitalSignatures['referenceUriKindCounts'];
         $packageProvenance['summary']['digitalSignaturePackageReferenceCount'] = $digitalSignatures['packageReferenceCount'];
+        $packageProvenance['summary']['digitalSignaturePackageReferenceTargetPartCount'] =
+            count($digitalSignatures['packageReferenceTargetParts']);
+        $packageProvenance['summary']['digitalSignaturePackageReferenceTargetParts'] =
+            $digitalSignatures['packageReferenceTargetParts'];
+        $packageProvenance['summary']['digitalSignaturePackageReferenceTargetReferenceSuffixCount'] =
+            count($digitalSignatures['packageReferenceTargetReferenceSuffixes']);
+        $packageProvenance['summary']['digitalSignaturePackageReferenceTargetReferenceSuffixes'] =
+            $digitalSignatures['packageReferenceTargetReferenceSuffixes'];
         $packageProvenance['summary']['digitalSignatureSameDocumentReferenceCount'] = $digitalSignatures['sameDocumentReferenceCount'];
         $packageProvenance['summary']['digitalSignatureExternalReferenceCount'] = $digitalSignatures['externalReferenceCount'];
         $packageProvenance['summary']['digitalSignatureRelativeReferenceCount'] = $digitalSignatures['relativeReferenceCount'];
@@ -40355,6 +40363,8 @@ final class DocxOpenXmlReader
 
         $referenceUriKindCounts = [];
         $referenceUris = [];
+        $packageReferenceTargetParts = [];
+        $packageReferenceTargetReferenceSuffixes = [];
         $referenceTransformAlgorithms = [];
         $digestMethodAlgorithms = [];
         $signatureMethodAlgorithms = [];
@@ -40391,6 +40401,15 @@ final class DocxOpenXmlReader
             }
             foreach (($signature['referenceUris'] ?? []) as $uri) {
                 $this->appendUniqueString($referenceUris, is_string($uri) ? $uri : null);
+            }
+            foreach (($signature['packageReferenceTargetParts'] ?? []) as $partName) {
+                $this->appendUniqueString($packageReferenceTargetParts, is_string($partName) ? $partName : null);
+            }
+            foreach (($signature['packageReferenceTargetReferenceSuffixes'] ?? []) as $suffix) {
+                $this->appendUniqueString(
+                    $packageReferenceTargetReferenceSuffixes,
+                    is_string($suffix) ? $suffix : null
+                );
             }
             foreach (($signature['referenceTransformAlgorithms'] ?? []) as $algorithm) {
                 $this->appendUniqueString($referenceTransformAlgorithms, is_string($algorithm) ? $algorithm : null);
@@ -40456,6 +40475,10 @@ final class DocxOpenXmlReader
             'referenceUriKindCounts' => $referenceUriKindCounts,
             'referenceUris' => $referenceUris,
             'packageReferenceCount' => $packageReferenceCount,
+            'packageReferenceTargetPartCount' => count($packageReferenceTargetParts),
+            'packageReferenceTargetParts' => $packageReferenceTargetParts,
+            'packageReferenceTargetReferenceSuffixCount' => count($packageReferenceTargetReferenceSuffixes),
+            'packageReferenceTargetReferenceSuffixes' => $packageReferenceTargetReferenceSuffixes,
             'sameDocumentReferenceCount' => $sameDocumentReferenceCount,
             'externalReferenceCount' => $externalReferenceCount,
             'relativeReferenceCount' => $relativeReferenceCount,
@@ -40735,6 +40758,10 @@ final class DocxOpenXmlReader
             'references' => $metadata['references'],
             'referenceUriKindCounts' => $metadata['referenceUriKindCounts'],
             'packageReferenceCount' => $metadata['packageReferenceCount'],
+            'packageReferenceTargetPartCount' => count($metadata['packageReferenceTargetParts']),
+            'packageReferenceTargetParts' => $metadata['packageReferenceTargetParts'],
+            'packageReferenceTargetReferenceSuffixCount' => count($metadata['packageReferenceTargetReferenceSuffixes']),
+            'packageReferenceTargetReferenceSuffixes' => $metadata['packageReferenceTargetReferenceSuffixes'],
             'sameDocumentReferenceCount' => $metadata['sameDocumentReferenceCount'],
             'externalReferenceCount' => $metadata['externalReferenceCount'],
             'relativeReferenceCount' => $metadata['relativeReferenceCount'],
@@ -40771,6 +40798,8 @@ final class DocxOpenXmlReader
             'references' => [],
             'referenceUriKindCounts' => [],
             'packageReferenceCount' => 0,
+            'packageReferenceTargetParts' => [],
+            'packageReferenceTargetReferenceSuffixes' => [],
             'sameDocumentReferenceCount' => 0,
             'externalReferenceCount' => 0,
             'relativeReferenceCount' => 0,
@@ -40827,6 +40856,11 @@ final class DocxOpenXmlReader
             $this->appendUniqueString($metadata['referenceUris'], $item['uri']);
             if ($item['uriKind'] === 'package-part') {
                 ++$metadata['packageReferenceCount'];
+                $this->appendUniqueString($metadata['packageReferenceTargetParts'], $item['targetPart']);
+                $this->appendUniqueString(
+                    $metadata['packageReferenceTargetReferenceSuffixes'],
+                    $item['targetReferenceSuffix']
+                );
             } elseif ($item['uriKind'] === 'same-document') {
                 ++$metadata['sameDocumentReferenceCount'];
             } elseif ($item['uriKind'] === 'external') {
