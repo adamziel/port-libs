@@ -1443,6 +1443,79 @@ XML);
     }
 };
 
+$buildEmptyImageRelationshipIdPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-empty-image-rid-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Empty image relationship id</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:pic>
+      <p:nvPicPr><p:cNvPr id="7" name="Empty Id Picture" descr="Empty relationship alt"/></p:nvPicPr>
+      <p:blipFill><a:blip r:embed=""/></p:blipFill>
+    </p:pic>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->addFromString('ppt/slides/_rels/slide1.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/empty-id.png"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/media/empty-id.png', 'empty-id-image-bytes');
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildSkippedMalformedImageRelationshipsPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-skip-malformed-image-rels-');
     if ($path === false) {
@@ -10296,6 +10369,22 @@ return [
         $t->same('embed', $images[0]->attr('relationshipAttribute'));
         $t->same(0, $review['slides'][0]['imageIssueCount'] ?? null);
         $t->contains('Image ( "" , [  ] , [  ] ) [ Str "Untyped" , Space , Str "alt" ] ( "ppt/media/untyped.png" , "Untyped Picture" )', $native);
+    },
+
+    'keeps empty pptx image relationship ids usable like upstream' => static function (TestRunner $t) use ($buildEmptyImageRelationshipIdPptxPackage, $nodesOfType): void {
+        $document = (new PptxReader())->read($buildEmptyImageRelationshipIdPptxPackage());
+        $review = $document->attr('pptx');
+        $images = $nodesOfType($document, 'image');
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same(1, count($images));
+        $t->same('ppt/media/empty-id.png', $images[0]->attr('url'));
+        $t->same('Empty Id Picture', $images[0]->attr('title'));
+        $t->same('Empty relationship alt', $images[0]->attr('alt'));
+        $t->same('', $images[0]->attr('relationshipId'));
+        $t->same('embed', $images[0]->attr('relationshipAttribute'));
+        $t->same(0, $review['slides'][0]['imageIssueCount'] ?? null);
+        $t->contains('Image ( "" , [  ] , [  ] ) [ Str "Empty" , Space , Str "relationship" , Space , Str "alt" ] ( "ppt/media/empty-id.png" , "Empty Id Picture" )', $native);
     },
 
     'skips malformed pptx image relationships before later valid matches like upstream' => static function (TestRunner $t) use ($buildSkippedMalformedImageRelationshipsPptxPackage, $nodesOfType): void {
