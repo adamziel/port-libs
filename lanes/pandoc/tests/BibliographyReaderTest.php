@@ -31,6 +31,13 @@ BIB;
         $t->same(['smith1899'], $document->attr('cslItemIds'));
         $t->same('bibtex', $document->attr('bibliography')['format'] ?? null);
         $t->same(BibliographyReader::class, $document->attr('bibliography')['reader'] ?? null);
+        $t->same(['book' => 1], $document->attr('bibliography')['itemTypeCounts'] ?? null);
+        $t->same(1, $document->attr('bibliography')['creatorItemCount'] ?? null);
+        $t->same(1, $document->attr('bibliography')['issuedDateItemCount'] ?? null);
+        $t->same(0, $document->attr('bibliography')['sourceFileItemCount'] ?? null);
+        $t->same('aggregate-field-names-and-counts-only', $document->attr('bibliography')['itemMetadataReviewPolicy'] ?? null);
+        $t->same(1, $document->attr('cslItemReviewSummary')['fieldNameCounts']['title'] ?? null);
+        $t->same(1, $document->attr('cslItemReviewSummary')['fieldNameCounts']['rawBibtex'] ?? null);
         $t->same('definition_list', $bibliography->type);
         $t->same(['pandoc-csl-bibliography'], $bibliography->attr('classes'));
         $t->same('Smith 1899', $item->children[0]->attr('text'));
@@ -127,6 +134,63 @@ XML;
         $t->same('endnotexml', $endnoteDocument->attr('sourceFormat'));
         $t->same(['endnote-source'], $endnoteDocument->attr('cslItemIds'));
         $t->contains('<dt>Curator 2024</dt><dd>Curator, Eli. EndNote Packet. 2024.</dd>', $endnoteBlocks);
+    },
+    'summarizes bounded bibliography item metadata without exposing item values' => static function (TestRunner $t): void {
+        $cslJson = json_encode([
+            'items' => [
+                [
+                    'id' => 'summary-book',
+                    'type' => 'book',
+                    'title' => 'Summary Book',
+                    'author' => [['family' => 'Ng', 'given' => 'Nia']],
+                    'issued' => ['date-parts' => [[2026]]],
+                    'keywords' => ['migration', 'review'],
+                    'categories' => ['import'],
+                    'citationAliases' => ['summary-book-alias'],
+                    'sourceFiles' => [
+                        ['label' => 'PDF', 'path' => 'attachments/summary.pdf', 'mediaType' => 'application/pdf'],
+                    ],
+                    'sourceFileDiagnostics' => [
+                        ['label' => 'Remote', 'path' => 'https://example.test/summary.pdf', 'mediaType' => 'application/pdf', 'reason' => 'remote-uri', 'importable' => false],
+                    ],
+                ],
+                [
+                    'id' => 'summary-article',
+                    'type' => 'article-journal',
+                    'title' => 'Summary Article',
+                    'editor' => [['family' => 'Roe', 'given' => 'Pat']],
+                    'accessed' => ['date-parts' => [[2025, 6, 10]]],
+                ],
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $document = (new BibliographyReader('csljson'))->read($cslJson);
+        $bibliography = $document->attr('bibliography');
+        $summary = $document->attr('cslItemReviewSummary');
+
+        $t->same(['summary-book', 'summary-article'], $document->attr('cslItemIds'));
+        $t->same([
+            'article-journal' => 1,
+            'book' => 1,
+        ], $summary['typeCounts'] ?? null);
+        $t->same($summary['typeCounts'], $bibliography['itemTypeCounts'] ?? null);
+        $t->same(2, $summary['creatorItemCount'] ?? null);
+        $t->same(2, $summary['dateItemCount'] ?? null);
+        $t->same(1, $summary['issuedDateItemCount'] ?? null);
+        $t->same(1, $summary['keywordItemCount'] ?? null);
+        $t->same(1, $summary['categoryItemCount'] ?? null);
+        $t->same(1, $summary['sourceFileItemCount'] ?? null);
+        $t->same(1, $summary['sourceFileCount'] ?? null);
+        $t->same(1, $summary['sourceFileDiagnosticCount'] ?? null);
+        $t->same(1, $summary['citationAliasItemCount'] ?? null);
+        $t->same(1, $summary['citationAliasCount'] ?? null);
+        $t->same(2, $summary['fieldNameCounts']['id'] ?? null);
+        $t->same(2, $summary['fieldNameCounts']['title'] ?? null);
+        $t->same(1, $summary['fieldNameCounts']['sourceFiles'] ?? null);
+        $t->same(1, $summary['fieldNameCounts']['sourceFileDiagnostics'] ?? null);
+        $t->same('aggregate-field-names-and-counts-only', $summary['reviewPolicy'] ?? null);
+        $t->true(!isset($summary['titles']), 'aggregate summary must not expose item titles');
+        $t->true(!isset($summary['sourceFilePaths']), 'aggregate summary must not expose source file paths');
     },
     'rejects malformed bibliography inputs through converter dispatch' => static function (TestRunner $t): void {
         $t->throws(\InvalidArgumentException::class, static function (): void {
