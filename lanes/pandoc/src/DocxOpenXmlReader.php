@@ -12792,6 +12792,24 @@ final class DocxOpenXmlReader
         $summary['zipPackageManifestGeneralPurposeFlagSummaries'] = is_array($zipPackageManifest['generalPurposeFlagSummaries'] ?? null)
             ? $zipPackageManifest['generalPurposeFlagSummaries']
             : [];
+        $summary['zipPackageManifestVersionNeededToExtractSummaryCount'] = (int) ($zipPackageManifest['versionNeededToExtractSummaryCount'] ?? 0);
+        $summary['zipPackageManifestVersionNeededToExtractVersions'] = is_array($zipPackageManifest['versionNeededToExtractVersions'] ?? null)
+            ? $zipPackageManifest['versionNeededToExtractVersions']
+            : [];
+        $summary['zipPackageManifestMinimumVersionNeededToExtractVersions'] = is_array($zipPackageManifest['minimumVersionNeededToExtractVersions'] ?? null)
+            ? $zipPackageManifest['minimumVersionNeededToExtractVersions']
+            : [];
+        $summary['zipPackageManifestMaxVersionNeededToExtract'] = is_int($zipPackageManifest['maxVersionNeededToExtract'] ?? null)
+            ? $zipPackageManifest['maxVersionNeededToExtract']
+            : null;
+        $summary['zipPackageManifestMaxMinimumVersionNeededToExtract'] = is_int($zipPackageManifest['maxMinimumVersionNeededToExtract'] ?? null)
+            ? $zipPackageManifest['maxMinimumVersionNeededToExtract']
+            : null;
+        $summary['zipPackageManifestHasMultipleVersionNeededToExtractVersions'] =
+            ($zipPackageManifest['hasMultipleVersionNeededToExtractVersions'] ?? false) === true;
+        $summary['zipPackageManifestVersionNeededToExtractSummaries'] = is_array($zipPackageManifest['versionNeededToExtractSummaries'] ?? null)
+            ? $zipPackageManifest['versionNeededToExtractSummaries']
+            : [];
         $summary['zipPackageManifestCreatorHostSystemSummaryCount'] = (int) ($zipPackageManifest['creatorHostSystemSummaryCount'] ?? 0);
         $summary['zipPackageManifestKnownCreatorHostSystemEntryCount'] = (int) ($zipPackageManifest['knownCreatorHostSystemEntryCount'] ?? 0);
         $summary['zipPackageManifestUnknownCreatorHostSystemEntryCount'] = (int) ($zipPackageManifest['unknownCreatorHostSystemEntryCount'] ?? 0);
@@ -14055,6 +14073,13 @@ final class DocxOpenXmlReader
             'generalPurposeDataDescriptorEntryCount' => 0,
             'generalPurposeDeflateOptionEntryCount' => 0,
             'generalPurposeFlagSummaries' => [],
+            'versionNeededToExtractSummaryCount' => 0,
+            'versionNeededToExtractVersions' => [],
+            'minimumVersionNeededToExtractVersions' => [],
+            'maxVersionNeededToExtract' => null,
+            'maxMinimumVersionNeededToExtract' => null,
+            'hasMultipleVersionNeededToExtractVersions' => false,
+            'versionNeededToExtractSummaries' => [],
             'creatorHostSystemSummaryCount' => 0,
             'knownCreatorHostSystemEntryCount' => 0,
             'unknownCreatorHostSystemEntryCount' => 0,
@@ -14347,6 +14372,24 @@ final class DocxOpenXmlReader
             'packageManifestGeneralPurposeDeflateOptionEntryCount' => (int) ($packageManifest['generalPurposeDeflateOptionEntryCount'] ?? 0),
             'packageManifestGeneralPurposeFlagSummaries' => is_array($packageManifest['generalPurposeFlagSummaries'] ?? null)
                 ? $packageManifest['generalPurposeFlagSummaries']
+                : [],
+            'packageManifestVersionNeededToExtractSummaryCount' => (int) ($packageManifest['versionNeededToExtractSummaryCount'] ?? 0),
+            'packageManifestVersionNeededToExtractVersions' => is_array($packageManifest['versionNeededToExtractVersions'] ?? null)
+                ? $packageManifest['versionNeededToExtractVersions']
+                : [],
+            'packageManifestMinimumVersionNeededToExtractVersions' => is_array($packageManifest['minimumVersionNeededToExtractVersions'] ?? null)
+                ? $packageManifest['minimumVersionNeededToExtractVersions']
+                : [],
+            'packageManifestMaxVersionNeededToExtract' => is_int($packageManifest['maxVersionNeededToExtract'] ?? null)
+                ? $packageManifest['maxVersionNeededToExtract']
+                : null,
+            'packageManifestMaxMinimumVersionNeededToExtract' => is_int($packageManifest['maxMinimumVersionNeededToExtract'] ?? null)
+                ? $packageManifest['maxMinimumVersionNeededToExtract']
+                : null,
+            'packageManifestHasMultipleVersionNeededToExtractVersions' =>
+                ($packageManifest['hasMultipleVersionNeededToExtractVersions'] ?? false) === true,
+            'packageManifestVersionNeededToExtractSummaries' => is_array($packageManifest['versionNeededToExtractSummaries'] ?? null)
+                ? $packageManifest['versionNeededToExtractSummaries']
                 : [],
             'packageManifestCreatorHostSystemSummaryCount' => (int) ($packageManifest['creatorHostSystemSummaryCount'] ?? 0),
             'packageManifestKnownCreatorHostSystemEntryCount' => (int) ($packageManifest['knownCreatorHostSystemEntryCount'] ?? 0),
