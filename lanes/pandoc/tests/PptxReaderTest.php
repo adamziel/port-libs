@@ -1855,6 +1855,101 @@ XML);
     }
 };
 
+$buildLocalPrefixShapeRelationshipsPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-local-prefix-shape-rels-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Local prefix relationships</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:pic>
+      <p:nvPicPr><p:cNvPr id="7" name="Local Prefix Picture" descr="Local prefix alt"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>
+      <p:blipFill><a:blip xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:embed="rIdImage"/></p:blipFill>
+    </p:pic>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="20" name="Local Prefix SmartArt"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"><dgm:relIds xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:dm="rIdData" r:lo="rIdLayout"/></a:graphicData></a:graphic>
+    </p:graphicFrame>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->addFromString('ppt/slides/_rels/slide1.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/local-prefix.png"/>
+  <Relationship Id="rIdData" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData" Target="../diagrams/data1.xml"/>
+  <Relationship Id="rIdLayout" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramLayout" Target="../diagrams/layout1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/media/local-prefix.png', 'local-prefix-image-bytes');
+    $zip->addFromString('ppt/diagrams/layout1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<dgm:layoutDef xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" uniqueId="urn:microsoft.com/office/officeart/2005/8/layout/localPrefixLayout"/>
+XML);
+    $zip->addFromString('ppt/diagrams/data1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<dgm:dataModel xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <dgm:ptLst>
+    <dgm:pt modelId="parent"><dgm:t><a:p><a:r><a:t>Local prefix parent</a:t></a:r></a:p></dgm:t></dgm:pt>
+    <dgm:pt modelId="child"><dgm:t><a:p><a:r><a:t>Local prefix child</a:t></a:r></a:p></dgm:t></dgm:pt>
+  </dgm:ptLst>
+  <dgm:cxnLst>
+    <dgm:cxn srcId="parent" destId="child"/>
+  </dgm:cxnLst>
+</dgm:dataModel>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildRootTargetImagePptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-root-target-image-');
     if ($path === false) {
@@ -7769,6 +7864,28 @@ return [
         $t->contains('Para [ Str "[Graphic:" , Space , Str "diagram-missing-rels]" ]', $native);
         $t->true(!str_contains($native, 'sp-tree-prefix.png'), 'Picture relationship declared only on spTree should not become visible');
         $t->true(!str_contains($native, 'Shape tree prefix parent'), 'SmartArt relIds declared only through spTree should not parse the diagram');
+    },
+
+    'uses element-local r prefix bindings for picture and SmartArt relationships like upstream' => static function (TestRunner $t) use ($buildLocalPrefixShapeRelationshipsPptxPackage, $nodesOfType, $nodesWithClass): void {
+        $document = (new PptxReader())->read($buildLocalPrefixShapeRelationshipsPptxPackage());
+        $review = $document->attr('pptx');
+        $images = $nodesOfType($document, 'image');
+        $smartArtDivs = $nodesWithClass($nodesOfType($document, 'div'), 'smartart');
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same(1, count($images));
+        $t->same('ppt/media/local-prefix.png', $images[0]->attr('url'));
+        $t->same('Local Prefix Picture', $images[0]->attr('title'));
+        $t->same(1, count($smartArtDivs));
+        $t->same(['smartart', 'localPrefixLayout'], $smartArtDivs[0]->attr('classes'));
+        $t->same(0, $review['slides'][0]['imageIssueCount'] ?? null);
+        $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
+        $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Local" , Space , Str "prefix" , Space , Str "relationships" ]', $native);
+        $t->contains('Image ( "" , [  ] , [  ] ) [ Str "Local" , Space , Str "prefix" , Space , Str "alt" ] ( "ppt/media/local-prefix.png" , "Local Prefix Picture" )', $native);
+        $t->contains('Strong [ Str "Local" , Space , Str "prefix" , Space , Str "parent" ]', $native);
+        $t->contains('BulletList [ [ Plain [ Str "Local" , Space , Str "prefix" , Space , Str "child"', $native);
+        $t->true(!str_contains($native, 'Diagram parse error'), 'Element-local SmartArt relIds prefix should parse without diagnostics');
+        $t->true(!str_contains($native, '[Graphic: diagram-missing-rels]'), 'Element-local SmartArt relIds prefix should not be treated as missing relationships');
     },
 
     'drops pptx pictures without nonvisual properties from visible content' => static function (TestRunner $t) use ($buildPictureWithoutNonVisualPropertiesPptxPackage, $nodesOfType): void {
