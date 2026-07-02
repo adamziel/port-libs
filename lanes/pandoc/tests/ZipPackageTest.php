@@ -1339,6 +1339,9 @@ return [
             'entryCommentSummaryCount' => 0,
             'entryCommentSourceRecordBytes' => 0,
             'entryCommentSummaries' => [],
+            'entryCommentLengthBucketSummaryCount' => 0,
+            'entryCommentLengthBuckets' => [],
+            'entryCommentLengthBucketSummaries' => [],
             'maxPathSegmentCount' => 2,
             'maxDirectoryDepth' => 1,
             'deepestEntryNames' => ['OEBPS/content.xhtml', 'OEBPS/images/'],
@@ -1491,6 +1494,9 @@ return [
         $t->same(0, $manifest['entryCommentSummaryCount']);
         $t->same(0, $manifest['entryCommentSourceRecordBytes']);
         $t->same([], $manifest['entryCommentSummaries']);
+        $t->same(0, $manifest['entryCommentLengthBucketSummaryCount']);
+        $t->same([], $manifest['entryCommentLengthBuckets']);
+        $t->same([], $manifest['entryCommentLengthBucketSummaries']);
         $t->same(false, $manifest['hasCentralDirectoryReviewFields']);
         $t->same(2, $manifest['maxPathSegmentCount']);
         $t->same(1, $manifest['maxDirectoryDepth']);
@@ -2855,12 +2861,32 @@ return [
                 'compressionMethodName' => 'stored',
                 'centralDirectoryRawCommentOffset' => $documentEntry['centralDirectoryRawCommentOffset'],
                 'centralDirectoryRawCommentBytes' => strlen($documentComment),
+                'entryCommentLengthBucket' => '16-to-63-bytes',
                 'centralDirectoryRawCommentSha256' => hash('sha256', $documentComment),
                 'centralDirectoryRecordBytes' => $documentEntry['centralDirectoryRecordBytes'],
                 'centralDirectoryReviewFieldBytes' => $expectedReviewFieldBytes,
                 'sourceRecordBytes' => $documentEntry['sourceRecordBytes'],
                 'entryCommentByteExposurePolicy' => 'zip-entry-comment-source-metadata-only',
                 'entryCommentCanExposeBytes' => false,
+            ],
+        ];
+        $expectedEntryCommentLengthBucketSummaries = [
+            [
+                'entryCommentLengthBucket' => '16-to-63-bytes',
+                'minCommentBytes' => 16,
+                'maxCommentBytes' => 63,
+                'entryCommentCount' => 1,
+                'centralDirectoryRawCommentBytes' => strlen($documentComment),
+                'centralDirectoryRecordBytes' => $documentEntry['centralDirectoryRecordBytes'],
+                'centralDirectoryReviewFieldBytes' => $expectedReviewFieldBytes,
+                'sourceRecordBytes' => $documentEntry['sourceRecordBytes'],
+                'directoryRoots' => ['word/'],
+                'packagePartExtensionKeys' => ['xml'],
+                'compressionMethodNames' => ['stored'],
+                'entryNames' => ['word/document.xml'],
+                'minEntryCommentBytes' => strlen($documentComment),
+                'maxEntryCommentBytes' => strlen($documentComment),
+                'longestCommentEntryNames' => ['word/document.xml'],
             ],
         ];
 
@@ -2882,6 +2908,9 @@ return [
         $t->same(1, $manifest['entryCommentSummaryCount']);
         $t->same($documentEntry['sourceRecordBytes'], $manifest['entryCommentSourceRecordBytes']);
         $t->same($expectedEntryCommentSummaries, $manifest['entryCommentSummaries']);
+        $t->same(1, $manifest['entryCommentLengthBucketSummaryCount']);
+        $t->same(['16-to-63-bytes'], $manifest['entryCommentLengthBuckets']);
+        $t->same($expectedEntryCommentLengthBucketSummaries, $manifest['entryCommentLengthBucketSummaries']);
         $t->same(true, $manifest['hasCentralDirectoryReviewFields']);
         $t->same($variableFields['centralDirectoryVariableFieldBytes'], $manifest['centralDirectoryVariableFieldBytes']);
         $t->same($variableFields['centralDirectoryReviewFieldBytes'], $manifest['centralDirectoryReviewFieldBytes']);
@@ -3390,6 +3419,9 @@ return [
             'entryCommentSummaryCount' => $manifest['entryCommentSummaryCount'],
             'entryCommentSourceRecordBytes' => $manifest['entryCommentSourceRecordBytes'],
             'entryCommentSummaries' => $manifest['entryCommentSummaries'],
+            'entryCommentLengthBucketSummaryCount' => $manifest['entryCommentLengthBucketSummaryCount'],
+            'entryCommentLengthBuckets' => $manifest['entryCommentLengthBuckets'],
+            'entryCommentLengthBucketSummaries' => $manifest['entryCommentLengthBucketSummaries'],
             'maxPathSegmentCount' => 2,
             'maxDirectoryDepth' => 1,
             'deepestEntryNames' => ['word/document.xml', 'word/comments.xml'],
