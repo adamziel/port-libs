@@ -321,6 +321,10 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['packageRootRelationshipResourceTargetQueryParameterValueCounts'] = $packageRootResources['targetQueryParameterValueCounts'];
         $packageProvenance['summary']['packageRootRelationshipResourceTargetReferenceSuffixCount'] = $packageRootResources['targetReferenceSuffixCount'];
         $packageProvenance['summary']['packageRootRelationshipResourceTargetReferenceSuffixes'] = $packageRootResources['targetReferenceSuffixes'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetReferenceSuffixRelationshipTypeCounts'] = $packageRootResources['targetReferenceSuffixRelationshipTypeCounts'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetReferenceSuffixContentTypeBaseCounts'] = $packageRootResources['targetReferenceSuffixContentTypeBaseCounts'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetReferenceSuffixContentTypeSourceCounts'] = $packageRootResources['targetReferenceSuffixContentTypeSourceCounts'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetReferenceSuffixExternalStateCounts'] = $packageRootResources['targetReferenceSuffixExternalStateCounts'];
         $packageProvenance['summary']['packageRootRelationshipResourceTargetFragmentCount'] = $packageRootResources['targetFragmentCount'];
         $packageProvenance['summary']['packageRootRelationshipResourceTargetFragments'] = $packageRootResources['targetFragments'];
         $packageProvenance['summary']['packageRootRelationshipResourceTargetFragmentCounts'] = $packageRootResources['targetFragmentCounts'];
@@ -360,6 +364,10 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipTargetPartsByPathSegmentPosition'] = $packageRootResources['targetRelationshipTargetPartsByPathSegmentPosition'];
         $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipTargetReferenceSuffixCount'] = $packageRootResources['targetRelationshipTargetReferenceSuffixCount'];
         $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipTargetReferenceSuffixes'] = $packageRootResources['targetRelationshipTargetReferenceSuffixes'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipTargetReferenceSuffixRelationshipTypeCounts'] = $packageRootResources['targetRelationshipTargetReferenceSuffixRelationshipTypeCounts'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipTargetReferenceSuffixContentTypeBaseCounts'] = $packageRootResources['targetRelationshipTargetReferenceSuffixContentTypeBaseCounts'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipTargetReferenceSuffixContentTypeSourceCounts'] = $packageRootResources['targetRelationshipTargetReferenceSuffixContentTypeSourceCounts'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipTargetReferenceSuffixExternalStateCounts'] = $packageRootResources['targetRelationshipTargetReferenceSuffixExternalStateCounts'];
         $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipTargetFragmentCount'] = $packageRootResources['targetRelationshipTargetFragmentCount'];
         $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipTargetFragments'] = $packageRootResources['targetRelationshipTargetFragments'];
         $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipTargetFragmentCounts'] = $packageRootResources['targetRelationshipTargetFragmentCounts'];
@@ -39051,6 +39059,56 @@ final class DocxOpenXmlReader
     }
 
     /**
+     * @param array<string, mixed> $item
+     */
+    private function relationshipInventoryTypeCountKey(array $item): string
+    {
+        return is_string($item['type'] ?? null) && $item['type'] !== ''
+            ? $item['type']
+            : '(missing)';
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function relationshipInventoryContentTypeBaseCountKey(array $item): string
+    {
+        if (($item['external'] ?? false) === true) {
+            return '(external)';
+        }
+
+        $contentTypeBase = is_string($item['contentTypeBase'] ?? null) ? $item['contentTypeBase'] : '';
+
+        return $contentTypeBase !== '' ? $contentTypeBase : '(missing)';
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function relationshipInventoryContentTypeSourceCountKey(array $item): string
+    {
+        if (($item['external'] ?? false) === true) {
+            return '(external)';
+        }
+
+        $contentTypeSource = is_string($item['contentTypeSource'] ?? null) ? $item['contentTypeSource'] : '';
+
+        return $contentTypeSource !== '' ? $contentTypeSource : 'missing';
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function relationshipInventoryExternalStateCountKey(array $item): string
+    {
+        if (($item['external'] ?? false) === true) {
+            return '(external)';
+        }
+
+        return ($item['exists'] ?? false) === true ? 'existing' : 'missing';
+    }
+
+    /**
      * @param array<string, string> $parts
      * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $rootRelationships
      * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
@@ -39089,12 +39147,20 @@ final class DocxOpenXmlReader
         $targetRelationshipsWithQueryParameters = [];
         $targetReferenceSuffixCount = 0;
         $targetReferenceSuffixes = [];
+        $targetReferenceSuffixRelationshipTypeCounts = [];
+        $targetReferenceSuffixContentTypeBaseCounts = [];
+        $targetReferenceSuffixContentTypeSourceCounts = [];
+        $targetReferenceSuffixExternalStateCounts = [];
         $targetFragmentCount = 0;
         $targetFragments = [];
         $targetFragmentCounts = [];
         $targetsWithReferenceSuffixes = [];
         $targetRelationshipTargetReferenceSuffixCount = 0;
         $targetRelationshipTargetReferenceSuffixes = [];
+        $targetRelationshipTargetReferenceSuffixRelationshipTypeCounts = [];
+        $targetRelationshipTargetReferenceSuffixContentTypeBaseCounts = [];
+        $targetRelationshipTargetReferenceSuffixContentTypeSourceCounts = [];
+        $targetRelationshipTargetReferenceSuffixExternalStateCounts = [];
         $targetRelationshipTargetFragmentCount = 0;
         $targetRelationshipTargetFragments = [];
         $targetRelationshipTargetFragmentCounts = [];
@@ -39144,6 +39210,18 @@ final class DocxOpenXmlReader
                 if ($targetRelationshipTargetReferenceSuffix !== '') {
                     ++$targetRelationshipTargetReferenceSuffixCount;
                     $this->appendUniqueString($targetRelationshipTargetReferenceSuffixes, $targetRelationshipTargetReferenceSuffix);
+                    $suffixRelationshipTypeKey = $this->relationshipInventoryTypeCountKey($targetRelationshipSummary);
+                    $suffixContentTypeBaseKey = $this->relationshipInventoryContentTypeBaseCountKey($targetRelationshipSummary);
+                    $suffixContentTypeSourceKey = $this->relationshipInventoryContentTypeSourceCountKey($targetRelationshipSummary);
+                    $suffixExternalStateKey = $this->relationshipInventoryExternalStateCountKey($targetRelationshipSummary);
+                    $targetRelationshipTargetReferenceSuffixRelationshipTypeCounts[$suffixRelationshipTypeKey] =
+                        ($targetRelationshipTargetReferenceSuffixRelationshipTypeCounts[$suffixRelationshipTypeKey] ?? 0) + 1;
+                    $targetRelationshipTargetReferenceSuffixContentTypeBaseCounts[$suffixContentTypeBaseKey] =
+                        ($targetRelationshipTargetReferenceSuffixContentTypeBaseCounts[$suffixContentTypeBaseKey] ?? 0) + 1;
+                    $targetRelationshipTargetReferenceSuffixContentTypeSourceCounts[$suffixContentTypeSourceKey] =
+                        ($targetRelationshipTargetReferenceSuffixContentTypeSourceCounts[$suffixContentTypeSourceKey] ?? 0) + 1;
+                    $targetRelationshipTargetReferenceSuffixExternalStateCounts[$suffixExternalStateKey] =
+                        ($targetRelationshipTargetReferenceSuffixExternalStateCounts[$suffixExternalStateKey] ?? 0) + 1;
 
                     $targetRelationshipTargetFragment = is_string($targetRelationshipSummary['targetFragment'] ?? null)
                         ? $targetRelationshipSummary['targetFragment']
@@ -39164,6 +39242,9 @@ final class DocxOpenXmlReader
                         'targetQuery' => $targetRelationshipSummary['targetQuery'],
                         'targetFragment' => $targetRelationshipSummary['targetFragment'],
                         'targetReferenceSuffix' => $targetRelationshipTargetReferenceSuffix,
+                        'contentTypeBase' => $targetRelationshipSummary['contentTypeBase'],
+                        'contentTypeSource' => $targetRelationshipSummary['contentTypeSource'],
+                        'externalState' => $suffixExternalStateKey,
                         'external' => (bool) $targetRelationshipSummary['external'],
                         'exists' => (bool) $targetRelationshipSummary['exists'],
                         'sourcePart' => $targetPart,
@@ -39306,6 +39387,18 @@ final class DocxOpenXmlReader
             if ($targetReferenceSuffix !== '') {
                 ++$targetReferenceSuffixCount;
                 $this->appendUniqueString($targetReferenceSuffixes, $targetReferenceSuffix);
+                $suffixRelationshipTypeKey = $this->relationshipInventoryTypeCountKey($summary);
+                $suffixContentTypeBaseKey = $this->relationshipInventoryContentTypeBaseCountKey($summary);
+                $suffixContentTypeSourceKey = $this->relationshipInventoryContentTypeSourceCountKey($summary);
+                $suffixExternalStateKey = $this->relationshipInventoryExternalStateCountKey($summary);
+                $targetReferenceSuffixRelationshipTypeCounts[$suffixRelationshipTypeKey] =
+                    ($targetReferenceSuffixRelationshipTypeCounts[$suffixRelationshipTypeKey] ?? 0) + 1;
+                $targetReferenceSuffixContentTypeBaseCounts[$suffixContentTypeBaseKey] =
+                    ($targetReferenceSuffixContentTypeBaseCounts[$suffixContentTypeBaseKey] ?? 0) + 1;
+                $targetReferenceSuffixContentTypeSourceCounts[$suffixContentTypeSourceKey] =
+                    ($targetReferenceSuffixContentTypeSourceCounts[$suffixContentTypeSourceKey] ?? 0) + 1;
+                $targetReferenceSuffixExternalStateCounts[$suffixExternalStateKey] =
+                    ($targetReferenceSuffixExternalStateCounts[$suffixExternalStateKey] ?? 0) + 1;
 
                 $targetFragment = is_string($summary['targetFragment'] ?? null)
                     ? $summary['targetFragment']
@@ -39325,6 +39418,9 @@ final class DocxOpenXmlReader
                     'targetQuery' => $summary['targetQuery'],
                     'targetFragment' => $summary['targetFragment'],
                     'targetReferenceSuffix' => $targetReferenceSuffix,
+                    'contentTypeBase' => $summary['contentTypeBase'],
+                    'contentTypeSource' => $summary['contentTypeSource'],
+                    'externalState' => $suffixExternalStateKey,
                     'external' => $external,
                     'exists' => $exists,
                     'relationshipsPart' => '_rels/.rels',
@@ -39466,7 +39562,15 @@ final class DocxOpenXmlReader
             ksort($valueCounts, SORT_STRING);
         }
         unset($valueCounts);
+        ksort($targetReferenceSuffixRelationshipTypeCounts, SORT_STRING);
+        ksort($targetReferenceSuffixContentTypeBaseCounts, SORT_STRING);
+        ksort($targetReferenceSuffixContentTypeSourceCounts, SORT_STRING);
+        ksort($targetReferenceSuffixExternalStateCounts, SORT_STRING);
         ksort($targetFragmentCounts, SORT_STRING);
+        ksort($targetRelationshipTargetReferenceSuffixRelationshipTypeCounts, SORT_STRING);
+        ksort($targetRelationshipTargetReferenceSuffixContentTypeBaseCounts, SORT_STRING);
+        ksort($targetRelationshipTargetReferenceSuffixContentTypeSourceCounts, SORT_STRING);
+        ksort($targetRelationshipTargetReferenceSuffixExternalStateCounts, SORT_STRING);
         ksort($targetRelationshipTargetFragmentCounts, SORT_STRING);
         ksort($issueCodes, SORT_STRING);
         ksort($targetRelationshipIssueCodes, SORT_STRING);
@@ -39590,12 +39694,20 @@ final class DocxOpenXmlReader
             'targetRelationshipsWithQueryParameters' => $targetRelationshipsWithQueryParameters,
             'targetReferenceSuffixCount' => $targetReferenceSuffixCount,
             'targetReferenceSuffixes' => $targetReferenceSuffixes,
+            'targetReferenceSuffixRelationshipTypeCounts' => $targetReferenceSuffixRelationshipTypeCounts,
+            'targetReferenceSuffixContentTypeBaseCounts' => $targetReferenceSuffixContentTypeBaseCounts,
+            'targetReferenceSuffixContentTypeSourceCounts' => $targetReferenceSuffixContentTypeSourceCounts,
+            'targetReferenceSuffixExternalStateCounts' => $targetReferenceSuffixExternalStateCounts,
             'targetFragmentCount' => $targetFragmentCount,
             'targetFragments' => $targetFragments,
             'targetFragmentCounts' => $targetFragmentCounts,
             'targetsWithReferenceSuffixes' => $targetsWithReferenceSuffixes,
             'targetRelationshipTargetReferenceSuffixCount' => $targetRelationshipTargetReferenceSuffixCount,
             'targetRelationshipTargetReferenceSuffixes' => $targetRelationshipTargetReferenceSuffixes,
+            'targetRelationshipTargetReferenceSuffixRelationshipTypeCounts' => $targetRelationshipTargetReferenceSuffixRelationshipTypeCounts,
+            'targetRelationshipTargetReferenceSuffixContentTypeBaseCounts' => $targetRelationshipTargetReferenceSuffixContentTypeBaseCounts,
+            'targetRelationshipTargetReferenceSuffixContentTypeSourceCounts' => $targetRelationshipTargetReferenceSuffixContentTypeSourceCounts,
+            'targetRelationshipTargetReferenceSuffixExternalStateCounts' => $targetRelationshipTargetReferenceSuffixExternalStateCounts,
             'targetRelationshipTargetFragmentCount' => $targetRelationshipTargetFragmentCount,
             'targetRelationshipTargetFragments' => $targetRelationshipTargetFragments,
             'targetRelationshipTargetFragmentCounts' => $targetRelationshipTargetFragmentCounts,

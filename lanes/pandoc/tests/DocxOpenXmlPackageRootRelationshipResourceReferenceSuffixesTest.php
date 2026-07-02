@@ -9,13 +9,13 @@ $tests = [
         $manifest = json_decode((string) file_get_contents(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json'), true, 512, JSON_THROW_ON_ERROR);
 
         $t->same(1, $manifest['mappedDocxPackageRootRelationshipResourceReferenceSuffixCases'] ?? null);
-        $t->same(56, $manifest['docxPackageRootRelationshipResourceReferenceSuffixAssertions'] ?? null);
+        $t->same(72, $manifest['docxPackageRootRelationshipResourceReferenceSuffixAssertions'] ?? null);
         $t->same(1, $manifest['benchmarkDenominator']['breakdown']['mappedDocxPackageRootRelationshipResourceReferenceSuffixCases'] ?? null);
-        $t->same(56, $manifest['benchmarkDenominator']['breakdown']['docxPackageRootRelationshipResourceReferenceSuffixAssertions'] ?? null);
+        $t->same(72, $manifest['benchmarkDenominator']['breakdown']['docxPackageRootRelationshipResourceReferenceSuffixAssertions'] ?? null);
         $t->same(1, $manifest['benchmarkDenominator']['inventory']['mappedDocxPackageRootRelationshipResourceReferenceSuffixCases'] ?? null);
-        $t->same(56, $manifest['benchmarkDenominator']['inventory']['docxPackageRootRelationshipResourceReferenceSuffixAssertions'] ?? null);
+        $t->same(72, $manifest['benchmarkDenominator']['inventory']['docxPackageRootRelationshipResourceReferenceSuffixAssertions'] ?? null);
         $t->same(1, $manifest['inventory']['mappedDocxPackageRootRelationshipResourceReferenceSuffixCases'] ?? null);
-        $t->same(56, $manifest['inventory']['docxPackageRootRelationshipResourceReferenceSuffixAssertions'] ?? null);
+        $t->same(72, $manifest['inventory']['docxPackageRootRelationshipResourceReferenceSuffixAssertions'] ?? null);
     },
 
     'carries docx package root relationship resource reference suffix rollups' => static function (TestRunner $t): void {
@@ -23,6 +23,7 @@ $tests = [
         $package = $document->attr('docx')['packageProvenance'];
         $summary = $package['summary'];
         $resources = $package['packageRootRelationshipResources'];
+        $resourceType = 'http://example.test/openxml/relationships/reviewResource';
         $audit = $resources['byRelationshipId']['rPackageAudit'];
         $external = $resources['byRelationshipId']['rExternalPackageAudit'];
         $sidecar = $resources['byRelationshipId']['rPackageSidecar'];
@@ -37,11 +38,28 @@ $tests = [
         $t->same(1, $resources['externalCount']);
         $t->same(3, $resources['targetReferenceSuffixCount']);
         $t->same(['?slot=root&slot=copy#review', '#sidecar', '?remote=1#ext'], $resources['targetReferenceSuffixes']);
+        $t->same([$resourceType => 3], $resources['targetReferenceSuffixRelationshipTypeCounts']);
+        $t->same([
+            '(external)' => 1,
+            'application/vnd.example.review+xml' => 2,
+        ], $resources['targetReferenceSuffixContentTypeBaseCounts']);
+        $t->same([
+            '(external)' => 1,
+            'override' => 2,
+        ], $resources['targetReferenceSuffixContentTypeSourceCounts']);
+        $t->same([
+            '(external)' => 1,
+            'existing' => 2,
+        ], $resources['targetReferenceSuffixExternalStateCounts']);
         $t->same(3, $resources['targetFragmentCount']);
         $t->same(['review', 'sidecar', 'ext'], $resources['targetFragments']);
         $t->same(['ext' => 1, 'review' => 1, 'sidecar' => 1], $resources['targetFragmentCounts']);
         $t->same($resources['targetReferenceSuffixCount'], $summary['packageRootRelationshipResourceTargetReferenceSuffixCount']);
         $t->same($resources['targetReferenceSuffixes'], $summary['packageRootRelationshipResourceTargetReferenceSuffixes']);
+        $t->same($resources['targetReferenceSuffixRelationshipTypeCounts'], $summary['packageRootRelationshipResourceTargetReferenceSuffixRelationshipTypeCounts']);
+        $t->same($resources['targetReferenceSuffixContentTypeBaseCounts'], $summary['packageRootRelationshipResourceTargetReferenceSuffixContentTypeBaseCounts']);
+        $t->same($resources['targetReferenceSuffixContentTypeSourceCounts'], $summary['packageRootRelationshipResourceTargetReferenceSuffixContentTypeSourceCounts']);
+        $t->same($resources['targetReferenceSuffixExternalStateCounts'], $summary['packageRootRelationshipResourceTargetReferenceSuffixExternalStateCounts']);
         $t->same($resources['targetFragmentCount'], $summary['packageRootRelationshipResourceTargetFragmentCount']);
         $t->same($resources['targetFragments'], $summary['packageRootRelationshipResourceTargetFragments']);
         $t->same($resources['targetFragmentCounts'], $summary['packageRootRelationshipResourceTargetFragmentCounts']);
@@ -64,11 +82,32 @@ $tests = [
         $t->same(3, $sidecar['targetRelationshipRecordCount']);
         $t->same(3, $resources['targetRelationshipTargetReferenceSuffixCount']);
         $t->same(['?variant=copy#asset', '#missing', '?remote=1#remote'], $resources['targetRelationshipTargetReferenceSuffixes']);
+        $t->same([
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink' => 1,
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image' => 2,
+        ], $resources['targetRelationshipTargetReferenceSuffixRelationshipTypeCounts']);
+        $t->same([
+            '(external)' => 1,
+            'image/png' => 2,
+        ], $resources['targetRelationshipTargetReferenceSuffixContentTypeBaseCounts']);
+        $t->same([
+            '(external)' => 1,
+            'default' => 2,
+        ], $resources['targetRelationshipTargetReferenceSuffixContentTypeSourceCounts']);
+        $t->same([
+            '(external)' => 1,
+            'existing' => 1,
+            'missing' => 1,
+        ], $resources['targetRelationshipTargetReferenceSuffixExternalStateCounts']);
         $t->same(3, $resources['targetRelationshipTargetFragmentCount']);
         $t->same(['asset', 'missing', 'remote'], $resources['targetRelationshipTargetFragments']);
         $t->same(['asset' => 1, 'missing' => 1, 'remote' => 1], $resources['targetRelationshipTargetFragmentCounts']);
         $t->same($resources['targetRelationshipTargetReferenceSuffixCount'], $summary['packageRootRelationshipResourceTargetRelationshipTargetReferenceSuffixCount']);
         $t->same($resources['targetRelationshipTargetReferenceSuffixes'], $summary['packageRootRelationshipResourceTargetRelationshipTargetReferenceSuffixes']);
+        $t->same($resources['targetRelationshipTargetReferenceSuffixRelationshipTypeCounts'], $summary['packageRootRelationshipResourceTargetRelationshipTargetReferenceSuffixRelationshipTypeCounts']);
+        $t->same($resources['targetRelationshipTargetReferenceSuffixContentTypeBaseCounts'], $summary['packageRootRelationshipResourceTargetRelationshipTargetReferenceSuffixContentTypeBaseCounts']);
+        $t->same($resources['targetRelationshipTargetReferenceSuffixContentTypeSourceCounts'], $summary['packageRootRelationshipResourceTargetRelationshipTargetReferenceSuffixContentTypeSourceCounts']);
+        $t->same($resources['targetRelationshipTargetReferenceSuffixExternalStateCounts'], $summary['packageRootRelationshipResourceTargetRelationshipTargetReferenceSuffixExternalStateCounts']);
         $t->same($resources['targetRelationshipTargetFragmentCount'], $summary['packageRootRelationshipResourceTargetRelationshipTargetFragmentCount']);
         $t->same($resources['targetRelationshipTargetFragments'], $summary['packageRootRelationshipResourceTargetRelationshipTargetFragments']);
         $t->same($resources['targetRelationshipTargetFragmentCounts'], $summary['packageRootRelationshipResourceTargetRelationshipTargetFragmentCounts']);
