@@ -1161,6 +1161,23 @@ final class XmlHtmlDom
     /**
      * @return array<string, mixed>
      */
+    public static function summarizeHtmlFragmentOutlineReviewPacket(\DOMDocument $dom): array
+    {
+        $root = self::requireFragmentRoot($dom);
+        $summary = self::htmlFragmentOutlineReviewSummary($root);
+
+        return [
+            'formatFamily' => 'xml-html5-dom',
+            'format' => 'html',
+            'outlineReviewPolicy' => 'html-fragment-outline-landmark-review',
+            'directReaderParity' => false,
+            'directReaderDiagnosticCodes' => ['html-fragment-outline-review-only'],
+        ] + $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function summarizeHtmlFragmentComments(\DOMDocument $dom): array
     {
         $root = self::requireFragmentRoot($dom);
@@ -15109,6 +15126,276 @@ final class XmlHtmlDom
                 }
             }
         }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function htmlFragmentOutlineReviewSummary(\DOMElement $root): array
+    {
+        $records = self::htmlFragmentOutlineReviewRecords($root);
+        $headings = [];
+        $outlineRoots = [];
+        $landmarks = [];
+        $headingGroups = [];
+        $headingLevelCounts = [];
+        $headingTexts = [];
+        $headingLevels = [];
+        $outlineRootNames = [];
+        $outlineRootHeadingTexts = [];
+        $landmarkNames = [];
+        $issues = [];
+        $previousHeading = null;
+        $topLevelHeadingCount = 0;
+
+        foreach ($records as $record) {
+            $kind = $record['recordKind'] ?? null;
+            if ($kind === 'heading') {
+                $headings[] = $record;
+                $level = (int) ($record['headingLevel'] ?? 0);
+                $text = (string) ($record['headingText'] ?? '');
+                $headingLevels[] = $level;
+                $headingTexts[] = $text;
+                $headingLevelCounts[$level] = ($headingLevelCounts[$level] ?? 0) + 1;
+                if ($level === 1) {
+                    ++$topLevelHeadingCount;
+                }
+                if ($previousHeading === null && $level > 1) {
+                    $issues[] = [
+                        'code' => 'initial-heading-level-skipped',
+                        'headingLevel' => $level,
+                        'nodePath' => $record['nodePath'] ?? null,
+                    ];
+                } elseif (is_array($previousHeading) && $level > ((int) ($previousHeading['headingLevel'] ?? 0)) + 1) {
+                    $issues[] = [
+                        'code' => 'skipped-heading-level',
+                        'previousHeadingLevel' => (int) ($previousHeading['headingLevel'] ?? 0),
+                        'headingLevel' => $level,
+                        'nodePath' => $record['nodePath'] ?? null,
+                        'previousNodePath' => $previousHeading['nodePath'] ?? null,
+                    ];
+                }
+                $previousHeading = $record;
+                continue;
+            }
+
+            if ($kind === 'outline-root') {
+                $outlineRoots[] = $record;
+                $name = $record['outlineRoot'] ?? null;
+                if (is_string($name)) {
+                    self::appendUniqueString($outlineRootNames, $name);
+                }
+                $headingText = $record['sectionHeadingText'] ?? null;
+                if (is_string($headingText) && $headingText !== '') {
+                    self::appendUniqueString($outlineRootHeadingTexts, $headingText);
+                } else {
+                    $issues[] = [
+                        'code' => 'missing-outline-root-heading',
+                        'outlineRoot' => $name,
+                        'nodePath' => $record['nodePath'] ?? null,
+                    ];
+                }
+                continue;
+            }
+
+            if ($kind === 'landmark') {
+                $landmarks[] = $record;
+                $landmark = $record['landmark'] ?? null;
+                if (is_string($landmark)) {
+                    self::appendUniqueString($landmarkNames, $landmark);
+                }
+                if (in_array($landmark, ['navigation', 'search'], true) && ($record['landmarkLabel'] ?? null) === null) {
+                    $issues[] = [
+                        'code' => 'unlabeled-landmark',
+                        'landmark' => $landmark,
+                        'nodePath' => $record['nodePath'] ?? null,
+                    ];
+                }
+                continue;
+            }
+
+            if ($kind === 'heading-group') {
+                $headingGroups[] = $record;
+            }
+        }
+
+        if ($topLevelHeadingCount > 1) {
+            $issues[] = [
+                'code' => 'multiple-top-level-headings',
+                'topLevelHeadingCount' => $topLevelHeadingCount,
+            ];
+        }
+
+        ksort($headingLevelCounts);
+        $issueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
+
+        return [
+            'outlineRecordCount' => count($records),
+            'headingCount' => count($headings),
+            'headingLevels' => $headingLevels,
+            'headingLevelCounts' => $headingLevelCounts,
+            'headingTexts' => $headingTexts,
+            'headings' => $headings,
+            'topLevelHeadingCount' => $topLevelHeadingCount,
+            'outlineRootCount' => count($outlineRoots),
+            'outlineRootNames' => $outlineRootNames,
+            'outlineRootHeadingTexts' => $outlineRootHeadingTexts,
+            'outlineRoots' => $outlineRoots,
+            'landmarkCount' => count($landmarks),
+            'landmarkNames' => $landmarkNames,
+            'landmarks' => $landmarks,
+            'headingGroupCount' => count($headingGroups),
+            'headingGroups' => $headingGroups,
+            'outlineIssueCodes' => $issueCodes,
+            'outlineIssueCount' => count($issues),
+            'outlineIssues' => $issues,
+            'outlineRecords' => $records,
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function htmlFragmentOutlineReviewRecords(\DOMElement $root): array
+    {
+        $records = [];
+        foreach ($root->childNodes as $child) {
+            self::collectHtmlFragmentOutlineReviewRecords($child, $records);
+        }
+
+        return $records;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $records
+     */
+    private static function collectHtmlFragmentOutlineReviewRecords(\DOMNode $node, array &$records): void
+    {
+        if ($node instanceof \DOMElement) {
+            $name = self::htmlElementName($node);
+            if (self::isHtmlOutlineElementName($name)) {
+                $records[] = self::htmlOutlineRootReviewRecord($node, $name);
+            }
+            $landmark = self::htmlLandmarkName($node, $name);
+            if ($landmark !== null) {
+                $records[] = self::htmlLandmarkReviewRecord($node, $name, $landmark);
+            }
+            if (self::isHtmlHeadingElementName($name)) {
+                $records[] = self::htmlHeadingReviewRecord($node, $name);
+            }
+            if ($name === 'hgroup') {
+                $records[] = self::htmlHeadingGroupReviewRecord($node);
+            }
+        }
+
+        foreach ($node->childNodes as $child) {
+            self::collectHtmlFragmentOutlineReviewRecords($child, $records);
+        }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function htmlOutlineRootReviewRecord(\DOMElement $element, string $name): array
+    {
+        $heading = self::firstScopedHeadingElement($element);
+        $headingName = $heading instanceof \DOMElement ? self::htmlElementName($heading) : null;
+
+        return [
+            'recordKind' => 'outline-root',
+            'nodePath' => self::htmlNodeReviewPath($element),
+            'element' => $name,
+            'id' => self::attributeOrNull($element, 'id'),
+            'outlineRoot' => $name,
+            'documentOutline' => match ($name) {
+                'nav' => 'navigation',
+                default => $name,
+            },
+            'sectionHeadingText' => $heading instanceof \DOMElement ? self::normalizedText($heading) : null,
+            'sectionHeadingTag' => $headingName,
+            'sectionHeadingLevel' => $headingName === null ? null : self::htmlHeadingLevel($headingName),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function htmlLandmarkReviewRecord(\DOMElement $element, string $name, string $landmark): array
+    {
+        return [
+            'recordKind' => 'landmark',
+            'nodePath' => self::htmlNodeReviewPath($element),
+            'element' => $name,
+            'id' => self::attributeOrNull($element, 'id'),
+            'landmark' => $landmark,
+            'landmarkLabel' => self::htmlLandmarkLabel($element),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function htmlHeadingReviewRecord(\DOMElement $element, string $name): array
+    {
+        return [
+            'recordKind' => 'heading',
+            'nodePath' => self::htmlNodeReviewPath($element),
+            'element' => $name,
+            'id' => self::attributeOrNull($element, 'id'),
+            'headingLevel' => self::htmlHeadingLevel($name),
+            'headingText' => self::normalizedText($element),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function htmlHeadingGroupReviewRecord(\DOMElement $element): array
+    {
+        $mainHeading = self::htmlHeadingGroupMainHeadingElement($element);
+        $mainHeadingName = $mainHeading instanceof \DOMElement ? self::htmlElementName($mainHeading) : null;
+
+        return [
+            'recordKind' => 'heading-group',
+            'nodePath' => self::htmlNodeReviewPath($element),
+            'element' => 'hgroup',
+            'id' => self::attributeOrNull($element, 'id'),
+            'headingGroupText' => self::normalizedText($element),
+            'headingGroupHeadingText' => $mainHeading instanceof \DOMElement ? self::normalizedText($mainHeading) : null,
+            'headingGroupHeadingTag' => $mainHeadingName,
+            'headingGroupHeadingLevel' => $mainHeadingName === null ? null : self::htmlHeadingLevel($mainHeadingName),
+            'headingGroupHeadingTexts' => array_values(array_map(
+                static fn (\DOMElement $heading): string => self::normalizedText($heading),
+                self::htmlHeadingGroupHeadingElements($element)
+            )),
+            'headingGroupSubtitleTexts' => self::htmlHeadingGroupSubtitleTexts($element),
+        ];
+    }
+
+    private static function htmlLandmarkName(\DOMElement $element, string $name): ?string
+    {
+        return match ($name) {
+            'aside' => 'complementary',
+            'main' => 'main',
+            'nav' => 'navigation',
+            'search' => 'search',
+            default => null,
+        };
+    }
+
+    private static function htmlLandmarkLabel(\DOMElement $element): ?string
+    {
+        foreach (['aria-label', 'title'] as $attribute) {
+            $label = self::normalizedNonEmptyAttribute(self::attributeOrNull($element, $attribute));
+            if ($label !== null) {
+                return $label;
+            }
+        }
+
+        return null;
     }
 
     /**
