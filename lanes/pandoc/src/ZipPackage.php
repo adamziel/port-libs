@@ -14967,9 +14967,20 @@ final class ZipPackage
         $localHeaderFixedFieldEntries = [];
         $localHeaderFixedFieldIssueEntries = [];
         $localHeaderFixedFieldIssues = [];
+        $extraFieldUsageEntries = [];
+        $extraFieldEntryCount = 0;
 
         foreach ($this->entries as $centralDirectoryIndex => $entry) {
             $localHeader = $this->readLocalHeader($entry);
+            $extraFieldProvenance = self::entryExtraFieldHandoffProvenance($entry, $localHeader);
+            if ($extraFieldProvenance['hasExtraFieldProvenance']) {
+                ++$extraFieldEntryCount;
+            }
+            $extraFieldUsageEntries[] = [
+                'name' => $entry->name,
+                'centralExtraFieldIds' => $extraFieldProvenance['centralExtraFieldIds'],
+                'localExtraFieldIds' => $extraFieldProvenance['localExtraFieldIds'],
+            ];
             $localHeaderFixedFieldProvenance = self::entryLocalHeaderFixedFieldHandoffProvenance($entry, $localHeader);
             $localHeaderFixedFieldEntries[] = [
                 'name' => $entry->name,
@@ -15495,6 +15506,16 @@ final class ZipPackage
                 'localHeaderExtraFieldBytes' => $entryLocalHeaderExtraFieldBytes,
                 'localHeaderExtraFieldSha256' => $entryLocalHeaderExtraFieldSha256,
                 'localHeaderReviewFieldBytes' => $entryLocalHeaderReviewFieldBytes,
+                'centralExtraFieldRecordCount' => $extraFieldProvenance['centralExtraFieldRecordCount'],
+                'centralExtraFieldIds' => $extraFieldProvenance['centralExtraFieldIds'],
+                'centralExtraFieldIdHexes' => $extraFieldProvenance['centralExtraFieldIdHexes'],
+                'hasCentralExtraFields' => $extraFieldProvenance['hasCentralExtraFields'],
+                'localExtraFieldRecordCount' => $extraFieldProvenance['localExtraFieldRecordCount'],
+                'localExtraFieldIds' => $extraFieldProvenance['localExtraFieldIds'],
+                'localExtraFieldIdHexes' => $extraFieldProvenance['localExtraFieldIdHexes'],
+                'hasLocalExtraFields' => $extraFieldProvenance['hasLocalExtraFields'],
+                'centralLocalExtraFieldIdsMatch' => $extraFieldProvenance['centralLocalExtraFieldIdsMatch'],
+                'hasExtraFieldProvenance' => $extraFieldProvenance['hasExtraFieldProvenance'],
                 'localRecordOffset' => $entry->localHeaderOffset,
                 'localRecordBytes' => $localRecordLength,
                 'localRecordEnd' => $localRecordEnd,
@@ -15819,6 +15840,7 @@ final class ZipPackage
             static fn (array $summary): string => (string) $summary['nameLengthBucket'],
             $nameLengthBucketSummaries
         );
+        $extraFieldIdUsage = self::extraFieldIdUsageSummary($extraFieldUsageEntries);
         $expansionRatio = self::expansionRatio($uncompressedBytes, $compressedBytes);
         $manifestPayload = [
             'manifestVersion' => 'zip-package-manifest-v1',
@@ -16100,6 +16122,21 @@ final class ZipPackage
             'centralDirectoryReviewFieldBytes' => $centralDirectoryReviewFieldBytes,
             'sourceRecordBytes' => $sourceRecordBytes,
             'centralExtraFieldEntryCount' => $centralExtraFieldEntryCount,
+            'extraFieldEntryCount' => $extraFieldEntryCount,
+            'hasExtraFields' => $extraFieldEntryCount > 0,
+            'extraFieldIdCount' => $extraFieldIdUsage['extraFieldIdCount'],
+            'centralExtraFieldIdCount' => $extraFieldIdUsage['centralExtraFieldIdCount'],
+            'localExtraFieldIdCount' => $extraFieldIdUsage['localExtraFieldIdCount'],
+            'sharedExtraFieldIdCount' => $extraFieldIdUsage['sharedExtraFieldIdCount'],
+            'centralOnlyExtraFieldIdCount' => $extraFieldIdUsage['centralOnlyExtraFieldIdCount'],
+            'localOnlyExtraFieldIdCount' => $extraFieldIdUsage['localOnlyExtraFieldIdCount'],
+            'extraFieldIdHexes' => $extraFieldIdUsage['extraFieldIdHexes'],
+            'centralExtraFieldIdHexes' => $extraFieldIdUsage['centralExtraFieldIdHexes'],
+            'localExtraFieldIdHexes' => $extraFieldIdUsage['localExtraFieldIdHexes'],
+            'sharedExtraFieldIdHexes' => $extraFieldIdUsage['sharedExtraFieldIdHexes'],
+            'centralOnlyExtraFieldIdHexes' => $extraFieldIdUsage['centralOnlyExtraFieldIdHexes'],
+            'localOnlyExtraFieldIdHexes' => $extraFieldIdUsage['localOnlyExtraFieldIdHexes'],
+            'extraFieldIdUsage' => $extraFieldIdUsage['extraFieldIdUsage'],
             'entryCommentCount' => $entryCommentCount,
             'hasEntryComments' => $entryCommentSummaries !== [],
             'commentedEntryNames' => $commentedEntryNames,

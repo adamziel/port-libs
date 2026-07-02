@@ -11255,6 +11255,102 @@ return [
         $t->same('central and local-only extra-field ids', $package->read('word/media/reviewer-note.txt'));
     },
 
+    'summarizes zip package manifest extra field id usage for shared package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $timestampExtra = pack('vvCV', 0x5455, 5, 0x01, 1780479017);
+        $centralReviewExtra = pack('vva*', 0xcafe, strlen('central-review'), 'central-review');
+        $localReviewExtra = pack('vva*', 0xcafe, strlen('local-review'), 'local-review');
+        $centralOnlyExtra = pack('vva*', 0x1111, strlen('central-only'), 'central-only');
+        $localOnlyExtra = pack('vva*', 0x2222, strlen('local-only'), 'local-only');
+        $localAuditExtra = pack('vva*', 0x3333, strlen('audit-local'), 'audit-local');
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>manifest extra field ids</w:p></w:document>',
+                'method' => 8,
+                'centralExtra' => $timestampExtra . $centralReviewExtra,
+                'localExtra' => $timestampExtra . $localReviewExtra,
+            ],
+            [
+                'name' => 'word/media/reviewer-note.txt',
+                'data' => 'central and local-only manifest extra-field ids',
+                'method' => 0,
+                'centralExtra' => $centralOnlyExtra,
+                'localExtra' => $localOnlyExtra,
+            ],
+            [
+                'name' => 'word/media/local-audit.txt',
+                'data' => 'local-only audit manifest extra-field id',
+                'method' => 0,
+                'centralExtra' => '',
+                'localExtra' => $localAuditExtra,
+            ],
+            [
+                'name' => 'word/settings.xml',
+                'data' => '<w:settings/>',
+                'method' => 0,
+            ],
+        ]);
+
+        $package = ZipPackage::fromString($zip);
+        $manifest = $package->packageManifestPreflight();
+        $extraFields = $package->extraFieldPreflight();
+        $strict = $package->strictImportPreflight(4096, 100.0, 4096);
+        $raw = ZipPackage::rawStrictImportPreflight($zip, 4096, 100.0, 4096);
+        $entriesByName = array_column($manifest['entries'], null, 'name');
+
+        $t->same(3, $manifest['extraFieldEntryCount']);
+        $t->same(true, $manifest['hasExtraFields']);
+        $t->same(2, $manifest['centralExtraFieldEntryCount']);
+        $t->same(3, $manifest['localExtraFieldEntryCount']);
+        $t->same($extraFields['extraFieldIdCount'], $manifest['extraFieldIdCount']);
+        $t->same($extraFields['centralExtraFieldIdCount'], $manifest['centralExtraFieldIdCount']);
+        $t->same($extraFields['localExtraFieldIdCount'], $manifest['localExtraFieldIdCount']);
+        $t->same($extraFields['sharedExtraFieldIdCount'], $manifest['sharedExtraFieldIdCount']);
+        $t->same($extraFields['centralOnlyExtraFieldIdCount'], $manifest['centralOnlyExtraFieldIdCount']);
+        $t->same($extraFields['localOnlyExtraFieldIdCount'], $manifest['localOnlyExtraFieldIdCount']);
+        $t->same(['0x1111', '0x2222', '0x3333', '0x5455', '0xcafe'], $manifest['extraFieldIdHexes']);
+        $t->same(['0x1111', '0x5455', '0xcafe'], $manifest['centralExtraFieldIdHexes']);
+        $t->same(['0x2222', '0x3333', '0x5455', '0xcafe'], $manifest['localExtraFieldIdHexes']);
+        $t->same(['0x5455', '0xcafe'], $manifest['sharedExtraFieldIdHexes']);
+        $t->same(['0x1111'], $manifest['centralOnlyExtraFieldIdHexes']);
+        $t->same(['0x2222', '0x3333'], $manifest['localOnlyExtraFieldIdHexes']);
+        $t->same($extraFields['extraFieldIdUsage'], $manifest['extraFieldIdUsage']);
+        $t->same($manifest, $strict['packageManifest']);
+        $t->same($manifest, $raw['packageManifest']);
+        $t->same($manifest, $raw['strictImport']['packageManifest']);
+
+        $documentEntry = $entriesByName['word/document.xml'];
+        $t->same(2, $documentEntry['centralExtraFieldRecordCount']);
+        $t->same([0x5455, 0xcafe], $documentEntry['centralExtraFieldIds']);
+        $t->same(['0x5455', '0xcafe'], $documentEntry['centralExtraFieldIdHexes']);
+        $t->same(2, $documentEntry['localExtraFieldRecordCount']);
+        $t->same([0x5455, 0xcafe], $documentEntry['localExtraFieldIds']);
+        $t->same(['0x5455', '0xcafe'], $documentEntry['localExtraFieldIdHexes']);
+        $t->same(true, $documentEntry['centralLocalExtraFieldIdsMatch']);
+        $t->same(true, $documentEntry['hasExtraFieldProvenance']);
+
+        $reviewEntry = $entriesByName['word/media/reviewer-note.txt'];
+        $t->same([0x1111], $reviewEntry['centralExtraFieldIds']);
+        $t->same([0x2222], $reviewEntry['localExtraFieldIds']);
+        $t->same(false, $reviewEntry['centralLocalExtraFieldIdsMatch']);
+        $t->same(true, $reviewEntry['hasCentralExtraFields']);
+        $t->same(true, $reviewEntry['hasLocalExtraFields']);
+
+        $localAuditEntry = $entriesByName['word/media/local-audit.txt'];
+        $t->same([], $localAuditEntry['centralExtraFieldIds']);
+        $t->same([0x3333], $localAuditEntry['localExtraFieldIds']);
+        $t->same(false, $localAuditEntry['hasCentralExtraFields']);
+        $t->same(true, $localAuditEntry['hasLocalExtraFields']);
+
+        $settingsEntry = $entriesByName['word/settings.xml'];
+        $t->same(0, $settingsEntry['centralExtraFieldRecordCount']);
+        $t->same([], $settingsEntry['centralExtraFieldIds']);
+        $t->same(0, $settingsEntry['localExtraFieldRecordCount']);
+        $t->same([], $settingsEntry['localExtraFieldIds']);
+        $t->same(true, $settingsEntry['centralLocalExtraFieldIdsMatch']);
+        $t->same(false, $settingsEntry['hasExtraFieldProvenance']);
+    },
+
     'reads ntfs zip extra field timestamps for office package preflight' => static function (TestRunner $t) use ($buildZipPackage, $buildNtfsExtra): void {
         $modifiedAt = 1780479017;
         $accessedAt = 1780479018;
