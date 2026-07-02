@@ -1589,6 +1589,10 @@ final class MarkdownReader
             return $this->readRawHtmlUntilBlankLine($lines, $index);
         }
 
+        if ($tag !== null && $this->isCompleteRawHtmlTagLine($line)) {
+            return $this->readRawHtmlUntilBlankLine($lines, $index);
+        }
+
         if (
             $tag !== null
             && (
@@ -8499,6 +8503,16 @@ final class MarkdownReader
         return ['name' => strtolower($match[1])];
     }
 
+    private function isCompleteRawHtmlTagLine(string $line): bool
+    {
+        $line = $this->expandTabsToSpaces($line);
+
+        return preg_match(
+            '/^ {0,3}<[A-Za-z][A-Za-z0-9:-]*(?:[ \t]+[A-Za-z_:][A-Za-z0-9_.:-]*(?:[ \t]*=[ \t]*(?:"[^"]*"|\'[^\']*\'|[^\s"\'=<>`]+))?)*[ \t]*\/?>[ \t]*$/',
+            $line
+        ) === 1;
+    }
+
     private function isCommonMarkParagraphInterruptingRawHtmlBlockStart(string $line): bool
     {
         $expanded = $this->expandTabsToSpaces($line);
@@ -9197,7 +9211,8 @@ final class MarkdownReader
         }
 
         return $this->isCommonMarkBlankTerminatedRawHtmlTag($tag['name'])
-            || $this->isRawHtmlCustomTagName($tag['name']);
+            || $this->isRawHtmlCustomTagName($tag['name'])
+            || $this->isCompleteRawHtmlTagLine($expanded);
     }
 
     /**
