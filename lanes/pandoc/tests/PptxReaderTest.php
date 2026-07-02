@@ -5709,6 +5709,9 @@ XML);
       <a:graphic/>
     </p:graphicFrame>
     <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="21" name="Missing Graphic"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+    </p:graphicFrame>
+    <p:graphicFrame>
       <p:nvGraphicFramePr><p:cNvPr id="10" name="No URI Graphic"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
       <a:graphic><a:graphicData/></a:graphic>
     </p:graphicFrame>
@@ -10504,6 +10507,7 @@ return [
         $t->same('Chart Diagram URI', $placeholderParagraphs[8]->attr('pptxShape')['name'] ?? null);
         $t->same('Uppercase Table URI', $placeholderParagraphs[9]->attr('pptxShape')['name'] ?? null);
         $t->true(!str_contains($native, 'Missing GraphicData'), 'Graphic frames without graphicData should be skipped like upstream');
+        $t->true(!str_contains($native, 'Missing Graphic'), 'Graphic frames without a:graphic should be skipped like upstream');
         $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
     },
 
