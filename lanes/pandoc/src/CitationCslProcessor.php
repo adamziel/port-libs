@@ -1397,9 +1397,11 @@ final class CitationCslProcessor
         $originalPage = str_replace('--', '-', self::firstStringField($item, ['original-page', 'originalPage', 'originalpage', 'origpages', 'origPages', 'orig-pages', 'origpage', 'origPage', 'orig-page']));
         $originalPageFirst = self::firstStringField($item, ['original-page-first', 'originalPageFirst', 'originalpagefirst', 'origpagefirst', 'origPageFirst', 'orig-page-first'])
             ?: self::firstPageFromRange($originalPage);
+        $originalIsbn = self::firstStringField($item, ['original-ISBN', 'original-isbn', 'originalISBN', 'originalIsbn', 'originalisbn', 'origISBN', 'origIsbn', 'origisbn', 'orig-isbn']);
         $reprintPage = str_replace('--', '-', self::firstStringField($item, ['reprint-page', 'reprintPage', 'reprintpage', 'reprintpages', 'reprintPages', 'reprint-pages']));
         $reprintPageFirst = self::firstStringField($item, ['reprint-page-first', 'reprintPageFirst', 'reprintpagefirst'])
             ?: self::firstPageFromRange($reprintPage);
+        $reprintIsbn = self::firstStringField($item, ['reprint-ISBN', 'reprint-isbn', 'reprintISBN', 'reprintIsbn', 'reprintisbn']);
         $biblatexDisambiguationFields = [
             'pageRef' => self::firstStringField($item, ['biblatex-page-ref', 'biblatexPageRef', 'biblatexpageref', 'pageref', 'page-ref']),
             'nameHash' => self::firstStringField($item, ['biblatex-name-hash', 'biblatexNameHash', 'biblatexnamehash', 'namehash', 'name-hash']),
@@ -1738,6 +1740,7 @@ final class CitationCslProcessor
             'originalIssue' => self::firstStringField($item, ['original-issue', 'originalIssue', 'originalissue', 'origissue', 'origIssue', 'orig-issue']),
             'originalNumber' => self::firstStringField($item, ['original-number', 'originalNumber', 'originalnumber', 'orignumber', 'origNumber', 'orig-number']),
             'originalEdition' => self::firstStringField($item, ['original-edition', 'originalEdition', 'originaledition', 'origedition', 'origEdition', 'orig-edition']),
+            'originalIsbn' => $originalIsbn,
             'originalDate' => $originalDate,
             'originalDateAddon' => self::firstStringField($item, ['original-date-addon', 'originalDateAddon', 'origdateaddon', 'origDateAddon', 'orig-date-addon']),
             'reprintDate' => $reprintDate,
@@ -1748,6 +1751,7 @@ final class CitationCslProcessor
             'reprintIssue' => self::firstStringField($item, ['reprint-issue', 'reprintIssue', 'reprintissue']),
             'reprintNumber' => self::firstStringField($item, ['reprint-number', 'reprintNumber', 'reprintnumber']),
             'reprintEdition' => self::firstStringField($item, ['reprint-edition', 'reprintEdition', 'reprintedition']),
+            'reprintIsbn' => $reprintIsbn,
             'submittedDate' => $submittedDate,
             'eventDate' => $eventDate,
             'labelDate' => $labelDate,
@@ -9012,6 +9016,7 @@ final class CitationCslProcessor
             ['reprintIssue', 'Reprint issue'],
             ['reprintNumber', 'Reprint number'],
             ['reprintEdition', 'Reprint edition'],
+            ['reprintIsbn', 'Reprint ISBN'],
             ['translatedTitle', 'Translated title'],
             ['translatedSubtitle', 'Translated subtitle'],
             ['originalSubtitle', 'Original subtitle'],
@@ -9021,6 +9026,7 @@ final class CitationCslProcessor
             ['originalIssue', 'Original issue'],
             ['originalNumber', 'Original number'],
             ['originalEdition', 'Original edition'],
+            ['originalIsbn', 'Original ISBN'],
             ['categorySummary', 'Categories'],
             ['citationAliasSummary', 'Citation aliases'],
             ['sortShorthand', 'Sort shorthand'],
@@ -11312,6 +11318,7 @@ final class CitationCslProcessor
             'reprint-issue', 'reprintissue' => (string) ($item['reprintIssue'] ?? ''),
             'reprint-number', 'reprintnumber' => (string) ($item['reprintNumber'] ?? ''),
             'reprint-edition', 'reprintedition' => (string) ($item['reprintEdition'] ?? ''),
+            'reprint-isbn', 'reprintisbn' => (string) ($item['reprintIsbn'] ?? ''),
             'original-title', 'originaltitle', 'origtitle' => (string) ($item['originalTitle'] ?? ''),
             'original-subtitle', 'originalsubtitle', 'origsubtitle' => (string) ($item['originalSubtitle'] ?? ''),
             'original-title-addon', 'originaltitleaddon', 'origtitleaddon' => (string) ($item['originalTitleAddon'] ?? ''),
@@ -11322,6 +11329,7 @@ final class CitationCslProcessor
             'original-issue', 'originalissue', 'origissue' => (string) ($item['originalIssue'] ?? ''),
             'original-number', 'originalnumber', 'orignumber' => (string) ($item['originalNumber'] ?? ''),
             'original-edition', 'originaledition', 'origedition' => (string) ($item['originalEdition'] ?? ''),
+            'original-isbn', 'originalisbn', 'origisbn', 'orig-isbn' => (string) ($item['originalIsbn'] ?? ''),
             'container-title', 'containertitle', 'container', 'container-title-text', 'containertitletext', 'book-title', 'booktitle', 'journal-title', 'journaltitle', 'journal', 'publication-title', 'publicationtitle' => (string) $item['containerTitle'],
             'container-subtitle', 'containersubtitle', 'book-subtitle', 'booksubtitle', 'journal-subtitle', 'journalsubtitle', 'publication-subtitle', 'publicationsubtitle' => (string) ($item['containerSubtitle'] ?? ''),
             'container-title-short', 'containertitleshort', 'book-title-short', 'booktitleshort', 'container-title-abbreviation', 'containertitleabbreviation' => (string) $item['containerTitleShort'],
