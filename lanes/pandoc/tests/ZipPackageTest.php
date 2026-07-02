@@ -1191,6 +1191,12 @@ return [
             'pathDepth' => 3,
             'extension' => 'png',
             'packagePartKind' => 'media',
+            'madeByHostSystem' => 3,
+            'madeByHostSystemName' => 'unix',
+            'madeByVersion' => 20,
+            'versionMadeBy' => 0x0314,
+            'versionNeededToExtract' => 20,
+            'creatorVersionMeetsNeeded' => true,
             'compressedSize' => 3,
             'uncompressedSize' => 3,
         ], $profile['entries'][5]);
