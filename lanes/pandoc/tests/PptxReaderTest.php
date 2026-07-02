@@ -4776,6 +4776,101 @@ XML);
     }
 };
 
+$buildOrderedSmartArtConnectionsPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-ordered-smartart-cxns-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Ordered SmartArt connections</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="20" name="Ordered SmartArt"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"><dgm:relIds r:dm="rIdData" r:lo="rIdLayout"/></a:graphicData></a:graphic>
+    </p:graphicFrame>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->addFromString('ppt/slides/_rels/slide1.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdData" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData" Target="../diagrams/data1.xml"/>
+  <Relationship Id="rIdLayout" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramLayout" Target="../diagrams/layout1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/diagrams/layout1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<dgm:layoutDef xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" uniqueId="urn:microsoft.com/office/officeart/2005/8/layout/basicBlockList"/>
+XML);
+    $zip->addFromString('ppt/diagrams/data1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<dgm:dataModel xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <dgm:ptLst>
+    <dgm:pt modelId="zParent"><dgm:t><a:p><a:r><a:t>Second sorted parent</a:t></a:r></a:p></dgm:t></dgm:pt>
+    <dgm:pt modelId="zChild"><dgm:t><a:p><a:r><a:t>Second sorted child</a:t></a:r></a:p></dgm:t></dgm:pt>
+    <dgm:pt modelId="aParent"><dgm:t><a:p><a:r><a:t>First sorted parent</a:t></a:r></a:p></dgm:t></dgm:pt>
+    <dgm:pt modelId="betaChild"><dgm:t><a:p><a:r><a:t>Beta connection child</a:t></a:r></a:p></dgm:t></dgm:pt>
+    <dgm:pt modelId="alphaChild"><dgm:t><a:p><a:r><a:t>Alpha connection child</a:t></a:r></a:p></dgm:t></dgm:pt>
+  </dgm:ptLst>
+  <dgm:cxnLst>
+    <dgm:cxn srcId="zParent" destId="zChild"/>
+    <dgm:cxn srcId="aParent" destId="betaChild"/>
+    <dgm:cxn srcId="aParent" destId="alphaChild"/>
+  </dgm:cxnLst>
+</dgm:dataModel>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildSmartArtAllDescendantTextPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-smartart-descendant-text-');
     if ($path === false) {
@@ -8220,6 +8315,32 @@ return [
         $t->true(!str_contains($native, 'Typed child'), 'Children reachable only through typed SmartArt connections should stay hidden');
         $t->true(!str_contains($native, 'Endpoint parent'), 'SmartArt connections without destId should be ignored');
         $t->true(!str_contains($native, 'Endpoint child'), 'SmartArt connections without srcId should be ignored');
+    },
+
+    'sorts pptx SmartArt parents while preserving child connection order like upstream' => static function (TestRunner $t) use ($buildOrderedSmartArtConnectionsPptxPackage, $nodesOfType, $nodesWithClass): void {
+        $document = (new PptxReader())->read($buildOrderedSmartArtConnectionsPptxPackage());
+        $review = $document->attr('pptx');
+        $smartArtDivs = $nodesWithClass($nodesOfType($document, 'div'), 'smartart');
+        $native = PandocConverter::write($document, 'native');
+
+        $firstParent = strpos($native, 'Strong [ Str "First" , Space , Str "sorted" , Space , Str "parent" ]');
+        $betaChild = strpos($native, 'Plain [ Str "Beta" , Space , Str "connection" , Space , Str "child" ]');
+        $alphaChild = strpos($native, 'Plain [ Str "Alpha" , Space , Str "connection" , Space , Str "child" ]');
+        $secondParent = strpos($native, 'Strong [ Str "Second" , Space , Str "sorted" , Space , Str "parent" ]');
+        $secondChild = strpos($native, 'Plain [ Str "Second" , Space , Str "sorted" , Space , Str "child" ]');
+
+        $t->same(1, count($smartArtDivs));
+        $t->same(['smartart', 'basicBlockList'], $smartArtDivs[0]->attr('classes'));
+        $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
+        $t->true($firstParent !== false, 'First sorted SmartArt parent should be present');
+        $t->true($betaChild !== false, 'First SmartArt child should be present');
+        $t->true($alphaChild !== false, 'Second SmartArt child should be present');
+        $t->true($secondParent !== false, 'Second sorted SmartArt parent should be present');
+        $t->true($secondChild !== false, 'Second sorted SmartArt child should be present');
+        $t->true(is_int($firstParent) && is_int($betaChild) && $firstParent < $betaChild, 'Parent aParent should render before its children');
+        $t->true(is_int($betaChild) && is_int($alphaChild) && $betaChild < $alphaChild, 'Children should preserve connection order, not modelId sort order');
+        $t->true(is_int($alphaChild) && is_int($secondParent) && $alphaChild < $secondParent, 'Parent ids should be sorted before zParent renders');
+        $t->true(is_int($secondParent) && is_int($secondChild) && $secondParent < $secondChild, 'Second parent should render before its child');
     },
 
     'uses all descendant pptx SmartArt text like upstream' => static function (TestRunner $t) use ($buildSmartArtAllDescendantTextPptxPackage, $nodesOfType, $nodesWithClass): void {
