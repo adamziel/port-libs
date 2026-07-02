@@ -29888,6 +29888,7 @@ final class XmlHtmlDom
             'loop' => $element->hasAttribute('loop'),
             'muted' => $element->hasAttribute('muted'),
             'preload' => self::mediaPreload($element),
+            'crossorigin' => self::attributeOrNull($element, 'crossorigin'),
             'sources' => self::mediaSourceSummaries($element),
             'mediaSources' => array_map(
                 static fn (\DOMElement $source): array => self::sourceElementSummary($source),
@@ -29897,6 +29898,7 @@ final class XmlHtmlDom
         ];
         $summary += self::mediaTextTrackReviewSummary($element);
         $summary += self::mediaPreloadReviewSummary($element);
+        $summary += self::mediaFetchPolicyReviewSummary($element, $name);
         $summary += self::mediaPolicyReviewSummary($element);
 
         if ($name === 'video') {
@@ -29907,6 +29909,144 @@ final class XmlHtmlDom
         $fallbackText = self::normalizedTextWithoutMediaResourceChildren($element);
         if ($fallbackText !== '') {
             $summary['fallbackText'] = $fallbackText;
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function mediaFetchPolicyReviewSummary(\DOMElement $element, string $name): array
+    {
+        $crossoriginRaw = self::attributeOrNull($element, 'crossorigin');
+        $crossorigin = $crossoriginRaw === null ? null : self::htmlCorsSettingsAttributeState($crossoriginRaw);
+        $candidates = self::mediaFetchCandidateSummaries($element, $name);
+        $issues = [];
+
+        if ($crossoriginRaw !== null && $crossorigin === null) {
+            $issues[] = [
+                'code' => 'invalid-media-crossorigin',
+                'crossoriginRaw' => $crossoriginRaw,
+            ];
+        }
+
+        foreach ($candidates as $candidate) {
+            $base = [
+                'element' => $candidate['element'],
+                'source' => $candidate['source'],
+            ];
+            if (array_key_exists('sourceIndex', $candidate)) {
+                $base['sourceIndex'] = $candidate['sourceIndex'];
+            }
+
+            if (($candidate['urlKind'] ?? null) === 'missing' && ($candidate['element'] ?? null) === 'source') {
+                $issues[] = ['code' => 'missing-media-source-src'] + $base;
+                continue;
+            }
+
+            if (($candidate['urlKind'] ?? null) === 'empty') {
+                $issues[] = ['code' => 'empty-media-src-url'] + $base;
+                continue;
+            }
+
+            if (($candidate['urlUnsafe'] ?? false) === true) {
+                $issues[] = [
+                    'code' => 'unsafe-media-src-url',
+                ] + $base + [
+                    'url' => $candidate['url'],
+                    'scheme' => $candidate['urlScheme'],
+                ];
+            }
+        }
+
+        $issueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
+        $candidateUrls = array_values(array_filter(
+            array_map(static fn (array $candidate): ?string => $candidate['url'], $candidates),
+            static fn (?string $url): bool => $url !== null && trim($url) !== ''
+        ));
+
+        return [
+            'mediaFetchPolicyReviewPolicy' => 'html-media-fetch-policy-review',
+            'mediaFetchElement' => $name,
+            'mediaCrossoriginRaw' => $crossoriginRaw,
+            'mediaCrossoriginState' => $crossorigin,
+            'mediaCrossoriginValid' => $crossoriginRaw === null ? null : $crossorigin !== null,
+            'mediaSourceElementCount' => count(self::mediaResourceElements($element, 'source')),
+            'mediaFetchCandidateCount' => count($candidates),
+            'mediaFetchUrlCount' => count($candidateUrls),
+            'mediaFetchCandidateUrls' => $candidateUrls,
+            'mediaFetchUnsafeUrls' => array_values(array_map(
+                static fn (array $candidate): string => (string) $candidate['url'],
+                array_filter($candidates, static fn (array $candidate): bool => ($candidate['urlUnsafe'] ?? false) === true)
+            )),
+            'mediaFetchCandidates' => $candidates,
+            'mediaFetchIssues' => $issues,
+            'mediaFetchIssueCodes' => $issueCodes,
+            'mediaFetchIssueCount' => count($issues),
+            'mediaFetchValid' => $issues === [],
+            'mediaFetchReviewOnlyNoResourceFetch' => true,
+            'mediaFetchReviewHandoffPolicy' => 'metadata-only-no-media-fetch',
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function mediaFetchCandidateSummaries(\DOMElement $element, string $name): array
+    {
+        $candidates = [];
+        $src = self::attributeOrNull($element, 'src');
+        if ($src !== null) {
+            $candidates[] = self::mediaFetchCandidateSummary($name, 'src-attribute', $src);
+        }
+
+        foreach (self::mediaResourceElements($element, 'source') as $index => $source) {
+            $candidates[] = self::mediaFetchCandidateSummary(
+                'source',
+                'source-element',
+                self::attributeOrNull($source, 'src'),
+                $index,
+                self::attributeOrNull($source, 'type'),
+                self::attributeOrNull($source, 'media')
+            );
+        }
+
+        return $candidates;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function mediaFetchCandidateSummary(
+        string $element,
+        string $source,
+        ?string $url,
+        ?int $sourceIndex = null,
+        ?string $type = null,
+        ?string $media = null
+    ): array {
+        $urlSummary = self::hyperlinkUrlReviewSummary($url);
+        $summary = [
+            'element' => $element,
+            'source' => $source,
+            'url' => $url,
+            'urlKind' => $urlSummary['kind'],
+            'urlScheme' => $urlSummary['scheme'],
+            'urlUnsafe' => $urlSummary['unsafe'],
+        ];
+
+        if ($sourceIndex !== null) {
+            $summary['sourceIndex'] = $sourceIndex;
+        }
+        if ($type !== null) {
+            $summary['type'] = $type;
+        }
+        if ($media !== null) {
+            $summary['media'] = $media;
         }
 
         return $summary;
