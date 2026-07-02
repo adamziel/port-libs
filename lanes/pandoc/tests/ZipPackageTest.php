@@ -836,6 +836,156 @@ return [
         $t->same($manifest, $raw['strictImport']['packageManifest']);
     },
 
+    'summarizes zip package manifest expansion ratio buckets without changing manifest hash contract' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = str_repeat('D', 2048);
+        $styleXml = '<style/>';
+        $emptyBytes = '';
+        $mediaBytes = str_repeat('M', 70000);
+        $unknownName = 'word/media/zero-compressed.bin';
+        $unknownUncompressedSize = 37;
+        $zip = $buildZipPackage([
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 8],
+            ['name' => 'word/styles.xml', 'data' => $styleXml, 'method' => 0],
+            ['name' => 'word/media/empty.bin', 'data' => $emptyBytes, 'method' => 0],
+            ['name' => 'word/media/', 'data' => '', 'method' => 0],
+            ['name' => 'word/media/large.bin', 'data' => $mediaBytes, 'method' => 8],
+            [
+                'name' => $unknownName,
+                'data' => '',
+                'method' => 12,
+                'centralCompressedSize' => 0,
+                'centralUncompressedSize' => $unknownUncompressedSize,
+                'localCompressedSize' => 0,
+                'localUncompressedSize' => $unknownUncompressedSize,
+            ],
+        ]);
+        $documentCompressed = strlen(gzdeflate($documentXml));
+        $mediaCompressed = strlen(gzdeflate($mediaBytes));
+        $documentRatio = strlen($documentXml) / $documentCompressed;
+        $mediaRatio = strlen($mediaBytes) / $mediaCompressed;
+        $largestHighRatioName = $mediaRatio > $documentRatio ? 'word/media/large.bin' : 'word/document.xml';
+        $largestHighRatio = max($documentRatio, $mediaRatio);
+        $totalCompressedBytes = $documentCompressed + strlen($styleXml) + $mediaCompressed;
+        $totalUncompressedBytes = strlen($documentXml)
+            + strlen($styleXml)
+            + strlen($mediaBytes)
+            + $unknownUncompressedSize;
+
+        $package = ZipPackage::fromString($zip);
+        $manifest = $package->packageManifestPreflight();
+        $strict = $package->strictImportPreflight(131072, 100000.0, 131072);
+        $raw = ZipPackage::rawStrictImportPreflight($zip, 131072, 100000.0, 131072);
+        $buckets = array_column($manifest['expansionRatioBucketSummaries'], null, 'expansionRatioBucket');
+        $expectedManifestJson = json_encode([
+            'manifestVersion' => 'zip-package-manifest-v1',
+            'centralDirectoryOrderNames' => $manifest['centralDirectoryOrderNames'],
+            'localHeaderOrderNames' => $manifest['localHeaderOrderNames'],
+            'entries' => array_map(
+                static fn (array $entry): array => [
+                    'name' => $entry['name'],
+                    'isDirectory' => $entry['isDirectory'],
+                    'centralDirectoryIndex' => $entry['centralDirectoryIndex'],
+                    'localHeaderOrder' => $entry['localHeaderOrder'],
+                    'compressionMethod' => $entry['compressionMethod'],
+                    'crc32Hex' => $entry['crc32Hex'],
+                    'compressedSize' => $entry['compressedSize'],
+                    'uncompressedSize' => $entry['uncompressedSize'],
+                    'localHeaderSha256' => $entry['localHeaderSha256'],
+                    'compressedDataSha256' => $entry['compressedDataSha256'],
+                    'centralDirectoryRecordSha256' => $entry['centralDirectoryRecordSha256'],
+                ],
+                $manifest['entries']
+            ),
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+
+        $t->same(hash('sha256', $expectedManifestJson), $manifest['manifestSha256']);
+        $t->same(6, $manifest['entryCount']);
+        $t->same(5, $manifest['fileEntryCount']);
+        $t->same(1, $manifest['directoryEntryCount']);
+        $t->same($totalCompressedBytes, $manifest['compressedBytes']);
+        $t->same($totalUncompressedBytes, $manifest['uncompressedBytes']);
+        $t->same($totalUncompressedBytes / $totalCompressedBytes, $manifest['expansionRatio']);
+        $t->same(3, $manifest['storedEntryCount']);
+        $t->same(2, $manifest['deflatedEntryCount']);
+        $t->same(1, $manifest['unsupportedCompressionMethodCount']);
+        $t->same(1, $manifest['unknownExpansionRatioEntryCount']);
+        $t->same(true, $manifest['hasUnknownExpansionRatioEntries']);
+        $t->same(4, $manifest['expansionRatioBucketCount']);
+        $t->same(['zero-byte', 'up-to-1x', 'over-100x', 'unknown'], array_keys($buckets));
+
+        $t->same($documentRatio, $manifest['entries'][0]['expansionRatio']);
+        $t->same(1.0, $manifest['entries'][1]['expansionRatio']);
+        $t->same(0.0, $manifest['entries'][2]['expansionRatio']);
+        $t->same(0.0, $manifest['entries'][3]['expansionRatio']);
+        $t->same($mediaRatio, $manifest['entries'][4]['expansionRatio']);
+        $t->same(null, $manifest['entries'][5]['expansionRatio']);
+
+        $t->same([
+            'expansionRatioBucket' => 'zero-byte',
+            'minExpansionRatio' => 0.0,
+            'maxExpansionRatio' => 0.0,
+            'entryCount' => 2,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 1,
+            'unknownExpansionRatioEntryCount' => 0,
+            'compressedBytes' => 0,
+            'uncompressedBytes' => 0,
+            'roles' => [],
+            'entryNames' => ['word/media/empty.bin', 'word/media/'],
+            'largestExpansionRatioEntryName' => 'word/media/empty.bin',
+            'largestExpansionRatio' => 0.0,
+        ], $buckets['zero-byte']);
+        $t->same([
+            'expansionRatioBucket' => 'up-to-1x',
+            'minExpansionRatio' => 0.0,
+            'maxExpansionRatio' => 1.0,
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'unknownExpansionRatioEntryCount' => 0,
+            'compressedBytes' => strlen($styleXml),
+            'uncompressedBytes' => strlen($styleXml),
+            'roles' => [],
+            'entryNames' => ['word/styles.xml'],
+            'largestExpansionRatioEntryName' => 'word/styles.xml',
+            'largestExpansionRatio' => 1.0,
+        ], $buckets['up-to-1x']);
+        $t->same([
+            'expansionRatioBucket' => 'over-100x',
+            'minExpansionRatio' => 100.0,
+            'maxExpansionRatio' => null,
+            'entryCount' => 2,
+            'fileEntryCount' => 2,
+            'directoryEntryCount' => 0,
+            'unknownExpansionRatioEntryCount' => 0,
+            'compressedBytes' => $documentCompressed + $mediaCompressed,
+            'uncompressedBytes' => strlen($documentXml) + strlen($mediaBytes),
+            'roles' => [],
+            'entryNames' => ['word/document.xml', 'word/media/large.bin'],
+            'largestExpansionRatioEntryName' => $largestHighRatioName,
+            'largestExpansionRatio' => $largestHighRatio,
+        ], $buckets['over-100x']);
+        $t->same([
+            'expansionRatioBucket' => 'unknown',
+            'minExpansionRatio' => null,
+            'maxExpansionRatio' => null,
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'unknownExpansionRatioEntryCount' => 1,
+            'compressedBytes' => 0,
+            'uncompressedBytes' => $unknownUncompressedSize,
+            'roles' => [],
+            'entryNames' => [$unknownName],
+            'largestExpansionRatioEntryName' => null,
+            'largestExpansionRatio' => null,
+        ], $buckets['unknown']);
+
+        $t->same($manifest, $strict['packageManifest']);
+        $t->same($manifest, $raw['packageManifest']);
+        $t->same($manifest, $raw['strictImport']['packageManifest']);
+    },
+
     'preflights zip package manifest compressed payload hashes for package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>manifest payload hash</w:p></w:body></w:document>';
         $mediaBytes = "stored image bytes\n";
@@ -1163,6 +1313,196 @@ return [
         $t->same($profile, $raw['packagePartProfile']);
         $t->same($manifest, $raw['strictImport']['packageManifest']);
         $t->same($profile, $raw['strictImport']['packagePartProfile']);
+    },
+
+    'summarizes zip package manifest path buckets without changing manifest hash contract' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $typesXml = '<Types/>';
+        $packageRelationshipsXml = '<Relationships/>';
+        $documentXml = '<w:document/>';
+        $documentRelationshipsXml = '<Relationships><Relationship Id="r"/></Relationships>';
+        $lowerImageBytes = 'lower image bytes';
+        $upperImageBytes = 'upper image bytes';
+        $zip = $buildZipPackage([
+            ['name' => '[Content_Types].xml', 'data' => $typesXml, 'method' => 0],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml, 'method' => 0],
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 0],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml, 'method' => 0],
+            ['name' => 'word/media/image.png', 'data' => $lowerImageBytes, 'method' => 0],
+            ['name' => 'Word/Media/IMAGE.PNG', 'data' => $upperImageBytes, 'method' => 0],
+            ['name' => 'word/media/', 'data' => '', 'method' => 0],
+        ]);
+
+        $package = ZipPackage::fromString($zip);
+        $manifest = $package->packageManifestPreflight();
+        $strict = $package->strictImportPreflight(4096, 100.0, 4096);
+        $raw = ZipPackage::rawStrictImportPreflight($zip, 4096, 100.0, 4096);
+        $entriesByName = array_column($manifest['entries'], null, 'name');
+        $expectedManifestJson = json_encode([
+            'manifestVersion' => 'zip-package-manifest-v1',
+            'centralDirectoryOrderNames' => $manifest['centralDirectoryOrderNames'],
+            'localHeaderOrderNames' => $manifest['localHeaderOrderNames'],
+            'entries' => array_map(
+                static fn (array $entry): array => [
+                    'name' => $entry['name'],
+                    'isDirectory' => $entry['isDirectory'],
+                    'centralDirectoryIndex' => $entry['centralDirectoryIndex'],
+                    'localHeaderOrder' => $entry['localHeaderOrder'],
+                    'compressionMethod' => $entry['compressionMethod'],
+                    'crc32Hex' => $entry['crc32Hex'],
+                    'compressedSize' => $entry['compressedSize'],
+                    'uncompressedSize' => $entry['uncompressedSize'],
+                    'localHeaderSha256' => $entry['localHeaderSha256'],
+                    'compressedDataSha256' => $entry['compressedDataSha256'],
+                    'centralDirectoryRecordSha256' => $entry['centralDirectoryRecordSha256'],
+                ],
+                $manifest['entries']
+            ),
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+
+        $roots = array_column($manifest['directoryRootSummaries'], null, 'directoryRoot');
+        $parents = array_column($manifest['parentDirectorySummaries'], null, 'parentDirectory');
+        $kinds = array_column($manifest['packagePartKindSummaries'], null, 'packagePartKind');
+        $extensions = array_column($manifest['extensionSummaries'], null, 'extension');
+        $entryExtensions = array_column($manifest['entryExtensionSummaries'], null, 'extensionKey');
+        $segments = array_column($manifest['pathSegmentSummaries'], null, 'segment');
+        $depths = array_column($manifest['pathDepthSummaries'], null, 'pathDepth');
+        $prefixes = array_column($manifest['pathPrefixSummaries'], null, 'pathPrefix');
+        $caseFoldNameCollision = $manifest['caseFoldNameCollisionSummaries'][0];
+        $caseFoldLeafNameCollision = $manifest['caseFoldLeafNameCollisionSummaries'][0];
+
+        $t->same(hash('sha256', $expectedManifestJson), $manifest['manifestSha256']);
+        $t->same(7, $manifest['entryCount']);
+        $t->same(6, $manifest['fileEntryCount']);
+        $t->same(1, $manifest['directoryEntryCount']);
+        $t->same(4, $manifest['directoryRootCount']);
+        $t->same(6, $manifest['parentDirectoryCount']);
+        $t->same(6, $manifest['packagePartKindCount']);
+        $t->same(2, $manifest['mediaPartEntryCount']);
+        $t->same(1, $manifest['relationshipPartEntryCount']);
+        $t->same(1, $manifest['markupPartEntryCount']);
+        $t->same(0, $manifest['metadataPartEntryCount']);
+        $t->same(3, $manifest['extensionBucketCount']);
+        $t->same(0, $manifest['extensionlessFileEntryCount']);
+        $t->same(4, $manifest['entryExtensionBucketCount']);
+        $t->same(1, $manifest['extensionlessEntryCount']);
+        $t->same(11, $manifest['pathSegmentSummaryCount']);
+        $t->same(16, $manifest['pathSegmentOccurrenceCount']);
+        $t->same(3, $manifest['pathDepthBucketCount']);
+        $t->same(3, $manifest['maxPathDepth']);
+        $t->same(7, $manifest['pathPrefixCount']);
+        $t->same(1, $manifest['caseFoldNameCollisionCount']);
+        $t->same(2, $manifest['caseFoldNameCollisionEntryCount']);
+        $t->same(1, $manifest['caseFoldLeafNameCollisionCount']);
+        $t->same(2, $manifest['caseFoldLeafNameCollisionEntryCount']);
+
+        $t->same(1, $roots['/']['entryCount']);
+        $t->same(1, $roots['_rels/']['entryCount']);
+        $t->same(1, $roots['Word/']['entryCount']);
+        $t->same(4, $roots['word/']['entryCount']);
+        $t->same(2, $parents['word/']['entryCount']);
+        $t->same(1, $parents['word/_rels/']['entryCount']);
+        $t->same(1, $parents['word/media/']['entryCount']);
+        $t->same(1, $parents['Word/Media/']['entryCount']);
+        $t->same(1, $kinds['content-types']['entryCount']);
+        $t->same(1, $kinds['root-relationships']['entryCount']);
+        $t->same(1, $kinds['markup-part']['entryCount']);
+        $t->same(1, $kinds['relationship-part']['entryCount']);
+        $t->same(2, $kinds['media']['entryCount']);
+        $t->same(1, $kinds['directory']['directoryEntryCount']);
+        $t->same(2, $extensions['xml']['entryCount']);
+        $t->same(2, $extensions['rels']['entryCount']);
+        $t->same(2, $extensions['png']['entryCount']);
+        $t->same(1, $entryExtensions['(none)']['directoryEntryCount']);
+        $t->same(4, $manifest['pathSegmentCounts']['word']);
+        $t->same(2, $manifest['pathSegmentCounts']['media']);
+        $t->same(1, $manifest['pathSegmentCounts']['Word']);
+        $t->same($manifest['pathSegmentCounts'], $manifest['pathSegmentEntryCounts']);
+        $t->same(1, $depths[1]['entryCount']);
+        $t->same(3, $depths[2]['entryCount']);
+        $t->same(3, $depths[3]['entryCount']);
+        $t->same(7, $prefixes['/']['entryCount']);
+        $t->same(4, $prefixes['word/']['entryCount']);
+        $t->same(2, $prefixes['word/']['directChildEntryCount']);
+        $t->same(2, $prefixes['word/']['descendantEntryCount']);
+        $t->same(1, $prefixes['word/media/']['entryCount']);
+        $t->same(1, $prefixes['Word/Media/']['entryCount']);
+
+        $t->same('word/media/image.png', $caseFoldNameCollision['caseFoldName']);
+        $t->same(['word/media/image.png', 'Word/Media/IMAGE.PNG'], $caseFoldNameCollision['entryNames']);
+        $t->same(['Word/Media/IMAGE.PNG', 'word/media/image.png'], $caseFoldNameCollision['exactEntryNames']);
+        $t->same('image.png', $caseFoldLeafNameCollision['caseFoldLeafName']);
+        $t->same(['Word/Media/', 'word/media/'], $caseFoldLeafNameCollision['parentDirectories']);
+        $t->same(['IMAGE.PNG', 'image.png'], $caseFoldLeafNameCollision['leafNames']);
+
+        $wordLocalRecordBytes = $entriesByName['word/document.xml']['localRecordBytes']
+            + $entriesByName['word/_rels/document.xml.rels']['localRecordBytes']
+            + $entriesByName['word/media/image.png']['localRecordBytes']
+            + $entriesByName['word/media/']['localRecordBytes'];
+        $wordSourceRecordBytes = $entriesByName['word/document.xml']['sourceRecordBytes']
+            + $entriesByName['word/_rels/document.xml.rels']['sourceRecordBytes']
+            + $entriesByName['word/media/image.png']['sourceRecordBytes']
+            + $entriesByName['word/media/']['sourceRecordBytes'];
+        $t->same([
+            'segment' => 'word',
+            'caseFoldSegment' => 'word',
+            'occurrenceCount' => 4,
+            'entryCount' => 4,
+            'fileEntryCount' => 3,
+            'directoryEntryCount' => 1,
+            'compressedBytes' => strlen($documentXml) + strlen($documentRelationshipsXml) + strlen($lowerImageBytes),
+            'uncompressedBytes' => strlen($documentXml) + strlen($documentRelationshipsXml) + strlen($lowerImageBytes),
+            'localRecordBytes' => $wordLocalRecordBytes,
+            'sourceRecordBytes' => $wordSourceRecordBytes,
+            'dataDescriptorEntryCount' => 0,
+            'dataDescriptorBytes' => 0,
+            'pathSegmentIndexCounts' => [0 => 4],
+            'directoryRootCounts' => ['word/' => 4],
+            'packagePartExtensionCounts' => ['(directory)' => 1, 'png' => 1, 'rels' => 1, 'xml' => 1],
+            'compressionMethodCounts' => ['0' => 4],
+            'entryNames' => [
+                'word/_rels/document.xml.rels',
+                'word/document.xml',
+                'word/media/',
+                'word/media/image.png',
+            ],
+        ], $segments['word']);
+
+        $mediaLocalRecordBytes = $entriesByName['word/media/image.png']['localRecordBytes']
+            + $entriesByName['word/media/']['localRecordBytes'];
+        $mediaSourceRecordBytes = $entriesByName['word/media/image.png']['sourceRecordBytes']
+            + $entriesByName['word/media/']['sourceRecordBytes'];
+        $t->same([
+            'segment' => 'media',
+            'caseFoldSegment' => 'media',
+            'occurrenceCount' => 2,
+            'entryCount' => 2,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 1,
+            'compressedBytes' => strlen($lowerImageBytes),
+            'uncompressedBytes' => strlen($lowerImageBytes),
+            'localRecordBytes' => $mediaLocalRecordBytes,
+            'sourceRecordBytes' => $mediaSourceRecordBytes,
+            'dataDescriptorEntryCount' => 0,
+            'dataDescriptorBytes' => 0,
+            'pathSegmentIndexCounts' => [1 => 2],
+            'directoryRootCounts' => ['word/' => 2],
+            'packagePartExtensionCounts' => ['(directory)' => 1, 'png' => 1],
+            'compressionMethodCounts' => ['0' => 2],
+            'entryNames' => ['word/media/', 'word/media/image.png'],
+        ], $segments['media']);
+
+        $t->same('word/media/image.png', $manifest['entries'][4]['caseFoldName']);
+        $t->same('image.png', $manifest['entries'][5]['caseFoldLeafName']);
+        $t->same(['Word', 'Media', 'IMAGE.PNG'], $manifest['entries'][5]['pathSegments']);
+        $t->same('word', $segments['Word']['caseFoldSegment']);
+        $t->same(['Word/' => 1], $segments['Word']['directoryRootCounts']);
+        $t->same(['png' => 1], $segments['Word']['packagePartExtensionCounts']);
+        $t->same(['/', 'Word/', 'Word/Media/'], $manifest['entries'][5]['pathPrefixes']);
+        $t->same(['word', 'media'], $manifest['entries'][6]['pathSegments']);
+        $t->same('(directory)', $manifest['entries'][6]['packagePartExtensionKey']);
+        $t->same($manifest, $strict['packageManifest']);
+        $t->same($manifest, $raw['packageManifest']);
+        $t->same($manifest, $raw['strictImport']['packageManifest']);
     },
 
     'summarizes zip package manifest source byte spans for package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
@@ -8217,12 +8557,18 @@ return [
         $t->same(1, $summary['duplicateLocalExtraFieldEntryCount']);
         $t->same('word/media/reviewer-note.txt', $summary['duplicateEntries'][0]['name']);
         $t->same([0xcafe, 0xcafe, 0x5455], $summary['entries'][0]['centralExtraFieldIds']);
+        $t->same(['0xcafe', '0xcafe', '0x5455'], $summary['entries'][0]['centralExtraFieldIdHexes']);
         $t->same([0xbeef, 0xbeef, 0x5455], $summary['entries'][0]['localExtraFieldIds']);
+        $t->same(['0xbeef', '0xbeef', '0x5455'], $summary['entries'][0]['localExtraFieldIdHexes']);
         $t->same([0xcafe], $summary['entries'][0]['duplicateCentralExtraFieldIds']);
+        $t->same(['0xcafe'], $summary['entries'][0]['duplicateCentralExtraFieldIdHexes']);
         $t->same([0xbeef], $summary['entries'][0]['duplicateLocalExtraFieldIds']);
+        $t->same(['0xbeef'], $summary['entries'][0]['duplicateLocalExtraFieldIdHexes']);
         $t->same(true, $summary['entries'][0]['hasDuplicateExtraFieldIds']);
         $t->same([], $summary['entries'][1]['duplicateCentralExtraFieldIds']);
+        $t->same([], $summary['entries'][1]['duplicateCentralExtraFieldIdHexes']);
         $t->same([], $summary['entries'][1]['duplicateLocalExtraFieldIds']);
+        $t->same([], $summary['entries'][1]['duplicateLocalExtraFieldIdHexes']);
         $t->same('central-one', $package->entry('word/media/reviewer-note.txt')->centralExtraField(0xcafe));
         $t->same('local-one', $package->localExtraField('/word/media/reviewer-note.txt', 0xbeef));
         $t->same('reviewer media provenance with duplicate extra fields', $package->read('/word/media/reviewer-note.txt'));
@@ -8274,9 +8620,13 @@ return [
         $t->same(1, $summary['localOnlyExtraFieldEntryCount']);
         $t->same('word/media/reviewer-note.txt', $summary['mismatchedEntries'][0]['name']);
         $t->same([0x5455, 0xcafe], $summary['mismatchedEntries'][0]['centralExtraFieldIds']);
+        $t->same(['0x5455', '0xcafe'], $summary['mismatchedEntries'][0]['centralExtraFieldIdHexes']);
         $t->same([0x5455, 0xbeef], $summary['mismatchedEntries'][0]['localExtraFieldIds']);
+        $t->same(['0x5455', '0xbeef'], $summary['mismatchedEntries'][0]['localExtraFieldIdHexes']);
         $t->same([0xcafe], $summary['mismatchedEntries'][0]['centralOnlyExtraFieldIds']);
+        $t->same(['0xcafe'], $summary['mismatchedEntries'][0]['centralOnlyExtraFieldIdHexes']);
         $t->same([0xbeef], $summary['mismatchedEntries'][0]['localOnlyExtraFieldIds']);
+        $t->same(['0xbeef'], $summary['mismatchedEntries'][0]['localOnlyExtraFieldIdHexes']);
         $t->same(true, $summary['mismatchedEntries'][0]['hasMismatchedExtraFieldIds']);
         $t->same(false, $summary['mismatchedEntries'][0]['hasDuplicateExtraFieldIds']);
         $t->same(false, $summary['entries'][1]['hasMismatchedExtraFieldIds']);
@@ -8334,8 +8684,11 @@ return [
         $t->same([], $summary['mismatchedEntries']);
         $t->same('word/media/reviewer-note.txt', $summary['valueMismatchedEntries'][0]['name']);
         $t->same([0x5455, 0xcafe], $summary['valueMismatchedEntries'][0]['centralExtraFieldIds']);
+        $t->same(['0x5455', '0xcafe'], $summary['valueMismatchedEntries'][0]['centralExtraFieldIdHexes']);
         $t->same([0x5455, 0xcafe], $summary['valueMismatchedEntries'][0]['localExtraFieldIds']);
+        $t->same(['0x5455', '0xcafe'], $summary['valueMismatchedEntries'][0]['localExtraFieldIdHexes']);
         $t->same([0xcafe], $summary['valueMismatchedEntries'][0]['mismatchedExtraFieldValueIds']);
+        $t->same(['0xcafe'], $summary['valueMismatchedEntries'][0]['mismatchedExtraFieldValueIdHexes']);
         $t->same(false, $summary['valueMismatchedEntries'][0]['hasMismatchedExtraFieldIds']);
         $t->same(true, $summary['valueMismatchedEntries'][0]['hasMismatchedExtraFieldValues']);
         $t->same(false, $summary['entries'][1]['hasMismatchedExtraFieldValues']);
@@ -8415,9 +8768,18 @@ return [
         $t->same(1, $summary['centralOnlyExtraFieldIdCount']);
         $t->same(2, $summary['localOnlyExtraFieldIdCount']);
         $t->same([0x1111, 0x2222, 0x3333, 0x5455, 0xcafe], array_column($summary['extraFieldIdUsage'], 'id'));
+        $t->same(['0x1111', '0x2222', '0x3333', '0x5455', '0xcafe'], $summary['extraFieldIdHexes']);
+        $t->same(['0x1111', '0x5455', '0xcafe'], $summary['centralExtraFieldIdHexes']);
+        $t->same(['0x2222', '0x3333', '0x5455', '0xcafe'], $summary['localExtraFieldIdHexes']);
+        $t->same(['0x5455', '0xcafe'], $summary['sharedExtraFieldIdHexes']);
+        $t->same(['0x1111'], $summary['centralOnlyExtraFieldIdHexes']);
+        $t->same(['0x2222', '0x3333'], $summary['localOnlyExtraFieldIdHexes']);
         $t->same($summary['extraFieldIdUsage'], $rawSummary['extraFieldIdUsage']);
         $t->same($summary['extraFieldIdUsage'], $strict['extraFields']['extraFieldIdUsage']);
         $t->same($summary['extraFieldIdUsage'], $rawStrict['extraFields']['extraFieldIdUsage']);
+        $t->same($summary['extraFieldIdHexes'], $rawSummary['extraFieldIdHexes']);
+        $t->same($summary['extraFieldIdHexes'], $strict['extraFields']['extraFieldIdHexes']);
+        $t->same($summary['extraFieldIdHexes'], $rawStrict['extraFields']['extraFieldIdHexes']);
 
         $timestampUsage = $usageById[0x5455];
         $t->same('0x5455', $timestampUsage['idHex']);
@@ -11670,10 +12032,12 @@ return [
         $t->same(strlen($documentExtra), $documentEntry['centralExtraFieldLength']);
         $t->same(1, $documentEntry['centralExtraFieldRecordCount']);
         $t->same([0xcafe], $documentEntry['centralExtraFieldIds']);
+        $t->same(['0xcafe'], $documentEntry['centralExtraFieldIdHexes']);
         $t->same(true, $documentEntry['hasCentralExtraFields']);
         $t->same(strlen($documentExtra), $documentEntry['localExtraFieldLength']);
         $t->same(1, $documentEntry['localExtraFieldRecordCount']);
         $t->same([0xcafe], $documentEntry['localExtraFieldIds']);
+        $t->same(['0xcafe'], $documentEntry['localExtraFieldIdHexes']);
         $t->same(true, $documentEntry['hasLocalExtraFields']);
         $t->same(true, $documentEntry['centralLocalExtraFieldIdsMatch']);
         $t->same(true, $documentEntry['hasExtraFieldProvenance']);
@@ -11683,10 +12047,12 @@ return [
         $t->same(0, $localOnlyEntry['centralExtraFieldLength']);
         $t->same(0, $localOnlyEntry['centralExtraFieldRecordCount']);
         $t->same([], $localOnlyEntry['centralExtraFieldIds']);
+        $t->same([], $localOnlyEntry['centralExtraFieldIdHexes']);
         $t->same(false, $localOnlyEntry['hasCentralExtraFields']);
         $t->same(strlen($localOnlyExtra), $localOnlyEntry['localExtraFieldLength']);
         $t->same(1, $localOnlyEntry['localExtraFieldRecordCount']);
         $t->same([0xbeef], $localOnlyEntry['localExtraFieldIds']);
+        $t->same(['0xbeef'], $localOnlyEntry['localExtraFieldIdHexes']);
         $t->same(true, $localOnlyEntry['hasLocalExtraFields']);
         $t->same(false, $localOnlyEntry['centralLocalExtraFieldIdsMatch']);
         $t->same(true, $localOnlyEntry['hasExtraFieldProvenance']);
@@ -11697,10 +12063,12 @@ return [
                 'centralExtraFieldLength' => strlen($documentExtra),
                 'centralExtraFieldRecordCount' => 1,
                 'centralExtraFieldIds' => [0xcafe],
+                'centralExtraFieldIdHexes' => ['0xcafe'],
                 'hasCentralExtraFields' => true,
                 'localExtraFieldLength' => strlen($documentExtra),
                 'localExtraFieldRecordCount' => 1,
                 'localExtraFieldIds' => [0xcafe],
+                'localExtraFieldIdHexes' => ['0xcafe'],
                 'hasLocalExtraFields' => true,
                 'centralLocalExtraFieldIdsMatch' => true,
                 'hasExtraFieldProvenance' => true,
@@ -11710,10 +12078,12 @@ return [
                 'centralExtraFieldLength' => 0,
                 'centralExtraFieldRecordCount' => 0,
                 'centralExtraFieldIds' => [],
+                'centralExtraFieldIdHexes' => [],
                 'hasCentralExtraFields' => false,
                 'localExtraFieldLength' => strlen($localOnlyExtra),
                 'localExtraFieldRecordCount' => 1,
                 'localExtraFieldIds' => [0xbeef],
+                'localExtraFieldIdHexes' => ['0xbeef'],
                 'hasLocalExtraFields' => true,
                 'centralLocalExtraFieldIdsMatch' => false,
                 'hasExtraFieldProvenance' => true,
@@ -11798,6 +12168,12 @@ return [
         $t->same(1, $summary['selectedCentralOnlyExtraFieldIdCount']);
         $t->same(1, $summary['selectedLocalOnlyExtraFieldIdCount']);
         $t->same([0x1111, 0x2222, 0x3333, 0x5455, 0xcafe], array_column($summary['selectedExtraFieldIdUsage'], 'id'));
+        $t->same(['0x1111', '0x2222', '0x3333', '0x5455', '0xcafe'], $summary['selectedExtraFieldIdHexes']);
+        $t->same(['0x1111', '0x3333', '0x5455', '0xcafe'], $summary['selectedCentralExtraFieldIdHexes']);
+        $t->same(['0x2222', '0x3333', '0x5455', '0xcafe'], $summary['selectedLocalExtraFieldIdHexes']);
+        $t->same(['0x3333', '0x5455', '0xcafe'], $summary['selectedSharedExtraFieldIdHexes']);
+        $t->same(['0x1111'], $summary['selectedCentralOnlyExtraFieldIdHexes']);
+        $t->same(['0x2222'], $summary['selectedLocalOnlyExtraFieldIdHexes']);
 
         $t->same(2, $summary['handoffEntryCount']);
         $t->same(2, $summary['handoffExtraFieldEntryCount']);
@@ -11813,6 +12189,12 @@ return [
         $t->same(1, $summary['handoffCentralOnlyExtraFieldIdCount']);
         $t->same(1, $summary['handoffLocalOnlyExtraFieldIdCount']);
         $t->same([0x1111, 0x2222, 0x5455, 0xcafe], array_column($summary['handoffExtraFieldIdUsage'], 'id'));
+        $t->same(['0x1111', '0x2222', '0x5455', '0xcafe'], $summary['handoffExtraFieldIdHexes']);
+        $t->same(['0x1111', '0x5455', '0xcafe'], $summary['handoffCentralExtraFieldIdHexes']);
+        $t->same(['0x2222', '0x5455', '0xcafe'], $summary['handoffLocalExtraFieldIdHexes']);
+        $t->same(['0x5455', '0xcafe'], $summary['handoffSharedExtraFieldIdHexes']);
+        $t->same(['0x1111'], $summary['handoffCentralOnlyExtraFieldIdHexes']);
+        $t->same(['0x2222'], $summary['handoffLocalOnlyExtraFieldIdHexes']);
 
         $t->same(['word/media/large.bin'], $selectedUsageById[0x3333]['centralEntryNames']);
         $t->same(['word/media/large.bin'], $selectedUsageById[0x3333]['localEntryNames']);
@@ -11826,11 +12208,15 @@ return [
         $commentsEntry = $summary['handoffExtraFieldProvenanceEntries'][1];
         $t->same('word/document.xml', $documentEntry['name']);
         $t->same([0x5455, 0xcafe], $documentEntry['centralExtraFieldIds']);
+        $t->same(['0x5455', '0xcafe'], $documentEntry['centralExtraFieldIdHexes']);
         $t->same([0x5455, 0xcafe], $documentEntry['localExtraFieldIds']);
+        $t->same(['0x5455', '0xcafe'], $documentEntry['localExtraFieldIdHexes']);
         $t->same(true, $documentEntry['centralLocalExtraFieldIdsMatch']);
         $t->same('word/comments.xml', $commentsEntry['name']);
         $t->same([0x1111], $commentsEntry['centralExtraFieldIds']);
+        $t->same(['0x1111'], $commentsEntry['centralExtraFieldIdHexes']);
         $t->same([0x2222], $commentsEntry['localExtraFieldIds']);
+        $t->same(['0x2222'], $commentsEntry['localExtraFieldIdHexes']);
         $t->same(false, $commentsEntry['centralLocalExtraFieldIdsMatch']);
         $t->same(false, in_array('word/media/large.bin', array_column($summary['handoffExtraFieldProvenanceEntries'], 'name'), true));
     },
