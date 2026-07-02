@@ -1876,6 +1876,7 @@ XML;
         $document = (new DocxOpenXmlReader())->readPackage($parts);
         $package = $document->attr('docx')['packageProvenance'];
         $summary = $package['summary'];
+        $identity = $package['packageIdentity'];
         $inventory = $package['parts'];
         $bucketRows = [];
         foreach ($summary['partByteLengthBuckets'] as $bucketRow) {
@@ -1888,6 +1889,31 @@ XML;
         $t->same('large', $inventory['customXml/large.bin']['byteLengthBucket']);
         $t->same('huge', $inventory['customXml/huge.bin']['byteLengthBucket']);
         $t->same(5, $summary['partByteLengthBucketCount']);
+        $t->same($summary['partByteLengthBucketCount'], $identity['partByteLengthBucketCount']);
+        $t->same($summary['partByteLengthBucketCounts'], $identity['partByteLengthBucketCounts']);
+        $t->same($summary['partByteLengthBucketByteLengths'], $identity['partByteLengthBucketByteLengths']);
+        $t->same(
+            $summary['partByteLengthBucketRelationshipPartCounts'],
+            $identity['partByteLengthBucketRelationshipPartCounts']
+        );
+        $t->same(
+            $summary['partByteLengthBucketMissingContentTypeCounts'],
+            $identity['partByteLengthBucketMissingContentTypeCounts']
+        );
+        $t->same($identity['partByteLengthBucketCount'], $summary['packageIdentityPartByteLengthBucketCount']);
+        $t->same($identity['partByteLengthBucketCounts'], $summary['packageIdentityPartByteLengthBucketCounts']);
+        $t->same(
+            $identity['partByteLengthBucketByteLengths'],
+            $summary['packageIdentityPartByteLengthBucketByteLengths']
+        );
+        $t->same(
+            $identity['partByteLengthBucketRelationshipPartCounts'],
+            $summary['packageIdentityPartByteLengthBucketRelationshipPartCounts']
+        );
+        $t->same(
+            $identity['partByteLengthBucketMissingContentTypeCounts'],
+            $summary['packageIdentityPartByteLengthBucketMissingContentTypeCounts']
+        );
         $t->same(1, $summary['partByteLengthBucketCounts']['empty']);
         $t->true(($summary['partByteLengthBucketCounts']['small'] ?? 0) >= 2, 'small bucket should include the review image and explicit small fixture');
         $t->true(($summary['partByteLengthBucketCounts']['medium'] ?? 0) >= 1, 'medium bucket should include XML package parts');
@@ -9887,7 +9913,9 @@ XML,
         $parts['customXml/medium-byte-target.bin'] = $mediumPayload;
         $parts['customXml/large-byte-target.bin'] = $largePayload;
 
-        $summary = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance']['summary'];
+        $package = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $identity = $package['packageIdentity'];
         $buckets = [];
         foreach ($summary['relationshipTargetByteLengthBuckets'] as $bucket) {
             $buckets[$bucket['targetByteLengthBucket']] = $bucket;
@@ -9896,6 +9924,20 @@ XML,
         $t->same(4, $summary['relationshipTargetByteLengthBucketCount']);
         $t->same(['empty' => 1, 'small' => 3, 'medium' => 2, 'large' => 2], $summary['relationshipTargetByteLengthBucketCounts']);
         $t->same(['empty' => 1, 'small' => 2, 'medium' => 2, 'large' => 2], $summary['relationshipTargetByteLengthBucketUniqueTargetCounts']);
+        $t->same([
+            'empty' => 0,
+            'small' => strlen($parts['word/media/review.png']) + strlen($smallPng),
+            'medium' => strlen($parts['docProps/core.xml']) + strlen($mediumPayload),
+            'large' => strlen($parts['word/document.xml']) + strlen($largePayload),
+        ], $summary['relationshipTargetByteLengthBucketByteLengths']);
+        $t->same($summary['relationshipTargetByteLengthBucketCount'], $identity['relationshipTargetByteLengthBucketCount']);
+        $t->same($summary['relationshipTargetByteLengthBucketCounts'], $identity['relationshipTargetByteLengthBucketCounts']);
+        $t->same($summary['relationshipTargetByteLengthBucketUniqueTargetCounts'], $identity['relationshipTargetByteLengthBucketUniqueTargetCounts']);
+        $t->same($summary['relationshipTargetByteLengthBucketByteLengths'], $identity['relationshipTargetByteLengthBucketByteLengths']);
+        $t->same($identity['relationshipTargetByteLengthBucketCount'], $summary['packageIdentityRelationshipTargetByteLengthBucketCount']);
+        $t->same($identity['relationshipTargetByteLengthBucketCounts'], $summary['packageIdentityRelationshipTargetByteLengthBucketCounts']);
+        $t->same($identity['relationshipTargetByteLengthBucketUniqueTargetCounts'], $summary['packageIdentityRelationshipTargetByteLengthBucketUniqueTargetCounts']);
+        $t->same($identity['relationshipTargetByteLengthBucketByteLengths'], $summary['packageIdentityRelationshipTargetByteLengthBucketByteLengths']);
         $t->same(['empty', 'small', 'medium', 'large'], array_column($summary['relationshipTargetByteLengthBuckets'], 'targetByteLengthBucket'));
 
         $empty = $buckets['empty'];
@@ -9948,6 +9990,9 @@ XML,
         $encoded = json_encode($summary['relationshipTargetByteLengthBuckets']);
         $t->true(is_string($encoded), 'byte length bucket metadata should encode for review');
         $t->true(!str_contains((string) $encoded, $largePayload), 'byte length buckets must not expose relationship target bytes');
+        $identityEncoded = json_encode($identity);
+        $t->true(is_string($identityEncoded), 'identity byte length metadata should encode for review');
+        $t->true(!str_contains((string) $identityEncoded, $largePayload), 'package identity must not expose relationship target bytes');
     },
     'summarizes docx relationship target directories for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
@@ -12921,6 +12966,111 @@ XML;
         $t->same('file', $unsafe['externalTargetScheme']);
         $t->same(false, $unsafe['externalTargetAllowed']);
         $t->same(['external-target-unsafe-scheme'], $unsafe['externalTargetIssues']);
+    },
+    'preserves malformed docx package root resource sidecar relationship records' => static function (TestRunner $t): void {
+        $resourceType = 'http://example.test/openxml/relationships/rootResource';
+        $imageType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $hyperlinkType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/docProps/root-resource.xml" ContentType="application/vnd.example.root-resource+xml"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['_rels/.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rRootResource" Type="' . $resourceType . '" Target="docProps/root-resource.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['_rels/.rels']
+        );
+        $parts['docProps/root-resource.xml'] = '<root-resource/>';
+        $parts['docProps/_rels/root-resource.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rDuplicate" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="root-preview.png?copy=one#img"/>
+  <Relationship Id="rDuplicate" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/root-resource?copy=two#link" TargetMode="External"/>
+  <Relationship Id="rMalformed" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="root%zz.png?bad=%zz#asset"/>
+  <Relationship Id="rMissingTarget" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"/>
+  <Relationship Id="rUnexpectedMode" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="root-preview.png" TargetMode="Sidecar"/>
+</Relationships>
+XML;
+        $parts['docProps/root-preview.png'] = 'root preview bytes';
+        $parts['docProps/root%zz.png'] = 'malformed target fallback bytes';
+
+        $docx = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx');
+        $resources = $docx['packageProvenance']['packageRootRelationshipResources'];
+        $summary = $docx['packageProvenance']['summary'];
+        $resource = $resources['byRelationshipId']['rRootResource'];
+        $duplicate = $resource['targetRelationshipDuplicateIdItems'][0];
+        $invalidRecords = $resource['targetRelationshipInvalidRecords'];
+        $invalidTargetResolution = $resource['targetRelationshipsWithInvalidTargetResolution'][0];
+
+        $t->same(true, $resource['targetHasRelationships']);
+        $t->same('docProps/_rels/root-resource.xml.rels', $resource['targetRelationshipsPart']);
+        $t->same(true, $resource['targetRelationshipPartExists']);
+        $t->same(strlen($parts['docProps/_rels/root-resource.xml.rels']), $resource['targetRelationshipPartBytes']);
+        $t->same(0, $resource['targetRelationshipPartIssueCount']);
+        $t->same([], $resource['targetRelationshipPartIssueCodes']);
+        $t->same(3, $resource['targetRelationshipCount']);
+        $t->same(5, $resource['targetRelationshipRecordCount']);
+        $t->same(1, $resource['targetRelationshipDuplicateIdCount']);
+        $t->same(2, $resource['targetRelationshipDuplicateRecordCount']);
+        $t->same(['rDuplicate'], $resource['targetRelationshipDuplicateIds']);
+        $t->same('rDuplicate', $duplicate['id']);
+        $t->same([0, 1], $duplicate['ordinals']);
+        $t->same([$imageType, $hyperlinkType], $duplicate['types']);
+        $t->same([
+            'root-preview.png?copy=one#img',
+            'https://example.test/root-resource?copy=two#link',
+        ], $duplicate['targets']);
+        $t->same(['docProps/root-preview.png', null], $duplicate['targetParts']);
+        $t->same([true, false], $duplicate['existsValues']);
+
+        $t->same(3, $resource['targetRelationshipInvalidRecordCount']);
+        $t->same(3, $resource['targetRelationshipRecordIssueCount']);
+        $t->same([
+            'invalid-relationship-target-uri',
+            'missing-relationship-target',
+            'unexpected-relationship-target-mode',
+        ], $resource['targetRelationshipRecordIssueCodes']);
+        $t->same(['rMalformed', 'rMissingTarget', 'rUnexpectedMode'], array_column($invalidRecords, 'id'));
+        $t->same(['invalid-relationship-target-uri'], $invalidRecords[0]['issues']);
+        $t->same(['missing-relationship-target'], $invalidRecords[1]['issues']);
+        $t->same(['unexpected-relationship-target-mode'], $invalidRecords[2]['issues']);
+        $t->same(1, $resource['targetRelationshipInvalidTargetResolutionRecordCount']);
+        $t->same(['malformed-percent-escape'], $resource['targetRelationshipTargetResolutionIssueCodes']);
+        $t->same(['malformed-percent-escape' => 1], $resource['targetRelationshipTargetResolutionIssueCounts']);
+        $t->same('rMalformed', $invalidTargetResolution['id']);
+        $t->same('docProps/root%zz.png', $invalidTargetResolution['targetPart']);
+        $t->same('bad=%zz', $invalidTargetResolution['targetQuery']);
+        $t->same('asset', $invalidTargetResolution['targetFragment']);
+        $t->same(true, $invalidTargetResolution['exists']);
+
+        $t->same(['rDuplicate', 'rMalformed', 'rUnexpectedMode'], $resource['targetRelationshipIds']);
+        $t->same([$hyperlinkType, $imageType], $resource['targetRelationshipTypes']);
+        $t->same(['docProps/root%zz.png', 'docProps/root-preview.png'], $resource['targetRelationshipTargetParts']);
+        $t->same(['https://example.test/root-resource?copy=two#link'], $resource['targetRelationshipExternalTargets']);
+        $t->same(['image/png'], $resource['targetRelationshipContentTypes']);
+
+        $t->same(5, $resources['targetRelationshipRecordCount']);
+        $t->same(1, $resources['targetRelationshipDuplicateIdCount']);
+        $t->same(2, $resources['targetRelationshipDuplicateRecordCount']);
+        $t->same(['rDuplicate'], $resources['targetRelationshipDuplicateIds']);
+        $t->same(3, $resources['targetRelationshipInvalidRecordCount']);
+        $t->same(3, $resources['targetRelationshipRecordIssueCount']);
+        $t->same($resource['targetRelationshipRecordIssueCodes'], $resources['targetRelationshipRecordIssueCodes']);
+        $t->same(1, $resources['targetRelationshipInvalidTargetResolutionRecordCount']);
+        $t->same(['malformed-percent-escape'], $resources['targetRelationshipTargetResolutionIssueCodes']);
+
+        $t->same($resources['targetRelationshipDuplicateIdCount'], $summary['packageRootRelationshipResourceTargetRelationshipDuplicateIdCount']);
+        $t->same($resources['targetRelationshipDuplicateRecordCount'], $summary['packageRootRelationshipResourceTargetRelationshipDuplicateRecordCount']);
+        $t->same($resources['targetRelationshipDuplicateIds'], $summary['packageRootRelationshipResourceTargetRelationshipDuplicateIds']);
+        $t->same($resources['targetRelationshipInvalidRecordCount'], $summary['packageRootRelationshipResourceTargetRelationshipInvalidRecordCount']);
+        $t->same($resources['targetRelationshipRecordIssueCount'], $summary['packageRootRelationshipResourceTargetRelationshipRecordIssueCount']);
+        $t->same($resources['targetRelationshipRecordIssueCodes'], $summary['packageRootRelationshipResourceTargetRelationshipRecordIssueCodes']);
+        $t->same($resources['targetRelationshipInvalidTargetResolutionRecordCount'], $summary['packageRootRelationshipResourceTargetRelationshipInvalidTargetResolutionRecordCount']);
+        $t->same($resources['targetRelationshipTargetResolutionIssueCodes'], $summary['packageRootRelationshipResourceTargetRelationshipTargetResolutionIssueCodes']);
     },
     'reports docx package thumbnail provenance as metadata only' => static function (TestRunner $t): void {
         $thumbnailType = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail';
@@ -23095,6 +23245,235 @@ XML;
         $t->true(!str_contains((string) $encodedReview, 'hidden-gamma'), 'selected XML PI rollups should not expose theme PI data values');
         $t->true(!str_contains((string) $encodedReview, 'Processing Instruction Theme'), 'selected XML PI rollups should not expose selected part attribute values');
     },
+    'preserves docx selected openxml document type provenance' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $settingsPublicId = '-//Port Libs//DOCX Settings Review//EN';
+        $settingsSystemId = 'file:///tmp/blocked-settings-review.dtd';
+        $themeSystemId = 'https://example.test/theme-review.dtd';
+        $hiddenEntity = 'selected-doctype:hidden-alpha';
+        $settingsInternalSubset = '<!ENTITY settingsReview "' . $hiddenEntity . "\">\n";
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>' . "\n" .
+            '  <Override PartName="/word/theme/doctype-theme.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSettingsDoctype" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml?review=doctype#settings"/>' . "\n" .
+            '  <Relationship Id="rThemeDoctype" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/doctype-theme.xml?review=doctype#theme"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/settings.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE w:settings PUBLIC "{$settingsPublicId}" "{$settingsSystemId}" [
+  <!ENTITY settingsReview "{$hiddenEntity}">
+  <!NOTATION settingsNotation SYSTEM "urn:settings-notation">
+]>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:updateFields w:val="true"/>
+</w:settings>
+XML;
+        $parts['word/theme/doctype-theme.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE a:theme SYSTEM "{$themeSystemId}">
+<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Document Type Theme">
+  <a:themeElements/>
+</a:theme>
+XML;
+
+        $package = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance'];
+        $selected = $package['selectedXmlParts'];
+        $summary = $package['summary'];
+        $settings = $selected['byKind']['settings'];
+        $theme = $selected['byKind']['theme'];
+
+        $t->same(2, $selected['xmlDoctypePartCount']);
+        $t->same(2, $selected['xmlDoctypeCount']);
+        $t->same(['word/settings.xml', 'word/theme/doctype-theme.xml'], $selected['xmlDoctypePartNames']);
+        $t->same(['a:theme' => 1, 'w:settings' => 1], $selected['xmlDoctypeNameCounts']);
+        $t->same(1, $selected['xmlDoctypePublicIdCount']);
+        $t->same(2, $selected['xmlDoctypeSystemIdCount']);
+        $t->same(1, $selected['xmlDoctypeInternalSubsetCount']);
+        $t->same(strlen($settingsInternalSubset), $selected['xmlDoctypeInternalSubsetByteLength']);
+        $t->same(1, $selected['xmlDoctypeEntityCount']);
+        $t->same(1, $selected['xmlDoctypeNotationCount']);
+        $t->same(1, $selected['xmlDoctypeAllowedSystemIdCount']);
+        $t->same(1, $selected['xmlDoctypeUnsafeSystemIdCount']);
+        $t->same(['file' => 1, 'https' => 1], $selected['xmlDoctypeSystemIdSchemeCounts']);
+        $t->same(['external-target-unsafe-scheme'], $selected['xmlDoctypeSystemIdIssueCodes']);
+
+        $t->same(true, $settings['xmlDoctypePresent']);
+        $t->same('w:settings', $settings['xmlDoctypeName']);
+        $t->same($settingsPublicId, $settings['xmlDoctypePublicId']);
+        $t->same($settingsSystemId, $settings['xmlDoctypeSystemId']);
+        $t->same(true, $settings['xmlDoctypeHasPublicId']);
+        $t->same(true, $settings['xmlDoctypeHasSystemId']);
+        $t->same(true, $settings['xmlDoctypeHasInternalSubset']);
+        $t->same(strlen($settingsInternalSubset), $settings['xmlDoctypeInternalSubsetByteLength']);
+        $t->same(sprintf('%08x', crc32($settingsInternalSubset)), $settings['xmlDoctypeInternalSubsetCrc32']);
+        $t->same(hash('sha256', $settingsInternalSubset), $settings['xmlDoctypeInternalSubsetSha256']);
+        $t->same(1, $settings['xmlDoctypeEntityCount']);
+        $t->same(['settingsReview'], $settings['xmlDoctypeEntityNames']);
+        $t->same(1, $settings['xmlDoctypeNotationCount']);
+        $t->same(['settingsNotation'], $settings['xmlDoctypeNotationNames']);
+        $t->same('absolute-uri', $settings['xmlDoctypeSystemIdKind']);
+        $t->same('file', $settings['xmlDoctypeSystemIdScheme']);
+        $t->same(false, $settings['xmlDoctypeSystemIdAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $settings['xmlDoctypeSystemIdIssues']);
+
+        $t->same(true, $theme['xmlDoctypePresent']);
+        $t->same('a:theme', $theme['xmlDoctypeName']);
+        $t->same(null, $theme['xmlDoctypePublicId']);
+        $t->same($themeSystemId, $theme['xmlDoctypeSystemId']);
+        $t->same(false, $theme['xmlDoctypeHasPublicId']);
+        $t->same(true, $theme['xmlDoctypeHasSystemId']);
+        $t->same(false, $theme['xmlDoctypeHasInternalSubset']);
+        $t->same('https', $theme['xmlDoctypeSystemIdScheme']);
+        $t->same(true, $theme['xmlDoctypeSystemIdAllowed']);
+        $t->same([], $theme['xmlDoctypeSystemIdIssues']);
+
+        $t->same($selected['xmlDoctypePartCount'], $summary['selectedXmlPartXmlDoctypePartCount']);
+        $t->same($selected['xmlDoctypeCount'], $summary['selectedXmlPartXmlDoctypeCount']);
+        $t->same($selected['xmlDoctypePartNames'], $summary['selectedXmlPartXmlDoctypePartNames']);
+        $t->same($selected['xmlDoctypeNameCounts'], $summary['selectedXmlPartXmlDoctypeNameCounts']);
+        $t->same($selected['xmlDoctypePublicIdCount'], $summary['selectedXmlPartXmlDoctypePublicIdCount']);
+        $t->same($selected['xmlDoctypeSystemIdCount'], $summary['selectedXmlPartXmlDoctypeSystemIdCount']);
+        $t->same($selected['xmlDoctypeInternalSubsetCount'], $summary['selectedXmlPartXmlDoctypeInternalSubsetCount']);
+        $t->same($selected['xmlDoctypeInternalSubsetByteLength'], $summary['selectedXmlPartXmlDoctypeInternalSubsetByteLength']);
+        $t->same($selected['xmlDoctypeEntityCount'], $summary['selectedXmlPartXmlDoctypeEntityCount']);
+        $t->same($selected['xmlDoctypeNotationCount'], $summary['selectedXmlPartXmlDoctypeNotationCount']);
+        $t->same($selected['xmlDoctypeAllowedSystemIdCount'], $summary['selectedXmlPartXmlDoctypeAllowedSystemIdCount']);
+        $t->same($selected['xmlDoctypeUnsafeSystemIdCount'], $summary['selectedXmlPartXmlDoctypeUnsafeSystemIdCount']);
+        $t->same($selected['xmlDoctypeSystemIdSchemeCounts'], $summary['selectedXmlPartXmlDoctypeSystemIdSchemeCounts']);
+        $t->same($selected['xmlDoctypeSystemIdIssueCodes'], $summary['selectedXmlPartXmlDoctypeSystemIdIssueCodes']);
+        $t->same($selected['xmlDoctypes'], $summary['selectedXmlPartXmlDoctypes']);
+        $t->same('settings', $summary['selectedXmlPartXmlDoctypes'][0]['kind']);
+        $t->same('theme', $summary['selectedXmlPartXmlDoctypes'][1]['kind']);
+
+        $encodedReview = json_encode([
+            $selected['xmlDoctypes'],
+            $summary['selectedXmlPartXmlDoctypes'],
+            $settings,
+            $theme,
+        ]);
+        $t->true(is_string($encodedReview), 'selected XML doctype metadata should encode for review');
+        $t->true(!isset($settings['xmlDoctypeInternalSubset']), 'selected XML doctype metadata must not expose raw internal subset text');
+        $t->true(!str_contains((string) $encodedReview, $hiddenEntity), 'selected XML doctype rollups should not expose entity replacement text');
+        $t->true(!str_contains((string) $encodedReview, 'Document Type Theme'), 'selected XML doctype rollups should not expose selected part attribute values');
+    },
+    'summarizes docx selected openxml entity reference provenance' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $settingsEntity = 'selected-entity:hidden-alpha';
+        $settingsSecondEntity = 'selected-entity:hidden-beta';
+        $themeEntity = 'selected-entity:hidden-gamma';
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>' . "\n" .
+            '  <Override PartName="/word/theme/entity-theme.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSettingsEntity" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml?review=entity#settings"/>' . "\n" .
+            '  <Relationship Id="rThemeEntity" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/entity-theme.xml?review=entity#theme"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/settings.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE w:settings [
+  <!ENTITY settingsReview "{$settingsEntity}">
+  <!ENTITY settingsSecondReview "{$settingsSecondEntity}">
+]>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:docVars><w:docVar>&settingsReview;&settingsSecondReview;</w:docVar></w:docVars>
+</w:settings>
+XML;
+        $parts['word/theme/entity-theme.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE a:theme [
+  <!ENTITY themeReview "{$themeEntity}">
+]>
+<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Entity Theme">
+  <a:themeElements>&themeReview;</a:themeElements>
+</a:theme>
+XML;
+
+        $package = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance'];
+        $selected = $package['selectedXmlParts'];
+        $summary = $package['summary'];
+        $settings = $selected['byKind']['settings'];
+        $theme = $selected['byKind']['theme'];
+
+        $t->same(2, $selected['xmlEntityReferencePartCount']);
+        $t->same(3, $selected['xmlEntityReferenceCount']);
+        $t->same(['word/settings.xml', 'word/theme/entity-theme.xml'], $selected['xmlEntityReferencePartNames']);
+        $t->same([
+            'settingsReview' => 1,
+            'settingsSecondReview' => 1,
+            'themeReview' => 1,
+        ], $selected['xmlEntityReferenceNameCounts']);
+        $t->same(['settingsReview', 'settingsSecondReview', 'themeReview'], $selected['xmlEntityReferenceNames']);
+        $t->same([
+            '/a:theme/a:themeElements' => 1,
+            '/w:settings/w:docVars/w:docVar' => 2,
+        ], $selected['xmlEntityReferenceParentPathCounts']);
+        $t->same(2, $selected['xmlEntityReferenceParentPathCount']);
+        $t->same([
+            'http://schemas.openxmlformats.org/drawingml/2006/main' => 1,
+            'http://schemas.openxmlformats.org/wordprocessingml/2006/main' => 2,
+        ], $selected['xmlEntityReferenceParentNamespaceCounts']);
+        $t->same(2, $selected['xmlEntityReferenceParentNamespaceCount']);
+        $t->same(['docVar' => 2, 'themeElements' => 1], $selected['xmlEntityReferenceParentLocalNameCounts']);
+        $t->same(['a:themeElements' => 1, 'w:docVar' => 2], $selected['xmlEntityReferenceParentQualifiedNameCounts']);
+
+        $t->same(2, $settings['xmlEntityReferenceCount']);
+        $t->same(['settingsReview' => 1, 'settingsSecondReview' => 1], $settings['xmlEntityReferenceNameCounts']);
+        $t->same('/w:settings/w:docVars/w:docVar', $settings['xmlEntityReferences'][0]['parentPath']);
+        $t->same('settingsReview', $settings['xmlEntityReferences'][0]['name']);
+        $t->same(strlen('settingsReview'), $settings['xmlEntityReferences'][0]['nameByteLength']);
+        $t->same('w:docVar', $settings['xmlEntityReferences'][0]['parentQualifiedName']);
+        $t->same('settingsSecondReview', $settings['xmlEntityReferences'][1]['name']);
+
+        $t->same(1, $theme['xmlEntityReferenceCount']);
+        $t->same(['themeReview' => 1], $theme['xmlEntityReferenceNameCounts']);
+        $t->same('/a:theme/a:themeElements', $theme['xmlEntityReferences'][0]['parentPath']);
+        $t->same('a:themeElements', $theme['xmlEntityReferences'][0]['parentQualifiedName']);
+
+        $t->same($selected['xmlEntityReferencePartCount'], $summary['selectedXmlPartXmlEntityReferencePartCount']);
+        $t->same($selected['xmlEntityReferenceCount'], $summary['selectedXmlPartXmlEntityReferenceCount']);
+        $t->same($selected['xmlEntityReferencePartNames'], $summary['selectedXmlPartXmlEntityReferencePartNames']);
+        $t->same($selected['xmlEntityReferenceNameCounts'], $summary['selectedXmlPartXmlEntityReferenceNameCounts']);
+        $t->same($selected['xmlEntityReferenceNames'], $summary['selectedXmlPartXmlEntityReferenceNames']);
+        $t->same($selected['xmlEntityReferenceParentPathCount'], $summary['selectedXmlPartXmlEntityReferenceParentPathCount']);
+        $t->same($selected['xmlEntityReferenceParentPathCounts'], $summary['selectedXmlPartXmlEntityReferenceParentPathCounts']);
+        $t->same($selected['xmlEntityReferenceParentPaths'], $summary['selectedXmlPartXmlEntityReferenceParentPaths']);
+        $t->same($selected['xmlEntityReferenceParentNamespaceCount'], $summary['selectedXmlPartXmlEntityReferenceParentNamespaceCount']);
+        $t->same($selected['xmlEntityReferenceParentNamespaceCounts'], $summary['selectedXmlPartXmlEntityReferenceParentNamespaceCounts']);
+        $t->same($selected['xmlEntityReferenceParentLocalNameCount'], $summary['selectedXmlPartXmlEntityReferenceParentLocalNameCount']);
+        $t->same($selected['xmlEntityReferenceParentLocalNameCounts'], $summary['selectedXmlPartXmlEntityReferenceParentLocalNameCounts']);
+        $t->same($selected['xmlEntityReferenceParentQualifiedNameCount'], $summary['selectedXmlPartXmlEntityReferenceParentQualifiedNameCount']);
+        $t->same($selected['xmlEntityReferenceParentQualifiedNameCounts'], $summary['selectedXmlPartXmlEntityReferenceParentQualifiedNameCounts']);
+        $t->same($selected['xmlEntityReferences'], $summary['selectedXmlPartXmlEntityReferences']);
+        $t->same('settings', $summary['selectedXmlPartXmlEntityReferences'][0]['kind']);
+        $t->same('theme', $summary['selectedXmlPartXmlEntityReferences'][2]['kind']);
+
+        $encodedReview = json_encode([
+            $selected['xmlEntityReferences'],
+            $summary['selectedXmlPartXmlEntityReferences'],
+            $settings['xmlEntityReferences'],
+            $theme['xmlEntityReferences'],
+        ]);
+        $t->true(is_string($encodedReview), 'selected XML entity-reference metadata should encode for review');
+        $t->true(!str_contains((string) $encodedReview, 'hidden-alpha'), 'selected XML entity-reference rollups should not expose entity replacement text');
+        $t->true(!str_contains((string) $encodedReview, 'hidden-beta'), 'selected XML entity-reference rollups should not expose second entity replacement text');
+        $t->true(!str_contains((string) $encodedReview, 'hidden-gamma'), 'selected XML entity-reference rollups should not expose theme entity replacement text');
+        $t->true(!str_contains((string) $encodedReview, 'Entity Theme'), 'selected XML entity-reference rollups should not expose selected part attribute values');
+    },
     'summarizes docx selected openxml text and cdata metadata for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $settingsText = "selected-settings-text:hidden-alpha\nline-two";
@@ -23141,6 +23520,12 @@ XML;
         $t->same(2, $selected['xmlCdataSectionPartCount']);
         $t->same(2, $selected['xmlCdataSectionCount']);
         $t->same(strlen($settingsCdata) + strlen($themeCdata), $selected['xmlCdataSectionByteLength']);
+        $t->same(max(strlen($settingsCdata), strlen($themeCdata)), $selected['xmlCdataSectionMaxByteLength']);
+        $t->same(['medium' => 2], $selected['xmlCdataSectionByteLengthBucketCounts']);
+        $t->same(['medium'], $selected['xmlCdataSectionByteLengthBuckets']);
+        $t->same([
+            'medium' => ['word/settings.xml', 'word/theme/text-theme.xml'],
+        ], $selected['xmlCdataSectionByteLengthBucketPartNames']);
         $t->same(['word/settings.xml', 'word/theme/text-theme.xml'], $selected['xmlCdataSectionPartNames']);
         $t->same([
             '/a:theme/a:themeElements' => 1,
@@ -23153,15 +23538,23 @@ XML;
 
         $t->same(1, $settings['xmlCdataSectionCount']);
         $t->same(strlen($settingsCdata), $settings['xmlCdataSectionByteLength']);
+        $t->same(strlen($settingsCdata), $settings['xmlCdataSectionMaxByteLength']);
+        $t->same(['medium' => 1], $settings['xmlCdataSectionByteLengthBucketCounts']);
+        $t->same(['medium'], $settings['xmlCdataSectionByteLengthBuckets']);
         $t->same('/w:settings/w:compat', $settings['xmlCdataSections'][0]['parentPath']);
         $t->same('w:compat', $settings['xmlCdataSections'][0]['parentQualifiedName']);
+        $t->same('medium', $settings['xmlCdataSections'][0]['byteLengthBucket']);
         $t->same(sprintf('%08x', crc32($settingsCdata)), $settings['xmlCdataSections'][0]['crc32']);
         $t->same(hash('sha256', $settingsCdata), $settings['xmlCdataSections'][0]['sha256']);
 
         $t->same(1, $theme['xmlCdataSectionCount']);
         $t->same(strlen($themeCdata), $theme['xmlCdataSectionByteLength']);
+        $t->same(strlen($themeCdata), $theme['xmlCdataSectionMaxByteLength']);
+        $t->same(['medium' => 1], $theme['xmlCdataSectionByteLengthBucketCounts']);
+        $t->same(['medium'], $theme['xmlCdataSectionByteLengthBuckets']);
         $t->same('/a:theme/a:themeElements', $theme['xmlCdataSections'][0]['parentPath']);
         $t->same('a:themeElements', $theme['xmlCdataSections'][0]['parentQualifiedName']);
+        $t->same('medium', $theme['xmlCdataSections'][0]['byteLengthBucket']);
         $t->same(sprintf('%08x', crc32($themeCdata)), $theme['xmlCdataSections'][0]['crc32']);
         $t->same(hash('sha256', $themeCdata), $theme['xmlCdataSections'][0]['sha256']);
 
@@ -23179,7 +23572,12 @@ XML;
         $t->same($selected['xmlCdataSectionPartCount'], $summary['selectedXmlPartXmlCdataSectionPartCount']);
         $t->same($selected['xmlCdataSectionCount'], $summary['selectedXmlPartXmlCdataSectionCount']);
         $t->same($selected['xmlCdataSectionByteLength'], $summary['selectedXmlPartXmlCdataSectionByteLength']);
+        $t->same($selected['xmlCdataSectionMaxByteLength'], $summary['selectedXmlPartXmlCdataSectionMaxByteLength']);
         $t->same($selected['xmlCdataSectionPartNames'], $summary['selectedXmlPartXmlCdataSectionPartNames']);
+        $t->same($selected['xmlCdataSectionByteLengthBucketCount'], $summary['selectedXmlPartXmlCdataSectionByteLengthBucketCount']);
+        $t->same($selected['xmlCdataSectionByteLengthBucketCounts'], $summary['selectedXmlPartXmlCdataSectionByteLengthBucketCounts']);
+        $t->same($selected['xmlCdataSectionByteLengthBuckets'], $summary['selectedXmlPartXmlCdataSectionByteLengthBuckets']);
+        $t->same($selected['xmlCdataSectionByteLengthBucketPartNames'], $summary['selectedXmlPartXmlCdataSectionByteLengthBucketPartNames']);
         $t->same($selected['xmlCdataSectionParentPathCounts'], $summary['selectedXmlPartXmlCdataSectionParentPathCounts']);
         $t->same($selected['xmlCdataSections'], $summary['selectedXmlPartXmlCdataSections']);
         $t->same($selected['xmlTextNodeCount'], $summary['selectedXmlPartXmlTextNodeCount']);
@@ -25370,11 +25768,18 @@ XML;
         $settingsPart = $package['parts']['word/settings-cdata.xml'];
         $sections = $summary['partXmlCdataSections'];
         $sectionByteLength = strlen($rootCdata) + strlen($itemCdata) + strlen($settingsCdata);
+        $sectionMaxByteLength = max(strlen($rootCdata), strlen($itemCdata), strlen($settingsCdata));
 
         $t->same(9, $summary['partXmlInspectableCount']);
         $t->same(2, $summary['partXmlCdataSectionPartCount']);
         $t->same(3, $summary['partXmlCdataSectionCount']);
         $t->same($sectionByteLength, $summary['partXmlCdataSectionByteLength']);
+        $t->same($sectionMaxByteLength, $summary['partXmlCdataSectionMaxByteLength']);
+        $t->same(['medium' => 3], $summary['partXmlCdataSectionByteLengthBucketCounts']);
+        $t->same(['medium'], $summary['partXmlCdataSectionByteLengthBuckets']);
+        $t->same([
+            'medium' => ['customXml/cdata-review.xml', 'word/settings-cdata.xml'],
+        ], $summary['partXmlCdataSectionByteLengthBucketPartNames']);
         $t->same(['customXml/cdata-review.xml', 'word/settings-cdata.xml'], $summary['partXmlCdataSectionPartNames']);
         $t->same([
             '/review:packet/review:item' => 1,
@@ -25399,6 +25804,9 @@ XML;
         $t->same(true, $reviewPart['xmlInspectable']);
         $t->same(2, $reviewPart['xmlCdataSectionCount']);
         $t->same(strlen($rootCdata) + strlen($itemCdata), $reviewPart['xmlCdataSectionByteLength']);
+        $t->same(max(strlen($rootCdata), strlen($itemCdata)), $reviewPart['xmlCdataSectionMaxByteLength']);
+        $t->same(['medium' => 2], $reviewPart['xmlCdataSectionByteLengthBucketCounts']);
+        $t->same(['medium'], $reviewPart['xmlCdataSectionByteLengthBuckets']);
         $t->same([
             '/review:packet/review:item' => 1,
             '/review:packet/review:raw' => 1,
@@ -25412,15 +25820,20 @@ XML;
         $t->same('raw', $reviewPart['xmlCdataSections'][0]['parentLocalName']);
         $t->same('review:raw', $reviewPart['xmlCdataSections'][0]['parentQualifiedName']);
         $t->same(strlen($rootCdata), $reviewPart['xmlCdataSections'][0]['byteLength']);
+        $t->same('medium', $reviewPart['xmlCdataSections'][0]['byteLengthBucket']);
         $t->same(sprintf('%08x', crc32($rootCdata)), $reviewPart['xmlCdataSections'][0]['crc32']);
         $t->same(hash('sha256', $rootCdata), $reviewPart['xmlCdataSections'][0]['sha256']);
         $t->same('/review:packet/review:item', $reviewPart['xmlCdataSections'][1]['parentPath']);
         $t->same('review:item', $reviewPart['xmlCdataSections'][1]['parentQualifiedName']);
         $t->same(strlen($itemCdata), $reviewPart['xmlCdataSections'][1]['byteLength']);
+        $t->same('medium', $reviewPart['xmlCdataSections'][1]['byteLengthBucket']);
         $t->same(hash('sha256', $itemCdata), $reviewPart['xmlCdataSections'][1]['sha256']);
 
         $t->same(1, $settingsPart['xmlCdataSectionCount']);
         $t->same(strlen($settingsCdata), $settingsPart['xmlCdataSectionByteLength']);
+        $t->same(strlen($settingsCdata), $settingsPart['xmlCdataSectionMaxByteLength']);
+        $t->same(['medium' => 1], $settingsPart['xmlCdataSectionByteLengthBucketCounts']);
+        $t->same(['medium'], $settingsPart['xmlCdataSectionByteLengthBuckets']);
         $t->same(['http://schemas.openxmlformats.org/wordprocessingml/2006/main' => 1], $settingsPart['xmlCdataSectionParentNamespaceCounts']);
         $t->same(['docVar' => 1], $settingsPart['xmlCdataSectionParentLocalNameCounts']);
         $t->same(['w:docVar' => 1], $settingsPart['xmlCdataSectionParentQualifiedNameCounts']);
@@ -25429,6 +25842,7 @@ XML;
         $t->same('http://schemas.openxmlformats.org/wordprocessingml/2006/main', $settingsPart['xmlCdataSections'][0]['parentNamespace']);
         $t->same('docVar', $settingsPart['xmlCdataSections'][0]['parentLocalName']);
         $t->same('w:docVar', $settingsPart['xmlCdataSections'][0]['parentQualifiedName']);
+        $t->same('medium', $settingsPart['xmlCdataSections'][0]['byteLengthBucket']);
         $t->same(sprintf('%08x', crc32($settingsCdata)), $settingsPart['xmlCdataSections'][0]['crc32']);
         $t->same(hash('sha256', $settingsCdata), $settingsPart['xmlCdataSections'][0]['sha256']);
 
@@ -33236,6 +33650,32 @@ XML;
         $t->same($identity['identitySha256'], $package['summary']['packageIdentitySha256']);
         $t->same($identity['identityPayloadByteLength'], $package['summary']['packageIdentityPayloadByteLength']);
         $t->same($identity['packageEntryCount'], $package['summary']['packageIdentityEntryCount']);
+        $t->same($identity['partTopLevelSegmentCount'], $package['summary']['packageIdentityPartTopLevelSegmentCount']);
+        $t->same($identity['partDirectoryDepthCounts'], $package['summary']['packageIdentityPartDirectoryDepthCounts']);
+        $t->same($identity['partPathShapeFlagCounts'], $package['summary']['packageIdentityPartPathShapeFlagCounts']);
+        $t->same($identity['partPathSegmentPositionCounts'], $package['summary']['packageIdentityPartPathSegmentPositionCounts']);
+        $t->same($identity['partPathSegmentLengthBucketCount'], $package['summary']['packageIdentityPartPathSegmentLengthBucketCount']);
+        $t->same($identity['partPathSegmentMaxByteLength'], $package['summary']['packageIdentityPartPathSegmentMaxByteLength']);
+        $t->same($identity['partExtensionCount'], $package['summary']['packageIdentityPartExtensionCount']);
+        $t->same($identity['partBaseNameCount'], $package['summary']['packageIdentityPartBaseNameCount']);
+        $t->same($identity['duplicatePartBaseNameCount'], $package['summary']['packageIdentityDuplicatePartBaseNameCount']);
+        $t->same($identity['duplicatePartBaseNames'], $package['summary']['packageIdentityDuplicatePartBaseNames']);
+        $t->same($identity['partCaseFoldBaseNameCount'], $package['summary']['packageIdentityPartCaseFoldBaseNameCount']);
+        $t->same($identity['duplicatePartCaseFoldBaseNameCount'], $package['summary']['packageIdentityDuplicatePartCaseFoldBaseNameCount']);
+        $t->same($identity['duplicatePartCaseFoldBaseNames'], $package['summary']['packageIdentityDuplicatePartCaseFoldBaseNames']);
+        $t->same($identity['partByteLengthBucketCount'], $package['summary']['packageIdentityPartByteLengthBucketCount']);
+        $t->same($identity['partByteLengthBucketCounts'], $package['summary']['packageIdentityPartByteLengthBucketCounts']);
+        $t->same($identity['partByteLengthBucketByteLengths'], $package['summary']['packageIdentityPartByteLengthBucketByteLengths']);
+        $t->same($identity['partByteLengthBucketRelationshipPartCounts'], $package['summary']['packageIdentityPartByteLengthBucketRelationshipPartCounts']);
+        $t->same($identity['partByteLengthBucketMissingContentTypeCounts'], $package['summary']['packageIdentityPartByteLengthBucketMissingContentTypeCounts']);
+        $t->same($package['summary']['partDirectoryDepthCounts'], $identity['partDirectoryDepthCounts']);
+        $t->same($package['summary']['partPathShapeFlagCounts'], $identity['partPathShapeFlagCounts']);
+        $t->same($package['summary']['partPathSegmentPositionCounts'], $identity['partPathSegmentPositionCounts']);
+        $t->same($package['summary']['partExtensionCount'], $identity['partExtensionCount']);
+        $t->same($package['summary']['partBaseNameCount'], $identity['partBaseNameCount']);
+        $t->same($package['summary']['duplicatePartBaseNameCount'], $identity['duplicatePartBaseNameCount']);
+        $t->same($package['summary']['duplicatePartCaseFoldBaseNameCount'], $identity['duplicatePartCaseFoldBaseNameCount']);
+        $t->same($package['summary']['partByteLengthBucketCounts'], $identity['partByteLengthBucketCounts']);
 
         $t->same([
             '[Content_Types].xml',
@@ -33251,11 +33691,36 @@ XML;
         $t->same(1, $identity['roleCounts']['office-document']);
         $t->same(1, $identity['roleCounts']['office-document-relationships']);
         $t->same(1, $identity['roleCounts']['core-properties']);
+        $t->same(4, $identity['partTopLevelSegmentCount']);
+        $t->same(3, $identity['partExtensionCount']);
+        $t->same(8, $identity['partBaseNameCount']);
+        $t->same(8, $identity['partCaseFoldBaseNameCount']);
+        $t->same(0, $identity['duplicatePartBaseNameCount']);
+        $t->same([], $identity['duplicatePartBaseNames']);
+        $t->same(['content-types-item' => 1, 'extensioned' => 8, 'multi-segment' => 7, 'nested' => 7, 'package-root-relationships' => 1, 'relationship-directory' => 2, 'relationship-sidecar' => 2, 'root-level' => 1, 'single-segment' => 1], $identity['partPathShapeFlagCounts']);
+        $t->same(['first' => 7, 'last' => 7, 'middle' => 2, 'only' => 1], $identity['partPathSegmentPositionCounts']);
 
         $documentEntry = $packageEntries['word/document.xml'];
         $mediaEntry = $packageEntries['word/media/review.png'];
         $contentTypesEntry = $packageEntries['[Content_Types].xml'];
         $t->same(['office-document', 'root-relationship-target'], $documentEntry['roles']);
+        $t->same('word', $documentEntry['directory']);
+        $t->same('word', $documentEntry['directoryBaseName']);
+        $t->same(1, $documentEntry['directoryDepth']);
+        $t->same('document', $documentEntry['baseNameStem']);
+        $t->same('document.xml', $documentEntry['caseFoldBaseName']);
+        $t->same('document', $documentEntry['caseFoldBaseNameStem']);
+        $t->same('xml', $documentEntry['rawPartExtension']);
+        $t->same('xml', $documentEntry['caseFoldRawPartExtension']);
+        $t->same(true, $documentEntry['partExtensionDefaultDeclared']);
+        $t->same('word', $documentEntry['topLevelSegment']);
+        $t->same(['word', 'document.xml'], $documentEntry['pathSegments']);
+        $t->same(2, $documentEntry['pathSegmentCount']);
+        $t->same(['first' => 1, 'last' => 1], $documentEntry['pathSegmentPositionCounts']);
+        $t->same(['1-8' => 1, '9-16' => 1], $documentEntry['pathSegmentLengthBuckets']);
+        $t->same(12, $documentEntry['pathSegmentMaxByteLength']);
+        $t->same('large', $documentEntry['byteLengthBucket']);
+        $t->same(['multi-segment', 'nested', 'extensioned'], $documentEntry['partPathShapeFlags']);
         $t->same(strlen($parts['word/document.xml']), $documentEntry['bytes']);
         $t->same(hash('sha256', $parts['word/document.xml']), $documentEntry['sha256']);
         $t->same(true, $documentEntry['zipEntryPresent']);
