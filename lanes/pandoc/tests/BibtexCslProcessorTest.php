@@ -3286,6 +3286,84 @@ XML);
         $t->contains('<dt>Smith 2026</dt><dd>Legacy Review Context :: skipbib=false, useprefix=true, maxnames=3 :: variant=mexican; hyphenation=traditional :: refsection 2; refsegment migration-import :: title default: title verified; title source: OCR headline normalized; url source: archived before WordPress import :: feminine</dd>', $blocks);
         $t->true(!str_contains($blocks, '<dt>Desk 2025</dt>'), 'skipbib=true legacy BibLaTeX entries must stay out of appended bibliographies');
     },
+    'carries biblatex language option aliases in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@book{legacy-language-options,
+  author           = {Roe, Pat},
+  title            = {Language Options Packet},
+  publisher        = {Import Review Press},
+  date             = {2026},
+  language-options = {variant=mexican, hyphenation=traditional}
+}
+
+@book{legacy-langid-options,
+  author         = {Ng, Nia},
+  title          = {Langid Alias Packet},
+  publisher      = {Queue House},
+  date           = {2025},
+  langid-options = {variant=austrian, script=latin}
+}
+
+@book{legacy-hyphenation-options,
+  author             = {Smith, Ada},
+  title              = {Hyphenation Alias Packet},
+  publisher          = {Archive Desk},
+  date               = {2024},
+  hyphenationoptions = {variant=ancient, autolang=hyphen}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+
+        $languageAlias = $items['legacy-language-options'];
+        $langidAlias = $items['legacy-langid-options'];
+        $hyphenationAlias = $items['legacy-hyphenation-options'];
+
+        $t->same(['variant=mexican', 'hyphenation=traditional'], $languageAlias['biblatex-language-options']);
+        $t->same(['variant=austrian', 'script=latin'], $langidAlias['biblatex-language-options']);
+        $t->same(['variant=ancient', 'autolang=hyphen'], $hyphenationAlias['biblatex-language-options']);
+        $t->same('variant=mexican, hyphenation=traditional', $languageAlias['rawBibtex']['fields']['language-options']);
+        $t->same('variant=austrian, script=latin', $langidAlias['rawBibtex']['fields']['langid-options']);
+        $t->same('variant=ancient, autolang=hyphen', $hyphenationAlias['rawBibtex']['fields']['hyphenationoptions']);
+        $t->contains('BibLaTeX language options: variant=mexican; hyphenation=traditional', $processor->renderBibliographyText($languageAlias));
+        $t->contains('BibLaTeX language options: variant=austrian; script=latin', $processor->renderBibliographyText($langidAlias));
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Language Option Alias Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-language-option-alias-review</id>
+    <updated>2026-07-01T00:00:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="biblatex-language-options"/>
+        <text variable="language-options"/>
+        <text variable="biblatex-language-option-summary"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="language-options-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $normalized = $styled->item('legacy-language-options');
+        $t->same(['variant=mexican', 'hyphenation=traditional'], $normalized['biblatexLanguageOptions'] ?? null);
+        $t->same('variant=mexican; hyphenation=traditional', $normalized['biblatexLanguageOptionSummary'] ?? null);
+        $t->same('[Roe | variant=mexican, hyphenation=traditional | variant=mexican, hyphenation=traditional | variant=mexican; hyphenation=traditional]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-language-options', 'text' => '[@legacy-language-options]']),
+        ]));
+        $t->same('Language Options Packet :: variant=mexican; hyphenation=traditional', $styled->renderBibliographyEntry('legacy-language-options'));
+    },
     'carries biblatex issue title aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @article{legacy-issue-title,

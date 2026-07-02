@@ -388,21 +388,39 @@ final class JsonReader
 
     private function parseLinkInline(mixed $payload): AstNode
     {
-        $items = $this->expectTuple($payload, 3, 'Link');
-        $attrs = $this->parseAttr($items[0]);
-        [$url, $title] = $this->parseTarget($items[2]);
+        $items = $this->targetInlineTuple($payload, 'Link');
+        if (count($items) === 3) {
+            $attrs = $this->parseAttr($items[0]);
+            $label = $items[1];
+            $target = $items[2];
+        } else {
+            $attrs = [];
+            $label = $items[0];
+            $target = $items[1];
+        }
+
+        [$url, $title] = $this->parseTarget($target);
         $attrs['url'] = $url;
         $attrs['title'] = $title;
 
-        return new AstNode('link', $attrs, $this->parseInlineList($items[1]));
+        return new AstNode('link', $attrs, $this->parseInlineList($label));
     }
 
     private function parseImageInline(mixed $payload): AstNode
     {
-        $items = $this->expectTuple($payload, 3, 'Image');
-        $attrs = $this->parseAttr($items[0]);
-        $inlines = $this->parseInlineList($items[1]);
-        [$url, $title] = $this->parseTarget($items[2]);
+        $items = $this->targetInlineTuple($payload, 'Image');
+        if (count($items) === 3) {
+            $attrs = $this->parseAttr($items[0]);
+            $label = $items[1];
+            $target = $items[2];
+        } else {
+            $attrs = [];
+            $label = $items[0];
+            $target = $items[1];
+        }
+
+        $inlines = $this->parseInlineList($label);
+        [$url, $title] = $this->parseTarget($target);
         $attrs['url'] = $url;
         $attrs['title'] = $title;
         $attrs['alt'] = $this->plainInlineText($inlines);
@@ -415,6 +433,28 @@ final class JsonReader
         $items = $this->expectTuple($payload, 2, 'Span');
 
         return new AstNode('span', $this->parseAttr($items[0]), $this->parseInlineList($items[1]));
+    }
+
+    /**
+     * @return array<int, mixed>
+     */
+    private function targetInlineTuple(mixed $payload, string $context): array
+    {
+        $items = $this->expectList($payload, $context);
+        if (
+            count($items) === 1
+            && is_array($items[0])
+            && $this->isList($items[0])
+            && in_array(count($items[0]), [2, 3], true)
+        ) {
+            $items = $items[0];
+        }
+
+        if (!in_array(count($items), [2, 3], true)) {
+            throw new \InvalidArgumentException("Expected {$context} to contain 2 or 3 entries");
+        }
+
+        return $items;
     }
 
     /**

@@ -415,7 +415,7 @@ final class MarkdownReader
                 $blocks[] = $listBlock;
                 continue;
             }
-            $indentedCodeBlock = $listStack === [] ? $this->tryReadIndentedCodeBlock($lines, $index) : null;
+            $indentedCodeBlock = $paragraph === [] && $listStack === [] ? $this->tryReadIndentedCodeBlock($lines, $index) : null;
             if ($indentedCodeBlock !== null) {
                 $this->flushParagraph($paragraph, $blocks);
                 $blocks[] = $indentedCodeBlock;
@@ -434,7 +434,7 @@ final class MarkdownReader
                 continue;
             }
             $this->flushListStack($listStack, $blocks);
-            $paragraph[] = trim($line);
+            $paragraph[] = $this->normalizeParagraphLine($line);
         }
         $this->flushParagraph($paragraph, $blocks);
         $this->flushListStack($listStack, $blocks);
@@ -10004,7 +10004,38 @@ final class MarkdownReader
      */
     private function joinParagraphLines(array $paragraph): string
     {
-        return implode("\n", $paragraph);
+        $lines = [];
+        $lastIndex = array_key_last($paragraph);
+        foreach ($paragraph as $index => $line) {
+            $line = $index === $lastIndex
+                ? $this->normalizeFinalParagraphLine($line)
+                : $this->normalizeContinuingParagraphLine($line);
+            if ($line !== '') {
+                $lines[] = $line;
+            }
+        }
+
+        return implode("\n", $lines);
+    }
+
+    private function normalizeParagraphLine(string $line): string
+    {
+        return ltrim($this->expandTabsToSpaces($line), ' ');
+    }
+
+    private function normalizeFinalParagraphLine(string $line): string
+    {
+        return rtrim($line, ' ');
+    }
+
+    private function normalizeContinuingParagraphLine(string $line): string
+    {
+        return $line;
+    }
+
+    private function bufferEndsWithHardLineBreakMarker(string $buffer): bool
+    {
+        return preg_match('/ {2,}$/', $buffer) === 1;
     }
 
     /**
@@ -10096,8 +10127,27 @@ final class MarkdownReader
 
         while ($offset < $length) {
             if ($text[$offset] === "\n") {
+                $hardBreak = $this->bufferEndsWithHardLineBreakMarker($buffer);
+                $buffer = rtrim($buffer, ' ');
+                if ($hardBreak) {
+                    $this->flushText($buffer, $nodes);
+                    $nodes[] = new AstNode('linebreak');
+                    $offset++;
+                    continue;
+                }
+
+                $lineBreakMode = $this->softLineBreakMode($text, $offset);
+                if ($lineBreakMode === 'ignore') {
+                    $offset++;
+                    continue;
+                }
+
                 $this->flushText($buffer, $nodes);
-                $nodes[] = new AstNode('softbreak');
+                if ($lineBreakMode === 'hard') {
+                    $nodes[] = new AstNode('linebreak');
+                } else {
+                    $nodes[] = new AstNode('softbreak');
+                }
                 $offset++;
                 continue;
             }
@@ -10154,7 +10204,9 @@ final class MarkdownReader
                 }
             }
 
-            $inlineNote = $this->resolveFootnoteReferences ? $this->tryParseInlineNote($text, $offset) : null;
+            $inlineNote = $this->resolveFootnoteReferences && $this->inlineNoteExtensionEnabled()
+                ? $this->tryParseInlineNote($text, $offset)
+                : null;
             if ($inlineNote !== null) {
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $inlineNote['node'];
@@ -11048,6 +11100,67 @@ final class MarkdownReader
         return $this->markdownExtensionOverrides()['wikilinks_title_after_pipe'] ?? false;
     }
 
+    private function softLineBreakMode(string $text, int $newlineOffset): string
+    {
+        $overrides = $this->markdownExtensionOverrides();
+        if (($overrides['ignore_line_breaks'] ?? false) === true) {
+            return 'ignore';
+        }
+        if (($overrides['hard_line_breaks'] ?? false) === true) {
+            return 'hard';
+        }
+        if (
+            ($overrides['east_asian_line_breaks'] ?? false) === true
+            && $this->isEastAsianLineBreakBoundary($text, $newlineOffset)
+        ) {
+            return 'ignore';
+        }
+
+        return 'soft';
+    }
+
+    private function isEastAsianLineBreakBoundary(string $text, int $newlineOffset): bool
+    {
+        $before = $this->previousUtf8Character($text, $newlineOffset);
+        $after = $this->nextUtf8Character($text, $newlineOffset + 1);
+
+        return $before !== null
+            && $after !== null
+            && $this->isEastAsianLineBreakCharacter($before)
+            && $this->isEastAsianLineBreakCharacter($after);
+    }
+
+    private function previousUtf8Character(string $text, int $offset): ?string
+    {
+        if ($offset <= 0) {
+            return null;
+        }
+
+        if (preg_match('/.$/us', substr($text, 0, $offset), $match) !== 1) {
+            return null;
+        }
+
+        return $match[0];
+    }
+
+    private function nextUtf8Character(string $text, int $offset): ?string
+    {
+        if ($offset >= strlen($text)) {
+            return null;
+        }
+
+        if (preg_match('/^./us', substr($text, $offset), $match) !== 1) {
+            return null;
+        }
+
+        return $match[0];
+    }
+
+    private function isEastAsianLineBreakCharacter(string $character): bool
+    {
+        return preg_match('/^[\p{Han}\p{Hiragana}\p{Katakana}\p{Hangul}]$/u', $character) === 1;
+    }
+
     /**
      * @return array<string, bool>
      */
@@ -11204,6 +11317,19 @@ final class MarkdownReader
         $overrides = $this->markdownExtensionOverrides();
         if (array_key_exists('bracketed_spans', $overrides)) {
             return $overrides['bracketed_spans'];
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['markdown', 'commonmark_x', 'markdown_phpextra', 'markdown_mmd'], true);
+    }
+
+    private function inlineNoteExtensionEnabled(): bool
+    {
+        $overrides = $this->markdownExtensionOverrides();
+        if (array_key_exists('inline_notes', $overrides)) {
+            return $overrides['inline_notes'];
         }
 
         $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
@@ -13351,6 +13477,28 @@ final class MarkdownReader
 
     private function decodeHtmlEntities(string $text): string
     {
+        $text = $this->normalizeInvalidNumericCharacterReferences($text);
+
         return html_entity_decode($text, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8');
+    }
+
+    private function normalizeInvalidNumericCharacterReferences(string $text): string
+    {
+        return preg_replace_callback(
+            '/&#(x[0-9A-Fa-f]+|\d+);/u',
+            static function (array $match): string {
+                $source = $match[1];
+                $codepoint = str_starts_with(strtolower($source), 'x')
+                    ? hexdec(substr($source, 1))
+                    : (int) $source;
+
+                if ($codepoint <= 0 || $codepoint > 0x10FFFF || ($codepoint >= 0xD800 && $codepoint <= 0xDFFF)) {
+                    return "\u{FFFD}";
+                }
+
+                return $match[0];
+            },
+            $text
+        ) ?? $text;
     }
 }
