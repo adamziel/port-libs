@@ -140,6 +140,18 @@ return [
         $t->same(1, $identity['roleCounts']['script-package']);
         $t->same(1, $identity['packagePartByteExposurePolicyCounts']['script-package-bytes-blocked']);
         $t->same(1, $identity['packagePartByteExposurePolicyCounts']['undeclared-package-entry-no-bytes']);
+        $t->same($result['documentPartVersions'], $provenance['documentPartVersions']);
+        $t->same($result['documentPartVersions'], $identity['documentPartVersions']);
+        $t->same(3, $identity['documentPartVersionCount']);
+        $t->same(0, $identity['documentPartVersionedCount']);
+        $t->same(3, $identity['documentPartMissingVersionCount']);
+        $t->same(0, $identity['documentPartVersionMismatchCount']);
+        $t->same(0, $identity['documentPartRootCustomAttributeCount']);
+        $t->same(
+            $result['documentPartVersions']['rootNamespaceDeclarationCount'],
+            $identity['documentPartRootNamespaceDeclarationCount']
+        );
+        $t->same(['content.xml', 'styles.xml', 'meta.xml'], $identity['documentPartVersions']['missingVersionParts']);
 
         $hero = $manifestEntries['Pictures/hero.png?cache=1#cover'];
         $script = $manifestEntries['Basic/Standard/Review.xml?macro=approve#entry'];

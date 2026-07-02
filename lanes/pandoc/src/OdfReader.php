@@ -165,6 +165,8 @@ final class OdfReader
         $packageLayoutCaches = $this->packageLayoutCacheMetadata($package, $manifest, $undeclaredEntries);
         $packageProvenance = $this->packageProvenance($package, $manifest, $mimetypeEntry, $undeclaredEntries, $styleCatalog, $styleDiagnostics);
         $documentPartVersions = $this->documentPartVersionMetadata($package, $manifest);
+        $packageProvenance['documentPartVersions'] = $documentPartVersions;
+        $packageProvenance['packageIdentity'] = $this->packageIdentityProvenance($packageProvenance);
         if ($packageThumbnails['count'] > 0) {
             $metadata['odfPackageThumbnails'] = $packageThumbnails;
         }
@@ -1059,6 +1061,8 @@ final class OdfReader
         $rootCustomAttributeCount = 0;
         $rootCustomAttributeNames = [];
         $rootCustomAttributeItems = [];
+        $rootNamespaceDeclarationCount = 0;
+        $rootNamespaceDeclarationNames = [];
 
         foreach ($expectedRoots as $part => $expectedRoot) {
             $manifestItem = $manifestByPart[$part] ?? null;
@@ -1120,6 +1124,16 @@ final class OdfReader
                 $diagnostics[] = 'odf-xml-part-undeclared-package-part';
             }
 
+            $partNamespaceDeclarationCount = (int) ($rootAttributeProvenance['namespaceDeclarationCount'] ?? 0);
+            if ($partNamespaceDeclarationCount > 0) {
+                $rootNamespaceDeclarationCount += $partNamespaceDeclarationCount;
+                foreach ($rootAttributeProvenance['namespaceDeclarationNames'] ?? [] as $namespaceName) {
+                    if (is_string($namespaceName) && $namespaceName !== '' && !in_array($namespaceName, $rootNamespaceDeclarationNames, true)) {
+                        $rootNamespaceDeclarationNames[] = $namespaceName;
+                    }
+                }
+            }
+
             $partCustomAttributeCount = (int) ($rootAttributeProvenance['customAttributeCount'] ?? 0);
             if ($partCustomAttributeCount > 0) {
                 $rootCustomAttributeCount += $partCustomAttributeCount;
@@ -1176,6 +1190,7 @@ final class OdfReader
 
         ksort($versionCounts, SORT_STRING);
         sort($rootCustomAttributeNames, SORT_STRING);
+        sort($rootNamespaceDeclarationNames, SORT_STRING);
 
         return [
             'count' => count($items),
@@ -1190,6 +1205,8 @@ final class OdfReader
             'rootCustomAttributeCount' => $rootCustomAttributeCount,
             'rootCustomAttributeNames' => $rootCustomAttributeNames,
             'rootCustomAttributeItems' => $rootCustomAttributeItems,
+            'rootNamespaceDeclarationCount' => $rootNamespaceDeclarationCount,
+            'rootNamespaceDeclarationNames' => $rootNamespaceDeclarationNames,
             'items' => $items,
         ];
     }
@@ -3661,6 +3678,9 @@ final class OdfReader
         }
 
         $comments = is_array($provenance['comments'] ?? null) ? $provenance['comments'] : [];
+        $documentPartVersions = is_array($provenance['documentPartVersions'] ?? null)
+            ? $provenance['documentPartVersions']
+            : [];
         $payload = [
             'identityVersion' => 1,
             'packageType' => 'opendocument-text',
@@ -3814,6 +3834,13 @@ final class OdfReader
             'packageZipTimestampSourceIssueEntryCount' => $provenance['packageZipTimestampSourceIssueEntryCount'] ?? 0,
             'packageZipTimestampSources' => $provenance['packageZipTimestampSources'] ?? [],
             'packagePartByteExposurePolicyCounts' => $provenance['packagePartByteExposurePolicyCounts'] ?? [],
+            'documentPartVersionCount' => $documentPartVersions['count'] ?? 0,
+            'documentPartVersionedCount' => $documentPartVersions['versionedCount'] ?? 0,
+            'documentPartMissingVersionCount' => $documentPartVersions['missingVersionCount'] ?? 0,
+            'documentPartVersionMismatchCount' => $documentPartVersions['versionMismatchCount'] ?? 0,
+            'documentPartRootCustomAttributeCount' => $documentPartVersions['rootCustomAttributeCount'] ?? 0,
+            'documentPartRootNamespaceDeclarationCount' => $documentPartVersions['rootNamespaceDeclarationCount'] ?? 0,
+            'documentPartVersions' => $documentPartVersions,
             'manifestByteExposurePolicyCounts' => $provenance['manifestByteExposurePolicyCounts'] ?? [],
             'packageAreaCounts' => $provenance['packageAreaCounts'] ?? [],
             'packageAreaByteLengths' => $provenance['packageAreaByteLengths'] ?? [],
@@ -4184,6 +4211,13 @@ final class OdfReader
             'packageZipTimestampSourceIssueEntryCount' => $provenance['packageZipTimestampSourceIssueEntryCount'] ?? 0,
             'packageZipTimestampSources' => $provenance['packageZipTimestampSources'] ?? [],
             'packagePartByteExposurePolicyCounts' => $provenance['packagePartByteExposurePolicyCounts'] ?? [],
+            'documentPartVersionCount' => $documentPartVersions['count'] ?? 0,
+            'documentPartVersionedCount' => $documentPartVersions['versionedCount'] ?? 0,
+            'documentPartMissingVersionCount' => $documentPartVersions['missingVersionCount'] ?? 0,
+            'documentPartVersionMismatchCount' => $documentPartVersions['versionMismatchCount'] ?? 0,
+            'documentPartRootCustomAttributeCount' => $documentPartVersions['rootCustomAttributeCount'] ?? 0,
+            'documentPartRootNamespaceDeclarationCount' => $documentPartVersions['rootNamespaceDeclarationCount'] ?? 0,
+            'documentPartVersions' => $documentPartVersions,
             'packageAreaCounts' => $provenance['packageAreaCounts'] ?? [],
             'packageAreaByteLengths' => $provenance['packageAreaByteLengths'] ?? [],
             'packageAreaCompressedByteLengths' => $provenance['packageAreaCompressedByteLengths'] ?? [],
