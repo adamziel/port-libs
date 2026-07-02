@@ -2314,5 +2314,8 @@
     "mappedSharedZipPackageNameLengthBucketCases": 1,
     "sharedZipPackageNameLengthBucketAssertions": 26,
     "mappedOdfZipSourceRecordPackagePartExtensionCases": 1,
-    "odfZipSourceRecordPackagePartExtensionAssertions": 65
+    "odfZipSourceRecordPackagePartExtensionAssertions": 65,
+    "directCslSortInitialsAliasCases": 1,
+    "mappedDirectCslSortInitialsAliasCases": 1,
+    "directCslSortInitialsAliasAssertions": 6
 }
