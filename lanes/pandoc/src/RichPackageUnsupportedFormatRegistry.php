@@ -428,6 +428,8 @@ final class RichPackageUnsupportedFormatRegistry
         ];
         $unsupportedDiagnosticCounts = [];
         $unsupportedGateCounts = [];
+        $unsupportedDiagnosticFormats = [];
+        $unsupportedGateFormats = [];
 
         foreach (array_keys(self::FORMAT_ROWS) as $format) {
             $input = self::directionRow($format, 'input');
@@ -471,13 +473,23 @@ final class RichPackageUnsupportedFormatRegistry
         foreach (self::unsupportedDiagnostics() as $diagnostic) {
             foreach ($diagnostic['diagnostics'] as $code) {
                 $unsupportedDiagnosticCounts[$code] = ($unsupportedDiagnosticCounts[$code] ?? 0) + 1;
+                $unsupportedDiagnosticFormats[$code] ??= [];
+                if (!in_array($diagnostic['format'], $unsupportedDiagnosticFormats[$code], true)) {
+                    $unsupportedDiagnosticFormats[$code][] = $diagnostic['format'];
+                }
             }
             foreach ($diagnostic['gates'] as $gate) {
                 $unsupportedGateCounts[$gate] = ($unsupportedGateCounts[$gate] ?? 0) + 1;
+                $unsupportedGateFormats[$gate] ??= [];
+                if (!in_array($diagnostic['format'], $unsupportedGateFormats[$gate], true)) {
+                    $unsupportedGateFormats[$gate][] = $diagnostic['format'];
+                }
             }
         }
         ksort($unsupportedDiagnosticCounts);
         ksort($unsupportedGateCounts);
+        ksort($unsupportedDiagnosticFormats);
+        ksort($unsupportedGateFormats);
 
         return [
             'upstreamCommit' => self::UPSTREAM_COMMIT,
@@ -488,7 +500,9 @@ final class RichPackageUnsupportedFormatRegistry
             'noNativeReaderFormats' => $unsupportedFormats['input'],
             'noNativeWriterFormats' => $unsupportedFormats['output'],
             'unsupportedDiagnosticCounts' => $unsupportedDiagnosticCounts,
+            'unsupportedDiagnosticFormats' => $unsupportedDiagnosticFormats,
             'unsupportedGateCounts' => $unsupportedGateCounts,
+            'unsupportedGateFormats' => $unsupportedGateFormats,
             'unsupportedSourceAliasExtensions' => array_column(self::sourceAliasDiagnostics(), 'extension'),
             'unsupportedExtensionNames' => array_column(self::extensionDiagnostics(), 'extension'),
         ];
