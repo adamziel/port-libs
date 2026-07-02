@@ -20439,6 +20439,9 @@ final class DocxOpenXmlReader
             'contentTypeOverrideDeclarationContentTypeBaseCounts' => $contentTypesPart['overrideDeclarationContentTypeBaseCounts'] ?? [],
             'contentTypeOverrideDeclarationContentTypeParameterNameCounts' => $contentTypesPart['overrideDeclarationContentTypeParameterNameCounts'] ?? [],
             'contentTypeOverrideDeclarationContentTypeParameterValueCounts' => $contentTypesPart['overrideDeclarationContentTypeParameterValueCounts'] ?? [],
+            'contentTypeOverrideDeclarationDirectoryCounts' => $contentTypesPart['overrideDeclarationDirectoryCounts'] ?? [],
+            'contentTypeOverrideDeclarationTopLevelSegmentCounts' => $contentTypesPart['overrideDeclarationTopLevelSegmentCounts'] ?? [],
+            'contentTypeOverrideDeclarationPartExtensionCounts' => $contentTypesPart['overrideDeclarationPartExtensionCounts'] ?? [],
             'contentTypeMissingOverrideCount' => (int) ($contentTypesPart['missingOverrideCount'] ?? 0),
             'contentTypeMissingOverrideParts' => $contentTypesPart['missingOverrideParts'] ?? [],
             'contentTypeMissingOverrides' => $contentTypesPart['missingOverrides'] ?? [],
@@ -42498,6 +42501,9 @@ final class DocxOpenXmlReader
             'overrideDeclarationContentTypeBaseCounts' => $overrideDeclarationSummary['contentTypeBaseCounts'],
             'overrideDeclarationContentTypeParameterNameCounts' => $overrideDeclarationSummary['contentTypeParameterNameCounts'],
             'overrideDeclarationContentTypeParameterValueCounts' => $overrideDeclarationSummary['contentTypeParameterValueCounts'],
+            'overrideDeclarationDirectoryCounts' => $overrideDeclarationSummary['directoryCounts'],
+            'overrideDeclarationTopLevelSegmentCounts' => $overrideDeclarationSummary['topLevelSegmentCounts'],
+            'overrideDeclarationPartExtensionCounts' => $overrideDeclarationSummary['partExtensionCounts'],
             'overrideDeclarationIssueCounts' => $overrideDeclarationSummary['issueCounts'],
             'overrideDeclarationIssues' => $overrideDeclarationSummary['issues'],
             'overrideDeclarations' => $overrideDeclarationSummary['declarations'],
@@ -42891,6 +42897,9 @@ final class DocxOpenXmlReader
         $contentTypeBaseCounts = [];
         $contentTypeParameterNameCounts = [];
         $contentTypeParameterValueCounts = [];
+        $directoryCounts = [];
+        $topLevelSegmentCounts = [];
+        $partExtensionCounts = [];
         $usedDeclarationCount = 0;
         $invalidDeclarationCount = 0;
         $parameterizedDeclarationCount = 0;
@@ -42900,7 +42909,16 @@ final class DocxOpenXmlReader
             $relationshipPart = $this->isRelationshipPartName($partName);
             $relationshipSource = null;
             $relationshipSourceExists = null;
+            $directory = $this->packagePartDirectory($partName);
+            $pathSegments = $this->packagePartPathSegments($partName);
+            $topLevelSegment = $pathSegments[0] ?? '';
+            $partExtension = $this->packagePartExtension($partName);
+            $partExtensionKey = $partExtension ?? '(none)';
             $issues = [];
+
+            $directoryCounts[$directory] = ($directoryCounts[$directory] ?? 0) + 1;
+            $topLevelSegmentCounts[$topLevelSegment] = ($topLevelSegmentCounts[$topLevelSegment] ?? 0) + 1;
+            $partExtensionCounts[$partExtensionKey] = ($partExtensionCounts[$partExtensionKey] ?? 0) + 1;
 
             if ($exists) {
                 ++$usedDeclarationCount;
@@ -42965,6 +42983,15 @@ final class DocxOpenXmlReader
 
             $declarations[] = [
                 'partName' => $partName,
+                'directory' => $directory,
+                'directoryDepth' => $this->packagePartDirectoryDepth($directory),
+                'topLevelSegment' => $topLevelSegment,
+                'baseName' => $this->packagePartBaseName($partName),
+                'baseNameStem' => $this->packagePartBaseNameStem($partName),
+                'pathSegments' => $pathSegments,
+                'pathSegmentCount' => count($pathSegments),
+                'partExtension' => $partExtension,
+                'rawPartExtension' => $this->packagePartRawExtension($partName),
                 'contentType' => is_string($override['contentType'] ?? null) ? $override['contentType'] : '',
                 'contentTypeBase' => $contentTypeBase,
                 'contentTypeHasParameters' => (bool) ($override['contentTypeHasParameters'] ?? false),
@@ -42985,6 +43012,9 @@ final class DocxOpenXmlReader
         ksort($contentTypeBaseCounts, SORT_STRING);
         ksort($contentTypeParameterNameCounts, SORT_STRING);
         ksort($contentTypeParameterValueCounts, SORT_STRING);
+        ksort($directoryCounts, SORT_STRING);
+        ksort($topLevelSegmentCounts, SORT_STRING);
+        ksort($partExtensionCounts, SORT_STRING);
         foreach ($contentTypeParameterValueCounts as &$parameterValueCounts) {
             ksort($parameterValueCounts, SORT_STRING);
         }
@@ -43001,6 +43031,9 @@ final class DocxOpenXmlReader
             'contentTypeBaseCounts' => $contentTypeBaseCounts,
             'contentTypeParameterNameCounts' => $contentTypeParameterNameCounts,
             'contentTypeParameterValueCounts' => $contentTypeParameterValueCounts,
+            'directoryCounts' => $directoryCounts,
+            'topLevelSegmentCounts' => $topLevelSegmentCounts,
+            'partExtensionCounts' => $partExtensionCounts,
             'issueCounts' => $issueCounts,
             'issues' => array_keys($issueCounts),
             'declarations' => $declarations,
