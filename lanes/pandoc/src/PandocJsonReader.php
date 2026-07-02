@@ -831,13 +831,22 @@ final class PandocJsonReader
             $attrs['listAttributesNative'] = $listAttributesNative;
         }
 
-        return new AstNode('ordered_list', $attrs, $this->readListItems($this->listItemCollectionContent($tuple[1], 'OrderedList items')));
+        $items = $this->listItemCollectionContent($tuple[1], 'OrderedList items');
+        if ($this->isEmptySingleWrappedCollectionPayload($tuple[1], 'OrderedList items')) {
+            $attrs['listItemsNative'] = $tuple[1];
+        }
+
+        return new AstNode('ordered_list', $attrs, $this->readListItems($items));
     }
 
     private function readBulletList(mixed $content): AstNode
     {
-        $items = $this->readListItems($this->listItemCollectionContent($content, 'BulletList'));
+        $itemCollection = $this->listItemCollectionContent($content, 'BulletList');
+        $items = $this->readListItems($itemCollection);
         $attrs = $this->allListItemsAreTasks($items) ? ['taskList' => true] : [];
+        if ($this->isEmptySingleWrappedCollectionPayload($content, 'BulletList')) {
+            $attrs['listItemsNative'] = $content;
+        }
 
         return new AstNode('bullet_list', $attrs, $items);
     }
@@ -919,7 +928,8 @@ final class PandocJsonReader
     private function readDefinitionList(mixed $content): AstNode
     {
         $items = [];
-        foreach ($this->definitionItemCollectionContent($content, 'DefinitionList') as $item) {
+        $itemCollection = $this->definitionItemCollectionContent($content, 'DefinitionList');
+        foreach ($itemCollection as $item) {
             $tuple = $this->singleWrappedTuple($item, 2, 'DefinitionList item');
             $definitions = [];
             foreach ($this->listContent($tuple[1], 'DefinitionList definitions') as $definition) {
@@ -942,13 +952,19 @@ final class PandocJsonReader
             ], [$term, ...$definitions]);
         }
 
-        return new AstNode('definition_list', [], $items);
+        $attrs = [];
+        if ($this->isEmptySingleWrappedCollectionPayload($content, 'DefinitionList')) {
+            $attrs['definitionItemsNative'] = $content;
+        }
+
+        return new AstNode('definition_list', $attrs, $items);
     }
 
     private function readLineBlock(mixed $content): AstNode
     {
         $lines = [];
-        foreach ($this->inlineListCollectionContent($content, 'LineBlock') as $line) {
+        $lineCollection = $this->inlineListCollectionContent($content, 'LineBlock');
+        foreach ($lineCollection as $line) {
             $inlines = $this->readInlines($this->listContent($line, 'LineBlock line'));
             $lines[] = new AstNode('line', [
                 'text' => $this->plainText($inlines),
@@ -956,7 +972,12 @@ final class PandocJsonReader
             ], $inlines);
         }
 
-        return new AstNode('line_block', [], $lines);
+        $attrs = [];
+        if ($this->isEmptySingleWrappedCollectionPayload($content, 'LineBlock')) {
+            $attrs['lineBlockLinesNative'] = $content;
+        }
+
+        return new AstNode('line_block', $attrs, $lines);
     }
 
     /**
@@ -1007,8 +1028,15 @@ final class PandocJsonReader
             count($items) !== 1
             || !is_array($items[0])
             || !array_is_list($items[0])
-            || count($items[0]) <= 1
         ) {
+            return false;
+        }
+
+        if ($items[0] === []) {
+            return true;
+        }
+
+        if (count($items[0]) <= 1) {
             return false;
         }
 
@@ -1019,6 +1047,16 @@ final class PandocJsonReader
         }
 
         return true;
+    }
+
+    private function isEmptySingleWrappedCollectionPayload(mixed $value, string $context): bool
+    {
+        $items = $this->listContent($value, $context);
+
+        return count($items) === 1
+            && is_array($items[0])
+            && array_is_list($items[0])
+            && $items[0] === [];
     }
 
     private function looksLikeListPayload(mixed $item): bool
