@@ -47,6 +47,38 @@ $tests['maps upstream markdown reader parse raw fixture inline constructors'] =
         $t->same('<outline text="Legacy"/>', $opml->attr('text'));
     };
 
+$tests['maps upstream markdown reader parse raw fixture disabled raw outputs'] =
+    static function (TestRunner $t) use ($fixture, $inlineTypes): void {
+        $source = implode("\n\n", [
+            '*Hi*',
+            '*Hi there*',
+        ]);
+        $document = (new MarkdownReader())->read($source);
+        $latexDisabled = $document->children[0]->children[0] ?? new AstNode('missing');
+        $htmlDisabled = $document->children[1]->children[0] ?? new AstNode('missing');
+        $native = (new NativeWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->contains('% pandoc -f latex -t markdown', $fixture());
+        $t->contains('% pandoc -f html -t markdown', $fixture());
+        $t->contains('*Hi*', $fixture());
+        $t->contains('*Hi there*', $fixture());
+        $t->same(['paragraph', 'paragraph'], array_map(
+            static fn (AstNode $node): string => $node->type,
+            $document->children
+        ));
+        $t->same('emph', $latexDisabled->type);
+        $t->same(['text'], $inlineTypes($latexDisabled));
+        $t->same('Hi', $latexDisabled->children[0]->attr('text'));
+        $t->same('emph', $htmlDisabled->type);
+        $t->same(['text'], $inlineTypes($htmlDisabled));
+        $t->same('Hi there', $htmlDisabled->children[0]->attr('text'));
+        $t->contains('Emph [ Str "Hi" ]', $native);
+        $t->contains('Emph [ Str "Hi" , Space , Str "there" ]', $native);
+        $t->contains('<p><em>Hi</em></p>', $blocks);
+        $t->contains('<p><em>Hi there</em></p>', $blocks);
+    };
+
 $tests['round trips upstream markdown reader parse raw fixture through native markdown and wordpress'] =
     static function (TestRunner $t) use ($fixture): void {
         $source = implode("\n\n", [
@@ -72,7 +104,7 @@ $tests['round trips upstream markdown reader parse raw fixture through native ma
 
 $tests['records markdown reader parse raw fixture completion mapped-case count'] =
     static function (TestRunner $t): void {
-        $t->same(4, 2 + 2);
+        $t->same(6, 2 + 2 + 2);
     };
 
 return $tests;
