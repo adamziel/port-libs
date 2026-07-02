@@ -69,7 +69,7 @@ $cases = [
     'nested decimal type list' => [
         'html' => '<ol type="A"><li>Alpha<ol type="1" start="4"><li>Nested decimal</li></ol></li></ol>',
         'lists' => [
-            ['start' => 1, 'style' => 'upper_alpha', 'loose' => false, 'items' => ['AlphaNested decimal']],
+            ['start' => 1, 'style' => 'upper_alpha', 'loose' => false, 'items' => ['Alpha Nested decimal']],
             ['start' => 4, 'style' => 'decimal', 'loose' => false, 'items' => ['Nested decimal']],
         ],
         'markdown' => '4.  Nested decimal',
@@ -78,7 +78,7 @@ $cases = [
     'loose decimal type list' => [
         'html' => '<ol type="1"><li><p>Loose decimal</p><p>Continuation</p></li></ol>',
         'lists' => [
-            ['start' => 1, 'style' => 'decimal', 'loose' => true, 'items' => ['Loose decimalContinuation']],
+            ['start' => 1, 'style' => 'decimal', 'loose' => true, 'items' => ['Loose decimal Continuation']],
         ],
         'markdown' => "1.  Loose decimal\n\n    Continuation",
         'wordpress' => '<ol><li><p>Loose decimal</p><p>Continuation</p></li></ol>',
