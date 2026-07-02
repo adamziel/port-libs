@@ -2,6 +2,8 @@
     "schemaVersion": 1,
     "lane": "pandoc",
     "priority": 6,
+    "mappedMarkdownReaderInlineRawLabelResidualCases": 21,
+    "markdownReaderInlineRawLabelResidualAssertions": 150,
     "mappedOdfManifestMissingMediaTypeCases": 1,
     "odfManifestMissingMediaTypeAssertions": 22,
     "mappedOdfReaderZipTimestampProvenanceCases": 1,

@@ -870,11 +870,11 @@ final class MarkdownReader
 
         foreach ($matches[1] as $token) {
             if ($token[0] === '#') {
-                $id = substr($token, 1);
+                $id = $this->unescapeLinkComponent(substr($token, 1));
                 continue;
             }
             if ($token[0] === '.') {
-                $classes[] = substr($token, 1);
+                $classes[] = $this->unescapeLinkComponent(substr($token, 1));
                 continue;
             }
 
@@ -10162,8 +10162,18 @@ final class MarkdownReader
                 continue;
             }
 
-            $math = $this->dollarMathExtensionEnabled() ? $this->tryParseMath($text, $offset) : null;
+            $math = $this->tryParseMath($text, $offset);
             if ($math !== null) {
+                $attribute = $this->inlineAttributeExtensionEnabled()
+                    ? $this->tryParseInlineAttributeSpec($text, $math['next'])
+                    : null;
+                if ($attribute !== null) {
+                    $math['node'] = new AstNode(
+                        'math',
+                        array_replace($math['node']->attrs, $attribute['attrs'])
+                    );
+                    $math['next'] = $attribute['next'];
+                }
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $math['node'];
                 $offset = $math['next'];
@@ -11179,6 +11189,36 @@ final class MarkdownReader
         return in_array($canonical, ['markdown', 'commonmark_x', 'markdown_mmd'], true);
     }
 
+    private function singleBackslashMathExtensionEnabled(): bool
+    {
+        $overrides = $this->markdownExtensionOverrides();
+        if (array_key_exists('tex_math_single_backslash', $overrides)) {
+            return $overrides['tex_math_single_backslash'];
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['markdown', 'commonmark_x', 'markdown_mmd'], true);
+    }
+
+    private function doubleBackslashMathExtensionEnabled(): bool
+    {
+        if (($this->options['texMathDoubleBackslash'] ?? false) !== true) {
+            return false;
+        }
+
+        $overrides = $this->markdownExtensionOverrides();
+        if (array_key_exists('tex_math_double_backslash', $overrides)) {
+            return $overrides['tex_math_double_backslash'];
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['markdown', 'commonmark_x', 'markdown_mmd'], true);
+    }
+
     private function wikilinkExtensionEnabled(): bool
     {
         $overrides = $this->markdownExtensionOverrides();
@@ -12123,7 +12163,7 @@ final class MarkdownReader
     /**
      * @return array{text:string, next:int}|null
      */
-    private function parseBracketedLabel(string $text, int $offset): ?array
+    private function parseBracketedLabel(string $text, int $offset, bool $skipInlineContainers = true): ?array
     {
         if (($text[$offset] ?? '') !== '[') {
             return null;
@@ -12133,8 +12173,25 @@ final class MarkdownReader
         $depth = 0;
         $length = strlen($text);
         for ($cursor = $start; $cursor < $length; $cursor++) {
+            if ($skipInlineContainers) {
+                $skipEnd = $this->bracketedLabelInlineSkipEnd($text, $cursor);
+                if ($skipEnd !== null) {
+                    $cursor = $skipEnd - 1;
+                    continue;
+                }
+            }
+
             if ($text[$cursor] === '\\') {
                 $cursor++;
+                continue;
+            }
+
+            if ($text[$cursor] === '`') {
+                $tickCount = $this->countBackticks($text, $cursor);
+                $end = $this->findMatchingBacktickRun($text, $cursor + $tickCount, $tickCount);
+                if ($end !== null && $this->hasBracketedLabelCloseAfter($text, $end + $tickCount, $depth)) {
+                    $cursor = $end + $tickCount - 1;
+                }
                 continue;
             }
 
@@ -12159,6 +12216,115 @@ final class MarkdownReader
         }
 
         return null;
+    }
+
+    private function hasBracketedLabelCloseAfter(string $text, int $offset, int $depth): bool
+    {
+        $length = strlen($text);
+        for ($cursor = $offset; $cursor < $length; $cursor++) {
+            if ($text[$cursor] === '\\') {
+                $cursor++;
+                continue;
+            }
+
+            if ($text[$cursor] === '[') {
+                $depth++;
+                continue;
+            }
+
+            if ($text[$cursor] !== ']') {
+                continue;
+            }
+
+            if ($depth === 0) {
+                return true;
+            }
+
+            $depth--;
+        }
+
+        return false;
+    }
+
+    private function bracketedLabelInlineSkipEnd(string $text, int $offset): ?int
+    {
+        if (($text[$offset] ?? '') === '`') {
+            return $this->bracketedLabelCodeSpanSkipEnd($text, $offset);
+        }
+
+        $math = $this->bracketedLabelMathSkipEnd($text, $offset);
+        if ($math !== null) {
+            $next = $math;
+            if ($this->inlineAttributeExtensionEnabled()) {
+                $attribute = $this->tryParseInlineAttributeSpec($text, $next);
+                if ($attribute !== null) {
+                    return $attribute['next'];
+                }
+            }
+
+            return $next;
+        }
+
+        $rawTex = $this->rawTexEnabled() ? $this->tryParseRawTexInline($text, $offset) : null;
+        if ($rawTex !== null) {
+            return $rawTex['next'];
+        }
+
+        if (($text[$offset] ?? '') === '<') {
+            $rawHtml = $this->tryParseRawHtmlInline($text, $offset);
+
+            return $rawHtml['next'] ?? null;
+        }
+
+        return null;
+    }
+
+    private function bracketedLabelMathSkipEnd(string $text, int $offset): ?int
+    {
+        if (
+            ($text[$offset] ?? '') !== '$'
+            && substr($text, $offset, 2) !== '\\('
+            && substr($text, $offset, 2) !== '\\['
+            && substr($text, $offset, 3) !== '\\\\('
+            && substr($text, $offset, 3) !== '\\\\['
+        ) {
+            return null;
+        }
+
+        $math = $this->tryParseMath($text, $offset);
+
+        return $math['next'] ?? null;
+    }
+
+    private function bracketedLabelCodeSpanSkipEnd(string $text, int $offset): ?int
+    {
+        $tickCount = $this->countBackticks($text, $offset);
+        $end = $this->findMatchingBacktickRun($text, $offset + $tickCount, $tickCount);
+        if ($end === null) {
+            return null;
+        }
+
+        $next = $end + $tickCount;
+        $rawAttribute = $this->rawAttributeEnabled()
+            ? $this->tryParseRawAttributeSpec($text, $next)
+            : null;
+        if ($rawAttribute !== null) {
+            return $rawAttribute['next'];
+        }
+
+        if ($this->inlineAttributeExtensionEnabled()) {
+            $attribute = $this->tryParseInlineAttributeSpec($text, $next);
+            if ($attribute !== null) {
+                return $attribute['next'];
+            }
+        }
+
+        $literalAttribute = $this->tryParseSpacedInlineAttributeLiteral($text, $next);
+        if ($literalAttribute !== null) {
+            return $literalAttribute['next'];
+        }
+
+        return $next;
     }
 
     /**
@@ -12486,7 +12652,25 @@ final class MarkdownReader
      */
     private function tryParseMath(string $text, int $offset): ?array
     {
-        if (($text[$offset] ?? '') !== '$' || $this->isEscapedInlinePosition($text, $offset)) {
+        if ($this->doubleBackslashMathExtensionEnabled()) {
+            $doubleBackslashMath = $this->tryParseDoubleBackslashMath($text, $offset);
+            if ($doubleBackslashMath !== null) {
+                return $doubleBackslashMath;
+            }
+        }
+
+        if ($this->singleBackslashMathExtensionEnabled()) {
+            $singleBackslashMath = $this->tryParseSingleBackslashMath($text, $offset);
+            if ($singleBackslashMath !== null) {
+                return $singleBackslashMath;
+            }
+        }
+
+        if (
+            !$this->dollarMathExtensionEnabled()
+            || ($text[$offset] ?? '') !== '$'
+            || $this->isEscapedInlinePosition($text, $offset)
+        ) {
             return null;
         }
 
@@ -12522,6 +12706,102 @@ final class MarkdownReader
             ]),
             'next' => $end + 1,
         ];
+    }
+
+    /**
+     * @return array{node: AstNode, next: int}|null
+     */
+    private function tryParseDoubleBackslashMath(string $text, int $offset): ?array
+    {
+        if (substr($text, $offset, 2) !== '\\\\' || $this->isEscapedInlinePosition($text, $offset)) {
+            return null;
+        }
+
+        $opener = $text[$offset + 2] ?? '';
+        $closer = match ($opener) {
+            '(' => ')',
+            '[' => ']',
+            default => null,
+        };
+        if ($closer === null) {
+            return null;
+        }
+
+        $end = $this->findClosingDoubleBackslashMath($text, $offset + 3, $closer);
+        if ($end === null || $end === $offset + 3) {
+            return null;
+        }
+
+        return [
+            'node' => new AstNode('math', [
+                'text' => $this->expandRawTexMathMacros(trim(substr($text, $offset + 3, $end - $offset - 3))),
+                'display' => $opener === '[',
+            ]),
+            'next' => $end + 3,
+        ];
+    }
+
+    private function findClosingDoubleBackslashMath(string $text, int $offset, string $closer): ?int
+    {
+        $needle = '\\\\' . $closer;
+        $position = strpos($text, $needle, $offset);
+        while ($position !== false) {
+            if (!$this->isEscapedInlinePosition($text, $position)) {
+                return $position;
+            }
+
+            $position = strpos($text, $needle, $position + 3);
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{node: AstNode, next: int}|null
+     */
+    private function tryParseSingleBackslashMath(string $text, int $offset): ?array
+    {
+        if (($text[$offset] ?? '') !== '\\' || $this->isEscapedInlinePosition($text, $offset)) {
+            return null;
+        }
+
+        $opener = $text[$offset + 1] ?? '';
+        $closer = match ($opener) {
+            '(' => ')',
+            '[' => ']',
+            default => null,
+        };
+        if ($closer === null) {
+            return null;
+        }
+
+        $end = $this->findClosingSingleBackslashMath($text, $offset + 2, $closer);
+        if ($end === null || $end === $offset + 2) {
+            return null;
+        }
+
+        return [
+            'node' => new AstNode('math', [
+                'text' => $this->expandRawTexMathMacros(trim(substr($text, $offset + 2, $end - $offset - 2))),
+                'display' => $opener === '[',
+            ]),
+            'next' => $end + 2,
+        ];
+    }
+
+    private function findClosingSingleBackslashMath(string $text, int $offset, string $closer): ?int
+    {
+        $needle = '\\' . $closer;
+        $position = strpos($text, $needle, $offset);
+        while ($position !== false) {
+            if (!$this->isEscapedInlinePosition($text, $position)) {
+                return $position;
+            }
+
+            $position = strpos($text, $needle, $position + 2);
+        }
+
+        return null;
     }
 
     private function findClosingDisplayMath(string $text, int $offset): ?int
