@@ -4502,6 +4502,7 @@ XML;
             ],
         ))->summarize();
         $report = $summary['documentParts'];
+        $identity = $summary['packageIdentity'];
         $itemsByPart = [];
         foreach ($report['items'] as $item) {
             $itemsByPart[$item['part']] = $item;
@@ -4542,6 +4543,13 @@ XML;
         ], $report['diagnosticCodeCounts']);
         $t->same('odf-document-part-package-provenance-metadata-only', $report['byteExposurePolicy']);
         $t->same(false, $report['canExposeBytes']);
+        $t->same($report, $identity['documentPartVersions']);
+        $t->same(4, $identity['documentPartVersionCount']);
+        $t->same(3, $identity['documentPartVersionedCount']);
+        $t->same(1, $identity['documentPartMissingVersionCount']);
+        $t->same(1, $identity['documentPartVersionMismatchCount']);
+        $t->same(3, $identity['documentPartRootCustomAttributeCount']);
+        $t->same($report['rootNamespaceDeclarationCount'], $identity['documentPartRootNamespaceDeclarationCount']);
 
         $t->same('document-content', $itemsByPart['content.xml']['rootName']);
         $t->same(true, $itemsByPart['content.xml']['validRoot']);

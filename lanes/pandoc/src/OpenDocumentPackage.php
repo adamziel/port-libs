@@ -810,7 +810,7 @@ final class OpenDocumentPackage
             ),
             'packageInventory' => $packageInventory,
             'packageByteHandoff' => $packageInventory['packageByteHandoff'],
-            'packageIdentity' => $this->packageIdentity($packageInventory, $manifestMediaTypeSummary),
+            'packageIdentity' => $this->packageIdentity($packageInventory, $manifestMediaTypeSummary, $documentParts),
             'metadata' => $this->metadata,
             'settings' => $this->settings,
             'styleNames' => array_keys($this->stylesByName),
@@ -838,6 +838,8 @@ final class OpenDocumentPackage
         $rootCustomAttributeCount = 0;
         $rootCustomAttributeNames = [];
         $rootCustomAttributeItems = [];
+        $rootNamespaceDeclarationCount = 0;
+        $rootNamespaceDeclarationNames = [];
         $diagnosticCodeCounts = [];
         $diagnosticCount = 0;
         $declaredCount = 0;
@@ -900,6 +902,16 @@ final class OpenDocumentPackage
                             'officeVersion' => $officeVersion,
                             'manifestVersion' => $this->manifestVersion,
                         ];
+                    }
+                }
+            }
+
+            $partNamespaceDeclarationCount = (int) ($rootAttributeProvenance['namespaceDeclarationCount'] ?? 0);
+            if ($partNamespaceDeclarationCount > 0) {
+                $rootNamespaceDeclarationCount += $partNamespaceDeclarationCount;
+                foreach ($rootAttributeProvenance['namespaceDeclarationNames'] ?? [] as $namespaceName) {
+                    if (is_string($namespaceName) && $namespaceName !== '' && !in_array($namespaceName, $rootNamespaceDeclarationNames, true)) {
+                        $rootNamespaceDeclarationNames[] = $namespaceName;
                     }
                 }
             }
@@ -973,6 +985,7 @@ final class OpenDocumentPackage
         ksort($versionCounts, SORT_STRING);
         ksort($diagnosticCodeCounts, SORT_STRING);
         sort($rootCustomAttributeNames, SORT_STRING);
+        sort($rootNamespaceDeclarationNames, SORT_STRING);
 
         return [
             'count' => count($items),
@@ -991,6 +1004,8 @@ final class OpenDocumentPackage
             'rootCustomAttributeCount' => $rootCustomAttributeCount,
             'rootCustomAttributeNames' => $rootCustomAttributeNames,
             'rootCustomAttributeItems' => $rootCustomAttributeItems,
+            'rootNamespaceDeclarationCount' => $rootNamespaceDeclarationCount,
+            'rootNamespaceDeclarationNames' => $rootNamespaceDeclarationNames,
             'diagnosticCount' => $diagnosticCount,
             'diagnosticCodeCounts' => $diagnosticCodeCounts,
             'byteExposurePolicy' => 'odf-document-part-package-provenance-metadata-only',
@@ -2657,9 +2672,11 @@ final class OpenDocumentPackage
 
     /**
      * @param array<string, mixed> $packageInventory
+     * @param array<string, mixed> $manifestMediaTypeSummary
+     * @param array<string, mixed> $documentParts
      * @return array<string, mixed>
      */
-    private function packageIdentity(array $packageInventory, array $manifestMediaTypeSummary): array
+    private function packageIdentity(array $packageInventory, array $manifestMediaTypeSummary, array $documentParts): array
     {
         $zipPackageManifestSummary = self::zipPackageManifestAggregateProvenance(
             is_array($packageInventory['zipPackageManifest'] ?? null) ? $packageInventory['zipPackageManifest'] : []
@@ -3050,6 +3067,13 @@ final class OpenDocumentPackage
             'manifestEmptyMediaTypeCount' => $manifestMediaTypeSummary['emptyMediaTypeCount'] ?? 0,
             'manifestEmptyMediaTypeDirectoryCount' => $manifestMediaTypeSummary['emptyMediaTypeDirectoryCount'] ?? 0,
             'manifestEmptyMediaTypeNonDirectoryCount' => $manifestMediaTypeSummary['emptyMediaTypeNonDirectoryCount'] ?? 0,
+            'documentPartVersionCount' => $documentParts['count'] ?? 0,
+            'documentPartVersionedCount' => $documentParts['versionedCount'] ?? 0,
+            'documentPartMissingVersionCount' => $documentParts['missingVersionCount'] ?? 0,
+            'documentPartVersionMismatchCount' => $documentParts['versionMismatchCount'] ?? 0,
+            'documentPartRootCustomAttributeCount' => $documentParts['rootCustomAttributeCount'] ?? 0,
+            'documentPartRootNamespaceDeclarationCount' => $documentParts['rootNamespaceDeclarationCount'] ?? 0,
+            'documentPartVersions' => $documentParts,
             'packageEntries' => $packageEntries,
             'manifestMediaFamilyCounts' => $packageInventory['manifestMediaFamilyCounts'] ?? [],
             'extensionlessPackagePartCount' => $packageInventory['extensionlessPackagePartCount'] ?? 0,
