@@ -15696,6 +15696,7 @@ final class DocxOpenXmlReader
             }
         }
         ksort($partTopLevelSegmentCounts, SORT_STRING);
+        $partTopLevelSegmentRoleBuckets = $this->packagePartTopLevelSegmentRoleBucketSummary($partInventory);
         $partCaseFoldTopLevelSegments = $this->packagePartCaseFoldTopLevelSegmentSummary($partInventory);
         $partCaseFoldTopLevelSegmentCounts = [];
         $duplicatePartCaseFoldTopLevelSegments = [];
@@ -19560,6 +19561,12 @@ final class DocxOpenXmlReader
             'duplicatePartTopLevelSegmentCount' => count($duplicatePartTopLevelSegments),
             'duplicatePartTopLevelSegmentPartCount' => $duplicatePartTopLevelSegmentPartCount,
             'duplicatePartTopLevelSegments' => $duplicatePartTopLevelSegments,
+            'partTopLevelSegmentRoleBucketCount' => $partTopLevelSegmentRoleBuckets['roleBucketCount'],
+            'partTopLevelSegmentRoleCounts' => $partTopLevelSegmentRoleBuckets['roleCounts'],
+            'partNamesByPartTopLevelSegmentRole' => $partTopLevelSegmentRoleBuckets['partNamesByRole'],
+            'partTopLevelSegmentByteExposurePolicyBucketCount' => $partTopLevelSegmentRoleBuckets['byteExposurePolicyBucketCount'],
+            'partTopLevelSegmentByteExposurePolicyCounts' => $partTopLevelSegmentRoleBuckets['byteExposurePolicyCounts'],
+            'partNamesByPartTopLevelSegmentByteExposurePolicy' => $partTopLevelSegmentRoleBuckets['partNamesByByteExposurePolicy'],
             'partCaseFoldTopLevelSegmentCount' => count($partCaseFoldTopLevelSegments),
             'partCaseFoldTopLevelSegmentCounts' => $partCaseFoldTopLevelSegmentCounts,
             'duplicatePartCaseFoldTopLevelSegmentCount' => count($duplicatePartCaseFoldTopLevelSegments),
@@ -32130,6 +32137,69 @@ final class DocxOpenXmlReader
 
     /**
      * @param array<string, array<string, mixed>> $partInventory
+     * @return array{
+     *     roleBucketCount:int,
+     *     roleCounts:array<string, array<string, int>>,
+     *     partNamesByRole:array<string, array<string, list<string>>>,
+     *     byteExposurePolicyBucketCount:int,
+     *     byteExposurePolicyCounts:array<string, array<string, int>>,
+     *     partNamesByByteExposurePolicy:array<string, array<string, list<string>>>
+     * }
+     */
+    private function packagePartTopLevelSegmentRoleBucketSummary(array $partInventory): array
+    {
+        $roleCounts = [];
+        $partNamesByRole = [];
+        $byteExposurePolicyCounts = [];
+        $partNamesByByteExposurePolicy = [];
+
+        foreach ($partInventory as $fallbackPartName => $part) {
+            $partName = is_string($part['partName'] ?? null) && $part['partName'] !== ''
+                ? $part['partName']
+                : (string) $fallbackPartName;
+            if ($partName === '') {
+                continue;
+            }
+
+            $topLevelSegment = is_string($part['topLevelSegment'] ?? null)
+                ? $part['topLevelSegment']
+                : $this->packagePartTopLevelSegment($partName);
+            $roles = array_values(array_unique(array_filter(
+                array_map('strval', is_array($part['roles'] ?? null) ? $part['roles'] : []),
+                static fn (string $role): bool => $role !== ''
+            )));
+            if ($roles === []) {
+                $roles = ['package-part'];
+            }
+
+            foreach ($roles as $role) {
+                $roleCounts[$topLevelSegment][$role] = ($roleCounts[$topLevelSegment][$role] ?? 0) + 1;
+                $partNamesByRole[$topLevelSegment][$role][] = $partName;
+            }
+
+            $byteExposurePolicy = $this->packagePartByteExposurePolicy($part);
+            $byteExposurePolicyCounts[$topLevelSegment][$byteExposurePolicy] =
+                ($byteExposurePolicyCounts[$topLevelSegment][$byteExposurePolicy] ?? 0) + 1;
+            $partNamesByByteExposurePolicy[$topLevelSegment][$byteExposurePolicy][] = $partName;
+        }
+
+        $roleBucketCount = $this->sortNestedCountMap($roleCounts, SORT_STRING);
+        $this->sortNestedStringListMap($partNamesByRole, SORT_STRING);
+        $byteExposurePolicyBucketCount = $this->sortNestedCountMap($byteExposurePolicyCounts, SORT_STRING);
+        $this->sortNestedStringListMap($partNamesByByteExposurePolicy, SORT_STRING);
+
+        return [
+            'roleBucketCount' => $roleBucketCount,
+            'roleCounts' => $roleCounts,
+            'partNamesByRole' => $partNamesByRole,
+            'byteExposurePolicyBucketCount' => $byteExposurePolicyBucketCount,
+            'byteExposurePolicyCounts' => $byteExposurePolicyCounts,
+            'partNamesByByteExposurePolicy' => $partNamesByByteExposurePolicy,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
      * @return array{packageAreaCount:int, packageAreaCounts:array<string, int>, packageAreaByteLengths:array<string, int>, packageAreaCompressedByteLengths:array<string, int>, packageAreaSummaries:list<array<string, mixed>>, partNamesByPackageArea:array<string, list<string>>}
      */
     private function packagePartAreaSummary(array $partInventory): array
@@ -44606,6 +44676,24 @@ final class DocxOpenXmlReader
                 : [],
             'entryNamesByPackageArea' => $this->packageIdentityStringListMap(
                 $summary['partNamesByPackageArea'] ?? []
+            ),
+            'packageTopLevelSegmentRoleBucketCount' => (int) (
+                $summary['partTopLevelSegmentRoleBucketCount'] ?? 0
+            ),
+            'packageTopLevelSegmentRoleCounts' => $this->packageIdentityNestedCountMap(
+                $summary['partTopLevelSegmentRoleCounts'] ?? []
+            ),
+            'entryNamesByPackageTopLevelSegmentRole' => $this->packageIdentityNestedStringListMap(
+                $summary['partNamesByPartTopLevelSegmentRole'] ?? []
+            ),
+            'packageTopLevelSegmentByteExposurePolicyBucketCount' => (int) (
+                $summary['partTopLevelSegmentByteExposurePolicyBucketCount'] ?? 0
+            ),
+            'packageTopLevelSegmentByteExposurePolicyCounts' => $this->packageIdentityNestedCountMap(
+                $summary['partTopLevelSegmentByteExposurePolicyCounts'] ?? []
+            ),
+            'entryNamesByPackageTopLevelSegmentByteExposurePolicy' => $this->packageIdentityNestedStringListMap(
+                $summary['partNamesByPartTopLevelSegmentByteExposurePolicy'] ?? []
             ),
             'relationshipPartCount' => (int) ($summary['relationshipPartCount'] ?? 0),
             'relationshipCount' => (int) ($summary['relationshipCount'] ?? 0),
