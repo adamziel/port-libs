@@ -63,9 +63,30 @@ $tests['round trips upstream command gfm details list fixture without loosening 
         );
     };
 
+$tests['maps upstream command gfm details list fixture through markdown writer gfm format option'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new MarkdownReader(['format' => 'gfm']))->read($fixture());
+        $markdown = (new MarkdownWriter(['format' => 'gfm']))->write($document);
+
+        $t->same($fixture(), $markdown);
+        $t->contains("- list item\n  <details>", $markdown);
+        $t->contains("  - subitem\n\n  </details>", $markdown);
+        $t->contains("item *continue* **with** formatting\n- next list item", $markdown);
+        $t->true(
+            !str_contains($markdown, "formatting\n\n- next list item"),
+            'GFM details list writer fixture should not loosen the sibling item'
+        );
+    };
+
 $tests['records upstream command gfm details list reader mapped-case count'] =
     static function (TestRunner $t): void {
         $t->same(6, 6);
+    };
+
+$tests['records upstream command gfm details list writer mapped-case count'] =
+    static function (TestRunner $t): void {
+        $t->same(5, 5);
+        $t->same(2, 2);
     };
 
 return $tests;
