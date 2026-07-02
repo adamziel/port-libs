@@ -1382,6 +1382,14 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['numberingRelationshipExistingTargetCount'] = $numberingRelationshipReview['existingTargetCount'];
         $packageProvenance['summary']['numberingRelationshipMissingTargetCount'] = $numberingRelationshipReview['missingTargetCount'];
         $packageProvenance['summary']['numberingRelationshipUnexpectedContentTypeCount'] = $numberingRelationshipReview['unexpectedContentTypeCount'];
+        $packageProvenance['summary']['numberingRelationshipTargetReferenceSuffixCount'] = $numberingRelationshipReview['targetReferenceSuffixCount'];
+        $packageProvenance['summary']['numberingRelationshipTargetReferenceSuffixes'] = $numberingRelationshipReview['targetReferenceSuffixes'];
+        $packageProvenance['summary']['numberingRelationshipRelationshipTypeCounts'] = $numberingRelationshipReview['relationshipTypeCounts'];
+        $packageProvenance['summary']['numberingRelationshipContentTypeBaseCounts'] = $numberingRelationshipReview['contentTypeBaseCounts'];
+        $packageProvenance['summary']['numberingRelationshipContentTypeSourceCounts'] = $numberingRelationshipReview['contentTypeSourceCounts'];
+        $packageProvenance['summary']['numberingRelationshipTargetExtensionCounts'] = $numberingRelationshipReview['targetExtensionCounts'];
+        $packageProvenance['summary']['numberingRelationshipExternalTargetKindCounts'] = $numberingRelationshipReview['externalTargetKindCounts'];
+        $packageProvenance['summary']['numberingRelationshipExternalTargetSchemeCounts'] = $numberingRelationshipReview['externalTargetSchemeCounts'];
         $packageProvenance['summary']['numberingRelationshipIssueCount'] = $numberingRelationshipReview['issueCount'];
         $packageProvenance['summary']['numberingRelationshipIssueCodes'] = $numberingRelationshipReview['issueCodes'];
         $packageProvenance['chartParts'] = $chartParts;
@@ -2379,7 +2387,14 @@ final class DocxOpenXmlReader
         $relationshipIds = [];
         $targetParts = [];
         $externalTargets = [];
+        $targetReferenceSuffixes = [];
         $contentTypesSeen = [];
+        $relationshipTypeCounts = [];
+        $contentTypeBaseCounts = [];
+        $contentTypeSourceCounts = [];
+        $targetExtensionCounts = [];
+        $externalTargetKindCounts = [];
+        $externalTargetSchemeCounts = [];
         $issueCodes = [];
         $relationshipCount = 0;
         $internalRelationshipCount = 0;
@@ -2405,10 +2420,16 @@ final class DocxOpenXmlReader
                 $documentRelationshipsPart,
                 $contentTypes,
             );
+            $relationshipType = (string) $summary['type'];
+            $relationshipTypeCounts[$relationshipType] = ($relationshipTypeCounts[$relationshipType] ?? 0) + 1;
             $external = (bool) $summary['external'];
             if ($external) {
                 ++$externalRelationshipCount;
                 $this->appendUniqueString($externalTargets, $relationship['target']);
+                $externalTargetKind = is_string($summary['externalTargetKind'] ?? null) ? $summary['externalTargetKind'] : '(missing)';
+                $externalTargetScheme = is_string($summary['externalTargetScheme'] ?? null) ? $summary['externalTargetScheme'] : '(missing)';
+                $externalTargetKindCounts[$externalTargetKind] = ($externalTargetKindCounts[$externalTargetKind] ?? 0) + 1;
+                $externalTargetSchemeCounts[$externalTargetScheme] = ($externalTargetSchemeCounts[$externalTargetScheme] ?? 0) + 1;
             } else {
                 ++$internalRelationshipCount;
             }
@@ -2416,6 +2437,12 @@ final class DocxOpenXmlReader
             $targetPart = is_string($summary['targetPart'] ?? null) ? $summary['targetPart'] : null;
             if ($targetPart !== null) {
                 $this->appendUniqueString($targetParts, $targetPart);
+                $targetExtension = $this->packagePartExtension($targetPart);
+                $targetExtensionCounts[$targetExtension] = ($targetExtensionCounts[$targetExtension] ?? 0) + 1;
+            }
+            $targetReferenceSuffix = is_string($summary['targetReferenceSuffix'] ?? null) ? $summary['targetReferenceSuffix'] : '';
+            if ($targetReferenceSuffix !== '') {
+                $this->appendUniqueString($targetReferenceSuffixes, $targetReferenceSuffix);
             }
             $this->appendUniqueString($contentTypesSeen, is_string($summary['contentType'] ?? null) ? $summary['contentType'] : null);
             $relationshipIds[] = $relationship['id'];
@@ -2438,6 +2465,10 @@ final class DocxOpenXmlReader
             }
 
             $contentTypeBase = is_string($summary['contentTypeBase'] ?? null) ? $summary['contentTypeBase'] : '';
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            $contentTypeBaseCounts[$contentTypeBaseKey] = ($contentTypeBaseCounts[$contentTypeBaseKey] ?? 0) + 1;
+            $contentTypeSource = is_string($summary['contentTypeSource'] ?? null) ? $summary['contentTypeSource'] : 'missing';
+            $contentTypeSourceCounts[$contentTypeSource] = ($contentTypeSourceCounts[$contentTypeSource] ?? 0) + 1;
             if (!$external && $contentTypeBase === '') {
                 ++$missingContentTypeCount;
                 $issues[] = 'missing-numbering-content-type';
@@ -2511,9 +2542,16 @@ final class DocxOpenXmlReader
             $byRelationshipKey[$relationshipKey] = $item;
         }
 
+        ksort($relationshipTypeCounts, SORT_STRING);
+        ksort($contentTypeBaseCounts, SORT_STRING);
+        ksort($contentTypeSourceCounts, SORT_STRING);
+        ksort($targetExtensionCounts, SORT_STRING);
+        ksort($externalTargetKindCounts, SORT_STRING);
+        ksort($externalTargetSchemeCounts, SORT_STRING);
         ksort($issueCodes, SORT_STRING);
         sort($targetParts, SORT_STRING);
         sort($externalTargets, SORT_STRING);
+        sort($targetReferenceSuffixes, SORT_STRING);
         sort($contentTypesSeen, SORT_STRING);
 
         return [
@@ -2544,6 +2582,14 @@ final class DocxOpenXmlReader
             'missingTargetCount' => $missingTargetCount,
             'missingContentTypeCount' => $missingContentTypeCount,
             'unexpectedContentTypeCount' => $unexpectedContentTypeCount,
+            'targetReferenceSuffixCount' => count($targetReferenceSuffixes),
+            'targetReferenceSuffixes' => $targetReferenceSuffixes,
+            'relationshipTypeCounts' => $relationshipTypeCounts,
+            'contentTypeBaseCounts' => $contentTypeBaseCounts,
+            'contentTypeSourceCounts' => $contentTypeSourceCounts,
+            'targetExtensionCounts' => $targetExtensionCounts,
+            'externalTargetKindCounts' => $externalTargetKindCounts,
+            'externalTargetSchemeCounts' => $externalTargetSchemeCounts,
             'issueCount' => $issueCount,
             'relationshipIds' => $relationshipIds,
             'targetParts' => $targetParts,
