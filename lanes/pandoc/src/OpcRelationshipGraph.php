@@ -1453,6 +1453,9 @@ final class OpcRelationshipGraph
             'endOfCentralDirectoryFixedFieldIssues' => $packageManifest['endOfCentralDirectoryFixedFieldIssues'],
             'packageCommentOffset' => $packageManifest['packageCommentOffset'],
             'packageCommentBytes' => $packageManifest['packageCommentBytes'],
+            'packageCommentLengthBucket' => $packageManifest['packageCommentLengthBucket'],
+            'packageCommentLengthBucketMinBytes' => $packageManifest['packageCommentLengthBucketMinBytes'],
+            'packageCommentLengthBucketMaxBytes' => $packageManifest['packageCommentLengthBucketMaxBytes'],
             'packageCommentEnd' => $packageManifest['packageCommentEnd'],
             'packageCommentSha256' => $packageManifest['packageCommentSha256'],
             'packageCommentPreviewHex' => $packageManifest['packageCommentPreviewHex'],
@@ -1650,6 +1653,7 @@ final class OpcRelationshipGraph
         $packageCommentOffset = $endOfCentralDirectoryOffset + 22;
         $packageCommentBytes = $archive['packageCommentLength'];
         $packageCommentEnd = $packageCommentOffset + $packageCommentBytes;
+        $packageCommentLengthBucket = self::zipPackageSourcePackageCommentLengthBucket($packageCommentBytes);
         $packageCommentPreviewByteCount = min(16, $packageCommentBytes);
         $packageCommentPreviewHex = $packageCommentPreviewByteCount > 0
             ? bin2hex(substr($bytes, $packageCommentOffset, $packageCommentPreviewByteCount))
@@ -1732,6 +1736,9 @@ final class OpcRelationshipGraph
             'endOfCentralDirectoryFixedFieldIssues' => $endOfCentralDirectoryFixedFieldIssues,
             'packageCommentOffset' => $packageCommentOffset,
             'packageCommentBytes' => $packageCommentBytes,
+            'packageCommentLengthBucket' => $packageCommentLengthBucket['packageCommentLengthBucket'],
+            'packageCommentLengthBucketMinBytes' => $packageCommentLengthBucket['minPackageCommentBytes'],
+            'packageCommentLengthBucketMaxBytes' => $packageCommentLengthBucket['maxPackageCommentBytes'],
             'packageCommentEnd' => $packageCommentEnd,
             'packageCommentSha256' => $packageCommentSha256,
             'packageCommentPreviewHex' => $packageCommentPreviewHex,
@@ -1775,6 +1782,9 @@ final class OpcRelationshipGraph
             'endOfCentralDirectoryFixedFieldIssues' => $endOfCentralDirectoryFixedFieldIssues,
             'packageCommentOffset' => $packageCommentOffset,
             'packageCommentBytes' => $packageCommentBytes,
+            'packageCommentLengthBucket' => $packageCommentLengthBucket['packageCommentLengthBucket'],
+            'packageCommentLengthBucketMinBytes' => $packageCommentLengthBucket['minPackageCommentBytes'],
+            'packageCommentLengthBucketMaxBytes' => $packageCommentLengthBucket['maxPackageCommentBytes'],
             'packageCommentEnd' => $packageCommentEnd,
             'packageCommentSha256' => $packageCommentSha256,
             'packageCommentPreviewHex' => $packageCommentPreviewHex,
@@ -1795,6 +1805,50 @@ final class OpcRelationshipGraph
             'centralDirectorySignatureVerification' => $centralDirectorySignatureVerification,
             'centralDirectorySignatureByteExposurePolicy' => $centralDirectorySignatureByteExposurePolicy,
             'centralDirectorySignatureCanExposeBytes' => false,
+        ];
+    }
+
+    /**
+     * @return array{packageCommentLengthBucket:string,minPackageCommentBytes:int,maxPackageCommentBytes:?int}
+     */
+    private static function zipPackageSourcePackageCommentLengthBucket(int $packageCommentBytes): array
+    {
+        if ($packageCommentBytes <= 0) {
+            return [
+                'packageCommentLengthBucket' => 'none',
+                'minPackageCommentBytes' => 0,
+                'maxPackageCommentBytes' => 0,
+            ];
+        }
+
+        if ($packageCommentBytes <= 15) {
+            return [
+                'packageCommentLengthBucket' => 'up-to-15-bytes',
+                'minPackageCommentBytes' => 1,
+                'maxPackageCommentBytes' => 15,
+            ];
+        }
+
+        if ($packageCommentBytes <= 63) {
+            return [
+                'packageCommentLengthBucket' => '16-to-63-bytes',
+                'minPackageCommentBytes' => 16,
+                'maxPackageCommentBytes' => 63,
+            ];
+        }
+
+        if ($packageCommentBytes <= 127) {
+            return [
+                'packageCommentLengthBucket' => '64-to-127-bytes',
+                'minPackageCommentBytes' => 64,
+                'maxPackageCommentBytes' => 127,
+            ];
+        }
+
+        return [
+            'packageCommentLengthBucket' => '128-plus-bytes',
+            'minPackageCommentBytes' => 128,
+            'maxPackageCommentBytes' => null,
         ];
     }
 
@@ -2737,6 +2791,9 @@ final class OpcRelationshipGraph
             'endOfCentralDirectoryFixedFieldIssues' => $packageSource['endOfCentralDirectoryFixedFieldIssues'],
             'packageCommentOffset' => $packageSource['packageCommentOffset'],
             'packageCommentBytes' => $packageSource['packageCommentBytes'],
+            'packageCommentLengthBucket' => $packageSource['packageCommentLengthBucket'],
+            'packageCommentLengthBucketMinBytes' => $packageSource['packageCommentLengthBucketMinBytes'],
+            'packageCommentLengthBucketMaxBytes' => $packageSource['packageCommentLengthBucketMaxBytes'],
             'packageCommentEnd' => $packageSource['packageCommentEnd'],
             'packageCommentSha256' => $packageSource['packageCommentSha256'],
             'packageCommentPreviewHex' => $packageSource['packageCommentPreviewHex'],

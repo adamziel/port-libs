@@ -15992,6 +15992,43 @@ final class DocxOpenXmlReader
         }
         ksort($partContentTypeSubtypeCounts, SORT_STRING);
         $partRoles = $this->packagePartRoleSummary($partInventory);
+        $partNamesByRole = [];
+        $largestPartsByRole = [];
+        $deepestPartsByRole = [];
+        $roleTopLevelSegmentCounts = [];
+        $roleContentTypeSourceCounts = [];
+        $roleContentTypeBaseCounts = [];
+        foreach ($partRoles as $roleSummary) {
+            $role = is_string($roleSummary['role'] ?? null) ? $roleSummary['role'] : '';
+            if ($role === '') {
+                continue;
+            }
+
+            $partNamesByRole[$role] = array_values(array_map('strval', $roleSummary['partNames'] ?? []));
+            $largestPart = $roleSummary['largestPart'] ?? null;
+            if (is_array($largestPart)) {
+                $largestPartsByRole[$role] = $largestPart;
+            }
+            $deepestPart = $roleSummary['deepestPart'] ?? null;
+            if (is_array($deepestPart)) {
+                $deepestPartsByRole[$role] = $deepestPart;
+            }
+            $roleTopLevelSegmentCounts[$role] = is_array($roleSummary['topLevelSegmentCounts'] ?? null)
+                ? $roleSummary['topLevelSegmentCounts']
+                : [];
+            $roleContentTypeSourceCounts[$role] = is_array($roleSummary['contentTypeSourceCounts'] ?? null)
+                ? $roleSummary['contentTypeSourceCounts']
+                : [];
+            $roleContentTypeBaseCounts[$role] = is_array($roleSummary['contentTypeBaseCounts'] ?? null)
+                ? $roleSummary['contentTypeBaseCounts']
+                : [];
+        }
+        ksort($partNamesByRole, SORT_STRING);
+        ksort($largestPartsByRole, SORT_STRING);
+        ksort($deepestPartsByRole, SORT_STRING);
+        ksort($roleTopLevelSegmentCounts, SORT_STRING);
+        ksort($roleContentTypeSourceCounts, SORT_STRING);
+        ksort($roleContentTypeBaseCounts, SORT_STRING);
         $largestParts = $this->largestPackagePartSummary($partInventory);
         $largestPart = $largestParts[0] ?? null;
         $duplicatePartDigests = $this->duplicatePackagePartDigestSummary($partInventory);
@@ -20487,6 +20524,12 @@ final class DocxOpenXmlReader
             'partsWithContentTypeParameters' => $partsWithContentTypeParameters,
             'roleCounts' => $roleCounts,
             'roleByteLengths' => $roleByteLengths,
+            'partNamesByRole' => $partNamesByRole,
+            'largestPartsByRole' => $largestPartsByRole,
+            'deepestPartsByRole' => $deepestPartsByRole,
+            'roleTopLevelSegmentCounts' => $roleTopLevelSegmentCounts,
+            'roleContentTypeSourceCounts' => $roleContentTypeSourceCounts,
+            'roleContentTypeBaseCounts' => $roleContentTypeBaseCounts,
             'relationshipTypeCounts' => $relationshipTypeCounts,
             'relationshipTypeUriDeclarationCount' => $relationshipTypeUriDeclarationCount,
             'relationshipTypeMissingDeclarationCount' => $relationshipTypeMissingDeclarationCount,

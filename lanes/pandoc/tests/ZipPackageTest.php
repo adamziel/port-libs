@@ -1259,6 +1259,9 @@ return [
             'endOfCentralDirectoryFixedFieldIssues' => $manifest['endOfCentralDirectoryFixedFieldIssues'],
             'packageCommentOffset' => $manifest['packageCommentOffset'],
             'packageCommentBytes' => $manifest['packageCommentBytes'],
+            'packageCommentLengthBucket' => $manifest['packageCommentLengthBucket'],
+            'packageCommentLengthBucketMinBytes' => $manifest['packageCommentLengthBucketMinBytes'],
+            'packageCommentLengthBucketMaxBytes' => $manifest['packageCommentLengthBucketMaxBytes'],
             'packageCommentEnd' => $manifest['packageCommentEnd'],
             'packageCommentSha256' => $manifest['packageCommentSha256'],
             'packageCommentPreviewHex' => $manifest['packageCommentPreviewHex'],
@@ -1339,6 +1342,9 @@ return [
             'entryCommentSummaryCount' => 0,
             'entryCommentSourceRecordBytes' => 0,
             'entryCommentSummaries' => [],
+            'entryCommentLengthBucketSummaryCount' => 0,
+            'entryCommentLengthBuckets' => [],
+            'entryCommentLengthBucketSummaries' => [],
             'maxPathSegmentCount' => 2,
             'maxDirectoryDepth' => 1,
             'deepestEntryNames' => ['OEBPS/content.xhtml', 'OEBPS/images/'],
@@ -1462,6 +1468,9 @@ return [
         );
         $t->same($manifest['endOfCentralDirectoryOffset'] + 22, $manifest['packageCommentOffset']);
         $t->same(0, $manifest['packageCommentBytes']);
+        $t->same('none', $manifest['packageCommentLengthBucket']);
+        $t->same(0, $manifest['packageCommentLengthBucketMinBytes']);
+        $t->same(0, $manifest['packageCommentLengthBucketMaxBytes']);
         $t->same($manifest['packageCommentOffset'], $manifest['packageCommentEnd']);
         $t->same(null, $manifest['packageCommentSha256']);
         $t->same('', $manifest['packageCommentPreviewHex']);
@@ -1491,6 +1500,9 @@ return [
         $t->same(0, $manifest['entryCommentSummaryCount']);
         $t->same(0, $manifest['entryCommentSourceRecordBytes']);
         $t->same([], $manifest['entryCommentSummaries']);
+        $t->same(0, $manifest['entryCommentLengthBucketSummaryCount']);
+        $t->same([], $manifest['entryCommentLengthBuckets']);
+        $t->same([], $manifest['entryCommentLengthBucketSummaries']);
         $t->same(false, $manifest['hasCentralDirectoryReviewFields']);
         $t->same(2, $manifest['maxPathSegmentCount']);
         $t->same(1, $manifest['maxDirectoryDepth']);
@@ -2664,6 +2676,12 @@ return [
         $t->same($layout['packageCommentOffset'], $manifest['packageCommentOffset']);
         $t->same($manifest['packageCommentOffset'], $source['packageCommentOffset']);
         $t->same($manifest['packageCommentBytes'], $source['packageCommentBytes']);
+        $t->same('16-to-63-bytes', $manifest['packageCommentLengthBucket']);
+        $t->same(16, $manifest['packageCommentLengthBucketMinBytes']);
+        $t->same(63, $manifest['packageCommentLengthBucketMaxBytes']);
+        $t->same($manifest['packageCommentLengthBucket'], $source['packageCommentLengthBucket']);
+        $t->same($manifest['packageCommentLengthBucketMinBytes'], $source['packageCommentLengthBucketMinBytes']);
+        $t->same($manifest['packageCommentLengthBucketMaxBytes'], $source['packageCommentLengthBucketMaxBytes']);
         $t->same($manifest['packageCommentOffset'] + strlen($comment), $manifest['packageCommentEnd']);
         $t->same($manifest['packageCommentEnd'], $source['packageCommentEnd']);
         $t->same(hash('sha256', $comment), $manifest['packageCommentSha256']);
@@ -2863,6 +2881,26 @@ return [
                 'entryCommentCanExposeBytes' => false,
             ],
         ];
+        $expectedEntryCommentLengthBucketSummaries = [
+            [
+                'entryCommentLengthBucket' => '16-to-63-bytes',
+                'minEntryCommentBytes' => 16,
+                'maxEntryCommentBytes' => 63,
+                'entryCount' => 1,
+                'fileEntryCount' => 1,
+                'directoryEntryCount' => 0,
+                'centralDirectoryRawCommentBytes' => strlen($documentComment),
+                'centralDirectoryReviewFieldBytes' => $expectedReviewFieldBytes,
+                'centralDirectoryRecordBytes' => $documentEntry['centralDirectoryRecordBytes'],
+                'sourceRecordBytes' => $documentEntry['sourceRecordBytes'],
+                'directoryRoots' => ['word/'],
+                'packagePartExtensionKeys' => ['xml'],
+                'compressionMethodNames' => ['stored'],
+                'entryNames' => ['word/document.xml'],
+                'largestEntryCommentBytes' => strlen($documentComment),
+                'largestEntryCommentNames' => ['word/document.xml'],
+            ],
+        ];
 
         $t->same(2, $manifest['entryCount']);
         $t->same(46 * 2, $manifest['centralDirectoryFixedHeaderBytes']);
@@ -2882,6 +2920,9 @@ return [
         $t->same(1, $manifest['entryCommentSummaryCount']);
         $t->same($documentEntry['sourceRecordBytes'], $manifest['entryCommentSourceRecordBytes']);
         $t->same($expectedEntryCommentSummaries, $manifest['entryCommentSummaries']);
+        $t->same(1, $manifest['entryCommentLengthBucketSummaryCount']);
+        $t->same(['16-to-63-bytes'], $manifest['entryCommentLengthBuckets']);
+        $t->same($expectedEntryCommentLengthBucketSummaries, $manifest['entryCommentLengthBucketSummaries']);
         $t->same(true, $manifest['hasCentralDirectoryReviewFields']);
         $t->same($variableFields['centralDirectoryVariableFieldBytes'], $manifest['centralDirectoryVariableFieldBytes']);
         $t->same($variableFields['centralDirectoryReviewFieldBytes'], $manifest['centralDirectoryReviewFieldBytes']);
@@ -3321,6 +3362,9 @@ return [
             'endOfCentralDirectoryFixedFieldIssues' => $manifest['endOfCentralDirectoryFixedFieldIssues'],
             'packageCommentOffset' => $manifest['packageCommentOffset'],
             'packageCommentBytes' => $manifest['packageCommentBytes'],
+            'packageCommentLengthBucket' => $manifest['packageCommentLengthBucket'],
+            'packageCommentLengthBucketMinBytes' => $manifest['packageCommentLengthBucketMinBytes'],
+            'packageCommentLengthBucketMaxBytes' => $manifest['packageCommentLengthBucketMaxBytes'],
             'packageCommentEnd' => $manifest['packageCommentEnd'],
             'packageCommentSha256' => $manifest['packageCommentSha256'],
             'packageCommentPreviewHex' => $manifest['packageCommentPreviewHex'],
@@ -3390,6 +3434,9 @@ return [
             'entryCommentSummaryCount' => $manifest['entryCommentSummaryCount'],
             'entryCommentSourceRecordBytes' => $manifest['entryCommentSourceRecordBytes'],
             'entryCommentSummaries' => $manifest['entryCommentSummaries'],
+            'entryCommentLengthBucketSummaryCount' => $manifest['entryCommentLengthBucketSummaryCount'],
+            'entryCommentLengthBuckets' => $manifest['entryCommentLengthBuckets'],
+            'entryCommentLengthBucketSummaries' => $manifest['entryCommentLengthBucketSummaries'],
             'maxPathSegmentCount' => 2,
             'maxDirectoryDepth' => 1,
             'deepestEntryNames' => ['word/document.xml', 'word/comments.xml'],

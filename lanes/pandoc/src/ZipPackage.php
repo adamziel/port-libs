@@ -14772,6 +14772,7 @@ final class ZipPackage
         $packageCommentOffset = $endOfCentralDirectoryOffset + 22;
         $packageCommentBytes = $archive['packageCommentLength'];
         $packageCommentEnd = $packageCommentOffset + $packageCommentBytes;
+        $packageCommentLengthBucket = self::packageManifestPackageCommentLengthBucket($packageCommentBytes);
         $packageCommentSha256 = $packageCommentBytes > 0
             ? hash('sha256', substr($this->bytes, $packageCommentOffset, $packageCommentBytes))
             : null;
@@ -14850,6 +14851,9 @@ final class ZipPackage
             'endOfCentralDirectoryFixedFieldIssues' => $endOfCentralDirectoryFixedFieldIssues,
             'packageCommentOffset' => $packageCommentOffset,
             'packageCommentBytes' => $packageCommentBytes,
+            'packageCommentLengthBucket' => $packageCommentLengthBucket['packageCommentLengthBucket'],
+            'packageCommentLengthBucketMinBytes' => $packageCommentLengthBucket['minPackageCommentBytes'],
+            'packageCommentLengthBucketMaxBytes' => $packageCommentLengthBucket['maxPackageCommentBytes'],
             'packageCommentEnd' => $packageCommentEnd,
             'packageCommentSha256' => $packageCommentSha256,
             'packageCommentPreviewHex' => $packageCommentPreviewHex,
@@ -15814,6 +15818,11 @@ final class ZipPackage
             static fn (array $summary): int => (int) $summary['sourceRecordBytes'],
             $entryCommentSummaries
         ));
+        $entryCommentLengthBucketSummaries = self::packageManifestEntryCommentLengthBucketSummaries($entryCommentSummaries);
+        $entryCommentLengthBuckets = array_map(
+            static fn (array $summary): string => (string) $summary['entryCommentLengthBucket'],
+            $entryCommentLengthBucketSummaries
+        );
         $nameLengthBucketSummaries = self::packageManifestNameLengthBucketSummaries($entries);
         $nameLengthBuckets = array_map(
             static fn (array $summary): string => (string) $summary['nameLengthBucket'],
@@ -15847,6 +15856,9 @@ final class ZipPackage
             'endOfCentralDirectoryFixedFieldIssues' => $endOfCentralDirectoryFixedFieldIssues,
             'packageCommentOffset' => $packageCommentOffset,
             'packageCommentBytes' => $packageCommentBytes,
+            'packageCommentLengthBucket' => $packageCommentLengthBucket['packageCommentLengthBucket'],
+            'packageCommentLengthBucketMinBytes' => $packageCommentLengthBucket['minPackageCommentBytes'],
+            'packageCommentLengthBucketMaxBytes' => $packageCommentLengthBucket['maxPackageCommentBytes'],
             'packageCommentEnd' => $packageCommentEnd,
             'packageCommentSha256' => $packageCommentSha256,
             'packageCommentPreviewHex' => $packageCommentPreviewHex,
@@ -15916,6 +15928,9 @@ final class ZipPackage
             'entryCommentSummaryCount' => count($entryCommentSummaries),
             'entryCommentSourceRecordBytes' => $entryCommentSourceRecordBytes,
             'entryCommentSummaries' => $entryCommentSummaries,
+            'entryCommentLengthBucketSummaryCount' => count($entryCommentLengthBucketSummaries),
+            'entryCommentLengthBuckets' => $entryCommentLengthBuckets,
+            'entryCommentLengthBucketSummaries' => $entryCommentLengthBucketSummaries,
             'maxPathSegmentCount' => $maxPathSegmentCount,
             'maxDirectoryDepth' => $maxDirectoryDepth,
             'deepestEntryNames' => $deepestEntryNames,
@@ -16071,6 +16086,9 @@ final class ZipPackage
             'endOfCentralDirectoryFixedFieldIssues' => $endOfCentralDirectoryFixedFieldIssues,
             'packageCommentOffset' => $packageCommentOffset,
             'packageCommentBytes' => $packageCommentBytes,
+            'packageCommentLengthBucket' => $packageCommentLengthBucket['packageCommentLengthBucket'],
+            'packageCommentLengthBucketMinBytes' => $packageCommentLengthBucket['minPackageCommentBytes'],
+            'packageCommentLengthBucketMaxBytes' => $packageCommentLengthBucket['maxPackageCommentBytes'],
             'packageCommentEnd' => $packageCommentEnd,
             'packageCommentSha256' => $packageCommentSha256,
             'packageCommentPreviewHex' => $packageCommentPreviewHex,
@@ -16106,6 +16124,9 @@ final class ZipPackage
             'entryCommentSummaryCount' => count($entryCommentSummaries),
             'entryCommentSourceRecordBytes' => $entryCommentSourceRecordBytes,
             'entryCommentSummaries' => $entryCommentSummaries,
+            'entryCommentLengthBucketSummaryCount' => count($entryCommentLengthBucketSummaries),
+            'entryCommentLengthBuckets' => $entryCommentLengthBuckets,
+            'entryCommentLengthBucketSummaries' => $entryCommentLengthBucketSummaries,
             'hasCentralDirectoryReviewFields' => $centralDirectoryReviewFieldBytes > 0,
             'maxPathSegmentCount' => $maxPathSegmentCount,
             'maxDirectoryDepth' => $maxDirectoryDepth,
@@ -16669,6 +16690,176 @@ final class ZipPackage
         }
 
         return $summaries;
+    }
+
+    /**
+     * @return array{packageCommentLengthBucket:string,minPackageCommentBytes:int,maxPackageCommentBytes:?int}
+     */
+    private static function packageManifestPackageCommentLengthBucket(int $packageCommentBytes): array
+    {
+        if ($packageCommentBytes <= 0) {
+            return [
+                'packageCommentLengthBucket' => 'none',
+                'minPackageCommentBytes' => 0,
+                'maxPackageCommentBytes' => 0,
+            ];
+        }
+
+        if ($packageCommentBytes <= 15) {
+            return [
+                'packageCommentLengthBucket' => 'up-to-15-bytes',
+                'minPackageCommentBytes' => 1,
+                'maxPackageCommentBytes' => 15,
+            ];
+        }
+
+        if ($packageCommentBytes <= 63) {
+            return [
+                'packageCommentLengthBucket' => '16-to-63-bytes',
+                'minPackageCommentBytes' => 16,
+                'maxPackageCommentBytes' => 63,
+            ];
+        }
+
+        if ($packageCommentBytes <= 127) {
+            return [
+                'packageCommentLengthBucket' => '64-to-127-bytes',
+                'minPackageCommentBytes' => 64,
+                'maxPackageCommentBytes' => 127,
+            ];
+        }
+
+        return [
+            'packageCommentLengthBucket' => '128-plus-bytes',
+            'minPackageCommentBytes' => 128,
+            'maxPackageCommentBytes' => null,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $commentSummaries
+     * @return list<array<string, mixed>>
+     */
+    private static function packageManifestEntryCommentLengthBucketSummaries(array $commentSummaries): array
+    {
+        $summaries = [];
+        foreach ($commentSummaries as $commentSummary) {
+            $rawCommentBytes = (int) ($commentSummary['centralDirectoryRawCommentBytes'] ?? 0);
+            if ($rawCommentBytes <= 0) {
+                continue;
+            }
+
+            $bucket = self::packageManifestEntryCommentLengthBucket($rawCommentBytes);
+            $bucketKey = $bucket['entryCommentLengthBucket'];
+            if (!isset($summaries[$bucketKey])) {
+                $summaries[$bucketKey] = [
+                    'entryCommentLengthBucket' => $bucketKey,
+                    'minEntryCommentBytes' => $bucket['minEntryCommentBytes'],
+                    'maxEntryCommentBytes' => $bucket['maxEntryCommentBytes'],
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'centralDirectoryRawCommentBytes' => 0,
+                    'centralDirectoryReviewFieldBytes' => 0,
+                    'centralDirectoryRecordBytes' => 0,
+                    'sourceRecordBytes' => 0,
+                    'directoryRoots' => [],
+                    'packagePartExtensionKeys' => [],
+                    'compressionMethodNames' => [],
+                    'entryNames' => [],
+                    'largestEntryCommentBytes' => null,
+                    'largestEntryCommentNames' => [],
+                ];
+            }
+
+            $isDirectory = ((string) ($commentSummary['packagePartExtensionKey'] ?? '')) === '(directory)';
+            ++$summaries[$bucketKey]['entryCount'];
+            if ($isDirectory) {
+                ++$summaries[$bucketKey]['directoryEntryCount'];
+            } else {
+                ++$summaries[$bucketKey]['fileEntryCount'];
+            }
+            $summaries[$bucketKey]['centralDirectoryRawCommentBytes'] += $rawCommentBytes;
+            $summaries[$bucketKey]['centralDirectoryReviewFieldBytes'] += (int) ($commentSummary['centralDirectoryReviewFieldBytes'] ?? 0);
+            $summaries[$bucketKey]['centralDirectoryRecordBytes'] += (int) ($commentSummary['centralDirectoryRecordBytes'] ?? 0);
+            $summaries[$bucketKey]['sourceRecordBytes'] += (int) ($commentSummary['sourceRecordBytes'] ?? 0);
+
+            $name = is_string($commentSummary['name'] ?? null) ? $commentSummary['name'] : '';
+            if ($name !== '') {
+                $summaries[$bucketKey]['entryNames'][] = $name;
+            }
+
+            foreach ([
+                'directoryRoots' => (string) ($commentSummary['directoryRoot'] ?? ''),
+                'packagePartExtensionKeys' => (string) ($commentSummary['packagePartExtensionKey'] ?? ''),
+                'compressionMethodNames' => (string) ($commentSummary['compressionMethodName'] ?? ''),
+            ] as $field => $value) {
+                if ($value !== '' && !in_array($value, $summaries[$bucketKey][$field], true)) {
+                    $summaries[$bucketKey][$field][] = $value;
+                }
+            }
+
+            $largestEntryCommentBytes = $summaries[$bucketKey]['largestEntryCommentBytes'];
+            if (!is_int($largestEntryCommentBytes) || $rawCommentBytes > $largestEntryCommentBytes) {
+                $summaries[$bucketKey]['largestEntryCommentBytes'] = $rawCommentBytes;
+                $summaries[$bucketKey]['largestEntryCommentNames'] = $name === '' ? [] : [$name];
+            } elseif ($rawCommentBytes === $largestEntryCommentBytes && $name !== '') {
+                $summaries[$bucketKey]['largestEntryCommentNames'][] = $name;
+            }
+        }
+
+        foreach ($summaries as &$summary) {
+            sort($summary['directoryRoots'], SORT_STRING);
+            sort($summary['packagePartExtensionKeys'], SORT_STRING);
+            sort($summary['compressionMethodNames'], SORT_STRING);
+            sort($summary['largestEntryCommentNames'], SORT_STRING);
+        }
+        unset($summary);
+
+        $ordered = [];
+        foreach (['up-to-15-bytes', '16-to-63-bytes', '64-to-127-bytes', '128-plus-bytes'] as $bucket) {
+            if (isset($summaries[$bucket])) {
+                $ordered[] = $summaries[$bucket];
+            }
+        }
+
+        return $ordered;
+    }
+
+    /**
+     * @return array{entryCommentLengthBucket:string,minEntryCommentBytes:int,maxEntryCommentBytes:?int}
+     */
+    private static function packageManifestEntryCommentLengthBucket(int $entryCommentBytes): array
+    {
+        if ($entryCommentBytes <= 15) {
+            return [
+                'entryCommentLengthBucket' => 'up-to-15-bytes',
+                'minEntryCommentBytes' => 1,
+                'maxEntryCommentBytes' => 15,
+            ];
+        }
+
+        if ($entryCommentBytes <= 63) {
+            return [
+                'entryCommentLengthBucket' => '16-to-63-bytes',
+                'minEntryCommentBytes' => 16,
+                'maxEntryCommentBytes' => 63,
+            ];
+        }
+
+        if ($entryCommentBytes <= 127) {
+            return [
+                'entryCommentLengthBucket' => '64-to-127-bytes',
+                'minEntryCommentBytes' => 64,
+                'maxEntryCommentBytes' => 127,
+            ];
+        }
+
+        return [
+            'entryCommentLengthBucket' => '128-plus-bytes',
+            'minEntryCommentBytes' => 128,
+            'maxEntryCommentBytes' => null,
+        ];
     }
 
     /**
