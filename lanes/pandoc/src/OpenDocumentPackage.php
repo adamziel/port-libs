@@ -256,6 +256,10 @@ final class OpenDocumentPackage
             'rawCentralDirectoryNameByteLengthRawBytes' => $rawCentralDirectoryNameByteLength['rawNameBytes'],
             'rawCentralDirectoryNameByteLengthDecodedBytes' => $rawCentralDirectoryNameByteLength['decodedNameBytes'],
             'rawCentralDirectoryNameByteLengthDecodedNameDiffersFromRawNameCount' => $rawCentralDirectoryNameByteLength['decodedNameDiffersFromRawNameCount'],
+            'rawCentralDirectoryNameByteLengthDirectoryRootCounts' => $rawCentralDirectoryNameByteLength['directoryRootCounts'],
+            'rawCentralDirectoryNameByteLengthEntryNamesByDirectoryRoot' => $rawCentralDirectoryNameByteLength['entryNamesByDirectoryRoot'],
+            'rawCentralDirectoryNameByteLengthDirectoryRootSummaryCount' => $rawCentralDirectoryNameByteLength['directoryRootSummaryCount'],
+            'rawCentralDirectoryNameByteLengthDirectoryRootSummaries' => $rawCentralDirectoryNameByteLength['directoryRootSummaries'],
             'rawCentralDirectoryNameByteLengthByteExposurePolicy' => 'odf-raw-central-directory-name-byte-length-metadata-only',
             'rawCentralDirectoryNameByteLengthCanExposeBytes' => false,
             'zipRawStrictImport' => $zipPreflight,
@@ -276,7 +280,11 @@ final class OpenDocumentPackage
      *     entryCount:int,
      *     rawNameBytes:int,
      *     decodedNameBytes:int,
-     *     decodedNameDiffersFromRawNameCount:int
+     *     decodedNameDiffersFromRawNameCount:int,
+     *     directoryRootCounts:array<string, int>,
+     *     entryNamesByDirectoryRoot:array<string, list<string>>,
+     *     directoryRootSummaryCount:int,
+     *     directoryRootSummaries:list<array<string, mixed>>
      * }
      */
     private static function rawCentralDirectoryNameByteLengthBucketPreflight(array $zipPreflight): array
@@ -290,6 +298,9 @@ final class OpenDocumentPackage
         $rawNameBytes = 0;
         $decodedNameBytes = 0;
         $decodedNameDiffersFromRawNameCount = 0;
+        $directoryRootCounts = [];
+        $entryNamesByDirectoryRoot = [];
+        $directoryRootSummaries = [];
 
         foreach ($entries as $entry) {
             if (!is_array($entry)) {
@@ -319,6 +330,7 @@ final class OpenDocumentPackage
                     'centralDirectoryRecordBytes' => 0,
                     'decodedNameDiffersFromRawNameCount' => 0,
                     'directoryRoots' => [],
+                    'directoryRootCounts' => [],
                     'compressionMethodNames' => [],
                     'entryNames' => [],
                     'longestRawNameEntryName' => null,
@@ -349,6 +361,10 @@ final class OpenDocumentPackage
             $summaries[$bucketKey]['entryNames'][] = $name;
 
             $directoryRoot = self::packageDirectoryRoot($name);
+            $summaries[$bucketKey]['directoryRootCounts'][$directoryRoot] = ($summaries[$bucketKey]['directoryRootCounts'][$directoryRoot] ?? 0) + 1;
+            $directoryRootCounts[$directoryRoot] = ($directoryRootCounts[$directoryRoot] ?? 0) + 1;
+            $entryNamesByDirectoryRoot[$directoryRoot] ??= [];
+            $entryNamesByDirectoryRoot[$directoryRoot][] = $name;
             if (!in_array($directoryRoot, $summaries[$bucketKey]['directoryRoots'], true)) {
                 $summaries[$bucketKey]['directoryRoots'][] = $directoryRoot;
             }
@@ -358,6 +374,41 @@ final class OpenDocumentPackage
             if ($compressionMethodName !== '' && !in_array($compressionMethodName, $summaries[$bucketKey]['compressionMethodNames'], true)) {
                 $summaries[$bucketKey]['compressionMethodNames'][] = $compressionMethodName;
             }
+
+            if (!isset($directoryRootSummaries[$directoryRoot])) {
+                $directoryRootSummaries[$directoryRoot] = [
+                    'directoryRoot' => $directoryRoot,
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'rawNameBytes' => 0,
+                    'decodedNameBytes' => 0,
+                    'decodedNameDiffersFromRawNameCount' => 0,
+                    'rawCentralDirectoryNameByteLengthBuckets' => [],
+                    'compressionMethodNames' => [],
+                    'entryNames' => [],
+                    'longestRawNameEntryName' => null,
+                    'longestRawNameByteLength' => 0,
+                ];
+            }
+            ++$directoryRootSummaries[$directoryRoot]['entryCount'];
+            if (($entry['isDirectory'] ?? false) === true) {
+                ++$directoryRootSummaries[$directoryRoot]['directoryEntryCount'];
+            } else {
+                ++$directoryRootSummaries[$directoryRoot]['fileEntryCount'];
+            }
+            $directoryRootSummaries[$directoryRoot]['rawNameBytes'] += $rawLength;
+            $directoryRootSummaries[$directoryRoot]['decodedNameBytes'] += $decodedLength;
+            if ($rawName !== $name) {
+                ++$directoryRootSummaries[$directoryRoot]['decodedNameDiffersFromRawNameCount'];
+            }
+            if (!in_array($bucketKey, $directoryRootSummaries[$directoryRoot]['rawCentralDirectoryNameByteLengthBuckets'], true)) {
+                $directoryRootSummaries[$directoryRoot]['rawCentralDirectoryNameByteLengthBuckets'][] = $bucketKey;
+            }
+            if ($compressionMethodName !== '' && !in_array($compressionMethodName, $directoryRootSummaries[$directoryRoot]['compressionMethodNames'], true)) {
+                $directoryRootSummaries[$directoryRoot]['compressionMethodNames'][] = $compressionMethodName;
+            }
+            $directoryRootSummaries[$directoryRoot]['entryNames'][] = $name;
             if (
                 $rawLength > $summaries[$bucketKey]['longestRawNameByteLength']
                 || (
@@ -371,10 +422,48 @@ final class OpenDocumentPackage
                 $summaries[$bucketKey]['longestRawNameEntryName'] = $name;
                 $summaries[$bucketKey]['longestRawNameByteLength'] = $rawLength;
             }
+            if (
+                $rawLength > $directoryRootSummaries[$directoryRoot]['longestRawNameByteLength']
+                || (
+                    $rawLength === $directoryRootSummaries[$directoryRoot]['longestRawNameByteLength']
+                    && (
+                        $directoryRootSummaries[$directoryRoot]['longestRawNameEntryName'] === null
+                        || strcmp($name, (string) $directoryRootSummaries[$directoryRoot]['longestRawNameEntryName']) < 0
+                    )
+                )
+            ) {
+                $directoryRootSummaries[$directoryRoot]['longestRawNameEntryName'] = $name;
+                $directoryRootSummaries[$directoryRoot]['longestRawNameByteLength'] = $rawLength;
+            }
         }
 
         foreach ($summaries as &$summary) {
             sort($summary['directoryRoots'], SORT_STRING);
+            ksort($summary['directoryRootCounts'], SORT_STRING);
+            sort($summary['compressionMethodNames'], SORT_STRING);
+            sort($summary['entryNames'], SORT_STRING);
+        }
+        unset($summary);
+        ksort($directoryRootCounts, SORT_STRING);
+        ksort($entryNamesByDirectoryRoot, SORT_STRING);
+        foreach ($entryNamesByDirectoryRoot as &$entryNames) {
+            sort($entryNames, SORT_STRING);
+        }
+        unset($entryNames);
+        $bucketOrder = [
+            'up-to-8-bytes' => 0,
+            '9-to-16-bytes' => 1,
+            '17-to-32-bytes' => 2,
+            '33-to-64-bytes' => 3,
+            'over-64-bytes' => 4,
+        ];
+        ksort($directoryRootSummaries, SORT_STRING);
+        foreach ($directoryRootSummaries as &$summary) {
+            usort(
+                $summary['rawCentralDirectoryNameByteLengthBuckets'],
+                static fn (string $left, string $right): int => ($bucketOrder[$left] ?? 99) <=> ($bucketOrder[$right] ?? 99)
+                    ?: strcmp($left, $right)
+            );
             sort($summary['compressionMethodNames'], SORT_STRING);
             sort($summary['entryNames'], SORT_STRING);
         }
@@ -398,6 +487,10 @@ final class OpenDocumentPackage
             'rawNameBytes' => $rawNameBytes,
             'decodedNameBytes' => $decodedNameBytes,
             'decodedNameDiffersFromRawNameCount' => $decodedNameDiffersFromRawNameCount,
+            'directoryRootCounts' => $directoryRootCounts,
+            'entryNamesByDirectoryRoot' => $entryNamesByDirectoryRoot,
+            'directoryRootSummaryCount' => count($directoryRootSummaries),
+            'directoryRootSummaries' => array_values($directoryRootSummaries),
         ];
     }
 
