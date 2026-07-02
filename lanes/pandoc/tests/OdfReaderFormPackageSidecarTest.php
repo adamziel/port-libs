@@ -68,9 +68,9 @@ $metaXml = <<<'XML'
 </office:document-meta>
 XML;
 
-$buildPackage = static fn (): ZipPackage => ZipPackage::fromParts([
+$buildPackage = static fn (?string $manifestOverride = null): ZipPackage => ZipPackage::fromParts([
     ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
-    ['name' => 'META-INF/manifest.xml', 'data' => $manifestXml, 'compressionMethod' => 0],
+    ['name' => 'META-INF/manifest.xml', 'data' => $manifestOverride ?? $manifestXml, 'compressionMethod' => 0],
     ['name' => 'content.xml', 'data' => $contentXml, 'compressionMethod' => 0],
     ['name' => 'styles.xml', 'data' => $stylesXml, 'compressionMethod' => 0],
     ['name' => 'meta.xml', 'data' => $metaXml, 'compressionMethod' => 0],
@@ -247,5 +247,90 @@ return [
         $t->same(true, $compactSummary['packageIdentity']['manifestEntries'][7]['formPackagePart']);
         $t->same(true, $compactSummary['packageIdentity']['packageEntries'][8]['formPackagePart']);
         $t->same(5, $compactSummary['packageIdentity']['formPackagePartCount']);
+    },
+    'reports ODT form package invalid declared sizes as metadata-only diagnostics' => static function (TestRunner $t) use (
+        $buildPackage,
+        $manifestXml,
+        $formDefinitionXml,
+        $formPreviewBytes,
+        $orphanBytes,
+        $indexBy
+    ): void {
+        $invalidSizeManifest = str_replace(
+            'manifest:full-path="Forms/Review/form.xml" manifest:media-type="text/xml" manifest:size="' . strlen($formDefinitionXml) . '"',
+            'manifest:full-path="Forms/Review/form.xml" manifest:media-type="text/xml" manifest:size="form-bytes"',
+            $manifestXml
+        );
+        $package = $buildPackage($invalidSizeManifest);
+        $result = (new OdfReader())->readPackage($package);
+        $readerForms = $result['packageForms'];
+        $readerItems = $indexBy($readerForms['items'], 'part');
+        $manifestByPart = $indexBy($result['manifest'], 'part');
+
+        $t->same($readerForms, $result['document']->attr('packageForms'));
+        $t->same($readerForms, $result['metadata']['odfPackageForms']);
+        $t->same($readerForms, $result['importReport']['packageForms']);
+        $t->same(1, $readerForms['invalidDeclaredSizeCount']);
+        $t->same(4, $readerForms['issueCount']);
+        $t->same([
+            'odf-form-package-encrypted-part',
+            'odf-form-package-invalid-declared-size',
+            'odf-form-package-missing-part',
+            'odf-form-package-undeclared-part',
+        ], $readerForms['issueCodes']);
+
+        $definition = $readerItems['Forms/Review/form.xml'];
+        $t->same(null, $definition['declaredSize']);
+        $t->same('form-bytes', $definition['declaredSizeRaw']);
+        $t->same(false, $definition['declaredSizeValid']);
+        $t->same(true, $definition['declaredSizeInvalid']);
+        $t->same(false, $definition['declaredSizeMismatch']);
+        $t->same(strlen($formDefinitionXml), $definition['byteLength']);
+        $t->same(false, $definition['canExposeBytes']);
+        $t->same(false, $definition['canExposeAsDocumentMedia']);
+        $t->same('form-package-bytes-blocked', $definition['byteExposurePolicy']);
+        $t->same(['odf-form-package-invalid-declared-size'], $definition['issues']);
+
+        $manifestDefinition = $manifestByPart['Forms/Review/form.xml'];
+        $t->same(null, $manifestDefinition['declaredSize']);
+        $t->same('form-bytes', $manifestDefinition['declaredSizeRaw']);
+        $t->same(false, $manifestDefinition['declaredSizeValid']);
+        $t->same(true, $manifestDefinition['declaredSizeInvalid']);
+        $t->same(['odf-manifest-invalid-declared-size'], $manifestDefinition['diagnostics']);
+        $t->same(false, $manifestDefinition['canExposeBytes']);
+        $t->same(null, $manifestDefinition['byteLength']);
+        $t->same(strlen($formDefinitionXml), $manifestDefinition['storedByteLength']);
+        $t->same(null, $manifestDefinition['byteSha256']);
+        $t->same('form-package-bytes-blocked', $manifestDefinition['byteExposurePolicy']);
+
+        $blocks = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('Form package sidecars.', $blocks);
+        $t->same(false, str_contains($blocks, $formDefinitionXml));
+        $t->same(false, str_contains($blocks, $formPreviewBytes));
+        $t->same(false, str_contains($blocks, $orphanBytes));
+
+        $compactSummary = OpenDocumentPackage::fromPackage($package)->summarize();
+        $compactForms = $compactSummary['packageForms'];
+        $compactItems = $indexBy($compactForms['items'], 'packagePath');
+        $reviewByPath = $indexBy($compactSummary['manifestReview']['items'], 'path');
+
+        $t->same(1, $compactForms['invalidDeclaredSizeCount']);
+        $t->same(4, $compactForms['issueCount']);
+        $t->same($readerForms['issueCodes'], $compactForms['issueCodes']);
+        $t->same(null, $compactItems['Forms/Review/form.xml']['declaredSize']);
+        $t->same('form-bytes', $compactItems['Forms/Review/form.xml']['declaredSizeRaw']);
+        $t->same(false, $compactItems['Forms/Review/form.xml']['declaredSizeValid']);
+        $t->same(true, $compactItems['Forms/Review/form.xml']['declaredSizeInvalid']);
+        $t->same(false, $compactItems['Forms/Review/form.xml']['declaredSizeMismatch']);
+        $t->same(['odf-form-package-invalid-declared-size'], $compactItems['Forms/Review/form.xml']['issues']);
+        $t->same(false, $compactItems['Forms/Review/form.xml']['canExposeBytes']);
+        $t->same('form-package-bytes-blocked', $compactItems['Forms/Review/form.xml']['byteExposurePolicy']);
+
+        $t->same('form-bytes', $reviewByPath['Forms/Review/form.xml']['declaredSizeRaw']);
+        $t->same(true, $reviewByPath['Forms/Review/form.xml']['declaredSizeInvalid']);
+        $t->same(['odf-manifest-invalid-declared-size'], $reviewByPath['Forms/Review/form.xml']['diagnostics']);
+        $t->same(false, $reviewByPath['Forms/Review/form.xml']['canExposeBytes']);
+        $t->same(null, $reviewByPath['Forms/Review/form.xml']['byteSha256']);
+        $t->same('form-package-bytes-blocked', $reviewByPath['Forms/Review/form.xml']['byteExposurePolicy']);
     },
 ];
