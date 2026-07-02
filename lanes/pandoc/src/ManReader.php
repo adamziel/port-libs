@@ -90,11 +90,19 @@ final class ManReader
                     }
                     break;
                 }
+                if ($this->isIgnoredRequest($name) || $this->isParagraphBreakMacro($name)) {
+                    ++$this->index;
+                    continue;
+                }
                 if ($name === 'SH' || $name === 'SS') {
                     ++$this->index;
                     $blocks[] = new AstNode('heading', [
                         'level' => $name === 'SH' ? 1 : 2,
                     ], $this->parseInlines($this->argsText($this->parseArgs($rawArgs))));
+                    continue;
+                }
+                if ($name === 'TP') {
+                    $blocks[] = $this->parseTaggedParagraphList();
                     continue;
                 }
                 if ($name === 'IP') {
@@ -106,15 +114,15 @@ final class ManReader
                     array_push($blocks, ...$this->parseBlocks('.RE'));
                     continue;
                 }
-                if ($name === 'nf') {
-                    $blocks[] = $this->parseCodeBlock();
+                if ($name === 'nf' || $name === 'EX') {
+                    $blocks[] = $this->parseCodeBlock($name === 'EX' ? 'EE' : 'fi');
                     continue;
                 }
                 if ($name === 'TS') {
                     $blocks[] = $this->parseTable();
                     continue;
                 }
-                if (in_array($name, ['B', 'I', 'BI', 'BR'], true)) {
+                if ($this->isInlineMacro($name)) {
                     ++$this->index;
                     $blocks[] = new AstNode('paragraph', [], $this->inlineMacroInlines($name, $rawArgs));
                     continue;
@@ -155,7 +163,10 @@ final class ManReader
             return false;
         }
 
-        return in_array($macro[0], ['SH', 'SS', 'IP', 'RS', 'RE', 'nf', 'TS', 'B', 'I', 'BI', 'BR'], true);
+        return in_array($macro[0], ['SH', 'SS', 'TP', 'IP', 'RS', 'RE', 'nf', 'fi', 'EX', 'EE', 'TS', 'TE'], true)
+            || $this->isInlineMacro($macro[0])
+            || $this->isIgnoredRequest($macro[0])
+            || $this->isParagraphBreakMacro($macro[0]);
     }
 
     private function isCommentLine(string $trimmed): bool
@@ -175,6 +186,51 @@ final class ManReader
         return [(string) $match[1], (string) ($match[2] ?? '')];
     }
 
+    private function isParagraphBreakMacro(string $name): bool
+    {
+        return in_array($name, ['P', 'PP', 'LP', 'Pp', 'br', 'sp'], true);
+    }
+
+    private function isIgnoredRequest(string $name): bool
+    {
+        return in_array($name, [
+            'TH',
+            'DT',
+            'UC',
+            'ad',
+            'am',
+            'am1',
+            'de',
+            'de1',
+            'ds',
+            'el',
+            'hy',
+            'ie',
+            'if',
+            'in',
+            'll',
+            'lt',
+            'na',
+            'ne',
+            'nh',
+            'nr',
+            'ns',
+            'PD',
+            'pl',
+            'po',
+            'rm',
+            'so',
+            'ta',
+            'ti',
+            'tr',
+        ], true);
+    }
+
+    private function isInlineMacro(string $name): bool
+    {
+        return in_array($name, ['B', 'I', 'SM', 'SB', 'BI', 'BR', 'IB', 'IR', 'RB', 'RI'], true);
+    }
+
     /**
      * @return list<string>
      */
@@ -186,32 +242,53 @@ final class ManReader
             ++$this->index;
         }
 
-        if ($name === 'B') {
+        if ($name === 'B' || $name === 'SB') {
             return [new AstNode('strong', [], $this->parseInlines($this->argsText($args)))];
         }
         if ($name === 'I') {
             return [new AstNode('emph', [], $this->parseInlines($this->argsText($args)))];
         }
+        if ($name === 'SM') {
+            return [new AstNode('small_caps', [], $this->parseInlines($this->argsText($args)))];
+        }
 
         $inlines = [];
         foreach (array_values($args) as $offset => $arg) {
             $children = $this->parseInlines($arg);
-            if ($name === 'BI') {
-                $inlines[] = $offset % 2 === 0
-                    ? new AstNode('strong', [], $children)
-                    : new AstNode('emph', [], $children);
+            $style = $this->inlineMacroArgumentStyle($name, $offset);
+            if ($style === 'bold') {
+                $inlines[] = new AstNode('strong', [], $children);
                 continue;
             }
-            if ($name === 'BR') {
-                if ($offset % 2 === 0) {
-                    $inlines[] = new AstNode('strong', [], $children);
-                } else {
-                    array_push($inlines, ...$children);
-                }
+            if ($style === 'italic') {
+                $inlines[] = new AstNode('emph', [], $children);
+                continue;
             }
+
+            array_push($inlines, ...$children);
         }
 
         return $inlines;
+    }
+
+    private function inlineMacroArgumentStyle(string $name, int $offset): string
+    {
+        $pattern = match ($name) {
+            'BI' => 'BI',
+            'BR' => 'BR',
+            'IB' => 'IB',
+            'IR' => 'IR',
+            'RB' => 'RB',
+            'RI' => 'RI',
+            default => 'R',
+        };
+        $style = $pattern[$offset % strlen($pattern)];
+
+        return match ($style) {
+            'B' => 'bold',
+            'I' => 'italic',
+            default => 'normal',
+        };
     }
 
     /**
@@ -411,6 +488,8 @@ final class ManReader
             '|' => "\u{2006}",
             '\'' => '\'',
             't' => '',
+            '&' => '',
+            'q' => '"',
             default => $next,
         };
     }
@@ -435,6 +514,12 @@ final class ManReader
             'rq' => "\u{201D}",
             'em' => "\u{2014}",
             'en' => "\u{2013}",
+            'aq' => "'",
+            'dq' => '"',
+            'ga' => '`',
+            'ha' => '^',
+            'rs' => '\\',
+            'ti' => '~',
             'oA' => "\u{00C5}",
             '~O' => "\u{00D5}",
             'Do' => '$',
@@ -602,8 +687,12 @@ final class ManReader
                 array_push($children, ...$this->parseBlocks('.RE'));
                 continue;
             }
-            if ($macro !== null && $macro[0] === 'nf') {
-                $children[] = $this->parseCodeBlock();
+            if ($macro !== null && ($macro[0] === 'nf' || $macro[0] === 'EX')) {
+                $children[] = $this->parseCodeBlock($macro[0] === 'EX' ? 'EE' : 'fi');
+                continue;
+            }
+            if ($macro !== null && ($this->isIgnoredRequest($macro[0]) || $this->isParagraphBreakMacro($macro[0]))) {
+                ++$this->index;
                 continue;
             }
 
@@ -617,18 +706,147 @@ final class ManReader
         ], $children);
     }
 
-    private function parseCodeBlock(): AstNode
+    private function parseTaggedParagraphList(): AstNode
+    {
+        $items = [];
+        while ($this->index < count($this->lines)) {
+            $macro = $this->macroLine($this->lines[$this->index]);
+            if ($macro === null || $macro[0] !== 'TP') {
+                break;
+            }
+
+            ++$this->index;
+            $termInlines = $this->parseTaggedParagraphTerm();
+            $termText = $this->plainInlineText($termInlines);
+            $definitionBlocks = $this->parseTaggedParagraphDefinition();
+            $items[] = new AstNode('definition_item', ['term' => $termText], [
+                new AstNode('term', ['text' => $termText], $termInlines),
+                new AstNode('definition', [], $definitionBlocks),
+            ]);
+        }
+
+        return new AstNode('definition_list', [], $items);
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function parseTaggedParagraphTerm(): array
+    {
+        while ($this->index < count($this->lines)) {
+            $line = $this->lines[$this->index];
+            $trimmed = trim($line);
+            if ($trimmed === '' || $this->isCommentLine($trimmed)) {
+                ++$this->index;
+                continue;
+            }
+
+            $macro = $this->macroLine($line);
+            if ($macro !== null && ($this->isIgnoredRequest($macro[0]) || $this->isParagraphBreakMacro($macro[0]))) {
+                ++$this->index;
+                continue;
+            }
+            if ($macro !== null && $this->isInlineMacro($macro[0])) {
+                ++$this->index;
+
+                return $this->inlineMacroInlines($macro[0], $macro[1]);
+            }
+
+            ++$this->index;
+
+            return $this->parseInlines($line);
+        }
+
+        return [];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function parseTaggedParagraphDefinition(): array
+    {
+        $blocks = [];
+        while ($this->index < count($this->lines)) {
+            $line = $this->lines[$this->index];
+            $trimmed = trim($line);
+            if ($trimmed === '' || $this->isCommentLine($trimmed)) {
+                ++$this->index;
+                continue;
+            }
+
+            $macro = $this->macroLine($line);
+            if ($macro !== null) {
+                if (in_array($macro[0], ['TP', 'SH', 'SS', 'RE'], true)) {
+                    break;
+                }
+                if ($this->isIgnoredRequest($macro[0]) || $this->isParagraphBreakMacro($macro[0])) {
+                    ++$this->index;
+                    continue;
+                }
+                if ($macro[0] === 'IP') {
+                    $blocks[] = $this->parseListBlock();
+                    continue;
+                }
+                if ($macro[0] === 'RS') {
+                    ++$this->index;
+                    array_push($blocks, ...$this->parseBlocks('.RE'));
+                    continue;
+                }
+                if ($macro[0] === 'nf' || $macro[0] === 'EX') {
+                    $blocks[] = $this->parseCodeBlock($macro[0] === 'EX' ? 'EE' : 'fi');
+                    continue;
+                }
+                if ($macro[0] === 'TS') {
+                    $blocks[] = $this->parseTable();
+                    continue;
+                }
+                if ($this->isInlineMacro($macro[0])) {
+                    ++$this->index;
+                    $blocks[] = new AstNode('paragraph', [], $this->inlineMacroInlines($macro[0], $macro[1]));
+                    continue;
+                }
+            }
+
+            $blocks[] = $this->parseParagraph();
+        }
+
+        return $blocks;
+    }
+
+    private function parseCodeBlock(string $terminator = 'fi'): AstNode
     {
         ++$this->index;
         $lines = [];
         while ($this->index < count($this->lines)) {
             $macro = $this->macroLine($this->lines[$this->index]);
-            if ($macro !== null && $macro[0] === 'fi') {
+            if ($macro !== null && $macro[0] === $terminator) {
                 ++$this->index;
                 break;
             }
+            if ($macro !== null && ($macro[0] === 'RS' || $macro[0] === 'RE')) {
+                ++$this->index;
+                continue;
+            }
+            if ($macro !== null && $this->isIgnoredRequest($macro[0])) {
+                ++$this->index;
+                continue;
+            }
+            if ($macro !== null && $this->isParagraphBreakMacro($macro[0])) {
+                if ($lines !== [] && $lines[count($lines) - 1] !== '') {
+                    $lines[] = '';
+                }
+                ++$this->index;
+                continue;
+            }
             $lines[] = $this->lines[$this->index];
             ++$this->index;
+        }
+
+        while ($lines !== [] && $lines[0] === '') {
+            array_shift($lines);
+        }
+        while ($lines !== [] && $lines[count($lines) - 1] === '') {
+            array_pop($lines);
         }
 
         return new AstNode('code_block', ['text' => implode("\n", $lines)]);

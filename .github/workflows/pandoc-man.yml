@@ -20,6 +20,8 @@ permissions:
 
 env:
   PANDOC_MAN_UPSTREAM_PINNED_COMMIT: 4f5226df4faa0d66dd2c089465b13886360ab3c2
+  PANDOC_EXECUTABLE_VERSION: '3.10'
+  PANDOC_EXECUTABLE_LINUX_AMD64_SHA256: e0f8af62d0f267d22baa5bcefe6d5dda3a097ccc60de794b759fe03159923244
 
 jobs:
   focused-man:
@@ -38,12 +40,15 @@ jobs:
       - name: Lint man parity files
         run: |
           php -l lanes/pandoc/src/ManReader.php
+          php -l lanes/pandoc/src/ManCorpusAudit.php
           php -l lanes/pandoc/src/ManUpstreamReaderEvidence.php
           php -l lanes/pandoc/src/PandocConverter.php
           php -l lanes/pandoc/src/PandocFormatRegistry.php
+          php -l lanes/pandoc/tests/ManCorpusAuditTest.php
           php -l lanes/pandoc/tests/ManReaderTest.php
           php -l lanes/pandoc/tests/ManUpstreamReaderEvidenceTest.php
           php -l lanes/pandoc/tests/PandocFormatRegistryTest.php
+          php -l tools/pandoc-man-corpus-audit.php
           php -l tools/pandoc-man-reader-evidence.php
 
       - name: Restore pinned Pandoc man upstream cache
@@ -84,9 +89,35 @@ jobs:
             --require-test-count=30 \
             --require-no-validation-issues
 
+      - name: Install pandoc executable
+        run: |
+          set -euo pipefail
+          archive="/tmp/pandoc-${PANDOC_EXECUTABLE_VERSION}-linux-amd64.tar.gz"
+          curl -fsSL \
+            -o "$archive" \
+            "https://github.com/jgm/pandoc/releases/download/${PANDOC_EXECUTABLE_VERSION}/pandoc-${PANDOC_EXECUTABLE_VERSION}-linux-amd64.tar.gz"
+          echo "${PANDOC_EXECUTABLE_LINUX_AMD64_SHA256}  ${archive}" | sha256sum -c -
+          tar -xzf "$archive" -C /tmp
+          sudo install -m 0755 "/tmp/pandoc-${PANDOC_EXECUTABLE_VERSION}/bin/pandoc" /usr/local/bin/pandoc
+          pandoc --version | head -n 1
+
+      - name: Require man corpus acceptance audit
+        run: |
+          php tools/pandoc-man-corpus-audit.php \
+            --man-root=lanes/pandoc/fixtures/man-corpus-smoke \
+            --json \
+            summary \
+            --require-target-files-min=2 \
+            --require-local-parse-min=2 \
+            --require-no-local-parse-failures \
+            --require-no-control-leaks \
+            --require-pandoc-parse-min=2 \
+            --require-normalized-match-min=1
+
       - name: Run focused man parity tests
         run: |
           php tools/run-tests.php \
+            lanes/pandoc/tests/ManCorpusAuditTest.php \
             lanes/pandoc/tests/ManReaderTest.php \
             lanes/pandoc/tests/ManUpstreamReaderEvidenceTest.php \
             lanes/pandoc/tests/PandocFormatRegistryTest.php
