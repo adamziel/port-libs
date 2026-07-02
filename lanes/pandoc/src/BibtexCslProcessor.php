@@ -946,7 +946,7 @@ final class BibtexCslProcessor
             'supplement' => ['supplement'],
             'DOI' => ['doi'],
             'URL' => ['url'],
-            'URL-label' => ['urldescription', 'urltitle', 'urllabel', 'url-label'],
+            'URL-label' => ['urldescription', 'urltitle', 'urllabel', 'url-label', 'url-description'],
             'rights' => ['rights', 'copyright', 'license', 'licence'],
             'publisher' => ['publisher', 'institution', 'school', 'organization'],
             'publisher-place' => ['address', 'location', 'publisher-place'],
