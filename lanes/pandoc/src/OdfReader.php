@@ -4023,6 +4023,10 @@ final class OdfReader
             'extensionlessPackagePartCount' => $provenance['extensionlessPackagePartCount'] ?? 0,
             'packagePartExtensionCounts' => $provenance['packagePartExtensionCounts'] ?? [],
             'packagePartByteExposurePolicyCounts' => $provenance['packagePartByteExposurePolicyCounts'] ?? [],
+            'packagePartByteExposurePolicyByteLengths' => $provenance['packagePartByteExposurePolicyByteLengths'] ?? [],
+            'packagePartByteExposurePolicyCompressedByteLengths' => $provenance['packagePartByteExposurePolicyCompressedByteLengths'] ?? [],
+            'packagePartByteExposurePolicyItemCount' => $provenance['packagePartByteExposurePolicyItemCount'] ?? 0,
+            'packagePartByteExposurePolicyItems' => $provenance['packagePartByteExposurePolicyItems'] ?? [],
             'packageCoreParts' => $provenance['packageCoreParts'] ?? [],
             'corePackageIssueCount' => is_array($provenance['packageCoreParts'] ?? null)
                 ? ($provenance['packageCoreParts']['issueCount'] ?? 0)
@@ -4154,6 +4158,10 @@ final class OdfReader
             'extensionlessPackagePartCount' => $provenance['extensionlessPackagePartCount'] ?? 0,
             'packagePartExtensionCounts' => $provenance['packagePartExtensionCounts'] ?? [],
             'packagePartByteExposurePolicyCounts' => $provenance['packagePartByteExposurePolicyCounts'] ?? [],
+            'packagePartByteExposurePolicyByteLengths' => $provenance['packagePartByteExposurePolicyByteLengths'] ?? [],
+            'packagePartByteExposurePolicyCompressedByteLengths' => $provenance['packagePartByteExposurePolicyCompressedByteLengths'] ?? [],
+            'packagePartByteExposurePolicyItemCount' => $provenance['packagePartByteExposurePolicyItemCount'] ?? 0,
+            'packagePartByteExposurePolicyItems' => $provenance['packagePartByteExposurePolicyItems'] ?? [],
             'packageCoreParts' => $provenance['packageCoreParts'] ?? [],
             'corePackageIssueCount' => is_array($provenance['packageCoreParts'] ?? null)
                 ? ($provenance['packageCoreParts']['issueCount'] ?? 0)
