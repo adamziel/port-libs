@@ -19065,6 +19065,9 @@ final class XmlHtmlDom
         if ($name === 'kbd') {
             $summary += self::keyboardInputReviewSummary($element);
         }
+        if ($name === 'samp') {
+            $summary += self::sampleOutputReviewSummary($element);
+        }
         if ($name === 'bdi' || $name === 'bdo') {
             if ($name === 'bdi' && !$element->hasAttribute('dir')) {
                 $summary['textDirection'] = 'auto';
@@ -19078,6 +19081,70 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function sampleOutputReviewSummary(\DOMElement $samp): array
+    {
+        $text = self::normalizedText($samp);
+        $rawText = $samp->textContent;
+        $parent = $samp->parentNode;
+        $parentName = $parent instanceof \DOMElement ? self::htmlElementName($parent) : null;
+        $nestedKeyboardInputTexts = [];
+        $issues = [];
+
+        foreach ($samp->childNodes as $child) {
+            if (!$child instanceof \DOMElement || self::htmlElementName($child) !== 'kbd') {
+                continue;
+            }
+
+            $keyboardText = self::normalizedText($child);
+            $nestedKeyboardInputTexts[] = $keyboardText;
+            if ($keyboardText === '') {
+                $issues[] = [
+                    'code' => 'empty-sample-output-keyboard-input',
+                    'index' => count($nestedKeyboardInputTexts) - 1,
+                ];
+            }
+        }
+
+        if ($text === '') {
+            array_unshift($issues, ['code' => 'empty-sample-output']);
+        }
+
+        $context = 'sample-output';
+        if ($parentName === 'kbd') {
+            $context = 'keyboard-derived-output';
+        } elseif ($nestedKeyboardInputTexts !== []) {
+            $context = 'echoed-keyboard-input';
+        }
+
+        $issueCodes = [];
+        foreach ($issues as $issue) {
+            $code = (string) $issue['code'];
+            if (!in_array($code, $issueCodes, true)) {
+                $issueCodes[] = $code;
+            }
+        }
+
+        return [
+            'sampleOutputReviewPolicy' => 'html-sample-output-review',
+            'sampleOutputText' => $text,
+            'sampleOutputRawText' => $rawText,
+            'sampleOutputContext' => $context,
+            'sampleOutputParentElement' => $parentName,
+            'sampleOutputHasNestedKeyboardInput' => $nestedKeyboardInputTexts !== [],
+            'sampleOutputNestedKeyboardInputCount' => count($nestedKeyboardInputTexts),
+            'sampleOutputNestedKeyboardInputTexts' => $nestedKeyboardInputTexts,
+            'sampleOutputEchoesKeyboardInput' => $nestedKeyboardInputTexts !== [],
+            'sampleOutputDerivedFromKeyboardInput' => $parentName === 'kbd',
+            'sampleOutputValid' => $issues === [],
+            'sampleOutputIssueCodes' => $issueCodes,
+            'sampleOutputIssueCount' => count($issues),
+            'sampleOutputIssues' => $issues,
+        ];
     }
 
     /**
