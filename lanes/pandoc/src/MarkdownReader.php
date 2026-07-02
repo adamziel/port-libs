@@ -13351,6 +13351,20 @@ final class MarkdownReader
 
     private function decodeHtmlEntities(string $text): string
     {
-        return html_entity_decode($text, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8');
+        $decoded = html_entity_decode($text, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8');
+
+        return preg_replace_callback(
+            '/&#(?:x([0-9A-Fa-f]+)|([0-9]+));/',
+            static function (array $match): string {
+                $codepoint = $match[1] !== ''
+                    ? hexdec($match[1])
+                    : (int) $match[2];
+
+                return ($codepoint > 0 && $codepoint < 0x20) || $codepoint === 0x7F
+                    ? chr($codepoint)
+                    : $match[0];
+            },
+            $decoded
+        ) ?? $decoded;
     }
 }

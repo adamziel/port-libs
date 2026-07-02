@@ -44,7 +44,7 @@ final class MarkdownWriter
     private array $plainTemplatePartialStack = [];
 
     /**
-     * @param array{variant?: string, setextHeadings?: bool, referenceLinks?: bool, referenceLocation?: string, linkAttributes?: bool, headerAttributes?: bool, fencedCodeBlocks?: bool, backtickCodeBlocks?: bool, fencedCodeAttributes?: bool, definitionLists?: bool, lineBlocks?: bool, bracketedSpans?: bool, nativeSpans?: bool, fencedDivs?: bool, nativeDivs?: bool, implicitFigures?: bool, markdownInHtmlBlocks?: bool, markdownAttribute?: bool, rawAttribute?: bool, rawHtml?: bool, rawTex?: bool, simpleTables?: bool, pipeTables?: bool, multilineTables?: bool, gridTables?: bool, tableCaptions?: bool, columns?: int, tabStop?: int, wrap?: string, strikeout?: bool, superscript?: bool, subscript?: bool, preferAscii?: bool, smart?: bool, escapedLineBreaks?: bool, hardLineBreaks?: bool, wikilinksTitleAfterPipe?: bool, wikilinksTitleBeforePipe?: bool, gutenberg?: bool, template?: bool|string, templatePath?: string, standalone?: bool, tableOfContents?: bool, toc?: bool, tocDepth?: int, numberSections?: bool, variables?: array<string, mixed>, partials?: array<string, string>, headerIncludes?: mixed, includeBefore?: mixed, includeAfter?: mixed, opmlNoteMarkdown?: bool} $options
+     * @param array{variant?: string, setextHeadings?: bool, referenceLinks?: bool, referenceLocation?: string, linkAttributes?: bool, headerAttributes?: bool, fencedCodeBlocks?: bool, backtickCodeBlocks?: bool, fencedCodeAttributes?: bool, definitionLists?: bool, lineBlocks?: bool, bracketedSpans?: bool, nativeSpans?: bool, fencedDivs?: bool, nativeDivs?: bool, implicitFigures?: bool, markdownInHtmlBlocks?: bool, markdownAttribute?: bool, rawAttribute?: bool, rawHtml?: bool, rawTex?: bool, rawMarkdown?: bool, simpleTables?: bool, pipeTables?: bool, multilineTables?: bool, gridTables?: bool, tableCaptions?: bool, columns?: int, tabStop?: int, wrap?: string, strikeout?: bool, superscript?: bool, subscript?: bool, preferAscii?: bool, smart?: bool, escapedLineBreaks?: bool, hardLineBreaks?: bool, wikilinksTitleAfterPipe?: bool, wikilinksTitleBeforePipe?: bool, gutenberg?: bool, template?: bool|string, templatePath?: string, standalone?: bool, tableOfContents?: bool, toc?: bool, tocDepth?: int, numberSections?: bool, variables?: array<string, mixed>, partials?: array<string, string>, headerIncludes?: mixed, includeBefore?: mixed, includeAfter?: mixed, opmlNoteMarkdown?: bool} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -6353,6 +6353,11 @@ final class MarkdownWriter
 
     private function renderCode(AstNode $node): string
     {
+        $attrTuple = $this->linkAttrTuple($node);
+        if ($this->shouldRenderInlineAttributeHtmlFallback($attrTuple)) {
+            return $this->renderHtmlInline($node, false);
+        }
+
         $text = (string) $node->attr('text', '');
         $longestTickRun = 0;
         if (preg_match_all('/`+/', $text, $matches) !== false) {
@@ -6369,7 +6374,7 @@ final class MarkdownWriter
             . $text
             . $spacer
             . $marker
-            . $this->renderAttributesTuple($this->linkAttrTuple($node));
+            . $this->renderAttributesTuple($attrTuple);
     }
 
     private function renderLineBreak(): string
@@ -6946,6 +6951,11 @@ final class MarkdownWriter
 
     private function renderMath(AstNode $node): string
     {
+        $attrTuple = $this->linkAttrTuple($node);
+        if ($this->shouldRenderInlineAttributeHtmlFallback($attrTuple)) {
+            return $this->renderRawHtmlMath($node, $attrTuple);
+        }
+
         $text = (string) $node->attr('text', '');
         if ((bool) $node->attr('display', false)) {
             return '$$' . $text . '$$';
@@ -6981,12 +6991,8 @@ final class MarkdownWriter
             return $text;
         }
 
-        if ($this->isCommonMarkVariant()) {
-            if ($this->isRawMarkdownFormat($format)) {
-                return $text;
-            }
-        } elseif ($this->isRawMarkdownFormat($format)) {
-            return $text;
+        if ($this->isRawMarkdownFormat($format)) {
+            return $this->rawMarkdownEnabled() ? $text : '';
         }
 
         if ($this->rawAttributeEnabled()) {
@@ -7144,7 +7150,7 @@ final class MarkdownWriter
         }
 
         if ($this->rawHtmlEnabled() || $this->nativeSpansEnabled()) {
-            return $this->renderRawHtmlSpan($attrTuple, $content);
+            return $this->renderRawHtmlSpan($attrTuple, $this->renderHtmlInlines($node->children));
         }
 
         return $content;
@@ -7830,6 +7836,8 @@ final class MarkdownWriter
         if ($this->smartEnabled() && !$preserveSmartPunctuation) {
             $escaped = $this->unsmartifyText($escaped);
         }
+
+        $escaped = $this->encodeHtmlWhitespaceEntities($escaped);
 
         return $this->writerPreferAscii()
             ? $this->toHtml5Entities($escaped)
@@ -8940,7 +8948,7 @@ final class MarkdownWriter
 
     private function normalizeAttributeValue(string $value): string
     {
-        return preg_replace('/[\x00-\x1F\x7F]+/', ' ', $value) ?? $value;
+        return $value;
     }
 
     private function renderLinkAttributes(AstNode $node): string
@@ -8962,9 +8970,28 @@ final class MarkdownWriter
             && !$this->isNullAttrTuple($attrs);
     }
 
+    /**
+     * @param array{id:string, classes:list<string>, attributes:array<string, string>} $attrs
+     */
+    private function shouldRenderInlineAttributeHtmlFallback(array $attrs): bool
+    {
+        return !$this->inlineAttributesEnabled()
+            && $this->rawHtmlEnabled()
+            && !$this->isNullAttrTuple($attrs);
+    }
+
     private function linkAttributesEnabled(): bool
     {
-        return (bool) ($this->options['linkAttributes'] ?? true);
+        if (array_key_exists('linkAttributes', $this->options)) {
+            return (bool) $this->options['linkAttributes'];
+        }
+
+        return $this->inlineAttributesEnabled();
+    }
+
+    private function inlineAttributesEnabled(): bool
+    {
+        return $this->rawAttributeEnabled();
     }
 
     private function fencedCodeBlocksEnabled(): bool
@@ -9014,6 +9041,11 @@ final class MarkdownWriter
     private function rawTexEnabled(): bool
     {
         return MarkdownFormatProfile::rawTexEnabled($this->options, true);
+    }
+
+    private function rawMarkdownEnabled(): bool
+    {
+        return MarkdownFormatProfile::rawMarkdownEnabled($this->options, true);
     }
 
     private function opmlNoteMarkdownEnabled(): bool
@@ -9214,7 +9246,19 @@ final class MarkdownWriter
 
     private function bracketedSpansEnabled(): bool
     {
-        return (bool) ($this->options['bracketedSpans'] ?? true);
+        if (array_key_exists('bracketedSpans', $this->options)) {
+            return (bool) $this->options['bracketedSpans'];
+        }
+
+        $override = $this->markdownExtensionOverride('bracketed_spans');
+        if ($override !== null) {
+            return $override;
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['markdown', 'commonmark_x', 'markdown_phpextra', 'markdown_mmd'], true);
     }
 
     private function nativeSpansEnabled(): bool
@@ -9257,15 +9301,13 @@ final class MarkdownWriter
 
     private function renderRawHtmlLink(AstNode $node): string
     {
-        $attributes = [
-            ['href', $this->linkUrl($node)],
-        ];
+        $attributes = $this->htmlAttributesFromAttrTuple($this->linkAttrTuple($node));
+        $attributes[] = ['href', $this->linkUrl($node)];
+
         $title = $this->linkTitle($node);
         if ($title !== '') {
             $attributes[] = ['title', $title];
         }
-
-        array_push($attributes, ...$this->htmlAttributesFromAttrTuple($this->linkAttrTuple($node)));
 
         return '<a'
             . $this->renderHtmlAttributes($attributes)
@@ -9276,22 +9318,29 @@ final class MarkdownWriter
 
     private function renderRawHtmlImage(AstNode $node): string
     {
-        $attributes = [
-            ['src', $this->imageUrl($node)],
-        ];
+        $attrTuple = $this->imageAttrTuple($node);
+        $attributes = [];
+        $alt = null;
+        foreach ($this->htmlAttributesFromAttrTuple($attrTuple) as [$name, $value]) {
+            if (strtolower($name) === 'alt') {
+                $alt = $value;
+                continue;
+            }
+
+            $attributes[] = [$name, $value];
+        }
+        $attributes[] = ['src', $this->imageUrl($node)];
+
+        if ($alt === null) {
+            $alt = $this->plainInlineText($this->imageLabelNodesForLink($node));
+        }
+        if ($alt !== '') {
+            $attributes[] = ['alt', $alt];
+        }
+
         $title = $this->imageTitle($node);
         if ($title !== '') {
             $attributes[] = ['title', $title];
-        }
-
-        $attrTuple = $this->imageAttrTuple($node);
-        array_push($attributes, ...$this->htmlAttributesFromAttrTuple($attrTuple));
-
-        if (!array_key_exists('alt', $attrTuple['attributes'])) {
-            $alt = $this->plainInlineText($this->imageLabelNodesForLink($node));
-            if ($alt !== '') {
-                $attributes[] = ['alt', $alt];
-            }
         }
 
         return '<img' . $this->renderHtmlAttributes($attributes) . ' />';
@@ -9307,6 +9356,19 @@ final class MarkdownWriter
             . '>'
             . $content
             . '</span>';
+    }
+
+    /**
+     * @param array{id:string, classes:list<string>, attributes:array<string, string>} $attrs
+     */
+    private function renderRawHtmlMath(AstNode $node, array $attrs): string
+    {
+        $attrs['classes'] = array_values(array_unique(array_merge(
+            ['math', (bool) $node->attr('display', false) ? 'display' : 'inline'],
+            $attrs['classes']
+        )));
+
+        return $this->renderRawHtmlSpan($attrs, $this->escapeHtml((string) $node->attr('text', '')));
     }
 
     /**
@@ -9634,12 +9696,16 @@ final class MarkdownWriter
             'quoted' => $this->renderHtmlQuotedInline($node, $insideLink),
             'link' => $insideLink ? $this->renderHtmlInlines($node->children, true) : $this->renderRawHtmlLink($node),
             'image' => $this->renderRawHtmlImage($node),
-            'math' => '<span class="math ' . ($node->attr('display') === true ? 'display' : 'inline') . '">'
-                . $this->escapeHtml((string) $node->attr('text', ''))
-                . '</span>',
-            'raw_html_inline' => (string) $node->attr('html', ''),
-            'raw_tex' => $this->escapeHtml((string) $node->attr('tex', '')),
-            'raw_inline', 'raw_markdown' => $this->escapeHtml((string) $node->attr('text', $node->attr('markdown', ''))),
+            'math' => $this->renderRawHtmlMath($node, ['id' => '', 'classes' => [], 'attributes' => []]),
+            'raw_html_inline' => $this->rawHtmlEnabled()
+                ? (string) $node->attr('html', $node->attr('text', ''))
+                : '',
+            'raw_tex', 'raw_tex_inline' => $this->rawTexEnabled()
+                ? $this->escapeHtml($this->rawInlineFormatAndText($node)[1])
+                : '',
+            'raw_inline', 'raw_markdown' => $this->rawMarkdownEnabled()
+                ? $this->escapeHtml($this->rawInlineFormatAndText($node)[1])
+                : '',
             'citation' => $this->escapeHtml((string) $node->attr('text', $this->plainInlineText($node->children))),
             default => $this->renderHtmlInlines($node->children, $insideLink),
         };
@@ -9655,7 +9721,70 @@ final class MarkdownWriter
 
     private function escapeHtml(string $value): string
     {
-        return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $escaped = htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+        return $this->encodeHtmlWhitespaceEntities($escaped);
+    }
+
+    private function encodeHtmlWhitespaceEntities(string $text): string
+    {
+        $encoded = '';
+        $length = strlen($text);
+
+        for ($offset = 0; $offset < $length; $offset++) {
+            $entity = $this->textWhitespaceEntity($text, $offset);
+            if ($entity !== null) {
+                $encoded .= $entity['entity'];
+                $offset += $entity['bytes'] - 1;
+                continue;
+            }
+
+            $encoded .= $text[$offset];
+        }
+
+        return $encoded;
+    }
+
+    /**
+     * @return array{entity:string, bytes:int}|null
+     */
+    private function textWhitespaceEntity(string $text, int $offset): ?array
+    {
+        $char = $text[$offset] ?? '';
+        if ($char === "\t") {
+            return ['entity' => '&#9;', 'bytes' => 1];
+        }
+
+        if ($char !== '' && ord($char) < 0x20 && $char !== "\n" && $char !== "\r") {
+            return ['entity' => sprintf('&#x%02X;', ord($char)), 'bytes' => 1];
+        }
+
+        $entities = [
+            "\xC2\xA0" => '&nbsp;',
+            "\xE1\x9A\x80" => '&#x1680;',
+            "\xE2\x80\x80" => '&#x2000;',
+            "\xE2\x80\x81" => '&#x2001;',
+            "\xE2\x80\x82" => '&#x2002;',
+            "\xE2\x80\x83" => '&#x2003;',
+            "\xE2\x80\x84" => '&#x2004;',
+            "\xE2\x80\x85" => '&#x2005;',
+            "\xE2\x80\x86" => '&#x2006;',
+            "\xE2\x80\x87" => '&#x2007;',
+            "\xE2\x80\x88" => '&#x2008;',
+            "\xE2\x80\x89" => '&#x2009;',
+            "\xE2\x80\x8A" => '&#x200A;',
+            "\xE2\x80\xAF" => '&#x202F;',
+            "\xE2\x81\x9F" => '&#x205F;',
+            "\xE3\x80\x80" => '&#x3000;',
+        ];
+
+        foreach ($entities as $sequence => $entity) {
+            if (str_starts_with(substr($text, $offset), $sequence)) {
+                return ['entity' => $entity, 'bytes' => strlen($sequence)];
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -9701,7 +9830,11 @@ final class MarkdownWriter
 
     private function escapeAttributeValue(string $value): string
     {
-        return str_replace(['\\', '"'], ['\\\\', '\\"'], $this->normalizeAttributeValue($value));
+        return $this->encodeHtmlWhitespaceEntities(str_replace(
+            ['\\', '"'],
+            ['\\\\', '\\"'],
+            $this->normalizeAttributeValue($value)
+        ));
     }
 
     private function escapeLinkTitle(string $title): string
