@@ -1280,6 +1280,7 @@ final class OpenDocumentPackage
             $item = [
                 'path' => $entry->name,
                 'pathShape' => $pathShape,
+                'packageDirectory' => $pathShape['directory'] ?? null,
                 'packageDirectoryBaseName' => $pathShape['directoryBaseName'] ?? null,
                 'packageDirectoryBaseNameStem' => $pathShape['directoryBaseNameStem'] ?? null,
                 'packageCaseFoldDirectoryBaseNameStem' => $pathShape['caseFoldDirectoryBaseNameStem'] ?? null,
@@ -1611,6 +1612,7 @@ final class OpenDocumentPackage
         $packagePartExtensions = self::packagePartExtensionInventory($parts);
         $packagePartRawExtensions = self::packagePartRawExtensionInventory($parts);
         $packagePartBasenames = self::packagePartBasenameInventory($parts);
+        $packagePartDirectories = self::packagePartDirectoryInventory($parts);
         $packageDirectoryBaseNames = self::packageDirectoryBaseNameInventory($parts);
         $packageCaseFoldTopLevelSegments = self::packageCaseFoldTopLevelSegmentInventory($parts);
         $packageZipSourceRecordDirectoryRoots = self::packageZipSourceRecordDirectoryRootInventory($parts);
@@ -1638,6 +1640,9 @@ final class OpenDocumentPackage
             'undeclaredEntryCount' => count($undeclaredEntries),
             'undeclaredEntries' => $undeclaredEntries,
             'packageDirectoryCount' => $packageDirectoryCount,
+            'packagePartDirectoryCount' => $packagePartDirectories['packagePartDirectoryCount'],
+            'packagePartDirectoryCounts' => $packagePartDirectories['packagePartDirectoryCounts'],
+            'entryNamesByPackagePartDirectory' => $packagePartDirectories['entryNamesByPackagePartDirectory'],
             'extensionlessPackagePartCount' => $packagePartExtensions['extensionlessPackagePartCount'],
             'packagePartExtensionCounts' => $packagePartExtensions['packagePartExtensionCounts'],
             'entryNamesByPackagePartExtension' => $packagePartExtensions['entryNamesByPackagePartExtension'],
@@ -2735,6 +2740,7 @@ final class OpenDocumentPackage
             $packageEntries[] = self::withoutEmptyValues([
                 'path' => $part['path'] ?? null,
                 'pathShape' => $part['pathShape'] ?? [],
+                'packageDirectory' => $part['packageDirectory'] ?? null,
                 'packageDirectoryBaseName' => $part['packageDirectoryBaseName'] ?? null,
                 'packageDirectoryBaseNameStem' => $part['packageDirectoryBaseNameStem'] ?? null,
                 'packageCaseFoldDirectoryBaseNameStem' => $part['packageCaseFoldDirectoryBaseNameStem'] ?? null,
@@ -3072,6 +3078,9 @@ final class OpenDocumentPackage
             'caseFoldedPackageBasenameDuplicateCount' => $packageInventory['caseFoldedPackageBasenameDuplicateCount'] ?? 0,
             'caseFoldedPackageBasenameDuplicateEntryCount' => $packageInventory['caseFoldedPackageBasenameDuplicateEntryCount'] ?? 0,
             'caseFoldedPackageBasenameDuplicateSummaries' => $packageInventory['caseFoldedPackageBasenameDuplicateSummaries'] ?? [],
+            'packagePartDirectoryCount' => $packageInventory['packagePartDirectoryCount'] ?? 0,
+            'packagePartDirectoryCounts' => $packageInventory['packagePartDirectoryCounts'] ?? [],
+            'entryNamesByPackagePartDirectory' => $packageInventory['entryNamesByPackagePartDirectory'] ?? [],
             'packageDirectoryBaseNameCount' => $packageInventory['packageDirectoryBaseNameCount'] ?? 0,
             'packageDirectoryBaseNameCounts' => $packageInventory['packageDirectoryBaseNameCounts'] ?? [],
             'entryNamesByPackageDirectoryBaseName' => $packageInventory['entryNamesByPackageDirectoryBaseName'] ?? [],
@@ -4372,6 +4381,49 @@ final class OpenDocumentPackage
             'caseFoldedPackageBasenameDuplicateCount' => count($caseFoldedDuplicateSummaries),
             'caseFoldedPackageBasenameDuplicateEntryCount' => $caseFoldedDuplicateEntryCount,
             'caseFoldedPackageBasenameDuplicateSummaries' => $caseFoldedDuplicateSummaries,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $parts
+     * @return array{
+     *     packagePartDirectoryCount:int,
+     *     packagePartDirectoryCounts:array<string, int>,
+     *     entryNamesByPackagePartDirectory:array<string, list<string>>
+     * }
+     */
+    private static function packagePartDirectoryInventory(array $parts): array
+    {
+        $directoryCounts = [];
+        $entryNamesByDirectory = [];
+
+        foreach ($parts as $name => $part) {
+            $entryName = is_string($part['path'] ?? null) ? $part['path'] : (string) $name;
+            $pathShape = is_array($part['pathShape'] ?? null) ? $part['pathShape'] : [];
+            $directory = is_string($part['packageDirectory'] ?? null) ? $part['packageDirectory'] : null;
+            if ($directory === null && is_string($pathShape['directory'] ?? null)) {
+                $directory = $pathShape['directory'];
+            }
+            if ($directory === null || $directory === '') {
+                $directory = '/';
+            }
+
+            $directoryCounts[$directory] = ($directoryCounts[$directory] ?? 0) + 1;
+            $entryNamesByDirectory[$directory][] = $entryName;
+        }
+
+        ksort($directoryCounts, SORT_STRING);
+        ksort($entryNamesByDirectory, SORT_STRING);
+        foreach ($entryNamesByDirectory as $directory => $entryNames) {
+            $entryNames = array_values(array_unique(array_map('strval', $entryNames)));
+            sort($entryNames, SORT_STRING);
+            $entryNamesByDirectory[$directory] = $entryNames;
+        }
+
+        return [
+            'packagePartDirectoryCount' => count($directoryCounts),
+            'packagePartDirectoryCounts' => $directoryCounts,
+            'entryNamesByPackagePartDirectory' => $entryNamesByDirectory,
         ];
     }
 

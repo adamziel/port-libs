@@ -2200,6 +2200,7 @@ final class OdfReader
         $packagePartExtensions = self::packagePartExtensionInventory($parts);
         $packagePartRawExtensions = self::packagePartRawExtensionInventory($parts);
         $packagePartBasenames = self::packagePartBasenameInventory($parts);
+        $packagePartDirectories = self::packagePartDirectoryInventory($parts);
         $packageDirectoryBaseNames = self::packageDirectoryBaseNameInventory($parts);
         $packageCaseFoldTopLevelSegments = self::packageCaseFoldTopLevelSegmentInventory($parts);
         $packageZipSourceRecordDirectoryRoots = self::packageZipSourceRecordDirectoryRootInventory($parts);
@@ -2284,6 +2285,9 @@ final class OdfReader
             'manifestPathShapeItems' => $manifestPathShapeItems,
             'undeclaredEntryCount' => count($undeclaredEntries),
             'packageDirectoryCount' => $packageDirectoryCount,
+            'packagePartDirectoryCount' => $packagePartDirectories['packagePartDirectoryCount'],
+            'packagePartDirectoryCounts' => $packagePartDirectories['packagePartDirectoryCounts'],
+            'entryNamesByPackagePartDirectory' => $packagePartDirectories['entryNamesByPackagePartDirectory'],
             'extensionlessPackagePartCount' => $packagePartExtensions['extensionlessPackagePartCount'],
             'packagePartExtensionCounts' => $packagePartExtensions['packagePartExtensionCounts'],
             'entryNamesByPackagePartExtension' => $packagePartExtensions['entryNamesByPackagePartExtension'],
@@ -3727,6 +3731,9 @@ final class OdfReader
             'caseFoldedPackageBasenameDuplicateCount' => $provenance['caseFoldedPackageBasenameDuplicateCount'] ?? 0,
             'caseFoldedPackageBasenameDuplicateEntryCount' => $provenance['caseFoldedPackageBasenameDuplicateEntryCount'] ?? 0,
             'caseFoldedPackageBasenameDuplicateSummaries' => $provenance['caseFoldedPackageBasenameDuplicateSummaries'] ?? [],
+            'packagePartDirectoryCount' => $provenance['packagePartDirectoryCount'] ?? 0,
+            'packagePartDirectoryCounts' => $provenance['packagePartDirectoryCounts'] ?? [],
+            'entryNamesByPackagePartDirectory' => $provenance['entryNamesByPackagePartDirectory'] ?? [],
             'packageDirectoryBaseNameCount' => $provenance['packageDirectoryBaseNameCount'] ?? 0,
             'packageDirectoryBaseNameCounts' => $provenance['packageDirectoryBaseNameCounts'] ?? [],
             'entryNamesByPackageDirectoryBaseName' => $provenance['entryNamesByPackageDirectoryBaseName'] ?? [],
@@ -4097,6 +4104,9 @@ final class OdfReader
             'caseFoldedPackageBasenameDuplicateCount' => $provenance['caseFoldedPackageBasenameDuplicateCount'] ?? 0,
             'caseFoldedPackageBasenameDuplicateEntryCount' => $provenance['caseFoldedPackageBasenameDuplicateEntryCount'] ?? 0,
             'caseFoldedPackageBasenameDuplicateSummaries' => $provenance['caseFoldedPackageBasenameDuplicateSummaries'] ?? [],
+            'packagePartDirectoryCount' => $provenance['packagePartDirectoryCount'] ?? 0,
+            'packagePartDirectoryCounts' => $provenance['packagePartDirectoryCounts'] ?? [],
+            'entryNamesByPackagePartDirectory' => $provenance['entryNamesByPackagePartDirectory'] ?? [],
             'packageDirectoryBaseNameCount' => $provenance['packageDirectoryBaseNameCount'] ?? 0,
             'packageDirectoryBaseNameCounts' => $provenance['packageDirectoryBaseNameCounts'] ?? [],
             'entryNamesByPackageDirectoryBaseName' => $provenance['entryNamesByPackageDirectoryBaseName'] ?? [],
@@ -4909,6 +4919,49 @@ final class OdfReader
             'caseFoldedPackageBasenameDuplicateCount' => count($caseFoldedDuplicateSummaries),
             'caseFoldedPackageBasenameDuplicateEntryCount' => $caseFoldedDuplicateEntryCount,
             'caseFoldedPackageBasenameDuplicateSummaries' => $caseFoldedDuplicateSummaries,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $parts
+     * @return array{
+     *     packagePartDirectoryCount:int,
+     *     packagePartDirectoryCounts:array<string, int>,
+     *     entryNamesByPackagePartDirectory:array<string, list<string>>
+     * }
+     */
+    private static function packagePartDirectoryInventory(array $parts): array
+    {
+        $directoryCounts = [];
+        $entryNamesByDirectory = [];
+
+        foreach ($parts as $name => $part) {
+            $entryName = is_string($part['part'] ?? null) ? $part['part'] : (string) $name;
+            $pathShape = is_array($part['packagePathShape'] ?? null) ? $part['packagePathShape'] : [];
+            $directory = is_string($part['packageDirectory'] ?? null) ? $part['packageDirectory'] : null;
+            if ($directory === null && is_string($pathShape['directory'] ?? null)) {
+                $directory = $pathShape['directory'];
+            }
+            if ($directory === null || $directory === '') {
+                $directory = '/';
+            }
+
+            $directoryCounts[$directory] = ($directoryCounts[$directory] ?? 0) + 1;
+            $entryNamesByDirectory[$directory][] = $entryName;
+        }
+
+        ksort($directoryCounts, SORT_STRING);
+        ksort($entryNamesByDirectory, SORT_STRING);
+        foreach ($entryNamesByDirectory as $directory => $entryNames) {
+            $entryNames = array_values(array_unique(array_map('strval', $entryNames)));
+            sort($entryNames, SORT_STRING);
+            $entryNamesByDirectory[$directory] = $entryNames;
+        }
+
+        return [
+            'packagePartDirectoryCount' => count($directoryCounts),
+            'packagePartDirectoryCounts' => $directoryCounts,
+            'entryNamesByPackagePartDirectory' => $entryNamesByDirectory,
         ];
     }
 
