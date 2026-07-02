@@ -1047,7 +1047,13 @@ XML;
         $documentXml = $parts['word/document.xml'];
         $mediaBytes = $parts['word/media/review.png'];
         $deflatedDocument = gzdeflate($documentXml);
-        $zip = ZipPackage::fromString(docx_openxml_reader_data_descriptor_zip($zipParts));
+        $zipBytes = docx_openxml_reader_data_descriptor_zip($zipParts);
+        $zip = ZipPackage::fromString($zipBytes);
+        $manifest = $zip->packageManifestPreflight();
+        $manifestByName = [];
+        foreach ($manifest['entries'] as $manifestEntry) {
+            $manifestByName[$manifestEntry['name']] = $manifestEntry;
+        }
         $document = (new DocxOpenXmlReader())->readZipPackage($zip);
         $package = $document->attr('docx')['packageProvenance'];
         $zipPackage = $package['zipPackage'];
@@ -1057,6 +1063,9 @@ XML;
         $documentEntry = $zipPackage['byPackagePath']['word/document.xml'];
         $mediaEntry = $zipPackage['byPackagePath']['word/media/review.png'];
         $contentTypesEntry = $zipPackage['byPackagePath']['[Content_Types].xml'];
+        $documentManifest = $manifestByName['word/document.xml'];
+        $mediaManifest = $manifestByName['word/media/review.png'];
+        $contentTypesManifest = $manifestByName['[Content_Types].xml'];
 
         $t->true(is_string($deflatedDocument), 'fixture document XML should deflate');
         $t->same('Imported DOCX Heading', $document->children[0]->attr('text'));
@@ -1090,6 +1099,22 @@ XML;
         $t->same(true, $documentEntry['hasZeroLocalHeaderPlaceholders']);
         $t->same(0, $documentEntry['dataDescriptorIssueCount']);
         $t->same([], $documentEntry['dataDescriptorIssues']);
+        $t->same(true, $documentManifest['sourceByteSpanIncludesDataDescriptor']);
+        $t->same(16, $documentManifest['dataDescriptorBytes']);
+        $t->same($documentEntry['dataDescriptorOffset'], $documentManifest['dataDescriptorOffset']);
+        $t->same($documentEntry['dataDescriptorEnd'], $documentManifest['dataDescriptorEnd']);
+        $t->same(
+            hash('sha256', substr($zipBytes, $documentEntry['dataDescriptorOffset'], 16)),
+            $documentManifest['dataDescriptorSha256']
+        );
+        $t->same(true, $documentEntry['sourceByteSpanIncludesDataDescriptor']);
+        $t->same(16, $documentEntry['dataDescriptorBytes']);
+        $t->same($documentManifest['dataDescriptorSha256'], $documentEntry['dataDescriptorSha256']);
+        $t->same(
+            'docx-zip-data-descriptor-source-span-metadata-only',
+            $documentEntry['dataDescriptorSourceByteSpanPolicy']
+        );
+        $t->same(false, $documentEntry['dataDescriptorSourceByteSpanCanExposeBytes']);
 
         $t->same(true, $mediaEntry['usesDataDescriptor']);
         $t->same(false, $mediaEntry['dataDescriptorHasSignature']);
@@ -1102,11 +1127,28 @@ XML;
         $t->same(true, $mediaEntry['dataDescriptorValuesMatchCentral']);
         $t->same(true, $mediaEntry['hasZeroLocalHeaderPlaceholders']);
         $t->same([], $mediaEntry['dataDescriptorIssues']);
+        $t->same(true, $mediaManifest['sourceByteSpanIncludesDataDescriptor']);
+        $t->same(12, $mediaManifest['dataDescriptorBytes']);
+        $t->same($mediaEntry['dataDescriptorOffset'], $mediaManifest['dataDescriptorOffset']);
+        $t->same($mediaEntry['dataDescriptorEnd'], $mediaManifest['dataDescriptorEnd']);
+        $t->same(
+            hash('sha256', substr($zipBytes, $mediaEntry['dataDescriptorOffset'], 12)),
+            $mediaManifest['dataDescriptorSha256']
+        );
+        $t->same(true, $mediaEntry['sourceByteSpanIncludesDataDescriptor']);
+        $t->same(12, $mediaEntry['dataDescriptorBytes']);
+        $t->same($mediaManifest['dataDescriptorSha256'], $mediaEntry['dataDescriptorSha256']);
 
         $t->same(false, $contentTypesEntry['usesDataDescriptor']);
         $t->same(null, $contentTypesEntry['dataDescriptorHasSignature']);
         $t->same(null, $contentTypesEntry['dataDescriptorLength']);
         $t->same([], $contentTypesEntry['dataDescriptorIssues']);
+        $t->same(false, $contentTypesManifest['sourceByteSpanIncludesDataDescriptor']);
+        $t->same(0, $contentTypesManifest['dataDescriptorBytes']);
+        $t->same(null, $contentTypesManifest['dataDescriptorSha256']);
+        $t->same(false, $contentTypesEntry['sourceByteSpanIncludesDataDescriptor']);
+        $t->same(0, $contentTypesEntry['dataDescriptorBytes']);
+        $t->same(null, $contentTypesEntry['dataDescriptorSha256']);
 
         $t->same(true, $inventory['word/document.xml']['usesDataDescriptor']);
         $t->same(true, $inventory['word/document.xml']['dataDescriptorHasSignature']);
@@ -1117,7 +1159,21 @@ XML;
         $t->same(true, $inventory['word/document.xml']['dataDescriptorValuesMatchCentral']);
         $t->same(true, $inventory['word/document.xml']['hasZeroLocalHeaderPlaceholders']);
         $t->same([], $inventory['word/document.xml']['dataDescriptorIssues']);
+        $t->same(true, $inventory['word/document.xml']['sourceByteSpanIncludesDataDescriptor']);
+        $t->same(16, $inventory['word/document.xml']['dataDescriptorBytes']);
+        $t->same($documentEntry['dataDescriptorSha256'], $inventory['word/document.xml']['dataDescriptorSha256']);
+        $t->same(
+            'docx-zip-data-descriptor-source-span-metadata-only',
+            $inventory['word/document.xml']['dataDescriptorSourceByteSpanPolicy']
+        );
+        $t->same(false, $inventory['word/document.xml']['dataDescriptorSourceByteSpanCanExposeBytes']);
+        $t->same(true, $inventory['word/media/review.png']['sourceByteSpanIncludesDataDescriptor']);
+        $t->same(12, $inventory['word/media/review.png']['dataDescriptorBytes']);
+        $t->same($mediaEntry['dataDescriptorSha256'], $inventory['word/media/review.png']['dataDescriptorSha256']);
         $t->same(false, $inventory['[Content_Types].xml']['usesDataDescriptor']);
+        $t->same(false, $inventory['[Content_Types].xml']['sourceByteSpanIncludesDataDescriptor']);
+        $t->same(0, $inventory['[Content_Types].xml']['dataDescriptorBytes']);
+        $t->same(null, $inventory['[Content_Types].xml']['dataDescriptorSha256']);
 
         $t->same(2, $summary['zipDataDescriptorEntryCount']);
         $t->same(1, $summary['zipSignedDataDescriptorEntryCount']);
@@ -1128,6 +1184,14 @@ XML;
         $t->same(0, $summary['zipDataDescriptorIssueCount']);
         $t->same([], $summary['zipDataDescriptorIssueCodes']);
         $t->same(28, $summary['zipDataDescriptorByteLength']);
+        $t->same(2, $summary['zipPackageManifestDataDescriptorSourceSpanEntryCount']);
+        $t->same(28, $summary['zipPackageManifestDataDescriptorByteLength']);
+        $t->same(2, $summary['zipPackageManifestDataDescriptorSha256Count']);
+        $t->same(
+            'docx-zip-data-descriptor-source-span-metadata-only',
+            $summary['zipPackageManifestDataDescriptorSourceSpanByteExposurePolicy']
+        );
+        $t->same(false, $summary['zipPackageManifestDataDescriptorSourceSpanCanExposeBytes']);
     },
     'carries docx zip package manifest digests into package inventory provenance' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();

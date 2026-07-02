@@ -13051,6 +13051,15 @@ final class ZipPackage
         $unsupportedCompressionMethodCount = 0;
         $compressedBytes = 0;
         $uncompressedBytes = 0;
+        $dataDescriptorEntries = [];
+        $dataDescriptorIssueEntries = [];
+        $dataDescriptorIssueCodes = [];
+        $dataDescriptorEntryCount = 0;
+        $signedDataDescriptorEntryCount = 0;
+        $unsignedDataDescriptorEntryCount = 0;
+        $zip64SizedDataDescriptorEntryCount = 0;
+        $zeroLocalHeaderPlaceholderEntryCount = 0;
+        $dataDescriptorValuesMatchCentralEntryCount = 0;
 
         foreach ($this->entries as $centralDirectoryIndex => $entry) {
             $localHeader = $this->readLocalHeader($entry);
@@ -13092,6 +13101,12 @@ final class ZipPackage
                     );
                 }
             }
+            $dataDescriptorProvenance = $this->entryDataDescriptorHandoffProvenance($entry, $localHeader);
+            $sourceByteSpanProvenance = $this->entrySourceByteSpanHandoffProvenance(
+                $entry,
+                $localHeader,
+                $dataDescriptorProvenance
+            );
             $summary = [
                 'name' => $entry->name,
                 'isDirectory' => $isDirectory,
@@ -13112,7 +13127,46 @@ final class ZipPackage
                 'centralDirectoryRecordOffset' => $entry->centralDirectoryRecordOffset,
                 'centralDirectoryRecordEnd' => $entry->centralDirectoryRecordEnd,
                 'centralDirectoryRecordSha256' => $centralDirectoryRecordSha256,
-            ];
+            ] + $dataDescriptorProvenance + $sourceByteSpanProvenance;
+            if ($dataDescriptorProvenance['usesDataDescriptor']) {
+                ++$dataDescriptorEntryCount;
+                if ($dataDescriptorProvenance['dataDescriptorHasSignature'] === true) {
+                    ++$signedDataDescriptorEntryCount;
+                } else {
+                    ++$unsignedDataDescriptorEntryCount;
+                }
+                if ($dataDescriptorProvenance['dataDescriptorUsesZip64SizedFields']) {
+                    ++$zip64SizedDataDescriptorEntryCount;
+                }
+                if ($dataDescriptorProvenance['hasZeroLocalHeaderPlaceholders'] === true) {
+                    ++$zeroLocalHeaderPlaceholderEntryCount;
+                }
+                if ($dataDescriptorProvenance['dataDescriptorValuesMatchCentral'] === true) {
+                    ++$dataDescriptorValuesMatchCentralEntryCount;
+                }
+                foreach ($dataDescriptorProvenance['dataDescriptorIssues'] as $issue) {
+                    self::appendUniqueIssue($dataDescriptorIssueCodes, $issue);
+                }
+
+                $dataDescriptorEntry = [
+                    'name' => $entry->name,
+                    'isDirectory' => $isDirectory,
+                    'centralDirectoryIndex' => $centralDirectoryIndex,
+                    'localHeaderOrder' => $localHeaderOrder,
+                    'compressionMethod' => $entry->compressionMethod,
+                    'compressionMethodName' => self::compressionMethodName($entry->compressionMethod),
+                    'compressedSize' => $entry->compressedSize,
+                    'uncompressedSize' => $entry->uncompressedSize,
+                    'sourceByteSpanIncludesDataDescriptor' =>
+                        $sourceByteSpanProvenance['sourceByteSpanIncludesDataDescriptor'],
+                    'dataDescriptorBytes' => $sourceByteSpanProvenance['dataDescriptorBytes'],
+                    'dataDescriptorSha256' => $sourceByteSpanProvenance['dataDescriptorSha256'],
+                ] + $dataDescriptorProvenance;
+                $dataDescriptorEntries[] = $dataDescriptorEntry;
+                if ($dataDescriptorProvenance['dataDescriptorIssues'] !== []) {
+                    $dataDescriptorIssueEntries[] = $dataDescriptorEntry;
+                }
+            }
             $entries[] = $summary;
             $manifestEntries[] = [
                 'name' => $summary['name'],
@@ -13153,6 +13207,18 @@ final class ZipPackage
             'storedEntryCount' => $storedEntryCount,
             'deflatedEntryCount' => $deflatedEntryCount,
             'unsupportedCompressionMethodCount' => $unsupportedCompressionMethodCount,
+            'dataDescriptorReviewStatus' => $dataDescriptorIssueCodes === [] ? 'ok' : 'review',
+            'dataDescriptorIssueCodes' => $dataDescriptorIssueCodes,
+            'dataDescriptorIssueCount' => count($dataDescriptorIssueCodes),
+            'dataDescriptorIssueEntryCount' => count($dataDescriptorIssueEntries),
+            'dataDescriptorEntryCount' => $dataDescriptorEntryCount,
+            'signedDataDescriptorEntryCount' => $signedDataDescriptorEntryCount,
+            'unsignedDataDescriptorEntryCount' => $unsignedDataDescriptorEntryCount,
+            'zip64SizedDataDescriptorEntryCount' => $zip64SizedDataDescriptorEntryCount,
+            'zeroLocalHeaderPlaceholderEntryCount' => $zeroLocalHeaderPlaceholderEntryCount,
+            'dataDescriptorValuesMatchCentralEntryCount' => $dataDescriptorValuesMatchCentralEntryCount,
+            'dataDescriptorEntries' => $dataDescriptorEntries,
+            'dataDescriptorIssueEntries' => $dataDescriptorIssueEntries,
             'centralDirectoryOrderNames' => $centralDirectoryOrderNames,
             'localHeaderOrderNames' => $localHeaderOrderNames,
             'centralDirectoryOrderMatchesLocalHeaderOrder' => $centralDirectoryOrderNames === $localHeaderOrderNames,
