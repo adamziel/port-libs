@@ -20594,19 +20594,30 @@ final class XmlHtmlDom
             array_push($definitions, ...$item['definitions']);
         }
 
+        $issues = self::definitionListGroupIssues($items);
+        $issueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
+
         return [
             'definitionList' => 'dl',
+            'definitionListReviewPolicy' => 'html-definition-list-group-review',
             'termCount' => count($terms),
             'definitionCount' => count($definitions),
             'itemCount' => count($items),
             'terms' => $terms,
             'definitions' => $definitions,
             'items' => $items,
+            'definitionListValid' => $issues === [],
+            'definitionListIssueCodes' => $issueCodes,
+            'definitionListIssueCount' => count($issues),
+            'definitionListIssues' => $issues,
         ];
     }
 
     /**
-     * @return list<array{terms:list<string>, definitions:list<string>, termCount:int, definitionCount:int}>
+     * @return list<array{terms:list<string>, definitions:list<string>, termCount:int, definitionCount:int, definitionListItemValid:bool, definitionListItemIssueCodes:list<string>, definitionListItemIssues:list<array{code:string, termCount:int, definitionCount:int}>}>
      */
     private static function definitionListItems(\DOMElement $definitionList): array
     {
@@ -20646,16 +20657,74 @@ final class XmlHtmlDom
     /**
      * @param list<string> $terms
      * @param list<string> $definitions
-     * @return array{terms:list<string>, definitions:list<string>, termCount:int, definitionCount:int}
+     * @return array{terms:list<string>, definitions:list<string>, termCount:int, definitionCount:int, definitionListItemValid:bool, definitionListItemIssueCodes:list<string>, definitionListItemIssues:list<array{code:string, termCount:int, definitionCount:int}>}
      */
     private static function definitionListItemSummary(array $terms, array $definitions): array
     {
+        $issues = self::definitionListItemIssues($terms, $definitions);
+
         return [
             'terms' => $terms,
             'definitions' => $definitions,
             'termCount' => count($terms),
             'definitionCount' => count($definitions),
+            'definitionListItemValid' => $issues === [],
+            'definitionListItemIssueCodes' => array_values(array_map(
+                static fn (array $issue): string => $issue['code'],
+                $issues
+            )),
+            'definitionListItemIssues' => $issues,
         ];
+    }
+
+    /**
+     * @param list<array{terms:list<string>, definitions:list<string>, termCount:int, definitionCount:int, definitionListItemValid:bool, definitionListItemIssueCodes:list<string>, definitionListItemIssues:list<array{code:string, termCount:int, definitionCount:int}>}> $items
+     * @return list<array<string, mixed>>
+     */
+    private static function definitionListGroupIssues(array $items): array
+    {
+        if ($items === []) {
+            return [['code' => 'empty-definition-list']];
+        }
+
+        $issues = [];
+        foreach ($items as $index => $item) {
+            foreach ($item['definitionListItemIssues'] as $issue) {
+                $issues[] = ['itemIndex' => $index] + $issue;
+            }
+        }
+
+        return $issues;
+    }
+
+    /**
+     * @param list<string> $terms
+     * @param list<string> $definitions
+     * @return list<array{code:string, termCount:int, definitionCount:int}>
+     */
+    private static function definitionListItemIssues(array $terms, array $definitions): array
+    {
+        $termCount = count($terms);
+        $definitionCount = count($definitions);
+        $issues = [];
+
+        if ($termCount === 0) {
+            $issues[] = [
+                'code' => 'definition-list-item-missing-term',
+                'termCount' => $termCount,
+                'definitionCount' => $definitionCount,
+            ];
+        }
+
+        if ($definitionCount === 0) {
+            $issues[] = [
+                'code' => 'definition-list-item-missing-definition',
+                'termCount' => $termCount,
+                'definitionCount' => $definitionCount,
+            ];
+        }
+
+        return $issues;
     }
 
     /**
