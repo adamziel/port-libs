@@ -263,6 +263,10 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['packageThumbnailInvalidCount'] = $packageThumbnails['invalidCount'];
         $packageProvenance['summary']['packageThumbnailIssueCount'] = $packageThumbnails['issueCount'];
         $packageProvenance['summary']['packageThumbnailIssueCodes'] = $packageThumbnails['issueCodes'];
+        $packageProvenance['summary']['packageThumbnailIssueCodeCounts'] = $packageThumbnails['issueCodeCounts'];
+        $packageProvenance['summary']['packageThumbnailIssueRelationshipIdsByCode'] = $packageThumbnails['issueRelationshipIdsByCode'];
+        $packageProvenance['summary']['packageThumbnailIssueTargetPartsByCode'] = $packageThumbnails['issueTargetPartsByCode'];
+        $packageProvenance['summary']['packageThumbnailIssueExternalTargetsByCode'] = $packageThumbnails['issueExternalTargetsByCode'];
         $digitalSignatures = $this->packageDigitalSignatureProvenance($parts, $rootRelationships, $contentTypes);
         $packageProvenance['digitalSignatures'] = $digitalSignatures;
         $packageProvenance['summary']['digitalSignatureOriginCount'] = $digitalSignatures['originCount'];
@@ -38939,6 +38943,10 @@ final class DocxOpenXmlReader
         $externalTargets = [];
         $contentTypesSeen = [];
         $issueCodes = [];
+        $issueCodeCounts = [];
+        $issueRelationshipIdsByCode = [];
+        $issueTargetPartsByCode = [];
+        $issueExternalTargetsByCode = [];
         $rootHasMultipleThumbnails = count($thumbnailRelationships) > 1;
         foreach ($thumbnailRelationships as $relationship) {
             $summary = $this->relationshipInventorySummary($parts, $relationship, '/', '_rels/.rels', $contentTypes);
@@ -39010,6 +39018,23 @@ final class DocxOpenXmlReader
                 'issues' => $issues,
             ];
 
+            foreach ($issues as $issue) {
+                $issueCodeCounts[$issue] = ($issueCodeCounts[$issue] ?? 0) + 1;
+                $issueRelationshipIdsByCode[$issue] ??= [];
+                $this->appendUniqueString($issueRelationshipIdsByCode[$issue], (string) $item['id']);
+                if ($targetPart !== null) {
+                    $issueTargetPartsByCode[$issue] ??= [];
+                    $this->appendUniqueString($issueTargetPartsByCode[$issue], $targetPart);
+                }
+                if ($external) {
+                    $externalTarget = is_string($summary['target'] ?? null) ? $summary['target'] : null;
+                    if ($externalTarget !== null) {
+                        $issueExternalTargetsByCode[$issue] ??= [];
+                        $this->appendUniqueString($issueExternalTargetsByCode[$issue], $externalTarget);
+                    }
+                }
+            }
+
             $items[] = $item;
             $byRelationshipId[(string) $item['id']] = $item;
             $relationshipIds[] = (string) $item['id'];
@@ -39021,6 +39046,10 @@ final class DocxOpenXmlReader
         }
 
         ksort($issueCodes, SORT_STRING);
+        ksort($issueCodeCounts, SORT_STRING);
+        ksort($issueRelationshipIdsByCode, SORT_STRING);
+        ksort($issueTargetPartsByCode, SORT_STRING);
+        ksort($issueExternalTargetsByCode, SORT_STRING);
 
         return [
             'count' => count($items),
@@ -39040,6 +39069,10 @@ final class DocxOpenXmlReader
             'externalTargets' => $externalTargets,
             'contentTypes' => $contentTypesSeen,
             'issueCodes' => array_keys($issueCodes),
+            'issueCodeCounts' => $issueCodeCounts,
+            'issueRelationshipIdsByCode' => $issueRelationshipIdsByCode,
+            'issueTargetPartsByCode' => $issueTargetPartsByCode,
+            'issueExternalTargetsByCode' => $issueExternalTargetsByCode,
             'byRelationshipId' => $byRelationshipId,
             'items' => $items,
         ];
