@@ -12714,6 +12714,19 @@ final class DocxOpenXmlReader
         $summary['zipPackageManifestExpansionRatioBucketSummaries'] = is_array($zipPackageManifest['expansionRatioBucketSummaries'] ?? null)
             ? $zipPackageManifest['expansionRatioBucketSummaries']
             : [];
+        $summary['zipPackageManifestCrc32SummaryCount'] = (int) ($zipPackageManifest['crc32SummaryCount'] ?? 0);
+        $summary['zipPackageManifestCrc32Summaries'] = is_array($zipPackageManifest['crc32Summaries'] ?? null)
+            ? $zipPackageManifest['crc32Summaries']
+            : [];
+        $summary['zipPackageManifestDuplicateCrc32HexCount'] = (int) ($zipPackageManifest['duplicateCrc32HexCount'] ?? 0);
+        $summary['zipPackageManifestDuplicateCrc32EntryCount'] = (int) ($zipPackageManifest['duplicateCrc32EntryCount'] ?? 0);
+        $summary['zipPackageManifestHasDuplicateCrc32Entries'] = ($zipPackageManifest['hasDuplicateCrc32Entries'] ?? false) === true;
+        $summary['zipPackageManifestDuplicateCrc32Hexes'] = is_array($zipPackageManifest['duplicateCrc32Hexes'] ?? null)
+            ? $zipPackageManifest['duplicateCrc32Hexes']
+            : [];
+        $summary['zipPackageManifestDuplicateCrc32Summaries'] = is_array($zipPackageManifest['duplicateCrc32Summaries'] ?? null)
+            ? $zipPackageManifest['duplicateCrc32Summaries']
+            : [];
         $summary['zipPackageManifestLargestEntry'] = is_array($zipPackageManifest['largestEntry'] ?? null)
             ? $zipPackageManifest['largestEntry']
             : null;
@@ -14029,6 +14042,13 @@ final class DocxOpenXmlReader
             'expansionRatioBucketSummaryCount' => 0,
             'expansionRatioBuckets' => [],
             'expansionRatioBucketSummaries' => [],
+            'crc32SummaryCount' => 0,
+            'crc32Summaries' => [],
+            'duplicateCrc32HexCount' => 0,
+            'duplicateCrc32EntryCount' => 0,
+            'hasDuplicateCrc32Entries' => false,
+            'duplicateCrc32Hexes' => [],
+            'duplicateCrc32Summaries' => [],
             'largestEntry' => null,
             'zeroByteEntryCount' => 0,
             'zeroByteFileCount' => 0,
@@ -14283,6 +14303,19 @@ final class DocxOpenXmlReader
                 : [],
             'packageManifestExpansionRatioBucketSummaries' => is_array($packageManifest['expansionRatioBucketSummaries'] ?? null)
                 ? $packageManifest['expansionRatioBucketSummaries']
+                : [],
+            'packageManifestCrc32SummaryCount' => (int) ($packageManifest['crc32SummaryCount'] ?? 0),
+            'packageManifestCrc32Summaries' => is_array($packageManifest['crc32Summaries'] ?? null)
+                ? $packageManifest['crc32Summaries']
+                : [],
+            'packageManifestDuplicateCrc32HexCount' => (int) ($packageManifest['duplicateCrc32HexCount'] ?? 0),
+            'packageManifestDuplicateCrc32EntryCount' => (int) ($packageManifest['duplicateCrc32EntryCount'] ?? 0),
+            'packageManifestHasDuplicateCrc32Entries' => ($packageManifest['hasDuplicateCrc32Entries'] ?? false) === true,
+            'packageManifestDuplicateCrc32Hexes' => is_array($packageManifest['duplicateCrc32Hexes'] ?? null)
+                ? $packageManifest['duplicateCrc32Hexes']
+                : [],
+            'packageManifestDuplicateCrc32Summaries' => is_array($packageManifest['duplicateCrc32Summaries'] ?? null)
+                ? $packageManifest['duplicateCrc32Summaries']
                 : [],
             'packageManifestLargestEntry' => is_array($packageManifest['largestEntry'] ?? null)
                 ? $packageManifest['largestEntry']
