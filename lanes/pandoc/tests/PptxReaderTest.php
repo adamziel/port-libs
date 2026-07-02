@@ -11063,6 +11063,47 @@ return [
         throw new RuntimeException('Expected missing presentation relationship to reject the PPTX package');
     },
 
+    'ignores nested pptx root officeDocument relationships like upstream' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-nested-root-rel-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary PPTX path');
+        }
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            @unlink($path);
+            throw new RuntimeException('Unable to create temporary PPTX package');
+        }
+        $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Wrapper>
+    <Relationship Id="rIdPresentation" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+  </Wrapper>
+</Relationships>
+XML);
+        $zip->addFromString('ppt/presentation.xml', '<?xml version="1.0"?><p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"/>');
+        $zip->close();
+
+        try {
+            $bytes = file_get_contents($path);
+            if (!is_string($bytes)) {
+                throw new RuntimeException('Unable to read temporary PPTX package');
+            }
+        } finally {
+            @unlink($path);
+        }
+
+        try {
+            (new PptxReader())->read($bytes);
+        } catch (RuntimeException $exception) {
+            $t->same('No presentation.xml relationship found. Found 1 relationships.', $exception->getMessage());
+
+            return;
+        }
+
+        throw new RuntimeException('Expected nested root officeDocument relationships to be ignored like upstream');
+    },
+
     'rejects pptx packages without root relationships like upstream' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-no-root-rels-');
         if ($path === false) {
