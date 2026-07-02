@@ -752,7 +752,7 @@ XML);
       <p:nvGraphicFramePr><p:cNvPr id="4" name="Empty Cell Table"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
       <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl>
         <a:tblPr/>
-        <a:tr><a:tc><a:txBody><a:p/></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Filled</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
+        <a:tr><a:tc/><a:tc><a:txBody><a:p><a:r><a:t>Filled</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
       </a:tbl></a:graphicData></a:graphic>
     </p:graphicFrame>
   </p:spTree></p:cSld>
@@ -6913,6 +6913,7 @@ return [
             static fn (AstNode $paragraph): bool => $paragraph->attr('text') === ''
         ));
         $emptyCell = $tables[0]->children[0]->children[0]->children[0] ?? null;
+        $filledCell = $tables[0]->children[0]->children[0]->children[1] ?? null;
         $emptyParagraphInline = $emptyParagraphs[0]->children[0] ?? null;
         $emptyCellInline = $emptyCell instanceof AstNode ? ($emptyCell->children[0]->children[0] ?? null) : null;
 
@@ -6923,6 +6924,7 @@ return [
         $t->same('', $emptyCell instanceof AstNode ? $emptyCell->attr('text') : null);
         $t->same('text', $emptyCellInline instanceof AstNode ? $emptyCellInline->type : null);
         $t->same('', $emptyCellInline instanceof AstNode ? $emptyCellInline->attr('text') : null);
+        $t->same('Filled', $filledCell instanceof AstNode ? $filledCell->attr('text') : null);
         $t->contains('Para [  ]', $native);
         $t->contains('[ Plain [  ]', $native);
         $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
