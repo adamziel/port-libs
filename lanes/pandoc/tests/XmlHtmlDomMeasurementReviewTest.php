@@ -14,6 +14,7 @@ return [
                 . '<progress id="overflow-progress" value="9" max="4">Over</progress>'
                 . '<progress id="invalid-progress" value="soon" max="0">Pending</progress>'
                 . '<label>Quality <meter id="quality" value="0.82" min="0" max="1" low="0.4" high="0.9" optimum="0.95">82%</meter></label>'
+                . '<meter id="balanced-meter" value="0.6" min="0" max="1" low="0.25" high="0.75" optimum="0.5">Balanced</meter>'
                 . '<meter id="bad-meter" value="12" min="10" max="2" low="11" high="9" optimum="oops">Bad</meter>'
                 . '<meter id="invalid-meter" value="NaN" min="-1" max="1">Invalid</meter>',
             'progress meter measurement review fragment'
@@ -31,8 +32,9 @@ return [
         $invalidProgress = $summary[3];
         $qualityLabel = $summary[4];
         $quality = $summary[4]['children'][1];
-        $badMeter = $summary[5];
-        $invalidMeter = $summary[6];
+        $balancedMeter = $summary[5];
+        $badMeter = $summary[6];
+        $invalidMeter = $summary[7];
 
         $t->same('html-progress-measurement-review', $goodProgress['progressReviewPolicy']);
         $t->same('3', $goodProgress['progressValueRaw']);
@@ -84,13 +86,26 @@ return [
         $t->same(0.4, $quality['low']);
         $t->same(0.9, $quality['high']);
         $t->same(0.95, $quality['optimum']);
+        $t->same(0.82, $quality['meterPosition']);
+        $t->same('middle', $quality['meterValueRegion']);
+        $t->same('high', $quality['meterOptimumRegion']);
+        $t->same(false, $quality['meterValueMatchesOptimumRegion']);
         $t->same(true, $quality['meterValueValid']);
         $t->same(true, $quality['meterRangeValid']);
         $t->same(true, $quality['meterThresholdsValid']);
         $t->same([], $quality['meterIssueCodes']);
         $t->same(true, $quality['meterValid']);
         $t->same(true, $qualityLabel['labeledControl']['meterValid']);
+        $t->same('middle', $qualityLabel['labeledControl']['meterValueRegion']);
         $t->same($qualityLabel['labeledControl'], $qualityLabel['nestedControls'][0]);
+
+        $t->same('0.6', $balancedMeter['meterValueRaw']);
+        $t->same(0.6, $balancedMeter['meterPosition']);
+        $t->same('middle', $balancedMeter['meterValueRegion']);
+        $t->same('middle', $balancedMeter['meterOptimumRegion']);
+        $t->same(true, $balancedMeter['meterValueMatchesOptimumRegion']);
+        $t->same([], $balancedMeter['meterIssueCodes']);
+        $t->same(true, $balancedMeter['meterValid']);
 
         $t->same('html-meter-measurement-review', $badMeter['meterReviewPolicy']);
         $t->same('12', $badMeter['meterValueRaw']);
@@ -103,6 +118,10 @@ return [
         $t->same(true, $badMeter['meterValueClamped']);
         $t->same(false, $badMeter['meterRangeValid']);
         $t->same(false, $badMeter['meterThresholdsValid']);
+        $t->same(null, $badMeter['meterPosition']);
+        $t->same(null, $badMeter['meterValueRegion']);
+        $t->same(null, $badMeter['meterOptimumRegion']);
+        $t->same(null, $badMeter['meterValueMatchesOptimumRegion']);
         $t->same([
             'meter-min-exceeds-max',
             'meter-value-overflow',
@@ -123,6 +142,10 @@ return [
         $t->same(false, $invalidMeter['meterValueValid']);
         $t->same(true, $invalidMeter['meterRangeValid']);
         $t->same(true, $invalidMeter['meterThresholdsValid']);
+        $t->same(null, $invalidMeter['meterPosition']);
+        $t->same(null, $invalidMeter['meterValueRegion']);
+        $t->same(null, $invalidMeter['meterOptimumRegion']);
+        $t->same(null, $invalidMeter['meterValueMatchesOptimumRegion']);
         $t->same(['invalid-meter-value'], $invalidMeter['meterIssueCodes']);
         $t->same(false, $invalidMeter['meterValid']);
 
