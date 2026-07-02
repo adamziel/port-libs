@@ -6507,14 +6507,16 @@ XML);
 <p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
                 xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
   <p:sldIdLst>
-    <p:sldId id="461" r:id="rIdSlide"/>
+    <p:sldId id="461" r:id="rIdSlide1"/>
+    <p:sldId id="462" r:id="rIdSlide2"/>
   </p:sldIdLst>
 </p:presentation>
 XML);
     $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+  <Relationship Id="rIdSlide1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+  <Relationship Id="rIdSlide2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide2.xml"/>
 </Relationships>
 XML);
     $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
@@ -6527,6 +6529,16 @@ XML);
       <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Outside shape tree title</a:t></a:r></a:p></p:txBody>
     </p:sp>
   </p:cSld>
+</p:sld>
+XML);
+    $zip->addFromString('ppt/slides/slide2.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <p:sp>
+    <p:nvSpPr><p:cNvPr id="2" name="Outside Common Slide Data"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+    <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Outside common slide data title</a:t></a:r></a:p></p:txBody>
+  </p:sp>
 </p:sld>
 XML);
     $zip->close();
@@ -10095,19 +10107,24 @@ return [
         $t->true(!str_contains($native, 'Unreferenced slide body'), 'Unreferenced slide parts should not become visible without p:sldIdLst entries');
     },
 
-    'uses fallback pptx slide headers when shape trees are missing like upstream' => static function (TestRunner $t) use ($buildMissingShapeTreePptxPackage, $nodesOfType): void {
+    'uses fallback pptx slide headers when common slide data or shape trees are missing like upstream' => static function (TestRunner $t) use ($buildMissingShapeTreePptxPackage, $nodesOfType): void {
         $document = (new PptxReader())->read($buildMissingShapeTreePptxPackage());
         $review = $document->attr('pptx');
         $headings = $nodesOfType($document, 'heading');
+        $headingTexts = array_map(static fn (AstNode $heading): string => (string) $heading->attr('text'), $headings);
         $native = PandocConverter::write($document, 'native');
 
-        $t->same(1, $review['slideCount'] ?? null);
+        $t->same(2, $review['slideCount'] ?? null);
         $t->same(1, $review['slides'][0]['blockCount'] ?? null);
+        $t->same(1, $review['slides'][1]['blockCount'] ?? null);
         $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
-        $t->same('Slide 1', $headings[0]->attr('text'));
+        $t->same(0, $review['slides'][1]['shapeIssueCount'] ?? null);
+        $t->same(['Slide 1', 'Slide 2'], $headingTexts);
         $t->same([], $nodesOfType($document, 'paragraph'));
         $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Slide" , Space , Str "1" ]', $native);
+        $t->contains('Header 2 ( "slide-2" , [  ] , [  ] ) [ Str "Slide" , Space , Str "2" ]', $native);
         $t->true(!str_contains($native, 'Outside shape tree title'), 'Shapes outside p:spTree should not become slide titles or body content');
+        $t->true(!str_contains($native, 'Outside common slide data title'), 'Shapes outside p:cSld should not become slide titles or body content');
     },
 
     'falls back to zero for invalid pptx slide sizes like upstream' => static function (TestRunner $t) use ($buildInvalidSlideSizePptxPackage): void {
