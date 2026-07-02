@@ -105,6 +105,14 @@ XML;
             'office:document-styles',
             'review:packet',
         ];
+        $expectedRootLocalNames = [
+            'document-content',
+            'document-meta',
+            'document-styles',
+            'manifest',
+            'packet',
+            'state',
+        ];
 
         foreach (['compact' => $compact, 'rich' => $rich] as $label => $inventory) {
             $parts = $inventory['parts'];
@@ -120,6 +128,23 @@ XML;
             $t->same(7, $inventory['packagePartXmlRootElementPartCount'], "{$label} root part count");
             $t->same($expectedPartNames, $inventory['packagePartXmlRootElementPartNames'], "{$label} root part names");
             $t->same($expectedRootNames, $inventory['packagePartXmlRootElementNames'], "{$label} root names");
+            $t->same($expectedRootLocalNames, $inventory['packagePartXmlRootElementLocalNames'], "{$label} root local names");
+            $t->same([
+                'document-content' => 1,
+                'document-meta' => 1,
+                'document-styles' => 1,
+                'manifest' => 1,
+                'packet' => 2,
+                'state' => 1,
+            ], $inventory['packagePartXmlRootElementLocalNameCounts'], "{$label} root local name counts");
+            $t->same(7, $inventory['packagePartXmlRootElementPrefixedCount'], "{$label} root prefixed count");
+            $t->same([
+                'audit' => 1,
+                'loose' => 1,
+                'manifest' => 1,
+                'office' => 3,
+                'review' => 1,
+            ], $inventory['packagePartXmlRootElementPrefixCounts'], "{$label} root prefix counts");
             $t->same(false, $inventory['packagePartXmlRootElementsTruncated'], "{$label} root summary not truncated");
             $t->same(3, $inventory['packagePartXmlRootElementNamespaceUriCounts']['urn:oasis:names:tc:opendocument:xmlns:office:1.0'], "{$label} office root namespace count");
             $t->same(1, $inventory['packagePartXmlRootElementNamespaceUriCounts']['urn:odf-root-review'], "{$label} review root namespace count");

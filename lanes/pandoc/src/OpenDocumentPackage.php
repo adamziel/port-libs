@@ -1211,6 +1211,10 @@ final class OpenDocumentPackage
             'partCount' => 0,
             'rootNames' => [],
             'rootNameCounts' => [],
+            'rootLocalNames' => [],
+            'rootLocalNameCounts' => [],
+            'rootPrefixedCount' => 0,
+            'rootPrefixCounts' => [],
             'namespaceUris' => [],
             'namespaceUriCounts' => [],
             'partNames' => [],
@@ -1825,6 +1829,10 @@ final class OpenDocumentPackage
             'packagePartXmlRootElementPartCount' => $packagePartXmlRootElements['partCount'],
             'packagePartXmlRootElementNames' => $packagePartXmlRootElements['rootNames'],
             'packagePartXmlRootElementNameCounts' => $packagePartXmlRootElements['rootNameCounts'],
+            'packagePartXmlRootElementLocalNames' => $packagePartXmlRootElements['rootLocalNames'],
+            'packagePartXmlRootElementLocalNameCounts' => $packagePartXmlRootElements['rootLocalNameCounts'],
+            'packagePartXmlRootElementPrefixedCount' => $packagePartXmlRootElements['rootPrefixedCount'],
+            'packagePartXmlRootElementPrefixCounts' => $packagePartXmlRootElements['rootPrefixCounts'],
             'packagePartXmlRootElementNamespaceUris' => $packagePartXmlRootElements['namespaceUris'],
             'packagePartXmlRootElementNamespaceUriCounts' => $packagePartXmlRootElements['namespaceUriCounts'],
             'packagePartXmlRootElementPartNames' => $packagePartXmlRootElements['partNames'],
@@ -2096,7 +2104,7 @@ final class OpenDocumentPackage
     }
 
     /**
-     * @param array{partCount:int, rootNames:list<string>, rootNameCounts:array<string, int>, namespaceUris:list<string>, namespaceUriCounts:array<string, int>, partNames:list<string>, roots:list<array<string, mixed>>, truncated:bool} $summary
+     * @param array{partCount:int, rootNames:list<string>, rootNameCounts:array<string, int>, rootLocalNames:list<string>, rootLocalNameCounts:array<string, int>, rootPrefixedCount:int, rootPrefixCounts:array<string, int>, namespaceUris:list<string>, namespaceUriCounts:array<string, int>, partNames:list<string>, roots:list<array<string, mixed>>, truncated:bool} $summary
      * @param array{hasRootElement:bool, name:?string, localName:?string, prefix:?string, namespaceUri:?string, path:?string, attributeCount:int, attributeNames:list<string>, namespaceDeclarationCount:int, namespaceDeclarationNames:list<string>} $metadata
      */
     private static function recordPackagePartXmlRootElementSummary(array &$summary, string $partName, array $metadata): void
@@ -2114,6 +2122,18 @@ final class OpenDocumentPackage
                 $summary['rootNames'][] = $name;
             }
         }
+        $localName = $metadata['localName'] ?? null;
+        if (is_string($localName) && $localName !== '') {
+            $summary['rootLocalNameCounts'][$localName] = ($summary['rootLocalNameCounts'][$localName] ?? 0) + 1;
+            if (!in_array($localName, $summary['rootLocalNames'], true)) {
+                $summary['rootLocalNames'][] = $localName;
+            }
+        }
+        $prefix = $metadata['prefix'] ?? null;
+        if (is_string($prefix) && $prefix !== '') {
+            ++$summary['rootPrefixedCount'];
+            $summary['rootPrefixCounts'][$prefix] = ($summary['rootPrefixCounts'][$prefix] ?? 0) + 1;
+        }
         $namespaceUri = $metadata['namespaceUri'] ?? null;
         if (is_string($namespaceUri) && $namespaceUri !== '') {
             $summary['namespaceUriCounts'][$namespaceUri] = ($summary['namespaceUriCounts'][$namespaceUri] ?? 0) + 1;
@@ -2130,8 +2150,11 @@ final class OpenDocumentPackage
 
         sort($summary['partNames'], SORT_STRING);
         sort($summary['rootNames'], SORT_STRING);
+        sort($summary['rootLocalNames'], SORT_STRING);
         sort($summary['namespaceUris'], SORT_STRING);
         ksort($summary['rootNameCounts'], SORT_STRING);
+        ksort($summary['rootLocalNameCounts'], SORT_STRING);
+        ksort($summary['rootPrefixCounts'], SORT_STRING);
         ksort($summary['namespaceUriCounts'], SORT_STRING);
     }
 
