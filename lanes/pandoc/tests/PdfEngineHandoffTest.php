@@ -10942,15 +10942,73 @@ MARKDOWN);
                 'presStepsNext' => ['8 0 R', '9 0 R'],
             ],
         ];
+        $expectedPolicy = [
+            'reviewStatus' => 'review',
+            'pageCount' => 2,
+            'metadataPageCount' => 2,
+            'pagesWithProduction' => [1, 2],
+            'boxColorInfoCount' => 4,
+            'boxNames' => [
+                'ArtBox' => 1,
+                'BleedBox' => 1,
+                'CropBox' => 1,
+                'TrimBox' => 1,
+            ],
+            'boxStyles' => [
+                'D' => 2,
+                'S' => 2,
+            ],
+            'boxMissingColorCount' => 0,
+            'boxMissingWidthCount' => 0,
+            'boxMissingStyleCount' => 0,
+            'separationInfoCount' => 1,
+            'separationPageCount' => 2,
+            'missingSeparationPageCount' => 0,
+            'deviceColorantCount' => 1,
+            'deviceColorants' => [
+                'PANTONE 123 C' => 1,
+            ],
+            'separationColorSpaces' => [
+                'DeviceCMYK' => 1,
+            ],
+            'missingDeviceColorantCount' => 0,
+            'missingSeparationColorSpaceCount' => 0,
+            'presentationStepsCount' => 2,
+            'presentationStepsNextCount' => 3,
+            'presentationStepSubtypes' => [
+                'NA' => 1,
+                'Render' => 1,
+            ],
+            'issues' => [
+                'page-production-box-color-info',
+                'page-production-presentation-step-chain',
+                'page-production-presentation-steps',
+                'page-production-separation-info',
+            ],
+        ];
 
         $t->same(true, $result['ok']);
         $t->same($expected, $result['pdfPageProductionMetadata'] ?? null);
+        $t->same($expectedPolicy, $result['pdfPageProductionPolicy'] ?? null);
         $t->contains('pdf-byte-page-production-metadata:2', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-page-box-color-info:4', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-page-separation-info:1', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-page-presentation-steps:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-production-policy:review', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-production-policy-metadata-pages:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-production-policy-box-color-info:4', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-production-policy-separation-info:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-production-policy-presentation-steps:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-production-policy-presentation-next:3', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-production-policy-box:ArtBox:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-production-policy-box-style:D:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-production-policy-separation-color-space:DeviceCMYK:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-production-policy-presentation-step:Render:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-production-policy-issues:4', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-production-policy-issue:page-production-separation-info:1', implode(',', $result['diagnostics']));
         $t->same(true, $sequence['ok']);
         $t->same($expected, $sequence['finalPdfPageProductionMetadata'] ?? null);
+        $t->same($expectedPolicy, $sequence['finalPdfPageProductionPolicy'] ?? null);
     },
 
     'fake runner extracts bounded pdf page display metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
