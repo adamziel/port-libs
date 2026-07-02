@@ -3632,11 +3632,20 @@ final class PptxReader
     private function relationshipAttributeForPrefix(\DOMElement $element, string $prefix, string $localName, ?string $outerNamespace): ?string
     {
         $namespace = $outerNamespace ?? $this->localNamespaceForPrefix($element, $prefix);
-        if ($namespace === null || !$element->hasAttributeNS($namespace, $localName)) {
+        if ($namespace === null) {
             return null;
         }
 
-        return $element->getAttributeNS($namespace, $localName);
+        foreach ($element->attributes ?? [] as $attribute) {
+            if (!$attribute instanceof \DOMAttr) {
+                continue;
+            }
+            if ($attribute->localName === $localName && $attribute->prefix === $prefix && $attribute->namespaceURI === $namespace) {
+                return $attribute->value;
+            }
+        }
+
+        return null;
     }
 
     private function localNamespaceForPrefix(\DOMElement $element, string $prefix): ?string
