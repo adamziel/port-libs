@@ -3407,6 +3407,7 @@ XML);
       <p:nvSpPr><p:cNvPr id="3" name="BuNone symbol body"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
       <p:txBody><a:bodyPr/><a:lstStyle/>
         <a:p><a:pPr><a:buNone/></a:pPr><a:r><a:rPr><a:sym typeface="Wingdings"/></a:rPr><a:t>Wingdings still wins</a:t></a:r></a:p>
+        <a:p><a:pPr><a:buNone/><a:buChar char="&#8226;"/></a:pPr><a:r><a:t>Explicit bullet still wins</a:t></a:r></a:p>
         <a:p><a:pPr><a:buNone/></a:pPr><a:r><a:t>Plain buNone stays plain</a:t></a:r></a:p>
       </p:txBody>
     </p:sp>
@@ -10610,18 +10611,21 @@ return [
         $t->contains('Plain [ Str "NotWingdings" , Space , Str "substring" , Space , Str "bullet" ]', $native);
     },
 
-    'lets pptx Wingdings run symbols override buNone like upstream' => static function (TestRunner $t) use ($buildBuNoneWingdingsSymbolPptxPackage, $nodesOfType): void {
+    'lets pptx Wingdings and explicit bullet markers override buNone like upstream' => static function (TestRunner $t) use ($buildBuNoneWingdingsSymbolPptxPackage, $nodesOfType): void {
         $document = (new PptxReader())->read($buildBuNoneWingdingsSymbolPptxPackage());
         $bulletLists = $nodesOfType($document, 'bullet_list');
         $paragraphs = $nodesOfType($document, 'paragraph');
         $native = PandocConverter::write($document, 'native');
         $texts = array_map(static fn (AstNode $paragraph): string => (string) $paragraph->attr('text'), $paragraphs);
         $firstItem = $bulletLists[0]->children[0]->children[0]->children[0] ?? null;
+        $secondItem = $bulletLists[0]->children[1]->children[0]->children[0] ?? null;
 
         $t->same(1, count($bulletLists));
         $t->same('Wingdings still wins', $firstItem instanceof AstNode ? $firstItem->attr('text') : null);
+        $t->same('Explicit bullet still wins', $secondItem instanceof AstNode ? $secondItem->attr('text') : null);
         $t->same(true, in_array('Plain buNone stays plain', $texts, true));
         $t->contains('BulletList [ [ Plain [ Str "Wingdings" , Space , Str "still" , Space , Str "wins"', $native);
+        $t->contains('Plain [ Str "Explicit" , Space , Str "bullet" , Space , Str "still" , Space , Str "wins" ]', $native);
         $t->contains('Para [ Str "Plain" , Space , Str "buNone" , Space , Str "stays" , Space , Str "plain" ]', $native);
     },
 
