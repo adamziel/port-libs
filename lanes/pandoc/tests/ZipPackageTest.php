@@ -1411,6 +1411,10 @@ return [
             'pathSegmentPositionCounts' => $manifest['pathSegmentPositionCounts'],
             'pathSegmentPositionEntryCounts' => $manifest['pathSegmentPositionEntryCounts'],
             'pathSegmentPositionSummaries' => $manifest['pathSegmentPositionSummaries'],
+            'directoryDepthSummaryCount' => $manifest['directoryDepthSummaryCount'],
+            'directoryDepths' => $manifest['directoryDepths'],
+            'directoryDepthEntryCounts' => $manifest['directoryDepthEntryCounts'],
+            'directoryDepthSummaries' => $manifest['directoryDepthSummaries'],
             'entries' => $expectedEntries,
         ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
 
@@ -1985,6 +1989,120 @@ return [
         $t->same($manifest['nameLengthBucketSummaries'], $strict['packageManifest']['nameLengthBucketSummaries']);
         $t->same($manifest['nameLengthBucketSummaries'], $raw['packageManifest']['nameLengthBucketSummaries']);
         $t->same($manifest['nameLengthBucketSummaries'], $raw['strictImport']['packageManifest']['nameLengthBucketSummaries']);
+    },
+
+    'summarizes zip package manifest directory depth buckets for shared package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $mimetype = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+        $documentXml = '<w:document><w:body><w:p>depth buckets</w:p></w:body></w:document>';
+        $relsXml = '<Relationships><Relationship Id="rIdImage" Target="media/deep/image.png"/></Relationships>';
+        $customXml = '<item>depth</item>';
+        $imageBytes = "image depth bytes\n";
+
+        $zip = $buildZipPackage([
+            ['name' => 'mimetype', 'data' => $mimetype, 'method' => 0],
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 0],
+            ['name' => 'word/media/', 'data' => '', 'method' => 0],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $relsXml, 'method' => 0],
+            ['name' => 'word/media/deep/', 'data' => '', 'method' => 0],
+            ['name' => 'word/media/deep/image.png', 'data' => $imageBytes, 'method' => 0],
+            ['name' => 'customXml/item1.xml', 'data' => $customXml, 'method' => 0],
+        ]);
+        $package = ZipPackage::fromString($zip);
+        $manifest = $package->packageManifestPreflight();
+        $strict = $package->strictImportPreflight(4096, 100.0, 4096);
+        $raw = ZipPackage::rawStrictImportPreflight($zip, 4096, 100.0, 4096);
+
+        $entriesByName = array_column($manifest['entries'], null, 'name');
+        $sumEntryField = static function (array $names, string $field) use ($entriesByName): int {
+            $total = 0;
+            foreach ($names as $name) {
+                $total += (int) $entriesByName[$name][$field];
+            }
+
+            return $total;
+        };
+        $depths = [];
+        foreach ($manifest['directoryDepthSummaries'] as $summary) {
+            $depths[$summary['directoryDepth']] = $summary;
+        }
+
+        $t->same(4, $manifest['directoryDepthSummaryCount']);
+        $t->same([0, 1, 2, 3], $manifest['directoryDepths']);
+        $t->same([1, 3, 2, 1], $manifest['directoryDepthEntryCounts']);
+
+        $t->same([
+            'directoryDepth' => 0,
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($mimetype),
+            'uncompressedBytes' => strlen($mimetype),
+            'localRecordBytes' => $entriesByName['mimetype']['localRecordBytes'],
+            'sourceRecordBytes' => $entriesByName['mimetype']['sourceRecordBytes'],
+            'dataDescriptorEntryCount' => 0,
+            'dataDescriptorBytes' => 0,
+            'directoryRootCounts' => ['/' => 1],
+            'packagePartExtensionCounts' => ['(none)' => 1],
+            'compressionMethodCounts' => ['0' => 1],
+            'entryNames' => ['mimetype'],
+        ], $depths[0]);
+
+        $depthOneNames = ['customXml/item1.xml', 'word/document.xml', 'word/media/'];
+        $t->same([
+            'directoryDepth' => 1,
+            'entryCount' => 3,
+            'fileEntryCount' => 2,
+            'directoryEntryCount' => 1,
+            'compressedBytes' => strlen($customXml) + strlen($documentXml),
+            'uncompressedBytes' => strlen($customXml) + strlen($documentXml),
+            'localRecordBytes' => $sumEntryField($depthOneNames, 'localRecordBytes'),
+            'sourceRecordBytes' => $sumEntryField($depthOneNames, 'sourceRecordBytes'),
+            'dataDescriptorEntryCount' => 0,
+            'dataDescriptorBytes' => 0,
+            'directoryRootCounts' => ['customXml/' => 1, 'word/' => 2],
+            'packagePartExtensionCounts' => ['(directory)' => 1, 'xml' => 2],
+            'compressionMethodCounts' => ['0' => 3],
+            'entryNames' => $depthOneNames,
+        ], $depths[1]);
+
+        $depthTwoNames = ['word/_rels/document.xml.rels', 'word/media/deep/'];
+        $t->same([
+            'directoryDepth' => 2,
+            'entryCount' => 2,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 1,
+            'compressedBytes' => strlen($relsXml),
+            'uncompressedBytes' => strlen($relsXml),
+            'localRecordBytes' => $sumEntryField($depthTwoNames, 'localRecordBytes'),
+            'sourceRecordBytes' => $sumEntryField($depthTwoNames, 'sourceRecordBytes'),
+            'dataDescriptorEntryCount' => 0,
+            'dataDescriptorBytes' => 0,
+            'directoryRootCounts' => ['word/' => 2],
+            'packagePartExtensionCounts' => ['(directory)' => 1, 'rels' => 1],
+            'compressionMethodCounts' => ['0' => 2],
+            'entryNames' => $depthTwoNames,
+        ], $depths[2]);
+
+        $t->same([
+            'directoryDepth' => 3,
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($imageBytes),
+            'uncompressedBytes' => strlen($imageBytes),
+            'localRecordBytes' => $entriesByName['word/media/deep/image.png']['localRecordBytes'],
+            'sourceRecordBytes' => $entriesByName['word/media/deep/image.png']['sourceRecordBytes'],
+            'dataDescriptorEntryCount' => 0,
+            'dataDescriptorBytes' => 0,
+            'directoryRootCounts' => ['word/' => 1],
+            'packagePartExtensionCounts' => ['png' => 1],
+            'compressionMethodCounts' => ['0' => 1],
+            'entryNames' => ['word/media/deep/image.png'],
+        ], $depths[3]);
+
+        $t->same($manifest['directoryDepthSummaries'], $strict['packageManifest']['directoryDepthSummaries']);
+        $t->same($manifest['directoryDepthSummaries'], $raw['packageManifest']['directoryDepthSummaries']);
+        $t->same($manifest['directoryDepthSummaries'], $raw['strictImport']['packageManifest']['directoryDepthSummaries']);
     },
 
     'preflights zip package manifest path segment positions for shared package handoff' => static function (TestRunner $t) use ($buildZipPackage, $pathSegmentPositionReviews): void {
@@ -3462,6 +3580,10 @@ return [
             'pathSegmentPositionCounts' => $manifest['pathSegmentPositionCounts'],
             'pathSegmentPositionEntryCounts' => $manifest['pathSegmentPositionEntryCounts'],
             'pathSegmentPositionSummaries' => $manifest['pathSegmentPositionSummaries'],
+            'directoryDepthSummaryCount' => $manifest['directoryDepthSummaryCount'],
+            'directoryDepths' => $manifest['directoryDepths'],
+            'directoryDepthEntryCounts' => $manifest['directoryDepthEntryCounts'],
+            'directoryDepthSummaries' => $manifest['directoryDepthSummaries'],
             'entries' => $expectedManifestEntries,
         ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
 
