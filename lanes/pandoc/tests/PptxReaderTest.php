@@ -6634,6 +6634,46 @@ XML);
     }
 };
 
+$buildNestedSlideSizePptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-nested-slide-size-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+  <p:extLst>
+    <p:sldSz cx="12192000" cy="6858000"/>
+  </p:extLst>
+</p:presentation>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildNestedPresentationSlideIdPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-nested-sldid-');
     if ($path === false) {
@@ -10353,6 +10393,23 @@ return [
         $t->same(6858000, $review['slideSize']['cy'] ?? null);
         $t->same([], $review['tableStyles'] ?? null);
         $t->true(!str_contains($native, 'Unreferenced slide body'), 'Unreferenced slide parts should not become visible without p:sldIdLst entries');
+    },
+
+    'ignores nested pptx presentation slide sizes like upstream' => static function (TestRunner $t) use ($buildNestedSlideSizePptxPackage): void {
+        $document = (new PptxReader())->read($buildNestedSlideSizePptxPackage());
+        $review = $document->attr('pptx');
+
+        $t->same(0, $review['slideCount'] ?? null);
+        $t->same([], $review['slides'] ?? null);
+        $t->same([], $document->children);
+        $t->same([
+            'cx' => 9144000,
+            'cy' => 6858000,
+            'width' => 10,
+            'height' => 7,
+            'emusPerInch' => 914400,
+            'source' => 'default',
+        ], $review['slideSize'] ?? null);
     },
 
     'ignores nested pptx presentation slide ids like upstream' => static function (TestRunner $t) use ($buildNestedPresentationSlideIdPptxPackage): void {
