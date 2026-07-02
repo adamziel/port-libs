@@ -863,6 +863,20 @@ final class CitationCslProcessor
             $parts[] = 'Original series ' . $this->style->term('number', 'short') . ' ' . $originalCollectionNumber . '.';
         }
 
+        foreach ([
+            'originalVolume' => 'Original volume',
+            'originalNumberOfVolumes' => 'Original number of volumes',
+            'originalNumber' => 'Original number',
+            'originalPage' => 'Original pages',
+            'originalPagination' => 'Original pagination',
+            'originalNumberOfPages' => 'Original number of pages',
+        ] as $field => $label) {
+            $value = (string) ($item[$field] ?? '');
+            if ($value !== '') {
+                $parts[] = $label . ': ' . $value . '.';
+            }
+        }
+
         $originalDate = $item['originalDate'] ?? null;
         if (is_array($originalDate) && (string) ($originalDate['display'] ?? '') !== '') {
             $parts[] = 'Original work published ' . (string) $originalDate['display'] . '.';
@@ -1172,6 +1186,12 @@ final class CitationCslProcessor
         $originalPublisherPlace = self::firstStringField($item, ['original-publisher-place', 'originalPublisherPlace', 'originalpublisherplace', 'origlocation', 'origLocation', 'origaddress', 'origAddress']);
         $originalCollectionTitle = self::firstStringField($item, ['original-collection-title', 'originalCollectionTitle', 'originalcollectiontitle', 'origseries', 'origSeries', 'orig-series', 'original-series', 'originalSeries', 'originalseries']);
         $originalCollectionNumber = self::firstStringField($item, ['original-collection-number', 'originalCollectionNumber', 'originalcollectionnumber', 'origseriesnumber', 'origSeriesNumber', 'orig-series-number', 'original-series-number', 'originalSeriesNumber', 'originalseriesnumber']);
+        $originalVolume = self::firstStringField($item, ['original-volume', 'originalVolume', 'originalvolume', 'origvolume', 'origVolume', 'orig-volume']);
+        $originalNumberOfVolumes = self::firstStringField($item, ['original-number-of-volumes', 'originalNumberOfVolumes', 'originalnumberofvolumes', 'original-volumes', 'originalVolumes', 'originalvolumes', 'origvolumes', 'origVolumes', 'orig-volumes']);
+        $originalNumber = self::firstStringField($item, ['original-number', 'originalNumber', 'originalnumber', 'orignumber', 'origNumber', 'orig-number']);
+        $originalPage = str_replace('--', '-', self::firstStringField($item, ['original-page', 'originalPage', 'originalpage', 'original-pages', 'originalPages', 'originalpages', 'origpage', 'origPage', 'orig-page', 'origpages', 'origPages', 'orig-pages']));
+        $originalPagination = self::firstStringField($item, ['original-pagination', 'originalPagination', 'originalpagination', 'origpagination', 'origPagination', 'orig-pagination']);
+        $originalNumberOfPages = self::firstStringField($item, ['original-number-of-pages', 'originalNumberOfPages', 'originalnumberofpages', 'original-page-total', 'originalPageTotal', 'originalpagetotal', 'originalnumpages', 'originalNumPages', 'original-numpages', 'origpagetotal', 'origPageTotal', 'orig-pagetotal', 'origpage-total', 'orignumpages', 'origNumPages', 'orig-numpages']);
         $originalEdition = self::firstStringField($item, ['original-edition', 'originalEdition', 'originaledition', 'origedition', 'origEdition', 'orig-edition']);
         $originalIsbn = self::firstStringField($item, ['original-isbn', 'originalISBN', 'originalIsbn', 'originalisbn', 'original-ISBN', 'origisbn', 'origIsbn', 'origISBN', 'orig-isbn']);
         $originalIssn = self::firstStringField($item, ['original-issn', 'originalISSN', 'originalIssn', 'originalissn', 'original-ISSN', 'origissn', 'origIssn', 'origISSN', 'orig-issn']);
@@ -1698,6 +1718,12 @@ final class CitationCslProcessor
             'originalUrl' => $originalUrl,
             'originalCollectionTitle' => $originalCollectionTitle,
             'originalCollectionNumber' => $originalCollectionNumber,
+            'originalVolume' => $originalVolume,
+            'originalNumberOfVolumes' => $originalNumberOfVolumes,
+            'originalNumber' => $originalNumber,
+            'originalPage' => $originalPage,
+            'originalPagination' => $originalPagination,
+            'originalNumberOfPages' => $originalNumberOfPages,
             'originalDate' => $originalDate,
             'originalDateAddon' => self::firstStringField($item, ['original-date-addon', 'originalDateAddon', 'origdateaddon', 'origDateAddon', 'orig-date-addon']),
             'reprintDate' => $reprintDate,
@@ -6919,6 +6945,12 @@ final class CitationCslProcessor
             'collection-title', 'collectiontitle', 'collection', 'collection-title-text', 'collectiontitletext', 'series', 'series-title', 'seriestitle', 'series-title-text', 'seriestitletext' => $this->normalizeSortText((string) ($item['collectionTitle'] ?? '')),
             'collection-title-short', 'collectiontitleshort', 'shortseries', 'short-series', 'shortcollection', 'short-collection', 'series-short', 'seriesshort', 'series-title-short', 'seriestitleshort' => $this->normalizeSortText((string) ($item['collectionTitleShort'] ?? '')),
             'original-collection-title', 'originalcollectiontitle', 'origseries', 'orig-series', 'original-series', 'originalseries' => $this->normalizeSortText((string) ($item['originalCollectionTitle'] ?? '')),
+            'original-volume', 'originalvolume', 'origvolume', 'orig-volume' => $this->normalizeSortText((string) ($item['originalVolume'] ?? '')),
+            'original-number-of-volumes', 'originalnumberofvolumes', 'original-volumes', 'originalvolumes', 'origvolumes', 'orig-volumes' => $this->normalizeSortText((string) ($item['originalNumberOfVolumes'] ?? '')),
+            'original-number', 'originalnumber', 'orignumber', 'orig-number' => $this->normalizeSortText((string) ($item['originalNumber'] ?? '')),
+            'original-page', 'originalpage', 'original-pages', 'originalpages', 'origpage', 'orig-page', 'origpages', 'orig-pages' => $this->normalizeSortText((string) ($item['originalPage'] ?? '')),
+            'original-pagination', 'originalpagination', 'origpagination', 'orig-pagination' => $this->normalizeSortText((string) ($item['originalPagination'] ?? '')),
+            'original-number-of-pages', 'originalnumberofpages', 'original-page-total', 'originalpagetotal', 'original-numpages', 'originalnumpages', 'origpagetotal', 'orig-pagetotal', 'origpage-total', 'orignumpages', 'orig-numpages' => $this->normalizeSortText((string) ($item['originalNumberOfPages'] ?? '')),
             'main-title', 'maintitle', 'main-title-text', 'maintitletext' => $this->normalizeSortText((string) ($item['mainTitle'] ?? '')),
             'main-title-addon', 'maintitleaddon' => $this->normalizeSortText((string) ($item['mainTitleAddon'] ?? '')),
             'volume-title', 'volumetitle', 'volume-title-text', 'volumetitletext' => $this->normalizeSortText((string) ($item['volumeTitle'] ?? '')),
@@ -10779,6 +10811,11 @@ final class CitationCslProcessor
             'article-number' => 'article-locator',
             'collection-number', 'series-number', 'seriesnumber' => 'number',
             'original-collection-number', 'originalcollectionnumber', 'origseriesnumber', 'orig-series-number', 'original-series-number', 'originalseriesnumber' => 'number',
+            'original-volume', 'originalvolume', 'origvolume', 'orig-volume' => 'volume',
+            'original-number-of-volumes', 'originalnumberofvolumes', 'original-volumes', 'originalvolumes', 'origvolumes', 'orig-volumes' => 'volume',
+            'original-number', 'originalnumber', 'orignumber', 'orig-number' => 'number',
+            'original-page', 'originalpage', 'original-pages', 'originalpages', 'origpage', 'orig-page', 'origpages', 'orig-pages' => 'page',
+            'original-number-of-pages', 'originalnumberofpages', 'original-page-total', 'originalpagetotal', 'original-numpages', 'originalnumpages', 'origpagetotal', 'orig-pagetotal', 'origpage-total', 'orignumpages', 'orig-numpages' => 'page',
             'issue-number', 'issuenumber' => 'issue',
             'part-number' => 'part',
             default => $variable,
@@ -11219,6 +11256,12 @@ final class CitationCslProcessor
             'original-genre', 'origtype', 'origgenre' => (string) ($item['originalGenre'] ?? ''),
             'original-collection-title', 'originalcollectiontitle', 'origseries', 'orig-series', 'original-series', 'originalseries' => (string) ($item['originalCollectionTitle'] ?? ''),
             'original-collection-number', 'originalcollectionnumber', 'origseriesnumber', 'orig-series-number', 'original-series-number', 'originalseriesnumber' => (string) ($item['originalCollectionNumber'] ?? ''),
+            'original-volume', 'originalvolume', 'origvolume', 'orig-volume' => (string) ($item['originalVolume'] ?? ''),
+            'original-number-of-volumes', 'originalnumberofvolumes', 'original-volumes', 'originalvolumes', 'origvolumes', 'orig-volumes' => (string) ($item['originalNumberOfVolumes'] ?? ''),
+            'original-number', 'originalnumber', 'orignumber', 'orig-number' => (string) ($item['originalNumber'] ?? ''),
+            'original-page', 'originalpage', 'original-pages', 'originalpages', 'origpage', 'orig-page', 'origpages', 'orig-pages' => (string) ($item['originalPage'] ?? ''),
+            'original-pagination', 'originalpagination', 'origpagination', 'orig-pagination' => (string) ($item['originalPagination'] ?? ''),
+            'original-number-of-pages', 'originalnumberofpages', 'original-page-total', 'originalpagetotal', 'original-numpages', 'originalnumpages', 'origpagetotal', 'orig-pagetotal', 'origpage-total', 'orignumpages', 'orig-numpages' => (string) ($item['originalNumberOfPages'] ?? ''),
             'container-title', 'containertitle', 'container', 'container-title-text', 'containertitletext', 'book-title', 'booktitle', 'journal-title', 'journaltitle', 'journal', 'publication-title', 'publicationtitle' => (string) $item['containerTitle'],
             'container-title-short', 'containertitleshort', 'book-title-short', 'booktitleshort', 'container-title-abbreviation', 'containertitleabbreviation' => (string) $item['containerTitleShort'],
             'journalabbreviation', 'journal-abbreviation', 'shortjournal', 'short-journal', 'shortjournaltitle', 'short-journal-title', 'journaltitleshort', 'journal-title-short' => (string) $item['journalAbbreviation'],
@@ -11525,6 +11568,39 @@ final class CitationCslProcessor
             'orig-series-number',
             'original-series-number',
             'originalseriesnumber',
+            'original-volume',
+            'originalvolume',
+            'origvolume',
+            'orig-volume',
+            'original-number-of-volumes',
+            'originalnumberofvolumes',
+            'original-volumes',
+            'originalvolumes',
+            'origvolumes',
+            'orig-volumes',
+            'original-number',
+            'originalnumber',
+            'orignumber',
+            'orig-number',
+            'original-page',
+            'originalpage',
+            'original-pages',
+            'originalpages',
+            'origpage',
+            'orig-page',
+            'origpages',
+            'orig-pages',
+            'original-number-of-pages',
+            'originalnumberofpages',
+            'original-page-total',
+            'originalpagetotal',
+            'original-numpages',
+            'originalnumpages',
+            'origpagetotal',
+            'orig-pagetotal',
+            'origpage-total',
+            'orignumpages',
+            'orig-numpages',
             'section',
             'part-number',
             'part',
@@ -11543,6 +11619,8 @@ final class CitationCslProcessor
         return match (self::pageExtentCountVariableAlias($variable)) {
             'number-of-pages' => (string) ($item['numberOfPages'] ?? ''),
             'number-of-volumes' => (string) ($item['numberOfVolumes'] ?? ''),
+            'original-number-of-pages' => (string) ($item['originalNumberOfPages'] ?? ''),
+            'original-number-of-volumes' => (string) ($item['originalNumberOfVolumes'] ?? ''),
             default => null,
         };
     }
@@ -11554,6 +11632,8 @@ final class CitationCslProcessor
         return match ($normalized) {
             'number-of-pages', 'numberofpages', 'pagetotal', 'page-total', 'num-pages', 'numpages', 'total-pages', 'totalpages' => 'number-of-pages',
             'number-of-volumes', 'numberofvolumes', 'volumes', 'volume-count', 'volumecount', 'num-volumes', 'numvolumes' => 'number-of-volumes',
+            'original-number-of-pages', 'originalnumberofpages', 'original-page-total', 'originalpagetotal', 'original-numpages', 'originalnumpages', 'origpagetotal', 'orig-pagetotal', 'origpage-total', 'orignumpages', 'orig-numpages' => 'original-number-of-pages',
+            'original-number-of-volumes', 'originalnumberofvolumes', 'original-volumes', 'originalvolumes', 'origvolumes', 'orig-volumes' => 'original-number-of-volumes',
             default => $normalized,
         };
     }
