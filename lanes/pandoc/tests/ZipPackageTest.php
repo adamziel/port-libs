@@ -1368,6 +1368,9 @@ return [
             'unknownCreatorHostSystemEntries' => [],
             'creatorVersionBelowNeededEntries' => [],
             'directoryRootSummaries' => $expectedDirectoryRootSummaries,
+            'directoryDepthSummaryCount' => $manifest['directoryDepthSummaryCount'],
+            'directoryDepths' => $manifest['directoryDepths'],
+            'directoryDepthSummaries' => $manifest['directoryDepthSummaries'],
             'extensionlessPackagePartCount' => 1,
             'packagePartExtensions' => $expectedPackagePartExtensions,
             'packagePartExtensionSummaries' => $expectedPackagePartExtensionSummaries,
@@ -1985,6 +1988,149 @@ return [
         $t->same($manifest['nameLengthBucketSummaries'], $strict['packageManifest']['nameLengthBucketSummaries']);
         $t->same($manifest['nameLengthBucketSummaries'], $raw['packageManifest']['nameLengthBucketSummaries']);
         $t->same($manifest['nameLengthBucketSummaries'], $raw['strictImport']['packageManifest']['nameLengthBucketSummaries']);
+    },
+
+    'rolls up zip package manifest directory depth buckets before shared package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $upstreamManifest = json_decode((string) file_get_contents(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json'), true, 512, JSON_THROW_ON_ERROR);
+        $mimetype = 'mimetype';
+        $documentName = 'word/document.xml';
+        $heroName = 'word/media/hero.png';
+        $deepDirectoryName = 'word/media/deep/';
+        $scanName = 'word/media/deep/scan.bin';
+        $mimetypeBytes = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+        $documentXml = '<w:document><w:body><w:p>directory depth buckets</w:p></w:body></w:document>';
+        $heroBytes = str_repeat('hero image payload ', 24);
+        $scanBytes = 'deep scan payload bytes';
+
+        $zip = $buildZipPackage([
+            [
+                'name' => $mimetype,
+                'data' => $mimetypeBytes,
+                'method' => 0,
+            ],
+            [
+                'name' => $documentName,
+                'data' => $documentXml,
+                'method' => 0,
+            ],
+            [
+                'name' => $heroName,
+                'data' => $heroBytes,
+                'method' => 8,
+                'descriptor' => true,
+            ],
+            [
+                'name' => $deepDirectoryName,
+                'data' => '',
+                'method' => 0,
+            ],
+            [
+                'name' => $scanName,
+                'data' => $scanBytes,
+                'method' => 0,
+            ],
+        ]);
+        $package = ZipPackage::fromString($zip);
+        $manifest = $package->packageManifestPreflight();
+        $strict = $package->strictImportPreflight(4096, 100.0, 4096);
+        $raw = ZipPackage::rawStrictImportPreflight($zip, 4096, 100.0, 4096);
+        $entriesByName = array_column($manifest['entries'], null, 'name');
+        $sumEntryField = static function (array $names, string $field) use ($entriesByName): int {
+            $total = 0;
+            foreach ($names as $name) {
+                $total += (int) $entriesByName[$name][$field];
+            }
+
+            return $total;
+        };
+        $depths = array_column($manifest['directoryDepthSummaries'], null, 'directoryDepth');
+        $heroCompressedBytes = strlen(gzdeflate($heroBytes));
+
+        $t->same(1, $upstreamManifest['mappedSharedZipPackageDirectoryDepthBucketCases'] ?? null);
+        $t->same(32, $upstreamManifest['sharedZipPackageDirectoryDepthBucketAssertions'] ?? null);
+        $t->same(1, $upstreamManifest['benchmarkDenominator']['breakdown']['mappedSharedZipPackageDirectoryDepthBucketCases'] ?? null);
+        $t->same(32, $upstreamManifest['benchmarkDenominator']['breakdown']['sharedZipPackageDirectoryDepthBucketAssertions'] ?? null);
+        $t->same(1, $upstreamManifest['benchmarkDenominator']['inventory']['mappedSharedZipPackageDirectoryDepthBucketCases'] ?? null);
+        $t->same(32, $upstreamManifest['benchmarkDenominator']['inventory']['sharedZipPackageDirectoryDepthBucketAssertions'] ?? null);
+        $t->same(1, $upstreamManifest['inventory']['mappedSharedZipPackageDirectoryDepthBucketCases'] ?? null);
+        $t->same(32, $upstreamManifest['inventory']['sharedZipPackageDirectoryDepthBucketAssertions'] ?? null);
+        $t->same(4, $manifest['directoryDepthSummaryCount']);
+        $t->same([0, 1, 2, 3], $manifest['directoryDepths']);
+        $t->same(0, $entriesByName[$mimetype]['directoryDepth']);
+        $t->same(1, $entriesByName[$documentName]['directoryDepth']);
+        $t->same(2, $entriesByName[$heroName]['directoryDepth']);
+        $t->same(2, $entriesByName[$deepDirectoryName]['directoryDepth']);
+        $t->same(3, $entriesByName[$scanName]['directoryDepth']);
+
+        $t->same([
+            'directoryDepth' => 0,
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($mimetypeBytes),
+            'uncompressedBytes' => strlen($mimetypeBytes),
+            'localRecordBytes' => $entriesByName[$mimetype]['localRecordBytes'],
+            'sourceRecordBytes' => $entriesByName[$mimetype]['sourceRecordBytes'],
+            'dataDescriptorEntryCount' => 0,
+            'dataDescriptorBytes' => 0,
+            'directoryRoots' => ['/'],
+            'packagePartExtensionKeys' => ['(none)'],
+            'compressionMethodNames' => ['stored'],
+            'entryNames' => [$mimetype],
+        ], $depths[0]);
+        $t->same([
+            'directoryDepth' => 1,
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($documentXml),
+            'uncompressedBytes' => strlen($documentXml),
+            'localRecordBytes' => $entriesByName[$documentName]['localRecordBytes'],
+            'sourceRecordBytes' => $entriesByName[$documentName]['sourceRecordBytes'],
+            'dataDescriptorEntryCount' => 0,
+            'dataDescriptorBytes' => 0,
+            'directoryRoots' => ['word/'],
+            'packagePartExtensionKeys' => ['xml'],
+            'compressionMethodNames' => ['stored'],
+            'entryNames' => [$documentName],
+        ], $depths[1]);
+        $t->same([
+            'directoryDepth' => 2,
+            'entryCount' => 2,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 1,
+            'compressedBytes' => $heroCompressedBytes,
+            'uncompressedBytes' => strlen($heroBytes),
+            'localRecordBytes' => $sumEntryField([$heroName, $deepDirectoryName], 'localRecordBytes'),
+            'sourceRecordBytes' => $sumEntryField([$heroName, $deepDirectoryName], 'sourceRecordBytes'),
+            'dataDescriptorEntryCount' => 1,
+            'dataDescriptorBytes' => $entriesByName[$heroName]['dataDescriptorBytes'],
+            'directoryRoots' => ['word/'],
+            'packagePartExtensionKeys' => ['(directory)', 'png'],
+            'compressionMethodNames' => ['deflated', 'stored'],
+            'entryNames' => [$heroName, $deepDirectoryName],
+        ], $depths[2]);
+        $t->same([
+            'directoryDepth' => 3,
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($scanBytes),
+            'uncompressedBytes' => strlen($scanBytes),
+            'localRecordBytes' => $entriesByName[$scanName]['localRecordBytes'],
+            'sourceRecordBytes' => $entriesByName[$scanName]['sourceRecordBytes'],
+            'dataDescriptorEntryCount' => 0,
+            'dataDescriptorBytes' => 0,
+            'directoryRoots' => ['word/'],
+            'packagePartExtensionKeys' => ['bin'],
+            'compressionMethodNames' => ['stored'],
+            'entryNames' => [$scanName],
+        ], $depths[3]);
+        $t->same(3, $manifest['maxDirectoryDepth']);
+        $t->same([$scanName], $manifest['deepestEntryNames']);
+        $t->same($manifest['directoryDepthSummaries'], $strict['packageManifest']['directoryDepthSummaries']);
+        $t->same($manifest['directoryDepthSummaries'], $raw['packageManifest']['directoryDepthSummaries']);
+        $t->same($manifest['directoryDepthSummaries'], $raw['strictImport']['packageManifest']['directoryDepthSummaries']);
     },
 
     'preflights zip package manifest path segment positions for shared package handoff' => static function (TestRunner $t) use ($buildZipPackage, $pathSegmentPositionReviews): void {
@@ -3419,6 +3565,9 @@ return [
             'unknownCreatorHostSystemEntries' => [],
             'creatorVersionBelowNeededEntries' => [],
             'directoryRootSummaries' => $expectedDirectoryRootSummaries,
+            'directoryDepthSummaryCount' => $manifest['directoryDepthSummaryCount'],
+            'directoryDepths' => $manifest['directoryDepths'],
+            'directoryDepthSummaries' => $manifest['directoryDepthSummaries'],
             'extensionlessPackagePartCount' => 0,
             'packagePartExtensions' => $expectedPackagePartExtensions,
             'packagePartExtensionSummaries' => $expectedPackagePartExtensionSummaries,
