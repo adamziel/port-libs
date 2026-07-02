@@ -865,7 +865,7 @@ final class PandocJsonWriter
     {
         $blocks = $this->childrenAsBlocks($node);
 
-        return $this->reusableBlockListPayload($node->attr('blockQuoteBlocksNative'), $blocks) ?? $blocks;
+        return $this->reusableStructuralBlockListPayload($node->attr('blockQuoteBlocksNative'), $blocks) ?? $blocks;
     }
 
     /**
@@ -875,7 +875,7 @@ final class PandocJsonWriter
     {
         $blocks = $this->childrenAsBlocks($node);
 
-        return $this->reusableBlockListPayload($node->attr('divBlocksNative'), $blocks) ?? $blocks;
+        return $this->reusableStructuralBlockListPayload($node->attr('divBlocksNative'), $blocks) ?? $blocks;
     }
 
     /**
@@ -931,7 +931,70 @@ final class PandocJsonWriter
     {
         $blocks = $this->mixedChildrenAsBlocks($node->children);
 
-        return $this->reusableBlockListPayload($node->attr('figureBlocksNative'), $blocks) ?? $blocks;
+        return $this->reusableStructuralBlockListPayload($node->attr('figureBlocksNative'), $blocks) ?? $blocks;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $blocks
+     * @return list<mixed>|null
+     */
+    private function reusableStructuralBlockListPayload(mixed $native, array $blocks): ?array
+    {
+        $reusable = $this->reusableBlockListPayload($native, $blocks);
+        if ($reusable !== null) {
+            return $reusable;
+        }
+        if (!is_array($native) || !array_is_list($native)) {
+            return null;
+        }
+
+        if ($this->semanticNativeBlockListPayload($native) === $blocks) {
+            return $native;
+        }
+        if (
+            count($native) === 1
+            && is_array($native[0])
+            && array_is_list($native[0])
+            && $this->semanticNativeBlockListPayload($native[0]) === $blocks
+        ) {
+            return $native;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<mixed> $blocks
+     * @return list<mixed>
+     */
+    private function semanticNativeBlockListPayload(array $blocks): array
+    {
+        return array_map(fn (mixed $block): mixed => $this->semanticNativeConstructorPayload($block), $blocks);
+    }
+
+    private function semanticNativeConstructorPayload(mixed $value): mixed
+    {
+        if (!is_array($value)) {
+            return $value;
+        }
+        if (array_is_list($value)) {
+            return array_map(fn (mixed $item): mixed => $this->semanticNativeConstructorPayload($item), $value);
+        }
+        if (is_string($value['t'] ?? null)) {
+            $semantic = ['t' => $value['t']];
+            if (array_key_exists('c', $value)) {
+                $semantic['c'] = $this->semanticNativeConstructorPayload($value['c']);
+            }
+
+            return $semantic;
+        }
+
+        $semantic = [];
+        foreach ($value as $key => $item) {
+            $semantic[(string) $key] = $this->semanticNativeConstructorPayload($item);
+        }
+
+        return $semantic;
     }
 
     /**

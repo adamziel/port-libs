@@ -97,4 +97,67 @@ return [
             }
         }
     },
+
+    'uses structural block list native sidecars as native writer json trigger' => static function (TestRunner $t): void {
+        $quotePlain = ['t' => 'Plain', 'c' => [
+            ['t' => 'Str', 'c' => 'Quote'],
+            ['t' => 'Space'],
+            ['t' => 'Str', 'c' => 'sidecar'],
+        ], 'reviewQueue' => 'manual-quote-child'];
+        $divPlain = ['t' => 'Plain', 'c' => [
+            ['t' => 'Str', 'c' => 'Div'],
+            ['t' => 'Space'],
+            ['t' => 'Str', 'c' => 'sidecar'],
+        ], 'reviewQueue' => 'manual-div-child'];
+        $figurePara = ['t' => 'Para', 'c' => [
+            ['t' => 'Str', 'c' => 'Figure'],
+            ['t' => 'Space'],
+            ['t' => 'Str', 'c' => 'sidecar'],
+        ], 'reviewQueue' => 'manual-figure-child'];
+
+        $inlineBlock = static fn (string $first, string $second, string $type = 'plain'): AstNode => new AstNode($type, [], [
+            new AstNode('text', ['text' => $first]),
+            new AstNode('space'),
+            new AstNode('text', ['text' => $second]),
+        ]);
+        $encode = static fn (AstNode $document): array => json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+
+        $document = new AstNode('document', [], [
+            new AstNode('blockquote', ['blockQuoteBlocksNative' => [[$quotePlain]]], [$inlineBlock('Quote', 'sidecar')]),
+            new AstNode('div', [
+                'id' => 'manual-div',
+                'classes' => ['review'],
+                'divBlocksNative' => [[$divPlain]],
+            ], [$inlineBlock('Div', 'sidecar')]),
+            new AstNode('figure', [
+                'id' => 'manual-figure',
+                'classes' => ['review'],
+                'figureBlocksNative' => [[$figurePara]],
+            ], [$inlineBlock('Figure', 'sidecar', 'paragraph')]),
+        ]);
+
+        $encoded = $encode($document);
+        $t->same([1, 23, 1], $encoded['pandoc-api-version']);
+        $t->same(['BlockQuote', 'Div', 'Figure'], array_map(static fn (array $block): string => (string) $block['t'], $encoded['blocks']));
+        $t->same(false, array_key_exists('reviewQueue', $encoded['blocks'][0]));
+        $t->same(false, array_key_exists('reviewQueue', $encoded['blocks'][1]));
+        $t->same(false, array_key_exists('reviewQueue', $encoded['blocks'][2]));
+        $t->same([[$quotePlain]], $encoded['blocks'][0]['c']);
+        $t->same([[$divPlain]], $encoded['blocks'][1]['c'][1]);
+        $t->same([[$figurePara]], $encoded['blocks'][2]['c'][2]);
+
+        $editedQuote = new AstNode('document', [], [
+            new AstNode('blockquote', ['blockQuoteBlocksNative' => [[$quotePlain]]], [$inlineBlock('Edited', 'quote')]),
+            $document->children[1],
+            $document->children[2],
+        ]);
+        $encodedEdited = $encode($editedQuote);
+        $t->same([['t' => 'Plain', 'c' => [
+            ['t' => 'Str', 'c' => 'Edited'],
+            ['t' => 'Space'],
+            ['t' => 'Str', 'c' => 'quote'],
+        ]]], $encodedEdited['blocks'][0]['c']);
+        $t->same([[$divPlain]], $encodedEdited['blocks'][1]['c'][1]);
+        $t->same([[$figurePara]], $encodedEdited['blocks'][2]['c'][2]);
+    },
 ];
