@@ -1392,8 +1392,8 @@ final class WordPressBlockWriter
     private function storedTableAttrMap(AstNode $node, bool $includeIdentity, array $skip): array
     {
         $htmlAttributes = $node->attr('htmlAttributes', []);
-        if (!is_array($htmlAttributes) || $htmlAttributes === []) {
-            return [];
+        if (!is_array($htmlAttributes)) {
+            $htmlAttributes = [];
         }
 
         $attrs = [];
@@ -1427,6 +1427,26 @@ final class WordPressBlockWriter
             }
 
             $attrs[$name] = (string) $value;
+        }
+
+        $sourceAttributes = $node->attr('attributes', []);
+        if (is_array($sourceAttributes)) {
+            foreach ($sourceAttributes as $name => $value) {
+                $name = strtolower((string) $name);
+                if (
+                    $name === ''
+                    || $name === 'id'
+                    || $name === 'class'
+                    || array_key_exists($name, $attrs)
+                    || in_array($name, $skip, true)
+                    || !is_scalar($value)
+                    || !$this->isAllowedStoredTableHtmlAttr($name)
+                ) {
+                    continue;
+                }
+
+                $attrs[$name] = (string) $value;
+            }
         }
 
         return $attrs;
@@ -2741,7 +2761,7 @@ final class WordPressBlockWriter
                     break;
                 }
 
-                $html .= $this->renderInlineNode($inline);
+                $html .= $this->renderFigureCaptionInline($inline);
             }
             if ($html !== '') {
                 return $html;
@@ -2753,9 +2773,74 @@ final class WordPressBlockWriter
         return $caption === '' ? '' : $this->esc($caption);
     }
 
+    private function renderFigureCaptionInline(AstNode $node): string
+    {
+        if ($node->type === 'span' && in_array('mark', $this->spanClasses($node), true)) {
+            return '<span' . $this->renderInlineSpanAttrs($node) . '>' . $this->renderFigureCaptionInlines($node->children) . '</span>';
+        }
+
+        return $this->renderInlineNode($node);
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function renderFigureCaptionInlines(array $nodes): string
+    {
+        $html = '';
+        foreach ($nodes as $node) {
+            $html .= $this->renderFigureCaptionInline($node);
+        }
+
+        return $html;
+    }
+
     private function renderImageFigureAttrs(AstNode $node): string
     {
-        $attrs = $this->renderBlockHtmlAttrsWithClasses($node, ['wp-block-image']);
+        $htmlAttributes = [];
+        foreach ($this->inlineHtmlAttributes($node) as $name => $value) {
+            $htmlAttributes[strtolower((string) $name)] = $value;
+        }
+
+        $classes = ['wp-block-image'];
+        $existingClass = trim((string) ($htmlAttributes['class'] ?? ''));
+        if ($existingClass !== '') {
+            array_push($classes, ...preg_split('/\s+/', $existingClass, -1, PREG_SPLIT_NO_EMPTY));
+        }
+        $nodeClasses = $node->attr('classes', []);
+        if (is_array($nodeClasses)) {
+            foreach ($nodeClasses as $class) {
+                $class = trim((string) $class);
+                if ($class !== '') {
+                    $classes[] = $class;
+                }
+            }
+        }
+        $htmlAttributes['class'] = implode(' ', array_values(array_unique($classes)));
+
+        $orderedNames = [];
+        foreach (['class', 'id'] as $name) {
+            if (array_key_exists($name, $htmlAttributes)) {
+                $orderedNames[] = $name;
+            }
+        }
+        foreach (array_keys($htmlAttributes) as $name) {
+            $name = strtolower((string) $name);
+            if (!in_array($name, $orderedNames, true)) {
+                $orderedNames[] = $name;
+            }
+        }
+
+        $attrs = '';
+        foreach ($orderedNames as $name) {
+            $value = $htmlAttributes[$name];
+            $name = strtolower((string) $name);
+            if (!$this->isAllowedBlockHtmlAttr($name)) {
+                continue;
+            }
+            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+        }
+
         $attributes = $node->attr('attributes', []);
         if (
             is_array($attributes)
@@ -2763,6 +2848,10 @@ final class WordPressBlockWriter
             && !isset($attributes['data-pandoc-latex-placement'])
         ) {
             $attrs .= ' data-pandoc-latex-placement="' . $this->esc((string) $attributes['latex-placement']) . '"';
+        }
+        $shortCaption = (string) $node->attr('shortCaption', '');
+        if ($shortCaption !== '') {
+            $attrs .= ' data-pandoc-short-caption="' . $this->esc($shortCaption) . '"';
         }
 
         return $attrs;
@@ -3128,7 +3217,7 @@ final class WordPressBlockWriter
             'emph' => '<em>' . $this->renderInlines($node) . '</em>',
             'strong' => '<strong>' . $this->renderInlines($node) . '</strong>',
             'small_caps' => '<span style="font-variant:small-caps">' . $this->renderInlines($node) . '</span>',
-            'underline' => '<u>' . $this->renderInlines($node) . '</u>',
+            'underline' => '<u' . $this->renderUnderlineAttrs($node) . '>' . $this->renderInlines($node) . '</u>',
             'strikeout' => '<del>' . $this->renderInlines($node) . '</del>',
             'superscript' => '<sup>' . $this->renderInlines($node) . '</sup>',
             'subscript' => '<sub>' . $this->renderInlines($node) . '</sub>',
@@ -3841,6 +3930,11 @@ final class WordPressBlockWriter
         return $attrs;
     }
 
+    private function renderUnderlineAttrs(AstNode $node): string
+    {
+        return $this->renderInlineSpanAttrs($node);
+    }
+
     private function renderEmptyAnchorSpanAttrs(AstNode $node): string
     {
         $attrs = $this->renderInlineSpanAttrs($node);
@@ -4107,7 +4201,8 @@ final class WordPressBlockWriter
             return false;
         }
 
-        return str_starts_with($name, 'data-')
+        return $name === 'xml:lang'
+            || str_starts_with($name, 'data-')
             || str_starts_with($name, 'aria-')
             || in_array($name, ['class', 'dir', 'id', 'lang', 'role', 'title'], true);
     }

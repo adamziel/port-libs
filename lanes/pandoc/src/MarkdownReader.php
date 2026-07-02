@@ -331,25 +331,21 @@ final class MarkdownReader
                 $blocks[] = $rawTexBlock;
                 continue;
             }
-            $gridTable = $this->tryReadGridTable($lines, $index);
-            if ($gridTable !== null) {
-                $this->flushParagraph($paragraph, $blocks);
-                $this->flushListStack($listStack, $blocks);
-                $blocks[] = $gridTable;
+            $captionedTable = $paragraph === [] && $listStack === [] ? $this->tryReadCaptionedTable($lines, $index) : null;
+            if ($captionedTable !== null) {
+                $blocks[] = $captionedTable;
                 continue;
             }
-            $simpleTable = $this->tryReadSimpleTable($lines, $index);
-            if ($simpleTable !== null) {
-                $this->flushParagraph($paragraph, $blocks);
-                $this->flushListStack($listStack, $blocks);
-                $blocks[] = $simpleTable;
+            $captionedFigure = $paragraph === [] && $listStack === [] ? $this->tryReadCaptionedFigure($lines, $index) : null;
+            if ($captionedFigure !== null) {
+                $blocks[] = $captionedFigure;
                 continue;
             }
-            $pipeTable = $this->tryReadPipeTable($lines, $index);
-            if ($pipeTable !== null) {
+            $table = $this->tryReadEnabledTable($lines, $index);
+            if ($table !== null) {
                 $this->flushParagraph($paragraph, $blocks);
                 $this->flushListStack($listStack, $blocks);
-                $blocks[] = $pipeTable;
+                $blocks[] = $table;
                 continue;
             }
             if ($this->isHorizontalRule($line)) {
@@ -866,7 +862,7 @@ final class MarkdownReader
         $id = null;
         $classes = [];
         $attributes = [];
-        preg_match_all('/(?:^|\s)(#[^\s]+|\.[^\s]+|[A-Za-z_:][A-Za-z0-9_.:-]*=(?:"[^"]*"|\'[^\']*\'|[^\s]+))/', $source, $matches);
+        preg_match_all('/(?:^|\s)(#[^\s]+|\.[^\s]+|[A-Za-z_:][A-Za-z0-9_.:-]*=(?:"(?:\\\\.|[^"\\\\])*"|\'(?:\\\\.|[^\'\\\\])*\'|[^\s]+))/', $source, $matches);
 
         foreach ($matches[1] as $token) {
             if ($token[0] === '#') {
@@ -6939,6 +6935,265 @@ final class MarkdownReader
     /**
      * @param list<string> $lines
      */
+    private function tryReadCaptionedFigure(array $lines, int &$index): ?AstNode
+    {
+        $caption = $this->readFigureCaptionAt($lines, $index, 'before-figure');
+        if ($caption !== null) {
+            $cursor = $caption['next'];
+            $sawBlankLine = false;
+            $count = count($lines);
+            while ($cursor < $count && trim($lines[$cursor]) === '') {
+                $sawBlankLine = true;
+                $cursor++;
+            }
+            if (!$sawBlankLine || $cursor >= $count) {
+                return null;
+            }
+
+            $figureIndex = $cursor;
+            $figure = $this->tryReadStandaloneImageFigure($lines, $figureIndex);
+            if ($figure === null) {
+                return null;
+            }
+
+            $index = $figureIndex;
+
+            return $this->withFigureCaptionAttrs($figure, $caption['attrs']);
+        }
+
+        $figureIndex = $index;
+        $figure = $this->tryReadStandaloneImageFigure($lines, $figureIndex);
+        if ($figure === null) {
+            return null;
+        }
+
+        $cursor = $figureIndex + 1;
+        $sawBlankLine = false;
+        $count = count($lines);
+        while ($cursor < $count && trim($lines[$cursor]) === '') {
+            $sawBlankLine = true;
+            $cursor++;
+        }
+        if (!$sawBlankLine || $cursor >= $count) {
+            return null;
+        }
+
+        $caption = $this->readFigureCaptionAt($lines, $cursor, 'after-figure');
+        if ($caption === null) {
+            return null;
+        }
+
+        $index = $caption['next'] - 1;
+
+        return $this->withFigureCaptionAttrs($figure, $caption['attrs']);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function tryReadStandaloneImageFigure(array $lines, int &$index): ?AstNode
+    {
+        $line = $lines[$index] ?? '';
+        if (trim($line) === '' || $this->countIndentColumns($line) > 3) {
+            return null;
+        }
+        if (isset($lines[$index + 1]) && trim($lines[$index + 1]) !== '') {
+            return null;
+        }
+
+        $children = $this->parseInlines(trim($line));
+        if (count($children) !== 1 || $children[0]->type !== 'image') {
+            return null;
+        }
+
+        $figureAttrs = $children[0]->attr('figureAttributes', []);
+        if (!is_array($figureAttrs)) {
+            $figureAttrs = [];
+        }
+        $sourceAttributes = $figureAttrs;
+        $figureAttrs['caption'] = (string) $children[0]->attr('caption', $children[0]->attr('alt', ''));
+        $figureAttrs['captionSource'] = $this->implicitFigureCaptionSource($sourceAttributes);
+        if ($children[0]->children !== []) {
+            $figureAttrs['captionInlines'] = $children[0]->children;
+            $figureAttrs['renderCaptionInlines'] = true;
+        }
+
+        return new AstNode('figure', $figureAttrs, [$children[0]]);
+    }
+
+    /**
+     * @param array<string, mixed> $captionAttrs
+     */
+    private function withFigureCaptionAttrs(AstNode $figure, array $captionAttrs): AstNode
+    {
+        return new AstNode(
+            $figure->type,
+            array_replace($figure->attrs, $captionAttrs),
+            $figure->children
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $sourceAttributes
+     * @return array<string, mixed>
+     */
+    private function implicitFigureCaptionSource(array $sourceAttributes): array
+    {
+        $source = [
+            'element' => 'markdown-implicit-figure',
+            'position' => 'image-label',
+            'marker' => 'standalone-image',
+        ];
+        if ($sourceAttributes !== []) {
+            $source['sourceAttributes'] = $sourceAttributes;
+        }
+
+        return $source;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{attrs:array<string, mixed>, marker:string, next:int}|null
+     */
+    private function readFigureCaptionAt(array $lines, int $cursor, string $position): ?array
+    {
+        $line = $lines[$cursor] ?? '';
+        if (preg_match('/^ {0,3}((?:(?:Figures?|Figs?|Images?|Imgs?|Pictures?|Photos?|Illustrations?|Plates?|Diagrams?|Caption)\.?(?:\s+[A-Za-z0-9][A-Za-z0-9.-]*)?[.:])|:)\s*(.*)$/u', $line, $m) !== 1) {
+            return null;
+        }
+
+        $caption = [trim($m[2])];
+        $next = $cursor + 1;
+        $count = count($lines);
+        while (
+            $next < $count
+            && trim($lines[$next]) !== ''
+            && $this->countIndentColumns($lines[$next]) >= 2
+            && $this->parseSimpleTableDelimiter($lines[$next]) === null
+            && !$this->isSimpleTableBoundary($lines[$next])
+        ) {
+            $caption[] = trim($lines[$next]);
+            $next++;
+        }
+
+        return [
+            'attrs' => $this->figureCaptionAttrs(implode("\n", $caption), $position, $m[1]),
+            'marker' => $m[1],
+            'next' => $next,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function figureCaptionAttrs(string $captionSource, string $position, string $marker): array
+    {
+        [$captionSource, $attributeAttrs] = $this->splitTrailingCaptionAttributes($captionSource);
+        [$shortCaptionSource, $captionSource] = $this->splitShortTableCaption($captionSource);
+
+        $captionSource = trim($captionSource);
+        $captionInlines = $captionSource === '' ? [] : $this->parseInlines($captionSource);
+        $caption = $captionInlines === [] ? $captionSource : $this->plainTextFromInlines($captionInlines);
+        $attrs = array_replace($attributeAttrs, [
+            'caption' => $caption,
+            'captionSource' => [
+                'element' => 'markdown-figure-caption',
+                'position' => $position,
+                'marker' => $marker,
+                'captionSide' => $position === 'before-figure' ? 'top' : 'bottom',
+                'captionSideSource' => 'markdown-figure-caption-position',
+            ],
+            'renderCaptionInlines' => true,
+        ]);
+        if ($captionInlines !== []) {
+            $attrs['captionInlines'] = $captionInlines;
+        }
+        if ($shortCaptionSource !== null) {
+            $shortCaptionInlines = $this->parseInlines($shortCaptionSource);
+            $attrs['shortCaption'] = $this->plainTextFromInlines($shortCaptionInlines);
+            $attrs['shortCaptionInlines'] = $shortCaptionInlines;
+            $attrs['renderShortCaptionAttribute'] = true;
+        }
+        if ($attributeAttrs !== []) {
+            $attrs['captionSource']['sourceAttributes'] = $attributeAttrs;
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function tryReadCaptionedTable(array $lines, int &$index): ?AstNode
+    {
+        $caption = $this->readTableCaptionAt($lines, $index, 'before-table');
+        if ($caption === null) {
+            return null;
+        }
+
+        $cursor = $caption['next'];
+        $sawBlankLine = false;
+        $count = count($lines);
+        while ($cursor < $count && trim($lines[$cursor]) === '') {
+            $sawBlankLine = true;
+            $cursor++;
+        }
+        if (!$sawBlankLine || $cursor >= $count) {
+            return null;
+        }
+
+        $tableIndex = $cursor;
+        $table = $this->tryReadEnabledTable($lines, $tableIndex);
+        if ($table === null) {
+            return null;
+        }
+
+        $index = $tableIndex;
+
+        return $this->withTableCaptionAttrs($table, $caption['attrs']);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function tryReadEnabledTable(array $lines, int &$index): ?AstNode
+    {
+        if ($this->gridTablesEnabled()) {
+            $gridTable = $this->tryReadGridTable($lines, $index);
+            if ($gridTable !== null) {
+                return $gridTable;
+            }
+        }
+
+        if ($this->simpleTablesEnabled() || $this->multilineTablesEnabled()) {
+            $simpleTable = $this->tryReadSimpleTable($lines, $index);
+            if ($simpleTable !== null) {
+                return $simpleTable;
+            }
+        }
+
+        if ($this->pipeTablesEnabled()) {
+            return $this->tryReadPipeTable($lines, $index);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $captionAttrs
+     */
+    private function withTableCaptionAttrs(AstNode $table, array $captionAttrs): AstNode
+    {
+        return $this->tableWithReviewPacket(new AstNode(
+            $table->type,
+            array_replace($table->attrs, $captionAttrs),
+            $table->children
+        ));
+    }
+
+    /**
+     * @param list<string> $lines
+     */
     private function tryReadGridTable(array $lines, int &$index): ?AstNode
     {
         $rectangular = $this->tryReadRectangularGridTable($lines, $index);
@@ -7004,10 +7259,10 @@ final class MarkdownReader
                 continue;
             }
 
-            [$caption, $next] = $this->readTableCaption($lines, $cursor);
+            [$captionAttrs, $next] = $this->readTableCaption($lines, $cursor);
             $index = $next - 1;
 
-            return $this->buildGridTable($headerRow, $bodyRows, $alignments, $caption, $widths);
+            return $this->buildGridTable($headerRow, $bodyRows, $alignments, $captionAttrs, $widths);
         }
 
         return null;
@@ -7095,10 +7350,10 @@ final class MarkdownReader
         }
 
         $cursor = $index + count($tableLines);
-        [$caption, $next] = $this->readTableCaption($lines, $cursor);
+        [$captionAttrs, $next] = $this->readTableCaption($lines, $cursor);
         $index = $next - 1;
 
-        return $this->buildGridTableRows($headerRows, $bodyRows, $alignments, $caption, $this->spannedGridTableWidths($positions));
+        return $this->buildGridTableRows($headerRows, $bodyRows, $alignments, $captionAttrs, $this->spannedGridTableWidths($positions));
     }
 
     /**
@@ -7584,9 +7839,15 @@ final class MarkdownReader
             return null;
         }
 
-        $multilineTable = $this->tryReadMultilineSimpleTableWithHeader($lines, $index);
-        if ($multilineTable !== null) {
-            return $multilineTable;
+        if ($this->multilineTablesEnabled()) {
+            $multilineTable = $this->tryReadMultilineSimpleTableWithHeader($lines, $index);
+            if ($multilineTable !== null) {
+                return $multilineTable;
+            }
+        }
+
+        if (!$this->simpleTablesEnabled()) {
+            return null;
         }
 
         $headerColumns = $this->parseSimpleTableDelimiter($lines[$index + 1]);
@@ -7638,14 +7899,14 @@ final class MarkdownReader
             return null;
         }
 
-        [$caption, $next] = $this->readTableCaption($lines, $closingIndex + 1);
+        [$captionAttrs, $next] = $this->readTableCaption($lines, $closingIndex + 1);
         $index = $next - 1;
 
         return $this->buildSimpleTable(
             $this->mergeSimpleTableLines($headerLines, $columns),
             $bodyRows,
             $this->detectMultilineSimpleTableAlignments($headerLines, $columns),
-            $caption,
+            $captionAttrs,
             $this->detectSimpleTableWidths($columns)
         );
     }
@@ -7677,14 +7938,14 @@ final class MarkdownReader
             return null;
         }
 
-        [$caption, $next] = $this->readTableCaption($lines, $cursor);
+        [$captionAttrs, $next] = $this->readTableCaption($lines, $cursor);
         $index = $next - 1;
 
         return $this->buildSimpleTable(
             $this->splitSimpleTableLine($headerLine, $columns),
             $bodyRows,
             $this->detectSimpleTableAlignments($headerLine, $columns),
-            $caption
+            $captionAttrs
         );
     }
 
@@ -7700,14 +7961,14 @@ final class MarkdownReader
         }
 
         $alignments = $this->detectSimpleTableAlignments($lines[$index + 1], $columns);
-        [$caption, $next] = $this->readTableCaption($lines, $closingIndex + 1);
+        [$captionAttrs, $next] = $this->readTableCaption($lines, $closingIndex + 1);
         $index = $next - 1;
 
         return $this->buildSimpleTable(
             null,
             $bodyRows,
             $alignments,
-            $caption,
+            $captionAttrs,
             $this->detectSimpleTableWidths($columns)
         );
     }
@@ -8002,7 +8263,7 @@ final class MarkdownReader
      * @param list<string> $alignments
      * @param list<float>|null $widths
      */
-    private function buildSimpleTable(?array $headerCells, array $bodyRows, array $alignments, string $caption, ?array $widths = null): AstNode
+    private function buildSimpleTable(?array $headerCells, array $bodyRows, array $alignments, array $captionAttrs, ?array $widths = null): AstNode
     {
         $children = [];
         if ($headerCells !== null) {
@@ -8019,13 +8280,7 @@ final class MarkdownReader
         }
         $children[] = new AstNode('table_body', [], $bodyChildren);
 
-        $attrs = [
-            'caption' => $caption,
-            'alignments' => $alignments,
-        ];
-        if ($caption !== '') {
-            $attrs['captionInlines'] = $this->parseInlines($caption);
-        }
+        $attrs = array_replace(['alignments' => $alignments], $captionAttrs);
         if ($widths !== null) {
             $attrs['widths'] = $widths;
         }
@@ -8039,9 +8294,9 @@ final class MarkdownReader
      * @param list<string> $alignments
      * @param list<float>|null $widths
      */
-    private function buildGridTable(?AstNode $headerRow, array $bodyRows, array $alignments, string $caption, ?array $widths): AstNode
+    private function buildGridTable(?AstNode $headerRow, array $bodyRows, array $alignments, array $captionAttrs, ?array $widths): AstNode
     {
-        return $this->buildGridTableRows($headerRow instanceof AstNode ? [$headerRow] : [], $bodyRows, $alignments, $caption, $widths);
+        return $this->buildGridTableRows($headerRow instanceof AstNode ? [$headerRow] : [], $bodyRows, $alignments, $captionAttrs, $widths);
     }
 
     /**
@@ -8050,7 +8305,7 @@ final class MarkdownReader
      * @param list<string> $alignments
      * @param list<float>|null $widths
      */
-    private function buildGridTableRows(array $headerRows, array $bodyRows, array $alignments, string $caption, ?array $widths): AstNode
+    private function buildGridTableRows(array $headerRows, array $bodyRows, array $alignments, array $captionAttrs, ?array $widths): AstNode
     {
         $children = [];
         if ($headerRows !== []) {
@@ -8061,13 +8316,7 @@ final class MarkdownReader
 
         $children[] = new AstNode('table_body', [], $bodyRows);
 
-        $attrs = [
-            'caption' => $caption,
-            'alignments' => $alignments,
-        ];
-        if ($caption !== '') {
-            $attrs['captionInlines'] = $this->parseInlines($caption);
-        }
+        $attrs = array_replace(['alignments' => $alignments], $captionAttrs);
         if ($widths !== null) {
             $attrs['widths'] = $widths;
         }
@@ -8116,7 +8365,7 @@ final class MarkdownReader
 
     /**
      * @param list<string> $lines
-     * @return array{0:string, 1:int}
+     * @return array{0:array<string, mixed>, 1:int}
      */
     private function readTableCaption(array $lines, int $cursor): array
     {
@@ -8126,24 +8375,129 @@ final class MarkdownReader
             $captionCursor++;
         }
 
-        if ($captionCursor < $count && preg_match('/^ {0,3}:\s*(.*)$/', $lines[$captionCursor], $m) === 1) {
-            $caption = [trim($m[1])];
-            $next = $captionCursor + 1;
-            while (
-                $next < $count
-                && trim($lines[$next]) !== ''
-                && $this->countIndentColumns($lines[$next]) >= 2
-                && $this->parseSimpleTableDelimiter($lines[$next]) === null
-                && !$this->isSimpleTableBoundary($lines[$next])
-            ) {
-                $caption[] = trim($lines[$next]);
-                $next++;
-            }
+        $caption = $captionCursor < $count
+            ? $this->readTableCaptionAt($lines, $captionCursor, 'after-table')
+            : null;
 
-            return [implode("\n", $caption), $next];
+        return $caption === null
+            ? [$this->emptyTableCaptionAttrs(), $cursor]
+            : [$caption['attrs'], $caption['next']];
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{attrs:array<string, mixed>, marker:string, next:int}|null
+     */
+    private function readTableCaptionAt(array $lines, int $cursor, string $position): ?array
+    {
+        $line = $lines[$cursor] ?? '';
+        if (preg_match('/^ {0,3}((?:Tables?|Tbl\.?|Tab\.?|Caption)(?:\s+[A-Za-z0-9][A-Za-z0-9.-]*)?[.:]|:)\s*(.*)$/u', $line, $m) !== 1) {
+            return null;
         }
 
-        return ['', $cursor];
+        $caption = [trim($m[2])];
+        $next = $cursor + 1;
+        $count = count($lines);
+        while (
+            $next < $count
+            && trim($lines[$next]) !== ''
+            && $this->countIndentColumns($lines[$next]) >= 2
+            && $this->parseSimpleTableDelimiter($lines[$next]) === null
+            && !$this->isSimpleTableBoundary($lines[$next])
+        ) {
+            $caption[] = trim($lines[$next]);
+            $next++;
+        }
+
+        return [
+            'attrs' => $this->tableCaptionAttrs(implode("\n", $caption), $position, $m[1]),
+            'marker' => $m[1],
+            'next' => $next,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyTableCaptionAttrs(): array
+    {
+        return ['caption' => ''];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function tableCaptionAttrs(string $captionSource, string $position, string $marker): array
+    {
+        [$captionSource, $attributeAttrs] = $this->splitTrailingCaptionAttributes($captionSource);
+        [$shortCaptionSource, $captionSource] = $this->splitShortTableCaption($captionSource);
+
+        $caption = trim($captionSource);
+        $attrs = array_replace($this->emptyTableCaptionAttrs(), $attributeAttrs, [
+            'caption' => $caption,
+            'captionSource' => [
+                'element' => 'markdown-table-caption',
+                'position' => $position,
+                'marker' => $marker,
+                'captionSide' => $position === 'before-table' ? 'top' : 'bottom',
+                'captionSideSource' => 'markdown-table-caption',
+            ],
+        ]);
+        if ($caption !== '') {
+            $attrs['captionInlines'] = $this->parseInlines($caption);
+        }
+        if ($shortCaptionSource !== null) {
+            $shortCaptionInlines = $this->parseInlines($shortCaptionSource);
+            $attrs['shortCaption'] = $this->plainTextFromInlines($shortCaptionInlines);
+            $attrs['shortCaptionInlines'] = $shortCaptionInlines;
+        }
+        if ($attributeAttrs !== []) {
+            $attrs['captionSource']['sourceAttributes'] = $attributeAttrs;
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @return array{0:string, 1:array<string, mixed>}
+     */
+    private function splitTrailingCaptionAttributes(string $caption): array
+    {
+        $caption = rtrim($caption);
+        $start = strrpos($caption, '{');
+        if ($start === false) {
+            return [$caption, []];
+        }
+
+        $attribute = $this->tryParseInlineAttributeSpec($caption, $start);
+        if ($attribute === null || $attribute['next'] !== strlen($caption)) {
+            return [$caption, []];
+        }
+
+        return [rtrim(substr($caption, 0, $start)), $attribute['attrs']];
+    }
+
+    /**
+     * @return array{0:string|null, 1:string}
+     */
+    private function splitShortTableCaption(string $caption): array
+    {
+        $caption = trim($caption);
+        if (($caption[0] ?? '') !== '[') {
+            return [null, $caption];
+        }
+
+        $label = $this->parseBracketedLabel($caption, 0);
+        if ($label === null) {
+            return [null, $caption];
+        }
+
+        $following = $caption[$label['next']] ?? '';
+        if ($following === '(' || $following === '[' || ($following !== '' && !ctype_space($following))) {
+            return [null, $caption];
+        }
+
+        return [$label['text'], trim(substr($caption, $label['next']))];
     }
 
     /**
@@ -8184,7 +8538,7 @@ final class MarkdownReader
             $cursor++;
         }
 
-        [$caption, $cursor] = $this->readTableCaption($lines, $cursor);
+        [$captionAttrs, $cursor] = $this->readTableCaption($lines, $cursor);
 
         $headerIsEmpty = true;
         foreach ($headerCells as $cell) {
@@ -8209,13 +8563,7 @@ final class MarkdownReader
         }
         $children[] = new AstNode('table_body', [], $bodyChildren);
 
-        $attrs = [
-            'caption' => $caption,
-            'alignments' => $delimiter['alignments'],
-        ];
-        if ($caption !== '') {
-            $attrs['captionInlines'] = $this->parseInlines($caption);
-        }
+        $attrs = array_replace(['alignments' => $delimiter['alignments']], $captionAttrs);
         if ($delimiter['widths'] !== null) {
             $attrs['widths'] = $delimiter['widths'];
         }
@@ -9985,7 +10333,13 @@ final class MarkdownReader
             if (!is_array($figureAttrs)) {
                 $figureAttrs = [];
             }
+            $sourceAttributes = $figureAttrs;
             $figureAttrs['caption'] = (string) $children[0]->attr('caption', $children[0]->attr('alt', ''));
+            $figureAttrs['captionSource'] = $this->implicitFigureCaptionSource($sourceAttributes);
+            if ($children[0]->children !== []) {
+                $figureAttrs['captionInlines'] = $children[0]->children;
+                $figureAttrs['renderCaptionInlines'] = true;
+            }
             $blocks[] = new AstNode(
                 'figure',
                 $figureAttrs,
@@ -10087,7 +10441,12 @@ final class MarkdownReader
     /**
      * @return list<AstNode>
      */
-    private function parseInlines(string $text, bool $allowLinks = true, bool $allowBareCitations = true): array
+    private function parseInlines(
+        string $text,
+        bool $allowLinks = true,
+        bool $allowBareCitations = true,
+        bool $forceBracketedSpans = false
+    ): array
     {
         $nodes = [];
         $buffer = '';
@@ -10260,7 +10619,7 @@ final class MarkdownReader
                 continue;
             }
 
-            $span = $this->bracketedSpanExtensionEnabled() ? $this->tryParseBracketedSpan($text, $offset) : null;
+            $span = ($forceBracketedSpans || $this->bracketedSpanExtensionEnabled()) ? $this->tryParseBracketedSpan($text, $offset) : null;
             if ($span !== null) {
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $span['node'];
@@ -10953,7 +11312,7 @@ final class MarkdownReader
      */
     private function parseLinkLabelInlines(string $label): array
     {
-        return $this->parseInlines($label, false);
+        return $this->parseInlines($label, false, true, str_contains($label, ']{'));
     }
 
     /**
@@ -11054,6 +11413,100 @@ final class MarkdownReader
     private function markdownExtensionOverrides(): array
     {
         return MarkdownFormatProfile::markdownExtensionOverrides($this->markdownFormatWithExtensionOption());
+    }
+
+    /**
+     * @param list<string> $extensions
+     */
+    private function markdownExtensionOverride(array $extensions): ?bool
+    {
+        $overrides = $this->markdownExtensionOverrides();
+        foreach ($extensions as $extension) {
+            if (array_key_exists($extension, $overrides)) {
+                return $overrides[$extension];
+            }
+        }
+
+        return null;
+    }
+
+    private function readerBoolOption(string $key, bool $default): bool
+    {
+        if (!array_key_exists($key, $this->options)) {
+            return $default;
+        }
+
+        $value = $this->options[$key];
+        if (is_bool($value)) {
+            return $value;
+        }
+        if (is_int($value) || is_float($value)) {
+            return $value !== 0;
+        }
+        if (is_string($value)) {
+            $normalized = strtolower(trim($value));
+            if (in_array($normalized, ['1', 'true', 'yes', 'on'], true)) {
+                return true;
+            }
+            if (in_array($normalized, ['0', 'false', 'no', 'off'], true)) {
+                return false;
+            }
+        }
+
+        return $default;
+    }
+
+    /**
+     * @param list<string> $formats
+     * @param list<string> $extensions
+     */
+    private function markdownTableExtensionEnabled(string $option, array $formats, array $extensions): bool
+    {
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+        $default = in_array($canonical, $formats, true);
+        $override = $this->markdownExtensionOverride($extensions);
+        if ($override !== null) {
+            $default = $override;
+        }
+
+        return $this->readerBoolOption($option, $default);
+    }
+
+    private function pipeTablesEnabled(): bool
+    {
+        return $this->markdownTableExtensionEnabled(
+            'pipeTables',
+            ['markdown', 'commonmark_x', 'gfm'],
+            ['pipe_tables', 'pipe_table', 'tables']
+        );
+    }
+
+    private function simpleTablesEnabled(): bool
+    {
+        return $this->markdownTableExtensionEnabled(
+            'simpleTables',
+            ['markdown', 'commonmark_x'],
+            ['simple_tables', 'simple_table']
+        );
+    }
+
+    private function multilineTablesEnabled(): bool
+    {
+        return $this->markdownTableExtensionEnabled(
+            'multilineTables',
+            ['markdown', 'commonmark_x'],
+            ['multiline_tables', 'multiline_table']
+        );
+    }
+
+    private function gridTablesEnabled(): bool
+    {
+        return $this->markdownTableExtensionEnabled(
+            'gridTables',
+            ['markdown', 'commonmark_x'],
+            ['grid_tables', 'grid_table']
+        );
     }
 
     private function markExtensionEnabled(): bool
@@ -11391,7 +11844,7 @@ final class MarkdownReader
             return null;
         }
 
-        $end = $this->findUnescapedCharacter($text, '}', $label['next'] + 1);
+        $end = $this->findMarkdownAttributeSpecEnd($text, $label['next'] + 1);
         if ($end === null) {
             return null;
         }
@@ -11402,11 +11855,7 @@ final class MarkdownReader
         }
 
         return [
-            'node' => new AstNode(
-                'span',
-                $this->markdownAttributeAstAttrs($id, $classes, $attributes),
-                $this->parseInlines($label['text'])
-            ),
+            'node' => $this->markdownBracketedSpanNode($id, $classes, $attributes, $this->parseInlines($label['text'])),
             'next' => $end + 1,
         ];
     }
@@ -11475,6 +11924,33 @@ final class MarkdownReader
     }
 
     /**
+     * @param list<string> $classes
+     * @param array<string, string> $attributes
+     * @param list<AstNode> $children
+     */
+    private function markdownBracketedSpanNode(?string $id, array $classes, array $attributes, array $children): AstNode
+    {
+        $semanticTypes = ['smallcaps' => 'small_caps', 'underline' => 'underline', 'strikeout' => 'strikeout'];
+        $class = $classes[0] ?? '';
+        if (isset($semanticTypes[$class])) {
+            $otherSpanLikeClasses = ['smallcaps', 'underline', 'strikeout', 'kbd', 'mark', 'dfn', 'abbr'];
+            $remainingClasses = array_values(array_slice($classes, 1));
+            $hasOtherSpanLikeClass = false;
+            foreach ($remainingClasses as $remainingClass) {
+                if (in_array($remainingClass, $otherSpanLikeClasses, true)) {
+                    $hasOtherSpanLikeClass = true;
+                    break;
+                }
+            }
+            if (!$hasOtherSpanLikeClass) {
+                return new AstNode($semanticTypes[$class], $this->markdownAttributeAstAttrs($id, $remainingClasses, $attributes), $children);
+            }
+        }
+
+        return new AstNode('span', $this->markdownAttributeAstAttrs($id, $classes, $attributes), $children);
+    }
+
+    /**
      * @return array{attrs: array<string, mixed>, next: int}|null
      */
     private function tryParseInlineAttributeSpec(string $text, int $offset): ?array
@@ -11483,7 +11959,7 @@ final class MarkdownReader
             return null;
         }
 
-        $end = $this->findUnescapedCharacter($text, '}', $offset + 1);
+        $end = $this->findMarkdownAttributeSpecEnd($text, $offset + 1);
         if ($end === null) {
             return null;
         }
@@ -11508,7 +11984,7 @@ final class MarkdownReader
             return null;
         }
 
-        $end = $this->findUnescapedCharacter($text, '}', $offset + 1);
+        $end = $this->findMarkdownAttributeSpecEnd($text, $offset + 1);
         if ($end === null) {
             return null;
         }
@@ -11598,7 +12074,7 @@ final class MarkdownReader
         }
 
         $start = $offset + strlen($space[0]) - 1;
-        $end = $this->findUnescapedCharacter($text, '}', $start + 1);
+        $end = $this->findMarkdownAttributeSpecEnd($text, $start + 1);
         if ($end === null) {
             return null;
         }
@@ -12426,6 +12902,36 @@ final class MarkdownReader
             }
 
             if ($text[$cursor] === $character) {
+                return $cursor;
+            }
+        }
+
+        return null;
+    }
+
+    private function findMarkdownAttributeSpecEnd(string $text, int $offset): ?int
+    {
+        $quote = null;
+        $length = strlen($text);
+        for ($cursor = $offset; $cursor < $length; $cursor++) {
+            if ($text[$cursor] === '\\') {
+                $cursor++;
+                continue;
+            }
+
+            if ($quote !== null) {
+                if ($text[$cursor] === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($text[$cursor] === '"' || $text[$cursor] === "'") {
+                $quote = $text[$cursor];
+                continue;
+            }
+
+            if ($text[$cursor] === '}') {
                 return $cursor;
             }
         }

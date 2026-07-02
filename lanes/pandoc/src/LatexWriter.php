@@ -57,6 +57,7 @@ final class LatexWriter
             'blockquote' => $this->renderBlockQuote($node),
             'horizontal_rule' => ['\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}'],
             'figure' => $this->renderFigure($node),
+            'table' => $this->renderTable($node),
             'raw_tex' => $this->renderRawTexBlock($node),
             'raw_block' => $this->renderRawBlock($node),
             'raw_html', 'native_block', 'unsupported_command' => $this->renderUnsupportedBlockCommand($node),
@@ -224,6 +225,187 @@ final class LatexWriter
         }
 
         return $this->escapeText((string) $node->attr('caption', ''));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderTable(AstNode $node): array
+    {
+        $columnCount = max(1, $this->tableColumnCount($node));
+        $lines = ['\begin{table}', '\centering'];
+        $caption = $this->renderTableCaptionCommand($node);
+        if ($caption !== '') {
+            $lines[] = $caption;
+        }
+        $lines[] = '\begin{tabular}{' . str_repeat('l', $columnCount) . '}';
+
+        foreach ($this->tableRows($node) as $row) {
+            $cells = [];
+            foreach ($row->children as $cell) {
+                if ($cell->type === 'table_cell') {
+                    $cells[] = $this->renderTableCell($cell);
+                }
+            }
+            while (count($cells) < $columnCount) {
+                $cells[] = '';
+            }
+            $lines[] = implode(' & ', array_slice($cells, 0, $columnCount)) . ' \\\\';
+        }
+
+        $lines[] = '\end{tabular}';
+        $lines[] = '\end{table}';
+
+        return $lines;
+    }
+
+    private function renderTableCaptionCommand(AstNode $node): string
+    {
+        $caption = $this->renderTableCaption($node, 'captionInlines', 'captionBlocks', 'caption');
+        if ($caption === '') {
+            return '';
+        }
+
+        $shortCaption = $this->renderTableCaption($node, 'shortCaptionInlines', 'shortCaptionBlocks', 'shortCaption');
+        $command = '\caption' . ($shortCaption === '' ? '' : '[' . $shortCaption . ']') . '{' . $caption . '}';
+        $id = (string) $node->attr('id', '');
+
+        return $id === '' ? $command . '\\\\' : $command . '\label{' . $this->escapeLinkTarget($id) . '}';
+    }
+
+    private function renderTableCaption(AstNode $node, string $inlineAttr, string $blockAttr, string $textAttr): string
+    {
+        $inlines = $node->attr($inlineAttr, null);
+        if (is_array($inlines) && $this->isAstNodeList($inlines)) {
+            return $this->renderInlines($inlines, true);
+        }
+
+        $blocks = $this->tableBlockList($node, $blockAttr);
+        if ($blocks !== []) {
+            return $this->renderInlines($this->tableBlocksAsCaptionInlines($blocks), true);
+        }
+
+        return $this->escapeText((string) $node->attr($textAttr, ''));
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableBlockList(AstNode $node, string $attr): array
+    {
+        $blocks = $node->attr($attr, []);
+        if (!is_array($blocks)) {
+            return [];
+        }
+
+        $nodes = [];
+        foreach ($blocks as $block) {
+            if ($block instanceof AstNode) {
+                $nodes[] = $block;
+            }
+        }
+
+        return $nodes;
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @return list<AstNode>
+     */
+    private function tableBlocksAsCaptionInlines(array $blocks): array
+    {
+        $inlines = [];
+        foreach ($blocks as $block) {
+            if ($inlines !== []) {
+                $inlines[] = new AstNode('space');
+            }
+            if ($block->type === 'plain' || $block->type === 'paragraph') {
+                array_push($inlines, ...$block->children);
+                continue;
+            }
+
+            $text = trim((string) $block->attr('text', ''));
+            if ($text !== '') {
+                $inlines[] = new AstNode('text', ['text' => $text]);
+            }
+        }
+
+        return $inlines;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableRows(AstNode $node): array
+    {
+        $rows = [];
+        foreach ($node->children as $section) {
+            if (!in_array($section->type, ['table_head', 'table_body', 'table_foot'], true)) {
+                continue;
+            }
+            $headRows = $section->attr('headRows', []);
+            if (is_array($headRows)) {
+                foreach ($headRows as $row) {
+                    if ($row instanceof AstNode) {
+                        $rows[] = $row;
+                    }
+                }
+            }
+            foreach ($section->children as $row) {
+                if ($row->type === 'table_row') {
+                    $rows[] = $row;
+                }
+            }
+        }
+
+        return $rows;
+    }
+
+    private function tableColumnCount(AstNode $node): int
+    {
+        $count = 0;
+        foreach ($this->tableRows($node) as $row) {
+            $columns = 0;
+            foreach ($row->children as $cell) {
+                if ($cell->type === 'table_cell') {
+                    $columns += max(1, (int) $cell->attr('colspan', 1));
+                }
+            }
+            $count = max($count, $columns);
+        }
+
+        return $count;
+    }
+
+    private function renderTableCell(AstNode $cell): string
+    {
+        if ($cell->children !== []) {
+            return $this->renderInlines($this->tableCellInlines($cell), true);
+        }
+
+        return $this->escapeText((string) $cell->attr('text', ''));
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableCellInlines(AstNode $cell): array
+    {
+        $inlines = [];
+        foreach ($cell->children as $child) {
+            if ($child->type === 'plain' || $child->type === 'paragraph') {
+                if ($inlines !== []) {
+                    $inlines[] = new AstNode('space');
+                }
+                array_push($inlines, ...$child->children);
+                continue;
+            }
+            if ($this->isInlineNode($child)) {
+                $inlines[] = $child;
+            }
+        }
+
+        return $inlines;
     }
 
     /**
