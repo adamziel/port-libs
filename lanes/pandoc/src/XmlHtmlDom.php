@@ -15367,7 +15367,7 @@ final class XmlHtmlDom
             if (in_array($inputType['inputType'], ['checkbox', 'radio'], true)) {
                 $summary += self::checkableInputStateReviewSummary($node, $inputType['inputType']);
             }
-            $summary += self::formControlConstraintSummary($node, $name);
+            $summary += self::formControlConstraintSummary($node, $name, $inputType['inputType']);
             $summary += self::typedInputValueReviewSummary($node, $inputType['inputType']);
             if ($inputType['inputType'] === 'file' || $node->hasAttribute('accept') || $node->hasAttribute('capture')) {
                 $summary += self::fileInputReviewSummary($node, $inputType['inputType']);
@@ -27627,21 +27627,35 @@ final class XmlHtmlDom
     /**
      * @return array<string, mixed>
      */
-    private static function formControlConstraintSummary(\DOMElement $control, string $name): array
+    private static function formControlConstraintSummary(\DOMElement $control, string $name, ?string $inputType = null): array
     {
         $trackedAttributes = ['autocomplete', 'dirname', 'max', 'maxlength', 'min', 'minlength', 'pattern', 'size', 'step'];
+        $attributeNames = [];
         $hasTrackedAttribute = false;
         foreach ($trackedAttributes as $attribute) {
             if ($control->hasAttribute($attribute)) {
+                $attributeNames[] = $attribute;
                 $hasTrackedAttribute = true;
-                break;
+            }
+        }
+        foreach (['multiple', 'readonly'] as $attribute) {
+            if ($control->hasAttribute($attribute)) {
+                $attributeNames[] = $attribute;
             }
         }
         if (!$hasTrackedAttribute && !$control->hasAttribute('multiple') && !$control->hasAttribute('readonly')) {
             return [];
         }
 
-        $summary = ['constraintValidation' => 'form-control'];
+        $issues = [];
+        $numericConstraintReview = $name !== 'input' || in_array($inputType, ['number', 'range'], true);
+        $summary = [
+            'constraintValidation' => 'form-control',
+            'constraintReviewPolicy' => 'html-form-control-constraint-attribute-review',
+            'constraintReviewOnlyNoBrowserStateMutation' => true,
+            'constraintAttributeNames' => $attributeNames,
+            'constraintAttributeCount' => count($attributeNames),
+        ];
 
         if (($name === 'input' || $name === 'textarea') && $control->hasAttribute('readonly')) {
             $summary['readonly'] = true;
@@ -27654,40 +27668,91 @@ final class XmlHtmlDom
             $summary['minLengthRaw'] = $control->getAttribute('minlength');
             $summary['minLength'] = $minLength;
             $summary['minLengthValid'] = $minLength !== null;
+            if ($minLength === null) {
+                $issues[] = [
+                    'code' => 'invalid-constraint-minlength',
+                    'attribute' => 'minlength',
+                    'raw' => $summary['minLengthRaw'],
+                ];
+            }
         }
         if ($control->hasAttribute('maxlength')) {
             $maxLength = self::nonNegativeIntegerToken($control->getAttribute('maxlength'), 1000000);
             $summary['maxLengthRaw'] = $control->getAttribute('maxlength');
             $summary['maxLength'] = $maxLength;
             $summary['maxLengthValid'] = $maxLength !== null;
+            if ($maxLength === null) {
+                $issues[] = [
+                    'code' => 'invalid-constraint-maxlength',
+                    'attribute' => 'maxlength',
+                    'raw' => $summary['maxLengthRaw'],
+                ];
+            }
         }
         if (array_key_exists('minLength', $summary) || array_key_exists('maxLength', $summary)) {
             $summary['lengthRangeValid'] = is_int($summary['minLength'] ?? null) && is_int($summary['maxLength'] ?? null)
                 ? $summary['maxLength'] >= $summary['minLength']
                 : null;
+            if ($summary['lengthRangeValid'] === false) {
+                $issues[] = [
+                    'code' => 'constraint-minlength-exceeds-maxlength',
+                    'attribute' => 'maxlength',
+                    'minLength' => $summary['minLength'],
+                    'maxLength' => $summary['maxLength'],
+                ];
+            }
         }
         if ($control->hasAttribute('min')) {
             $min = self::finiteNumericToken($control->getAttribute('min'));
             $summary['constraintMinRaw'] = $control->getAttribute('min');
             $summary['constraintMin'] = $min;
             $summary['constraintMinValid'] = $min !== null;
+            if ($numericConstraintReview && $min === null) {
+                $issues[] = [
+                    'code' => 'invalid-constraint-min',
+                    'attribute' => 'min',
+                    'raw' => $summary['constraintMinRaw'],
+                ];
+            }
         }
         if ($control->hasAttribute('max')) {
             $max = self::finiteNumericToken($control->getAttribute('max'));
             $summary['constraintMaxRaw'] = $control->getAttribute('max');
             $summary['constraintMax'] = $max;
             $summary['constraintMaxValid'] = $max !== null;
+            if ($numericConstraintReview && $max === null) {
+                $issues[] = [
+                    'code' => 'invalid-constraint-max',
+                    'attribute' => 'max',
+                    'raw' => $summary['constraintMaxRaw'],
+                ];
+            }
         }
         if (array_key_exists('constraintMin', $summary) || array_key_exists('constraintMax', $summary)) {
             $summary['constraintRangeValid'] = is_float($summary['constraintMin'] ?? null) && is_float($summary['constraintMax'] ?? null)
                 ? $summary['constraintMax'] >= $summary['constraintMin']
                 : null;
+            if ($numericConstraintReview && $summary['constraintRangeValid'] === false) {
+                $issues[] = [
+                    'code' => 'constraint-min-exceeds-max',
+                    'attribute' => 'max',
+                    'min' => $summary['constraintMin'],
+                    'max' => $summary['constraintMax'],
+                ];
+            }
         }
         if ($control->hasAttribute('step')) {
             $step = self::stepConstraintToken($control->getAttribute('step'));
             $summary['constraintStepRaw'] = $control->getAttribute('step');
             $summary['constraintStep'] = $step;
             $summary['constraintStepValid'] = $step !== null;
+            if ($step === null) {
+                $issues[] = [
+                    'code' => 'invalid-constraint-step',
+                    'attribute' => 'step',
+                    'raw' => $summary['constraintStepRaw'],
+                ];
+            }
         }
         if ($control->hasAttribute('pattern')) {
             $pattern = $control->getAttribute('pattern');
@@ -27697,20 +27762,51 @@ final class XmlHtmlDom
         }
         if ($control->hasAttribute('autocomplete')) {
             $summary['autocompleteRaw'] = $control->getAttribute('autocomplete');
-            $summary += self::formControlAutocompleteSummary($summary['autocompleteRaw']);
+            $autocompleteSummary = self::formControlAutocompleteSummary($summary['autocompleteRaw']);
+            $summary += $autocompleteSummary;
+            foreach ($autocompleteSummary['autocompleteIssues'] as $issue) {
+                if (!is_array($issue)) {
+                    continue;
+                }
+                $issue['attribute'] = 'autocomplete';
+                $issues[] = $issue;
+            }
         }
         if (($name === 'input' || $name === 'textarea') && $control->hasAttribute('dirname')) {
             $dirname = self::formControlDirnameSummary($control->getAttribute('dirname'));
             $summary['dirnameRaw'] = $control->getAttribute('dirname');
             $summary['dirname'] = $dirname['name'];
             $summary['dirnameValid'] = $dirname['valid'];
+            if (!$dirname['valid']) {
+                $issues[] = [
+                    'code' => 'invalid-constraint-dirname',
+                    'attribute' => 'dirname',
+                    'raw' => $summary['dirnameRaw'],
+                    'name' => $dirname['name'],
+                ];
+            }
         }
         if ($control->hasAttribute('size')) {
             $size = self::positiveIntegerToken($control->getAttribute('size'), 1000000);
             $summary['controlSizeRaw'] = $control->getAttribute('size');
             $summary['controlSize'] = $size;
             $summary['controlSizeValid'] = $size !== null;
+            if ($size === null) {
+                $issues[] = [
+                    'code' => 'invalid-constraint-size',
+                    'attribute' => 'size',
+                    'raw' => $summary['controlSizeRaw'],
+                ];
+            }
         }
+
+        $summary['constraintIssues'] = $issues;
+        $summary['constraintIssueCodes'] = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
+        $summary['constraintIssueCount'] = count($issues);
+        $summary['constraintValid'] = $issues === [];
 
         return $summary;
     }
