@@ -437,6 +437,10 @@ final class DocxNativeAstComparisonHarness
             if ($node->type === 'image' && $key === 'url' && is_string($value)) {
                 $value = $this->normalizedImageUrl($value);
             }
+            if ($node->type === 'table' && $key === 'widths' && is_array($value)) {
+                $attrs[$key] = $this->normalizedTableWidths($value);
+                continue;
+            }
             $normalizedValue = $this->normalizedValue($value);
             if (in_array($key, ['attributes', 'htmlAttributes'], true) && $normalizedValue === []) {
                 continue;
@@ -488,6 +492,20 @@ final class DocxNativeAstComparisonHarness
         }
 
         return $url;
+    }
+
+    /**
+     * @param array<mixed> $widths
+     * @return list<float>
+     */
+    private function normalizedTableWidths(array $widths): array
+    {
+        $normalized = [];
+        foreach ($widths as $width) {
+            $normalized[] = $width === null ? 0.0 : round((float) $width, 12);
+        }
+
+        return $normalized;
     }
 
     private function isIgnoredTableCellAttr(AstNode $node, string $key, mixed $value): bool
@@ -811,7 +829,19 @@ final class DocxNativeAstComparisonHarness
 
     private static function isIgnoredAttrKey(string $key): bool
     {
-        return isset(self::IGNORED_ATTRS[$key]) || str_starts_with($key, 'data-docx-');
+        return isset(self::IGNORED_ATTRS[$key])
+            || str_starts_with($key, 'data-docx-')
+            || self::isNativeProvenanceAttrKey($key);
+    }
+
+    private static function isNativeProvenanceAttrKey(string $key): bool
+    {
+        return str_starts_with($key, 'native')
+            || str_ends_with($key, 'Native')
+            || str_ends_with($key, 'Natives')
+            || str_ends_with($key, 'Constructor')
+            || str_ends_with($key, 'Constructors')
+            || in_array($key, ['constructor', 'pandocApiVersion'], true);
     }
 
     /**

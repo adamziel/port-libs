@@ -521,7 +521,7 @@ final class EpubNativeAstPackageComparisonHarness
             if ($node->type === 'document' && $key === 'meta') {
                 continue;
             }
-            if (isset(self::IGNORED_ATTRS[$key]) || str_starts_with($key, 'epub')) {
+            if (self::isIgnoredAttrKey($key)) {
                 continue;
             }
             if ($key === 'text' && in_array($node->type, ['plain', 'paragraph', 'heading', 'table_cell', 'term'], true)) {
@@ -659,7 +659,7 @@ final class EpubNativeAstPackageComparisonHarness
 
         $normalized = [];
         foreach ($value as $key => $item) {
-            if (isset(self::IGNORED_ATTRS[(string) $key]) || str_starts_with((string) $key, 'epub')) {
+            if (self::isIgnoredAttrKey((string) $key)) {
                 continue;
             }
             $normalized[(string) $key] = $this->normalizedValue($item);
@@ -681,6 +681,23 @@ final class EpubNativeAstPackageComparisonHarness
         }
 
         return $value !== [];
+    }
+
+    private static function isIgnoredAttrKey(string $key): bool
+    {
+        return isset(self::IGNORED_ATTRS[$key])
+            || str_starts_with($key, 'epub')
+            || self::isNativeProvenanceAttrKey($key);
+    }
+
+    private static function isNativeProvenanceAttrKey(string $key): bool
+    {
+        return str_starts_with($key, 'native')
+            || str_ends_with($key, 'Native')
+            || str_ends_with($key, 'Natives')
+            || str_ends_with($key, 'Constructor')
+            || str_ends_with($key, 'Constructors')
+            || in_array($key, ['constructor', 'pandocApiVersion'], true);
     }
 
     private function firstDifference(mixed $epub, mixed $native, string $path = 'root'): ?string

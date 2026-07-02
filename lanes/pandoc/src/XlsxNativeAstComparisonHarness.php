@@ -525,7 +525,19 @@ final class XlsxNativeAstComparisonHarness
 
     private static function isIgnoredAttrKey(string $key): bool
     {
-        return isset(self::IGNORED_ATTRS[$key]) || str_starts_with($key, 'xlsx');
+        return isset(self::IGNORED_ATTRS[$key])
+            || str_starts_with($key, 'xlsx')
+            || self::isNativeProvenanceAttrKey($key);
+    }
+
+    private static function isNativeProvenanceAttrKey(string $key): bool
+    {
+        return str_starts_with($key, 'native')
+            || str_ends_with($key, 'Native')
+            || str_ends_with($key, 'Natives')
+            || str_ends_with($key, 'Constructor')
+            || str_ends_with($key, 'Constructors')
+            || in_array($key, ['constructor', 'pandocApiVersion'], true);
     }
 
     private function isDefaultColumnWidths(mixed $value): bool
