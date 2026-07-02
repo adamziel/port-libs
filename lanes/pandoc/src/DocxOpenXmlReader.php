@@ -44393,11 +44393,13 @@ final class DocxOpenXmlReader
     private function addRelationshipTargetInventoryRole(array &$rolesByPart, string $partName, string $relationshipType): void
     {
         $role = $this->relationshipTargetInventoryRole($relationshipType);
-        if ($role === null) {
-            return;
+        if ($role !== null) {
+            $this->addPartRole($rolesByPart, $partName, $role);
         }
 
-        $this->addPartRole($rolesByPart, $partName, $role);
+        if ($this->diagramRoleDefinitionForRelationshipType($relationshipType) !== null) {
+            $this->addPartRole($rolesByPart, $partName, 'diagram-sidecar-part');
+        }
     }
 
     private function relationshipTargetInventoryRole(string $relationshipType): ?string

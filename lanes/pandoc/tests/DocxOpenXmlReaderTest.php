@@ -25173,6 +25173,11 @@ XML;
         $t->same(1, $summary['diagramPartExternalCount']);
         $t->same(4, $summary['diagramPartIssueCount']);
         $t->same($diagrams['issueCodes'], $summary['diagramPartIssueCodes']);
+        $t->same(4, $summary['roleCounts']['diagram-sidecar-part']);
+        $t->same(
+            strlen($dataXml) + strlen($layoutXml) + strlen($badStyleXml) + strlen($unreferencedDataXml),
+            $summary['roleByteLengths']['diagram-sidecar-part']
+        );
         $t->same('diagramData', $relationshipTypes[$dataRel]['label']);
         $t->same(3, $relationshipTypes[$dataRel]['count']);
         $t->same(2, $relationshipTypes[$dataRel]['internalCount']);
@@ -25185,9 +25190,13 @@ XML;
         $t->same('diagramColors', $relationshipTypes[$colorsRel]['label']);
         $t->same(['word/diagrams/missing-colors.xml'], $relationshipTypes[$colorsRel]['missingTargetParts']);
         $t->true(in_array('diagram-data', $inventory['word/diagrams/data1.xml']['roles'], true), 'diagram data inventory role missing');
+        $t->true(in_array('diagram-sidecar-part', $inventory['word/diagrams/data1.xml']['roles'], true), 'diagram data sidecar inventory role missing');
         $t->true(in_array('diagram-layout', $inventory['word/diagrams/layout1.xml']['roles'], true), 'diagram layout inventory role missing');
+        $t->true(in_array('diagram-sidecar-part', $inventory['word/diagrams/layout1.xml']['roles'], true), 'diagram layout sidecar inventory role missing');
         $t->true(in_array('diagram-quick-style', $inventory['word/diagrams/bad-style.xml']['roles'], true), 'diagram style inventory role missing');
+        $t->true(in_array('diagram-sidecar-part', $inventory['word/diagrams/bad-style.xml']['roles'], true), 'diagram style sidecar inventory role missing');
         $t->true(in_array('diagram-data', $inventory['word/diagrams/unreferenced-data.xml']['roles'], true), 'unreferenced diagram inventory role missing');
+        $t->true(in_array('diagram-sidecar-part', $inventory['word/diagrams/unreferenced-data.xml']['roles'], true), 'unreferenced diagram sidecar inventory role missing');
         $t->true(!isset($docx['media']['word/diagrams/data1.xml']), 'Diagram XML should not be exposed as document media');
     },
     'summarizes docx chart embedded package relationships for review handoff' => static function (TestRunner $t): void {
