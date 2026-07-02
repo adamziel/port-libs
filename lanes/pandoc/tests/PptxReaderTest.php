@@ -1875,6 +1875,79 @@ XML);
     }
 };
 
+$buildEmptyEmbedAndLinkPictureBlipPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-empty-embed-link-image-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Empty embed and link image</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:pic>
+      <p:nvPicPr><p:cNvPr id="7" name="Empty Embed Picture" descr="Empty embed alt"/></p:nvPicPr>
+      <p:blipFill><a:blip r:embed="" r:link="rIdLinkedImage"/></p:blipFill>
+    </p:pic>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->addFromString('ppt/slides/_rels/slide1.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdLinkedImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/link-still-loses.png"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/media/link-still-loses.png', 'link-still-loses-image-bytes');
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildUntypedImageRelationshipPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-untyped-image-rel-');
     if ($path === false) {
@@ -12529,6 +12602,22 @@ return [
         $t->contains('Image ( "" , [  ] , [  ] ) [ Str "Embed" , Space , Str "wins" , Space , Str "alt" ] ( "ppt/media/embed-wins.png" , "Embed Wins Picture" )', $native);
         $t->true(!str_contains($native, 'link-loses.png'), 'A present r:link relationship should stay ignored when r:embed is available');
         $t->true(!str_contains($native, 'rIdLinkedImage'), 'The linked image relationship id should not drive visible output when r:embed is present');
+    },
+
+    'does not fall back to pptx picture links when embed is empty like upstream' => static function (TestRunner $t) use ($buildEmptyEmbedAndLinkPictureBlipPptxPackage, $nodesOfType): void {
+        $document = (new PptxReader())->read($buildEmptyEmbedAndLinkPictureBlipPptxPackage());
+        $review = $document->attr('pptx');
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same([], $nodesOfType($document, 'image'));
+        $t->same(1, $review['slides'][0]['imageIssueCount'] ?? null);
+        $t->same('unknown-image-relationship', $review['slides'][0]['imageIssues'][0]['issue'] ?? null);
+        $t->same('', $review['slides'][0]['imageIssues'][0]['relationshipId'] ?? null);
+        $t->same('embed', $review['slides'][0]['imageIssues'][0]['relationshipAttribute'] ?? null);
+        $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Empty" , Space , Str "embed" , Space , Str "and" , Space , Str "link" , Space , Str "image" ]', $native);
+        $t->true(!str_contains($native, 'Image'), 'An empty r:embed should prevent the linked picture from becoming visible');
+        $t->true(!str_contains($native, 'link-still-loses.png'), 'A valid r:link target should stay ignored when r:embed is present but empty');
+        $t->true(!str_contains($native, 'rIdLinkedImage'), 'The linked image relationship id should not drive visible output when an empty r:embed is present');
     },
 
     'keeps pptx image relationships without Type usable like upstream' => static function (TestRunner $t) use ($buildUntypedImageRelationshipPptxPackage, $nodesOfType): void {
