@@ -9,6 +9,76 @@ use PortLibs\Pandoc\PandocJsonReader;
 use PortLibs\Pandoc\PandocJsonWriter;
 
 return [
+    'preserves empty single wrapped list definition and line collections' => static function (TestRunner $t): void {
+        $blocks = [
+            ['t' => 'BulletList', 'c' => [[]], 'reviewQueue' => 'empty-bullet-collection'],
+            ['t' => 'OrderedList', 'c' => [
+                [1, ['t' => 'Decimal'], ['t' => 'Period']],
+                [[]],
+            ], 'reviewQueue' => 'empty-ordered-collection'],
+            ['t' => 'DefinitionList', 'c' => [[]], 'reviewQueue' => 'empty-definition-collection'],
+            ['t' => 'LineBlock', 'c' => [[]], 'reviewQueue' => 'empty-line-collection'],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => $blocks,
+        ];
+        $withoutNativeWrapper = static function (AstNode $node): array {
+            $attrs = $node->attrs;
+            unset($attrs['constructor'], $attrs['native']);
+
+            return $attrs;
+        };
+
+        foreach ([
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ] as $source => $document) {
+            $bullet = $document->children[0];
+            $ordered = $document->children[1];
+            $definitionList = $document->children[2];
+            $lineBlock = $document->children[3];
+
+            $t->same(['bullet_list', 'ordered_list', 'definition_list', 'line_block'], array_map(static fn (AstNode $node): string => $node->type, $document->children), "{$source} block types");
+            $t->same(0, count($bullet->children), "{$source} empty bullet item count");
+            $t->same(0, count($ordered->children), "{$source} empty ordered item count");
+            $t->same(0, count($definitionList->children), "{$source} empty definition item count");
+            $t->same(0, count($lineBlock->children), "{$source} empty line count");
+            $t->same([[]], $bullet->attr('listItemsNative'), "{$source} bullet collection sidecar");
+            $t->same([[]], $ordered->attr('listItemsNative'), "{$source} ordered collection sidecar");
+            $t->same([[]], $definitionList->attr('definitionItemsNative'), "{$source} definition collection sidecar");
+            $t->same([[]], $lineBlock->attr('lineBlockLinesNative'), "{$source} line collection sidecar");
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($document),
+                'native' => json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $t->same($blocks, $encoded['blocks'], "{$source} {$writer} writer preserves unchanged empty collection wrappers");
+            }
+
+            $rebuilt = new AstNode('document', $document->attrs, [
+                new AstNode('bullet_list', $withoutNativeWrapper($bullet), []),
+                new AstNode('ordered_list', $withoutNativeWrapper($ordered), []),
+                new AstNode('definition_list', $withoutNativeWrapper($definitionList), []),
+                new AstNode('line_block', $withoutNativeWrapper($lineBlock), []),
+            ]);
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($rebuilt),
+                'native' => json_decode((new NativeWriter())->write($rebuilt), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $t->same([[]], $encoded['blocks'][0]['c'], "{$source} {$writer} writer preserves rebuilt empty bullet wrapper");
+                $t->same([[]], $encoded['blocks'][1]['c'][1], "{$source} {$writer} writer preserves rebuilt empty ordered wrapper");
+                $t->same([[]], $encoded['blocks'][2]['c'], "{$source} {$writer} writer preserves rebuilt empty definition wrapper");
+                $t->same([[]], $encoded['blocks'][3]['c'], "{$source} {$writer} writer preserves rebuilt empty line wrapper");
+                $t->same(false, array_key_exists('reviewQueue', $encoded['blocks'][0]), "{$source} {$writer} writer drops stale bullet sidecar after rebuild");
+                $t->same(false, array_key_exists('reviewQueue', $encoded['blocks'][1]), "{$source} {$writer} writer drops stale ordered sidecar after rebuild");
+                $t->same(false, array_key_exists('reviewQueue', $encoded['blocks'][2]), "{$source} {$writer} writer drops stale definition sidecar after rebuild");
+                $t->same(false, array_key_exists('reviewQueue', $encoded['blocks'][3]), "{$source} {$writer} writer drops stale line sidecar after rebuild");
+            }
+        }
+    },
     'accepts single wrapped multi-item list definition and line collections' => static function (TestRunner $t): void {
         $plain = static fn (string $text): array => ['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => $text]]];
         $bulletItems = [
