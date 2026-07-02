@@ -4076,6 +4076,10 @@ XML);
       <p:nvGraphicFramePr><p:cNvPr id="20" name="Invalid SmartArt Frame"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
       <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"><dgm:relIds r:dm="rIdData" r:lo="rIdLayout"/></a:graphicData></a:graphic>
     </p:graphicFrame>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="21" name="Invalid SmartArt Layout Frame"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"><dgm:relIds r:dm="rIdData2" r:lo="rIdLayout2"/></a:graphicData></a:graphic>
+    </p:graphicFrame>
   </p:spTree></p:cSld>
 </p:sld>
 XML);
@@ -4084,15 +4088,33 @@ XML);
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdData" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData" Target="../diagrams/data1.xml"/>
   <Relationship Id="rIdLayout" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramLayout" Target="../diagrams/layout1.xml"/>
+  <Relationship Id="rIdData2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData" Target="../diagrams/data2.xml"/>
+  <Relationship Id="rIdLayout2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramLayout" Target="../diagrams/layout2.xml"/>
 </Relationships>
 XML);
     $zip->addFromString('ppt/diagrams/data1.xml', <<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
 <dgm:dataModel xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"><dgm:ptLst>
 XML);
+    $zip->addFromString('ppt/diagrams/data2.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<dgm:dataModel xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <dgm:ptLst>
+    <dgm:pt modelId="parent"><dgm:t><a:p><a:r><a:t>Invalid layout parent</a:t></a:r></a:p></dgm:t></dgm:pt>
+    <dgm:pt modelId="child"><dgm:t><a:p><a:r><a:t>Invalid layout child</a:t></a:r></a:p></dgm:t></dgm:pt>
+  </dgm:ptLst>
+  <dgm:cxnLst>
+    <dgm:cxn srcId="parent" destId="child"/>
+  </dgm:cxnLst>
+</dgm:dataModel>
+XML);
     $zip->addFromString('ppt/diagrams/layout1.xml', <<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
 <dgm:layoutDef xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" uniqueId="urn:microsoft.com/office/officeart/2005/8/layout/basicBlockList"/>
+XML);
+    $zip->addFromString('ppt/diagrams/layout2.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<dgm:layoutDef xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"><dgm:title
 XML);
     $zip->close();
 
@@ -9293,7 +9315,7 @@ return [
         $t->true(!str_contains($native, 'Missing layout child'), 'Child text should stay hidden when the SmartArt layout part is missing');
     },
 
-    'keeps invalid pptx SmartArt XML as a parse diagnostic like upstream' => static function (TestRunner $t) use ($buildInvalidSmartArtDataXmlPptxPackage, $nodesOfType): void {
+    'keeps invalid pptx SmartArt data and layout XML as parse diagnostics like upstream' => static function (TestRunner $t) use ($buildInvalidSmartArtDataXmlPptxPackage, $nodesOfType): void {
         $document = (new PptxReader())->read($buildInvalidSmartArtDataXmlPptxPackage());
         $paragraphs = $nodesOfType($document, 'paragraph');
         $texts = array_map(static fn (AstNode $paragraph): string => (string) $paragraph->attr('text'), $paragraphs);
@@ -9303,15 +9325,23 @@ return [
         ));
         $native = PandocConverter::write($document, 'native');
 
-        $t->same(1, count($diagnostics));
-        $parseErrors = array_values(array_filter(
+        $t->same(2, count($diagnostics));
+        $dataParseErrors = array_values(array_filter(
             $texts,
             static fn (string $text): bool => str_starts_with($text, '[Diagram parse error: Unable to parse PPTX SmartArt data at line ')
         ));
+        $layoutParseErrors = array_values(array_filter(
+            $texts,
+            static fn (string $text): bool => str_starts_with($text, '[Diagram parse error: Unable to parse PPTX SmartArt layout at line ')
+        ));
 
-        $t->same(1, count($parseErrors));
+        $t->same(1, count($dataParseErrors));
+        $t->same(1, count($layoutParseErrors));
         $t->true(!str_contains($native, 'File not found in archive: ppt/diagrams/data1.xml'), 'Existing invalid SmartArt XML should not be mislabeled as a missing package part');
         $t->same('Invalid SmartArt Frame', $diagnostics[0]->attr('pptxShape')['name'] ?? null);
+        $t->same('Invalid SmartArt Layout Frame', $diagnostics[1]->attr('pptxShape')['name'] ?? null);
+        $t->true(!str_contains($native, 'Invalid layout parent'), 'Data text should stay hidden when the SmartArt layout XML is invalid');
+        $t->true(!str_contains($native, 'Invalid layout child'), 'Child text should stay hidden when the SmartArt layout XML is invalid');
     },
 
     'treats Unicode-whitespace-only pptx SmartArt text as empty like upstream' => static function (TestRunner $t) use ($buildWhitespaceOnlySmartArtTextPptxPackage, $nodesOfType, $nodesWithClass): void {
