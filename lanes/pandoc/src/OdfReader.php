@@ -2128,6 +2128,7 @@ final class OdfReader
         $manifestByPart = [];
         $undeclaredByPart = [];
         $mediaResourceSummary = $this->manifestMediaResourceRoleSummary($manifest);
+        $manifestPackagePathProfile = self::manifestPackagePathProfile($manifest);
         $preferredViewModeSummary = self::manifestPreferredViewModeSummary($manifest);
         $manifestEncryptionSummary = self::manifestEncryptionSummary($manifest);
         $packageDirectoryCount = 0;
@@ -2812,6 +2813,7 @@ final class OdfReader
             'manifestPartReferenceQueryCount' => $manifestPartReferenceQueryCount,
             'manifestPartReferenceFragmentCount' => $manifestPartReferenceFragmentCount,
             'manifestPartReferenceSuffixItems' => $manifestPartReferenceSuffixItems,
+            'manifestPackagePathProfile' => $manifestPackagePathProfile,
             'undeclaredEntryCount' => count($undeclaredEntries),
             'packageDirectoryCount' => $packageDirectoryCount,
             'packagePathDirectoryCount' => count($directorySummaries),
@@ -3204,6 +3206,187 @@ final class OdfReader
         }
 
         return self::normalizePackageInventoryLocationSummaries($extensions);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return array<string, mixed>
+     */
+    private static function manifestPackagePathProfile(array $entries): array
+    {
+        $items = [];
+        $pathRootCounts = [];
+        $pathDepthCounts = [];
+        $fileExtensionCounts = [];
+        $basenameItems = [];
+        $packageRootEntryCount = 0;
+        $packagePathEntryCount = 0;
+        $directoryEntryCount = 0;
+        $fileEntryCount = 0;
+        $topLevelEntryCount = 0;
+        $nestedEntryCount = 0;
+        $uriEncodedPartReferenceCount = 0;
+        $suffixReferenceCount = 0;
+        $maxDepth = 0;
+
+        foreach ($entries as $entry) {
+            $item = self::manifestPackagePathProfileItem($entry);
+            $items[] = $item;
+
+            $pathRoot = (string) $item['pathRoot'];
+            $pathDepth = (int) $item['pathDepth'];
+            $pathRootCounts[$pathRoot] = ($pathRootCounts[$pathRoot] ?? 0) + 1;
+            $pathDepthCounts[$pathDepth] = ($pathDepthCounts[$pathDepth] ?? 0) + 1;
+            $maxDepth = max($maxDepth, $pathDepth);
+
+            if (($item['isPackageRoot'] ?? false) === true) {
+                ++$packageRootEntryCount;
+                continue;
+            }
+
+            ++$packagePathEntryCount;
+            if (($item['isDirectory'] ?? false) === true) {
+                ++$directoryEntryCount;
+            } else {
+                ++$fileEntryCount;
+                $extensionKey = is_string($item['extension'] ?? null) ? $item['extension'] : '(none)';
+                $fileExtensionCounts[$extensionKey] = ($fileExtensionCounts[$extensionKey] ?? 0) + 1;
+                if (is_string($item['baseName'] ?? null) && $item['baseName'] !== '') {
+                    $basenameItems[$item['baseName']][] = [
+                        'manifestIndex' => $item['manifestIndex'],
+                        'fullPath' => $item['fullPath'],
+                        'part' => $item['part'],
+                        'packagePath' => $item['packagePath'],
+                        'pathRoot' => $item['pathRoot'],
+                        'parentDirectory' => $item['parentDirectory'],
+                        'extension' => $item['extension'],
+                    ];
+                }
+            }
+
+            if ($pathDepth === 1) {
+                ++$topLevelEntryCount;
+            } elseif ($pathDepth > 1) {
+                ++$nestedEntryCount;
+            }
+            if (($item['uriEncodedPartReference'] ?? false) === true) {
+                ++$uriEncodedPartReferenceCount;
+            }
+            if (is_string($item['partSuffix'] ?? null) && $item['partSuffix'] !== '') {
+                ++$suffixReferenceCount;
+            }
+        }
+
+        $duplicateBasenameItems = [];
+        foreach ($basenameItems as $baseName => $matches) {
+            if (count($matches) < 2) {
+                continue;
+            }
+
+            $duplicateBasenameItems[] = [
+                'baseName' => $baseName,
+                'count' => count($matches),
+                'paths' => array_column($matches, 'fullPath'),
+                'parts' => array_column($matches, 'part'),
+                'items' => $matches,
+            ];
+        }
+
+        ksort($pathRootCounts, SORT_STRING);
+        ksort($pathDepthCounts, SORT_NUMERIC);
+        ksort($fileExtensionCounts, SORT_STRING);
+        usort(
+            $duplicateBasenameItems,
+            static fn (array $left, array $right): int => strcmp((string) $left['baseName'], (string) $right['baseName'])
+        );
+
+        return [
+            'itemCount' => count($items),
+            'packageRootEntryCount' => $packageRootEntryCount,
+            'packagePathEntryCount' => $packagePathEntryCount,
+            'directoryEntryCount' => $directoryEntryCount,
+            'fileEntryCount' => $fileEntryCount,
+            'topLevelEntryCount' => $topLevelEntryCount,
+            'nestedEntryCount' => $nestedEntryCount,
+            'maxDepth' => $maxDepth,
+            'uriEncodedPartReferenceCount' => $uriEncodedPartReferenceCount,
+            'uriEncodedPackageReferenceCount' => $uriEncodedPartReferenceCount,
+            'suffixReferenceCount' => $suffixReferenceCount,
+            'pathRootCounts' => $pathRootCounts,
+            'pathDepthCounts' => $pathDepthCounts,
+            'fileExtensionCounts' => $fileExtensionCounts,
+            'duplicateBasenameCount' => count($duplicateBasenameItems),
+            'duplicateBasenameItems' => $duplicateBasenameItems,
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     * @return array<string, mixed>
+     */
+    private static function manifestPackagePathProfileItem(array $entry): array
+    {
+        $fullPath = (string) ($entry['fullPath'] ?? '');
+        $part = is_string($entry['part'] ?? null) ? $entry['part'] : null;
+        $partReference = is_string($entry['partReference'] ?? null) ? $entry['partReference'] : null;
+        $isPackageRoot = $fullPath === '/' || $part === null;
+        $isDirectory = !$isPackageRoot && str_ends_with((string) $part, '/');
+        $segments = [];
+        if ($part !== null) {
+            $trimmedPath = trim($part, '/');
+            $segments = $trimmedPath === '' ? [] : explode('/', $trimmedPath);
+        }
+
+        $pathDepth = count($segments);
+        $baseName = $segments === [] ? null : (string) end($segments);
+        $pathRoot = '/';
+        if (!$isPackageRoot) {
+            $pathRoot = $pathDepth === 1 && !$isDirectory
+                ? '(package-root)'
+                : (string) ($segments[0] ?? '(package-root)');
+        }
+        $parentDirectory = null;
+        if (!$isPackageRoot && $pathDepth > 1) {
+            $parentDirectory = implode('/', array_slice($segments, 0, -1)) . '/';
+        }
+
+        $extension = null;
+        if (!$isPackageRoot && !$isDirectory && is_string($baseName)) {
+            $pathExtension = strtolower(pathinfo($baseName, PATHINFO_EXTENSION));
+            $extension = $pathExtension === '' ? null : $pathExtension;
+        }
+        $uriEncodedPartReference = $partReference !== null && $partReference !== $part;
+
+        return [
+            'manifestIndex' => $entry['manifestIndex'] ?? null,
+            'fullPath' => $fullPath,
+            'path' => $fullPath,
+            'part' => $part,
+            'packagePath' => $part,
+            'partReference' => $partReference,
+            'pathReference' => $partReference,
+            'partSuffix' => $entry['partSuffix'] ?? null,
+            'pathSuffix' => $entry['partSuffix'] ?? null,
+            'partQuery' => $entry['partQuery'] ?? null,
+            'pathQuery' => $entry['partQuery'] ?? null,
+            'partFragment' => $entry['partFragment'] ?? null,
+            'pathFragment' => $entry['partFragment'] ?? null,
+            'pathRoot' => $pathRoot,
+            'pathDepth' => $pathDepth,
+            'parentDirectory' => $parentDirectory,
+            'baseName' => $baseName,
+            'extension' => $extension,
+            'isPackageRoot' => $isPackageRoot,
+            'isDirectory' => ($entry['isDirectory'] ?? false) === true,
+            'exists' => ($entry['exists'] ?? false) === true,
+            'encrypted' => ($entry['encrypted'] ?? false) === true,
+            'uriEncodedPartReference' => $uriEncodedPartReference,
+            'uriEncodedPackageReference' => $uriEncodedPartReference,
+            'manifestMediaFamily' => $entry['manifestMediaFamily'] ?? null,
+            'mediaType' => $entry['mediaType'] ?? '',
+            'mediaTypeBase' => $entry['mediaTypeBase'] ?? null,
+        ];
     }
 
     /**
@@ -3997,6 +4180,9 @@ final class OdfReader
         }
 
         $comments = is_array($provenance['comments'] ?? null) ? $provenance['comments'] : [];
+        $manifestPackagePathProfile = is_array($provenance['manifestPackagePathProfile'] ?? null)
+            ? $provenance['manifestPackagePathProfile']
+            : [];
         $payload = [
             'identityVersion' => 1,
             'packageType' => 'opendocument-text',
@@ -4006,6 +4192,12 @@ final class OdfReader
             'manifestRootNamespaceDeclarationMap' => $provenance['manifestRootNamespaceDeclarationMap'] ?? [],
             'manifestEntries' => $manifestEntries,
             'packageEntries' => $packageEntries,
+            'manifestPackagePathProfileItemCount' => $manifestPackagePathProfile['itemCount'] ?? 0,
+            'manifestPackagePathProfilePathRootCounts' => $manifestPackagePathProfile['pathRootCounts'] ?? [],
+            'manifestPackagePathProfilePathDepthCounts' => $manifestPackagePathProfile['pathDepthCounts'] ?? [],
+            'manifestPackagePathProfileFileExtensionCounts' => $manifestPackagePathProfile['fileExtensionCounts'] ?? [],
+            'manifestDuplicateBasenameCount' => $manifestPackagePathProfile['duplicateBasenameCount'] ?? 0,
+            'manifestDuplicateBasenameItems' => $manifestPackagePathProfile['duplicateBasenameItems'] ?? [],
             'partPathDepthCount' => $provenance['partPathDepthCount'] ?? 0,
             'partPathDepths' => $provenance['partPathDepths'] ?? [],
             'maxPartPathSegmentCount' => $provenance['maxPartPathSegmentCount'] ?? 0,
@@ -4031,6 +4223,8 @@ final class OdfReader
                 ? ($provenance['packageCoreParts']['issueCodes'] ?? [])
                 : [],
             'manifestByteExposurePolicyCounts' => $provenance['manifestByteExposurePolicyCounts'] ?? [],
+            'manifestByteExposurePolicyItemCount' => $provenance['manifestByteExposurePolicyItemCount'] ?? 0,
+            'manifestByteExposurePolicyItems' => $provenance['manifestByteExposurePolicyItems'] ?? [],
             'manifestCustomAttributeNames' => $provenance['manifestCustomAttributeNames'] ?? [],
             'rawNameProvenanceEntries' => $provenance['rawNameProvenanceEntries'] ?? [],
             'platformMetadataEntryCount' => $provenance['platformMetadataEntryCount'] ?? 0,
@@ -4132,6 +4326,12 @@ final class OdfReader
             'packageEntryCount' => count($packageEntries),
             'manifestFullPaths' => array_column($manifestEntries, 'fullPath'),
             'packageParts' => array_column($packageEntries, 'part'),
+            'manifestPackagePathProfileItemCount' => $manifestPackagePathProfile['itemCount'] ?? 0,
+            'manifestPackagePathProfilePathRootCounts' => $manifestPackagePathProfile['pathRootCounts'] ?? [],
+            'manifestPackagePathProfilePathDepthCounts' => $manifestPackagePathProfile['pathDepthCounts'] ?? [],
+            'manifestPackagePathProfileFileExtensionCounts' => $manifestPackagePathProfile['fileExtensionCounts'] ?? [],
+            'manifestDuplicateBasenameCount' => $manifestPackagePathProfile['duplicateBasenameCount'] ?? 0,
+            'manifestDuplicateBasenameItems' => $manifestPackagePathProfile['duplicateBasenameItems'] ?? [],
             'partPathDepthCount' => $provenance['partPathDepthCount'] ?? 0,
             'partPathDepths' => $provenance['partPathDepths'] ?? [],
             'maxPartPathSegmentCount' => $provenance['maxPartPathSegmentCount'] ?? 0,
@@ -4161,6 +4361,9 @@ final class OdfReader
             'corePackageIssueCodes' => is_array($provenance['packageCoreParts'] ?? null)
                 ? ($provenance['packageCoreParts']['issueCodes'] ?? [])
                 : [],
+            'manifestByteExposurePolicyCounts' => $provenance['manifestByteExposurePolicyCounts'] ?? [],
+            'manifestByteExposurePolicyItemCount' => $provenance['manifestByteExposurePolicyItemCount'] ?? 0,
+            'manifestByteExposurePolicyItems' => $provenance['manifestByteExposurePolicyItems'] ?? [],
             'generalPurposeFlagStrictReviewEntryCount' => $provenance['generalPurposeFlagStrictReviewEntryCount'] ?? 0,
             'generalPurposeFlagDataDescriptorEntryCount' => $provenance['generalPurposeFlagDataDescriptorEntryCount'] ?? 0,
             'generalPurposeFlagDeflateOptionEntryCount' => $provenance['generalPurposeFlagDeflateOptionEntryCount'] ?? 0,
@@ -19514,6 +19717,9 @@ final class OdfReader
             if (!$mediaTypeValid) {
                 $issues[] = 'odf-layout-cache-invalid-media-type';
             }
+            if (($item['declaredSizeInvalid'] ?? false) === true) {
+                $issues[] = 'odf-layout-cache-invalid-declared-size';
+            }
             foreach ($issues as $issue) {
                 $issueCodes[$issue] = true;
             }
@@ -19545,6 +19751,9 @@ final class OdfReader
                 'storedByteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
                 'storedCrc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
                 'declaredSize' => $item['declaredSize'] ?? null,
+                'declaredSizeRaw' => $item['declaredSizeRaw'] ?? null,
+                'declaredSizeValid' => ($item['declaredSizeValid'] ?? false) === true,
+                'declaredSizeInvalid' => ($item['declaredSizeInvalid'] ?? false) === true,
                 'declaredSizeMismatch' => ($item['declaredSizeMismatch'] ?? false) === true,
                 'canExposeAsDocumentMedia' => false,
                 'byteExposurePolicy' => $item['byteExposurePolicy'] ?? 'layout-cache-package-bytes-blocked',
@@ -19570,6 +19779,7 @@ final class OdfReader
                 fn (array $item): bool => $item['mediaType'] !== null
                     && !$this->isLayoutCacheMediaType((string) $item['mediaType']),
             )),
+            'invalidDeclaredSizeCount' => count(array_filter($items, static fn (array $item): bool => $item['declaredSizeInvalid'] === true)),
             'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
             'issueCodes' => array_keys($issueCodes),
             'byteExposurePolicy' => 'layout-cache-package-bytes-blocked',

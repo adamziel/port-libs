@@ -785,6 +785,7 @@ final class OdtReader
                 (string) ($style['fontName'] ?? '')
             );
         }
+        array_push($diagnostics, ...$this->styleParentCycleDiagnostics($styles));
 
         return $diagnostics;
     }
@@ -819,6 +820,59 @@ final class OdtReader
             $diagnostic['family'] = $family;
         }
         $diagnostics[] = $diagnostic;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $styles
+     * @return list<array<string, mixed>>
+     */
+    private function styleParentCycleDiagnostics(array $styles): array
+    {
+        $diagnostics = [];
+        $reported = [];
+
+        foreach (array_keys($styles) as $styleName) {
+            $path = [];
+            $positions = [];
+            $current = $styleName;
+
+            while ($current !== '' && isset($styles[$current])) {
+                if (isset($positions[$current])) {
+                    $cycle = array_slice($path, $positions[$current]);
+                    $cycle[] = $current;
+                    $members = array_slice($cycle, 0, -1);
+                    $keyParts = $members;
+                    sort($keyParts);
+                    $key = implode("\0", $keyParts);
+                    if (!isset($reported[$key])) {
+                        $reported[$key] = true;
+                        $cycleStyleName = (string) ($members[0] ?? $styleName);
+                        $style = $styles[$cycleStyleName] ?? [];
+                        $diagnostic = [
+                            'code' => 'odt-style-parent-cycle',
+                            'sourcePart' => (string) ($style['sourcePart'] ?? ''),
+                            'element' => (string) ($style['element'] ?? 'style:style'),
+                            'styleName' => $cycleStyleName,
+                            'styleNames' => $members,
+                            'cyclePath' => $cycle,
+                        ];
+                        $family = (string) ($style['family'] ?? '');
+                        if ($family !== '') {
+                            $diagnostic['family'] = $family;
+                        }
+                        $diagnostics[] = $diagnostic;
+                    }
+                    break;
+                }
+
+                $positions[$current] = count($path);
+                $path[] = $current;
+                $parentName = $styles[$current]['parentName'] ?? '';
+                $current = is_string($parentName) ? $parentName : '';
+            }
+        }
+
+        return $diagnostics;
     }
 
     /**

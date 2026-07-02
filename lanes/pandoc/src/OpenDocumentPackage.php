@@ -2346,6 +2346,7 @@ final class OpenDocumentPackage
         }
 
         $comments = is_array($packageInventory['comments'] ?? null) ? $packageInventory['comments'] : [];
+        $manifestByteExposurePolicies = self::manifestByteExposurePolicySummary($this->manifestEntries);
         $payload = [
             'identityVersion' => 1,
             'packageType' => 'opendocument-text',
@@ -2389,6 +2390,9 @@ final class OpenDocumentPackage
             'leafNameSummaries' => $packageInventory['leafNameSummaries'] ?? [],
             'sharedLeafNameSummaries' => $packageInventory['sharedLeafNameSummaries'] ?? [],
             'byteExposurePolicyCounts' => $packageInventory['byteExposurePolicyCounts'] ?? [],
+            'manifestByteExposurePolicyCounts' => $manifestByteExposurePolicies['manifestByteExposurePolicyCounts'],
+            'manifestByteExposurePolicyItemCount' => $manifestByteExposurePolicies['manifestByteExposurePolicyItemCount'],
+            'manifestByteExposurePolicyItems' => $manifestByteExposurePolicies['manifestByteExposurePolicyItems'],
             'roleCounts' => $packageInventory['roleCounts'] ?? [],
             'packageCoreParts' => $packageCoreParts,
             'undeclaredEntryCount' => $packageInventory['undeclaredEntryCount'] ?? 0,
@@ -6533,6 +6537,9 @@ final class OpenDocumentPackage
             if (!$mediaTypeValid) {
                 $issues[] = 'odf-layout-cache-invalid-media-type';
             }
+            if (($entry['declaredSizeInvalid'] ?? false) === true) {
+                $issues[] = 'odf-layout-cache-invalid-declared-size';
+            }
             foreach ($issues as $issue) {
                 $issueCodes[$issue] = true;
             }
@@ -6566,6 +6573,9 @@ final class OpenDocumentPackage
                 'storedByteLength' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null,
                 'storedCrc32' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
                 'declaredSize' => $entry['declaredSize'] ?? $entry['size'] ?? null,
+                'declaredSizeRaw' => $entry['declaredSizeRaw'] ?? null,
+                'declaredSizeValid' => ($entry['declaredSizeValid'] ?? false) === true,
+                'declaredSizeInvalid' => ($entry['declaredSizeInvalid'] ?? false) === true,
                 'declaredSizeMismatch' => ($entry['declaredSizeMismatch'] ?? false) === true,
                 'canExposeAsDocumentMedia' => false,
                 'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? 'layout-cache-package-bytes-blocked',
@@ -6591,6 +6601,7 @@ final class OpenDocumentPackage
                 static fn (array $item): bool => $item['mediaType'] !== null
                     && !self::isLayoutCacheMediaType((string) $item['mediaType']),
             )),
+            'invalidDeclaredSizeCount' => count(array_filter($items, static fn (array $item): bool => $item['declaredSizeInvalid'] === true)),
             'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
             'issueCodes' => array_keys($issueCodes),
             'byteExposurePolicy' => 'layout-cache-package-bytes-blocked',
@@ -10744,6 +10755,7 @@ final class OpenDocumentPackage
             self::MANIFEST_DECLARED_SIZE_LARGEST_ITEM_LIMIT
         );
         $summary['largestDeclaredSizeItemCount'] = count($summary['largestDeclaredSizeItems']);
+        $summary += self::manifestByteExposurePolicySummary($entries);
         sort($summary['manifestCustomAttributeNames'], SORT_STRING);
         sort($summary['manifestCustomChildElementNames'], SORT_STRING);
         sort($summary['manifestMediaTypeParameterNames'], SORT_STRING);
@@ -11796,6 +11808,48 @@ final class OpenDocumentPackage
     }
 
     /**
+     * @param list<array<string, mixed>> $entries
+     * @return array{manifestByteExposurePolicyCounts:array<string, int>, manifestByteExposurePolicyItemCount:int, manifestByteExposurePolicyItems:list<array<string, mixed>>}
+     */
+    private static function manifestByteExposurePolicySummary(array $entries): array
+    {
+        $policyCounts = [];
+        $policyItems = [];
+
+        foreach ($entries as $entry) {
+            $byteExposurePolicy = $entry['byteExposurePolicy'] ?? null;
+            if (!is_string($byteExposurePolicy) || $byteExposurePolicy === '') {
+                continue;
+            }
+
+            $policyCounts[$byteExposurePolicy] = ($policyCounts[$byteExposurePolicy] ?? 0) + 1;
+            $policyItems[] = self::withoutEmptyValues([
+                'manifestIndex' => $entry['manifestIndex'] ?? null,
+                'fullPath' => $entry['path'] ?? null,
+                'path' => $entry['path'] ?? null,
+                'part' => $entry['packagePath'] ?? null,
+                'packagePath' => $entry['packagePath'] ?? null,
+                'mediaType' => $entry['mediaType'] ?? null,
+                'missingMediaType' => ($entry['missingMediaType'] ?? false) === true,
+                'byteExposurePolicy' => $byteExposurePolicy,
+                'exists' => ($entry['exists'] ?? false) === true,
+                'isDirectory' => ($entry['isDirectory'] ?? false) === true,
+                'encrypted' => ($entry['encrypted'] ?? false) === true,
+                'canExposeBytes' => ($entry['canExposeBytes'] ?? false) === true,
+                'diagnostics' => $entry['diagnostics'] ?? [],
+            ]);
+        }
+
+        ksort($policyCounts, SORT_STRING);
+
+        return [
+            'manifestByteExposurePolicyCounts' => $policyCounts,
+            'manifestByteExposurePolicyItemCount' => count($policyItems),
+            'manifestByteExposurePolicyItems' => $policyItems,
+        ];
+    }
+
+    /**
      * @param array<string, mixed> $entry
      * @return array<string, mixed>
      */
@@ -11931,24 +11985,7 @@ final class OpenDocumentPackage
 
     private static function assertTextPackageMimetype(ZipPackage $package): void
     {
-        if (!$package->has('mimetype')) {
-            throw new \RuntimeException('ODT package is missing mimetype entry');
-        }
-
-        $entries = $package->localEntries();
-        $first = $entries[0] ?? null;
-        if (!$first instanceof ZipPackageEntry || $first->name !== 'mimetype' || $first->compressionMethod !== 0) {
-            throw new \RuntimeException('ODT mimetype entry must be first in local-header order and stored without compression');
-        }
-
-        $localMimetype = self::localHeaderPreflightEntry($package, 'mimetype');
-        if (is_array($localMimetype) && ((int) ($localMimetype['localExtraFieldLength'] ?? 0)) > 0) {
-            throw new \RuntimeException('ODT mimetype entry must not contain local header extra fields');
-        }
-
-        if ($package->read('mimetype') !== self::TEXT_MIMETYPE) {
-            throw new \RuntimeException('ODT mimetype entry must be application/vnd.oasis.opendocument.text');
-        }
+        $package->assertStoredFirstEntry('mimetype', self::TEXT_MIMETYPE, 'ODT mimetype entry');
     }
 
     /**
@@ -11957,6 +11994,7 @@ final class OpenDocumentPackage
     private static function mimetypeEntryReview(ZipPackage $package): array
     {
         $entry = $package->entry('mimetype');
+        $storedFirstPreflight = $package->storedFirstEntryPreflight('mimetype', self::TEXT_MIMETYPE);
         $localHeader = self::localHeaderPreflightEntry($package, 'mimetype') ?? [];
         $centralDirectoryIndex = null;
         foreach ($package->entries() as $index => $candidate) {
@@ -11983,8 +12021,12 @@ final class OpenDocumentPackage
             : 0;
 
         return [
+            'entryName' => $storedFirstPreflight['entryName'],
+            'exists' => $storedFirstPreflight['exists'],
             'name' => $entry->name,
             'mediaType' => self::TEXT_MIMETYPE,
+            'firstLocalEntryName' => $storedFirstPreflight['firstLocalEntryName'],
+            'isFirstLocalEntry' => $storedFirstPreflight['isFirstLocalEntry'],
             'firstLocalEntry' => $localHeaderOrder === 0,
             'firstCentralDirectoryEntry' => $centralDirectoryIndex === 0,
             'localHeaderOrder' => $localHeaderOrder,
@@ -12007,12 +12049,19 @@ final class OpenDocumentPackage
             'hasCentralExtraFields' => $centralExtraFields !== [],
             'compressionMethod' => $entry->compressionMethod,
             'compressionMethodName' => self::compressionMethodName($entry->compressionMethod),
+            'generalPurposeFlags' => $storedFirstPreflight['generalPurposeFlags'],
+            'usesDataDescriptor' => $storedFirstPreflight['usesDataDescriptor'],
+            'isStored' => $storedFirstPreflight['isStored'],
+            'expectedBytes' => $storedFirstPreflight['expectedBytes'],
+            'contentBytes' => $storedFirstPreflight['contentBytes'],
+            'contentsMatch' => $storedFirstPreflight['contentsMatch'],
+            'isValid' => $storedFirstPreflight['isValid'],
             'byteLength' => $entry->uncompressedSize,
             'compressedByteLength' => $entry->compressedSize,
             'crc32' => $entry->crc32Hex(),
             'canExposeBytes' => false,
             'byteExposurePolicy' => 'odf-mimetype-validation-only',
-            'diagnostics' => [],
+            'diagnostics' => $storedFirstPreflight['diagnostics'],
         ];
     }
 
