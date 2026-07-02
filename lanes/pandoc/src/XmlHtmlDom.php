@@ -19065,6 +19065,9 @@ final class XmlHtmlDom
         if ($name === 'kbd') {
             $summary += self::keyboardInputReviewSummary($element);
         }
+        if ($name === 'mark') {
+            $summary += self::markHighlightReviewSummary($element);
+        }
         if ($name === 'bdi' || $name === 'bdo') {
             if ($name === 'bdi' && !$element->hasAttribute('dir')) {
                 $summary['textDirection'] = 'auto';
@@ -19157,6 +19160,71 @@ final class XmlHtmlDom
             'keyboardInputIssueCodes' => $issueCodes,
             'keyboardInputIssueCount' => count($issues),
             'keyboardInputIssues' => $issues,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function markHighlightReviewSummary(\DOMElement $mark): array
+    {
+        $text = self::normalizedText($mark);
+        $parent = $mark->parentNode;
+        $parentName = $parent instanceof \DOMElement ? self::htmlElementName($parent) : null;
+        $ancestorNames = [];
+        $quoteAncestorNames = [];
+        $nestedTexts = [];
+        $issues = [];
+
+        for ($ancestor = $mark->parentNode; $ancestor instanceof \DOMElement; $ancestor = $ancestor->parentNode) {
+            if ($ancestor->getAttribute(self::FRAGMENT_ROOT_ATTRIBUTE) === '1') {
+                break;
+            }
+
+            $ancestorName = self::htmlElementName($ancestor);
+            self::appendUniqueString($ancestorNames, $ancestorName);
+            if ($ancestorName === 'q' || $ancestorName === 'blockquote') {
+                self::appendUniqueString($quoteAncestorNames, $ancestorName);
+            }
+        }
+
+        foreach (self::descendantHtmlElements($mark, 'mark') as $nestedMark) {
+            $nestedTexts[] = self::normalizedText($nestedMark);
+        }
+
+        if ($text === '') {
+            $issues[] = ['code' => 'empty-highlight'];
+        }
+        if ($parentName === 'mark') {
+            $issues[] = ['code' => 'highlight-inside-highlight'];
+        }
+        if ($nestedTexts !== []) {
+            $issues[] = [
+                'code' => 'nested-highlight',
+                'nestedHighlightCount' => count($nestedTexts),
+            ];
+        }
+
+        return [
+            'highlightReviewPolicy' => 'html-mark-highlight-review',
+            'highlightText' => $text,
+            'highlightTextLength' => strlen($text),
+            'highlightTextSha256' => hash('sha256', $text),
+            'highlightEmpty' => $text === '',
+            'highlightParentElement' => $parentName,
+            'highlightAncestorElements' => $ancestorNames,
+            'highlightInQuote' => $quoteAncestorNames !== [],
+            'highlightQuoteAncestorElements' => $quoteAncestorNames,
+            'highlightInsideHighlight' => $parentName === 'mark',
+            'highlightNestedCount' => count($nestedTexts),
+            'highlightNestedTexts' => $nestedTexts,
+            'highlightIssueCodes' => array_values(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            )),
+            'highlightIssueCount' => count($issues),
+            'highlightIssues' => $issues,
+            'highlightValid' => $issues === [],
         ];
     }
 
