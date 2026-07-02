@@ -6722,6 +6722,44 @@ XML);
     }
 };
 
+$buildFirstMissingTargetRootOfficeDocumentPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-first-missing-target-root-office-doc-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdFirst" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"/>
+  <Relationship Id="rIdSecond" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildQualifiedRootOfficeDocumentTypePptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-qualified-root-office-doc-type-');
     if ($path === false) {
@@ -9506,6 +9544,18 @@ return [
         }
 
         throw new RuntimeException('Expected qualified root officeDocument Target to stay missing like upstream');
+    },
+
+    'fails on the first missing-target root officeDocument relationship like upstream' => static function (TestRunner $t) use ($buildFirstMissingTargetRootOfficeDocumentPptxPackage): void {
+        try {
+            (new PptxReader())->read($buildFirstMissingTargetRootOfficeDocumentPptxPackage());
+        } catch (RuntimeException $exception) {
+            $t->same('Missing Target attribute', $exception->getMessage());
+
+            return;
+        }
+
+        throw new RuntimeException('Expected first matching root officeDocument relationship without Target to fail before later matches');
     },
 
     'allows root officeDocument relationships without Id like upstream' => static function (TestRunner $t) use ($buildRootOfficeDocumentWithoutIdPptxPackage, $nodesOfType): void {
