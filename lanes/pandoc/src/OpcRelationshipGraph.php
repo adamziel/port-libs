@@ -1436,6 +1436,22 @@ final class OpcRelationshipGraph
             'zipPackageManifestSha256' => $packageManifest['manifestSha256'],
             'archiveLength' => $packageManifest['archiveLength'],
             'archiveSha256' => $packageManifest['archiveSha256'],
+            'hasPackagePrefix' => $packageManifest['hasPackagePrefix'],
+            'packagePrefixOffset' => $packageManifest['packagePrefixOffset'],
+            'packagePrefixBytes' => $packageManifest['packagePrefixBytes'],
+            'packagePrefixSha256' => $packageManifest['packagePrefixSha256'],
+            'packagePrefixPreviewHex' => $packageManifest['packagePrefixPreviewHex'],
+            'packagePrefixPreviewByteCount' => $packageManifest['packagePrefixPreviewByteCount'],
+            'packagePrefixSignature' => $packageManifest['packagePrefixSignature'],
+            'hasExecutableStubPackagePrefix' => $packageManifest['hasExecutableStubPackagePrefix'],
+            'firstLocalHeaderOffset' => $packageManifest['firstLocalHeaderOffset'],
+            'centralDirectoryOffsetAfterPackagePrefix' => $packageManifest['centralDirectoryOffsetAfterPackagePrefix'],
+            'endOfCentralDirectoryOffsetAfterPackagePrefix' => $packageManifest['endOfCentralDirectoryOffsetAfterPackagePrefix'],
+            'packagePrefixByteExposurePolicy' => $packageManifest['packagePrefixByteExposurePolicy'],
+            'canExposePackagePrefixBytes' => $packageManifest['canExposePackagePrefixBytes'],
+            'packagePrefixIssueCount' => $packageManifest['packagePrefixIssueCount'],
+            'packagePrefixIssues' => $packageManifest['packagePrefixIssues'],
+            'packageLayoutWithoutPrefixSupported' => $packageManifest['packageLayoutWithoutPrefixSupported'],
             'centralDirectoryOffset' => $packageManifest['centralDirectoryOffset'],
             'centralDirectoryBytes' => $packageManifest['centralDirectoryBytes'],
             'centralDirectoryEnd' => $packageManifest['centralDirectoryEnd'],
@@ -1692,6 +1708,14 @@ final class OpcRelationshipGraph
         $centralDirectorySignatureLocation = null;
         $centralDirectorySignatureVerification = 'not-present';
         $centralDirectorySignatureByteExposurePolicy = 'not-present';
+        $packagePrefix = ZipPackage::packagePrefixPreflight($bytes);
+        $packagePrefixBytes = $packagePrefix['prefixByteCount'];
+        $packagePrefixSha256 = $packagePrefixBytes > 0
+            ? hash('sha256', substr($bytes, 0, $packagePrefixBytes))
+            : null;
+        $packagePrefixByteExposurePolicy = $packagePrefixBytes > 0
+            ? 'zip-package-prefix-source-metadata-only'
+            : 'not-present';
         try {
             $centralDirectorySignature = ZipPackage::centralDirectorySignaturePolicyPreflight($bytes);
             if ($centralDirectorySignature['present']) {
@@ -1715,6 +1739,22 @@ final class OpcRelationshipGraph
         $packageSource = [
             'archiveLength' => $archiveLength,
             'archiveSha256' => hash('sha256', $bytes),
+            'hasPackagePrefix' => $packagePrefix['hasPackagePrefix'],
+            'packagePrefixOffset' => $packagePrefixBytes > 0 ? 0 : null,
+            'packagePrefixBytes' => $packagePrefixBytes,
+            'packagePrefixSha256' => $packagePrefixSha256,
+            'packagePrefixPreviewHex' => $packagePrefix['prefixPreviewHex'],
+            'packagePrefixPreviewByteCount' => $packagePrefix['prefixPreviewByteCount'],
+            'packagePrefixSignature' => $packagePrefix['prefixSignature'],
+            'hasExecutableStubPackagePrefix' => $packagePrefix['hasExecutableStubPrefix'],
+            'firstLocalHeaderOffset' => $packagePrefix['firstLocalHeaderOffset'],
+            'centralDirectoryOffsetAfterPackagePrefix' => $packagePrefix['centralDirectoryOffsetAfterPrefix'],
+            'endOfCentralDirectoryOffsetAfterPackagePrefix' => $packagePrefix['eocdOffsetAfterPrefix'],
+            'packagePrefixByteExposurePolicy' => $packagePrefixByteExposurePolicy,
+            'canExposePackagePrefixBytes' => false,
+            'packagePrefixIssueCount' => count($packagePrefix['issues']),
+            'packagePrefixIssues' => $packagePrefix['issues'],
+            'packageLayoutWithoutPrefixSupported' => $packagePrefix['isPackageLayoutOtherwiseContiguous'],
             'centralDirectoryOffset' => $centralDirectoryOffset,
             'centralDirectoryBytes' => $centralDirectoryBytes,
             'centralDirectoryEnd' => $centralDirectoryEnd,
@@ -1758,6 +1798,22 @@ final class OpcRelationshipGraph
             'packageSource' => $packageSource,
             'archiveLength' => $archiveLength,
             'archiveSha256' => $packageSource['archiveSha256'],
+            'hasPackagePrefix' => $packageSource['hasPackagePrefix'],
+            'packagePrefixOffset' => $packageSource['packagePrefixOffset'],
+            'packagePrefixBytes' => $packageSource['packagePrefixBytes'],
+            'packagePrefixSha256' => $packageSource['packagePrefixSha256'],
+            'packagePrefixPreviewHex' => $packageSource['packagePrefixPreviewHex'],
+            'packagePrefixPreviewByteCount' => $packageSource['packagePrefixPreviewByteCount'],
+            'packagePrefixSignature' => $packageSource['packagePrefixSignature'],
+            'hasExecutableStubPackagePrefix' => $packageSource['hasExecutableStubPackagePrefix'],
+            'firstLocalHeaderOffset' => $packageSource['firstLocalHeaderOffset'],
+            'centralDirectoryOffsetAfterPackagePrefix' => $packageSource['centralDirectoryOffsetAfterPackagePrefix'],
+            'endOfCentralDirectoryOffsetAfterPackagePrefix' => $packageSource['endOfCentralDirectoryOffsetAfterPackagePrefix'],
+            'packagePrefixByteExposurePolicy' => $packageSource['packagePrefixByteExposurePolicy'],
+            'canExposePackagePrefixBytes' => $packageSource['canExposePackagePrefixBytes'],
+            'packagePrefixIssueCount' => $packageSource['packagePrefixIssueCount'],
+            'packagePrefixIssues' => $packageSource['packagePrefixIssues'],
+            'packageLayoutWithoutPrefixSupported' => $packageSource['packageLayoutWithoutPrefixSupported'],
             'centralDirectoryOffset' => $centralDirectoryOffset,
             'centralDirectoryBytes' => $centralDirectoryBytes,
             'centralDirectoryEnd' => $centralDirectoryEnd,
@@ -2359,6 +2415,10 @@ final class OpcRelationshipGraph
         foreach ($issues as $issue) {
             $issueCounts[$issue] = 1;
         }
+        foreach ($packageSource['packagePrefixIssues'] as $issue) {
+            $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
+            self::appendUniqueString($issues, $issue);
+        }
         if ($zipExtraFieldPreflightError !== null) {
             $issueCounts['extra-field-policy-preflight-error'] = 1;
             self::appendUniqueString($issues, 'extra-field-policy-preflight-error');
@@ -2720,6 +2780,22 @@ final class OpcRelationshipGraph
             'packageSource' => $packageSource['packageSource'],
             'archiveLength' => $packageSource['archiveLength'],
             'archiveSha256' => $packageSource['archiveSha256'],
+            'hasPackagePrefix' => $packageSource['hasPackagePrefix'],
+            'packagePrefixOffset' => $packageSource['packagePrefixOffset'],
+            'packagePrefixBytes' => $packageSource['packagePrefixBytes'],
+            'packagePrefixSha256' => $packageSource['packagePrefixSha256'],
+            'packagePrefixPreviewHex' => $packageSource['packagePrefixPreviewHex'],
+            'packagePrefixPreviewByteCount' => $packageSource['packagePrefixPreviewByteCount'],
+            'packagePrefixSignature' => $packageSource['packagePrefixSignature'],
+            'hasExecutableStubPackagePrefix' => $packageSource['hasExecutableStubPackagePrefix'],
+            'firstLocalHeaderOffset' => $packageSource['firstLocalHeaderOffset'],
+            'centralDirectoryOffsetAfterPackagePrefix' => $packageSource['centralDirectoryOffsetAfterPackagePrefix'],
+            'endOfCentralDirectoryOffsetAfterPackagePrefix' => $packageSource['endOfCentralDirectoryOffsetAfterPackagePrefix'],
+            'packagePrefixByteExposurePolicy' => $packageSource['packagePrefixByteExposurePolicy'],
+            'canExposePackagePrefixBytes' => $packageSource['canExposePackagePrefixBytes'],
+            'packagePrefixIssueCount' => $packageSource['packagePrefixIssueCount'],
+            'packagePrefixIssues' => $packageSource['packagePrefixIssues'],
+            'packageLayoutWithoutPrefixSupported' => $packageSource['packageLayoutWithoutPrefixSupported'],
             'centralDirectoryOffset' => $packageSource['centralDirectoryOffset'],
             'centralDirectoryBytes' => $packageSource['centralDirectoryBytes'],
             'centralDirectoryEnd' => $packageSource['centralDirectoryEnd'],
