@@ -112,9 +112,9 @@ HTML);
         ], $meta['epubLandmarkEntries']);
         $t->contains('<!-- wp:heading {"level":1} -->', $blocks);
         $t->contains('<strong>chapter</strong>', $blocks);
-        $t->contains('href="OEBPS/images/cover.png"', $blocks);
+        $t->contains('href="../images/cover.png"', $blocks);
         $t->contains('<!-- wp:image -->', $blocks);
-        $t->contains('src="OEBPS/images/cover.png"', $blocks);
+        $t->contains('src="images/cover.png"', $blocks);
         $t->contains('alt="Cover art"', $blocks);
         $t->contains('<!-- wp:list -->', $converterBlocks);
     },
@@ -144,8 +144,11 @@ HTML);
         }
 
         $t->same('Byte EPUB', $document->attr('meta')['title']);
-        $t->same('heading', $document->children[0]->type);
-        $t->same('Byte EPUB', $document->children[0]->attr('text'));
+        $t->same('paragraph', $document->children[0]->type);
+        $t->same('span', $document->children[0]->children[0]->type);
+        $t->same('chapter.xhtml', $document->children[0]->children[0]->attr('id'));
+        $t->same('heading', $document->children[1]->type);
+        $t->same('Byte EPUB', $document->children[1]->attr('text'));
     },
     'preserves epub3 navigation landmarks as reader package provenance' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-');

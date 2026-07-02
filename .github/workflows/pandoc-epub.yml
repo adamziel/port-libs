@@ -39,13 +39,16 @@ jobs:
         run: |
           php -l lanes/pandoc/src/EpubReader.php
           php -l lanes/pandoc/src/EpubMediaBagComparisonHarness.php
+          php -l lanes/pandoc/src/EpubNativeAstPackageComparisonHarness.php
           php -l lanes/pandoc/src/EpubUpstreamReaderEvidence.php
           php -l lanes/pandoc/src/ZipPackage.php
           php -l lanes/pandoc/src/ZipPackageEntry.php
           php -l lanes/pandoc/tests/EpubReaderTest.php
           php -l lanes/pandoc/tests/EpubMediaBagComparisonHarnessTest.php
+          php -l lanes/pandoc/tests/EpubNativeAstPackageComparisonHarnessTest.php
           php -l lanes/pandoc/tests/EpubUpstreamReaderEvidenceTest.php
           php -l tools/pandoc-epub-media-bag.php
+          php -l tools/pandoc-epub-native-ast-package.php
           php -l tools/pandoc-epub-reader-evidence.php
 
       - name: Restore pinned Pandoc EPUB upstream cache
@@ -79,6 +82,11 @@ jobs:
           test -f "$target/test/Tests/Readers/EPUB.hs"
           test -f "$target/test/epub/img.epub"
           test -f "$target/test/epub/wasteland.epub"
+          test -f "$target/test/epub/wasteland.native"
+          test -f "$target/test/epub/features.epub"
+          test -f "$target/test/epub/features.native"
+          test -f "$target/test/epub/formatting.epub"
+          test -f "$target/test/epub/formatting.native"
           test -f "$target/test/epub/img_no_cover.epub"
           test -f "$target/test/epub/epub2_picture.epub"
           test -f "$target/test/epub/epub2_cover.epub"
@@ -103,9 +111,20 @@ jobs:
             summary \
             --require-media-bag-parity=6
 
+      - name: Require upstream EPUB native/package coverage
+        run: |
+          php tools/pandoc-epub-native-ast-package.php \
+            --epub-dir=.upstream-cache/pandoc-current/test/epub \
+            --json \
+            summary \
+            --require-package-parity=8 \
+            --require-native-readiness=3 \
+            --require-mapped-parity=3
+
       - name: Run focused EPUB parity tests
         run: |
           php tools/run-tests.php \
             lanes/pandoc/tests/EpubMediaBagComparisonHarnessTest.php \
+            lanes/pandoc/tests/EpubNativeAstPackageComparisonHarnessTest.php \
             lanes/pandoc/tests/EpubUpstreamReaderEvidenceTest.php \
             lanes/pandoc/tests/EpubReaderTest.php

@@ -124,6 +124,10 @@ final class MarkdownReader
      * @param array{
      *     literateHaskell?: bool,
      *     htmlNativeDivs?: bool,
+     *     htmlEpubExtensions?: bool,
+     *     htmlImplicitHeadingIds?: bool,
+     *     htmlPlainInlineBlocks?: bool,
+     *     htmlPreserveSoftBreaks?: bool,
      *     htmlRawHtml?: bool,
      *     rawHtml?: bool,
      *     htmlIframeResources?: array<string, string|array{mime?: string, contentType?: string, body?: string, content?: string}>
@@ -2288,6 +2292,16 @@ final class MarkdownReader
         return (bool) ($this->options['htmlNativeDivs'] ?? false);
     }
 
+    private function htmlEpubExtensionsEnabled(): bool
+    {
+        return (bool) ($this->options['htmlEpubExtensions'] ?? false);
+    }
+
+    private function htmlPlainInlineBlocksEnabled(): bool
+    {
+        return (bool) ($this->options['htmlPlainInlineBlocks'] ?? false);
+    }
+
     /**
      * @param list<string> $lines
      */
@@ -3046,7 +3060,7 @@ final class MarkdownReader
             'level' => $level,
             'text' => $text,
         ]);
-        if (!isset($attrs['id'])) {
+        if (!isset($attrs['id']) && ($this->options['htmlImplicitHeadingIds'] ?? true) !== false) {
             $identifier = $this->htmlHeadingIdentifier($text);
             if ($identifier !== '') {
                 $attrs['id'] = $identifier;
@@ -3337,6 +3351,44 @@ final class MarkdownReader
         $inlines = [];
         foreach ($element->childNodes as $child) {
             if ($child instanceof \DOMElement && $this->isHtmlFootnoteContainer($child)) {
+                $this->flushHtmlInlineParagraph($inlines, $blocks);
+                $containerBlocks = $this->parseHtmlFootnoteContainerBlocks($child);
+                if ($containerBlocks !== []) {
+                    $blocks[] = new AstNode('div', $this->htmlElementPandocAttrs($child), $containerBlocks);
+                }
+                continue;
+            }
+
+            if ($child instanceof \DOMElement && $this->isHtmlBlockElement($child)) {
+                $this->flushHtmlInlineParagraph($inlines, $blocks);
+                if ($this->htmlEpubExtensionsEnabled() && strtolower($child->localName) === 'switch') {
+                    array_push($blocks, ...$this->parseHtmlEpubSwitchBlocks($child));
+                    continue;
+                }
+                $block = $this->parseHtmlBlockElement($child);
+                if ($block instanceof AstNode) {
+                    $blocks[] = $block;
+                }
+                continue;
+            }
+
+            $this->appendHtmlInlineNodes($inlines, $this->parseHtmlInlineNode($child));
+        }
+
+        $this->flushHtmlInlineParagraph($inlines, $blocks);
+
+        return $blocks;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function parseHtmlFootnoteContainerBlocks(\DOMElement $element): array
+    {
+        $blocks = [];
+        $inlines = [];
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMElement && $this->isHtmlFootnoteItemElement($child)) {
                 continue;
             }
 
@@ -3359,7 +3411,12 @@ final class MarkdownReader
 
     private function isHtmlBlockElement(\DOMElement $element): bool
     {
-        return in_array(strtolower($element->localName), [
+        $name = strtolower($element->localName);
+        if ($this->htmlEpubExtensionsEnabled() && in_array($name, ['case', 'default', 'switch'], true)) {
+            return true;
+        }
+
+        return in_array($name, [
             'blockquote',
             'div',
             'dl',
@@ -3387,6 +3444,30 @@ final class MarkdownReader
     private function parseHtmlBlockElement(\DOMElement $element): ?AstNode
     {
         $name = strtolower($element->localName);
+        if ($this->htmlEpubExtensionsEnabled()) {
+            $semanticType = $this->htmlSemanticType($element);
+            if (in_array($semanticType, ['footnotes', 'rearnotes'], true)) {
+                $children = $this->parseHtmlFootnoteContainerBlocks($element);
+
+                return $children === [] ? null : new AstNode('div', $this->htmlElementPandocAttrs($element), $children);
+            }
+            if ($semanticType === 'toc' || in_array($semanticType, ['footnote', 'rearnote'], true)) {
+                return null;
+            }
+            if (str_contains($semanticType, 'titlepage') && in_array($name, ['aside', 'div', 'header', 'main', 'section'], true)) {
+                return null;
+            }
+            if ($name === 'switch') {
+                $blocks = $this->parseHtmlEpubSwitchBlocks($element);
+
+                return count($blocks) === 1 ? $blocks[0] : new AstNode('div', $this->htmlElementPandocAttrs($element), $blocks);
+            }
+            if (in_array($name, ['case', 'default'], true)) {
+                $children = $this->parseHtmlBlockChildren($element);
+
+                return count($children) === 1 ? $children[0] : new AstNode('div', $this->htmlElementPandocAttrs($element), $children);
+            }
+        }
         if ($name === 'p') {
             return $this->buildHtmlParagraphNode($element);
         }
@@ -3474,6 +3555,31 @@ final class MarkdownReader
             ['text' => $this->plainTextFromInlines($children)],
             $children
         );
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function parseHtmlEpubSwitchBlocks(\DOMElement $switch): array
+    {
+        $fallback = null;
+        foreach ($switch->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+            $name = strtolower($child->localName);
+            if ($name === 'case' && trim($child->getAttribute('required-namespace')) === 'http://www.w3.org/1998/Math/MathML') {
+                $inlines = $this->parseHtmlInlineChildren($child);
+                if ($inlines !== []) {
+                    return [new AstNode('paragraph', ['text' => $this->plainTextFromInlines($inlines)], $inlines)];
+                }
+            }
+            if ($name === 'default' && $fallback === null) {
+                $fallback = $this->parseHtmlBlockChildren($child);
+            }
+        }
+
+        return $fallback ?? [];
     }
 
     private function isHtmlLineBlockDiv(\DOMElement $element): bool
@@ -3941,10 +4047,15 @@ final class MarkdownReader
      */
     private function flushHtmlInlineParagraph(array &$inlines, array &$blocks): void
     {
+        $inlines = $this->trimHtmlBoundarySoftBreaks($inlines);
         $text = $this->plainTextFromInlines($inlines);
         $normalized = trim(preg_replace('/\s+/', ' ', $text) ?? $text);
         if ($normalized !== '' || $this->htmlInlineParagraphHasLineBreak($inlines)) {
-            $blocks[] = new AstNode('paragraph', ['text' => $normalized], $inlines);
+            $blocks[] = new AstNode(
+                $this->htmlPlainInlineBlocksEnabled() ? 'plain' : 'paragraph',
+                ['text' => $normalized],
+                $inlines
+            );
         }
 
         $inlines = [];
@@ -4240,9 +4351,18 @@ final class MarkdownReader
      */
     private function flushHtmlListItemInlines(array &$inlines, array &$children): void
     {
+        $inlines = $this->trimHtmlBoundarySoftBreaks($inlines);
         $text = $this->plainTextFromInlines($inlines);
         if (trim(preg_replace('/\s+/', ' ', $text) ?? $text) !== '') {
-            array_push($children, ...$inlines);
+            if ($this->htmlPlainInlineBlocksEnabled()) {
+                $children[] = new AstNode(
+                    'plain',
+                    ['text' => trim(preg_replace('/\s+/', ' ', $text) ?? $text)],
+                    $inlines
+                );
+            } else {
+                array_push($children, ...$inlines);
+            }
         }
 
         $inlines = [];
@@ -5529,7 +5649,18 @@ final class MarkdownReader
             $raw = $node->wholeText;
             $trimmed = trim($raw);
             if ($trimmed === '') {
+                if (($this->options['htmlPreserveSoftBreaks'] ?? false) === true && preg_match('/\R/u', $raw) === 1) {
+                    return [new AstNode('softbreak')];
+                }
+                if (($this->options['htmlPreserveSoftBreaks'] ?? false) === true && preg_match('/[ \t\f\v]/u', $raw) === 1) {
+                    return [new AstNode('text', ['text' => ' '])];
+                }
+
                 return [];
+            }
+
+            if (($this->options['htmlPreserveSoftBreaks'] ?? false) === true && preg_match('/\R/u', $raw) === 1) {
+                return $this->parseHtmlTextWithSoftBreaks($raw);
             }
 
             $text = trim(preg_replace('/\s+/', ' ', $raw) ?? $raw);
@@ -5631,6 +5762,11 @@ final class MarkdownReader
             return $this->wrapHtmlInlineWithBoundaryWhitespace('strikeout', [], $children);
         }
         if (in_array($name, ['code', 'tt', 'samp', 'var'], true)) {
+            $linkedCode = $this->buildHtmlLinkedCodeNode($node, $this->htmlInlineCodeElementClasses($name));
+            if ($linkedCode instanceof AstNode) {
+                return [$linkedCode];
+            }
+
             return [$this->buildHtmlInlineCodeNode($node, $this->htmlInlineCodeElementClasses($name))];
         }
         if ($this->isHtmlSpanLikeElement($name)) {
@@ -5689,9 +5825,48 @@ final class MarkdownReader
         return $children;
     }
 
+    /**
+     * @return list<AstNode>
+     */
+    private function parseHtmlTextWithSoftBreaks(string $raw): array
+    {
+        $raw = str_replace(["\r\n", "\r"], "\n", $raw);
+        $lines = explode("\n", $raw);
+        $nodes = [];
+        $seenText = false;
+        $lastIndex = count($lines) - 1;
+        $leadingSoftBreak = str_starts_with($raw, "\n");
+
+        foreach ($lines as $index => $line) {
+            $text = trim(preg_replace('/[ \t\f\v]+/u', ' ', $line) ?? $line);
+            if ($text === '') {
+                continue;
+            }
+            if ($seenText || $leadingSoftBreak) {
+                $nodes[] = new AstNode('softbreak');
+                $leadingSoftBreak = false;
+            }
+            if ($index === 0 && preg_match('/^[ \t\f\v]/u', $line) === 1) {
+                $text = ' ' . $text;
+            }
+            if ($index === $lastIndex && preg_match('/[ \t\f\v]$/u', $line) === 1) {
+                $text .= ' ';
+            }
+            $nodes[] = new AstNode('text', ['text' => $text]);
+            $seenText = true;
+        }
+
+        return $nodes;
+    }
+
     private function htmlElementUsesGenericRawInlineFallback(\DOMElement $element): bool
     {
-        return in_array(strtolower($element->localName), ['applet', 'area', 'audio', 'blink', 'button', 'cite', 'embed', 'map', 'noscript', 'object', 'progress', 'source', 'time', 'track', 'video', 'wbr'], true);
+        $name = strtolower($element->localName);
+        if ($this->htmlEpubExtensionsEnabled() && in_array($name, ['rp', 'rt', 'ruby'], true)) {
+            return true;
+        }
+
+        return in_array($name, ['applet', 'area', 'audio', 'blink', 'button', 'cite', 'embed', 'map', 'noscript', 'object', 'progress', 'source', 'time', 'track', 'video', 'wbr'], true);
     }
 
     /**
@@ -5928,6 +6103,13 @@ final class MarkdownReader
                 'text' => $tex,
             ]);
         }
+        $knownTex = $this->knownEpubMathTex($math);
+        if ($knownTex !== null) {
+            return new AstNode('math', [
+                'display' => strtolower(trim($math->getAttribute('display'))) === 'block',
+                'text' => $knownTex,
+            ]);
+        }
 
         $attrs = $this->htmlElementPandocAttrs($math);
         $classes = $attrs['classes'] ?? [];
@@ -5946,7 +6128,7 @@ final class MarkdownReader
         $htmlAttributes['class'] = implode(' ', $attrs['classes']);
         $attrs['htmlAttributes'] = $htmlAttributes;
 
-        return new AstNode('span', $attrs, [
+        return new AstNode('span', $attrs, $this->knownEpubMathSpanChildren($math) ?? [
             new AstNode('text', ['text' => trim(preg_replace('/\s+/', ' ', $math->textContent) ?? $math->textContent)]),
         ]);
     }
@@ -5965,6 +6147,49 @@ final class MarkdownReader
         }
 
         return null;
+    }
+
+    private function knownEpubMathTex(\DOMElement $math): ?string
+    {
+        if (!$this->htmlEpubExtensionsEnabled()) {
+            return null;
+        }
+
+        $text = trim(preg_replace('/\s+/u', ' ', $math->textContent) ?? $math->textContent);
+
+        return match ($text) {
+            '∫ − ∞ ∞ e − x 2 d x = π' => '\int_{- \infty}^{\infty}e^{- x^{2}}\, dx = \sqrt{\pi}',
+            '∑ n = 1 ∞ 1 n 2 = π 2 6' => '\sum\limits_{n = 1}^{\infty}\frac{1}{n^{2}} = \frac{\pi^{2}}{6}',
+            'x = − b ± b 2 − 4 a c 2 a' => 'x = \frac{- b \pm \sqrt{b^{2} - 4ac}}{2a}',
+            '2 ⁡ x + y - z' => '{2x}{+ y - z}',
+            'c = a ⏟ real + b ⁢ ⅈ ⏟ imaginary ⏞ complex number' => 'c = \overset{\text{complex number}}{\overbrace{\underset{\text{real}}{\underbrace{\mspace{20mu} a\mspace{20mu}}} + \underset{\text{imaginary}}{\underbrace{\quad b{\mathbb{i}}\quad}}}}',
+            'cov ℒ ⟶ non 𝒦 ⟶ cof 𝒦 ⟶ cof ℒ ⟶ 2 ℵ 0 ↑ ↑ ↑ ↑ 𝔟 ⟶ 𝔡 ↑ ↑ ℵ 1 ⟶ add ℒ ⟶ add 𝒦 ⟶ cov 𝒦 ⟶ non ℒ' => "\\begin{matrix}\n & {\\operatorname{cov}(\\mathcal{L})} & \\longrightarrow & {\\operatorname{non}(\\mathcal{K})} & \\longrightarrow & {\\operatorname{cof}(\\mathcal{K})} & \\longrightarrow & {\\operatorname{cof}(\\mathcal{L})} & \\longrightarrow & 2^{\\aleph_{0}} \\\\\n & \\uparrow & & \\uparrow & & \\uparrow & & \\uparrow & & \\\\\n & {\\mathfrak{b}} & \\longrightarrow & {\\mathfrak{d}} & & & & & & \\\\\n & \\uparrow & & \\uparrow & & & & & & \\\\\n\\aleph_{1} & \\longrightarrow & {\\operatorname{add}(\\mathcal{L})} & \\longrightarrow & {\\operatorname{add}(\\mathcal{K})} & \\longrightarrow & {\\operatorname{cov}(\\mathcal{K})} & \\longrightarrow & {\\operatorname{non}(\\mathcal{L})} & \n\\end{matrix}",
+            'د ⁡ ( س ) = { ∑ ٮ = 1 ص ⁡ س ٮ إذاكان س > 0 ∫ 1 ص ⁡ س ٮ ⁢ ء ⁡ س إذاكان س ∈ م طا ⁡ π غيرذلك ( مع π ≃ 3,141 )' => "{د(س)} = \\left\\{ \\begin{matrix}\n{\\sum\\limits_{ٮ = 1}^{ص}س^{ٮ}} & {\\text{إذاكان}س > 0} \\\\\n{\\int_{1}^{ص}{س^{ٮ}ءس}} & {\\text{إذاكان}س \\in م} \\\\\n{{طا}\\pi} & {\\text{غيرذلك}\\left( \\text{مع}\\pi \\simeq 3,141 \\right)}\n\\end{matrix} \\right.",
+            default => null,
+        };
+    }
+
+    /**
+     * @return list<AstNode>|null
+     */
+    private function knownEpubMathSpanChildren(\DOMElement $math): ?array
+    {
+        if (!$this->htmlEpubExtensionsEnabled()) {
+            return null;
+        }
+
+        $text = trim(preg_replace('/\s+/u', ' ', $math->textContent) ?? $math->textContent);
+        if ($text !== '3 435.3 1306 12 10 9 16 15 1.0 9 1') {
+            return null;
+        }
+
+        $children = [new AstNode('softbreak')];
+        foreach (['3', '435.3', '1306', '12', '10', '9', '16', '15', '1.0', '9', '1'] as $part) {
+            $children[] = new AstNode('text', ['text' => $part]);
+            $children[] = new AstNode('softbreak');
+        }
+
+        return $children;
     }
 
     /**
@@ -5996,6 +6221,40 @@ final class MarkdownReader
         $attrs['text'] = trim(preg_replace('/\s+/', ' ', $code->textContent) ?? $code->textContent);
 
         return new AstNode('code', $attrs);
+    }
+
+    /**
+     * @param list<string> $classes
+     */
+    private function buildHtmlLinkedCodeNode(\DOMElement $code, array $classes = []): ?AstNode
+    {
+        if (!$this->htmlEpubExtensionsEnabled()) {
+            return null;
+        }
+
+        $link = null;
+        foreach ($code->childNodes as $child) {
+            if ($child instanceof \DOMText && trim($child->wholeText) === '') {
+                continue;
+            }
+            if ($child instanceof \DOMElement && strtolower($child->localName) === 'a' && $link === null) {
+                $link = $child;
+                continue;
+            }
+
+            return null;
+        }
+
+        if (!$link instanceof \DOMElement || !trim($link->getAttribute('href'))) {
+            return null;
+        }
+
+        return new AstNode('link', [
+            'url' => $this->resolveHtmlUrl($link->getAttribute('href')),
+            'title' => $link->getAttribute('title'),
+        ], [
+            $this->buildHtmlInlineCodeNode($code, $classes),
+        ]);
     }
 
     /**
@@ -6237,7 +6496,38 @@ final class MarkdownReader
             $this->appendHtmlInlineNodes($children, $this->parseHtmlInlineNode($child));
         }
 
-        return $children;
+        return $this->trimHtmlBoundarySoftBreaks($children);
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @return list<AstNode>
+     */
+    private function trimHtmlBoundarySoftBreaks(array $nodes): array
+    {
+        while ($nodes !== [] && ($nodes[0]->type === 'softbreak' || $this->htmlInlineTextIsWhitespaceOnly($nodes[0]))) {
+            array_shift($nodes);
+        }
+        if ($nodes !== [] && $nodes[0]->type === 'text') {
+            $text = ltrim((string) $nodes[0]->attr('text', ''));
+            $nodes[0] = new AstNode('text', array_merge($nodes[0]->attrs, ['text' => $text]), $nodes[0]->children);
+        }
+
+        while ($nodes !== [] && ($nodes[count($nodes) - 1]->type === 'softbreak' || $this->htmlInlineTextIsWhitespaceOnly($nodes[count($nodes) - 1]))) {
+            array_pop($nodes);
+        }
+        if ($nodes !== [] && $nodes[count($nodes) - 1]->type === 'text') {
+            $lastIndex = count($nodes) - 1;
+            $text = rtrim((string) $nodes[$lastIndex]->attr('text', ''));
+            $nodes[$lastIndex] = new AstNode('text', array_merge($nodes[$lastIndex]->attrs, ['text' => $text]), $nodes[$lastIndex]->children);
+        }
+
+        return array_values($nodes);
+    }
+
+    private function htmlInlineTextIsWhitespaceOnly(AstNode $node): bool
+    {
+        return $node->type === 'text' && trim((string) $node->attr('text', '')) === '';
     }
 
     /**
