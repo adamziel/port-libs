@@ -10264,6 +10264,8 @@ final class ZipPackage
         $hasBlockedCompressionMetadata = $unsupportedEntries !== []
             || $mismatchedEntries !== []
             || $unsupportedVersionEntries !== [];
+        $methodBuckets = self::compressionMethodBuckets($methodBuckets);
+        $methodSpecificationNameSummaries = self::compressionMethodSpecificationNameSummaries($methodBuckets);
 
         return [
             'entryCount' => count($entries),
@@ -10290,7 +10292,10 @@ final class ZipPackage
             'unsupportedVersionEntries' => $unsupportedVersionEntries,
             'versionNeededExceedsBoundedReaderEntries' => $versionNeededExceedsBoundedReaderEntries,
             'understatedVersionEntries' => $understatedVersionEntries,
-            'methodBuckets' => self::compressionMethodBuckets($methodBuckets),
+            'methodBuckets' => $methodBuckets,
+            'compressionMethodSpecificationNameSummaryCount' => count($methodSpecificationNameSummaries),
+            'unsupportedCompressionMethodSpecificationNames' => self::unsupportedCompressionMethodSpecificationNames($methodSpecificationNameSummaries),
+            'compressionMethodSpecificationNameSummaries' => $methodSpecificationNameSummaries,
             'entries' => $entries,
         ];
     }
@@ -15666,6 +15671,8 @@ final class ZipPackage
 
         ksort($compressionMethodSummaries, SORT_NUMERIC);
         $compressionMethodSummaries = array_values($compressionMethodSummaries);
+        $compressionMethodSpecificationNameSummaries = self::compressionMethodSpecificationNameSummaries($compressionMethodSummaries);
+        $unsupportedCompressionMethodSpecificationNames = self::unsupportedCompressionMethodSpecificationNames($compressionMethodSpecificationNameSummaries);
         ksort($generalPurposeFlagSummaries, SORT_NUMERIC);
         $generalPurposeFlagSummaries = array_values($generalPurposeFlagSummaries);
         ksort($versionNeededToExtractSummaries, SORT_NUMERIC);
@@ -15924,6 +15931,9 @@ final class ZipPackage
             'caseInsensitiveNameCollisionGroups' => $caseInsensitiveNameCollisionGroups,
             'caseInsensitiveNameCollisionEntries' => $caseInsensitiveNameCollisionEntries,
             'compressionMethodSummaries' => $compressionMethodSummaries,
+            'compressionMethodSpecificationNameSummaryCount' => count($compressionMethodSpecificationNameSummaries),
+            'unsupportedCompressionMethodSpecificationNames' => $unsupportedCompressionMethodSpecificationNames,
+            'compressionMethodSpecificationNameSummaries' => $compressionMethodSpecificationNameSummaries,
             'generalPurposeFlagSummaries' => $generalPurposeFlagSummaries,
             'versionNeededToExtractSummaryCount' => count($versionNeededToExtractSummaries),
             'versionNeededToExtractVersions' => $versionNeededToExtractVersions,
@@ -16117,6 +16127,9 @@ final class ZipPackage
             'caseInsensitiveNameCollisionEntries' => $caseInsensitiveNameCollisionEntries,
             'compressionMethodSummaryCount' => count($compressionMethodSummaries),
             'compressionMethodSummaries' => $compressionMethodSummaries,
+            'compressionMethodSpecificationNameSummaryCount' => count($compressionMethodSpecificationNameSummaries),
+            'unsupportedCompressionMethodSpecificationNames' => $unsupportedCompressionMethodSpecificationNames,
+            'compressionMethodSpecificationNameSummaries' => $compressionMethodSpecificationNameSummaries,
             'generalPurposeFlagSummaryCount' => count($generalPurposeFlagSummaries),
             'generalPurposeUtf8NameEntryCount' => $generalPurposeUtf8NameEntryCount,
             'generalPurposeDataDescriptorEntryCount' => $generalPurposeDataDescriptorEntryCount,
@@ -17277,6 +17290,9 @@ final class ZipPackage
             }
         }
 
+        $methodBuckets = self::compressionMethodBuckets($methodBuckets);
+        $methodSpecificationNameSummaries = self::compressionMethodSpecificationNameSummaries($methodBuckets);
+
         return [
             'entryCount' => count($this->entries),
             'supportedEntryCount' => count($this->entries) - count($unsupportedEntries),
@@ -17290,7 +17306,10 @@ final class ZipPackage
             'unsupportedCompressedBytes' => $unsupportedCompressedBytes,
             'unsupportedUncompressedBytes' => $unsupportedUncompressedBytes,
             'unsupportedEntries' => $unsupportedEntries,
-            'methodBuckets' => self::compressionMethodBuckets($methodBuckets),
+            'methodBuckets' => $methodBuckets,
+            'compressionMethodSpecificationNameSummaryCount' => count($methodSpecificationNameSummaries),
+            'unsupportedCompressionMethodSpecificationNames' => self::unsupportedCompressionMethodSpecificationNames($methodSpecificationNameSummaries),
+            'compressionMethodSpecificationNameSummaries' => $methodSpecificationNameSummaries,
             'entries' => $entries,
         ];
     }
@@ -19809,6 +19828,79 @@ final class ZipPackage
             8 => 'deflated',
             default => 'unsupported',
         };
+    }
+
+    private static function compressionMethodSpecificationName(int $method): string
+    {
+        return match ($method) {
+            0 => 'stored',
+            1 => 'shrunk',
+            2 => 'reduced-factor-1',
+            3 => 'reduced-factor-2',
+            4 => 'reduced-factor-3',
+            5 => 'reduced-factor-4',
+            6 => 'imploded',
+            7 => 'tokenized',
+            8 => 'deflated',
+            9 => 'deflate64',
+            10 => 'pkware-data-compression-library',
+            12 => 'bzip2',
+            14 => 'lzma',
+            18 => 'ibm-terse',
+            19 => 'ibm-lz77',
+            93 => 'zstandard',
+            94 => 'mp3',
+            95 => 'xz',
+            96 => 'jpeg',
+            97 => 'wavpack',
+            98 => 'ppmd',
+            99 => 'winzip-aes',
+            default => 'unknown',
+        };
+    }
+
+    /**
+     * @param list<array<string, mixed>> $methodSummaries
+     * @return list<array{compressionMethod:int, compressionMethodName:string, compressionMethodSpecificationName:string, entryCount:int, compressedBytes:int, uncompressedBytes:int, isSupported:bool}>
+     */
+    private static function compressionMethodSpecificationNameSummaries(array $methodSummaries): array
+    {
+        $summaries = [];
+        foreach ($methodSummaries as $summary) {
+            $method = (int) ($summary['compressionMethod'] ?? -1);
+            $summaries[] = [
+                'compressionMethod' => $method,
+                'compressionMethodName' => self::compressionMethodName($method),
+                'compressionMethodSpecificationName' => self::compressionMethodSpecificationName($method),
+                'entryCount' => (int) ($summary['entryCount'] ?? 0),
+                'compressedBytes' => (int) ($summary['compressedBytes'] ?? 0),
+                'uncompressedBytes' => (int) ($summary['uncompressedBytes'] ?? 0),
+                'isSupported' => $method === 0 || $method === 8,
+            ];
+        }
+
+        return $summaries;
+    }
+
+    /**
+     * @param list<array{compressionMethod:int, compressionMethodName:string, compressionMethodSpecificationName:string, entryCount:int, compressedBytes:int, uncompressedBytes:int, isSupported:bool}> $summaries
+     * @return list<string>
+     */
+    private static function unsupportedCompressionMethodSpecificationNames(array $summaries): array
+    {
+        $names = [];
+        foreach ($summaries as $summary) {
+            if ($summary['isSupported']) {
+                continue;
+            }
+
+            $name = $summary['compressionMethodSpecificationName'];
+            if (!in_array($name, $names, true)) {
+                $names[] = $name;
+            }
+        }
+
+        return $names;
     }
 
     /**
