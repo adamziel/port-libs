@@ -24,11 +24,10 @@ $readJson = static function (string $relativePath) use ($readText): array {
 };
 
 return [
-    'keeps ODF/ODT ship-ready evidence internally consistent' => static function (TestRunner $t) use ($readText, $readJson): void {
+    'keeps ODF/ODT ship-ready evidence internally consistent' => static function (TestRunner $t) use ($repoRoot, $readText, $readJson): void {
         $status = $readJson('lanes/pandoc/lane-status.json');
         $manifest = $readJson('lanes/pandoc/UPSTREAM_TEST_MANIFEST.json');
         $progress = $readText('progress.md');
-        $pandocStatus = $readText('PANDOC_STATUS.md');
 
         $readiness = $status['odfOdtShipReadiness'] ?? null;
         $t->true(is_array($readiness), 'lane-status.json must carry odfOdtShipReadiness evidence');
@@ -73,11 +72,8 @@ return [
         $t->same(1, $manifest['mappedOdfManifestMissingMediaTypeCases']);
         $t->same(22, $manifest['odfManifestMissingMediaTypeAssertions']);
 
-        $t->contains(
-            "ODF/ODT is marked ship-ready: {$localCases} local mapped ODF/ODT cases / {$upstreamCases} upstream ODF/ODT cases",
-            $pandocStatus
-        );
-        $t->contains('0 critical ODF/ODT gaps', $pandocStatus);
+        $t->same(false, is_file($repoRoot . DIRECTORY_SEPARATOR . 'PANDOC_STATUS.md'), 'PANDOC_STATUS.md must stay deleted; ODF/ODT readiness evidence lives in JSON and progress.md');
+        $t->same(0, count($readiness['remainingCriticalGaps'] ?? []));
         $t->contains(
             "| ODF/ODT/OpenDocument | `odt` | ship-ready | {$localCases} | {$upstreamCases} | 0 critical gaps",
             $progress

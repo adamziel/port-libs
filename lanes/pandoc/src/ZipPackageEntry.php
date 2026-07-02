@@ -331,7 +331,7 @@ final class ZipPackageEntry
     {
         return self::extendedTimestampFromExtraField(
             $this->centralExtraField(0x5455),
-            $this->name
+            "central extra fields for {$this->name}"
         );
     }
 
@@ -342,7 +342,7 @@ final class ZipPackageEntry
     {
         return self::extendedTimestampsFromExtraField(
             $this->centralExtraField(0x5455),
-            $this->name
+            "central extra fields for {$this->name}"
         );
     }
 
@@ -622,6 +622,14 @@ final class ZipPackageEntry
             }
 
             if ($cursor + 4 > strlen($data)) {
+                if (
+                    $name === 'accessedAt'
+                    && $flags === 0x03
+                    && array_key_exists('modifiedAt', $timestamps)
+                    && $cursor === strlen($data)
+                ) {
+                    break;
+                }
                 throw new \RuntimeException("ZIP extended timestamp extra field for {$label} is truncated");
             }
 

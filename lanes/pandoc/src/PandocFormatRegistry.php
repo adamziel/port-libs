@@ -470,6 +470,11 @@ final class PandocFormatRegistry
             'implementation' => MarkdownWriter::class,
             'notes' => 'CommonMark with extensions is partially mapped through raw inline/block branch tests.',
         ],
+        'docx' => [
+            'status' => 'partial',
+            'implementation' => DocxWriter::class,
+            'notes' => 'Bounded DOCX output emits a deterministic OPC ZIP package with [Content_Types].xml, root and document relationships, docProps core/app/custom properties, word document relationships, comments, footnotes, font table, theme, web settings, styles, numbering, settings, and local image media parts for core paragraph, heading, block quote, list, table, inline formatting, metadata, hyperlink, and image slices. Full upstream Docx writer golden package parity remains open.',
+        ],
         'epub' => [
             'status' => 'partial',
             'implementation' => EpubWriter::class,

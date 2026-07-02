@@ -2170,6 +2170,510 @@
         "mappedOdfZipSourceRecordPackagePartExtensionCases": 1,
         "odfZipSourceRecordPackagePartExtensionAssertions": 65
     },
+    "docxParityAudit": {
+        "verdict": "not-full-upstream-docx-parity",
+        "auditedAt": "2026-06-30",
+        "upstreamCommit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
+        "upstreamInventorySource": ".upstream-cache/pandoc-current pinned commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 via git ls-tree -r test/docx",
+        "upstreamDocxDirectoryArtifacts": 233,
+        "upstreamNativeExpectedArtifacts": 112,
+        "upstreamDocxPackageArtifacts": 121,
+        "upstreamGoldenDocxArtifacts": 38,
+        "currentUpstreamCommit": "612e143fbe6d735b612c4800d21e61b7d44e4dca",
+        "currentUpstreamDocxDirectoryArtifacts": 236,
+        "currentUpstreamNativeExpectedArtifacts": 113,
+        "currentUpstreamDocxPackageArtifacts": 123,
+        "currentUpstreamDriftFromPinnedArtifacts": [
+            "test/docx/lists_restart_8367.docx",
+            "test/docx/lists_restart_8367.native",
+            "test/docx/ns0-reference.docx"
+        ],
+        "localUpstreamNativeDocxFixtureFiles": 31,
+        "localExactNormalizedNativeFixtureMatches": 23,
+        "localOnlyNativeFixtureAliases": 8,
+        "missingPinnedUpstreamNativeFixtures": 89,
+        "localCurrentUpstreamDocxPackageFixtureFiles": 2,
+        "localCurrentUpstreamNativeFixtureFiles": 1,
+        "localPinnedDocxPackageFixtureFiles": 0,
+        "localDocxPackageFixtureFiles": 2,
+        "parserAcceptanceEvidenceKind": "parser-acceptance-only",
+        "parserAcceptanceBaseline": {
+            "baselineName": "local-upstream-docx-parser-acceptance-20260630",
+            "pairedDocxNativeArtifacts": 74,
+            "docxParsedCount": 74,
+            "nativeParsedCount": 74,
+            "bothParsedCount": 74,
+            "cachePath": ".upstream-cache/pandoc-current/test/docx",
+            "tool": "tools/pandoc-docx-parity-audit.php --fail-on-regression",
+            "claim": "Optional cache regression guard only; no AST equality, writer golden package parity, upstream Haskell runner, or full DOCX/OpenXML parity is asserted."
+        },
+        "lastObservedParserAcceptance": {
+            "observedAt": "2026-06-30",
+            "pairedDocxNativeArtifacts": 74,
+            "docxParsedCount": 74,
+            "docxFailedCount": 0,
+            "nativeParsedCount": 74,
+            "nativeFailedCount": 0,
+            "bothParsedCount": 74,
+            "bothFailedOrPartialCount": 0,
+            "source": "local optional upstream cache"
+        },
+        "upstreamDocxRunnerExecuted": false,
+        "upstreamDocxGoldenPackageRoundTripExecuted": true,
+        "writerGoldenEvidenceKind": "writer-golden-package-generated-stable-comparison",
+        "writerGoldenPackageManifestTool": "tools/pandoc-docx-writer-golden-audit.php --json --docx-dir .upstream-cache/pandoc-current/test/docx --generate-supported-dir .port-libs/pandoc-docx-writer-golden/status-truth --require-generated-stable-matches 38",
+        "writerGoldenPackageInventory": {
+            "status": "inventory-only-core-writer-present",
+            "goldenPackageCount": 38,
+            "packagePartNamesAndHashesAvailableWhenCachePresent": true,
+            "expectedUpstreamWriterSourceReferences": [
+                "src/Text/Pandoc/Writers/Docx.hs",
+                "test/Tests/Writers/Docx.hs",
+                "test/docx/golden/*.docx",
+                "data/docx"
+            ]
+        },
+        "docxWriterImplementation": {
+            "expectedClass": "PortLibs\\Pandoc\\DocxWriter",
+            "expectedPath": "lanes/pandoc/src/DocxWriter.php",
+            "classExists": true,
+            "fileExists": true,
+            "outputRegistryStatus": "partial",
+            "unsupportedReason": "docx-output-registry-remains-partial-without-upstream-docx-runner-result"
+        },
+        "writerGoldenPackageGeneration": {
+            "run": true,
+            "status": "generated-all-writer-golden-cases",
+            "sourceDirectory": ".upstream-cache/pandoc-current/test/docx",
+            "sourceDirectoryPresent": true,
+            "outputDirectoryConfigured": true,
+            "outputDirectory": ".port-libs/pandoc-docx-writer-golden/status-truth",
+            "outputDirectoryPresent": true,
+            "expectedGoldenCaseCount": 38,
+            "attemptedCaseCount": 38,
+            "generatedPackageCount": 38,
+            "skippedCaseCount": 0,
+            "failedCaseCount": 0,
+            "generationCoveragePercent": 100,
+            "blockerCounts": [],
+            "openReason": "generated-all-writer-golden-cases"
+        },
+        "writerGoldenPackageComparison": {
+            "run": true,
+            "status": "matched-stable-package-semantics",
+            "generatedDirectoryConfigured": true,
+            "generatedDirectory": ".port-libs/pandoc-docx-writer-golden/status-truth",
+            "generatedDirectoryPresent": true,
+            "expectedGoldenPackageCount": 38,
+            "generatedPackageCount": 38,
+            "comparedPackageCount": 38,
+            "matchedPackageCount": 38,
+            "mismatchedPackageCount": 0,
+            "missingGeneratedPackageCount": 0,
+            "unexpectedGeneratedPackageCount": 0,
+            "comparisonCoveragePercent": 100,
+            "stableMatchPercent": 100,
+            "allStableSemanticsMatch": true,
+            "stableComparisonContract": {
+                "compares": [
+                    "DOCX package file names against upstream test/docx/golden/*.docx names",
+                    "non-directory OPC package part-name set",
+                    "OPC [Content_Types].xml Default and Override records sorted by semantic key",
+                    "all OPC .rels relationship records sorted by source part, relationship id, type, target mode, and resolved target",
+                    "XML document-part semantics using namespace/local-name element and attribute records with formatting-only whitespace ignored",
+                    "binary part uncompressed byte size and SHA-256 payload digests"
+                ],
+                "ignores": [
+                    "raw ZIP package byte equality",
+                    "ZIP central-directory order, local-entry order, compression method, comments, and timestamps",
+                    "XML attribute order, namespace prefix spelling, indentation, and formatting-only whitespace",
+                    "content-types child order and relationship child order"
+                ]
+            },
+            "openReason": "all-generated-docx-packages-match-upstream-golden-stable-semantics",
+            "mismatchDiagnostics": {
+                "schemaVersion": 1,
+                "stableMismatchPackageCount": 0,
+                "mismatchKindCounts": [],
+                "partNameDeltas": {
+                    "packagesWithMissingParts": 0,
+                    "packagesWithExtraParts": 0,
+                    "missingPartNameCounts": [],
+                    "extraPartNameCounts": []
+                },
+                "contentTypeDeltas": {
+                    "packagesWithMissingRecords": 0,
+                    "packagesWithExtraRecords": 0,
+                    "missingRecordCounts": [],
+                    "extraRecordCounts": []
+                },
+                "relationshipDeltas": {
+                    "packagesWithMissingRecords": 0,
+                    "packagesWithExtraRecords": 0,
+                    "missingRecordCounts": [],
+                    "extraRecordCounts": []
+                },
+                "xmlPartDeltas": {
+                    "packagesWithChangedXmlParts": 0,
+                    "changedXmlPartCounts": []
+                }
+            }
+        },
+        "haskellInventory": {
+            "reportPath": "lanes/pandoc/UPSTREAM_DOCX_HASKELL_INVENTORY.json",
+            "tool": "manual-docx-haskell-inventory-map",
+            "schemaVersion": 1,
+            "status": "checked-docx-haskell-inventory-denominator-gates",
+            "evidenceKind": "static-upstream-haskell-docx-inventory-to-local-gate-map",
+            "upstreamCommit": "612e143fbe6d735b612c4800d21e61b7d44e4dca",
+            "reader": {
+                "sourceFile": "test/Tests/Readers/Docx.hs",
+                "entryPoint": "Tests.Readers.Docx.tests",
+                "totalStaticCases": 103,
+                "localParserAcceptanceGateCases": 74,
+                "strictDefaultSameStemCasesCoveredByLocal74Gate": 67,
+                "casesNotCoveredByLocal74GateSemantics": 36,
+                "notCoveredCaseCount": 36,
+                "gateStatus": "requires-36-reader-uncovered-cases-preserved"
+            },
+            "writer": {
+                "sourceFile": "test/Tests/Writers/Docx.hs",
+                "entryPoint": "Tests.Writers.Docx.tests",
+                "totalStaticCases": 45,
+                "writerGoldenDocxTestCases": 38,
+                "directHunitTestCases": 7,
+                "writerGoldenCasesGeneratedAndComparedByLocal38Gate": 38,
+                "writerGoldenCasesMatchingStableSemantics": 38,
+                "casesNotCoveredByLocal38Gate": 7,
+                "notCoveredCaseCount": 7,
+                "gateStatus": "requires-7-direct-hunit-uncovered-cases-preserved"
+            },
+            "claim": "Status metadata mirrors the checked Haskell inventory denominator gates; dropping 36 reader uncovered cases and 7 writer direct HUnit uncovered cases must fail focused status tests before coverage can be overclaimed."
+        },
+        "packageFixtureCoverage": "synthetic ZIP/XML DOCX package fixtures plus two checked-in current-upstream DOCX package drift fixtures; no checked-in pinned upstream DOCX package corpus",
+        "defensibleClaim": "bounded DOCX/OpenXML package provenance, selected upstream Native fixture slices, and three current-upstream DOCX drift fixtures",
+        "missingEvidenceChecklist": [
+            "Run or faithfully reproduce upstream test/docx reader cases for all pinned .docx inputs and expected .native outputs.",
+            "Add checked-in evidence or a reproducible cache gate for the 89 pinned upstream DOCX native fixture names missing from local exact fixture coverage.",
+            "Cover the 7 upstream Haskell DOCX writer direct assertions that do not use writer-golden .docx packages.",
+            "Record upstream Haskell test-pandoc DOCX reader/writer runner results or an accepted native-PHP equivalent denominator with per-fixture pass/fail rows.",
+            "Keep package-ingestion provenance, ZIP/OPC policy, macro/ActiveX external-target policy, and media byte-exposure checks separate from full DOCX semantic parity.",
+            "Do not treat aggregate focused-check counts above the static upstream file denominator as full DOCX parity."
+        ],
+        "optionalUpstreamCacheManifest": {
+            "reportPath": "lanes/pandoc/UPSTREAM_DOCX_CACHE_MANIFEST.json",
+            "tool": "tools/pandoc-docx-cache-manifest.php",
+            "schemaVersion": 1,
+            "evidenceKind": "artifact-identity-manifest-only",
+            "upstreamCommit": "612e143fbe6d735b612c4800d21e61b7d44e4dca",
+            "cachePath": ".upstream-cache/pandoc-current/test/docx",
+            "workingTreeCleanForTestDocx": true,
+            "artifactSetSha256": "f958e70f43396d651c92503e20b9abc1fbde6dc7180a1a6f79dd83c6c4365da1",
+            "totalDocxNativeGoldenArtifacts": 236,
+            "rootDocxPackageArtifacts": 85,
+            "rootNativeExpectedArtifacts": 113,
+            "goldenDocxPackageArtifacts": 38,
+            "totalDocxPackageArtifacts": 123,
+            "pairedRootDocxNativeStems": 74,
+            "unpairedRootDocxPackageStems": 11,
+            "unpairedRootNativeExpectedStems": 39,
+            "claim": "Metadata-only optional-cache artifact identity manifest; records paths, stems, byte counts, and SHA-256 hashes without checking in DOCX package bytes or asserting parser/AST/writer/upstream-runner parity."
+        },
+        "upstreamDocxRunnerEvidencePlan": {
+            "status": "open-no-targeted-runner-result",
+            "evidenceKind": "runner-entry-fixture-command-plan-only",
+            "preflightPlanTool": "tools/pandoc-docx-upstream-runner-plan.php --json --upstream-root .upstream-cache/pandoc-current",
+            "preflightEvidenceKind": "targeted-docx-runner-preflight-plan-only",
+            "localReadinessGate": {
+                "command": "tools/pandoc-docx-upstream-runner-plan.php --json --upstream-root .upstream-cache/pandoc-current",
+                "reportField": "localExecutionReadiness",
+                "evidenceKind": "targeted-docx-runner-local-readiness-gate-only",
+                "readyStatus": "ready-for-targeted-docx-runner-execution",
+                "blockedStatus": "blocked-targeted-docx-runner-local-prerequisites",
+                "machineReadableBlockerCodes": [
+                    "missing-docx-upstream-source",
+                    "unverified-pinned-upstream-commit",
+                    "missing-cabal-executable",
+                    "missing-ghc-executable",
+                    "insufficient-disk-for-targeted-runner-workspace"
+                ],
+                "checks": [
+                    "required DOCX runner source paths and fixture directories are present",
+                    "hydrated upstream root HEAD equals the pinned DOCX runner commit",
+                    "cabal executable is present on PATH",
+                    "ghc executable is present on PATH",
+                    "freeBytes is at least minimumSuggestedFreeBytes before using the isolated runner workspace"
+                ],
+                "executionPolicy": "source/tool/disk readiness only; this PHP gate does not execute Cabal/Tasty, admit result artifacts, or claim DOCX/OpenXML parity"
+            },
+            "selectedTestInventoryArtifact": {
+                "command": "tools/pandoc-docx-upstream-runner-plan.php --json --upstream-root .upstream-cache/pandoc-current --write-selected-inventory .port-libs/pandoc-runner/artifacts/docx-targeted-run/selected-test-inventory.json",
+                "path": ".port-libs/pandoc-runner/artifacts/docx-targeted-run/selected-test-inventory.json",
+                "evidenceKind": "static-docx-selected-test-inventory-only",
+                "statusWhenHydrated": "reported-static-docx-selected-test-inventory",
+                "source": "static DOCX Haskell test source plus filesystem fixture inventory",
+                "contents": [
+                    "selected DOCX reader and writer source group identifiers",
+                    "candidate static labels from DOCX Haskell test source text",
+                    "root test/docx .docx and .native fixture names, stems, and byte sizes",
+                    "writer-golden test/docx/golden .docx fixture names, stems, and byte sizes"
+                ],
+                "executionPolicy": "metadata-only static source/fixture inventory; no Cabal command, Tasty runner, DOCX package-byte read, generated writer output, or pass/fail result is executed or asserted"
+            },
+            "resultArtifactGate": {
+                "command": "tools/pandoc-docx-upstream-runner-plan.php --json --upstream-root .upstream-cache/pandoc-current --validate-result-artifacts --artifact-root .port-libs/pandoc-runner/artifacts/docx-targeted-run --log-root .port-libs/pandoc-runner/logs",
+                "evidenceKind": "targeted-docx-runner-result-artifact-gate-only",
+                "admissibleStatus": "admissible-targeted-runner-result-artifacts-no-parity-claim",
+                "requires": [
+                    ".port-libs/pandoc-runner/logs/runner-test-dependencies.txt",
+                    ".port-libs/pandoc-runner/logs/docx-targeted-list-tests.txt",
+                    ".port-libs/pandoc-runner/logs/docx-targeted-run.txt",
+                    ".port-libs/pandoc-runner/artifacts/docx-targeted-run/selected-test-inventory.json",
+                    ".port-libs/pandoc-runner/artifacts/docx-targeted-run/result.json"
+                ],
+                "checks": [
+                    "required artifact presence and non-empty readability",
+                    "result.json required fields, pinned upstream commit, runner target, Tasty pattern, and pass/fail/skip count consistency",
+                    "result.json SHA-256 fields bound to the selected inventory and transcript artifacts",
+                    "runnerExecuted=true inside result.json before artifacts can be admitted",
+                    "transcripts include exact Cabal command lines, exit-code markers, DOCX Tasty --list-tests labels, and DOCX Tasty run result output",
+                    "missing or placeholder runner transcripts remain a blocking hard evidence gap, not pass evidence"
+                ],
+                "executionPolicy": "artifact-shape, transcript-evidence, and hash-binding validation only; this PHP gate does not execute Cabal/Tasty, independently prove transcript authenticity, record a runner result, or claim DOCX/OpenXML parity"
+            },
+            "manualWorkflow": {
+                "workflow": ".github/workflows/pandoc-docx.yml",
+                "trigger": "workflow_dispatch",
+                "input": "run_upstream_docx_tasty=true",
+                "upstreamRoot": ".upstream-cache/pandoc-docx-runner-pinned",
+                "upstreamCommit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
+                "runnerTarget": "test:test-pandoc",
+                "tastyPattern": "($2 == \"Readers\" || $2 == \"Writers\") && $3 == \"Docx\"",
+                "resultWriterCommand": "tools/pandoc-docx-upstream-runner-plan.php --json --upstream-root .upstream-cache/pandoc-docx-runner-pinned --artifact-root .port-libs/pandoc-runner/artifacts/docx-targeted-run --log-root .port-libs/pandoc-runner/logs --write-result-artifact .port-libs/pandoc-runner/artifacts/docx-targeted-run/result.json --result-started-at-utc <started> --result-finished-at-utc <finished>",
+                "gatePolicy": "Manual workflow must re-run the result artifact gate and require admissible-targeted-runner-result-artifacts-no-parity-claim before treating artifacts as admissible; this static audit still records no runner result."
+            },
+            "resultRecorded": false,
+            "runnerExecuted": false,
+            "upstreamCommit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
+            "runnerTarget": "test:test-pandoc",
+            "runnerEntryPoint": {
+                "packageFile": "pandoc.cabal",
+                "component": "test:test-pandoc",
+                "type": "exitcode-stdio-1.0",
+                "mainIs": "test-pandoc.hs",
+                "sourceDirectory": "test",
+                "entryFile": "test/test-pandoc.hs",
+                "entrySemantics": [
+                    "runs from upstream test directory via inDirectory \"test\"",
+                    "runs Tasty defaultMain $ tests fp",
+                    "dispatches both DOCX reader and DOCX writer Tasty groups"
+                ]
+            },
+            "docxReaderEntryPoint": {
+                "module": "Tests.Readers.Docx",
+                "sourceFile": "test/Tests/Readers/Docx.hs",
+                "tastyGroup": "testGroup \"Docx\" Tests.Readers.Docx.tests",
+                "entryPointSnippet": "Tests.Readers.Docx.tests"
+            },
+            "docxWriterEntryPoint": {
+                "module": "Tests.Writers.Docx",
+                "sourceFile": "test/Tests/Writers/Docx.hs",
+                "tastyGroup": "testGroup \"Docx\" Tests.Writers.Docx.tests",
+                "entryPointSnippet": "Tests.Writers.Docx.tests"
+            },
+            "fixtureClosure": {
+                "source": "pandoc.cabal extra-source-files plus test/test-pandoc.hs DOCX Tasty group dispatch",
+                "entrySourceFiles": [
+                    "test/test-pandoc.hs",
+                    "test/Tests/Readers/Docx.hs",
+                    "test/Tests/Writers/Docx.hs"
+                ],
+                "readerFixtureGlobs": [
+                    "test/docx/*.docx",
+                    "test/docx/*.native"
+                ],
+                "writerGoldenFixtureGlobs": [
+                    "test/docx/golden/*.docx"
+                ],
+                "pinnedInventoryCounts": {
+                    "docxDirectoryArtifacts": 233,
+                    "nativeExpectedArtifacts": 112,
+                    "docxPackageArtifacts": 121,
+                    "goldenDocxArtifacts": 38
+                }
+            },
+            "nonMutatingDryRunPlanCommand": {
+                "descriptor": "UpstreamRunnerDependencyAudit::expectedCabalPlanCommands()[\"runner-test-dependencies\"] with DOCX targeted builddir override",
+                "program": "cabal",
+                "arguments": [
+                    "v2-build",
+                    "--offline",
+                    "--project-dir=.",
+                    "--builddir=.port-libs/pandoc-runner/cabal-build/docx-targeted-run",
+                    "--dry-run",
+                    "--only-dependencies",
+                    "--enable-tests",
+                    "--disable-benchmarks",
+                    "test:test-pandoc",
+                    "test:test-pandoc-lua-engine"
+                ],
+                "commandLine": "cabal v2-build --offline --project-dir=. --builddir=.port-libs/pandoc-runner/cabal-build/docx-targeted-run --dry-run --only-dependencies --enable-tests --disable-benchmarks test:test-pandoc test:test-pandoc-lua-engine",
+                "targets": [
+                    "test:test-pandoc",
+                    "test:test-pandoc-lua-engine"
+                ],
+                "workingDirectory": "hydrated Pandoc upstream checkout root",
+                "buildDirectory": ".port-libs/pandoc-runner/cabal-build/docx-targeted-run",
+                "executionPolicy": "descriptor-only; do not execute from this isolated PHP lane",
+                "workspaceEnvironmentVariables": [
+                    "CABAL_DIR",
+                    "CABAL_CONFIG",
+                    "XDG_CACHE_HOME",
+                    "XDG_STATE_HOME",
+                    "TMPDIR"
+                ],
+                "workspaceBuildDirectory": ".port-libs/pandoc-runner/cabal-build/docx-targeted-run",
+                "transcriptFile": ".port-libs/pandoc-runner/logs/runner-test-dependencies.txt",
+                "claim": "Descriptor-only Cabal dependency dry-run command; this audit did not execute it."
+            },
+            "futureListTestsCommand": {
+                "program": "cabal",
+                "arguments": [
+                    "v2-run",
+                    "--offline",
+                    "--project-dir=.",
+                    "--builddir=.port-libs/pandoc-runner/cabal-build/docx-targeted-run",
+                    "test:test-pandoc",
+                    "--",
+                    "--list-tests",
+                    "--pattern",
+                    "($2 == \"Readers\" || $2 == \"Writers\") && $3 == \"Docx\""
+                ],
+                "commandLine": "cabal v2-run --offline --project-dir=. --builddir=.port-libs/pandoc-runner/cabal-build/docx-targeted-run test:test-pandoc -- --list-tests --pattern '($2 == \"Readers\" || $2 == \"Writers\") && $3 == \"Docx\"'",
+                "workingDirectory": "hydrated Pandoc upstream checkout root",
+                "executionPolicy": "future targeted test inventory only after reviewed dry-run plan; not executed by this audit",
+                "requiredResultArtifact": "Record selected DOCX test names before any targeted runner pass/fail result is admitted."
+            },
+            "futureTargetedRunCommand": {
+                "program": "cabal",
+                "arguments": [
+                    "v2-run",
+                    "--offline",
+                    "--project-dir=.",
+                    "--builddir=.port-libs/pandoc-runner/cabal-build/docx-targeted-run",
+                    "test:test-pandoc",
+                    "--",
+                    "--pattern",
+                    "($2 == \"Readers\" || $2 == \"Writers\") && $3 == \"Docx\""
+                ],
+                "commandLine": "cabal v2-run --offline --project-dir=. --builddir=.port-libs/pandoc-runner/cabal-build/docx-targeted-run test:test-pandoc -- --pattern '($2 == \"Readers\" || $2 == \"Writers\") && $3 == \"Docx\"'",
+                "workingDirectory": "hydrated Pandoc upstream checkout root",
+                "executionPolicy": "future targeted runner only after reviewed dry-run plan; not executed by this audit",
+                "tastyPatternSource": "Tasty AWK-like pattern fields from test tree: $1 outer group, $2 reader/writer group, $3 Docx subgroup.",
+                "requiredResultArtifact": "A future run must record exact Cabal command transcripts, exit-code markers, upstream commit, DOCX --list-tests labels, targeted Tasty run output, and pass/fail/skip counts before closing upstream-docx-runner-results."
+            },
+            "resultArtifactContract": {
+                "requiredBeforeResultRecorded": [
+                    ".port-libs/pandoc-runner/logs/runner-test-dependencies.txt",
+                    ".port-libs/pandoc-runner/logs/docx-targeted-list-tests.txt",
+                    ".port-libs/pandoc-runner/logs/docx-targeted-run.txt",
+                    ".port-libs/pandoc-runner/artifacts/docx-targeted-run/selected-test-inventory.json",
+                    ".port-libs/pandoc-runner/artifacts/docx-targeted-run/result.json"
+                ],
+                "resultJsonRequiredFields": [
+                    "runnerExecuted",
+                    "upstreamCommit",
+                    "commandLine",
+                    "exitCode",
+                    "runnerTarget",
+                    "tastyPattern",
+                    "selectedTestCount",
+                    "passedCount",
+                    "failedCount",
+                    "skippedCount",
+                    "startedAtUtc",
+                    "finishedAtUtc",
+                    "selectedTestInventorySha256",
+                    "dependencyDryRunTranscriptSha256",
+                    "listTestsTranscriptSha256",
+                    "targetedRunTranscriptSha256"
+                ],
+                "transcriptEvidenceRequirements": {
+                    "dependencyDryRunTranscript": "must include the exact Cabal dry-run command line and exitCode: 0 marker",
+                    "listTestsTranscript": "must include the exact Cabal/Tasty --list-tests command line, exitCode: 0 marker, and DOCX Tasty test labels",
+                    "targetedRunTranscript": "must include the exact targeted Cabal/Tasty command line, an exitCode marker matching result.json, and DOCX Tasty result output"
+                },
+                "admissionRule": "Do not set resultRecorded=true until command transcript, exit code, selected test inventory, pass/fail counts, and concrete Tasty DOCX list/run output are captured for the pinned upstream checkout."
+            },
+            "honestClaim": "This records entry points, fixture closure, and commands for a future targeted run only. It is not an upstream DOCX runner result."
+        },
+        "focusedCiEvidenceWiring": {
+            "schemaVersion": 1,
+            "status": "focused-ci-evidence-wired-generated-writer-golden-38-of-38-haskell-inventory-and-focused-reader-gated",
+            "workflow": ".github/workflows/pandoc-docx.yml",
+            "updatedAt": "2026-07-01",
+            "commands": {
+                "selectedInventoryPreflight": "php tools/pandoc-docx-upstream-runner-plan.php --json --write-selected-inventory .port-libs/pandoc-runner/artifacts/docx-targeted-run/selected-test-inventory.json",
+                "resultArtifactGate": "php tools/pandoc-docx-upstream-runner-plan.php --json --validate-result-artifacts --artifact-root .port-libs/pandoc-runner/artifacts/docx-targeted-run --log-root .port-libs/pandoc-runner/logs",
+                "parserRegressionGuard": "php tools/pandoc-docx-parity-audit.php --json --fail-on-regression",
+                "cacheManifest": "php tools/pandoc-docx-cache-manifest.php --json",
+                "haskellInventoryStatusTest": "php tools/run-tests.php lanes/pandoc/tests/DocxUpstreamHaskellInventoryTest.php",
+                "writerCoreTest": "php tools/run-tests.php lanes/pandoc/tests/DocxWriterTest.php",
+                "writerGoldenAudit": "php tools/pandoc-docx-writer-golden-audit.php --json --generate-supported-dir .port-libs/pandoc-docx-writer-golden/generated --require-generated-stable-matches 38",
+                "focusedReaderEvidence": "php tools/pandoc-docx-focused-reader-evidence.php --json --docx-dir .upstream-cache/pandoc-current/test/docx --require-covered 36 --require-targeted-checks 32 --require-no-targeted-failures",
+                "focusedReaderEvidenceStatusTest": "php tools/run-tests.php lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            },
+            "localValidation": {
+                "validatedAt": "2026-06-30",
+                "upstreamCachePresent": false,
+                "cacheManifestStatus": "skipped_missing_upstream_docx_directory",
+                "parserAuditStatus": "skipped_missing_upstream_docx_directory",
+                "parserRegressionEvaluated": false,
+                "parserRegressionReason": "not-evaluated-source-directory-unavailable",
+                "runnerPreflightStatus": "blocked-missing-docx-upstream-source",
+                "resultArtifactGateStatus": "blocked-missing-targeted-runner-result-artifacts",
+                "resultArtifactGateAdmissionReady": false,
+                "selectedInventoryWriteStatus": "written-blocked-missing-docx-upstream-source",
+                "writerCoreTestStatus": "passed-1-file-433-assertions-0-failures",
+                "writerGoldenAuditStatus": "skipped_missing_writer_golden_directory",
+                "writerGoldenComparisonStatus": "not-run-golden-directory-missing",
+                "recordedWriterGoldenEvidenceKind": "writer-golden-package-generated-stable-comparison",
+                "recordedWriterGoldenGeneratedPackageCount": 38,
+                "recordedWriterGoldenComparedPackageCount": 38,
+                "recordedWriterGoldenMatchedPackageCount": 38,
+                "recordedWriterGoldenMismatchedPackageCount": 0,
+                "focusedReaderEvidenceStatus": "completed-targeted-docx-reader-checks",
+                "focusedReaderCoveredCaseCount": 36,
+                "focusedReaderRemainingOpenCaseCount": 0,
+                "focusedReaderPassedTargetedCaseCount": 32,
+                "focusedReaderFailedTargetedCaseCount": 0,
+                "focusedReaderMappedOnlyCaseCount": 4,
+                "focusedReaderMappingValidationStatus": "valid-denominator-map"
+            },
+            "claim": "Focused CI/status wiring only; CI now lints DocxWriter.php and DocxUpstreamFocusedReaderEvidence.php, runs DocxUpstreamHaskellInventoryTest.php, DocxUpstreamFocusedReaderEvidenceTest.php, and DocxWriterTest.php, invokes the optional focused reader evidence gate at --require-covered 36 --require-targeted-checks 32 --require-no-targeted-failures, and invokes the optional writer-golden audit with --generate-supported-dir and --require-generated-stable-matches 38 when the upstream cache is hydrated. The checked-in Haskell inventory keeps 36 reader uncovered cases and 7 writer direct HUnit uncovered cases explicit; focused reader evidence is guarded as 36 covered / 0 remaining open with hydrated-cache targeted DOCX checks at 32 passed / 0 failed / 4 mapped-only, and checked-in generated writer-golden evidence is guarded as 38 generated / 38 compared / 38 matched / 0 mismatched stable package semantics. This is not an upstream Haskell/Cabal/Tasty runner result.",
+            "ciHydratedWriterGoldenGateStatus": "requires-38-generated-stable-matches",
+            "ciHydratedFocusedReaderGateStatus": "requires-36-covered-32-targeted-and-zero-targeted-failures"
+        },
+        "focusedReaderEvidence": {
+            "reportPath": "lanes/pandoc/UPSTREAM_DOCX_HASKELL_FOCUSED_READER_EVIDENCE.json",
+            "tool": "tools/pandoc-docx-focused-reader-evidence.php --json --docx-dir .upstream-cache/pandoc-current/test/docx --require-covered 36 --require-targeted-checks 32 --require-no-targeted-failures",
+            "schemaVersion": 1,
+            "status": "reported-focused-docx-reader-evidence",
+            "evidenceKind": "focused-native-php-and-mapped-reader-evidence",
+            "upstreamCommit": "612e143fbe6d735b612c4800d21e61b7d44e4dca",
+            "denominatorCaseRows": 36,
+            "coveredCaseCount": 36,
+            "remainingOpenCaseCount": 0,
+            "targetedHydratedCacheStatus": "completed-targeted-docx-reader-checks",
+            "passedTargetedCaseCount": 32,
+            "failedTargetedCaseCount": 0,
+            "skippedTargetedCaseCount": 0,
+            "mappedOnlyCaseCount": 4,
+            "mappingValidationStatus": "valid-denominator-map",
+            "gateStatus": "requires-36-covered-32-targeted-and-zero-targeted-failures",
+            "claim": "Focused reader evidence maps the 36 upstream DOCX Haskell reader cases outside the local 74/74 parser-acceptance gate: 36 covered, 0 remaining open, and hydrated-cache targeted DOCX checks at 32 passed / 0 failed / 4 mapped-only. This is not an upstream Haskell/Cabal/Tasty runner result and does not claim full DOCX/OpenXML parity."
+        }
+    },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,

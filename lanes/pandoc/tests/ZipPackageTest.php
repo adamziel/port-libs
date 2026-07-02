@@ -4778,6 +4778,28 @@ return [
         $t->same(false, $summary['mismatchedEntries'][2]['hasZeroLocalHeaderPlaceholders']);
         $t->same(1, $summary['mismatchedEntries'][2]['localCrc32']);
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($mismatchedZip));
+
+        $timeMismatchZip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>timestamp provenance only</w:p></w:document>',
+                'method' => 8,
+                'modifiedTime' => 0x4a21,
+                'modifiedDate' => 0x5b63,
+                'localModifiedTime' => 0x4a22,
+                'localModifiedDate' => 0x5b63,
+            ],
+        ]);
+        $timeMismatchSummary = ZipPackage::localHeaderMetadataPreflight($timeMismatchZip);
+        $timeMismatchPackage = ZipPackage::fromString($timeMismatchZip);
+
+        $t->same(1, $timeMismatchSummary['mismatchedEntryCount']);
+        $t->same(['local-header-modification-time-mismatch'], $timeMismatchSummary['issues']);
+        $t->same(['local-header-modification-time-mismatch'], $timeMismatchSummary['mismatchedEntries'][0]['issues']);
+        $t->same(
+            '<w:document><w:p>timestamp provenance only</w:p></w:document>',
+            $timeMismatchPackage->read('word/document.xml')
+        );
     },
 
     'preflights zip local header fixed field byte offsets before raw package handoff' => static function (TestRunner $t) use ($buildZipPackage, $crc32): void {
@@ -10762,6 +10784,54 @@ return [
         $t->same('<w:document><w:p>extra fields</w:p></w:document>', $package->read('/word/document.xml'));
     },
 
+    'reads central zip extended timestamps with local-only access metadata' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $modifiedAt = 1780479017;
+        $accessedAt = 1780479021;
+        $centralTimestampExtra = pack('vvCV', 0x5455, 5, 0x03, $modifiedAt);
+        $localTimestampExtra = pack('vvCVV', 0x5455, 9, 0x03, $modifiedAt, $accessedAt);
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>central timestamp</w:p></w:document>',
+                'method' => 8,
+                'localExtra' => $localTimestampExtra,
+                'centralExtra' => $centralTimestampExtra,
+            ],
+        ]));
+        $entry = $package->entry('word/document.xml');
+
+        $t->same(['modifiedAt' => $modifiedAt], $entry->extendedTimestamps());
+        $t->same($modifiedAt, $entry->extendedLastModifiedTimestamp());
+        $t->same(null, $entry->extendedAccessedTimestamp());
+        $t->same($accessedAt, $package->localExtendedAccessedTimestamp('/word/document.xml'));
+        $t->same('<w:document><w:p>central timestamp</w:p></w:document>', $package->read('/word/document.xml'));
+    },
+
+    'reads local zip extended timestamps with absent optional access metadata' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $modifiedAt = 1780479017;
+        $timestampExtra = pack('vvCV', 0x5455, 5, 0x03, $modifiedAt);
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/settings.xml',
+                'data' => '<w:settings><w:zoom w:percent="100"/></w:settings>',
+                'method' => 8,
+                'localExtra' => $timestampExtra,
+                'centralExtra' => $timestampExtra,
+            ],
+        ]));
+        $entry = $package->entry('word/settings.xml');
+
+        $t->same(['modifiedAt' => $modifiedAt], $entry->extendedTimestamps());
+        $t->same(['modifiedAt' => $modifiedAt], $package->localExtendedTimestamps('word/settings.xml'));
+        $t->same($modifiedAt, $entry->extendedLastModifiedTimestamp());
+        $t->same($modifiedAt, $package->localExtendedLastModifiedTimestamp('word/settings.xml'));
+        $t->same(null, $entry->extendedAccessedTimestamp());
+        $t->same(null, $package->localExtendedAccessedTimestamp('word/settings.xml'));
+        $t->same('<w:settings><w:zoom w:percent="100"/></w:settings>', $package->read('word/settings.xml'));
+    },
+
     'exposes local zip extra fields for package preflight' => static function (TestRunner $t) use ($buildZipPackage): void {
         $extendedTimestamp = 1780479017;
         $timestampExtra = pack('vvCV', 0x5455, 5, 0x01, $extendedTimestamp);
@@ -12070,6 +12140,30 @@ return [
         $t->contains('deflate-option-flags-without-deflate', implode(',', $rawDeflateOptionPreflight['diagnostics']));
         $t->contains('zip-package-instantiation-failed', implode(',', $rawDeflateOptionPreflight['diagnostics']));
 
+        $directoryFlagZip = $buildZipPackage([
+            [
+                'name' => '_rels/',
+                'data' => '',
+                'method' => 0,
+                'flags' => 0x0802,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>directory flag tolerance</w:p></w:document>',
+                'method' => 8,
+            ],
+        ]);
+        $directoryFlagPackage = ZipPackage::fromString($directoryFlagZip);
+        $directoryFlagPreflight = ZipPackage::rawStrictImportPreflight($directoryFlagZip, 512, 20.0, 512);
+
+        $t->same(true, $directoryFlagPackage->entry('_rels/')->isDirectory());
+        $t->same(0x0802, $directoryFlagPackage->entry('_rels/')->generalPurposeFlags);
+        $t->same(0, $directoryFlagPreflight['generalPurposeFlags']['deflateOptionMethodMismatchEntryCount']);
+        $t->same(
+            '<w:document><w:p>directory flag tolerance</w:p></w:document>',
+            $directoryFlagPackage->read('word/document.xml')
+        );
+
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             [
                 'name' => 'word/media/stored-fast.bin',
@@ -12309,7 +12403,7 @@ return [
                 'localCompressedSize' => 1,
             ],
         ])));
-        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+        $timestampMismatchZip = $buildZipPackage([
             [
                 'name' => 'word/settings.xml',
                 'data' => '<w:settings/>',
@@ -12318,7 +12412,10 @@ return [
                 'modifiedDate' => 23747,
                 'localModifiedTime' => 19401,
             ],
-        ])));
+        ]);
+        $timestampMismatchSummary = ZipPackage::localHeaderMetadataPreflight($timestampMismatchZip);
+        $t->same(['local-header-modification-time-mismatch'], $timestampMismatchSummary['issues']);
+        $t->same('<w:settings/>', ZipPackage::fromString($timestampMismatchZip)->read('word/settings.xml'));
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             [
                 'name' => 'word/comments.xml',

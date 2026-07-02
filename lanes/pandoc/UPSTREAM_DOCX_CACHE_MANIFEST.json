@@ -1,0 +1,2087 @@
+{
+    "schemaVersion": 1,
+    "tool": "pandoc-docx-cache-manifest",
+    "status": "reported_optional_upstream_docx_cache_manifest",
+    "skipped": false,
+    "generatedAt": "2026-06-30",
+    "upstream": {
+        "name": "jgm/pandoc",
+        "url": "https://github.com/jgm/pandoc",
+        "commit": "612e143fbe6d735b612c4800d21e61b7d44e4dca",
+        "expectedCommit": "612e143fbe6d735b612c4800d21e61b7d44e4dca",
+        "commitMatchesExpected": true
+    },
+    "source": {
+        "cachePath": ".upstream-cache/pandoc-current/test/docx",
+        "observedCachePath": ".upstream-cache/pandoc-current/test/docx",
+        "workingTreeCleanForTestDocx": true,
+        "upstreamRoot": ".upstream-cache/pandoc-current"
+    },
+    "evidenceKind": "artifact-identity-manifest-only",
+    "claim": "Records optional local upstream DOCX/native/golden artifact identity using paths, stems, byte counts, and SHA-256 hashes only.",
+    "claimBoundaries": {
+        "asserts": [
+            "optional upstream cache file identity for root-level .docx packages",
+            "optional upstream cache file identity for root-level .native expectations",
+            "optional upstream cache file identity for golden/*.docx writer package artifacts",
+            "artifact stems, relative paths, byte counts, and SHA-256 hashes"
+        ],
+        "doesNotAssert": [
+            "checked-in DOCX package bytes",
+            "pinned upstream DOCX package corpus availability in every worktree or CI job",
+            "local DOCX parser acceptance",
+            "Pandoc AST equality between DOCX reader output and upstream .native expectations",
+            "upstream Haskell/Cabal test-pandoc DOCX runner parity",
+            "DOCX writer golden package round-trip parity",
+            "full DOCX/OpenXML semantic parity"
+        ]
+    },
+    "hydration": {
+        "targetPath": ".upstream-cache/pandoc-current/test/docx",
+        "upstreamCommit": "612e143fbe6d735b612c4800d21e61b7d44e4dca",
+        "commands": [
+            "git clone https://github.com/jgm/pandoc.git .upstream-cache/pandoc-current",
+            "git -C .upstream-cache/pandoc-current checkout 612e143fbe6d735b612c4800d21e61b7d44e4dca",
+            "php tools/pandoc-docx-cache-manifest.php --repo-root=. --docx-dir=.upstream-cache/pandoc-current/test/docx --json"
+        ],
+        "note": "The manifest is metadata-only. Hydrating the binary cache is optional and is required only when regenerating or auditing artifact hashes locally."
+    },
+    "artifactCounts": {
+        "totalDocxNativeGoldenArtifacts": 236,
+        "rootDocxPackageArtifacts": 85,
+        "rootNativeExpectedArtifacts": 113,
+        "rootDocxAndNativeArtifacts": 198,
+        "goldenDocxPackageArtifacts": 38,
+        "totalDocxPackageArtifacts": 123,
+        "pairedRootDocxNativeStems": 74,
+        "unpairedRootDocxPackageStems": 11,
+        "unpairedRootNativeExpectedStems": 39
+    },
+    "rootDocxPackageStems": [
+        "0_level_headers",
+        "adjacent_codeblocks",
+        "already_auto_ident",
+        "alternate_document_path",
+        "anchor_header_after_anchor",
+        "block_quotes",
+        "char_styles",
+        "codeblock",
+        "comments",
+        "comments_warning",
+        "compact-style-removal",
+        "cross_reference",
+        "custom-style-reference",
+        "deep_normalize",
+        "definition_list",
+        "diagram",
+        "drop_cap",
+        "dummy_item_after_list_item",
+        "dummy_item_after_paragraph",
+        "empty_field",
+        "enumerated_headings",
+        "german-reference",
+        "german_styled_lists",
+        "hanging_indent",
+        "headers",
+        "i18n_blocks",
+        "image",
+        "image_vml",
+        "image_vml_as_object",
+        "image_with_textbox_caption",
+        "inline_code",
+        "inline_formatting",
+        "inline_images",
+        "instrText_hyperlink",
+        "link_in_notes",
+        "links",
+        "lists",
+        "lists-compact",
+        "lists_continuing",
+        "lists_level_override",
+        "lists_restart_8367",
+        "lists_restarting",
+        "lists_sublist_reset",
+        "mendeley_citations",
+        "metadata",
+        "metadata_after_normal",
+        "nested_anchors_in_header",
+        "nested_instrText",
+        "nested_sdt",
+        "nested_smart_tags",
+        "normalize",
+        "notes",
+        "ns0-reference",
+        "numbered_header",
+        "overlapping_targets",
+        "pageref",
+        "paragraph_insertion_deletion",
+        "relative_indentation_blockquotes",
+        "sdt_elements",
+        "sdt_in_footnote",
+        "special_punctuation",
+        "table_captions_no_field",
+        "table_captions_with_field",
+        "table_gridbefore",
+        "table_header_rowspan",
+        "table_one_header_row",
+        "table_one_row",
+        "table_variable_width",
+        "table_with_list_cell",
+        "tables",
+        "tabs",
+        "task_list",
+        "text_in_shape_format",
+        "textbox_image",
+        "textbox_image_duplicate_encoding",
+        "track_changes_deletion",
+        "track_changes_insertion",
+        "track_changes_move",
+        "track_changes_scrubbed_metadata",
+        "trailing_spaces_in_formatting",
+        "trim_last_inline",
+        "unicode",
+        "unused_anchors",
+        "verbatim_subsuper",
+        "zotero_citations"
+    ],
+    "rootNativeExpectedStems": [
+        "0_level_headers",
+        "adjacent_codeblocks",
+        "already_auto_ident",
+        "alternate_document_path",
+        "anchor_header_after_anchor",
+        "block_quotes",
+        "char_styles",
+        "codeblock",
+        "comments",
+        "comments_no_comments",
+        "compact-style-removal",
+        "cross_reference",
+        "custom-style-no-styles",
+        "custom-style-preserve",
+        "custom-style-roundtrip-end",
+        "custom-style-with-styles",
+        "custom_style",
+        "deep_normalize",
+        "definition_list",
+        "diagram",
+        "document-properties",
+        "document-properties-short-desc",
+        "drop_cap",
+        "dummy_item_after_list_item",
+        "dummy_item_after_paragraph",
+        "empty_field",
+        "enumerated_headings",
+        "german_styled_lists",
+        "hanging_indent",
+        "headers",
+        "i18n_blocks",
+        "image_no_embed",
+        "image_no_embed_writer",
+        "image_vml",
+        "image_vml_as_object",
+        "image_with_textbox_caption",
+        "image_writer_test",
+        "inline_code",
+        "inline_formatting",
+        "inline_formatting_writer",
+        "inline_images",
+        "inline_images_writer",
+        "inline_images_writer_test",
+        "instrText_hyperlink",
+        "link_in_notes",
+        "links",
+        "links_writer",
+        "lists",
+        "lists-compact",
+        "lists_9994",
+        "lists_continuing",
+        "lists_div_bullets",
+        "lists_level_override",
+        "lists_multiple_initial",
+        "lists_restart_8367",
+        "lists_restarting",
+        "lists_sublist_reset",
+        "lists_writer",
+        "mendeley_citations_minus",
+        "mendeley_citations_plus",
+        "metadata",
+        "metadata_after_normal",
+        "nested_anchors_in_header",
+        "nested_instrText",
+        "nested_sdt",
+        "nested_smart_tags",
+        "normalize",
+        "notes",
+        "numbered_header",
+        "overlapping_targets",
+        "pageref",
+        "paragraph_insertion_deletion_accept",
+        "paragraph_insertion_deletion_all",
+        "paragraph_insertion_deletion_reject",
+        "raw-blocks",
+        "raw-bookmarks",
+        "relative_indentation_blockquotes",
+        "sdt_elements",
+        "sdt_in_footnote",
+        "special_punctuation",
+        "table_captions_no_field",
+        "table_captions_with_field",
+        "table_gridbefore",
+        "table_header_rowspan",
+        "table_one_header_row",
+        "table_one_row",
+        "table_variable_width",
+        "table_with_list_cell",
+        "tables",
+        "tables-default-widths",
+        "tables_separated_with_rawblock",
+        "tabs",
+        "task_list",
+        "text_in_shape_format",
+        "textbox_image",
+        "textbox_image_duplicate_encoding",
+        "track_changes_deletion_accept",
+        "track_changes_deletion_all",
+        "track_changes_deletion_reject",
+        "track_changes_insertion_accept",
+        "track_changes_insertion_all",
+        "track_changes_insertion_reject",
+        "track_changes_move_accept",
+        "track_changes_move_all",
+        "track_changes_move_reject",
+        "track_changes_scrubbed_metadata",
+        "trailing_spaces_in_formatting",
+        "trim_last_inline",
+        "unicode",
+        "unused_anchors",
+        "verbatim_subsuper",
+        "zotero_citations_minus",
+        "zotero_citations_plus"
+    ],
+    "pairedRootDocxNativeStems": [
+        "0_level_headers",
+        "adjacent_codeblocks",
+        "already_auto_ident",
+        "alternate_document_path",
+        "anchor_header_after_anchor",
+        "block_quotes",
+        "char_styles",
+        "codeblock",
+        "comments",
+        "compact-style-removal",
+        "cross_reference",
+        "deep_normalize",
+        "definition_list",
+        "diagram",
+        "drop_cap",
+        "dummy_item_after_list_item",
+        "dummy_item_after_paragraph",
+        "empty_field",
+        "enumerated_headings",
+        "german_styled_lists",
+        "hanging_indent",
+        "headers",
+        "i18n_blocks",
+        "image_vml",
+        "image_vml_as_object",
+        "image_with_textbox_caption",
+        "inline_code",
+        "inline_formatting",
+        "inline_images",
+        "instrText_hyperlink",
+        "link_in_notes",
+        "links",
+        "lists",
+        "lists-compact",
+        "lists_continuing",
+        "lists_level_override",
+        "lists_restart_8367",
+        "lists_restarting",
+        "lists_sublist_reset",
+        "metadata",
+        "metadata_after_normal",
+        "nested_anchors_in_header",
+        "nested_instrText",
+        "nested_sdt",
+        "nested_smart_tags",
+        "normalize",
+        "notes",
+        "numbered_header",
+        "overlapping_targets",
+        "pageref",
+        "relative_indentation_blockquotes",
+        "sdt_elements",
+        "sdt_in_footnote",
+        "special_punctuation",
+        "table_captions_no_field",
+        "table_captions_with_field",
+        "table_gridbefore",
+        "table_header_rowspan",
+        "table_one_header_row",
+        "table_one_row",
+        "table_variable_width",
+        "table_with_list_cell",
+        "tables",
+        "tabs",
+        "task_list",
+        "text_in_shape_format",
+        "textbox_image",
+        "textbox_image_duplicate_encoding",
+        "track_changes_scrubbed_metadata",
+        "trailing_spaces_in_formatting",
+        "trim_last_inline",
+        "unicode",
+        "unused_anchors",
+        "verbatim_subsuper"
+    ],
+    "unpairedRootDocxPackageStems": [
+        "comments_warning",
+        "custom-style-reference",
+        "german-reference",
+        "image",
+        "mendeley_citations",
+        "ns0-reference",
+        "paragraph_insertion_deletion",
+        "track_changes_deletion",
+        "track_changes_insertion",
+        "track_changes_move",
+        "zotero_citations"
+    ],
+    "unpairedRootNativeExpectedStems": [
+        "comments_no_comments",
+        "custom-style-no-styles",
+        "custom-style-preserve",
+        "custom-style-roundtrip-end",
+        "custom-style-with-styles",
+        "custom_style",
+        "document-properties",
+        "document-properties-short-desc",
+        "image_no_embed",
+        "image_no_embed_writer",
+        "image_writer_test",
+        "inline_formatting_writer",
+        "inline_images_writer",
+        "inline_images_writer_test",
+        "links_writer",
+        "lists_9994",
+        "lists_div_bullets",
+        "lists_multiple_initial",
+        "lists_writer",
+        "mendeley_citations_minus",
+        "mendeley_citations_plus",
+        "paragraph_insertion_deletion_accept",
+        "paragraph_insertion_deletion_all",
+        "paragraph_insertion_deletion_reject",
+        "raw-blocks",
+        "raw-bookmarks",
+        "tables-default-widths",
+        "tables_separated_with_rawblock",
+        "track_changes_deletion_accept",
+        "track_changes_deletion_all",
+        "track_changes_deletion_reject",
+        "track_changes_insertion_accept",
+        "track_changes_insertion_all",
+        "track_changes_insertion_reject",
+        "track_changes_move_accept",
+        "track_changes_move_all",
+        "track_changes_move_reject",
+        "zotero_citations_minus",
+        "zotero_citations_plus"
+    ],
+    "goldenDocxPackageStems": [
+        "block_quotes",
+        "codeblock",
+        "comments",
+        "custom_style_no_reference",
+        "custom_style_preserve",
+        "custom_style_reference",
+        "definition_list",
+        "document-properties",
+        "document-properties-short-desc",
+        "headers",
+        "image",
+        "inline_code",
+        "inline_formatting",
+        "inline_images",
+        "link_in_notes",
+        "links",
+        "lists",
+        "lists_9994",
+        "lists_continuing",
+        "lists_div_bullets",
+        "lists_multiple_initial",
+        "lists_restarting",
+        "nested_anchors_in_header",
+        "notes",
+        "raw-blocks",
+        "raw-bookmarks",
+        "table_one_row",
+        "table_with_list_cell",
+        "tables",
+        "tables-default-widths",
+        "tables_separated_with_rawblock",
+        "task_list",
+        "track_changes_deletion",
+        "track_changes_insertion",
+        "track_changes_move",
+        "track_changes_scrubbed_metadata",
+        "unicode",
+        "verbatim_subsuper"
+    ],
+    "artifactSetSha256": "f958e70f43396d651c92503e20b9abc1fbde6dc7180a1a6f79dd83c6c4365da1",
+    "artifactRows": [
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/0_level_headers.docx",
+            "stem": "0_level_headers",
+            "bytes": 35146,
+            "sha256": "0d99c52804c856788c773639a36f695e908bff14b07e4b242e377f6131f8941e"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/0_level_headers.native",
+            "stem": "0_level_headers",
+            "bytes": 3544,
+            "sha256": "6e3fb6d9570081b77eaecabb04236e8e13a6211b6cd9694f45c22d1cc2bfcdbf"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/adjacent_codeblocks.docx",
+            "stem": "adjacent_codeblocks",
+            "bytes": 22264,
+            "sha256": "e2079bf5334e9291ef1ed870dfeec7fbba5762492c40ff513990984b455c1dd5"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/adjacent_codeblocks.native",
+            "stem": "adjacent_codeblocks",
+            "bytes": 3408,
+            "sha256": "9c50b4f5956cf46085a53f3b73ebffd1044ca56f2fd7c4b117a164eb68f496e9"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/already_auto_ident.docx",
+            "stem": "already_auto_ident",
+            "bytes": 8463,
+            "sha256": "e31df4512420095ddd61e583debf79ebda3bd30a0bd4e5106d778304960eb751"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/already_auto_ident.native",
+            "stem": "already_auto_ident",
+            "bytes": 142,
+            "sha256": "b88738897123fe12b700f5f48a83850955b334ba9108c80815d4ff736b91fb51"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/alternate_document_path.docx",
+            "stem": "alternate_document_path",
+            "bytes": 11582,
+            "sha256": "2e219951e06a202bcddfa3ed9503b77d51c40ed8d2a489dc5bee9f1d4d1be13f"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/alternate_document_path.native",
+            "stem": "alternate_document_path",
+            "bytes": 454,
+            "sha256": "3cc7438475b62674b69225518e8be1d4e1f5539da2bf77058af4b2214777984c"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/anchor_header_after_anchor.docx",
+            "stem": "anchor_header_after_anchor",
+            "bytes": 27098,
+            "sha256": "c00c83f0666301f283e8bb513c4dfaaa908c6dc0aa87a5fb495558718e75db45"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/anchor_header_after_anchor.native",
+            "stem": "anchor_header_after_anchor",
+            "bytes": 369,
+            "sha256": "3f189de3738adc618a50f9c05c077aef2139864261994316b2dc4a365f8fa53f"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/block_quotes.docx",
+            "stem": "block_quotes",
+            "bytes": 12153,
+            "sha256": "f6901b01b1b7e289ce23d694087acec1183475567a3bee8847e0c61b2109b9c9"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/block_quotes.native",
+            "stem": "block_quotes",
+            "bytes": 1640,
+            "sha256": "748e56a22b0d52e02b639ab84c9d568a6bdab71dc90d83b3d93f85981812b3aa"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/char_styles.docx",
+            "stem": "char_styles",
+            "bytes": 18059,
+            "sha256": "4befadc2fcc30221f2eea54824d464c5ea89cd0ffb0c28b772e39e3dccc38e1f"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/char_styles.native",
+            "stem": "char_styles",
+            "bytes": 659,
+            "sha256": "065e358b94d58070bec840d3055b86b0a4b8e5f7aff3b2901c61dd7f1fe8a92a"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/codeblock.docx",
+            "stem": "codeblock",
+            "bytes": 8465,
+            "sha256": "560bec785eb4d9d79dba11bc036ac97692b6826796e17479db644b4c4fa5165a"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/codeblock.native",
+            "stem": "codeblock",
+            "bytes": 291,
+            "sha256": "bae727f514fade625aaad4fbcc04c7346fb0d43f7fcaa802b08819237c0ab392"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/comments.docx",
+            "stem": "comments",
+            "bytes": 17109,
+            "sha256": "b6df01371955a599f38ec1192d130ecd750a5d83363b7c3755adb0f15679a507"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/comments.native",
+            "stem": "comments",
+            "bytes": 1584,
+            "sha256": "511ce415e7fb35772b556d4eafafd678e2ef04f639e8fa097816575bf76f62b8"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/comments_no_comments.native",
+            "stem": "comments_no_comments",
+            "bytes": 519,
+            "sha256": "6f355a5360de1ec9df6fc09acffa5bf860c8574f234e4639283d4fd904c6600b"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/comments_warning.docx",
+            "stem": "comments_warning",
+            "bytes": 17078,
+            "sha256": "e11fac51c9210a2b3d320aac9c9168dd1dffd07d345deb0ec0b99a3a0ab35e21"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/compact-style-removal.docx",
+            "stem": "compact-style-removal",
+            "bytes": 9951,
+            "sha256": "1b429f6b694893fac056c69f20c31aa4ad7fa2533857836002ecdd39b31ab8c5"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/compact-style-removal.native",
+            "stem": "compact-style-removal",
+            "bytes": 125,
+            "sha256": "1a1fd642afa6c74401414f6e7641e6c6b37d9105deb7b78e2db434cf37ca00d6"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/cross_reference.docx",
+            "stem": "cross_reference",
+            "bytes": 14978,
+            "sha256": "bef87b2dbdac587374c0ea0af6554953aec1fe113d82f509ff15ef71afaeca99"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/cross_reference.native",
+            "stem": "cross_reference",
+            "bytes": 167,
+            "sha256": "f0f9b2eb215e4efb6714c1779bae9ee74d43857767be56fe6d2557c6ecbdb0bf"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/custom-style-no-styles.native",
+            "stem": "custom-style-no-styles",
+            "bytes": 579,
+            "sha256": "3c955288736d4931cdc7dd550ea012bb57f0d04904a309b994525a73ad348035"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/custom-style-preserve.native",
+            "stem": "custom-style-preserve",
+            "bytes": 2610,
+            "sha256": "843a31286b083479cc28e28218bb6177e5b3f9adc3b6b52a87cdcf02a5fe9bb8"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/custom-style-reference.docx",
+            "stem": "custom-style-reference",
+            "bytes": 14838,
+            "sha256": "c97751c49b8c84b3acc1e265462e0eec045dd8d4b322d162ae1442f81fde8e1e"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/custom-style-roundtrip-end.native",
+            "stem": "custom-style-roundtrip-end",
+            "bytes": 532,
+            "sha256": "6150ce71cef463b2f23e6b3e920f8d15bc7f0d7ba45e5f973fae3edbb5db9637"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/custom-style-with-styles.native",
+            "stem": "custom-style-with-styles",
+            "bytes": 807,
+            "sha256": "4cec271a63c79620157b2693e88e469fc2812e12fae341209870af980fb3630d"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/custom_style.native",
+            "stem": "custom_style",
+            "bytes": 693,
+            "sha256": "a0c1fe0603583f6b5958050061baaa3bfca01d0d88c97ac37403c56cd31b74ec"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/deep_normalize.docx",
+            "stem": "deep_normalize",
+            "bytes": 18131,
+            "sha256": "2919fbb144c78033f1e7b981ecc4cfa86a00a26f4018c61116af496f9036f03a"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/deep_normalize.native",
+            "stem": "deep_normalize",
+            "bytes": 646,
+            "sha256": "981a1df02c3e800a83c6dd944d6c229aebfeab31778eeebf0b032628b03ca567"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/definition_list.docx",
+            "stem": "definition_list",
+            "bytes": 9174,
+            "sha256": "e67345aaa850fda07528a821b907e594449ea53036afd930e970f6234f7194c9"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/definition_list.native",
+            "stem": "definition_list",
+            "bytes": 784,
+            "sha256": "7ee4256444ed7453f6a58efbb5845a45a84302ab6459b309ccb678078675f6f5"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/diagram.docx",
+            "stem": "diagram",
+            "bytes": 22716,
+            "sha256": "38342a4ae44586feeeb4ee6f65c6827412d425eccc7d59fa322ec0144a862b93"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/diagram.native",
+            "stem": "diagram",
+            "bytes": 121,
+            "sha256": "e073c7e7d5631d474bf1c4315e74f8497dce1d636b8e7007093d47a3a7cfc5fa"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/document-properties-short-desc.native",
+            "stem": "document-properties-short-desc",
+            "bytes": 587,
+            "sha256": "7973d1fc9606a32c621c52a40d9688ab94a57d573f93cd069070f0410326508a"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/document-properties.native",
+            "stem": "document-properties",
+            "bytes": 2210,
+            "sha256": "6ed97edb7367cd2dbac40f957bde9a5a6b58839ccaa6367eb07bcbbafaff205c"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/drop_cap.docx",
+            "stem": "drop_cap",
+            "bytes": 15671,
+            "sha256": "22083b930abb1b9817a91722d0eb29eff8e6d02f1cf0a490b3b763365e13a4ef"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/drop_cap.native",
+            "stem": "drop_cap",
+            "bytes": 222,
+            "sha256": "ba141451443bb51ff4f9657e5bb96de082b9532e045160a1fe00744443d4a426"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/dummy_item_after_list_item.docx",
+            "stem": "dummy_item_after_list_item",
+            "bytes": 70197,
+            "sha256": "6ad4900a3f09a98da6807fd423f646855c19fc3d5d44e3cbfffa5e8e0898a635"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/dummy_item_after_list_item.native",
+            "stem": "dummy_item_after_list_item",
+            "bytes": 107,
+            "sha256": "50653f6ef9e58e30d4ccac662e053129e3f323b2f31609799dc3f22c2df75102"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/dummy_item_after_paragraph.docx",
+            "stem": "dummy_item_after_paragraph",
+            "bytes": 70234,
+            "sha256": "3139f9e057d816821d101fdbe19762eeba78bd94046d1271d8dc21bff84f0ae5"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/dummy_item_after_paragraph.native",
+            "stem": "dummy_item_after_paragraph",
+            "bytes": 393,
+            "sha256": "ae0f5102b69990c6b9c9722a0f20b6da29ae9b35b518bce62e5717d1bcabd34d"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/empty_field.docx",
+            "stem": "empty_field",
+            "bytes": 14312,
+            "sha256": "383e353f855438bceb80cefd593d42cda2599f39c21b3b43cb7263474a755a64"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/empty_field.native",
+            "stem": "empty_field",
+            "bytes": 1127,
+            "sha256": "acf9f590721f06156ec4d608d3cfe134c5ea27304a1b1d1b2cd17e9aea5b1494"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/enumerated_headings.docx",
+            "stem": "enumerated_headings",
+            "bytes": 12539,
+            "sha256": "b4ef1f6a67bd0e432c8358b56b78a44fc6fbef141edfec232f230c4652354229"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/enumerated_headings.native",
+            "stem": "enumerated_headings",
+            "bytes": 155,
+            "sha256": "a803c5bc51abe07ad52d1fc3e42646def714cdbd16f6fb2e36573de5a0d87554"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/german-reference.docx",
+            "stem": "german-reference",
+            "bytes": 10405,
+            "sha256": "b4a9e407340cc8d08a1c902d9840f690e104f2b9d68f46d5e2f47921deea3c20"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/german_styled_lists.docx",
+            "stem": "german_styled_lists",
+            "bytes": 43957,
+            "sha256": "172b4bca913f60a98cf9ac7dd7550957949dbab730045c745978862fd956c4bd"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/german_styled_lists.native",
+            "stem": "german_styled_lists",
+            "bytes": 386,
+            "sha256": "dd329e71baf5ee62729719f27fd6704aa8c6a2c407ab0f8bb995e84371557d06"
+        },
+        {
+            "kind": "golden-docx-package",
+            "path": "test/docx/golden/block_quotes.docx",
+            "stem": "block_quotes",
+            "bytes": 10692,
+            "sha256": "2373eec756dfac29bbcacd1c1422e999a7d0c08f0fbb375e607608e2dda6f053"
+        },
+        {
+            "kind": "golden-docx-package",
+            "path": "test/docx/golden/codeblock.docx",
+            "stem": "codeblock",
+            "bytes": 10510,
+            "sha256": "78b3acfe8a247d3012f1eb9a09085f05a422b409703cdc6c1c1fd88df42081e1"
+        },
+        {
+            "kind": "golden-docx-package",
+            "path": "test/docx/golden/comments.docx",
+            "stem": "comments",
+            "bytes": 10824,
+            "sha256": "b002f1326d65ab9a56b8cbead01b3414743f1c31557f556e65e0fb7a81b1fc4f"
+        },
+        {
+            "kind": "golden-docx-package",
+            "path": "test/docx/golden/custom_style_no_reference.docx",
+            "stem": "custom_style_no_reference",
+            "bytes": 10609,
+            "sha256": "f4a492943808c54074f1579dcc21ba627352f51b6ad9adbc324d957658d5ba7e"
+        },
+        {
+            "kind": "golden-docx-package",
+            "path": "test/docx/golden/custom_style_preserve.docx",
+            "stem": "custom_style_preserve",
+            "bytes": 11236,
+            "sha256": "cf022d1ee5c952fbc2b2a15340e66748281070fb69d32c2117595ae4a0cafbb0"
+        },
+        {
+            "kind": "golden-docx-package",
+            "path": "test/docx/golden/custom_style_reference.docx",
+            "stem": "custom_style_reference",
+            "bytes": 12542,
+            "sha256": "1c4fc596c1fa0be71f928f1384703e0f94e861c00f7928be487716dbbe94f5f5"
+        },
+        {
+            "kind": "golden-docx-package",
+            "path": "test/docx/golden/definition_list.docx",
+            "stem": "definition_list",
+            "bytes": 10501,
+            "sha256": "e91cf27155df6878d7e7a107212ffdd8506ee96d34432ff43677d8a343f86bc5"
+        },
+        {
+            "kind": "golden-docx-package",
+            "path": "test/docx/golden/document-properties-short-desc.docx",
+            "stem": "document-properties-short-desc",
+            "bytes": 10515,
+            "sha256": "e1e5c463ae5a796880c67235beaf7a694bbdeeeff1068d0205414913b471cbb2"
+        },
+        {
+            "kind": "golden-docx-package",
+            "path": "test/docx/golden/document-properties.docx",
+            "stem": "document-properties",
+            "bytes": 11000,
+            "sha256": "012367fba0312834750471b01772367e1dfb7cf7563e06a13f15006e70732012"
+        },
+        {
+            "kind": "golden-docx-package",
+            "path": "test/docx/golden/headers.docx",
+            "stem": "headers",
+            "bytes": 10655,
+            "sha256": "e304901308f7b6325bd3403fce0ec3183b5ce23a361e4cb9ed08986b5b56ef34"
+        },
+        {
+            "kind": "golden-docx-package",
+            "path": "test/docx/golden/image.docx",
+            "stem": "image",
+            "bytes": 27383,
+            "sha256": "2af55f10b724774b509bd522f098878b16d6247d85063253506bdf42aeb6a99b"
+        },
+        {
+            "kind": "golden-docx-package",
+            "path": "test/docx/golden/inline_code.docx",
+            "stem": "inline_code",
+            "bytes": 10451,
+            "sha256": "4f5610a379c78897447faaf77298726637845de7fc8adb3ef3cb0593090d2544"
+        },
+        {
+            "kind": "golden-docx-package",
+            "path": "test/docx/golden/inline_formatting.docx",
+            "stem": "inline_formatting",
+            "bytes": 10627,
+            "sha256": "9fffc84c3802357d623d861fcd6e85bb78cfd5797fe36221065ea9b857a74fdb"
+        },
+        {
+            "kind": "golden-docx-package",
+            "path": "test/docx/golden/inline_images.docx",
+            "stem": "inline_images",
+            "bytes": 27383,
+            "sha256": "f6fb68abc388414a4f994a31ab72f1ff3fff226136d67fb53365b2f2b3beed6c"
+        },
+        {
+            "kind": "golden-docx-package",
+            "path": "test/docx/golden/link_in_notes.docx",
+            "stem": "link_in_notes",
+            "bytes": 10664,
+            "sha256": "61ddc77f8c63b841d6b970b4f8853b5077227a95f6465b6a9c8e7a3b7a94e7e5"
+        },
+        {
+            "kind": "golden-docx-package",
+            "path": "test/docx/golden/links.docx",
+            "stem": "links",
+            "bytes": 10842,
+            "sha256": "1eb53531f309f7edd72ea9d41126d7544d550d3fb23e0e810bab57a70d84ea8b"
+        },
+        {
+            "kind": "golden-docx-package",
+            "path": "test/docx/golden/lists.docx",
+            "stem": "lists",
+            "bytes": 11034,
+            "sha256": "5b4c96df522cf5786a227adcdcfe967b5122ad01572604ca4971dc183b3af123"
+        },
+        {
+            "kind": "golden-docx-package",
+            "path": "test/docx/golden/lists_9994.docx",
+            "stem": "lists_9994",
+            "bytes": 10788,
+            "sha256": "ceb51b49cc1b9b59cf97c7fe50238160c01be768d47627e25b65272ec457d9a9"
+        },
+        {
+            "kind": "golden-docx-package",
+            "path": "test/docx/golden/lists_continuing.docx",
+            "stem": "lists_continuing",
+            "bytes": 10702,
+            "sha256": "9f39a0c02455d54613b97fd354bf27f79c2819ffd8506f6f53e52446e5510118"
+        },
+        {
+            "kind": "golden-docx-package",
+            "path": "test/docx/golden/lists_div_bullets.docx",
+            "stem": "lists_div_bullets",
+            "bytes": 10685,
+            "sha256": "e595e9be04d0c49f5b0d45f9dff3fb864fd0294835e06d2bfadce81cf2033db1"
+        },
+        {
+            "kind": "golden-docx-package",
+            "path": "test/docx/golden/lists_multiple_initial.docx",
+            "stem": "lists_multiple_initial",
+            "bytes": 10918,
+            "sha256": "ebd6cca8d5e58ab8c5ba04e1be441c02cc9b723fb6107f85df1922927297c9bf"
+        },
+        {
+            "kind": "golden-docx-package",
+            "path": "test/docx/golden/lists_restarting.docx",
+            "stem": "lists_restarting",
+            "bytes": 10699,
+            "sha256": "6b756fd512164009bdb6ba9772fdc60f2997fd8d15e7c87bbee872cdaee71263"
+        },
+        {
+            "kind": "golden-docx-package",
+            "path": "test/docx/golden/nested_anchors_in_header.docx",
+            "stem": "nested_anchors_in_header",
+            "bytes": 10845,
+            "sha256": "1f069b2bbfbb79c7fb8ccd33b2f189fbcb7720274bf59f8381cd042af3d68470"
+        },
+        {
+            "kind": "golden-docx-package",
+            "path": "test/docx/golden/notes.docx",
+            "stem": "notes",
+            "bytes": 10615,
+            "sha256": "0e666b395c9c67ff7a0b32389f771d344619594605e8afae81b38bda6dca095c"
+        },
+        {
+            "kind": "golden-docx-package",
+            "path": "test/docx/golden/raw-blocks.docx",
+            "stem": "raw-blocks",
+            "bytes": 10544,
+            "sha256": "28e55e57b7daa6b4636a66c2606a6969e9be94ec853d04cf4b705b17180c09a0"
+        },
+        {
+            "kind": "golden-docx-package",
+            "path": "test/docx/golden/raw-bookmarks.docx",
+            "stem": "raw-bookmarks",
+            "bytes": 10683,
+            "sha256": "1d9da4a0baf8229cdc08a9315938b46dcbad0006381275427934c037902c8267"
+        },
+        {
+            "kind": "golden-docx-package",
+            "path": "test/docx/golden/table_one_row.docx",
+            "stem": "table_one_row",
+            "bytes": 10496,
+            "sha256": "1a6d0e1cdf49e209cd76446282366472523b0dcab579518a4bf0011bd8a9ad3b"
+        },
+        {
+            "kind": "golden-docx-package",
+            "path": "test/docx/golden/table_with_list_cell.docx",
+            "stem": "table_with_list_cell",
+            "bytes": 10946,
+            "sha256": "ac0998f36696576fbbe5410c4a502ad0594349153f8f25eff3b3950406b49929"
+        },
+        {
+            "kind": "golden-docx-package",
+            "path": "test/docx/golden/tables-default-widths.docx",
+            "stem": "tables-default-widths",
+            "bytes": 10882,
+            "sha256": "2cfc92ee3cb1fd45bca5e64a3a0018233abe0cc755f3862804e7da47ad305aa5"
+        },
+        {
+            "kind": "golden-docx-package",
+            "path": "test/docx/golden/tables.docx",
+            "stem": "tables",
+            "bytes": 10870,
+            "sha256": "bfbd412e6406067ad747baafea891a310dd1e2c6cee110e68460a3458d63b9b2"
+        },
+        {
+            "kind": "golden-docx-package",
+            "path": "test/docx/golden/tables_separated_with_rawblock.docx",
+            "stem": "tables_separated_with_rawblock",
+            "bytes": 10519,
+            "sha256": "f3f69a5f1c86d6c13a8cbb8042d7616cba74296ee259146b22251d0831d7fbfe"
+        },
+        {
+            "kind": "golden-docx-package",
+            "path": "test/docx/golden/task_list.docx",
+            "stem": "task_list",
+            "bytes": 10783,
+            "sha256": "6fc36667bb0638265b7b5b05080e291ab74bffd73bfad5b5879a2e52d4012807"
+        },
+        {
+            "kind": "golden-docx-package",
+            "path": "test/docx/golden/track_changes_deletion.docx",
+            "stem": "track_changes_deletion",
+            "bytes": 10492,
+            "sha256": "80f7a6d8bacf47e2e026d840c9fbadfdf2527bdc9a2977b616b5ae3d029b6b26"
+        },
+        {
+            "kind": "golden-docx-package",
+            "path": "test/docx/golden/track_changes_insertion.docx",
+            "stem": "track_changes_insertion",
+            "bytes": 10476,
+            "sha256": "905bc2f41da293c3ce86fb17992c54c0be23bfd8ea31790851718861697652e4"
+        },
+        {
+            "kind": "golden-docx-package",
+            "path": "test/docx/golden/track_changes_move.docx",
+            "stem": "track_changes_move",
+            "bytes": 10506,
+            "sha256": "6c3ecf36c0e2fa4e4d974ccf89ce643759ce265504c995f7af26813200533436"
+        },
+        {
+            "kind": "golden-docx-package",
+            "path": "test/docx/golden/track_changes_scrubbed_metadata.docx",
+            "stem": "track_changes_scrubbed_metadata",
+            "bytes": 10617,
+            "sha256": "db990ba3d9ed89e5cd67a6f4fb53a8402e6faf2bd2ec20509a57520873813ce7"
+        },
+        {
+            "kind": "golden-docx-package",
+            "path": "test/docx/golden/unicode.docx",
+            "stem": "unicode",
+            "bytes": 10468,
+            "sha256": "6b20c99eda5b1f4ae5ce2686be34d1ef409668af88d40d57d8beb95560dc7c19"
+        },
+        {
+            "kind": "golden-docx-package",
+            "path": "test/docx/golden/verbatim_subsuper.docx",
+            "stem": "verbatim_subsuper",
+            "bytes": 10479,
+            "sha256": "2ba91463e1260dd10d36d5bf1d1f3137eb81b01d40e541ca8e01a4ee4411a3e0"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/hanging_indent.docx",
+            "stem": "hanging_indent",
+            "bytes": 14754,
+            "sha256": "12667eac12915a109ee6ccaaa821a6f468a3a9ddb41099a761da51606c4031ae"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/hanging_indent.native",
+            "stem": "hanging_indent",
+            "bytes": 519,
+            "sha256": "989d775228791038a5345cadd7a1d13ac2dc71bcb7ad4b626551e4920014632d"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/headers.docx",
+            "stem": "headers",
+            "bytes": 18926,
+            "sha256": "d5bde0239367f1fd990fc5219331b1f2f23c021f884718f68493328150892ba8"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/headers.native",
+            "stem": "headers",
+            "bytes": 1042,
+            "sha256": "57b2a0e9ff751986bd9974eded19ba4f09cd77add0caa6d15e4ea181f452a335"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/i18n_blocks.docx",
+            "stem": "i18n_blocks",
+            "bytes": 13680,
+            "sha256": "5b4ed41bfefd4feb37fe6bacb911d13bc45cdbddfc4ab0ce27a1778d7a15f2d4"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/i18n_blocks.native",
+            "stem": "i18n_blocks",
+            "bytes": 520,
+            "sha256": "bb4f13b1189ee429b89a4c49812e05a38d5d683737e49c41a5fc55d016a285b1"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/image.docx",
+            "stem": "image",
+            "bytes": 35407,
+            "sha256": "f95aaf3a2cd5b914d35048a8a8ac7610969ae5e9470448b9d76ac8142d5f410a"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/image_no_embed.native",
+            "stem": "image_no_embed",
+            "bytes": 291,
+            "sha256": "5ea061c04219fb4f4011c9ccf8dd4fcf1c02a4e23eca3fb8d7b692ef8721a78b"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/image_no_embed_writer.native",
+            "stem": "image_no_embed_writer",
+            "bytes": 306,
+            "sha256": "de7e6d1e9508f7d1adf79abf2f0672ea7a94e00f769eb3df23cdc51f74a7fa25"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/image_vml.docx",
+            "stem": "image_vml",
+            "bytes": 23559,
+            "sha256": "8065acde23fe24fd232c503382ae41a8e18eef73de9754eed9e51850541ea184"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/image_vml.native",
+            "stem": "image_vml",
+            "bytes": 197,
+            "sha256": "7b236982687d88ad2b6175bd2037c35820d64cedf0b2fd272a0d7e62f207ab35"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/image_vml_as_object.docx",
+            "stem": "image_vml_as_object",
+            "bytes": 74199,
+            "sha256": "188839764b68c8f41c2dc65b1b7f27ef09b1302692335bb47d4540f021965df4"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/image_vml_as_object.native",
+            "stem": "image_vml_as_object",
+            "bytes": 142,
+            "sha256": "aac60a8a1e8b3c7ed3c0d028ec29053f260ea2e092721f9dba777e2aaff57320"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/image_with_textbox_caption.docx",
+            "stem": "image_with_textbox_caption",
+            "bytes": 19882,
+            "sha256": "844c550ca10afdbc032757bf2bad7562c2057059afd71f75c45588c225c3a6b7"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/image_with_textbox_caption.native",
+            "stem": "image_with_textbox_caption",
+            "bytes": 984,
+            "sha256": "3f7cec7c1be13c16f781fda2e37467db67df77f91683b803ced61e4a4c360765"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/image_writer_test.native",
+            "stem": "image_writer_test",
+            "bytes": 831,
+            "sha256": "826a9b854b1cb53609708ac3d1613513a1212c139e8b17a89f48656fb5f35d92"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/inline_code.docx",
+            "stem": "inline_code",
+            "bytes": 8379,
+            "sha256": "76a5dc71142604fe7d8b266f70263794055fabc262e7bc6b0da1c27c92a1be3a"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/inline_code.native",
+            "stem": "inline_code",
+            "bytes": 178,
+            "sha256": "1601aa76f2708bf0c69b07bd514362214e41a3e0ab9923d261cd66cc8edd8cfe"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/inline_formatting.docx",
+            "stem": "inline_formatting",
+            "bytes": 20047,
+            "sha256": "0d868a2dbedabc866088711ab72cdd9904ccc00a54d5aec26e823e66b4779f22"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/inline_formatting.native",
+            "stem": "inline_formatting",
+            "bytes": 811,
+            "sha256": "cdc875ee07758d1898f63b3ff3d428c98ed37e65f8e5863303180bf1089fcea5"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/inline_formatting_writer.native",
+            "stem": "inline_formatting_writer",
+            "bytes": 762,
+            "sha256": "00d6685ba65df1ddc05982b79b3db1117631f6d1de0b55975f8cc6a0fe4e8891"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/inline_images.docx",
+            "stem": "inline_images",
+            "bytes": 14305,
+            "sha256": "e7f289c4722968471fec2344d6cccb033cee2380b5958cf24f8467d86ee72ec8"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/inline_images.native",
+            "stem": "inline_images",
+            "bytes": 851,
+            "sha256": "7a1677a41406149e87af3f592b20b81e7f646802eba120fa9a5d49e2dacd5471"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/inline_images_writer.native",
+            "stem": "inline_images_writer",
+            "bytes": 456,
+            "sha256": "3d5716aa988ada64bf72549f1b706c97ab6fdee5f356f536d56a3c3ca53edb8d"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/inline_images_writer_test.native",
+            "stem": "inline_images_writer_test",
+            "bytes": 839,
+            "sha256": "66e6dcd9623de7a734171aa3b3426054d715534b1116c8c468e0a98107be674a"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/instrText_hyperlink.docx",
+            "stem": "instrText_hyperlink",
+            "bytes": 13628,
+            "sha256": "52fb997054e2510caf169256dda7847195ba35eaaf3e23e1f7cbd7efffcb99b7"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/instrText_hyperlink.native",
+            "stem": "instrText_hyperlink",
+            "bytes": 990,
+            "sha256": "8fa6e0169d2f45d20bfa3f7d048b2047e1cbad3e680722d9bc9fb026d1c6b537"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/link_in_notes.docx",
+            "stem": "link_in_notes",
+            "bytes": 16269,
+            "sha256": "38bd262b4276803b866d98c917c7f8e52d647ba2f699796c0db14d3c6b248a2f"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/link_in_notes.native",
+            "stem": "link_in_notes",
+            "bytes": 163,
+            "sha256": "0057da6851ee604def9a1667890f3fe6cefdd830e217f9eb62f83ea14593b4d7"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/links.docx",
+            "stem": "links",
+            "bytes": 32356,
+            "sha256": "529af3511760ff21d5d74587d01a8d376b5cc20c624038c91004cd6ec46c0223"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/links.native",
+            "stem": "links",
+            "bytes": 1162,
+            "sha256": "29cb9b496711cc7319e5256fd19635e962db5272c18fac7d5562f54a3d1f42b4"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/links_writer.native",
+            "stem": "links_writer",
+            "bytes": 1052,
+            "sha256": "dd117f8fe1c29a34e5512f99c00617c970c942f5867f4ef7bbc15803e32a5562"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/lists-compact.docx",
+            "stem": "lists-compact",
+            "bytes": 9952,
+            "sha256": "2dfc35136f82850cbd22c941c148c3a309c3bd2084d316e23775b85206534333"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/lists-compact.native",
+            "stem": "lists-compact",
+            "bytes": 125,
+            "sha256": "1a1fd642afa6c74401414f6e7641e6c6b37d9105deb7b78e2db434cf37ca00d6"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/lists.docx",
+            "stem": "lists",
+            "bytes": 9473,
+            "sha256": "e5b1a7204be70bb0398ee9b585e53901f057b851a9f13f41fc4b9554548f741e"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/lists.native",
+            "stem": "lists",
+            "bytes": 612,
+            "sha256": "8365561fd15cead3383289754c8925f052c1ea7b36bfd7328e22230568f455e1"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/lists_9994.native",
+            "stem": "lists_9994",
+            "bytes": 164,
+            "sha256": "3965411628408400ca94e2ebb3a5bfec29ce1e8640e07184e2faf20d348e8af5"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/lists_continuing.docx",
+            "stem": "lists_continuing",
+            "bytes": 17717,
+            "sha256": "71cc0a8468c253cbad04bb0d4597f7b9f8aade0c4592ae5fa0c1963748e103d2"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/lists_continuing.native",
+            "stem": "lists_continuing",
+            "bytes": 179,
+            "sha256": "9ed80187762c54b689bd6f417bbab09e402ca1192897b33baac854b90cce19ab"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/lists_div_bullets.native",
+            "stem": "lists_div_bullets",
+            "bytes": 185,
+            "sha256": "7488a6cbd586e8ea911966365b18d34edfdfb2f52db418a89ef602ee48c072d2"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/lists_level_override.docx",
+            "stem": "lists_level_override",
+            "bytes": 16735,
+            "sha256": "e2d15b1db0af8f6edb5925818b8d422cb24a996e2d38dfaa6cedb9197e3244e3"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/lists_level_override.native",
+            "stem": "lists_level_override",
+            "bytes": 5759,
+            "sha256": "4fb04b9ef426dc640ee91c77ccba9655c747035a0b3ebedb989808b66f884f7a"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/lists_multiple_initial.native",
+            "stem": "lists_multiple_initial",
+            "bytes": 197,
+            "sha256": "a5164e3bc7dcf50a67fc36ca5e67487ba339656f3f45aa720cd86e6208e0e7c3"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/lists_restart_8367.docx",
+            "stem": "lists_restart_8367",
+            "bytes": 22718,
+            "sha256": "82a7d9ef72325b53a2a2de927406f17ed6cc9625e74a339d523c11434d756a0b"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/lists_restart_8367.native",
+            "stem": "lists_restart_8367",
+            "bytes": 489,
+            "sha256": "23c7fa0b06905e5702f2cb1f7aa6a619ffea3b4365366c9a2ebfe7531472ba15"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/lists_restarting.docx",
+            "stem": "lists_restarting",
+            "bytes": 18189,
+            "sha256": "d4d1827009ffaff49c8b84ebccdf661fbe7f32ea1d6e73a324b9563923e50199"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/lists_restarting.native",
+            "stem": "lists_restarting",
+            "bytes": 193,
+            "sha256": "b74e1222b8d06dce3f03653ce370e2c2ae07dd28c5cdeaa49d3509affdd38567"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/lists_sublist_reset.docx",
+            "stem": "lists_sublist_reset",
+            "bytes": 12757,
+            "sha256": "592885bfe715d41ec57e4e1d9dfdbc0cbea0c221e1ed6bb27e37615907186108"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/lists_sublist_reset.native",
+            "stem": "lists_sublist_reset",
+            "bytes": 308,
+            "sha256": "8ac5e6e7e342a048bdd6d75b129706741d60143a42dc697fa44ab0d42d629461"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/lists_writer.native",
+            "stem": "lists_writer",
+            "bytes": 571,
+            "sha256": "382d9c1a4a71a901e945af23e7bb5ce0d568c817663c2183a13c5f3b4fd9c596"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/mendeley_citations.docx",
+            "stem": "mendeley_citations",
+            "bytes": 17716,
+            "sha256": "cd560f3f139beffc810ec12505de97b2a3cfb7e12aaa8f5a85148272d950bc7a"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/mendeley_citations_minus.native",
+            "stem": "mendeley_citations_minus",
+            "bytes": 5823,
+            "sha256": "ba3634d3359b02d92ff25e1ce7167169dcc1abf0663d68184ca3615c2b2401c5"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/mendeley_citations_plus.native",
+            "stem": "mendeley_citations_plus",
+            "bytes": 14443,
+            "sha256": "e1117d3570781732cfc93b9af492aae7d90c18e29e75fba5cc31b2358c2eb3ab"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/metadata.docx",
+            "stem": "metadata",
+            "bytes": 26077,
+            "sha256": "6b2fcb3cb98842e856357745c4e50308093977ef4c28d351273667f0ebe2698c"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/metadata.native",
+            "stem": "metadata",
+            "bytes": 853,
+            "sha256": "2412e4907165787e0cecbebc0591d2f54ba18f67c48441b64495fd9c42611966"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/metadata_after_normal.docx",
+            "stem": "metadata_after_normal",
+            "bytes": 38654,
+            "sha256": "e2270c2b157f9944cd0b096e8d44a7367ebc124dd177e4bbb6ac598f28abab08"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/metadata_after_normal.native",
+            "stem": "metadata_after_normal",
+            "bytes": 1482,
+            "sha256": "63d0a5d2fc78da40407695f4a4d9d66df3afcc7e90a3627111aad34c4ec2a7fb"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/nested_anchors_in_header.docx",
+            "stem": "nested_anchors_in_header",
+            "bytes": 17535,
+            "sha256": "f14d82adf16226721c68b0a0272d0d61db44e696041e1a5b6c2afe04dd0f8cf9"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/nested_anchors_in_header.native",
+            "stem": "nested_anchors_in_header",
+            "bytes": 2596,
+            "sha256": "026f847b173b490430b7b9a12892b70accba4362cad6bdc498cab9daaf0cd289"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/nested_instrText.docx",
+            "stem": "nested_instrText",
+            "bytes": 14112,
+            "sha256": "48db95ea05d5a4f85cd1d3f4074ac2681074a6a2eb979a4dc2ca09f3deca7372"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/nested_instrText.native",
+            "stem": "nested_instrText",
+            "bytes": 1066,
+            "sha256": "775993e721c976c588b45c75eccf16cbcc81fb20bbfddcbd2fdac73060509757"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/nested_sdt.docx",
+            "stem": "nested_sdt",
+            "bytes": 11694,
+            "sha256": "b52b096bda700e0434af8aa884de4e40ee1876d07d0551eb0ebd6d943ff06a88"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/nested_sdt.native",
+            "stem": "nested_sdt",
+            "bytes": 127,
+            "sha256": "fa5312f76937685f5965aa911b8b92d9d52975c0dd8eb20ae6f5e32c78c88a9f"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/nested_smart_tags.docx",
+            "stem": "nested_smart_tags",
+            "bytes": 13641,
+            "sha256": "0859a711b5175b4e7297bcc756e68c790437b2a5345ed64a55443c7d50ae87cf"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/nested_smart_tags.native",
+            "stem": "nested_smart_tags",
+            "bytes": 6427,
+            "sha256": "838ec19e4b44ac44ae29af4ab4f1a5cf5115c2be528751264d4b832baa46e8af"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/normalize.docx",
+            "stem": "normalize",
+            "bytes": 14672,
+            "sha256": "ca188dab080ee7782111370238c103ef58b45ddcc99a82dd42ca5a714e1bbcd7"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/normalize.native",
+            "stem": "normalize",
+            "bytes": 183,
+            "sha256": "7e1432412cc5f1196e0cb06c4f278b396836474f184b41430364c66d866ce884"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/notes.docx",
+            "stem": "notes",
+            "bytes": 19056,
+            "sha256": "887cbbc9d248706b146dba09f543e3d8952cc59abcf054b467c1773bcd120d00"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/notes.native",
+            "stem": "notes",
+            "bytes": 358,
+            "sha256": "55a67ff2ec228dc74c88b160a5c99d66c3790ef5677a52764aea1ed5f193ad16"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/ns0-reference.docx",
+            "stem": "ns0-reference",
+            "bytes": 2289,
+            "sha256": "5310462e44b2b601a259d1b0ae83c8407f81a9e966b623d235c9240ce7929d67"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/numbered_header.docx",
+            "stem": "numbered_header",
+            "bytes": 15467,
+            "sha256": "a82993f4bd661a9d88ebb4393729fd067b0cac61706882a31e1f54cd71ec9156"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/numbered_header.native",
+            "stem": "numbered_header",
+            "bytes": 91,
+            "sha256": "100d422a61cd2d1dda37f619c7960c40479dd0e5170ba3fba29075f1a08f41e1"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/overlapping_targets.docx",
+            "stem": "overlapping_targets",
+            "bytes": 13747,
+            "sha256": "81a29c029b50bfcada05c44cefe7f794e102b2b2b04faa8d64ff1dee624628e0"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/overlapping_targets.native",
+            "stem": "overlapping_targets",
+            "bytes": 406,
+            "sha256": "97f4a3d7b104b9dc66b79b8532fe527ccbe004c95cefaf93e559cf90b4c5337a"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/pageref.docx",
+            "stem": "pageref",
+            "bytes": 14431,
+            "sha256": "c55d2062474c6c6a06eb5f609c8f25cda67fb2b39ed412d72e35d54e5e36e643"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/pageref.native",
+            "stem": "pageref",
+            "bytes": 218,
+            "sha256": "f00047221c1b4d67b2f137e3db2023bccb983ea3d3dd18aaf76c8aec00179fda"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/paragraph_insertion_deletion.docx",
+            "stem": "paragraph_insertion_deletion",
+            "bytes": 12066,
+            "sha256": "9845f2d9fa6c980aa7b3456c1babb1bb5273687bc6122cc0d124fbb5f38ab8c6"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/paragraph_insertion_deletion_accept.native",
+            "stem": "paragraph_insertion_deletion_accept",
+            "bytes": 92,
+            "sha256": "69be35557296161d6f21cfbee5c79d89cefd5618c760212d09fdecc599a9e46c"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/paragraph_insertion_deletion_all.native",
+            "stem": "paragraph_insertion_deletion_all",
+            "bytes": 289,
+            "sha256": "e05a219b3dbe7d25dc19ad4504e56bd8a08ab4edbbc1a92e3e1acfac0e5c3446"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/paragraph_insertion_deletion_reject.native",
+            "stem": "paragraph_insertion_deletion_reject",
+            "bytes": 92,
+            "sha256": "c29bac0bf36866ca41aee5dfde8b0b6127ea3c018b5792caf64bebbc474b5a6b"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/raw-blocks.native",
+            "stem": "raw-blocks",
+            "bytes": 662,
+            "sha256": "77f2e0803e75f482715575c0cdeeec122a28b536d9dcdbfaa61264ded3253545"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/raw-bookmarks.native",
+            "stem": "raw-bookmarks",
+            "bytes": 1254,
+            "sha256": "632adfad0ea25bd002f451c6219287806af93285351b06cde2f63b4f68775e64"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/relative_indentation_blockquotes.docx",
+            "stem": "relative_indentation_blockquotes",
+            "bytes": 12655,
+            "sha256": "52a9bf4ec3e01c9252b87c1cee0dff672bbe7a279c71c3a2a5bb02e5534e9907"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/relative_indentation_blockquotes.native",
+            "stem": "relative_indentation_blockquotes",
+            "bytes": 430,
+            "sha256": "52c157871fad0a4953ca0847b2128fd5378b82bf12e29101fbf418de74dc15d8"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/sdt_elements.docx",
+            "stem": "sdt_elements",
+            "bytes": 29409,
+            "sha256": "b79853b199c8ceb698ff083c5d2fd0af4aeb5f98b92b34afdf1ba55e4563f5df"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/sdt_elements.native",
+            "stem": "sdt_elements",
+            "bytes": 1681,
+            "sha256": "1da2df5ff75a24395b546665f40f2582bc71c9f6b12da270f80a84dd22e0ac2d"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/sdt_in_footnote.docx",
+            "stem": "sdt_in_footnote",
+            "bytes": 26716,
+            "sha256": "0d491048f55d1e806e187449785aa79cdbb29ead49944dc79efdcee85ef97b84"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/sdt_in_footnote.native",
+            "stem": "sdt_in_footnote",
+            "bytes": 851,
+            "sha256": "679b33e6a2194ff0fcd922c146344de5aa56efb86c94ae774033782ee3774a6c"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/special_punctuation.docx",
+            "stem": "special_punctuation",
+            "bytes": 8408,
+            "sha256": "8f3c116a108ca239bac2dc20f0a950fa4c1c44054b80c0285fea5e0f24b647d3"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/special_punctuation.native",
+            "stem": "special_punctuation",
+            "bytes": 126,
+            "sha256": "8b51cb98d91df1467b57cc3cf5d0a5cd2f2e1098b2a2467bea9bdfbac7784040"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/table_captions_no_field.docx",
+            "stem": "table_captions_no_field",
+            "bytes": 40487,
+            "sha256": "4c66cba3986d0f462ea13b487663bc3f62e45e9060152704aa0825d19da785ee"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/table_captions_no_field.native",
+            "stem": "table_captions_no_field",
+            "bytes": 2267,
+            "sha256": "fbb6aae7fbe22f1a7de065d012c100383d9d15509c0c714d18fea9bbf6c4629d"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/table_captions_with_field.docx",
+            "stem": "table_captions_with_field",
+            "bytes": 41091,
+            "sha256": "9f1a710ae81ec1572a268f3dbc55b5af33d3de26ef071f9796cc67aab77328da"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/table_captions_with_field.native",
+            "stem": "table_captions_with_field",
+            "bytes": 3749,
+            "sha256": "938da05edda3c7c864794634d4d596a366cd56fcbc6c8af5b668b7799595ff17"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/table_gridbefore.docx",
+            "stem": "table_gridbefore",
+            "bytes": 13143,
+            "sha256": "d0cfbad2182a33e058aefe6eb6efc96cfdcbe85af266afab69e46b1f24e56ebb"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/table_gridbefore.native",
+            "stem": "table_gridbefore",
+            "bytes": 25412,
+            "sha256": "695cabd894a2673bca926f5de47856116c9299a3c1767ed22907bfcf37bfd105"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/table_header_rowspan.docx",
+            "stem": "table_header_rowspan",
+            "bytes": 15826,
+            "sha256": "e5a1c8507b9d33fa884bde402de7d7f11531f55efc96b2a1da4ec1f8b4b60792"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/table_header_rowspan.native",
+            "stem": "table_header_rowspan",
+            "bytes": 15454,
+            "sha256": "8c209d4478a921c0dcf990a6a68599ec297745c4c601022374533bcf08899a38"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/table_one_header_row.docx",
+            "stem": "table_one_header_row",
+            "bytes": 12185,
+            "sha256": "c2a5fe244f931e03f68989ec1fac2f45a5c58d1737ec16d5a8af01f9998dc978"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/table_one_header_row.native",
+            "stem": "table_one_header_row",
+            "bytes": 936,
+            "sha256": "4f646a18a969da2b78076b98b51fd54aef84730b1cff3065a1ec3e0880f083d8"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/table_one_row.docx",
+            "stem": "table_one_row",
+            "bytes": 12148,
+            "sha256": "f80b30b16fcdef3774a4d8359d5861fc11204b7e8bbaa750394d936360dbdf99"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/table_one_row.native",
+            "stem": "table_one_row",
+            "bytes": 980,
+            "sha256": "3503b32f89fabb9b33fceac59b6ca028b1fcffa0e21d6b2202b3ca3cd78c2a36"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/table_variable_width.docx",
+            "stem": "table_variable_width",
+            "bytes": 10006,
+            "sha256": "d2ae3268a3389787d9bace1f92133cfcc40eaa69c38a9a04111b9ee234e863cd"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/table_variable_width.native",
+            "stem": "table_variable_width",
+            "bytes": 2326,
+            "sha256": "9e2396157e0aa56c0c75c335ce30fbca7a728e3f129342362f38b738ced12dbc"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/table_with_list_cell.docx",
+            "stem": "table_with_list_cell",
+            "bytes": 19028,
+            "sha256": "e9560eceed1d21d7a4ca4659a65ed9586135b9196c5fe7079f9c5b1b26609f9a"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/table_with_list_cell.native",
+            "stem": "table_with_list_cell",
+            "bytes": 1933,
+            "sha256": "3ab5282de8ec033735a68d6965296498b96cd233ba01d64c5494cf4889a01ad4"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/tables-default-widths.native",
+            "stem": "tables-default-widths",
+            "bytes": 3280,
+            "sha256": "4c2a19728507016b04930339f6f7ab461ce315284398c10c394c45dca0361003"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/tables.docx",
+            "stem": "tables",
+            "bytes": 31751,
+            "sha256": "b6156434c0d1e6cf697e2774c9ce6e6616a2e0965160e2f74269dfc7008894de"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/tables.native",
+            "stem": "tables",
+            "bytes": 6365,
+            "sha256": "9336b3dbe94c5633a8beeb09f49e4927891ffd3c03791a3af0d7c28c84843ba6"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/tables_separated_with_rawblock.native",
+            "stem": "tables_separated_with_rawblock",
+            "bytes": 823,
+            "sha256": "9eb271b1f24ab57574e8e00085c1b657000ff684e89575c2b2c1afbd4d24db95"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/tabs.docx",
+            "stem": "tabs",
+            "bytes": 12919,
+            "sha256": "5c77c40314136e773b6a0827c40f06f8da79453bcd40123249fb4fbd3ed023ee"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/tabs.native",
+            "stem": "tabs",
+            "bytes": 150,
+            "sha256": "97e3ddd7b4502db924a089cb70f8b0f0cd6890fc171fd2a27afe65fcba1a8dfa"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/task_list.docx",
+            "stem": "task_list",
+            "bytes": 10749,
+            "sha256": "cb4541872bca25d3269983a10333d95a1ef3e7b23053b2edc69a300ba9d0899e"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/task_list.native",
+            "stem": "task_list",
+            "bytes": 1062,
+            "sha256": "0139a21db887d52f2437d71aace13847c2030afb421a8f9f3dec44c35b6efd54"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/text_in_shape_format.docx",
+            "stem": "text_in_shape_format",
+            "bytes": 42504,
+            "sha256": "a30338884675f1b64f9142097aef017a52c95888f972acf8dde8f8c5f5818f76"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/text_in_shape_format.native",
+            "stem": "text_in_shape_format",
+            "bytes": 615,
+            "sha256": "7612b81d756c266584c618a913eda6e90a09f0ef809c35cdf5a5e78b6ececcd0"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/textbox_image.docx",
+            "stem": "textbox_image",
+            "bytes": 40379,
+            "sha256": "2855ac4e3a5305d29de2ce7491d7647dbcb71fc304ce184e588b5282db178747"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/textbox_image.native",
+            "stem": "textbox_image",
+            "bytes": 454,
+            "sha256": "5067d5b4e3deda2ce353f9e320d4b20fa4ffbd6e3fae784f594452afdc97265c"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/textbox_image_duplicate_encoding.docx",
+            "stem": "textbox_image_duplicate_encoding",
+            "bytes": 36750,
+            "sha256": "4b27e66960671211dbac92b5780201ec379926dee3343fbbb57638872dd1d2f6"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/textbox_image_duplicate_encoding.native",
+            "stem": "textbox_image_duplicate_encoding",
+            "bytes": 454,
+            "sha256": "5067d5b4e3deda2ce353f9e320d4b20fa4ffbd6e3fae784f594452afdc97265c"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/track_changes_deletion.docx",
+            "stem": "track_changes_deletion",
+            "bytes": 13350,
+            "sha256": "a7254a9f2c055e6d8e4d46336ba9f31794f54f9ebd04f1bacdb2805456e8e7df"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/track_changes_deletion_accept.native",
+            "stem": "track_changes_deletion_accept",
+            "bytes": 119,
+            "sha256": "44bf9ff3414a7378ffdb4f11f68cd179be9c29b4f3f62b9346079edd5b0ef9b2"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/track_changes_deletion_all.native",
+            "stem": "track_changes_deletion_all",
+            "bytes": 253,
+            "sha256": "cd29a5ea0eeabc223b3e3f80efc0f37b96816255e3a7ac16f21ae7dd46be7ad2"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/track_changes_deletion_reject.native",
+            "stem": "track_changes_deletion_reject",
+            "bytes": 165,
+            "sha256": "9becc5791f9627f877a078655ed89d199764b294f768836ba091701e9f64ae1a"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/track_changes_insertion.docx",
+            "stem": "track_changes_insertion",
+            "bytes": 12956,
+            "sha256": "94b98d852342f3838c36ad09b19f6ce7247010fa7bb03ab2faadb0a027f2aa07"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/track_changes_insertion_accept.native",
+            "stem": "track_changes_insertion_accept",
+            "bytes": 144,
+            "sha256": "1f5749e66e29217f79d18c579df27f6e22282265dec3c274f88740a008e14411"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/track_changes_insertion_all.native",
+            "stem": "track_changes_insertion_all",
+            "bytes": 226,
+            "sha256": "165e998be136ec2ed3ad4307e3363f9164595cf2bc47a349a9dd4b39ea211d8f"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/track_changes_insertion_reject.native",
+            "stem": "track_changes_insertion_reject",
+            "bytes": 107,
+            "sha256": "28c839e9f98f385e451aeabd874aed2fb22731a673d7890a92af3af405942846"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/track_changes_move.docx",
+            "stem": "track_changes_move",
+            "bytes": 26151,
+            "sha256": "9ea28f56f9fe00146a845497e226b19ec901685dd22798a2817b470abb0d1e5d"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/track_changes_move_accept.native",
+            "stem": "track_changes_move_accept",
+            "bytes": 272,
+            "sha256": "04464d1968af4e97162755c189658de9f39decf59042c0d3bbdb176ef64ea536"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/track_changes_move_all.native",
+            "stem": "track_changes_move_all",
+            "bytes": 565,
+            "sha256": "1da4824775784736e582268d93ee81fb01f3d156880de9534e68b01f06ba587b"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/track_changes_move_reject.native",
+            "stem": "track_changes_move_reject",
+            "bytes": 272,
+            "sha256": "4f415036ce9711f701cfa96dd6b516e893181cf7d45c8d9ba037b16729af527b"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/track_changes_scrubbed_metadata.docx",
+            "stem": "track_changes_scrubbed_metadata",
+            "bytes": 13325,
+            "sha256": "cc3f45e39a4ffb06d8d1d0f841f99217ba49474cc947a650ddccdd03a7900114"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/track_changes_scrubbed_metadata.native",
+            "stem": "track_changes_scrubbed_metadata",
+            "bytes": 416,
+            "sha256": "b3cf987267c2697842449e53583a173a0fee14921ad791cb9017c3af69107ee5"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/trailing_spaces_in_formatting.docx",
+            "stem": "trailing_spaces_in_formatting",
+            "bytes": 12916,
+            "sha256": "7058a3620402bc7f5a8f5ce825f7d621251adbcc08c6b0ff0efe2ad0d4b3ebe2"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/trailing_spaces_in_formatting.native",
+            "stem": "trailing_spaces_in_formatting",
+            "bytes": 135,
+            "sha256": "1cc0b3f963c00c45096ca86852ab169eb4c77950a1961f78f8754419de806bc8"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/trim_last_inline.docx",
+            "stem": "trim_last_inline",
+            "bytes": 4179,
+            "sha256": "97c7a121d8115876fdd7167aa3845c4ab0efb94fee304e67176913f95ba39f40"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/trim_last_inline.native",
+            "stem": "trim_last_inline",
+            "bytes": 81,
+            "sha256": "09e3cddb5ab3d3e31db9de62b9182c278d5d90cdd22ed48f21d3d00e21593861"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/unicode.docx",
+            "stem": "unicode",
+            "bytes": 11506,
+            "sha256": "a2f90d5ace8500ddc9d30be6b8a30730ffa289680ca516c6b442ef6310f469f8"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/unicode.native",
+            "stem": "unicode",
+            "bytes": 117,
+            "sha256": "83ddd76037f5f7f84037f47c6db58451254edb3224006c9af00511c6b6797f9a"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/unused_anchors.docx",
+            "stem": "unused_anchors",
+            "bytes": 13276,
+            "sha256": "555a9ef5f1741c87ff9fd8944857efa96092c7f334cefb6d02a65cc3ff14cfbf"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/unused_anchors.native",
+            "stem": "unused_anchors",
+            "bytes": 259,
+            "sha256": "4ee55c1611111d8b6f01d6ceb03946df76762db8bb5397451370ea7bad4c8a15"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/verbatim_subsuper.docx",
+            "stem": "verbatim_subsuper",
+            "bytes": 10353,
+            "sha256": "256cd0e4a798054da0e7d26a27f8d4f23b69e08fb3d7ac0801be4d924820bdab"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/verbatim_subsuper.native",
+            "stem": "verbatim_subsuper",
+            "bytes": 393,
+            "sha256": "e0effce892aad01c5d2dd83dfcdedc2de804de2e922d579c3d7e87c2b9426bf5"
+        },
+        {
+            "kind": "root-docx-package",
+            "path": "test/docx/zotero_citations.docx",
+            "stem": "zotero_citations",
+            "bytes": 14943,
+            "sha256": "96b9a9557db731685396c3edf62a4c18a37a42edc0049443e2d2a45364490d94"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/zotero_citations_minus.native",
+            "stem": "zotero_citations_minus",
+            "bytes": 5881,
+            "sha256": "8aecd7fb1ce9f90c82ee1ba83cf1ccd3984e3d107ced93966120f09db46fc17f"
+        },
+        {
+            "kind": "root-native-expected",
+            "path": "test/docx/zotero_citations_plus.native",
+            "stem": "zotero_citations_plus",
+            "bytes": 16530,
+            "sha256": "8c04faaf37bda9f4ecbcbc8d8c6049d8aad48720789ef2538ea69b11b9acc60d"
+        }
+    ]
+}

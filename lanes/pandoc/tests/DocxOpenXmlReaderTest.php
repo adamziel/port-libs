@@ -327,6 +327,79 @@ XML,
         $t->same(2, $summary['documentRangeMarkerTypedProofErrorCount']);
         $t->same('body-range-marker-metadata-only', $summary['documentRangeMarkerReviewPolicy']);
     },
+    'maps docx paragraph style numbering into list blocks' => static function (TestRunner $t): void {
+        $parts = [
+            'word/styles.xml' => <<<'XML'
+<?xml version="1.0"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="paragraph" w:styleId="ReviewStep">
+    <w:name w:val="Review Step"/>
+    <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="42"/></w:numPr></w:pPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="DerivedReviewStep">
+    <w:name w:val="Derived Review Step"/>
+    <w:basedOn w:val="ReviewStep"/>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="ChecklistItem">
+    <w:name w:val="Checklist Item"/>
+  </w:style>
+</w:styles>
+XML,
+            'word/numbering.xml' => <<<'XML'
+<?xml version="1.0"?>
+<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:abstractNum w:abstractNumId="7">
+    <w:lvl w:ilvl="0"><w:start w:val="5"/><w:numFmt w:val="lowerLetter"/><w:lvlText w:val="%1)"/></w:lvl>
+  </w:abstractNum>
+  <w:num w:numId="42"><w:abstractNumId w:val="7"/></w:num>
+  <w:abstractNum w:abstractNumId="8">
+    <w:lvl w:ilvl="0"><w:pStyle w:val="ChecklistItem"/><w:numFmt w:val="bullet"/><w:lvlText w:val="-"/></w:lvl>
+  </w:abstractNum>
+  <w:num w:numId="43"><w:abstractNumId w:val="8"/></w:num>
+</w:numbering>
+XML,
+            'word/document.xml' => <<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:pPr><w:pStyle w:val="DerivedReviewStep"/></w:pPr><w:r><w:t>Review source</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="DerivedReviewStep"/></w:pPr><w:r><w:t>Publish migration</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="ChecklistItem"/></w:pPr><w:r><w:t>Check footers</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="DerivedReviewStep"/><w:numPr><w:numId w:val="0"/></w:numPr></w:pPr><w:r><w:t>Plain exception</w:t></w:r></w:p>
+  </w:body>
+</w:document>
+XML,
+        ];
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $styles = $document->attr('docx')['styles'];
+        $numbering = $document->attr('docx')['numbering'];
+        $ordered = $document->children[0];
+        $bullet = $document->children[1];
+        $suppressed = $document->children[2];
+
+        $t->same('42', $styles['ReviewStep']['numId']);
+        $t->same(0, $styles['ReviewStep']['numLevel']);
+        $t->same('ChecklistItem', $numbering['43']['levels'][0]['styleId']);
+        $t->same('ordered_list', $ordered->type);
+        $t->same('42', $ordered->attr('docxNumId'));
+        $t->same(0, $ordered->attr('docxLevel'));
+        $t->same(5, $ordered->attr('start'));
+        $t->same('lower_alpha', $ordered->attr('style'));
+        $t->same('one_paren', $ordered->attr('delimiter'));
+        $t->same('Review source', $ordered->children[0]->children[0]->attr('text'));
+        $t->same('Publish migration', $ordered->children[1]->children[0]->attr('text'));
+        $t->same('bullet_list', $bullet->type);
+        $t->same('43', $bullet->attr('docxNumId'));
+        $t->same('-', $bullet->attr('bulletChar'));
+        $t->same('Check footers', $bullet->children[0]->children[0]->attr('text'));
+        $t->same('paragraph', $suppressed->type);
+        $t->same('Plain exception', $suppressed->attr('text'));
+        $t->contains('<ol start="5" type="a"><li>Review source</li><li>Publish migration</li></ol>', $blocks);
+        $t->contains('<ul><li>Check footers</li></ul>', $blocks);
+        $t->contains('<p>Plain exception</p>', $blocks);
+    },
     'normalizes docx drawing image target suffixes while preserving package provenance' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['word/_rels/document.xml.rels'] = str_replace(
@@ -361,6 +434,51 @@ XML,
         $t->same('?display=preview#inline', $relationship['targetReferenceSuffix']);
         $t->contains('![Review screenshot](word/media/review.png "Review image")', $markdown);
         $t->contains('<img src="word/media/review.png" alt="Review screenshot" title="Review image"/>', $blocks);
+    },
+    'uses per-picture docx drawing nonvisual metadata within shared drawings' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '  <Relationship Id="rImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/review.png"/>',
+            '  <Relationship Id="rImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/review.png"/>' . "\n" .
+            '  <Relationship Id="rDetailImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/detail.png"/>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '            <a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rImage"/></pic:blipFill></pic:pic></a:graphicData></a:graphic>' . "\n" .
+            '          </wp:inline>',
+            '            <a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rImage"/></pic:blipFill></pic:pic></a:graphicData></a:graphic>' . "\n" .
+            '          </wp:inline>' . "\n" .
+            '          <wp:anchor>' . "\n" .
+            '            <wp:docPr id="2" name="Detail image" title="Detail image title" descr="Detail screenshot"/>' . "\n" .
+            '            <a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rDetailImage"/></pic:blipFill></pic:pic></a:graphicData></a:graphic>' . "\n" .
+            '          </wp:anchor>',
+            $parts['word/document.xml']
+        );
+        $parts['word/media/detail.png'] = 'detail png bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $imageParagraph = $document->children[4];
+        $firstImage = $imageParagraph->children[1];
+        $secondImage = $imageParagraph->children[2];
+        $markdown = (new MarkdownWriter())->write($document);
+
+        $t->same('image', $firstImage->type);
+        $t->same('rImage', $firstImage->attr('relationshipId'));
+        $t->same('Review screenshot', $firstImage->attr('alt'));
+        $t->same('Review image', $firstImage->attr('title'));
+        $t->same('word/media/review.png', $firstImage->attr('mediaPath'));
+
+        $t->same('image', $secondImage->type);
+        $t->same('rDetailImage', $secondImage->attr('relationshipId'));
+        $t->same('Detail screenshot', $secondImage->attr('alt'));
+        $t->same('Detail image title', $secondImage->attr('title'));
+        $t->same('Detail screenshot', $secondImage->children[0]->attr('text'));
+        $t->same('word/media/detail.png', $secondImage->attr('url'));
+        $t->same('word/media/detail.png', $secondImage->attr('mediaPath'));
+        $t->same('image/png', $secondImage->attr('contentType'));
+        $t->same(strlen('detail png bytes'), $docx['media']['word/media/detail.png']['size']);
+        $t->contains('![Detail screenshot](word/media/detail.png "Detail image title")', $markdown);
     },
     'exposes docx package content type relationship and part inventory provenance' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
@@ -19361,6 +19479,108 @@ XML;
         $t->same($fontTable['embeddedFontIssueCodes'], $summary['fontTableEmbeddedFontIssueCodes']);
         $t->same(4, $summary['fontTableEmbeddedFontKeyPresentCount']);
         $t->same(1, $summary['fontTableEmbeddedFontInvalidKeyCount']);
+    },
+    'accepts pandoc style odttf default embedded font content type' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $fontRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/font';
+        $fontKey = '{ABCDEF12-3456-7890-ABCD-EF1234567890}';
+        $fontBytes = 'PANDOCDEFAULTODTTF';
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Default Extension="xml" ContentType="application/xml"/>',
+            '  <Default Extension="xml" ContentType="application/xml"/>' . "\n" .
+            '  <Default Extension="odttf" ContentType="application/vnd.openxmlformats-officedocument.obfuscatedFont"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rPandocFontTable" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable" Target="fontTable.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/fontTable.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:fonts xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:font w:name="Pandoc Sans">
+    <w:embedRegular r:id="rPandocRegular" w:fontKey="{ABCDEF12-3456-7890-ABCD-EF1234567890}"/>
+  </w:font>
+</w:fonts>
+XML;
+        $parts['word/_rels/fontTable.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rPandocRegular" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/font" Target="fonts/pandoc-Regular.odttf?style=regular#font"/>
+</Relationships>
+XML;
+        $parts['word/fonts/pandoc-Regular.odttf'] = $fontBytes;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $fontTable = $docx['fontTable'];
+        $summary = $docx['packageProvenance']['summary'];
+        $inventory = $docx['packageProvenance']['parts'];
+        $fontRelationshipType = $docx['packageProvenance']['relationshipTypes'][$fontRel];
+        $embedded = $fontTable['byName']['Pandoc Sans']['embeddedFonts'][0];
+        $fontPart = $inventory['word/fonts/pandoc-Regular.odttf'];
+
+        $t->same('word/fontTable.xml', $docx['fontTablePart']);
+        $t->same('word/_rels/fontTable.xml.rels', $fontTable['relationshipsPart']);
+        $t->same(1, $fontTable['relationshipCount']);
+        $t->same(1, $fontTable['fontCount']);
+        $t->same(['Pandoc Sans'], $fontTable['declaredNames']);
+        $t->same(1, $fontTable['embeddedFontRelationshipCount']);
+        $t->same(1, $fontTable['embeddedFontExistingCount']);
+        $t->same(0, $fontTable['embeddedFontMissingCount']);
+        $t->same(0, $fontTable['embeddedFontExternalCount']);
+        $t->same(0, $fontTable['embeddedFontIssueCount']);
+        $t->same([], $fontTable['embeddedFontIssueCodes']);
+        $t->same(['default' => 1], $fontTable['embeddedFontContentTypeSourceCounts']);
+        $t->same(['application/vnd.openxmlformats-officedocument.obfuscatedfont' => 1], $fontTable['embeddedFontContentTypeBaseCounts']);
+        $t->same(['application/vnd.openxmlformats-officedocument.obfuscatedFont'], $fontTable['embeddedFontContentTypes']);
+        $t->same(1, $fontTable['embeddedFontDefaultContentTypeCount']);
+        $t->same(0, $fontTable['embeddedFontOverrideContentTypeCount']);
+        $t->same(0, $fontTable['embeddedFontMissingContentTypeCount']);
+        $t->same(['odttf'], $fontTable['embeddedFontDefaultExtensions']);
+        $t->same([], $fontTable['embeddedFontOverridePartNames']);
+
+        $t->same('regular', $embedded['style']);
+        $t->same('rPandocRegular', $embedded['id']);
+        $t->same($fontRel, $embedded['relationshipType']);
+        $t->same('fonts/pandoc-Regular.odttf?style=regular#font', $embedded['target']);
+        $t->same('word/fonts/pandoc-Regular.odttf?style=regular#font', $embedded['resolvedTarget']);
+        $t->same('word/fonts/pandoc-Regular.odttf', $embedded['targetPart']);
+        $t->same('style=regular', $embedded['targetQuery']);
+        $t->same('font', $embedded['targetFragment']);
+        $t->same('?style=regular#font', $embedded['targetReferenceSuffix']);
+        $t->same('application/vnd.openxmlformats-officedocument.obfuscatedFont', $embedded['contentType']);
+        $t->same('application/vnd.openxmlformats-officedocument.obfuscatedfont', $embedded['contentTypeBase']);
+        $t->same('default', $embedded['contentTypeSource']);
+        $t->same('odttf', $embedded['defaultExtension']);
+        $t->same(null, $embedded['overridePartName']);
+        $t->same(false, $embedded['external']);
+        $t->same(true, $embedded['exists']);
+        $t->same(strlen($fontBytes), $embedded['byteLength']);
+        $t->same(sprintf('%08x', crc32($fontBytes)), $embedded['crc32']);
+        $t->same(hash('sha256', $fontBytes), $embedded['sha256']);
+        $t->same(true, $embedded['fontKeyPresent']);
+        $t->same(hash('sha256', $fontKey), $embedded['fontKeySha256']);
+        $t->same([], $embedded['issues']);
+        $t->same(true, $embedded['valid']);
+
+        $t->same('default', $fontPart['contentTypeSource']);
+        $t->same('odttf', $fontPart['defaultExtension']);
+        $t->same(null, $fontPart['overridePartName']);
+        $t->same('application/vnd.openxmlformats-officedocument.obfuscatedFont', $fontPart['contentType']);
+        $t->true(in_array('embedded-font', $fontPart['roles'], true), 'pandoc default embedded font inventory role missing');
+        $t->same('font', $fontRelationshipType['label']);
+        $t->same(1, $fontRelationshipType['count']);
+        $t->same(['word/fonts/pandoc-Regular.odttf'], $fontRelationshipType['existingTargetParts']);
+        $t->same(1, $summary['fontTableEmbeddedFontDefaultContentTypeCount']);
+        $t->same(0, $summary['fontTableEmbeddedFontOverrideContentTypeCount']);
+        $t->same(0, $summary['fontTableEmbeddedFontMissingContentTypeCount']);
+        $t->same(['default' => 1], $summary['fontTableEmbeddedFontContentTypeSourceCounts']);
+        $t->same(['odttf'], $summary['fontTableEmbeddedFontDefaultExtensions']);
+        $t->same([], $summary['fontTableEmbeddedFontOverridePartNames']);
     },
     'recovers docx font table unqualified embedded font attributes for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();

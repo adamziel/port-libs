@@ -1,0 +1,271 @@
+{
+  "schemaVersion": 1,
+  "tool": "manual-docx-haskell-inventory-map",
+  "generatedAt": "2026-06-30",
+  "status": "reported-upstream-docx-haskell-inventory-local-gate-map",
+  "upstream": {
+    "name": "jgm/pandoc",
+    "source": ".upstream-cache/pandoc-current",
+    "commit": "612e143fbe6d735b612c4800d21e61b7d44e4dca",
+    "sourceFiles": [
+      "test/test-pandoc.hs",
+      "test/Tests/Readers/Docx.hs",
+      "test/Tests/Writers/Docx.hs",
+      "test/docx",
+      "test/docx/golden"
+    ]
+  },
+  "evidenceKind": "static-upstream-haskell-docx-inventory-to-local-gate-map",
+  "claim": "Maps pinned upstream DOCX Haskell reader/writer test definitions and fixtures to the local reader/native parser-acceptance, writer-golden package, and direct writer HUnit mirror gates. This is an inventory and coverage-boundary artifact only.",
+  "claimBoundaries": {
+    "doesAssert": [
+      "static DOCX Haskell reader and writer test-case counts from the pinned upstream source",
+      "which Haskell DOCX cases are not covered by the local 74/74 reader/native parser-acceptance gate or the local 38/38 writer-golden stable package gate",
+      "the exact local gate evidence currently checked into this lane",
+      "local PHP DocxWriter mirror assertions cover the seven direct upstream writer HUnit cases not exercised by the writer-golden gate",
+      "focused local PHP DocxWriter language mirror assertions cover the german-reference.docx w:lang de-DE preservation case and the metadata lang=fr-FR override case"
+    ],
+    "doesNotAssert": [
+      "that upstream Haskell/Cabal/Tasty tests were executed",
+      "that local DOCX reader output equals upstream native expectations",
+      "that non-default Haskell ReaderOptions, warning checks, or media-bag assertions pass locally",
+      "that the upstream Haskell direct writer assertions themselves were executed",
+      "full DOCX/OpenXML parity"
+    ]
+  },
+  "localGates": {
+    "readerNativeParserAcceptance": {
+      "status": "passed-local-parser-acceptance",
+      "evidenceKind": "parser-acceptance-only",
+      "tool": "tools/pandoc-docx-parity-audit.php --fail-on-regression",
+      "pairedRootDocxNativeArtifacts": 74,
+      "docxParsedCount": 74,
+      "nativeParsedCount": 74,
+      "bothParsedCount": 74,
+      "bothFailedOrPartialCount": 0,
+      "proves": [
+        "local PHP DocxReader accepted each paired root-level .docx fixture without throwing",
+        "local PHP NativeReader accepted each paired root-level .native fixture without throwing"
+      ],
+      "doesNotProve": [
+        "Pandoc Haskell readDocx/readNative AST equality",
+        "non-default Haskell ReaderOptions behavior",
+        "DocxParserWarning expectations",
+        "MediaBag extraction equality",
+        "upstream Tasty runner success"
+      ]
+    },
+    "writerGoldenPackageGate": {
+      "status": "generated-compared-and-matched-all-writer-golden-cases",
+      "evidenceKind": "writer-golden-package-generated-stable-comparison",
+      "tool": "tools/pandoc-docx-writer-golden-audit.php --json --docx-dir .upstream-cache/pandoc-current/test/docx --generate-supported-dir .port-libs/pandoc-docx-writer-golden/status-truth --require-generated-stable-matches 38",
+      "expectedGoldenCaseCount": 38,
+      "generatedPackageCount": 38,
+      "comparedPackageCount": 38,
+      "matchedPackageCount": 38,
+      "mismatchedPackageCount": 0,
+      "proves": [
+        "local DocxWriter generated a package for each pinned upstream writer golden native input",
+        "stable package comparison matched each pinned upstream writer golden .docx"
+      ],
+      "doesNotProve": [
+        "Haskell writer direct testCase assertions that do not use test/docx/golden/*.docx",
+        "upstream Tasty runner success",
+        "full DOCX/OpenXML parity"
+      ]
+    },
+    "writerDirectHunitMirrorGate": {
+      "status": "passed-local-direct-writer-hunit-mirrors",
+      "evidenceKind": "php-docx-writer-direct-hunit-mirror-tests",
+      "tool": "php tools/run-tests.php lanes/pandoc/tests/DocxWriterTest.php",
+      "testFile": "lanes/pandoc/tests/DocxWriterTest.php",
+      "upstreamDenominator": "haskellWriterInventory.notCoveredCases",
+      "expectedDirectHunitCaseCount": 7,
+      "mirroredDirectHunitCaseCount": 7,
+      "passedMirrorCaseCount": 7,
+      "failedMirrorCaseCount": 0,
+      "focusedLanguageReferenceMirror": {
+        "status": "passed-local-direct-writer-language-reference-mirrors",
+        "evidenceKind": "php-docx-writer-direct-hunit-language-reference-mirror-tests",
+        "tool": "php tools/run-tests.php lanes/pandoc/tests/DocxWriterTest.php",
+        "testFile": "lanes/pandoc/tests/DocxWriterTest.php",
+        "upstreamDenominator": "haskellWriterInventory.notCoveredCases",
+        "referenceFixtureMode": "synthetic local reference.docx with german-reference.docx w:lang de-DE semantics",
+        "expectedDirectHunitCaseCount": 2,
+        "mirroredDirectHunitCaseCount": 2,
+        "passedMirrorCaseCount": 2,
+        "failedMirrorCaseCount": 0,
+        "mirroredLabels": [
+          "language from reference docx is preserved",
+          "language from metadata overrides reference docx"
+        ],
+        "assertions": [
+          "reference styles w:lang w:val remains de-DE when document metadata has no language",
+          "metadata lang=fr-FR rewrites reference styles w:lang w:val to fr-FR",
+          "reference w:eastAsia and w:bidi language attributes are retained by both paths"
+        ],
+        "doesNotProve": [
+          "upstream Haskell/Cabal/Tasty runner success",
+          "byte-for-byte DOCX package equality with german-reference.docx",
+          "full DOCX/OpenXML parity"
+        ]
+      },
+      "mirroredLabels": [
+        "no section break before first chapter (#10578)",
+        "section breaks between chapters (#11482)",
+        "no media directory override in content types",
+        "language from reference docx is preserved",
+        "section properties from non-w-prefix reference docx",
+        "language from metadata overrides reference docx",
+        "FirstParagraph after heading with footnote (#11573)"
+      ],
+      "focusedMirrorAssertions": [
+        {
+          "label": "section breaks between chapters (#11482)",
+          "upstreamOption": "writerTopLevelDivision=TopLevelChapter",
+          "localTest": "upstream direct HUnit: section breaks between chapters (#11482)",
+          "documentShape": "three level-1 chapters",
+          "assertions": [
+            "word/document.xml contains exactly 3 w:sectPr elements",
+            "word/document.xml contains exactly 2 inserted section-break paragraphs before later chapters"
+          ]
+        }
+      ],
+      "caseRows": [
+        {
+          "label": "no section break before first chapter (#10578)",
+          "localTestName": "upstream direct HUnit: no section break before first chapter (#10578)",
+          "localTestFile": "lanes/pandoc/tests/DocxWriterTest.php",
+          "assertionFocus": "chapter top-level division does not emit a leading section break before the first heading"
+        },
+        {
+          "label": "section breaks between chapters (#11482)",
+          "localTestName": "upstream direct HUnit: section breaks between chapters (#11482)",
+          "localTestFile": "lanes/pandoc/tests/DocxWriterTest.php",
+          "assertionFocus": "chapter top-level division emits section properties between later level-1 headings"
+        },
+        {
+          "label": "no media directory override in content types",
+          "localTestName": "upstream direct HUnit: no media directory override in content types",
+          "localTestFile": "lanes/pandoc/tests/DocxWriterTest.php",
+          "assertionFocus": "generated [Content_Types].xml uses concrete media part overrides without a media directory override"
+        },
+        {
+          "label": "language from reference docx is preserved",
+          "localTestName": "upstream direct HUnit: language from reference docx is preserved",
+          "localTestFile": "lanes/pandoc/tests/DocxWriterTest.php",
+          "assertionFocus": "reference styles language survives when document metadata does not override it"
+        },
+        {
+          "label": "section properties from non-w-prefix reference docx",
+          "localTestName": "upstream direct HUnit: section properties from non-w-prefix reference docx",
+          "localTestFile": "lanes/pandoc/tests/DocxWriterTest.php",
+          "assertionFocus": "reference section properties are imported even when the source XML uses a non-w WordprocessingML prefix"
+        },
+        {
+          "label": "language from metadata overrides reference docx",
+          "localTestName": "upstream direct HUnit: language from metadata overrides reference docx",
+          "localTestFile": "lanes/pandoc/tests/DocxWriterTest.php",
+          "assertionFocus": "document metadata language replaces the reference styles language"
+        },
+        {
+          "label": "FirstParagraph after heading with footnote (#11573)",
+          "localTestName": "upstream direct HUnit: FirstParagraph after heading with footnote (#11573)",
+          "localTestFile": "lanes/pandoc/tests/DocxWriterTest.php",
+          "assertionFocus": "a paragraph following a heading that contains an inline footnote keeps the upstream FirstParagraph paragraph style",
+          "assertedDocumentXmlFragments": [
+            "<w:pStyle w:val=\"Heading3\"/>",
+            "<w:footnoteReference w:id=\"9\"/>",
+            "<w:p><w:pPr><w:pStyle w:val=\"FirstParagraph\"/></w:pPr><w:r><w:t xml:space=\"preserve\">Para after.</w:t></w:r></w:p>"
+          ]
+        }
+      ],
+      "proves": [
+        "local PHP DocxWriter has focused XML-level mirror assertions for each direct upstream writer HUnit case outside the 38/38 writer-golden gate"
+      ],
+      "doesNotProve": [
+        "upstream Haskell/Cabal/Tasty runner success",
+        "byte-for-byte DOCX package equality for the direct HUnit cases",
+        "full DOCX/OpenXML parity"
+      ]
+    }
+  },
+  "haskellReaderInventory": {
+    "sourceFile": "test/Tests/Readers/Docx.hs",
+    "entryPoint": "Tests.Readers.Docx.tests",
+    "totalStaticCases": 103,
+    "compareCases": 95,
+    "warningCases": 4,
+    "mediaBagCases": 4,
+    "fixturePairCasesReferencedByLocal74Gate": 72,
+    "strictDefaultSameStemCasesCoveredByLocal74Gate": 67,
+    "nonDefaultSameStemCasesNotSemanticallyCovered": 5,
+    "casesNotCoveredByLocal74GateSemantics": 36,
+    "local74GateExtraPairedStemsWithoutStrictDefaultHaskellReaderCase": [
+      "comments",
+      "compact-style-removal",
+      "cross_reference",
+      "diagram",
+      "metadata",
+      "metadata_after_normal",
+      "track_changes_scrubbed_metadata"
+    ],
+    "notCoveredCases": [
+      {"call": "testCompare", "label": "inline image", "docx": "docx/image.docx", "native": "docx/image_no_embed.native", "reason": "different-native-expectation-stem"},
+      {"call": "testCompare", "label": "zotero with -citations", "docx": "docx/zotero_citations.docx", "native": "docx/zotero_citations_minus.native", "reason": "different-native-expectation-stem"},
+      {"call": "testCompareWithOpts", "label": "zotero with +citations", "docx": "docx/zotero_citations.docx", "native": "docx/zotero_citations_plus.native", "reason": "different-native-expectation-stem-and-non-default-reader-options"},
+      {"call": "testCompare", "label": "mendeley with -citations", "docx": "docx/mendeley_citations.docx", "native": "docx/mendeley_citations_minus.native", "reason": "different-native-expectation-stem"},
+      {"call": "testCompareWithOpts", "label": "mendeley with +citations", "docx": "docx/mendeley_citations.docx", "native": "docx/mendeley_citations_plus.native", "reason": "different-native-expectation-stem-and-non-default-reader-options"},
+      {"call": "testCompare", "label": "insertion (default)", "docx": "docx/track_changes_insertion.docx", "native": "docx/track_changes_insertion_accept.native", "reason": "different-native-expectation-stem"},
+      {"call": "testCompareWithOpts", "label": "insert insertion (accept)", "docx": "docx/track_changes_insertion.docx", "native": "docx/track_changes_insertion_accept.native", "reason": "different-native-expectation-stem-and-non-default-reader-options"},
+      {"call": "testCompareWithOpts", "label": "remove insertion (reject)", "docx": "docx/track_changes_insertion.docx", "native": "docx/track_changes_insertion_reject.native", "reason": "different-native-expectation-stem-and-non-default-reader-options"},
+      {"call": "testCompare", "label": "deletion (default)", "docx": "docx/track_changes_deletion.docx", "native": "docx/track_changes_deletion_accept.native", "reason": "different-native-expectation-stem"},
+      {"call": "testCompareWithOpts", "label": "remove deletion (accept)", "docx": "docx/track_changes_deletion.docx", "native": "docx/track_changes_deletion_accept.native", "reason": "different-native-expectation-stem-and-non-default-reader-options"},
+      {"call": "testCompareWithOpts", "label": "insert deletion (reject)", "docx": "docx/track_changes_deletion.docx", "native": "docx/track_changes_deletion_reject.native", "reason": "different-native-expectation-stem-and-non-default-reader-options"},
+      {"call": "testCompareWithOpts", "label": "keep insertion (all)", "docx": "docx/track_changes_deletion.docx", "native": "docx/track_changes_deletion_all.native", "reason": "different-native-expectation-stem-and-non-default-reader-options"},
+      {"call": "testCompareWithOpts", "label": "keep deletion (all)", "docx": "docx/track_changes_deletion.docx", "native": "docx/track_changes_deletion_all.native", "reason": "different-native-expectation-stem-and-non-default-reader-options"},
+      {"call": "testCompareWithOpts", "label": "move text (accept)", "docx": "docx/track_changes_move.docx", "native": "docx/track_changes_move_accept.native", "reason": "different-native-expectation-stem-and-non-default-reader-options"},
+      {"call": "testCompareWithOpts", "label": "move text (reject)", "docx": "docx/track_changes_move.docx", "native": "docx/track_changes_move_reject.native", "reason": "different-native-expectation-stem-and-non-default-reader-options"},
+      {"call": "testCompareWithOpts", "label": "move text (all)", "docx": "docx/track_changes_move.docx", "native": "docx/track_changes_move_all.native", "reason": "different-native-expectation-stem-and-non-default-reader-options"},
+      {"call": "testCompareWithOpts", "label": "comments (accept -- no comments)", "docx": "docx/comments.docx", "native": "docx/comments_no_comments.native", "reason": "different-native-expectation-stem-and-non-default-reader-options"},
+      {"call": "testCompareWithOpts", "label": "comments (reject -- comments)", "docx": "docx/comments.docx", "native": "docx/comments_no_comments.native", "reason": "different-native-expectation-stem-and-non-default-reader-options"},
+      {"call": "testCompareWithOpts", "label": "comments (all comments)", "docx": "docx/comments.docx", "native": "docx/comments.native", "reason": "non-default-reader-options"},
+      {"call": "testCompareWithOpts", "label": "paragraph insertion/deletion (accept)", "docx": "docx/paragraph_insertion_deletion.docx", "native": "docx/paragraph_insertion_deletion_accept.native", "reason": "different-native-expectation-stem-and-non-default-reader-options"},
+      {"call": "testCompareWithOpts", "label": "paragraph insertion/deletion (reject)", "docx": "docx/paragraph_insertion_deletion.docx", "native": "docx/paragraph_insertion_deletion_reject.native", "reason": "different-native-expectation-stem-and-non-default-reader-options"},
+      {"call": "testCompareWithOpts", "label": "paragraph insertion/deletion (all)", "docx": "docx/paragraph_insertion_deletion.docx", "native": "docx/paragraph_insertion_deletion_all.native", "reason": "different-native-expectation-stem-and-non-default-reader-options"},
+      {"call": "testCompareWithOpts", "label": "paragraph insertion/deletion (all)", "docx": "docx/track_changes_scrubbed_metadata.docx", "native": "docx/track_changes_scrubbed_metadata.native", "reason": "non-default-reader-options"},
+      {"call": "testCompare", "label": "custom styles (`+styles`) not enabled (default)", "docx": "docx/custom-style-reference.docx", "native": "docx/custom-style-no-styles.native", "reason": "different-native-expectation-stem"},
+      {"call": "testCompareWithOpts", "label": "custom styles (`+styles`) enabled", "docx": "docx/custom-style-reference.docx", "native": "docx/custom-style-with-styles.native", "reason": "different-native-expectation-stem-and-non-default-reader-options"},
+      {"call": "testCompareWithOpts", "label": "custom styles (`+styles`): Compact style is removed from output", "docx": "docx/compact-style-removal.docx", "native": "docx/compact-style-removal.native", "reason": "non-default-reader-options"},
+      {"call": "testCompareWithOpts", "label": "metadata fields", "docx": "docx/metadata.docx", "native": "docx/metadata.native", "reason": "non-default-reader-options"},
+      {"call": "testCompareWithOpts", "label": "stop recording metadata with normal text", "docx": "docx/metadata_after_normal.docx", "native": "docx/metadata_after_normal.native", "reason": "non-default-reader-options"},
+      {"call": "testForWarningsWithOpts", "label": "comment warnings (accept -- no warnings)", "docx": "docx/comments_warning.docx", "native": null, "reason": "warning-only-no-native-comparison"},
+      {"call": "testForWarningsWithOpts", "label": "comment warnings (reject -- no warnings)", "docx": "docx/comments_warning.docx", "native": null, "reason": "warning-only-no-native-comparison"},
+      {"call": "testForWarningsWithOpts", "label": "comment warnings (all)", "docx": "docx/comments_warning.docx", "native": null, "reason": "warning-only-no-native-comparison"},
+      {"call": "testForWarningsWithOpts", "label": "comments (with styles extension)", "docx": "docx/comments.docx", "native": null, "reason": "warning-only-no-native-comparison"},
+      {"call": "testMediaBag", "label": "image extraction", "docx": "docx/image.docx", "native": null, "reason": "media-bag-only-no-native-comparison"},
+      {"call": "testMediaBag", "label": "image inside textbox content populates media bag", "docx": "docx/textbox_image.docx", "native": null, "reason": "media-bag-only-no-native-comparison"},
+      {"call": "testMediaBag", "label": "image inside textbox content with duplicate encoding populates media bag", "docx": "docx/textbox_image_duplicate_encoding.docx", "native": null, "reason": "media-bag-only-no-native-comparison"},
+      {"call": "testMediaBag", "label": "image with textbox caption in same paragraph populates media bag", "docx": "docx/image_with_textbox_caption.docx", "native": null, "reason": "media-bag-only-no-native-comparison"}
+    ]
+  },
+  "haskellWriterInventory": {
+    "sourceFile": "test/Tests/Writers/Docx.hs",
+    "entryPoint": "Tests.Writers.Docx.tests",
+    "totalStaticCases": 45,
+    "writerGoldenDocxTestCases": 38,
+    "directHunitTestCases": 7,
+    "writerGoldenCasesGeneratedAndComparedByLocal38Gate": 38,
+    "writerGoldenCasesMatchingStableSemantics": 38,
+    "casesNotCoveredByLocal38Gate": 7,
+    "notCoveredCases": [
+      {"call": "testCase", "label": "no section break before first chapter (#10578)", "reason": "direct-writer-assertion-no-golden-package"},
+      {"call": "testCase", "label": "section breaks between chapters (#11482)", "reason": "direct-writer-assertion-no-golden-package"},
+      {"call": "testCase", "label": "no media directory override in content types", "reason": "direct-writer-assertion-no-golden-package"},
+      {"call": "testCase", "label": "language from reference docx is preserved", "reason": "direct-writer-assertion-no-golden-package"},
+      {"call": "testCase", "label": "section properties from non-w-prefix reference docx", "reason": "direct-writer-assertion-no-golden-package"},
+      {"call": "testCase", "label": "language from metadata overrides reference docx", "reason": "direct-writer-assertion-no-golden-package"},
+      {"call": "testCase", "label": "FirstParagraph after heading with footnote (#11573)", "reason": "direct-writer-assertion-no-golden-package"}
+    ]
+  }
+}
