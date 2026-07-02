@@ -4293,6 +4293,7 @@ final class OdfReader
                 'automaticStyleDefinitions' => [],
                 'masterStyleCount' => 0,
                 'sourceContainerCounts' => [],
+                'diagnosticSourceContainerCounts' => [],
                 'diagnosticCount' => 0,
                 'diagnosticCodeCounts' => [],
                 'diagnostics' => [],
@@ -4356,6 +4357,7 @@ final class OdfReader
 
         $diagnosticItems = $this->stylePackageDiagnosticItems($styleDiagnostics, $styleCatalog);
         $diagnosticSourceParts = [];
+        $diagnosticSourceContainerCounts = [];
         foreach ($diagnosticItems as $diagnostic) {
             $part = $diagnostic['sourcePart'] ?? null;
             if (!is_string($part) || $part === '') {
@@ -4365,6 +4367,11 @@ final class OdfReader
             $ensurePartItem($part);
             $itemsByPart[$part]['diagnostics'][] = $diagnostic;
             $diagnosticSourceParts[] = $part;
+            $sourceContainer = $diagnostic['sourceContainer'] ?? null;
+            if (is_string($sourceContainer) && $sourceContainer !== '') {
+                $diagnosticSourceContainerCounts[$sourceContainer] = ($diagnosticSourceContainerCounts[$sourceContainer] ?? 0) + 1;
+                $itemsByPart[$part]['diagnosticSourceContainerCounts'][$sourceContainer] = ($itemsByPart[$part]['diagnosticSourceContainerCounts'][$sourceContainer] ?? 0) + 1;
+            }
         }
         $diagnosticSourceParts = array_values(array_unique($diagnosticSourceParts));
         sort($diagnosticSourceParts, SORT_STRING);
@@ -4374,6 +4381,7 @@ final class OdfReader
         }
         ksort($definitionTypeCounts, SORT_STRING);
         ksort($sourceContainerCounts, SORT_STRING);
+        ksort($diagnosticSourceContainerCounts, SORT_STRING);
         $automaticStyleDefinitionNames = array_values(array_unique(array_map('strval', $automaticStyleDefinitionNames)));
         sort($automaticStyleDefinitionNames, SORT_STRING);
         usort($automaticStyleDefinitions, static function (array $left, array $right): int {
@@ -4403,6 +4411,10 @@ final class OdfReader
             }
             if (is_array($item['sourceContainerCounts'])) {
                 ksort($item['sourceContainerCounts'], SORT_STRING);
+            }
+            if (is_array($item['diagnosticSourceContainerCounts'])) {
+                ksort($item['diagnosticSourceContainerCounts'], SORT_STRING);
+                $item['diagnosticSourceContainers'] = array_keys($item['diagnosticSourceContainerCounts']);
             }
             if (is_array($item['automaticStyleNames'])) {
                 $automaticStyleNames = array_values(array_unique(array_map('strval', $item['automaticStyleNames'])));
@@ -4457,6 +4469,8 @@ final class OdfReader
             'diagnosticCount' => count($diagnosticItems),
             'diagnosticCodeCounts' => $this->diagnosticCodeCounts($diagnosticItems),
             'diagnosticSourceParts' => $diagnosticSourceParts,
+            'diagnosticSourceContainers' => array_keys($diagnosticSourceContainerCounts),
+            'diagnosticSourceContainerCounts' => $diagnosticSourceContainerCounts,
             'diagnostics' => $diagnosticItems,
             'definitionTypeCounts' => $definitionTypeCounts,
             'sourceContainerCounts' => $sourceContainerCounts,
