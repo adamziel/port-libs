@@ -131,6 +131,75 @@ NATIVE;
         $t->contains('Link ( "" , [  ] , [  ] ) [ Str "source" ] ( "https://example.test/source" , "Legacy source" )', $blocksOnly);
         $t->contains('Image ( "" , [  ] , [  ] ) [ Str "diagram" ] ( "media/diagram.png" , "Diagram title" )', $blocksOnly);
     },
+    'preserves textual native list and table helper constructors through json handoff' => static function (TestRunner $t): void {
+        $native = <<<'NATIVE'
+[ OrderedList ( 4 , LowerRoman , TwoParens ) [ [ Plain [ Str "Item" ] ] ]
+, Table ( "helper-table" , [] , [] )
+    (Caption Nothing [])
+    [ ( AlignRight , ColWidth 0.25 )
+    , ( AlignDefault , ColWidthDefault )
+    ]
+    (TableHead ( "" , [] , [] )
+      [ Row ( "" , [] , [] )
+          [ Cell ( "" , [] , [] ) AlignCenter (RowSpan 2) (ColSpan 1) [ Plain [ Str "Head" ] ] ] ])
+    [ (TableBody ( "" , [] , [] ) (RowHeadColumns 1) []
+        [ Row ( "" , [] , [] )
+            [ Cell ( "" , [] , [] ) AlignLeft (RowSpan 1) (ColSpan 2) [ Plain [ Str "Body" ] ] ] ]) ]
+    (TableFoot ( "" , [] , [] ) [])
+]
+NATIVE;
+
+        $document = (new NativeReader())->read($native);
+        $list = $document->children[0];
+        $table = $document->children[1];
+        $head = $table->children[0];
+        $body = $table->children[1];
+        $headCell = $head->children[0]->children[0];
+        $bodyCell = $body->children[0]->children[0];
+
+        $t->same('LowerRoman', $list->attr('listStyleConstructor'));
+        $t->same(['t' => 'LowerRoman'], $list->attr('listStyleNative'));
+        $t->same('TwoParens', $list->attr('listDelimiterConstructor'));
+        $t->same(['t' => 'TwoParens'], $list->attr('listDelimiterNative'));
+        $t->same(['right', 'default'], $table->attr('alignments'));
+        $t->same([0.25, null], $table->attr('widths'));
+        $t->same(['AlignRight', 'AlignDefault'], $table->attr('alignmentConstructors'));
+        $t->same([['t' => 'AlignRight'], ['t' => 'AlignDefault']], $table->attr('alignmentNatives'));
+        $t->same(['ColWidth', 'ColWidthDefault'], $table->attr('columnWidthConstructors'));
+        $t->same([['t' => 'ColWidth', 'c' => 0.25], ['t' => 'ColWidthDefault']], $table->attr('columnWidthNatives'));
+        $t->same('RowHeadColumns', $body->attr('rowHeadColumnsConstructor'));
+        $t->same(['t' => 'RowHeadColumns', 'c' => 1], $body->attr('rowHeadColumnsNative'));
+        $t->same('AlignCenter', $headCell->attr('alignmentConstructor'));
+        $t->same(['t' => 'RowSpan', 'c' => 2], $headCell->attr('rowSpanNative'));
+        $t->same(['t' => 'ColSpan', 'c' => 1], $headCell->attr('colSpanNative'));
+        $t->same('AlignLeft', $bodyCell->attr('alignmentConstructor'));
+        $t->same(['t' => 'RowSpan', 'c' => 1], $bodyCell->attr('rowSpanNative'));
+        $t->same(['t' => 'ColSpan', 'c' => 2], $bodyCell->attr('colSpanNative'));
+
+        foreach ([
+            'json writer' => (new PandocJsonWriter())->toArray($document),
+            'native writer' => json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR),
+        ] as $source => $packet) {
+            $listPayload = $packet['blocks'][0]['c'][0];
+            $tablePayload = $packet['blocks'][1]['c'];
+            $headCellPayload = $tablePayload[3]['c'][1][0]['c'][1][0]['c'];
+            $bodyPayload = $tablePayload[4][0]['c'];
+            $bodyCellPayload = $bodyPayload[3][0]['c'][1][0]['c'];
+
+            $t->same(['t' => 'LowerRoman'], $listPayload[1], "{$source} preserves textual list style helper");
+            $t->same(['t' => 'TwoParens'], $listPayload[2], "{$source} preserves textual list delimiter helper");
+            $t->same(['t' => 'AlignRight'], $tablePayload[2][0][0], "{$source} preserves textual table alignment helper");
+            $t->same(['t' => 'ColWidth', 'c' => 0.25], $tablePayload[2][0][1], "{$source} preserves textual column width helper");
+            $t->same(['t' => 'ColWidthDefault'], $tablePayload[2][1][1], "{$source} preserves textual default column width helper");
+            $t->same(['t' => 'RowHeadColumns', 'c' => 1], $bodyPayload[1], "{$source} preserves textual row-head helper");
+            $t->same(['t' => 'AlignCenter'], $headCellPayload[1], "{$source} preserves textual head-cell alignment helper");
+            $t->same(['t' => 'RowSpan', 'c' => 2], $headCellPayload[2], "{$source} preserves textual head-cell row span helper");
+            $t->same(['t' => 'ColSpan', 'c' => 1], $headCellPayload[3], "{$source} preserves textual head-cell column span helper");
+            $t->same(['t' => 'AlignLeft'], $bodyCellPayload[1], "{$source} preserves textual body-cell alignment helper");
+            $t->same(['t' => 'RowSpan', 'c' => 1], $bodyCellPayload[2], "{$source} preserves textual body-cell row span helper");
+            $t->same(['t' => 'ColSpan', 'c' => 2], $bodyCellPayload[3], "{$source} preserves textual body-cell column span helper");
+        }
+    },
     'writes shared metadata values as pandoc native meta constructors' => static function (TestRunner $t): void {
         $document = new AstNode('document', [
             'pandocApiVersion' => [1, 23, 1],
