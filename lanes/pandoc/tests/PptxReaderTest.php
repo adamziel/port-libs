@@ -3491,6 +3491,7 @@ XML);
       <p:txBody><a:bodyPr/><a:lstStyle/>
         <a:p><a:r><a:rPr><a:sym typeface="wingdings"/></a:rPr><a:t>Lowercase wingdings stays plain</a:t></a:r></a:p>
         <a:p><a:r><a:rPr><a:sym typeface="WINGDINGS"/></a:rPr><a:t>Uppercase WINGDINGS stays plain</a:t></a:r></a:p>
+        <a:p><a:r><a:rPr><a:sym a:typeface="Wingdings"/></a:rPr><a:t>Qualified Wingdings typeface stays plain</a:t></a:r></a:p>
         <a:p><a:r><a:rPr><a:sym typeface="Wingdings 2"/></a:rPr><a:t>Title case Wingdings bullet</a:t></a:r></a:p>
         <a:p><a:r><a:rPr><a:sym typeface="NotWingdings"/></a:rPr><a:t>NotWingdings substring bullet</a:t></a:r></a:p>
       </p:txBody>
@@ -11388,8 +11389,10 @@ XML);
         $t->same('NotWingdings substring bullet', $secondItem instanceof AstNode ? $secondItem->attr('text') : null);
         $t->same(true, in_array('Lowercase wingdings stays plain', $texts, true));
         $t->same(true, in_array('Uppercase WINGDINGS stays plain', $texts, true));
+        $t->same(true, in_array('Qualified Wingdings typeface stays plain', $texts, true));
         $t->contains('Para [ Str "Lowercase" , Space , Str "wingdings" , Space , Str "stays" , Space , Str "plain" ]', $native);
         $t->contains('Para [ Str "Uppercase" , Space , Str "WINGDINGS" , Space , Str "stays" , Space , Str "plain" ]', $native);
+        $t->contains('Para [ Str "Qualified" , Space , Str "Wingdings" , Space , Str "typeface" , Space , Str "stays" , Space , Str "plain" ]', $native);
         $t->contains('BulletList [ [ Plain [ Str "Title" , Space , Str "case" , Space , Str "Wingdings" , Space , Str "bullet"', $native);
         $t->contains('Plain [ Str "NotWingdings" , Space , Str "substring" , Space , Str "bullet" ]', $native);
     },
