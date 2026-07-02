@@ -1656,7 +1656,7 @@ final class BibtexCslProcessor
     {
         $summaries = [];
         foreach ($keys as $key) {
-            $entry = $entriesByKey[$key] ?? null;
+            $entry = $this->referenceEntryForKey($key, $entriesByKey);
             if ($entry === null) {
                 continue;
             }
@@ -1664,6 +1664,9 @@ final class BibtexCslProcessor
             $fields = $this->resolveInheritedFields($entry, $entriesByKey);
             $summary = $this->toCslItem($entry['id'], $entry['type'], $fields);
             unset($summary['rawBibtex']);
+            if ($key !== $entry['id']) {
+                $summary['citationKey'] = $key;
+            }
             if ($entry['type'] === 'xdata' || $this->hasDataOnlyOption($entry['fields']['options'] ?? '')) {
                 $summary['dataOnly'] = true;
             }
@@ -1682,14 +1685,17 @@ final class BibtexCslProcessor
     {
         $summaries = [];
         foreach ($keys as $key) {
-            $entry = $entriesByKey[$key] ?? null;
-            if ($entry === null || $entry['type'] !== 'xdata') {
+            $entry = $this->referenceEntryForKey($key, $entriesByKey, 'xdata');
+            if ($entry === null) {
                 continue;
             }
 
             $fields = $this->resolveInheritedFields($entry, $entriesByKey);
             $summary = $this->toCslItem($entry['id'], $entry['type'], $fields);
             unset($summary['rawBibtex']);
+            if ($key !== $entry['id']) {
+                $summary['citationKey'] = $key;
+            }
             $summary['dataOnly'] = true;
             $summaries[] = $summary;
         }
@@ -1706,7 +1712,7 @@ final class BibtexCslProcessor
     {
         return array_values(array_filter(
             $keys,
-            static fn (string $key): bool => !isset($entriesByKey[$key])
+            fn (string $key): bool => $this->referenceEntryForKey($key, $entriesByKey) === null
         ));
     }
 
@@ -1719,7 +1725,7 @@ final class BibtexCslProcessor
     {
         return array_values(array_filter(
             $keys,
-            static fn (string $key): bool => !isset($entriesByKey[$key]) || $entriesByKey[$key]['type'] !== 'xdata'
+            fn (string $key): bool => $this->referenceEntryForKey($key, $entriesByKey, 'xdata') === null
         ));
     }
 
@@ -1795,11 +1801,12 @@ final class BibtexCslProcessor
         $stack[] = $entry['id'];
         $fields = $this->resolveXdataFields($entry, $entriesByKey, $stack);
         $crossref = trim($fields['crossref'] ?? '');
-        if ($crossref === '' || !isset($entriesByKey[$crossref])) {
+        $parent = $this->referenceEntryForKey($crossref, $entriesByKey);
+        if ($parent === null) {
             return $fields;
         }
 
-        $parentFields = $this->resolveInheritedFields($entriesByKey[$crossref], $entriesByKey, $stack);
+        $parentFields = $this->resolveInheritedFields($parent, $entriesByKey, $stack);
         foreach ($this->crossrefInheritedFields($entry['type'], $fields, $parentFields) as $field => $value) {
             if (($fields[$field] ?? '') === '') {
                 $fields[$field] = $value;
@@ -1819,18 +1826,63 @@ final class BibtexCslProcessor
     {
         $fields = $entry['fields'];
         foreach ($this->fieldKeyList($fields['xdata'] ?? '') as $key) {
-            $parent = $entriesByKey[$key] ?? null;
-            if ($parent === null || $parent['type'] !== 'xdata') {
+            $parent = $this->referenceEntryForKey($key, $entriesByKey, 'xdata');
+            if ($parent === null) {
                 continue;
             }
 
             $parentFields = $this->resolveInheritedFields($parent, $entriesByKey, $stack);
             unset($parentFields['crossref'], $parentFields['xdata']);
+            $parentFields = $this->withoutReferenceIdentityFields($parentFields);
             foreach ($parentFields as $field => $value) {
                 if (($fields[$field] ?? '') === '') {
                     $fields[$field] = $value;
                 }
             }
+        }
+
+        return $fields;
+    }
+
+    /**
+     * @param array<string, array{id:string, type:string, fields:array<string, string>}> $entriesByKey
+     * @return array{id:string, type:string, fields:array<string, string>}|null
+     */
+    private function referenceEntryForKey(string $key, array $entriesByKey, ?string $requiredType = null): ?array
+    {
+        $key = trim($key);
+        if ($key === '') {
+            return null;
+        }
+
+        $entry = $entriesByKey[$key] ?? null;
+        if ($entry !== null && ($requiredType === null || strtolower($entry['type']) === strtolower($requiredType))) {
+            return $entry;
+        }
+
+        foreach ($entriesByKey as $candidate) {
+            if ($requiredType !== null && strtolower($candidate['type']) !== strtolower($requiredType)) {
+                continue;
+            }
+
+            foreach ($this->citationAliases($candidate['fields']) as $alias) {
+                if ($alias === $key) {
+                    return $candidate;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @return array<string, string>
+     */
+    private function withoutReferenceIdentityFields(array $fields): array
+    {
+        foreach (['ids', 'citation-aliases', 'citationaliases', 'citation-alias', 'citationalias'] as $field) {
+            unset($fields[$field]);
         }
 
         return $fields;
@@ -1866,7 +1918,7 @@ final class BibtexCslProcessor
 
         unset($inherited['title'], $inherited['subtitle'], $inherited['titleaddon']);
 
-        return $inherited;
+        return $this->withoutReferenceIdentityFields($inherited);
     }
 
     private function crossrefTitleContainerField(string $childType): ?string
