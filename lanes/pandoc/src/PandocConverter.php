@@ -186,6 +186,7 @@ final class PandocConverter
             IpynbReader::class => new IpynbReader(),
             JiraReader::class => new JiraReader(),
             LegacyDocReader::class => new LegacyDocReader(),
+            ManReader::class => new ManReader(),
             MarkdownReader::class => new MarkdownReader(self::markdownReaderOptions($format, $options)),
             JsonReader::class => new JsonReader(),
             NativeReader::class => new NativeReader(),

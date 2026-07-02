@@ -361,9 +361,9 @@ final class PandocFormatRegistry
             'notes' => 'Raw TeX and bounded LaTeX table/math behavior are mapped; full LaTeX reader parity remains open.',
         ],
         'man' => [
-            'status' => 'unsupported',
-            'implementation' => '',
-            'notes' => 'Roff manual registry evidence tracks the upstream man reader source semantics; no native PHP man reader is registered yet.',
+            'status' => 'partial',
+            'implementation' => ManReader::class,
+            'notes' => 'Bounded roff man reader maps the pinned upstream Tests.Readers.Man macro, escape, list, code block, and table unit semantics into the shared AST. Full roff/man parity and mdoc remain open.',
         ],
         'markdown' => [
             'status' => 'partial',
@@ -1211,12 +1211,7 @@ final class PandocFormatRegistry
             if ($outputImplementation !== '') {
                 ++$registeredOutputImplementations;
             }
-            if (
-                $inputImplementation !== ''
-                || $outputImplementation !== ''
-                || !in_array($direction['inputStatus'], ['unsupported', 'not-applicable'], true)
-                || !in_array($direction['outputStatus'], ['unsupported', 'not-applicable'], true)
-            ) {
+            if ($direction['inputStatus'] === 'complete' || $direction['outputStatus'] === 'complete') {
                 $directParityClaimed = true;
             }
         }
@@ -1262,7 +1257,7 @@ final class PandocFormatRegistry
             'directWriterParitySupported' => $directWriterParitySupported,
             'directParityClaimed' => $directParityClaimed,
             'directParityStatus' => $directReaderParitySupported && $directWriterParitySupported ? 'supported' : 'unsupported',
-            'reviewNote' => 'Pandoc roff/manual formats are tracked for registry review only; no native PHP roff/manual reader or writer is registered.',
+            'reviewNote' => 'Pandoc roff/manual formats remain partial or unsupported; no complete native PHP roff/manual reader or writer parity is registered.',
         ];
     }
 
