@@ -3338,6 +3338,7 @@ XML);
         <a:p><a:r><a:rPr><a:sym typeface="wingdings"/></a:rPr><a:t>Lowercase wingdings stays plain</a:t></a:r></a:p>
         <a:p><a:r><a:rPr><a:sym typeface="WINGDINGS"/></a:rPr><a:t>Uppercase WINGDINGS stays plain</a:t></a:r></a:p>
         <a:p><a:r><a:rPr><a:sym typeface="Wingdings 2"/></a:rPr><a:t>Title case Wingdings bullet</a:t></a:r></a:p>
+        <a:p><a:r><a:rPr><a:sym typeface="NotWingdings"/></a:rPr><a:t>NotWingdings substring bullet</a:t></a:r></a:p>
       </p:txBody>
     </p:sp>
   </p:spTree></p:cSld>
@@ -10589,21 +10590,24 @@ return [
         $t->true(!str_contains($native, 'BulletList'), 'Wingdings symbols outside a:r/a:rPr should not create upstream PPTX bullet lists');
     },
 
-    'matches pptx Wingdings typeface case sensitivity like upstream' => static function (TestRunner $t) use ($buildWingdingsTypefaceCasePptxPackage, $nodesOfType): void {
+    'matches pptx Wingdings typeface case-sensitive substring matching like upstream' => static function (TestRunner $t) use ($buildWingdingsTypefaceCasePptxPackage, $nodesOfType): void {
         $document = (new PptxReader())->read($buildWingdingsTypefaceCasePptxPackage());
         $bulletLists = $nodesOfType($document, 'bullet_list');
         $paragraphs = $nodesOfType($document, 'paragraph');
         $native = PandocConverter::write($document, 'native');
         $texts = array_map(static fn (AstNode $paragraph): string => (string) $paragraph->attr('text'), $paragraphs);
         $firstItem = $bulletLists[0]->children[0]->children[0]->children[0] ?? null;
+        $secondItem = $bulletLists[0]->children[1]->children[0]->children[0] ?? null;
 
         $t->same(1, count($bulletLists));
         $t->same('Title case Wingdings bullet', $firstItem instanceof AstNode ? $firstItem->attr('text') : null);
+        $t->same('NotWingdings substring bullet', $secondItem instanceof AstNode ? $secondItem->attr('text') : null);
         $t->same(true, in_array('Lowercase wingdings stays plain', $texts, true));
         $t->same(true, in_array('Uppercase WINGDINGS stays plain', $texts, true));
         $t->contains('Para [ Str "Lowercase" , Space , Str "wingdings" , Space , Str "stays" , Space , Str "plain" ]', $native);
         $t->contains('Para [ Str "Uppercase" , Space , Str "WINGDINGS" , Space , Str "stays" , Space , Str "plain" ]', $native);
         $t->contains('BulletList [ [ Plain [ Str "Title" , Space , Str "case" , Space , Str "Wingdings" , Space , Str "bullet"', $native);
+        $t->contains('Plain [ Str "NotWingdings" , Space , Str "substring" , Space , Str "bullet" ]', $native);
     },
 
     'lets pptx Wingdings run symbols override buNone like upstream' => static function (TestRunner $t) use ($buildBuNoneWingdingsSymbolPptxPackage, $nodesOfType): void {
