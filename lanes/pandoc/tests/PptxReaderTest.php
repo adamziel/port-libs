@@ -12811,6 +12811,67 @@ XML);
     }
 };
 
+$buildExternalTargetSlideRelationshipPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-external-target-slide-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdPresentation" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="https://example.invalid/slide.xml" TargetMode="External"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>External target fallback must stay hidden</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildInvalidReviewSidecarTargetsPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-invalid-review-targets-');
     if ($path === false) {
@@ -16216,6 +16277,18 @@ XML);
         $t->same(true, in_array('TargetMode is ignored', $paragraphTexts, true));
         $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "External" , Space , Str "mode" , Space , Str "slide" ]', $native);
         $t->contains('Para [ Str "TargetMode" , Space , Str "is" , Space , Str "ignored" ]', $native);
+    },
+
+    'keeps external pptx slide targets as literal ppt-prefixed entry lookups like upstream' => static function (TestRunner $t) use ($buildExternalTargetSlideRelationshipPptxPackage): void {
+        try {
+            (new PptxReader())->read($buildExternalTargetSlideRelationshipPptxPackage());
+        } catch (RuntimeException $exception) {
+            $t->same('Entry not found: ppt/https://example.invalid/slide.xml', $exception->getMessage());
+
+            return;
+        }
+
+        throw new RuntimeException('Expected external slide relationship Target to stay a ppt-prefixed literal archive entry lookup like upstream');
     },
 
     'keeps invalid pptx review sidecar targets non-fatal like upstream' => static function (TestRunner $t) use ($buildInvalidReviewSidecarTargetsPptxPackage, $nodesOfType): void {
