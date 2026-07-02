@@ -5728,6 +5728,14 @@ XML);
       <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"><dgm:relIds/></a:graphicData></a:graphic>
     </p:graphicFrame>
     <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="22" name="Diagram Only Data Rel"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"><dgm:relIds r:dm="rIdOnlyData"/></a:graphicData></a:graphic>
+    </p:graphicFrame>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="23" name="Diagram Only Layout Rel"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"><dgm:relIds r:lo="rIdOnlyLayout"/></a:graphicData></a:graphic>
+    </p:graphicFrame>
+    <p:graphicFrame>
       <p:nvGraphicFramePr><p:cNvPr id="13" name="Diagram Unknown Rel"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
       <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"><dgm:relIds r:dm="rIdMissingData" r:lo="rIdMissingLayout"/></a:graphicData></a:graphic>
     </p:graphicFrame>
@@ -10483,9 +10491,12 @@ return [
         $t->contains('Para [ Str "[Diagram" , Space , Str "parse" , Space , Str "error:" , Space , Str "Relationship" , Space , Str "not" , Space , Str "found:" , Space , Str "rIdMissingData]" ]', $native);
         $t->contains('Para [ Str "[Diagram" , Space , Str "parse" , Space , Str "error:" , Space , Str "Relationship" , Space , Str "not" , Space , Str "found:" , Space , Str "rIdMissingWrongData]" ]', $native);
         $t->contains('Para [ Str "[Diagram" , Space , Str "parse" , Space , Str "error:" , Space , Str "File" , Space , Str "not" , Space , Str "found" , Space , Str "in" , Space , Str "archive:" , Space , Str "]" ]', $native);
+        $t->same(3, count(array_filter($texts, static fn (string $text): bool => $text === '[Graphic: diagram-missing-rels]')));
         $t->true(!str_contains($native, 'chart-diagram'), 'Graphic URIs containing diagram should follow the upstream diagram branch before chart handling');
         $t->true(!str_contains($native, 'table-diagram'), 'Graphic URIs containing table should follow the upstream table branch before diagram handling');
         $t->true(!str_contains($native, 'Uppercase URI table cell'), 'Graphic URI detection is case-sensitive like upstream and should not parse uppercase TABLE as a table');
+        $t->true(!str_contains($native, 'rIdOnlyData'), 'Partial SmartArt relIds should not look up the present data relationship');
+        $t->true(!str_contains($native, 'rIdOnlyLayout'), 'Partial SmartArt relIds should not look up the present layout relationship');
         $t->true(!str_contains($native, 'Nested RelIds parent'), 'Nested SmartArt relIds should not be discovered from descendants like upstream');
         $t->true(!str_contains($native, 'Nested RelIds child'), 'Nested SmartArt relIds children should stay hidden when relIds are not direct graphicData children');
 
@@ -10495,17 +10506,19 @@ return [
                 || str_starts_with((string) $paragraph->attr('text'), '[Diagram parse error:')
         ));
 
-        $t->same(10, count($placeholderParagraphs));
+        $t->same(12, count($placeholderParagraphs));
         $t->same('No URI Graphic', $placeholderParagraphs[0]->attr('pptxShape')['name'] ?? null);
         $t->same('Empty URI Graphic', $placeholderParagraphs[1]->attr('pptxShape')['name'] ?? null);
         $t->same('Diagram No RelIds', $placeholderParagraphs[2]->attr('pptxShape')['name'] ?? null);
         $t->same('Diagram Missing Rels', $placeholderParagraphs[3]->attr('pptxShape')['name'] ?? null);
-        $t->same('Diagram Unknown Rel', $placeholderParagraphs[4]->attr('pptxShape')['name'] ?? null);
-        $t->same('Wrong Namespace RelIds', $placeholderParagraphs[5]->attr('pptxShape')['name'] ?? null);
-        $t->same('Empty Target SmartArt', $placeholderParagraphs[6]->attr('pptxShape')['name'] ?? null);
-        $t->same('Nested RelIds SmartArt', $placeholderParagraphs[7]->attr('pptxShape')['name'] ?? null);
-        $t->same('Chart Diagram URI', $placeholderParagraphs[8]->attr('pptxShape')['name'] ?? null);
-        $t->same('Uppercase Table URI', $placeholderParagraphs[9]->attr('pptxShape')['name'] ?? null);
+        $t->same('Diagram Only Data Rel', $placeholderParagraphs[4]->attr('pptxShape')['name'] ?? null);
+        $t->same('Diagram Only Layout Rel', $placeholderParagraphs[5]->attr('pptxShape')['name'] ?? null);
+        $t->same('Diagram Unknown Rel', $placeholderParagraphs[6]->attr('pptxShape')['name'] ?? null);
+        $t->same('Wrong Namespace RelIds', $placeholderParagraphs[7]->attr('pptxShape')['name'] ?? null);
+        $t->same('Empty Target SmartArt', $placeholderParagraphs[8]->attr('pptxShape')['name'] ?? null);
+        $t->same('Nested RelIds SmartArt', $placeholderParagraphs[9]->attr('pptxShape')['name'] ?? null);
+        $t->same('Chart Diagram URI', $placeholderParagraphs[10]->attr('pptxShape')['name'] ?? null);
+        $t->same('Uppercase Table URI', $placeholderParagraphs[11]->attr('pptxShape')['name'] ?? null);
         $t->true(!str_contains($native, 'Missing GraphicData'), 'Graphic frames without graphicData should be skipped like upstream');
         $t->true(!str_contains($native, 'Missing Graphic'), 'Graphic frames without a:graphic should be skipped like upstream');
         $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
