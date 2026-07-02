@@ -54,6 +54,7 @@ final class MarkdownFormatProfile
         'emoji_shortcode' => 'emoji_shortcodes',
         'header_attrs' => 'header_attributes',
         'header_attribute' => 'header_attributes',
+        'inline_note' => 'inline_notes',
         'inline_attribute' => 'inline_attributes',
         'markdown_attribute' => 'inline_attributes',
         'line_block' => 'line_blocks',
