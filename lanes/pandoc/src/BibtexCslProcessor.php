@@ -405,6 +405,17 @@ final class BibtexCslProcessor
         if (($item['book-pagination'] ?? '') !== '') {
             $parts[] = 'Book pagination: ' . (string) $item['book-pagination'];
         }
+        $originalPublisher = trim((string) ($item['original-publisher'] ?? ''));
+        $originalPublisherPlace = trim((string) ($item['original-publisher-place'] ?? ''));
+        if ($originalPublisher !== '') {
+            $publisherText = $originalPublisher;
+            if ($originalPublisherPlace !== '') {
+                $publisherText .= ', ' . $originalPublisherPlace;
+            }
+            $parts[] = 'Original publisher: ' . $publisherText;
+        } elseif ($originalPublisherPlace !== '') {
+            $parts[] = 'Original publisher place: ' . $originalPublisherPlace;
+        }
         $containerTitleShort = (string) ($item['container-title-short'] ?? $item['journal-abbreviation'] ?? '');
         if ($containerTitleShort !== '') {
             $parts[] = 'Journal abbreviation: ' . rtrim($containerTitleShort, '.');
@@ -1064,7 +1075,7 @@ final class BibtexCslProcessor
             'original-number' => ['orignumber', 'orig-number', 'originalnumber', 'original-number'],
             'original-edition' => ['origedition', 'orig-edition', 'originaledition', 'original-edition'],
             'original-publisher' => ['origpublisher', 'originalpublisher', 'original-publisher'],
-            'original-publisher-place' => ['origlocation', 'origaddress', 'originalpublisherplace', 'original-publisher-place'],
+            'original-publisher-place' => ['origlocation', 'origaddress', 'origpublisherplace', 'orig-publisher-place', 'originalpublisherplace', 'original-publisher-place'],
             'original-language' => ['origlanguage', 'originallanguage', 'original-language'],
             'reprint-title' => ['reprinttitle', 'reprint-title'],
             'reprint-page' => ['reprintpages', 'reprint-pages', 'reprintpage', 'reprint-page'],
@@ -1123,7 +1134,7 @@ final class BibtexCslProcessor
             'publisher-list' => ['publisher', 'institution', 'school', 'organization'],
             'publisher-place-list' => ['address', 'location', 'publisher-place'],
             'original-publisher-list' => ['origpublisher', 'originalpublisher', 'original-publisher'],
-            'original-publisher-place-list' => ['origlocation', 'origaddress', 'originalpublisherplace', 'original-publisher-place'],
+            'original-publisher-place-list' => ['origlocation', 'origaddress', 'origpublisherplace', 'orig-publisher-place', 'origpublisherplacelist', 'orig-publisher-place-list', 'originalpublisherplace', 'original-publisher-place'],
             'language-list' => ['language'],
             'original-language-list' => ['origlanguage', 'originallanguage', 'original-language'],
             'event-place-list' => ['venue', 'eventvenue', 'eventlocation', 'eventplace', 'event-place', 'event-location'],

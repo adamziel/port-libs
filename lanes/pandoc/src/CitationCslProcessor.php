@@ -1186,7 +1186,7 @@ final class CitationCslProcessor
             'location',
         ]);
         $originalPublisher = self::firstStringField($item, ['original-publisher', 'originalPublisher', 'originalpublisher', 'origpublisher', 'origPublisher']);
-        $originalPublisherPlace = self::firstStringField($item, ['original-publisher-place', 'originalPublisherPlace', 'originalpublisherplace', 'origlocation', 'origLocation', 'origaddress', 'origAddress']);
+        $originalPublisherPlace = self::firstStringField($item, ['original-publisher-place', 'originalPublisherPlace', 'originalpublisherplace', 'origpublisherplace', 'origPublisherPlace', 'orig-publisher-place', 'origlocation', 'origLocation', 'origaddress', 'origAddress']);
         $archive = self::firstStringField($item, ['archive', 'archiveprefix', 'archive-prefix', 'archivePrefix', 'eprinttype', 'eprint-type', 'eprintType']);
         $archiveCollection = self::firstStringField($item, ['archive_collection', 'archive-collection', 'archiveCollection', 'archivecollection']);
         $archivePlace = self::firstStringField($item, ['archive-place', 'archivePlace', 'archiveplace', 'eprintclass', 'eprint-class', 'eprintClass']);
@@ -1234,7 +1234,13 @@ final class CitationCslProcessor
             $publisherPlace = implode('; ', $publisherPlaceList);
         }
         $originalPublisherList = self::stringListFromFirstField($item, ['original-publisher-list', 'originalPublisherList', 'originalpublisherlist', 'origpublisherlist', 'origPublisherList']);
-        $originalPublisherPlaceList = self::stringListFromFirstField($item, ['original-publisher-place-list', 'originalPublisherPlaceList', 'originalpublisherplacelist', 'origlocationlist', 'origLocationList', 'origaddresslist', 'origAddressList']);
+        $originalPublisherPlaceList = self::stringListFromFirstField($item, ['original-publisher-place-list', 'originalPublisherPlaceList', 'originalpublisherplacelist', 'origpublisherplacelist', 'origPublisherPlaceList', 'orig-publisher-place-list', 'origlocationlist', 'origLocationList', 'origaddresslist', 'origAddressList']);
+        if ($originalPublisher === '' && $originalPublisherList !== []) {
+            $originalPublisher = implode('; ', $originalPublisherList);
+        }
+        if ($originalPublisherPlace === '' && $originalPublisherPlaceList !== []) {
+            $originalPublisherPlace = implode('; ', $originalPublisherPlaceList);
+        }
         $languageList = self::stringListFromFirstField($item, ['language-list', 'languageList', 'languagelist']);
         $language = self::firstStringField($item, ['language', 'langid', 'language-id', 'languageId', 'languageid', 'hyphenation']);
         if ($language === '' && $languageList !== []) {
@@ -11532,9 +11538,9 @@ final class CitationCslProcessor
             'xref-keys' => implode(', ', is_array($item['xrefKeys'] ?? null) ? $item['xrefKeys'] : []),
             'missing-xref-keys' => implode(', ', is_array($item['missingXrefKeys'] ?? null) ? $item['missingXrefKeys'] : []),
             'original-publisher', 'originalpublisher', 'origpublisher' => (string) ($item['originalPublisher'] ?? ''),
-            'original-publisher-place', 'originalpublisherplace', 'origlocation', 'origaddress' => (string) ($item['originalPublisherPlace'] ?? ''),
+            'original-publisher-place', 'originalpublisherplace', 'origpublisherplace', 'orig-publisher-place', 'origlocation', 'origaddress' => (string) ($item['originalPublisherPlace'] ?? ''),
             'original-publisher-list', 'originalpublisherlist', 'origpublisherlist' => implode('; ', is_array($item['originalPublisherList'] ?? null) ? $item['originalPublisherList'] : []),
-            'original-publisher-place-list', 'originalpublisherplacelist', 'origlocationlist', 'origaddresslist' => implode('; ', is_array($item['originalPublisherPlaceList'] ?? null) ? $item['originalPublisherPlaceList'] : []),
+            'original-publisher-place-list', 'originalpublisherplacelist', 'origpublisherplacelist', 'orig-publisher-place-list', 'origlocationlist', 'origaddresslist' => implode('; ', is_array($item['originalPublisherPlaceList'] ?? null) ? $item['originalPublisherPlaceList'] : []),
             'original-language', 'originallanguage', 'origlanguage' => (string) ($item['originalLanguage'] ?? ''),
             'original-language-list', 'originallanguagelist', 'origlanguagelist' => implode('; ', is_array($item['originalLanguageList'] ?? null) ? $item['originalLanguageList'] : []),
             'keyword', 'keywords' => implode(', ', is_array($item['keywords'] ?? null) ? $item['keywords'] : []),
