@@ -18,6 +18,9 @@ return [
         }
 
         $t->same(7, $summary['relationshipCount']);
+        $t->same(3, $summary['relationshipTargetPathSegmentParameterizedBucketCount']);
+        $t->same(3, $summary['relationshipTargetPathSegmentParameterizedRelationshipCount']);
+        $t->same(2, $summary['relationshipTargetPathSegmentMissingContentTypeBucketCount']);
         $t->same(4, $summary['relationshipTargetPathSegmentPositionBucketCount']);
         $t->same(14, $summary['relationshipTargetPathSegmentPositionOccurrenceCount']);
         $t->same($summary['relationshipTargetPathSegmentOccurrenceCount'], $summary['relationshipTargetPathSegmentPositionOccurrenceCount']);

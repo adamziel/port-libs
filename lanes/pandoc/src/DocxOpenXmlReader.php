@@ -19249,8 +19249,19 @@ final class DocxOpenXmlReader
         ksort($relationshipTargetContentTypeParameterValueBucketCounts, SORT_STRING);
         $relationshipTargetPathSegments = $this->relationshipTargetPathSegmentSummary($relationshipTargets);
         $relationshipTargetPathSegmentOccurrenceCount = 0;
+        $relationshipTargetPathSegmentParameterizedBucketCount = 0;
+        $relationshipTargetPathSegmentParameterizedRelationshipCount = 0;
+        $relationshipTargetPathSegmentMissingContentTypeBucketCount = 0;
         foreach ($relationshipTargetPathSegments as $targetPathSegmentSummary) {
             $relationshipTargetPathSegmentOccurrenceCount += (int) ($targetPathSegmentSummary['occurrenceCount'] ?? 0);
+            $parameterizedRelationshipCount = (int) ($targetPathSegmentSummary['parameterizedTargetCount'] ?? 0);
+            if ($parameterizedRelationshipCount > 0) {
+                ++$relationshipTargetPathSegmentParameterizedBucketCount;
+                $relationshipTargetPathSegmentParameterizedRelationshipCount += $parameterizedRelationshipCount;
+            }
+            if ((int) ($targetPathSegmentSummary['missingContentTypeTargetCount'] ?? 0) > 0) {
+                ++$relationshipTargetPathSegmentMissingContentTypeBucketCount;
+            }
         }
         $relationshipTargetPathSegmentNameCharacters =
             $this->relationshipTargetPathSegmentNameCharacterSummary($relationshipTargets);
@@ -20267,6 +20278,9 @@ final class DocxOpenXmlReader
             'relationshipTargetPathDepths' => array_values($relationshipTargetPathDepths),
             'relationshipTargetPathSegmentCount' => count($relationshipTargetPathSegments),
             'relationshipTargetPathSegmentOccurrenceCount' => $relationshipTargetPathSegmentOccurrenceCount,
+            'relationshipTargetPathSegmentParameterizedBucketCount' => $relationshipTargetPathSegmentParameterizedBucketCount,
+            'relationshipTargetPathSegmentParameterizedRelationshipCount' => $relationshipTargetPathSegmentParameterizedRelationshipCount,
+            'relationshipTargetPathSegmentMissingContentTypeBucketCount' => $relationshipTargetPathSegmentMissingContentTypeBucketCount,
             'relationshipTargetPathSegments' => $relationshipTargetPathSegments,
             'relationshipTargetPathSegmentNameCharacterReviewSegmentCount' => $relationshipTargetPathSegmentNameCharacters['segmentCount'],
             'relationshipTargetPathSegmentNameCharacterReviewOccurrenceCount' => $relationshipTargetPathSegmentNameCharacters['occurrenceCount'],
