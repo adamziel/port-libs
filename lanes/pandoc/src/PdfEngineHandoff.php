@@ -818,6 +818,7 @@ final class PdfEngineHandoff
      *     pdfOpenAction: array<string, mixed>|null,
      *     pdfNamedDestinations: list<array{name:string, source:string, target:string|null, pageObject:string|null, fit:string|null}>,
      *     pdfDestinationOptions: list<array{source:string, name:string|null, pageObject:string|null, target:string|null, fit:string|null, arguments:list<float|null>, left:float|null, top:float|null, right:float|null, bottom:float|null, zoom:float|null}>,
+     *     pdfDestinationPolicy: array<string, mixed>,
      *     pdfNameTrees: list<array{category:string, source:string, entryCount:int, names:list<string>, valueKinds:array<string, int>, valueReferences:list<string>, kidCount:int, limits:list<string>}>,
      *     pdfNameTreePolicies: list<array{category:string, source:string, reviewStatus:string, entryCount:int, kidCount:int, limits:list<string>, issues:list<string>, nodes:list<array{source:string, object:string|null, kind:string, entryCount:int, names:list<string>, kidCount:int, limits:list<string>, reviewStatus:string, issues:list<string>}>}>,
      *     pdfUriBase: string|null,
@@ -1586,6 +1587,7 @@ final class PdfEngineHandoff
         $pdfOpenAction = null;
         $pdfNamedDestinations = [];
         $pdfDestinationOptions = [];
+        $pdfDestinationPolicy = [];
         $pdfNameTrees = [];
         $pdfNameTreePolicies = [];
         $pdfUriBase = null;
@@ -1747,6 +1749,7 @@ final class PdfEngineHandoff
                 $pdfOpenAction = $pdfInspection['openAction'];
                 $pdfNamedDestinations = $pdfInspection['namedDestinations'];
                 $pdfDestinationOptions = $pdfInspection['destinationOptions'];
+                $pdfDestinationPolicy = $pdfInspection['destinationPolicy'];
                 $pdfNameTrees = $pdfInspection['nameTrees'];
                 $pdfNameTreePolicies = $pdfInspection['nameTreePolicies'];
                 $pdfUriBase = $pdfInspection['uriBase'];
@@ -3147,6 +3150,42 @@ final class PdfEngineHandoff
                     }
                     foreach ($this->summarizePdfDestinationFits($pdfDestinationOptions) as $fit => $count) {
                         $diagnostics[] = 'pdf-byte-destination-fit:' . $fit . ':' . $count;
+                    }
+                }
+                if ($pdfDestinationPolicy !== []) {
+                    $diagnostics[] = 'pdf-byte-destination-policy:' . $pdfDestinationPolicy['reviewStatus'];
+                    $diagnostics[] = 'pdf-byte-destination-policy-named:' . $pdfDestinationPolicy['namedDestinationCount'];
+                    $diagnostics[] = 'pdf-byte-destination-policy-options:' . $pdfDestinationPolicy['destinationOptionCount'];
+                    if ($pdfDestinationPolicy['pageDestinationCount'] > 0) {
+                        $diagnostics[] = 'pdf-byte-destination-policy-page-targets:' . $pdfDestinationPolicy['pageDestinationCount'];
+                    }
+                    if ($pdfDestinationPolicy['namedTargetCount'] > 0) {
+                        $diagnostics[] = 'pdf-byte-destination-policy-named-targets:' . $pdfDestinationPolicy['namedTargetCount'];
+                    }
+                    if ($pdfDestinationPolicy['unresolvedNamedTargetCount'] > 0) {
+                        $diagnostics[] = 'pdf-byte-destination-policy-unresolved-targets:' . $pdfDestinationPolicy['unresolvedNamedTargetCount'];
+                    }
+                    if ($pdfDestinationPolicy['fitArgumentDestinationCount'] > 0) {
+                        $diagnostics[] = 'pdf-byte-destination-policy-fit-arguments:' . $pdfDestinationPolicy['fitArgumentDestinationCount'];
+                    }
+                    if ($pdfDestinationPolicy['coordinateDestinationCount'] > 0) {
+                        $diagnostics[] = 'pdf-byte-destination-policy-coordinates:' . $pdfDestinationPolicy['coordinateDestinationCount'];
+                    }
+                    if ($pdfDestinationPolicy['zoomDestinationCount'] > 0) {
+                        $diagnostics[] = 'pdf-byte-destination-policy-zoom:' . $pdfDestinationPolicy['zoomDestinationCount'];
+                    }
+                    foreach ($pdfDestinationPolicy['fits'] as $fit => $count) {
+                        if (is_string($fit) && is_int($count)) {
+                            $diagnostics[] = 'pdf-byte-destination-policy-fit:' . $fit . ':' . $count;
+                        }
+                    }
+                    if ($pdfDestinationPolicy['issues'] !== []) {
+                        $diagnostics[] = 'pdf-byte-destination-policy-issues:' . count($pdfDestinationPolicy['issues']);
+                        foreach ($pdfDestinationPolicy['issues'] as $issue) {
+                            if (is_string($issue) && $issue !== '') {
+                                $diagnostics[] = 'pdf-byte-destination-policy-issue:' . $issue . ':1';
+                            }
+                        }
                     }
                 }
                 if ($pdfNameTrees !== []) {
@@ -5421,6 +5460,7 @@ final class PdfEngineHandoff
             'typstBoundaryMatrix' => $typstBoundaryMatrix,
             'typstReadBoundaryPolicy' => $typstReadBoundaryPolicy,
             'typstOutputFormatPolicy' => $typstOutputFormatPolicy,
+            'pdfDestinationPolicy' => $pdfDestinationPolicy,
             'typstPackageDependencies' => $engineTypstPackageDependencies,
             'engineDependencyEdges' => $engineDependencyEdges,
             'typstDependencyEdgePackageProvenance' => $typstDependencyEdgePackageProvenance,
@@ -5560,6 +5600,7 @@ final class PdfEngineHandoff
             'pdfOpenAction' => $pdfOpenAction,
             'pdfNamedDestinations' => $pdfNamedDestinations,
             'pdfDestinationOptions' => $pdfDestinationOptions,
+            'pdfDestinationPolicy' => $pdfDestinationPolicy,
             'pdfNameTrees' => $pdfNameTrees,
             'pdfNameTreePolicies' => $pdfNameTreePolicies,
             'pdfUriBase' => $pdfUriBase,
@@ -5741,6 +5782,7 @@ final class PdfEngineHandoff
      *     finalPdfOpenAction: array<string, mixed>|null,
      *     finalPdfNamedDestinations: list<array{name:string, source:string, target:string|null, pageObject:string|null, fit:string|null}>,
      *     finalPdfDestinationOptions: list<array{source:string, name:string|null, pageObject:string|null, target:string|null, fit:string|null, arguments:list<float|null>, left:float|null, top:float|null, right:float|null, bottom:float|null, zoom:float|null}>,
+     *     finalPdfDestinationPolicy: array<string, mixed>,
      *     finalPdfNameTrees: list<array{category:string, source:string, entryCount:int, names:list<string>, valueKinds:array<string, int>, valueReferences:list<string>, kidCount:int, limits:list<string>}>,
      *     finalPdfNameTreePolicies: list<array{category:string, source:string, reviewStatus:string, entryCount:int, kidCount:int, limits:list<string>, issues:list<string>, nodes:list<array{source:string, object:string|null, kind:string, entryCount:int, names:list<string>, kidCount:int, limits:list<string>, reviewStatus:string, issues:list<string>}>}>,
      *     finalPdfUriBase: string|null,
@@ -6080,6 +6122,7 @@ final class PdfEngineHandoff
             'finalPdfOpenAction' => is_array($finalRun) && is_array($finalRun['pdfOpenAction'] ?? null) ? $finalRun['pdfOpenAction'] : null,
             'finalPdfNamedDestinations' => is_array($finalRun) && is_array($finalRun['pdfNamedDestinations'] ?? null) ? $finalRun['pdfNamedDestinations'] : [],
             'finalPdfDestinationOptions' => is_array($finalRun) && is_array($finalRun['pdfDestinationOptions'] ?? null) ? $finalRun['pdfDestinationOptions'] : [],
+            'finalPdfDestinationPolicy' => is_array($finalRun) && is_array($finalRun['pdfDestinationPolicy'] ?? null) ? $finalRun['pdfDestinationPolicy'] : [],
             'finalPdfNameTrees' => is_array($finalRun) && is_array($finalRun['pdfNameTrees'] ?? null) ? $finalRun['pdfNameTrees'] : [],
             'finalPdfNameTreePolicies' => is_array($finalRun) && is_array($finalRun['pdfNameTreePolicies'] ?? null) ? $finalRun['pdfNameTreePolicies'] : [],
             'finalPdfUriBase' => is_array($finalRun) && is_string($finalRun['pdfUriBase'] ?? null) ? $finalRun['pdfUriBase'] : null,
@@ -13318,6 +13361,8 @@ final class PdfEngineHandoff
         sort($embeddedFileNames);
         $pageLayout = $this->extractPdfCatalogName($catalog, 'PageLayout');
         $pageMode = $this->extractPdfCatalogName($catalog, 'PageMode');
+        $namedDestinations = $this->extractPdfNamedDestinations($pdfBytes, $catalog);
+        $destinationOptions = $this->extractPdfDestinationOptions($pdfBytes, $catalog);
 
         return [
             'trailerCount' => count($trailerRevisions),
@@ -13382,8 +13427,9 @@ final class PdfEngineHandoff
             'pageLayout' => $pageLayout,
             'pageMode' => $pageMode,
             'openAction' => $this->extractPdfOpenAction($pdfBytes, $catalog),
-            'namedDestinations' => $this->extractPdfNamedDestinations($pdfBytes, $catalog),
-            'destinationOptions' => $this->extractPdfDestinationOptions($pdfBytes, $catalog),
+            'namedDestinations' => $namedDestinations,
+            'destinationOptions' => $destinationOptions,
+            'destinationPolicy' => $this->summarizePdfDestinationPolicy($namedDestinations, $destinationOptions),
             'nameTrees' => $this->extractPdfNameTrees($pdfBytes, $catalog),
             'nameTreePolicies' => $this->extractPdfNameTreePolicies($pdfBytes, $catalog),
             'uriBase' => $uriBase,
@@ -18511,6 +18557,95 @@ final class PdfEngineHandoff
         ksort($fits);
 
         return $fits;
+    }
+
+    /**
+     * @param list<array{name:string, source:string, target:string|null, pageObject:string|null, fit:string|null}> $namedDestinations
+     * @param list<array{source:string, name:string|null, pageObject:string|null, target:string|null, fit:string|null, arguments:list<float|null>, left:float|null, top:float|null, right:float|null, bottom:float|null, zoom:float|null}> $destinationOptions
+     * @return array<string, mixed>
+     */
+    private function summarizePdfDestinationPolicy(array $namedDestinations, array $destinationOptions): array
+    {
+        if ($namedDestinations === [] && $destinationOptions === []) {
+            return [];
+        }
+
+        $destinationNames = [];
+        $targetNames = [];
+        $pageDestinationCount = 0;
+        $fitArgumentDestinationCount = 0;
+        $coordinateDestinationCount = 0;
+        $zoomDestinationCount = 0;
+
+        foreach ($namedDestinations as $destination) {
+            if (is_string($destination['name'] ?? null) && $destination['name'] !== '') {
+                $destinationNames[$destination['name']] = true;
+            }
+            if (is_string($destination['target'] ?? null) && $destination['target'] !== '') {
+                $targetNames[$destination['target']] = true;
+            }
+        }
+
+        foreach ($destinationOptions as $destinationOption) {
+            if (is_string($destinationOption['target'] ?? null) && $destinationOption['target'] !== '') {
+                $targetNames[$destinationOption['target']] = true;
+            }
+            if (is_string($destinationOption['pageObject'] ?? null) && $destinationOption['pageObject'] !== '') {
+                $pageDestinationCount++;
+            }
+            if (isset($destinationOption['arguments']) && is_array($destinationOption['arguments']) && $destinationOption['arguments'] !== []) {
+                $fitArgumentDestinationCount++;
+            }
+            if (
+                ($destinationOption['left'] ?? null) !== null
+                || ($destinationOption['top'] ?? null) !== null
+                || ($destinationOption['right'] ?? null) !== null
+                || ($destinationOption['bottom'] ?? null) !== null
+            ) {
+                $coordinateDestinationCount++;
+            }
+            if (($destinationOption['zoom'] ?? null) !== null) {
+                $zoomDestinationCount++;
+            }
+        }
+
+        $destinationNameList = array_keys($destinationNames);
+        sort($destinationNameList, SORT_STRING);
+        $targetNameList = array_keys($targetNames);
+        sort($targetNameList, SORT_STRING);
+        $unresolvedNamedTargets = array_values(array_filter(
+            $targetNameList,
+            static fn (string $target): bool => !isset($destinationNames[$target])
+        ));
+
+        $issues = [];
+        if ($unresolvedNamedTargets !== []) {
+            $issues[] = 'unresolved-named-destination-target';
+        }
+        if ($coordinateDestinationCount > 0) {
+            $issues[] = 'explicit-destination-coordinate';
+        }
+        if ($zoomDestinationCount > 0) {
+            $issues[] = 'destination-zoom-boundary';
+        }
+        sort($issues, SORT_STRING);
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'namedDestinationCount' => count($namedDestinations),
+            'destinationOptionCount' => count($destinationOptions),
+            'pageDestinationCount' => $pageDestinationCount,
+            'namedTargetCount' => count($targetNameList),
+            'unresolvedNamedTargetCount' => count($unresolvedNamedTargets),
+            'fitArgumentDestinationCount' => $fitArgumentDestinationCount,
+            'coordinateDestinationCount' => $coordinateDestinationCount,
+            'zoomDestinationCount' => $zoomDestinationCount,
+            'fits' => $this->summarizePdfDestinationFits($destinationOptions),
+            'destinationNames' => $destinationNameList,
+            'targetNames' => $targetNameList,
+            'unresolvedNamedTargets' => $unresolvedNamedTargets,
+            'issues' => $issues,
+        ];
     }
 
     /**
