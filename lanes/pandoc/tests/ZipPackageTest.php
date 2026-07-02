@@ -3969,6 +3969,105 @@ return [
         $t->same($commentsXml, $package->read('/word/comments.xml'));
     },
 
+    'summarizes zip local data descriptor provenance for package review' => static function (TestRunner $t) use ($buildZipPackage, $crc32): void {
+        $documentXml = '<w:document><w:p>local descriptor provenance</w:p></w:document>';
+        $commentsXml = '<w:comments><w:comment>signed local descriptor</w:comment></w:comments>';
+        $footnotesXml = '<w:footnotes><w:footnote>unsigned local descriptor</w:footnote></w:footnotes>';
+        $commentsCompressed = gzdeflate($commentsXml);
+        if ($commentsCompressed === false) {
+            throw new RuntimeException('Unable to deflate local descriptor fixture');
+        }
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/comments.xml',
+                'data' => $commentsXml,
+                'method' => 8,
+                'descriptor' => true,
+            ],
+            [
+                'name' => 'word/footnotes.xml',
+                'data' => $footnotesXml,
+                'method' => 0,
+                'descriptor' => true,
+                'descriptorSignature' => false,
+            ],
+        ]);
+
+        $package = ZipPackage::fromString($zip);
+        $summary = $package->localHeaderPreflight();
+        $strict = $package->strictImportPreflight(4096, 100.0, 4096);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 4096, 100.0, 4096);
+        $document = $summary['entries'][0];
+        $comments = $summary['entries'][1];
+        $footnotes = $summary['entries'][2];
+
+        $t->same(3, $summary['entryCount']);
+        $t->same(2, $summary['localDataDescriptorEntryCount']);
+        $t->same(1, $summary['localSignedDataDescriptorEntryCount']);
+        $t->same(1, $summary['localUnsignedDataDescriptorEntryCount']);
+        $t->same(28, $summary['localDataDescriptorBytes']);
+        $t->same(2, $summary['localZeroHeaderPlaceholderEntryCount']);
+        $t->same(0, $summary['localDataDescriptorIssueEntryCount']);
+        $t->same(true, $summary['hasLocalDataDescriptors']);
+        $t->same(false, $summary['hasLocalDataDescriptorIssues']);
+        $t->same([], $summary['localDataDescriptorIssues']);
+        $t->same([], $summary['localDataDescriptorIssueEntries']);
+
+        $t->same(false, $document['usesDataDescriptor']);
+        $t->same(null, $document['dataDescriptorHasSignature']);
+        $t->same(null, $document['dataDescriptorValueOffset']);
+        $t->same(null, $document['dataDescriptorEnd']);
+        $t->same(null, $document['dataDescriptorCrc32']);
+        $t->same([], $document['dataDescriptorIssues']);
+
+        $t->same(true, $comments['usesDataDescriptor']);
+        $t->same(true, $comments['dataDescriptorHasSignature']);
+        $t->same($comments['compressedDataEnd'], $comments['descriptorOffset']);
+        $t->same($comments['compressedDataEnd'] + 4, $comments['dataDescriptorValueOffset']);
+        $t->same(16, $comments['descriptorLength']);
+        $t->same(16, $comments['dataDescriptorSpan']);
+        $t->same($footnotes['localHeaderOffset'], $comments['dataDescriptorEnd']);
+        $t->same(0, $comments['dataDescriptorSurplusBytes']);
+        $t->same(0, $comments['dataDescriptorTruncatedBytes']);
+        $t->same($crc32($commentsXml), $comments['dataDescriptorCrc32']);
+        $t->same(sprintf('%08x', $crc32($commentsXml)), $comments['dataDescriptorCrc32Hex']);
+        $t->same(false, $comments['dataDescriptorUsesZip64SizedFields']);
+        $t->same(true, $comments['dataDescriptorValuesMatchCentral']);
+        $t->same([], $comments['dataDescriptorIssues']);
+        $t->same(0, $comments['localHeaderCrc32']);
+        $t->same(0, $comments['localHeaderCompressedSize']);
+        $t->same(0, $comments['localHeaderUncompressedSize']);
+        $t->same(true, $comments['hasZeroLocalHeaderPlaceholders']);
+        $t->same(strlen($commentsCompressed), $comments['compressedSize']);
+
+        $t->same(true, $footnotes['usesDataDescriptor']);
+        $t->same(false, $footnotes['dataDescriptorHasSignature']);
+        $t->same($footnotes['compressedDataEnd'], $footnotes['descriptorOffset']);
+        $t->same($footnotes['compressedDataEnd'], $footnotes['dataDescriptorValueOffset']);
+        $t->same(12, $footnotes['descriptorLength']);
+        $t->same(12, $footnotes['dataDescriptorSpan']);
+        $t->same($summary['centralDirectoryOffset'], $footnotes['dataDescriptorEnd']);
+        $t->same(0, $footnotes['dataDescriptorSurplusBytes']);
+        $t->same(0, $footnotes['dataDescriptorTruncatedBytes']);
+        $t->same($crc32($footnotesXml), $footnotes['dataDescriptorCrc32']);
+        $t->same(sprintf('%08x', $crc32($footnotesXml)), $footnotes['dataDescriptorCrc32Hex']);
+        $t->same(false, $footnotes['dataDescriptorUsesZip64SizedFields']);
+        $t->same(true, $footnotes['dataDescriptorValuesMatchCentral']);
+        $t->same([], $footnotes['dataDescriptorIssues']);
+        $t->same(0, $footnotes['localHeaderCrc32']);
+        $t->same(0, $footnotes['localHeaderCompressedSize']);
+        $t->same(0, $footnotes['localHeaderUncompressedSize']);
+        $t->same(true, $footnotes['hasZeroLocalHeaderPlaceholders']);
+
+        $t->same($summary, $strict['localHeaders']);
+        $t->same($summary, $rawStrict['strictImport']['localHeaders']);
+    },
+
     'summarizes zip local header extra field records for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentReviewExtra = pack('vva*', 0xcafe, strlen('document-review'), 'document-review');
         $documentAuditExtra = pack('vva*', 0xbeef, strlen('document-audit'), 'document-audit');

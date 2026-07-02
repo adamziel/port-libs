@@ -623,6 +623,11 @@ final class OpcRelationshipGraph
                 }
             }
 
+            $partNameBytes = is_string($partName) ? strlen($partName) : null;
+            $packagePartNameLengthBucket = $partNameBytes === null
+                ? null
+                : self::zipEntryManifestPackagePartNameLengthBucket($partNameBytes);
+
             $entries[] = [
                 'entryIndex' => $entryIndex,
                 'entryName' => $entry->name,
@@ -642,6 +647,10 @@ final class OpcRelationshipGraph
                 'creatorHostSystemIsKnown' => $manifestEntry['creatorHostSystemIsKnown'] ?? null,
                 'creatorHostSystemIssues' => $manifestEntry['creatorHostSystemIssues'] ?? [],
                 'partName' => $partName,
+                'partNameBytes' => $partNameBytes,
+                'packagePartNameLengthBucket' => $packagePartNameLengthBucket['packagePartNameLengthBucket'] ?? null,
+                'packagePartNameLengthBucketMin' => $packagePartNameLengthBucket['minPackagePartNameBytes'] ?? null,
+                'packagePartNameLengthBucketMax' => $packagePartNameLengthBucket['maxPackagePartNameBytes'] ?? null,
                 'equivalenceKey' => $equivalenceKey,
                 'equivalentPartNames' => [],
                 'centralDirectoryIndex' => $entryIndex,
@@ -985,6 +994,7 @@ final class OpcRelationshipGraph
         $packagePartExtensionCounts = [];
         $entryNamesByPackagePartExtension = [];
         $packagePartExtensionSummariesByExtension = [];
+        $packagePartNameLengthBucketSummariesByBucket = [];
         $compressionMethodCounts = [];
         $entryNamesByCompressionMethod = [];
         $compressionMethodNamesByRole = [];
@@ -1157,6 +1167,11 @@ final class OpcRelationshipGraph
                 }
             }
             if ($entry['isPackagePart'] && is_string($entry['partName'])) {
+                self::recordZipEntryManifestPackagePartNameLengthBucketSummary(
+                    $packagePartNameLengthBucketSummariesByBucket,
+                    $entry,
+                );
+
                 $extension = self::partNameExtension($entry['partName']);
                 $extensionKey = $extension === '' ? '(none)' : $extension;
                 if ($extension === '') {
@@ -1366,6 +1381,18 @@ final class OpcRelationshipGraph
         ksort($packagePartExtensionCounts, SORT_STRING);
         self::sortStringListMap($entryNamesByPackagePartExtension);
         $packagePartExtensionSummaries = self::zipEntryManifestContentSummaries($packagePartExtensionSummariesByExtension);
+        $packagePartNameLengthBucketSummaries = self::zipEntryManifestPackagePartNameLengthBucketSummaries(
+            $packagePartNameLengthBucketSummariesByBucket,
+        );
+        $packagePartNameLengthBuckets = [];
+        $packagePartNameLengthBucketCounts = [];
+        $entryNamesByPackagePartNameLengthBucket = [];
+        foreach ($packagePartNameLengthBucketSummaries as $bucketSummary) {
+            $bucket = $bucketSummary['packagePartNameLengthBucket'];
+            $packagePartNameLengthBuckets[] = $bucket;
+            $packagePartNameLengthBucketCounts[$bucket] = $bucketSummary['entryCount'];
+            $entryNamesByPackagePartNameLengthBucket[$bucket] = $bucketSummary['entryNames'];
+        }
         self::sortZipManifestCompressionMethodProvenance(
             $compressionMethodCounts,
             $entryNamesByCompressionMethod,
@@ -1539,6 +1566,11 @@ final class OpcRelationshipGraph
             'packagePartExtensionCounts' => $packagePartExtensionCounts,
             'entryNamesByPackagePartExtension' => $entryNamesByPackagePartExtension,
             'packagePartExtensionSummaries' => $packagePartExtensionSummaries,
+            'packagePartNameLengthBucketSummaryCount' => count($packagePartNameLengthBucketSummaries),
+            'packagePartNameLengthBuckets' => $packagePartNameLengthBuckets,
+            'packagePartNameLengthBucketCounts' => $packagePartNameLengthBucketCounts,
+            'entryNamesByPackagePartNameLengthBucket' => $entryNamesByPackagePartNameLengthBucket,
+            'packagePartNameLengthBucketSummaries' => $packagePartNameLengthBucketSummaries,
             'contentTypeOverrideDeclarationCount' => count($contentTypeOverrideDeclarations),
             'contentTypeUsedOverrideDeclarationCount' => count($contentTypeOverrideDeclarations) - count($contentTypeUnusedOverridePartNames),
             'contentTypeUnusedOverrideDeclarationCount' => count($contentTypeUnusedOverridePartNames),
@@ -2080,6 +2112,10 @@ final class OpcRelationshipGraph
             $pathSegments = self::zipEntryManifestPathSegments($centralEntry['name']);
             $pathSegmentPositionReviews = self::zipEntryManifestPathSegmentPositionReviews($pathSegments);
             $pathSegmentCount = count($pathSegments);
+            $partNameBytes = is_string($partName) ? strlen($partName) : null;
+            $packagePartNameLengthBucket = $partNameBytes === null
+                ? null
+                : self::zipEntryManifestPackagePartNameLengthBucket($partNameBytes);
 
             $entries[] = [
                 'entryIndex' => $entryIndex,
@@ -2100,6 +2136,10 @@ final class OpcRelationshipGraph
                 'creatorHostSystemIsKnown' => $creatorHostEntry['isKnown'] ?? null,
                 'creatorHostSystemIssues' => $creatorHostEntry['issues'] ?? [],
                 'partName' => $partName,
+                'partNameBytes' => $partNameBytes,
+                'packagePartNameLengthBucket' => $packagePartNameLengthBucket['packagePartNameLengthBucket'] ?? null,
+                'packagePartNameLengthBucketMin' => $packagePartNameLengthBucket['minPackagePartNameBytes'] ?? null,
+                'packagePartNameLengthBucketMax' => $packagePartNameLengthBucket['maxPackagePartNameBytes'] ?? null,
                 'equivalenceKey' => $equivalenceKey,
                 'equivalentPartNames' => [],
                 'localHeaderOrder' => $orderEntry['localHeaderOrder'] ?? $entryIndex,
@@ -2409,6 +2449,7 @@ final class OpcRelationshipGraph
         $packagePartExtensionCounts = [];
         $entryNamesByPackagePartExtension = [];
         $packagePartExtensionSummariesByExtension = [];
+        $packagePartNameLengthBucketSummariesByBucket = [];
         $relationshipParts = [];
         $fileEntryCount = 0;
         $directoryEntryCount = 0;
@@ -2482,6 +2523,14 @@ final class OpcRelationshipGraph
             );
 
             if ($entry['isPackagePart'] && is_string($entry['partName'])) {
+                $partNameLengthSummaryEntry = $entry;
+                $partNameLengthSummaryEntry['compressedSize'] = $entry['byteCountsAreExact'] ? (int) $exactCompressedSize : 0;
+                $partNameLengthSummaryEntry['uncompressedSize'] = $entry['byteCountsAreExact'] ? (int) $exactUncompressedSize : 0;
+                self::recordZipEntryManifestPackagePartNameLengthBucketSummary(
+                    $packagePartNameLengthBucketSummariesByBucket,
+                    $partNameLengthSummaryEntry,
+                );
+
                 $extension = self::partNameExtension($entry['partName']);
                 $extensionKey = $extension === '' ? '(none)' : $extension;
                 if ($extension === '') {
@@ -2676,6 +2725,18 @@ final class OpcRelationshipGraph
         ksort($packagePartExtensionCounts, SORT_STRING);
         self::sortStringListMap($entryNamesByPackagePartExtension);
         $packagePartExtensionSummaries = self::zipEntryManifestContentSummaries($packagePartExtensionSummariesByExtension);
+        $packagePartNameLengthBucketSummaries = self::zipEntryManifestPackagePartNameLengthBucketSummaries(
+            $packagePartNameLengthBucketSummariesByBucket,
+        );
+        $packagePartNameLengthBuckets = [];
+        $packagePartNameLengthBucketCounts = [];
+        $entryNamesByPackagePartNameLengthBucket = [];
+        foreach ($packagePartNameLengthBucketSummaries as $bucketSummary) {
+            $bucket = $bucketSummary['packagePartNameLengthBucket'];
+            $packagePartNameLengthBuckets[] = $bucket;
+            $packagePartNameLengthBucketCounts[$bucket] = $bucketSummary['entryCount'];
+            $entryNamesByPackagePartNameLengthBucket[$bucket] = $bucketSummary['entryNames'];
+        }
         self::sortZipManifestCompressionMethodProvenance(
             $compressionMethodCounts,
             $entryNamesByCompressionMethod,
@@ -2835,6 +2896,11 @@ final class OpcRelationshipGraph
             'packagePartExtensionCounts' => $packagePartExtensionCounts,
             'entryNamesByPackagePartExtension' => $entryNamesByPackagePartExtension,
             'packagePartExtensionSummaries' => $packagePartExtensionSummaries,
+            'packagePartNameLengthBucketSummaryCount' => count($packagePartNameLengthBucketSummaries),
+            'packagePartNameLengthBuckets' => $packagePartNameLengthBuckets,
+            'packagePartNameLengthBucketCounts' => $packagePartNameLengthBucketCounts,
+            'entryNamesByPackagePartNameLengthBucket' => $entryNamesByPackagePartNameLengthBucket,
+            'packagePartNameLengthBucketSummaries' => $packagePartNameLengthBucketSummaries,
             'equivalentPackagePartNameGroupCount' => count($equivalentPackagePartNameGroups),
             'equivalentPackagePartNameEntryCount' => $equivalentPackagePartNameEntryCount,
             'relationshipPartCount' => $relationshipPartCount,
@@ -10317,6 +10383,121 @@ final class OpcRelationshipGraph
         ];
 
         self::recordZipEntryManifestContentSummaryEntry($summaries[$extensionKey], $entry);
+    }
+
+    private static function recordZipEntryManifestPackagePartNameLengthBucketSummary(
+        array &$summaries,
+        array $entry
+    ): void {
+        $partName = $entry['partName'] ?? null;
+        if (!is_string($partName)) {
+            return;
+        }
+
+        $partNameBytes = is_int($entry['partNameBytes'] ?? null)
+            ? (int) $entry['partNameBytes']
+            : strlen($partName);
+        $bucket = self::zipEntryManifestPackagePartNameLengthBucket($partNameBytes);
+        $bucketKey = $bucket['packagePartNameLengthBucket'];
+        $summaries[$bucketKey] ??= [
+            'packagePartNameLengthBucket' => $bucketKey,
+            'minPackagePartNameBytes' => $bucket['minPackagePartNameBytes'],
+            'maxPackagePartNameBytes' => $bucket['maxPackagePartNameBytes'],
+            'entryCount' => 0,
+            'fileEntryCount' => 0,
+            'directoryEntryCount' => 0,
+            'packagePartCount' => 0,
+            'partNameBytes' => 0,
+            'localHeaderRawNameBytes' => 0,
+            'centralDirectoryRawNameBytes' => 0,
+            'compressedBytes' => 0,
+            'uncompressedBytes' => 0,
+            'localRecordBytes' => 0,
+            'sourceRecordBytes' => 0,
+            'roleCounts' => [],
+            'handoffKindCounts' => [],
+            'entryNames' => [],
+            'partNames' => [],
+            'minObservedPartNameBytes' => null,
+            'maxObservedPartNameBytes' => null,
+            'longestPartNames' => [],
+        ];
+
+        self::recordZipEntryManifestContentSummaryEntry($summaries[$bucketKey], $entry);
+        $summaries[$bucketKey]['partNameBytes'] += $partNameBytes;
+        foreach (['localHeaderRawNameBytes', 'centralDirectoryRawNameBytes', 'localRecordBytes', 'sourceRecordBytes'] as $field) {
+            $summaries[$bucketKey][$field] += is_int($entry[$field] ?? null) ? (int) $entry[$field] : 0;
+        }
+
+        $minObservedPartNameBytes = $summaries[$bucketKey]['minObservedPartNameBytes'];
+        if (!is_int($minObservedPartNameBytes) || $partNameBytes < $minObservedPartNameBytes) {
+            $summaries[$bucketKey]['minObservedPartNameBytes'] = $partNameBytes;
+        }
+
+        $maxObservedPartNameBytes = $summaries[$bucketKey]['maxObservedPartNameBytes'];
+        if (!is_int($maxObservedPartNameBytes) || $partNameBytes > $maxObservedPartNameBytes) {
+            $summaries[$bucketKey]['maxObservedPartNameBytes'] = $partNameBytes;
+            $summaries[$bucketKey]['longestPartNames'] = [$partName];
+        } elseif ($partNameBytes === $maxObservedPartNameBytes) {
+            self::appendUniqueString($summaries[$bucketKey]['longestPartNames'], $partName);
+        }
+    }
+
+    private static function zipEntryManifestPackagePartNameLengthBucketSummaries(array $summaries): array
+    {
+        foreach ($summaries as &$summary) {
+            ksort($summary['roleCounts'], SORT_STRING);
+            ksort($summary['handoffKindCounts'], SORT_STRING);
+            sort($summary['entryNames'], SORT_STRING);
+            sort($summary['partNames'], SORT_STRING);
+            sort($summary['longestPartNames'], SORT_STRING);
+        }
+        unset($summary);
+
+        $ordered = [];
+        foreach (['up-to-15-bytes', '16-to-63-bytes', '64-to-127-bytes', '128-plus-bytes'] as $bucket) {
+            if (isset($summaries[$bucket])) {
+                $ordered[] = $summaries[$bucket];
+            }
+        }
+
+        return $ordered;
+    }
+
+    /**
+     * @return array{packagePartNameLengthBucket:string,minPackagePartNameBytes:int,maxPackagePartNameBytes:?int}
+     */
+    private static function zipEntryManifestPackagePartNameLengthBucket(int $partNameBytes): array
+    {
+        if ($partNameBytes <= 15) {
+            return [
+                'packagePartNameLengthBucket' => 'up-to-15-bytes',
+                'minPackagePartNameBytes' => 0,
+                'maxPackagePartNameBytes' => 15,
+            ];
+        }
+
+        if ($partNameBytes <= 63) {
+            return [
+                'packagePartNameLengthBucket' => '16-to-63-bytes',
+                'minPackagePartNameBytes' => 16,
+                'maxPackagePartNameBytes' => 63,
+            ];
+        }
+
+        if ($partNameBytes <= 127) {
+            return [
+                'packagePartNameLengthBucket' => '64-to-127-bytes',
+                'minPackagePartNameBytes' => 64,
+                'maxPackagePartNameBytes' => 127,
+            ];
+        }
+
+        return [
+            'packagePartNameLengthBucket' => '128-plus-bytes',
+            'minPackagePartNameBytes' => 128,
+            'maxPackagePartNameBytes' => null,
+        ];
     }
 
     private static function recordZipEntryManifestContentSummaryEntry(array &$summary, array $entry): void
