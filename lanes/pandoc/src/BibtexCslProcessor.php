@@ -1321,7 +1321,7 @@ final class BibtexCslProcessor
                     $entries[$key]['csl']['missing-related-keys'] = $references['missing'];
                 }
 
-                $relatedOptions = $this->fieldKeyList($this->firstRawField($fields, ['relatedoptions', 'related-options']));
+                $relatedOptions = $this->biblatexOptionList($this->firstRawField($fields, ['relatedoptions', 'related-options']));
                 if ($relatedOptions !== []) {
                     $entries[$key]['csl']['relatedOptions'] = $relatedOptions;
                 }
@@ -2822,13 +2822,17 @@ final class BibtexCslProcessor
             return [];
         }
 
-        return array_values(array_filter(
-            array_map(
-                static fn (string $option): string => trim($option),
-                $this->splitTopLevel($value, ',')
-            ),
-            static fn (string $option): bool => $option !== ''
-        ));
+        $options = [];
+        foreach ($this->splitTopLevel($value, ',') as $commaPart) {
+            foreach ($this->splitTopLevel($commaPart, ';') as $option) {
+                $option = trim($option);
+                if ($option !== '') {
+                    $options[] = $option;
+                }
+            }
+        }
+
+        return $options;
     }
 
     /**

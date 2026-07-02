@@ -62,6 +62,10 @@ return [
             'outputLineCount' => 3,
             'blankSourceLineCount' => 0,
             'blankOutputLineCount' => 0,
+            'leadingBreakWhitespaceLineCount' => 0,
+            'trailingBreakWhitespaceLineCount' => 0,
+            'maxLeadingBreakWhitespaceDisplayWidth' => 0,
+            'maxTrailingBreakWhitespaceDisplayWidth' => 0,
             'maxSourceDisplayWidth' => 51,
             'maxOutputDisplayWidth' => 22,
             'overColumnLineCount' => 0,
@@ -313,6 +317,10 @@ return [
             'outputLineCount' => 3,
             'blankSourceLineCount' => 0,
             'blankOutputLineCount' => 0,
+            'leadingBreakWhitespaceLineCount' => 0,
+            'trailingBreakWhitespaceLineCount' => 0,
+            'maxLeadingBreakWhitespaceDisplayWidth' => 0,
+            'maxTrailingBreakWhitespaceDisplayWidth' => 0,
             'maxSourceDisplayWidth' => 33,
             'maxOutputDisplayWidth' => 33,
             'overColumnLineCount' => 2,
@@ -368,6 +376,10 @@ return [
             'outputLineCount' => 4,
             'blankSourceLineCount' => 0,
             'blankOutputLineCount' => 0,
+            'leadingBreakWhitespaceLineCount' => 0,
+            'trailingBreakWhitespaceLineCount' => 0,
+            'maxLeadingBreakWhitespaceDisplayWidth' => 0,
+            'maxTrailingBreakWhitespaceDisplayWidth' => 0,
             'maxSourceDisplayWidth' => 24,
             'maxOutputDisplayWidth' => 9,
             'overColumnLineCount' => 0,
@@ -419,6 +431,10 @@ return [
             'outputLineCount' => 2,
             'blankSourceLineCount' => 0,
             'blankOutputLineCount' => 0,
+            'leadingBreakWhitespaceLineCount' => 0,
+            'trailingBreakWhitespaceLineCount' => 0,
+            'maxLeadingBreakWhitespaceDisplayWidth' => 0,
+            'maxTrailingBreakWhitespaceDisplayWidth' => 0,
             'maxSourceDisplayWidth' => 28,
             'maxOutputDisplayWidth' => 16,
             'overColumnLineCount' => 0,
@@ -493,6 +509,10 @@ return [
             'outputLineCount' => 3,
             'blankSourceLineCount' => 0,
             'blankOutputLineCount' => 0,
+            'leadingBreakWhitespaceLineCount' => 0,
+            'trailingBreakWhitespaceLineCount' => 0,
+            'maxLeadingBreakWhitespaceDisplayWidth' => 0,
+            'maxTrailingBreakWhitespaceDisplayWidth' => 0,
             'maxSourceDisplayWidth' => 18,
             'maxOutputDisplayWidth' => 13,
             'overColumnLineCount' => 0,
@@ -589,6 +609,10 @@ return [
             'outputLineCount' => 6,
             'blankSourceLineCount' => 0,
             'blankOutputLineCount' => 0,
+            'leadingBreakWhitespaceLineCount' => 0,
+            'trailingBreakWhitespaceLineCount' => 0,
+            'maxLeadingBreakWhitespaceDisplayWidth' => 0,
+            'maxTrailingBreakWhitespaceDisplayWidth' => 0,
             'maxSourceDisplayWidth' => 33,
             'maxOutputDisplayWidth' => 8,
             'overColumnLineCount' => 0,
@@ -678,6 +702,10 @@ return [
             'outputLineCount' => 5,
             'blankSourceLineCount' => 1,
             'blankOutputLineCount' => 1,
+            'leadingBreakWhitespaceLineCount' => 0,
+            'trailingBreakWhitespaceLineCount' => 0,
+            'maxLeadingBreakWhitespaceDisplayWidth' => 0,
+            'maxTrailingBreakWhitespaceDisplayWidth' => 0,
             'maxSourceDisplayWidth' => 11,
             'maxOutputDisplayWidth' => 5,
             'overColumnLineCount' => 0,
@@ -736,6 +764,10 @@ return [
             'outputLineCount' => 4,
             'blankSourceLineCount' => 0,
             'blankOutputLineCount' => 0,
+            'leadingBreakWhitespaceLineCount' => 0,
+            'trailingBreakWhitespaceLineCount' => 0,
+            'maxLeadingBreakWhitespaceDisplayWidth' => 0,
+            'maxTrailingBreakWhitespaceDisplayWidth' => 0,
             'maxSourceDisplayWidth' => 20,
             'maxOutputDisplayWidth' => 10,
             'overColumnLineCount' => 0,
@@ -801,6 +833,10 @@ return [
             'outputLineCount' => 8,
             'blankSourceLineCount' => 0,
             'blankOutputLineCount' => 0,
+            'leadingBreakWhitespaceLineCount' => 0,
+            'trailingBreakWhitespaceLineCount' => 0,
+            'maxLeadingBreakWhitespaceDisplayWidth' => 0,
+            'maxTrailingBreakWhitespaceDisplayWidth' => 0,
             'maxSourceDisplayWidth' => 50,
             'maxOutputDisplayWidth' => 10,
             'overColumnLineCount' => 0,
@@ -823,6 +859,64 @@ return [
             'softHyphenBreakOpportunityCount' => 0,
             'visibleBreakAfterOpportunityCount' => 0,
             'protectedSeparatorCount' => 3,
+            'lineEndingNormalizationCount' => 0,
+        ], $result['diagnostics']['blocks'][0]);
+    },
+    'reports boundary break whitespace in plain writer wrapping diagnostics' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('code_block', ['text' => "  Alpha beta  \n\tGamma delta\t\nPlain tail"]),
+        ]);
+
+        $result = (new PlainWriter(['columns' => 20]))->writeWithDiagnostics($document);
+
+        $t->same("Alpha beta\nGamma delta\nPlain tail", $result['text']);
+        $t->same(1, $result['diagnostics']['blockCount']);
+        $t->same(0, $result['diagnostics']['wrappedBlockCount']);
+        $t->same(3, $result['diagnostics']['outputLineCount']);
+        $t->same(0, $result['diagnostics']['blankSourceLineCount']);
+        $t->same(0, $result['diagnostics']['blankOutputLineCount']);
+        $t->same(2, $result['diagnostics']['leadingBreakWhitespaceLineCount']);
+        $t->same(2, $result['diagnostics']['trailingBreakWhitespaceLineCount']);
+        $t->same(4, $result['diagnostics']['maxLeadingBreakWhitespaceDisplayWidth']);
+        $t->same(2, $result['diagnostics']['maxTrailingBreakWhitespaceDisplayWidth']);
+        $t->same(11, $result['diagnostics']['maxOutputDisplayWidth']);
+        $t->same(9, $result['diagnostics']['softBreakOpportunityCount']);
+        $t->same(7, $result['diagnostics']['spaceBreakOpportunityCount']);
+        $t->same(2, $result['diagnostics']['tabBreakOpportunityCount']);
+        $t->same(4, $result['diagnostics']['maxTabDisplayAdvance']);
+        $t->same([
+            'blockIndex' => 0,
+            'blockType' => 'code_block',
+            'sourceLineCount' => 3,
+            'outputLineCount' => 3,
+            'blankSourceLineCount' => 0,
+            'blankOutputLineCount' => 0,
+            'leadingBreakWhitespaceLineCount' => 2,
+            'trailingBreakWhitespaceLineCount' => 2,
+            'maxLeadingBreakWhitespaceDisplayWidth' => 4,
+            'maxTrailingBreakWhitespaceDisplayWidth' => 2,
+            'maxSourceDisplayWidth' => 16,
+            'maxOutputDisplayWidth' => 11,
+            'overColumnLineCount' => 0,
+            'maxOverColumnDisplayWidth' => 0,
+            'forcedWrapBreakCount' => 0,
+            'maxForcedWrapSegmentDisplayWidth' => 0,
+            'wrapped' => false,
+            'softWrapBreakCount' => 0,
+            'wrapSplitLineCount' => 0,
+            'generatedWrapBreakCount' => 0,
+            'lineFeedBreakCount' => 2,
+            'lineSeparatorBreakCount' => 0,
+            'paragraphSeparatorBreakCount' => 0,
+            'spaceBreakOpportunityCount' => 7,
+            'unicodeSpaceBreakOpportunityCount' => 0,
+            'maxUnicodeSpaceDisplayAdvance' => 0,
+            'tabBreakOpportunityCount' => 2,
+            'maxTabDisplayAdvance' => 4,
+            'zeroWidthSpaceBreakOpportunityCount' => 0,
+            'softHyphenBreakOpportunityCount' => 0,
+            'visibleBreakAfterOpportunityCount' => 0,
+            'protectedSeparatorCount' => 0,
             'lineEndingNormalizationCount' => 0,
         ], $result['diagnostics']['blocks'][0]);
     },

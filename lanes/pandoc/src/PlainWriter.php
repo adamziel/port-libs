@@ -50,6 +50,10 @@ final class PlainWriter
      *     outputLineCount:int,
      *     blankSourceLineCount:int,
      *     blankOutputLineCount:int,
+     *     leadingBreakWhitespaceLineCount:int,
+     *     trailingBreakWhitespaceLineCount:int,
+     *     maxLeadingBreakWhitespaceDisplayWidth:int,
+     *     maxTrailingBreakWhitespaceDisplayWidth:int,
      *     maxOutputDisplayWidth:int,
      *     overColumnLineCount:int,
      *     maxOverColumnDisplayWidth:int,
@@ -87,6 +91,10 @@ final class PlainWriter
      *       outputLineCount:int,
      *       blankSourceLineCount:int,
      *       blankOutputLineCount:int,
+     *       leadingBreakWhitespaceLineCount:int,
+     *       trailingBreakWhitespaceLineCount:int,
+     *       maxLeadingBreakWhitespaceDisplayWidth:int,
+     *       maxTrailingBreakWhitespaceDisplayWidth:int,
      *       maxSourceDisplayWidth:int,
      *       maxOutputDisplayWidth:int,
      *       overColumnLineCount:int,
@@ -135,6 +143,10 @@ final class PlainWriter
         $outputLineCount = 0;
         $blankSourceLineCount = 0;
         $blankOutputLineCount = 0;
+        $leadingBreakWhitespaceLineCount = 0;
+        $trailingBreakWhitespaceLineCount = 0;
+        $maxLeadingBreakWhitespaceDisplayWidth = 0;
+        $maxTrailingBreakWhitespaceDisplayWidth = 0;
         $maxOutputDisplayWidth = 0;
         $overColumnLineCount = 0;
         $maxOverColumnDisplayWidth = 0;
@@ -179,6 +191,7 @@ final class PlainWriter
             $wrappedLineCount = count($wrappedLines);
             $blockBlankSourceLineCount = $this->blankLineCount($sourceLines);
             $blockBlankOutputLineCount = $this->blankLineCount($wrappedLines);
+            $boundaryWhitespace = $this->breakWhitespaceBoundaryMetrics($sourceLines, $ambiguousWidth);
             $wrapped = $wrappedLineCount > $sourceLineCount;
             if ($wrapped) {
                 ++$wrappedBlockCount;
@@ -229,6 +242,16 @@ final class PlainWriter
             $outputLineCount += $this->nonEmptyLineCount($wrappedLines);
             $blankSourceLineCount += $blockBlankSourceLineCount;
             $blankOutputLineCount += $blockBlankOutputLineCount;
+            $leadingBreakWhitespaceLineCount += $boundaryWhitespace['leadingBreakWhitespaceLineCount'];
+            $trailingBreakWhitespaceLineCount += $boundaryWhitespace['trailingBreakWhitespaceLineCount'];
+            $maxLeadingBreakWhitespaceDisplayWidth = max(
+                $maxLeadingBreakWhitespaceDisplayWidth,
+                $boundaryWhitespace['maxLeadingBreakWhitespaceDisplayWidth']
+            );
+            $maxTrailingBreakWhitespaceDisplayWidth = max(
+                $maxTrailingBreakWhitespaceDisplayWidth,
+                $boundaryWhitespace['maxTrailingBreakWhitespaceDisplayWidth']
+            );
 
             $opportunities = UnicodeText::lineBreakOpportunities($source, $ambiguousWidth);
             $typeCounts = $this->lineBreakOpportunityTypeCounts($opportunities['opportunities']);
@@ -255,6 +278,11 @@ final class PlainWriter
                 'outputLineCount' => $wrappedLineCount,
                 'blankSourceLineCount' => $blockBlankSourceLineCount,
                 'blankOutputLineCount' => $blockBlankOutputLineCount,
+                'leadingBreakWhitespaceLineCount' => $boundaryWhitespace['leadingBreakWhitespaceLineCount'],
+                'trailingBreakWhitespaceLineCount' => $boundaryWhitespace['trailingBreakWhitespaceLineCount'],
+                'maxLeadingBreakWhitespaceDisplayWidth' => $boundaryWhitespace['maxLeadingBreakWhitespaceDisplayWidth'],
+                'maxTrailingBreakWhitespaceDisplayWidth' =>
+                    $boundaryWhitespace['maxTrailingBreakWhitespaceDisplayWidth'],
                 'maxSourceDisplayWidth' => $sourceMax,
                 'maxOutputDisplayWidth' => $outputMax,
                 'overColumnLineCount' => $overColumn['count'],
@@ -300,6 +328,10 @@ final class PlainWriter
                 'outputLineCount' => $outputLineCount,
                 'blankSourceLineCount' => $blankSourceLineCount,
                 'blankOutputLineCount' => $blankOutputLineCount,
+                'leadingBreakWhitespaceLineCount' => $leadingBreakWhitespaceLineCount,
+                'trailingBreakWhitespaceLineCount' => $trailingBreakWhitespaceLineCount,
+                'maxLeadingBreakWhitespaceDisplayWidth' => $maxLeadingBreakWhitespaceDisplayWidth,
+                'maxTrailingBreakWhitespaceDisplayWidth' => $maxTrailingBreakWhitespaceDisplayWidth,
                 'maxOutputDisplayWidth' => $maxOutputDisplayWidth,
                 'overColumnLineCount' => $overColumnLineCount,
                 'maxOverColumnDisplayWidth' => $maxOverColumnDisplayWidth,
@@ -765,6 +797,90 @@ final class PlainWriter
         }
 
         return ['count' => $count, 'maxDisplayWidth' => $max];
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{
+     *   leadingBreakWhitespaceLineCount:int,
+     *   trailingBreakWhitespaceLineCount:int,
+     *   maxLeadingBreakWhitespaceDisplayWidth:int,
+     *   maxTrailingBreakWhitespaceDisplayWidth:int
+     * }
+     */
+    private function breakWhitespaceBoundaryMetrics(array $lines, string $ambiguousWidth): array
+    {
+        $leadingLineCount = 0;
+        $trailingLineCount = 0;
+        $maxLeadingWidth = 0;
+        $maxTrailingWidth = 0;
+
+        foreach ($lines as $line) {
+            [$withoutLeading, $hadLeading] = $this->trimDiagnosticWrapWhitespaceStart($line);
+            if ($hadLeading) {
+                ++$leadingLineCount;
+                $leadingWidth = UnicodeText::displayWidth($line, $ambiguousWidth)
+                    - UnicodeText::displayWidth($withoutLeading, $ambiguousWidth);
+                $maxLeadingWidth = max(
+                    $maxLeadingWidth,
+                    $leadingWidth
+                );
+            }
+
+            [$withoutTrailing, $hadTrailing] = $this->trimDiagnosticWrapWhitespaceEnd($line);
+            if ($hadTrailing) {
+                ++$trailingLineCount;
+                $trailingWidth = UnicodeText::displayWidth($line, $ambiguousWidth)
+                    - UnicodeText::displayWidth($withoutTrailing, $ambiguousWidth);
+                $maxTrailingWidth = max(
+                    $maxTrailingWidth,
+                    $trailingWidth
+                );
+            }
+        }
+
+        return [
+            'leadingBreakWhitespaceLineCount' => $leadingLineCount,
+            'trailingBreakWhitespaceLineCount' => $trailingLineCount,
+            'maxLeadingBreakWhitespaceDisplayWidth' => $maxLeadingWidth,
+            'maxTrailingBreakWhitespaceDisplayWidth' => $maxTrailingWidth,
+        ];
+    }
+
+    /**
+     * @return array{0:string, 1:bool}
+     */
+    private function trimDiagnosticWrapWhitespaceStart(string $line): array
+    {
+        $characters = UnicodeText::characters($line);
+        $start = 0;
+        while (isset($characters[$start]) && $this->isDiagnosticWrapWhitespace($characters[$start])) {
+            ++$start;
+        }
+
+        if ($start === 0) {
+            return [$line, false];
+        }
+
+        return [implode('', array_slice($characters, $start)), true];
+    }
+
+    /**
+     * @return array{0:string, 1:bool}
+     */
+    private function trimDiagnosticWrapWhitespaceEnd(string $line): array
+    {
+        $characters = UnicodeText::characters($line);
+        $end = count($characters) - 1;
+        while ($end >= 0 && $this->isDiagnosticWrapWhitespace($characters[$end])) {
+            --$end;
+        }
+
+        if ($end === count($characters) - 1) {
+            return [$line, false];
+        }
+
+        return [implode('', array_slice($characters, 0, $end + 1)), true];
     }
 
     private function softWrapBreakCount(string $source, int $wrappedLineCount, int $columns, string $wrapMode): int
