@@ -1196,8 +1196,12 @@ XML);
       <p:nvSpPr><p:cNvPr id="4" name="Whitespace Joined Text Box"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
       <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>  Leading</a:t></a:r><a:r><a:t>Trailing  </a:t></a:r></a:p></p:txBody>
     </p:sp>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="5" name="Empty Run Between Text"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>A</a:t></a:r><a:r><a:t></a:t></a:r><a:r><a:t>   </a:t></a:r><a:r><a:t>B</a:t></a:r></a:p></p:txBody>
+    </p:sp>
     <p:graphicFrame>
-      <p:nvGraphicFramePr><p:cNvPr id="5" name="Whitespace Cell Table"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <p:nvGraphicFramePr><p:cNvPr id="6" name="Whitespace Cell Table"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
       <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl>
         <a:tblPr/>
         <a:tr><a:tc><a:txBody><a:p><a:r><a:t>   </a:t></a:r></a:p></a:txBody></a:tc></a:tr>
@@ -15033,6 +15037,10 @@ return [
             $paragraphs,
             static fn (AstNode $paragraph): bool => $paragraph->attr('text') === '  Leading Trailing  '
         ));
+        $emptyRunParagraphs = array_values(array_filter(
+            $paragraphs,
+            static fn (AstNode $paragraph): bool => $paragraph->attr('text') === 'A     B'
+        ));
         $whitespaceCell = $tables[0]->children[0]->children[0]->children[0] ?? null;
         $whitespaceCellInline = $whitespaceCell instanceof AstNode ? ($whitespaceCell->children[0]->children[0] ?? null) : null;
 
@@ -15040,8 +15048,10 @@ return [
         $t->same('Whitespace text', $document->children[0]->attr('text'));
         $t->same(true, in_array('   ', $paragraphTexts, true));
         $t->same(true, in_array('  Leading Trailing  ', $paragraphTexts, true));
+        $t->same(true, in_array('A     B', $paragraphTexts, true));
         $t->same('   ', $whitespaceParagraphs[0]->children[0]->attr('text') ?? null);
         $t->same('  Leading Trailing  ', $joinedParagraphs[0]->children[0]->attr('text') ?? null);
+        $t->same('A     B', $emptyRunParagraphs[0]->children[0]->attr('text') ?? null);
         $t->same(1, count($tables));
         $t->same('   ', $whitespaceCell instanceof AstNode ? $whitespaceCell->attr('text') : null);
         $t->same('   ', $whitespaceCellInline instanceof AstNode ? $whitespaceCellInline->attr('text') : null);
