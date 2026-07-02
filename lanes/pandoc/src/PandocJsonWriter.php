@@ -39,6 +39,7 @@ final class PandocJsonWriter
         'figureBlocksNative',
         'formatConstructor',
         'formatNative',
+        'inlineListNative',
         'legacyTableCellBlocksNative',
         'lineNative',
         'listAttributesConstructor',
@@ -53,6 +54,7 @@ final class PandocJsonWriter
         'native',
         'nativeInlineConstructors',
         'nativeInlineParts',
+        'noteBlocksNative',
         'quoteTypeConstructor',
         'quoteTypeNative',
         'rowHeadColumnsConstructor',
@@ -1584,16 +1586,16 @@ final class PandocJsonWriter
             'space' => ['t' => 'Space'],
             'softbreak' => ['t' => 'SoftBreak'],
             'linebreak' => ['t' => 'LineBreak'],
-            'emph' => ['t' => 'Emph', 'c' => $this->writeInlines($node->children)],
-            'strong' => ['t' => 'Strong', 'c' => $this->writeInlines($node->children)],
-            'underline' => ['t' => 'Underline', 'c' => $this->writeInlines($node->children)],
-            'strikeout' => ['t' => 'Strikeout', 'c' => $this->writeInlines($node->children)],
-            'superscript' => ['t' => 'Superscript', 'c' => $this->writeInlines($node->children)],
-            'subscript' => ['t' => 'Subscript', 'c' => $this->writeInlines($node->children)],
-            'small_caps' => ['t' => 'SmallCaps', 'c' => $this->writeInlines($node->children)],
+            'emph' => ['t' => 'Emph', 'c' => $this->writeInlineList($node)],
+            'strong' => ['t' => 'Strong', 'c' => $this->writeInlineList($node)],
+            'underline' => ['t' => 'Underline', 'c' => $this->writeInlineList($node)],
+            'strikeout' => ['t' => 'Strikeout', 'c' => $this->writeInlineList($node)],
+            'superscript' => ['t' => 'Superscript', 'c' => $this->writeInlineList($node)],
+            'subscript' => ['t' => 'Subscript', 'c' => $this->writeInlineList($node)],
+            'small_caps' => ['t' => 'SmallCaps', 'c' => $this->writeInlineList($node)],
             'quoted' => ['t' => 'Quoted', 'c' => [
                 $this->enumFromNative($node, 'quoteTypeNative', $node->attr('kind') === 'single' ? 'SingleQuote' : 'DoubleQuote'),
-                $this->writeInlines($node->children),
+                $this->writeInlineList($node),
             ]],
             'code' => ['t' => 'Code', 'c' => [$this->attrTuple($node), (string) $node->attr('text', '')]],
             'math' => ['t' => 'Math', 'c' => [
@@ -1603,13 +1605,24 @@ final class PandocJsonWriter
             'raw_html_inline', 'raw_tex', 'raw_tex_inline', 'raw_markdown', 'raw_inline' => ['t' => 'RawInline', 'c' => [$this->rawFormatPayload($node), $this->rawText($node)]],
             'citation' => $this->writeCiteInline([$node], $this->citationSourceInlines($node), $node->attr('citationRecordsNative')),
             'citation_group' => $this->writeCiteInline($this->citationGroupChildren($node), $this->citationSourceInlines($node), $node->attr('citationRecordsNative')),
-            'link' => ['t' => 'Link', 'c' => [$this->attrTuple($node), $this->writeInlines($node->children), $this->targetTuple($node)]],
-            'image' => ['t' => 'Image', 'c' => [$this->attrTuple($node), $this->writeInlines($this->imageLabelInlines($node)), $this->targetTuple($node)]],
+            'link' => ['t' => 'Link', 'c' => [$this->attrTuple($node), $this->writeInlineList($node), $this->targetTuple($node)]],
+            'image' => ['t' => 'Image', 'c' => [$this->attrTuple($node), $this->writeInlineList($node, $this->imageLabelInlines($node)), $this->targetTuple($node)]],
             'note' => $this->noteInline($node),
-            'span' => ['t' => 'Span', 'c' => [$this->attrTuple($node), $this->writeInlines($node->children)]],
+            'span' => ['t' => 'Span', 'c' => [$this->attrTuple($node), $this->writeInlineList($node)]],
             'native_inline' => $this->nativeTaggedConstructor($node, 'inline'),
             default => throw new \InvalidArgumentException("Unsupported AST inline node for Pandoc JSON: {$node->type}"),
         };
+    }
+
+    /**
+     * @param list<AstNode>|null $children
+     * @return list<mixed>
+     */
+    private function writeInlineList(AstNode $node, ?array $children = null): array
+    {
+        $inlines = $this->writeInlines($children ?? $node->children);
+
+        return $this->reusableInlineListPayload($node->attr('inlineListNative'), $inlines) ?? $inlines;
     }
 
     /**
@@ -1632,7 +1645,7 @@ final class PandocJsonWriter
     {
         $note = [
             't' => 'Note',
-            'c' => $this->childrenAsBlocks($node),
+            'c' => $this->writeNoteBlocks($node),
         ];
         $label = $this->sourceNoteLabel($node);
         if ($label !== null) {
@@ -1640,6 +1653,16 @@ final class PandocJsonWriter
         }
 
         return $note;
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function writeNoteBlocks(AstNode $node): array
+    {
+        $blocks = $this->childrenAsBlocks($node);
+
+        return $this->reusableBlockListPayload($node->attr('noteBlocksNative'), $blocks) ?? $blocks;
     }
 
     private function sourceNoteLabel(AstNode $node): ?string
