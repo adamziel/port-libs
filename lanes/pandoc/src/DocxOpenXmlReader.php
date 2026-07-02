@@ -378,6 +378,17 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['customUiImageRelationshipExistingCount'] = $customUiParts['imageExistingCount'];
         $packageProvenance['summary']['customUiImageRelationshipMissingCount'] = $customUiParts['imageMissingCount'];
         $packageProvenance['summary']['customUiImageRelationshipExternalCount'] = $customUiParts['imageExternalCount'];
+        $packageProvenance['summary']['customUiImageRelationshipIssueCount'] = $customUiParts['imageIssueCount'];
+        $packageProvenance['summary']['customUiImageRelationshipTypeCounts'] = $customUiParts['imageRelationshipTypeCounts'];
+        $packageProvenance['summary']['customUiImageRelationshipTargetDirectoryCounts'] = $customUiParts['imageTargetDirectoryCounts'];
+        $packageProvenance['summary']['customUiImageRelationshipTargetPartExtensionCounts'] = $customUiParts['imageTargetPartExtensionCounts'];
+        $packageProvenance['summary']['customUiImageRelationshipContentTypeBaseCounts'] = $customUiParts['imageContentTypeBaseCounts'];
+        $packageProvenance['summary']['customUiImageRelationshipContentTypeSourceCounts'] = $customUiParts['imageContentTypeSourceCounts'];
+        $packageProvenance['summary']['customUiImageRelationshipTargetReferenceSuffixCount'] = $customUiParts['imageTargetReferenceSuffixCount'];
+        $packageProvenance['summary']['customUiImageRelationshipTargetReferenceSuffixes'] = $customUiParts['imageTargetReferenceSuffixes'];
+        $packageProvenance['summary']['customUiImageRelationshipTargetFragmentCount'] = $customUiParts['imageTargetFragmentCount'];
+        $packageProvenance['summary']['customUiImageRelationshipTargetFragments'] = $customUiParts['imageTargetFragments'];
+        $packageProvenance['summary']['customUiImageRelationshipTargetFragmentCounts'] = $customUiParts['imageTargetFragmentCounts'];
         $packageProvenance['summary']['customUiIssueCount'] = $customUiParts['issueCount'];
         $packageProvenance['summary']['customUiIssueCodes'] = $customUiParts['issueCodes'];
         $stylesPart = $this->stylesPart($parts, $documentRelationships, $documentPart);
@@ -39880,6 +39891,18 @@ final class DocxOpenXmlReader
         $imageMissingCount = 0;
         $imageExternalCount = 0;
         $imageIssueCount = 0;
+        $imageCountMaps = [
+            'relationshipTypeCounts' => [],
+            'targetDirectoryCounts' => [],
+            'targetPartExtensionCounts' => [],
+            'contentTypeBaseCounts' => [],
+            'contentTypeSourceCounts' => [],
+            'targetFragmentCounts' => [],
+        ];
+        $imageTargetReferenceSuffixCount = 0;
+        $imageTargetReferenceSuffixes = [];
+        $imageTargetFragmentCount = 0;
+        $imageTargetFragments = [];
 
         foreach ($rootRelationships as $relationship) {
             if (!$this->isCustomUiRelationshipType($relationship['type'])) {
@@ -39954,6 +39977,25 @@ final class DocxOpenXmlReader
             $imageMissingCount += $images['missingCount'];
             $imageExternalCount += $images['externalCount'];
             $imageIssueCount += $images['issueCount'];
+            foreach ($imageCountMaps as $sourceKey => &$countMap) {
+                foreach (is_array($images[$sourceKey] ?? null) ? $images[$sourceKey] : [] as $key => $count) {
+                    if (!is_string($key) && !is_int($key)) {
+                        continue;
+                    }
+
+                    $key = (string) $key;
+                    $countMap[$key] = ($countMap[$key] ?? 0) + (int) $count;
+                }
+            }
+            unset($countMap);
+            $imageTargetReferenceSuffixCount += (int) ($images['targetReferenceSuffixCount'] ?? 0);
+            foreach (is_array($images['targetReferenceSuffixes'] ?? null) ? $images['targetReferenceSuffixes'] : [] as $suffix) {
+                $this->appendUniqueString($imageTargetReferenceSuffixes, is_string($suffix) ? $suffix : null);
+            }
+            $imageTargetFragmentCount += (int) ($images['targetFragmentCount'] ?? 0);
+            foreach (is_array($images['targetFragments'] ?? null) ? $images['targetFragments'] : [] as $fragment) {
+                $this->appendUniqueString($imageTargetFragments, is_string($fragment) ? $fragment : null);
+            }
             foreach ($images['issueCodes'] as $imageIssueCode) {
                 if (is_string($imageIssueCode) && $imageIssueCode !== '') {
                     $issueCodes[$imageIssueCode] = true;
@@ -40038,6 +40080,10 @@ final class DocxOpenXmlReader
         }
 
         ksort($issueCodes, SORT_STRING);
+        foreach ($imageCountMaps as &$countMap) {
+            ksort($countMap, SORT_STRING);
+        }
+        unset($countMap);
 
         return [
             'present' => $items !== [],
@@ -40060,6 +40106,16 @@ final class DocxOpenXmlReader
             'imageMissingCount' => $imageMissingCount,
             'imageExternalCount' => $imageExternalCount,
             'imageIssueCount' => $imageIssueCount,
+            'imageRelationshipTypeCounts' => $imageCountMaps['relationshipTypeCounts'],
+            'imageTargetDirectoryCounts' => $imageCountMaps['targetDirectoryCounts'],
+            'imageTargetPartExtensionCounts' => $imageCountMaps['targetPartExtensionCounts'],
+            'imageContentTypeBaseCounts' => $imageCountMaps['contentTypeBaseCounts'],
+            'imageContentTypeSourceCounts' => $imageCountMaps['contentTypeSourceCounts'],
+            'imageTargetReferenceSuffixCount' => $imageTargetReferenceSuffixCount,
+            'imageTargetReferenceSuffixes' => $imageTargetReferenceSuffixes,
+            'imageTargetFragmentCount' => $imageTargetFragmentCount,
+            'imageTargetFragments' => $imageTargetFragments,
+            'imageTargetFragmentCounts' => $imageCountMaps['targetFragmentCounts'],
             'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])) + $imageIssueCount,
             'relationshipIds' => $relationshipIds,
             'relationshipTypes' => $relationshipTypes,
@@ -40092,9 +40148,19 @@ final class DocxOpenXmlReader
             'unexpectedRelationshipTypeCount' => 0,
             'issueCount' => 0,
             'relationshipIds' => [],
+            'relationshipTypeCounts' => [],
             'targetParts' => [],
+            'targetDirectoryCounts' => [],
+            'targetPartExtensionCounts' => [],
             'externalTargets' => [],
             'contentTypes' => [],
+            'contentTypeBaseCounts' => [],
+            'contentTypeSourceCounts' => [],
+            'targetReferenceSuffixCount' => 0,
+            'targetReferenceSuffixes' => [],
+            'targetFragmentCount' => 0,
+            'targetFragments' => [],
+            'targetFragmentCounts' => [],
             'issueCodes' => [],
             'byteExposurePolicy' => 'custom-ui-image-bytes-blocked',
             'reviewPolicy' => 'custom-ui-image-metadata-only',
@@ -40123,6 +40189,14 @@ final class DocxOpenXmlReader
         $targetParts = [];
         $externalTargets = [];
         $contentTypesSeen = [];
+        $relationshipTypeCounts = [];
+        $contentTypeBaseCounts = [];
+        $contentTypeSourceCounts = [];
+        $targetReferenceSuffixCount = 0;
+        $targetReferenceSuffixes = [];
+        $targetFragmentCount = 0;
+        $targetFragments = [];
+        $targetFragmentCounts = [];
         $issueCodes = [];
         $unexpectedRelationshipTypeCount = 0;
 
@@ -40147,6 +40221,32 @@ final class DocxOpenXmlReader
             $this->appendUniqueString($targetParts, is_string($item['targetPart'] ?? null) ? $item['targetPart'] : null);
             if (($item['external'] ?? false) === true) {
                 $this->appendUniqueString($externalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
+                $contentTypeBaseKey = '(external)';
+                $contentTypeSourceKey = '(external)';
+            } else {
+                $contentTypeBase = is_string($item['contentTypeBase'] ?? null) ? $item['contentTypeBase'] : '';
+                $contentTypeBaseKey = $contentTypeBase !== '' ? $contentTypeBase : '(missing)';
+                $contentTypeSource = is_string($item['contentTypeSource'] ?? null) ? $item['contentTypeSource'] : '';
+                $contentTypeSourceKey = $contentTypeSource !== '' ? $contentTypeSource : 'missing';
+            }
+            $relationshipType = is_string($item['type'] ?? null) && $item['type'] !== ''
+                ? $item['type']
+                : '(missing)';
+            $relationshipTypeCounts[$relationshipType] = ($relationshipTypeCounts[$relationshipType] ?? 0) + 1;
+            $contentTypeBaseCounts[$contentTypeBaseKey] = ($contentTypeBaseCounts[$contentTypeBaseKey] ?? 0) + 1;
+            $contentTypeSourceCounts[$contentTypeSourceKey] = ($contentTypeSourceCounts[$contentTypeSourceKey] ?? 0) + 1;
+            $targetReferenceSuffix = is_string($item['targetReferenceSuffix'] ?? null)
+                ? $item['targetReferenceSuffix']
+                : '';
+            if ($targetReferenceSuffix !== '') {
+                ++$targetReferenceSuffixCount;
+                $this->appendUniqueString($targetReferenceSuffixes, $targetReferenceSuffix);
+            }
+            $targetFragment = is_string($item['targetFragment'] ?? null) ? $item['targetFragment'] : '';
+            if ($targetFragment !== '') {
+                ++$targetFragmentCount;
+                $this->appendUniqueString($targetFragments, $targetFragment);
+                $targetFragmentCounts[$targetFragment] = ($targetFragmentCounts[$targetFragment] ?? 0) + 1;
             }
             $this->appendUniqueString($contentTypesSeen, is_string($item['contentType'] ?? null) ? $item['contentType'] : null);
             foreach (($item['issues'] ?? []) as $issue) {
@@ -40156,7 +40256,12 @@ final class DocxOpenXmlReader
             }
         }
 
+        ksort($relationshipTypeCounts, SORT_STRING);
+        ksort($contentTypeBaseCounts, SORT_STRING);
+        ksort($contentTypeSourceCounts, SORT_STRING);
+        ksort($targetFragmentCounts, SORT_STRING);
         ksort($issueCodes, SORT_STRING);
+        $targetLookup = $this->packageRootRelationshipTargetLookupMaps($items);
 
         return [
             'relationshipsPart' => $relationshipsPart,
@@ -40174,9 +40279,19 @@ final class DocxOpenXmlReader
             'unexpectedRelationshipTypeCount' => $unexpectedRelationshipTypeCount,
             'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])) + $unexpectedRelationshipTypeCount,
             'relationshipIds' => $relationshipIds,
+            'relationshipTypeCounts' => $relationshipTypeCounts,
             'targetParts' => $targetParts,
+            'targetDirectoryCounts' => $targetLookup['targetDirectoryCounts'],
+            'targetPartExtensionCounts' => $targetLookup['targetPartExtensionCounts'],
             'externalTargets' => $externalTargets,
             'contentTypes' => $contentTypesSeen,
+            'contentTypeBaseCounts' => $contentTypeBaseCounts,
+            'contentTypeSourceCounts' => $contentTypeSourceCounts,
+            'targetReferenceSuffixCount' => $targetReferenceSuffixCount,
+            'targetReferenceSuffixes' => $targetReferenceSuffixes,
+            'targetFragmentCount' => $targetFragmentCount,
+            'targetFragments' => $targetFragments,
+            'targetFragmentCounts' => $targetFragmentCounts,
             'issueCodes' => array_keys($issueCodes),
             'byteExposurePolicy' => 'custom-ui-image-bytes-blocked',
             'reviewPolicy' => 'custom-ui-image-metadata-only',
@@ -40224,7 +40339,7 @@ final class DocxOpenXmlReader
         $issues = array_values(array_unique($issues));
         sort($issues, SORT_STRING);
 
-        return [
+        $item = [
             'index' => $index,
             'sourcePart' => $customUiPart,
             'relationshipsPart' => $relationshipsPart,
@@ -40236,6 +40351,10 @@ final class DocxOpenXmlReader
             'resolvedTarget' => $summary['resolvedTarget'],
             'targetPart' => $targetPart,
             'targetQuery' => $summary['targetQuery'],
+            'targetQueryParameterCount' => $summary['targetQueryParameterCount'],
+            'targetQueryParameters' => $summary['targetQueryParameters'],
+            'targetQueryParameterNames' => $summary['targetQueryParameterNames'],
+            'targetQueryParameterMap' => $summary['targetQueryParameterMap'],
             'targetFragment' => $summary['targetFragment'],
             'targetReferenceSuffix' => $summary['targetReferenceSuffix'],
             'targetParentTraversalCount' => $summary['targetParentTraversalCount'],
@@ -40265,6 +40384,8 @@ final class DocxOpenXmlReader
             'valid' => $issues === [],
             'issues' => $issues,
         ];
+
+        return array_merge($item, $this->packageRootRelationshipTargetPathFields($targetPart));
     }
 
     private function isCustomUiRelationshipType(string $relationshipType): bool
