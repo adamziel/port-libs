@@ -23,6 +23,23 @@ $inlineTypes = static fn (AstNode $node): array => array_map(
     $node->children
 );
 
+$plainText = static function (AstNode $node) use (&$plainText): string {
+    if (in_array($node->type, ['text', 'code', 'raw_inline', 'raw_html_inline', 'math'], true)) {
+        return (string) $node->attr('text', '');
+    }
+
+    if ($node->type === 'softbreak' || $node->type === 'linebreak') {
+        return ' ';
+    }
+
+    $text = '';
+    foreach ($node->children as $child) {
+        $text .= $plainText($child);
+    }
+
+    return $text;
+};
+
 $inlineNoteCitationFixture = static fn (): string =>
     (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-markdown-inline-note-citations.md');
 
@@ -119,9 +136,73 @@ $tests['serializes upstream markdown inline-note citations through native markdo
         $t->contains('<span class="pandoc-citation" data-pandoc-citation-id="smith"', $blocks);
     };
 
+$profileCases = [
+    'commonmark requires inline-notes opt-in' => [
+        'options' => ['format' => 'commonmark'],
+        'expectedNote' => false,
+        'expectedCitation' => false,
+        'literal' => 'foo^[bar [@doe]]',
+    ],
+    'commonmark plus inline notes and citations reads fixture note citation' => [
+        'options' => ['format' => 'commonmark+inline_notes+citations'],
+        'expectedNote' => true,
+        'expectedCitation' => true,
+    ],
+    'commonmark extension option suffix reads fixture note citation' => [
+        'options' => ['format' => 'commonmark', 'extensions' => ['inline_notes', 'citations']],
+        'expectedNote' => true,
+        'expectedCitation' => true,
+    ],
+    'markdown minus inline notes keeps fixture marker literal' => [
+        'options' => ['format' => 'markdown-inline_notes'],
+        'expectedNote' => false,
+        'expectedCitation' => false,
+        'literal' => 'foo^[bar [@doe]]',
+    ],
+    'explicit inline notes false overrides markdown default' => [
+        'options' => ['format' => 'markdown', 'inlineNotes' => false],
+        'expectedNote' => false,
+        'expectedCitation' => false,
+        'literal' => 'foo^[bar [@doe]]',
+    ],
+];
+
+foreach ($profileCases as $label => $case) {
+    $tests['maps upstream markdown inline-note citation profile ' . $label] =
+        static function (TestRunner $t) use ($case, $collectNodes, $plainText): void {
+            $source = 'foo^[bar [@doe]]';
+            $document = (new MarkdownReader($case['options']))->read($source);
+            $paragraph = $document->children[0] ?? new AstNode('missing');
+            $notes = $collectNodes($document, 'note');
+            $citations = $collectNodes($document, 'citation');
+
+            $t->same($case['expectedNote'] ? 1 : 0, count($notes));
+            $t->same($case['expectedCitation'] ? 1 : 0, count($citations));
+
+            if ($case['expectedNote']) {
+                $note = $notes[0] ?? new AstNode('missing');
+                $noteParagraph = $note->children[0] ?? new AstNode('missing');
+                $citation = $citations[0] ?? new AstNode('missing');
+
+                $t->same('bar [@doe]', $noteParagraph->attr('text'));
+                $t->same('doe', $citation->attr('id'));
+                $t->same('normal', $citation->attr('mode'));
+
+                return;
+            }
+
+            $t->same($case['literal'], $plainText($paragraph));
+        };
+}
+
 $tests['records upstream markdown inline-note citation mapped-case count'] =
     static function (TestRunner $t): void {
         $t->same(3, 3);
+    };
+
+$tests['records upstream markdown inline-note citation profile mapped-case count'] =
+    static function (TestRunner $t) use ($profileCases): void {
+        $t->same(5, count($profileCases));
     };
 
 return $tests;
