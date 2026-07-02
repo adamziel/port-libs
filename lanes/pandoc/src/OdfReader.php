@@ -1484,6 +1484,10 @@ final class OdfReader
         $manifestTopLevelSegmentCounts = [];
         $manifestPathExtensionCounts = [];
         $manifestPathShapeItems = [];
+        $manifestPathSegmentPositionMediaFamilyCounts = [];
+        $fullPathsByManifestPathSegmentPositionMediaFamily = [];
+        $manifestPathSegmentPositionByteExposurePolicyCounts = [];
+        $fullPathsByManifestPathSegmentPositionByteExposurePolicy = [];
         $manifestFileEntryOrder = [];
         $manifestByteExposurePolicyCounts = [];
         $manifestByteExposurePolicyItems = [];
@@ -1777,6 +1781,18 @@ final class OdfReader
             if (is_string($manifestPathExtension) && $manifestPathExtension !== '') {
                 $manifestPathExtensionCounts[$manifestPathExtension] = ($manifestPathExtensionCounts[$manifestPathExtension] ?? 0) + 1;
             }
+            self::recordManifestPathSegmentPositionInventory(
+                $manifestPathSegmentPositionMediaFamilyCounts,
+                $fullPathsByManifestPathSegmentPositionMediaFamily,
+                $manifestPathSegmentPositionByteExposurePolicyCounts,
+                $fullPathsByManifestPathSegmentPositionByteExposurePolicy,
+                is_array($manifestPathShape['pathSegmentPositionReviews'] ?? null)
+                    ? $manifestPathShape['pathSegmentPositionReviews']
+                    : [],
+                (string) ($item['fullPath'] ?? ''),
+                self::manifestPackageCoverageMediaFamily($item, null),
+                is_string($item['byteExposurePolicy'] ?? null) ? $item['byteExposurePolicy'] : null
+            );
             $manifestPathShapeItems[] = self::manifestPathShapeItem($item);
             if (is_string($item['partQuery'] ?? null)) {
                 $manifestPartReferenceQueryCount++;
@@ -2174,6 +2190,10 @@ final class OdfReader
         ksort($manifestPathKindCounts, SORT_STRING);
         ksort($manifestTopLevelSegmentCounts, SORT_STRING);
         ksort($manifestPathExtensionCounts, SORT_STRING);
+        self::sortPackageNestedCountMap($manifestPathSegmentPositionMediaFamilyCounts);
+        self::sortPackageNestedStringListMap($fullPathsByManifestPathSegmentPositionMediaFamily);
+        self::sortPackageNestedCountMap($manifestPathSegmentPositionByteExposurePolicyCounts);
+        self::sortPackageNestedStringListMap($fullPathsByManifestPathSegmentPositionByteExposurePolicy);
         ksort($packagePartByteExposurePolicyCounts, SORT_STRING);
         ksort($packagePartByteExposurePolicyByteLengths, SORT_STRING);
         ksort($packagePartByteExposurePolicyCompressedByteLengths, SORT_STRING);
@@ -2282,6 +2302,10 @@ final class OdfReader
             'manifestTopLevelSegmentCounts' => $manifestTopLevelSegmentCounts,
             'manifestPathExtensionCounts' => $manifestPathExtensionCounts,
             'manifestPathShapeItems' => $manifestPathShapeItems,
+            'manifestPathSegmentPositionMediaFamilyCounts' => $manifestPathSegmentPositionMediaFamilyCounts,
+            'fullPathsByManifestPathSegmentPositionMediaFamily' => $fullPathsByManifestPathSegmentPositionMediaFamily,
+            'manifestPathSegmentPositionByteExposurePolicyCounts' => $manifestPathSegmentPositionByteExposurePolicyCounts,
+            'fullPathsByManifestPathSegmentPositionByteExposurePolicy' => $fullPathsByManifestPathSegmentPositionByteExposurePolicy,
             'undeclaredEntryCount' => count($undeclaredEntries),
             'packageDirectoryCount' => $packageDirectoryCount,
             'extensionlessPackagePartCount' => $packagePartExtensions['extensionlessPackagePartCount'],
@@ -3681,6 +3705,10 @@ final class OdfReader
             'manifestTopLevelSegmentCounts' => $provenance['manifestTopLevelSegmentCounts'] ?? [],
             'manifestPathExtensionCounts' => $provenance['manifestPathExtensionCounts'] ?? [],
             'manifestPathShapeItems' => $provenance['manifestPathShapeItems'] ?? [],
+            'manifestPathSegmentPositionMediaFamilyCounts' => $provenance['manifestPathSegmentPositionMediaFamilyCounts'] ?? [],
+            'fullPathsByManifestPathSegmentPositionMediaFamily' => $provenance['fullPathsByManifestPathSegmentPositionMediaFamily'] ?? [],
+            'manifestPathSegmentPositionByteExposurePolicyCounts' => $provenance['manifestPathSegmentPositionByteExposurePolicyCounts'] ?? [],
+            'fullPathsByManifestPathSegmentPositionByteExposurePolicy' => $provenance['fullPathsByManifestPathSegmentPositionByteExposurePolicy'] ?? [],
             'manifestMediaTypeSummary' => $manifestMediaTypeSummary,
             'manifestMediaTypeCount' => $manifestMediaTypeSummary['mediaTypeCount'] ?? 0,
             'manifestMediaTypeParameterizedItemCount' => $manifestMediaTypeSummary['parameterizedItemCount'] ?? 0,
@@ -4043,6 +4071,10 @@ final class OdfReader
             'manifestTopLevelSegmentCounts' => $provenance['manifestTopLevelSegmentCounts'] ?? [],
             'manifestPathExtensionCounts' => $provenance['manifestPathExtensionCounts'] ?? [],
             'manifestPathShapeItems' => $provenance['manifestPathShapeItems'] ?? [],
+            'manifestPathSegmentPositionMediaFamilyCounts' => $provenance['manifestPathSegmentPositionMediaFamilyCounts'] ?? [],
+            'fullPathsByManifestPathSegmentPositionMediaFamily' => $provenance['fullPathsByManifestPathSegmentPositionMediaFamily'] ?? [],
+            'manifestPathSegmentPositionByteExposurePolicyCounts' => $provenance['manifestPathSegmentPositionByteExposurePolicyCounts'] ?? [],
+            'fullPathsByManifestPathSegmentPositionByteExposurePolicy' => $provenance['fullPathsByManifestPathSegmentPositionByteExposurePolicy'] ?? [],
             'manifestMediaTypeSummary' => $manifestMediaTypeSummary,
             'manifestMediaTypeCount' => $manifestMediaTypeSummary['mediaTypeCount'] ?? 0,
             'manifestMediaTypeParameterizedItemCount' => $manifestMediaTypeSummary['parameterizedItemCount'] ?? 0,
@@ -7904,6 +7936,49 @@ final class OdfReader
         }
     }
 
+    /**
+     * @param list<array<string, mixed>> $positionReviews
+     */
+    private static function recordManifestPathSegmentPositionInventory(
+        array &$mediaFamilyCounts,
+        array &$fullPathsByMediaFamily,
+        array &$byteExposurePolicyCounts,
+        array &$fullPathsByByteExposurePolicy,
+        array $positionReviews,
+        string $fullPath,
+        ?string $mediaFamily,
+        ?string $byteExposurePolicy
+    ): void {
+        $positions = [];
+        foreach ($positionReviews as $review) {
+            $position = is_array($review) && is_string($review['position'] ?? null)
+                ? $review['position']
+                : '';
+            if ($position !== '') {
+                $positions[$position] = true;
+            }
+        }
+
+        foreach (array_keys($positions) as $position) {
+            if ($mediaFamily !== null && $mediaFamily !== '') {
+                $mediaFamilyCounts[$position] ??= [];
+                $mediaFamilyCounts[$position][$mediaFamily] = ($mediaFamilyCounts[$position][$mediaFamily] ?? 0) + 1;
+                $fullPathsByMediaFamily[$position] ??= [];
+                $fullPathsByMediaFamily[$position][$mediaFamily] ??= [];
+                $fullPathsByMediaFamily[$position][$mediaFamily][$fullPath] = true;
+            }
+
+            if ($byteExposurePolicy !== null && $byteExposurePolicy !== '') {
+                $byteExposurePolicyCounts[$position] ??= [];
+                $byteExposurePolicyCounts[$position][$byteExposurePolicy] =
+                    ($byteExposurePolicyCounts[$position][$byteExposurePolicy] ?? 0) + 1;
+                $fullPathsByByteExposurePolicy[$position] ??= [];
+                $fullPathsByByteExposurePolicy[$position][$byteExposurePolicy] ??= [];
+                $fullPathsByByteExposurePolicy[$position][$byteExposurePolicy][$fullPath] = true;
+            }
+        }
+    }
+
     private static function finalizePackageAreaSummaries(array $summaries): array
     {
         ksort($summaries, SORT_STRING);
@@ -8118,6 +8193,33 @@ final class OdfReader
         $isDirectory = ($entry['isDirectory'] ?? false) === true || ($packagePath !== '' && str_ends_with($packagePath, '/'));
         if ($isDirectory) {
             return 'directory';
+        }
+        $normalizedPackagePath = strtolower(ltrim($packagePath, '/'));
+        if (
+            ($entry['scriptPackagePart'] ?? false) === true
+            || str_starts_with($normalizedPackagePath, 'basic/')
+            || str_starts_with($normalizedPackagePath, 'dialogs/')
+            || str_starts_with($normalizedPackagePath, 'scripts/')
+        ) {
+            return 'script';
+        }
+        if (
+            ($entry['configurationPackagePart'] ?? false) === true
+            || self::isConfigurationPackagePartName($packagePath)
+        ) {
+            return 'configuration';
+        }
+        if (($entry['thumbnailPackagePart'] ?? false) === true) {
+            return 'thumbnail';
+        }
+        if (($entry['signaturePackagePart'] ?? false) === true) {
+            return 'signature';
+        }
+        if (($entry['fontPackagePart'] ?? false) === true) {
+            return 'font';
+        }
+        if (($entry['rdfMetadataPart'] ?? false) === true) {
+            return 'rdf';
         }
         if ($mediaTypeBase === 'application/rdf+xml') {
             return 'rdf';
