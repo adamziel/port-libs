@@ -278,6 +278,104 @@ XML);
         );
         $t->same('Identifier Normalization Packet :: 10.5555/migration.caps :: 9781402894626 :: 34567890 :: PMC3456789', $styled->renderBibliographyEntry('identifier-normalization'));
     },
+    'maps legacy biblatex compact isbn and issn aliases into csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@book{legacy-isbn13,
+  author = {Ng, Nia},
+  title  = {Legacy ISBN13 Manual},
+  date   = {2026},
+  isbn13 = {ISBN-13: 978 1 4028 9462 6}
+}
+
+@book{legacy-eisbn,
+  author = {Roe, Pat},
+  title  = {Legacy Electronic ISBN Manual},
+  date   = {2025},
+  eisbn  = {eISBN 978 0 596 52068 7}
+}
+
+@article{legacy-print-issn,
+  author       = {Doe, Jane},
+  title        = {Legacy Print ISSN Packet},
+  journaltitle = {Journal of Source Review},
+  date         = {2024},
+  printissn    = {print ISSN 1234 5678}
+}
+
+@article{legacy-eissn,
+  author       = {{Repository Desk}},
+  title        = {Legacy Electronic ISSN Packet},
+  journaltitle = {Online Import Review},
+  date         = {2023},
+  eissn        = {eISSN: 2468-1357}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+
+        $t->same('9781402894626', $items['legacy-isbn13']['ISBN'] ?? null);
+        $t->same('9780596520687', $items['legacy-eisbn']['ISBN'] ?? null);
+        $t->same('1234-5678', $items['legacy-print-issn']['ISSN'] ?? null);
+        $t->same('2468-1357', $items['legacy-eissn']['ISSN'] ?? null);
+        $t->same('ISBN-13: 978 1 4028 9462 6', $items['legacy-isbn13']['rawBibtex']['fields']['isbn13'] ?? null);
+        $t->same('eISBN 978 0 596 52068 7', $items['legacy-eisbn']['rawBibtex']['fields']['eisbn'] ?? null);
+        $t->same('print ISSN 1234 5678', $items['legacy-print-issn']['rawBibtex']['fields']['printissn'] ?? null);
+        $t->same('eISSN: 2468-1357', $items['legacy-eissn']['rawBibtex']['fields']['eissn'] ?? null);
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Identifier Alias Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-identifier-alias-review</id>
+    <updated>2026-07-01T18:30:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="isbn-13"/>
+        <text variable="eisbn"/>
+        <text variable="printissn"/>
+        <text variable="eissn"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="ISBN"/>
+      <text variable="ISSN"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $t->same('Bounded Legacy BibLaTeX Identifier Alias Review', $styled->cslStyleSummary()['title'] ?? null);
+        $t->same('9781402894626', $styled->item('legacy-isbn13')['isbn'] ?? null);
+        $t->same('9780596520687', $styled->item('legacy-eisbn')['isbn'] ?? null);
+        $t->same('1234-5678', $styled->item('legacy-print-issn')['issn'] ?? null);
+        $t->same('2468-1357', $styled->item('legacy-eissn')['issn'] ?? null);
+        $t->same(
+            '[Legacy ISBN13 Manual | 9781402894626 | 9781402894626; Legacy Electronic ISBN Manual | 9780596520687 | 9780596520687; Legacy Print ISSN Packet | 1234-5678 | 1234-5678; Legacy Electronic ISSN Packet | 2468-1357 | 2468-1357]',
+            $styled->renderCitationCluster([
+                new AstNode('citation', ['id' => 'legacy-isbn13', 'text' => '[@legacy-isbn13]']),
+                new AstNode('citation', ['id' => 'legacy-eisbn', 'text' => '[@legacy-eisbn]']),
+                new AstNode('citation', ['id' => 'legacy-print-issn', 'text' => '[@legacy-print-issn]']),
+                new AstNode('citation', ['id' => 'legacy-eissn', 'text' => '[@legacy-eissn]']),
+            ])
+        );
+        $t->same('Legacy ISBN13 Manual :: 9781402894626', $styled->renderBibliographyEntry('legacy-isbn13'));
+        $t->same('Legacy Electronic ISSN Packet :: 2468-1357', $styled->renderBibliographyEntry('legacy-eissn'));
+
+        $document = (new MarkdownReader())->read('Legacy identifier aliases @legacy-isbn13, ebook [@legacy-eisbn], print serial @legacy-print-issn, and online serial [@legacy-eissn] stay visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->contains('<p>Legacy identifier aliases Ng (2026), ebook [Legacy Electronic ISBN Manual | 9780596520687 | 9780596520687], print serial Doe (2024), and online serial [Legacy Electronic ISSN Packet | 2468-1357 | 2468-1357] stay visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Legacy ISBN13 Manual :: 9781402894626</dd>', $blocks);
+        $t->contains('<dt>Desk 2023</dt><dd>Legacy Electronic ISSN Packet :: 2468-1357</dd>', $blocks);
+    },
     'carries legacy biblatex authority identifiers in bibliography handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @article{legacy-authority-person,
