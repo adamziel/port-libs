@@ -1409,6 +1409,9 @@ final class OdfReader
         $rootCustomAttributeCount = 0;
         $rootCustomAttributeNames = [];
         $rootCustomAttributeItems = [];
+        $rootNamespaceDeclarationCount = 0;
+        $rootNamespaceDeclarationNames = [];
+        $rootNamespaceDeclarationItems = [];
         $manifestPartReferenceSuffixItems = [];
         $manifestMediaTypeMismatches = [];
         $byteExposurePolicyCounts = [];
@@ -1530,6 +1533,27 @@ final class OdfReader
                     'rootNamespaceDeclarationMap' => $rootAttributeProvenance['namespaceDeclarationMap'] ?? [],
                 ];
             }
+            $partNamespaceDeclarationCount = (int) ($rootAttributeProvenance['namespaceDeclarationCount'] ?? 0);
+            if ($partNamespaceDeclarationCount > 0) {
+                $rootNamespaceDeclarationCount += $partNamespaceDeclarationCount;
+                foreach ($rootAttributeProvenance['namespaceDeclarationNames'] ?? [] as $declarationName) {
+                    if (is_string($declarationName) && $declarationName !== '' && !in_array($declarationName, $rootNamespaceDeclarationNames, true)) {
+                        $rootNamespaceDeclarationNames[] = $declarationName;
+                    }
+                }
+                $rootNamespaceDeclarationItems[] = [
+                    'part' => $part,
+                    'expectedRoot' => $expectedRoot,
+                    'rootName' => $rootName,
+                    'rootNamespaceDeclarationCount' => $partNamespaceDeclarationCount,
+                    'rootNamespaceDeclarationNames' => $rootAttributeProvenance['namespaceDeclarationNames'] ?? [],
+                    'rootNamespaceDeclarations' => $rootAttributeProvenance['namespaceDeclarations'] ?? [],
+                    'rootNamespaceDeclarationMap' => $rootAttributeProvenance['namespaceDeclarationMap'] ?? [],
+                    'rootCustomAttributeCount' => $rootAttributeProvenance['customAttributeCount'] ?? 0,
+                    'rootCustomAttributeNames' => $rootAttributeProvenance['customAttributeNames'] ?? [],
+                    'rootCustomAttributeMap' => $rootAttributeProvenance['customAttributeMap'] ?? [],
+                ];
+            }
 
             $items[] = [
                 'part' => $part,
@@ -1589,6 +1613,7 @@ final class OdfReader
 
         ksort($versionCounts, SORT_STRING);
         sort($rootCustomAttributeNames, SORT_STRING);
+        sort($rootNamespaceDeclarationNames, SORT_STRING);
         ksort($byteExposurePolicyCounts, SORT_STRING);
 
         return [
@@ -1604,6 +1629,10 @@ final class OdfReader
             'rootCustomAttributeCount' => $rootCustomAttributeCount,
             'rootCustomAttributeNames' => $rootCustomAttributeNames,
             'rootCustomAttributeItems' => $rootCustomAttributeItems,
+            'rootNamespaceDeclarationPartCount' => count($rootNamespaceDeclarationItems),
+            'rootNamespaceDeclarationCount' => $rootNamespaceDeclarationCount,
+            'rootNamespaceDeclarationNames' => $rootNamespaceDeclarationNames,
+            'rootNamespaceDeclarationItems' => $rootNamespaceDeclarationItems,
             'manifestPartReferenceSuffixCount' => count($manifestPartReferenceSuffixItems),
             'manifestPartReferenceQueryCount' => count(array_filter(
                 $manifestPartReferenceSuffixItems,
@@ -17151,6 +17180,10 @@ final class OdfReader
         $missingPartCount = 0;
         $encryptedPartCount = 0;
         $referencedPartCount = 0;
+        $invalidDeclaredSizeCount = 0;
+        $declaredSizeMismatchCount = 0;
+        $diagnosticCount = 0;
+        $diagnosticCodeCounts = [];
         foreach ($parts as $partMetadata) {
             if (($partMetadata['declared'] ?? false) === true) {
                 $declaredPartCount++;
@@ -17167,6 +17200,27 @@ final class OdfReader
                 $referencedPartCount++;
             }
         }
+        foreach (array_merge($directories, $parts) as $scriptMetadataItem) {
+            if (($scriptMetadataItem['declaredSizeInvalid'] ?? false) === true) {
+                $invalidDeclaredSizeCount++;
+            }
+            if (($scriptMetadataItem['declaredSizeMismatch'] ?? false) === true) {
+                $declaredSizeMismatchCount++;
+            }
+
+            $diagnostics = is_array($scriptMetadataItem['diagnostics'] ?? null)
+                ? $scriptMetadataItem['diagnostics']
+                : [];
+            foreach ($diagnostics as $diagnostic) {
+                if (!is_string($diagnostic) || $diagnostic === '') {
+                    continue;
+                }
+
+                $diagnosticCount++;
+                $diagnosticCodeCounts[$diagnostic] = ($diagnosticCodeCounts[$diagnostic] ?? 0) + 1;
+            }
+        }
+        ksort($diagnosticCodeCounts, SORT_STRING);
 
         return [
             'count' => count($parts),
@@ -17179,6 +17233,11 @@ final class OdfReader
             'referencedPartCount' => $referencedPartCount,
             'unreferencedPartCount' => count($parts) - $referencedPartCount,
             'referenceCount' => count($references),
+            'invalidDeclaredSizeCount' => $invalidDeclaredSizeCount,
+            'declaredSizeMismatchCount' => $declaredSizeMismatchCount,
+            'diagnosticCount' => $diagnosticCount,
+            'diagnosticCodeCounts' => $diagnosticCodeCounts,
+            'diagnosticCodes' => array_keys($diagnosticCodeCounts),
             'kindCounts' => $kindCounts,
             'languageCounts' => $languageCounts,
             'directories' => $directories,
@@ -17193,6 +17252,11 @@ final class OdfReader
      */
     private function scriptDirectoryMetadata(array $item): array
     {
+        $diagnostics = [];
+        if (($item['declaredSizeInvalid'] ?? false) === true) {
+            $diagnostics[] = 'odf-script-package-invalid-declared-size';
+        }
+
         return self::withoutEmpty([
             'fullPath' => $item['fullPath'] ?? null,
             'part' => $item['part'] ?? null,
@@ -17201,7 +17265,15 @@ final class OdfReader
             'declared' => true,
             'encrypted' => ($item['encrypted'] ?? false) === true,
             'canExposeBytes' => false,
+            'byteLength' => null,
+            'storedByteLength' => $item['storedByteLength'] ?? null,
+            'declaredSize' => $item['declaredSize'] ?? null,
+            'declaredSizeRaw' => $item['declaredSizeRaw'] ?? null,
+            'declaredSizeValid' => ($item['declaredSizeValid'] ?? false) === true,
+            'declaredSizeInvalid' => ($item['declaredSizeInvalid'] ?? false) === true,
+            'declaredSizeMismatch' => ($item['declaredSizeMismatch'] ?? false) === true,
             'encryption' => $item['encryption'] ?? null,
+            'diagnostics' => $diagnostics,
         ]);
     }
 
@@ -20565,6 +20637,9 @@ final class OdfReader
                 'encrypted' => false,
                 'declared' => false,
                 'declaredSize' => null,
+                'declaredSizeRaw' => null,
+                'declaredSizeValid' => false,
+                'declaredSizeInvalid' => false,
                 'declaredSizeMismatch' => false,
                 'byteExposurePolicy' => str_ends_with($part, '/') ? 'directory-entry-no-bytes' : 'form-package-bytes-blocked',
             ];
@@ -20608,6 +20683,9 @@ final class OdfReader
             } elseif (!$mediaTypeValid) {
                 $issues[] = 'odf-form-package-invalid-media-type';
             }
+            if (($item['declaredSizeInvalid'] ?? false) === true) {
+                $issues[] = 'odf-form-package-invalid-declared-size';
+            }
             foreach ($issues as $issue) {
                 $issueCodes[$issue] = true;
             }
@@ -20646,6 +20724,9 @@ final class OdfReader
                 'storedByteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
                 'storedCrc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
                 'declaredSize' => $item['declaredSize'] ?? null,
+                'declaredSizeRaw' => $item['declaredSizeRaw'] ?? null,
+                'declaredSizeValid' => ($item['declaredSizeValid'] ?? false) === true,
+                'declaredSizeInvalid' => ($item['declaredSizeInvalid'] ?? false) === true,
                 'declaredSizeMismatch' => ($item['declaredSizeMismatch'] ?? false) === true,
                 'canExposeBytes' => false,
                 'canExposeAsDocumentMedia' => false,
@@ -20673,6 +20754,7 @@ final class OdfReader
             'encryptedCount' => count(array_filter($items, static fn (array $item): bool => $item['encrypted'] === true)),
             'missingMediaTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('odf-form-package-missing-media-type', $item['issues'], true))),
             'invalidMediaTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('odf-form-package-invalid-media-type', $item['issues'], true))),
+            'invalidDeclaredSizeCount' => count(array_filter($items, static fn (array $item): bool => $item['declaredSizeInvalid'] === true)),
             'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
             'issueCodes' => array_keys($issueCodes),
             'kindCounts' => $kindCounts,

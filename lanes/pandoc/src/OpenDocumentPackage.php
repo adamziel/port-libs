@@ -816,6 +816,9 @@ final class OpenDocumentPackage
         $rootCustomAttributeCount = 0;
         $rootCustomAttributeNames = [];
         $rootCustomAttributeItems = [];
+        $rootNamespaceDeclarationCount = 0;
+        $rootNamespaceDeclarationNames = [];
+        $rootNamespaceDeclarationItems = [];
         $manifestPartReferenceSuffixItems = [];
         $manifestMediaTypeMismatches = [];
         $byteExposurePolicyCounts = [];
@@ -925,6 +928,27 @@ final class OpenDocumentPackage
                     'rootNamespaceDeclarationMap' => $rootAttributeProvenance['namespaceDeclarationMap'] ?? [],
                 ];
             }
+            $partNamespaceDeclarationCount = (int) ($rootAttributeProvenance['namespaceDeclarationCount'] ?? 0);
+            if ($partNamespaceDeclarationCount > 0) {
+                $rootNamespaceDeclarationCount += $partNamespaceDeclarationCount;
+                foreach ($rootAttributeProvenance['namespaceDeclarationNames'] ?? [] as $declarationName) {
+                    if (is_string($declarationName) && $declarationName !== '' && !in_array($declarationName, $rootNamespaceDeclarationNames, true)) {
+                        $rootNamespaceDeclarationNames[] = $declarationName;
+                    }
+                }
+                $rootNamespaceDeclarationItems[] = [
+                    'part' => $part,
+                    'expectedRoot' => $expectedRoot,
+                    'rootName' => $rootName,
+                    'rootNamespaceDeclarationCount' => $partNamespaceDeclarationCount,
+                    'rootNamespaceDeclarationNames' => $rootAttributeProvenance['namespaceDeclarationNames'] ?? [],
+                    'rootNamespaceDeclarations' => $rootAttributeProvenance['namespaceDeclarations'] ?? [],
+                    'rootNamespaceDeclarationMap' => $rootAttributeProvenance['namespaceDeclarationMap'] ?? [],
+                    'rootCustomAttributeCount' => $rootAttributeProvenance['customAttributeCount'] ?? 0,
+                    'rootCustomAttributeNames' => $rootAttributeProvenance['customAttributeNames'] ?? [],
+                    'rootCustomAttributeMap' => $rootAttributeProvenance['customAttributeMap'] ?? [],
+                ];
+            }
 
             $items[] = [
                 'part' => $part,
@@ -982,6 +1006,7 @@ final class OpenDocumentPackage
 
         ksort($versionCounts, SORT_STRING);
         sort($rootCustomAttributeNames, SORT_STRING);
+        sort($rootNamespaceDeclarationNames, SORT_STRING);
         ksort($byteExposurePolicyCounts, SORT_STRING);
 
         return [
@@ -997,6 +1022,10 @@ final class OpenDocumentPackage
             'rootCustomAttributeCount' => $rootCustomAttributeCount,
             'rootCustomAttributeNames' => $rootCustomAttributeNames,
             'rootCustomAttributeItems' => $rootCustomAttributeItems,
+            'rootNamespaceDeclarationPartCount' => count($rootNamespaceDeclarationItems),
+            'rootNamespaceDeclarationCount' => $rootNamespaceDeclarationCount,
+            'rootNamespaceDeclarationNames' => $rootNamespaceDeclarationNames,
+            'rootNamespaceDeclarationItems' => $rootNamespaceDeclarationItems,
             'manifestPartReferenceSuffixCount' => count($manifestPartReferenceSuffixItems),
             'manifestPartReferenceQueryCount' => count(array_filter(
                 $manifestPartReferenceSuffixItems,
@@ -7143,6 +7172,9 @@ final class OpenDocumentPackage
                 'encrypted' => false,
                 'declared' => false,
                 'declaredSize' => null,
+                'declaredSizeRaw' => null,
+                'declaredSizeValid' => false,
+                'declaredSizeInvalid' => false,
                 'declaredSizeMismatch' => false,
                 'byteExposurePolicy' => str_ends_with($packagePath, '/') ? 'directory-entry-no-bytes' : 'form-package-bytes-blocked',
             ];
@@ -7186,6 +7218,9 @@ final class OpenDocumentPackage
             } elseif (!$mediaTypeValid) {
                 $issues[] = 'odf-form-package-invalid-media-type';
             }
+            if (($entry['declaredSizeInvalid'] ?? false) === true) {
+                $issues[] = 'odf-form-package-invalid-declared-size';
+            }
             foreach ($issues as $issue) {
                 $issueCodes[$issue] = true;
             }
@@ -7226,6 +7261,9 @@ final class OpenDocumentPackage
                 'storedByteLength' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null,
                 'storedCrc32' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
                 'declaredSize' => $entry['declaredSize'] ?? $entry['size'] ?? null,
+                'declaredSizeRaw' => $entry['declaredSizeRaw'] ?? null,
+                'declaredSizeValid' => ($entry['declaredSizeValid'] ?? false) === true,
+                'declaredSizeInvalid' => ($entry['declaredSizeInvalid'] ?? false) === true,
                 'declaredSizeMismatch' => ($entry['declaredSizeMismatch'] ?? false) === true,
                 'canExposeBytes' => false,
                 'canExposeAsDocumentMedia' => false,
@@ -7253,6 +7291,7 @@ final class OpenDocumentPackage
             'encryptedCount' => count(array_filter($items, static fn (array $item): bool => $item['encrypted'] === true)),
             'missingMediaTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('odf-form-package-missing-media-type', $item['issues'], true))),
             'invalidMediaTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('odf-form-package-invalid-media-type', $item['issues'], true))),
+            'invalidDeclaredSizeCount' => count(array_filter($items, static fn (array $item): bool => $item['declaredSizeInvalid'] === true)),
             'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
             'issueCodes' => array_keys($issueCodes),
             'kindCounts' => $kindCounts,
