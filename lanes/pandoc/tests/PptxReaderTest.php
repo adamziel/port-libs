@@ -4794,6 +4794,10 @@ XML);
       <p:nvGraphicFramePr><p:cNvPr id="14" name="Chart Diagram URI"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
       <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart-diagram"/></a:graphic>
     </p:graphicFrame>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="15" name="Table Diagram URI"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table-diagram"><dgm:relIds/></a:graphicData></a:graphic>
+    </p:graphicFrame>
   </p:spTree></p:cSld>
 </p:sld>
 XML);
@@ -8259,6 +8263,7 @@ return [
         $t->contains('Para [ Str "[Graphic:" , Space , Str "diagram-missing-rels]" ]', $native);
         $t->contains('Para [ Str "[Diagram" , Space , Str "parse" , Space , Str "error:" , Space , Str "Relationship" , Space , Str "not" , Space , Str "found:" , Space , Str "rIdMissingData]" ]', $native);
         $t->true(!str_contains($native, 'chart-diagram'), 'Graphic URIs containing diagram should follow the upstream diagram branch before chart handling');
+        $t->true(!str_contains($native, 'table-diagram'), 'Graphic URIs containing table should follow the upstream table branch before diagram handling');
 
         $placeholderParagraphs = array_values(array_filter(
             $paragraphs,
