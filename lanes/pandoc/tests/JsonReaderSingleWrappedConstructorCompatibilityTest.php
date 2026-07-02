@@ -124,4 +124,111 @@ return [
         $t->same(1, $decoded['blocks'][4]['c'][4][0]['c'][1]);
         $t->same(2, $decoded['blocks'][4]['c'][4][0]['c'][3][0]['c'][1][0]['c'][2]);
     },
+    'accepts single-wrapped table collections in compatibility reader' => static function (TestRunner $t): void {
+        $str = static fn (string $value): array => ['t' => 'Str', 'c' => $value];
+        $plain = static fn (string $text): array => ['t' => 'Plain', 'c' => [[$str($text)]]];
+        $attr = static fn (string $id = '', array $classes = [], array $pairs = []): array => ['t' => 'Attr', 'c' => [[$id, $classes, $pairs]]];
+        $cell = static fn (string $id, string $text): array => ['t' => 'Cell', 'c' => [[
+            $attr($id),
+            ['t' => 'AlignDefault'],
+            ['t' => 'RowSpan', 'c' => [1]],
+            ['t' => 'ColSpan', 'c' => [1]],
+            [[$plain($text)]],
+        ]]];
+        $row = static fn (string $id, array $cells): array => ['t' => 'Row', 'c' => [[
+            $attr($id),
+            [$cells],
+        ]]];
+        $body = static fn (string $id, array $rows, array $headRows = []): array => ['t' => 'TableBody', 'c' => [[
+            $attr($id),
+            ['t' => 'RowHeadColumns', 'c' => [1]],
+            $headRows === [] ? [] : [$headRows],
+            [$rows],
+        ]]];
+
+        $headRows = [
+            $row('head-row-a', [$cell('head-cell-a', 'Head A'), $cell('head-cell-b', 'Head B')]),
+            $row('head-row-b', [$cell('head-cell-c', 'Head C')]),
+        ];
+        $firstBodyHeadRows = [
+            $row('body-head-row-a', [$cell('body-head-cell-a', 'Body Head')]),
+        ];
+        $firstBodyRows = [
+            $row('body-row-a', [$cell('body-cell-a', 'Alpha'), $cell('body-cell-b', 'Beta')]),
+            $row('body-row-b', [$cell('body-cell-c', 'Gamma')]),
+        ];
+        $secondBodyRows = [
+            $row('body-row-c', [$cell('body-cell-d', 'Delta')]),
+        ];
+        $footRows = [
+            $row('foot-row-a', [$cell('foot-cell-a', 'Foot')]),
+        ];
+        $source = [
+            'pandoc-api-version' => [1, 23, 1, 2],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Table', 'c' => [[
+                    $attr('wrapped-collections-table', ['json-native']),
+                    ['t' => 'Caption', 'c' => [[null, []]]],
+                    [[
+                        [['t' => 'AlignLeft'], ['t' => 'ColWidth', 'c' => [0.35]]],
+                        [['t' => 'AlignRight'], ['t' => 'ColWidthDefault']],
+                    ]],
+                    ['t' => 'TableHead', 'c' => [[
+                        $attr('head-section'),
+                        [$headRows],
+                    ]]],
+                    [[
+                        $body('body-a', $firstBodyRows, $firstBodyHeadRows),
+                        $body('body-b', $secondBodyRows),
+                    ]],
+                    ['t' => 'TableFoot', 'c' => [[
+                        $attr('foot-section'),
+                        [$footRows],
+                    ]]],
+                ]]],
+            ],
+        ];
+
+        $document = (new JsonReader())->read(json_encode($source, JSON_THROW_ON_ERROR));
+        $decoded = json_decode((new JsonWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $table = $document->children[0];
+        $head = $table->children[0];
+        $firstBody = $table->children[1];
+        $secondBody = $table->children[2];
+        $foot = $table->children[3];
+        $firstBodyHeadRow = $firstBody->attr('headRows')[0];
+        $firstBodyFirstRow = $firstBody->children[0];
+
+        $t->same('wrapped-collections-table', $table->attr('id'));
+        $t->same(['json-native'], $table->attr('classes'));
+        $t->same(['left', 'right'], $table->attr('alignments'));
+        $t->same([0.35, 0.0], $table->attr('widths'));
+        $t->same(4, count($table->children));
+        $t->same(2, count($head->children));
+        $t->same('head-cell-b', $head->children[0]->children[1]->attr('id'));
+        $t->same('body-a', $firstBody->attr('id'));
+        $t->same(1, $firstBody->attr('rowHeadColumns'));
+        $t->same('Body Head', $firstBodyHeadRow->children[0]->children[0]->attr('text'));
+        $t->same(2, count($firstBody->children));
+        $t->same('Beta', $firstBodyFirstRow->children[1]->children[0]->attr('text'));
+        $t->same('Delta', $secondBody->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('Foot', $foot->children[0]->children[0]->children[0]->attr('text'));
+
+        $decodedTable = $decoded['blocks'][0];
+        $t->same('Table', $decodedTable['t']);
+        $t->same('wrapped-collections-table', $decodedTable['c'][0][0]);
+        $t->same(2, count($decodedTable['c'][2]));
+        $t->same('AlignLeft', $decodedTable['c'][2][0][0]['t']);
+        $t->same('ColWidth', $decodedTable['c'][2][0][1]['t']);
+        $t->same('TableHead', $decodedTable['c'][3]['t']);
+        $t->same(2, count($decodedTable['c'][3]['c'][1]));
+        $t->same('head-row-a', $decodedTable['c'][3]['c'][1][0]['c'][0][0]);
+        $t->same(2, count($decodedTable['c'][4]));
+        $t->same('body-a', $decodedTable['c'][4][0]['c'][0][0]);
+        $t->same(1, count($decodedTable['c'][4][0]['c'][2]));
+        $t->same(2, count($decodedTable['c'][4][0]['c'][3]));
+        $t->same('body-cell-b', $decodedTable['c'][4][0]['c'][3][0]['c'][1][1]['c'][0][0]);
+        $t->same('foot-row-a', $decodedTable['c'][5]['c'][1][0]['c'][0][0]);
+    },
 ];
