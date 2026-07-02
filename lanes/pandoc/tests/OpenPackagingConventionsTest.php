@@ -628,6 +628,76 @@ XML;
         $t->same([], $summary['creatorHostSystemIssueCounts']);
         $t->same([], $summary['entryNamesByCreatorHostSystemIssue']);
     },
+    'carries OPC ZIP raw name provenance through manifest preflights' => static function (TestRunner $t) use ($buildOpcZipPackage): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+</Types>
+XML;
+        $rawMediaName = "word/media/caf\x82.png";
+        $decodedMediaName = "word/media/caf\u{00e9}.png";
+        $decodedMediaPartName = '/' . $decodedMediaName;
+        $zip = $buildOpcZipPackage([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'method' => 0],
+            [
+                'name' => '_rels/.rels',
+                'data' => '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>',
+                'method' => 0,
+            ],
+            [
+                'name' => $rawMediaName,
+                'data' => 'PNG',
+                'method' => 0,
+                'flags' => 0,
+            ],
+        ]);
+        $summary = OpcRelationshipGraph::preflightZipEntryManifest(ZipPackage::fromString($zip));
+        $entries = [];
+        foreach ($summary['entries'] as $entry) {
+            $entries[$entry['entryName']] = $entry;
+        }
+        $provenanceEntries = [];
+        foreach ($summary['rawNameProvenanceEntries'] as $entry) {
+            $provenanceEntries[$entry['entryName']] = $entry;
+        }
+
+        $mediaEntry = $entries[$decodedMediaName];
+        $mediaProvenance = $provenanceEntries[$decodedMediaName];
+
+        $t->same(true, $summary['valid']);
+        $t->same(['cp437' => 1, 'utf-8' => 2], $summary['nameEncodingCounts']);
+        $t->same([$decodedMediaName], $summary['entryNamesByNameEncoding']['cp437']);
+        $t->same(['[Content_Types].xml', '_rels/.rels'], $summary['entryNamesByNameEncoding']['utf-8']);
+        $t->same(1, $summary['rawNameProvenanceEntryCount']);
+        $t->same(1, $summary['decodedNameDiffersFromRawNameEntryCount']);
+        $t->same(1, $summary['legacyEncodedNameEntryCount']);
+        $t->same(0, $summary['unicodePathExtraEntryCount']);
+        $t->same($decodedMediaName, $mediaEntry['entryName']);
+        $t->same($decodedMediaPartName, $mediaEntry['partName']);
+        $t->same($rawMediaName, $mediaEntry['rawName']);
+        $t->same(bin2hex($rawMediaName), $mediaEntry['rawNameHex']);
+        $t->same('cp437', $mediaEntry['nameEncoding']);
+        $t->same(false, $mediaEntry['rawNameMatchesDecodedName']);
+        $t->same(true, $mediaEntry['usesLegacyNameEncoding']);
+        $t->same(false, $mediaEntry['usesUnicodePathExtraField']);
+        $t->same(true, $mediaEntry['hasRawNameProvenance']);
+        $t->same('image/png', $mediaEntry['contentType']);
+        $t->same('media', $mediaEntry['role']);
+        $t->same('media', $mediaEntry['handoffKind']);
+        $t->same($decodedMediaName, $mediaProvenance['entryName']);
+        $t->same($decodedMediaPartName, $mediaProvenance['partName']);
+        $t->same($rawMediaName, $mediaProvenance['rawName']);
+        $t->same(bin2hex($rawMediaName), $mediaProvenance['rawNameHex']);
+        $t->same('cp437', $mediaProvenance['nameEncoding']);
+        $t->same(false, $mediaProvenance['rawNameMatchesDecodedName']);
+        $t->same(true, $mediaProvenance['usesLegacyNameEncoding']);
+        $t->same(false, $mediaProvenance['usesUnicodePathExtraField']);
+        $t->same(true, $mediaProvenance['hasRawNameProvenance']);
+        $t->same('utf-8', $entries['[Content_Types].xml']['nameEncoding']);
+        $t->same(true, $entries['[Content_Types].xml']['rawNameMatchesDecodedName']);
+        $t->same(false, $entries['[Content_Types].xml']['hasRawNameProvenance']);
+    },
     'carries OPC ZIP central directory source record provenance through manifest preflights' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

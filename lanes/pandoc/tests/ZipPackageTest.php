@@ -1190,6 +1190,31 @@ return [
             ],
         ];
         $expectedPackagePartExtensions = ['xhtml'];
+        $expectedNameEncodingSummaries = [
+            [
+                'encoding' => 'utf-8',
+                'entryCount' => 3,
+                'fileEntryCount' => 2,
+                'directoryEntryCount' => 1,
+                'compressedBytes' => strlen(gzdeflate($contentXhtml)) + strlen($mimetype),
+                'uncompressedBytes' => strlen($contentXhtml) + strlen($mimetype),
+                'rawTextBytes' => strlen('OEBPS/content.xhtml') + strlen('OEBPS/images/') + strlen('mimetype'),
+                'localRecordBytes' => array_sum(array_column($expectedEntries, 'localRecordBytes')),
+                'sourceRecordBytes' => array_sum(array_column($expectedEntries, 'sourceRecordBytes')),
+                'dataDescriptorEntryCount' => 0,
+                'dataDescriptorBytes' => 0,
+                'rawTextProvenanceEntryCount' => 0,
+                'legacyEncodedEntryCount' => 0,
+                'unicodeExtraFieldEntryCount' => 0,
+                'decodedTextDiffersFromRawTextEntryCount' => 0,
+                'directoryRoots' => ['/', 'OEBPS/'],
+                'compressionMethodNames' => ['deflated', 'stored'],
+                'entryNames' => $expectedCentralOrder,
+            ],
+        ];
+        $expectedNameEncodings = ['utf-8'];
+        $expectedCommentEncodingSummaries = [];
+        $expectedCommentEncodings = [];
         $expectedDirectoryRoots = array_map(
             static fn (array $summary): string => $summary['directoryRoot'],
             $expectedDirectoryRootSummaries
@@ -1339,6 +1364,20 @@ return [
             'entryCommentSummaryCount' => 0,
             'entryCommentSourceRecordBytes' => 0,
             'entryCommentSummaries' => [],
+            'nameEncodingSummaryCount' => count($expectedNameEncodingSummaries),
+            'nameEncodings' => $expectedNameEncodings,
+            'rawNameProvenanceEntryCount' => 0,
+            'legacyEncodedNameEntryCount' => 0,
+            'unicodePathExtraEntryCount' => 0,
+            'decodedNameDiffersFromRawNameEntryCount' => 0,
+            'nameEncodingSummaries' => $expectedNameEncodingSummaries,
+            'commentEncodingSummaryCount' => count($expectedCommentEncodingSummaries),
+            'commentEncodings' => $expectedCommentEncodings,
+            'rawCommentProvenanceEntryCount' => 0,
+            'legacyEncodedCommentEntryCount' => 0,
+            'unicodeCommentExtraEntryCount' => 0,
+            'decodedCommentDiffersFromRawCommentEntryCount' => 0,
+            'commentEncodingSummaries' => $expectedCommentEncodingSummaries,
             'maxPathSegmentCount' => 2,
             'maxDirectoryDepth' => 1,
             'deepestEntryNames' => ['OEBPS/content.xhtml', 'OEBPS/images/'],
@@ -1492,6 +1531,20 @@ return [
         $t->same(0, $manifest['entryCommentSourceRecordBytes']);
         $t->same([], $manifest['entryCommentSummaries']);
         $t->same(false, $manifest['hasCentralDirectoryReviewFields']);
+        $t->same(count($expectedNameEncodingSummaries), $manifest['nameEncodingSummaryCount']);
+        $t->same($expectedNameEncodings, $manifest['nameEncodings']);
+        $t->same(0, $manifest['rawNameProvenanceEntryCount']);
+        $t->same(0, $manifest['legacyEncodedNameEntryCount']);
+        $t->same(0, $manifest['unicodePathExtraEntryCount']);
+        $t->same(0, $manifest['decodedNameDiffersFromRawNameEntryCount']);
+        $t->same($expectedNameEncodingSummaries, $manifest['nameEncodingSummaries']);
+        $t->same(count($expectedCommentEncodingSummaries), $manifest['commentEncodingSummaryCount']);
+        $t->same($expectedCommentEncodings, $manifest['commentEncodings']);
+        $t->same(0, $manifest['rawCommentProvenanceEntryCount']);
+        $t->same(0, $manifest['legacyEncodedCommentEntryCount']);
+        $t->same(0, $manifest['unicodeCommentExtraEntryCount']);
+        $t->same(0, $manifest['decodedCommentDiffersFromRawCommentEntryCount']);
+        $t->same($expectedCommentEncodingSummaries, $manifest['commentEncodingSummaries']);
         $t->same(2, $manifest['maxPathSegmentCount']);
         $t->same(1, $manifest['maxDirectoryDepth']);
         $t->same(['OEBPS/content.xhtml', 'OEBPS/images/'], $manifest['deepestEntryNames']);
@@ -1985,6 +2038,192 @@ return [
         $t->same($manifest['nameLengthBucketSummaries'], $strict['packageManifest']['nameLengthBucketSummaries']);
         $t->same($manifest['nameLengthBucketSummaries'], $raw['packageManifest']['nameLengthBucketSummaries']);
         $t->same($manifest['nameLengthBucketSummaries'], $raw['strictImport']['packageManifest']['nameLengthBucketSummaries']);
+    },
+
+    'summarizes zip package manifest text encodings for shared package handoff' => static function (TestRunner $t) use ($buildZipPackage, $buildUnicodeExtra): void {
+        $documentXml = '<w:document><w:body><w:p>encoding manifest</w:p></w:body></w:document>';
+        $documentComment = 'document utf8 note';
+        $unicodeRawName = 'word/media/review-image.bin';
+        $unicodeName = "word/media/review-\u{2603}.png";
+        $unicodeBytes = "unicode path package media placeholder\n";
+        $unicodeRawComment = 'legacy reviewer comment';
+        $unicodeComment = "Unicode reviewer \u{2603} comment";
+        $unicodePathExtra = $buildUnicodeExtra(0x7075, $unicodeRawName, $unicodeName);
+        $unicodeCommentExtra = $buildUnicodeExtra(0x6375, $unicodeRawComment, $unicodeComment);
+        $cp437RawName = "word/media/caf\x82.png";
+        $cp437Name = "word/media/caf\u{00e9}.png";
+        $cp437Bytes = "legacy encoded media placeholder\n";
+        $cp437RawComment = "r\x82sum\x82 media";
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 0,
+                'comment' => $documentComment,
+            ],
+            [
+                'name' => $unicodeRawName,
+                'data' => $unicodeBytes,
+                'method' => 8,
+                'flags' => 0,
+                'comment' => $unicodeRawComment,
+                'localExtra' => $unicodePathExtra,
+                'centralExtra' => $unicodePathExtra . $unicodeCommentExtra,
+            ],
+            [
+                'name' => $cp437RawName,
+                'data' => $cp437Bytes,
+                'method' => 0,
+                'flags' => 0,
+                'comment' => $cp437RawComment,
+            ],
+        ]);
+
+        $manifest = ZipPackage::fromString($zip)->packageManifestPreflight();
+        $entriesByName = [];
+        foreach ($manifest['entries'] as $entry) {
+            $entriesByName[$entry['name']] = $entry;
+        }
+        $nameSummaries = array_column($manifest['nameEncodingSummaries'], null, 'encoding');
+        $commentSummaries = array_column($manifest['commentEncodingSummaries'], null, 'encoding');
+
+        $t->same(['cp437', 'info-zip-unicode-path', 'utf-8'], $manifest['nameEncodings']);
+        $t->same(3, $manifest['nameEncodingSummaryCount']);
+        $t->same(2, $manifest['rawNameProvenanceEntryCount']);
+        $t->same(1, $manifest['legacyEncodedNameEntryCount']);
+        $t->same(1, $manifest['unicodePathExtraEntryCount']);
+        $t->same(2, $manifest['decodedNameDiffersFromRawNameEntryCount']);
+        $t->same(['cp437', 'info-zip-unicode-path', 'utf-8'], array_keys($nameSummaries));
+
+        $t->same([
+            'encoding' => 'cp437',
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($cp437Bytes),
+            'uncompressedBytes' => strlen($cp437Bytes),
+            'rawTextBytes' => strlen($cp437RawName),
+            'localRecordBytes' => $entriesByName[$cp437Name]['localRecordBytes'],
+            'sourceRecordBytes' => $entriesByName[$cp437Name]['sourceRecordBytes'],
+            'dataDescriptorEntryCount' => 0,
+            'dataDescriptorBytes' => 0,
+            'rawTextProvenanceEntryCount' => 1,
+            'legacyEncodedEntryCount' => 1,
+            'unicodeExtraFieldEntryCount' => 0,
+            'decodedTextDiffersFromRawTextEntryCount' => 1,
+            'directoryRoots' => ['word/'],
+            'compressionMethodNames' => ['stored'],
+            'entryNames' => [$cp437Name],
+        ], $nameSummaries['cp437']);
+        $t->same([
+            'encoding' => 'info-zip-unicode-path',
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => $entriesByName[$unicodeName]['compressedSize'],
+            'uncompressedBytes' => strlen($unicodeBytes),
+            'rawTextBytes' => strlen($unicodeRawName),
+            'localRecordBytes' => $entriesByName[$unicodeName]['localRecordBytes'],
+            'sourceRecordBytes' => $entriesByName[$unicodeName]['sourceRecordBytes'],
+            'dataDescriptorEntryCount' => 0,
+            'dataDescriptorBytes' => 0,
+            'rawTextProvenanceEntryCount' => 1,
+            'legacyEncodedEntryCount' => 0,
+            'unicodeExtraFieldEntryCount' => 1,
+            'decodedTextDiffersFromRawTextEntryCount' => 1,
+            'directoryRoots' => ['word/'],
+            'compressionMethodNames' => ['deflated'],
+            'entryNames' => [$unicodeName],
+        ], $nameSummaries['info-zip-unicode-path']);
+        $t->same([
+            'encoding' => 'utf-8',
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($documentXml),
+            'uncompressedBytes' => strlen($documentXml),
+            'rawTextBytes' => strlen('word/document.xml'),
+            'localRecordBytes' => $entriesByName['word/document.xml']['localRecordBytes'],
+            'sourceRecordBytes' => $entriesByName['word/document.xml']['sourceRecordBytes'],
+            'dataDescriptorEntryCount' => 0,
+            'dataDescriptorBytes' => 0,
+            'rawTextProvenanceEntryCount' => 0,
+            'legacyEncodedEntryCount' => 0,
+            'unicodeExtraFieldEntryCount' => 0,
+            'decodedTextDiffersFromRawTextEntryCount' => 0,
+            'directoryRoots' => ['word/'],
+            'compressionMethodNames' => ['stored'],
+            'entryNames' => ['word/document.xml'],
+        ], $nameSummaries['utf-8']);
+
+        $t->same(['cp437', 'info-zip-unicode-comment', 'utf-8'], $manifest['commentEncodings']);
+        $t->same(3, $manifest['commentEncodingSummaryCount']);
+        $t->same(2, $manifest['rawCommentProvenanceEntryCount']);
+        $t->same(1, $manifest['legacyEncodedCommentEntryCount']);
+        $t->same(1, $manifest['unicodeCommentExtraEntryCount']);
+        $t->same(2, $manifest['decodedCommentDiffersFromRawCommentEntryCount']);
+        $t->same(['cp437', 'info-zip-unicode-comment', 'utf-8'], array_keys($commentSummaries));
+
+        $t->same([
+            'encoding' => 'cp437',
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($cp437Bytes),
+            'uncompressedBytes' => strlen($cp437Bytes),
+            'rawTextBytes' => strlen($cp437RawComment),
+            'localRecordBytes' => $entriesByName[$cp437Name]['localRecordBytes'],
+            'sourceRecordBytes' => $entriesByName[$cp437Name]['sourceRecordBytes'],
+            'dataDescriptorEntryCount' => 0,
+            'dataDescriptorBytes' => 0,
+            'rawTextProvenanceEntryCount' => 1,
+            'legacyEncodedEntryCount' => 1,
+            'unicodeExtraFieldEntryCount' => 0,
+            'decodedTextDiffersFromRawTextEntryCount' => 1,
+            'directoryRoots' => ['word/'],
+            'compressionMethodNames' => ['stored'],
+            'entryNames' => [$cp437Name],
+        ], $commentSummaries['cp437']);
+        $t->same([
+            'encoding' => 'info-zip-unicode-comment',
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => $entriesByName[$unicodeName]['compressedSize'],
+            'uncompressedBytes' => strlen($unicodeBytes),
+            'rawTextBytes' => strlen($unicodeRawComment),
+            'localRecordBytes' => $entriesByName[$unicodeName]['localRecordBytes'],
+            'sourceRecordBytes' => $entriesByName[$unicodeName]['sourceRecordBytes'],
+            'dataDescriptorEntryCount' => 0,
+            'dataDescriptorBytes' => 0,
+            'rawTextProvenanceEntryCount' => 1,
+            'legacyEncodedEntryCount' => 0,
+            'unicodeExtraFieldEntryCount' => 1,
+            'decodedTextDiffersFromRawTextEntryCount' => 1,
+            'directoryRoots' => ['word/'],
+            'compressionMethodNames' => ['deflated'],
+            'entryNames' => [$unicodeName],
+        ], $commentSummaries['info-zip-unicode-comment']);
+        $t->same([
+            'encoding' => 'utf-8',
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($documentXml),
+            'uncompressedBytes' => strlen($documentXml),
+            'rawTextBytes' => strlen($documentComment),
+            'localRecordBytes' => $entriesByName['word/document.xml']['localRecordBytes'],
+            'sourceRecordBytes' => $entriesByName['word/document.xml']['sourceRecordBytes'],
+            'dataDescriptorEntryCount' => 0,
+            'dataDescriptorBytes' => 0,
+            'rawTextProvenanceEntryCount' => 0,
+            'legacyEncodedEntryCount' => 0,
+            'unicodeExtraFieldEntryCount' => 0,
+            'decodedTextDiffersFromRawTextEntryCount' => 0,
+            'directoryRoots' => ['word/'],
+            'compressionMethodNames' => ['stored'],
+            'entryNames' => ['word/document.xml'],
+        ], $commentSummaries['utf-8']);
     },
 
     'preflights zip package manifest path segment positions for shared package handoff' => static function (TestRunner $t) use ($buildZipPackage, $pathSegmentPositionReviews): void {
@@ -3390,6 +3629,20 @@ return [
             'entryCommentSummaryCount' => $manifest['entryCommentSummaryCount'],
             'entryCommentSourceRecordBytes' => $manifest['entryCommentSourceRecordBytes'],
             'entryCommentSummaries' => $manifest['entryCommentSummaries'],
+            'nameEncodingSummaryCount' => $manifest['nameEncodingSummaryCount'],
+            'nameEncodings' => $manifest['nameEncodings'],
+            'rawNameProvenanceEntryCount' => $manifest['rawNameProvenanceEntryCount'],
+            'legacyEncodedNameEntryCount' => $manifest['legacyEncodedNameEntryCount'],
+            'unicodePathExtraEntryCount' => $manifest['unicodePathExtraEntryCount'],
+            'decodedNameDiffersFromRawNameEntryCount' => $manifest['decodedNameDiffersFromRawNameEntryCount'],
+            'nameEncodingSummaries' => $manifest['nameEncodingSummaries'],
+            'commentEncodingSummaryCount' => $manifest['commentEncodingSummaryCount'],
+            'commentEncodings' => $manifest['commentEncodings'],
+            'rawCommentProvenanceEntryCount' => $manifest['rawCommentProvenanceEntryCount'],
+            'legacyEncodedCommentEntryCount' => $manifest['legacyEncodedCommentEntryCount'],
+            'unicodeCommentExtraEntryCount' => $manifest['unicodeCommentExtraEntryCount'],
+            'decodedCommentDiffersFromRawCommentEntryCount' => $manifest['decodedCommentDiffersFromRawCommentEntryCount'],
+            'commentEncodingSummaries' => $manifest['commentEncodingSummaries'],
             'maxPathSegmentCount' => 2,
             'maxDirectoryDepth' => 1,
             'deepestEntryNames' => ['word/document.xml', 'word/comments.xml'],
@@ -3475,6 +3728,12 @@ return [
         $t->same(2, $manifest['maxPathSegmentCount']);
         $t->same(1, $manifest['maxDirectoryDepth']);
         $t->same(['word/document.xml', 'word/comments.xml'], $manifest['deepestEntryNames']);
+        $t->same(['utf-8'], $manifest['nameEncodings']);
+        $t->same(1, $manifest['nameEncodingSummaryCount']);
+        $t->same(0, $manifest['rawNameProvenanceEntryCount']);
+        $t->same([], $manifest['commentEncodings']);
+        $t->same(0, $manifest['commentEncodingSummaryCount']);
+        $t->same(0, $manifest['rawCommentProvenanceEntryCount']);
         $t->same(0, $manifest['caseInsensitiveNameCollisionGroupCount']);
         $t->same(0, $manifest['caseInsensitiveNameCollisionEntryCount']);
         $t->same(false, $manifest['hasCaseInsensitiveNameCollisions']);

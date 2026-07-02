@@ -16144,6 +16144,35 @@ final class DocxOpenXmlReader
         ksort($partZipSourceRecordExpansionRatioBucketBytes, SORT_STRING);
         ksort($partZipSourceRecordExpansionRatioBucketCompressedByteLengths, SORT_STRING);
         ksort($partZipSourceRecordExpansionRatioBucketUncompressedByteLengths, SORT_STRING);
+        $partZipSourceRecordPackagePathByteLengthBucketSummaries =
+            $this->packagePartZipSourceRecordPackagePathByteLengthBucketSummary($partInventory);
+        $partZipSourceRecordPackagePathByteLengthBuckets = [];
+        $partZipSourceRecordPackagePathByteLengthBucketCounts = [];
+        $partZipSourceRecordPackagePathByteLengthBucketBytes = [];
+        $partZipSourceRecordPackagePathByteLengthBucketCompressedByteLengths = [];
+        $partZipSourceRecordPackagePathByteLengthBucketUncompressedByteLengths = [];
+        $partZipSourceRecordPackagePathByteLengthBucketDataDescriptorPartCount = 0;
+        $partZipSourceRecordPackagePathByteLengthBucketIssuePartCount = 0;
+        foreach ($partZipSourceRecordPackagePathByteLengthBucketSummaries as $pathByteLengthBucketSummary) {
+            $bucket = (string) ($pathByteLengthBucketSummary['packagePathByteLengthBucket'] ?? '');
+            $partZipSourceRecordPackagePathByteLengthBuckets[] = $bucket;
+            $partZipSourceRecordPackagePathByteLengthBucketCounts[$bucket] =
+                (int) ($pathByteLengthBucketSummary['partCount'] ?? 0);
+            $partZipSourceRecordPackagePathByteLengthBucketBytes[$bucket] =
+                (int) ($pathByteLengthBucketSummary['sourceRecordBytes'] ?? 0);
+            $partZipSourceRecordPackagePathByteLengthBucketCompressedByteLengths[$bucket] =
+                (int) ($pathByteLengthBucketSummary['compressedByteLength'] ?? 0);
+            $partZipSourceRecordPackagePathByteLengthBucketUncompressedByteLengths[$bucket] =
+                (int) ($pathByteLengthBucketSummary['uncompressedByteLength'] ?? 0);
+            $partZipSourceRecordPackagePathByteLengthBucketDataDescriptorPartCount +=
+                (int) ($pathByteLengthBucketSummary['dataDescriptorPartCount'] ?? 0);
+            $partZipSourceRecordPackagePathByteLengthBucketIssuePartCount +=
+                (int) ($pathByteLengthBucketSummary['sourceByteSpanIssuePartCount'] ?? 0);
+        }
+        ksort($partZipSourceRecordPackagePathByteLengthBucketCounts, SORT_STRING);
+        ksort($partZipSourceRecordPackagePathByteLengthBucketBytes, SORT_STRING);
+        ksort($partZipSourceRecordPackagePathByteLengthBucketCompressedByteLengths, SORT_STRING);
+        ksort($partZipSourceRecordPackagePathByteLengthBucketUncompressedByteLengths, SORT_STRING);
         $partZipSourceRecordRoles = $this->packagePartZipSourceRecordRoleSummary($partInventory);
         $partZipSourceRecordRoleCounts = [];
         $partZipSourceRecordRoleBytes = [];
@@ -19810,6 +19839,25 @@ final class DocxOpenXmlReader
                 $partZipSourceRecordExpansionRatioBucketIssuePartCount,
             'partZipSourceRecordExpansionRatioBucketSummaries' =>
                 $partZipSourceRecordExpansionRatioBucketSummaries,
+            'partZipSourceRecordPackagePathByteLengthBucketSummaryCount' => count(
+                $partZipSourceRecordPackagePathByteLengthBucketSummaries
+            ),
+            'partZipSourceRecordPackagePathByteLengthBuckets' =>
+                $partZipSourceRecordPackagePathByteLengthBuckets,
+            'partZipSourceRecordPackagePathByteLengthBucketCounts' =>
+                $partZipSourceRecordPackagePathByteLengthBucketCounts,
+            'partZipSourceRecordPackagePathByteLengthBucketBytes' =>
+                $partZipSourceRecordPackagePathByteLengthBucketBytes,
+            'partZipSourceRecordPackagePathByteLengthBucketCompressedByteLengths' =>
+                $partZipSourceRecordPackagePathByteLengthBucketCompressedByteLengths,
+            'partZipSourceRecordPackagePathByteLengthBucketUncompressedByteLengths' =>
+                $partZipSourceRecordPackagePathByteLengthBucketUncompressedByteLengths,
+            'partZipSourceRecordPackagePathByteLengthBucketDataDescriptorPartCount' =>
+                $partZipSourceRecordPackagePathByteLengthBucketDataDescriptorPartCount,
+            'partZipSourceRecordPackagePathByteLengthBucketIssuePartCount' =>
+                $partZipSourceRecordPackagePathByteLengthBucketIssuePartCount,
+            'partZipSourceRecordPackagePathByteLengthBucketSummaries' =>
+                $partZipSourceRecordPackagePathByteLengthBucketSummaries,
             'partZipSourceRecordRoleCount' => count($partZipSourceRecordRoles),
             'partZipSourceRecordRoleCounts' => $partZipSourceRecordRoleCounts,
             'partZipSourceRecordRoleBytes' => $partZipSourceRecordRoleBytes,
@@ -20560,6 +20608,8 @@ final class DocxOpenXmlReader
             'partZipTimestampSources' => $partZipTimestampSources,
             'partZipSourceRecordDirectoryRoots' => $partZipSourceRecordDirectoryRoots,
             'partZipSourceRecordCompressionMethods' => $partZipSourceRecordCompressionMethods,
+            'partZipSourceRecordPackagePathByteLengthBucketSummaries' =>
+                $partZipSourceRecordPackagePathByteLengthBucketSummaries,
             'partZipSourceRecordRoles' => $partZipSourceRecordRoles,
             'partZipSourceRecordContentTypes' => $partZipSourceRecordContentTypes,
             'partZipSourceRecordContentTypeSources' => $partZipSourceRecordContentTypeSources,
@@ -22055,6 +22105,262 @@ final class DocxOpenXmlReader
             if (isset($buckets[$bucket])) {
                 $ordered[] = $buckets[$bucket];
             }
+        }
+
+        return $ordered;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return list<array<string, mixed>>
+     */
+    private function packagePartZipSourceRecordPackagePathByteLengthBucketSummary(array $partInventory): array
+    {
+        $intField = static function (array $part, string $field): int {
+            $value = $part[$field] ?? null;
+
+            return is_int($value) ? $value : 0;
+        };
+
+        $buckets = [];
+        foreach ($partInventory as $partName => $part) {
+            if (($part['zipEntryPresent'] ?? false) !== true) {
+                continue;
+            }
+
+            $partName = (string) ($part['partName'] ?? $partName);
+            $packagePathByteLength = is_int($part['packagePathByteLength'] ?? null)
+                ? $part['packagePathByteLength']
+                : strlen($partName);
+            $bucketDefaults = self::packagePathByteLengthBucket($packagePathByteLength);
+            $bucketKey = is_string($part['packagePathByteLengthBucket'] ?? null)
+                && $part['packagePathByteLengthBucket'] !== ''
+                ? $part['packagePathByteLengthBucket']
+                : $bucketDefaults['packagePathByteLengthBucket'];
+            if (!isset($buckets[$bucketKey])) {
+                $bucketMin = is_int($part['packagePathByteLengthBucketMin'] ?? null)
+                    ? $part['packagePathByteLengthBucketMin']
+                    : $bucketDefaults['minPackagePathByteLength'];
+                $bucketMax = is_int($part['packagePathByteLengthBucketMax'] ?? null)
+                    ? $part['packagePathByteLengthBucketMax']
+                    : $bucketDefaults['maxPackagePathByteLength'];
+                $buckets[$bucketKey] = [
+                    'packagePathByteLengthBucket' => $bucketKey,
+                    'minPackagePathByteLength' => $bucketMin,
+                    'maxPackagePathByteLength' => $bucketMax,
+                    'partCount' => 0,
+                    'compressedByteLength' => 0,
+                    'uncompressedByteLength' => 0,
+                    'sourceRecordBytes' => 0,
+                    'localRecordBytes' => 0,
+                    'localHeaderBytes' => 0,
+                    'localHeaderFixedHeaderBytes' => 0,
+                    'localHeaderVariableFieldBytes' => 0,
+                    'localHeaderRawNameBytes' => 0,
+                    'localHeaderExtraFieldBytes' => 0,
+                    'localHeaderReviewFieldBytes' => 0,
+                    'compressedDataBytes' => 0,
+                    'dataDescriptorBytes' => 0,
+                    'dataDescriptorPartCount' => 0,
+                    'centralDirectoryRecordBytes' => 0,
+                    'centralDirectoryFixedHeaderBytes' => 0,
+                    'centralDirectoryVariableFieldBytes' => 0,
+                    'centralDirectoryRawNameBytes' => 0,
+                    'centralDirectoryExtraFieldBytes' => 0,
+                    'centralDirectoryRawCommentBytes' => 0,
+                    'centralDirectoryReviewFieldBytes' => 0,
+                    'sourceByteSpanIssuePartCount' => 0,
+                    'sourceByteSpanIssueCount' => 0,
+                    'longestPackagePathByteLength' => 0,
+                    'longestEntryName' => null,
+                    'directoryRootCounts' => [],
+                    'contentTypeSourceCounts' => [],
+                    'contentTypeBaseCounts' => [],
+                    'compressionMethodCounts' => [],
+                    'roleCounts' => [],
+                    'partNames' => [],
+                    'largestSourceRecordPart' => null,
+                ];
+            }
+
+            $directoryRoot = is_string($part['zipDirectoryRoot'] ?? null)
+                ? $part['zipDirectoryRoot']
+                : $this->packagePartTopLevelSegment($partName);
+            if ($directoryRoot === '') {
+                $directoryRoot = '/';
+            }
+            $compressionMethod = is_int($part['compressionMethod'] ?? null)
+                ? (string) $part['compressionMethod']
+                : '(missing)';
+            $sourceRecordBytes = $intField($part, 'sourceRecordBytes');
+            $localRecordBytes = $intField($part, 'localRecordBytes');
+            $localHeaderBytes = $intField($part, 'localHeaderBytes');
+            $localHeaderFixedHeaderBytes = $intField($part, 'localHeaderFixedHeaderBytes');
+            $localHeaderVariableFieldBytes = $intField($part, 'localHeaderVariableFieldBytes');
+            $localHeaderRawNameBytes = $intField($part, 'localHeaderRawNameBytes');
+            $localHeaderExtraFieldBytes = $intField($part, 'localHeaderExtraFieldBytes');
+            $localHeaderReviewFieldBytes = $intField($part, 'localHeaderReviewFieldBytes');
+            $compressedDataBytes = $intField($part, 'compressedDataBytes');
+            $dataDescriptorBytes = $intField($part, 'dataDescriptorBytes');
+            $centralDirectoryRecordBytes = $intField($part, 'centralDirectoryRecordBytes');
+            $centralDirectoryFixedHeaderBytes = $intField($part, 'centralDirectoryFixedHeaderBytes');
+            $centralDirectoryVariableFieldBytes = $intField($part, 'centralDirectoryVariableFieldBytes');
+            $centralDirectoryRawNameBytes = $intField($part, 'centralDirectoryRawNameBytes');
+            $centralDirectoryExtraFieldBytes = $intField($part, 'centralDirectoryExtraFieldBytes');
+            $centralDirectoryRawCommentBytes = $intField($part, 'centralDirectoryRawCommentBytes');
+            $centralDirectoryReviewFieldBytes = $intField($part, 'centralDirectoryReviewFieldBytes');
+            $sourceByteSpanIssues = is_array($part['sourceByteSpanIssues'] ?? null)
+                ? array_values(array_filter(
+                    $part['sourceByteSpanIssues'],
+                    static fn (mixed $issue): bool => is_string($issue)
+                ))
+                : [];
+            $sourceByteSpanIssueCount = count($sourceByteSpanIssues);
+            $contentTypeSource = is_string($part['contentTypeSource'] ?? null) ? $part['contentTypeSource'] : 'missing';
+            if ($contentTypeSource === '') {
+                $contentTypeSource = 'missing';
+            }
+            $contentTypeBase = is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '';
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            $partRoles = array_values(array_unique(array_filter(
+                array_map('strval', $part['roles'] ?? []),
+                static fn (string $role): bool => $role !== '',
+            )));
+            if ($partRoles === []) {
+                $partRoles = ['package-part'];
+            }
+
+            ++$buckets[$bucketKey]['partCount'];
+            $buckets[$bucketKey]['compressedByteLength'] += $intField($part, 'compressedByteLength');
+            $buckets[$bucketKey]['uncompressedByteLength'] += (int) ($part['bytes'] ?? 0);
+            $buckets[$bucketKey]['sourceRecordBytes'] += $sourceRecordBytes;
+            $buckets[$bucketKey]['localRecordBytes'] += $localRecordBytes;
+            $buckets[$bucketKey]['localHeaderBytes'] += $localHeaderBytes;
+            $buckets[$bucketKey]['localHeaderFixedHeaderBytes'] += $localHeaderFixedHeaderBytes;
+            $buckets[$bucketKey]['localHeaderVariableFieldBytes'] += $localHeaderVariableFieldBytes;
+            $buckets[$bucketKey]['localHeaderRawNameBytes'] += $localHeaderRawNameBytes;
+            $buckets[$bucketKey]['localHeaderExtraFieldBytes'] += $localHeaderExtraFieldBytes;
+            $buckets[$bucketKey]['localHeaderReviewFieldBytes'] += $localHeaderReviewFieldBytes;
+            $buckets[$bucketKey]['compressedDataBytes'] += $compressedDataBytes;
+            $buckets[$bucketKey]['dataDescriptorBytes'] += $dataDescriptorBytes;
+            $buckets[$bucketKey]['centralDirectoryRecordBytes'] += $centralDirectoryRecordBytes;
+            $buckets[$bucketKey]['centralDirectoryFixedHeaderBytes'] += $centralDirectoryFixedHeaderBytes;
+            $buckets[$bucketKey]['centralDirectoryVariableFieldBytes'] += $centralDirectoryVariableFieldBytes;
+            $buckets[$bucketKey]['centralDirectoryRawNameBytes'] += $centralDirectoryRawNameBytes;
+            $buckets[$bucketKey]['centralDirectoryExtraFieldBytes'] += $centralDirectoryExtraFieldBytes;
+            $buckets[$bucketKey]['centralDirectoryRawCommentBytes'] += $centralDirectoryRawCommentBytes;
+            $buckets[$bucketKey]['centralDirectoryReviewFieldBytes'] += $centralDirectoryReviewFieldBytes;
+            $buckets[$bucketKey]['sourceByteSpanIssueCount'] += $sourceByteSpanIssueCount;
+            $buckets[$bucketKey]['partNames'][] = $partName;
+            $buckets[$bucketKey]['directoryRootCounts'][$directoryRoot] =
+                ($buckets[$bucketKey]['directoryRootCounts'][$directoryRoot] ?? 0) + 1;
+            $buckets[$bucketKey]['contentTypeSourceCounts'][$contentTypeSource] =
+                ($buckets[$bucketKey]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+            $buckets[$bucketKey]['contentTypeBaseCounts'][$contentTypeBaseKey] =
+                ($buckets[$bucketKey]['contentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
+            $buckets[$bucketKey]['compressionMethodCounts'][$compressionMethod] =
+                ($buckets[$bucketKey]['compressionMethodCounts'][$compressionMethod] ?? 0) + 1;
+            if ($dataDescriptorBytes > 0 || ($part['usesDataDescriptor'] ?? false) === true) {
+                ++$buckets[$bucketKey]['dataDescriptorPartCount'];
+            }
+            if ($sourceByteSpanIssueCount > 0) {
+                ++$buckets[$bucketKey]['sourceByteSpanIssuePartCount'];
+            }
+            if (
+                $packagePathByteLength > (int) $buckets[$bucketKey]['longestPackagePathByteLength']
+                || (
+                    $packagePathByteLength === (int) $buckets[$bucketKey]['longestPackagePathByteLength']
+                    && (
+                        $buckets[$bucketKey]['longestEntryName'] === null
+                        || strcmp($partName, (string) $buckets[$bucketKey]['longestEntryName']) < 0
+                    )
+                )
+            ) {
+                $buckets[$bucketKey]['longestPackagePathByteLength'] = $packagePathByteLength;
+                $buckets[$bucketKey]['longestEntryName'] = $partName;
+            }
+
+            foreach ($partRoles as $role) {
+                $buckets[$bucketKey]['roleCounts'][$role] =
+                    ($buckets[$bucketKey]['roleCounts'][$role] ?? 0) + 1;
+            }
+
+            $partSummary = [
+                'partName' => $partName,
+                'packagePathByteLengthBucket' => $bucketKey,
+                'packagePathByteLength' => $packagePathByteLength,
+                'minPackagePathByteLength' => $bucketDefaults['minPackagePathByteLength'],
+                'maxPackagePathByteLength' => $bucketDefaults['maxPackagePathByteLength'],
+                'directoryRoot' => $directoryRoot,
+                'directory' => is_string($part['directory'] ?? null)
+                    ? $part['directory']
+                    : $this->packagePartDirectory($partName),
+                'baseName' => is_string($part['baseName'] ?? null)
+                    ? $part['baseName']
+                    : $this->packagePartBaseName($partName),
+                'bytes' => (int) ($part['bytes'] ?? 0),
+                'compressedByteLength' => $intField($part, 'compressedByteLength'),
+                'compressionMethod' => is_int($part['compressionMethod'] ?? null) ? (int) $part['compressionMethod'] : null,
+                'compressionMethodName' => is_string($part['compressionMethodName'] ?? null)
+                    ? $part['compressionMethodName']
+                    : null,
+                'sourceRecordBytes' => $sourceRecordBytes,
+                'localRecordBytes' => $localRecordBytes,
+                'localHeaderBytes' => $localHeaderBytes,
+                'localHeaderFixedHeaderBytes' => $localHeaderFixedHeaderBytes,
+                'localHeaderVariableFieldBytes' => $localHeaderVariableFieldBytes,
+                'localHeaderRawNameBytes' => $localHeaderRawNameBytes,
+                'localHeaderExtraFieldBytes' => $localHeaderExtraFieldBytes,
+                'localHeaderReviewFieldBytes' => $localHeaderReviewFieldBytes,
+                'compressedDataBytes' => $compressedDataBytes,
+                'dataDescriptorBytes' => $dataDescriptorBytes,
+                'centralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
+                'centralDirectoryFixedHeaderBytes' => $centralDirectoryFixedHeaderBytes,
+                'centralDirectoryVariableFieldBytes' => $centralDirectoryVariableFieldBytes,
+                'centralDirectoryRawNameBytes' => $centralDirectoryRawNameBytes,
+                'centralDirectoryExtraFieldBytes' => $centralDirectoryExtraFieldBytes,
+                'centralDirectoryRawCommentBytes' => $centralDirectoryRawCommentBytes,
+                'centralDirectoryReviewFieldBytes' => $centralDirectoryReviewFieldBytes,
+                'sourceByteSpanIssueCount' => $sourceByteSpanIssueCount,
+                'sourceByteSpanIssues' => $sourceByteSpanIssues,
+                'contentType' => is_string($part['contentType'] ?? null) ? $part['contentType'] : '',
+                'contentTypeBase' => $contentTypeBase,
+                'contentTypeSource' => $contentTypeSource,
+                'roles' => $partRoles,
+            ];
+            $largestPart = $buckets[$bucketKey]['largestSourceRecordPart'];
+            if (
+                !is_array($largestPart)
+                || $partSummary['sourceRecordBytes'] > (int) ($largestPart['sourceRecordBytes'] ?? 0)
+                || (
+                    $partSummary['sourceRecordBytes'] === (int) ($largestPart['sourceRecordBytes'] ?? 0)
+                    && strcmp($partSummary['partName'], (string) ($largestPart['partName'] ?? '')) < 0
+                )
+            ) {
+                $buckets[$bucketKey]['largestSourceRecordPart'] = $partSummary;
+            }
+        }
+
+        foreach ($buckets as &$summary) {
+            sort($summary['partNames'], SORT_STRING);
+            ksort($summary['directoryRootCounts'], SORT_STRING);
+            ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['contentTypeBaseCounts'], SORT_STRING);
+            ksort($summary['compressionMethodCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+        }
+        unset($summary);
+
+        $ordered = [];
+        foreach (['up-to-8-bytes', '9-to-16-bytes', '17-to-32-bytes', '33-to-64-bytes', 'over-64-bytes'] as $bucket) {
+            if (isset($buckets[$bucket])) {
+                $ordered[] = $buckets[$bucket];
+                unset($buckets[$bucket]);
+            }
+        }
+        ksort($buckets, SORT_STRING);
+        foreach ($buckets as $summary) {
+            $ordered[] = $summary;
         }
 
         return $ordered;
@@ -44716,6 +45022,35 @@ final class DocxOpenXmlReader
                 $summary['partZipSourceRecordExpansionRatioBucketSummaries'] ?? null
             )
                 ? array_values($summary['partZipSourceRecordExpansionRatioBucketSummaries'])
+                : [],
+            'partZipSourceRecordPackagePathByteLengthBucketSummaryCount' => (int) (
+                $summary['partZipSourceRecordPackagePathByteLengthBucketSummaryCount'] ?? 0
+            ),
+            'partZipSourceRecordPackagePathByteLengthBuckets' => self::packageIdentityStringList(
+                $summary['partZipSourceRecordPackagePathByteLengthBuckets'] ?? []
+            ),
+            'partZipSourceRecordPackagePathByteLengthBucketCounts' => $this->packageIdentityCountMap(
+                $summary['partZipSourceRecordPackagePathByteLengthBucketCounts'] ?? []
+            ),
+            'partZipSourceRecordPackagePathByteLengthBucketBytes' => $this->packageIdentityCountMap(
+                $summary['partZipSourceRecordPackagePathByteLengthBucketBytes'] ?? []
+            ),
+            'partZipSourceRecordPackagePathByteLengthBucketCompressedByteLengths' => $this->packageIdentityCountMap(
+                $summary['partZipSourceRecordPackagePathByteLengthBucketCompressedByteLengths'] ?? []
+            ),
+            'partZipSourceRecordPackagePathByteLengthBucketUncompressedByteLengths' => $this->packageIdentityCountMap(
+                $summary['partZipSourceRecordPackagePathByteLengthBucketUncompressedByteLengths'] ?? []
+            ),
+            'partZipSourceRecordPackagePathByteLengthBucketDataDescriptorPartCount' => (int) (
+                $summary['partZipSourceRecordPackagePathByteLengthBucketDataDescriptorPartCount'] ?? 0
+            ),
+            'partZipSourceRecordPackagePathByteLengthBucketIssuePartCount' => (int) (
+                $summary['partZipSourceRecordPackagePathByteLengthBucketIssuePartCount'] ?? 0
+            ),
+            'partZipSourceRecordPackagePathByteLengthBucketSummaries' => is_array(
+                $summary['partZipSourceRecordPackagePathByteLengthBucketSummaries'] ?? null
+            )
+                ? array_values($summary['partZipSourceRecordPackagePathByteLengthBucketSummaries'])
                 : [],
             'partZipSourceRecordRoleCount' => (int) ($summary['partZipSourceRecordRoleCount'] ?? 0),
             'partZipSourceRecordRoleCounts' => $this->packageIdentityCountMap(

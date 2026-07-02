@@ -605,6 +605,12 @@ final class OpcRelationshipGraph
                 ? max(0, $centralDirectoryRecordEnd - $centralDirectoryRecordOffset)
                 : null;
             $localHeaderOffset = $orderEntry['localHeaderOffset'] ?? $entry->localHeaderOffset;
+            $rawNameMatchesDecodedName = $entry->rawName === $entry->name;
+            $usesLegacyNameEncoding = $entry->nameEncoding === 'cp437';
+            $usesUnicodePathExtraField = $entry->nameEncoding === 'info-zip-unicode-path';
+            $hasRawNameProvenance = !$rawNameMatchesDecodedName
+                || $usesLegacyNameEncoding
+                || $usesUnicodePathExtraField;
 
             if (!$isDirectory) {
                 try {
@@ -626,6 +632,13 @@ final class OpcRelationshipGraph
             $entries[] = [
                 'entryIndex' => $entryIndex,
                 'entryName' => $entry->name,
+                'rawName' => $entry->rawName,
+                'rawNameHex' => bin2hex($entry->rawName),
+                'nameEncoding' => $entry->nameEncoding,
+                'rawNameMatchesDecodedName' => $rawNameMatchesDecodedName,
+                'usesLegacyNameEncoding' => $usesLegacyNameEncoding,
+                'usesUnicodePathExtraField' => $usesUnicodePathExtraField,
+                'hasRawNameProvenance' => $hasRawNameProvenance,
                 'directoryRoot' => self::zipEntryManifestDirectoryRoot($entry->name),
                 'pathSegments' => $manifestEntry['pathSegments'] ?? [],
                 'pathSegmentPositionReviews' => $manifestEntry['pathSegmentPositionReviews'] ?? [],
@@ -989,6 +1002,12 @@ final class OpcRelationshipGraph
         $entryNamesByCompressionMethod = [];
         $compressionMethodNamesByRole = [];
         $compressionMethodNamesByHandoffKind = [];
+        $nameEncodingCounts = [];
+        $entryNamesByNameEncoding = [];
+        $rawNameProvenanceEntries = [];
+        $decodedNameDiffersFromRawNameEntryCount = 0;
+        $legacyEncodedNameEntryCount = 0;
+        $unicodePathExtraEntryCount = 0;
         $generalPurposeFlagCounts = [];
         $entryNamesByGeneralPurposeFlag = [];
         $generalPurposeFlagNamesByRole = [];
@@ -1182,6 +1201,15 @@ final class OpcRelationshipGraph
                 $entry['role'],
                 $entry['handoffKind'],
             );
+            self::recordZipEntryManifestRawNameProvenance(
+                $nameEncodingCounts,
+                $entryNamesByNameEncoding,
+                $rawNameProvenanceEntries,
+                $decodedNameDiffersFromRawNameEntryCount,
+                $legacyEncodedNameEntryCount,
+                $unicodePathExtraEntryCount,
+                $entry,
+            );
             self::recordZipEntryManifestGeneralPurposeFlagProvenance(
                 $generalPurposeFlagCounts,
                 $entryNamesByGeneralPurposeFlag,
@@ -1371,6 +1399,11 @@ final class OpcRelationshipGraph
             $entryNamesByCompressionMethod,
             $compressionMethodNamesByRole,
             $compressionMethodNamesByHandoffKind,
+        );
+        self::sortZipEntryManifestRawNameProvenance(
+            $nameEncodingCounts,
+            $entryNamesByNameEncoding,
+            $rawNameProvenanceEntries,
         );
         self::sortZipManifestGeneralPurposeFlagProvenance(
             $generalPurposeFlagCounts,
@@ -1596,6 +1629,13 @@ final class OpcRelationshipGraph
             'entryNamesByCompressionMethod' => $entryNamesByCompressionMethod,
             'compressionMethodNamesByRole' => $compressionMethodNamesByRole,
             'compressionMethodNamesByHandoffKind' => $compressionMethodNamesByHandoffKind,
+            'nameEncodingCounts' => $nameEncodingCounts,
+            'entryNamesByNameEncoding' => $entryNamesByNameEncoding,
+            'rawNameProvenanceEntryCount' => count($rawNameProvenanceEntries),
+            'decodedNameDiffersFromRawNameEntryCount' => $decodedNameDiffersFromRawNameEntryCount,
+            'legacyEncodedNameEntryCount' => $legacyEncodedNameEntryCount,
+            'unicodePathExtraEntryCount' => $unicodePathExtraEntryCount,
+            'rawNameProvenanceEntries' => $rawNameProvenanceEntries,
             'generalPurposeFlagCounts' => $generalPurposeFlagCounts,
             'entryNamesByGeneralPurposeFlag' => $entryNamesByGeneralPurposeFlag,
             'generalPurposeFlagNamesByRole' => $generalPurposeFlagNamesByRole,
@@ -10414,6 +10454,75 @@ final class OpcRelationshipGraph
             sort($methodNames, SORT_STRING);
         }
         unset($methodNames);
+    }
+
+    /**
+     * @param array<string, int> $nameEncodingCounts
+     * @param array<string, list<string>> $entryNamesByNameEncoding
+     * @param list<array{entryName:string, partName:?string, rawName:string, rawNameHex:string, nameEncoding:string, rawNameMatchesDecodedName:bool, usesLegacyNameEncoding:bool, usesUnicodePathExtraField:bool, hasRawNameProvenance:bool}> $rawNameProvenanceEntries
+     */
+    private static function recordZipEntryManifestRawNameProvenance(
+        array &$nameEncodingCounts,
+        array &$entryNamesByNameEncoding,
+        array &$rawNameProvenanceEntries,
+        int &$decodedNameDiffersFromRawNameEntryCount,
+        int &$legacyEncodedNameEntryCount,
+        int &$unicodePathExtraEntryCount,
+        array $entry
+    ): void {
+        $nameEncoding = is_string($entry['nameEncoding'] ?? null) ? $entry['nameEncoding'] : 'unknown';
+        $nameEncodingCounts[$nameEncoding] = ($nameEncodingCounts[$nameEncoding] ?? 0) + 1;
+        $entryNamesByNameEncoding[$nameEncoding] ??= [];
+        self::appendUniqueString($entryNamesByNameEncoding[$nameEncoding], $entry['entryName']);
+
+        if (($entry['rawNameMatchesDecodedName'] ?? true) === false) {
+            $decodedNameDiffersFromRawNameEntryCount++;
+        }
+        if (($entry['usesLegacyNameEncoding'] ?? false) === true) {
+            $legacyEncodedNameEntryCount++;
+        }
+        if (($entry['usesUnicodePathExtraField'] ?? false) === true) {
+            $unicodePathExtraEntryCount++;
+        }
+        if (($entry['hasRawNameProvenance'] ?? false) !== true) {
+            return;
+        }
+
+        $rawNameProvenanceEntries[] = [
+            'entryName' => $entry['entryName'],
+            'partName' => is_string($entry['partName'] ?? null) ? $entry['partName'] : null,
+            'rawName' => is_string($entry['rawName'] ?? null) ? $entry['rawName'] : '',
+            'rawNameHex' => is_string($entry['rawNameHex'] ?? null) ? $entry['rawNameHex'] : '',
+            'nameEncoding' => $nameEncoding,
+            'rawNameMatchesDecodedName' => ($entry['rawNameMatchesDecodedName'] ?? false) === true,
+            'usesLegacyNameEncoding' => ($entry['usesLegacyNameEncoding'] ?? false) === true,
+            'usesUnicodePathExtraField' => ($entry['usesUnicodePathExtraField'] ?? false) === true,
+            'hasRawNameProvenance' => true,
+        ];
+    }
+
+    /**
+     * @param array<string, int> $nameEncodingCounts
+     * @param array<string, list<string>> $entryNamesByNameEncoding
+     * @param list<array{entryName:string, partName:?string, rawName:string, rawNameHex:string, nameEncoding:string, rawNameMatchesDecodedName:bool, usesLegacyNameEncoding:bool, usesUnicodePathExtraField:bool, hasRawNameProvenance:bool}> $rawNameProvenanceEntries
+     */
+    private static function sortZipEntryManifestRawNameProvenance(
+        array &$nameEncodingCounts,
+        array &$entryNamesByNameEncoding,
+        array &$rawNameProvenanceEntries
+    ): void {
+        ksort($nameEncodingCounts, SORT_STRING);
+        self::sortStringListMap($entryNamesByNameEncoding);
+        usort(
+            $rawNameProvenanceEntries,
+            static fn (array $left, array $right): int => [
+                $left['entryName'],
+                $left['rawNameHex'],
+            ] <=> [
+                $right['entryName'],
+                $right['rawNameHex'],
+            ],
+        );
     }
 
     /**
