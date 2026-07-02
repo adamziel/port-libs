@@ -12716,6 +12716,197 @@ final class ZipPackage
     }
 
     /**
+     * @param list<array<string, mixed>> $entries
+     * @return array{
+     *     nameByteLengthBucketCount:int,
+     *     longNameThresholdBytes:int,
+     *     longNameEntryCount:int,
+     *     longestNameByteLength:int,
+     *     longestEntryNames:list<string>,
+     *     nameByteLengthSummaries:list<array<string, mixed>>,
+     *     longNameEntries:list<array<string, mixed>>
+     * }
+     */
+    private static function entryHandoffNameByteLengthReview(array $entries): array
+    {
+        $longNameThresholdBytes = 128;
+        $summaries = [];
+        $longNameEntries = [];
+        $longestNameByteLength = 0;
+        $longestEntryNames = [];
+
+        foreach ($entries as $entry) {
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $nameByteLength = is_int($entry['nameByteLength'] ?? null)
+                ? $entry['nameByteLength']
+                : strlen($name);
+            $bucket = self::entryHandoffNameByteLengthBucket($nameByteLength);
+            $bucketKey = $bucket['nameByteLengthBucket'];
+            if (!isset($summaries[$bucketKey])) {
+                $summaries[$bucketKey] = $bucket + [
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'longNameEntryCount' => 0,
+                    'decodedNameBytes' => 0,
+                    'localRawNameBytes' => 0,
+                    'centralDirectoryRawNameBytes' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'longestNameByteLength' => 0,
+                    'longestEntryNames' => [],
+                    'entryNames' => [],
+                ];
+            }
+
+            $isDirectory = ($entry['isDirectory'] ?? false) === true;
+            ++$summaries[$bucketKey]['entryCount'];
+            if ($isDirectory) {
+                ++$summaries[$bucketKey]['directoryEntryCount'];
+            } else {
+                ++$summaries[$bucketKey]['fileEntryCount'];
+            }
+
+            if ($nameByteLength >= $longNameThresholdBytes) {
+                ++$summaries[$bucketKey]['longNameEntryCount'];
+            }
+
+            $localRawNameBytes = is_int($entry['localRawNameBytes'] ?? null)
+                ? $entry['localRawNameBytes']
+                : $nameByteLength;
+            $centralDirectoryRawNameBytes = is_int($entry['centralDirectoryRawNameBytes'] ?? null)
+                ? $entry['centralDirectoryRawNameBytes']
+                : $nameByteLength;
+
+            $summaries[$bucketKey]['decodedNameBytes'] += $nameByteLength;
+            $summaries[$bucketKey]['localRawNameBytes'] += $localRawNameBytes;
+            $summaries[$bucketKey]['centralDirectoryRawNameBytes'] += $centralDirectoryRawNameBytes;
+            $summaries[$bucketKey]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+            $summaries[$bucketKey]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+            $summaries[$bucketKey]['entryNames'][] = $name;
+
+            if ($nameByteLength > $summaries[$bucketKey]['longestNameByteLength']) {
+                $summaries[$bucketKey]['longestNameByteLength'] = $nameByteLength;
+                $summaries[$bucketKey]['longestEntryNames'] = [$name];
+            } elseif ($nameByteLength === $summaries[$bucketKey]['longestNameByteLength']) {
+                $summaries[$bucketKey]['longestEntryNames'][] = $name;
+            }
+
+            if ($nameByteLength > $longestNameByteLength) {
+                $longestNameByteLength = $nameByteLength;
+                $longestEntryNames = [$name];
+            } elseif ($nameByteLength === $longestNameByteLength) {
+                $longestEntryNames[] = $name;
+            }
+
+            if ($nameByteLength >= $longNameThresholdBytes) {
+                $longNameEntries[] = [
+                    'name' => $name,
+                    'nameByteLength' => $nameByteLength,
+                    'nameByteLengthBucket' => $bucketKey,
+                    'localRawNameBytes' => $localRawNameBytes,
+                    'centralDirectoryRawNameBytes' => $centralDirectoryRawNameBytes,
+                    'isDirectory' => $isDirectory,
+                    'centralDirectoryIndex' => is_int($entry['centralDirectoryIndex'] ?? null)
+                        ? $entry['centralDirectoryIndex']
+                        : null,
+                    'localHeaderOrder' => is_int($entry['localHeaderOrder'] ?? null)
+                        ? $entry['localHeaderOrder']
+                        : null,
+                    'pathDepth' => is_int($entry['pathDepth'] ?? null) ? $entry['pathDepth'] : null,
+                    'directoryRoot' => is_string($entry['directoryRoot'] ?? null) ? $entry['directoryRoot'] : null,
+                    'parentDirectory' => is_string($entry['parentDirectory'] ?? null) ? $entry['parentDirectory'] : null,
+                    'leafName' => is_string($entry['leafName'] ?? null) ? $entry['leafName'] : null,
+                    'packagePartKind' => is_string($entry['packagePartKind'] ?? null) ? $entry['packagePartKind'] : null,
+                ];
+            }
+        }
+
+        $orderedSummaries = [];
+        foreach (self::entryHandoffNameByteLengthBucketOrder() as $bucketKey) {
+            if (!isset($summaries[$bucketKey])) {
+                continue;
+            }
+            sort($summaries[$bucketKey]['entryNames'], SORT_STRING);
+            sort($summaries[$bucketKey]['longestEntryNames'], SORT_STRING);
+            $orderedSummaries[] = $summaries[$bucketKey];
+        }
+        sort($longestEntryNames, SORT_STRING);
+
+        return [
+            'nameByteLengthBucketCount' => count($orderedSummaries),
+            'longNameThresholdBytes' => $longNameThresholdBytes,
+            'longNameEntryCount' => count($longNameEntries),
+            'longestNameByteLength' => $longestNameByteLength,
+            'longestEntryNames' => $longestEntryNames,
+            'nameByteLengthSummaries' => $orderedSummaries,
+            'longNameEntries' => $longNameEntries,
+        ];
+    }
+
+    /**
+     * @return array{nameByteLengthBucket:string,minNameBytes:int,maxNameBytes:?int}
+     */
+    private static function entryHandoffNameByteLengthBucket(int $nameByteLength): array
+    {
+        if ($nameByteLength <= 31) {
+            return [
+                'nameByteLengthBucket' => 'up-to-31-bytes',
+                'minNameBytes' => 0,
+                'maxNameBytes' => 31,
+            ];
+        }
+
+        if ($nameByteLength <= 63) {
+            return [
+                'nameByteLengthBucket' => '32-to-63-bytes',
+                'minNameBytes' => 32,
+                'maxNameBytes' => 63,
+            ];
+        }
+
+        if ($nameByteLength <= 127) {
+            return [
+                'nameByteLengthBucket' => '64-to-127-bytes',
+                'minNameBytes' => 64,
+                'maxNameBytes' => 127,
+            ];
+        }
+
+        if ($nameByteLength <= 255) {
+            return [
+                'nameByteLengthBucket' => '128-to-255-bytes',
+                'minNameBytes' => 128,
+                'maxNameBytes' => 255,
+            ];
+        }
+
+        return [
+            'nameByteLengthBucket' => 'over-255-bytes',
+            'minNameBytes' => 256,
+            'maxNameBytes' => null,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function entryHandoffNameByteLengthBucketOrder(): array
+    {
+        return [
+            'up-to-31-bytes',
+            '32-to-63-bytes',
+            '64-to-127-bytes',
+            '128-to-255-bytes',
+            'over-255-bytes',
+        ];
+    }
+
+    /**
      * @return list<string>
      */
     private static function entryHandoffPathSegments(string $name): array
@@ -19823,6 +20014,8 @@ final class ZipPackage
                 self::appendUniqueIssue($sourceByteSpanIssues, $issue);
             }
             $entryExtension = self::entryHandoffExtension($entry->name, $isDirectory);
+            $nameByteLength = strlen($entry->name);
+            $nameByteLengthBucket = self::entryHandoffNameByteLengthBucket($nameByteLength);
             $summary = [
                 'name' => $entry->name,
                 'isDirectory' => $isDirectory,
@@ -19831,6 +20024,8 @@ final class ZipPackage
                 'directoryRoot' => self::entryHandoffDirectoryRoot($entry->name),
                 'parentDirectory' => self::entryHandoffParentDirectory($entry->name),
                 'leafName' => self::entryHandoffLeafName($entry->name),
+                'nameByteLength' => $nameByteLength,
+                'nameByteLengthBucket' => $nameByteLengthBucket['nameByteLengthBucket'],
                 'entryBaseName' => self::entryHandoffBaseName($entry->name),
                 'entryExtension' => $entryExtension,
                 'entryExtensionKey' => $entryExtension ?? '(none)',
@@ -19893,6 +20088,7 @@ final class ZipPackage
         }
         $pathDepthSummaries = self::entryHandoffPathDepthSummaries($entries);
         $pathPrefixSummaries = self::entryHandoffPathPrefixSummaries($entries);
+        $nameByteLengthReview = self::entryHandoffNameByteLengthReview($entries);
         $leafNameSummaries = self::entryHandoffLeafNameSummaries($entries);
         $sharedLeafNameSummaries = self::entryHandoffSharedLeafNameSummaries($leafNameSummaries);
         $caseFoldNameCollisionSummaries = self::entryHandoffCaseFoldNameCollisionSummaries($entries);
@@ -19947,6 +20143,12 @@ final class ZipPackage
             'pathDepthBucketCount' => count($pathDepthSummaries),
             'maxPathDepth' => self::entryHandoffMaxPathDepth($pathDepthSummaries),
             'pathPrefixCount' => count($pathPrefixSummaries),
+            'nameByteLengthReviewPolicy' => 'zip-package-manifest-name-byte-length-review',
+            'nameByteLengthBucketCount' => $nameByteLengthReview['nameByteLengthBucketCount'],
+            'longNameThresholdBytes' => $nameByteLengthReview['longNameThresholdBytes'],
+            'longNameEntryCount' => $nameByteLengthReview['longNameEntryCount'],
+            'longestNameByteLength' => $nameByteLengthReview['longestNameByteLength'],
+            'longestEntryNames' => $nameByteLengthReview['longestEntryNames'],
             'unknownExpansionRatioEntryCount' => $unknownExpansionRatioEntryCount,
             'hasUnknownExpansionRatioEntries' => $unknownExpansionRatioEntryCount > 0,
             'expansionRatioBucketCount' => count($expansionRatioBucketSummaries),
@@ -19979,6 +20181,8 @@ final class ZipPackage
             'pathSegmentSummaries' => $pathSegmentSummaries,
             'pathDepthSummaries' => $pathDepthSummaries,
             'pathPrefixSummaries' => $pathPrefixSummaries,
+            'nameByteLengthSummaries' => $nameByteLengthReview['nameByteLengthSummaries'],
+            'longNameEntries' => $nameByteLengthReview['longNameEntries'],
             'expansionRatioBucketSummaries' => $expansionRatioBucketSummaries,
             'leafNameSummaries' => $leafNameSummaries,
             'sharedLeafNameSummaries' => $sharedLeafNameSummaries,
