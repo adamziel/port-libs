@@ -29178,6 +29178,7 @@ final class XmlHtmlDom
         ];
         $summary += self::hyperlinkNavigationReviewSummary($element, $name, $relRaw, $pingRaw);
         $summary += self::hyperlinkAttributionSrcReviewSummary($element, $name);
+        $summary += self::hyperlinkHreflangReviewSummary($element, $name);
 
         if ($name === 'area') {
             $summary['shape'] = self::attributeOrNull($element, 'shape');
@@ -29321,6 +29322,42 @@ final class XmlHtmlDom
             'navigationIssueCount' => count($issues),
             'hyperlinkNavigationValid' => $issues === [],
         ] + $fragmentTarget;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function hyperlinkHreflangReviewSummary(\DOMElement $element, string $name): array
+    {
+        if (!$element->hasAttribute('hreflang')) {
+            return [];
+        }
+
+        $raw = self::attributeOrNull($element, 'hreflang') ?? '';
+        $trimmed = trim($raw);
+        $normalized = $trimmed === '' ? null : self::normalizeHtmlLanguageTag($raw);
+        $issues = [];
+
+        if ($trimmed === '') {
+            $issues[] = ['code' => 'empty-hyperlink-hreflang'];
+        } elseif ($normalized === null) {
+            $issues[] = ['code' => 'invalid-hyperlink-hreflang', 'hreflangRaw' => $raw];
+        }
+
+        return [
+            'hyperlinkHreflangReview' => $name,
+            'hyperlinkHreflangReviewPolicy' => 'html-hyperlink-hreflang-language-tag-review',
+            'hreflangRequested' => true,
+            'hreflangRaw' => $raw,
+            'hreflangNormalized' => $normalized,
+            'hreflangValid' => $issues === [],
+            'hreflangIssues' => $issues,
+            'hreflangIssueCodes' => array_values(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            )),
+            'hreflangIssueCount' => count($issues),
+        ];
     }
 
     /**

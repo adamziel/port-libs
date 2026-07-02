@@ -853,6 +853,11 @@ final class CitationCslProcessor
             $parts[] = 'Original genre: ' . $originalGenre . '.';
         }
 
+        $originalEdition = (string) ($item['originalEdition'] ?? '');
+        if ($originalEdition !== '') {
+            $parts[] = 'Original edition: ' . $originalEdition . '.';
+        }
+
         $originalCollectionTitle = (string) ($item['originalCollectionTitle'] ?? '');
         $originalCollectionNumber = (string) ($item['originalCollectionNumber'] ?? '');
         if ($originalCollectionTitle !== '' && $originalCollectionNumber !== '') {

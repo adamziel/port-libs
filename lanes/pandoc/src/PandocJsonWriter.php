@@ -929,7 +929,7 @@ final class PandocJsonWriter
      */
     private function writeFigureBlocks(AstNode $node): array
     {
-        $blocks = $this->mixedChildrenAsBlocks($node->children);
+        $blocks = $node->children === [] ? [] : $this->mixedChildrenAsBlocks($node->children);
 
         return $this->reusableBlockListPayload($node->attr('figureBlocksNative'), $blocks) ?? $blocks;
     }

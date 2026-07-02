@@ -97,4 +97,39 @@ return [
             }
         }
     },
+    'native writer treats structural block list sidecars as json native provenance' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('blockquote', [
+                'blockQuoteBlocksNative' => [[]],
+            ]),
+            new AstNode('div', [
+                'id' => 'empty-div',
+                'divBlocksNative' => [[]],
+            ]),
+            new AstNode('figure', [
+                'id' => 'empty-figure',
+                'figureBlocksNative' => [[]],
+            ]),
+        ]);
+
+        $packet = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $roundTrip = (new PandocJsonReader())->readPacket($packet);
+
+        $t->same([1, 23, 1], $packet['pandoc-api-version']);
+        $t->same('BlockQuote', $packet['blocks'][0]['t']);
+        $t->same([[]], $packet['blocks'][0]['c']);
+        $t->same('Div', $packet['blocks'][1]['t']);
+        $t->same('empty-div', $packet['blocks'][1]['c'][0][0]);
+        $t->same([[]], $packet['blocks'][1]['c'][1]);
+        $t->same('Figure', $packet['blocks'][2]['t']);
+        $t->same('empty-figure', $packet['blocks'][2]['c'][0][0]);
+        $t->same([[]], $packet['blocks'][2]['c'][2]);
+        $t->same(['blockquote', 'div', 'figure'], array_map(
+            static fn (AstNode $node): string => $node->type,
+            $roundTrip->children
+        ));
+        $t->same([[]], $roundTrip->children[0]->attr('blockQuoteBlocksNative'));
+        $t->same([[]], $roundTrip->children[1]->attr('divBlocksNative'));
+        $t->same([[]], $roundTrip->children[2]->attr('figureBlocksNative'));
+    },
 ];
