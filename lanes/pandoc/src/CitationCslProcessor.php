@@ -933,6 +933,26 @@ final class CitationCslProcessor
             $parts[] = 'Original language: ' . $originalLanguage . '.';
         }
 
+        $originalIsbn = (string) ($item['originalIsbn'] ?? '');
+        if ($originalIsbn !== '') {
+            $parts[] = 'Original ISBN: ' . $originalIsbn . '.';
+        }
+
+        $originalIssn = (string) ($item['originalIssn'] ?? '');
+        if ($originalIssn !== '') {
+            $parts[] = 'Original ISSN: ' . $originalIssn . '.';
+        }
+
+        $originalDoi = (string) ($item['originalDoi'] ?? '');
+        if ($originalDoi !== '') {
+            $parts[] = 'Original DOI: ' . $originalDoi . '.';
+        }
+
+        $originalUrl = (string) ($item['originalUrl'] ?? '');
+        if ($originalUrl !== '') {
+            $parts[] = 'Original URL: ' . $originalUrl . '.';
+        }
+
         $doi = (string) $item['doi'];
         if ($doi !== '') {
             $parts[] = 'DOI ' . $doi . '.';
@@ -1187,6 +1207,10 @@ final class CitationCslProcessor
         ]);
         $originalPublisher = self::firstStringField($item, ['original-publisher', 'originalPublisher', 'originalpublisher', 'origpublisher', 'origPublisher']);
         $originalPublisherPlace = self::firstStringField($item, ['original-publisher-place', 'originalPublisherPlace', 'originalpublisherplace', 'origlocation', 'origLocation', 'origaddress', 'origAddress']);
+        $originalIsbn = self::firstStringField($item, ['original-isbn', 'originalISBN', 'originalIsbn', 'originalisbn', 'original-ISBN', 'origisbn', 'origIsbn', 'origISBN', 'orig-isbn']);
+        $originalIssn = self::firstStringField($item, ['original-issn', 'originalISSN', 'originalIssn', 'originalissn', 'original-ISSN', 'origissn', 'origIssn', 'origISSN', 'orig-issn']);
+        $originalDoi = self::firstStringField($item, ['original-doi', 'originalDOI', 'originalDoi', 'originaldoi', 'original-DOI', 'origdoi', 'origDoi', 'origDOI', 'orig-doi']);
+        $originalUrl = self::firstStringField($item, ['original-url', 'originalURL', 'originalUrl', 'originalurl', 'original-URL', 'origurl', 'origUrl', 'origURL', 'orig-url']);
         $archive = self::firstStringField($item, ['archive', 'archiveprefix', 'archive-prefix', 'archivePrefix', 'eprinttype', 'eprint-type', 'eprintType']);
         $archiveCollection = self::firstStringField($item, ['archive_collection', 'archive-collection', 'archiveCollection', 'archivecollection']);
         $archivePlace = self::firstStringField($item, ['archive-place', 'archivePlace', 'archiveplace', 'eprintclass', 'eprint-class', 'eprintClass']);
@@ -1738,6 +1762,10 @@ final class CitationCslProcessor
             'originalIssue' => self::firstStringField($item, ['original-issue', 'originalIssue', 'originalissue', 'origissue', 'origIssue', 'orig-issue']),
             'originalNumber' => self::firstStringField($item, ['original-number', 'originalNumber', 'originalnumber', 'orignumber', 'origNumber', 'orig-number']),
             'originalEdition' => self::firstStringField($item, ['original-edition', 'originalEdition', 'originaledition', 'origedition', 'origEdition', 'orig-edition']),
+            'originalIsbn' => $originalIsbn,
+            'originalIssn' => $originalIssn,
+            'originalDoi' => $originalDoi,
+            'originalUrl' => $originalUrl,
             'originalDate' => $originalDate,
             'originalDateAddon' => self::firstStringField($item, ['original-date-addon', 'originalDateAddon', 'origdateaddon', 'origDateAddon', 'orig-date-addon']),
             'reprintDate' => $reprintDate,
@@ -11537,6 +11565,10 @@ final class CitationCslProcessor
             'original-publisher-place-list', 'originalpublisherplacelist', 'origlocationlist', 'origaddresslist' => implode('; ', is_array($item['originalPublisherPlaceList'] ?? null) ? $item['originalPublisherPlaceList'] : []),
             'original-language', 'originallanguage', 'origlanguage' => (string) ($item['originalLanguage'] ?? ''),
             'original-language-list', 'originallanguagelist', 'origlanguagelist' => implode('; ', is_array($item['originalLanguageList'] ?? null) ? $item['originalLanguageList'] : []),
+            'original-isbn', 'originalisbn', 'origisbn', 'orig-isbn' => (string) ($item['originalIsbn'] ?? ''),
+            'original-issn', 'originalissn', 'origissn', 'orig-issn' => (string) ($item['originalIssn'] ?? ''),
+            'original-doi', 'originaldoi', 'origdoi', 'orig-doi' => (string) ($item['originalDoi'] ?? ''),
+            'original-url', 'originalurl', 'origurl', 'orig-url' => (string) ($item['originalUrl'] ?? ''),
             'keyword', 'keywords' => implode(', ', is_array($item['keywords'] ?? null) ? $item['keywords'] : []),
             'keyword-list', 'keywordlist' => (string) ($item['keywordSummary'] ?? ''),
             'keyword-summary', 'keywords-summary' => (string) ($item['keywordSummary'] ?? ''),
