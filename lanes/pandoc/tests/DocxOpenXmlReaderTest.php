@@ -20478,6 +20478,74 @@ XML;
         $t->true(is_string($encodedSections), 'XML CDATA metadata should encode for review');
         $t->true(!str_contains((string) $encodedSections, 'hidden-payload'), 'raw XML CDATA text should not be exposed in package metadata');
     },
+    'summarizes docx package xml sibling transitions for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $hiddenComment = 'sibling-transition-review:hidden-comment';
+        $hiddenCdata = 'sibling-transition-review:hidden-cdata';
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/customXml/sibling-review.xml" ContentType="application/xml; profile=sibling-review"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['customXml/sibling-review.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<review:packet xmlns:review="urn:review-sibling">
+  <review:item review:id="alpha"/>
+  <!-- {$hiddenComment} -->
+  <review:item review:id="beta"/>
+  <![CDATA[{$hiddenCdata}]]>
+  <review:note/>
+  <review:group><review:child/><review:child/><review:tail/></review:group>
+</review:packet>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/sibling-review.xml'];
+        $transitions = $summary['partXmlSiblingTransitions'];
+        $reviewTransitions = $reviewPart['xmlSiblingTransitions'];
+
+        $t->true($summary['partXmlSiblingTransitionPartCount'] >= 1);
+        $t->true($summary['partXmlSiblingTransitionCount'] >= 5);
+        $t->true($summary['partXmlSiblingTransitionSameNameCount'] >= 2);
+        $t->true($summary['partXmlSiblingTransitionDifferentNameCount'] >= 3);
+        $t->true($summary['partXmlSiblingTransitionInterleavedNonElementNodeCount'] >= 7);
+        $t->same(3, $summary['partXmlSiblingTransitionMaxInterleavedNonElementNodeCount']);
+        $t->true(in_array('customXml/sibling-review.xml', $summary['partXmlSiblingTransitionPartNames'], true));
+        $t->true(is_bool($summary['partXmlSiblingTransitionsTruncated']));
+        $t->true($summary['partXmlSiblingTransitionPairCounts']['review:item -> review:item'] >= 1);
+        $t->same(1, $summary['partXmlSiblingTransitionPairCounts']['review:item -> review:note']);
+        $t->same(1, $summary['partXmlSiblingTransitionPairCounts']['review:note -> review:group']);
+        $t->same(1, $summary['partXmlSiblingTransitionPairCounts']['review:child -> review:child']);
+        $t->same(1, $summary['partXmlSiblingTransitionPairCounts']['review:child -> review:tail']);
+        $t->same(3, $summary['partXmlSiblingTransitionParentPathCounts']['/review:packet']);
+        $t->same(2, $summary['partXmlSiblingTransitionParentPathCounts']['/review:packet/review:group']);
+        $t->true($summary['partXmlSiblingTransitionPreviousElementNameCounts']['review:item'] >= 2);
+        $t->same(1, $summary['partXmlSiblingTransitionNextElementNameCounts']['review:child']);
+
+        $t->same(5, $reviewPart['xmlSiblingTransitionCount']);
+        $t->same(2, $reviewPart['xmlSiblingTransitionSameNameCount']);
+        $t->same(3, $reviewPart['xmlSiblingTransitionDifferentNameCount']);
+        $t->same(7, $reviewPart['xmlSiblingTransitionInterleavedNonElementNodeCount']);
+        $t->same(3, $reviewPart['xmlSiblingTransitionMaxInterleavedNonElementNodeCount']);
+        $t->same(false, $reviewPart['xmlSiblingTransitionsTruncated']);
+
+        $t->same('/review:packet', $reviewTransitions[0]['parentPath']);
+        $t->same('review:item -> review:item', $reviewTransitions[0]['pair']);
+        $t->same(3, $reviewTransitions[0]['interleavedNonElementNodeCount']);
+        $t->same(true, $reviewTransitions[0]['hasInterleavedNonElementNodes']);
+        $t->same(true, $reviewTransitions[0]['sameElementName']);
+        $t->same('review:item -> review:note', $reviewTransitions[1]['pair']);
+        $t->same(3, $reviewTransitions[1]['interleavedNonElementNodeCount']);
+        $t->same('/review:packet/review:group', $reviewTransitions[3]['parentPath']);
+        $t->same(2, $reviewTransitions[3]['parentDepth']);
+        $t->same('review:child -> review:child', $reviewTransitions[3]['pair']);
+        $encodedTransitions = json_encode([$reviewTransitions, $transitions]);
+        $t->true(is_string($encodedTransitions), 'XML sibling transition metadata should encode for review');
+        $t->true(!str_contains((string) $encodedTransitions, 'hidden-'), 'raw XML sibling interleaved text should not be exposed in transition metadata');
+    },
     'accepts docx main document template and macro-enabled content types' => static function (TestRunner $t): void {
         $acceptedDocumentContentTypes = [
             ['application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'],
