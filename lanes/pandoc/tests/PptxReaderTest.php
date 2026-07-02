@@ -6780,6 +6780,38 @@ XML);
     }
 };
 
+$buildEmptyPresentationTargetPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-empty-presentation-target-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdPresentation" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target=""/>
+</Relationships>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildDotSegmentPresentationTargetPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-dot-presentation-target-');
     if ($path === false) {
@@ -6826,6 +6858,53 @@ XML);
     </p:sp>
   </p:spTree></p:cSld>
 </p:sld>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
+$buildEmptySlideTargetPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-empty-slide-target-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdPresentation" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target=""/>
+</Relationships>
 XML);
     $zip->close();
 
@@ -8994,6 +9073,18 @@ return [
         $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Literal" , Space , Str "rels" , Space , Str "path" ]', $native);
     },
 
+    'keeps empty pptx root officeDocument targets as literal entry lookups like upstream' => static function (TestRunner $t) use ($buildEmptyPresentationTargetPptxPackage): void {
+        try {
+            (new PptxReader())->read($buildEmptyPresentationTargetPptxPackage());
+        } catch (RuntimeException $exception) {
+            $t->same('Entry not found: ', $exception->getMessage());
+
+            return;
+        }
+
+        throw new RuntimeException('Expected empty root presentation Target to look up the empty package entry like upstream');
+    },
+
     'ignores pptx slide relationship TargetMode like upstream' => static function (TestRunner $t) use ($buildExternalModeSlideRelationshipPptxPackage, $nodesOfType): void {
         $document = (new PptxReader())->read($buildExternalModeSlideRelationshipPptxPackage());
         $review = $document->attr('pptx');
@@ -9054,6 +9145,18 @@ return [
 
     'uses upstream literal pptx slide targets instead of normalizing root-relative paths' => static function (TestRunner $t) use ($buildRootRelativeSlideTargetPptxPackage): void {
         $t->throws(RuntimeException::class, static fn (): AstNode => (new PptxReader())->read($buildRootRelativeSlideTargetPptxPackage()));
+    },
+
+    'keeps empty pptx slide relationship targets as literal ppt slash lookups like upstream' => static function (TestRunner $t) use ($buildEmptySlideTargetPptxPackage): void {
+        try {
+            (new PptxReader())->read($buildEmptySlideTargetPptxPackage());
+        } catch (RuntimeException $exception) {
+            $t->same('Entry not found: ppt/', $exception->getMessage());
+
+            return;
+        }
+
+        throw new RuntimeException('Expected empty slide Target to look up ppt/ like upstream');
     },
 
     'keeps pptx relationships without Type usable for target lookup like upstream' => static function (TestRunner $t) use ($buildUntypedRelationshipsPptxPackage): void {
