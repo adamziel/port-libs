@@ -31875,6 +31875,145 @@ XML;
         $t->true(in_array('diagram-data', $inventory['word/diagrams/unreferenced-data.xml']['roles'], true), 'unreferenced diagram inventory role missing');
         $t->true(!isset($docx['media']['word/diagrams/data1.xml']), 'Diagram XML should not be exposed as document media');
     },
+    'summarizes docx header and footer diagram package relationships for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $dataRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData';
+        $layoutRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramLayout';
+        $headerContentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml';
+        $footerContentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml';
+        $dataContentType = 'application/vnd.openxmlformats-officedocument.drawingml.diagramData+xml';
+        $layoutContentType = 'application/vnd.openxmlformats-officedocument.drawingml.diagramLayout+xml';
+        $headerDataXml = '<dgm:dataModel xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"/>';
+        $footerLayoutXml = '<dgm:layoutDef xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"/>';
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/header1.xml" ContentType="' . $headerContentType . '"/>' . "\n" .
+            '  <Override PartName="/word/footer1.xml" ContentType="' . $footerContentType . '"/>' . "\n" .
+            '  <Override PartName="/word/diagrams/header-data.xml" ContentType="' . $dataContentType . '; profile=header-diagram"/>' . "\n" .
+            '  <Override PartName="/word/diagrams/footer-layout.xml" ContentType="' . $layoutContentType . '"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rHeaderDefault" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml?slot=default#hdr"/>' . "\n" .
+            '  <Relationship Id="rFooterDefault" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml?slot=default#ftr"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '</w:body>',
+            '    <w:sectPr><w:headerReference w:type="default" r:id="rHeaderDefault"/><w:footerReference w:type="default" r:id="rFooterDefault"/></w:sectPr>' . "\n" .
+            '  </w:body>',
+            $parts['word/document.xml']
+        );
+        $parts['word/header1.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram">
+  <w:p>
+    <w:r><w:drawing><wp:inline><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"><dgm:relIds r:dm="rHeaderDiagramData"/></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>
+  </w:p>
+</w:hdr>
+XML;
+        $parts['word/footer1.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram">
+  <w:p>
+    <w:r><w:drawing><wp:inline><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"><dgm:relIds r:lo="rFooterDiagramLayout"/></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>
+  </w:p>
+</w:ftr>
+XML;
+        $parts['word/_rels/header1.xml.rels'] = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rHeaderDiagramData" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData" Target="diagrams/header-data.xml?slot=header#data"/>
+</Relationships>
+XML;
+        $parts['word/_rels/footer1.xml.rels'] = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rFooterDiagramLayout" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramLayout" Target="diagrams/footer-layout.xml?slot=footer#layout"/>
+</Relationships>
+XML;
+        $parts['word/diagrams/header-data.xml'] = $headerDataXml;
+        $parts['word/diagrams/footer-layout.xml'] = $footerLayoutXml;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $diagrams = $docx['diagramParts'];
+        $summary = $package['summary'];
+        $header = $diagrams['byRelationshipKey']['word/_rels/header1.xml.rels#rHeaderDiagramData'];
+        $footer = $diagrams['byRelationshipKey']['word/_rels/footer1.xml.rels#rFooterDiagramLayout'];
+
+        $t->same($diagrams, $package['diagramParts']);
+        $t->same(2, $diagrams['count']);
+        $t->same(2, $diagrams['relationshipCount']);
+        $t->same(0, $diagrams['documentCount']);
+        $t->same(1, $diagrams['headerCount']);
+        $t->same(1, $diagrams['footerCount']);
+        $t->same(3, $diagrams['sourcePartCount']);
+        $t->same(['document', 'header', 'footer'], $diagrams['sourceTypes']);
+        $t->same(['word/document.xml', 'word/header1.xml', 'word/footer1.xml'], $diagrams['sourceParts']);
+        $t->same(['word/_rels/document.xml.rels', 'word/_rels/header1.xml.rels', 'word/_rels/footer1.xml.rels'], $diagrams['relationshipsParts']);
+        $t->same(['word/_rels/header1.xml.rels#rHeaderDiagramData', 'word/_rels/footer1.xml.rels#rFooterDiagramLayout'], $diagrams['relationshipKeys']);
+        $t->same(['word/_rels/header1.xml.rels#rHeaderDiagramData', 'word/_rels/footer1.xml.rels#rFooterDiagramLayout'], $diagrams['referencedRelationshipKeys']);
+        $t->same([], $diagrams['unreferencedRelationshipKeys']);
+        $t->same(['word/diagrams/header-data.xml', 'word/diagrams/footer-layout.xml'], $diagrams['partNames']);
+        $t->same(['data' => 1, 'layout' => 1], $diagrams['roleCounts']);
+        $t->same(0, $diagrams['issueCount']);
+        $t->same([], $diagrams['issueCodes']);
+
+        $t->same('word/_rels/header1.xml.rels#rHeaderDiagramData', $header['relationshipKey']);
+        $t->same('header', $header['sourceType']);
+        $t->same('word/header1.xml', $header['sourcePart']);
+        $t->same('word/_rels/header1.xml.rels', $header['relationshipsPart']);
+        $t->same(true, $header['referenced']);
+        $t->same('data', $header['role']);
+        $t->same($dataRel, $header['relationshipType']);
+        $t->same('diagrams/header-data.xml?slot=header#data', $header['target']);
+        $t->same('word/diagrams/header-data.xml?slot=header#data', $header['resolvedTarget']);
+        $t->same('word/diagrams/header-data.xml', $header['targetPart']);
+        $t->same('slot=header', $header['targetQuery']);
+        $t->same('data', $header['targetFragment']);
+        $t->same($dataContentType . '; profile=header-diagram', $header['contentType']);
+        $t->same(strtolower($dataContentType), $header['contentTypeBase']);
+        $t->same(['profile' => 'header-diagram'], $header['contentTypeParameterMap']);
+        $t->same(strlen($headerDataXml), $header['byteLength']);
+        $t->same(true, $header['valid']);
+        $t->same([], $header['issues']);
+
+        $t->same('word/_rels/footer1.xml.rels#rFooterDiagramLayout', $footer['relationshipKey']);
+        $t->same('footer', $footer['sourceType']);
+        $t->same('word/footer1.xml', $footer['sourcePart']);
+        $t->same('word/_rels/footer1.xml.rels', $footer['relationshipsPart']);
+        $t->same(true, $footer['referenced']);
+        $t->same('layout', $footer['role']);
+        $t->same($layoutRel, $footer['relationshipType']);
+        $t->same('diagrams/footer-layout.xml?slot=footer#layout', $footer['target']);
+        $t->same('word/diagrams/footer-layout.xml?slot=footer#layout', $footer['resolvedTarget']);
+        $t->same('word/diagrams/footer-layout.xml', $footer['targetPart']);
+        $t->same('slot=footer', $footer['targetQuery']);
+        $t->same('layout', $footer['targetFragment']);
+        $t->same($layoutContentType, $footer['contentType']);
+        $t->same(strtolower($layoutContentType), $footer['contentTypeBase']);
+        $t->same(strlen($footerLayoutXml), $footer['byteLength']);
+        $t->same(true, $footer['valid']);
+        $t->same([], $footer['issues']);
+
+        $t->same(2, $summary['diagramPartCount']);
+        $t->same(2, $summary['diagramPartRelationshipCount']);
+        $t->same(0, $summary['diagramPartDocumentCount']);
+        $t->same(1, $summary['diagramPartHeaderCount']);
+        $t->same(1, $summary['diagramPartFooterCount']);
+        $t->same(3, $summary['diagramPartSourcePartCount']);
+        $t->same(['document', 'header', 'footer'], $summary['diagramPartSourceTypes']);
+        $t->same(['word/document.xml', 'word/header1.xml', 'word/footer1.xml'], $summary['diagramPartSourceParts']);
+        $t->same(['word/_rels/document.xml.rels', 'word/_rels/header1.xml.rels', 'word/_rels/footer1.xml.rels'], $summary['diagramPartRelationshipParts']);
+        $t->same(0, $summary['diagramPartIssueCount']);
+        $t->same([], $summary['diagramPartIssueCodes']);
+        $t->true(!isset($docx['media']['word/diagrams/header-data.xml']), 'Header diagram XML should not be exposed as document media');
+        $t->true(!isset($docx['media']['word/diagrams/footer-layout.xml']), 'Footer diagram XML should not be exposed as document media');
+    },
     'summarizes docx chart embedded package relationships for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $chartRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart';
