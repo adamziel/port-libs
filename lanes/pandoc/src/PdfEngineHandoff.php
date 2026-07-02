@@ -674,6 +674,16 @@ final class PdfEngineHandoff
         if ($typstBoundarySummary !== []) {
             $diagnostics[] = 'typst-boundary-summary:' . $typstBoundarySummary['reviewStatus'];
             $diagnostics[] = 'typst-boundary-summary-paths:' . $typstBoundarySummary['pathEntryCount'];
+            foreach (is_array($typstBoundarySummary['pathKindCounts'] ?? null) ? $typstBoundarySummary['pathKindCounts'] : [] as $pathKind => $count) {
+                if (is_string($pathKind) && $pathKind !== '' && is_int($count) && $count > 0) {
+                    $diagnostics[] = 'typst-boundary-summary-path-kind:' . $pathKind . ':' . $count;
+                }
+            }
+            foreach (is_array($typstBoundarySummary['pathSourceCounts'] ?? null) ? $typstBoundarySummary['pathSourceCounts'] : [] as $pathSource => $count) {
+                if (is_string($pathSource) && $pathSource !== '' && is_int($count) && $count > 0) {
+                    $diagnostics[] = 'typst-boundary-summary-path-source:' . $pathSource . ':' . $count;
+                }
+            }
             if ($typstBoundarySummary['unsafePathEntryCount'] > 0) {
                 $diagnostics[] = 'typst-boundary-summary-unsafe-paths:' . $typstBoundarySummary['unsafePathEntryCount'];
             }
@@ -9656,6 +9666,10 @@ final class PdfEngineHandoff
             'stdout' => 0,
             'invalid' => 0,
         ];
+        $safeKindCounts = array_fill_keys(array_keys($kindCounts), 0);
+        $unsafeKindCounts = array_fill_keys(array_keys($kindCounts), 0);
+        $pathSourceCounts = [];
+        $environmentPathVariables = [];
         $safePathCount = 0;
         $unsafePathCount = 0;
         foreach ($pathEntries as $entry) {
@@ -9667,10 +9681,31 @@ final class PdfEngineHandoff
 
             if (($entry['safe'] ?? false) === true) {
                 ++$safePathCount;
+                ++$safeKindCounts[$kind];
             } else {
                 ++$unsafePathCount;
+                ++$unsafeKindCounts[$kind];
+            }
+
+            $source = is_string($entry['source'] ?? null) && $entry['source'] !== ''
+                ? $entry['source']
+                : 'engine-option';
+            $pathSourceCounts[$source] = ($pathSourceCounts[$source] ?? 0) + 1;
+            if (
+                $source === 'environment'
+                && is_string($entry['environmentVariable'] ?? null)
+                && $entry['environmentVariable'] !== ''
+            ) {
+                $environmentPathVariables[] = $entry['environmentVariable'];
             }
         }
+        $pathKindCounts = array_filter($kindCounts, static fn (int $count): bool => $count > 0);
+        $safePathKindCounts = array_filter($safeKindCounts, static fn (int $count): bool => $count > 0);
+        $unsafePathKindCounts = array_filter($unsafeKindCounts, static fn (int $count): bool => $count > 0);
+        ksort($pathSourceCounts);
+        $environmentPathVariables = array_values(array_unique($environmentPathVariables));
+        sort($environmentPathVariables);
+        $unsafePathKinds = array_keys($unsafePathKindCounts);
 
         $inputVariables = is_array($provenance['inputVariables'] ?? null) ? $provenance['inputVariables'] : [];
         $inputVariablePolicy = is_array($provenance['inputVariablePolicy'] ?? null) ? $provenance['inputVariablePolicy'] : [];
@@ -10195,6 +10230,13 @@ final class PdfEngineHandoff
             'pathEntryCount' => count($pathEntries),
             'safePathEntryCount' => $safePathCount,
             'unsafePathEntryCount' => $unsafePathCount,
+            'pathKindCounts' => $pathKindCounts,
+            'safePathKindCounts' => $safePathKindCounts,
+            'unsafePathKindCounts' => $unsafePathKindCounts,
+            'pathSourceCounts' => $pathSourceCounts,
+            'environmentPathVariableCount' => count($environmentPathVariables),
+            'environmentPathVariables' => $environmentPathVariables,
+            'unsafePathKinds' => $unsafePathKinds,
             'relativePathEntryCount' => $kindCounts['relative'],
             'workspacePathEntryCount' => $kindCounts['workspace'],
             'absolutePathEntryCount' => $kindCounts['absolute'],

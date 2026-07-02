@@ -348,6 +348,24 @@ return [
             'pathEntryCount' => 9,
             'safePathEntryCount' => 6,
             'unsafePathEntryCount' => 3,
+            'pathKindCounts' => [
+                'relative' => 6,
+                'absolute' => 1,
+                'uri' => 2,
+            ],
+            'safePathKindCounts' => [
+                'relative' => 6,
+            ],
+            'unsafePathKindCounts' => [
+                'absolute' => 1,
+                'uri' => 2,
+            ],
+            'pathSourceCounts' => [
+                'engine-option' => 9,
+            ],
+            'environmentPathVariableCount' => 0,
+            'environmentPathVariables' => [],
+            'unsafePathKinds' => ['absolute', 'uri'],
             'relativePathEntryCount' => 6,
             'workspacePathEntryCount' => 0,
             'absolutePathEntryCount' => 1,
