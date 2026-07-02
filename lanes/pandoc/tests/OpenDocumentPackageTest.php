@@ -2998,8 +2998,29 @@ XML;
             'odf-configuration-missing-package-part',
             'odf-configuration-undeclared-package-part',
         ], $summary['packageConfigurations']['issueCodes']);
+        $t->same([
+            'accelerator' => 1,
+            'images' => 1,
+            'statusbar' => 1,
+            'toolbar' => 1,
+        ], $summary['packageConfigurations']['configurationAreaCounts']);
         $t->same(['accelerator', 'images', 'statusbar', 'toolbar'], $summary['packageConfigurations']['configurationAreas']);
+        $t->same([
+            'configuration-image' => 1,
+            'configuration-root' => 1,
+            'configuration-xml' => 3,
+        ], $summary['packageConfigurations']['configurationKindCounts']);
         $t->same(['configuration-image', 'configuration-root', 'configuration-xml'], $summary['packageConfigurations']['configurationKinds']);
+        $t->same([
+            '(empty)' => 1,
+            'image/png' => 1,
+            'text/xml' => 3,
+        ], $summary['packageConfigurations']['configurationMediaTypeBaseCounts']);
+        $t->same(['(empty)', 'image/png', 'text/xml'], $summary['packageConfigurations']['configurationMediaTypeBases']);
+        $t->same([
+            'configuration-package-bytes-blocked' => 4,
+            'directory-entry-no-bytes' => 1,
+        ], $summary['packageConfigurations']['configurationByteExposurePolicyCounts']);
         $t->same('configuration-package-bytes-blocked', $summary['packageConfigurations']['byteExposurePolicy']);
         $t->same('configuration-package-metadata-only', $summary['packageConfigurations']['reviewPolicy']);
         $t->same([
@@ -3140,8 +3161,26 @@ XML;
             'odf-configuration-missing-package-part',
             'odf-configuration-undeclared-package-part',
         ], $configurations['issueCodes']);
+        $t->same([
+            'images' => 1,
+            'statusbar' => 1,
+            'toolbar' => 2,
+        ], $configurations['configurationAreaCounts']);
         $t->same(['images', 'statusbar', 'toolbar'], $configurations['configurationAreas']);
+        $t->same([
+            'configuration-part' => 1,
+            'configuration-xml' => 3,
+        ], $configurations['configurationKindCounts']);
         $t->same(['configuration-part', 'configuration-xml'], $configurations['configurationKinds']);
+        $t->same([
+            'text/plain' => 1,
+            'text/xml' => 3,
+        ], $configurations['configurationMediaTypeBaseCounts']);
+        $t->same(['text/plain', 'text/xml'], $configurations['configurationMediaTypeBases']);
+        $t->same([
+            'configuration-package-bytes-blocked' => 3,
+            'encrypted-resource-bytes-blocked' => 1,
+        ], $configurations['configurationByteExposurePolicyCounts']);
         $t->same('configuration-package-bytes-blocked', $configurations['byteExposurePolicy']);
         $t->same('configuration-package-metadata-only', $configurations['reviewPolicy']);
 
