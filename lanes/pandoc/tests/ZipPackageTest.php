@@ -958,6 +958,7 @@ return [
                     'centralDirectoryRawCommentSha256' => hash('sha256', ''),
                     'centralDirectoryReviewFieldBytes' => $manifestEntry['centralDirectoryReviewFieldBytes'],
                     'sourceRecordBytes' => $manifestEntry['localRecordBytes'] + $centralDirectoryRecordBytes,
+                    'sourceRecordByteBucket' => $manifestEntry['sourceRecordByteBucket'],
                 ];
             }
 
@@ -1332,6 +1333,9 @@ return [
             'centralDirectoryRawCommentBytes' => 0,
             'centralDirectoryReviewFieldBytes' => 0,
             'sourceRecordBytes' => array_sum(array_column($expectedEntries, 'sourceRecordBytes')),
+            'sourceRecordByteBucketSummaryCount' => $manifest['sourceRecordByteBucketSummaryCount'],
+            'sourceRecordByteBuckets' => $manifest['sourceRecordByteBuckets'],
+            'sourceRecordByteBucketSummaries' => $manifest['sourceRecordByteBucketSummaries'],
             'centralExtraFieldEntryCount' => 0,
             'entryCommentCount' => 0,
             'hasEntryComments' => false,
@@ -1631,6 +1635,7 @@ return [
                 'centralDirectoryRawCommentSha256' => $entry['centralDirectoryRawCommentSha256'],
                 'centralDirectoryReviewFieldBytes' => $entry['centralDirectoryReviewFieldBytes'],
                 'sourceRecordBytes' => $entry['sourceRecordBytes'],
+                'sourceRecordByteBucket' => $entry['sourceRecordByteBucket'],
             ],
             $manifest['entries']
         ));
@@ -1985,6 +1990,95 @@ return [
         $t->same($manifest['nameLengthBucketSummaries'], $strict['packageManifest']['nameLengthBucketSummaries']);
         $t->same($manifest['nameLengthBucketSummaries'], $raw['packageManifest']['nameLengthBucketSummaries']);
         $t->same($manifest['nameLengthBucketSummaries'], $raw['strictImport']['packageManifest']['nameLengthBucketSummaries']);
+    },
+
+    'rolls up zip package manifest source record byte buckets before shared package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $mimetypeName = 'mimetype';
+        $mediaDirectoryName = 'word/media/';
+        $documentName = 'word/document.xml';
+        $previewName = 'word/media/preview.bin';
+        $largeName = 'word/media/large.bin';
+        $mimetype = 'application/test';
+        $documentXml = str_repeat('D', 36);
+        $previewBytes = str_repeat('P', 520);
+        $largeBytes = str_repeat('L', 2100);
+
+        $zip = $buildZipPackage([
+            ['name' => $mimetypeName, 'data' => $mimetype, 'method' => 0],
+            ['name' => $mediaDirectoryName, 'data' => '', 'method' => 0],
+            ['name' => $documentName, 'data' => $documentXml, 'method' => 0],
+            ['name' => $previewName, 'data' => $previewBytes, 'method' => 0],
+            ['name' => $largeName, 'data' => $largeBytes, 'method' => 0],
+        ]);
+        $package = ZipPackage::fromString($zip);
+        $manifest = $package->packageManifestPreflight();
+        $strict = $package->strictImportPreflight(4096, 100.0, 4096);
+        $raw = ZipPackage::rawStrictImportPreflight($zip, 4096, 100.0, 4096);
+        $entriesByName = array_column($manifest['entries'], null, 'name');
+        $sumEntryField = static function (array $names, string $field) use ($entriesByName): int {
+            $total = 0;
+            foreach ($names as $name) {
+                $total += (int) $entriesByName[$name][$field];
+            }
+
+            return $total;
+        };
+        $buckets = array_column($manifest['sourceRecordByteBucketSummaries'], null, 'sourceRecordByteBucket');
+
+        $t->same('up-to-127-bytes', $entriesByName[$mimetypeName]['sourceRecordByteBucket']);
+        $t->same('up-to-127-bytes', $entriesByName[$mediaDirectoryName]['sourceRecordByteBucket']);
+        $t->same('128-to-511-bytes', $entriesByName[$documentName]['sourceRecordByteBucket']);
+        $t->same('512-to-2047-bytes', $entriesByName[$previewName]['sourceRecordByteBucket']);
+        $t->same('2048-plus-bytes', $entriesByName[$largeName]['sourceRecordByteBucket']);
+        $t->same(4, $manifest['sourceRecordByteBucketSummaryCount']);
+        $t->same(
+            ['up-to-127-bytes', '128-to-511-bytes', '512-to-2047-bytes', '2048-plus-bytes'],
+            $manifest['sourceRecordByteBuckets']
+        );
+
+        $smallNames = [$mimetypeName, $mediaDirectoryName];
+        $t->same([
+            'sourceRecordByteBucket' => 'up-to-127-bytes',
+            'minSourceRecordBytes' => 0,
+            'maxSourceRecordBytes' => 127,
+            'entryCount' => 2,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 1,
+            'sourceRecordBytes' => $sumEntryField($smallNames, 'sourceRecordBytes'),
+            'localRecordBytes' => $sumEntryField($smallNames, 'localRecordBytes'),
+            'centralDirectoryRecordBytes' => $sumEntryField($smallNames, 'centralDirectoryRecordBytes'),
+            'compressedBytes' => strlen($mimetype),
+            'uncompressedBytes' => strlen($mimetype),
+            'dataDescriptorEntryCount' => 0,
+            'dataDescriptorBytes' => 0,
+            'directoryRoots' => ['/', 'word/'],
+            'packagePartExtensionKeys' => ['(directory)', '(none)'],
+            'compressionMethodNames' => ['stored'],
+            'entryNames' => $smallNames,
+            'minEntrySourceRecordBytes' => $entriesByName[$mediaDirectoryName]['sourceRecordBytes'],
+            'maxEntrySourceRecordBytes' => $entriesByName[$mimetypeName]['sourceRecordBytes'],
+            'largestSourceRecordEntryNames' => [$mimetypeName],
+        ], $buckets['up-to-127-bytes']);
+
+        $t->same(1, $buckets['128-to-511-bytes']['entryCount']);
+        $t->same(strlen($documentXml), $buckets['128-to-511-bytes']['compressedBytes']);
+        $t->same($entriesByName[$documentName]['sourceRecordBytes'], $buckets['128-to-511-bytes']['sourceRecordBytes']);
+        $t->same(['xml'], $buckets['128-to-511-bytes']['packagePartExtensionKeys']);
+        $t->same([$documentName], $buckets['128-to-511-bytes']['largestSourceRecordEntryNames']);
+        $t->same(1, $buckets['512-to-2047-bytes']['entryCount']);
+        $t->same(strlen($previewBytes), $buckets['512-to-2047-bytes']['uncompressedBytes']);
+        $t->same([$previewName], $buckets['512-to-2047-bytes']['entryNames']);
+        $t->same(1, $buckets['2048-plus-bytes']['entryCount']);
+        $t->same(null, $buckets['2048-plus-bytes']['maxSourceRecordBytes']);
+        $t->same($entriesByName[$largeName]['sourceRecordBytes'], $buckets['2048-plus-bytes']['maxEntrySourceRecordBytes']);
+        $t->same([$largeName], $buckets['2048-plus-bytes']['largestSourceRecordEntryNames']);
+
+        $t->same($manifest['sourceRecordByteBucketSummaries'], $strict['packageManifest']['sourceRecordByteBucketSummaries']);
+        $t->same($manifest['sourceRecordByteBucketSummaries'], $raw['packageManifest']['sourceRecordByteBucketSummaries']);
+        $t->same(
+            $manifest['sourceRecordByteBucketSummaries'],
+            $raw['strictImport']['packageManifest']['sourceRecordByteBucketSummaries']
+        );
     },
 
     'preflights zip package manifest path segment positions for shared package handoff' => static function (TestRunner $t) use ($buildZipPackage, $pathSegmentPositionReviews): void {
@@ -3068,6 +3162,7 @@ return [
                 'centralDirectoryRawCommentSha256' => $documentEntry['centralDirectoryRawCommentSha256'],
                 'centralDirectoryReviewFieldBytes' => $documentEntry['centralDirectoryReviewFieldBytes'],
                 'sourceRecordBytes' => $documentEntry['sourceRecordBytes'],
+                'sourceRecordByteBucket' => $documentEntry['sourceRecordByteBucket'],
             ],
             [
                 'name' => 'word/comments.xml',
@@ -3149,6 +3244,7 @@ return [
                 'centralDirectoryRawCommentSha256' => $commentsEntry['centralDirectoryRawCommentSha256'],
                 'centralDirectoryReviewFieldBytes' => $commentsEntry['centralDirectoryReviewFieldBytes'],
                 'sourceRecordBytes' => $commentsEntry['sourceRecordBytes'],
+                'sourceRecordByteBucket' => $commentsEntry['sourceRecordByteBucket'],
             ],
         ];
         $expectedCompressionMethodSummaries = [
@@ -3383,6 +3479,9 @@ return [
             'centralDirectoryRawCommentBytes' => $manifest['centralDirectoryRawCommentBytes'],
             'centralDirectoryReviewFieldBytes' => $manifest['centralDirectoryReviewFieldBytes'],
             'sourceRecordBytes' => $manifest['sourceRecordBytes'],
+            'sourceRecordByteBucketSummaryCount' => $manifest['sourceRecordByteBucketSummaryCount'],
+            'sourceRecordByteBuckets' => $manifest['sourceRecordByteBuckets'],
+            'sourceRecordByteBucketSummaries' => $manifest['sourceRecordByteBucketSummaries'],
             'centralExtraFieldEntryCount' => $manifest['centralExtraFieldEntryCount'],
             'entryCommentCount' => $manifest['entryCommentCount'],
             'hasEntryComments' => $manifest['hasEntryComments'],
@@ -3607,6 +3706,7 @@ return [
                 'centralDirectoryRawCommentSha256' => $entry['centralDirectoryRawCommentSha256'],
                 'centralDirectoryReviewFieldBytes' => $entry['centralDirectoryReviewFieldBytes'],
                 'sourceRecordBytes' => $entry['sourceRecordBytes'],
+                'sourceRecordByteBucket' => $entry['sourceRecordByteBucket'],
             ],
             $manifest['entries']
         ));

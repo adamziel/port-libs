@@ -15415,6 +15415,7 @@ final class ZipPackage
             $entrySourceRecordBytes = $localRecordLength + max(0, $entryCentralDirectoryRecordBytes ?? 0);
             $sourceRecordBytes += $entrySourceRecordBytes;
             $versionNeededToExtractSummaries[$versionNeededToExtract]['sourceRecordBytes'] += $entrySourceRecordBytes;
+            $entrySourceRecordByteBucket = self::packageManifestSourceRecordByteBucket($entrySourceRecordBytes);
             $centralDirectoryFixedHeaderBytes += $entryCentralDirectoryFixedHeaderBytes;
             $centralDirectoryVariableFieldBytes += $entryCentralDirectoryVariableFieldBytes;
             $centralDirectoryRawNameBytes += $entryCentralDirectoryRawNameBytes;
@@ -15526,6 +15527,7 @@ final class ZipPackage
                 'centralDirectoryRawCommentSha256' => $entryCentralDirectoryRawCommentSha256,
                 'centralDirectoryReviewFieldBytes' => $entryCentralDirectoryReviewFieldBytes,
                 'sourceRecordBytes' => $entrySourceRecordBytes,
+                'sourceRecordByteBucket' => $entrySourceRecordByteBucket['sourceRecordByteBucket'],
             ];
             $entries[] = $summary;
             if (!$localHeaderOrderMatchesCentralDirectoryOrder) {
@@ -15661,6 +15663,7 @@ final class ZipPackage
                 'centralDirectoryRawCommentSha256' => $summary['centralDirectoryRawCommentSha256'],
                 'centralDirectoryReviewFieldBytes' => $summary['centralDirectoryReviewFieldBytes'],
                 'sourceRecordBytes' => $summary['sourceRecordBytes'],
+                'sourceRecordByteBucket' => $summary['sourceRecordByteBucket'],
             ];
         }
 
@@ -15819,6 +15822,11 @@ final class ZipPackage
             static fn (array $summary): string => (string) $summary['nameLengthBucket'],
             $nameLengthBucketSummaries
         );
+        $sourceRecordByteBucketSummaries = self::packageManifestSourceRecordByteBucketSummaries($entries);
+        $sourceRecordByteBuckets = array_map(
+            static fn (array $summary): string => (string) $summary['sourceRecordByteBucket'],
+            $sourceRecordByteBucketSummaries
+        );
         $expansionRatio = self::expansionRatio($uncompressedBytes, $compressedBytes);
         $manifestPayload = [
             'manifestVersion' => 'zip-package-manifest-v1',
@@ -15909,6 +15917,9 @@ final class ZipPackage
             'centralDirectoryRawCommentBytes' => $centralDirectoryRawCommentBytes,
             'centralDirectoryReviewFieldBytes' => $centralDirectoryReviewFieldBytes,
             'sourceRecordBytes' => $sourceRecordBytes,
+            'sourceRecordByteBucketSummaryCount' => count($sourceRecordByteBucketSummaries),
+            'sourceRecordByteBuckets' => $sourceRecordByteBuckets,
+            'sourceRecordByteBucketSummaries' => $sourceRecordByteBucketSummaries,
             'centralExtraFieldEntryCount' => $centralExtraFieldEntryCount,
             'entryCommentCount' => $entryCommentCount,
             'hasEntryComments' => $entryCommentSummaries !== [],
@@ -16099,6 +16110,9 @@ final class ZipPackage
             'centralDirectoryRawCommentBytes' => $centralDirectoryRawCommentBytes,
             'centralDirectoryReviewFieldBytes' => $centralDirectoryReviewFieldBytes,
             'sourceRecordBytes' => $sourceRecordBytes,
+            'sourceRecordByteBucketSummaryCount' => count($sourceRecordByteBucketSummaries),
+            'sourceRecordByteBuckets' => $sourceRecordByteBuckets,
+            'sourceRecordByteBucketSummaries' => $sourceRecordByteBucketSummaries,
             'centralExtraFieldEntryCount' => $centralExtraFieldEntryCount,
             'entryCommentCount' => $entryCommentCount,
             'hasEntryComments' => $entryCommentSummaries !== [],
@@ -16669,6 +16683,143 @@ final class ZipPackage
         }
 
         return $summaries;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function packageManifestSourceRecordByteBucketSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $sourceRecordBytes = (int) ($entry['sourceRecordBytes'] ?? 0);
+            $bucket = self::packageManifestSourceRecordByteBucket($sourceRecordBytes);
+            $bucketKey = $bucket['sourceRecordByteBucket'];
+            if (!isset($summaries[$bucketKey])) {
+                $summaries[$bucketKey] = [
+                    'sourceRecordByteBucket' => $bucketKey,
+                    'minSourceRecordBytes' => $bucket['minSourceRecordBytes'],
+                    'maxSourceRecordBytes' => $bucket['maxSourceRecordBytes'],
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'sourceRecordBytes' => 0,
+                    'localRecordBytes' => 0,
+                    'centralDirectoryRecordBytes' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'dataDescriptorEntryCount' => 0,
+                    'dataDescriptorBytes' => 0,
+                    'directoryRoots' => [],
+                    'packagePartExtensionKeys' => [],
+                    'compressionMethodNames' => [],
+                    'entryNames' => [],
+                    'minEntrySourceRecordBytes' => null,
+                    'maxEntrySourceRecordBytes' => null,
+                    'largestSourceRecordEntryNames' => [],
+                ];
+            }
+
+            ++$summaries[$bucketKey]['entryCount'];
+            if (($entry['isDirectory'] ?? false) === true) {
+                ++$summaries[$bucketKey]['directoryEntryCount'];
+            } else {
+                ++$summaries[$bucketKey]['fileEntryCount'];
+            }
+
+            $summaries[$bucketKey]['sourceRecordBytes'] += $sourceRecordBytes;
+            $summaries[$bucketKey]['localRecordBytes'] += (int) ($entry['localRecordBytes'] ?? 0);
+            $summaries[$bucketKey]['centralDirectoryRecordBytes'] += (int) ($entry['centralDirectoryRecordBytes'] ?? 0);
+            $summaries[$bucketKey]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+            $summaries[$bucketKey]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+            if (($entry['usesDataDescriptor'] ?? false) === true) {
+                ++$summaries[$bucketKey]['dataDescriptorEntryCount'];
+                $summaries[$bucketKey]['dataDescriptorBytes'] += (int) ($entry['dataDescriptorBytes'] ?? 0);
+            }
+            $summaries[$bucketKey]['entryNames'][] = $name;
+
+            foreach ([
+                'directoryRoots' => (string) ($entry['directoryRoot'] ?? ''),
+                'packagePartExtensionKeys' => (string) ($entry['packagePartExtensionKey'] ?? ''),
+                'compressionMethodNames' => (string) ($entry['compressionMethodName'] ?? ''),
+            ] as $field => $value) {
+                if ($value !== '' && !in_array($value, $summaries[$bucketKey][$field], true)) {
+                    $summaries[$bucketKey][$field][] = $value;
+                }
+            }
+
+            $minEntrySourceRecordBytes = $summaries[$bucketKey]['minEntrySourceRecordBytes'];
+            if (!is_int($minEntrySourceRecordBytes) || $sourceRecordBytes < $minEntrySourceRecordBytes) {
+                $summaries[$bucketKey]['minEntrySourceRecordBytes'] = $sourceRecordBytes;
+            }
+
+            $maxEntrySourceRecordBytes = $summaries[$bucketKey]['maxEntrySourceRecordBytes'];
+            if (!is_int($maxEntrySourceRecordBytes) || $sourceRecordBytes > $maxEntrySourceRecordBytes) {
+                $summaries[$bucketKey]['maxEntrySourceRecordBytes'] = $sourceRecordBytes;
+                $summaries[$bucketKey]['largestSourceRecordEntryNames'] = [$name];
+            } elseif ($sourceRecordBytes === $maxEntrySourceRecordBytes) {
+                $summaries[$bucketKey]['largestSourceRecordEntryNames'][] = $name;
+            }
+        }
+
+        foreach ($summaries as &$summary) {
+            sort($summary['directoryRoots'], SORT_STRING);
+            sort($summary['packagePartExtensionKeys'], SORT_STRING);
+            sort($summary['compressionMethodNames'], SORT_STRING);
+            sort($summary['largestSourceRecordEntryNames'], SORT_STRING);
+        }
+        unset($summary);
+
+        $ordered = [];
+        foreach (['up-to-127-bytes', '128-to-511-bytes', '512-to-2047-bytes', '2048-plus-bytes'] as $bucket) {
+            if (isset($summaries[$bucket])) {
+                $ordered[] = $summaries[$bucket];
+            }
+        }
+
+        return $ordered;
+    }
+
+    /**
+     * @return array{sourceRecordByteBucket:string,minSourceRecordBytes:int,maxSourceRecordBytes:?int}
+     */
+    private static function packageManifestSourceRecordByteBucket(int $sourceRecordBytes): array
+    {
+        if ($sourceRecordBytes <= 127) {
+            return [
+                'sourceRecordByteBucket' => 'up-to-127-bytes',
+                'minSourceRecordBytes' => 0,
+                'maxSourceRecordBytes' => 127,
+            ];
+        }
+
+        if ($sourceRecordBytes <= 511) {
+            return [
+                'sourceRecordByteBucket' => '128-to-511-bytes',
+                'minSourceRecordBytes' => 128,
+                'maxSourceRecordBytes' => 511,
+            ];
+        }
+
+        if ($sourceRecordBytes <= 2047) {
+            return [
+                'sourceRecordByteBucket' => '512-to-2047-bytes',
+                'minSourceRecordBytes' => 512,
+                'maxSourceRecordBytes' => 2047,
+            ];
+        }
+
+        return [
+            'sourceRecordByteBucket' => '2048-plus-bytes',
+            'minSourceRecordBytes' => 2048,
+            'maxSourceRecordBytes' => null,
+        ];
     }
 
     /**
