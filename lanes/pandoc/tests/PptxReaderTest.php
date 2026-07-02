@@ -885,6 +885,9 @@ XML);
       <p:nvSpPr><p:cNvPr id="3" name="Paragraphless Text Box"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
       <p:txBody><a:bodyPr/><a:lstStyle/></p:txBody>
     </p:sp>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="4" name="Missing Text Body"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+    </p:sp>
   </p:spTree></p:cSld>
 </p:sld>
 XML);
@@ -9016,7 +9019,7 @@ return [
         $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
     },
 
-    'skips pptx text boxes without drawing paragraphs like upstream' => static function (TestRunner $t) use ($buildParagraphlessTextBodyPptxPackage, $nodesOfType): void {
+    'skips pptx text boxes without text bodies or drawing paragraphs like upstream' => static function (TestRunner $t) use ($buildParagraphlessTextBodyPptxPackage, $nodesOfType): void {
         $document = (new PptxReader())->read($buildParagraphlessTextBodyPptxPackage());
         $review = $document->attr('pptx');
         $native = PandocConverter::write($document, 'native');
@@ -9027,6 +9030,7 @@ return [
         $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
         $t->true(!str_contains($native, 'Para [  ]'), 'Text bodies without a:p should be skipped, unlike explicit empty a:p paragraphs');
         $t->true(!str_contains($native, 'Paragraphless Text Box'), 'Skipped text box shape names should not leak into visible output');
+        $t->true(!str_contains($native, 'Missing Text Body'), 'Shapes without p:txBody should be skipped before visible output');
     },
 
     'uses upstream fallback slide title instead of inherited layout title' => static function (TestRunner $t) use ($buildInheritedTitlePptxPackage, $nodesOfType): void {
