@@ -455,6 +455,12 @@ final class BibtexCslProcessor
             'original-date-addon' => 'Original date addendum',
             'original-genre' => 'Original genre',
             'original-edition' => 'Original edition',
+            'original-volume' => 'Original volume',
+            'original-number-of-volumes' => 'Original number of volumes',
+            'original-number' => 'Original number',
+            'original-page' => 'Original pages',
+            'original-pagination' => 'Original pagination',
+            'original-number-of-pages' => 'Original number of pages',
             'original-isbn' => 'Original ISBN',
             'original-issn' => 'Original ISSN',
             'original-doi' => 'Original DOI',
@@ -990,6 +996,12 @@ final class BibtexCslProcessor
             'original-language' => ['origlanguage', 'originallanguage', 'original-language'],
             'original-genre' => ['origtype', 'origgenre', 'originaltype', 'original-type', 'originalgenre', 'original-genre'],
             'original-edition' => ['origedition', 'orig-edition', 'originaledition', 'original-edition'],
+            'original-volume' => ['origvolume', 'orig-volume', 'originalvolume', 'original-volume'],
+            'original-number-of-volumes' => ['origvolumes', 'orig-volumes', 'originalvolumes', 'original-volumes', 'originalnumberofvolumes', 'original-number-of-volumes'],
+            'original-number' => ['orignumber', 'orig-number', 'originalnumber', 'original-number'],
+            'original-page' => ['origpages', 'origpage', 'orig-pages', 'orig-page', 'originalpages', 'originalpage', 'original-pages', 'original-page'],
+            'original-pagination' => ['origpagination', 'orig-pagination', 'originalpagination', 'original-pagination'],
+            'original-number-of-pages' => ['origpagetotal', 'orig-pagetotal', 'origpage-total', 'orignumpages', 'orig-numpages', 'originalpagetotal', 'original-page-total', 'originalnumpages', 'original-numpages', 'originalnumberofpages', 'original-number-of-pages'],
             'original-isbn' => ['origisbn', 'orig-isbn', 'originalisbn', 'original-isbn'],
             'original-issn' => ['origissn', 'orig-issn', 'originalissn', 'original-issn'],
             'original-doi' => ['origdoi', 'orig-doi', 'originaldoi', 'original-doi'],
@@ -1016,7 +1028,7 @@ final class BibtexCslProcessor
             if ($value === null || $value === '') {
                 continue;
             }
-            $item[$target] = $target === 'page' ? str_replace('--', '-', $value) : $value;
+            $item[$target] = in_array($target, ['page', 'original-page'], true) ? str_replace('--', '-', $value) : $value;
         }
         if (($item['index-title'] ?? '') !== '' && ($item['index-sort-title'] ?? '') === '') {
             $item['index-sort-title'] = (string) $item['index-title'];
