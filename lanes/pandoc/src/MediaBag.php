@@ -6,7 +6,7 @@ namespace PortLibs\Pandoc;
 
 final class MediaBag
 {
-    /** @var array<string, array{source:string, canonicalSource:string, sourcePath:string, path:string, pathRepairSummary:string, mimeType:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string, contents:string, sha1:string, byteLength:int}> */
+    /** @var array<string, array{source:string, canonicalSource:string, sourcePath:string, resourceSourceKey:string, resourceLookupRepair:string, path:string, pathRepairSummary:string, mimeType:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string, contents:string, sha1:string, byteLength:int}> */
     private array $itemsByCanonicalSource = [];
 
     /**
@@ -46,7 +46,13 @@ final class MediaBag
         $this->insertMedia($uri, $data['mimeType'], $data['contents']);
     }
 
-    public function insertMedia(string $source, ?string $mimeType, string $contents): void
+    public function insertMedia(
+        string $source,
+        ?string $mimeType,
+        string $contents,
+        ?string $resourceSourceKey = null,
+        string $resourceLookupRepair = 'direct'
+    ): void
     {
         if ($source === '') {
             throw new \InvalidArgumentException('Media bag source must not be empty');
@@ -72,6 +78,8 @@ final class MediaBag
             'source' => $source,
             'canonicalSource' => $canonicalSource,
             'sourcePath' => $sourcePath,
+            'resourceSourceKey' => $resourceSourceKey ?? $source,
+            'resourceLookupRepair' => $resourceLookupRepair === '' ? 'direct' : $resourceLookupRepair,
             'path' => $path,
             'pathRepairSummary' => self::pathRepairSummary($source, $canonicalSource, $decodedSource, $path),
             'mimeType' => $normalizedMimeType,
@@ -95,7 +103,7 @@ final class MediaBag
     }
 
     /**
-     * @return array{source:string, canonicalSource:string, sourcePath:string, path:string, pathRepairSummary:string, mimeType:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string, contents:string, sha1:string, byteLength:int}|null
+     * @return array{source:string, canonicalSource:string, sourcePath:string, resourceSourceKey:string, resourceLookupRepair:string, path:string, pathRepairSummary:string, mimeType:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string, contents:string, sha1:string, byteLength:int}|null
      */
     public function lookup(string $source): ?array
     {
@@ -103,7 +111,7 @@ final class MediaBag
     }
 
     /**
-     * @return list<array{path:string, mimeType:string, byteLength:int, sha1:string, source:string, canonicalSource:string, sourcePath:string, pathRepairSummary:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string}>
+     * @return list<array{path:string, mimeType:string, byteLength:int, sha1:string, source:string, canonicalSource:string, sourcePath:string, resourceSourceKey:string, resourceLookupRepair:string, pathRepairSummary:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string}>
      */
     public function directory(): array
     {
@@ -117,6 +125,8 @@ final class MediaBag
                 'source' => $item['source'],
                 'canonicalSource' => $item['canonicalSource'],
                 'sourcePath' => $item['sourcePath'],
+                'resourceSourceKey' => $item['resourceSourceKey'],
+                'resourceLookupRepair' => $item['resourceLookupRepair'],
                 'pathRepairSummary' => $item['pathRepairSummary'],
                 'mimeTypeSource' => $item['mimeTypeSource'],
                 'inferredMimeType' => $item['inferredMimeType'],
@@ -130,7 +140,7 @@ final class MediaBag
     }
 
     /**
-     * @return list<array{path:string, mimeType:string, byteLength:int, sha1:string, source:string, canonicalSource:string, sourcePath:string, pathRepairSummary:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string, contents:string}>
+     * @return list<array{path:string, mimeType:string, byteLength:int, sha1:string, source:string, canonicalSource:string, sourcePath:string, resourceSourceKey:string, resourceLookupRepair:string, pathRepairSummary:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string, contents:string}>
      */
     public function mediaItems(): array
     {
@@ -144,6 +154,8 @@ final class MediaBag
                 'source' => $item['source'],
                 'canonicalSource' => $item['canonicalSource'],
                 'sourcePath' => $item['sourcePath'],
+                'resourceSourceKey' => $item['resourceSourceKey'],
+                'resourceLookupRepair' => $item['resourceLookupRepair'],
                 'pathRepairSummary' => $item['pathRepairSummary'],
                 'mimeTypeSource' => $item['mimeTypeSource'],
                 'inferredMimeType' => $item['inferredMimeType'],
@@ -195,7 +207,13 @@ final class MediaBag
                     ? (string) ($resource['contents'] ?? $resource['data'] ?? '')
                     : (string) $resource;
                 $mimeType = is_array($resource) ? ($resource['mimeType'] ?? null) : null;
-                $this->insertMedia($source, is_string($mimeType) ? $mimeType : null, $contents);
+                $this->insertMedia(
+                    $source,
+                    is_string($mimeType) ? $mimeType : null,
+                    $contents,
+                    is_string($lookup['resourceSourceKey']) ? $lookup['resourceSourceKey'] : null,
+                    is_string($lookup['resourceLookupRepair']) ? $lookup['resourceLookupRepair'] : 'exact'
+                );
                 $item = $this->lookup($source);
                 if ($item !== null && self::hasContentTypePathConflict($item['source'], $item['mimeType'])) {
                     $diagnostics[] = 'media-resource-content-type-conflict:' . self::diagnosticSource($source);
@@ -238,7 +256,13 @@ final class MediaBag
                     ? (string) ($resource['contents'] ?? $resource['data'] ?? '')
                     : (string) $resource;
                 $mimeType = is_array($resource) ? ($resource['mimeType'] ?? null) : null;
-                $this->insertMedia($source, is_string($mimeType) ? $mimeType : null, $contents);
+                $this->insertMedia(
+                    $source,
+                    is_string($mimeType) ? $mimeType : null,
+                    $contents,
+                    is_string($lookup['resourceSourceKey']) ? $lookup['resourceSourceKey'] : null,
+                    is_string($lookup['resourceLookupRepair']) ? $lookup['resourceLookupRepair'] : 'exact'
+                );
                 $item = $this->lookup($source);
                 if ($item !== null && self::hasContentTypePathConflict($item['source'], $item['mimeType'])) {
                     $diagnostics[] = 'media-resource-content-type-conflict:' . self::diagnosticSource($source);
@@ -257,7 +281,7 @@ final class MediaBag
     /**
      * @return array{
      *     document:AstNode,
-     *     entries:list<array{path:string, mediaPath:string, mimeType:string, byteLength:int, sha1:string, source:string, canonicalSource:string, sourcePath:string, pathRepairSummary:string, extractionPathRepairSummary:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string, contents:string, linkedMimeGroup?:string, linkedMimeGroupSize?:int}>,
+     *     entries:list<array{path:string, mediaPath:string, mimeType:string, byteLength:int, sha1:string, source:string, canonicalSource:string, sourcePath:string, resourceSourceKey:string, resourceLookupRepair:string, pathRepairSummary:string, extractionPathRepairSummary:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string, contents:string, linkedMimeGroup?:string, linkedMimeGroupSize?:int}>,
      *     diagnostics:list<string>
      * }
      */
@@ -281,6 +305,8 @@ final class MediaBag
                 'source' => $item['source'],
                 'canonicalSource' => $item['canonicalSource'],
                 'sourcePath' => $item['sourcePath'],
+                'resourceSourceKey' => $item['resourceSourceKey'],
+                'resourceLookupRepair' => $item['resourceLookupRepair'],
                 'pathRepairSummary' => $item['pathRepairSummary'],
                 'extractionPathRepairSummary' => self::extractionPathRepairSummary($item, $plan),
                 'mimeTypeSource' => $item['mimeTypeSource'],
@@ -360,7 +386,7 @@ final class MediaBag
 
     /**
      * @param array<string, mixed> $attrs
-     * @param array{source:string, canonicalSource:string, sourcePath:string, path:string, pathRepairSummary:string, mimeType:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string, contents:string, sha1:string, byteLength:int} $item
+     * @param array{source:string, canonicalSource:string, sourcePath:string, resourceSourceKey:string, resourceLookupRepair:string, path:string, pathRepairSummary:string, mimeType:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string, contents:string, sha1:string, byteLength:int} $item
      * @param array{path:string, collision:string} $plan
      * @param array{group:string, size:int}|null $linkedMimeGroup
      * @return array<string, string>
@@ -394,6 +420,8 @@ final class MediaBag
         $attributes = array_replace($attributes, [
             'data-pandoc-media-source' => $item['source'],
             'data-pandoc-media-canonical-source' => $item['canonicalSource'],
+            'data-pandoc-media-resource-key' => $item['resourceSourceKey'],
+            'data-pandoc-media-resource-lookup' => $item['resourceLookupRepair'],
             'data-pandoc-media-original-path' => $item['path'],
             'data-pandoc-media-path' => $mediaPath,
             'data-pandoc-media-target' => $mappedUrl,
@@ -418,7 +446,7 @@ final class MediaBag
     }
 
     /**
-     * @return list<array{source:string, canonicalSource:string, sourcePath:string, path:string, pathRepairSummary:string, mimeType:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string, contents:string, sha1:string, byteLength:int}>
+     * @return list<array{source:string, canonicalSource:string, sourcePath:string, resourceSourceKey:string, resourceLookupRepair:string, path:string, pathRepairSummary:string, mimeType:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string, contents:string, sha1:string, byteLength:int}>
      */
     private function itemsForExtraction(): array
     {
@@ -807,6 +835,8 @@ final class MediaBag
      * @param array<string, string|array{contents?:string, data?:string, mimeType?:string|null}> $resourcesByCanonicalSource
      * @return array{
      *     resource:string|array{contents?:string, data?:string, mimeType?:string|null}|null,
+     *     resourceSourceKey:string|null,
+     *     resourceLookupRepair:string|null,
      *     diagnostics:list<string>
      * }
      */
@@ -814,11 +844,18 @@ final class MediaBag
     {
         $matches = self::resourceLookupMatches($source, $resources, $resourcesByCanonicalSource);
         if ($matches === []) {
-            return ['resource' => null, 'diagnostics' => []];
+            return [
+                'resource' => null,
+                'resourceSourceKey' => null,
+                'resourceLookupRepair' => null,
+                'diagnostics' => [],
+            ];
         }
 
         return [
             'resource' => $matches[0]['resource'],
+            'resourceSourceKey' => $matches[0]['sourceKey'],
+            'resourceLookupRepair' => $matches[0]['repair'],
             'diagnostics' => self::resourceConflictDiagnostics($source, $matches, $linkedResource),
         ];
     }
@@ -1098,7 +1135,7 @@ final class MediaBag
     }
 
     /**
-     * @return array{source:string, canonicalSource:string, sourcePath:string, path:string, pathRepairSummary:string, mimeType:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string, contents:string, sha1:string, byteLength:int}|null
+     * @return array{source:string, canonicalSource:string, sourcePath:string, resourceSourceKey:string, resourceLookupRepair:string, path:string, pathRepairSummary:string, mimeType:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string, contents:string, sha1:string, byteLength:int}|null
      */
     private function lookupMediaSource(string $source): ?array
     {

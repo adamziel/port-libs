@@ -465,6 +465,74 @@ return [
         $t->same(['media-resource-mapped:' . $source], $extracted['diagnostics']);
     },
 
+    'carries selected resource map lookup provenance through mapped media' => static function (TestRunner $t): void {
+        $bag = new MediaBag();
+        $loadedBytes = "lookup provenance figure bytes\n";
+        $directBytes = "<svg><text>direct resource</text></svg>\n";
+        $source = 'assets/review%20figure.png?rev=1#thumb';
+        $resourceKey = 'assets/review figure.png';
+        $directSource = 'assets/direct.svg';
+        $bag->insertMedia($directSource, null, $directBytes);
+
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('image', [
+                    'url' => $source,
+                    'title' => 'Lookup provenance figure',
+                ], [new AstNode('text', ['text' => 'Lookup provenance figure'])]),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('image', [
+                    'url' => $directSource,
+                    'title' => 'Direct resource',
+                ], [new AstNode('text', ['text' => 'Direct resource'])]),
+            ]),
+        ]);
+
+        $filled = $bag->fillDocument($document, [
+            $resourceKey => [
+                'contents' => $loadedBytes,
+                'mimeType' => 'image/png',
+            ],
+        ]);
+        $directoryBySource = [];
+        foreach ($bag->directory() as $entry) {
+            $directoryBySource[$entry['source']] = $entry;
+        }
+        $loadedPath = sha1($loadedBytes) . '.png';
+
+        $t->same(['media-resource-loaded:' . $source], $filled['diagnostics']);
+        $t->same($resourceKey, $directoryBySource[$source]['resourceSourceKey']);
+        $t->same('percent-decoded', $directoryBySource[$source]['resourceLookupRepair']);
+        $t->same($loadedPath, $directoryBySource[$source]['path']);
+        $t->same('percent-decoded-path-rejected,url-suffix-hash-path', $directoryBySource[$source]['pathRepairSummary']);
+        $t->same($directSource, $directoryBySource[$directSource]['resourceSourceKey']);
+        $t->same('direct', $directoryBySource[$directSource]['resourceLookupRepair']);
+
+        $extracted = $bag->extractMedia($filled['document'], 'media');
+        $entriesBySource = [];
+        foreach ($extracted['entries'] as $entry) {
+            $entriesBySource[$entry['source']] = $entry;
+        }
+        $mappedLoaded = $extracted['document']->children[0]->children[0];
+        $mappedDirect = $extracted['document']->children[1]->children[0];
+        $loadedAttributes = $mappedLoaded->attr('attributes');
+        $directAttributes = $mappedDirect->attr('attributes');
+
+        $t->same('media/' . $loadedPath, $mappedLoaded->attr('url'));
+        $t->same('media/' . $directSource, $mappedDirect->attr('url'));
+        $t->same($resourceKey, $entriesBySource[$source]['resourceSourceKey']);
+        $t->same('percent-decoded', $entriesBySource[$source]['resourceLookupRepair']);
+        $t->same($resourceKey, $loadedAttributes['data-pandoc-media-resource-key']);
+        $t->same('percent-decoded', $loadedAttributes['data-pandoc-media-resource-lookup']);
+        $t->same($directSource, $directAttributes['data-pandoc-media-resource-key']);
+        $t->same('direct', $directAttributes['data-pandoc-media-resource-lookup']);
+        $t->same([
+            'media-resource-mapped:' . $source,
+            'media-resource-mapped:' . $directSource,
+        ], $extracted['diagnostics']);
+    },
+
     'disambiguates decoded media extraction path collisions' => static function (TestRunner $t): void {
         $bag = new MediaBag();
         $encodedSource = 'assets/%6Co%67o.png';
