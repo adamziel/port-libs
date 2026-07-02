@@ -80,6 +80,8 @@ $tests = [];
 
 $tests['maps pandoc json native adjacent raw html aliases through markdown and wordpress boundaries'] =
     static function (TestRunner $t) use ($documents, $packet, $aside, $section, $span, $em, $disabledInline, $disabledBlock): void {
+        $format = static fn (string $name): array => ['t' => 'Format', 'c' => $name];
+
         foreach ($documents() as $source => $document) {
             $rawHtml4Block = $document->children[0] ?? new AstNode('missing');
             $rawXhtmlBlock = $document->children[1] ?? new AstNode('missing');
@@ -124,12 +126,12 @@ $tests['maps pandoc json native adjacent raw html aliases through markdown and w
             $t->contains('RawBlock (Format "xhtml")', $nativeText, "{$source} native writer keeps xhtml block alias");
             $t->contains('RawInline (Format "html5")', $nativeText, "{$source} native writer keeps html5 inline alias");
             $t->contains('RawInline (Format "xhtml")', $nativeText, "{$source} native writer keeps xhtml inline alias");
-            $t->same(['html4', $aside], $nativeRoundTripPacket['blocks'][0]['c'], "{$source} native round-trip html4 block payload");
-            $t->same(['xhtml', $section], $nativeRoundTripPacket['blocks'][1]['c'], "{$source} native round-trip xhtml block payload");
-            $t->same(['html5', $span], $nativeRoundTripPacket['blocks'][2]['c'][0]['c'], "{$source} native round-trip html5 inline payload");
-            $t->same(['xhtml', $em], $nativeRoundTripPacket['blocks'][2]['c'][1]['c'], "{$source} native round-trip xhtml inline payload");
-            $t->same(['opml', $disabledInline], $nativeRoundTripPacket['blocks'][2]['c'][2]['c'], "{$source} native round-trip disabled inline diagnostic payload");
-            $t->same(['opml', $disabledBlock], $nativeRoundTripPacket['blocks'][3]['c'], "{$source} native round-trip disabled block diagnostic payload");
+            $t->same([$format('html4'), $aside], $nativeRoundTripPacket['blocks'][0]['c'], "{$source} native round-trip html4 block payload");
+            $t->same([$format('xhtml'), $section], $nativeRoundTripPacket['blocks'][1]['c'], "{$source} native round-trip xhtml block payload");
+            $t->same([$format('html5'), $span], $nativeRoundTripPacket['blocks'][2]['c'][0]['c'], "{$source} native round-trip html5 inline payload");
+            $t->same([$format('xhtml'), $em], $nativeRoundTripPacket['blocks'][2]['c'][1]['c'], "{$source} native round-trip xhtml inline payload");
+            $t->same([$format('opml'), $disabledInline], $nativeRoundTripPacket['blocks'][2]['c'][2]['c'], "{$source} native round-trip disabled inline diagnostic payload");
+            $t->same([$format('opml'), $disabledBlock], $nativeRoundTripPacket['blocks'][3]['c'], "{$source} native round-trip disabled block diagnostic payload");
             $t->same($aside . "\n" . $section . "\n\n" . $span . $em . 'Tail', $markdown, "{$source} markdown keeps raw boundaries stable");
             $t->true(!str_contains($markdown, '<outline'), "{$source} markdown suppresses unsupported raw fallback");
             $t->true(!str_contains($markdown, '</aside><section'), "{$source} markdown keeps adjacent raw blocks separated");
@@ -146,6 +148,7 @@ $tests['maps pandoc json native adjacent raw html aliases through markdown and w
 
 $tests['regenerates edited adjacent raw html aliases without stale native sidecars'] =
     static function (TestRunner $t) use ($documents): void {
+        $format = static fn (string $name): array => ['t' => 'Format', 'c' => $name];
         $sourceDocument = $documents()['json'];
         $rawHtml4Block = $sourceDocument->children[0] ?? new AstNode('missing');
         $rawXhtmlBlock = $sourceDocument->children[1] ?? new AstNode('missing');
@@ -187,21 +190,21 @@ $tests['regenerates edited adjacent raw html aliases without stale native sideca
             $inlines = $blocks[2]['c'];
 
             $t->same('RawBlock', $blocks[0]['t'], "{$writer} edited html4 block constructor");
-            $t->same(['html4', '<aside data-boundary="html4">Edited alpha</aside>'], $blocks[0]['c'], "{$writer} edited html4 block payload");
+            $t->same([$writer === 'json' ? 'html4' : $format('html4'), '<aside data-boundary="html4">Edited alpha</aside>'], $blocks[0]['c'], "{$writer} edited html4 block payload");
             $t->same(false, array_key_exists('reviewQueue', $blocks[0]), "{$writer} edited html4 block drops review sidecar");
             $t->same(false, array_key_exists('sourcepos', $blocks[0]), "{$writer} edited html4 block drops source sidecar");
-            $t->same($writer === 'json' ? ['t' => 'Format', 'c' => 'xhtml'] : 'xhtml', $blocks[1]['c'][0], "{$writer} edited xhtml block keeps format");
+            $t->same($format('xhtml'), $blocks[1]['c'][0], "{$writer} edited xhtml block keeps format");
             $t->same('<section data-boundary="xhtml">Edited beta</section>', $blocks[1]['c'][1], "{$writer} edited xhtml block payload");
             $t->same(false, array_key_exists('reviewQueue', $blocks[1]), "{$writer} edited xhtml block drops review sidecar");
             $t->same(false, array_key_exists('sourcepos', $blocks[1]), "{$writer} edited xhtml block drops source sidecar");
-            $t->same(['html5', '<span data-boundary="html5">Edited gamma</span>'], $inlines[0]['c'], "{$writer} edited html5 inline payload");
+            $t->same([$writer === 'json' ? 'html5' : $format('html5'), '<span data-boundary="html5">Edited gamma</span>'], $inlines[0]['c'], "{$writer} edited html5 inline payload");
             $t->same(false, array_key_exists('reviewQueue', $inlines[0]), "{$writer} edited html5 inline drops review sidecar");
             $t->same(false, array_key_exists('sourcepos', $inlines[0]), "{$writer} edited html5 inline drops source sidecar");
-            $t->same($writer === 'json' ? ['t' => 'Format', 'c' => 'xhtml'] : 'xhtml', $inlines[1]['c'][0], "{$writer} edited xhtml inline keeps format");
+            $t->same($format('xhtml'), $inlines[1]['c'][0], "{$writer} edited xhtml inline keeps format");
             $t->same('<em data-boundary="xhtml">Edited delta</em>', $inlines[1]['c'][1], "{$writer} edited xhtml inline payload");
             $t->same(false, array_key_exists('reviewQueue', $inlines[1]), "{$writer} edited xhtml inline drops review sidecar");
             $t->same(false, array_key_exists('sourcepos', $inlines[1]), "{$writer} edited xhtml inline drops source sidecar");
-            $t->same(['opml', '<outline text="edited-disabled-inline"/>'], $inlines[2]['c'], "{$writer} edited unsupported inline stays round-trippable");
+            $t->same([$writer === 'json' ? 'opml' : $format('opml'), '<outline text="edited-disabled-inline"/>'], $inlines[2]['c'], "{$writer} edited unsupported inline stays round-trippable");
             $t->same(false, array_key_exists('reviewQueue', $inlines[2]), "{$writer} edited unsupported inline drops review sidecar");
             $t->same(false, array_key_exists('sourcepos', $inlines[2]), "{$writer} edited unsupported inline drops source sidecar");
         }

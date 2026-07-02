@@ -160,6 +160,35 @@ return [
         $t->same('Math', $decoded['blocks'][1]['c'][0]['t']);
         $t->same('Cite', $decoded['blocks'][1]['c'][4]['t']);
     },
+    'round trips null block pandoc json constructors' => static function (TestRunner $t): void {
+        $source = [
+            'pandoc-api-version' => [1, 23, 1, 2],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'before']]],
+                ['t' => 'Null'],
+                ['t' => 'HorizontalRule'],
+            ],
+        ];
+
+        $document = (new JsonReader())->read(json_encode($source, JSON_THROW_ON_ERROR));
+        $decoded = json_decode((new JsonWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $roundTrip = (new JsonReader())->read(json_encode($decoded, JSON_THROW_ON_ERROR));
+        $manual = new AstNode('document', [], [
+            new AstNode('null_block'),
+            new AstNode('horizontal_rule'),
+        ]);
+        $manualDecoded = json_decode((new JsonWriter())->write($manual), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same('plain', $document->children[0]->type);
+        $t->same('null_block', $document->children[1]->type);
+        $t->same('horizontal_rule', $document->children[2]->type);
+        $t->same('Null', $decoded['blocks'][1]['t']);
+        $t->same(false, array_key_exists('c', $decoded['blocks'][1]));
+        $t->same('null_block', $roundTrip->children[1]->type);
+        $t->same('Null', $manualDecoded['blocks'][0]['t']);
+        $t->same('HorizontalRule', $manualDecoded['blocks'][1]['t']);
+    },
     'writes pandoc shaped citation id records without dropping ids' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('paragraph', [], [
