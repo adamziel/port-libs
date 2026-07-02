@@ -499,6 +499,16 @@ return [
                 'certificate-external-boundary',
                 'open-output-side-effect-boundary',
             ],
+            'diagnosticFormat' => 'json',
+            'diagnosticFormatMachineReadable' => true,
+            'diagnosticFormatSafe' => true,
+            'diagnosticColor' => 'never',
+            'diagnosticAnsiColor' => 'disabled',
+            'diagnosticColorSafe' => true,
+            'diagnosticFormatOverrideCount' => 0,
+            'diagnosticColorOverrideCount' => 0,
+            'diagnosticOutputIssueCount' => 0,
+            'diagnosticOutputIssues' => [],
         ];
 
         $result = $handoff->fakeRun($plan, [
