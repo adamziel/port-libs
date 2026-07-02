@@ -395,6 +395,45 @@ return [
             'uriPathEntryCount' => 2,
             'stdoutPathEntryCount' => 0,
             'invalidPathEntryCount' => 0,
+            'pathEntryCountsByCategory' => [
+                'certificate' => 2,
+                'dependencyOutput' => 1,
+                'fontPath' => 2,
+                'packageCache' => 1,
+                'packagePath' => 1,
+                'root' => 1,
+                'timingsOutput' => 1,
+            ],
+            'pathEntryKindCountsByCategory' => [
+                'certificate' => [
+                    'relative' => 1,
+                    'uri' => 1,
+                ],
+                'dependencyOutput' => [
+                    'relative' => 1,
+                ],
+                'fontPath' => [
+                    'absolute' => 1,
+                    'relative' => 1,
+                ],
+                'packageCache' => [
+                    'uri' => 1,
+                ],
+                'packagePath' => [
+                    'relative' => 1,
+                ],
+                'root' => [
+                    'relative' => 1,
+                ],
+                'timingsOutput' => [
+                    'relative' => 1,
+                ],
+            ],
+            'unsafePathEntryCountsByCategory' => [
+                'certificate' => 1,
+                'fontPath' => 1,
+                'packageCache' => 1,
+            ],
             'fontPathCount' => 2,
             'certificateCount' => 2,
             'packageStorageEntryCount' => 2,
@@ -447,7 +486,9 @@ return [
         $t->same($expectedSummary, $plan['typstBoundarySummary']);
         $t->contains('typst-boundary-summary:review', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-summary-paths:9', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-summary-categories:7', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-summary-unsafe-paths:3', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-summary-unsafe-categories:3', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-summary-sidecars:2', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-summary-font-access-controls:2', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-summary-issues:4', implode(',', $plan['diagnostics']));
