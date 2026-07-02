@@ -6884,6 +6884,45 @@ XML);
     }
 };
 
+$buildQualifiedSlideSizeAttributePptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-qualified-slide-size-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <p:sldSz a:cx="12192000" a:cy="6858000"/>
+</p:presentation>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildShadowedPresentationPrefixPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-shadowed-presentation-prefix-');
     if ($path === false) {
@@ -10636,6 +10675,23 @@ return [
             'cx' => 12192000,
             'cy' => 0,
             'width' => 13,
+            'height' => 0,
+            'emusPerInch' => 914400,
+            'source' => 'presentation',
+        ], $review['slideSize'] ?? null);
+    },
+
+    'requires unqualified pptx slide size attributes like upstream' => static function (TestRunner $t) use ($buildQualifiedSlideSizeAttributePptxPackage): void {
+        $document = (new PptxReader())->read($buildQualifiedSlideSizeAttributePptxPackage());
+        $review = $document->attr('pptx');
+
+        $t->same(0, $review['slideCount'] ?? null);
+        $t->same([], $review['slides'] ?? null);
+        $t->same([], $document->children);
+        $t->same([
+            'cx' => 0,
+            'cy' => 0,
+            'width' => 0,
             'height' => 0,
             'emusPerInch' => 914400,
             'source' => 'presentation',
