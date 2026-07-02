@@ -20,6 +20,10 @@ return [
             + strlen($parts['word/numbering.xml'])
             + strlen($parts['custom/settings/review-settings.xml'])
             + strlen($parts['word/theme/review-theme.xml']);
+        $wordNamespace = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+        $coreNamespace = 'http://schemas.openxmlformats.org/package/2006/metadata/core-properties';
+        $dcNamespace = 'http://purl.org/dc/elements/1.1/';
+        $drawingNamespace = 'http://schemas.openxmlformats.org/drawingml/2006/main';
 
         $t->same(18, $selected['count']);
         $t->same(6, $selected['existingCount']);
@@ -34,11 +38,24 @@ return [
         $t->same($selected['selectionSourceCounts'], $summary['selectedXmlPartSelectionSourceCounts']);
 
         $t->same([
-            'http://schemas.openxmlformats.org/drawingml/2006/main' => 1,
-            'http://schemas.openxmlformats.org/package/2006/metadata/core-properties' => 1,
-            'http://schemas.openxmlformats.org/wordprocessingml/2006/main' => 4,
+            $drawingNamespace => 1,
+            $coreNamespace => 1,
+            $wordNamespace => 4,
         ], $selected['rootNamespaceCounts']);
         $t->same($selected['rootNamespaceCounts'], $summary['selectedXmlPartRootNamespaceCounts']);
+        $t->same(7, $selected['rootNamespaceDeclarationCount']);
+        $t->same(4, $selected['rootNamespaceDeclarationUriCount']);
+        $t->same(['w', 'cp', 'dc', 'a'], $selected['rootNamespacePrefixes']);
+        $t->same([$dcNamespace, $drawingNamespace, $coreNamespace, $wordNamespace], $selected['rootNamespaceDeclarationUris']);
+        $t->same([
+            $dcNamespace => 1,
+            $drawingNamespace => 1,
+            $coreNamespace => 1,
+            $wordNamespace => 4,
+        ], $selected['rootNamespaceDeclarationUriCounts']);
+        $t->same($selected['rootNamespaceDeclarationUriCount'], $summary['selectedXmlPartRootNamespaceDeclarationUriCount']);
+        $t->same($selected['rootNamespaceDeclarationUris'], $summary['selectedXmlPartRootNamespaceDeclarationUris']);
+        $t->same($selected['rootNamespaceDeclarationUriCounts'], $summary['selectedXmlPartRootNamespaceDeclarationUriCounts']);
         $t->same([
             'coreProperties' => 1,
             'document' => 1,
@@ -81,9 +98,15 @@ return [
         $t->same('rSettings', $byKind['settings']['relationshipId']);
         $t->same('?profile=selected#settings', $byKind['settings']['targetReferenceSuffix']);
         $t->same('w:settings', $byKind['settings']['rootQualifiedName']);
+        $t->same([$wordNamespace => 1], $byKind['settings']['rootNamespaceDeclarationUriCounts']);
+        $t->same(['w' => $wordNamespace], $byKind['settings']['rootNamespaceDeclarationMap']);
         $t->same('relationship', $byKind['theme']['selectionSource']);
         $t->same('rTheme', $byKind['theme']['relationshipId']);
         $t->same('a:theme', $byKind['theme']['rootQualifiedName']);
+        $t->same([$drawingNamespace => 1], $byKind['theme']['rootNamespaceDeclarationUriCounts']);
+        $t->same(['a' => $drawingNamespace], $byKind['theme']['rootNamespaceDeclarationMap']);
+        $t->same([$dcNamespace => 1, $coreNamespace => 1], $byKind['coreProperties']['rootNamespaceDeclarationUriCounts']);
+        $t->same(['cp' => $coreNamespace, 'dc' => $dcNamespace], $byKind['coreProperties']['rootNamespaceDeclarationMap']);
     },
     'records docx selected xml root byte aggregate mapped case count' => static function (TestRunner $t): void {
         $t->same(1, 1);
