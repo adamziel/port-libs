@@ -13269,6 +13269,7 @@ final class PdfEngineHandoff
             $images,
             $formXObjects,
             $annotationAppearances,
+            $this->extractPdfEmbeddedFontStreamFilterPolicyEntries($fonts, $pdfBytes),
             $this->extractPdfEmbeddedFileStreamFilterPolicyEntries($embeddedFiles, $pdfBytes)
         );
         $streamDecodeParameters = $this->summarizePdfStreamDecodeParameters($streamFilterPolicy, $pdfBytes);
@@ -14085,6 +14086,7 @@ final class PdfEngineHandoff
      * @param list<array{page:int, pageObject:string|null, resourceName:string, imageObject:string|null, filters:list<string>, streamBytes:int|null, streamSkipped:string|null}> $images
      * @param list<array{page:int, pageObject:string|null, resourceName:string, formObject:string|null, filters:list<string>, streamBytes:int|null, streamSkipped:string|null}> $formXObjects
      * @param list<array{source:string, appearanceObject:string|null, filters:list<string>, streamBytes:int|null, streamSkipped:string|null}> $annotationAppearances
+     * @param list<array{source:string, object:string|null, filters:list<string>, streamBytes:int|null, streamSkipped:string|null}> $embeddedFontStreams
      * @param list<array{source:string, object:string|null, filters:list<string>, streamBytes:int|null, streamSkipped:string|null}> $embeddedFileStreams
      * @return array{streamCount:int, filterCount:int, filters:array<string, int>, surfaces:array<string, int>, actions:array<string, int>, streams:list<array{surface:string, source:string, object:string|null, filters:list<string>, action:string, streamBytes:int|null, streamSkipped:string|null}>}|array{}
      */
@@ -14095,6 +14097,7 @@ final class PdfEngineHandoff
         array $images,
         array $formXObjects,
         array $annotationAppearances,
+        array $embeddedFontStreams,
         array $embeddedFileStreams
     ): array {
         $streams = [];
@@ -14176,6 +14179,18 @@ final class PdfEngineHandoff
                 $appearance['filters'] ?? [],
                 $appearance['streamBytes'] ?? null,
                 $appearance['streamSkipped'] ?? null
+            );
+        }
+
+        foreach ($embeddedFontStreams as $embeddedFontStream) {
+            $this->addPdfStreamFilterPolicyEntry(
+                $streams,
+                'embedded-font',
+                is_string($embeddedFontStream['source'] ?? null) ? $embeddedFontStream['source'] : 'embedded-font:unknown',
+                is_string($embeddedFontStream['object'] ?? null) ? $embeddedFontStream['object'] : null,
+                $embeddedFontStream['filters'] ?? [],
+                $embeddedFontStream['streamBytes'] ?? null,
+                $embeddedFontStream['streamSkipped'] ?? null
             );
         }
 
@@ -30553,6 +30568,53 @@ final class PdfEngineHandoff
         ksort($subtypes);
 
         return $subtypes;
+    }
+
+    /**
+     * @param list<array{page:int, pageObject:string|null, resourceName:string, embeddedFile:string|null, embeddedFileKind:string|null, embeddedFileSkipped:string|null}> $fonts
+     * @return list<array{source:string, object:string|null, filters:list<string>, streamBytes:int|null, streamSkipped:string|null}>
+     */
+    private function extractPdfEmbeddedFontStreamFilterPolicyEntries(array $fonts, string $pdfBytes): array
+    {
+        if ($fonts === []) {
+            return [];
+        }
+
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $streams = [];
+        foreach ($fonts as $font) {
+            $embeddedFile = $font['embeddedFile'] ?? null;
+            if (!is_string($embeddedFile) || $embeddedFile === '' || $embeddedFile === 'inline') {
+                continue;
+            }
+
+            $dictionary = $objects[$this->pdfReferenceKey($embeddedFile)] ?? null;
+            if ($dictionary === null) {
+                continue;
+            }
+
+            $pageObject = is_string($font['pageObject'] ?? null) ? $font['pageObject'] : 'unknown';
+            $resourceName = is_string($font['resourceName'] ?? null) && $font['resourceName'] !== ''
+                ? $font['resourceName']
+                : 'unknown';
+            $fontFileKind = is_string($font['embeddedFileKind'] ?? null) && $font['embeddedFileKind'] !== ''
+                ? $font['embeddedFileKind']
+                : 'FontFile';
+            $bytes = $this->extractPdfStreamBytes($dictionary);
+            $streamSkipped = is_string($font['embeddedFileSkipped'] ?? null) && $font['embeddedFileSkipped'] !== ''
+                ? $font['embeddedFileSkipped']
+                : null;
+
+            $streams[] = [
+                'source' => 'page:' . $pageObject . '.Font.' . $resourceName . '.' . $fontFileKind,
+                'object' => $embeddedFile,
+                'filters' => $this->extractPdfFilterNames($dictionary, $objects),
+                'streamBytes' => $bytes === null ? null : strlen($bytes),
+                'streamSkipped' => $streamSkipped,
+            ];
+        }
+
+        return $streams;
     }
 
     /**
