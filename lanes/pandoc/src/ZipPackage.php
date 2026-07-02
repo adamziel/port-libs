@@ -19755,6 +19755,15 @@ final class ZipPackage
         $sourceCentralDirectoryReviewFieldBytes = 0;
         $sourceTotalRecordBytes = 0;
         $sourceByteSpanIssues = [];
+        $dataDescriptorEntries = [];
+        $dataDescriptorIssueEntries = [];
+        $dataDescriptorIssueCodes = [];
+        $dataDescriptorEntryCount = 0;
+        $signedDataDescriptorEntryCount = 0;
+        $unsignedDataDescriptorEntryCount = 0;
+        $zip64SizedDataDescriptorEntryCount = 0;
+        $zeroLocalHeaderPlaceholderEntryCount = 0;
+        $dataDescriptorValuesMatchCentralEntryCount = 0;
 
         foreach ($this->entries as $centralDirectoryIndex => $entry) {
             $localHeader = $this->readLocalHeader($entry);
@@ -19857,7 +19866,45 @@ final class ZipPackage
                 'centralDirectoryRecordOffset' => $entry->centralDirectoryRecordOffset,
                 'centralDirectoryRecordEnd' => $entry->centralDirectoryRecordEnd,
                 'centralDirectoryRecordSha256' => $centralDirectoryRecordSha256,
-            ] + $sourceByteSpanProvenance;
+            ] + $dataDescriptorProvenance + $sourceByteSpanProvenance;
+            if ($dataDescriptorProvenance['usesDataDescriptor']) {
+                ++$dataDescriptorEntryCount;
+                if ($dataDescriptorProvenance['dataDescriptorHasSignature'] === true) {
+                    ++$signedDataDescriptorEntryCount;
+                } else {
+                    ++$unsignedDataDescriptorEntryCount;
+                }
+                if ($dataDescriptorProvenance['dataDescriptorUsesZip64SizedFields']) {
+                    ++$zip64SizedDataDescriptorEntryCount;
+                }
+                if ($dataDescriptorProvenance['hasZeroLocalHeaderPlaceholders'] === true) {
+                    ++$zeroLocalHeaderPlaceholderEntryCount;
+                }
+                if ($dataDescriptorProvenance['dataDescriptorValuesMatchCentral'] === true) {
+                    ++$dataDescriptorValuesMatchCentralEntryCount;
+                }
+                foreach ($dataDescriptorProvenance['dataDescriptorIssues'] as $issue) {
+                    self::appendUniqueIssue($dataDescriptorIssueCodes, $issue);
+                }
+
+                $dataDescriptorEntry = [
+                    'name' => $entry->name,
+                    'isDirectory' => $isDirectory,
+                    'centralDirectoryIndex' => $centralDirectoryIndex,
+                    'localHeaderOrder' => $localHeaderOrder,
+                    'compressionMethod' => $entry->compressionMethod,
+                    'compressionMethodName' => self::compressionMethodName($entry->compressionMethod),
+                    'compressedSize' => $entry->compressedSize,
+                    'uncompressedSize' => $entry->uncompressedSize,
+                    'sourceByteSpanIncludesDataDescriptor' => $sourceByteSpanProvenance['sourceByteSpanIncludesDataDescriptor'],
+                    'dataDescriptorBytes' => $sourceByteSpanProvenance['dataDescriptorBytes'],
+                    'dataDescriptorSha256' => $sourceByteSpanProvenance['dataDescriptorSha256'],
+                ] + $dataDescriptorProvenance;
+                $dataDescriptorEntries[] = $dataDescriptorEntry;
+                if ($dataDescriptorProvenance['dataDescriptorIssues'] !== []) {
+                    $dataDescriptorIssueEntries[] = $dataDescriptorEntry;
+                }
+            }
             $entries[] = $summary;
             $manifestEntries[] = [
                 'name' => $summary['name'],
@@ -19971,6 +20018,18 @@ final class ZipPackage
             'manifestOrderIssueCount' => count($manifestOrderIssueCodes),
             'manifestOrderMismatchEntryCount' => $manifestOrderSummary['mismatchEntryCount'],
             'manifestOrderSummary' => $manifestOrderSummary,
+            'dataDescriptorReviewStatus' => $dataDescriptorIssueCodes === [] ? 'ok' : 'review',
+            'dataDescriptorIssueCodes' => $dataDescriptorIssueCodes,
+            'dataDescriptorIssueCount' => count($dataDescriptorIssueCodes),
+            'dataDescriptorIssueEntryCount' => count($dataDescriptorIssueEntries),
+            'dataDescriptorEntryCount' => $dataDescriptorEntryCount,
+            'signedDataDescriptorEntryCount' => $signedDataDescriptorEntryCount,
+            'unsignedDataDescriptorEntryCount' => $unsignedDataDescriptorEntryCount,
+            'zip64SizedDataDescriptorEntryCount' => $zip64SizedDataDescriptorEntryCount,
+            'zeroLocalHeaderPlaceholderEntryCount' => $zeroLocalHeaderPlaceholderEntryCount,
+            'dataDescriptorValuesMatchCentralEntryCount' => $dataDescriptorValuesMatchCentralEntryCount,
+            'dataDescriptorEntries' => $dataDescriptorEntries,
+            'dataDescriptorIssueEntries' => $dataDescriptorIssueEntries,
             'directoryRootSummaries' => $directoryRootSummaries,
             'parentDirectorySummaries' => $parentDirectorySummaries,
             'packagePartKindSummaries' => $packagePartKindSummaries,
