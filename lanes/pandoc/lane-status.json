@@ -18,15 +18,16 @@
         "verdict": "ship-ready",
         "upstreamFormatCases": 20,
         "upstreamFormatAssertions": 575,
-        "localMappedCases": 98,
-        "localFocusedAssertions": 2132,
-        "caseCoveragePercent": 490,
-        "assertionCoveragePercent": 370.8,
+        "localMappedCases": 99,
+        "localFocusedAssertions": 2288,
+        "caseCoveragePercent": 495,
+        "assertionCoveragePercent": 397.9,
         "remainingCriticalGaps": [],
         "uncoveredUpstreamCriticalTests": [],
         "localFocusedTestFiles": [
             "lanes/pandoc/tests/OdfManifestMediaTypeSummaryCompactParityTest.php",
             "lanes/pandoc/tests/OdfPackagePathByteLengthBucketsTest.php",
+            "lanes/pandoc/tests/OdfPackagePathSegmentNameCharactersTest.php",
             "lanes/pandoc/tests/OdfPackageXmlCommentProvenanceTest.php",
             "lanes/pandoc/tests/OdfPackageXmlRootElementProvenanceTest.php",
             "lanes/pandoc/tests/OdfReaderTest.php",
@@ -38,10 +39,10 @@
             "lanes/pandoc/tests/OpenDocumentReaderTest.php"
         ],
         "evidence": [
-            "ODF/ODT package ingestion now records metadata-only XML root element provenance for valid XML package parts while excluding invalid XML and non-XML entries without exposing XML values.",
-            "ODF/ODT package ingestion covers manifest custom attributes, namespace declarations, sidecars, XML comments/processing-instructions/CDATA provenance, ZIP timestamp provenance, package identity, media resources, compact manifest media-type summaries, package path byte-length buckets, and rich reader handoff.",
+            "ODF/ODT package ingestion now records metadata-only package path segment name-character review for uppercase, whitespace, percent-encoded octet, and non-ASCII segment names without exposing package bytes.",
+            "ODF/ODT package ingestion covers manifest custom attributes, namespace declarations, sidecars, XML comments/processing-instructions/CDATA provenance, ZIP timestamp provenance, package identity, media resources, compact manifest media-type summaries, package path byte-length buckets, package path segment name-character review, and rich reader handoff.",
             "No external Pandoc, office suite, zip/unzip, browser renderer, or validator was invoked."
         ]
     },
-    "lastUpdated": "2026-07-01"
+    "lastUpdated": "2026-07-02"
 }
