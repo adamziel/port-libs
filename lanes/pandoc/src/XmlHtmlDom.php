@@ -26690,19 +26690,44 @@ final class XmlHtmlDom
             $references[] = $record;
         }
 
+        $referenceStateCounts = [];
+        $targetTags = [];
+        foreach ($references as $reference) {
+            $state = is_string($reference['state'] ?? null) ? $reference['state'] : 'unknown';
+            $referenceStateCounts[$state] = ($referenceStateCounts[$state] ?? 0) + 1;
+
+            $target = is_array($reference['target'] ?? null) ? $reference['target'] : [];
+            if (is_string($target['tag'] ?? null)) {
+                self::appendUniqueString($targetTags, $target['tag']);
+            }
+        }
+        ksort($referenceStateCounts);
+
         return [
             'forReferenceReviewPolicy' => 'output-for-idref-review',
+            'forReferenceTokenCount' => count($tokens),
+            'forReferenceValidTokenCount' => count($tokens) - (int) ($referenceStateCounts['invalid-token'] ?? 0),
             'forReferenceIds' => $ids,
+            'forReferenceIdCount' => count($ids),
             'invalidForReferenceTokens' => $invalid,
+            'invalidForReferenceTokenCount' => count($invalid),
             'duplicateForReferenceIds' => $duplicates,
+            'duplicateForReferenceIdCount' => count($duplicates),
             'resolvedForReferenceIds' => $resolved,
+            'resolvedForReferenceIdCount' => count($resolved),
             'missingForReferenceIds' => $missing,
+            'missingForReferenceIdCount' => count($missing),
             'nonControlForReferenceIds' => $nonControls,
+            'nonControlForReferenceIdCount' => count($nonControls),
+            'forReferenceStateCounts' => $referenceStateCounts,
+            'forReferenceTargetTags' => $targetTags,
             'forReferences' => $references,
             'forControlReferences' => $controlReferences,
             'forControlReferenceCount' => count($controlReferences),
             'forControlNames' => self::outputForControlNames($controlReferences),
+            'forControlTypes' => self::outputForControlTypes($controlReferences),
             'forReferenceIssues' => $issues,
+            'forReferenceIssueCount' => count($issues),
             'forReferenceIssueCodes' => array_values(array_unique(array_map(
                 static fn (array $issue): string => (string) ($issue['code'] ?? ''),
                 $issues
@@ -26766,6 +26791,34 @@ final class XmlHtmlDom
         }
 
         return $names;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $controls
+     * @return list<string>
+     */
+    private static function outputForControlTypes(array $controls): array
+    {
+        $types = [];
+        foreach ($controls as $control) {
+            $tag = $control['tag'] ?? null;
+            if (!is_string($tag) || $tag === '') {
+                continue;
+            }
+
+            if ($tag === 'input' && is_string($control['inputType'] ?? null) && $control['inputType'] !== '') {
+                self::appendUniqueString($types, 'input:' . $control['inputType']);
+                continue;
+            }
+            if ($tag === 'button' && is_string($control['buttonType'] ?? null) && $control['buttonType'] !== '') {
+                self::appendUniqueString($types, 'button:' . $control['buttonType']);
+                continue;
+            }
+
+            self::appendUniqueString($types, $tag);
+        }
+
+        return $types;
     }
 
     /**
