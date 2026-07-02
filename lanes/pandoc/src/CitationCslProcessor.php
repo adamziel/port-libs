@@ -1181,6 +1181,7 @@ final class CitationCslProcessor
         $archiveCollection = self::firstStringField($item, ['archive_collection', 'archive-collection', 'archiveCollection', 'archivecollection']);
         $archivePlace = self::firstStringField($item, ['archive-place', 'archivePlace', 'archiveplace', 'eprintclass', 'eprint-class', 'eprintClass', 'primaryclass', 'primary-class', 'primary_class', 'primaryClass']);
         $archiveLocation = self::firstStringField($item, ['archive_location', 'archive-location', 'archiveLocation', 'archivelocation', 'eprint']);
+        $repository = self::firstStringField($item, ['repository', 'repositoryName', 'repository-name', 'repositoryname', 'depository', 'holdingInstitution', 'holding-institution', 'holding_institution']);
         $archiveSummary = self::firstStringField($item, ['archive-summary', 'archiveSummary', 'archivesummary', 'eprint-summary', 'eprintSummary', 'eprintsummary'])
             ?: self::archiveSummary($archive, $archiveCollection, $archivePlace, $archiveLocation);
         $publisherList = self::stringListFromFirstField($item, [
@@ -1631,6 +1632,7 @@ final class CitationCslProcessor
             'archivePlace' => $archivePlace,
             'archiveLocation' => $archiveLocation,
             'archiveSummary' => $archiveSummary,
+            'repository' => $repository,
             'callNumber' => self::firstStringField($item, ['call-number', 'callNumber', 'callnumber', 'library', 'shelfmark', 'shelf-mark', 'shelfMark']),
             'language' => $language,
             'languageList' => $languageList !== [] ? $languageList : ($language !== '' ? [$language] : []),
@@ -6936,6 +6938,7 @@ final class CitationCslProcessor
             'citation-alias-summary', 'citation-aliases-summary', 'citationaliassummary', 'citationaliasessummary' => $this->normalizeSortText($this->renderVariableValue($item, $variable, $scope)),
             'archive', 'archive-place', 'archiveplace', 'eprintclass', 'eprint-class', 'primaryclass', 'primary-class', 'primary_class', 'archive_collection', 'archive-collection', 'archivecollection',
             'archive_location', 'archive-location', 'archivelocation', 'archive-summary', 'archivesummary' => $this->normalizeSortText($this->renderVariableValue($item, $variable, $scope)),
+            'repository', 'repository-name', 'repositoryname', 'depository', 'holding-institution', 'holdinginstitution', 'holding_institution' => $this->normalizeSortText($this->renderVariableValue($item, $variable, $scope)),
             'type' => $this->normalizeSortText((string) $item['type']),
             'citation-number' => sprintf('%08d', (int) $this->primaryCitationNumberForId((string) ($item['id'] ?? ''))),
             'first-reference-note-number' => $this->numberVariableSortValue($item, $variable, $scope),
@@ -8944,6 +8947,7 @@ final class CitationCslProcessor
             ['version', 'Version'],
             ['rights', 'Rights'],
             ['medium', 'Medium'],
+            ['repository', 'Repository'],
             ['callNumber', 'Call number'],
             ['pagination', 'Pagination'],
             ['bookPagination', 'Book pagination'],
@@ -11304,6 +11308,7 @@ final class CitationCslProcessor
             'archive-place', 'archiveplace', 'eprintclass', 'eprint-class', 'primaryclass', 'primary-class', 'primary_class' => (string) $item['archivePlace'],
             'archive_location', 'archive-location', 'archivelocation' => (string) $item['archiveLocation'],
             'archive-summary', 'archive-summary-text', 'archivesummary', 'eprint-summary', 'eprintsummary' => (string) ($item['archiveSummary'] ?? ''),
+            'repository', 'repository-name', 'repositoryname', 'depository', 'holding-institution', 'holdinginstitution', 'holding_institution' => (string) ($item['repository'] ?? ''),
             'call-number', 'callnumber' => (string) $item['callNumber'],
             'language', 'langid', 'language-id', 'languageid', 'hyphenation' => (string) $item['language'],
             'language-list', 'languagelist' => implode('; ', is_array($item['languageList'] ?? null) ? $item['languageList'] : []),

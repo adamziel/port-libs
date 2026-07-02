@@ -742,6 +742,7 @@ final class BibtexCslParser
         $archiveCollection = self::firstField($fields, ['archivecollection', 'archive-collection', 'archive_collection']);
         $archivePlace = self::firstField($fields, ['eprintclass', 'eprint-class', 'primaryclass', 'primary-class', 'primary_class', 'archiveplace', 'archive-place']);
         $archiveLocation = self::firstField($fields, ['eprint', 'archive_location', 'archive-location', 'archivelocation']);
+        $repository = self::firstField($fields, ['repository', 'repositoryname', 'repository-name', 'depository', 'holdinginstitution', 'holding-institution', 'holding_institution']);
         $patentType = self::patentType($type, $fields);
         $item = [
             'id' => $key,
@@ -872,6 +873,7 @@ final class BibtexCslParser
             'archive-place' => $archivePlace,
             'archive_location' => $archiveLocation,
             'archive-summary' => self::archiveSummary($archive, $archiveCollection, $archivePlace, $archiveLocation),
+            'repository' => $repository,
             'call-number' => self::firstField($fields, ['callnumber', 'call-number', 'library', 'shelfmark', 'shelf-mark']),
             'language' => self::literalListDisplay($languageList) ?: self::firstField($fields, ['langid', 'hyphenation']),
             'abstract' => self::firstField($fields, ['abstract', 'annote', 'annotation']),
