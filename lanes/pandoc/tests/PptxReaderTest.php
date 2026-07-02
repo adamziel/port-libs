@@ -3814,6 +3814,77 @@ XML);
     }
 };
 
+$buildMultipleParagraphPropertiesPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-multiple-ppr-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Paragraph properties</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="3" name="Multiple paragraph properties body"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/>
+        <a:p><a:pPr lvl="0"><a:buChar char="&#8226;"/></a:pPr><a:r><a:t>Level zero anchor</a:t></a:r></a:p>
+        <a:p><a:pPr lvl="0"><a:buChar char="&#8226;"/></a:pPr><a:pPr lvl="1"><a:buChar char="&#8226;"/></a:pPr><a:r><a:t>First paragraph properties level wins</a:t></a:r></a:p>
+        <a:p><a:pPr lvl="1"><a:buChar char="&#8226;"/></a:pPr><a:r><a:t>Level one split</a:t></a:r></a:p>
+        <a:p><a:pPr><a:buNone/></a:pPr><a:pPr lvl="0"><a:buChar char="&#8226;"/></a:pPr><a:r><a:t>Later bullet marker ignored</a:t></a:r></a:p>
+      </p:txBody>
+    </p:sp>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildEndParagraphSymbolPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-end-para-symbol-');
     if ($path === false) {
@@ -12759,6 +12830,29 @@ XML);
         $t->contains('Para [ Str "Fourth" , Space , Str "item" ]', $native);
         $t->contains('Para [ Str "Alpha" , Space , Str "item" ]', $native);
         $t->true(!str_contains($native, 'OrderedList'), 'PPTX buAutoNum should not become a native OrderedList with the current upstream reader');
+    },
+
+    'uses only the first pptx paragraph properties child like upstream' => static function (TestRunner $t) use ($buildMultipleParagraphPropertiesPptxPackage, $nodesOfType): void {
+        $document = (new PptxReader())->read($buildMultipleParagraphPropertiesPptxPackage());
+        $bulletLists = $nodesOfType($document, 'bullet_list');
+        $paragraphs = $nodesOfType($document, 'paragraph');
+        $native = PandocConverter::write($document, 'native');
+        $paragraphTexts = array_map(static fn (AstNode $paragraph): string => (string) $paragraph->attr('text'), $paragraphs);
+        $itemText = static function (AstNode $item): string {
+            $plain = $item->children[0] ?? null;
+            $text = $plain instanceof AstNode ? ($plain->children[0] ?? null) : null;
+
+            return $text instanceof AstNode ? (string) $text->attr('text') : '';
+        };
+
+        $t->same(2, count($bulletLists));
+        $t->same(['Level zero anchor', 'First paragraph properties level wins'], array_map($itemText, $bulletLists[0]->children));
+        $t->same(['Level one split'], array_map($itemText, $bulletLists[1]->children));
+        $t->same(true, in_array('Later bullet marker ignored', $paragraphTexts, true));
+        $t->contains('BulletList [ [ Plain [ Str "Level" , Space , Str "zero" , Space , Str "anchor" ]', $native);
+        $t->contains('Plain [ Str "First" , Space , Str "paragraph" , Space , Str "properties" , Space , Str "level" , Space , Str "wins" ]', $native);
+        $t->contains('Plain [ Str "Level" , Space , Str "one" , Space , Str "split" ]', $native);
+        $t->contains('Para [ Str "Later" , Space , Str "bullet" , Space , Str "marker" , Space , Str "ignored" ]', $native);
     },
 
     'requires pptx Wingdings bullet symbols to live in run properties like upstream' => static function (TestRunner $t) use ($buildEndParagraphSymbolPptxPackage, $nodesOfType): void {
