@@ -981,6 +981,88 @@ XML);
     }
 };
 
+$buildFirstTableCellTextBodyPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-first-table-cell-text-body-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>First table cell text body</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="4" name="First Table Cell Text Body"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl>
+        <a:tblPr/>
+        <a:tblGrid><a:gridCol w="1828800"/><a:gridCol w="1828800"/></a:tblGrid>
+        <a:tr>
+          <a:tc>
+            <a:txBody/>
+            <a:txBody><a:p><a:r><a:t>Ignored later header text</a:t></a:r></a:p></a:txBody>
+          </a:tc>
+          <a:tc><a:txBody><a:p><a:r><a:t>Visible header</a:t></a:r></a:p></a:txBody></a:tc>
+        </a:tr>
+        <a:tr>
+          <a:tc><a:txBody><a:p><a:r><a:t>Visible body</a:t></a:r></a:p></a:txBody></a:tc>
+          <a:tc>
+            <a:txBody><a:p/></a:txBody>
+            <a:txBody><a:p><a:r><a:t>Ignored later body text</a:t></a:r></a:p></a:txBody>
+          </a:tc>
+        </a:tr>
+      </a:tbl></a:graphicData></a:graphic>
+    </p:graphicFrame>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildParagraphlessTextBodyPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-paragraphless-text-body-');
     if ($path === false) {
@@ -11340,6 +11422,26 @@ return [
         $t->contains('Para [  ]', $native);
         $t->contains('[ Plain [  ]', $native);
         $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
+    },
+
+    'uses only the first pptx table cell text body like upstream' => static function (TestRunner $t) use ($buildFirstTableCellTextBodyPptxPackage, $nodesOfType): void {
+        $document = (new PptxReader())->read($buildFirstTableCellTextBodyPptxPackage());
+        $review = $document->attr('pptx');
+        $tables = $nodesOfType($document, 'table');
+        $cellTexts = array_map(static fn (AstNode $cell): string => (string) $cell->attr('text'), $nodesOfType($document, 'table_cell'));
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same('First table cell text body', $document->children[0]->attr('text'));
+        $t->same(1, count($tables));
+        $t->same(['', 'Visible header', 'Visible body', ''], $cellTexts);
+        $t->same(2, $tables[0]->attr('nativeColumnCount'));
+        $t->same([1828800, 1828800], $tables[0]->attr('columnWidths'));
+        $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
+        $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "First" , Space , Str "table" , Space , Str "cell" , Space , Str "text" , Space , Str "body" ]', $native);
+        $t->contains('Str "Visible" , Space , Str "header"', $native);
+        $t->contains('Str "Visible" , Space , Str "body"', $native);
+        $t->true(!str_contains($native, 'Ignored later header text'), 'Later a:txBody siblings in table cells should stay hidden when the first a:txBody is empty');
+        $t->true(!str_contains($native, 'Ignored later body text'), 'Later a:txBody siblings in table cells should stay hidden when the first a:txBody has no text');
     },
 
     'skips pptx text boxes without text bodies or drawing paragraphs like upstream' => static function (TestRunner $t) use ($buildParagraphlessTextBodyPptxPackage, $nodesOfType): void {
