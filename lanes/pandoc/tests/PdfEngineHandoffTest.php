@@ -20218,17 +20218,51 @@ MARKDOWN);
                 'packetSkipped' => 'filtered',
             ],
         ];
+        $expectedPolicy = [
+            'reviewStatus' => 'review',
+            'packetCount' => 2,
+            'namedPacketCount' => 2,
+            'streamPacketCount' => 2,
+            'literalPacketCount' => 0,
+            'missingPacketCount' => 0,
+            'skippedPacketCount' => 1,
+            'filteredPacketCount' => 1,
+            'hashedPacketCount' => 1,
+            'totalPacketBytes' => strlen($templatePacket) + strlen($datasetsPacket),
+            'packetNames' => ['datasets', 'template'],
+            'packetObjects' => ['11 0 R', '12 0 R'],
+            'packetSources' => ['AcroForm.XFA[datasets]', 'AcroForm.XFA[template]'],
+            'valueKinds' => ['stream' => 2],
+            'filters' => ['FlateDecode' => 1],
+            'skippedReasons' => ['filtered' => 1],
+            'issues' => ['filtered-xfa-packet-bytes-not-hashed', 'xfa-packet-boundary'],
+        ];
         $diagnostics = implode(',', $result['diagnostics']);
 
         $t->same(true, $result['ok']);
         $t->same($expected, $result['pdfXfaPackets']);
+        $t->same($expectedPolicy, $result['pdfXfaPacketPolicy']);
         $t->contains('pdf-byte-xfa-packets:2', $diagnostics);
         $t->contains('pdf-byte-xfa-packet-names:2', $diagnostics);
         $t->contains('pdf-byte-xfa-packet-streams:2', $diagnostics);
         $t->contains('pdf-byte-xfa-packet-bytes:' . (strlen($templatePacket) + strlen($datasetsPacket)), $diagnostics);
         $t->contains('pdf-byte-xfa-packet-skipped:filtered', $diagnostics);
+        $t->contains('pdf-byte-xfa-packet-policy:review', $diagnostics);
+        $t->contains('pdf-byte-xfa-packet-policy-packets:2', $diagnostics);
+        $t->contains('pdf-byte-xfa-packet-policy-named:2', $diagnostics);
+        $t->contains('pdf-byte-xfa-packet-policy-streams:2', $diagnostics);
+        $t->contains('pdf-byte-xfa-packet-policy-skipped:1', $diagnostics);
+        $t->contains('pdf-byte-xfa-packet-policy-filtered:1', $diagnostics);
+        $t->contains('pdf-byte-xfa-packet-policy-hashed:1', $diagnostics);
+        $t->contains('pdf-byte-xfa-packet-policy-bytes:' . (strlen($templatePacket) + strlen($datasetsPacket)), $diagnostics);
+        $t->contains('pdf-byte-xfa-packet-policy-kind:stream:2', $diagnostics);
+        $t->contains('pdf-byte-xfa-packet-policy-filter:FlateDecode:1', $diagnostics);
+        $t->contains('pdf-byte-xfa-packet-policy-skip:filtered:1', $diagnostics);
+        $t->contains('pdf-byte-xfa-packet-policy-issue:filtered-xfa-packet-bytes-not-hashed', $diagnostics);
+        $t->contains('pdf-byte-xfa-packet-policy-issue:xfa-packet-boundary', $diagnostics);
         $t->same(true, $sequence['ok']);
         $t->same($expected, $sequence['finalPdfXfaPackets']);
+        $t->same($expectedPolicy, $sequence['finalPdfXfaPacketPolicy']);
     },
 
     'fake runner resolves bounded pdf acroform calculation order fields from produced bytes' => static function (TestRunner $t) use ($document): void {

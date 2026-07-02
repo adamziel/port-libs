@@ -855,6 +855,7 @@ final class PdfEngineHandoff
      *     pdfAcroFormCalculationOrder: list<array{order:int, fieldObject:string, fieldName:string|null, fieldType:string|null, fieldTypeLabel:string|null, alternateName:string|null, mappingName:string|null, flags:int|null, flagNames:list<string>, missing:bool}>,
      *     pdfAcroFormCalculationOrderPolicy: array{reviewStatus:string, fieldCount:int, calculationOrderCount:int, resolvedFieldCount:int, missingFieldCount:int, undeclaredFieldCount:int, fieldObjects:list<string>, missingFieldObjects:list<string>, undeclaredFieldObjects:list<string>, fieldNames:list<string>, fieldTypeLabels:array<string, int>, flagNames:array<string, int>, issues:list<string>}|array{},
      *     pdfXfaPackets: list<array{packetName:string|null, packetObject:string|null, source:string, valueKind:string, filters:list<string>, packetBytes:int|null, packetSha256:string|null, packetSkipped:string|null}>,
+     *     pdfXfaPacketPolicy: array{reviewStatus:string, packetCount:int, namedPacketCount:int, streamPacketCount:int, literalPacketCount:int, missingPacketCount:int, skippedPacketCount:int, filteredPacketCount:int, hashedPacketCount:int, totalPacketBytes:int, packetNames:list<string>, packetObjects:list<string>, packetSources:list<string>, valueKinds:array<string, int>, filters:array<string, int>, skippedReasons:array<string, int>, issues:list<string>}|array{},
      *     pdfThreads: list<array{object:string, infoTitle:string|null, infoAuthor:string|null, infoSubject:string|null, firstBead:string|null, beadCount:int, beads:list<array{object:string, pageObject:string|null, rect:list<float>|null, next:string|null, prev:string|null}>}>,
      *     pdfThreadPolicy: array<string, mixed>,
      *     pdfDocumentPartMetadata: list<array{source:string, object:string|null, type:string|null, parentObject:string|null, metadataObject:string|null, metadataKeys:list<string>, metadataItems:list<array{name:string, value:string|int|float|bool|null, valueType:string}>, startPageObject:string|null, endPageObject:string|null, childObjects:list<string>, missingChildObjects:list<string>, childCount:int, depth:int}>,
@@ -1623,6 +1624,7 @@ final class PdfEngineHandoff
         $pdfAcroFormCalculationOrder = [];
         $pdfAcroFormCalculationOrderPolicy = [];
         $pdfXfaPackets = [];
+        $pdfXfaPacketPolicy = [];
         $pdfThreads = [];
         $pdfThreadPolicy = [];
         $pdfDocumentPartMetadata = [];
@@ -1783,6 +1785,7 @@ final class PdfEngineHandoff
                 $pdfAcroFormCalculationOrder = $pdfInspection['acroFormCalculationOrder'];
                 $pdfAcroFormCalculationOrderPolicy = $pdfInspection['acroFormCalculationOrderPolicy'];
                 $pdfXfaPackets = $pdfInspection['xfaPackets'];
+                $pdfXfaPacketPolicy = $pdfInspection['xfaPacketPolicy'];
                 $pdfThreads = $pdfInspection['threads'];
                 $pdfThreadPolicy = $pdfInspection['threadPolicy'];
                 $pdfDocumentPartMetadata = $pdfInspection['documentPartMetadata'];
@@ -4095,6 +4098,44 @@ final class PdfEngineHandoff
                         $diagnostics[] = 'pdf-byte-xfa-packet-skipped:' . $skipReason;
                     }
                 }
+                if ($pdfXfaPacketPolicy !== []) {
+                    $diagnostics[] = 'pdf-byte-xfa-packet-policy:' . ($pdfXfaPacketPolicy['reviewStatus'] ?? 'unknown');
+                    foreach ([
+                        'packetCount' => 'packets',
+                        'namedPacketCount' => 'named',
+                        'streamPacketCount' => 'streams',
+                        'literalPacketCount' => 'literal',
+                        'missingPacketCount' => 'missing',
+                        'skippedPacketCount' => 'skipped',
+                        'filteredPacketCount' => 'filtered',
+                        'hashedPacketCount' => 'hashed',
+                        'totalPacketBytes' => 'bytes',
+                    ] as $key => $label) {
+                        if (isset($pdfXfaPacketPolicy[$key]) && is_int($pdfXfaPacketPolicy[$key]) && $pdfXfaPacketPolicy[$key] > 0) {
+                            $diagnostics[] = 'pdf-byte-xfa-packet-policy-' . $label . ':' . $pdfXfaPacketPolicy[$key];
+                        }
+                    }
+                    foreach ($pdfXfaPacketPolicy['valueKinds'] ?? [] as $kind => $count) {
+                        if (is_string($kind) && is_int($count) && $kind !== '') {
+                            $diagnostics[] = 'pdf-byte-xfa-packet-policy-kind:' . $kind . ':' . $count;
+                        }
+                    }
+                    foreach ($pdfXfaPacketPolicy['filters'] ?? [] as $filter => $count) {
+                        if (is_string($filter) && is_int($count) && $filter !== '') {
+                            $diagnostics[] = 'pdf-byte-xfa-packet-policy-filter:' . $filter . ':' . $count;
+                        }
+                    }
+                    foreach ($pdfXfaPacketPolicy['skippedReasons'] ?? [] as $reason => $count) {
+                        if (is_string($reason) && is_int($count) && $reason !== '') {
+                            $diagnostics[] = 'pdf-byte-xfa-packet-policy-skip:' . $reason . ':' . $count;
+                        }
+                    }
+                    foreach ($pdfXfaPacketPolicy['issues'] ?? [] as $issue) {
+                        if (is_string($issue) && $issue !== '') {
+                            $diagnostics[] = 'pdf-byte-xfa-packet-policy-issue:' . $issue;
+                        }
+                    }
+                }
                 if ($pdfAcroFormCalculationOrder !== []) {
                     $calculationFields = 0;
                     $missingCalculationFields = 0;
@@ -5557,6 +5598,7 @@ final class PdfEngineHandoff
             'pdfAcroFormCalculationOrder' => $pdfAcroFormCalculationOrder,
             'pdfAcroFormCalculationOrderPolicy' => $pdfAcroFormCalculationOrderPolicy,
             'pdfXfaPackets' => $pdfXfaPackets,
+            'pdfXfaPacketPolicy' => $pdfXfaPacketPolicy,
             'pdfThreads' => $pdfThreads,
             'pdfThreadPolicy' => $pdfThreadPolicy,
             'pdfDocumentPartMetadata' => $pdfDocumentPartMetadata,
@@ -5736,6 +5778,7 @@ final class PdfEngineHandoff
      *     finalPdfAcroFormCalculationOrder: list<array{order:int, fieldObject:string, fieldName:string|null, fieldType:string|null, fieldTypeLabel:string|null, alternateName:string|null, mappingName:string|null, flags:int|null, flagNames:list<string>, missing:bool}>,
      *     finalPdfAcroFormCalculationOrderPolicy: array{reviewStatus:string, fieldCount:int, calculationOrderCount:int, resolvedFieldCount:int, missingFieldCount:int, undeclaredFieldCount:int, fieldObjects:list<string>, missingFieldObjects:list<string>, undeclaredFieldObjects:list<string>, fieldNames:list<string>, fieldTypeLabels:array<string, int>, flagNames:array<string, int>, issues:list<string>}|array{},
      *     finalPdfXfaPackets: list<array{packetName:string|null, packetObject:string|null, source:string, valueKind:string, filters:list<string>, packetBytes:int|null, packetSha256:string|null, packetSkipped:string|null}>,
+     *     finalPdfXfaPacketPolicy: array{reviewStatus:string, packetCount:int, namedPacketCount:int, streamPacketCount:int, literalPacketCount:int, missingPacketCount:int, skippedPacketCount:int, filteredPacketCount:int, hashedPacketCount:int, totalPacketBytes:int, packetNames:list<string>, packetObjects:list<string>, packetSources:list<string>, valueKinds:array<string, int>, filters:array<string, int>, skippedReasons:array<string, int>, issues:list<string>}|array{},
      *     finalPdfThreads: list<array{object:string, infoTitle:string|null, infoAuthor:string|null, infoSubject:string|null, firstBead:string|null, beadCount:int, beads:list<array{object:string, pageObject:string|null, rect:list<float>|null, next:string|null, prev:string|null}>}>,
      *     finalPdfThreadPolicy: array<string, mixed>,
      *     finalPdfDocumentPartMetadata: list<array{source:string, object:string|null, type:string|null, parentObject:string|null, metadataObject:string|null, metadataKeys:list<string>, metadataItems:list<array{name:string, value:string|int|float|bool|null, valueType:string}>, startPageObject:string|null, endPageObject:string|null, childObjects:list<string>, missingChildObjects:list<string>, childCount:int, depth:int}>,
@@ -6075,6 +6118,7 @@ final class PdfEngineHandoff
             'finalPdfAcroFormCalculationOrder' => is_array($finalRun) && is_array($finalRun['pdfAcroFormCalculationOrder'] ?? null) ? $finalRun['pdfAcroFormCalculationOrder'] : [],
             'finalPdfAcroFormCalculationOrderPolicy' => is_array($finalRun) && is_array($finalRun['pdfAcroFormCalculationOrderPolicy'] ?? null) ? $finalRun['pdfAcroFormCalculationOrderPolicy'] : [],
             'finalPdfXfaPackets' => is_array($finalRun) && is_array($finalRun['pdfXfaPackets'] ?? null) ? $finalRun['pdfXfaPackets'] : [],
+            'finalPdfXfaPacketPolicy' => is_array($finalRun) && is_array($finalRun['pdfXfaPacketPolicy'] ?? null) ? $finalRun['pdfXfaPacketPolicy'] : [],
             'finalPdfThreads' => is_array($finalRun) && is_array($finalRun['pdfThreads'] ?? null) ? $finalRun['pdfThreads'] : [],
             'finalPdfThreadPolicy' => is_array($finalRun) && is_array($finalRun['pdfThreadPolicy'] ?? null) ? $finalRun['pdfThreadPolicy'] : [],
             'finalPdfDocumentPartMetadata' => is_array($finalRun) && is_array($finalRun['pdfDocumentPartMetadata'] ?? null) ? $finalRun['pdfDocumentPartMetadata'] : [],
@@ -8788,12 +8832,46 @@ final class PdfEngineHandoff
                 ++$reviewCaseCount;
             }
         }
+        $caseNames = [];
+        $caseReviewStatusCounts = [];
+        $caseNamesByReviewStatus = [];
+        $caseObservedCounts = [];
+        $caseIssueCounts = [];
+        $caseObservedTotal = 0;
+        foreach ($cases as $case) {
+            $caseName = is_string($case['case'] ?? null) && $case['case'] !== '' ? $case['case'] : 'unknown';
+            $reviewStatus = is_string($case['reviewStatus'] ?? null) && $case['reviewStatus'] !== '' ? $case['reviewStatus'] : 'unknown';
+            $observed = is_int($case['observed'] ?? null) ? max(0, $case['observed']) : 0;
+            $caseIssues = is_array($case['issues'] ?? null) ? $normalizeIssues($case['issues']) : [];
+
+            $caseNames[] = $caseName;
+            $caseReviewStatusCounts[$reviewStatus] = ($caseReviewStatusCounts[$reviewStatus] ?? 0) + 1;
+            $caseNamesByReviewStatus[$reviewStatus] ??= [];
+            $caseNamesByReviewStatus[$reviewStatus][] = $caseName;
+            $caseObservedCounts[$caseName] = ($caseObservedCounts[$caseName] ?? 0) + $observed;
+            $caseIssueCounts[$caseName] = ($caseIssueCounts[$caseName] ?? 0) + count($caseIssues);
+            $caseObservedTotal += $observed;
+        }
+        ksort($caseReviewStatusCounts);
+        ksort($caseNamesByReviewStatus);
+        foreach ($caseNamesByReviewStatus as &$statusCaseNames) {
+            sort($statusCaseNames);
+        }
+        unset($statusCaseNames);
+        ksort($caseObservedCounts);
+        ksort($caseIssueCounts);
 
         return [
             'reviewStatus' => $reviewCaseCount === 0 && $matrixIssues === [] ? 'ok' : 'review',
             'caseCount' => count($cases),
             'reviewCaseCount' => $reviewCaseCount,
             'issueCount' => count($matrixIssues),
+            'caseObservedTotal' => $caseObservedTotal,
+            'caseNames' => $caseNames,
+            'caseReviewStatusCounts' => $caseReviewStatusCounts,
+            'caseNamesByReviewStatus' => $caseNamesByReviewStatus,
+            'caseObservedCounts' => $caseObservedCounts,
+            'caseIssueCounts' => $caseIssueCounts,
             'cases' => $cases,
             'issues' => $matrixIssues,
         ];
@@ -13072,6 +13150,7 @@ final class PdfEngineHandoff
      *     collectionMetadata:array{type:string|null, view:string|null, defaultDocument:string|null, schemaFields:list<array{name:string, subtype:string|null, title:string|null, order:int|null, visible:bool|null, editable:bool|null}>, sort:array{fields:list<string>, ascending:list<bool>}|array{}}|array{},
      *     collectionPolicy:array<string, mixed>,
      *     xfaPackets:list<array{packetName:string|null, packetObject:string|null, source:string, valueKind:string, filters:list<string>, packetBytes:int|null, packetSha256:string|null, packetSkipped:string|null}>,
+     *     xfaPacketPolicy:array{reviewStatus:string, packetCount:int, namedPacketCount:int, streamPacketCount:int, literalPacketCount:int, missingPacketCount:int, skippedPacketCount:int, filteredPacketCount:int, hashedPacketCount:int, totalPacketBytes:int, packetNames:list<string>, packetObjects:list<string>, packetSources:list<string>, valueKinds:array<string, int>, filters:array<string, int>, skippedReasons:array<string, int>, issues:list<string>}|array{},
      *     threads:list<array{object:string, infoTitle:string|null, infoAuthor:string|null, infoSubject:string|null, firstBead:string|null, beadCount:int, beads:list<array{object:string, pageObject:string|null, rect:list<float>|null, next:string|null, prev:string|null}>}>,
      *     threadPolicy:array<string, mixed>,
      *     documentPartMetadata:list<array{source:string, object:string|null, type:string|null, parentObject:string|null, metadataObject:string|null, metadataKeys:list<string>, metadataItems:list<array{name:string, value:string|int|float|bool|null, valueType:string}>, startPageObject:string|null, endPageObject:string|null, childObjects:list<string>, missingChildObjects:list<string>, childCount:int, depth:int}>,
@@ -13343,6 +13422,7 @@ final class PdfEngineHandoff
             'acroFormCalculationOrder' => $acroFormCalculationOrder,
             'acroFormCalculationOrderPolicy' => $this->summarizePdfAcroFormCalculationOrderPolicy($acroFormMetadata, $acroFormCalculationOrder),
             'xfaPackets' => $xfaPackets,
+            'xfaPacketPolicy' => $this->summarizePdfXfaPacketPolicy($acroFormMetadata, $xfaPackets),
             'threads' => $threads,
             'threadPolicy' => $this->summarizePdfThreadPolicy($threads),
             'documentPartMetadata' => $documentPartMetadata,
@@ -35437,6 +35517,154 @@ final class PdfEngineHandoff
             'packetBytes' => $packetBytes,
             'packetSha256' => $packetSha256,
             'packetSkipped' => $packetSkipped,
+        ];
+    }
+
+    /**
+     * @param array{xfaPresent?:bool, xfaPacketNames?:list<string>} $metadata
+     * @param list<array{packetName:string|null, packetObject:string|null, source:string, valueKind:string, filters:list<string>, packetBytes:int|null, packetSha256:string|null, packetSkipped:string|null}> $packets
+     * @return array{reviewStatus:string, packetCount:int, namedPacketCount:int, streamPacketCount:int, literalPacketCount:int, missingPacketCount:int, skippedPacketCount:int, filteredPacketCount:int, hashedPacketCount:int, totalPacketBytes:int, packetNames:list<string>, packetObjects:list<string>, packetSources:list<string>, valueKinds:array<string, int>, filters:array<string, int>, skippedReasons:array<string, int>, issues:list<string>}|array{}
+     */
+    private function summarizePdfXfaPacketPolicy(array $metadata, array $packets): array
+    {
+        $xfaPresent = ($metadata['xfaPresent'] ?? false) === true;
+        if (!$xfaPresent && $packets === []) {
+            return [];
+        }
+
+        $packetNames = [];
+        foreach (is_array($metadata['xfaPacketNames'] ?? null) ? $metadata['xfaPacketNames'] : [] as $packetName) {
+            if (is_string($packetName) && $packetName !== '') {
+                $packetNames[$packetName] = true;
+            }
+        }
+
+        $packetObjects = [];
+        $packetSources = [];
+        $valueKinds = [];
+        $filters = [];
+        $skippedReasons = [];
+        $namedPacketCount = 0;
+        $streamPacketCount = 0;
+        $literalPacketCount = 0;
+        $missingPacketCount = 0;
+        $skippedPacketCount = 0;
+        $filteredPacketCount = 0;
+        $hashedPacketCount = 0;
+        $totalPacketBytes = 0;
+
+        foreach ($packets as $packet) {
+            $packetName = is_string($packet['packetName'] ?? null) && $packet['packetName'] !== ''
+                ? $packet['packetName']
+                : null;
+            if ($packetName !== null) {
+                ++$namedPacketCount;
+                $packetNames[$packetName] = true;
+            }
+
+            if (is_string($packet['packetObject'] ?? null) && $packet['packetObject'] !== '') {
+                $packetObjects[$packet['packetObject']] = true;
+            }
+            if (is_string($packet['source'] ?? null) && $packet['source'] !== '') {
+                $packetSources[$packet['source']] = true;
+            }
+
+            $valueKind = is_string($packet['valueKind'] ?? null) && $packet['valueKind'] !== ''
+                ? $packet['valueKind']
+                : 'unknown';
+            $valueKinds[$valueKind] = ($valueKinds[$valueKind] ?? 0) + 1;
+            if ($valueKind === 'stream') {
+                ++$streamPacketCount;
+            } elseif (in_array($valueKind, ['hex', 'literal', 'name'], true)) {
+                ++$literalPacketCount;
+            }
+
+            $packetFilters = [];
+            foreach (is_array($packet['filters'] ?? null) ? $packet['filters'] : [] as $filter) {
+                if (!is_string($filter) || $filter === '') {
+                    continue;
+                }
+                $packetFilters[$filter] = true;
+                $filters[$filter] = ($filters[$filter] ?? 0) + 1;
+            }
+
+            $packetSkipped = is_string($packet['packetSkipped'] ?? null) && $packet['packetSkipped'] !== ''
+                ? $packet['packetSkipped']
+                : null;
+            if ($packetSkipped !== null) {
+                ++$skippedPacketCount;
+                $skippedReasons[$packetSkipped] = ($skippedReasons[$packetSkipped] ?? 0) + 1;
+            }
+            if ($valueKind === 'missing' || $packetSkipped === 'missing-object') {
+                ++$missingPacketCount;
+            }
+            if ($packetFilters !== [] || $packetSkipped === 'filtered') {
+                ++$filteredPacketCount;
+            }
+            if (is_string($packet['packetSha256'] ?? null) && $packet['packetSha256'] !== '') {
+                ++$hashedPacketCount;
+            }
+            if (is_int($packet['packetBytes'] ?? null)) {
+                $totalPacketBytes += $packet['packetBytes'];
+            }
+        }
+
+        $packetNameList = array_keys($packetNames);
+        $packetObjectList = array_keys($packetObjects);
+        $packetSourceList = array_keys($packetSources);
+        sort($packetNameList, SORT_STRING);
+        sort($packetObjectList, SORT_STRING);
+        sort($packetSourceList, SORT_STRING);
+        ksort($valueKinds);
+        ksort($filters);
+        ksort($skippedReasons);
+
+        $issues = [];
+        if ($xfaPresent || $packets !== []) {
+            $issues[] = 'xfa-packet-boundary';
+        }
+        if ($xfaPresent && $packets === []) {
+            $issues[] = 'xfa-present-without-packet-summary';
+        }
+        if (!$xfaPresent && $packets !== []) {
+            $issues[] = 'xfa-packets-without-acroform-metadata';
+        }
+        if ($packets !== [] && $namedPacketCount < count($packets)) {
+            $issues[] = 'unnamed-xfa-packet';
+        }
+        if ($missingPacketCount > 0) {
+            $issues[] = 'missing-xfa-packet-object';
+        }
+        if ($filteredPacketCount > 0) {
+            $issues[] = 'filtered-xfa-packet-bytes-not-hashed';
+        }
+        if (($skippedReasons['too-large'] ?? 0) > 0) {
+            $issues[] = 'xfa-packet-too-large';
+        }
+        if ($literalPacketCount > 0) {
+            $issues[] = 'inline-xfa-packet-boundary';
+        }
+        $issues = array_values(array_unique($issues));
+        sort($issues, SORT_STRING);
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'packetCount' => count($packets),
+            'namedPacketCount' => $namedPacketCount,
+            'streamPacketCount' => $streamPacketCount,
+            'literalPacketCount' => $literalPacketCount,
+            'missingPacketCount' => $missingPacketCount,
+            'skippedPacketCount' => $skippedPacketCount,
+            'filteredPacketCount' => $filteredPacketCount,
+            'hashedPacketCount' => $hashedPacketCount,
+            'totalPacketBytes' => $totalPacketBytes,
+            'packetNames' => $packetNameList,
+            'packetObjects' => $packetObjectList,
+            'packetSources' => $packetSourceList,
+            'valueKinds' => $valueKinds,
+            'filters' => $filters,
+            'skippedReasons' => $skippedReasons,
+            'issues' => $issues,
         ];
     }
 
