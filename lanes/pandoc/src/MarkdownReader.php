@@ -366,17 +366,10 @@ final class MarkdownReader
             $setextHeading = $paragraph === [] && $listStack === [] ? $this->tryParseSetextMarkdownHeading($lines, $index) : null;
             if ($setextHeading !== null) {
                 $text = $setextHeading['text'];
-                $attrs = [
-                    'level' => $setextHeading['level'],
-                    'text' => $text,
-                    'id' => $markdownHeadingIds[$index] ?? $setextHeading['id'] ?? '',
-                ];
-                if ($setextHeading['classes'] !== []) {
-                    $attrs['classes'] = $setextHeading['classes'];
-                }
-                if ($setextHeading['attributes'] !== []) {
-                    $attrs['attributes'] = $setextHeading['attributes'];
-                }
+                $attrs = $this->markdownHeadingAstAttrs(
+                    $setextHeading,
+                    $markdownHeadingIds[$index] ?? $setextHeading['id'] ?? ''
+                );
                 $blocks[] = new AstNode(
                     'heading',
                     $attrs,
@@ -390,17 +383,10 @@ final class MarkdownReader
                 $this->flushParagraph($paragraph, $blocks);
                 $this->flushListStack($listStack, $blocks);
                 $text = $markdownHeading['text'];
-                $attrs = [
-                    'level' => $markdownHeading['level'],
-                    'text' => $text,
-                    'id' => $markdownHeadingIds[$index] ?? $markdownHeading['id'] ?? '',
-                ];
-                if ($markdownHeading['classes'] !== []) {
-                    $attrs['classes'] = $markdownHeading['classes'];
-                }
-                if ($markdownHeading['attributes'] !== []) {
-                    $attrs['attributes'] = $markdownHeading['attributes'];
-                }
+                $attrs = $this->markdownHeadingAstAttrs(
+                    $markdownHeading,
+                    $markdownHeadingIds[$index] ?? $markdownHeading['id'] ?? ''
+                );
                 $blocks[] = new AstNode(
                     'heading',
                     $attrs,
@@ -749,6 +735,7 @@ final class MarkdownReader
         $idsByLine = [];
         $references = [];
         $usedIds = [];
+        $autoIdentifiers = $this->autoIdentifiersExtensionEnabled();
 
         for ($index = 0, $count = count($lines); $index < $count; $index++) {
             $line = $lines[$index];
@@ -762,12 +749,19 @@ final class MarkdownReader
                 continue;
             }
 
-            $id = $heading['id'] ?? $this->uniqueMarkdownHeadingId(
-                $this->slugifyMarkdownHeading($heading['text']),
-                $usedIds
-            );
             if (isset($heading['id'])) {
+                $id = $heading['id'];
                 $usedIds[$heading['id']] = ($usedIds[$heading['id']] ?? 0) + 1;
+            } elseif ($autoIdentifiers) {
+                $id = $this->uniqueMarkdownHeadingId(
+                    $this->slugifyMarkdownHeading($heading['text']),
+                    $usedIds
+                );
+            } else {
+                if ($setext) {
+                    $index++;
+                }
+                continue;
             }
 
             $idsByLine[$index] = $id;
@@ -789,11 +783,14 @@ final class MarkdownReader
      */
     private function tryParseMarkdownHeading(string $line): ?array
     {
-        if (preg_match('/^ {0,3}(#{1,6})[ \t]+(.+)$/', $line, $m) !== 1) {
+        $pattern = $this->spaceInAtxHeaderExtensionEnabled()
+            ? '/^ {0,3}(#{1,6})(?:[ \t]+(.*)|[ \t]*)$/'
+            : '/^ {0,3}(#{1,6})(.*)$/';
+        if (preg_match($pattern, $line, $m) !== 1) {
             return null;
         }
 
-        $text = $this->stripClosingAtxHeadingFence(trim($m[2]));
+        $text = $this->stripClosingAtxHeadingFence(trim($m[2] ?? ''));
 
         return $this->buildMarkdownHeading(strlen($m[1]), $text);
     }
@@ -856,6 +853,40 @@ final class MarkdownReader
         }
 
         return $heading;
+    }
+
+    /**
+     * @param array{level:int, text:string, id?:string, classes:list<string>, attributes:array<string, string>} $heading
+     * @return array<string, mixed>
+     */
+    private function markdownHeadingAstAttrs(array $heading, string $id): array
+    {
+        $attrs = [
+            'level' => $heading['level'],
+            'text' => $heading['text'],
+            'id' => $id,
+        ];
+
+        if (($heading['classes'] ?? []) !== []) {
+            $attrs['classes'] = $heading['classes'];
+        }
+        if (($heading['attributes'] ?? []) !== []) {
+            $attrs['attributes'] = $heading['attributes'];
+        }
+
+        if (isset($heading['id']) || ($heading['classes'] ?? []) !== [] || ($heading['attributes'] ?? []) !== []) {
+            $attrs = array_replace(
+                $attrs,
+                $this->markdownAttributeAstAttrs(
+                    $heading['id'] ?? null,
+                    $heading['classes'] ?? [],
+                    $heading['attributes'] ?? []
+                )
+            );
+            $attrs['id'] = $id;
+        }
+
+        return $attrs;
     }
 
     /**
@@ -11054,6 +11085,16 @@ final class MarkdownReader
     private function markdownExtensionOverrides(): array
     {
         return MarkdownFormatProfile::markdownExtensionOverrides($this->markdownFormatWithExtensionOption());
+    }
+
+    private function autoIdentifiersExtensionEnabled(): bool
+    {
+        return $this->markdownExtensionOverrides()['auto_identifiers'] ?? true;
+    }
+
+    private function spaceInAtxHeaderExtensionEnabled(): bool
+    {
+        return $this->markdownExtensionOverrides()['space_in_atx_header'] ?? true;
     }
 
     private function markExtensionEnabled(): bool

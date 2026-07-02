@@ -50,6 +50,9 @@ final class MarkdownFormatProfile
 
     /** @var array<string, string> */
     private const EXTENSION_ALIASES = [
+        'auto_id' => 'auto_identifiers',
+        'auto_ids' => 'auto_identifiers',
+        'auto_identifier' => 'auto_identifiers',
         'bracketed_span' => 'bracketed_spans',
         'emoji_shortcode' => 'emoji_shortcodes',
         'header_attrs' => 'header_attributes',
@@ -59,6 +62,7 @@ final class MarkdownFormatProfile
         'line_block' => 'line_blocks',
         'raw_latex' => 'raw_tex',
         'latex_macros' => 'raw_tex',
+        'space_in_atx_heading' => 'space_in_atx_header',
         'subscripts' => 'subscript',
         'superscripts' => 'superscript',
         'task_list' => 'task_lists',
