@@ -4644,6 +4644,75 @@ XML);
     }
 };
 
+$buildFirstRunPropertySymbolPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-first-rpr-symbol-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>First run property symbol slide</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="3" name="First run property symbol body"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/>
+        <a:p><a:r><a:rPr/><a:rPr><a:sym typeface="Wingdings"/></a:rPr><a:t>Later run properties stay plain</a:t></a:r></a:p>
+        <a:p><a:r><a:rPr><a:sym typeface="Arial"/><a:sym typeface="Wingdings"/></a:rPr><a:t>Later symbol stays plain</a:t></a:r></a:p>
+        <a:p><a:r><a:rPr><a:sym typeface="Wingdings"/></a:rPr><a:t>First symbol becomes bullet</a:t></a:r></a:p>
+      </p:txBody>
+    </p:sp>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildWingdingsTypefaceCasePptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-wingdings-case-');
     if ($path === false) {
@@ -14842,6 +14911,23 @@ XML);
         $t->same(true, in_array('Not a Wingdings bullet', $texts, true));
         $t->contains('Para [ Str "Not" , Space , Str "a" , Space , Str "Wingdings" , Space , Str "bullet" ]', $native);
         $t->true(!str_contains($native, 'BulletList'), 'Wingdings symbols outside a:r/a:rPr should not create upstream PPTX bullet lists');
+    },
+
+    'uses only the first pptx run properties and symbol child for Wingdings bullets like upstream' => static function (TestRunner $t) use ($buildFirstRunPropertySymbolPptxPackage, $nodesOfType): void {
+        $document = (new PptxReader())->read($buildFirstRunPropertySymbolPptxPackage());
+        $bulletLists = $nodesOfType($document, 'bullet_list');
+        $paragraphs = $nodesOfType($document, 'paragraph');
+        $paragraphTexts = array_map(static fn (AstNode $paragraph): string => (string) $paragraph->attr('text'), $paragraphs);
+        $native = PandocConverter::write($document, 'native');
+        $firstItem = $bulletLists[0]->children[0]->children[0]->children[0] ?? null;
+
+        $t->same(1, count($bulletLists));
+        $t->same('First symbol becomes bullet', $firstItem instanceof AstNode ? $firstItem->attr('text') : null);
+        $t->same(true, in_array('Later run properties stay plain', $paragraphTexts, true));
+        $t->same(true, in_array('Later symbol stays plain', $paragraphTexts, true));
+        $t->contains('Para [ Str "Later" , Space , Str "run" , Space , Str "properties" , Space , Str "stay" , Space , Str "plain" ]', $native);
+        $t->contains('Para [ Str "Later" , Space , Str "symbol" , Space , Str "stays" , Space , Str "plain" ]', $native);
+        $t->contains('Plain [ Str "First" , Space , Str "symbol" , Space , Str "becomes" , Space , Str "bullet" ]', $native);
     },
 
     'matches pptx Wingdings typeface case-sensitive substring matching like upstream' => static function (TestRunner $t) use ($buildWingdingsTypefaceCasePptxPackage, $nodesOfType): void {
