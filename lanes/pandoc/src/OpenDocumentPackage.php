@@ -1574,6 +1574,7 @@ final class OpenDocumentPackage
         $areaDepthSummary = self::packagePartAreaDepthSummary($parts, 'path');
         $packageLeafNameSummaries = self::packagePathLeafNameSummaries(array_values($parts));
         $packageSharedLeafNameSummaries = self::sharedPackagePathLeafNameSummaries(array_values($parts));
+        $manifestPackageOrder = self::manifestPackageOrderSummary($this->manifestEntries, $parts);
 
         return [
             'entryCount' => count($parts),
@@ -1665,6 +1666,9 @@ final class OpenDocumentPackage
             'unicodePathExtraEntryCount' => $unicodePathExtraEntryCount,
             'decodedNameDiffersFromRawNameEntryCount' => $decodedNameDiffersFromRawNameEntryCount,
             'rawNameProvenanceEntries' => $rawNameProvenanceEntries,
+            'manifestPackageOrder' => $manifestPackageOrder,
+            'manifestPackageOrderMatchesCentralDirectoryOrder' => $manifestPackageOrder['matchesCentralDirectoryOrder'],
+            'manifestPackageOrderMismatchCount' => $manifestPackageOrder['orderMismatchCount'],
             'zipSourceRecords' => self::zipSourceRecordSummary($packageManifest, $parts),
             'centralDirectorySourceRecordEntryCount' => $centralDirectorySourceRecordEntryCount,
             'centralDirectorySourceRecordByteLength' => $centralDirectorySourceRecordByteLength,
@@ -1722,6 +1726,11 @@ final class OpenDocumentPackage
             'hasEntryComments' => ($comments['hasEntryComments'] ?? false) === true,
             'entryCommentCount' => is_int($comments['entryCommentCount'] ?? null) ? $comments['entryCommentCount'] : 0,
             'commentedEntryNames' => is_array($comments['commentedEntryNames'] ?? null) ? $comments['commentedEntryNames'] : [],
+            'zipPackageManifestHasEntryComments' => ($packageManifest['hasEntryComments'] ?? false) === true,
+            'zipPackageManifestCommentedEntryNames' => is_array($packageManifest['commentedEntryNames'] ?? null) ? $packageManifest['commentedEntryNames'] : [],
+            'zipPackageManifestEntryCommentSummaryCount' => is_int($packageManifest['entryCommentSummaryCount'] ?? null) ? $packageManifest['entryCommentSummaryCount'] : 0,
+            'zipPackageManifestEntryCommentSourceRecordBytes' => is_int($packageManifest['entryCommentSourceRecordBytes'] ?? null) ? $packageManifest['entryCommentSourceRecordBytes'] : 0,
+            'zipPackageManifestEntryCommentSummaries' => is_array($packageManifest['entryCommentSummaries'] ?? null) ? $packageManifest['entryCommentSummaries'] : [],
             'extraFields' => $extraFields,
             'zipExtraFieldEntryCount' => $extraFields['extraFieldEntryCount'],
             'zipDuplicateExtraFieldEntryCount' => $extraFields['duplicateExtraFieldEntryCount'],
@@ -1860,6 +1869,150 @@ final class OpenDocumentPackage
             'flagPartNames' => $flagPartNames,
             'flagSegments' => $flagSegments,
             'parts' => $items,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifestEntries
+     * @param array<string, array<string, mixed>> $parts
+     * @return array<string, mixed>
+     */
+    private static function manifestPackageOrderSummary(array $manifestEntries, array $parts): array
+    {
+        $items = [];
+        $existingItems = [];
+        $missingItems = [];
+        $undeclaredItems = [];
+        $manifestPackagePaths = [];
+        $existingManifestPackagePaths = [];
+        $missingManifestPackagePaths = [];
+        $undeclaredPackagePaths = [];
+        $manifestOrder = 0;
+
+        foreach ($manifestEntries as $entry) {
+            $packagePath = $entry['packagePath'] ?? $entry['part'] ?? null;
+            if (!is_string($packagePath) || $packagePath === '') {
+                continue;
+            }
+
+            $part = is_array($parts[$packagePath] ?? null) ? $parts[$packagePath] : null;
+            $exists = is_array($part);
+            $centralDirectoryIndex = $exists && is_int($part['centralDirectoryIndex'] ?? null)
+                ? $part['centralDirectoryIndex']
+                : null;
+            $manifestPath = $entry['path'] ?? $entry['fullPath'] ?? null;
+            $item = [
+                'manifestIndex' => $entry['manifestIndex'] ?? null,
+                'manifestOrder' => $manifestOrder,
+                'fullPath' => is_string($manifestPath) ? $manifestPath : null,
+                'path' => is_string($manifestPath) ? $manifestPath : null,
+                'part' => $packagePath,
+                'packagePath' => $packagePath,
+                'mediaType' => $entry['mediaType'] ?? null,
+                'exists' => $exists,
+                'missing' => !$exists,
+                'centralDirectoryIndex' => $centralDirectoryIndex,
+                'localHeaderOrder' => is_array($part) ? ($part['localHeaderOrder'] ?? null) : null,
+                'roles' => is_array($part) && is_array($part['roles'] ?? null) ? $part['roles'] : [],
+                'canExposeBytes' => is_array($part) && ($part['canExposeBytes'] ?? false) === true,
+                'byteExposurePolicy' => is_array($part) ? ($part['byteExposurePolicy'] ?? null) : null,
+                'issues' => $exists ? [] : ['odf-manifest-package-order-missing-part'],
+            ];
+
+            $manifestPackagePaths[] = $packagePath;
+            if ($exists && $centralDirectoryIndex !== null) {
+                $existingManifestPackagePaths[] = $packagePath;
+                $existingItems[] = $item;
+            } else {
+                $missingManifestPackagePaths[] = $packagePath;
+                $missingItems[] = $item;
+            }
+
+            $items[] = $item;
+            ++$manifestOrder;
+        }
+
+        $centralOrderedItems = $existingItems;
+        usort(
+            $centralOrderedItems,
+            static function (array $left, array $right): int {
+                $byCentralDirectory = ((int) ($left['centralDirectoryIndex'] ?? 0))
+                    <=> ((int) ($right['centralDirectoryIndex'] ?? 0));
+
+                return $byCentralDirectory !== 0
+                    ? $byCentralDirectory
+                    : ((int) ($left['manifestOrder'] ?? 0) <=> (int) ($right['manifestOrder'] ?? 0));
+            }
+        );
+
+        $centralOrderByPackagePath = [];
+        foreach ($centralOrderedItems as $centralOrder => $item) {
+            $centralOrderByPackagePath[(string) $item['packagePath']] = $centralOrder;
+        }
+
+        $mismatchItems = [];
+        $maxAbsoluteOrderDelta = 0;
+        $existingManifestOrder = 0;
+        foreach ($items as $index => $item) {
+            $packagePath = (string) $item['packagePath'];
+            if (!isset($centralOrderByPackagePath[$packagePath])) {
+                continue;
+            }
+
+            $centralOrder = $centralOrderByPackagePath[$packagePath];
+            $orderDelta = $centralOrder - $existingManifestOrder;
+            $orderMismatch = $orderDelta !== 0;
+            $items[$index]['manifestExistingOrder'] = $existingManifestOrder;
+            $items[$index]['centralDirectoryDeclaredOrder'] = $centralOrder;
+            $items[$index]['orderDelta'] = $orderDelta;
+            $items[$index]['orderMismatch'] = $orderMismatch;
+            if ($orderMismatch) {
+                $items[$index]['issues'][] = 'odf-manifest-package-order-mismatch';
+                $mismatchItems[] = $items[$index];
+                $maxAbsoluteOrderDelta = max($maxAbsoluteOrderDelta, abs($orderDelta));
+            }
+
+            ++$existingManifestOrder;
+        }
+
+        foreach ($parts as $partName => $part) {
+            if (($part['undeclared'] ?? false) !== true) {
+                continue;
+            }
+
+            $partName = is_string($part['path'] ?? null) ? $part['path'] : (string) $partName;
+            $undeclaredPackagePaths[] = $partName;
+            $undeclaredItems[] = self::withoutEmptyValues([
+                'part' => $partName,
+                'packagePath' => $partName,
+                'centralDirectoryIndex' => $part['centralDirectoryIndex'] ?? null,
+                'localHeaderOrder' => $part['localHeaderOrder'] ?? null,
+                'roles' => is_array($part['roles'] ?? null) ? $part['roles'] : [],
+                'byteExposurePolicy' => $part['byteExposurePolicy'] ?? null,
+                'issues' => ['odf-manifest-package-order-undeclared-entry'],
+            ]);
+        }
+
+        return [
+            'manifestDeclaredPartCount' => count($manifestPackagePaths),
+            'existingManifestDeclaredPartCount' => count($existingManifestPackagePaths),
+            'missingManifestDeclaredPartCount' => count($missingManifestPackagePaths),
+            'packageEntryCount' => count($parts),
+            'undeclaredPackageEntryCount' => count($undeclaredPackagePaths),
+            'matchesCentralDirectoryOrder' => $mismatchItems === [],
+            'orderMismatchCount' => count($mismatchItems),
+            'maxAbsoluteOrderDelta' => $maxAbsoluteOrderDelta,
+            'manifestPackagePaths' => $manifestPackagePaths,
+            'existingManifestPackagePaths' => $existingManifestPackagePaths,
+            'centralDirectoryDeclaredPackagePaths' => array_column($centralOrderedItems, 'packagePath'),
+            'missingManifestDeclaredPackagePaths' => $missingManifestPackagePaths,
+            'undeclaredPackagePaths' => $undeclaredPackagePaths,
+            'mismatchItems' => $mismatchItems,
+            'missingItems' => $missingItems,
+            'undeclaredItems' => $undeclaredItems,
+            'items' => $items,
+            'byteExposurePolicy' => 'odf-manifest-package-order-metadata-only',
+            'canExposeBytes' => false,
         ];
     }
 
@@ -2368,6 +2521,9 @@ final class OpenDocumentPackage
             'manifestRootNamespaceDeclarationMap' => $manifestRootAttributes['namespaceDeclarationMap'] ?? [],
             'manifestEntries' => $manifestEntries,
             'packageEntries' => $packageEntries,
+            'manifestPackageOrder' => $packageInventory['manifestPackageOrder'] ?? [],
+            'manifestPackageOrderMatchesCentralDirectoryOrder' => ($packageInventory['manifestPackageOrderMatchesCentralDirectoryOrder'] ?? false) === true,
+            'manifestPackageOrderMismatchCount' => $packageInventory['manifestPackageOrderMismatchCount'] ?? 0,
             'partPathDepthCount' => $packageInventory['partPathDepthCount'] ?? 0,
             'partPathDepths' => $packageInventory['partPathDepths'] ?? [],
             'maxPartPathSegmentCount' => $packageInventory['maxPartPathSegmentCount'] ?? 0,
@@ -2479,6 +2635,11 @@ final class OpenDocumentPackage
                 'commentedEntryNames' => $comments['commentedEntryNames'] ?? [],
                 'entries' => $comments['entries'] ?? [],
             ],
+            'zipPackageManifestHasEntryComments' => ($packageInventory['zipPackageManifestHasEntryComments'] ?? false) === true,
+            'zipPackageManifestCommentedEntryNames' => is_array($packageInventory['zipPackageManifestCommentedEntryNames'] ?? null) ? $packageInventory['zipPackageManifestCommentedEntryNames'] : [],
+            'zipPackageManifestEntryCommentSummaryCount' => is_int($packageInventory['zipPackageManifestEntryCommentSummaryCount'] ?? null) ? $packageInventory['zipPackageManifestEntryCommentSummaryCount'] : 0,
+            'zipPackageManifestEntryCommentSourceRecordBytes' => is_int($packageInventory['zipPackageManifestEntryCommentSourceRecordBytes'] ?? null) ? $packageInventory['zipPackageManifestEntryCommentSourceRecordBytes'] : 0,
+            'zipPackageManifestEntryCommentSummaries' => is_array($packageInventory['zipPackageManifestEntryCommentSummaries'] ?? null) ? $packageInventory['zipPackageManifestEntryCommentSummaries'] : [],
             'totalByteLength' => $packageInventory['totalByteLength'] ?? 0,
             'totalCompressedByteLength' => $packageInventory['totalCompressedByteLength'] ?? 0,
             'exposableByteLength' => $packageInventory['exposableByteLength'] ?? 0,
@@ -2497,6 +2658,11 @@ final class OpenDocumentPackage
         $payload['hasEntryComments'] = ($comments['hasEntryComments'] ?? false) === true;
         $payload['entryCommentCount'] = is_int($comments['entryCommentCount'] ?? null) ? $comments['entryCommentCount'] : 0;
         $payload['commentedEntryNames'] = is_array($comments['commentedEntryNames'] ?? null) ? $comments['commentedEntryNames'] : [];
+        $payload['zipPackageManifestHasEntryComments'] = ($packageInventory['zipPackageManifestHasEntryComments'] ?? false) === true;
+        $payload['zipPackageManifestCommentedEntryNames'] = is_array($packageInventory['zipPackageManifestCommentedEntryNames'] ?? null) ? $packageInventory['zipPackageManifestCommentedEntryNames'] : [];
+        $payload['zipPackageManifestEntryCommentSummaryCount'] = is_int($packageInventory['zipPackageManifestEntryCommentSummaryCount'] ?? null) ? $packageInventory['zipPackageManifestEntryCommentSummaryCount'] : 0;
+        $payload['zipPackageManifestEntryCommentSourceRecordBytes'] = is_int($packageInventory['zipPackageManifestEntryCommentSourceRecordBytes'] ?? null) ? $packageInventory['zipPackageManifestEntryCommentSourceRecordBytes'] : 0;
+        $payload['zipPackageManifestEntryCommentSummaries'] = is_array($packageInventory['zipPackageManifestEntryCommentSummaries'] ?? null) ? $packageInventory['zipPackageManifestEntryCommentSummaries'] : [];
 
         return $payload;
     }
