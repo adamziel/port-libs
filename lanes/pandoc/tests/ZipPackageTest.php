@@ -7031,6 +7031,8 @@ return [
         ], "package r\x82sum\x82"));
 
         $summary = $package->commentPreflight();
+        $manifest = $package->packageManifestPreflight();
+        $commentSummaries = $manifest['entryCommentSummaries'];
 
         $t->same("package r\u{00e9}sum\u{00e9}", $summary['packageComment']);
         $t->same('cp437', $summary['packageCommentEncoding']);
@@ -7046,6 +7048,24 @@ return [
         $t->same('cp437', $summary['commentedEntries'][1]['commentEncoding']);
         $t->same('', $summary['entries'][2]['comment']);
         $t->same('utf-8', $summary['entries'][2]['commentEncoding']);
+        $t->same(true, $manifest['hasEntryComments']);
+        $t->same([$unicodeName, "word/media/caf\u{00e9}.png"], $manifest['commentedEntryNames']);
+        $t->same(2, $manifest['entryCommentSummaryCount']);
+        $t->same(
+            $commentSummaries[0]['sourceRecordBytes'] + $commentSummaries[1]['sourceRecordBytes'],
+            $manifest['entryCommentSourceRecordBytes']
+        );
+        $t->same($unicodeName, $commentSummaries[0]['name']);
+        $t->same('word/', $commentSummaries[0]['directoryRoot']);
+        $t->same('png', $commentSummaries[0]['packagePartExtensionKey']);
+        $t->same(strlen($rawComment), $commentSummaries[0]['centralDirectoryRawCommentBytes']);
+        $t->same(hash('sha256', $rawComment), $commentSummaries[0]['centralDirectoryRawCommentSha256']);
+        $t->same('zip-entry-comment-source-metadata-only', $commentSummaries[0]['entryCommentByteExposurePolicy']);
+        $t->same(false, $commentSummaries[0]['entryCommentCanExposeBytes']);
+        $t->same("word/media/caf\u{00e9}.png", $commentSummaries[1]['name']);
+        $t->same('png', $commentSummaries[1]['packagePartExtensionKey']);
+        $t->same(strlen($cp437Comment), $commentSummaries[1]['centralDirectoryRawCommentBytes']);
+        $t->same(hash('sha256', $cp437Comment), $commentSummaries[1]['centralDirectoryRawCommentSha256']);
     },
 
     'rejects empty info zip unicode comments that hide raw entry comments' => static function (TestRunner $t) use ($buildZipPackage, $buildUnicodeExtra): void {
