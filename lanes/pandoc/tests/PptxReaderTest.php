@@ -6660,6 +6660,102 @@ XML);
     }
 };
 
+$buildBoundarySmartArtTargetPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-boundary-smartart-target-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Boundary SmartArt targets</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="20" name="Parent Boundary SmartArt"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"><dgm:relIds r:dm="rIdParentBoundaryData" r:lo="rIdParentBoundaryLayout"/></a:graphicData></a:graphic>
+    </p:graphicFrame>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="21" name="Local Boundary SmartArt"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"><dgm:relIds r:dm="rIdLocalBoundaryData" r:lo="rIdLocalBoundaryLayout"/></a:graphicData></a:graphic>
+    </p:graphicFrame>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->addFromString('ppt/slides/_rels/slide1.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdParentBoundaryData" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData" Target="../diagrams/"/>
+  <Relationship Id="rIdParentBoundaryLayout" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramLayout" Target="../diagrams/parent-boundary-layout.xml"/>
+  <Relationship Id="rIdLocalBoundaryData" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData" Target="../diagrams/local-boundary-data.xml"/>
+  <Relationship Id="rIdLocalBoundaryLayout" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramLayout" Target="diagrams/"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/diagrams/parent-boundary-layout.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<dgm:layoutDef xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" uniqueId="urn:microsoft.com/office/officeart/2005/8/layout/parentBoundaryShouldHide"/>
+XML);
+    $zip->addFromString('ppt/diagrams/local-boundary-data.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<dgm:dataModel xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <dgm:ptLst>
+    <dgm:pt modelId="parent"><dgm:t><a:p><a:r><a:t>Local boundary parent</a:t></a:r></a:p></dgm:t></dgm:pt>
+    <dgm:pt modelId="child"><dgm:t><a:p><a:r><a:t>Local boundary child</a:t></a:r></a:p></dgm:t></dgm:pt>
+  </dgm:ptLst>
+  <dgm:cxnLst>
+    <dgm:cxn srcId="parent" destId="child"/>
+  </dgm:cxnLst>
+</dgm:dataModel>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildDotSegmentSmartArtTargetPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-dot-smartart-target-');
     if ($path === false) {
@@ -15627,6 +15723,33 @@ return [
         $t->true(!str_contains($native, 'Root target parent'), 'Root-relative SmartArt target should not be normalized into parsed visible content');
         $t->true(!str_contains($native, 'Root target child'), 'Root-relative SmartArt target children should stay hidden when upstream would miss the part');
         $t->contains('Para [ Str "[Diagram" , Space , Str "parse" , Space , Str "error:" , Space , Str "File" , Space , Str "not" , Space , Str "found" , Space , Str "in" , Space , Str "archive:" , Space , Str "/ppt/diagrams/data1.xml]" ]', $native);
+    },
+
+    'keeps boundary pptx SmartArt targets as upstream missing parts' => static function (TestRunner $t) use ($buildBoundarySmartArtTargetPptxPackage, $nodesOfType, $nodesWithClass): void {
+        $document = (new PptxReader())->read($buildBoundarySmartArtTargetPptxPackage());
+        $review = $document->attr('pptx');
+        $paragraphs = $nodesOfType($document, 'paragraph');
+        $divs = $nodesOfType($document, 'div');
+        $texts = array_map(static fn (AstNode $paragraph): string => (string) $paragraph->attr('text'), $paragraphs);
+        $native = PandocConverter::write($document, 'native');
+        $diagnostics = array_values(array_filter(
+            $paragraphs,
+            static fn (AstNode $paragraph): bool => str_starts_with((string) $paragraph->attr('text'), '[Diagram parse error:')
+        ));
+
+        $t->same([], $nodesWithClass($divs, 'smartart'));
+        $t->same(true, in_array('[Diagram parse error: File not found in archive: ppt/diagrams/]', $texts, true));
+        $t->same(true, in_array('[Diagram parse error: File not found in archive: diagrams/]', $texts, true));
+        $t->same(2, count($diagnostics));
+        $t->same('Parent Boundary SmartArt', $diagnostics[0]->attr('pptxShape')['name'] ?? null);
+        $t->same('Local Boundary SmartArt', $diagnostics[1]->attr('pptxShape')['name'] ?? null);
+        $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
+        $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Boundary" , Space , Str "SmartArt" , Space , Str "targets" ]', $native);
+        $t->contains('Para [ Str "[Diagram" , Space , Str "parse" , Space , Str "error:" , Space , Str "File" , Space , Str "not" , Space , Str "found" , Space , Str "in" , Space , Str "archive:" , Space , Str "ppt/diagrams/]" ]', $native);
+        $t->contains('Para [ Str "[Diagram" , Space , Str "parse" , Space , Str "error:" , Space , Str "File" , Space , Str "not" , Space , Str "found" , Space , Str "in" , Space , Str "archive:" , Space , Str "diagrams/]" ]', $native);
+        $t->true(!str_contains($native, 'parentBoundaryShouldHide'), 'The valid parent-boundary layout should not parse after the data target resolves to an archive directory path');
+        $t->true(!str_contains($native, 'Local boundary parent'), 'The valid local-boundary data should not become visible when the layout target is the literal diagrams/ path');
+        $t->true(!str_contains($native, 'Local boundary child'), 'Local-boundary SmartArt children should stay hidden when upstream would miss the layout part');
     },
 
     'uses upstream literal pptx SmartArt targets without dot-segment normalization' => static function (TestRunner $t) use ($buildDotSegmentSmartArtTargetPptxPackage, $nodesOfType, $nodesWithClass): void {
