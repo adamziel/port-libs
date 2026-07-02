@@ -5104,6 +5104,7 @@ XML;
             ['name' => 'Pictures/hero.png', 'data' => 'PNGDATA', 'compressionMethod' => 0, 'comment' => 'media review'],
         ];
         $package = ZipPackage::fromParts($parts, 'odt package review');
+        $packageManifest = $package->packageManifestPreflight();
 
         $summary = OpenDocumentPackage::fromPackage($package)->summarize();
         $inventory = $summary['packageInventory'];
@@ -5151,6 +5152,19 @@ XML;
         $t->same(true, $identity['hasEntryComments']);
         $t->same(3, $identity['entryCommentCount']);
         $t->same(['META-INF/manifest.xml', 'content.xml', 'Pictures/hero.png'], $identity['commentedEntryNames']);
+        $zipPackageManifestEntryCommentFields = [
+            'hasEntryComments' => 'zipPackageManifestHasEntryComments',
+            'commentedEntryNames' => 'zipPackageManifestCommentedEntryNames',
+            'entryCommentSummaryCount' => 'zipPackageManifestEntryCommentSummaryCount',
+            'entryCommentSourceRecordBytes' => 'zipPackageManifestEntryCommentSourceRecordBytes',
+            'entryCommentSummaries' => 'zipPackageManifestEntryCommentSummaries',
+        ];
+        foreach ($zipPackageManifestEntryCommentFields as $manifestKey => $surfaceKey) {
+            $t->same($packageManifest[$manifestKey], $inventory[$surfaceKey], "{$surfaceKey} inventory");
+            $t->same($packageManifest[$manifestKey], $identity[$surfaceKey], "{$surfaceKey} identity");
+        }
+        $t->same(3, $inventory['zipPackageManifestEntryCommentSummaryCount']);
+        $t->same(['META-INF/manifest.xml', 'content.xml', 'Pictures/hero.png'], $identity['zipPackageManifestCommentedEntryNames']);
         $t->same('odt package review', $identity['comments']['packageComment']);
         $t->same(['META-INF/manifest.xml', 'content.xml', 'Pictures/hero.png'], $identity['comments']['commentedEntryNames']);
         $t->same($comments['entries'], $identity['comments']['entries']);
