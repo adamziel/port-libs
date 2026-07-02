@@ -133,6 +133,11 @@ final class MarkdownReader
     {
     }
 
+    private function tableWithReviewPacket(AstNode $table): AstNode
+    {
+        return TableGeometry::withReviewPacket($table);
+    }
+
     public function read(string $markdown): AstNode
     {
         $blocks = [];
@@ -1695,10 +1700,10 @@ final class MarkdownReader
             $attrs['shortCaptionInlines'] = $this->parseInlines($shortCaption);
         }
 
-        return new AstNode('table', $attrs, [
+        return $this->tableWithReviewPacket(new AstNode('table', $attrs, [
             new AstNode('table_head'),
             new AstNode('table_body', [], $bodyRows),
-        ]);
+        ]));
     }
 
     /**
@@ -1890,7 +1895,7 @@ final class MarkdownReader
             $children[] = new AstNode('table_foot', [], $footRows);
         }
 
-        return new AstNode('table', $attrs, $children);
+        return $this->tableWithReviewPacket(new AstNode('table', $attrs, $children));
     }
 
     /**
@@ -4553,12 +4558,14 @@ final class MarkdownReader
         $thead = $this->firstChildElement($table, 'thead');
         $tfoot = $this->firstChildElement($table, 'tfoot');
         $bodySections = $this->childElements($table, 'tbody');
+        $columnPlan = $this->readHtmlTableColumnPlan($table);
+        $columnSpecs = $columnPlan['columns'];
 
-        $headRows = $thead instanceof \DOMElement ? $this->readHtmlTableRows($thead, true, $maxColumns) : [];
+        $headRows = $thead instanceof \DOMElement ? $this->readHtmlTableRows($thead, true, $maxColumns, $columnSpecs) : [];
         $bodyNodes = [];
         if ($bodySections !== []) {
             foreach ($bodySections as $tbody) {
-                $rows = $this->readHtmlTableRows($tbody, false, $maxColumns);
+                $rows = $this->readHtmlTableRows($tbody, false, $maxColumns, $columnSpecs);
                 [$bodyHeadRows, $bodyRows] = $this->splitHtmlTableBodyRows($rows);
                 $bodyNodes[] = new AstNode(
                     'table_body',
@@ -4567,7 +4574,7 @@ final class MarkdownReader
                 );
             }
         } else {
-            $bodyRows = $this->readHtmlTableRows($table, false, $maxColumns);
+            $bodyRows = $this->readHtmlTableRows($table, false, $maxColumns, $columnSpecs);
             if ($headRows === [] && $this->firstHtmlTableRowIsHeader($bodyRows)) {
                 $headRow = array_shift($bodyRows);
                 if ($headRow instanceof AstNode) {
@@ -4577,7 +4584,10 @@ final class MarkdownReader
             [$bodyHeadRows, $bodyRows] = $this->splitHtmlTableBodyRows($bodyRows);
             $bodyNodes[] = new AstNode('table_body', $this->htmlTableBodyAttrs($bodyRows, $bodyHeadRows), $bodyRows);
         }
-        $footRows = $tfoot instanceof \DOMElement ? $this->readHtmlTableRows($tfoot, false, $maxColumns) : [];
+        $footRows = $tfoot instanceof \DOMElement ? $this->readHtmlTableRows($tfoot, false, $maxColumns, $columnSpecs) : [];
+        $rowColumnCount = $maxColumns;
+        $sourceColumnCount = count($columnSpecs);
+        $maxColumns = max($maxColumns, $sourceColumnCount);
 
         $captionInlines = $caption instanceof \DOMElement ? $this->parseHtmlInlineChildren($caption) : [];
         $attrs = array_merge($this->htmlElementPandocAttrs($table), [
@@ -4586,11 +4596,17 @@ final class MarkdownReader
         ]);
         if ($captionInlines !== []) {
             $attrs['captionInlines'] = $captionInlines;
+            $attrs['captionSource'] = $this->htmlTableCaptionSource($table, $caption);
         }
 
-        $widths = $this->readHtmlTableColumnWidths($table, $maxColumns);
-        if ($widths !== null) {
-            $attrs['widths'] = $widths;
+        if ($columnSpecs !== []) {
+            $attrs['alignments'] = $this->htmlTableColumnAlignments($columnSpecs, $maxColumns);
+            $attrs['widths'] = $this->htmlTableColumnWidthsFromPlan($columnSpecs, $maxColumns);
+            $attrs['columnSources'] = $this->htmlTableColumnSourcesFromPlan($columnSpecs, $maxColumns);
+            $diagnostics = $this->htmlTableColumnDiagnostics($columnPlan, $rowColumnCount, $maxColumns);
+            if ($diagnostics !== []) {
+                $attrs['columnDiagnostics'] = $diagnostics;
+            }
         } elseif ($maxColumns > 0) {
             $attrs['widths'] = array_fill(0, $maxColumns, 1 / $maxColumns);
         }
@@ -4606,7 +4622,7 @@ final class MarkdownReader
             $children[] = new AstNode('table_foot', $footAttrs, $footRows);
         }
 
-        return new AstNode('table', $attrs, $children);
+        return $this->tableWithReviewPacket(new AstNode('table', $attrs, $children));
     }
 
     /**
@@ -4694,13 +4710,294 @@ final class MarkdownReader
                 if ($cell->type !== 'table_cell' || $cell->attr('header') !== true) {
                     break;
                 }
-                $count++;
+                $count += max(1, (int) $cell->attr('colspan', 1));
             }
 
             $minimum = $minimum === null ? $count : min($minimum, $count);
         }
 
         return $minimum ?? 0;
+    }
+
+    /**
+     * @return array{element:string,childIndex:int,position:string,sourceAttributes:array<string, mixed>,captionSide?:string,captionSideSource?:string}
+     */
+    private function htmlTableCaptionSource(\DOMElement $table, \DOMElement $caption): array
+    {
+        $childIndex = 0;
+        $position = 'before-table-sections';
+        foreach ($table->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+            if ($child->isSameNode($caption)) {
+                break;
+            }
+            $name = strtolower($child->localName);
+            if (in_array($name, ['thead', 'tbody', 'tfoot', 'tr'], true)) {
+                $position = 'after-table-sections';
+            }
+            $childIndex++;
+        }
+
+        $source = [
+            'element' => 'caption',
+            'childIndex' => $childIndex,
+            'position' => $position,
+            'sourceAttributes' => $this->htmlElementRawPandocAttrs($caption),
+        ];
+
+        [$captionSide, $captionSideSource] = $this->htmlCaptionSide($caption);
+        if ($captionSide !== '') {
+            $source['captionSide'] = $captionSide;
+            $source['captionSideSource'] = $captionSideSource;
+        }
+
+        return $source;
+    }
+
+    /**
+     * @return array{0:string, 1:string}
+     */
+    private function htmlCaptionSide(\DOMElement $caption): array
+    {
+        $style = $caption->getAttribute('style');
+        foreach (preg_split('/;/', $style) ?: [] as $declaration) {
+            [$name, $value] = array_pad(explode(':', $declaration, 2), 2, '');
+            if (strtolower(trim($name)) !== 'caption-side') {
+                continue;
+            }
+
+            $side = strtolower(trim($value));
+            if (in_array($side, ['top', 'bottom', 'left', 'right'], true)) {
+                return [$side, 'style'];
+            }
+        }
+
+        $align = strtolower(trim($caption->getAttribute('align')));
+        if (in_array($align, ['top', 'bottom', 'left', 'right'], true)) {
+            return [$align, 'align'];
+        }
+
+        return ['', ''];
+    }
+
+    /**
+     * @return array{columns:list<array<string, mixed>>,diagnostics:list<array<string, mixed>>,sourceColumnCount:int}
+     */
+    private function readHtmlTableColumnPlan(\DOMElement $table): array
+    {
+        $columns = [];
+        $diagnostics = [];
+        $colgroupIndex = 0;
+        foreach ($this->childElements($table, 'colgroup') as $colgroup) {
+            $colgroupAttrs = $this->htmlElementRawPandocAttrs($colgroup);
+            $cols = $this->childElements($colgroup, 'col');
+            if ($cols === []) {
+                $rawSpan = trim($colgroup->getAttribute('span'));
+                $span = $this->htmlColumnSpan($rawSpan);
+                if ($rawSpan !== '' && !$this->htmlColumnSpanIsValid($rawSpan)) {
+                    $diagnostics[] = $this->htmlColumnSpanDiagnostic('colgroup', $rawSpan, $span, count($columns), $colgroupIndex, null);
+                }
+                for ($offset = 0; $offset < $span; $offset++) {
+                    $columns[] = $this->htmlTableColumnSpec($colgroup, null, 'colgroup', $colgroupAttrs, [], [
+                        'colgroupIndex' => $colgroupIndex,
+                        'spanOffset' => $offset,
+                        'sourceSpan' => $span,
+                    ]);
+                }
+                $colgroupIndex++;
+                continue;
+            }
+
+            foreach ($cols as $colIndex => $col) {
+                $colAttrs = $this->htmlElementRawPandocAttrs($col);
+                $rawSpan = trim($col->getAttribute('span'));
+                $span = $this->htmlColumnSpan($rawSpan);
+                if ($rawSpan !== '' && !$this->htmlColumnSpanIsValid($rawSpan)) {
+                    $diagnostics[] = $this->htmlColumnSpanDiagnostic('col', $rawSpan, $span, count($columns), $colgroupIndex, $colIndex);
+                }
+                for ($offset = 0; $offset < $span; $offset++) {
+                    $columns[] = $this->htmlTableColumnSpec($colgroup, $col, 'col', $colgroupAttrs, $colAttrs, [
+                        'colgroupIndex' => $colgroupIndex,
+                        'colIndex' => $colIndex,
+                        'spanOffset' => $offset,
+                        'sourceSpan' => $span,
+                    ]);
+                }
+            }
+            $colgroupIndex++;
+        }
+
+        return [
+            'columns' => $columns,
+            'diagnostics' => $diagnostics,
+            'sourceColumnCount' => count($columns),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $colgroupAttrs
+     * @param array<string, mixed> $colAttrs
+     * @param array<string, int> $coordinates
+     * @return array<string, mixed>
+     */
+    private function htmlTableColumnSpec(
+        \DOMElement $colgroup,
+        ?\DOMElement $col,
+        string $kind,
+        array $colgroupAttrs,
+        array $colAttrs,
+        array $coordinates
+    ): array {
+        $source = [
+            'kind' => $kind,
+            ...$coordinates,
+            'colgroupAttributes' => $colgroupAttrs,
+        ];
+        if ($colAttrs !== []) {
+            $source['colAttributes'] = $colAttrs;
+        }
+
+        $alignment = $col instanceof \DOMElement ? $this->normalizeHtmlTableAlignment($col) : 'default';
+        if ($alignment === 'default') {
+            $alignment = $this->normalizeHtmlTableAlignment($colgroup);
+        }
+
+        $width = $col instanceof \DOMElement ? $this->htmlColumnWidthPercent($col) : null;
+        if ($width === null) {
+            $width = $this->htmlColumnWidthPercent($colgroup);
+        }
+
+        $verticalAlignment = $col instanceof \DOMElement ? $this->normalizeHtmlTableVerticalAlignment($col) : 'default';
+        if ($verticalAlignment === 'default') {
+            $verticalAlignment = $this->normalizeHtmlTableVerticalAlignment($colgroup);
+        }
+
+        if ($alignment !== 'default') {
+            $source['alignment'] = $alignment;
+        }
+        if ($width !== null) {
+            $source['width'] = $width;
+        }
+        if ($verticalAlignment !== 'default') {
+            $source['verticalAlignment'] = $verticalAlignment;
+        }
+
+        return [
+            'alignment' => $alignment,
+            'width' => $width,
+            'verticalAlignment' => $verticalAlignment,
+            'source' => $source,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $columns
+     * @return list<string>
+     */
+    private function htmlTableColumnAlignments(array $columns, int $columnCount): array
+    {
+        $alignments = [];
+        for ($column = 0; $column < $columnCount; $column++) {
+            $alignments[] = (string) ($columns[$column]['alignment'] ?? 'default');
+        }
+
+        return $alignments;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $columns
+     * @return list<float|null>
+     */
+    private function htmlTableColumnWidthsFromPlan(array $columns, int $columnCount): array
+    {
+        $widths = [];
+        for ($column = 0; $column < $columnCount; $column++) {
+            $widths[] = array_key_exists($column, $columns) ? ($columns[$column]['width'] ?? null) : null;
+        }
+
+        return $widths;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $columns
+     * @return list<array<string, mixed>>
+     */
+    private function htmlTableColumnSourcesFromPlan(array $columns, int $columnCount): array
+    {
+        $sources = [];
+        for ($column = 0; $column < $columnCount; $column++) {
+            if (!isset($columns[$column]['source']) || !is_array($columns[$column]['source'])) {
+                continue;
+            }
+            $source = $columns[$column]['source'];
+            $source['column'] = $column;
+            $sources[$column] = $source;
+        }
+
+        return $sources;
+    }
+
+    /**
+     * @param array{columns:list<array<string, mixed>>,diagnostics:list<array<string, mixed>>,sourceColumnCount:int} $columnPlan
+     * @return list<array<string, mixed>>
+     */
+    private function htmlTableColumnDiagnostics(array $columnPlan, int $rowColumnCount, int $tableColumnCount): array
+    {
+        $diagnostics = $columnPlan['diagnostics'];
+        $sourceColumnCount = (int) $columnPlan['sourceColumnCount'];
+        if ($sourceColumnCount > 0 && $sourceColumnCount < $tableColumnCount) {
+            $diagnostics[] = [
+                'code' => 'html-colgroup-underdeclares-columns',
+                'source' => 'html-colgroup',
+                'sourceColumns' => $sourceColumnCount,
+                'tableColumns' => $tableColumnCount,
+                'missingColumns' => range($sourceColumnCount, $tableColumnCount - 1),
+            ];
+        }
+        if ($rowColumnCount > 0 && $sourceColumnCount > $rowColumnCount) {
+            $diagnostics[] = [
+                'code' => 'html-colgroup-overdeclares-columns',
+                'source' => 'html-colgroup',
+                'sourceColumns' => $sourceColumnCount,
+                'tableColumns' => $rowColumnCount,
+                'extraColumns' => range($rowColumnCount, $sourceColumnCount - 1),
+            ];
+        }
+
+        return $diagnostics;
+    }
+
+    private function htmlColumnSpan(string $value): int
+    {
+        return $this->htmlColumnSpanIsValid($value) ? (int) trim($value) : 1;
+    }
+
+    private function htmlColumnSpanIsValid(string $value): bool
+    {
+        return preg_match('/^[1-9]\d{0,3}$/', trim($value)) === 1;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function htmlColumnSpanDiagnostic(string $sourceElement, string $rawValue, int $normalizedSpan, int $column, int $colgroupIndex, ?int $colIndex): array
+    {
+        $diagnostic = [
+            'code' => 'html-column-span-normalized',
+            'source' => 'html-colgroup',
+            'sourceElement' => $sourceElement,
+            'rawValue' => $rawValue,
+            'normalizedSpan' => $normalizedSpan,
+            'column' => $column,
+            'colgroupIndex' => $colgroupIndex,
+        ];
+        if ($colIndex !== null) {
+            $diagnostic['colIndex'] = $colIndex;
+        }
+
+        return $diagnostic;
     }
 
     /**
@@ -4748,20 +5045,34 @@ final class MarkdownReader
     /**
      * @return list<AstNode>
      */
-    private function readHtmlTableRows(\DOMElement $section, bool $header, int &$maxColumns): array
+    private function readHtmlTableRows(\DOMElement $section, bool $header, int &$maxColumns, array $columnSpecs = []): array
     {
         $rows = [];
+        $sectionAlign = $this->normalizeHtmlTableAlignment($section);
+        $sectionValign = $this->normalizeHtmlTableVerticalAlignment($section);
         foreach ($this->childElements($section, 'tr') as $rowElement) {
             $cells = [];
             $rowColumns = 0;
+            $sourceColumn = 0;
+            $rowAlign = $this->normalizeHtmlTableAlignment($rowElement);
+            $rowValign = $this->normalizeHtmlTableVerticalAlignment($rowElement);
             foreach ($rowElement->childNodes as $child) {
                 if (!$child instanceof \DOMElement || !in_array(strtolower($child->localName), ['td', 'th'], true)) {
                     continue;
                 }
 
-                $cell = $this->buildHtmlTableCell($child, $header || strtolower($child->localName) === 'th');
+                $columnSpec = $columnSpecs[$sourceColumn] ?? [];
+                $cell = $this->buildHtmlTableCell(
+                    $child,
+                    $header || strtolower($child->localName) === 'th',
+                    $rowAlign !== 'default' ? $rowAlign : $sectionAlign,
+                    $rowValign !== 'default' ? $rowValign : $sectionValign,
+                    $columnSpec
+                );
                 $cells[] = $cell;
-                $rowColumns += max(1, (int) $cell->attr('colspan', 1));
+                $colspan = max(1, (int) $cell->attr('colspan', 1));
+                $rowColumns += $colspan;
+                $sourceColumn += $colspan;
             }
 
             if ($cells === []) {
@@ -4776,30 +5087,60 @@ final class MarkdownReader
             );
         }
 
-        return $rows;
+        return $this->expandHtmlTableRowspanToEnd($rows);
     }
 
-    private function buildHtmlTableCell(\DOMElement $cell, bool $header): AstNode
+    private function buildHtmlTableCell(
+        \DOMElement $cell,
+        bool $header,
+        string $inheritedAlign = 'default',
+        string $inheritedValign = 'default',
+        array $columnSpec = []
+    ): AstNode
     {
         $children = $this->parseHtmlTableCellChildren($cell);
-        $attrs = array_merge($this->htmlElementPandocAttrs($cell, ['align', 'colspan', 'rowspan']), [
+        $attrs = array_merge($this->htmlElementPandocAttrs($cell, ['colspan', 'rowspan']), [
             'text' => trim(preg_replace('/\s+/', ' ', $cell->textContent) ?? $cell->textContent),
             'header' => $header,
         ]);
+        $this->removeVisualHtmlAlignAttribute($attrs);
 
         $colspan = $this->positiveHtmlSpan($cell->getAttribute('colspan'));
         if ($colspan > 1) {
             $attrs['colspan'] = $colspan;
         }
 
-        $rowspan = $this->positiveHtmlSpan($cell->getAttribute('rowspan'));
+        $rawRowspan = trim($cell->getAttribute('rowspan'));
+        $rowspan = $rawRowspan === '0' ? 0 : $this->positiveHtmlSpan($rawRowspan);
+        if ($rowspan === 0) {
+            $attrs['rowspanToEnd'] = true;
+            $attrs['sourceRowspanAttribute'] = 0;
+            $attrs['sourceRowspanMode'] = 'to-section-end';
+        }
         if ($rowspan > 1) {
             $attrs['rowspan'] = $rowspan;
         }
 
         $alignment = $this->normalizeHtmlTableAlignment($cell);
+        if ($alignment === 'default') {
+            $alignment = $inheritedAlign;
+        }
+        if ($alignment === 'default') {
+            $alignment = (string) ($columnSpec['alignment'] ?? 'default');
+        }
         if ($alignment !== 'default') {
             $attrs['align'] = $alignment;
+        }
+
+        $verticalAlignment = $this->normalizeHtmlTableVerticalAlignment($cell);
+        if ($verticalAlignment === 'default') {
+            $verticalAlignment = $inheritedValign;
+        }
+        if ($verticalAlignment === 'default') {
+            $verticalAlignment = (string) ($columnSpec['verticalAlignment'] ?? 'default');
+        }
+        if ($verticalAlignment !== 'default') {
+            $attrs['valign'] = $verticalAlignment;
         }
 
         return new AstNode('table_cell', $attrs, $children);
@@ -4876,6 +5217,80 @@ final class MarkdownReader
         return $attrs;
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    private function htmlElementRawPandocAttrs(\DOMElement $element): array
+    {
+        $id = '';
+        $classes = [];
+        $attributes = [];
+        $htmlAttributes = [];
+
+        foreach ($element->attributes as $attribute) {
+            if (!$attribute instanceof \DOMAttr) {
+                continue;
+            }
+
+            $name = strtolower($attribute->name);
+            $value = trim($attribute->value);
+            if ($name === 'id') {
+                $id = $value;
+            } elseif ($name === 'class') {
+                $classes = preg_split('/\s+/', $value, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            }
+
+            $key = str_starts_with($name, 'data-') ? substr($name, 5) : $name;
+            if ($key !== '') {
+                $attributes[$key] = $value;
+            }
+            $htmlAttributes[$name] = $value;
+        }
+
+        $attrs = [];
+        if ($id !== '') {
+            $attrs['id'] = $id;
+        }
+        if ($classes !== []) {
+            $attrs['classes'] = $classes;
+        }
+        if ($attributes !== []) {
+            $attrs['attributes'] = $attributes;
+        }
+        if ($htmlAttributes !== []) {
+            $attrs['htmlAttributes'] = $htmlAttributes;
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     */
+    private function removeVisualHtmlAlignAttribute(array &$attrs): void
+    {
+        $htmlAttributes = is_array($attrs['htmlAttributes'] ?? null) ? $attrs['htmlAttributes'] : [];
+        $align = strtolower(trim((string) ($htmlAttributes['align'] ?? '')));
+        if (!in_array($align, ['left', 'right', 'center'], true)) {
+            return;
+        }
+
+        unset($htmlAttributes['align']);
+        if ($htmlAttributes === []) {
+            unset($attrs['htmlAttributes']);
+        } else {
+            $attrs['htmlAttributes'] = $htmlAttributes;
+        }
+
+        $attributes = is_array($attrs['attributes'] ?? null) ? $attrs['attributes'] : [];
+        unset($attributes['align']);
+        if ($attributes === []) {
+            unset($attrs['attributes']);
+        } else {
+            $attrs['attributes'] = $attributes;
+        }
+    }
+
     private function htmlTableNonAlignmentStyle(string $style): string
     {
         $kept = [];
@@ -4911,6 +5326,54 @@ final class MarkdownReader
         }
 
         return 'default';
+    }
+
+    private function normalizeHtmlTableVerticalAlignment(\DOMElement $element): string
+    {
+        $valign = strtolower(trim($element->getAttribute('valign')));
+        if (in_array($valign, ['baseline', 'top', 'middle', 'bottom'], true)) {
+            return $valign;
+        }
+
+        $style = strtolower($element->getAttribute('style'));
+        if (preg_match('/vertical-align\s*:\s*(baseline|top|middle|bottom)\b/', $style, $m) === 1) {
+            return $m[1];
+        }
+
+        return 'default';
+    }
+
+    /**
+     * @param list<AstNode> $rows
+     * @return list<AstNode>
+     */
+    private function expandHtmlTableRowspanToEnd(array $rows): array
+    {
+        $rowCount = count($rows);
+        if ($rowCount === 0) {
+            return $rows;
+        }
+
+        $expandedRows = [];
+        foreach ($rows as $rowIndex => $row) {
+            $cells = [];
+            $changed = false;
+            foreach ($row->children as $cell) {
+                if ($cell->type !== 'table_cell' || $cell->attr('rowspanToEnd') !== true) {
+                    $cells[] = $cell;
+                    continue;
+                }
+
+                $attrs = $cell->attrs;
+                $attrs['rowspan'] = max(1, $rowCount - $rowIndex);
+                $cells[] = new AstNode($cell->type, $attrs, $cell->children);
+                $changed = true;
+            }
+
+            $expandedRows[] = $changed ? new AstNode($row->type, $row->attrs, $cells) : $row;
+        }
+
+        return $expandedRows;
     }
 
     /**
@@ -5756,6 +6219,11 @@ final class MarkdownReader
             $attrs['align'] = $align;
         }
 
+        $valign = $this->normalizeDocBookVerticalAlignment($entry->getAttribute('valign'));
+        if ($valign !== 'default') {
+            $attrs['valign'] = $valign;
+        }
+
         $colSpan = $this->docBookColumnSpan($entry, $columnNames);
         if ($colSpan > 1) {
             $attrs['colspan'] = $colSpan;
@@ -5795,6 +6263,17 @@ final class MarkdownReader
             'left' => 'left',
             'right' => 'right',
             'center' => 'center',
+            default => 'default',
+        };
+    }
+
+    private function normalizeDocBookVerticalAlignment(string $alignment): string
+    {
+        return match (strtolower(trim($alignment))) {
+            'baseline' => 'baseline',
+            'top' => 'top',
+            'middle' => 'middle',
+            'bottom' => 'bottom',
             default => 'default',
         };
     }
@@ -7109,7 +7588,7 @@ final class MarkdownReader
             $attrs['widths'] = $widths;
         }
 
-        return new AstNode('table', $attrs, $children);
+        return $this->tableWithReviewPacket(new AstNode('table', $attrs, $children));
     }
 
     /**
@@ -7151,7 +7630,7 @@ final class MarkdownReader
             $attrs['widths'] = $widths;
         }
 
-        return new AstNode('table', $attrs, $children);
+        return $this->tableWithReviewPacket(new AstNode('table', $attrs, $children));
     }
 
     /**
@@ -7301,7 +7780,7 @@ final class MarkdownReader
 
         $index = $cursor - 1;
 
-        return new AstNode('table', $attrs, $children);
+        return $this->tableWithReviewPacket(new AstNode('table', $attrs, $children));
     }
 
     /**
