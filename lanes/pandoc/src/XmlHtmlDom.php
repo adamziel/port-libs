@@ -32995,6 +32995,8 @@ final class XmlHtmlDom
             ];
         }
 
+        $issueRollup = self::datalistAssociationIssueRollup($issues);
+
         return [
             'datalistReviewPolicy' => 'input-list-datalist-idref-review',
             'listReferenceRaw' => $listRaw,
@@ -33011,11 +33013,62 @@ final class XmlHtmlDom
                 static fn (\DOMElement $target): array => self::datalistTargetSummary($target),
                 $targets
             ),
+            'datalistIssueCount' => count($issues),
+            'datalistIssueCodeCounts' => $issueRollup['codeCounts'],
+            'datalistIssueReferenceIds' => $issueRollup['referenceIds'],
+            'datalistIssueReferenceRaws' => $issueRollup['referenceRaws'],
+            'datalistDuplicateTargetCounts' => $issueRollup['duplicateTargetCounts'],
             'datalistIssues' => $issues,
             'datalistIssueCodes' => array_map(
                 static fn (array $issue): string => (string) ($issue['code'] ?? ''),
                 $issues
             ),
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $issues
+     * @return array{codeCounts:array<string, int>, referenceIds:list<string>, referenceRaws:list<string>, duplicateTargetCounts:array<string, int>}
+     */
+    private static function datalistAssociationIssueRollup(array $issues): array
+    {
+        $codeCounts = [];
+        $referenceIds = [];
+        $referenceRaws = [];
+        $duplicateTargetCounts = [];
+
+        foreach ($issues as $issue) {
+            $code = $issue['code'] ?? null;
+            if (!is_string($code) || $code === '') {
+                continue;
+            }
+
+            $codeCounts[$code] = ($codeCounts[$code] ?? 0) + 1;
+
+            $listReferenceId = $issue['listReferenceId'] ?? null;
+            if (is_string($listReferenceId) && $listReferenceId !== '') {
+                self::appendUniqueString($referenceIds, $listReferenceId);
+
+                $count = $issue['count'] ?? null;
+                if ($code === 'duplicate-datalist-target-id' && is_int($count)) {
+                    $duplicateTargetCounts[$listReferenceId] = $count;
+                }
+            }
+
+            $listReferenceRaw = $issue['listReferenceRaw'] ?? null;
+            if (is_string($listReferenceRaw) && $listReferenceRaw !== '') {
+                self::appendUniqueString($referenceRaws, $listReferenceRaw);
+            }
+        }
+
+        ksort($codeCounts, SORT_STRING);
+        ksort($duplicateTargetCounts, SORT_STRING);
+
+        return [
+            'codeCounts' => $codeCounts,
+            'referenceIds' => $referenceIds,
+            'referenceRaws' => $referenceRaws,
+            'duplicateTargetCounts' => $duplicateTargetCounts,
         ];
     }
 
