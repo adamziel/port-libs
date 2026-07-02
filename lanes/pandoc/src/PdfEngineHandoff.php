@@ -619,6 +619,12 @@ final class PdfEngineHandoff
             if (($typstBoundarySummary['outputFormatEntryCount'] ?? 0) > 0) {
                 $diagnostics[] = 'typst-boundary-summary-output-formats:' . $typstBoundarySummary['outputFormatEntryCount'];
             }
+            if (($typstBoundarySummary['pdfExportControlCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-boundary-summary-pdf-export-controls:' . $typstBoundarySummary['pdfExportControlCount'];
+            }
+            if (($typstBoundarySummary['pdfExportIssueCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-boundary-summary-pdf-export-issues:' . $typstBoundarySummary['pdfExportIssueCount'];
+            }
             if ($typstBoundarySummary['issueCount'] > 0) {
                 $diagnostics[] = 'typst-boundary-summary-issues:' . $typstBoundarySummary['issueCount'];
             }
@@ -8975,18 +8981,117 @@ final class PdfEngineHandoff
             ? $outputFormatPolicy['formatEntryCount']
             : (int) ($outputFormat !== []);
         $pdfExport = is_array($provenance['pdfExport'] ?? null) ? $provenance['pdfExport'] : [];
-        $pdfExportControlCount = 0;
-        foreach ([
-            is_array($provenance['pdfStandard'] ?? null),
-            is_array($pdfExport['pageSelection'] ?? null),
-            is_array($pdfExport['ppi'] ?? null),
-            is_array($pdfExport['tags'] ?? null),
-            is_array($pdfExport['pretty'] ?? null),
-        ] as $present) {
-            if ($present) {
-                ++$pdfExportControlCount;
+        $pdfStandard = is_array($provenance['pdfStandard'] ?? null) ? $provenance['pdfStandard'] : [];
+        $pdfStandardPolicy = is_array($provenance['pdfStandardPolicy'] ?? null) ? $provenance['pdfStandardPolicy'] : [];
+        $pdfExportControlCounts = [
+            'pages' => (int) is_array($pdfExport['pageSelection'] ?? null),
+            'ppi' => (int) is_array($pdfExport['ppi'] ?? null),
+            'pdf-standard' => (int) ($pdfStandard !== []),
+            'tags' => (int) is_array($pdfExport['tags'] ?? null),
+            'pretty' => (int) is_array($pdfExport['pretty'] ?? null),
+        ];
+        $pdfExportControlNames = [];
+        foreach ($pdfExportControlCounts as $controlName => $controlCount) {
+            if ($controlCount > 0) {
+                $pdfExportControlNames[] = $controlName;
             }
         }
+        $pdfExportControlCount = array_sum($pdfExportControlCounts);
+        $normalizeIssues = static function (array $rawIssues): array {
+            $issues = array_values(array_filter(
+                $rawIssues,
+                static fn (mixed $issue): bool => is_string($issue) && $issue !== ''
+            ));
+            $issues = array_values(array_unique($issues));
+            sort($issues);
+
+            return $issues;
+        };
+        $entryIssues = static function (mixed $entry) use ($normalizeIssues): array {
+            if (!is_array($entry)) {
+                return [];
+            }
+
+            return $normalizeIssues(is_array($entry['issues'] ?? null) ? $entry['issues'] : []);
+        };
+        $listIssues = static function (mixed $entries) use ($entryIssues, $normalizeIssues): array {
+            if (!is_array($entries)) {
+                return [];
+            }
+
+            $issues = [];
+            foreach ($entries as $entry) {
+                array_push($issues, ...$entryIssues($entry));
+            }
+
+            return $normalizeIssues($issues);
+        };
+        $overrideIssues = static function (array $overrides, array $optionNames) use ($normalizeIssues): array {
+            $issues = [];
+            foreach ($overrides as $override) {
+                if (
+                    !is_array($override)
+                    || !is_string($override['option'] ?? null)
+                    || !in_array($override['option'], $optionNames, true)
+                    || !is_string($override['issue'] ?? null)
+                    || $override['issue'] === ''
+                ) {
+                    continue;
+                }
+
+                $issues[] = $override['issue'];
+            }
+
+            return $normalizeIssues($issues);
+        };
+        $boundaryOverrides = is_array($provenance['overrides'] ?? null)
+            ? array_values(array_filter($provenance['overrides'], static fn (mixed $entry): bool => is_array($entry)))
+            : [];
+        $pdfExportOverrides = array_values(array_filter(
+            $boundaryOverrides,
+            static fn (mixed $entry): bool => is_array($entry)
+                && in_array($entry['option'] ?? null, ['pages', 'ppi', 'pdfStandard'], true)
+        ));
+        $pdfExportIssueCounts = [
+            'pages' => count($normalizeIssues(array_merge(
+                $entryIssues($pdfExport['pageSelection'] ?? null),
+                $listIssues($provenance['pageSelectionHistory'] ?? []),
+                is_array($pdfExport['pageSelectionPolicy']['issues'] ?? null) ? $pdfExport['pageSelectionPolicy']['issues'] : [],
+                $overrideIssues($boundaryOverrides, ['pages'])
+            ))),
+            'ppi' => count($normalizeIssues(array_merge(
+                $entryIssues($pdfExport['ppi'] ?? null),
+                $listIssues($provenance['ppiHistory'] ?? []),
+                $overrideIssues($boundaryOverrides, ['ppi'])
+            ))),
+            'pdf-standard' => count($normalizeIssues(array_merge(
+                $entryIssues($pdfStandard),
+                $listIssues($provenance['pdfStandardHistory'] ?? []),
+                is_array($pdfStandardPolicy['issues'] ?? null) ? $pdfStandardPolicy['issues'] : [],
+                $overrideIssues($boundaryOverrides, ['pdfStandard'])
+            ))),
+            'tags' => count($entryIssues($pdfExport['tags'] ?? null)),
+            'pretty' => count($entryIssues($pdfExport['pretty'] ?? null)),
+        ];
+        $pdfExportIssueCount = count($normalizeIssues(array_merge(
+            is_array($pdfExport['issues'] ?? null) ? $pdfExport['issues'] : [],
+            $entryIssues($pdfExport['pageSelection'] ?? null),
+            $listIssues($provenance['pageSelectionHistory'] ?? []),
+            is_array($pdfExport['pageSelectionPolicy']['issues'] ?? null) ? $pdfExport['pageSelectionPolicy']['issues'] : [],
+            $entryIssues($pdfExport['ppi'] ?? null),
+            $listIssues($provenance['ppiHistory'] ?? []),
+            $entryIssues($pdfStandard),
+            $listIssues($provenance['pdfStandardHistory'] ?? []),
+            is_array($pdfStandardPolicy['issues'] ?? null) ? $pdfStandardPolicy['issues'] : [],
+            $entryIssues($pdfExport['tags'] ?? null),
+            $entryIssues($pdfExport['pretty'] ?? null),
+            $overrideIssues($boundaryOverrides, ['pages', 'ppi', 'pdfStandard'])
+        )));
+        $pdfExportHistoryEntryCount = count(is_array($provenance['pageSelectionHistory'] ?? null) ? $provenance['pageSelectionHistory'] : [])
+            + count(is_array($provenance['ppiHistory'] ?? null) ? $provenance['ppiHistory'] : [])
+            + count(is_array($provenance['pdfStandardHistory'] ?? null) ? $provenance['pdfStandardHistory'] : []);
+        $pdfExportFlagCount = (is_array($pdfExport['tags'] ?? null) && is_int($pdfExport['tags']['flagCount'] ?? null) ? $pdfExport['tags']['flagCount'] : 0)
+            + (is_array($pdfExport['pretty'] ?? null) && is_int($pdfExport['pretty']['flagCount'] ?? null) ? $pdfExport['pretty']['flagCount'] : 0);
 
         $historyEntryCount = 0;
         foreach ($provenance as $key => $value) {
@@ -9033,6 +9138,13 @@ final class PdfEngineHandoff
             'distinctOutputFormatCount' => count($distinctOutputFormats),
             'outputFormatIssueCount' => count($outputFormatIssues),
             'pdfExportControlCount' => $pdfExportControlCount,
+            'pdfExportControlNames' => $pdfExportControlNames,
+            'pdfExportControlCounts' => $pdfExportControlCounts,
+            'pdfExportFlagCount' => $pdfExportFlagCount,
+            'pdfExportHistoryEntryCount' => $pdfExportHistoryEntryCount,
+            'pdfExportOverrideCount' => count($pdfExportOverrides),
+            'pdfExportIssueCount' => $pdfExportIssueCount,
+            'pdfExportIssueCounts' => $pdfExportIssueCounts,
             'featureGateCount' => is_array($provenance['featureGates'] ?? null) && is_int($provenance['featureGates']['featureCount'] ?? null) ? $provenance['featureGates']['featureCount'] : 0,
             'executionPolicyPresent' => is_array($provenance['executionPolicy'] ?? null),
             'openOutputSideEffectCount' => is_array($provenance['openOutput'] ?? null) && is_int($provenance['openOutput']['flagCount'] ?? null) ? $provenance['openOutput']['flagCount'] : 0,
