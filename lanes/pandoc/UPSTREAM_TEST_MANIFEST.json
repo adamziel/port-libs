@@ -4,6 +4,8 @@
     "priority": 6,
     "mappedOdfManifestMissingMediaTypeCases": 1,
     "odfManifestMissingMediaTypeAssertions": 22,
+    "mappedOdfManifestNamespaceDeclarationCases": 1,
+    "odfManifestNamespaceDeclarationAssertions": 34,
     "mappedOdfReaderZipTimestampProvenanceCases": 1,
     "odfReaderZipTimestampProvenanceAssertions": 31,
     "mappedOdfReaderZipSourceRecordProvenanceCases": 1,
