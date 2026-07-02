@@ -1542,6 +1542,7 @@ final class OdfReader
         $packagePathDepthCounts = [];
         $packagePathsByPathDepth = [];
         $maxPackagePathDepth = 0;
+        $packagePathDepthSummaries = [];
         $packagePathDepthRoleCounts = [];
         $entryNamesByPackagePathDepthRole = [];
         $packagePathDepthByteExposurePolicyCounts = [];
@@ -2041,6 +2042,7 @@ final class OdfReader
                 $packagePathsByPackageArea,
                 $packagePathDepthCounts,
                 $packagePathsByPathDepth,
+                $packagePathDepthSummaries,
                 $maxPackagePathDepth,
                 $entry->name,
                 $packageArea,
@@ -2195,6 +2197,7 @@ final class OdfReader
         self::sortPackageNestedCountMap($zipPackageManifestPathSegmentPositionByteExposurePolicyCounts);
         self::sortPackageNestedStringListMap($entryNamesByZipPackageManifestPathSegmentPositionByteExposurePolicy);
         $packageAreaSummaries = self::finalizePackageAreaSummaries($packageAreaSummaries);
+        $packagePathDepthSummaries = self::finalizePackagePathDepthSummaries($packagePathDepthSummaries);
         $embeddedObjectPackages = $this->embeddedObjectPackageProvenance($package, $manifest, $objectPackageRootParts);
         $stylePackageProvenance = $this->stylePackageProvenance($styleCatalog, $styleDiagnostics, $manifestByPart, $parts);
         $packagePartExtensions = self::packagePartExtensionInventory($parts);
@@ -2427,6 +2430,8 @@ final class OdfReader
             'packagePathDepthCounts' => $packagePathDepthCounts,
             'packagePathsByPathDepth' => $packagePathsByPathDepth,
             'maxPackagePathDepth' => $maxPackagePathDepth,
+            'packagePathDepthSummaryCount' => count($packagePathDepthSummaries),
+            'packagePathDepthSummaries' => $packagePathDepthSummaries,
             'packagePathDepthRoleCounts' => $packagePathDepthRoleCounts,
             'entryNamesByPackagePathDepthRole' => $entryNamesByPackagePathDepthRole,
             'packagePathDepthByteExposurePolicyCounts' => $packagePathDepthByteExposurePolicyCounts,
@@ -3832,6 +3837,8 @@ final class OdfReader
             'packagePathDepthCounts' => $provenance['packagePathDepthCounts'] ?? [],
             'packagePathsByPathDepth' => $provenance['packagePathsByPathDepth'] ?? [],
             'maxPackagePathDepth' => $provenance['maxPackagePathDepth'] ?? 0,
+            'packagePathDepthSummaryCount' => $provenance['packagePathDepthSummaryCount'] ?? 0,
+            'packagePathDepthSummaries' => $provenance['packagePathDepthSummaries'] ?? [],
             'packagePathDepthRoleCounts' => $provenance['packagePathDepthRoleCounts'] ?? [],
             'entryNamesByPackagePathDepthRole' => $provenance['entryNamesByPackagePathDepthRole'] ?? [],
             'packagePathDepthByteExposurePolicyCounts' => $provenance['packagePathDepthByteExposurePolicyCounts'] ?? [],
@@ -4201,6 +4208,8 @@ final class OdfReader
             'packagePathDepthCounts' => $provenance['packagePathDepthCounts'] ?? [],
             'packagePathsByPathDepth' => $provenance['packagePathsByPathDepth'] ?? [],
             'maxPackagePathDepth' => $provenance['maxPackagePathDepth'] ?? 0,
+            'packagePathDepthSummaryCount' => $provenance['packagePathDepthSummaryCount'] ?? 0,
+            'packagePathDepthSummaries' => $provenance['packagePathDepthSummaries'] ?? [],
             'packagePathDepthRoleCounts' => $provenance['packagePathDepthRoleCounts'] ?? [],
             'entryNamesByPackagePathDepthRole' => $provenance['entryNamesByPackagePathDepthRole'] ?? [],
             'packagePathDepthByteExposurePolicyCounts' => $provenance['packagePathDepthByteExposurePolicyCounts'] ?? [],
@@ -7358,6 +7367,7 @@ final class OdfReader
         array &$pathsByArea,
         array &$depthCounts,
         array &$pathsByDepth,
+        array &$depthSummaries,
         int &$maxDepth,
         string $path,
         string $area,
@@ -7380,6 +7390,55 @@ final class OdfReader
         $pathsByDepth[$depth] ??= [];
         $pathsByDepth[$depth][$path] = true;
         $maxDepth = max($maxDepth, $depth);
+
+        $depthSummaries[$depth] ??= [
+            'packagePathDepth' => $depth,
+            'entryCount' => 0,
+            'fileEntryCount' => 0,
+            'directoryEntryCount' => 0,
+            'byteLength' => 0,
+            'compressedByteLength' => 0,
+            'declaredEntryCount' => 0,
+            'undeclaredEntryCount' => 0,
+            'exposableEntryCount' => 0,
+            'blockedEntryCount' => 0,
+            'packageAreaCounts' => [],
+            'roleCounts' => [],
+            'byteExposurePolicyCounts' => [],
+            'packagePaths' => [],
+        ];
+        $depthSummary = &$depthSummaries[$depth];
+        $depthSummary['entryCount']++;
+        if ($isDirectory) {
+            $depthSummary['directoryEntryCount']++;
+        } else {
+            $depthSummary['fileEntryCount']++;
+        }
+        $depthSummary['byteLength'] += $byteLength;
+        $depthSummary['compressedByteLength'] += $compressedByteLength;
+        if ($declaredInManifest) {
+            $depthSummary['declaredEntryCount']++;
+        }
+        if ($undeclared) {
+            $depthSummary['undeclaredEntryCount']++;
+        }
+        if ($canExposeBytes) {
+            $depthSummary['exposableEntryCount']++;
+        } else {
+            $depthSummary['blockedEntryCount']++;
+        }
+        $depthSummary['packageAreaCounts'][$area] = ($depthSummary['packageAreaCounts'][$area] ?? 0) + 1;
+        foreach ($roles as $role) {
+            if (is_string($role) && $role !== '') {
+                $depthSummary['roleCounts'][$role] = ($depthSummary['roleCounts'][$role] ?? 0) + 1;
+            }
+        }
+        if ($byteExposurePolicy !== null && $byteExposurePolicy !== '') {
+            $depthSummary['byteExposurePolicyCounts'][$byteExposurePolicy] =
+                ($depthSummary['byteExposurePolicyCounts'][$byteExposurePolicy] ?? 0) + 1;
+        }
+        $depthSummary['packagePaths'][$path] = true;
+        unset($depthSummary);
 
         $areaSummaries[$area] ??= [
             'packageArea' => $area,
@@ -7908,6 +7967,21 @@ final class OdfReader
     {
         ksort($summaries, SORT_STRING);
         foreach ($summaries as &$summary) {
+            ksort($summary['roleCounts'], SORT_STRING);
+            ksort($summary['byteExposurePolicyCounts'], SORT_STRING);
+            $summary['packagePaths'] = array_keys($summary['packagePaths']);
+            sort($summary['packagePaths'], SORT_STRING);
+        }
+        unset($summary);
+
+        return array_values($summaries);
+    }
+
+    private static function finalizePackagePathDepthSummaries(array $summaries): array
+    {
+        ksort($summaries, SORT_NUMERIC);
+        foreach ($summaries as &$summary) {
+            ksort($summary['packageAreaCounts'], SORT_STRING);
             ksort($summary['roleCounts'], SORT_STRING);
             ksort($summary['byteExposurePolicyCounts'], SORT_STRING);
             $summary['packagePaths'] = array_keys($summary['packagePaths']);
