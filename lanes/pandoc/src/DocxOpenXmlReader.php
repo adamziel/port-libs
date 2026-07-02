@@ -13802,6 +13802,71 @@ final class DocxOpenXmlReader
                 'zipLastModifiedSource' => $part['zipLastModifiedSource'] ?? null,
                 'zipEntryCommentPresent' => (bool) ($part['zipEntryCommentPresent'] ?? false),
                 'zipEntryCommentLength' => (int) ($part['zipEntryCommentLength'] ?? 0),
+                'madeByHostSystem' => is_int($part['madeByHostSystem'] ?? null) ? $part['madeByHostSystem'] : null,
+                'madeByHostSystemName' => is_string($part['madeByHostSystemName'] ?? null)
+                    ? $part['madeByHostSystemName']
+                    : null,
+                'madeByVersion' => is_int($part['madeByVersion'] ?? null) ? $part['madeByVersion'] : null,
+                'versionMadeBy' => is_int($part['versionMadeBy'] ?? null) ? $part['versionMadeBy'] : null,
+                'versionNeededToExtract' => is_int($part['versionNeededToExtract'] ?? null)
+                    ? $part['versionNeededToExtract']
+                    : null,
+                'creatorVersionMeetsNeeded' => is_bool($part['creatorVersionMeetsNeeded'] ?? null)
+                    ? $part['creatorVersionMeetsNeeded']
+                    : null,
+                'externalAttributes' => is_int($part['externalAttributes'] ?? null)
+                    ? $part['externalAttributes']
+                    : null,
+                'externalAttributesHex' => is_string($part['externalAttributesHex'] ?? null)
+                    ? $part['externalAttributesHex']
+                    : null,
+                'hasExternalAttributes' => ($part['hasExternalAttributes'] ?? false) === true,
+                'dosAttributes' => is_int($part['dosAttributes'] ?? null) ? $part['dosAttributes'] : null,
+                'dosAttributeNames' => is_array($part['dosAttributeNames'] ?? null)
+                    ? array_values(array_map('strval', $part['dosAttributeNames']))
+                    : [],
+                'hasDosAttributes' => ($part['hasDosAttributes'] ?? false) === true,
+                'hasDosHiddenAttribute' => ($part['hasDosHiddenAttribute'] ?? false) === true,
+                'hasDosSystemAttribute' => ($part['hasDosSystemAttribute'] ?? false) === true,
+                'hasDosVolumeLabelAttribute' => ($part['hasDosVolumeLabelAttribute'] ?? false) === true,
+                'internalFileAttributes' => is_int($part['internalFileAttributes'] ?? null)
+                    ? $part['internalFileAttributes']
+                    : null,
+                'internalFileAttributesHex' => is_string($part['internalFileAttributesHex'] ?? null)
+                    ? $part['internalFileAttributesHex']
+                    : null,
+                'internalAttributeNames' => is_array($part['internalAttributeNames'] ?? null)
+                    ? array_values(array_map('strval', $part['internalAttributeNames']))
+                    : [],
+                'hasInternalFileAttributes' => ($part['hasInternalFileAttributes'] ?? false) === true,
+                'hasTextInternalAttribute' => ($part['hasTextInternalAttribute'] ?? false) === true,
+                'unixMode' => is_int($part['unixMode'] ?? null) ? $part['unixMode'] : null,
+                'unixModeOctal' => is_string($part['unixModeOctal'] ?? null) ? $part['unixModeOctal'] : null,
+                'unixPermissions' => is_int($part['unixPermissions'] ?? null) ? $part['unixPermissions'] : null,
+                'unixPermissionsOctal' => is_string($part['unixPermissionsOctal'] ?? null)
+                    ? $part['unixPermissionsOctal']
+                    : null,
+                'hasUnixMode' => ($part['hasUnixMode'] ?? false) === true,
+                'unixFileTypeName' => is_string($part['unixFileTypeName'] ?? null)
+                    ? $part['unixFileTypeName']
+                    : null,
+                'isUnixExecutableFile' => ($part['isUnixExecutableFile'] ?? false) === true,
+                'isGroupWritable' => ($part['isGroupWritable'] ?? false) === true,
+                'isWorldWritable' => ($part['isWorldWritable'] ?? false) === true,
+                'hasWritablePermissions' => ($part['hasWritablePermissions'] ?? false) === true,
+                'platformMetadataPlatform' => is_string($part['platformMetadataPlatform'] ?? null)
+                    ? $part['platformMetadataPlatform']
+                    : null,
+                'platformMetadataIssues' => is_array($part['platformMetadataIssues'] ?? null)
+                    ? array_values(array_map('strval', $part['platformMetadataIssues']))
+                    : [],
+                'platformAttributeIssues' => is_array($part['platformAttributeIssues'] ?? null)
+                    ? array_values(array_map('strval', $part['platformAttributeIssues']))
+                    : [],
+                'hasPlatformAttributeProvenance' => ($part['hasPlatformAttributeProvenance'] ?? false) === true,
+                'platformAttributeReviewPolicy' => is_string($part['zipPlatformAttributeReviewPolicy'] ?? null)
+                    ? $part['zipPlatformAttributeReviewPolicy']
+                    : 'docx-zip-platform-attributes-metadata-only',
                 'centralUnixOwner' => is_array($part['centralUnixOwner'] ?? null) ? $part['centralUnixOwner'] : null,
                 'localUnixOwner' => is_array($part['localUnixOwner'] ?? null) ? $part['localUnixOwner'] : null,
                 'hasCentralUnixOwnerMetadata' => ($part['hasCentralUnixOwnerMetadata'] ?? false) === true,
@@ -14011,6 +14076,22 @@ final class DocxOpenXmlReader
             'zipUnsupportedCompressionMethodCount' => (int) ($zipPackage['unsupportedCompressionMethodCount'] ?? 0),
             'zipCentralDirectoryOrderMatchesLocalHeaderOrder' =>
                 $zipPackage['centralDirectoryOrderMatchesLocalHeaderOrder'] ?? null,
+            'zipUnixModeEntryCount' => (int) ($summary['zipUnixModeEntryCount'] ?? 0),
+            'zipExecutableFileCount' => (int) ($summary['zipExecutableFileCount'] ?? 0),
+            'zipWritablePermissionEntryCount' => (int) ($summary['zipWritablePermissionEntryCount'] ?? 0),
+            'zipDosAttributeEntryCount' => (int) ($summary['zipDosAttributeEntryCount'] ?? 0),
+            'zipHiddenSystemOrVolumeLabelEntryCount' =>
+                (int) ($summary['zipHiddenSystemOrVolumeLabelEntryCount'] ?? 0),
+            'zipInternalAttributeEntryCount' => (int) ($summary['zipInternalAttributeEntryCount'] ?? 0),
+            'zipTextInternalAttributeEntryCount' => (int) ($summary['zipTextInternalAttributeEntryCount'] ?? 0),
+            'zipPlatformAttributeProvenanceEntryCount' =>
+                (int) ($summary['zipPlatformAttributeProvenanceEntryCount'] ?? 0),
+            'zipPlatformAttributeIssueEntryCount' =>
+                (int) ($summary['zipPlatformAttributeIssueEntryCount'] ?? 0),
+            'zipPlatformAttributeIssueCount' => (int) ($summary['zipPlatformAttributeIssueCount'] ?? 0),
+            'zipPlatformAttributeIssueCodes' => is_array($summary['zipPlatformAttributeIssueCodes'] ?? null)
+                ? array_values($summary['zipPlatformAttributeIssueCodes'])
+                : [],
             'zipUnixOwners' => is_array($summary['zipUnixOwners'] ?? null)
                 ? $summary['zipUnixOwners']
                 : $this->emptyZipUnixOwnerProvenance(),
