@@ -1053,7 +1053,7 @@ final class BibtexCslProcessor
             'archive-place' => ['eprintclass', 'primaryclass', 'primary-class', 'archiveplace', 'archive-place'],
             'archive_location' => ['eprint', 'archive-location', 'archive_location', 'archivelocation'],
             'call-number' => ['callnumber', 'call-number', 'library', 'shelfmark', 'shelf-mark'],
-            'language' => ['language', 'langid', 'hyphenation'],
+            'language' => ['language', 'langid', 'languageid', 'language-id', 'hyphenation'],
             'original-title-addon' => ['origtitleaddon', 'origtitle-addon', 'originaltitleaddon', 'original-title-addon'],
             'original-subtitle' => ['origsubtitle', 'originalsubtitle', 'original-subtitle'],
             'original-genre' => ['origtype', 'origgenre', 'originaltype', 'original-type', 'originalgenre', 'original-genre'],
