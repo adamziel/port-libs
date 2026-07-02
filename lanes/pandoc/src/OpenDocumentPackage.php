@@ -11044,6 +11044,8 @@ final class OpenDocumentPackage
             'manifestPartReferenceQueryCount' => 0,
             'manifestPartReferenceFragmentCount' => 0,
             'manifestPartReferenceSuffixItems' => [],
+            'manifestPartReferenceSuffixMediaFamilyCounts' => [],
+            'manifestPartReferenceSuffixByteExposurePolicyCounts' => [],
             'manifestPathKindCounts' => [],
             'manifestTopLevelSegmentCounts' => [],
             'manifestPathExtensionCounts' => [],
@@ -11140,6 +11142,14 @@ final class OpenDocumentPackage
             }
             if (is_string($entry['pathSuffix'] ?? null)) {
                 $summary['manifestPartReferenceSuffixItems'][] = self::manifestPartReferenceSuffixItem($entry);
+                $suffixMediaFamily = is_string($entry['manifestMediaFamily'] ?? null) ? $entry['manifestMediaFamily'] : '';
+                if ($suffixMediaFamily !== '') {
+                    $summary['manifestPartReferenceSuffixMediaFamilyCounts'][$suffixMediaFamily] = ($summary['manifestPartReferenceSuffixMediaFamilyCounts'][$suffixMediaFamily] ?? 0) + 1;
+                }
+                $suffixByteExposurePolicy = is_string($entry['byteExposurePolicy'] ?? null) ? $entry['byteExposurePolicy'] : '';
+                if ($suffixByteExposurePolicy !== '') {
+                    $summary['manifestPartReferenceSuffixByteExposurePolicyCounts'][$suffixByteExposurePolicy] = ($summary['manifestPartReferenceSuffixByteExposurePolicyCounts'][$suffixByteExposurePolicy] ?? 0) + 1;
+                }
             }
             if (is_string($entry['pathQuery'] ?? null)) {
                 ++$summary['manifestPartReferenceQueryCount'];
@@ -11354,6 +11364,8 @@ final class OpenDocumentPackage
         ksort($summary['manifestPathKindCounts'], SORT_STRING);
         ksort($summary['manifestTopLevelSegmentCounts'], SORT_STRING);
         ksort($summary['manifestPathExtensionCounts'], SORT_STRING);
+        ksort($summary['manifestPartReferenceSuffixMediaFamilyCounts'], SORT_STRING);
+        ksort($summary['manifestPartReferenceSuffixByteExposurePolicyCounts'], SORT_STRING);
         ksort($summary['manifestMediaFamilyCounts'], SORT_STRING);
         ksort($summary['manifestMediaFamilyByteLengths'], SORT_STRING);
         ksort($summary['manifestMediaFamilyCompressedByteLengths'], SORT_STRING);
@@ -12058,6 +12070,7 @@ final class OpenDocumentPackage
             'partQuery' => $entry['pathQuery'] ?? null,
             'partFragment' => $entry['pathFragment'] ?? null,
             'uriEncodedPackageReference' => ($entry['uriEncodedPackageReference'] ?? false) === true,
+            'manifestMediaFamily' => $entry['manifestMediaFamily'] ?? null,
             'mediaType' => $entry['mediaType'],
             'exists' => ($entry['exists'] ?? false) === true,
             'isDirectory' => ($entry['isDirectory'] ?? false) === true,
