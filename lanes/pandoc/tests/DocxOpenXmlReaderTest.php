@@ -12525,6 +12525,22 @@ XML;
         $t->same(['docProps/thumbnail-review.jpeg', 'docProps/missing-thumbnail.png', 'docProps/bad-thumbnail.xml'], $thumbnails['targetParts']);
         $t->same(['https://example.test/thumb.png?review=1#preview'], $thumbnails['externalTargets']);
         $t->same(['image/jpeg; profile=package-thumbnail', 'image/png', 'application/xml'], $thumbnails['contentTypes']);
+        $t->same([
+            'application/xml' => 1,
+            'image/jpeg' => 1,
+            'image/png' => 1,
+        ], $thumbnails['contentTypeBaseCounts']);
+        $t->same([
+            'default' => 3,
+            'missing' => 1,
+        ], $thumbnails['contentTypeSourceCounts']);
+        $t->same([
+            'jpeg' => 1,
+            'png' => 1,
+            'xml' => 1,
+        ], $thumbnails['targetPartExtensionCounts']);
+        $t->same(['package-thumbnail-metadata-only' => 4], $thumbnails['byteExposurePolicyCounts']);
+        $t->same(strlen($thumbnailBytes) + strlen($badThumbnailBytes), $thumbnails['readableByteLength']);
 
         $t->same('docProps/thumbnail-review.jpeg?size=small#cover', $packageThumb['target']);
         $t->same('docProps/thumbnail-review.jpeg?size=small#cover', $packageThumb['resolvedTarget']);
@@ -12577,6 +12593,11 @@ XML;
         $t->same(4, $summary['packageThumbnailInvalidCount']);
         $t->same(4, $summary['packageThumbnailIssueCount']);
         $t->same($thumbnails['issueCodes'], $summary['packageThumbnailIssueCodes']);
+        $t->same($thumbnails['contentTypeBaseCounts'], $summary['packageThumbnailContentTypeBaseCounts']);
+        $t->same($thumbnails['contentTypeSourceCounts'], $summary['packageThumbnailContentTypeSourceCounts']);
+        $t->same($thumbnails['targetPartExtensionCounts'], $summary['packageThumbnailTargetPartExtensionCounts']);
+        $t->same($thumbnails['byteExposurePolicyCounts'], $summary['packageThumbnailByteExposurePolicyCounts']);
+        $t->same($thumbnails['readableByteLength'], $summary['packageThumbnailReadableByteLength']);
         $t->same(4, $summary['relationshipTypeCounts'][$thumbnailType]);
         $t->same('thumbnail', $relationshipType['label']);
         $t->same(4, $relationshipType['count']);
