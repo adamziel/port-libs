@@ -443,8 +443,15 @@ final class BibtexCslProcessor
                 $parts[] = $label . ': ' . (string) $item[$field];
             }
         }
+        $addendum = (string) ($item['addendum'] ?? '');
+        if ($addendum !== '' && $addendum !== (string) ($item['note'] ?? '')) {
+            $parts[] = 'Addendum: ' . $addendum;
+        }
         if (($item['thesis-type'] ?? '') !== '') {
             $parts[] = 'Thesis type: ' . (string) $item['thesis-type'];
+        }
+        if (($item['name-addon'] ?? '') !== '') {
+            $parts[] = 'Name addendum: ' . (string) $item['name-addon'];
         }
         foreach ([
             'author-type' => 'Author type',
@@ -511,8 +518,21 @@ final class BibtexCslProcessor
             'date-addon' => 'Date addendum',
             'original-date-addon' => 'Original date addendum',
             'reprint-date-addon' => 'Reprint date addendum',
+            'original-page' => 'Original pages',
+            'original-page-first' => 'Original first page',
+            'original-volume' => 'Original volume',
+            'original-issue' => 'Original issue',
+            'original-number' => 'Original number',
+            'original-edition' => 'Original edition',
+            'reprint-page' => 'Reprint pages',
+            'reprint-page-first' => 'Reprint first page',
+            'reprint-volume' => 'Reprint volume',
+            'reprint-issue' => 'Reprint issue',
+            'reprint-number' => 'Reprint number',
+            'reprint-edition' => 'Reprint edition',
             'event-date-addon' => 'Event date addendum',
             'accessed-date-addon' => 'Accessed date addendum',
+            'biblatex-disambiguation-summary' => 'BibLaTeX disambiguation',
         ] as $field => $label) {
             if (($item[$field] ?? '') !== '') {
                 $value = (string) $item[$field];
@@ -591,9 +611,6 @@ final class BibtexCslProcessor
         if (($item['gender'] ?? '') !== '') {
             $parts[] = 'BibLaTeX gender: ' . (string) $item['gender'];
         }
-        if (($item['name-addon'] ?? '') !== '') {
-            $parts[] = 'Name addendum: ' . (string) $item['name-addon'];
-        }
         $nameAnnotationSummary = $this->biblatexNameAnnotationSummary($item);
         if ($nameAnnotationSummary !== '') {
             $parts[] = 'Name annotations: ' . $nameAnnotationSummary;
@@ -654,10 +671,12 @@ final class BibtexCslProcessor
             'volume-title' => 'Volume title',
             'volume-title-short' => 'Volume title abbreviation',
             'part-title' => 'Part title',
+            'part-title-short' => 'Part title abbreviation',
+            'part-title-addon' => 'Part title addendum',
         ] as $field => $label) {
             if (($item[$field] ?? '') !== '') {
                 $value = (string) $item[$field];
-                if ($field === 'volume-title-short') {
+                if ($field === 'volume-title-short' || $field === 'part-title-short') {
                     $value = rtrim($value, '.');
                 }
                 $parts[] = $label . ': ' . $value;
@@ -922,12 +941,38 @@ final class BibtexCslProcessor
             'reprint-date-addon' => ['reprintdateaddon', 'reprintdate-addon', 'reprint-date-addon', 'reprintdateaddendum', 'reprint-date-addendum'],
             'event-date-addon' => ['eventdateaddon', 'eventdate-addon', 'event-date-addon'],
             'accessed-date-addon' => ['urldateaddon', 'urldate-addon', 'url-date-addon', 'accesseddateaddon', 'accessed-date-addon'],
+            'biblatex-page-ref' => ['pageref', 'page-ref'],
+            'biblatex-name-hash' => ['namehash', 'name-hash'],
+            'biblatex-full-name-hash' => ['fullhash', 'full-hash'],
+            'biblatex-bib-name-hash' => ['bibnamehash', 'bib-name-hash'],
+            'biblatex-label-name-hash' => ['labelnamehash', 'label-name-hash'],
+            'biblatex-author-name-hash' => ['authornamehash', 'author-name-hash', 'authorfullhash', 'author-full-hash'],
+            'biblatex-editor-name-hash' => ['editornamehash', 'editor-name-hash', 'editorfullhash', 'editor-full-hash'],
+            'biblatex-sort-name-hash' => ['sortnamehash', 'sort-name-hash'],
             'short-title' => ['shorttitle', 'short-title', 'title-short'],
+            'subtitle' => ['subtitle'],
             'title-addon' => ['titleaddon', 'title-addon'],
+            'container-subtitle' => [
+                'journalsubtitle',
+                'journal-subtitle',
+                'booksubtitle',
+                'book-subtitle',
+                'container-subtitle',
+                'containersubtitle',
+                'publication-subtitle',
+                'publicationsubtitle',
+            ],
             'container-title-addon' => ['journaltitleaddon', 'booktitleaddon', 'journal-title-addon', 'book-title-addon', 'container-title-addon', 'containertitleaddon'],
             'main-title-addon' => ['maintitleaddon', 'main-title-addon'],
+            'main-subtitle' => ['mainsubtitle', 'main-subtitle'],
             'reviewed-genre' => ['reviewedgenre', 'reviewed-genre', 'reviewgenre', 'review-genre'],
+            'reviewed-subtitle' => ['reviewedsubtitle', 'reviewed-subtitle', 'reviewsubtitle'],
+            'volume-subtitle' => ['volumesubtitle', 'volume-subtitle'],
             'volume-title-short' => ['shortvolumetitle', 'short-volume-title', 'volumetitleshort', 'volume-title-short'],
+            'part-subtitle' => ['partsubtitle', 'part-subtitle'],
+            'issue-subtitle' => ['issuesubtitle', 'issue-subtitle'],
+            'part-title-short' => ['shortparttitle', 'short-part-title', 'parttitleshort', 'parttitle-short', 'part-title-short'],
+            'part-title-addon' => ['parttitleaddon', 'part-title-addon', 'parttitle-addon'],
             'issue-title-addon' => ['issuetitleaddon', 'issue-title-addon', 'issuetitle-addon'],
             'container-title-short' => [
                 'shortjournal',
@@ -1014,13 +1059,27 @@ final class BibtexCslProcessor
             'call-number' => ['callnumber', 'call-number', 'library', 'shelfmark', 'shelf-mark'],
             'language' => ['language', 'langid', 'hyphenation'],
             'original-title-addon' => ['origtitleaddon', 'origtitle-addon', 'originaltitleaddon', 'original-title-addon'],
+            'original-subtitle' => ['origsubtitle', 'originalsubtitle', 'original-subtitle'],
             'original-genre' => ['origtype', 'origgenre', 'originaltype', 'original-type', 'originalgenre', 'original-genre'],
+            'original-page' => ['origpages', 'orig-pages', 'origpage', 'orig-page', 'originalpages', 'original-pages', 'originalpage', 'original-page'],
+            'original-page-first' => ['origpagefirst', 'orig-page-first', 'originalpagefirst', 'original-page-first'],
+            'original-volume' => ['origvolume', 'orig-volume', 'originalvolume', 'original-volume'],
+            'original-issue' => ['origissue', 'orig-issue', 'originalissue', 'original-issue'],
+            'original-number' => ['orignumber', 'orig-number', 'originalnumber', 'original-number'],
+            'original-edition' => ['origedition', 'orig-edition', 'originaledition', 'original-edition'],
             'original-publisher' => ['origpublisher', 'originalpublisher', 'original-publisher'],
             'original-publisher-place' => ['origlocation', 'origaddress', 'originalpublisherplace', 'original-publisher-place'],
             'original-language' => ['origlanguage', 'originallanguage', 'original-language'],
             'reprint-title' => ['reprinttitle', 'reprint-title'],
+            'reprint-page' => ['reprintpages', 'reprint-pages', 'reprintpage', 'reprint-page'],
+            'reprint-page-first' => ['reprintpagefirst', 'reprint-page-first'],
+            'reprint-volume' => ['reprintvolume', 'reprint-volume'],
+            'reprint-issue' => ['reprintissue', 'reprint-issue'],
+            'reprint-number' => ['reprintnumber', 'reprint-number'],
+            'reprint-edition' => ['reprintedition', 'reprint-edition'],
             'abstract' => ['abstract', 'annotation', 'annote'],
             'annotation' => ['annotation', 'annote'],
+            'addendum' => ['addendum'],
             'note' => ['note', 'addendum'],
             'name-addon' => ['nameaddon', 'name-addon'],
             'genre' => ['type', 'entrysubtype'],
@@ -1042,13 +1101,25 @@ final class BibtexCslProcessor
             if ($value === null || $value === '') {
                 continue;
             }
-            $item[$target] = $target === 'page' ? str_replace('--', '-', $value) : $value;
+            $item[$target] = in_array($target, ['page', 'original-page', 'reprint-page'], true) ? str_replace('--', '-', $value) : $value;
         }
 
         if (($item['page-first'] ?? '') === '') {
             $pageFirst = $this->firstPageFromRange((string) ($item['page'] ?? ''));
             if ($pageFirst !== '') {
                 $item['page-first'] = $pageFirst;
+            }
+        }
+        if (($item['original-page-first'] ?? '') === '') {
+            $pageFirst = $this->firstPageFromRange((string) ($item['original-page'] ?? ''));
+            if ($pageFirst !== '') {
+                $item['original-page-first'] = $pageFirst;
+            }
+        }
+        if (($item['reprint-page-first'] ?? '') === '') {
+            $pageFirst = $this->firstPageFromRange((string) ($item['reprint-page'] ?? ''));
+            if ($pageFirst !== '') {
+                $item['reprint-page-first'] = $pageFirst;
             }
         }
 
@@ -1206,7 +1277,7 @@ final class BibtexCslProcessor
             $item['citation-aliases'] = $citationAliases;
         }
 
-        $date = $this->dateObjectFromFields($fields, ['date'], ['year', 'month', 'day'], [
+        $date = $this->dateObjectFromFields($fields, ['date'], [['year'], ['month'], ['day']], [
             'hour' => 'hour',
             'minute' => 'minute',
             'second' => 'second',
@@ -1215,12 +1286,12 @@ final class BibtexCslProcessor
             'endminute' => 'endminute',
             'endsecond' => 'endsecond',
             'endtimezone' => 'endtimezone',
-        ], ['endyear', 'endmonth', 'endday']);
+        ], [['endyear', 'end-year'], ['endmonth', 'end-month'], ['endday', 'end-day']]);
         if ($date !== null) {
             $item['issued'] = $this->dateWithEra($date, $fields, ['dateera']);
         }
 
-        $accessed = $this->dateObjectFromFields($fields, ['urldate', 'accessed', 'accessdate'], ['urlyear', 'urlmonth', 'urlday'], [
+        $accessed = $this->dateObjectFromFields($fields, ['urldate', 'accessed', 'accessdate'], [['urlyear', 'url-year'], ['urlmonth', 'url-month'], ['urlday', 'url-day']], [
             'hour' => 'urlhour',
             'minute' => 'urlminute',
             'second' => 'urlsecond',
@@ -1229,7 +1300,7 @@ final class BibtexCslProcessor
             'endminute' => 'urlendminute',
             'endsecond' => 'urlendsecond',
             'endtimezone' => 'urlendtimezone',
-        ], ['urlendyear', 'urlendmonth', 'urlendday']);
+        ], [['urlendyear', 'url-end-year'], ['urlendmonth', 'url-end-month'], ['urlendday', 'url-end-day']]);
         if ($accessed !== null) {
             $item['accessed'] = $this->dateWithEra($accessed, $fields, ['urldateera', 'url-date-era', 'accesseddateera', 'accessed-date-era']);
         }
@@ -1237,7 +1308,7 @@ final class BibtexCslProcessor
         $originalDate = $this->dateObjectFromFields(
             $fields,
             ['origdate', 'originaldate', 'original-date'],
-            ['origyear', 'origmonth', 'origday'],
+            [['origyear', 'orig-year'], ['origmonth', 'orig-month'], ['origday', 'orig-day']],
             [
                 'hour' => 'orighour',
                 'minute' => 'origminute',
@@ -1248,19 +1319,19 @@ final class BibtexCslProcessor
                 'endsecond' => 'origendsecond',
                 'endtimezone' => 'origendtimezone',
             ],
-            ['origendyear', 'origendmonth', 'origendday']
+            [['origendyear', 'orig-end-year'], ['origendmonth', 'orig-end-month'], ['origendday', 'orig-end-day']]
         ) ?? $this->dateObjectFromFields(
             $fields,
             [],
-            ['originalyear', 'originalmonth', 'originalday'],
+            [['originalyear', 'original-year'], ['originalmonth', 'original-month'], ['originalday', 'original-day']],
             [],
-            ['originalendyear', 'originalendmonth', 'originalendday']
+            [['originalendyear', 'original-end-year'], ['originalendmonth', 'original-end-month'], ['originalendday', 'original-end-day']]
         );
         if ($originalDate !== null) {
             $item['original-date'] = $this->dateWithEra($originalDate, $fields, ['origdateera', 'originaldateera', 'original-date-era']);
         }
 
-        $reprintDate = $this->dateObjectFromFields($fields, ['reprintdate', 'reprint-date'], ['reprintyear', 'reprintmonth', 'reprintday'], [
+        $reprintDate = $this->dateObjectFromFields($fields, ['reprintdate', 'reprint-date'], [['reprintyear', 'reprint-year'], ['reprintmonth', 'reprint-month'], ['reprintday', 'reprint-day']], [
             'hour' => 'reprinthour',
             'minute' => 'reprintminute',
             'second' => 'reprintsecond',
@@ -1269,18 +1340,23 @@ final class BibtexCslProcessor
             'endminute' => 'reprintendminute',
             'endsecond' => 'reprintendsecond',
             'endtimezone' => 'reprintendtimezone',
-        ], ['reprintendyear', 'reprintendmonth', 'reprintendday']);
+        ], [['reprintendyear', 'reprint-end-year'], ['reprintendmonth', 'reprint-end-month'], ['reprintendday', 'reprint-end-day']]);
         if ($reprintDate !== null) {
             $item['reprint-date'] = $this->dateWithEra($reprintDate, $fields, ['reprintdateera', 'reprint-date-era']);
         }
 
-        $labelDate = $this->dateObjectFromFields($fields, ['labeldate', 'label-date'], ['labelyear', 'labelmonth', 'labelday'], [], ['labelendyear', 'labelendmonth', 'labelendday'])
-            ?? $this->dateObjectFromFields($fields, [], ['label-year', 'label-month', 'label-day']);
+        $labelDate = $this->dateObjectFromFields(
+            $fields,
+            ['labeldate', 'label-date'],
+            [['labelyear', 'label-year'], ['labelmonth', 'label-month'], ['labelday', 'label-day']],
+            [],
+            [['labelendyear', 'label-end-year'], ['labelendmonth', 'label-end-month'], ['labelendday', 'label-end-day']]
+        );
         if ($labelDate !== null) {
             $item['label-date'] = $this->dateWithEra($labelDate, $fields, ['labeldateera', 'label-date-era']);
         }
 
-        $eventDate = $this->dateObjectFromFields($fields, ['eventdate', 'event-date'], ['eventyear', 'eventmonth', 'eventday'], [
+        $eventDate = $this->dateObjectFromFields($fields, ['eventdate', 'event-date'], [['eventyear', 'event-year'], ['eventmonth', 'event-month'], ['eventday', 'event-day']], [
             'hour' => 'eventhour',
             'minute' => 'eventminute',
             'second' => 'eventsecond',
@@ -1289,15 +1365,15 @@ final class BibtexCslProcessor
             'endminute' => 'eventendminute',
             'endsecond' => 'eventendsecond',
             'endtimezone' => 'eventendtimezone',
-        ], ['eventendyear', 'eventendmonth', 'eventendday']);
+        ], [['eventendyear', 'event-end-year'], ['eventendmonth', 'event-end-month'], ['eventendday', 'event-end-day']]);
         if ($eventDate !== null) {
             $item['event-date'] = $this->dateWithEra($eventDate, $fields, ['eventdateera', 'event-date-era']);
         }
 
         $availableDate = $this->dateObjectFromFields(
             $fields,
-            ['availabledate', 'available-date'],
-            ['availableyear', 'availablemonth', 'availableday'],
+            ['availabledate', 'available-date', 'available'],
+            [['availableyear', 'available-year'], ['availablemonth', 'available-month'], ['availableday', 'available-day']],
             [
                 'hour' => 'availablehour',
                 'minute' => 'availableminute',
@@ -1308,7 +1384,7 @@ final class BibtexCslProcessor
                 'endsecond' => 'availableendsecond',
                 'endtimezone' => 'availableendtimezone',
             ],
-            ['availableendyear', 'availableendmonth', 'availableendday'],
+            [['availableendyear', 'available-end-year'], ['availableendmonth', 'available-end-month'], ['availableendday', 'available-end-day']],
             ['availableenddate', 'available-end-date']
         );
         if ($availableDate !== null) {
@@ -1318,7 +1394,7 @@ final class BibtexCslProcessor
         $submittedDate = $this->dateObjectFromFields(
             $fields,
             ['submitted', 'submitteddate', 'submitted-date', 'submissiondate', 'submission-date'],
-            ['submittedyear', 'submittedmonth', 'submittedday'],
+            [['submittedyear', 'submitted-year'], ['submittedmonth', 'submitted-month'], ['submittedday', 'submitted-day']],
             [
                 'hour' => 'submittedhour',
                 'minute' => 'submittedminute',
@@ -1329,7 +1405,7 @@ final class BibtexCslProcessor
                 'endsecond' => 'submittedendsecond',
                 'endtimezone' => 'submittedendtimezone',
             ],
-            ['submittedendyear', 'submittedendmonth', 'submittedendday'],
+            [['submittedendyear', 'submitted-end-year'], ['submittedendmonth', 'submitted-end-month'], ['submittedendday', 'submitted-end-day']],
             ['submittedenddate', 'submitted-end-date', 'submissionenddate', 'submission-end-date']
         );
         if ($submittedDate !== null) {
@@ -1379,6 +1455,11 @@ final class BibtexCslProcessor
         $options = $this->biblatexEntryOptions($fields);
         if ($options !== []) {
             $item['biblatex-options'] = $options;
+        }
+
+        $disambiguationSummary = $this->biblatexDisambiguationSummary($item);
+        if ($disambiguationSummary !== '') {
+            $item['biblatex-disambiguation-summary'] = $disambiguationSummary;
         }
 
         $languageOptions = $this->biblatexOptionList($fields['langidopts'] ?? '');
@@ -2157,9 +2238,9 @@ final class BibtexCslProcessor
     /**
      * @param array<string, string> $fields
      * @param list<string> $dateFields
-     * @param list<string> $partFields
+     * @param list<string|list<string>> $partFields
      * @param array<string, string> $timeFields
-     * @param list<string> $endPartFields
+     * @param list<string|list<string>> $endPartFields
      * @param list<string> $endDateFields
      * @return array<string, mixed>|null
      */
@@ -2193,7 +2274,8 @@ final class BibtexCslProcessor
             return $this->dateWithTimeParts($date, $fields, $timeFields, $field);
         }
 
-        if ($partFields === [] || trim((string) ($fields[$partFields[0]] ?? '')) === '') {
+        $startField = $this->datePartFieldName($fields, $partFields, 0);
+        if ($partFields === [] || $startField === null) {
             return null;
         }
 
@@ -2217,13 +2299,13 @@ final class BibtexCslProcessor
             $date['season'] = $season;
         }
 
-        return $this->dateWithTimeParts($date, $fields, $timeFields, $partFields[0]);
+        return $this->dateWithTimeParts($date, $fields, $timeFields, $startField);
     }
 
     /**
      * @param array<string, string> $fields
      * @param list<string> $dateFields
-     * @param list<string> $partFields
+     * @param list<string|list<string>> $partFields
      * @return array<string, mixed>|null
      */
     private function dateObjectFromEndFields(array $fields, array $dateFields, array $partFields): ?array
@@ -2237,7 +2319,7 @@ final class BibtexCslProcessor
             return $this->dateObjectFromValue($value, $field);
         }
 
-        if ($partFields === [] || trim((string) ($fields[$partFields[0]] ?? '')) === '') {
+        if ($partFields === [] || $this->datePartFieldName($fields, $partFields, 0) === null) {
             return null;
         }
 
@@ -2367,21 +2449,21 @@ final class BibtexCslProcessor
 
     /**
      * @param array<string, string> $fields
-     * @param list<string> $partFields
+     * @param list<string|list<string>> $partFields
      * @return array{parts:list<int>, season:int|null}|null
      */
     private function datePartInfoFromSplitFields(array $fields, array $partFields): ?array
     {
-        $yearField = $partFields[0] ?? null;
-        if ($yearField === null || trim((string) ($fields[$yearField] ?? '')) === '') {
+        $year = $this->datePartFieldValue($fields, $partFields, 0);
+        if ($year === null) {
             return null;
         }
 
-        $parts = [(int) $fields[$yearField]];
+        $parts = [(int) $year];
         $season = null;
-        $monthField = $partFields[1] ?? null;
-        if ($monthField !== null && trim((string) ($fields[$monthField] ?? '')) !== '') {
-            $month = $this->biblatexMonthNumber((string) $fields[$monthField]);
+        $monthValue = $this->datePartFieldValue($fields, $partFields, 1);
+        if ($monthValue !== null) {
+            $month = $this->biblatexMonthNumber($monthValue);
             if ($month === null) {
                 return ['parts' => $parts, 'season' => null];
             }
@@ -2394,12 +2476,62 @@ final class BibtexCslProcessor
             $parts[] = $month;
         }
 
-        $dayField = $partFields[2] ?? null;
-        if ($dayField !== null && trim((string) ($fields[$dayField] ?? '')) !== '') {
-            $parts[] = (int) $fields[$dayField];
+        $day = $this->datePartFieldValue($fields, $partFields, 2);
+        if ($day !== null) {
+            $parts[] = (int) $day;
         }
 
         return ['parts' => $parts, 'season' => $season];
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @param list<string|list<string>> $partFields
+     */
+    private function datePartFieldName(array $fields, array $partFields, int $index): ?string
+    {
+        foreach ($this->datePartFieldNames($partFields, $index) as $name) {
+            if (trim((string) ($fields[$name] ?? '')) !== '') {
+                return $name;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @param list<string|list<string>> $partFields
+     */
+    private function datePartFieldValue(array $fields, array $partFields, int $index): ?string
+    {
+        $name = $this->datePartFieldName($fields, $partFields, $index);
+        if ($name === null) {
+            return null;
+        }
+
+        return trim((string) $fields[$name]);
+    }
+
+    /**
+     * @param list<string|list<string>> $partFields
+     * @return list<string>
+     */
+    private function datePartFieldNames(array $partFields, int $index): array
+    {
+        $names = $partFields[$index] ?? [];
+        if (is_string($names)) {
+            return [$names];
+        }
+
+        if (!is_array($names)) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            array_map(static fn (mixed $name): string => is_scalar($name) ? trim((string) $name) : '', $names),
+            static fn (string $name): bool => $name !== ''
+        ));
     }
 
     /**
@@ -3090,6 +3222,31 @@ final class BibtexCslProcessor
         $name = strtolower($this->cleanValue($name));
 
         return preg_replace('/[-_\s]+/', '', $name) ?? $name;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function biblatexDisambiguationSummary(array $item): string
+    {
+        $parts = [];
+        foreach ([
+            'biblatex-page-ref' => 'pageref',
+            'biblatex-name-hash' => 'namehash',
+            'biblatex-full-name-hash' => 'fullhash',
+            'biblatex-bib-name-hash' => 'bibnamehash',
+            'biblatex-label-name-hash' => 'labelnamehash',
+            'biblatex-author-name-hash' => 'authornamehash',
+            'biblatex-editor-name-hash' => 'editornamehash',
+            'biblatex-sort-name-hash' => 'sortnamehash',
+        ] as $field => $label) {
+            $value = trim((string) ($item[$field] ?? ''));
+            if ($value !== '') {
+                $parts[] = $label . '=' . $value;
+            }
+        }
+
+        return implode('; ', $parts);
     }
 
     /**
@@ -4190,27 +4347,7 @@ final class BibtexCslProcessor
 
     private function datePartsText(mixed $date): string
     {
-        if (!is_array($date)) {
-            return '';
-        }
-
-        $parts = $date['date-parts'][0] ?? null;
-        if (!is_array($parts) || $parts === []) {
-            return '';
-        }
-
-        $formatted = [];
-        foreach (array_values($parts) as $index => $part) {
-            if (!is_int($part) && !is_numeric($part)) {
-                return '';
-            }
-
-            $formatted[] = $index === 0
-                ? (string) (int) $part
-                : str_pad((string) (int) $part, 2, '0', STR_PAD_LEFT);
-        }
-
-        return implode('-', $formatted);
+        return $this->dateDisplay($date);
     }
 
     private function readFieldName(string $source, int &$cursor): string

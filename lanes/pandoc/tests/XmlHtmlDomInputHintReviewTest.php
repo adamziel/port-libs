@@ -33,14 +33,43 @@ return [
         $t->same('entry', $form['elementId']);
 
         $t->same('html-input-hint-keyboard-review', $input['inputHintReviewPolicy']);
+        $t->same('ok', $input['inputHintReviewStatus']);
         $t->same('input', $input['inputHintElement']);
         $t->same('text-entry-control', $input['inputHintHostKind']);
+        $t->same(['inputmode', 'enterkeyhint'], $input['inputHintAttributes']);
+        $t->same(2, $input['inputHintAttributeCount']);
+        $t->same(2, $input['inputHintTokenCount']);
+        $t->same(
+            [
+                [
+                    'attribute' => 'inputmode',
+                    'raw' => 'Decimal',
+                    'token' => 'decimal',
+                    'valid' => true,
+                    'keyboardKind' => 'decimal',
+                ],
+                [
+                    'attribute' => 'enterkeyhint',
+                    'raw' => 'Done',
+                    'token' => 'done',
+                    'valid' => true,
+                    'actionKind' => 'completion',
+                ],
+            ],
+            $input['inputHintTokenRecords']
+        );
         $t->same('Decimal', $input['inputModeRaw']);
+        $t->same('decimal', $input['inputMode']);
         $t->same('decimal', $input['inputModeKeyboardKind']);
         $t->same('Done', $input['enterKeyHintRaw']);
+        $t->same('done', $input['enterKeyHint']);
         $t->same('completion', $input['enterKeyHintActionKind']);
         $t->same([], $input['inputHintIssueCodes']);
+        $t->same(0, $input['inputHintIssueCount']);
         $t->same(true, $input['inputHintValid']);
+        $t->same(true, $input['inputHintReviewOnlyNoVirtualKeyboard']);
+        $t->same(true, $input['inputHintReviewOnlyNoImeEngine']);
+        $t->same('metadata-only-no-virtual-keyboard-ime', $input['inputHintReviewHandoffPolicy']);
 
         $t->same('text-entry-control', $textarea['inputHintHostKind']);
         $t->same('search', $textarea['inputModeKeyboardKind']);
@@ -54,16 +83,39 @@ return [
         $t->same(true, $editable['inputHintValid']);
 
         $t->same('generic-element', $generic['inputHintHostKind']);
+        $t->same(['inputmode'], $generic['inputHintAttributes']);
+        $t->same(1, $generic['inputHintAttributeCount']);
         $t->same('telephone', $generic['inputModeKeyboardKind']);
         $t->true(!array_key_exists('enterKeyHintActionKind', $generic));
         $t->same(true, $generic['inputHintValid']);
 
         $t->same('generic-element', $bad['inputHintHostKind']);
+        $t->same('review', $bad['inputHintReviewStatus']);
         $t->same(null, $bad['inputMode']);
         $t->same(null, $bad['enterKeyHint']);
         $t->same(null, $bad['inputModeKeyboardKind']);
         $t->same(null, $bad['enterKeyHintActionKind']);
+        $t->same(
+            [
+                [
+                    'attribute' => 'inputmode',
+                    'raw' => 'kana',
+                    'token' => null,
+                    'valid' => false,
+                    'keyboardKind' => null,
+                ],
+                [
+                    'attribute' => 'enterkeyhint',
+                    'raw' => 'compose',
+                    'token' => null,
+                    'valid' => false,
+                    'actionKind' => null,
+                ],
+            ],
+            $bad['inputHintTokenRecords']
+        );
         $t->same(['invalid-html-inputmode-token', 'invalid-html-enterkeyhint-token'], $bad['inputHintIssueCodes']);
+        $t->same(2, $bad['inputHintIssueCount']);
         $t->same(false, $bad['inputHintValid']);
 
         $t->same(

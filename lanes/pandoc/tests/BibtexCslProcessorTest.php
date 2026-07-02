@@ -992,6 +992,88 @@ XML);
         $t->contains('Compiled Source Manual :: migration handbook :: compiler', $blocks);
         $t->contains('Container Type Chapter :: source chapter :: source volume author :: Smith, Ada; Curator, Eli', $blocks);
     },
+    'carries biblatex name addendum and author type qualifiers in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@incollection{typed-name-handoff,
+  author          = {Roe, Pat},
+  authortype      = {compiler},
+  bookauthor      = {Smith, Ada and Curator, Eli},
+  bookauthortype  = {source volume author},
+  title           = {Typed Name Chapter},
+  booktitle       = {Migration Sourcebook},
+  date            = {2026},
+  pages           = {7--9},
+  nameaddon       = {Reviewed imported source names}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $item = $processor->cslItems($source)['typed-name-handoff'];
+        $bibliography = $processor->renderBibliographyText($item);
+
+        $t->same('compiler', $item['author-type']);
+        $t->same('source volume author', $item['container-author-type']);
+        $t->same('Reviewed imported source names', $item['name-addon']);
+        $t->same('Smith', $item['container-author'][0]['family']);
+        $t->same('Curator', $item['container-author'][1]['family']);
+        $t->same('compiler', $item['rawBibtex']['fields']['authortype']);
+        $t->same('source volume author', $item['rawBibtex']['fields']['bookauthortype']);
+        $t->same('Reviewed imported source names', $item['rawBibtex']['fields']['nameaddon']);
+        $t->same(
+            'Pat Roe. Typed Name Chapter. Migration Sourcebook. 2026. 7-9. Name addendum: Reviewed imported source names. Author type: compiler. Container author type: source volume author.',
+            $bibliography
+        );
+
+        $document = (new MarkdownReader())->read('Typed source [@typed-name-handoff] preserves author-role qualifiers.');
+        $handoff = $processor->citationHandoff($document, $source);
+
+        $t->same(['typed-name-handoff'], $handoff['citedKeys']);
+        $t->same([], $handoff['missingKeys']);
+        $t->same('compiler', $handoff['items'][0]['author-type'] ?? null);
+        $t->same('source volume author', $handoff['bibliography']->children[0]->attr('cslItem')['container-author-type'] ?? null);
+        $t->same('Reviewed imported source names', $handoff['bibliography']->children[0]->attr('cslItem')['name-addon'] ?? null);
+
+        $styled = CitationCslProcessor::fromItems([$item])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="author-type"/>
+        <text variable="container-author-type"/>
+        <text variable="name-addon"/>
+        <names variable="container-author"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="author-type"/>
+      <text variable="container-author-type"/>
+      <text variable="name-addon"/>
+      <names variable="container-author"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $t->same(
+            '[Roe | compiler | source volume author | Reviewed imported source names | Smith and Curator]',
+            $styled->renderCitationCluster([
+                new AstNode('citation', ['id' => 'typed-name-handoff', 'text' => '[@typed-name-handoff]']),
+            ])
+        );
+        $t->same(
+            'Typed Name Chapter :: compiler :: source volume author :: Reviewed imported source names :: Smith, Ada; Curator, Eli',
+            $styled->renderBibliographyEntry('typed-name-handoff')
+        );
+
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Typed source [Roe | compiler | source volume author | Reviewed imported source names | Smith and Curator] preserves author-role qualifiers.</p>', $blocks);
+        $t->contains('<dt>Roe 2026</dt><dd>Typed Name Chapter :: compiler :: source volume author :: Reviewed imported source names :: Smith, Ada; Curator, Eli</dd>', $blocks);
+    },
     'carries biblatex legal and patent authority metadata in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @patent{bounded-patent,
@@ -1956,6 +2038,114 @@ XML);
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Legacy title family [Ng | Migration Source Corpus: Archive Desk | source addendum | RV | Part Ledger: Field Notes | Special Issue: Source Reports | editorial packet; Roe | Compact Main Text | Alpha Compact Part | Compact Issue] keeps imported title metadata visible.</p>', $blocks);
         $t->contains('<dt>Ng 2026</dt><dd>Source Chapter :: Migration Handbook :: Migration Source Corpus: Archive Desk :: source addendum :: Review Volume: Appendix :: RV :: Part Ledger: Field Notes :: Special Issue: Source Reports :: editorial packet</dd>', $blocks);
+    },
+    'carries biblatex subtitle family variables in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@incollection{subtitle-family-source,
+  author           = {Ng, Nia},
+  title            = {Source Chapter},
+  subtitle         = {Source Review Appendix},
+  booktitle        = {Migration Handbook},
+  booksubtitle     = {Import Desk Edition},
+  reviewedtitle    = {Source Manual},
+  reviewedsubtitle = {Field Appendix},
+  maintitle        = {Migration Source Corpus},
+  mainsubtitle     = {Reviewer Annex},
+  volumetitle      = {Review Volume},
+  volumesubtitle   = {Packet Appendix},
+  parttitle        = {Part Ledger},
+  partsubtitle     = {Field Notes},
+  issuetitle       = {Special Issue},
+  issuesubtitle    = {Source Reports},
+  origtitle        = {Manual de Migracion},
+  origsubtitle     = {Archivo de Fuentes},
+  date             = {2026}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $item = $items['subtitle-family-source'];
+
+        $t->same('Source Review Appendix', $item['subtitle']);
+        $t->same('Import Desk Edition', $item['container-subtitle']);
+        $t->same('Field Appendix', $item['reviewed-subtitle']);
+        $t->same('Reviewer Annex', $item['main-subtitle']);
+        $t->same('Packet Appendix', $item['volume-subtitle']);
+        $t->same('Field Notes', $item['part-subtitle']);
+        $t->same('Source Reports', $item['issue-subtitle']);
+        $t->same('Archivo de Fuentes', $item['original-subtitle']);
+        $t->same('Source Review Appendix', $item['rawBibtex']['fields']['subtitle']);
+        $t->same('Import Desk Edition', $item['rawBibtex']['fields']['booksubtitle']);
+
+        $document = (new MarkdownReader())->read('Subtitle family [@subtitle-family-source] keeps split title metadata.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $t->same(['subtitle-family-source'], $handoff['citedKeys']);
+        $t->same('Packet Appendix', $handoff['bibliography']->children[0]->attr('cslItem')['volume-subtitle'] ?? null);
+
+        $styled = CitationCslProcessor::fromBibtex($source)->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded BibLaTeX Subtitle Family Variable Review</title>
+    <id>https://example.test/styles/bounded-biblatex-subtitle-family-variable-review</id>
+    <updated>2026-07-01T00:00:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <text variable="subtitle"/>
+        <text variable="container-subtitle"/>
+        <text variable="reviewed-subtitle"/>
+        <text variable="main-subtitle"/>
+        <text variable="volume-subtitle"/>
+        <text variable="part-subtitle"/>
+        <text variable="issue-subtitle"/>
+        <text variable="original-subtitle"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="subtitle"/>
+      <text variable="container-title"/>
+      <text variable="container-subtitle"/>
+      <text variable="reviewed-title"/>
+      <text variable="reviewed-subtitle"/>
+      <text variable="main-title"/>
+      <text variable="main-subtitle"/>
+      <text variable="volume-title"/>
+      <text variable="volume-subtitle"/>
+      <text variable="part-title"/>
+      <text variable="part-subtitle"/>
+      <text variable="issue-title"/>
+      <text variable="issue-subtitle"/>
+      <text variable="original-title"/>
+      <text variable="original-subtitle"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $normalized = $styled->item('subtitle-family-source');
+        $t->same('Source Review Appendix', $normalized['subtitle'] ?? null);
+        $t->same('Import Desk Edition', $normalized['containerSubtitle'] ?? null);
+        $t->same('Field Appendix', $normalized['reviewedSubtitle'] ?? null);
+        $t->same('Reviewer Annex', $normalized['mainSubtitle'] ?? null);
+        $t->same('Packet Appendix', $normalized['volumeSubtitle'] ?? null);
+        $t->same('Field Notes', $normalized['partSubtitle'] ?? null);
+        $t->same('Source Reports', $normalized['issueSubtitle'] ?? null);
+        $t->same('Archivo de Fuentes', $normalized['originalSubtitle'] ?? null);
+
+        $t->same('[Source Review Appendix | Import Desk Edition | Field Appendix | Reviewer Annex | Packet Appendix | Field Notes | Source Reports | Archivo de Fuentes]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'subtitle-family-source', 'text' => '[@subtitle-family-source]']),
+        ]));
+        $t->same('Source Chapter: Source Review Appendix :: Source Review Appendix :: Migration Handbook: Import Desk Edition :: Import Desk Edition :: Source Manual: Field Appendix :: Field Appendix :: Migration Source Corpus: Reviewer Annex :: Reviewer Annex :: Review Volume: Packet Appendix :: Packet Appendix :: Part Ledger: Field Notes :: Field Notes :: Special Issue: Source Reports :: Source Reports :: Manual de Migracion: Archivo de Fuentes :: Archivo de Fuentes', $styled->renderBibliographyEntry('subtitle-family-source'));
+
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Subtitle family [Source Review Appendix | Import Desk Edition | Field Appendix | Reviewer Annex | Packet Appendix | Field Notes | Source Reports | Archivo de Fuentes] keeps split title metadata.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Source Chapter: Source Review Appendix :: Source Review Appendix :: Migration Handbook: Import Desk Edition :: Import Desk Edition :: Source Manual: Field Appendix :: Field Appendix :: Migration Source Corpus: Reviewer Annex :: Reviewer Annex :: Review Volume: Packet Appendix :: Packet Appendix :: Part Ledger: Field Notes :: Field Notes :: Special Issue: Source Reports :: Source Reports :: Manual de Migracion: Archivo de Fuentes :: Archivo de Fuentes</dd>', $blocks);
     },
     'carries biblatex status taxonomy aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
@@ -3285,6 +3475,104 @@ XML);
         $t->contains('<dt>Smith 2026</dt><dd>Legacy Review Context :: skipbib=false, useprefix=true, maxnames=3 :: variant=mexican; hyphenation=traditional :: refsection 2; refsegment migration-import :: title default: title verified; title source: OCR headline normalized; url source: archived before WordPress import :: feminine</dd>', $blocks);
         $t->true(!str_contains($blocks, '<dt>Desk 2025</dt>'), 'skipbib=true legacy BibLaTeX entries must stay out of appended bibliographies');
     },
+    'carries legacy biblatex disambiguation hash metadata in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@book{legacy-disambiguation,
+  author          = {Smith, Ada and Roe, Pat},
+  title           = {Legacy Disambiguation Packet},
+  date            = {2026},
+  pageref         = {12, 18},
+  namehash        = {nh-smith-roe},
+  fullhash        = {fh-smith-roe},
+  bibnamehash     = {bnh-smith-roe},
+  labelnamehash   = {lnh-smith-roe},
+  authorfullhash  = {afh-smith-roe},
+  editornamehash  = {eh-review-desk},
+  sortnamehash    = {snh-smith-roe}
+}
+
+@report{legacy-hyphen-disambiguation,
+  author           = {Desk, Review},
+  title            = {Hyphen Hash Packet},
+  date             = {2025},
+  page-ref         = {appendix b},
+  name-hash        = {nh-desk},
+  full-hash        = {fh-desk},
+  author-name-hash = {anh-desk}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $primary = $items['legacy-disambiguation'];
+        $hyphen = $items['legacy-hyphen-disambiguation'];
+        $summary = 'pageref=12, 18; namehash=nh-smith-roe; fullhash=fh-smith-roe; bibnamehash=bnh-smith-roe; labelnamehash=lnh-smith-roe; authornamehash=afh-smith-roe; editornamehash=eh-review-desk; sortnamehash=snh-smith-roe';
+
+        $t->same('12, 18', $primary['biblatex-page-ref']);
+        $t->same('nh-smith-roe', $primary['biblatex-name-hash']);
+        $t->same('fh-smith-roe', $primary['biblatex-full-name-hash']);
+        $t->same('bnh-smith-roe', $primary['biblatex-bib-name-hash']);
+        $t->same('lnh-smith-roe', $primary['biblatex-label-name-hash']);
+        $t->same('afh-smith-roe', $primary['biblatex-author-name-hash']);
+        $t->same('eh-review-desk', $primary['biblatex-editor-name-hash']);
+        $t->same('snh-smith-roe', $primary['biblatex-sort-name-hash']);
+        $t->same($summary, $primary['biblatex-disambiguation-summary']);
+        $t->same('appendix b', $hyphen['biblatex-page-ref']);
+        $t->same('nh-desk', $hyphen['biblatex-name-hash']);
+        $t->same('anh-desk', $hyphen['biblatex-author-name-hash']);
+        $t->true(array_key_exists('authorfullhash', $primary['rawBibtex']['fields']), 'Raw BibLaTeX authorfullhash field should be preserved');
+        $t->contains('BibLaTeX disambiguation: ' . $summary, $processor->renderBibliographyText($primary));
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Disambiguation Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-disambiguation-review</id>
+    <updated>2026-07-01T00:00:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="biblatex-disambiguation-summary"/>
+        <text variable="pageref"/>
+        <text variable="namehash"/>
+        <text variable="author-name-hash"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="biblatex-disambiguation-summary"/>
+      <text variable="editor-name-hash"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $normalized = $styled->item('legacy-disambiguation');
+        $t->same('Bounded Legacy BibLaTeX Disambiguation Review', $styled->cslStyleSummary()['title'] ?? null);
+        $t->same('12, 18', $normalized['biblatexPageRef'] ?? null);
+        $t->same('fh-smith-roe', $normalized['biblatexFullNameHash'] ?? null);
+        $t->same($summary, $normalized['biblatexDisambiguationSummary'] ?? null);
+        $t->same('[Legacy Disambiguation Packet | ' . $summary . ' | 12, 18 | nh-smith-roe | afh-smith-roe; Hyphen Hash Packet | pageref=appendix b; namehash=nh-desk; fullhash=fh-desk; authornamehash=anh-desk | appendix b | nh-desk | anh-desk]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-disambiguation', 'text' => '[@legacy-disambiguation]']),
+            new AstNode('citation', ['id' => 'legacy-hyphen-disambiguation', 'text' => '[@legacy-hyphen-disambiguation]']),
+        ]));
+        $t->same('Legacy Disambiguation Packet :: ' . $summary . ' :: eh-review-desk', $styled->renderBibliographyEntry('legacy-disambiguation'));
+
+        $document = (new MarkdownReader())->read('Disambiguation review [@legacy-disambiguation; @legacy-hyphen-disambiguation] stays visible.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->same(['legacy-disambiguation', 'legacy-hyphen-disambiguation'], $handoff['citedKeys']);
+        $t->same('nh-smith-roe', $handoff['items'][0]['biblatex-name-hash'] ?? null);
+        $t->same('fh-smith-roe', $handoff['bibliography']->children[0]->attr('cslItem')['biblatex-full-name-hash'] ?? null);
+        $t->contains('<p>Disambiguation review [Legacy Disambiguation Packet | ' . $summary . ' | 12, 18 | nh-smith-roe | afh-smith-roe; Hyphen Hash Packet | pageref=appendix b; namehash=nh-desk; fullhash=fh-desk; authornamehash=anh-desk | appendix b | nh-desk | anh-desk] stays visible.</p>', $blocks);
+        $t->contains('<dt>Smith and Roe 2026</dt><dd>Legacy Disambiguation Packet :: ' . $summary . ' :: eh-review-desk</dd>', $blocks);
+    },
     'carries standalone biblatex entry option fields in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @book{legacy-standalone-options,
@@ -4195,6 +4483,72 @@ XML);
         $t->contains('Date addendum: first source capture', $blocks);
         $t->contains('Event date addendum: hybrid review window', $blocks);
     },
+    'carries biblatex addendum separately from note in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@online{legacy-addendum-source,
+  author       = {Ng, Nia},
+  title        = {Legacy Addendum Packet},
+  date         = {2026},
+  howpublished = {Archived review packet},
+  note         = {Needs source-check before import},
+  addendum     = {Queue imported by handoff},
+  url          = {https://example.test/legacy-addendum}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $item = $items['legacy-addendum-source'];
+
+        $t->same('Archived review packet', $item['medium']);
+        $t->same('Needs source-check before import', $item['note']);
+        $t->same('Queue imported by handoff', $item['addendum']);
+        $t->same('Queue imported by handoff', $item['rawBibtex']['fields']['addendum']);
+        $t->same(
+            'Nia Ng. Legacy Addendum Packet. 2026. Medium: Archived review packet. Addendum: Queue imported by handoff. https://example.test/legacy-addendum.',
+            $processor->renderBibliographyText($item)
+        );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="note"/>
+        <text variable="addendum"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="note"/>
+      <text variable="addendum"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledItem = $styled->item('legacy-addendum-source');
+        $t->same('Needs source-check before import', $styledItem['note'] ?? null);
+        $t->same('Queue imported by handoff', $styledItem['addendum'] ?? null);
+        $t->same('[Legacy Addendum Packet | Needs source-check before import | Queue imported by handoff]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-addendum-source', 'text' => '[@legacy-addendum-source]']),
+        ]));
+        $t->same('Legacy Addendum Packet :: Needs source-check before import :: Queue imported by handoff', $styled->renderBibliographyEntry('legacy-addendum-source'));
+
+        $document = (new MarkdownReader())->read('Legacy addendum source [@legacy-addendum-source] keeps note metadata separate.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->same(['legacy-addendum-source'], $handoff['citedKeys']);
+        $t->same('Queue imported by handoff', $handoff['items'][0]['addendum'] ?? null);
+        $t->same('Queue imported by handoff', $handoff['bibliography']->children[0]->attr('cslItem')['addendum'] ?? null);
+        $t->contains('<p>Legacy addendum source [Legacy Addendum Packet | Needs source-check before import | Queue imported by handoff] keeps note metadata separate.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Legacy Addendum Packet :: Needs source-check before import :: Queue imported by handoff</dd>', $blocks);
+    },
     'carries biblatex url label aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @online{described-url,
@@ -4465,6 +4819,85 @@ XML);
         $t->contains('Available date: 2025-04-03', $blocks);
         $t->contains('Submitted date: 2024-03', $blocks);
         $t->contains('Label date: 2023', $blocks);
+    },
+    'carries legacy biblatex split availability submitted and label date ranges in csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@report{legacy-split-date-handoff,
+  author              = {Smith, Ada},
+  title               = {Legacy Split Date Handoff Packet},
+  year                = {2026},
+  month               = {6},
+  endyear             = {2027},
+  endmonth            = {7},
+  available-year      = {2026},
+  available-month     = {6},
+  available-day       = {15},
+  available-end-year  = {2026},
+  available-end-month = {7},
+  available-end-day   = {1},
+  submittedyear       = {2026},
+  submittedmonth      = {5},
+  submittedendyear    = {2026},
+  submittedendmonth   = {6},
+  label-year          = {2025},
+  label-end-year      = {2026}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $item = $items['legacy-split-date-handoff'];
+
+        $t->same([[2026, 6], [2027, 7]], $item['issued']['date-parts']);
+        $t->same([[2026, 6, 15], [2026, 7, 1]], $item['available-date']['date-parts']);
+        $t->same([[2026, 5], [2026, 6]], $item['submitted']['date-parts']);
+        $t->same([[2025], [2026]], $item['label-date']['date-parts']);
+        $t->same(
+            'Ada Smith. Legacy Split Date Handoff Packet. 2026. Available date: 2026-06-15/2026-07-01. Submitted date: 2026-05/2026-06. Label date: 2025/2026.',
+            $processor->renderBibliographyText($item)
+        );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <date variable="issued"/>
+        <date variable="available-date"/>
+        <date variable="submitted"/>
+        <date variable="label-date"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <date variable="issued"/>
+      <date variable="available-date"/>
+      <date variable="submitted"/>
+      <date variable="label-date"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $t->same(
+            '[Legacy Split Date Handoff Packet | 2026-06/2027-07 | 2026-06-15/2026-07-01 | 2026-05/2026-06 | 2025/2026]',
+            $styled->renderCitationCluster([
+                new AstNode('citation', ['id' => 'legacy-split-date-handoff', 'text' => '[@legacy-split-date-handoff]']),
+            ])
+        );
+        $t->same(
+            'Legacy Split Date Handoff Packet :: 2026-06/2027-07 :: 2026-06-15/2026-07-01 :: 2026-05/2026-06 :: 2025/2026',
+            $styled->renderBibliographyEntry('legacy-split-date-handoff')
+        );
+
+        $document = (new MarkdownReader())->read('Legacy split date handoff cites [@legacy-split-date-handoff].');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Legacy split date handoff cites [Legacy Split Date Handoff Packet | 2026-06/2027-07 | 2026-06-15/2026-07-01 | 2026-05/2026-06 | 2025/2026].</p>', $blocks);
+        $t->contains('<dt>Smith 2026/2027</dt><dd>Legacy Split Date Handoff Packet :: 2026-06/2027-07 :: 2026-06-15/2026-07-01 :: 2026-05/2026-06 :: 2025/2026</dd>', $blocks);
     },
     'carries legacy biblatex date markers times seasons and eras in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
