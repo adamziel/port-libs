@@ -5309,6 +5309,8 @@ XML);
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdEmptyData" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData" Target=""/>
   <Relationship Id="rIdEmptyLayout" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramLayout" Target=""/>
+  <Relationship Id="rIdNestedData" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData" Target="../diagrams/nested-data.xml"/>
+  <Relationship Id="rIdNestedLayout" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramLayout" Target="../diagrams/nested-layout.xml"/>
 </Relationships>
 XML);
     $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
@@ -5358,6 +5360,10 @@ XML);
       <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"><dgm:relIds r:dm="rIdEmptyData" r:lo="rIdEmptyLayout"/></a:graphicData></a:graphic>
     </p:graphicFrame>
     <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="20" name="Nested RelIds SmartArt"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"><dgm:wrapper><dgm:relIds r:dm="rIdNestedData" r:lo="rIdNestedLayout"/></dgm:wrapper></a:graphicData></a:graphic>
+    </p:graphicFrame>
+    <p:graphicFrame>
       <p:nvGraphicFramePr><p:cNvPr id="14" name="Chart Diagram URI"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
       <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart-diagram"/></a:graphic>
     </p:graphicFrame>
@@ -5373,6 +5379,25 @@ XML);
     </p:graphicFrame>
   </p:spTree></p:cSld>
 </p:sld>
+XML);
+    $zip->addFromString('ppt/diagrams/nested-data.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<dgm:dataModel xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"
+               xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <dgm:ptLst>
+    <dgm:pt modelId="parent"><dgm:t><a:p><a:r><a:t>Nested RelIds parent</a:t></a:r></a:p></dgm:t></dgm:pt>
+    <dgm:pt modelId="child"><dgm:t><a:p><a:r><a:t>Nested RelIds child</a:t></a:r></a:p></dgm:t></dgm:pt>
+  </dgm:ptLst>
+  <dgm:cxnLst>
+    <dgm:cxn srcId="parent" destId="child"/>
+  </dgm:cxnLst>
+</dgm:dataModel>
+XML);
+    $zip->addFromString('ppt/diagrams/nested-layout.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<dgm:layoutDef xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" uniqueId="urn:example/layout/nested-relids">
+  <dgm:title val="nested-relids"/>
+</dgm:layoutDef>
 XML);
     $zip->close();
 
@@ -9813,7 +9838,7 @@ return [
         ] as $expected) {
             $t->same(true, in_array($expected, $texts, true));
         }
-        $t->same(2, count(array_filter($texts, static fn (string $text): bool => $text === '[Graphic: diagram-no-relIds]')));
+        $t->same(3, count(array_filter($texts, static fn (string $text): bool => $text === '[Graphic: diagram-no-relIds]')));
 
         $t->contains('Para [ Str "[Graphic:" , Space , Str "no-uri]" ]', $native);
         $t->contains('Para [ Str "[Graphic:" , Space , Str "other:" , Space , Str "]" ]', $native);
@@ -9826,6 +9851,8 @@ return [
         $t->true(!str_contains($native, 'chart-diagram'), 'Graphic URIs containing diagram should follow the upstream diagram branch before chart handling');
         $t->true(!str_contains($native, 'table-diagram'), 'Graphic URIs containing table should follow the upstream table branch before diagram handling');
         $t->true(!str_contains($native, 'Uppercase URI table cell'), 'Graphic URI detection is case-sensitive like upstream and should not parse uppercase TABLE as a table');
+        $t->true(!str_contains($native, 'Nested RelIds parent'), 'Nested SmartArt relIds should not be discovered from descendants like upstream');
+        $t->true(!str_contains($native, 'Nested RelIds child'), 'Nested SmartArt relIds children should stay hidden when relIds are not direct graphicData children');
 
         $placeholderParagraphs = array_values(array_filter(
             $paragraphs,
@@ -9833,7 +9860,7 @@ return [
                 || str_starts_with((string) $paragraph->attr('text'), '[Diagram parse error:')
         ));
 
-        $t->same(9, count($placeholderParagraphs));
+        $t->same(10, count($placeholderParagraphs));
         $t->same('No URI Graphic', $placeholderParagraphs[0]->attr('pptxShape')['name'] ?? null);
         $t->same('Empty URI Graphic', $placeholderParagraphs[1]->attr('pptxShape')['name'] ?? null);
         $t->same('Diagram No RelIds', $placeholderParagraphs[2]->attr('pptxShape')['name'] ?? null);
@@ -9841,8 +9868,9 @@ return [
         $t->same('Diagram Unknown Rel', $placeholderParagraphs[4]->attr('pptxShape')['name'] ?? null);
         $t->same('Wrong Namespace RelIds', $placeholderParagraphs[5]->attr('pptxShape')['name'] ?? null);
         $t->same('Empty Target SmartArt', $placeholderParagraphs[6]->attr('pptxShape')['name'] ?? null);
-        $t->same('Chart Diagram URI', $placeholderParagraphs[7]->attr('pptxShape')['name'] ?? null);
-        $t->same('Uppercase Table URI', $placeholderParagraphs[8]->attr('pptxShape')['name'] ?? null);
+        $t->same('Nested RelIds SmartArt', $placeholderParagraphs[7]->attr('pptxShape')['name'] ?? null);
+        $t->same('Chart Diagram URI', $placeholderParagraphs[8]->attr('pptxShape')['name'] ?? null);
+        $t->same('Uppercase Table URI', $placeholderParagraphs[9]->attr('pptxShape')['name'] ?? null);
         $t->true(!str_contains($native, 'Missing GraphicData'), 'Graphic frames without graphicData should be skipped like upstream');
         $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
     },
