@@ -272,6 +272,42 @@ return [
         $t->same(false, $summary['directReaderParityClaimed']);
         $t->same(false, $summary['directWriterParityClaimed']);
     },
+    'builds a compact wiki format review packet from registry status' => static function (TestRunner $t): void {
+        $packet = PandocFormatRegistry::wikiFormatReviewPacket();
+
+        $t->same(PandocFormatRegistry::wikiInputFormats(), $packet['inputFormats']);
+        $t->same(PandocFormatRegistry::wikiOutputFormats(), $packet['outputFormats']);
+        $t->same(['creole', 'dokuwiki', 'jira', 'mediawiki', 'tikiwiki', 'twiki', 'vimwiki', 'xwiki', 'zimwiki'], $packet['uniqueFormats']);
+        $t->same(['dokuwiki', 'jira', 'mediawiki'], $packet['directionBuckets']['input-output']);
+        $t->same(['creole', 'tikiwiki', 'twiki', 'vimwiki'], $packet['directionBuckets']['input-only']);
+        $t->same(['xwiki', 'zimwiki'], $packet['directionBuckets']['output-only']);
+        $t->same(['dokuwiki' => 'dokuwiki', 'wiki' => 'mediawiki'], $packet['extensionInference']);
+
+        $t->same(['creole', 'dokuwiki', 'mediawiki', 'tikiwiki', 'twiki', 'vimwiki'], $packet['unsupportedInputs']);
+        $t->same(['dokuwiki', 'jira', 'mediawiki', 'xwiki', 'zimwiki'], $packet['unsupportedOutputs']);
+        $t->same(['jira'], $packet['partialInputs']);
+        $t->same([], $packet['partialOutputs']);
+        $t->same(false, $packet['directReaderParityClaimed']);
+        $t->same(false, $packet['directWriterParityClaimed']);
+
+        $t->same('Jira wiki markup', $packet['formats']['jira']['label']);
+        $t->same('input-output', $packet['formats']['jira']['direction']);
+        $t->same('partial', $packet['formats']['jira']['inputStatus']);
+        $t->same(JiraReader::class, $packet['formats']['jira']['inputImplementation']);
+        $t->same('unsupported', $packet['formats']['jira']['outputStatus']);
+        $t->same('', $packet['formats']['jira']['outputImplementation']);
+        $t->same(false, $packet['formats']['jira']['directReaderParityClaimed']);
+        $t->same(false, $packet['formats']['jira']['directWriterParityClaimed']);
+
+        $t->same(['wiki'], $packet['formats']['mediawiki']['extensionInferences']);
+        $t->same('unsupported', $packet['formats']['mediawiki']['inputStatus']);
+        $t->same('unsupported', $packet['formats']['mediawiki']['outputStatus']);
+        $t->same('', $packet['formats']['mediawiki']['inputImplementation']);
+        $t->same('', $packet['formats']['mediawiki']['outputImplementation']);
+        $t->same('not-applicable', $packet['formats']['xwiki']['inputStatus']);
+        $t->same('unsupported', $packet['formats']['xwiki']['outputStatus']);
+        $t->same([], $packet['formats']['vimwiki']['extensionInferences']);
+    },
     'tracks roff manual reader writer and extension inference registry metadata' => static function (TestRunner $t): void {
         $t->same(['man', 'mdoc'], PandocFormatRegistry::roffManualInputFormats());
         $t->same(['man', 'ms'], PandocFormatRegistry::roffManualOutputFormats());
