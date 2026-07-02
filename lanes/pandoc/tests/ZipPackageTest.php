@@ -1320,6 +1320,16 @@ return [
             'nameLengthBucketSummaryCount' => $manifest['nameLengthBucketSummaryCount'],
             'nameLengthBuckets' => $manifest['nameLengthBuckets'],
             'nameLengthBucketSummaries' => $manifest['nameLengthBucketSummaries'],
+            'nameEncodingSummaryCount' => $manifest['nameEncodingSummaryCount'],
+            'nameEncodings' => $manifest['nameEncodings'],
+            'nameEncodingCounts' => $manifest['nameEncodingCounts'],
+            'nameEncodingSummaries' => $manifest['nameEncodingSummaries'],
+            'rawNameProvenanceEntryCount' => $manifest['rawNameProvenanceEntryCount'],
+            'legacyEncodedNameEntryCount' => $manifest['legacyEncodedNameEntryCount'],
+            'unicodePathExtraEntryCount' => $manifest['unicodePathExtraEntryCount'],
+            'decodedNameDiffersFromRawNameEntryCount' => $manifest['decodedNameDiffersFromRawNameEntryCount'],
+            'hasRawNameProvenanceEntries' => $manifest['hasRawNameProvenanceEntries'],
+            'rawNameProvenanceEntries' => $manifest['rawNameProvenanceEntries'],
             'centralDirectoryRecordBytes' => array_sum(array_column($expectedEntries, 'centralDirectoryRecordBytes')),
             'centralDirectoryFixedHeaderBytes' => 46 * count($expectedEntries),
             'centralDirectoryVariableFieldBytes' => strlen('OEBPS/content.xhtml')
@@ -3375,6 +3385,16 @@ return [
             'nameLengthBucketSummaryCount' => $manifest['nameLengthBucketSummaryCount'],
             'nameLengthBuckets' => $manifest['nameLengthBuckets'],
             'nameLengthBucketSummaries' => $manifest['nameLengthBucketSummaries'],
+            'nameEncodingSummaryCount' => $manifest['nameEncodingSummaryCount'],
+            'nameEncodings' => $manifest['nameEncodings'],
+            'nameEncodingCounts' => $manifest['nameEncodingCounts'],
+            'nameEncodingSummaries' => $manifest['nameEncodingSummaries'],
+            'rawNameProvenanceEntryCount' => $manifest['rawNameProvenanceEntryCount'],
+            'legacyEncodedNameEntryCount' => $manifest['legacyEncodedNameEntryCount'],
+            'unicodePathExtraEntryCount' => $manifest['unicodePathExtraEntryCount'],
+            'decodedNameDiffersFromRawNameEntryCount' => $manifest['decodedNameDiffersFromRawNameEntryCount'],
+            'hasRawNameProvenanceEntries' => $manifest['hasRawNameProvenanceEntries'],
+            'rawNameProvenanceEntries' => $manifest['rawNameProvenanceEntries'],
             'centralDirectoryRecordBytes' => $manifest['centralDirectoryRecordBytes'],
             'centralDirectoryFixedHeaderBytes' => $manifest['centralDirectoryFixedHeaderBytes'],
             'centralDirectoryVariableFieldBytes' => $manifest['centralDirectoryVariableFieldBytes'],
@@ -16376,6 +16396,102 @@ return [
         $t->same($summary, $strictSummary['size']);
         $t->same(true, $rawStrict['canInstantiate']);
         $t->same($summary, $rawStrict['strictImport']['size']);
+    },
+
+    'summarizes zip package manifest name encoding provenance for shared package ingestion' => static function (TestRunner $t) use ($buildZipPackage, $buildUnicodeExtra): void {
+        $unicodeRawName = 'word/media/review-image.bin';
+        $unicodeName = "word/media/review-\u{2603}.png";
+        $unicodePathExtra = $buildUnicodeExtra(0x7075, $unicodeRawName, $unicodeName);
+        $cp437RawName = "word/media/caf\x82.png";
+        $cp437Name = "word/media/caf\u{00e9}.png";
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:body><w:p>Name encoding review</w:p></w:body></w:document>',
+                'method' => 8,
+            ],
+            [
+                'name' => $unicodeRawName,
+                'data' => "unicode path media placeholder\n",
+                'method' => 0,
+                'flags' => 0,
+                'localExtra' => $unicodePathExtra,
+                'centralExtra' => $unicodePathExtra,
+            ],
+            [
+                'name' => $cp437RawName,
+                'data' => "legacy encoded media placeholder\n",
+                'method' => 0,
+                'flags' => 0,
+            ],
+        ]));
+        $manifest = $package->packageManifestPreflight();
+
+        $t->same(3, $manifest['entryCount']);
+        $t->same(3, $manifest['nameEncodingSummaryCount']);
+        $t->same(['cp437', 'info-zip-unicode-path', 'utf-8'], $manifest['nameEncodings']);
+        $t->same([
+            'cp437' => 1,
+            'info-zip-unicode-path' => 1,
+            'utf-8' => 1,
+        ], $manifest['nameEncodingCounts']);
+        $t->same([
+            [
+                'nameEncoding' => 'cp437',
+                'entryCount' => 1,
+                'rawNameProvenanceEntryCount' => 1,
+                'decodedNameDiffersFromRawNameEntryCount' => 1,
+                'legacyEncodedNameEntryCount' => 1,
+                'unicodePathExtraEntryCount' => 0,
+                'entryNames' => [$cp437Name],
+            ],
+            [
+                'nameEncoding' => 'info-zip-unicode-path',
+                'entryCount' => 1,
+                'rawNameProvenanceEntryCount' => 1,
+                'decodedNameDiffersFromRawNameEntryCount' => 1,
+                'legacyEncodedNameEntryCount' => 0,
+                'unicodePathExtraEntryCount' => 1,
+                'entryNames' => [$unicodeName],
+            ],
+            [
+                'nameEncoding' => 'utf-8',
+                'entryCount' => 1,
+                'rawNameProvenanceEntryCount' => 0,
+                'decodedNameDiffersFromRawNameEntryCount' => 0,
+                'legacyEncodedNameEntryCount' => 0,
+                'unicodePathExtraEntryCount' => 0,
+                'entryNames' => ['word/document.xml'],
+            ],
+        ], $manifest['nameEncodingSummaries']);
+        $t->same(2, $manifest['rawNameProvenanceEntryCount']);
+        $t->same(1, $manifest['legacyEncodedNameEntryCount']);
+        $t->same(1, $manifest['unicodePathExtraEntryCount']);
+        $t->same(2, $manifest['decodedNameDiffersFromRawNameEntryCount']);
+        $t->same(true, $manifest['hasRawNameProvenanceEntries']);
+        $t->same([
+            [
+                'name' => $unicodeName,
+                'rawNameHex' => bin2hex($unicodeRawName),
+                'nameEncoding' => 'info-zip-unicode-path',
+                'rawNameMatchesDecodedName' => false,
+                'usesLegacyNameEncoding' => false,
+                'usesUnicodePathExtraField' => true,
+                'hasRawNameProvenance' => true,
+                'issues' => ['raw-name-decoded-value-differs', 'raw-name-info-zip-unicode-path'],
+            ],
+            [
+                'name' => $cp437Name,
+                'rawNameHex' => bin2hex($cp437RawName),
+                'nameEncoding' => 'cp437',
+                'rawNameMatchesDecodedName' => false,
+                'usesLegacyNameEncoding' => true,
+                'usesUnicodePathExtraField' => false,
+                'hasRawNameProvenance' => true,
+                'issues' => ['raw-name-decoded-value-differs', 'raw-name-legacy-encoding'],
+            ],
+        ], $manifest['rawNameProvenanceEntries']);
     },
 
     'preflights central directory byte accounting before package instantiation' => static function (TestRunner $t) use ($buildZipPackage): void {

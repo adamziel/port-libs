@@ -15819,6 +15819,7 @@ final class ZipPackage
             static fn (array $summary): string => (string) $summary['nameLengthBucket'],
             $nameLengthBucketSummaries
         );
+        $nameEncodingReview = self::packageManifestNameEncodingReview($this->rawNamePreflight()['entries']);
         $expansionRatio = self::expansionRatio($uncompressedBytes, $compressedBytes);
         $manifestPayload = [
             'manifestVersion' => 'zip-package-manifest-v1',
@@ -15901,6 +15902,16 @@ final class ZipPackage
             'nameLengthBucketSummaryCount' => count($nameLengthBucketSummaries),
             'nameLengthBuckets' => $nameLengthBuckets,
             'nameLengthBucketSummaries' => $nameLengthBucketSummaries,
+            'nameEncodingSummaryCount' => $nameEncodingReview['nameEncodingSummaryCount'],
+            'nameEncodings' => $nameEncodingReview['nameEncodings'],
+            'nameEncodingCounts' => $nameEncodingReview['nameEncodingCounts'],
+            'nameEncodingSummaries' => $nameEncodingReview['nameEncodingSummaries'],
+            'rawNameProvenanceEntryCount' => $nameEncodingReview['rawNameProvenanceEntryCount'],
+            'legacyEncodedNameEntryCount' => $nameEncodingReview['legacyEncodedNameEntryCount'],
+            'unicodePathExtraEntryCount' => $nameEncodingReview['unicodePathExtraEntryCount'],
+            'decodedNameDiffersFromRawNameEntryCount' => $nameEncodingReview['decodedNameDiffersFromRawNameEntryCount'],
+            'hasRawNameProvenanceEntries' => $nameEncodingReview['hasRawNameProvenanceEntries'],
+            'rawNameProvenanceEntries' => $nameEncodingReview['rawNameProvenanceEntries'],
             'centralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
             'centralDirectoryFixedHeaderBytes' => $centralDirectoryFixedHeaderBytes,
             'centralDirectoryVariableFieldBytes' => $centralDirectoryVariableFieldBytes,
@@ -16034,6 +16045,16 @@ final class ZipPackage
             'nameLengthBucketSummaryCount' => count($nameLengthBucketSummaries),
             'nameLengthBuckets' => $nameLengthBuckets,
             'nameLengthBucketSummaries' => $nameLengthBucketSummaries,
+            'nameEncodingSummaryCount' => $nameEncodingReview['nameEncodingSummaryCount'],
+            'nameEncodings' => $nameEncodingReview['nameEncodings'],
+            'nameEncodingCounts' => $nameEncodingReview['nameEncodingCounts'],
+            'nameEncodingSummaries' => $nameEncodingReview['nameEncodingSummaries'],
+            'rawNameProvenanceEntryCount' => $nameEncodingReview['rawNameProvenanceEntryCount'],
+            'legacyEncodedNameEntryCount' => $nameEncodingReview['legacyEncodedNameEntryCount'],
+            'unicodePathExtraEntryCount' => $nameEncodingReview['unicodePathExtraEntryCount'],
+            'decodedNameDiffersFromRawNameEntryCount' => $nameEncodingReview['decodedNameDiffersFromRawNameEntryCount'],
+            'hasRawNameProvenanceEntries' => $nameEncodingReview['hasRawNameProvenanceEntries'],
+            'rawNameProvenanceEntries' => $nameEncodingReview['rawNameProvenanceEntries'],
             'localHeaderBytes' => $localHeaderBytes,
             'localHeaderFixedHeaderBytes' => $localHeaderFixedHeaderBytes,
             'localHeaderFixedFieldEntryCount' => count($localHeaderFixedFieldEntries),
@@ -16333,6 +16354,95 @@ final class ZipPackage
             'issueCount' => count($issues),
             'issues' => $issues,
             'entries' => $entrySummaries,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rawNameEntries
+     * @return array<string, mixed>
+     */
+    private static function packageManifestNameEncodingReview(array $rawNameEntries): array
+    {
+        $summariesByEncoding = [];
+        $rawNameProvenanceEntries = [];
+        $legacyEncodedNameEntryCount = 0;
+        $unicodePathExtraEntryCount = 0;
+        $decodedNameDiffersFromRawNameEntryCount = 0;
+
+        foreach ($rawNameEntries as $entry) {
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            $nameEncoding = is_string($entry['nameEncoding'] ?? null) ? $entry['nameEncoding'] : 'unknown';
+            $rawNameHex = is_string($entry['rawNameHex'] ?? null) ? $entry['rawNameHex'] : '';
+            $rawNameMatchesDecodedName = ($entry['rawNameMatchesDecodedName'] ?? false) === true;
+            $usesLegacyNameEncoding = ($entry['usesLegacyNameEncoding'] ?? false) === true;
+            $usesUnicodePathExtraField = ($entry['usesUnicodePathExtraField'] ?? false) === true;
+            $hasRawNameProvenance = ($entry['hasRawNameProvenance'] ?? false) === true;
+            $issues = array_values(array_filter($entry['issues'] ?? [], 'is_string'));
+
+            if (!isset($summariesByEncoding[$nameEncoding])) {
+                $summariesByEncoding[$nameEncoding] = [
+                    'nameEncoding' => $nameEncoding,
+                    'entryCount' => 0,
+                    'rawNameProvenanceEntryCount' => 0,
+                    'decodedNameDiffersFromRawNameEntryCount' => 0,
+                    'legacyEncodedNameEntryCount' => 0,
+                    'unicodePathExtraEntryCount' => 0,
+                    'entryNames' => [],
+                ];
+            }
+
+            ++$summariesByEncoding[$nameEncoding]['entryCount'];
+            $summariesByEncoding[$nameEncoding]['entryNames'][] = $name;
+
+            if (!$rawNameMatchesDecodedName) {
+                ++$decodedNameDiffersFromRawNameEntryCount;
+                ++$summariesByEncoding[$nameEncoding]['decodedNameDiffersFromRawNameEntryCount'];
+            }
+            if ($usesLegacyNameEncoding) {
+                ++$legacyEncodedNameEntryCount;
+                ++$summariesByEncoding[$nameEncoding]['legacyEncodedNameEntryCount'];
+            }
+            if ($usesUnicodePathExtraField) {
+                ++$unicodePathExtraEntryCount;
+                ++$summariesByEncoding[$nameEncoding]['unicodePathExtraEntryCount'];
+            }
+            if ($hasRawNameProvenance) {
+                ++$summariesByEncoding[$nameEncoding]['rawNameProvenanceEntryCount'];
+                $rawNameProvenanceEntries[] = [
+                    'name' => $name,
+                    'rawNameHex' => $rawNameHex,
+                    'nameEncoding' => $nameEncoding,
+                    'rawNameMatchesDecodedName' => $rawNameMatchesDecodedName,
+                    'usesLegacyNameEncoding' => $usesLegacyNameEncoding,
+                    'usesUnicodePathExtraField' => $usesUnicodePathExtraField,
+                    'hasRawNameProvenance' => $hasRawNameProvenance,
+                    'issues' => $issues,
+                ];
+            }
+        }
+
+        ksort($summariesByEncoding, SORT_STRING);
+        $nameEncodingSummaries = array_values($summariesByEncoding);
+        $nameEncodings = array_map(
+            static fn (array $summary): string => (string) $summary['nameEncoding'],
+            $nameEncodingSummaries
+        );
+        $nameEncodingCounts = [];
+        foreach ($nameEncodingSummaries as $summary) {
+            $nameEncodingCounts[(string) $summary['nameEncoding']] = (int) $summary['entryCount'];
+        }
+
+        return [
+            'nameEncodingSummaryCount' => count($nameEncodingSummaries),
+            'nameEncodings' => $nameEncodings,
+            'nameEncodingCounts' => $nameEncodingCounts,
+            'nameEncodingSummaries' => $nameEncodingSummaries,
+            'rawNameProvenanceEntryCount' => count($rawNameProvenanceEntries),
+            'legacyEncodedNameEntryCount' => $legacyEncodedNameEntryCount,
+            'unicodePathExtraEntryCount' => $unicodePathExtraEntryCount,
+            'decodedNameDiffersFromRawNameEntryCount' => $decodedNameDiffersFromRawNameEntryCount,
+            'hasRawNameProvenanceEntries' => $rawNameProvenanceEntries !== [],
+            'rawNameProvenanceEntries' => $rawNameProvenanceEntries,
         ];
     }
 
