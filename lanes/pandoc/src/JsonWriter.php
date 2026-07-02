@@ -189,6 +189,7 @@ final class JsonWriter
                 $this->inlineListData($node->children === [] ? $this->textInlines((string) $node->attr('text', '')) : $node->children),
             ]),
             'horizontal_rule' => $this->tagged('HorizontalRule'),
+            'null_block' => $this->tagged('Null'),
             'table' => $this->tableData($node),
             'figure' => $this->tagged('Figure', [$this->attrData($node), $this->captionData($node), $this->blockListData($this->figureBlocks($node))]),
             'div' => $this->tagged('Div', [$this->attrData($node), $this->blockListData($node->children)]),
