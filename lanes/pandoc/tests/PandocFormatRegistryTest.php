@@ -18,6 +18,7 @@ use PortLibs\Pandoc\JsonReader;
 use PortLibs\Pandoc\JsonWriter;
 use PortLibs\Pandoc\LatexWriter;
 use PortLibs\Pandoc\LegacyDocReader;
+use PortLibs\Pandoc\ManReader;
 use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\NativeReader;
@@ -161,6 +162,8 @@ return [
         $t->same(JsonReader::class, $support['json']['implementation']);
         $t->same('partial', $support['jira']['status']);
         $t->same(JiraReader::class, $support['jira']['implementation']);
+        $t->same('partial', $support['man']['status']);
+        $t->same(ManReader::class, $support['man']['implementation']);
         $t->same('partial', $support['csv']['status']);
         $t->same(DelimitedTextReader::class, $support['csv']['implementation']);
         $t->same('partial', $support['tsv']['status']);
@@ -181,7 +184,7 @@ return [
         $t->same(RtfReader::class, $support['rtf']['implementation']);
         $t->same('partial', $support['xlsx']['status']);
         $t->same(XlsxReader::class, $support['xlsx']['implementation']);
-        $t->same(18, count(PandocFormatRegistry::unsupportedInputFormats()));
+        $t->same(17, count(PandocFormatRegistry::unsupportedInputFormats()));
     },
     'maps current php output support against every upstream output token' => static function (TestRunner $t): void {
         $support = PandocFormatRegistry::phpOutputSupport();

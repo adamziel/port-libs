@@ -309,6 +309,11 @@ final class PandocFormatRegistry
             'implementation' => MarkdownReader::class,
             'notes' => 'Raw TeX and bounded LaTeX table/math behavior are mapped; full LaTeX reader parity remains open.',
         ],
+        'man' => [
+            'status' => 'partial',
+            'implementation' => ManReader::class,
+            'notes' => 'Bounded roff man reader maps the pinned upstream Tests.Readers.Man macro, escape, list, code block, and table unit semantics into the shared AST. Full roff/man parity and mdoc remain open.',
+        ],
         'markdown' => [
             'status' => 'partial',
             'implementation' => MarkdownReader::class,
