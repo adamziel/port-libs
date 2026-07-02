@@ -140,6 +140,7 @@ final class JsonReader
             'DefinitionList' => $this->parseDefinitionList($payload),
             'Header' => $this->parseHeader($payload),
             'HorizontalRule' => new AstNode('horizontal_rule'),
+            'Null' => new AstNode('null_block'),
             'Table' => $this->parseTable($payload),
             'Figure' => $this->parseFigure($payload),
             'Div' => $this->parseDiv($payload),
