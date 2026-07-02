@@ -2200,6 +2200,7 @@ final class OdfReader
         $packagePartExtensions = self::packagePartExtensionInventory($parts);
         $packagePartRawExtensions = self::packagePartRawExtensionInventory($parts);
         $packagePartBasenames = self::packagePartBasenameInventory($parts);
+        $manifestPathBasenames = self::manifestPathBasenameInventory($manifestFileEntryOrder);
         $packageDirectoryBaseNames = self::packageDirectoryBaseNameInventory($parts);
         $packageCaseFoldTopLevelSegments = self::packageCaseFoldTopLevelSegmentInventory($parts);
         $packageZipSourceRecordDirectoryRoots = self::packageZipSourceRecordDirectoryRootInventory($parts);
@@ -2281,6 +2282,17 @@ final class OdfReader
             'manifestPathKindCounts' => $manifestPathKindCounts,
             'manifestTopLevelSegmentCounts' => $manifestTopLevelSegmentCounts,
             'manifestPathExtensionCounts' => $manifestPathExtensionCounts,
+            'manifestPathBasenameCounts' => $manifestPathBasenames['manifestPathBasenameCounts'],
+            'manifestFullPathsByPathBasename' => $manifestPathBasenames['manifestFullPathsByPathBasename'],
+            'manifestPathBasenameStemCounts' => $manifestPathBasenames['manifestPathBasenameStemCounts'],
+            'manifestPathCaseFoldedBasenameCounts' => $manifestPathBasenames['manifestPathCaseFoldedBasenameCounts'],
+            'manifestFullPathsByCaseFoldedPathBasename' => $manifestPathBasenames['manifestFullPathsByCaseFoldedPathBasename'],
+            'duplicateManifestPathBasenameCount' => $manifestPathBasenames['duplicateManifestPathBasenameCount'],
+            'duplicateManifestPathBasenameEntryCount' => $manifestPathBasenames['duplicateManifestPathBasenameEntryCount'],
+            'duplicateManifestPathBasenameSummaries' => $manifestPathBasenames['duplicateManifestPathBasenameSummaries'],
+            'caseFoldedManifestPathBasenameDuplicateCount' => $manifestPathBasenames['caseFoldedManifestPathBasenameDuplicateCount'],
+            'caseFoldedManifestPathBasenameDuplicateEntryCount' => $manifestPathBasenames['caseFoldedManifestPathBasenameDuplicateEntryCount'],
+            'caseFoldedManifestPathBasenameDuplicateSummaries' => $manifestPathBasenames['caseFoldedManifestPathBasenameDuplicateSummaries'],
             'manifestPathShapeItems' => $manifestPathShapeItems,
             'undeclaredEntryCount' => count($undeclaredEntries),
             'packageDirectoryCount' => $packageDirectoryCount,
@@ -3680,6 +3692,17 @@ final class OdfReader
             'manifestPathKindCounts' => $provenance['manifestPathKindCounts'] ?? [],
             'manifestTopLevelSegmentCounts' => $provenance['manifestTopLevelSegmentCounts'] ?? [],
             'manifestPathExtensionCounts' => $provenance['manifestPathExtensionCounts'] ?? [],
+            'manifestPathBasenameCounts' => $provenance['manifestPathBasenameCounts'] ?? [],
+            'manifestFullPathsByPathBasename' => $provenance['manifestFullPathsByPathBasename'] ?? [],
+            'manifestPathBasenameStemCounts' => $provenance['manifestPathBasenameStemCounts'] ?? [],
+            'manifestPathCaseFoldedBasenameCounts' => $provenance['manifestPathCaseFoldedBasenameCounts'] ?? [],
+            'manifestFullPathsByCaseFoldedPathBasename' => $provenance['manifestFullPathsByCaseFoldedPathBasename'] ?? [],
+            'duplicateManifestPathBasenameCount' => $provenance['duplicateManifestPathBasenameCount'] ?? 0,
+            'duplicateManifestPathBasenameEntryCount' => $provenance['duplicateManifestPathBasenameEntryCount'] ?? 0,
+            'duplicateManifestPathBasenameSummaries' => $provenance['duplicateManifestPathBasenameSummaries'] ?? [],
+            'caseFoldedManifestPathBasenameDuplicateCount' => $provenance['caseFoldedManifestPathBasenameDuplicateCount'] ?? 0,
+            'caseFoldedManifestPathBasenameDuplicateEntryCount' => $provenance['caseFoldedManifestPathBasenameDuplicateEntryCount'] ?? 0,
+            'caseFoldedManifestPathBasenameDuplicateSummaries' => $provenance['caseFoldedManifestPathBasenameDuplicateSummaries'] ?? [],
             'manifestPathShapeItems' => $provenance['manifestPathShapeItems'] ?? [],
             'manifestMediaTypeSummary' => $manifestMediaTypeSummary,
             'manifestMediaTypeCount' => $manifestMediaTypeSummary['mediaTypeCount'] ?? 0,
@@ -4042,6 +4065,17 @@ final class OdfReader
             'manifestPathKindCounts' => $provenance['manifestPathKindCounts'] ?? [],
             'manifestTopLevelSegmentCounts' => $provenance['manifestTopLevelSegmentCounts'] ?? [],
             'manifestPathExtensionCounts' => $provenance['manifestPathExtensionCounts'] ?? [],
+            'manifestPathBasenameCounts' => $provenance['manifestPathBasenameCounts'] ?? [],
+            'manifestFullPathsByPathBasename' => $provenance['manifestFullPathsByPathBasename'] ?? [],
+            'manifestPathBasenameStemCounts' => $provenance['manifestPathBasenameStemCounts'] ?? [],
+            'manifestPathCaseFoldedBasenameCounts' => $provenance['manifestPathCaseFoldedBasenameCounts'] ?? [],
+            'manifestFullPathsByCaseFoldedPathBasename' => $provenance['manifestFullPathsByCaseFoldedPathBasename'] ?? [],
+            'duplicateManifestPathBasenameCount' => $provenance['duplicateManifestPathBasenameCount'] ?? 0,
+            'duplicateManifestPathBasenameEntryCount' => $provenance['duplicateManifestPathBasenameEntryCount'] ?? 0,
+            'duplicateManifestPathBasenameSummaries' => $provenance['duplicateManifestPathBasenameSummaries'] ?? [],
+            'caseFoldedManifestPathBasenameDuplicateCount' => $provenance['caseFoldedManifestPathBasenameDuplicateCount'] ?? 0,
+            'caseFoldedManifestPathBasenameDuplicateEntryCount' => $provenance['caseFoldedManifestPathBasenameDuplicateEntryCount'] ?? 0,
+            'caseFoldedManifestPathBasenameDuplicateSummaries' => $provenance['caseFoldedManifestPathBasenameDuplicateSummaries'] ?? [],
             'manifestPathShapeItems' => $provenance['manifestPathShapeItems'] ?? [],
             'manifestMediaTypeSummary' => $manifestMediaTypeSummary,
             'manifestMediaTypeCount' => $manifestMediaTypeSummary['mediaTypeCount'] ?? 0,
@@ -4800,6 +4834,126 @@ final class OdfReader
             'packagePartRawExtensionUppercasePartCount' => $uppercasePartCount,
             'packagePartRawExtensionNormalizedPartCount' => $normalizedPartCount,
             'packagePartRawExtensionSummaries' => array_values($summaries),
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return array{
+     *     manifestPathBasenameCounts:array<string, int>,
+     *     manifestFullPathsByPathBasename:array<string, list<string>>,
+     *     manifestPathBasenameStemCounts:array<string, int>,
+     *     manifestPathCaseFoldedBasenameCounts:array<string, int>,
+     *     manifestFullPathsByCaseFoldedPathBasename:array<string, list<string>>,
+     *     duplicateManifestPathBasenameCount:int,
+     *     duplicateManifestPathBasenameEntryCount:int,
+     *     duplicateManifestPathBasenameSummaries:list<array{manifestPathBasename:string, entryCount:int, fullPaths:list<string>}>,
+     *     caseFoldedManifestPathBasenameDuplicateCount:int,
+     *     caseFoldedManifestPathBasenameDuplicateEntryCount:int,
+     *     caseFoldedManifestPathBasenameDuplicateSummaries:list<array{caseFoldKey:string, entryCount:int, manifestPathBasenames:list<string>, fullPaths:list<string>}>
+     * }
+     */
+    private static function manifestPathBasenameInventory(array $entries): array
+    {
+        $basenameCounts = [];
+        $fullPathsByBasename = [];
+        $stemCounts = [];
+        $caseFoldedBasenameCounts = [];
+        $fullPathsByCaseFoldedBasename = [];
+        $basenamesByCaseFoldedBasename = [];
+
+        foreach ($entries as $entry) {
+            $fullPath = is_string($entry['fullPath'] ?? null)
+                ? $entry['fullPath']
+                : (is_string($entry['path'] ?? null) ? $entry['path'] : null);
+            if ($fullPath === null || $fullPath === '') {
+                continue;
+            }
+
+            $pathShape = is_array($entry['pathShape'] ?? null) ? $entry['pathShape'] : [];
+            $basename = is_string($pathShape['basename'] ?? null) ? $pathShape['basename'] : null;
+            if ($basename === null || $basename === '') {
+                $trimmedPath = trim($fullPath, '/');
+                if ($trimmedPath === '') {
+                    continue;
+                }
+                $segments = explode('/', $trimmedPath);
+                $basename = $segments[count($segments) - 1] ?? null;
+            }
+            if (!is_string($basename) || $basename === '') {
+                continue;
+            }
+
+            $stem = self::packagePartBasenameStem($basename);
+            $caseFoldKey = strtolower($basename);
+            $basenameCounts[$basename] = ($basenameCounts[$basename] ?? 0) + 1;
+            $fullPathsByBasename[$basename][] = $fullPath;
+            $stemCounts[$stem] = ($stemCounts[$stem] ?? 0) + 1;
+            $caseFoldedBasenameCounts[$caseFoldKey] = ($caseFoldedBasenameCounts[$caseFoldKey] ?? 0) + 1;
+            $fullPathsByCaseFoldedBasename[$caseFoldKey][] = $fullPath;
+            $basenamesByCaseFoldedBasename[$caseFoldKey][$basename] = true;
+        }
+
+        ksort($basenameCounts, SORT_STRING);
+        ksort($fullPathsByBasename, SORT_STRING);
+        foreach ($fullPathsByBasename as $basename => $paths) {
+            sort($paths, SORT_STRING);
+            $fullPathsByBasename[$basename] = $paths;
+        }
+        ksort($stemCounts, SORT_STRING);
+        ksort($caseFoldedBasenameCounts, SORT_STRING);
+        ksort($fullPathsByCaseFoldedBasename, SORT_STRING);
+        foreach ($fullPathsByCaseFoldedBasename as $caseFoldKey => $paths) {
+            sort($paths, SORT_STRING);
+            $fullPathsByCaseFoldedBasename[$caseFoldKey] = $paths;
+        }
+        ksort($basenamesByCaseFoldedBasename, SORT_STRING);
+
+        $duplicateSummaries = [];
+        $duplicateEntryCount = 0;
+        foreach ($fullPathsByBasename as $basename => $paths) {
+            if (count($paths) < 2) {
+                continue;
+            }
+
+            $duplicateEntryCount += count($paths);
+            $duplicateSummaries[] = [
+                'manifestPathBasename' => $basename,
+                'entryCount' => count($paths),
+                'fullPaths' => $paths,
+            ];
+        }
+
+        $caseFoldedDuplicateSummaries = [];
+        $caseFoldedDuplicateEntryCount = 0;
+        foreach ($fullPathsByCaseFoldedBasename as $caseFoldKey => $paths) {
+            if (count($paths) < 2) {
+                continue;
+            }
+
+            $basenames = array_keys($basenamesByCaseFoldedBasename[$caseFoldKey] ?? []);
+            sort($basenames, SORT_STRING);
+            $caseFoldedDuplicateEntryCount += count($paths);
+            $caseFoldedDuplicateSummaries[] = [
+                'caseFoldKey' => $caseFoldKey,
+                'entryCount' => count($paths),
+                'manifestPathBasenames' => $basenames,
+                'fullPaths' => $paths,
+            ];
+        }
+
+        return [
+            'manifestPathBasenameCounts' => $basenameCounts,
+            'manifestFullPathsByPathBasename' => $fullPathsByBasename,
+            'manifestPathBasenameStemCounts' => $stemCounts,
+            'manifestPathCaseFoldedBasenameCounts' => $caseFoldedBasenameCounts,
+            'manifestFullPathsByCaseFoldedPathBasename' => $fullPathsByCaseFoldedBasename,
+            'duplicateManifestPathBasenameCount' => count($duplicateSummaries),
+            'duplicateManifestPathBasenameEntryCount' => $duplicateEntryCount,
+            'duplicateManifestPathBasenameSummaries' => $duplicateSummaries,
+            'caseFoldedManifestPathBasenameDuplicateCount' => count($caseFoldedDuplicateSummaries),
+            'caseFoldedManifestPathBasenameDuplicateEntryCount' => $caseFoldedDuplicateEntryCount,
+            'caseFoldedManifestPathBasenameDuplicateSummaries' => $caseFoldedDuplicateSummaries,
         ];
     }
 

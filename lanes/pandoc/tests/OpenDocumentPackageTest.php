@@ -1765,6 +1765,7 @@ XML;
         );
 
         $compactSummary = OpenDocumentPackage::fromPackage($package)->summarize();
+        $compactReview = $compactSummary['manifestReview'];
         $compactInventory = $compactSummary['packageInventory'];
         $richProvenance = (new OdfReader())->readPackage($package)['importReport']['manifest']['packageProvenance'];
         $compactAreaSummaries = [];
@@ -1789,7 +1790,74 @@ XML;
             2 => 4,
             3 => 1,
         ];
+        $expectedManifestPathBasenameCounts = [
+            'Configurations2' => 1,
+            'Object 1' => 1,
+            'Pictures' => 1,
+            'content.xml' => 2,
+            'hero.png' => 1,
+            'meta.xml' => 1,
+            'statusbar.xml' => 1,
+            'styles.xml' => 1,
+        ];
+        $expectedManifestPathStemCounts = [
+            'Configurations2' => 1,
+            'Object 1' => 1,
+            'Pictures' => 1,
+            'content' => 2,
+            'hero' => 1,
+            'meta' => 1,
+            'statusbar' => 1,
+            'styles' => 1,
+        ];
+        $expectedCaseFoldedManifestPathBasenameCounts = [
+            'configurations2' => 1,
+            'content.xml' => 2,
+            'hero.png' => 1,
+            'meta.xml' => 1,
+            'object 1' => 1,
+            'pictures' => 1,
+            'statusbar.xml' => 1,
+            'styles.xml' => 1,
+        ];
+        $expectedContentManifestFullPaths = ['Object 1/content.xml', 'content.xml'];
+        $expectedManifestBasenameDuplicateSummary = [[
+            'manifestPathBasename' => 'content.xml',
+            'entryCount' => 2,
+            'fullPaths' => $expectedContentManifestFullPaths,
+        ]];
+        $expectedCaseFoldedManifestBasenameDuplicateSummary = [[
+            'caseFoldKey' => 'content.xml',
+            'entryCount' => 2,
+            'manifestPathBasenames' => ['content.xml'],
+            'fullPaths' => $expectedContentManifestFullPaths,
+        ]];
 
+        $t->same($expectedManifestPathBasenameCounts, $compactReview['manifestPathBasenameCounts']);
+        $t->same($expectedManifestPathBasenameCounts, $richProvenance['manifestPathBasenameCounts']);
+        $t->same($expectedManifestPathBasenameCounts, $compactSummary['packageIdentity']['manifestPathBasenameCounts']);
+        $t->same($expectedManifestPathBasenameCounts, $richProvenance['packageIdentity']['manifestPathBasenameCounts']);
+        $t->same($expectedContentManifestFullPaths, $compactReview['manifestFullPathsByPathBasename']['content.xml']);
+        $t->same($compactReview['manifestFullPathsByPathBasename'], $richProvenance['manifestFullPathsByPathBasename']);
+        $t->same($expectedManifestPathStemCounts, $compactReview['manifestPathBasenameStemCounts']);
+        $t->same($expectedManifestPathStemCounts, $richProvenance['manifestPathBasenameStemCounts']);
+        $t->same($expectedCaseFoldedManifestPathBasenameCounts, $compactReview['manifestPathCaseFoldedBasenameCounts']);
+        $t->same($expectedCaseFoldedManifestPathBasenameCounts, $richProvenance['manifestPathCaseFoldedBasenameCounts']);
+        $t->same($expectedContentManifestFullPaths, $compactReview['manifestFullPathsByCaseFoldedPathBasename']['content.xml']);
+        $t->same(1, $compactReview['duplicateManifestPathBasenameCount']);
+        $t->same(2, $compactReview['duplicateManifestPathBasenameEntryCount']);
+        $t->same($expectedManifestBasenameDuplicateSummary, $compactReview['duplicateManifestPathBasenameSummaries']);
+        $t->same($compactReview['duplicateManifestPathBasenameSummaries'], $richProvenance['duplicateManifestPathBasenameSummaries']);
+        $t->same(1, $compactReview['caseFoldedManifestPathBasenameDuplicateCount']);
+        $t->same(2, $compactReview['caseFoldedManifestPathBasenameDuplicateEntryCount']);
+        $t->same(
+            $expectedCaseFoldedManifestBasenameDuplicateSummary,
+            $compactReview['caseFoldedManifestPathBasenameDuplicateSummaries']
+        );
+        $t->same(
+            $compactReview['caseFoldedManifestPathBasenameDuplicateSummaries'],
+            $richProvenance['caseFoldedManifestPathBasenameDuplicateSummaries']
+        );
         $t->same($expectedAreaCounts, $compactInventory['packageAreaCounts']);
         $t->same($expectedAreaCounts, $richProvenance['packageAreaCounts']);
         $t->same($compactInventory['packageAreaCounts'], $richProvenance['packageAreaCounts']);
