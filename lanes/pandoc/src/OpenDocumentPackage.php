@@ -1168,6 +1168,7 @@ final class OpenDocumentPackage
         $packagePathDepthCounts = [];
         $packagePathsByPathDepth = [];
         $maxPackagePathDepth = 0;
+        $packagePathDepthSummaries = [];
         $packagePathDepthRoleCounts = [];
         $entryNamesByPackagePathDepthRole = [];
         $packagePathDepthByteExposurePolicyCounts = [];
@@ -1485,6 +1486,7 @@ final class OpenDocumentPackage
                 $packagePathsByPackageArea,
                 $packagePathDepthCounts,
                 $packagePathsByPathDepth,
+                $packagePathDepthSummaries,
                 $maxPackagePathDepth,
                 $entry->name,
                 $packageArea,
@@ -1608,6 +1610,7 @@ final class OpenDocumentPackage
         self::sortPackageNestedCountMap($zipPackageManifestPathSegmentPositionByteExposurePolicyCounts);
         self::sortPackageNestedStringListMap($entryNamesByZipPackageManifestPathSegmentPositionByteExposurePolicy);
         $packageAreaSummaries = self::finalizePackageAreaSummaries($packageAreaSummaries);
+        $packagePathDepthSummaries = self::finalizePackagePathDepthSummaries($packagePathDepthSummaries);
         $packagePartExtensions = self::packagePartExtensionInventory($parts);
         $packagePartRawExtensions = self::packagePartRawExtensionInventory($parts);
         $packagePartBasenames = self::packagePartBasenameInventory($parts);
@@ -1800,6 +1803,8 @@ final class OpenDocumentPackage
             'packagePathDepthCounts' => $packagePathDepthCounts,
             'packagePathsByPathDepth' => $packagePathsByPathDepth,
             'maxPackagePathDepth' => $maxPackagePathDepth,
+            'packagePathDepthSummaryCount' => count($packagePathDepthSummaries),
+            'packagePathDepthSummaries' => $packagePathDepthSummaries,
             'packagePathDepthRoleCounts' => $packagePathDepthRoleCounts,
             'entryNamesByPackagePathDepthRole' => $entryNamesByPackagePathDepthRole,
             'packagePathDepthByteExposurePolicyCounts' => $packagePathDepthByteExposurePolicyCounts,
@@ -3175,6 +3180,8 @@ final class OpenDocumentPackage
             'packagePathDepthCounts' => $packageInventory['packagePathDepthCounts'] ?? [],
             'packagePathsByPathDepth' => $packageInventory['packagePathsByPathDepth'] ?? [],
             'maxPackagePathDepth' => $packageInventory['maxPackagePathDepth'] ?? 0,
+            'packagePathDepthSummaryCount' => $packageInventory['packagePathDepthSummaryCount'] ?? 0,
+            'packagePathDepthSummaries' => $packageInventory['packagePathDepthSummaries'] ?? [],
             'packagePathDepthRoleCounts' => $packageInventory['packagePathDepthRoleCounts'] ?? [],
             'entryNamesByPackagePathDepthRole' => $packageInventory['entryNamesByPackagePathDepthRole'] ?? [],
             'packagePathDepthByteExposurePolicyCounts' => $packageInventory['packagePathDepthByteExposurePolicyCounts'] ?? [],
@@ -6636,6 +6643,7 @@ final class OpenDocumentPackage
         array &$pathsByArea,
         array &$depthCounts,
         array &$pathsByDepth,
+        array &$depthSummaries,
         int &$maxDepth,
         string $path,
         string $area,
@@ -6658,6 +6666,55 @@ final class OpenDocumentPackage
         $pathsByDepth[$depth] ??= [];
         $pathsByDepth[$depth][$path] = true;
         $maxDepth = max($maxDepth, $depth);
+
+        $depthSummaries[$depth] ??= [
+            'packagePathDepth' => $depth,
+            'entryCount' => 0,
+            'fileEntryCount' => 0,
+            'directoryEntryCount' => 0,
+            'byteLength' => 0,
+            'compressedByteLength' => 0,
+            'declaredEntryCount' => 0,
+            'undeclaredEntryCount' => 0,
+            'exposableEntryCount' => 0,
+            'blockedEntryCount' => 0,
+            'packageAreaCounts' => [],
+            'roleCounts' => [],
+            'byteExposurePolicyCounts' => [],
+            'packagePaths' => [],
+        ];
+        $depthSummary = &$depthSummaries[$depth];
+        $depthSummary['entryCount']++;
+        if ($isDirectory) {
+            $depthSummary['directoryEntryCount']++;
+        } else {
+            $depthSummary['fileEntryCount']++;
+        }
+        $depthSummary['byteLength'] += $byteLength;
+        $depthSummary['compressedByteLength'] += $compressedByteLength;
+        if ($declaredInManifest) {
+            $depthSummary['declaredEntryCount']++;
+        }
+        if ($undeclared) {
+            $depthSummary['undeclaredEntryCount']++;
+        }
+        if ($canExposeBytes) {
+            $depthSummary['exposableEntryCount']++;
+        } else {
+            $depthSummary['blockedEntryCount']++;
+        }
+        $depthSummary['packageAreaCounts'][$area] = ($depthSummary['packageAreaCounts'][$area] ?? 0) + 1;
+        foreach ($roles as $role) {
+            if (is_string($role) && $role !== '') {
+                $depthSummary['roleCounts'][$role] = ($depthSummary['roleCounts'][$role] ?? 0) + 1;
+            }
+        }
+        if ($byteExposurePolicy !== null && $byteExposurePolicy !== '') {
+            $depthSummary['byteExposurePolicyCounts'][$byteExposurePolicy] =
+                ($depthSummary['byteExposurePolicyCounts'][$byteExposurePolicy] ?? 0) + 1;
+        }
+        $depthSummary['packagePaths'][$path] = true;
+        unset($depthSummary);
 
         $areaSummaries[$area] ??= [
             'packageArea' => $area,
@@ -7186,6 +7243,21 @@ final class OpenDocumentPackage
     {
         ksort($summaries, SORT_STRING);
         foreach ($summaries as &$summary) {
+            ksort($summary['roleCounts'], SORT_STRING);
+            ksort($summary['byteExposurePolicyCounts'], SORT_STRING);
+            $summary['packagePaths'] = array_keys($summary['packagePaths']);
+            sort($summary['packagePaths'], SORT_STRING);
+        }
+        unset($summary);
+
+        return array_values($summaries);
+    }
+
+    private static function finalizePackagePathDepthSummaries(array $summaries): array
+    {
+        ksort($summaries, SORT_NUMERIC);
+        foreach ($summaries as &$summary) {
+            ksort($summary['packageAreaCounts'], SORT_STRING);
             ksort($summary['roleCounts'], SORT_STRING);
             ksort($summary['byteExposurePolicyCounts'], SORT_STRING);
             $summary['packagePaths'] = array_keys($summary['packagePaths']);
