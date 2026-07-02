@@ -9577,6 +9577,77 @@ XML);
     }
 };
 
+$buildSubstringRootOfficeDocumentTypePptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-substring-root-office-doc-type-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDecoy" Type="urn:example:pptx-reader/officeDocument-extra" Target="ppt/decoy.xml"/>
+  <Relationship Id="rIdPresentation" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/decoy.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdMissing"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Suffix-only officeDocument type</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildFirstMissingTargetRootOfficeDocumentPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-first-missing-target-root-office-doc-');
     if ($path === false) {
@@ -13431,6 +13502,19 @@ return [
         $t->same('ppt/presentation.xml', $review['presentationPart'] ?? null);
         $t->same('Suffix officeDocument type', $headings[0]->attr('text'));
         $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Suffix" , Space , Str "officeDocument" , Space , Str "type" ]', $native);
+    },
+
+    'ignores root officeDocument Type substring matches like upstream' => static function (TestRunner $t) use ($buildSubstringRootOfficeDocumentTypePptxPackage, $nodesOfType): void {
+        $document = (new PptxReader())->read($buildSubstringRootOfficeDocumentTypePptxPackage());
+        $review = $document->attr('pptx');
+        $headings = $nodesOfType($document, 'heading');
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same(1, $review['slideCount'] ?? null);
+        $t->same('ppt/presentation.xml', $review['presentationPart'] ?? null);
+        $t->same('Suffix-only officeDocument type', $headings[0]->attr('text'));
+        $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Suffix-only" , Space , Str "officeDocument" , Space , Str "type" ]', $native);
+        $t->true(!str_contains($native, 'rIdMissing'), 'Root relationships whose Type only contains officeDocument should not be selected before a later suffix match');
     },
 
     'requires root officeDocument relationship Type to be unqualified like upstream' => static function (TestRunner $t) use ($buildQualifiedRootOfficeDocumentTypePptxPackage): void {
