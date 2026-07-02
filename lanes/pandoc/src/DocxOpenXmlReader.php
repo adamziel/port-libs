@@ -995,6 +995,34 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['selectedXmlPartXmlTextNodeParentQualifiedNameCount'] = $selectedXmlParts['xmlTextNodeParentQualifiedNameCount'];
         $packageProvenance['summary']['selectedXmlPartXmlTextNodeParentQualifiedNameCounts'] = $selectedXmlParts['xmlTextNodeParentQualifiedNameCounts'];
         $packageProvenance['summary']['selectedXmlPartXmlTextNodes'] = $selectedXmlParts['xmlTextNodes'];
+        $packageProvenance['summary']['selectedXmlPartXmlLeafTextElementPartCount'] = $selectedXmlParts['xmlLeafTextElementPartCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlLeafTextElementCount'] = $selectedXmlParts['xmlLeafTextElementCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlLeafTextElementByteLength'] = $selectedXmlParts['xmlLeafTextElementByteLength'];
+        $packageProvenance['summary']['selectedXmlPartXmlLeafTextElementNonWhitespaceCount'] = $selectedXmlParts['xmlLeafTextElementNonWhitespaceCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlLeafTextElementWhitespaceOnlyCount'] = $selectedXmlParts['xmlLeafTextElementWhitespaceOnlyCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlLeafTextElementNonWhitespaceByteLength'] = $selectedXmlParts['xmlLeafTextElementNonWhitespaceByteLength'];
+        $packageProvenance['summary']['selectedXmlPartXmlLeafTextElementTextNodeCount'] = $selectedXmlParts['xmlLeafTextElementTextNodeCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlLeafTextElementCdataNodeCount'] = $selectedXmlParts['xmlLeafTextElementCdataNodeCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlLeafTextElementLeadingWhitespaceCount'] = $selectedXmlParts['xmlLeafTextElementLeadingWhitespaceCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlLeafTextElementTrailingWhitespaceCount'] = $selectedXmlParts['xmlLeafTextElementTrailingWhitespaceCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlLeafTextElementLeadingWhitespaceByteLength'] = $selectedXmlParts['xmlLeafTextElementLeadingWhitespaceByteLength'];
+        $packageProvenance['summary']['selectedXmlPartXmlLeafTextElementTrailingWhitespaceByteLength'] = $selectedXmlParts['xmlLeafTextElementTrailingWhitespaceByteLength'];
+        $packageProvenance['summary']['selectedXmlPartXmlLeafTextElementLineBreakCount'] = $selectedXmlParts['xmlLeafTextElementLineBreakCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlLeafTextElementLineBreakElementCount'] = $selectedXmlParts['xmlLeafTextElementLineBreakElementCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlLeafTextElementPartNames'] = $selectedXmlParts['xmlLeafTextElementPartNames'];
+        $packageProvenance['summary']['selectedXmlPartXmlLeafTextElementPathCount'] = $selectedXmlParts['xmlLeafTextElementPathCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlLeafTextElementPathCounts'] = $selectedXmlParts['xmlLeafTextElementPathCounts'];
+        $packageProvenance['summary']['selectedXmlPartXmlLeafTextElementPaths'] = $selectedXmlParts['xmlLeafTextElementPaths'];
+        $packageProvenance['summary']['selectedXmlPartXmlLeafTextElementNamespaceCount'] = count($selectedXmlParts['xmlLeafTextElementNamespaceCounts']);
+        $packageProvenance['summary']['selectedXmlPartXmlLeafTextElementNamespaceCounts'] = $selectedXmlParts['xmlLeafTextElementNamespaceCounts'];
+        $packageProvenance['summary']['selectedXmlPartXmlLeafTextElementLocalNameCount'] = count($selectedXmlParts['xmlLeafTextElementLocalNameCounts']);
+        $packageProvenance['summary']['selectedXmlPartXmlLeafTextElementLocalNameCounts'] = $selectedXmlParts['xmlLeafTextElementLocalNameCounts'];
+        $packageProvenance['summary']['selectedXmlPartXmlLeafTextElementQualifiedNameCount'] = count($selectedXmlParts['xmlLeafTextElementQualifiedNameCounts']);
+        $packageProvenance['summary']['selectedXmlPartXmlLeafTextElementQualifiedNameCounts'] = $selectedXmlParts['xmlLeafTextElementQualifiedNameCounts'];
+        $packageProvenance['summary']['selectedXmlPartXmlLeafTextElementPrefixCount'] = count($selectedXmlParts['xmlLeafTextElementPrefixCounts']);
+        $packageProvenance['summary']['selectedXmlPartXmlLeafTextElementPrefixCounts'] = $selectedXmlParts['xmlLeafTextElementPrefixCounts'];
+        $packageProvenance['summary']['selectedXmlPartXmlLeafTextElementPrefixes'] = $selectedXmlParts['xmlLeafTextElementPrefixes'];
+        $packageProvenance['summary']['selectedXmlPartXmlLeafTextElements'] = $selectedXmlParts['xmlLeafTextElements'];
         $extendedHeadingPairs = is_array($extendedProperties['headingPairs'] ?? null) ? $extendedProperties['headingPairs'] : [];
         $extendedHeadingPairsVector = is_array($extendedProperties['headingPairsVector'] ?? null)
             ? $extendedProperties['headingPairsVector']
@@ -34919,6 +34947,29 @@ final class DocxOpenXmlReader
         $xmlTextNodeParentLocalNameCounts = [];
         $xmlTextNodeParentQualifiedNameCounts = [];
         $xmlTextNodes = [];
+        $xmlLeafTextElementPartCount = 0;
+        $xmlLeafTextElementCount = 0;
+        $xmlLeafTextElementByteLength = 0;
+        $xmlLeafTextElementNonWhitespaceCount = 0;
+        $xmlLeafTextElementWhitespaceOnlyCount = 0;
+        $xmlLeafTextElementNonWhitespaceByteLength = 0;
+        $xmlLeafTextElementTextNodeCount = 0;
+        $xmlLeafTextElementCdataNodeCount = 0;
+        $xmlLeafTextElementLeadingWhitespaceCount = 0;
+        $xmlLeafTextElementTrailingWhitespaceCount = 0;
+        $xmlLeafTextElementLeadingWhitespaceByteLength = 0;
+        $xmlLeafTextElementTrailingWhitespaceByteLength = 0;
+        $xmlLeafTextElementLineBreakCount = 0;
+        $xmlLeafTextElementLineBreakElementCount = 0;
+        $xmlLeafTextElementPartNames = [];
+        $xmlLeafTextElementPathCounts = [];
+        $xmlLeafTextElementPaths = [];
+        $xmlLeafTextElementNamespaceCounts = [];
+        $xmlLeafTextElementLocalNameCounts = [];
+        $xmlLeafTextElementQualifiedNameCounts = [];
+        $xmlLeafTextElementPrefixCounts = [];
+        $xmlLeafTextElementPrefixes = [];
+        $xmlLeafTextElements = [];
         $selectionSourceCounts = [];
         $relationshipSourcePartCounts = [];
         $relationshipsPartCounts = [];
@@ -35669,6 +35720,110 @@ final class DocxOpenXmlReader
                     'sha256' => is_string($textNode['sha256'] ?? null) ? $textNode['sha256'] : null,
                 ];
             }
+            $itemXmlLeafTextElementCount = (int) ($item['xmlLeafTextElementCount'] ?? 0);
+            if ($itemXmlLeafTextElementCount > 0) {
+                ++$xmlLeafTextElementPartCount;
+                $xmlLeafTextElementCount += $itemXmlLeafTextElementCount;
+                $xmlLeafTextElementByteLength += (int) ($item['xmlLeafTextElementByteLength'] ?? 0);
+                $xmlLeafTextElementNonWhitespaceCount += (int) ($item['xmlLeafTextElementNonWhitespaceCount'] ?? 0);
+                $xmlLeafTextElementWhitespaceOnlyCount += (int) ($item['xmlLeafTextElementWhitespaceOnlyCount'] ?? 0);
+                $xmlLeafTextElementNonWhitespaceByteLength += (int) ($item['xmlLeafTextElementNonWhitespaceByteLength'] ?? 0);
+                $xmlLeafTextElementTextNodeCount += (int) ($item['xmlLeafTextElementTextNodeCount'] ?? 0);
+                $xmlLeafTextElementCdataNodeCount += (int) ($item['xmlLeafTextElementCdataNodeCount'] ?? 0);
+                $xmlLeafTextElementLeadingWhitespaceCount += (int) ($item['xmlLeafTextElementLeadingWhitespaceCount'] ?? 0);
+                $xmlLeafTextElementTrailingWhitespaceCount += (int) ($item['xmlLeafTextElementTrailingWhitespaceCount'] ?? 0);
+                $xmlLeafTextElementLeadingWhitespaceByteLength += (int) ($item['xmlLeafTextElementLeadingWhitespaceByteLength'] ?? 0);
+                $xmlLeafTextElementTrailingWhitespaceByteLength += (int) ($item['xmlLeafTextElementTrailingWhitespaceByteLength'] ?? 0);
+                $xmlLeafTextElementLineBreakCount += (int) ($item['xmlLeafTextElementLineBreakCount'] ?? 0);
+                $xmlLeafTextElementLineBreakElementCount += (int) ($item['xmlLeafTextElementLineBreakElementCount'] ?? 0);
+                $this->appendUniqueString(
+                    $xmlLeafTextElementPartNames,
+                    is_string($item['partName'] ?? null) ? $item['partName'] : null,
+                );
+            }
+            foreach (($item['xmlLeafTextElementPathCounts'] ?? []) as $elementPath => $count) {
+                if (!is_string($elementPath) || $elementPath === '') {
+                    continue;
+                }
+
+                $xmlLeafTextElementPathCounts[$elementPath] =
+                    ($xmlLeafTextElementPathCounts[$elementPath] ?? 0) + (int) $count;
+                $this->appendUniqueString($xmlLeafTextElementPaths, $elementPath);
+            }
+            foreach (($item['xmlLeafTextElementNamespaceCounts'] ?? []) as $namespace => $count) {
+                if (!is_string($namespace) || $namespace === '') {
+                    continue;
+                }
+
+                $xmlLeafTextElementNamespaceCounts[$namespace] =
+                    ($xmlLeafTextElementNamespaceCounts[$namespace] ?? 0) + (int) $count;
+            }
+            foreach (($item['xmlLeafTextElementLocalNameCounts'] ?? []) as $localName => $count) {
+                if (!is_string($localName) || $localName === '') {
+                    continue;
+                }
+
+                $xmlLeafTextElementLocalNameCounts[$localName] =
+                    ($xmlLeafTextElementLocalNameCounts[$localName] ?? 0) + (int) $count;
+            }
+            foreach (($item['xmlLeafTextElementQualifiedNameCounts'] ?? []) as $qualifiedName => $count) {
+                if (!is_string($qualifiedName) || $qualifiedName === '') {
+                    continue;
+                }
+
+                $xmlLeafTextElementQualifiedNameCounts[$qualifiedName] =
+                    ($xmlLeafTextElementQualifiedNameCounts[$qualifiedName] ?? 0) + (int) $count;
+            }
+            foreach (($item['xmlLeafTextElementPrefixCounts'] ?? []) as $prefix => $count) {
+                if (!is_string($prefix) || $prefix === '') {
+                    continue;
+                }
+
+                $xmlLeafTextElementPrefixCounts[$prefix] =
+                    ($xmlLeafTextElementPrefixCounts[$prefix] ?? 0) + (int) $count;
+                if ($prefix !== '(none)') {
+                    $this->appendUniqueString($xmlLeafTextElementPrefixes, $prefix);
+                }
+            }
+            foreach (($item['xmlLeafTextElements'] ?? []) as $leafTextElement) {
+                if (!is_array($leafTextElement)) {
+                    continue;
+                }
+
+                $xmlLeafTextElements[] = [
+                    'kind' => is_string($item['kind'] ?? null) ? $item['kind'] : '',
+                    'partName' => is_string($item['partName'] ?? null) ? $item['partName'] : '',
+                    'ordinal' => (int) ($leafTextElement['ordinal'] ?? 0),
+                    'elementPath' => is_string($leafTextElement['elementPath'] ?? null)
+                        ? $leafTextElement['elementPath']
+                        : '/',
+                    'elementDepth' => (int) ($leafTextElement['elementDepth'] ?? 0),
+                    'elementNamespace' => is_string($leafTextElement['elementNamespace'] ?? null)
+                        ? $leafTextElement['elementNamespace']
+                        : null,
+                    'elementLocalName' => is_string($leafTextElement['elementLocalName'] ?? null)
+                        ? $leafTextElement['elementLocalName']
+                        : null,
+                    'elementQualifiedName' => is_string($leafTextElement['elementQualifiedName'] ?? null)
+                        ? $leafTextElement['elementQualifiedName']
+                        : null,
+                    'elementPrefix' => is_string($leafTextElement['elementPrefix'] ?? null)
+                        ? $leafTextElement['elementPrefix']
+                        : null,
+                    'byteLength' => (int) ($leafTextElement['byteLength'] ?? 0),
+                    'textNodeCount' => (int) ($leafTextElement['textNodeCount'] ?? 0),
+                    'cdataNodeCount' => (int) ($leafTextElement['cdataNodeCount'] ?? 0),
+                    'isWhitespaceOnly' => ($leafTextElement['isWhitespaceOnly'] ?? false) === true,
+                    'leadingWhitespaceByteLength' => (int) ($leafTextElement['leadingWhitespaceByteLength'] ?? 0),
+                    'trailingWhitespaceByteLength' => (int) ($leafTextElement['trailingWhitespaceByteLength'] ?? 0),
+                    'hasLeadingWhitespace' => ($leafTextElement['hasLeadingWhitespace'] ?? false) === true,
+                    'hasTrailingWhitespace' => ($leafTextElement['hasTrailingWhitespace'] ?? false) === true,
+                    'lineBreakCount' => (int) ($leafTextElement['lineBreakCount'] ?? 0),
+                    'hasLineBreak' => ($leafTextElement['hasLineBreak'] ?? false) === true,
+                    'crc32' => is_string($leafTextElement['crc32'] ?? null) ? $leafTextElement['crc32'] : null,
+                    'sha256' => is_string($leafTextElement['sha256'] ?? null) ? $leafTextElement['sha256'] : null,
+                ];
+            }
             foreach (($item['rootNamespacePrefixes'] ?? []) as $prefix) {
                 if (is_string($prefix)) {
                     $this->appendUniqueString($rootNamespacePrefixes, $prefix);
@@ -35739,6 +35894,11 @@ final class DocxOpenXmlReader
         ksort($xmlTextNodeParentNamespaceCounts, SORT_STRING);
         ksort($xmlTextNodeParentLocalNameCounts, SORT_STRING);
         ksort($xmlTextNodeParentQualifiedNameCounts, SORT_STRING);
+        ksort($xmlLeafTextElementPathCounts, SORT_STRING);
+        ksort($xmlLeafTextElementNamespaceCounts, SORT_STRING);
+        ksort($xmlLeafTextElementLocalNameCounts, SORT_STRING);
+        ksort($xmlLeafTextElementQualifiedNameCounts, SORT_STRING);
+        ksort($xmlLeafTextElementPrefixCounts, SORT_STRING);
         sort($rootNamespaces, SORT_STRING);
         sort($rootLocalNames, SORT_STRING);
         sort($rootQualifiedNames, SORT_STRING);
@@ -35770,6 +35930,9 @@ final class DocxOpenXmlReader
         sort($xmlCdataSectionParentPaths, SORT_STRING);
         sort($xmlTextNodePartNames, SORT_STRING);
         sort($xmlTextNodeParentPaths, SORT_STRING);
+        sort($xmlLeafTextElementPartNames, SORT_STRING);
+        sort($xmlLeafTextElementPaths, SORT_STRING);
+        sort($xmlLeafTextElementPrefixes, SORT_STRING);
 
         return [
             'count' => count($items),
@@ -35960,6 +36123,30 @@ final class DocxOpenXmlReader
             'xmlTextNodeParentQualifiedNameCount' => count($xmlTextNodeParentQualifiedNameCounts),
             'xmlTextNodeParentQualifiedNameCounts' => $xmlTextNodeParentQualifiedNameCounts,
             'xmlTextNodes' => $xmlTextNodes,
+            'xmlLeafTextElementPartCount' => $xmlLeafTextElementPartCount,
+            'xmlLeafTextElementCount' => $xmlLeafTextElementCount,
+            'xmlLeafTextElementByteLength' => $xmlLeafTextElementByteLength,
+            'xmlLeafTextElementNonWhitespaceCount' => $xmlLeafTextElementNonWhitespaceCount,
+            'xmlLeafTextElementWhitespaceOnlyCount' => $xmlLeafTextElementWhitespaceOnlyCount,
+            'xmlLeafTextElementNonWhitespaceByteLength' => $xmlLeafTextElementNonWhitespaceByteLength,
+            'xmlLeafTextElementTextNodeCount' => $xmlLeafTextElementTextNodeCount,
+            'xmlLeafTextElementCdataNodeCount' => $xmlLeafTextElementCdataNodeCount,
+            'xmlLeafTextElementLeadingWhitespaceCount' => $xmlLeafTextElementLeadingWhitespaceCount,
+            'xmlLeafTextElementTrailingWhitespaceCount' => $xmlLeafTextElementTrailingWhitespaceCount,
+            'xmlLeafTextElementLeadingWhitespaceByteLength' => $xmlLeafTextElementLeadingWhitespaceByteLength,
+            'xmlLeafTextElementTrailingWhitespaceByteLength' => $xmlLeafTextElementTrailingWhitespaceByteLength,
+            'xmlLeafTextElementLineBreakCount' => $xmlLeafTextElementLineBreakCount,
+            'xmlLeafTextElementLineBreakElementCount' => $xmlLeafTextElementLineBreakElementCount,
+            'xmlLeafTextElementPartNames' => $xmlLeafTextElementPartNames,
+            'xmlLeafTextElementPathCount' => count($xmlLeafTextElementPathCounts),
+            'xmlLeafTextElementPathCounts' => $xmlLeafTextElementPathCounts,
+            'xmlLeafTextElementPaths' => $xmlLeafTextElementPaths,
+            'xmlLeafTextElementNamespaceCounts' => $xmlLeafTextElementNamespaceCounts,
+            'xmlLeafTextElementLocalNameCounts' => $xmlLeafTextElementLocalNameCounts,
+            'xmlLeafTextElementQualifiedNameCounts' => $xmlLeafTextElementQualifiedNameCounts,
+            'xmlLeafTextElementPrefixCounts' => $xmlLeafTextElementPrefixCounts,
+            'xmlLeafTextElementPrefixes' => $xmlLeafTextElementPrefixes,
+            'xmlLeafTextElements' => $xmlLeafTextElements,
             'issueCount' => $issueCount,
             'issueKinds' => $issueKinds,
             'byKind' => $byKind,
@@ -36127,6 +36314,27 @@ final class DocxOpenXmlReader
             'xmlTextNodeParentLocalNameCounts' => [],
             'xmlTextNodeParentQualifiedNameCounts' => [],
             'xmlTextNodes' => [],
+            'xmlLeafTextElementCount' => 0,
+            'xmlLeafTextElementByteLength' => 0,
+            'xmlLeafTextElementNonWhitespaceCount' => 0,
+            'xmlLeafTextElementWhitespaceOnlyCount' => 0,
+            'xmlLeafTextElementNonWhitespaceByteLength' => 0,
+            'xmlLeafTextElementTextNodeCount' => 0,
+            'xmlLeafTextElementCdataNodeCount' => 0,
+            'xmlLeafTextElementLeadingWhitespaceCount' => 0,
+            'xmlLeafTextElementTrailingWhitespaceCount' => 0,
+            'xmlLeafTextElementLeadingWhitespaceByteLength' => 0,
+            'xmlLeafTextElementTrailingWhitespaceByteLength' => 0,
+            'xmlLeafTextElementLineBreakCount' => 0,
+            'xmlLeafTextElementLineBreakElementCount' => 0,
+            'xmlLeafTextElementPathCounts' => [],
+            'xmlLeafTextElementPaths' => [],
+            'xmlLeafTextElementNamespaceCounts' => [],
+            'xmlLeafTextElementLocalNameCounts' => [],
+            'xmlLeafTextElementQualifiedNameCounts' => [],
+            'xmlLeafTextElementPrefixCounts' => [],
+            'xmlLeafTextElementPrefixes' => [],
+            'xmlLeafTextElements' => [],
             'validRoot' => null,
             'xmlParseError' => null,
             'expectedContentTypeBase' => $expectedContentTypeBase,
@@ -36305,6 +36513,28 @@ final class DocxOpenXmlReader
         $item['xmlTextNodeParentLocalNameCounts'] = $textNodes['parentLocalNameCounts'];
         $item['xmlTextNodeParentQualifiedNameCounts'] = $textNodes['parentQualifiedNameCounts'];
         $item['xmlTextNodes'] = $textNodes['items'];
+        $leafTextElements = $this->xmlLeafTextElementProvenance($xml, $partName);
+        $item['xmlLeafTextElementCount'] = $leafTextElements['count'];
+        $item['xmlLeafTextElementByteLength'] = $leafTextElements['byteLength'];
+        $item['xmlLeafTextElementNonWhitespaceCount'] = $leafTextElements['nonWhitespaceCount'];
+        $item['xmlLeafTextElementWhitespaceOnlyCount'] = $leafTextElements['whitespaceOnlyCount'];
+        $item['xmlLeafTextElementNonWhitespaceByteLength'] = $leafTextElements['nonWhitespaceByteLength'];
+        $item['xmlLeafTextElementTextNodeCount'] = $leafTextElements['textNodeCount'];
+        $item['xmlLeafTextElementCdataNodeCount'] = $leafTextElements['cdataNodeCount'];
+        $item['xmlLeafTextElementLeadingWhitespaceCount'] = $leafTextElements['leadingWhitespaceCount'];
+        $item['xmlLeafTextElementTrailingWhitespaceCount'] = $leafTextElements['trailingWhitespaceCount'];
+        $item['xmlLeafTextElementLeadingWhitespaceByteLength'] = $leafTextElements['leadingWhitespaceByteLength'];
+        $item['xmlLeafTextElementTrailingWhitespaceByteLength'] = $leafTextElements['trailingWhitespaceByteLength'];
+        $item['xmlLeafTextElementLineBreakCount'] = $leafTextElements['lineBreakCount'];
+        $item['xmlLeafTextElementLineBreakElementCount'] = $leafTextElements['lineBreakElementCount'];
+        $item['xmlLeafTextElementPathCounts'] = $leafTextElements['elementPathCounts'];
+        $item['xmlLeafTextElementPaths'] = $leafTextElements['elementPaths'];
+        $item['xmlLeafTextElementNamespaceCounts'] = $leafTextElements['elementNamespaceCounts'];
+        $item['xmlLeafTextElementLocalNameCounts'] = $leafTextElements['elementLocalNameCounts'];
+        $item['xmlLeafTextElementQualifiedNameCounts'] = $leafTextElements['elementQualifiedNameCounts'];
+        $item['xmlLeafTextElementPrefixCounts'] = $leafTextElements['elementPrefixCounts'];
+        $item['xmlLeafTextElementPrefixes'] = $leafTextElements['elementPrefixes'];
+        $item['xmlLeafTextElements'] = $leafTextElements['items'];
         $item['validRoot'] = $root['namespace'] === $expectedRootNamespace && $root['localName'] === $expectedRootLocalName;
         if ($item['validRoot'] === false) {
             $item['issues'][] = 'unexpected-root';

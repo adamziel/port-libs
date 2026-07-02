@@ -23602,6 +23602,140 @@ XML;
         $t->true(!str_contains((string) $encodedReview, 'hidden-gamma'), 'selected XML theme CDATA rollups should not expose CDATA content');
         $t->true(!str_contains((string) $encodedReview, 'Text Theme'), 'selected XML text rollups should not expose selected part attribute values');
     },
+    'summarizes docx selected openxml leaf text elements for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $settingsText = " selected-settings-leaf:hidden-alpha\n";
+        $settingsCdata = 'selected-settings-cdata:hidden-beta';
+        $settingsChildText = 'selected-settings-child:hidden-delta';
+        $settingsWhitespace = " \t\n";
+        $themeText = 'selected-theme-leaf:hidden-gamma';
+        $wordUri = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+        $themeUri = 'http://schemas.openxmlformats.org/drawingml/2006/main';
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>' . "\n" .
+            '  <Override PartName="/word/theme/leaf-text-theme.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSettingsLeafText" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml?review=leaf-text#settings"/>' . "\n" .
+            '  <Relationship Id="rThemeLeafText" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/leaf-text-theme.xml?review=leaf-text#theme"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/settings.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="{$wordUri}">
+  <w:docVars><w:docVar>{$settingsText}</w:docVar></w:docVars>
+  <w:compat><![CDATA[{$settingsCdata}]]></w:compat>
+  <w:container><w:child>{$settingsChildText}</w:child></w:container>
+  <w:spacer>{$settingsWhitespace}</w:spacer>
+</w:settings>
+XML;
+        $parts['word/theme/leaf-text-theme.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<a:theme xmlns:a="{$themeUri}" name="Leaf Text Theme">
+  <a:themeElements><a:reviewLabel>{$themeText}</a:reviewLabel></a:themeElements>
+</a:theme>
+XML;
+
+        $package = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance'];
+        $selected = $package['selectedXmlParts'];
+        $summary = $package['summary'];
+        $settings = $selected['byKind']['settings'];
+        $theme = $selected['byKind']['theme'];
+        $settingsByteLength = strlen($settingsText) + strlen($settingsCdata) + strlen($settingsChildText) + strlen($settingsWhitespace);
+        $settingsNonWhitespaceByteLength = strlen($settingsText) + strlen($settingsCdata) + strlen($settingsChildText);
+
+        $t->same(4, $settings['xmlLeafTextElementCount']);
+        $t->same($settingsByteLength, $settings['xmlLeafTextElementByteLength']);
+        $t->same(3, $settings['xmlLeafTextElementNonWhitespaceCount']);
+        $t->same(1, $settings['xmlLeafTextElementWhitespaceOnlyCount']);
+        $t->same($settingsNonWhitespaceByteLength, $settings['xmlLeafTextElementNonWhitespaceByteLength']);
+        $t->same(4, $settings['xmlLeafTextElementTextNodeCount']);
+        $t->same(1, $settings['xmlLeafTextElementCdataNodeCount']);
+        $t->same(2, $settings['xmlLeafTextElementLeadingWhitespaceCount']);
+        $t->same(2, $settings['xmlLeafTextElementTrailingWhitespaceCount']);
+        $t->same(1 + strlen($settingsWhitespace), $settings['xmlLeafTextElementLeadingWhitespaceByteLength']);
+        $t->same(1 + strlen($settingsWhitespace), $settings['xmlLeafTextElementTrailingWhitespaceByteLength']);
+        $t->same(2, $settings['xmlLeafTextElementLineBreakCount']);
+        $t->same(2, $settings['xmlLeafTextElementLineBreakElementCount']);
+        $t->same([
+            '/w:settings/w:compat' => 1,
+            '/w:settings/w:container/w:child' => 1,
+            '/w:settings/w:docVars/w:docVar' => 1,
+            '/w:settings/w:spacer' => 1,
+        ], $settings['xmlLeafTextElementPathCounts']);
+        $t->same([
+            '/w:settings/w:compat',
+            '/w:settings/w:container/w:child',
+            '/w:settings/w:docVars/w:docVar',
+            '/w:settings/w:spacer',
+        ], $settings['xmlLeafTextElementPaths']);
+        $t->same([$wordUri => 4], $settings['xmlLeafTextElementNamespaceCounts']);
+        $t->same([
+            'child' => 1,
+            'compat' => 1,
+            'docVar' => 1,
+            'spacer' => 1,
+        ], $settings['xmlLeafTextElementLocalNameCounts']);
+        $t->same(['w' => 4], $settings['xmlLeafTextElementPrefixCounts']);
+        $t->same(['w'], $settings['xmlLeafTextElementPrefixes']);
+        $t->same('/w:settings/w:docVars/w:docVar', $settings['xmlLeafTextElements'][0]['elementPath']);
+        $t->same(strlen($settingsText), $settings['xmlLeafTextElements'][0]['byteLength']);
+        $t->same(1, $settings['xmlLeafTextElements'][0]['lineBreakCount']);
+        $t->same(sprintf('%08x', crc32($settingsText)), $settings['xmlLeafTextElements'][0]['crc32']);
+        $t->same(hash('sha256', $settingsText), $settings['xmlLeafTextElements'][0]['sha256']);
+        $t->same(1, $settings['xmlLeafTextElements'][1]['cdataNodeCount']);
+        $t->same(hash('sha256', $settingsCdata), $settings['xmlLeafTextElements'][1]['sha256']);
+        $t->same('/w:settings/w:container/w:child', $settings['xmlLeafTextElements'][2]['elementPath']);
+        $t->same(true, $settings['xmlLeafTextElements'][3]['isWhitespaceOnly']);
+        $t->same(strlen($settingsWhitespace), $settings['xmlLeafTextElements'][3]['byteLength']);
+        $t->same(strlen($settingsWhitespace), $settings['xmlLeafTextElements'][3]['leadingWhitespaceByteLength']);
+        $t->same(strlen($settingsWhitespace), $settings['xmlLeafTextElements'][3]['trailingWhitespaceByteLength']);
+
+        $t->same(1, $theme['xmlLeafTextElementCount']);
+        $t->same(strlen($themeText), $theme['xmlLeafTextElementByteLength']);
+        $t->same([$themeUri => 1], $theme['xmlLeafTextElementNamespaceCounts']);
+        $t->same(['reviewLabel' => 1], $theme['xmlLeafTextElementLocalNameCounts']);
+        $t->same(['a:reviewLabel' => 1], $theme['xmlLeafTextElementQualifiedNameCounts']);
+        $t->same('/a:theme/a:themeElements/a:reviewLabel', $theme['xmlLeafTextElements'][0]['elementPath']);
+        $t->same(hash('sha256', $themeText), $theme['xmlLeafTextElements'][0]['sha256']);
+
+        $t->true(in_array('word/settings.xml', $selected['xmlLeafTextElementPartNames'], true), 'selected settings leaf text part should be summarized');
+        $t->true(in_array('word/theme/leaf-text-theme.xml', $selected['xmlLeafTextElementPartNames'], true), 'selected theme leaf text part should be summarized');
+        $t->same(1, $selected['xmlLeafTextElementPathCounts']['/w:settings/w:docVars/w:docVar']);
+        $t->same(1, $selected['xmlLeafTextElementPathCounts']['/a:theme/a:themeElements/a:reviewLabel']);
+        $t->same($selected['xmlLeafTextElementPartCount'], $summary['selectedXmlPartXmlLeafTextElementPartCount']);
+        $t->same($selected['xmlLeafTextElementCount'], $summary['selectedXmlPartXmlLeafTextElementCount']);
+        $t->same($selected['xmlLeafTextElementByteLength'], $summary['selectedXmlPartXmlLeafTextElementByteLength']);
+        $t->same($selected['xmlLeafTextElementNonWhitespaceCount'], $summary['selectedXmlPartXmlLeafTextElementNonWhitespaceCount']);
+        $t->same($selected['xmlLeafTextElementWhitespaceOnlyCount'], $summary['selectedXmlPartXmlLeafTextElementWhitespaceOnlyCount']);
+        $t->same($selected['xmlLeafTextElementCdataNodeCount'], $summary['selectedXmlPartXmlLeafTextElementCdataNodeCount']);
+        $t->same($selected['xmlLeafTextElementPartNames'], $summary['selectedXmlPartXmlLeafTextElementPartNames']);
+        $t->same($selected['xmlLeafTextElementPathCounts'], $summary['selectedXmlPartXmlLeafTextElementPathCounts']);
+        $t->same($selected['xmlLeafTextElementPaths'], $summary['selectedXmlPartXmlLeafTextElementPaths']);
+        $t->same($selected['xmlLeafTextElementNamespaceCounts'], $summary['selectedXmlPartXmlLeafTextElementNamespaceCounts']);
+        $t->same($selected['xmlLeafTextElementLocalNameCounts'], $summary['selectedXmlPartXmlLeafTextElementLocalNameCounts']);
+        $t->same($selected['xmlLeafTextElementQualifiedNameCounts'], $summary['selectedXmlPartXmlLeafTextElementQualifiedNameCounts']);
+        $t->same($selected['xmlLeafTextElementPrefixCounts'], $summary['selectedXmlPartXmlLeafTextElementPrefixCounts']);
+        $t->same($selected['xmlLeafTextElements'], $summary['selectedXmlPartXmlLeafTextElements']);
+
+        $encodedReview = json_encode([
+            $settings['xmlLeafTextElements'],
+            $theme['xmlLeafTextElements'],
+            $summary['selectedXmlPartXmlLeafTextElements'],
+        ]);
+        $t->true(is_string($encodedReview), 'selected XML leaf text metadata should encode for review');
+        $t->true(!isset($settings['xmlLeafTextElements'][0]['text']), 'selected XML leaf text metadata must not expose raw text');
+        $t->true(!str_contains((string) $encodedReview, 'hidden-alpha'), 'selected XML leaf text rollups should not expose text payloads');
+        $t->true(!str_contains((string) $encodedReview, 'hidden-beta'), 'selected XML leaf text rollups should not expose CDATA payloads');
+        $t->true(!str_contains((string) $encodedReview, 'hidden-gamma'), 'selected XML leaf text rollups should not expose theme text payloads');
+        $t->true(!str_contains((string) $encodedReview, 'hidden-delta'), 'selected XML leaf text rollups should not expose nested leaf payloads');
+        $t->true(!str_contains((string) $encodedReview, 'Leaf Text Theme'), 'selected XML leaf text rollups should not expose selected part attribute values');
+    },
     'summarizes docx package xml root namespace declarations for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['customXml/ns-review.xml'] = <<<'XML'
