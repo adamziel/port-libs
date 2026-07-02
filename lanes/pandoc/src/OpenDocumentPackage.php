@@ -701,7 +701,7 @@ final class OpenDocumentPackage
         $packageLayoutCaches = self::packageLayoutCacheMetadata($this->package, $this->manifestEntries, $undeclaredPackageEntries);
         $documentParts = $this->documentPartPackageProvenance($packageInventory);
         $packageStyles = $this->packageStyleProvenance($packageInventory);
-        $manifestMediaTypeSummary = self::manifestMediaTypeSummary($this->manifestEntries);
+        $manifestMediaTypeSummary = self::manifestMediaTypeSummary($this->manifestEntries, $this->manifestVersion);
         foreach ($this->manifestEntries as $entry) {
             if (self::isMediaResourceManifestEntry($entry)) {
                 $mediaParts[] = [
@@ -3386,8 +3386,9 @@ final class OpenDocumentPackage
      * @param list<array<string, mixed>> $manifestEntries
      * @return array<string, mixed>
      */
-    private static function manifestMediaTypeSummary(array $manifestEntries): array
+    private static function manifestMediaTypeSummary(array $manifestEntries, ?string $manifestRootVersion = null): array
     {
+        $manifestRootVersion = $manifestRootVersion === null || trim($manifestRootVersion) === '' ? null : trim($manifestRootVersion);
         $groups = [];
         $groupOrder = [];
         $emptyMediaTypeParts = [];
@@ -3416,6 +3417,10 @@ final class OpenDocumentPackage
             'versionedItemCount' => 0,
             'manifestVersions' => [],
             'versionedItems' => [],
+            'manifestRootVersion' => $manifestRootVersion,
+            'manifestVersionMismatchCount' => 0,
+            'manifestVersionMismatchParts' => [],
+            'manifestVersionMismatches' => [],
             'preferredViewModeCount' => 0,
             'preferredViewModes' => [],
             'preferredViewModeItems' => [],
@@ -3500,6 +3505,19 @@ final class OpenDocumentPackage
                     'exists' => $exists,
                     'isDirectory' => $isDirectory,
                 ]);
+                if ($manifestRootVersion !== null && $manifestVersion !== $manifestRootVersion) {
+                    ++$summary['manifestVersionMismatchCount'];
+                    $summary['manifestVersionMismatchParts'][] = $part;
+                    $summary['manifestVersionMismatches'][] = self::withoutEmptyValues([
+                        'fullPath' => $fullPath,
+                        'part' => $packagePath,
+                        'mediaType' => $mediaType,
+                        'version' => $manifestVersion,
+                        'manifestRootVersion' => $manifestRootVersion,
+                        'exists' => $exists,
+                        'isDirectory' => $isDirectory,
+                    ]);
+                }
             }
             if ($preferredViewMode !== '') {
                 ++$summary['preferredViewModeCount'];

@@ -23531,6 +23531,7 @@ final class OdfReader
      */
     private function manifestMediaTypeSummary(array $manifest): array
     {
+        $manifestRootVersion = $this->manifestVersion === '' ? null : $this->manifestVersion;
         $groups = [];
         $groupOrder = [];
         $emptyMediaTypeParts = [];
@@ -23559,6 +23560,10 @@ final class OdfReader
             'versionedItemCount' => 0,
             'manifestVersions' => [],
             'versionedItems' => [],
+            'manifestRootVersion' => $manifestRootVersion,
+            'manifestVersionMismatchCount' => 0,
+            'manifestVersionMismatchParts' => [],
+            'manifestVersionMismatches' => [],
             'preferredViewModeCount' => 0,
             'preferredViewModes' => [],
             'preferredViewModeItems' => [],
@@ -23641,6 +23646,19 @@ final class OdfReader
                     'exists' => $exists,
                     'isDirectory' => $isDirectory,
                 ]);
+                if ($manifestRootVersion !== null && $manifestVersion !== $manifestRootVersion) {
+                    ++$summary['manifestVersionMismatchCount'];
+                    $summary['manifestVersionMismatchParts'][] = $part;
+                    $summary['manifestVersionMismatches'][] = self::withoutEmpty([
+                        'fullPath' => $item['fullPath'] ?? null,
+                        'part' => $item['part'] ?? null,
+                        'mediaType' => $mediaType,
+                        'version' => $manifestVersion,
+                        'manifestRootVersion' => $manifestRootVersion,
+                        'exists' => $exists,
+                        'isDirectory' => $isDirectory,
+                    ]);
+                }
             }
             if ($preferredViewMode !== '') {
                 ++$summary['preferredViewModeCount'];
