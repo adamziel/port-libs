@@ -1618,6 +1618,7 @@ final class OpenDocumentPackage
         $packageZipSourceRecordPackagePartBaseNameStems = self::packageZipSourceRecordPackagePartBaseNameStemInventory($parts);
         $packageZipSourceRecordCompressionMethods = self::packageZipSourceRecordCompressionMethodInventory($parts);
         $packageZipSourceRecordRoles = self::packageZipSourceRecordRoleInventory($parts);
+        $packageZipSourceRecordByteBuckets = OdfPackageZipSourceRecordByteBucketInventory::summarize($parts);
         $packageCrc32s = OdfPackageCrc32Inventory::summarize($parts);
         $packageZipTimestampSources = self::packageZipTimestampSourceInventory($parts);
         $packageExtraFields = self::packageExtraFieldInventory($parts);
@@ -1697,6 +1698,14 @@ final class OpenDocumentPackage
             'packageZipSourceRecordReviewFieldByteLength' => $packageZipSourceRecordDirectoryRoots['packageZipSourceRecordReviewFieldByteLength'],
             'packageZipSourceRecordDataDescriptorEntryCount' => $packageZipSourceRecordDirectoryRoots['packageZipSourceRecordDataDescriptorEntryCount'],
             'packageZipSourceRecordDirectoryRoots' => $packageZipSourceRecordDirectoryRoots['packageZipSourceRecordDirectoryRoots'],
+            'packageZipSourceRecordByteBucketCount' => $packageZipSourceRecordByteBuckets['packageZipSourceRecordByteBucketCount'],
+            'packageZipSourceRecordByteBuckets' => $packageZipSourceRecordByteBuckets['packageZipSourceRecordByteBuckets'],
+            'packageZipSourceRecordByteBucketCounts' => $packageZipSourceRecordByteBuckets['packageZipSourceRecordByteBucketCounts'],
+            'packageZipSourceRecordByteBucketBytes' => $packageZipSourceRecordByteBuckets['packageZipSourceRecordByteBucketBytes'],
+            'entryNamesByPackageZipSourceRecordByteBucket' => $packageZipSourceRecordByteBuckets['entryNamesByPackageZipSourceRecordByteBucket'],
+            'packageZipSourceRecordByteBucketDataDescriptorEntryCount' => $packageZipSourceRecordByteBuckets['packageZipSourceRecordByteBucketDataDescriptorEntryCount'],
+            'packageZipSourceRecordByteBucketIssueEntryCount' => $packageZipSourceRecordByteBuckets['packageZipSourceRecordByteBucketIssueEntryCount'],
+            'packageZipSourceRecordByteBucketSummaries' => $packageZipSourceRecordByteBuckets['packageZipSourceRecordByteBucketSummaries'],
             'packageZipSourceRecordPackagePartExtensionCount' => $packageZipSourceRecordPackagePartExtensions['packageZipSourceRecordPackagePartExtensionCount'],
             'packageZipSourceRecordPackagePartExtensionCounts' => $packageZipSourceRecordPackagePartExtensions['packageZipSourceRecordPackagePartExtensionCounts'],
             'packageZipSourceRecordPackagePartExtensionBytes' => $packageZipSourceRecordPackagePartExtensions['packageZipSourceRecordPackagePartExtensionBytes'],
@@ -3108,6 +3117,14 @@ final class OpenDocumentPackage
             'packageZipSourceRecordReviewFieldByteLength' => $packageInventory['packageZipSourceRecordReviewFieldByteLength'] ?? 0,
             'packageZipSourceRecordDataDescriptorEntryCount' => $packageInventory['packageZipSourceRecordDataDescriptorEntryCount'] ?? 0,
             'packageZipSourceRecordDirectoryRoots' => $packageInventory['packageZipSourceRecordDirectoryRoots'] ?? [],
+            'packageZipSourceRecordByteBucketCount' => $packageInventory['packageZipSourceRecordByteBucketCount'] ?? 0,
+            'packageZipSourceRecordByteBuckets' => $packageInventory['packageZipSourceRecordByteBuckets'] ?? [],
+            'packageZipSourceRecordByteBucketCounts' => $packageInventory['packageZipSourceRecordByteBucketCounts'] ?? [],
+            'packageZipSourceRecordByteBucketBytes' => $packageInventory['packageZipSourceRecordByteBucketBytes'] ?? [],
+            'entryNamesByPackageZipSourceRecordByteBucket' => $packageInventory['entryNamesByPackageZipSourceRecordByteBucket'] ?? [],
+            'packageZipSourceRecordByteBucketDataDescriptorEntryCount' => $packageInventory['packageZipSourceRecordByteBucketDataDescriptorEntryCount'] ?? 0,
+            'packageZipSourceRecordByteBucketIssueEntryCount' => $packageInventory['packageZipSourceRecordByteBucketIssueEntryCount'] ?? 0,
+            'packageZipSourceRecordByteBucketSummaries' => $packageInventory['packageZipSourceRecordByteBucketSummaries'] ?? [],
             'packageZipSourceRecordPackagePartExtensionCount' => $packageInventory['packageZipSourceRecordPackagePartExtensionCount'] ?? 0,
             'packageZipSourceRecordPackagePartExtensionCounts' => $packageInventory['packageZipSourceRecordPackagePartExtensionCounts'] ?? [],
             'packageZipSourceRecordPackagePartExtensionBytes' => $packageInventory['packageZipSourceRecordPackagePartExtensionBytes'] ?? [],
