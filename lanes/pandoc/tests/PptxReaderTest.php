@@ -5968,7 +5968,9 @@ XML);
 XML);
     $zip->addFromString('ppt/diagrams/layout1.xml', <<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
-<dgm:layoutDef xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"/>
+<dgm:layoutDef xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" xmlns:q="urn:qualified-layout-title">
+  <dgm:title q:val="QualifiedTitleShouldNotWin"/>
+</dgm:layoutDef>
 XML);
     $zip->addFromString('ppt/diagrams/data1.xml', <<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -10719,7 +10721,7 @@ return [
         $t->true(!str_contains($native, 'Diagram parse error'), 'SmartArt descendant text should parse without falling back to diagnostics');
     },
 
-    'uses unknown SmartArt layout names when uniqueId and title are absent like upstream' => static function (TestRunner $t) use ($buildUnknownLayoutSmartArtPptxPackage, $nodesOfType, $nodesWithClass): void {
+    'uses unknown SmartArt layout names when uniqueId and unqualified title value are absent like upstream' => static function (TestRunner $t) use ($buildUnknownLayoutSmartArtPptxPackage, $nodesOfType, $nodesWithClass): void {
         $document = (new PptxReader())->read($buildUnknownLayoutSmartArtPptxPackage());
         $review = $document->attr('pptx');
         $divs = $nodesOfType($document, 'div');
@@ -10730,6 +10732,7 @@ return [
         $t->same(['smartart', 'unknown'], $smartArtDivs[0]->attr('classes'));
         $t->same(['layout' => 'unknown'], $smartArtDivs[0]->attr('attributes'));
         $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
+        $t->true(!str_contains($native, 'QualifiedTitleShouldNotWin'), 'Qualified SmartArt layout title val attributes should not become native layout names');
         $t->contains('Strong [ Str "Unknown" , Space , Str "layout" , Space , Str "parent" ]', $native);
         $t->contains('BulletList [ [ Plain [ Str "Unknown" , Space , Str "layout" , Space , Str "child"', $native);
         $t->true(!str_contains($native, 'Diagram parse error'), 'Missing SmartArt layout labels should not make the diagram fail');
