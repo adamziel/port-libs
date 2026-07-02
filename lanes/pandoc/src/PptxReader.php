@@ -1639,10 +1639,6 @@ final class PptxReader
 
         $graphicData = $this->graphicDataElement($shapeElement, $drawingNamespace);
         if (!$graphicData instanceof \DOMElement) {
-            if ($this->firstDescendantElement($shapeElement, 'graphicData') instanceof \DOMElement) {
-                return $this->unsupportedDrawableShapeBlocks($shapeElement, $slideRelationships, $zOrder, $shapeIssues, $richMedia);
-            }
-
             return [];
         }
 

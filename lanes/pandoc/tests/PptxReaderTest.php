@@ -6511,6 +6511,18 @@ XML);
       <p:nvGraphicFramePr><p:cNvPr id="21" name="Missing Graphic"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
     </p:graphicFrame>
     <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="24" name="Nested GraphicData Wrong Chain"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic><a:wrapper><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl>
+        <a:tr><a:tc><a:txBody><a:p><a:r><a:t>Nested graphicData table cell</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
+      </a:tbl></a:graphicData></a:wrapper></a:graphic>
+    </p:graphicFrame>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="25" name="Wrapped Graphic Wrong Chain"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <p:wrapper><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl>
+        <a:tr><a:tc><a:txBody><a:p><a:r><a:t>Wrapped graphic table cell</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
+      </a:tbl></a:graphicData></a:graphic></p:wrapper>
+    </p:graphicFrame>
+    <p:graphicFrame>
       <p:nvGraphicFramePr><p:cNvPr id="10" name="No URI Graphic"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
       <a:graphic><a:graphicData/></a:graphic>
     </p:graphicFrame>
@@ -11539,7 +11551,7 @@ return [
         $t->same([], $nodesOfType($document, 'image'));
         $t->same([], $nodesOfType($document, 'table'));
         $t->same(0, $review['slides'][0]['imageIssueCount'] ?? null);
-        $t->same(1, $review['slides'][0]['shapeIssueCount'] ?? null);
+        $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
         $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Shadowed" , Space , Str "drawing" , Space , Str "media" , Space , Str "title" ]', $native);
         $t->true(!str_contains($native, 'shadowed-drawing.png'), 'Locally corrected picture DrawingML should not override the slide root a prefix binding');
         $t->true(!str_contains($native, 'Shadowed table header'), 'Locally corrected graphic-frame DrawingML should not override the slide root a prefix binding');
@@ -12214,6 +12226,8 @@ XML);
         $t->true(!str_contains($native, 'rIdOnlyLayout'), 'Partial SmartArt relIds should not look up the present layout relationship');
         $t->true(!str_contains($native, 'Nested RelIds parent'), 'Nested SmartArt relIds should not be discovered from descendants like upstream');
         $t->true(!str_contains($native, 'Nested RelIds child'), 'Nested SmartArt relIds children should stay hidden when relIds are not direct graphicData children');
+        $t->true(!str_contains($native, 'Nested graphicData table cell'), 'Nested graphicData should not be read when the direct a:graphic/a:graphicData chain is broken like upstream');
+        $t->true(!str_contains($native, 'Wrapped graphic table cell'), 'Wrapped a:graphic should not be read when it is not a direct graphicFrame child like upstream');
 
         $placeholderParagraphs = array_values(array_filter(
             $paragraphs,
