@@ -20051,6 +20051,7 @@ final class XmlHtmlDom
         if ($dataAttributes !== []) {
             $summary['dataAttributes'] = $dataAttributes;
             $summary['dataset'] = self::datasetSummary($dataAttributes);
+            $summary += self::dataAttributeReviewSummary($dataAttributes);
         }
 
         $ariaAttributes = self::ariaAttributeSummary($attributes);
@@ -24426,6 +24427,73 @@ final class XmlHtmlDom
         return $dataset;
     }
 
+    /**
+     * @param array<string, string> $dataAttributes
+     * @return array<string, mixed>
+     */
+    private static function dataAttributeReviewSummary(array $dataAttributes): array
+    {
+        $records = [];
+        $propertyNames = [];
+        $dotNotationSafePropertyNames = [];
+        $bracketOnlyPropertyNames = [];
+        $emptyAttributeNames = [];
+        $valueBytes = 0;
+
+        foreach ($dataAttributes as $name => $value) {
+            $propertyName = self::datasetPropertyName($name);
+            $dotNotationSafe = self::datasetPropertyDotNotationSafe($propertyName);
+            $empty = $value === '';
+            $valueByteCount = strlen($value);
+            $valueBytes += $valueByteCount;
+
+            if ($propertyName !== '') {
+                $propertyNames[] = $propertyName;
+                if ($dotNotationSafe) {
+                    $dotNotationSafePropertyNames[] = $propertyName;
+                } else {
+                    $bracketOnlyPropertyNames[] = $propertyName;
+                }
+            }
+            if ($empty) {
+                $emptyAttributeNames[] = $name;
+            }
+
+            $records[] = [
+                'name' => $name,
+                'datasetPropertyName' => $propertyName,
+                'dotNotationSafe' => $dotNotationSafe,
+                'requiresBracketNotation' => $propertyName !== '' && !$dotNotationSafe,
+                'emptyValue' => $empty,
+                'valueBytes' => $valueByteCount,
+            ];
+        }
+
+        $reviewCodes = [];
+        if ($bracketOnlyPropertyNames !== []) {
+            $reviewCodes[] = 'dataset-property-bracket-notation-required';
+        }
+        if ($emptyAttributeNames !== []) {
+            $reviewCodes[] = 'empty-data-attribute-value';
+        }
+
+        return [
+            'dataAttributeReviewPolicy' => 'html-data-attribute-dataset-property-review',
+            'dataAttributeCount' => count($dataAttributes),
+            'dataAttributeNames' => array_keys($dataAttributes),
+            'dataAttributeValueBytes' => $valueBytes,
+            'datasetPropertyNames' => $propertyNames,
+            'datasetDotNotationSafePropertyNames' => $dotNotationSafePropertyNames,
+            'datasetBracketOnlyPropertyNames' => $bracketOnlyPropertyNames,
+            'datasetRequiresBracketNotation' => $bracketOnlyPropertyNames !== [],
+            'emptyDataAttributeNames' => $emptyAttributeNames,
+            'emptyDataAttributeCount' => count($emptyAttributeNames),
+            'dataAttributeRecords' => $records,
+            'dataAttributeReviewCodes' => $reviewCodes,
+            'dataAttributeReviewCodeCount' => count($reviewCodes),
+        ];
+    }
+
     private static function datasetPropertyName(string $attributeName): string
     {
         $name = substr($attributeName, 5);
@@ -24444,6 +24512,11 @@ final class XmlHtmlDom
         }
 
         return $property;
+    }
+
+    private static function datasetPropertyDotNotationSafe(string $propertyName): bool
+    {
+        return preg_match('/^[A-Za-z_$][A-Za-z0-9_$]*$/', $propertyName) === 1;
     }
 
     /**
