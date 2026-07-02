@@ -137,6 +137,18 @@ return [
         $t->same(count($parts), $provenance['centralDirectorySourceRecordEntryCount']);
         $t->same(count($parts), $provenance['centralDirectorySourceRecordSha256Count']);
         $t->true($provenance['centralDirectorySourceRecordByteLength'] > count($parts) * 46);
+        $t->same($provenance['packagePartByteExposurePolicyByteLengths'], $identity['packagePartByteExposurePolicyByteLengths']);
+        $t->same($provenance['packagePartByteExposurePolicyCompressedByteLengths'], $identity['packagePartByteExposurePolicyCompressedByteLengths']);
+        $t->same($provenance['packagePartByteExposurePolicyItemCount'], $identity['packagePartByteExposurePolicyItemCount']);
+        $t->same($provenance['packagePartByteExposurePolicyItems'], $identity['packagePartByteExposurePolicyItems']);
+        $t->same([
+            'content.xml',
+            'styles.xml',
+            'meta.xml',
+            'Pictures/hero.png',
+            'Basic/Standard/Review.xml',
+            'Notes/private.txt',
+        ], array_column($identity['packagePartByteExposurePolicyItems'], 'part'));
 
         $hero = $manifestEntries['Pictures/hero.png?cache=1#cover'];
         $script = $manifestEntries['Basic/Standard/Review.xml?macro=approve#entry'];
