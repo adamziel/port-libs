@@ -622,6 +622,8 @@ XML,
     },
     'preserves docx source zip entry provenance across package ingestion' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
+        $parts['customXml/document.xml'] = '<custom-document/>';
+        $parts['customXml/review.png'] = 'custom review png bytes';
         $zipParts = [
             ['name' => 'word/media/', 'data' => '', 'compressionMethod' => 0],
         ];
@@ -643,6 +645,14 @@ XML,
         $inventory = $package['parts'];
         $summary = $package['summary'];
         $orderNames = array_column($zipParts, 'name');
+        $leafSummaries = [];
+        foreach ($zipPackage['leafNameSummaries'] as $leafSummary) {
+            $leafSummaries[$leafSummary['leafName']] = $leafSummary;
+        }
+        $sharedLeafSummaries = [];
+        foreach ($zipPackage['sharedLeafNameSummaries'] as $leafSummary) {
+            $sharedLeafSummaries[$leafSummary['leafName']] = $leafSummary;
+        }
         $methodBuckets = [];
         foreach ($summary['zipCompressionMethods'] as $bucket) {
             $methodBuckets[$bucket['compressionMethod']] = $bucket;
@@ -663,6 +673,10 @@ XML,
         $t->true(in_array('word/document.xml', $zipPackage['loadedPartNames'], true), 'document part missing from zip loaded parts');
         $t->same('docx-zip-entry-metadata-only', $zipPackage['byteExposurePolicy']);
         $t->same(false, $zipPackage['canExposeBytes']);
+        $t->same(9, $zipPackage['leafNameCount']);
+        $t->same(2, $zipPackage['sharedLeafNameCount']);
+        $t->same(4, $zipPackage['sharedLeafNameEntryCount']);
+        $t->same(['document.xml', 'review.png'], array_keys($sharedLeafSummaries));
         $t->same(true, $sourceRecords['hasArchiveTrailer']);
         $t->same($layout['eocdOffset'], $sourceRecords['archiveTrailerOffset']);
         $t->same($layout['endOfCentralDirectoryBytes'], $sourceRecords['archiveTrailerBytes']);
@@ -681,11 +695,21 @@ XML,
         $directory = $zipPackage['byPackagePath']['word/media/'];
         $t->same(true, $directory['isDirectory']);
         $t->same(null, $directory['partName']);
+        $t->same('word', $directory['parentDirectory']);
+        $t->same('media', $directory['leafName']);
+        $t->same('media', $directory['entryBaseName']);
+        $t->same(null, $directory['entryExtension']);
+        $t->same('(directory)', $directory['entryExtensionKey']);
+        $t->same(2, $directory['pathDepth']);
         $t->same(false, $directory['loadedPart']);
         $t->same(['zip-directory'], $directory['roles']);
         $t->true(!isset($inventory['word/media/']), 'directory entries must stay out of loaded DOCX parts');
 
         $contentTypesEntry = $zipPackage['byPackagePath']['[Content_Types].xml'];
+        $t->same('/', $contentTypesEntry['parentDirectory']);
+        $t->same('[Content_Types].xml', $contentTypesEntry['leafName']);
+        $t->same('[Content_Types]', $contentTypesEntry['entryBaseName']);
+        $t->same('xml', $contentTypesEntry['entryExtensionKey']);
         $t->same(0, $contentTypesEntry['compressionMethod']);
         $t->same('stored', $contentTypesEntry['compressionMethodName']);
         $t->same(true, $contentTypesEntry['loadedPart']);
@@ -693,14 +717,41 @@ XML,
         $t->same(sprintf('%08x', crc32($parts['[Content_Types].xml'])), $contentTypesEntry['crc32']);
 
         $documentEntry = $zipPackage['byPackagePath']['word/document.xml'];
+        $t->same('word', $documentEntry['parentDirectory']);
+        $t->same('document.xml', $documentEntry['leafName']);
+        $t->same('document', $documentEntry['entryBaseName']);
+        $t->same('xml', $documentEntry['entryExtension']);
+        $t->same('xml', $documentEntry['entryExtensionKey']);
+        $t->same(2, $documentEntry['pathDepth']);
         $t->same(8, $documentEntry['compressionMethod']);
         $t->same('deflated', $documentEntry['compressionMethodName']);
         $t->same(strlen($parts['word/document.xml']), $documentEntry['byteLength']);
         $t->same(strlen($deflatedDocument), $documentEntry['compressedByteLength']);
         $t->same(sprintf('%08x', crc32($parts['word/document.xml'])), $documentEntry['crc32']);
         $t->same(true, $documentEntry['matchesCentralDirectoryOrder']);
+        $t->same(2, $leafSummaries['document.xml']['entryCount']);
+        $t->same(2, $leafSummaries['document.xml']['loadedPartCount']);
+        $t->same(
+            strlen($parts['word/document.xml']) + strlen($parts['customXml/document.xml']),
+            $leafSummaries['document.xml']['byteLength']
+        );
+        $t->same(['document'], $leafSummaries['document.xml']['entryBaseNames']);
+        $t->same(['xml'], $leafSummaries['document.xml']['entryExtensionKeys']);
+        $t->same(['customXml', 'word'], $leafSummaries['document.xml']['parentDirectories']);
+        $t->same(['customXml/document.xml', 'word/document.xml'], $leafSummaries['document.xml']['packagePaths']);
+        $t->same(['loaded-package-part' => 2, 'zip-file-entry' => 2], $leafSummaries['document.xml']['roleCounts']);
+        $t->same(2, $leafSummaries['review.png']['entryCount']);
+        $t->same(['customXml', 'word/media'], $leafSummaries['review.png']['parentDirectories']);
+        $t->same(['customXml/review.png', 'word/media/review.png'], $leafSummaries['review.png']['packagePaths']);
 
         $t->same(true, $inventory['word/document.xml']['zipEntryPresent']);
+        $t->same('document.xml', $inventory['word/document.xml']['zipLeafName']);
+        $t->same('document', $inventory['word/document.xml']['zipEntryBaseName']);
+        $t->same('xml', $inventory['word/document.xml']['zipEntryExtensionKey']);
+        $t->same('word', $inventory['word/document.xml']['zipParentDirectory']);
+        $t->same(2, $inventory['word/document.xml']['zipPathDepth']);
+        $t->same('document.xml', $inventory['customXml/document.xml']['zipLeafName']);
+        $t->same('customXml', $inventory['customXml/document.xml']['zipParentDirectory']);
         $t->same($documentEntry['centralDirectoryIndex'], $inventory['word/document.xml']['centralDirectoryIndex']);
         $t->same($documentEntry['localHeaderOrder'], $inventory['word/document.xml']['localHeaderOrder']);
         $t->same($documentEntry['localHeaderOffset'], $inventory['word/document.xml']['localHeaderOffset']);
@@ -716,6 +767,10 @@ XML,
         $t->same(count($parts), $summary['zipFileEntryCount']);
         $t->same(1, $summary['zipDirectoryEntryCount']);
         $t->same(count($parts), $summary['zipLoadedPartCount']);
+        $t->same(9, $summary['zipLeafNameCount']);
+        $t->same(2, $summary['zipSharedLeafNameCount']);
+        $t->same(4, $summary['zipSharedLeafNameEntryCount']);
+        $t->same(['document.xml', 'review.png'], $summary['zipSharedLeafNames']);
         $t->same(0, $summary['zipUnsupportedCompressionMethodCount']);
         $t->same(true, $summary['zipCentralDirectoryOrderMatchesLocalHeaderOrder']);
         $t->same($orderNames, $summary['zipCentralDirectoryOrderNames']);

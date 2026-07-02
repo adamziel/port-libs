@@ -12509,6 +12509,13 @@ final class DocxOpenXmlReader
         $summary['zipFileEntryCount'] = $zipPackage['fileEntryCount'];
         $summary['zipDirectoryEntryCount'] = $zipPackage['directoryEntryCount'];
         $summary['zipLoadedPartCount'] = $zipPackage['loadedPartCount'];
+        $summary['zipLeafNameCount'] = $zipPackage['leafNameCount'];
+        $summary['zipSharedLeafNameCount'] = $zipPackage['sharedLeafNameCount'];
+        $summary['zipSharedLeafNameEntryCount'] = $zipPackage['sharedLeafNameEntryCount'];
+        $summary['zipSharedLeafNames'] = array_values(array_map(
+            static fn (array $leafName): string => (string) ($leafName['leafName'] ?? ''),
+            is_array($zipPackage['sharedLeafNameSummaries'] ?? null) ? $zipPackage['sharedLeafNameSummaries'] : [],
+        ));
         $summary['zipCompressedByteLength'] = (int) ($zipPackage['compressedByteLength'] ?? 0);
         $summary['zipUncompressedByteLength'] = (int) ($zipPackage['uncompressedByteLength'] ?? 0);
         $summary['zipExpansionRatio'] = $zipPackage['expansionRatio'] ?? null;
@@ -13142,6 +13149,9 @@ final class DocxOpenXmlReader
                 'fileEntryCount' => 0,
                 'directoryEntryCount' => 0,
                 'loadedPartCount' => 0,
+                'leafNameCount' => 0,
+                'sharedLeafNameCount' => 0,
+                'sharedLeafNameEntryCount' => 0,
                 'unsupportedCompressionMethodCount' => 0,
                 'zeroByteEntryCount' => 0,
                 'zeroByteFileCount' => 0,
@@ -13160,6 +13170,8 @@ final class DocxOpenXmlReader
                 'localHeaderOrderNames' => [],
                 'directoryPackagePaths' => [],
                 'loadedPartNames' => [],
+                'leafNameSummaries' => [],
+                'sharedLeafNameSummaries' => [],
                 'compressionMethods' => [
                     'entryCount' => 0,
                     'supportedEntryCount' => 0,
@@ -13312,9 +13324,16 @@ final class DocxOpenXmlReader
                 ? $sizeEntry['expansionRatio']
                 : self::zipExpansionRatio($entry->uncompressedSize, $entry->compressedSize);
             $expansionRatioBucket = self::zipExpansionRatioBucket($expansionRatio);
+            $pathProfile = $this->zipPackagePathProfile($entry->name, $isDirectory);
             $summary = [
                 'packagePath' => $entry->name,
                 'partName' => $isDirectory ? null : $entry->name,
+                'parentDirectory' => $pathProfile['parentDirectory'],
+                'leafName' => $pathProfile['leafName'],
+                'entryBaseName' => $pathProfile['entryBaseName'],
+                'entryExtension' => $pathProfile['entryExtension'],
+                'entryExtensionKey' => $pathProfile['entryExtensionKey'],
+                'pathDepth' => $pathProfile['pathDepth'],
                 'directoryRoot' => is_array($manifestEntry) ? ($manifestEntry['directoryRoot'] ?? null) : null,
                 'caseFoldKey' => is_array($manifestEntry) && is_string($manifestEntry['caseFoldKey'] ?? null)
                     ? $manifestEntry['caseFoldKey']
@@ -13428,6 +13447,8 @@ final class DocxOpenXmlReader
             $entries[] = $summary;
             $byPackagePath[$entry->name] = $summary;
         }
+        $leafNameSummaries = $this->zipPackageLeafNameSummaries($entries);
+        $sharedLeafNameSummaries = $this->sharedZipPackageLeafNameSummaries($leafNameSummaries);
 
         return [
             'present' => true,
@@ -13435,6 +13456,12 @@ final class DocxOpenXmlReader
             'fileEntryCount' => $fileEntryCount,
             'directoryEntryCount' => $directoryEntryCount,
             'loadedPartCount' => $loadedPartCount,
+            'leafNameCount' => count($leafNameSummaries),
+            'sharedLeafNameCount' => count($sharedLeafNameSummaries),
+            'sharedLeafNameEntryCount' => array_sum(array_map(
+                static fn (array $summary): int => (int) ($summary['entryCount'] ?? 0),
+                $sharedLeafNameSummaries,
+            )),
             'unsupportedCompressionMethodCount' => (int) $compressionMethods['unsupportedCompressionMethodCount'],
             'zeroByteEntryCount' => (int) ($sizePreflight['zeroByteEntryCount'] ?? 0),
             'zeroByteFileCount' => (int) ($sizePreflight['zeroByteFileCount'] ?? 0),
@@ -13455,6 +13482,8 @@ final class DocxOpenXmlReader
             'localHeaderOrderNames' => $localHeaderOrder['localHeaderOrderNames'],
             'directoryPackagePaths' => $directoryPackagePaths,
             'loadedPartNames' => $loadedPartNames,
+            'leafNameSummaries' => $leafNameSummaries,
+            'sharedLeafNameSummaries' => $sharedLeafNameSummaries,
             'compressionMethods' => $compressionMethods,
             'generalPurposeFlags' => $generalPurposeFlags,
             'dataDescriptors' => $dataDescriptors,
@@ -15026,6 +15055,142 @@ final class DocxOpenXmlReader
         ];
     }
 
+    /**
+     * @return array{
+     *     parentDirectory:string,
+     *     leafName:string,
+     *     entryBaseName:string,
+     *     entryExtension:?string,
+     *     entryExtensionKey:string,
+     *     pathDepth:int
+     * }
+     */
+    private function zipPackagePathProfile(string $packagePath, bool $isDirectory): array
+    {
+        $profilePath = $isDirectory ? rtrim($packagePath, '/') : $packagePath;
+        if ($profilePath === '' && $packagePath !== '') {
+            $profilePath = $packagePath;
+        }
+
+        $separator = strrpos($profilePath, '/');
+        $leafName = $separator === false ? $profilePath : substr($profilePath, $separator + 1);
+        $parentDirectory = $separator === false ? '/' : substr($profilePath, 0, $separator);
+        if ($parentDirectory === '') {
+            $parentDirectory = '/';
+        }
+
+        $rawExtension = $this->packagePartRawExtension($leafName);
+        $entryBaseName = $leafName;
+        if ($rawExtension !== null) {
+            $stemLength = strlen($leafName) - strlen($rawExtension) - 1;
+            if ($stemLength > 0) {
+                $entryBaseName = substr($leafName, 0, $stemLength);
+            }
+        }
+
+        return [
+            'parentDirectory' => $parentDirectory,
+            'leafName' => $leafName,
+            'entryBaseName' => $entryBaseName,
+            'entryExtension' => $rawExtension,
+            'entryExtensionKey' => $rawExtension === null
+                ? ($isDirectory ? '(directory)' : '(none)')
+                : strtolower($rawExtension),
+            'pathDepth' => count(array_values(array_filter(
+                explode('/', trim($profilePath, '/')),
+                static fn (string $segment): bool => $segment !== '',
+            ))),
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private function zipPackageLeafNameSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $leafName = is_string($entry['leafName'] ?? null) ? $entry['leafName'] : '';
+            if ($leafName === '') {
+                continue;
+            }
+
+            if (!isset($summaries[$leafName])) {
+                $summaries[$leafName] = [
+                    'leafName' => $leafName,
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'loadedPartCount' => 0,
+                    'compressedByteLength' => 0,
+                    'byteLength' => 0,
+                    'entryBaseNames' => [],
+                    'entryExtensionKeys' => [],
+                    'parentDirectories' => [],
+                    'roleCounts' => [],
+                    'packagePaths' => [],
+                ];
+            }
+
+            ++$summaries[$leafName]['entryCount'];
+            $isDirectory = ($entry['isDirectory'] ?? false) === true;
+            if ($isDirectory) {
+                ++$summaries[$leafName]['directoryEntryCount'];
+            } else {
+                ++$summaries[$leafName]['fileEntryCount'];
+            }
+            if (($entry['loadedPart'] ?? false) === true) {
+                ++$summaries[$leafName]['loadedPartCount'];
+            }
+
+            $summaries[$leafName]['compressedByteLength'] += (int) ($entry['compressedByteLength'] ?? 0);
+            $summaries[$leafName]['byteLength'] += (int) ($entry['byteLength'] ?? 0);
+            $summaries[$leafName]['packagePaths'][] = (string) ($entry['packagePath'] ?? '');
+            $this->appendUniqueString(
+                $summaries[$leafName]['entryBaseNames'],
+                is_string($entry['entryBaseName'] ?? null) ? $entry['entryBaseName'] : null,
+            );
+            $this->appendUniqueString(
+                $summaries[$leafName]['entryExtensionKeys'],
+                is_string($entry['entryExtensionKey'] ?? null) ? $entry['entryExtensionKey'] : null,
+            );
+            $this->appendUniqueString(
+                $summaries[$leafName]['parentDirectories'],
+                is_string($entry['parentDirectory'] ?? null) ? $entry['parentDirectory'] : null,
+            );
+            foreach (($entry['roles'] ?? []) as $role) {
+                $role = (string) $role;
+                $summaries[$leafName]['roleCounts'][$role] =
+                    ($summaries[$leafName]['roleCounts'][$role] ?? 0) + 1;
+            }
+        }
+
+        ksort($summaries, SORT_STRING);
+        foreach ($summaries as &$summary) {
+            sort($summary['entryBaseNames'], SORT_STRING);
+            sort($summary['entryExtensionKeys'], SORT_STRING);
+            sort($summary['parentDirectories'], SORT_STRING);
+            sort($summary['packagePaths'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+        }
+        unset($summary);
+
+        return array_values($summaries);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $leafNameSummaries
+     * @return list<array<string, mixed>>
+     */
+    private function sharedZipPackageLeafNameSummaries(array $leafNameSummaries): array
+    {
+        return array_values(array_filter(
+            $leafNameSummaries,
+            static fn (array $summary): bool => (int) ($summary['entryCount'] ?? 0) > 1,
+        ));
+    }
+
     private function zipPackageEntryRoles(ZipPackageEntry $entry, bool $loadedPart): array
     {
         if ($entry->isDirectory()) {
@@ -15066,6 +15231,12 @@ final class DocxOpenXmlReader
             }
 
             $partInventory[$partName]['zipEntryPresent'] = true;
+            $partInventory[$partName]['zipParentDirectory'] = $entry['parentDirectory'] ?? null;
+            $partInventory[$partName]['zipLeafName'] = $entry['leafName'] ?? null;
+            $partInventory[$partName]['zipEntryBaseName'] = $entry['entryBaseName'] ?? null;
+            $partInventory[$partName]['zipEntryExtension'] = $entry['entryExtension'] ?? null;
+            $partInventory[$partName]['zipEntryExtensionKey'] = $entry['entryExtensionKey'] ?? null;
+            $partInventory[$partName]['zipPathDepth'] = $entry['pathDepth'] ?? null;
             $partInventory[$partName]['zipDirectoryRoot'] = $entry['directoryRoot'] ?? null;
             $partInventory[$partName]['zipCaseFoldKey'] = $entry['caseFoldKey'] ?? null;
             $partInventory[$partName]['zipCaseInsensitiveEquivalentEntryNames'] = $entry['caseInsensitiveEquivalentEntryNames'] ?? [];
