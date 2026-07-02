@@ -125,7 +125,8 @@ final class NativeWriter
 
         return is_array($document->attr('documentNative'))
             || $this->hasJsonNativeProvenance($document)
-            || $this->hasJsonNativeSidecar($document);
+            || $this->hasJsonNativeSidecar($document)
+            || $this->hasMixedBlockContainerContent($document);
     }
 
     private function hasJsonNativeSidecar(AstNode $node): bool
@@ -136,6 +137,53 @@ final class NativeWriter
 
         foreach ($node->children as $child) {
             if ($this->hasJsonNativeSidecar($child)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function hasMixedBlockContainerContent(AstNode $node): bool
+    {
+        foreach (['captionBlocks', 'shortCaptionBlocks'] as $key) {
+            $blocks = $node->attr($key);
+            if (is_array($blocks) && $this->isAstNodeList($blocks) && $this->needsBlockFlushing(array_values($blocks))) {
+                return true;
+            }
+        }
+
+        if (
+            in_array($node->type, ['blockquote', 'definition', 'div', 'figure', 'list_item', 'note', 'table_cell'], true)
+            && $this->needsBlockFlushing($node->children)
+        ) {
+            return true;
+        }
+
+        foreach ($node->children as $child) {
+            if ($this->hasMixedBlockContainerContent($child)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<AstNode> $children
+     */
+    private function needsBlockFlushing(array $children): bool
+    {
+        $hasInline = false;
+        $hasBlock = false;
+        foreach ($children as $child) {
+            if ($this->isInlineNode($child)) {
+                $hasInline = true;
+            } else {
+                $hasBlock = true;
+            }
+
+            if ($hasInline && $hasBlock) {
                 return true;
             }
         }
