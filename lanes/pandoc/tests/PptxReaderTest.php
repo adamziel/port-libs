@@ -4339,6 +4339,7 @@ XML);
 <dgm:dataModel xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
   <dgm:ptLst>
     <dgm:pt modelId=""><dgm:t><a:p><a:r><a:t>Empty id parent</a:t></a:r></a:p></dgm:t></dgm:pt>
+    <dgm:pt><dgm:t><a:p><a:r><a:t>Missing modelId parent</a:t></a:r></a:p></dgm:t></dgm:pt>
     <dgm:pt modelId="child"><dgm:t><a:p><a:r><a:t>Empty type child</a:t></a:r></a:p></dgm:t></dgm:pt>
   </dgm:ptLst>
   <dgm:cxnLst>
@@ -9231,7 +9232,7 @@ return [
         $t->contains('Para [ Str "[Diagram" , Space , Str "parse" , Space , Str "error:" , Space , Str "File" , Space , Str "not" , Space , Str "found" , Space , Str "in" , Space , Str "archive:" , Space , Str "/ppt/diagrams/data1.xml]" ]', $native);
     },
 
-    'keeps empty-type and empty-id pptx SmartArt connections hierarchical like upstream' => static function (TestRunner $t) use ($buildEmptyTypeSmartArtConnectionPptxPackage, $nodesOfType, $nodesWithClass): void {
+    'keeps empty-type empty-id and missing-modelId pptx SmartArt connections hierarchical like upstream' => static function (TestRunner $t) use ($buildEmptyTypeSmartArtConnectionPptxPackage, $nodesOfType, $nodesWithClass): void {
         $document = (new PptxReader())->read($buildEmptyTypeSmartArtConnectionPptxPackage());
         $review = $document->attr('pptx');
         $divs = $nodesOfType($document, 'div');
@@ -9245,6 +9246,7 @@ return [
         $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
         $t->contains('Strong [ Str "Empty" , Space , Str "id" , Space , Str "parent" ]', $native);
         $t->contains('BulletList [ [ Plain [ Str "Empty" , Space , Str "type" , Space , Str "child"', $native);
+        $t->true(!str_contains($native, 'Missing modelId parent'), 'SmartArt points without modelId should not overwrite the present empty-id point');
     },
 
     'uses the SmartArt root dgm prefix binding like upstream' => static function (TestRunner $t) use ($buildRootPrefixSmartArtPptxPackage, $nodesOfType, $nodesWithClass): void {
