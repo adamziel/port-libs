@@ -7482,6 +7482,69 @@ XML);
     }
 };
 
+$buildFirstSlideListPresentationPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-first-slide-list-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst/>
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+  <p:sldSz cx="12192000" cy="6858000"/>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Second slide list body</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildSlideLessPresentationPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-slideless-');
     if ($path === false) {
@@ -11800,6 +11863,19 @@ return [
         $t->same([], $document->children);
         $t->same('default', $review['slideSize']['source'] ?? null);
         $t->true(!str_contains($native, 'Wrong namespace presentation body'), 'Non-presentation namespace slide IDs should not select visible slides');
+    },
+
+    'uses only the first direct pptx presentation slide list like upstream' => static function (TestRunner $t) use ($buildFirstSlideListPresentationPptxPackage): void {
+        $document = (new PptxReader())->read($buildFirstSlideListPresentationPptxPackage());
+        $review = $document->attr('pptx');
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same(0, $review['slideCount'] ?? null);
+        $t->same([], $review['slides'] ?? null);
+        $t->same([], $document->children);
+        $t->same('presentation', $review['slideSize']['source'] ?? null);
+        $t->same(12192000, $review['slideSize']['cx'] ?? null);
+        $t->true(!str_contains($native, 'Second slide list body'), 'Slides from later p:sldIdLst siblings should stay hidden like upstream');
     },
 
     'allows pptx presentations without slide lists like upstream' => static function (TestRunner $t) use ($buildSlideLessPresentationPptxPackage): void {
