@@ -126,6 +126,7 @@ final class MarkdownReader
      *     htmlNativeDivs?: bool,
      *     htmlRawHtml?: bool,
      *     rawHtml?: bool,
+     *     inlineNotes?: bool,
      *     htmlIframeResources?: array<string, string|array{mime?: string, contentType?: string, body?: string, content?: string}>
      * } $options
      */
@@ -10154,11 +10155,20 @@ final class MarkdownReader
                 }
             }
 
-            $inlineNote = $this->resolveFootnoteReferences ? $this->tryParseInlineNote($text, $offset) : null;
+            $inlineNotesEnabled = $this->resolveFootnoteReferences && $this->inlineNotesExtensionEnabled();
+            $inlineNote = $inlineNotesEnabled ? $this->tryParseInlineNote($text, $offset) : null;
             if ($inlineNote !== null) {
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $inlineNote['node'];
                 $offset = $inlineNote['next'];
+                continue;
+            }
+            $inlineNoteLiteral = !$inlineNotesEnabled && $this->resolveFootnoteReferences
+                ? $this->tryParseDisabledInlineNoteLiteral($text, $offset)
+                : null;
+            if ($inlineNoteLiteral !== null) {
+                $buffer .= $inlineNoteLiteral['text'];
+                $offset = $inlineNoteLiteral['next'];
                 continue;
             }
 
@@ -10366,6 +10376,26 @@ final class MarkdownReader
 
         return [
             'node' => new AstNode('note', [], $this->parseFootnoteBlocks(substr($text, $offset + 2, $end - $offset - 2))),
+            'next' => $end + 1,
+        ];
+    }
+
+    /**
+     * @return array{text: string, next: int}|null
+     */
+    private function tryParseDisabledInlineNoteLiteral(string $text, int $offset): ?array
+    {
+        if (substr($text, $offset, 2) !== '^[' || $this->isEscapedInlinePosition($text, $offset)) {
+            return null;
+        }
+
+        $end = $this->findClosingInlineNoteBracket($text, $offset + 2);
+        if ($end === null) {
+            return null;
+        }
+
+        return [
+            'text' => substr($text, $offset, $end - $offset + 1),
             'next' => $end + 1,
         ];
     }
@@ -11177,6 +11207,23 @@ final class MarkdownReader
         $canonical = MarkdownFormatProfile::canonicalFormat($format);
 
         return in_array($canonical, ['markdown', 'commonmark_x', 'markdown_mmd'], true);
+    }
+
+    private function inlineNotesExtensionEnabled(): bool
+    {
+        if (array_key_exists('inlineNotes', $this->options)) {
+            return (bool) $this->options['inlineNotes'];
+        }
+
+        $overrides = $this->markdownExtensionOverrides();
+        if (array_key_exists('inline_notes', $overrides)) {
+            return $overrides['inline_notes'];
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['markdown', 'commonmark_x'], true);
     }
 
     private function wikilinkExtensionEnabled(): bool
