@@ -78,6 +78,8 @@ final class HtmlReader
         $topLevelIndexes = [];
         $globalPropertyNames = [];
         $globalPropertyCount = 0;
+        $globalValueSourceCounts = [];
+        $globalValueTypeCounts = [];
         $diagnostics = [];
         $reportedItemCount = min(count($itemElements), self::MICRODATA_MAX_ITEMS);
 
@@ -100,6 +102,12 @@ final class HtmlReader
                     $globalPropertyNames[] = $name;
                 }
             }
+            foreach ($item['valueSourceCounts'] as $source => $count) {
+                $globalValueSourceCounts[$source] = ($globalValueSourceCounts[$source] ?? 0) + $count;
+            }
+            foreach ($item['valueTypeCounts'] as $type => $count) {
+                $globalValueTypeCounts[$type] = ($globalValueTypeCounts[$type] ?? 0) + $count;
+            }
         }
 
         return $base + [
@@ -109,6 +117,8 @@ final class HtmlReader
             'htmlMicrodataTopLevelItemCount' => count($topLevelIndexes),
             'htmlMicrodataPropertyCount' => $globalPropertyCount,
             'htmlMicrodataPropertyNames' => $globalPropertyNames,
+            'htmlMicrodataValueSourceCounts' => $globalValueSourceCounts,
+            'htmlMicrodataValueTypeCounts' => $globalValueTypeCounts,
             'htmlMicrodataItems' => $items,
             'htmlMicrodataTopLevelItemIndexes' => $topLevelIndexes,
             'htmlMicrodataDiagnostics' => array_values(array_unique($diagnostics)),
@@ -191,6 +201,8 @@ final class HtmlReader
 
         $properties = array_slice($properties, 0, self::MICRODATA_MAX_PROPERTIES_PER_ITEM);
         $propertyNameCounts = self::microdataPropertyNameCounts($properties);
+        $valueSourceCounts = self::microdataPropertyScalarCounts($properties, 'valueSource');
+        $valueTypeCounts = self::microdataPropertyScalarCounts($properties, 'valueType');
 
         $summary = [
             'microdataReviewPolicy' => 'html-microdata-metadata-only',
@@ -202,6 +214,8 @@ final class HtmlReader
             'propertyCount' => count($properties),
             'propertyNames' => array_keys($propertyNameCounts),
             'propertyNameCounts' => $propertyNameCounts,
+            'valueSourceCounts' => $valueSourceCounts,
+            'valueTypeCounts' => $valueTypeCounts,
             'properties' => $properties,
         ];
 
@@ -341,6 +355,24 @@ final class HtmlReader
             foreach ($property['names'] as $name) {
                 $counts[$name] = ($counts[$name] ?? 0) + 1;
             }
+        }
+
+        return $counts;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $properties
+     * @return array<string, int>
+     */
+    private static function microdataPropertyScalarCounts(array $properties, string $field): array
+    {
+        $counts = [];
+        foreach ($properties as $property) {
+            $value = $property[$field] ?? null;
+            if (!is_string($value) || $value === '') {
+                continue;
+            }
+            $counts[$value] = ($counts[$value] ?? 0) + 1;
         }
 
         return $counts;

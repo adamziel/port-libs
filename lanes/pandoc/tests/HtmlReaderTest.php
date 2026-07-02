@@ -144,6 +144,63 @@ foreach ($valueSourceCases as $name => [$markup, $propertyName, $expectedValue, 
         };
 }
 
+$tests['summarizes html reader microdata value source and type counts'] =
+    static function (TestRunner $t): void {
+        $document = (new HtmlReader())->read(
+            '<!doctype html><html><body><section itemscope itemtype="https://schema.org/Event">'
+            . '<h1 itemprop="name">Launch Review</h1>'
+            . '<a itemprop="url" href="/events/launch">Event page</a>'
+            . '<img itemprop="image" src="/events/cover.png" alt="">'
+            . '<meta itemprop="eventStatus" content="EventScheduled">'
+            . '<data itemprop="maximumAttendeeCapacity" value="128">128 seats</data>'
+            . '<time itemprop="startDate" datetime="2026-07-02">today</time>'
+            . '<div itemprop="location" itemscope itemtype="https://schema.org/Place"><span itemprop="name">Town Hall</span></div>'
+            . '</section></body></html>'
+        );
+        $meta = $document->attr('meta');
+        $event = $meta['htmlMicrodataItems'][0];
+        $place = $meta['htmlMicrodataItems'][1];
+
+        $t->same(2, $meta['htmlMicrodataItemCount']);
+        $t->same(8, $meta['htmlMicrodataPropertyCount']);
+        $t->same([
+            'text' => 2,
+            'href' => 1,
+            'src' => 1,
+            'content' => 1,
+            'value' => 1,
+            'datetime' => 1,
+            'item' => 1,
+        ], $meta['htmlMicrodataValueSourceCounts']);
+        $t->same([
+            'string' => 4,
+            'url' => 2,
+            'datetime' => 1,
+            'item' => 1,
+        ], $meta['htmlMicrodataValueTypeCounts']);
+
+        $t->same(7, $event['propertyCount']);
+        $t->same([
+            'text' => 1,
+            'href' => 1,
+            'src' => 1,
+            'content' => 1,
+            'value' => 1,
+            'datetime' => 1,
+            'item' => 1,
+        ], $event['valueSourceCounts']);
+        $t->same([
+            'string' => 3,
+            'url' => 2,
+            'datetime' => 1,
+            'item' => 1,
+        ], $event['valueTypeCounts']);
+
+        $t->same(1, $place['propertyCount']);
+        $t->same(['text' => 1], $place['valueSourceCounts']);
+        $t->same(['string' => 1], $place['valueTypeCounts']);
+    };
+
 $tests['keeps html reader imports alive when microdata dom parse is unavailable'] =
     static function (TestRunner $t): void {
         $document = (new HtmlReader())->read(
@@ -160,7 +217,7 @@ $tests['keeps html reader imports alive when microdata dom parse is unavailable'
 
 $tests['records html reader microdata metadata mapped-case count'] =
     static function (TestRunner $t) use ($valueSourceCases): void {
-        $t->same(7, 1 + count($valueSourceCases) + 1);
+        $t->same(8, 1 + count($valueSourceCases) + 1 + 1);
     };
 
 return $tests;
