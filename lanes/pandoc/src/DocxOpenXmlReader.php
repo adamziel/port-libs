@@ -279,6 +279,12 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['digitalSignatureUnexpectedRootCount'] = $digitalSignatures['unexpectedSignatureRootCount'];
         $packageProvenance['summary']['digitalSignatureIssueCount'] = $digitalSignatures['issueCount'];
         $packageProvenance['summary']['digitalSignatureIssueCodes'] = $digitalSignatures['issueCodes'];
+        $packageProvenance['summary']['digitalSignatureIssueCodeCounts'] = $digitalSignatures['issueCodeCounts'];
+        $packageProvenance['summary']['digitalSignatureIssueOriginRelationshipIdsByCode'] = $digitalSignatures['issueOriginRelationshipIdsByCode'];
+        $packageProvenance['summary']['digitalSignatureIssueSignatureRelationshipIdsByCode'] = $digitalSignatures['issueSignatureRelationshipIdsByCode'];
+        $packageProvenance['summary']['digitalSignatureIssueOriginPartsByCode'] = $digitalSignatures['issueOriginPartsByCode'];
+        $packageProvenance['summary']['digitalSignatureIssueSignaturePartsByCode'] = $digitalSignatures['issueSignaturePartsByCode'];
+        $packageProvenance['summary']['digitalSignatureIssueExternalTargetsByCode'] = $digitalSignatures['issueExternalTargetsByCode'];
         $packageProvenance['summary']['digitalSignatureReferenceCount'] = $digitalSignatures['referenceCount'];
         $packageProvenance['summary']['digitalSignatureReferenceUriKindCounts'] = $digitalSignatures['referenceUriKindCounts'];
         $packageProvenance['summary']['digitalSignaturePackageReferenceCount'] = $digitalSignatures['packageReferenceCount'];
@@ -40316,6 +40322,12 @@ final class DocxOpenXmlReader
         $externalTargets = [];
         $contentTypesSeen = [];
         $issueCodes = [];
+        $issueCodeCounts = [];
+        $issueOriginRelationshipIdsByCode = [];
+        $issueSignatureRelationshipIdsByCode = [];
+        $issueOriginPartsByCode = [];
+        $issueSignaturePartsByCode = [];
+        $issueExternalTargetsByCode = [];
 
         foreach ($originRelationships as $relationship) {
             $origin = $this->digitalSignatureOriginItem($parts, $relationship, $contentTypes, count($origins));
@@ -40329,7 +40341,23 @@ final class DocxOpenXmlReader
                 $this->appendUniqueString($externalTargets, is_string($origin['target'] ?? null) ? $origin['target'] : null);
             }
             foreach (($origin['issues'] ?? []) as $issue) {
-                $issueCodes[(string) $issue] = true;
+                $issue = (string) $issue;
+                $issueCodes[$issue] = true;
+                $issueCodeCounts[$issue] = ($issueCodeCounts[$issue] ?? 0) + 1;
+                $issueOriginRelationshipIdsByCode[$issue] ??= [];
+                $this->appendUniqueString($issueOriginRelationshipIdsByCode[$issue], (string) $origin['id']);
+                $originPart = is_string($origin['targetPart'] ?? null) ? $origin['targetPart'] : null;
+                if ($originPart !== null) {
+                    $issueOriginPartsByCode[$issue] ??= [];
+                    $this->appendUniqueString($issueOriginPartsByCode[$issue], $originPart);
+                }
+                if (($origin['external'] ?? false) === true) {
+                    $externalTarget = is_string($origin['target'] ?? null) ? $origin['target'] : null;
+                    if ($externalTarget !== null) {
+                        $issueExternalTargetsByCode[$issue] ??= [];
+                        $this->appendUniqueString($issueExternalTargetsByCode[$issue], $externalTarget);
+                    }
+                }
             }
 
             foreach (($origin['signatures']['items'] ?? []) as $signature) {
@@ -40346,12 +40374,34 @@ final class DocxOpenXmlReader
                     $this->appendUniqueString($externalTargets, is_string($signature['target'] ?? null) ? $signature['target'] : null);
                 }
                 foreach (($signature['issues'] ?? []) as $issue) {
-                    $issueCodes[(string) $issue] = true;
+                    $issue = (string) $issue;
+                    $issueCodes[$issue] = true;
+                    $issueCodeCounts[$issue] = ($issueCodeCounts[$issue] ?? 0) + 1;
+                    $issueSignatureRelationshipIdsByCode[$issue] ??= [];
+                    $this->appendUniqueString($issueSignatureRelationshipIdsByCode[$issue], (string) $signature['id']);
+                    $signaturePart = is_string($signature['targetPart'] ?? null) ? $signature['targetPart'] : null;
+                    if ($signaturePart !== null) {
+                        $issueSignaturePartsByCode[$issue] ??= [];
+                        $this->appendUniqueString($issueSignaturePartsByCode[$issue], $signaturePart);
+                    }
+                    if (($signature['external'] ?? false) === true) {
+                        $externalTarget = is_string($signature['target'] ?? null) ? $signature['target'] : null;
+                        if ($externalTarget !== null) {
+                            $issueExternalTargetsByCode[$issue] ??= [];
+                            $this->appendUniqueString($issueExternalTargetsByCode[$issue], $externalTarget);
+                        }
+                    }
                 }
             }
         }
 
         ksort($issueCodes, SORT_STRING);
+        ksort($issueCodeCounts, SORT_STRING);
+        ksort($issueOriginRelationshipIdsByCode, SORT_STRING);
+        ksort($issueSignatureRelationshipIdsByCode, SORT_STRING);
+        ksort($issueOriginPartsByCode, SORT_STRING);
+        ksort($issueSignaturePartsByCode, SORT_STRING);
+        ksort($issueExternalTargetsByCode, SORT_STRING);
 
         $referenceUriKindCounts = [];
         $referenceUris = [];
@@ -40452,6 +40502,12 @@ final class DocxOpenXmlReader
             'externalTargets' => $externalTargets,
             'contentTypes' => $contentTypesSeen,
             'issueCodes' => array_keys($issueCodes),
+            'issueCodeCounts' => $issueCodeCounts,
+            'issueOriginRelationshipIdsByCode' => $issueOriginRelationshipIdsByCode,
+            'issueSignatureRelationshipIdsByCode' => $issueSignatureRelationshipIdsByCode,
+            'issueOriginPartsByCode' => $issueOriginPartsByCode,
+            'issueSignaturePartsByCode' => $issueSignaturePartsByCode,
+            'issueExternalTargetsByCode' => $issueExternalTargetsByCode,
             'referenceCount' => $referenceCount,
             'referenceUriKindCounts' => $referenceUriKindCounts,
             'referenceUris' => $referenceUris,
