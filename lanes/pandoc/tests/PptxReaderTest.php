@@ -5151,9 +5151,12 @@ XML);
     <dgm:pt modelId="typedChild"><dgm:t><a:p><a:r><a:t>Typed child</a:t></a:r></a:p></dgm:t></dgm:pt>
     <dgm:pt modelId="endpointParent"><dgm:t><a:p><a:r><a:t>Endpoint parent</a:t></a:r></a:p></dgm:t></dgm:pt>
     <dgm:pt modelId="endpointChild"><dgm:t><a:p><a:r><a:t>Endpoint child</a:t></a:r></a:p></dgm:t></dgm:pt>
+    <dgm:pt modelId="lonelyParent"><dgm:t><a:p><a:r><a:t>Parent without visible child</a:t></a:r></a:p></dgm:t></dgm:pt>
+    <dgm:pt modelId="blankChild"><dgm:t><a:p><a:r><a:t>&#160;</a:t></a:r></a:p></dgm:t></dgm:pt>
   </dgm:ptLst>
   <dgm:cxnLst>
     <dgm:cxn srcId="parent" destId="child"/>
+    <dgm:cxn srcId="lonelyParent" destId="blankChild"/>
     <dgm:cxn type="parOf" srcId="typedParent" destId="typedChild"/>
     <dgm:cxn srcId="endpointParent"/>
     <dgm:cxn destId="endpointChild"/>
@@ -9454,7 +9457,7 @@ return [
         $t->true(!str_contains($native, 'Diagram parse error'), 'Missing cxnLst should produce an empty SmartArt hierarchy rather than a diagnostic');
     },
 
-    'filters orphan typed and malformed pptx SmartArt connections like upstream' => static function (TestRunner $t) use ($buildFilteredSmartArtConnectionsPptxPackage, $nodesOfType, $nodesWithClass): void {
+    'filters orphan typed malformed and empty-child pptx SmartArt connections like upstream' => static function (TestRunner $t) use ($buildFilteredSmartArtConnectionsPptxPackage, $nodesOfType, $nodesWithClass): void {
         $document = (new PptxReader())->read($buildFilteredSmartArtConnectionsPptxPackage());
         $review = $document->attr('pptx');
         $divs = $nodesOfType($document, 'div');
@@ -9465,9 +9468,10 @@ return [
         $t->same(1, count($smartArtDivs));
         $t->same(['smartart', 'basicBlockList'], $smartArtDivs[0]->attr('classes'));
         $t->same(['layout' => 'basicBlockList'], $smartArtDivs[0]->attr('attributes'));
-        $t->same(2, count($smartArtDivs[0]->children));
+        $t->same(3, count($smartArtDivs[0]->children));
         $t->same(1, count($bulletLists));
         $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
+        $t->contains('Strong [ Str "Parent" , Space , Str "without" , Space , Str "visible" , Space , Str "child" ]', $native);
         $t->contains('Strong [ Str "Visible" , Space , Str "parent" ]', $native);
         $t->contains('BulletList [ [ Plain [ Str "Visible" , Space , Str "child"', $native);
         $t->true(!str_contains($native, 'Orphan text'), 'SmartArt nodes without outgoing untyped connections should stay hidden like upstream');
@@ -9475,6 +9479,7 @@ return [
         $t->true(!str_contains($native, 'Typed child'), 'Children reachable only through typed SmartArt connections should stay hidden');
         $t->true(!str_contains($native, 'Endpoint parent'), 'SmartArt connections without destId should be ignored');
         $t->true(!str_contains($native, 'Endpoint child'), 'SmartArt connections without srcId should be ignored');
+        $t->true(str_contains($native, 'Para [ Strong [ Str "Parent" , Space , Str "without" , Space , Str "visible" , Space , Str "child" ] ]'), 'A parent whose children filter empty should stay a standalone paragraph');
     },
 
     'sorts pptx SmartArt parents while preserving child connection order like upstream' => static function (TestRunner $t) use ($buildOrderedSmartArtConnectionsPptxPackage, $nodesOfType, $nodesWithClass): void {
