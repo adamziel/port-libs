@@ -1332,8 +1332,10 @@ XML);
 }
 BIB;
 
-        $item = (new BibtexCslProcessor())->cslItems($source)['secondary-credits'];
-        $bibliography = (new BibtexCslProcessor())->renderBibliographyText($item);
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $item = $items['secondary-credits'];
+        $bibliography = $processor->renderBibliographyText($item);
 
         $t->same('book', $item['type']);
         $t->same('Writer', $item['author'][0]['family']);
@@ -1351,7 +1353,20 @@ BIB;
         $t->same('Foreword', $item['foreword'][0]['family']);
         $t->same('Afterword', $item['afterword'][0]['family']);
         $t->same('Director, Edna', $item['rawBibtex']['fields']['editorialdirector']);
-        $t->same('Willa Writer. Secondary Credit Packet. 2026.', $bibliography);
+        $t->same(
+            'Willa Writer. Secondary Credit Packet. Compiler: Cal Compiler. Editorial director: Edna Director. Redactor: Rae Redactor. Commentator: Cam Commentator. Annotator: Ada Annotator. Founder: Fran Founder. Continuator: Chen Continuator. Reviser: Remy Reviser. Collaborator: Cora Collaborator and Priya Partner. Introduction: Ira Intro. Foreword: Finn Foreword. Afterword: Ari Afterword. 2026.',
+            $bibliography
+        );
+
+        $document = (new MarkdownReader())->read('Secondary credit source [@secondary-credits] keeps role names in the handoff bibliography.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$handoff['bibliography']]));
+
+        $t->same(['secondary-credits'], $handoff['citedKeys']);
+        $t->same('Cal', $handoff['items'][0]['compiler'][0]['given'] ?? null);
+        $t->contains('Compiler: Cal Compiler', $blocks);
+        $t->contains('Collaborator: Cora Collaborator and Priya Partner', $blocks);
+        $t->contains('Afterword: Ari Afterword', $blocks);
     },
     'carries legacy biblatex author role qualifiers and name addendum' => static function (TestRunner $t): void {
         $source = <<<'BIB'

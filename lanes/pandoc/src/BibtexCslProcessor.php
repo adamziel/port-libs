@@ -335,6 +335,9 @@ final class BibtexCslProcessor
         if ($seriesCreators !== '') {
             $parts[] = 'Series creator: ' . $seriesCreators;
         }
+        foreach ($this->biblatexSecondaryContributorParts($item) as $part) {
+            $parts[] = $part;
+        }
         $citationAliases = $item['citation-aliases'] ?? [];
         if (is_array($citationAliases) && $citationAliases !== []) {
             $parts[] = 'Citation aliases: ' . implode('; ', array_map('strval', $citationAliases));
@@ -3212,6 +3215,36 @@ final class BibtexCslProcessor
         }
 
         return implode('; ', $parts);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return list<string>
+     */
+    private function biblatexSecondaryContributorParts(array $item): array
+    {
+        $parts = [];
+        foreach ([
+            'compiler' => 'Compiler',
+            'editorial-director' => 'Editorial director',
+            'redactor' => 'Redactor',
+            'commentator' => 'Commentator',
+            'annotator' => 'Annotator',
+            'founder' => 'Founder',
+            'continuator' => 'Continuator',
+            'reviser' => 'Reviser',
+            'collaborator' => 'Collaborator',
+            'introduction' => 'Introduction',
+            'foreword' => 'Foreword',
+            'afterword' => 'Afterword',
+        ] as $field => $label) {
+            $rendered = $this->renderNames($item[$field] ?? []);
+            if ($rendered !== '') {
+                $parts[] = $label . ': ' . $rendered;
+            }
+        }
+
+        return $parts;
     }
 
     /**
