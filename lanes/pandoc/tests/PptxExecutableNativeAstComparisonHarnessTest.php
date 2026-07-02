@@ -62,6 +62,8 @@ return [
             $t->same('pandoc-executable-missing', $report['reason']);
             $t->same(1, $report['totalPptxCount']);
             $t->same(0, $report['comparedPptxCount']);
+            $t->same(0, $report['nativeFixtureParsedCount']);
+            $t->same(0, $report['pandocNativeFixtureMatchCount']);
             $t->same('not-evaluated-pandoc-executable-missing', $report['astParityStatus']);
             $t->same('not-evaluated', $report['orderedRemainingGaps'][0]['status']);
             $t->contains('Pandoc PPTX executable/native AST comparison: skipped', $text);
@@ -86,9 +88,13 @@ return [
             $t->same(1, $report['comparedPptxCount']);
             $t->same(1, $report['localParsedCount']);
             $t->same(1, $report['pandocParsedCount']);
+            $t->same(1, $report['nativeFixtureParsedCount']);
             $t->same(0, $report['parseFailureCount']);
             $t->same(1, $report['normalizedAstMatchCount']);
             $t->same(0, $report['normalizedAstMismatchCount']);
+            $t->same(1, $report['pandocNativeFixtureComparedCount']);
+            $t->same(1, $report['pandocNativeFixtureMatchCount']);
+            $t->same(0, $report['pandocNativeFixtureMismatchCount']);
             $t->same('pandoc fake 1.0', $report['pandocVersion']);
             $t->same('normalized-ast-equality-observed-against-pandoc-executable', $report['astParityStatus']);
             $t->same(true, PptxExecutableNativeAstComparisonHarness::hasRequiredExecutableParity($report, 1));
@@ -110,9 +116,42 @@ return [
 
             $t->same('completed', $report['status']);
             $t->same(1, $report['normalizedAstMismatchCount']);
+            $t->same(1, $report['pandocNativeFixtureComparedCount']);
+            $t->same(0, $report['pandocNativeFixtureMatchCount']);
+            $t->same(1, $report['pandocNativeFixtureMismatchCount']);
             $t->same('normalized-ast-mismatches-observed', $report['astParityStatus']);
             $t->same('basic', $report['mismatchComparisons'][0]['fixture']);
             $t->contains('root.children keys', $report['mismatchComparisons'][0]['firstDifference']);
+            $t->same('basic', $report['pandocNativeFixtureMismatchComparisons'][0]['fixture']);
+            $t->contains('root.children keys', $report['pandocNativeFixtureMismatchComparisons'][0]['firstDifference']);
+            $t->same(false, PptxExecutableNativeAstComparisonHarness::hasRequiredExecutableParity($report, 1));
+        } finally {
+            $removeTree($root);
+        }
+    },
+    'requires paired upstream native fixtures for executable parity' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFakePandoc): void {
+        $root = $makeTempDir();
+        try {
+            $fixtureRoot = dirname(__DIR__) . '/fixtures/upstream-current-pptx-reader';
+            copy($fixtureRoot . '/basic.pptx', $root . '/basic.pptx');
+            copy($fixtureRoot . '/basic.native', $root . '/expected.native');
+            $fakePandoc = $root . '/pandoc';
+            $writeFakePandoc($fakePandoc, $root . '/expected.native');
+
+            $report = (new PptxExecutableNativeAstComparisonHarness())->run($root, [
+                'pandocBin' => $fakePandoc,
+            ]);
+
+            $t->same('completed', $report['status']);
+            $t->same(1, $report['localParsedCount']);
+            $t->same(1, $report['pandocParsedCount']);
+            $t->same(0, $report['nativeFixtureParsedCount']);
+            $t->same(1, $report['bothParsedCount']);
+            $t->same(1, $report['normalizedAstMatchCount']);
+            $t->same(0, $report['pandocNativeFixtureComparedCount']);
+            $t->same(1, $report['parseFailureCount']);
+            $t->same('missing paired .native fixture', $report['parseFailures'][0]['nativeFixtureError']);
+            $t->same('blocked-by-parse-failures', $report['astParityStatus']);
             $t->same(false, PptxExecutableNativeAstComparisonHarness::hasRequiredExecutableParity($report, 1));
         } finally {
             $removeTree($root);
@@ -140,6 +179,9 @@ return [
             $t->same(0, $exitCode);
             $t->same(1, $decoded['normalizedAstMatchCount']);
             $t->same(0, $decoded['normalizedAstMismatchCount']);
+            $t->same(1, $decoded['pandocNativeFixtureComparedCount']);
+            $t->same(1, $decoded['pandocNativeFixtureMatchCount']);
+            $t->same(0, $decoded['pandocNativeFixtureMismatchCount']);
             $t->same(true, PptxExecutableNativeAstComparisonHarness::hasRequiredExecutableParity($decoded, 1));
 
             $missingCommand = str_replace('--pandoc-bin=' . escapeshellarg($fakePandoc), '--pandoc-bin=' . escapeshellarg($root . '/missing'), $command) . ' 2>/dev/null';
