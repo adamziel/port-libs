@@ -26854,6 +26854,7 @@ final class XmlHtmlDom
             static fn (array $record): bool => (bool) ($record['successful'] ?? false) === false
         ));
         $pairs = [];
+        $directionPairs = [];
         $names = [];
         $issues = [];
         $issueCodes = [];
@@ -26866,6 +26867,9 @@ final class XmlHtmlDom
             foreach (($record['valuePairs'] ?? []) as $pair) {
                 if (is_array($pair)) {
                     $pairs[] = $pair;
+                    if (($pair['source'] ?? null) === 'dirname-direction') {
+                        $directionPairs[] = $pair;
+                    }
                 }
             }
         }
@@ -26891,6 +26895,8 @@ final class XmlHtmlDom
             'successfulControlNames' => $names,
             'successfulValuePairCount' => count($pairs),
             'successfulValuePairs' => $pairs,
+            'successfulDirectionPairCount' => count($directionPairs),
+            'successfulDirectionPairs' => $directionPairs,
             'successfulControls' => $successful,
             'unsuccessfulControlCount' => count($unsuccessful),
             'unsuccessfulControls' => $unsuccessful,
@@ -26965,6 +26971,7 @@ final class XmlHtmlDom
         }
         if ($tag === 'textarea') {
             self::appendFormSuccessfulValuePair($record, $controlName, $control->textContent, 'textarea-text');
+            self::appendFormSuccessfulDirnamePair($control, $record, 'textarea', null);
 
             return $record;
         }
@@ -27005,6 +27012,7 @@ final class XmlHtmlDom
                 self::attributeOrNull($input, 'value') ?? 'on',
                 $type . '-checked-value'
             );
+            self::appendFormSuccessfulDirnamePair($input, $record, 'input', $type);
 
             return $record;
         }
@@ -27014,6 +27022,7 @@ final class XmlHtmlDom
             $record['fileInput'] = true;
             $record['valueSource'] = 'file-list-not-inspected';
             self::appendFormSuccessfulControlIssue($record, 'file-input-files-not-inspected');
+            self::appendFormSuccessfulDirnamePair($input, $record, 'input', $type);
 
             return $record;
         }
@@ -27042,6 +27051,7 @@ final class XmlHtmlDom
             self::attributeOrNull($input, 'value') ?? '',
             'input-value-attribute'
         );
+        self::appendFormSuccessfulDirnamePair($input, $record, 'input', $type);
 
         return $record;
     }
@@ -27109,6 +27119,63 @@ final class XmlHtmlDom
         ] + $extra;
         $record['issues'][] = $issue;
         self::appendUniqueString($record['issueCodes'], $code);
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     */
+    private static function appendFormSuccessfulDirnamePair(
+        \DOMElement $control,
+        array &$record,
+        string $name,
+        ?string $inputType
+    ): void {
+        if (!$control->hasAttribute('dirname')) {
+            return;
+        }
+
+        $dirname = self::formControlDirnameReviewSummary($control, $name, $inputType);
+        $record['dirnameReviewPolicy'] = $dirname['dirnameReviewPolicy'];
+        $record['dirnameRaw'] = $dirname['dirnameRaw'];
+        $record['dirname'] = $dirname['dirname'];
+        $record['dirnameValid'] = $dirname['dirnameValid'];
+        $record['dirnameEligibleControl'] = $dirname['dirnameEligibleControl'];
+        $record['dirnameInputType'] = $dirname['dirnameInputType'];
+        $record['dirnameDirection'] = $dirname['dirnameDirection'];
+        $record['dirnameSubmitted'] = false;
+        $record['dirnameIssueCodes'] = $dirname['dirnameIssueCodes'];
+
+        foreach ($dirname['dirnameIssues'] as $issue) {
+            if (!is_array($issue)) {
+                continue;
+            }
+            $code = $issue['code'] ?? null;
+            if (!is_string($code) || $code === '') {
+                continue;
+            }
+
+            $extra = $issue;
+            unset($extra['code']);
+            self::appendFormSuccessfulControlIssue($record, $code, $extra);
+        }
+
+        if (
+            ($dirname['dirnameValid'] ?? false) !== true
+            || ($dirname['dirnameEligibleControl'] ?? false) !== true
+            || !is_string($dirname['dirname'] ?? null)
+            || !is_string($dirname['dirnameDirection'] ?? null)
+        ) {
+            return;
+        }
+
+        self::appendFormSuccessfulValuePair(
+            $record,
+            $dirname['dirname'],
+            $dirname['dirnameDirection'],
+            'dirname-direction'
+        );
+        $record['dirnameSubmitted'] = true;
+        $record['dirnameValuePair'] = $record['valuePairs'][array_key_last($record['valuePairs'])];
     }
 
     /**
@@ -27700,10 +27767,7 @@ final class XmlHtmlDom
             $summary += self::formControlAutocompleteSummary($summary['autocompleteRaw']);
         }
         if (($name === 'input' || $name === 'textarea') && $control->hasAttribute('dirname')) {
-            $dirname = self::formControlDirnameSummary($control->getAttribute('dirname'));
-            $summary['dirnameRaw'] = $control->getAttribute('dirname');
-            $summary['dirname'] = $dirname['name'];
-            $summary['dirnameValid'] = $dirname['valid'];
+            $summary += self::formControlDirnameReviewSummary($control, $name);
         }
         if ($control->hasAttribute('size')) {
             $size = self::positiveIntegerToken($control->getAttribute('size'), 1000000);
@@ -28033,6 +28097,54 @@ final class XmlHtmlDom
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    private static function formControlDirnameReviewSummary(
+        \DOMElement $control,
+        string $name,
+        ?string $inputType = null
+    ): array {
+        $raw = $control->getAttribute('dirname');
+        $dirname = self::formControlDirnameSummary($raw);
+        $inputType = $name === 'input' ? ($inputType ?? self::inputType($control)) : null;
+        $eligible = self::isDirnameSubmissionControl($name, $inputType);
+        $issues = [];
+
+        if (!$dirname['valid']) {
+            $issues[] = [
+                'code' => $dirname['name'] === null ? 'empty-dirname-field-name' : 'invalid-dirname-field-name',
+                'dirnameRaw' => $raw,
+                'dirname' => $dirname['name'],
+            ];
+        }
+        if (!$eligible) {
+            $issues[] = [
+                'code' => 'dirname-control-type-not-submitted',
+                'controlElement' => $name,
+                'inputType' => $inputType,
+            ];
+        }
+
+        return [
+            'dirnameReviewPolicy' => 'html-form-directionality-submission-review',
+            'dirnameRaw' => $raw,
+            'dirname' => $dirname['name'],
+            'dirnameValid' => $dirname['valid'],
+            'dirnameEligibleControl' => $eligible,
+            'dirnameInputType' => $inputType,
+            'dirnameDirection' => $dirname['valid'] && $eligible
+                ? self::formControlSubmittedDirection($control, $name)
+                : null,
+            'dirnameWouldSubmit' => $dirname['valid'] && $eligible,
+            'dirnameIssues' => $issues,
+            'dirnameIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+        ];
+    }
+
+    /**
      * @return array{name:?string, valid:bool}
      */
     private static function formControlDirnameSummary(string $value): array
@@ -28043,6 +28155,69 @@ final class XmlHtmlDom
             'name' => $name === '' ? null : $name,
             'valid' => $name !== '' && self::isHtmlReferenceToken($name),
         ];
+    }
+
+    private static function isDirnameSubmissionControl(string $name, ?string $inputType): bool
+    {
+        if ($name === 'textarea') {
+            return true;
+        }
+
+        return $name === 'input' && in_array($inputType, [
+            'button',
+            'email',
+            'hidden',
+            'password',
+            'reset',
+            'search',
+            'submit',
+            'tel',
+            'text',
+            'url',
+        ], true);
+    }
+
+    private static function formControlSubmittedDirection(\DOMElement $control, string $name): string
+    {
+        $attributes = self::htmlAttributes($control);
+        if (array_key_exists('dir', $attributes)) {
+            $direction = self::htmlDirectionState($attributes['dir']);
+            if ($direction === 'ltr' || $direction === 'rtl') {
+                return $direction;
+            }
+            if ($direction === 'auto') {
+                return self::formControlAutoDirection($control, $name);
+            }
+        }
+
+        $parent = $control->parentNode;
+        while ($parent instanceof \DOMElement) {
+            $parentAttributes = self::htmlAttributes($parent);
+            if (array_key_exists('dir', $parentAttributes)) {
+                $direction = self::htmlDirectionState($parentAttributes['dir']);
+                if ($direction === 'ltr' || $direction === 'rtl') {
+                    return $direction;
+                }
+                if ($direction === 'auto') {
+                    $scan = self::firstStrongTextDirection(self::normalizedText($parent));
+
+                    return $scan['direction'] === 'rtl' ? 'rtl' : 'ltr';
+                }
+            }
+            $parent = $parent->parentNode;
+        }
+
+        return 'ltr';
+    }
+
+    private static function formControlAutoDirection(\DOMElement $control, string $name): string
+    {
+        $value = $name === 'textarea'
+            ? $control->textContent
+            : (self::attributeOrNull($control, 'value') ?? '');
+        $scan = self::firstStrongTextDirection($value);
+
+        return $scan['direction'] === 'rtl' ? 'rtl' : 'ltr';
     }
 
     /**
