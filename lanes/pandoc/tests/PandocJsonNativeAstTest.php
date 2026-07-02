@@ -11906,6 +11906,8 @@ return [
                 'id' => 'edited-cell',
                 'classes' => ['metric', 'review', 'edited'],
                 'attributes' => ['data-source' => 'json', 'data-state' => 'edited'],
+                'rowspan' => 4,
+                'colspan' => 2,
             ]), $first->children);
             $table = $document->children[0];
             $body = $table->children[0];
@@ -11924,10 +11926,14 @@ return [
 
                 $t->same('Cell', $cells[0]['t'] ?? null, "{$writer} writer regenerates current edited cell constructor");
                 $t->same(false, array_key_exists('reviewQueue', $cells[0]), "{$writer} writer drops stale edited cell sidecar");
+                $t->same(false, array_key_exists('sourceOrdinal', $cells[0]), "{$writer} writer drops stale edited cell ordinal");
                 $t->same(['edited-cell', ['metric', 'review', 'edited'], [['data-source', 'json'], ['data-state', 'edited']]], $editedPayload[0], "{$writer} writer regenerates edited cell Attr tuple");
+                $t->same(false, array_key_exists('reviewQueue', $editedPayload[0]), "{$writer} writer drops stale edited Attr sidecar");
                 $t->same($firstCellAlignment, $editedPayload[1], "{$writer} writer preserves unchanged cell alignment sidecar");
-                $t->same($firstCellRowSpan, $editedPayload[2], "{$writer} writer preserves unchanged cell rowspan sidecar");
-                $t->same($firstCellColSpan, $editedPayload[3], "{$writer} writer preserves unchanged cell colspan sidecar");
+                $t->same(['t' => 'RowSpan', 'c' => 4], $editedPayload[2], "{$writer} writer regenerates edited cell RowSpan helper");
+                $t->same(false, array_key_exists('reviewQueue', $editedPayload[2]), "{$writer} writer drops stale edited RowSpan sidecar");
+                $t->same(['t' => 'ColSpan', 'c' => 2], $editedPayload[3], "{$writer} writer regenerates edited cell ColSpan helper");
+                $t->same(false, array_key_exists('reviewQueue', $editedPayload[3]), "{$writer} writer drops stale edited ColSpan sidecar");
                 $t->same($secondCell, $cells[1], "{$writer} writer keeps neighboring cell payload");
             }
         }

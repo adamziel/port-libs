@@ -13408,6 +13408,12 @@ XML;
         $missingType = $records[4];
         $unexpectedMode = $records[5];
         $missingTypeBucket = $package['relationshipTypes']['(missing-type)'];
+        $expectedRecordIssueCounts = [
+            'missing-relationship-id' => 1,
+            'missing-relationship-target' => 1,
+            'missing-relationship-type' => 1,
+            'unexpected-relationship-target-mode' => 1,
+        ];
 
         $t->same('document', $document->type);
         $t->same('Imported DOCX Batch', $document->attr('meta')['title']);
@@ -13421,6 +13427,27 @@ XML;
             'missing-relationship-type',
             'unexpected-relationship-target-mode',
         ], $relationshipPart['relationshipRecordIssueCodes']);
+        $t->same($expectedRecordIssueCounts, $relationshipPart['relationshipRecordIssueCounts']);
+        $t->same(
+            [''],
+            array_column($relationshipPart['relationshipRecordIssueBuckets']['missing-relationship-id'], 'id')
+        );
+        $t->same(
+            ['rMissingTarget'],
+            array_column($relationshipPart['relationshipRecordIssueBuckets']['missing-relationship-target'], 'id')
+        );
+        $t->same(
+            ['rMissingType'],
+            array_column($relationshipPart['relationshipRecordIssueBuckets']['missing-relationship-type'], 'id')
+        );
+        $t->same(
+            ['rUnexpectedMode'],
+            array_column($relationshipPart['relationshipRecordIssueBuckets']['unexpected-relationship-target-mode'], 'id')
+        );
+        $t->same(
+            [2],
+            array_column($relationshipPart['relationshipRecordIssueBuckets']['missing-relationship-id'], 'ordinal')
+        );
 
         $t->same('', $missingId['id']);
         $t->same(2, $missingId['ordinal']);
@@ -13454,6 +13481,8 @@ XML;
         $t->same(4, $summary['invalidRelationshipRecordCount']);
         $t->same(4, $summary['relationshipRecordIssueCount']);
         $t->same($relationshipPart['relationshipRecordIssueCodes'], $summary['relationshipRecordIssueCodes']);
+        $t->same($expectedRecordIssueCounts, $summary['relationshipRecordIssueCounts']);
+        $t->same($relationshipPart['relationshipRecordIssueBuckets'], $summary['relationshipRecordIssueBuckets']);
         $t->same(['word/_rels/document.xml.rels'], $summary['relationshipPartsWithInvalidRecords']);
         $t->same(['', 'rMissingTarget', 'rMissingType', 'rUnexpectedMode'], array_column($summary['invalidRelationshipRecords'], 'id'));
         $t->same(['missing-relationship-id'], $summary['invalidRelationshipRecords'][0]['issues']);
