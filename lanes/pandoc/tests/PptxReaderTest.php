@@ -3116,6 +3116,7 @@ XML);
           <a:r><a:t>Line two</a:t></a:r>
           <a:tab/>
           <a:r><a:t>Tabbed</a:t></a:r>
+          <a:fld id="{11111111-2222-3333-4444-555555555555}" type="slidenum"><a:t>Field text</a:t></a:fld>
         </a:p>
       </p:txBody>
     </p:sp>
@@ -10423,7 +10424,7 @@ return [
         $t->true(!str_contains($native, 'Link ('), 'Run hlinkClick should not emit a native Link inline');
     },
 
-    'ignores pptx drawing text breaks and tabs like upstream' => static function (TestRunner $t) use ($buildBreakTabTextPptxPackage, $nodesOfType): void {
+    'ignores pptx drawing text breaks and tabs while reading field text like upstream' => static function (TestRunner $t) use ($buildBreakTabTextPptxPackage, $nodesOfType): void {
         $document = (new PptxReader())->read($buildBreakTabTextPptxPackage());
         $paragraphs = $nodesOfType($document, 'paragraph');
         $native = PandocConverter::write($document, 'native');
@@ -10433,11 +10434,11 @@ return [
         ));
 
         $t->same(1, count($bodyParagraphs));
-        $t->same('Line one Line two Tabbed', $bodyParagraphs[0]->attr('text'));
+        $t->same('Line one Line two Tabbed Field text', $bodyParagraphs[0]->attr('text'));
         $t->same(['text'], array_map(static fn (AstNode $inline): string => $inline->type, $bodyParagraphs[0]->children));
-        $t->same('Line one Line two Tabbed', $bodyParagraphs[0]->children[0]->attr('text'));
+        $t->same('Line one Line two Tabbed Field text', $bodyParagraphs[0]->children[0]->attr('text'));
         $t->same(0, count($nodesOfType($document, 'linebreak')));
-        $t->contains('Para [ Str "Line" , Space , Str "one" , Space , Str "Line" , Space , Str "two" , Space , Str "Tabbed" ]', $native);
+        $t->contains('Para [ Str "Line" , Space , Str "one" , Space , Str "Line" , Space , Str "two" , Space , Str "Tabbed" , Space , Str "Field" , Space , Str "text" ]', $native);
         $t->true(!str_contains($native, 'LineBreak'), 'DrawingML break markers should not become native LineBreak nodes');
     },
 
