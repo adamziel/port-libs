@@ -981,6 +981,82 @@ XML);
     }
 };
 
+$buildWhitespaceDrawingTextPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-whitespace-drawing-text-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Whitespace text</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="3" name="Whitespace Only Text Box"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>   </a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="4" name="Whitespace Joined Text Box"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>  Leading</a:t></a:r><a:r><a:t>Trailing  </a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="5" name="Whitespace Cell Table"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl>
+        <a:tblPr/>
+        <a:tr><a:tc><a:txBody><a:p><a:r><a:t>   </a:t></a:r></a:p></a:txBody></a:tc></a:tr>
+      </a:tbl></a:graphicData></a:graphic>
+    </p:graphicFrame>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildFirstTableCellTextBodyPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-first-table-cell-text-body-');
     if ($path === false) {
@@ -12032,6 +12108,38 @@ return [
         $t->contains('Para [  ]', $native);
         $t->contains('[ Plain [  ]', $native);
         $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
+    },
+
+    'preserves whitespace-only pptx drawing text like upstream' => static function (TestRunner $t) use ($buildWhitespaceDrawingTextPptxPackage, $nodesOfType): void {
+        $document = (new PptxReader())->read($buildWhitespaceDrawingTextPptxPackage());
+        $review = $document->attr('pptx');
+        $paragraphs = $nodesOfType($document, 'paragraph');
+        $paragraphTexts = array_map(static fn (AstNode $paragraph): string => (string) $paragraph->attr('text'), $paragraphs);
+        $tables = $nodesOfType($document, 'table');
+        $native = PandocConverter::write($document, 'native');
+
+        $whitespaceParagraphs = array_values(array_filter(
+            $paragraphs,
+            static fn (AstNode $paragraph): bool => $paragraph->attr('text') === '   '
+        ));
+        $joinedParagraphs = array_values(array_filter(
+            $paragraphs,
+            static fn (AstNode $paragraph): bool => $paragraph->attr('text') === '  Leading Trailing  '
+        ));
+        $whitespaceCell = $tables[0]->children[0]->children[0]->children[0] ?? null;
+        $whitespaceCellInline = $whitespaceCell instanceof AstNode ? ($whitespaceCell->children[0]->children[0] ?? null) : null;
+
+        $t->same(1, $review['slideCount'] ?? null);
+        $t->same('Whitespace text', $document->children[0]->attr('text'));
+        $t->same(true, in_array('   ', $paragraphTexts, true));
+        $t->same(true, in_array('  Leading Trailing  ', $paragraphTexts, true));
+        $t->same('   ', $whitespaceParagraphs[0]->children[0]->attr('text') ?? null);
+        $t->same('  Leading Trailing  ', $joinedParagraphs[0]->children[0]->attr('text') ?? null);
+        $t->same(1, count($tables));
+        $t->same('   ', $whitespaceCell instanceof AstNode ? $whitespaceCell->attr('text') : null);
+        $t->same('   ', $whitespaceCellInline instanceof AstNode ? $whitespaceCellInline->attr('text') : null);
+        $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
+        $t->contains('Para [ Space ]', $native);
     },
 
     'uses only the first pptx table cell text body like upstream' => static function (TestRunner $t) use ($buildFirstTableCellTextBodyPptxPackage, $nodesOfType): void {
