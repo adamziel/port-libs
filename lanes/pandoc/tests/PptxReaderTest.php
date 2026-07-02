@@ -837,6 +837,71 @@ XML);
     }
 };
 
+$buildParagraphlessTextBodyPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-paragraphless-text-body-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Paragraphless text body</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="3" name="Paragraphless Text Box"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/></p:txBody>
+    </p:sp>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildInheritedTitlePptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-inherited-title-');
     if ($path === false) {
@@ -7005,6 +7070,19 @@ return [
         $t->contains('Para [  ]', $native);
         $t->contains('[ Plain [  ]', $native);
         $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
+    },
+
+    'skips pptx text boxes without drawing paragraphs like upstream' => static function (TestRunner $t) use ($buildParagraphlessTextBodyPptxPackage, $nodesOfType): void {
+        $document = (new PptxReader())->read($buildParagraphlessTextBodyPptxPackage());
+        $review = $document->attr('pptx');
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same('Paragraphless text body', $document->children[0]->attr('text'));
+        $t->same([], $nodesOfType($document, 'paragraph'));
+        $t->same(1, $review['slides'][0]['blockCount'] ?? null);
+        $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
+        $t->true(!str_contains($native, 'Para [  ]'), 'Text bodies without a:p should be skipped, unlike explicit empty a:p paragraphs');
+        $t->true(!str_contains($native, 'Paragraphless Text Box'), 'Skipped text box shape names should not leak into visible output');
     },
 
     'uses upstream fallback slide title instead of inherited layout title' => static function (TestRunner $t) use ($buildInheritedTitlePptxPackage, $nodesOfType): void {
