@@ -1448,6 +1448,8 @@ final class CitationCslProcessor
                 ['part-title', 'partTitle', 'parttitle', 'part-title-text', 'partTitleText', 'parttitletext'],
                 ['part-subtitle', 'partSubtitle', 'partsubtitle']
             ),
+            'partTitleShort' => self::firstStringField($item, ['part-title-short', 'partTitleShort', 'parttitleshort', 'parttitle-short', 'short-part-title', 'shortPartTitle', 'shortparttitle']),
+            'partTitleAddon' => self::firstStringField($item, ['part-title-addon', 'partTitleAddon', 'parttitleaddon', 'parttitle-addon']),
             'eventTitle' => self::firstStringField($item, ['event', 'event-title', 'eventTitle', 'eventtitle']),
             'eventTitleAddon' => self::firstStringField($item, ['event-title-addon', 'eventTitleAddon', 'eventtitleaddon']),
             'eventPlace' => $eventPlace,
@@ -6841,6 +6843,8 @@ final class CitationCslProcessor
             'main-title', 'maintitle', 'main-title-text', 'maintitletext' => $this->normalizeSortText((string) ($item['mainTitle'] ?? '')),
             'volume-title', 'volumetitle', 'volume-title-text', 'volumetitletext' => $this->normalizeSortText((string) ($item['volumeTitle'] ?? '')),
             'part-title', 'parttitle', 'part-title-text', 'parttitletext' => $this->normalizeSortText((string) ($item['partTitle'] ?? '')),
+            'part-title-short', 'parttitleshort', 'parttitle-short', 'shortparttitle', 'short-part-title' => $this->normalizeSortText((string) ($item['partTitleShort'] ?? '')),
+            'part-title-addon', 'parttitleaddon', 'parttitle-addon' => $this->normalizeSortText((string) ($item['partTitleAddon'] ?? '')),
             'issue-title', 'issuetitle', 'issue-title-text', 'issuetitletext' => $this->normalizeSortText((string) ($item['issueTitle'] ?? '')),
             'event', 'event-title' => $this->normalizeSortText((string) $item['eventTitle']),
             'event-place' => $this->normalizeSortText((string) $item['eventPlace']),
@@ -8641,6 +8645,16 @@ final class CitationCslProcessor
         $partTitle = (string) ($item['partTitle'] ?? '');
         if ($partTitle !== '') {
             $parts[] = 'Part title: ' . rtrim($partTitle, '.') . '.';
+        }
+
+        $partTitleShort = (string) ($item['partTitleShort'] ?? '');
+        if ($partTitleShort !== '') {
+            $parts[] = 'Part title abbreviation: ' . rtrim($partTitleShort, '.') . '.';
+        }
+
+        $partTitleAddon = (string) ($item['partTitleAddon'] ?? '');
+        if ($partTitleAddon !== '') {
+            $parts[] = 'Part title addendum: ' . rtrim($partTitleAddon, '.') . '.';
         }
 
         $containerTitleShort = (string) ($item['containerTitleShort'] ?? '');
@@ -11069,6 +11083,8 @@ final class CitationCslProcessor
             'division' => (string) ($item['division'] ?? ''),
             'section' => (string) $item['section'],
             'part-title', 'parttitle', 'part-title-text', 'parttitletext' => (string) ($item['partTitle'] ?? ''),
+            'part-title-short', 'parttitleshort', 'parttitle-short', 'shortparttitle', 'short-part-title' => (string) ($item['partTitleShort'] ?? ''),
+            'part-title-addon', 'parttitleaddon', 'parttitle-addon' => (string) ($item['partTitleAddon'] ?? ''),
             'part', 'part-number' => (string) $item['part'],
             'printing', 'printing-number' => (string) ($item['printingNumber'] ?? ''),
             'supplement' => (string) ($item['supplement'] ?? ''),
@@ -11404,6 +11420,7 @@ final class CitationCslProcessor
             'container-title', 'containertitle', 'container', 'container-title-text', 'containertitletext', 'book-title', 'booktitle', 'journal-title', 'journaltitle', 'journal', 'publication-title', 'publicationtitle' => (string) ($item['containerTitleShort'] ?? ''),
             'collection-title', 'collectiontitle', 'collection', 'collection-title-text', 'collectiontitletext', 'series', 'series-title', 'seriestitle', 'series-title-text', 'seriestitletext' => (string) ($item['collectionTitleShort'] ?? ''),
             'volume-title', 'volumetitle', 'volume-title-text', 'volumetitletext' => (string) ($item['volumeTitleShort'] ?? ''),
+            'part-title', 'parttitle', 'part-title-text', 'parttitletext' => (string) ($item['partTitleShort'] ?? ''),
             default => '',
         };
         if ($directShort !== '') {

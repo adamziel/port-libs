@@ -19645,7 +19645,7 @@ final class XmlHtmlDom
                 'startRaw' => $startRaw,
                 'start' => self::integerAttribute($element, 'start', 1),
                 'markerType' => self::attributeOrNull($element, 'type'),
-            ];
+            ] + self::orderedListOrdinalReviewSummary($element, $startRaw);
         }
 
         $summary = [
@@ -19795,6 +19795,148 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function orderedListOrdinalReviewSummary(\DOMElement $list, ?string $startRaw): array
+    {
+        $records = self::orderedListItemOrdinalRecords($list);
+        $ordinals = array_values(array_map(
+            static fn (array $record): int => (int) ($record['listOrdinal'] ?? 0),
+            $records
+        ));
+        $ordinalCounts = array_count_values($ordinals);
+        $duplicateOrdinals = [];
+        foreach ($ordinalCounts as $ordinal => $count) {
+            if ($count > 1) {
+                $duplicateOrdinals[] = (int) $ordinal;
+            }
+        }
+
+        $invalidValues = array_values(array_filter(
+            $records,
+            static fn (array $record): bool => (bool) ($record['valueValid'] ?? true) === false
+        ));
+        $issues = [];
+        if ($startRaw !== null && self::integerAttribute($list, 'start', null) === null) {
+            $issues[] = [
+                'code' => 'invalid-ordered-list-start',
+                'startRaw' => $startRaw,
+            ];
+        }
+        foreach ($invalidValues as $record) {
+            $issues[] = [
+                'code' => 'invalid-list-item-value',
+                'itemIndex' => $record['index'],
+                'itemId' => $record['id'],
+                'valueRaw' => $record['valueRaw'],
+            ];
+        }
+        foreach ($duplicateOrdinals as $ordinal) {
+            $duplicates = array_values(array_filter(
+                $records,
+                static fn (array $record): bool => (int) ($record['listOrdinal'] ?? 0) === $ordinal
+            ));
+            $issues[] = [
+                'code' => 'duplicate-list-item-ordinal',
+                'ordinal' => $ordinal,
+                'itemIndexes' => array_values(array_map(
+                    static fn (array $record): int => (int) ($record['index'] ?? 0),
+                    $duplicates
+                )),
+                'itemIds' => array_values(array_filter(
+                    array_map(
+                        static fn (array $record): ?string => is_string($record['id'] ?? null) ? $record['id'] : null,
+                        $duplicates
+                    ),
+                    static fn (?string $id): bool => $id !== null
+                )),
+            ];
+        }
+
+        $start = self::integerAttribute($list, 'start', null);
+        $reversed = $list->hasAttribute('reversed');
+
+        return [
+            'orderedListReviewPolicy' => 'html-ordered-list-ordinal-review',
+            'orderedListReversed' => $reversed,
+            'orderedListStartRaw' => $startRaw,
+            'orderedListStart' => $start,
+            'orderedListStartValid' => $startRaw === null || $start !== null,
+            'orderedListStartSource' => $start !== null
+                ? 'start-attribute'
+                : ($reversed ? 'reversed-count' : 'default-start'),
+            'orderedListItemCount' => count($records),
+            'orderedListOrdinals' => $ordinals,
+            'orderedListOrdinalSources' => array_values(array_map(
+                static fn (array $record): ?string => is_string($record['listOrdinalSource'] ?? null) ? $record['listOrdinalSource'] : null,
+                $records
+            )),
+            'orderedListExplicitValueCount' => count(array_filter(
+                $records,
+                static fn (array $record): bool => (bool) ($record['explicitValue'] ?? false)
+            )),
+            'orderedListExplicitValueOrdinals' => array_values(array_map(
+                static fn (array $record): int => (int) ($record['listOrdinal'] ?? 0),
+                array_filter($records, static fn (array $record): bool => (bool) ($record['explicitValue'] ?? false))
+            )),
+            'orderedListInvalidValueCount' => count($invalidValues),
+            'orderedListInvalidValues' => array_values(array_map(
+                static fn (array $record): array => [
+                    'index' => $record['index'],
+                    'id' => $record['id'],
+                    'valueRaw' => $record['valueRaw'],
+                ],
+                $invalidValues
+            )),
+            'orderedListDuplicateOrdinals' => $duplicateOrdinals,
+            'orderedListHasDuplicateOrdinals' => $duplicateOrdinals !== [],
+            'orderedListItems' => $records,
+            'orderedListIssueCount' => count($issues),
+            'orderedListIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'orderedListIssues' => $issues,
+            'orderedListValid' => $issues === [],
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function orderedListItemOrdinalRecords(\DOMElement $list): array
+    {
+        $items = self::childHtmlElements($list, 'li');
+        $reversed = $list->hasAttribute('reversed');
+        $start = self::integerAttribute($list, 'start', null);
+        $current = $start ?? ($reversed ? count($items) : 1);
+        $implicitSource = $start !== null ? 'start-attribute' : ($reversed ? 'reversed-count' : 'default-start');
+        $records = [];
+
+        foreach ($items as $index => $item) {
+            $valueRaw = self::attributeOrNull($item, 'value');
+            $value = self::integerAttribute($item, 'value', null);
+            $ordinal = $value ?? $current;
+            $records[] = [
+                'index' => $index,
+                'id' => self::attributeOrNull($item, 'id'),
+                'text' => self::normalizedText($item),
+                'valueRaw' => $valueRaw,
+                'value' => $value,
+                'valueValid' => $valueRaw === null || $value !== null,
+                'explicitValue' => $value !== null,
+                'listOrdinal' => $ordinal,
+                'listOrdinalSource' => $value !== null ? 'value-attribute' : $implicitSource,
+            ];
+
+            $current = $ordinal + ($reversed ? -1 : 1);
+            $implicitSource = $value !== null ? 'previous-value' : $implicitSource;
+        }
+
+        return $records;
     }
 
     /**
