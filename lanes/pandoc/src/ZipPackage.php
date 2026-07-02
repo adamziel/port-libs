@@ -19898,6 +19898,25 @@ final class ZipPackage
         $caseFoldNameCollisionSummaries = self::entryHandoffCaseFoldNameCollisionSummaries($entries);
         $caseFoldLeafNameCollisionSummaries = self::entryHandoffCaseFoldLeafNameCollisionSummaries($entries);
         $expansionRatioBucketSummaries = self::entryHandoffExpansionRatioBucketSummaries($entries);
+        $entryCommentSummaries = self::packageManifestEntryCommentSummaries($entries);
+        $commentedEntryNames = array_map(
+            static fn (array $summary): string => (string) $summary['name'],
+            $entryCommentSummaries
+        );
+        $entryCommentSourceRecordBytes = array_sum(array_map(
+            static fn (array $summary): int => (int) $summary['sourceRecordBytes'],
+            $entryCommentSummaries
+        ));
+        $entryCommentDirectoryRootSummaries = self::packageManifestEntryCommentDirectoryRootSummaries($entryCommentSummaries);
+        $entryCommentDirectoryRoots = array_map(
+            static fn (array $summary): string => (string) $summary['directoryRoot'],
+            $entryCommentDirectoryRootSummaries
+        );
+        $entryCommentPackagePartExtensionSummaries = self::packageManifestEntryCommentPackagePartExtensionSummaries($entryCommentSummaries);
+        $entryCommentPackagePartExtensionKeys = array_map(
+            static fn (array $summary): string => (string) $summary['extensionKey'],
+            $entryCommentPackagePartExtensionSummaries
+        );
         $manifestOrderSummary = self::entryHandoffOrderSummary($entries);
         $manifestOrderIssueCodes = $manifestOrderSummary['centralDirectoryOrderMatchesLocalHeaderOrder']
             ? []
@@ -20004,11 +20023,173 @@ final class ZipPackage
             'sourceTotalRecordBytes' => $sourceTotalRecordBytes,
             'sourceByteSpanIssueCount' => count($sourceByteSpanIssues),
             'sourceByteSpanIssues' => $sourceByteSpanIssues,
+            'entryCommentCount' => count($entryCommentSummaries),
+            'hasEntryComments' => $entryCommentSummaries !== [],
+            'commentedEntryNames' => $commentedEntryNames,
+            'entryCommentSummaryCount' => count($entryCommentSummaries),
+            'entryCommentSourceRecordBytes' => $entryCommentSourceRecordBytes,
+            'entryCommentSummaries' => $entryCommentSummaries,
+            'entryCommentDirectoryRootSummaryCount' => count($entryCommentDirectoryRootSummaries),
+            'entryCommentDirectoryRoots' => $entryCommentDirectoryRoots,
+            'entryCommentDirectoryRootSummaries' => $entryCommentDirectoryRootSummaries,
+            'entryCommentPackagePartExtensionSummaryCount' => count($entryCommentPackagePartExtensionSummaries),
+            'entryCommentPackagePartExtensionKeys' => $entryCommentPackagePartExtensionKeys,
+            'entryCommentPackagePartExtensionSummaries' => $entryCommentPackagePartExtensionSummaries,
             'centralDirectoryOrderNames' => $centralDirectoryOrderNames,
             'localHeaderOrderNames' => $localHeaderOrderNames,
             'centralDirectoryOrderMatchesLocalHeaderOrder' => $centralDirectoryOrderNames === $localHeaderOrderNames,
             'entries' => $entries,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function packageManifestEntryCommentSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $rawCommentBytes = (int) ($entry['centralDirectoryRawCommentBytes'] ?? 0);
+            if ($rawCommentBytes <= 0) {
+                continue;
+            }
+
+            $summaries[] = [
+                'name' => is_string($entry['name'] ?? null) ? $entry['name'] : '',
+                'centralDirectoryIndex' => is_int($entry['centralDirectoryIndex'] ?? null)
+                    ? $entry['centralDirectoryIndex']
+                    : null,
+                'directoryRoot' => is_string($entry['directoryRoot'] ?? null) ? $entry['directoryRoot'] : '',
+                'packagePartExtensionKey' => is_string($entry['packagePartExtensionKey'] ?? null)
+                    ? $entry['packagePartExtensionKey']
+                    : '',
+                'compressionMethod' => is_int($entry['compressionMethod'] ?? null)
+                    ? $entry['compressionMethod']
+                    : null,
+                'compressionMethodName' => is_string($entry['compressionMethodName'] ?? null)
+                    ? $entry['compressionMethodName']
+                    : '',
+                'centralDirectoryRawCommentOffset' => is_int($entry['centralDirectoryRawCommentOffset'] ?? null)
+                    ? $entry['centralDirectoryRawCommentOffset']
+                    : null,
+                'centralDirectoryRawCommentBytes' => $rawCommentBytes,
+                'centralDirectoryRawCommentSha256' => is_string($entry['centralDirectoryRawCommentSha256'] ?? null)
+                    ? $entry['centralDirectoryRawCommentSha256']
+                    : null,
+                'centralDirectoryRecordBytes' => (int) ($entry['centralDirectoryRecordBytes'] ?? 0),
+                'centralDirectoryReviewFieldBytes' => (int) ($entry['centralDirectoryReviewFieldBytes'] ?? 0),
+                'sourceRecordBytes' => (int) ($entry['sourceRecordBytes'] ?? 0),
+                'entryCommentByteExposurePolicy' => 'zip-entry-comment-source-metadata-only',
+                'entryCommentCanExposeBytes' => false,
+            ];
+        }
+
+        return $summaries;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entryCommentSummaries
+     * @return list<array<string, mixed>>
+     */
+    private static function packageManifestEntryCommentDirectoryRootSummaries(array $entryCommentSummaries): array
+    {
+        $summaries = [];
+        foreach ($entryCommentSummaries as $entry) {
+            $root = is_string($entry['directoryRoot'] ?? null) ? $entry['directoryRoot'] : '/';
+            if (!isset($summaries[$root])) {
+                $summaries[$root] = [
+                    'directoryRoot' => $root,
+                    'entryCommentCount' => 0,
+                    'centralDirectoryRawCommentBytes' => 0,
+                    'centralDirectoryRecordBytes' => 0,
+                    'centralDirectoryReviewFieldBytes' => 0,
+                    'sourceRecordBytes' => 0,
+                    'packagePartExtensionKeys' => [],
+                    'entryNames' => [],
+                ];
+            }
+
+            self::accumulatePackageManifestEntryCommentGroupSummary($summaries[$root], $entry);
+        }
+
+        ksort($summaries, SORT_STRING);
+        foreach ($summaries as &$summary) {
+            sort($summary['packagePartExtensionKeys'], SORT_STRING);
+        }
+        unset($summary);
+
+        return array_values($summaries);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entryCommentSummaries
+     * @return list<array<string, mixed>>
+     */
+    private static function packageManifestEntryCommentPackagePartExtensionSummaries(array $entryCommentSummaries): array
+    {
+        $summaries = [];
+        foreach ($entryCommentSummaries as $entry) {
+            $extensionKey = is_string($entry['packagePartExtensionKey'] ?? null)
+                ? $entry['packagePartExtensionKey']
+                : '(none)';
+            if (!isset($summaries[$extensionKey])) {
+                $summaries[$extensionKey] = [
+                    'extensionKey' => $extensionKey,
+                    'entryCommentCount' => 0,
+                    'centralDirectoryRawCommentBytes' => 0,
+                    'centralDirectoryRecordBytes' => 0,
+                    'centralDirectoryReviewFieldBytes' => 0,
+                    'sourceRecordBytes' => 0,
+                    'directoryRoots' => [],
+                    'entryNames' => [],
+                ];
+            }
+
+            self::accumulatePackageManifestEntryCommentGroupSummary($summaries[$extensionKey], $entry);
+        }
+
+        ksort($summaries, SORT_STRING);
+        foreach ($summaries as &$summary) {
+            sort($summary['directoryRoots'], SORT_STRING);
+        }
+        unset($summary);
+
+        return array_values($summaries);
+    }
+
+    /**
+     * @param array<string, mixed> $summary
+     * @param array<string, mixed> $entry
+     */
+    private static function accumulatePackageManifestEntryCommentGroupSummary(array &$summary, array $entry): void
+    {
+        ++$summary['entryCommentCount'];
+        $summary['centralDirectoryRawCommentBytes'] += (int) ($entry['centralDirectoryRawCommentBytes'] ?? 0);
+        $summary['centralDirectoryRecordBytes'] += (int) ($entry['centralDirectoryRecordBytes'] ?? 0);
+        $summary['centralDirectoryReviewFieldBytes'] += (int) ($entry['centralDirectoryReviewFieldBytes'] ?? 0);
+        $summary['sourceRecordBytes'] += (int) ($entry['sourceRecordBytes'] ?? 0);
+
+        $entryName = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+        if ($entryName !== '') {
+            $summary['entryNames'][] = $entryName;
+        }
+
+        if (isset($summary['packagePartExtensionKeys'])) {
+            $extensionKey = is_string($entry['packagePartExtensionKey'] ?? null)
+                ? $entry['packagePartExtensionKey']
+                : '(none)';
+            if (!in_array($extensionKey, $summary['packagePartExtensionKeys'], true)) {
+                $summary['packagePartExtensionKeys'][] = $extensionKey;
+            }
+        }
+
+        if (isset($summary['directoryRoots'])) {
+            $root = is_string($entry['directoryRoot'] ?? null) ? $entry['directoryRoot'] : '/';
+            if (!in_array($root, $summary['directoryRoots'], true)) {
+                $summary['directoryRoots'][] = $root;
+            }
+        }
     }
 
     /**

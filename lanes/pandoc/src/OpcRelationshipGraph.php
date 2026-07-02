@@ -775,6 +775,9 @@ final class OpcRelationshipGraph
                     $centralDirectoryRawCommentBytes
                 ),
                 'centralDirectoryReviewFieldBytes' => $centralDirectoryReviewFieldBytes,
+                'sourceRecordBytes' => is_int($manifestEntry['sourceRecordBytes'] ?? null)
+                    ? $manifestEntry['sourceRecordBytes']
+                    : null,
                 'hasCentralDirectoryReviewFields' => is_int($centralDirectoryReviewFieldBytes)
                     && $centralDirectoryReviewFieldBytes > 0,
                 'localHeaderOrder' => $orderEntry['localHeaderOrder'] ?? $entryIndex,
@@ -1485,6 +1488,7 @@ final class OpcRelationshipGraph
             $payloadEntries,
             self::ZIP_MANIFEST_LARGEST_PAYLOAD_ENTRY_LIMIT
         );
+        $zipEntryCommentProvenance = self::zipEntryCommentProvenance($entries);
 
         return [
             'valid' => $issues === [],
@@ -1517,6 +1521,7 @@ final class OpcRelationshipGraph
             'hasEntryComments' => $centralDirectoryVariableFields['hasEntryComments'],
             'hasCentralDirectoryReviewFields' => $centralDirectoryVariableFields['hasCentralDirectoryReviewFields'],
             'hasPackageComment' => $centralDirectoryVariableFields['hasPackageComment'],
+            ...$zipEntryCommentProvenance,
             'contentTypesItemCount' => count($contentTypesItems),
             'contentTypeDeclarationAvailable' => $contentTypes instanceof OpcContentTypes,
             'contentTypesParseError' => $contentTypesParseError,
@@ -1651,6 +1656,14 @@ final class OpcRelationshipGraph
         foreach ($localHeaderOrder['entries'] as $orderEntry) {
             $localHeaderOrderByCentralDirectoryIndex[$orderEntry['centralDirectoryIndex']] = $orderEntry;
         }
+        $byteLayoutEntriesByCentralDirectoryIndex = [];
+        try {
+            foreach (ZipPackage::packageByteLayoutPreflight($bytes)['entries'] as $layoutEntry) {
+                $byteLayoutEntriesByCentralDirectoryIndex[$layoutEntry['centralDirectoryIndex']] = $layoutEntry;
+            }
+        } catch (\Throwable) {
+            $byteLayoutEntriesByCentralDirectoryIndex = [];
+        }
         $localHeaderNames = null;
         $localHeaderNamePreflightError = null;
         $localHeaderNameByCentralDirectoryIndex = [];
@@ -1678,6 +1691,7 @@ final class OpcRelationshipGraph
             $contentTypesItem = false;
             $byteCountsAreExact = !$centralEntry['hasZip64SizeSentinel'];
             $orderEntry = $localHeaderOrderByCentralDirectoryIndex[$centralEntry['centralDirectoryIndex']] ?? null;
+            $byteLayoutEntry = $byteLayoutEntriesByCentralDirectoryIndex[$centralEntry['centralDirectoryIndex']] ?? null;
             $localHeaderNameEntry = $localHeaderNameByCentralDirectoryIndex[$centralEntry['centralDirectoryIndex']] ?? null;
             if ($localHeaderNameEntry !== null && $localHeaderNameEntry['issues'] !== []) {
                 $issues = array_values(array_unique(array_merge($issues, $localHeaderNameEntry['issues'])));
@@ -1731,6 +1745,12 @@ final class OpcRelationshipGraph
                 : null;
             $centralDirectoryReviewFieldBytes = is_array($variableFieldEntry)
                 ? ($variableFieldEntry['reviewFieldBytes'] ?? null)
+                : null;
+            $localRecordBytes = is_array($byteLayoutEntry) && is_int($byteLayoutEntry['localRecordBytes'] ?? null)
+                ? $byteLayoutEntry['localRecordBytes']
+                : null;
+            $sourceRecordBytes = $byteCountsAreExact && $localRecordBytes !== null
+                ? $localRecordBytes + $centralDirectoryRecordBytes
                 : null;
 
             $entries[] = [
@@ -1796,6 +1816,8 @@ final class OpcRelationshipGraph
                     $centralDirectoryRawCommentBytes
                 ),
                 'centralDirectoryReviewFieldBytes' => $centralDirectoryReviewFieldBytes,
+                'localRecordBytes' => $localRecordBytes,
+                'sourceRecordBytes' => $sourceRecordBytes,
                 'hasCentralDirectoryReviewFields' => is_int($centralDirectoryReviewFieldBytes)
                     && $centralDirectoryReviewFieldBytes > 0,
                 'localHeaderOffset' => $centralEntry['localHeaderOffset'],
@@ -2228,6 +2250,7 @@ final class OpcRelationshipGraph
             $payloadEntries,
             self::ZIP_MANIFEST_LARGEST_PAYLOAD_ENTRY_LIMIT
         );
+        $zipEntryCommentProvenance = self::zipEntryCommentProvenance($entries);
 
         return [
             'valid' => $issues === [],
@@ -2273,6 +2296,7 @@ final class OpcRelationshipGraph
             'hasEntryComments' => $centralDirectoryVariableFields['hasEntryComments'],
             'hasCentralDirectoryReviewFields' => $centralDirectoryVariableFields['hasCentralDirectoryReviewFields'],
             'hasPackageComment' => $centralDirectoryVariableFields['hasPackageComment'],
+            ...$zipEntryCommentProvenance,
             'contentTypesItemCount' => count($contentTypesItems),
             'extensionlessPackagePartCount' => $extensionlessPackagePartCount,
             'packagePartExtensionCounts' => $packagePartExtensionCounts,
@@ -9631,6 +9655,266 @@ final class OpcRelationshipGraph
             $partNamesByIssue[$issue] ??= [];
             self::appendUniqueString($partNamesByIssue[$issue], $partName);
         }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return array<string, mixed>
+     */
+    private static function zipEntryCommentProvenance(array $entries): array
+    {
+        $commentSummaries = [];
+        $directoryRootSummaries = [];
+        $extensionSummaries = [];
+        $commentedEntryNames = [];
+        $knownSourceRecordBytes = 0;
+        $sourceRecordBytes = 0;
+        $unknownSourceRecordEntryCount = 0;
+        $byteCountsAreExact = true;
+
+        foreach ($entries as $entry) {
+            $rawCommentBytes = is_int($entry['centralDirectoryRawCommentBytes'] ?? null)
+                ? $entry['centralDirectoryRawCommentBytes']
+                : (int) ($entry['centralDirectoryRawCommentBytes'] ?? 0);
+            if ($rawCommentBytes <= 0) {
+                continue;
+            }
+
+            $entryName = is_string($entry['entryName'] ?? null) ? $entry['entryName'] : '';
+            $partName = is_string($entry['partName'] ?? null) ? $entry['partName'] : null;
+            $directoryRoot = is_string($entry['directoryRoot'] ?? null)
+                ? $entry['directoryRoot']
+                : self::zipEntryManifestDirectoryRoot($entryName);
+            $isDirectory = ($entry['isDirectory'] ?? false) === true;
+            if ($isDirectory) {
+                $extensionKey = '(directory)';
+                $extension = null;
+            } elseif ($partName !== null) {
+                $extension = self::partNameExtension($partName);
+                $extensionKey = $extension === '' ? '(none)' : $extension;
+                $extension = $extension === '' ? null : $extension;
+            } else {
+                $extensionKey = '(invalid)';
+                $extension = null;
+            }
+
+            $entrySourceRecordBytes = is_int($entry['sourceRecordBytes'] ?? null)
+                ? $entry['sourceRecordBytes']
+                : null;
+            $entryByteCountsAreExact = ($entry['byteCountsAreExact'] ?? true) === true
+                && $entrySourceRecordBytes !== null;
+            if ($entrySourceRecordBytes !== null) {
+                $knownSourceRecordBytes += $entrySourceRecordBytes;
+                if ($entryByteCountsAreExact) {
+                    $sourceRecordBytes += $entrySourceRecordBytes;
+                }
+            }
+            if (!$entryByteCountsAreExact) {
+                $byteCountsAreExact = false;
+                ++$unknownSourceRecordEntryCount;
+            }
+
+            $summary = [
+                'entryName' => $entryName,
+                'partName' => $partName,
+                'role' => is_string($entry['role'] ?? null) ? $entry['role'] : '',
+                'handoffKind' => is_string($entry['handoffKind'] ?? null) ? $entry['handoffKind'] : '',
+                'directoryRoot' => $directoryRoot,
+                'packagePartExtensionKey' => $extensionKey,
+                'extension' => $extension,
+                'centralDirectoryIndex' => is_int($entry['centralDirectoryIndex'] ?? null)
+                    ? $entry['centralDirectoryIndex']
+                    : null,
+                'centralDirectoryRawCommentOffset' => is_int($entry['centralDirectoryRawCommentOffset'] ?? null)
+                    ? $entry['centralDirectoryRawCommentOffset']
+                    : null,
+                'centralDirectoryRawCommentBytes' => $rawCommentBytes,
+                'centralDirectoryRawCommentSha256' => is_string($entry['centralDirectoryRawCommentSha256'] ?? null)
+                    ? $entry['centralDirectoryRawCommentSha256']
+                    : null,
+                'centralDirectoryRecordBytes' => is_int($entry['centralDirectoryRecordBytes'] ?? null)
+                    ? $entry['centralDirectoryRecordBytes']
+                    : 0,
+                'centralDirectoryReviewFieldBytes' => is_int($entry['centralDirectoryReviewFieldBytes'] ?? null)
+                    ? $entry['centralDirectoryReviewFieldBytes']
+                    : 0,
+                'sourceRecordBytes' => $entryByteCountsAreExact ? $entrySourceRecordBytes : null,
+                'knownSourceRecordBytes' => $entrySourceRecordBytes ?? 0,
+                'byteCountsAreExact' => $entryByteCountsAreExact,
+                'entryCommentByteExposurePolicy' => 'zip-entry-comment-source-metadata-only',
+                'entryCommentCanExposeBytes' => false,
+            ];
+            $commentSummaries[] = $summary;
+            if ($entryName !== '') {
+                $commentedEntryNames[] = $entryName;
+            }
+
+            self::recordZipEntryCommentDirectoryRootSummary($directoryRootSummaries, $directoryRoot, $summary);
+            self::recordZipEntryCommentExtensionSummary($extensionSummaries, $extensionKey, $extension, $summary);
+        }
+
+        $directoryRootSummaries = self::zipEntryCommentDirectoryRootSummaries($directoryRootSummaries);
+        $extensionSummaries = self::zipEntryCommentExtensionSummaries($extensionSummaries);
+
+        return [
+            'zipEntryCommentCount' => count($commentSummaries),
+            'zipHasEntryComments' => $commentSummaries !== [],
+            'zipCommentedEntryNames' => $commentedEntryNames,
+            'zipEntryCommentSummaryCount' => count($commentSummaries),
+            'zipEntryCommentSourceRecordBytes' => $byteCountsAreExact ? $sourceRecordBytes : null,
+            'zipEntryCommentKnownSourceRecordBytes' => $knownSourceRecordBytes,
+            'zipEntryCommentByteCountsAreExact' => $byteCountsAreExact,
+            'zipEntryCommentUnknownSourceRecordEntryCount' => $unknownSourceRecordEntryCount,
+            'zipEntryCommentSummaries' => $commentSummaries,
+            'zipEntryCommentDirectoryRootSummaryCount' => count($directoryRootSummaries),
+            'zipEntryCommentDirectoryRoots' => array_map(
+                static fn (array $summary): string => (string) $summary['directoryRoot'],
+                $directoryRootSummaries
+            ),
+            'zipEntryCommentDirectoryRootSummaries' => $directoryRootSummaries,
+            'zipEntryCommentPackagePartExtensionSummaryCount' => count($extensionSummaries),
+            'zipEntryCommentPackagePartExtensionKeys' => array_map(
+                static fn (array $summary): string => (string) $summary['extensionKey'],
+                $extensionSummaries
+            ),
+            'zipEntryCommentPackagePartExtensionSummaries' => $extensionSummaries,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $summaries
+     * @param array<string, mixed> $entry
+     */
+    private static function recordZipEntryCommentDirectoryRootSummary(
+        array &$summaries,
+        string $directoryRoot,
+        array $entry
+    ): void {
+        $summaries[$directoryRoot] ??= [
+            'directoryRoot' => $directoryRoot,
+            'entryCommentCount' => 0,
+            'byteCountsAreExact' => true,
+            'unknownSourceRecordEntryCount' => 0,
+            'centralDirectoryRawCommentBytes' => 0,
+            'centralDirectoryRecordBytes' => 0,
+            'centralDirectoryReviewFieldBytes' => 0,
+            'sourceRecordBytes' => 0,
+            'knownSourceRecordBytes' => 0,
+            'packagePartExtensionKeys' => [],
+            'roles' => [],
+            'handoffKinds' => [],
+            'entryNames' => [],
+            'partNames' => [],
+        ];
+
+        self::recordZipEntryCommentGroupSummaryEntry($summaries[$directoryRoot], $entry);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $summaries
+     * @param array<string, mixed> $entry
+     */
+    private static function recordZipEntryCommentExtensionSummary(
+        array &$summaries,
+        string $extensionKey,
+        ?string $extension,
+        array $entry
+    ): void {
+        $summaries[$extensionKey] ??= [
+            'extensionKey' => $extensionKey,
+            'extension' => $extension,
+            'entryCommentCount' => 0,
+            'byteCountsAreExact' => true,
+            'unknownSourceRecordEntryCount' => 0,
+            'centralDirectoryRawCommentBytes' => 0,
+            'centralDirectoryRecordBytes' => 0,
+            'centralDirectoryReviewFieldBytes' => 0,
+            'sourceRecordBytes' => 0,
+            'knownSourceRecordBytes' => 0,
+            'directoryRoots' => [],
+            'roles' => [],
+            'handoffKinds' => [],
+            'entryNames' => [],
+            'partNames' => [],
+        ];
+
+        self::recordZipEntryCommentGroupSummaryEntry($summaries[$extensionKey], $entry);
+    }
+
+    /**
+     * @param array<string, mixed> $summary
+     * @param array<string, mixed> $entry
+     */
+    private static function recordZipEntryCommentGroupSummaryEntry(array &$summary, array $entry): void
+    {
+        ++$summary['entryCommentCount'];
+        $summary['centralDirectoryRawCommentBytes'] += (int) ($entry['centralDirectoryRawCommentBytes'] ?? 0);
+        $summary['centralDirectoryRecordBytes'] += (int) ($entry['centralDirectoryRecordBytes'] ?? 0);
+        $summary['centralDirectoryReviewFieldBytes'] += (int) ($entry['centralDirectoryReviewFieldBytes'] ?? 0);
+        $summary['knownSourceRecordBytes'] += (int) ($entry['knownSourceRecordBytes'] ?? 0);
+        if (($entry['byteCountsAreExact'] ?? false) === true) {
+            $summary['sourceRecordBytes'] += (int) ($entry['sourceRecordBytes'] ?? 0);
+        } else {
+            $summary['byteCountsAreExact'] = false;
+            ++$summary['unknownSourceRecordEntryCount'];
+        }
+
+        foreach ([
+            'packagePartExtensionKeys' => $entry['packagePartExtensionKey'] ?? null,
+            'directoryRoots' => $entry['directoryRoot'] ?? null,
+            'roles' => $entry['role'] ?? null,
+            'handoffKinds' => $entry['handoffKind'] ?? null,
+            'entryNames' => $entry['entryName'] ?? null,
+            'partNames' => $entry['partName'] ?? null,
+        ] as $field => $value) {
+            if (isset($summary[$field]) && is_string($value) && $value !== '') {
+                self::appendUniqueString($summary[$field], $value);
+            }
+        }
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $summaries
+     * @return list<array<string, mixed>>
+     */
+    private static function zipEntryCommentDirectoryRootSummaries(array $summaries): array
+    {
+        ksort($summaries, SORT_STRING);
+        foreach ($summaries as &$summary) {
+            if (($summary['byteCountsAreExact'] ?? false) !== true) {
+                $summary['sourceRecordBytes'] = null;
+            }
+            sort($summary['packagePartExtensionKeys'], SORT_STRING);
+            sort($summary['roles'], SORT_STRING);
+            sort($summary['handoffKinds'], SORT_STRING);
+            sort($summary['entryNames'], SORT_STRING);
+            sort($summary['partNames'], SORT_STRING);
+        }
+        unset($summary);
+
+        return array_values($summaries);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $summaries
+     * @return list<array<string, mixed>>
+     */
+    private static function zipEntryCommentExtensionSummaries(array $summaries): array
+    {
+        ksort($summaries, SORT_STRING);
+        foreach ($summaries as &$summary) {
+            if (($summary['byteCountsAreExact'] ?? false) !== true) {
+                $summary['sourceRecordBytes'] = null;
+            }
+            sort($summary['directoryRoots'], SORT_STRING);
+            sort($summary['roles'], SORT_STRING);
+            sort($summary['handoffKinds'], SORT_STRING);
+            sort($summary['entryNames'], SORT_STRING);
+            sort($summary['partNames'], SORT_STRING);
+        }
+        unset($summary);
+
+        return array_values($summaries);
     }
 
     /**
