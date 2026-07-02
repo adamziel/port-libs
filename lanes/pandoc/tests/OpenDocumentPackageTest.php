@@ -4388,14 +4388,22 @@ XML;
         $t->same(1, $summary['undeclaredPackageEntryCount']);
         $t->same('metadata/orphan/manifest.rdf', $summary['undeclaredPackageEntries'][0]['path']);
     },
-    'rejects malformed ODT manifest size metadata before package exposure' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+    'preserves malformed ODT manifest size metadata before package exposure' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $leadingZeroSize = str_replace('manifest:size="7"', 'manifest:size="0007"', $manifestXml);
         $leadingZero = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $leadingZeroSize));
         $t->same(7, $leadingZero->manifestEntry('Pictures/hero.png')['size']);
+        $t->same('0007', $leadingZero->manifestEntry('Pictures/hero.png')['declaredSizeRaw']);
+        $t->same(true, $leadingZero->manifestEntry('Pictures/hero.png')['declaredSizeValid']);
+        $t->same(false, $leadingZero->manifestEntry('Pictures/hero.png')['declaredSizeInvalid']);
 
         foreach (['7bytes', '-7', '+7', '7.0', '922337203685477580799'] as $size) {
             $manifest = str_replace('manifest:size="7"', 'manifest:size="' . $size . '"', $manifestXml);
-            $t->throws(\InvalidArgumentException::class, static fn (): OpenDocumentPackage => OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $manifest)));
+            $package = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $manifest));
+            $entry = $package->manifestEntry('Pictures/hero.png');
+            $t->same(null, $entry['size']);
+            $t->same($size, $entry['declaredSizeRaw']);
+            $t->same(false, $entry['declaredSizeValid']);
+            $t->same(true, $entry['declaredSizeInvalid']);
         }
     },
     'maps ODT content headings paragraphs links spaces breaks and images into the shared AST' => static function (TestRunner $t) use ($buildOdtPackage): void {
