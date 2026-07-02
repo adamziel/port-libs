@@ -200,6 +200,10 @@ return [
             'issueCodes',
             'issueCodeCounts',
             'modeCounts',
+            'modeFamilyCounts',
+            'fullPathsByModeFamily',
+            'byteExposurePolicyCounts',
+            'fullPathsByByteExposurePolicy',
         ] as $key) {
             $t->same($compactPreferredViewModes[$key], $richPreferredViewModes[$key], "shared preferred view mode field {$key}");
         }
@@ -221,5 +225,103 @@ return [
         $t->same(false, $compactIdentity['identitySha256'] === $changedIdentity['identitySha256']);
         $t->same(['charset', 'profile', 'role'], $changedIdentity['manifestMediaTypeParameterNames']);
         $t->same(['final cover'], $changedIdentity['manifestMediaTypeParameterValuesByName']['profile']);
+    },
+
+    'buckets ODT preferred view modes by mode family and byte exposure policy' => static function (TestRunner $t) use ($buildPackage): void {
+        $viewModeManifest = <<<'XML'
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
+  <manifest:file-entry manifest:full-path="/" manifest:version="1.3" manifest:preferred-view-mode="read-only" manifest:media-type="application/vnd.oasis.opendocument.text"/>
+  <manifest:file-entry manifest:full-path="content.xml" manifest:preferred-view-mode="edit" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="Pictures/hero.jpg" manifest:preferred-view-mode="lo:review" manifest:media-type="image/jpeg"/>
+  <manifest:file-entry manifest:full-path="Thumbnails/thumb.png" manifest:preferred-view-mode="bad token" manifest:media-type="image/png"/>
+  <manifest:file-entry manifest:full-path="Configurations2/" manifest:preferred-view-mode="presentation-slide-show"/>
+</manifest:manifest>
+XML;
+
+        $package = $buildPackage($viewModeManifest);
+        $compactSummary = OpenDocumentPackage::fromPackage($package)->summarize();
+        $compactPreferredViewModes = $compactSummary['manifestReview']['preferredViewModes'];
+        $compactIdentity = $compactSummary['packageIdentity'];
+        $richResult = (new OdfReader())->readPackage($package);
+        $richProvenance = $richResult['importReport']['manifest']['packageProvenance'];
+        $richPreferredViewModes = $richProvenance['preferredViewModes'];
+        $richIdentity = $richProvenance['packageIdentity'];
+        $documentIdentity = $richResult['document']->attr('manifest')['packageProvenance']['packageIdentity'];
+
+        $bucketByItemField = static function (array $items, string $field): array {
+            $buckets = [];
+            foreach ($items as $item) {
+                $key = is_string($item[$field] ?? null) && $item[$field] !== '' ? $item[$field] : '(missing)';
+                $path = (string) ($item['fullPath'] ?? '');
+                $buckets[$key][] = $path;
+            }
+            ksort($buckets, SORT_STRING);
+            foreach ($buckets as &$paths) {
+                sort($paths, SORT_STRING);
+            }
+            unset($paths);
+
+            return $buckets;
+        };
+        $countByItemField = static function (array $items, string $field): array {
+            $counts = [];
+            foreach ($items as $item) {
+                $key = is_string($item[$field] ?? null) && $item[$field] !== '' ? $item[$field] : '(missing)';
+                $counts[$key] = ($counts[$key] ?? 0) + 1;
+            }
+            ksort($counts, SORT_STRING);
+
+            return $counts;
+        };
+
+        $t->same(5, $compactPreferredViewModes['count']);
+        $t->same('read-only', $compactPreferredViewModes['rootMode']);
+        $t->same(3, $compactPreferredViewModes['definedModeCount']);
+        $t->same(1, $compactPreferredViewModes['namespacedTokenCount']);
+        $t->same(1, $compactPreferredViewModes['invalidTokenCount']);
+        $t->same(4, $compactPreferredViewModes['nonRootEntryCount']);
+        $t->same(4, $compactPreferredViewModes['issueCount']);
+        $t->same([
+            'defined' => 3,
+            'invalid-token' => 1,
+            'namespaced-token' => 1,
+        ], $compactPreferredViewModes['modeFamilyCounts']);
+        $t->same([
+            'defined' => ['/', 'Configurations2/', 'content.xml'],
+            'invalid-token' => ['Thumbnails/thumb.png'],
+            'namespaced-token' => ['Pictures/hero.jpg'],
+        ], $compactPreferredViewModes['fullPathsByModeFamily']);
+        $t->same(
+            $countByItemField($compactPreferredViewModes['items'], 'byteExposurePolicy'),
+            $compactPreferredViewModes['byteExposurePolicyCounts']
+        );
+        $t->same(
+            $bucketByItemField($compactPreferredViewModes['items'], 'byteExposurePolicy'),
+            $compactPreferredViewModes['fullPathsByByteExposurePolicy']
+        );
+        $t->same($compactPreferredViewModes, $compactIdentity['preferredViewModes']);
+        foreach ([
+            'count',
+            'itemCount',
+            'rootMode',
+            'definedModeCount',
+            'namespacedTokenCount',
+            'invalidTokenCount',
+            'nonRootEntryCount',
+            'issueCount',
+            'issueCodes',
+            'issueCodeCounts',
+            'modeCounts',
+            'modeFamilyCounts',
+            'fullPathsByModeFamily',
+            'byteExposurePolicyCounts',
+            'fullPathsByByteExposurePolicy',
+        ] as $key) {
+            $t->same($compactPreferredViewModes[$key], $richPreferredViewModes[$key], "shared preferred view mode field {$key}");
+        }
+        $t->same($richPreferredViewModes, $richIdentity['preferredViewModes']);
+        $t->same($richIdentity['preferredViewModes'], $documentIdentity['preferredViewModes']);
     },
 ];

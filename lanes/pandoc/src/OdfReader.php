@@ -21702,6 +21702,10 @@ final class OdfReader
         $nonRootItems = [];
         $invalidTokenItems = [];
         $modeCounts = [];
+        $modeFamilyCounts = [];
+        $fullPathsByModeFamily = [];
+        $byteExposurePolicyCounts = [];
+        $fullPathsByByteExposurePolicy = [];
         $issueCodeCounts = [];
         $rootMode = null;
         $definedModeCount = 0;
@@ -21716,6 +21720,10 @@ final class OdfReader
             $fullPath = (string) ($item['fullPath'] ?? '');
             $isRootEntry = $fullPath === '/';
             $classification = self::preferredViewModeClassification($mode);
+            $modeFamily = $classification['modeFamily'];
+            $byteExposurePolicy = is_string($item['byteExposurePolicy'] ?? null) && $item['byteExposurePolicy'] !== ''
+                ? $item['byteExposurePolicy']
+                : '(missing)';
             $issues = [];
             if (!$isRootEntry) {
                 $issues[] = 'odf-preferred-view-mode-non-root-entry';
@@ -21735,10 +21743,15 @@ final class OdfReader
                 'definedMode' => $classification['definedMode'],
                 'namespacedToken' => $classification['namespacedToken'],
                 'modeFamily' => $classification['modeFamily'],
+                'byteExposurePolicy' => $byteExposurePolicy === '(missing)' ? null : $byteExposurePolicy,
                 'issues' => $issues,
             ]);
             $items[] = $review;
             $modeCounts[$mode] = ($modeCounts[$mode] ?? 0) + 1;
+            $modeFamilyCounts[$modeFamily] = ($modeFamilyCounts[$modeFamily] ?? 0) + 1;
+            $fullPathsByModeFamily[$modeFamily][] = $fullPath;
+            $byteExposurePolicyCounts[$byteExposurePolicy] = ($byteExposurePolicyCounts[$byteExposurePolicy] ?? 0) + 1;
+            $fullPathsByByteExposurePolicy[$byteExposurePolicy][] = $fullPath;
 
             if ($isRootEntry) {
                 $rootMode = $mode;
@@ -21760,6 +21773,18 @@ final class OdfReader
         }
 
         ksort($modeCounts, SORT_STRING);
+        ksort($modeFamilyCounts, SORT_STRING);
+        ksort($fullPathsByModeFamily, SORT_STRING);
+        foreach ($fullPathsByModeFamily as &$paths) {
+            sort($paths, SORT_STRING);
+        }
+        unset($paths);
+        ksort($byteExposurePolicyCounts, SORT_STRING);
+        ksort($fullPathsByByteExposurePolicy, SORT_STRING);
+        foreach ($fullPathsByByteExposurePolicy as &$paths) {
+            sort($paths, SORT_STRING);
+        }
+        unset($paths);
         ksort($issueCodeCounts, SORT_STRING);
 
         return [
@@ -21774,6 +21799,10 @@ final class OdfReader
             'issueCodes' => array_keys($issueCodeCounts),
             'issueCodeCounts' => $issueCodeCounts,
             'modeCounts' => $modeCounts,
+            'modeFamilyCounts' => $modeFamilyCounts,
+            'fullPathsByModeFamily' => $fullPathsByModeFamily,
+            'byteExposurePolicyCounts' => $byteExposurePolicyCounts,
+            'fullPathsByByteExposurePolicy' => $fullPathsByByteExposurePolicy,
             'nonRootItems' => $nonRootItems,
             'invalidTokenItems' => $invalidTokenItems,
             'items' => $items,
