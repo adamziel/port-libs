@@ -15141,6 +15141,87 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfTaggingMetadata']);
     },
 
+    'fake runner summarizes bounded pdf tagging review policy from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/tagging-policy.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /MarkInfo << /Marked false /UserProperties true /Suspects true >> /StructTreeRoot 9 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /StructParents 0 >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /StructTreeRoot /K [10 0 R] /RoleMap << /ReviewNote /Note >> /ParentTree 12 0 R /IDTree 13 0 R >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /StructElem /S /ReviewNote /P 9 0 R /K 0 /ID (intro) >>',
+            'endobj',
+            '12 0 obj',
+            '<< /Nums [0 [10 0 R]] >>',
+            'endobj',
+            '13 0 obj',
+            '<< /Names [(intro) 10 0 R] >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/tagging-policy.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/tagging-policy.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+        $expected = [
+            'reviewStatus' => 'review',
+            'marked' => false,
+            'userProperties' => true,
+            'suspects' => true,
+            'structTreeRoot' => '9 0 R',
+            'roleMapCount' => 1,
+            'structureChildren' => 1,
+            'structureElementCount' => 1,
+            'parentTreePresent' => true,
+            'parentTreeEntryCount' => 1,
+            'idTreePresent' => true,
+            'idTreeEntryCount' => 1,
+            'pageStructParentCount' => 1,
+            'markedContentPropertyCount' => 0,
+            'markedContentArtifactCount' => 0,
+            'parentTreePolicyStatus' => 'ok',
+            'idTreePolicyStatus' => 'ok',
+            'issues' => [
+                'structure-tree-without-marked-flag',
+                'suspect-tagging-boundary',
+            ],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfTaggingPolicy']);
+        $t->contains('pdf-byte-tagging-policy:review', $diagnostics);
+        $t->contains('pdf-byte-tagging-policy-structure-elements:1', $diagnostics);
+        $t->contains('pdf-byte-tagging-policy-parent-tree-entries:1', $diagnostics);
+        $t->contains('pdf-byte-tagging-policy-id-tree-entries:1', $diagnostics);
+        $t->contains('pdf-byte-tagging-policy-page-struct-parents:1', $diagnostics);
+        $t->contains('pdf-byte-tagging-policy-issue:structure-tree-without-marked-flag', $diagnostics);
+        $t->contains('pdf-byte-tagging-policy-issue:suspect-tagging-boundary', $diagnostics);
+        $t->same($expected, $sequence['finalPdfTaggingPolicy']);
+    },
+
     'fake runner extracts bounded pdf structure namespace provenance from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/structure-namespaces.pdf']);
