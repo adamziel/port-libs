@@ -767,6 +767,9 @@ return [
                 'pathSegmentPositionReviews' => $pathSegmentPositionReviews(['OEBPS', 'content.xhtml']),
                 'pathSegmentCount' => 2,
                 'directoryDepth' => 1,
+                'packageDirectory' => 'OEBPS/',
+                'packageDirectoryBaseName' => 'OEBPS',
+                'packageCaseFoldDirectoryBaseName' => 'oebps',
                 'packagePartBaseName' => 'content.xhtml',
                 'packagePartCaseFoldBaseName' => 'content.xhtml',
                 'packagePartBaseNameStem' => 'content',
@@ -795,6 +798,9 @@ return [
                 'pathSegmentPositionReviews' => $pathSegmentPositionReviews(['OEBPS', 'images']),
                 'pathSegmentCount' => 2,
                 'directoryDepth' => 1,
+                'packageDirectory' => 'OEBPS/images/',
+                'packageDirectoryBaseName' => 'images',
+                'packageCaseFoldDirectoryBaseName' => 'images',
                 'packagePartBaseName' => 'images',
                 'packagePartCaseFoldBaseName' => 'images',
                 'packagePartBaseNameStem' => null,
@@ -823,6 +829,9 @@ return [
                 'pathSegmentPositionReviews' => $pathSegmentPositionReviews(['mimetype']),
                 'pathSegmentCount' => 1,
                 'directoryDepth' => 0,
+                'packageDirectory' => '/',
+                'packageDirectoryBaseName' => '/',
+                'packageCaseFoldDirectoryBaseName' => '/',
                 'packagePartBaseName' => 'mimetype',
                 'packagePartCaseFoldBaseName' => 'mimetype',
                 'packagePartBaseNameStem' => 'mimetype',
@@ -887,6 +896,9 @@ return [
                     'pathSegmentPositionReviews' => $entry['pathSegmentPositionReviews'],
                     'pathSegmentCount' => $entry['pathSegmentCount'],
                     'directoryDepth' => $entry['directoryDepth'],
+                    'packageDirectory' => $entry['packageDirectory'],
+                    'packageDirectoryBaseName' => $entry['packageDirectoryBaseName'],
+                    'packageCaseFoldDirectoryBaseName' => $entry['packageCaseFoldDirectoryBaseName'],
                     'packagePartBaseName' => $entry['packagePartBaseName'],
                     'packagePartCaseFoldBaseName' => $entry['packagePartCaseFoldBaseName'],
                     'packagePartBaseNameStem' => $entry['packagePartBaseNameStem'],
@@ -1371,6 +1383,18 @@ return [
             'extensionlessPackagePartCount' => 1,
             'packagePartExtensions' => $expectedPackagePartExtensions,
             'packagePartExtensionSummaries' => $expectedPackagePartExtensionSummaries,
+            'packageDirectoryBaseNameSummaryCount' => $manifest['packageDirectoryBaseNameSummaryCount'],
+            'packageDirectoryBaseNames' => $manifest['packageDirectoryBaseNames'],
+            'packageDirectoryBaseNameSummaries' => $manifest['packageDirectoryBaseNameSummaries'],
+            'duplicatePackageDirectoryBaseNameCount' => $manifest['duplicatePackageDirectoryBaseNameCount'],
+            'duplicatePackageDirectoryBaseNames' => $manifest['duplicatePackageDirectoryBaseNames'],
+            'duplicatePackageDirectoryBaseNameSummaries' => $manifest['duplicatePackageDirectoryBaseNameSummaries'],
+            'packageCaseFoldDirectoryBaseNameSummaryCount' => $manifest['packageCaseFoldDirectoryBaseNameSummaryCount'],
+            'packageCaseFoldDirectoryBaseNames' => $manifest['packageCaseFoldDirectoryBaseNames'],
+            'packageCaseFoldDirectoryBaseNameSummaries' => $manifest['packageCaseFoldDirectoryBaseNameSummaries'],
+            'duplicatePackageCaseFoldDirectoryBaseNameCount' => $manifest['duplicatePackageCaseFoldDirectoryBaseNameCount'],
+            'duplicatePackageCaseFoldDirectoryBaseNames' => $manifest['duplicatePackageCaseFoldDirectoryBaseNames'],
+            'duplicatePackageCaseFoldDirectoryBaseNameSummaries' => $manifest['duplicatePackageCaseFoldDirectoryBaseNameSummaries'],
             'packagePartBaseNameSummaryCount' => $manifest['packagePartBaseNameSummaryCount'],
             'packagePartBaseNames' => $manifest['packagePartBaseNames'],
             'packagePartBaseNameSummaries' => $manifest['packagePartBaseNameSummaries'],
@@ -1583,6 +1607,9 @@ return [
                 'pathSegmentPositionReviews' => $entry['pathSegmentPositionReviews'],
                 'pathSegmentCount' => $entry['pathSegmentCount'],
                 'directoryDepth' => $entry['directoryDepth'],
+                'packageDirectory' => $entry['packageDirectory'],
+                'packageDirectoryBaseName' => $entry['packageDirectoryBaseName'],
+                'packageCaseFoldDirectoryBaseName' => $entry['packageCaseFoldDirectoryBaseName'],
                 'packagePartBaseName' => $entry['packagePartBaseName'],
                 'packagePartCaseFoldBaseName' => $entry['packagePartCaseFoldBaseName'],
                 'packagePartBaseNameStem' => $entry['packagePartBaseNameStem'],
@@ -2377,6 +2404,178 @@ return [
         $t->same(['mimetype'], $caseFoldStemsByKey['mimetype']['entryNames']);
     },
 
+    'records mapped shared ZIP package directory base-name case count' => static function (TestRunner $t): void {
+        $manifest = json_decode(
+            file_get_contents(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json') ?: '',
+            true,
+            512,
+            JSON_THROW_ON_ERROR
+        );
+
+        $t->same(1, $manifest['mappedSharedZipPackageDirectoryBaseNameCases']);
+        $t->same(49, $manifest['sharedZipPackageDirectoryBaseNameAssertions']);
+        $t->same(
+            1,
+            $manifest['benchmarkDenominator']['breakdown']['mappedSharedZipPackageDirectoryBaseNameCases']
+        );
+        $t->same(
+            49,
+            $manifest['benchmarkDenominator']['breakdown']['sharedZipPackageDirectoryBaseNameAssertions']
+        );
+        $t->same(
+            1,
+            $manifest['benchmarkDenominator']['inventory']['mappedSharedZipPackageDirectoryBaseNameCases']
+        );
+        $t->same(
+            49,
+            $manifest['benchmarkDenominator']['inventory']['sharedZipPackageDirectoryBaseNameAssertions']
+        );
+        $t->same(1, $manifest['inventory']['mappedSharedZipPackageDirectoryBaseNameCases']);
+        $t->same(49, $manifest['inventory']['sharedZipPackageDirectoryBaseNameAssertions']);
+    },
+
+    'rolls up zip package manifest directory basenames before shared package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $zip = $buildZipPackage([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => '<Types/>',
+                'method' => 0,
+            ],
+            [
+                'name' => '_rels/.rels',
+                'data' => '<Relationships/>',
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/Media/source.xml',
+                'data' => '<source/>',
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/image.png',
+                'data' => 'image-bytes',
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/',
+                'data' => '',
+                'method' => 0,
+            ],
+            [
+                'name' => 'customXml/MEDIA/data.xml',
+                'data' => '<data/>',
+                'method' => 0,
+            ],
+            [
+                'name' => 'customXml/media/review.png',
+                'data' => 'review-bytes',
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/embeddings/report.bin',
+                'data' => 'bin-bytes',
+                'method' => 0,
+            ],
+        ]);
+        $manifest = ZipPackage::fromString($zip)->packageManifestPreflight();
+        $raw = ZipPackage::rawStrictImportPreflight($zip, 4096, 100.0, 4096);
+        $entriesByName = [];
+        foreach ($manifest['entries'] as $entry) {
+            $entriesByName[$entry['name']] = $entry;
+        }
+        $directoryBaseNamesByKey = [];
+        foreach ($manifest['packageDirectoryBaseNameSummaries'] as $summary) {
+            $directoryBaseNamesByKey[$summary['packageDirectoryBaseName']] = $summary;
+        }
+        $caseFoldDirectoryBaseNamesByKey = [];
+        foreach ($manifest['packageCaseFoldDirectoryBaseNameSummaries'] as $summary) {
+            $caseFoldDirectoryBaseNamesByKey[$summary['packageCaseFoldDirectoryBaseName']] = $summary;
+        }
+        $sumEntryBytes = static function (array $names, string $field) use ($entriesByName): int {
+            $bytes = 0;
+            foreach ($names as $name) {
+                $bytes += $entriesByName[$name][$field];
+            }
+
+            return $bytes;
+        };
+        $caseFoldMediaNames = [
+            'word/Media/source.xml',
+            'word/media/image.png',
+            'word/media/',
+            'customXml/MEDIA/data.xml',
+            'customXml/media/review.png',
+        ];
+
+        $t->same('/', $entriesByName['[Content_Types].xml']['packageDirectory']);
+        $t->same('/', $entriesByName['[Content_Types].xml']['packageDirectoryBaseName']);
+        $t->same('/', $entriesByName['[Content_Types].xml']['packageCaseFoldDirectoryBaseName']);
+        $t->same('_rels/', $entriesByName['_rels/.rels']['packageDirectory']);
+        $t->same('_rels', $entriesByName['_rels/.rels']['packageDirectoryBaseName']);
+        $t->same('word/Media/', $entriesByName['word/Media/source.xml']['packageDirectory']);
+        $t->same('Media', $entriesByName['word/Media/source.xml']['packageDirectoryBaseName']);
+        $t->same('media', $entriesByName['word/Media/source.xml']['packageCaseFoldDirectoryBaseName']);
+        $t->same('word/media/', $entriesByName['word/media/']['packageDirectory']);
+        $t->same('media', $entriesByName['word/media/']['packageDirectoryBaseName']);
+        $t->same('media', $entriesByName['word/media/']['packageCaseFoldDirectoryBaseName']);
+
+        $t->same(6, $manifest['packageDirectoryBaseNameSummaryCount']);
+        $t->same(['/', 'MEDIA', 'Media', '_rels', 'embeddings', 'media'], $manifest['packageDirectoryBaseNames']);
+        $t->same(1, $manifest['duplicatePackageDirectoryBaseNameCount']);
+        $t->same(true, $manifest['hasDuplicatePackageDirectoryBaseNames']);
+        $t->same(['media'], $manifest['duplicatePackageDirectoryBaseNames']);
+        $t->same(3, $directoryBaseNamesByKey['media']['entryCount']);
+        $t->same(2, $directoryBaseNamesByKey['media']['fileEntryCount']);
+        $t->same(1, $directoryBaseNamesByKey['media']['directoryEntryCount']);
+        $t->same([
+            'customXml/media/' => 1,
+            'word/media/' => 2,
+        ], $directoryBaseNamesByKey['media']['packageDirectoryCounts']);
+        $t->same([
+            '(directory)' => 1,
+            'png' => 2,
+        ], $directoryBaseNamesByKey['media']['packagePartExtensionKeyCounts']);
+        $t->same(['customXml/' => 1, 'word/' => 2], $directoryBaseNamesByKey['media']['directoryRootCounts']);
+        $t->same([
+            'word/media/image.png',
+            'word/media/',
+            'customXml/media/review.png',
+        ], $directoryBaseNamesByKey['media']['entryNames']);
+
+        $t->same(4, $manifest['packageCaseFoldDirectoryBaseNameSummaryCount']);
+        $t->same(['/', '_rels', 'embeddings', 'media'], $manifest['packageCaseFoldDirectoryBaseNames']);
+        $t->same(1, $manifest['duplicatePackageCaseFoldDirectoryBaseNameCount']);
+        $t->same(true, $manifest['hasDuplicatePackageCaseFoldDirectoryBaseNames']);
+        $t->same(['media'], $manifest['duplicatePackageCaseFoldDirectoryBaseNames']);
+        $caseFoldMedia = $caseFoldDirectoryBaseNamesByKey['media'];
+        $t->same(5, $caseFoldMedia['entryCount']);
+        $t->same(4, $caseFoldMedia['fileEntryCount']);
+        $t->same(1, $caseFoldMedia['directoryEntryCount']);
+        $t->same($sumEntryBytes($caseFoldMediaNames, 'sourceRecordBytes'), $caseFoldMedia['sourceRecordBytes']);
+        $t->same(3, $caseFoldMedia['packageDirectoryBaseNameVariantCount']);
+        $t->same([
+            'MEDIA' => 1,
+            'Media' => 1,
+            'media' => 3,
+        ], $caseFoldMedia['packageDirectoryBaseNameCounts']);
+        $t->same(['MEDIA', 'Media', 'media'], $caseFoldMedia['packageDirectoryBaseNames']);
+        $t->same([
+            'customXml/MEDIA/' => 1,
+            'customXml/media/' => 1,
+            'word/Media/' => 1,
+            'word/media/' => 2,
+        ], $caseFoldMedia['packageDirectoryCounts']);
+        $t->same([
+            '(directory)' => 1,
+            'png' => 2,
+            'xml' => 2,
+        ], $caseFoldMedia['packagePartExtensionKeyCounts']);
+        $t->same(['customXml/' => 2, 'word/' => 3], $caseFoldMedia['directoryRootCounts']);
+        $t->same($caseFoldMediaNames, $caseFoldMedia['entryNames']);
+        $t->same($manifest, $raw['packageManifest']);
+        $t->same($manifest, $raw['strictImport']['packageManifest']);
+    },
+
     'preflights zip package manifest case-insensitive name collisions for package handoff' => static function (TestRunner $t): void {
         $package = ZipPackage::fromParts([
             [
@@ -3020,6 +3219,9 @@ return [
                 'pathSegmentPositionReviews' => $pathSegmentPositionReviews(['word', 'document.xml']),
                 'pathSegmentCount' => 2,
                 'directoryDepth' => 1,
+                'packageDirectory' => 'word/',
+                'packageDirectoryBaseName' => 'word',
+                'packageCaseFoldDirectoryBaseName' => 'word',
                 'packagePartBaseName' => 'document.xml',
                 'packagePartCaseFoldBaseName' => 'document.xml',
                 'packagePartBaseNameStem' => 'document',
@@ -3101,6 +3303,9 @@ return [
                 'pathSegmentPositionReviews' => $pathSegmentPositionReviews(['word', 'comments.xml']),
                 'pathSegmentCount' => 2,
                 'directoryDepth' => 1,
+                'packageDirectory' => 'word/',
+                'packageDirectoryBaseName' => 'word',
+                'packageCaseFoldDirectoryBaseName' => 'word',
                 'packagePartBaseName' => 'comments.xml',
                 'packagePartCaseFoldBaseName' => 'comments.xml',
                 'packagePartBaseNameStem' => 'comments',
@@ -3422,6 +3627,18 @@ return [
             'extensionlessPackagePartCount' => 0,
             'packagePartExtensions' => $expectedPackagePartExtensions,
             'packagePartExtensionSummaries' => $expectedPackagePartExtensionSummaries,
+            'packageDirectoryBaseNameSummaryCount' => $manifest['packageDirectoryBaseNameSummaryCount'],
+            'packageDirectoryBaseNames' => $manifest['packageDirectoryBaseNames'],
+            'packageDirectoryBaseNameSummaries' => $manifest['packageDirectoryBaseNameSummaries'],
+            'duplicatePackageDirectoryBaseNameCount' => $manifest['duplicatePackageDirectoryBaseNameCount'],
+            'duplicatePackageDirectoryBaseNames' => $manifest['duplicatePackageDirectoryBaseNames'],
+            'duplicatePackageDirectoryBaseNameSummaries' => $manifest['duplicatePackageDirectoryBaseNameSummaries'],
+            'packageCaseFoldDirectoryBaseNameSummaryCount' => $manifest['packageCaseFoldDirectoryBaseNameSummaryCount'],
+            'packageCaseFoldDirectoryBaseNames' => $manifest['packageCaseFoldDirectoryBaseNames'],
+            'packageCaseFoldDirectoryBaseNameSummaries' => $manifest['packageCaseFoldDirectoryBaseNameSummaries'],
+            'duplicatePackageCaseFoldDirectoryBaseNameCount' => $manifest['duplicatePackageCaseFoldDirectoryBaseNameCount'],
+            'duplicatePackageCaseFoldDirectoryBaseNames' => $manifest['duplicatePackageCaseFoldDirectoryBaseNames'],
+            'duplicatePackageCaseFoldDirectoryBaseNameSummaries' => $manifest['duplicatePackageCaseFoldDirectoryBaseNameSummaries'],
             'packagePartBaseNameSummaryCount' => $manifest['packagePartBaseNameSummaryCount'],
             'packagePartBaseNames' => $manifest['packagePartBaseNames'],
             'packagePartBaseNameSummaries' => $manifest['packagePartBaseNameSummaries'],
@@ -3559,6 +3776,9 @@ return [
                 'pathSegmentPositionReviews' => $entry['pathSegmentPositionReviews'],
                 'pathSegmentCount' => $entry['pathSegmentCount'],
                 'directoryDepth' => $entry['directoryDepth'],
+                'packageDirectory' => $entry['packageDirectory'],
+                'packageDirectoryBaseName' => $entry['packageDirectoryBaseName'],
+                'packageCaseFoldDirectoryBaseName' => $entry['packageCaseFoldDirectoryBaseName'],
                 'packagePartBaseName' => $entry['packagePartBaseName'],
                 'packagePartCaseFoldBaseName' => $entry['packagePartCaseFoldBaseName'],
                 'packagePartBaseNameStem' => $entry['packagePartBaseNameStem'],

@@ -15777,6 +15777,8 @@ final class DocxOpenXmlReader
         }
         ksort($partPathSegmentPositionCounts, SORT_STRING);
         ksort($partPathSegmentPositionPartCounts, SORT_STRING);
+        $partPathSegmentPositionRoleBuckets =
+            $this->packagePartPathSegmentPositionRoleBucketSummary($partInventory);
         $partCaseFoldPathSegmentPositions = $this->packagePartCaseFoldPathSegmentPositionSummary($partInventory);
         $partCaseFoldPathSegmentPositionOccurrenceCount = 0;
         $partCaseFoldPathSegmentPositionCounts = [];
@@ -16464,6 +16466,9 @@ final class DocxOpenXmlReader
         $relationshipTargetReferenceSuffixCount = 0;
         $relationshipTargetQueryCount = 0;
         $relationshipTargetFragmentCount = 0;
+        $relationshipTargetFragmentCounts = [];
+        $relationshipTargetFragments = [];
+        $relationshipTargetFragmentBuckets = [];
         $relationshipTargetQueryParameterCount = 0;
         $relationshipTargetQueryParameterRelationshipCount = 0;
         $relationshipTargetQueryParameterNameCounts = [];
@@ -16891,6 +16896,89 @@ final class DocxOpenXmlReader
                 }
                 if (array_key_exists('targetFragment', $relationship) && $relationship['targetFragment'] !== null) {
                     ++$relationshipTargetFragmentCount;
+                    $fragment = (string) $relationship['targetFragment'];
+                    $fragmentKey = $fragment === '' ? '(empty)' : $fragment;
+                    $relationshipTargetFragmentCounts[$fragmentKey] =
+                        ($relationshipTargetFragmentCounts[$fragmentKey] ?? 0) + 1;
+                    $relationshipTargetFragments[$fragmentKey] = $fragment;
+                    if (!isset($relationshipTargetFragmentBuckets[$fragmentKey])) {
+                        $relationshipTargetFragmentBuckets[$fragmentKey] = [
+                            'fragmentKey' => $fragmentKey,
+                            'fragment' => $fragment,
+                            'relationshipCount' => 0,
+                            'internalRelationshipCount' => 0,
+                            'externalRelationshipCount' => 0,
+                            'existingTargetCount' => 0,
+                            'missingTargetCount' => 0,
+                            'contentTypeBaseCounts' => [],
+                            'contentTypeSourceCounts' => [],
+                            'relationshipTypeCounts' => [],
+                            'sourceParts' => [],
+                            'relationshipParts' => [],
+                            'relationshipIds' => [],
+                            'relationshipTypes' => [],
+                            'targetParts' => [],
+                            'targetReferenceSuffixes' => [],
+                        ];
+                    }
+
+                    ++$relationshipTargetFragmentBuckets[$fragmentKey]['relationshipCount'];
+                    $fragmentBucketExternal = ($relationship['external'] ?? false) === true;
+                    if ($fragmentBucketExternal) {
+                        ++$relationshipTargetFragmentBuckets[$fragmentKey]['externalRelationshipCount'];
+                    } else {
+                        ++$relationshipTargetFragmentBuckets[$fragmentKey]['internalRelationshipCount'];
+                    }
+                    if (($relationship['exists'] ?? false) === true) {
+                        ++$relationshipTargetFragmentBuckets[$fragmentKey]['existingTargetCount'];
+                    } else {
+                        ++$relationshipTargetFragmentBuckets[$fragmentKey]['missingTargetCount'];
+                    }
+
+                    $fragmentBucketContentTypeBase = is_string($relationship['contentTypeBase'] ?? null)
+                        ? $relationship['contentTypeBase']
+                        : '';
+                    $fragmentBucketContentTypeBaseKey = $fragmentBucketContentTypeBase === ''
+                        ? '(missing)'
+                        : $fragmentBucketContentTypeBase;
+                    $relationshipTargetFragmentBuckets[$fragmentKey]['contentTypeBaseCounts'][$fragmentBucketContentTypeBaseKey] =
+                        ($relationshipTargetFragmentBuckets[$fragmentKey]['contentTypeBaseCounts'][$fragmentBucketContentTypeBaseKey] ?? 0) + 1;
+
+                    $fragmentBucketContentTypeSource = is_string($relationship['contentTypeSource'] ?? null)
+                        ? $relationship['contentTypeSource']
+                        : 'missing';
+                    if ($fragmentBucketContentTypeSource === '') {
+                        $fragmentBucketContentTypeSource = 'missing';
+                    }
+                    $relationshipTargetFragmentBuckets[$fragmentKey]['contentTypeSourceCounts'][$fragmentBucketContentTypeSource] =
+                        ($relationshipTargetFragmentBuckets[$fragmentKey]['contentTypeSourceCounts'][$fragmentBucketContentTypeSource] ?? 0) + 1;
+                    $relationshipTargetFragmentBuckets[$fragmentKey]['relationshipTypeCounts'][$typeKey] =
+                        ($relationshipTargetFragmentBuckets[$fragmentKey]['relationshipTypeCounts'][$typeKey] ?? 0) + 1;
+
+                    $this->appendUniqueString(
+                        $relationshipTargetFragmentBuckets[$fragmentKey]['sourceParts'],
+                        is_string($relationship['sourcePart'] ?? null) ? $relationship['sourcePart'] : null,
+                    );
+                    $this->appendUniqueString(
+                        $relationshipTargetFragmentBuckets[$fragmentKey]['relationshipParts'],
+                        is_string($relationship['relationshipsPart'] ?? null) ? $relationship['relationshipsPart'] : null,
+                    );
+                    $this->appendUniqueString(
+                        $relationshipTargetFragmentBuckets[$fragmentKey]['relationshipIds'],
+                        is_string($relationship['id'] ?? null) ? $relationship['id'] : null,
+                    );
+                    $this->appendUniqueString(
+                        $relationshipTargetFragmentBuckets[$fragmentKey]['relationshipTypes'],
+                        is_string($relationship['type'] ?? null) ? $relationship['type'] : null,
+                    );
+                    $this->appendUniqueString(
+                        $relationshipTargetFragmentBuckets[$fragmentKey]['targetParts'],
+                        is_string($relationship['targetPart'] ?? null) ? $relationship['targetPart'] : null,
+                    );
+                    $this->appendUniqueString(
+                        $relationshipTargetFragmentBuckets[$fragmentKey]['targetReferenceSuffixes'],
+                        $targetReferenceSuffix,
+                    );
                 }
                 $targetQueryParameters = is_array($relationship['targetQueryParameters'] ?? null)
                     ? $relationship['targetQueryParameters']
@@ -18485,6 +18573,21 @@ final class DocxOpenXmlReader
         ksort($externalRelationshipTargetKindCounts);
         ksort($externalRelationshipTargetSchemeCounts);
         ksort($externalRelationshipTargetIssueCounts);
+        ksort($relationshipTargetFragmentCounts);
+        ksort($relationshipTargetFragments);
+        ksort($relationshipTargetFragmentBuckets);
+        foreach ($relationshipTargetFragmentBuckets as &$relationshipTargetFragmentBucket) {
+            ksort($relationshipTargetFragmentBucket['contentTypeBaseCounts'], SORT_STRING);
+            ksort($relationshipTargetFragmentBucket['contentTypeSourceCounts'], SORT_STRING);
+            ksort($relationshipTargetFragmentBucket['relationshipTypeCounts'], SORT_STRING);
+            sort($relationshipTargetFragmentBucket['sourceParts'], SORT_STRING);
+            sort($relationshipTargetFragmentBucket['relationshipParts'], SORT_STRING);
+            sort($relationshipTargetFragmentBucket['relationshipIds'], SORT_STRING);
+            sort($relationshipTargetFragmentBucket['relationshipTypes'], SORT_STRING);
+            sort($relationshipTargetFragmentBucket['targetParts'], SORT_STRING);
+            sort($relationshipTargetFragmentBucket['targetReferenceSuffixes'], SORT_STRING);
+        }
+        unset($relationshipTargetFragmentBucket);
         ksort($relationshipTargetQueryParameterNameCounts);
         ksort($relationshipTargetQueryParameterValueCounts);
         foreach ($relationshipTargetQueryParameterValueCounts as &$targetQueryParameterValueCounts) {
@@ -19602,6 +19705,15 @@ final class DocxOpenXmlReader
             'partPathSegmentPositionParameterizedBucketCount' => $parameterizedPartPathSegmentPositionBucketCount,
             'partPathSegmentPositionParameterizedPartCount' => $parameterizedPartPathSegmentPositionCount,
             'partPathSegmentPositionMissingContentTypeBucketCount' => $missingContentTypePartPathSegmentPositionCount,
+            'partPathSegmentPositionRoleBucketCount' => $partPathSegmentPositionRoleBuckets['roleBucketCount'],
+            'partPathSegmentPositionRoleCounts' => $partPathSegmentPositionRoleBuckets['roleCounts'],
+            'partNamesByPartPathSegmentPositionRole' => $partPathSegmentPositionRoleBuckets['partNamesByRole'],
+            'partPathSegmentPositionByteExposurePolicyBucketCount' =>
+                $partPathSegmentPositionRoleBuckets['byteExposurePolicyBucketCount'],
+            'partPathSegmentPositionByteExposurePolicyCounts' =>
+                $partPathSegmentPositionRoleBuckets['byteExposurePolicyCounts'],
+            'partNamesByPartPathSegmentPositionByteExposurePolicy' =>
+                $partPathSegmentPositionRoleBuckets['partNamesByByteExposurePolicy'],
             'partCaseFoldPathSegmentPositionBucketCount' => count($partCaseFoldPathSegmentPositions),
             'partCaseFoldPathSegmentPositionOccurrenceCount' => $partCaseFoldPathSegmentPositionOccurrenceCount,
             'partCaseFoldPathSegmentPositionCounts' => $partCaseFoldPathSegmentPositionCounts,
@@ -20377,6 +20489,10 @@ final class DocxOpenXmlReader
             'relationshipTargetReferenceSuffixCount' => $relationshipTargetReferenceSuffixCount,
             'relationshipTargetQueryCount' => $relationshipTargetQueryCount,
             'relationshipTargetFragmentCount' => $relationshipTargetFragmentCount,
+            'relationshipTargetFragmentValueCount' => count($relationshipTargetFragmentCounts),
+            'relationshipTargetFragmentCounts' => $relationshipTargetFragmentCounts,
+            'relationshipTargetFragments' => array_values($relationshipTargetFragments),
+            'relationshipTargetFragmentBuckets' => array_values($relationshipTargetFragmentBuckets),
             'relationshipTargetQueryParameterCount' => $relationshipTargetQueryParameterCount,
             'relationshipTargetQueryParameterRelationshipCount' => $relationshipTargetQueryParameterRelationshipCount,
             'relationshipTargetQueryParameterNameCount' => count($relationshipTargetQueryParameterNameCounts),
@@ -33504,6 +33620,83 @@ final class DocxOpenXmlReader
     }
 
     /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return array{
+     *     roleBucketCount:int,
+     *     roleCounts:array<string, array<string, int>>,
+     *     partNamesByRole:array<string, array<string, list<string>>>,
+     *     byteExposurePolicyBucketCount:int,
+     *     byteExposurePolicyCounts:array<string, array<string, int>>,
+     *     partNamesByByteExposurePolicy:array<string, array<string, list<string>>>
+     * }
+     */
+    private function packagePartPathSegmentPositionRoleBucketSummary(array $partInventory): array
+    {
+        $roleCounts = [];
+        $partNamesByRole = [];
+        $byteExposurePolicyCounts = [];
+        $partNamesByByteExposurePolicy = [];
+
+        foreach ($partInventory as $partName => $part) {
+            $partName = is_string($part['partName'] ?? null) ? $part['partName'] : (string) $partName;
+            $pathSegments = is_array($part['pathSegments'] ?? null)
+                ? array_values(array_filter(
+                    array_map(
+                        static fn (mixed $segment): string => is_scalar($segment) ? (string) $segment : '',
+                        $part['pathSegments'],
+                    ),
+                    static fn (string $segment): bool => $segment !== '',
+                ))
+                : $this->packagePartPathSegments($partName);
+            $reviews = is_array($part['pathSegmentPositionReviews'] ?? null)
+                ? array_values(array_filter(
+                    $part['pathSegmentPositionReviews'],
+                    static fn (mixed $review): bool => is_array($review),
+                ))
+                : $this->packagePartPathSegmentPositionReviews($pathSegments);
+            $roles = array_values(array_unique(array_filter(
+                array_map('strval', is_array($part['roles'] ?? null) ? $part['roles'] : []),
+                static fn (string $role): bool => $role !== ''
+            )));
+            if ($roles === []) {
+                $roles = ['package-part'];
+            }
+            $byteExposurePolicy = $this->packagePartByteExposurePolicy($part);
+            $positionsSeenInPart = [];
+
+            foreach ($reviews as $review) {
+                $position = is_string($review['position'] ?? null) ? $review['position'] : '';
+                if ($position === '' || isset($positionsSeenInPart[$position])) {
+                    continue;
+                }
+
+                $positionsSeenInPart[$position] = true;
+                foreach ($roles as $role) {
+                    $roleCounts[$position][$role] = ($roleCounts[$position][$role] ?? 0) + 1;
+                    $partNamesByRole[$position][$role][] = $partName;
+                }
+                $byteExposurePolicyCounts[$position][$byteExposurePolicy] =
+                    ($byteExposurePolicyCounts[$position][$byteExposurePolicy] ?? 0) + 1;
+                $partNamesByByteExposurePolicy[$position][$byteExposurePolicy][] = $partName;
+            }
+        }
+
+        $roleBucketCount = $this->sortNestedCountMap($roleCounts, SORT_STRING);
+        $this->sortNestedStringListMap($partNamesByRole, SORT_STRING);
+        $byteExposurePolicyBucketCount = $this->sortNestedCountMap($byteExposurePolicyCounts, SORT_STRING);
+        $this->sortNestedStringListMap($partNamesByByteExposurePolicy, SORT_STRING);
+
+        return [
+            'roleBucketCount' => $roleBucketCount,
+            'roleCounts' => $roleCounts,
+            'partNamesByRole' => $partNamesByRole,
+            'byteExposurePolicyBucketCount' => $byteExposurePolicyBucketCount,
+            'byteExposurePolicyCounts' => $byteExposurePolicyCounts,
+            'partNamesByByteExposurePolicy' => $partNamesByByteExposurePolicy,
+        ];
+    }
+
+    /**
      * @param array<string, mixed> $part
      */
     private function packagePartByteExposurePolicy(array $part): string
@@ -45032,6 +45225,24 @@ final class DocxOpenXmlReader
             ),
             'entryNamesByPackagePathDepthByteExposurePolicy' => $this->packageIdentityNestedStringListMap(
                 $summary['partNamesByPartPathDepthByteExposurePolicy'] ?? []
+            ),
+            'packagePathSegmentPositionRoleBucketCount' => (int) (
+                $summary['partPathSegmentPositionRoleBucketCount'] ?? 0
+            ),
+            'packagePathSegmentPositionRoleCounts' => $this->packageIdentityNestedCountMap(
+                $summary['partPathSegmentPositionRoleCounts'] ?? []
+            ),
+            'entryNamesByPackagePathSegmentPositionRole' => $this->packageIdentityNestedStringListMap(
+                $summary['partNamesByPartPathSegmentPositionRole'] ?? []
+            ),
+            'packagePathSegmentPositionByteExposurePolicyBucketCount' => (int) (
+                $summary['partPathSegmentPositionByteExposurePolicyBucketCount'] ?? 0
+            ),
+            'packagePathSegmentPositionByteExposurePolicyCounts' => $this->packageIdentityNestedCountMap(
+                $summary['partPathSegmentPositionByteExposurePolicyCounts'] ?? []
+            ),
+            'entryNamesByPackagePathSegmentPositionByteExposurePolicy' => $this->packageIdentityNestedStringListMap(
+                $summary['partNamesByPartPathSegmentPositionByteExposurePolicy'] ?? []
             ),
             'entryNamesByPackageDirectoryBaseName' => $this->packageIdentityLookupMapFromSummaries(
                 $summary['partDirectoryBaseNames'] ?? [],
