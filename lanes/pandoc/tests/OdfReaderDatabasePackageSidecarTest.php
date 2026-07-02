@@ -35,6 +35,8 @@ $manifestXml = <<<XML
 </manifest:manifest>
 XML;
 
+$uppercaseDatabaseManifestXml = str_replace('manifest:full-path="database/', 'manifest:full-path="Database/', $manifestXml);
+
 $contentXml = <<<'XML'
 <office:document-content
   xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
@@ -85,6 +87,21 @@ $buildPackage = static fn (): ZipPackage => ZipPackage::fromParts([
     ['name' => 'database/log', 'data' => $databaseLog, 'compressionMethod' => 0],
 ], 'odt database package sidecars');
 
+$buildUppercasePackage = static fn (): ZipPackage => ZipPackage::fromParts([
+    ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
+    ['name' => 'META-INF/manifest.xml', 'data' => $uppercaseDatabaseManifestXml, 'compressionMethod' => 0],
+    ['name' => 'content.xml', 'data' => $contentXml, 'compressionMethod' => 0],
+    ['name' => 'styles.xml', 'data' => $stylesXml, 'compressionMethod' => 0],
+    ['name' => 'meta.xml', 'data' => $metaXml, 'compressionMethod' => 0],
+    ['name' => 'Pictures/hero.png', 'data' => 'PNGDATA', 'compressionMethod' => 0],
+    ['name' => 'Database/', 'data' => '', 'compressionMethod' => 0],
+    ['name' => 'Database/script', 'data' => $databaseScript, 'compressionMethod' => 0],
+    ['name' => 'Database/data', 'data' => $databaseData, 'compressionMethod' => 0],
+    ['name' => 'Database/config.xml', 'data' => $databaseConfig, 'compressionMethod' => 0],
+    ['name' => 'Database/encrypted', 'data' => $databaseEncrypted, 'compressionMethod' => 0],
+    ['name' => 'Database/log', 'data' => $databaseLog, 'compressionMethod' => 0],
+], 'odt uppercase database package sidecars');
+
 $indexBy = static function (array $items, string $key): array {
     $indexed = [];
     foreach ($items as $item) {
@@ -118,6 +135,8 @@ return [
         $t->same($readerDatabases, $result['metadata']['odfPackageDatabases']);
         $t->same($readerDatabases, $result['importReport']['packageDatabases']);
         $t->same(7, $readerDatabases['count']);
+        $t->same(6, $readerDatabases['fileCount']);
+        $t->same(6, $readerDatabases['storedPartCount']);
         $t->same(4, $readerDatabases['readableCount']);
         $t->same(6, $readerDatabases['declaredCount']);
         $t->same(1, $readerDatabases['undeclaredCount']);
@@ -134,6 +153,7 @@ return [
             'odf-database-package-missing-part',
             'odf-database-package-undeclared-part',
         ], $readerDatabases['issueCodes']);
+        $t->same($readerDatabases['kindCounts'], $readerDatabases['databaseKindCounts']);
         $t->same('database-package-bytes-blocked', $readerDatabases['byteExposurePolicy']);
         $t->same('database-package-metadata-only', $readerDatabases['reviewPolicy']);
 
@@ -213,6 +233,8 @@ return [
         $inventory = $compactSummary['packageInventory'];
 
         $t->same(7, $compactDatabases['count']);
+        $t->same(6, $compactDatabases['fileCount']);
+        $t->same(6, $compactDatabases['storedPartCount']);
         $t->same(4, $compactDatabases['readableCount']);
         $t->same(6, $compactDatabases['declaredCount']);
         $t->same(1, $compactDatabases['undeclaredCount']);
@@ -222,6 +244,7 @@ return [
         $t->same(1, $compactDatabases['invalidDeclaredSizeCount']);
         $t->same(4, $compactDatabases['issueCount']);
         $t->same($readerDatabases['issueCodes'], $compactDatabases['issueCodes']);
+        $t->same($compactDatabases['kindCounts'], $compactDatabases['databaseKindCounts']);
         $t->same('database-package-bytes-blocked', $compactDatabases['byteExposurePolicy']);
         $t->same('database-package-metadata-only', $compactDatabases['reviewPolicy']);
         $t->same('database-script', $compactItems['database/script']['kind']);
@@ -259,5 +282,85 @@ return [
         $t->same(true, $compactUndeclaredByPath['database/log']['databasePackagePart']);
         $t->same('database-package-bytes-blocked', $compactUndeclaredByPath['database/log']['byteExposurePolicy']);
         $t->same(false, $inventory['parts']['database/data']['canExposeBytes']);
+    },
+    'preserves uppercase Database package metadata counters' => static function (TestRunner $t) use (
+        $buildUppercasePackage,
+        $databaseScript,
+        $databaseData,
+        $databaseConfig,
+        $databaseLog,
+        $indexBy
+    ): void {
+        $package = $buildUppercasePackage();
+        $result = (new OdfReader())->readPackage($package);
+        $readerDatabases = $result['packageDatabases'];
+        $readerItems = $indexBy($readerDatabases['items'], 'part');
+        $manifestByPart = $indexBy($result['manifest'], 'part');
+        $readerProvenance = $result['importReport']['manifest']['packageProvenance'];
+
+        $t->same(7, $readerDatabases['count']);
+        $t->same(6, $readerDatabases['fileCount']);
+        $t->same(6, $readerDatabases['storedPartCount']);
+        $t->same(4, $readerDatabases['readableCount']);
+        $t->same(6, $readerDatabases['declaredCount']);
+        $t->same(1, $readerDatabases['undeclaredCount']);
+        $t->same($readerDatabases['kindCounts'], $readerDatabases['databaseKindCounts']);
+        $t->same([
+            'odf-database-package-encrypted-part',
+            'odf-database-package-invalid-declared-size',
+            'odf-database-package-missing-part',
+            'odf-database-package-undeclared-part',
+        ], $readerDatabases['issueCodes']);
+
+        $script = $readerItems['Database/script'];
+        $t->same('database-script', $script['kind']);
+        $t->same('script', $script['group']);
+        $t->same('database', $script['packageRoot']);
+        $t->same(strlen($databaseScript), $script['byteLength']);
+        $t->same('database-package-bytes-blocked', $script['byteExposurePolicy']);
+
+        $data = $readerItems['Database/data'];
+        $t->same('database-binary-store', $data['kind']);
+        $t->same(strlen($databaseData), $data['storedByteLength']);
+        $t->same(false, $data['canExposeAsDocumentMedia']);
+        $t->same(true, $manifestByPart['Database/data']['databasePackagePart']);
+        $t->same('database-package-bytes-blocked', $manifestByPart['Database/data']['byteExposurePolicy']);
+
+        $config = $readerItems['Database/config.xml'];
+        $t->same('database-xml', $config['kind']);
+        $t->same(strlen($databaseConfig) . 'bytes', $config['declaredSizeRaw']);
+        $t->same(true, $config['declaredSizeInvalid']);
+
+        $encrypted = $readerItems['Database/encrypted'];
+        $t->same(null, $encrypted['byteLength']);
+        $t->same('encrypted-resource-bytes-blocked', $encrypted['byteExposurePolicy']);
+
+        $undeclared = $readerItems['Database/log'];
+        $t->same(strlen($databaseLog), $undeclared['byteLength']);
+        $t->same(['odf-database-package-undeclared-part'], $undeclared['issues']);
+        $t->same(['Pictures/hero.png'], array_column($result['media'], 'part'));
+        $t->same(6, $readerProvenance['databasePackagePartCount']);
+        $t->same(['database-package', 'manifest-declared'], $readerProvenance['parts']['Database/data']['roles']);
+        $t->same(['database-package', 'undeclared-package-entry'], $readerProvenance['parts']['Database/log']['roles']);
+
+        $compactSummary = OpenDocumentPackage::fromPackage($package)->summarize();
+        $compactDatabases = $compactSummary['packageDatabases'];
+        $compactItems = $indexBy($compactDatabases['items'], 'packagePath');
+        $inventory = $compactSummary['packageInventory'];
+
+        $t->same(7, $compactDatabases['count']);
+        $t->same(6, $compactDatabases['fileCount']);
+        $t->same(6, $compactDatabases['storedPartCount']);
+        $t->same(4, $compactDatabases['readableCount']);
+        $t->same($compactDatabases['kindCounts'], $compactDatabases['databaseKindCounts']);
+        $t->same($readerDatabases['issueCodes'], $compactDatabases['issueCodes']);
+        $t->same('database-script', $compactItems['Database/script']['kind']);
+        $t->same(false, $compactItems['Database/script']['canExposeBytes']);
+        $t->same(strlen($databaseData), $compactItems['Database/data']['storedByteLength']);
+        $t->same(['Pictures/hero.png'], array_column($compactSummary['mediaParts'], 'path'));
+        $t->same(6, $inventory['databasePackagePartCount']);
+        $t->same(['database-package', 'manifest-declared'], $inventory['parts']['Database/data']['roles']);
+        $t->same(['database-package', 'undeclared-package-entry'], $inventory['parts']['Database/log']['roles']);
+        $t->same(false, $inventory['parts']['Database/data']['canExposeBytes']);
     },
 ];

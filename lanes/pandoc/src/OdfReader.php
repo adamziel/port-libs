@@ -20017,6 +20017,8 @@ final class OdfReader
 
         return [
             'count' => count($items),
+            'fileCount' => count(array_filter($items, static fn (array $item): bool => $item['isDirectory'] !== true)),
+            'storedPartCount' => count(array_filter($items, static fn (array $item): bool => $item['storedByteLength'] !== null)),
             'readableCount' => count(array_filter(
                 $items,
                 static fn (array $item): bool => $item['exists'] === true && $item['byteLength'] !== null,
@@ -20032,6 +20034,7 @@ final class OdfReader
             'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
             'issueCodes' => array_keys($issueCodes),
             'kindCounts' => $kindCounts,
+            'databaseKindCounts' => $kindCounts,
             'groupCounts' => $groupCounts,
             'byteExposurePolicy' => 'database-package-bytes-blocked',
             'reviewPolicy' => 'database-package-metadata-only',
