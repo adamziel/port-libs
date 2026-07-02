@@ -608,7 +608,9 @@ XML);
     </p:sp>
     <p:graphicFrame>
       <p:nvGraphicFramePr><p:cNvPr id="8" name="Empty Table"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
-      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl><a:tblPr/><a:tblGrid/></a:tbl></a:graphicData></a:graphic>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl><a:tblPr/><a:tblGrid/></a:tbl><a:tbl>
+        <a:tr><a:tc><a:txBody><a:p><a:r><a:t>Later table child should stay hidden</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
+      </a:tbl></a:graphicData></a:graphic>
     </p:graphicFrame>
   </p:spTree></p:cSld>
 </p:sld>
@@ -13692,6 +13694,7 @@ return [
         $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
         $t->true(!str_contains($native, 'Table'), 'Rowless PPTX table should not emit a native Table block');
         $t->true(!str_contains($native, 'Empty Table'), 'Rowless PPTX table shape name should not leak into visible content');
+        $t->true(!str_contains($native, 'Later table child should stay hidden'), 'Later a:tbl siblings should stay hidden behind the first rowless table child');
     },
 
     'skips pptx table graphic frames without table children like upstream' => static function (TestRunner $t) use ($buildTableGraphicWithoutTablePptxPackage, $nodesOfType): void {
