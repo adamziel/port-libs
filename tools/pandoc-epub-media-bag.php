@@ -1,0 +1,116 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use PortLibs\Pandoc\EpubMediaBagComparisonHarness;
+
+require __DIR__ . '/bootstrap.php';
+
+$repoRoot = dirname(__DIR__);
+$upstreamRoot = getenv('PANDOC_UPSTREAM_ROOT') ?: getenv('PANDOC_EPUB_UPSTREAM_ROOT') ?: $repoRoot . '/.upstream-cache/pandoc-current';
+$limit = 0;
+$requiredMediaBagParity = null;
+$json = false;
+$summary = false;
+
+foreach (array_slice($argv, 1) as $argument) {
+    if ($argument === '--help' || $argument === '-h') {
+        fwrite(STDOUT, <<<'TXT'
+Usage: php tools/pandoc-epub-media-bag.php [--upstream-root=PATH] [--limit=N] [--json] [--require-media-bag-parity=N] [summary]
+
+Compares local PHP EPUB reader media-bag output with upstream Tests.Readers.EPUB
+expectations by normalized path, MIME type, and byte size when the upstream cache
+is present. Missing cache is reported as skipped with exit 0 unless required
+parity is requested.
+With --require-media-bag-parity=N, exits 1 unless exactly N EPUB fixtures are
+compared, parsed, and matched by normalized media-bag tuples.
+
+TXT);
+        exit(0);
+    }
+
+    if ($argument === '--json') {
+        $json = true;
+        continue;
+    }
+
+    if ($argument === 'summary') {
+        $summary = true;
+        continue;
+    }
+
+    if (str_starts_with($argument, '--upstream-root=')) {
+        $upstreamRoot = substr($argument, strlen('--upstream-root='));
+        continue;
+    }
+
+    if (str_starts_with($argument, '--limit=')) {
+        $limit = max(0, (int) substr($argument, strlen('--limit=')));
+        continue;
+    }
+
+    if (str_starts_with($argument, '--require-media-bag-parity=')) {
+        $rawCount = substr($argument, strlen('--require-media-bag-parity='));
+        if (!ctype_digit($rawCount)) {
+            fwrite(STDERR, "--require-media-bag-parity must be a non-negative integer\n");
+            exit(2);
+        }
+        $requiredMediaBagParity = (int) $rawCount;
+        continue;
+    }
+
+    fwrite(STDERR, "Unknown argument: {$argument}\n");
+    exit(2);
+}
+
+if ($upstreamRoot !== '' && !str_starts_with($upstreamRoot, DIRECTORY_SEPARATOR)) {
+    $upstreamRoot = $repoRoot . DIRECTORY_SEPARATOR . $upstreamRoot;
+}
+
+$harness = new EpubMediaBagComparisonHarness();
+$report = $harness->run($upstreamRoot, ['limit' => $limit]);
+
+if ($summary) {
+    $report = array_intersect_key($report, array_flip([
+        'schemaVersion',
+        'tool',
+        'status',
+        'skipped',
+        'reason',
+        'verdict',
+        'evidenceKind',
+        'upstreamRoot',
+        'fixtureBase',
+        'totalCaseCount',
+        'comparedCaseCount',
+        'epubParsedCount',
+        'parseFailureCount',
+        'expectedMediaItemCount',
+        'actualMediaItemCount',
+        'mediaBagMatchCount',
+        'mediaBagMismatchCount',
+        'mediaBagMatchPercent',
+        'mediaBagParityStatus',
+        'orderedRemainingGaps',
+    ]));
+}
+
+if ($json) {
+    fwrite(STDOUT, json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n");
+} else {
+    fwrite(STDOUT, $harness->formatReport($report));
+}
+
+if (
+    $requiredMediaBagParity !== null
+    && !EpubMediaBagComparisonHarness::hasRequiredMediaBagParity($report, $requiredMediaBagParity)
+) {
+    fwrite(
+        STDERR,
+        "pandoc-epub-media-bag: normalized media-bag parity did not match {$requiredMediaBagParity}/{$requiredMediaBagParity} EPUB fixtures\n"
+    );
+    exit(1);
+}
+
+exit(0);

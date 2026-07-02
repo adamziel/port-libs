@@ -1,0 +1,111 @@
+name: Pandoc EPUB parity
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/pandoc-epub.yml'
+      - 'lanes/pandoc/**'
+      - 'tools/**'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/pandoc-epub.yml'
+      - 'lanes/pandoc/**'
+      - 'tools/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PANDOC_EPUB_UPSTREAM_PINNED_COMMIT: 4f5226df4faa0d66dd2c089465b13886360ab3c2
+
+jobs:
+  focused-epub:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: dom, intl, mbstring, zip
+          coverage: none
+
+      - name: Lint EPUB parity files
+        run: |
+          php -l lanes/pandoc/src/EpubReader.php
+          php -l lanes/pandoc/src/EpubMediaBagComparisonHarness.php
+          php -l lanes/pandoc/src/EpubUpstreamReaderEvidence.php
+          php -l lanes/pandoc/src/ZipPackage.php
+          php -l lanes/pandoc/src/ZipPackageEntry.php
+          php -l lanes/pandoc/tests/EpubReaderTest.php
+          php -l lanes/pandoc/tests/EpubMediaBagComparisonHarnessTest.php
+          php -l lanes/pandoc/tests/EpubUpstreamReaderEvidenceTest.php
+          php -l tools/pandoc-epub-media-bag.php
+          php -l tools/pandoc-epub-reader-evidence.php
+
+      - name: Restore pinned Pandoc EPUB upstream cache
+        id: pandoc-epub-upstream-cache
+        uses: actions/cache@v4
+        with:
+          path: .upstream-cache/pandoc-current
+          key: pandoc-epub-upstream-sparse-v1-${{ runner.os }}-${{ env.PANDOC_EPUB_UPSTREAM_PINNED_COMMIT }}
+
+      - name: Hydrate pinned Pandoc EPUB upstream cache
+        if: steps.pandoc-epub-upstream-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          target=.upstream-cache/pandoc-current
+          mkdir -p "$(dirname "$target")"
+          git init "$target"
+          git -C "$target" remote add origin https://github.com/jgm/pandoc.git
+          git -C "$target" sparse-checkout init --no-cone
+          git -C "$target" sparse-checkout set \
+            /test/Tests/Readers/EPUB.hs \
+            /test/epub \
+            /src/Text/Pandoc/Readers/EPUB.hs
+          git -C "$target" fetch --depth=1 --filter=blob:none origin "$PANDOC_EPUB_UPSTREAM_PINNED_COMMIT"
+          git -C "$target" switch --detach FETCH_HEAD
+
+      - name: Verify pinned Pandoc EPUB upstream cache
+        run: |
+          set -euo pipefail
+          target=.upstream-cache/pandoc-current
+          test "$(git -C "$target" rev-parse HEAD)" = "$PANDOC_EPUB_UPSTREAM_PINNED_COMMIT"
+          test -f "$target/test/Tests/Readers/EPUB.hs"
+          test -f "$target/test/epub/img.epub"
+          test -f "$target/test/epub/wasteland.epub"
+          test -f "$target/test/epub/img_no_cover.epub"
+          test -f "$target/test/epub/epub2_picture.epub"
+          test -f "$target/test/epub/epub2_cover.epub"
+          test -f "$target/test/epub/epub2_no_cover.epub"
+          test -f "$target/src/Text/Pandoc/Readers/EPUB.hs"
+
+      - name: Require upstream EPUB reader denominator evidence
+        run: |
+          php tools/pandoc-epub-reader-evidence.php \
+            --upstream-root=.upstream-cache/pandoc-current \
+            --json \
+            --require-test-count=6 \
+            --require-fixture-reference-count=6 \
+            --require-expected-media-item-count=10 \
+            --require-no-validation-issues
+
+      - name: Require upstream EPUB media-bag parity
+        run: |
+          php tools/pandoc-epub-media-bag.php \
+            --upstream-root=.upstream-cache/pandoc-current \
+            --json \
+            summary \
+            --require-media-bag-parity=6
+
+      - name: Run focused EPUB parity tests
+        run: |
+          php tools/run-tests.php \
+            lanes/pandoc/tests/EpubMediaBagComparisonHarnessTest.php \
+            lanes/pandoc/tests/EpubUpstreamReaderEvidenceTest.php \
+            lanes/pandoc/tests/EpubReaderTest.php
