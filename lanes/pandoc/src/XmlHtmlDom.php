@@ -22579,27 +22579,36 @@ final class XmlHtmlDom
     private static function microdataAttributeSummary(\DOMElement $element, array $attributes): array
     {
         $microdataAttributes = ['itemprop', 'itemref', 'itemscope', 'itemtype', 'itemid'];
-        $hasMicrodata = false;
+        $presentMicrodataAttributes = [];
         foreach ($microdataAttributes as $attribute) {
             if (array_key_exists($attribute, $attributes)) {
-                $hasMicrodata = true;
-                break;
+                $presentMicrodataAttributes[] = $attribute;
             }
         }
 
-        if (!$hasMicrodata) {
+        if ($presentMicrodataAttributes === []) {
             return [];
         }
 
+        $microdataIssueCodes = [];
         $summary = [
+            'microdataReviewPolicy' => 'html-microdata-relationship-review',
             'microdata' => array_key_exists('itemscope', $attributes)
                 ? 'item'
                 : (array_key_exists('itemprop', $attributes) ? 'property' : 'metadata'),
+            'microdataAttributes' => $presentMicrodataAttributes,
         ];
 
         if (array_key_exists('itemscope', $attributes)) {
+            $itemScopeIssueCodes = self::htmlBooleanAttributeValueConforming('itemscope', $attributes['itemscope'])
+                ? []
+                : ['non-conforming-itemscope-boolean-value'];
             $summary['itemScopeRaw'] = $attributes['itemscope'];
             $summary['itemScope'] = true;
+            $summary['itemScopeHasValue'] = $attributes['itemscope'] !== '';
+            $summary['itemScopeValueConforming'] = $itemScopeIssueCodes === [];
+            $summary['itemScopeIssueCodes'] = $itemScopeIssueCodes;
+            array_push($microdataIssueCodes, ...$itemScopeIssueCodes);
         }
 
         if (array_key_exists('itemprop', $attributes)) {
@@ -22607,9 +22616,13 @@ final class XmlHtmlDom
             $summary['itemPropRaw'] = $attributes['itemprop'];
             $summary['itemPropTokens'] = $properties['tokens'];
             $summary['itemProperties'] = $properties['values'];
+            $summary['itemPropTokenCounts'] = $properties['counts'];
             $summary['invalidItemProperties'] = $properties['invalid'];
+            $summary['duplicateItemProperties'] = $properties['duplicates'];
+            $summary['itemPropIssueCodes'] = self::prefixedTokenIssueCodes('itemprop', $properties['issueCodes']);
             $summary['itemPropValid'] = $properties['valid'];
             $summary += self::microdataPropertyValueSummary($element);
+            array_push($microdataIssueCodes, ...$summary['itemPropIssueCodes']);
         }
 
         if (array_key_exists('itemtype', $attributes)) {
@@ -22617,15 +22630,22 @@ final class XmlHtmlDom
             $summary['itemTypeRaw'] = $attributes['itemtype'];
             $summary['itemTypeTokens'] = $types['tokens'];
             $summary['itemTypes'] = $types['values'];
+            $summary['itemTypeTokenCounts'] = $types['counts'];
             $summary['invalidItemTypes'] = $types['invalid'];
+            $summary['duplicateItemTypes'] = $types['duplicates'];
+            $summary['itemTypeIssueCodes'] = self::prefixedTokenIssueCodes('itemtype', $types['issueCodes']);
             $summary['itemTypeValid'] = $types['valid'];
+            array_push($microdataIssueCodes, ...$summary['itemTypeIssueCodes']);
         }
 
         if (array_key_exists('itemid', $attributes)) {
             $itemId = trim($attributes['itemid']);
+            $itemIdIssueCodes = self::microdataItemIdIssueCodes($itemId);
             $summary['itemIdRaw'] = $attributes['itemid'];
             $summary['itemId'] = $itemId === '' ? null : $itemId;
-            $summary['itemIdValid'] = $itemId !== '' && self::isSafeHtmlSemanticMetadataToken($itemId);
+            $summary['itemIdIssueCodes'] = $itemIdIssueCodes;
+            $summary['itemIdValid'] = $itemIdIssueCodes === [];
+            array_push($microdataIssueCodes, ...$itemIdIssueCodes);
         }
 
         if (array_key_exists('itemref', $attributes)) {
@@ -22634,13 +22654,50 @@ final class XmlHtmlDom
             $summary['itemRefRaw'] = $attributes['itemref'];
             $summary['itemRefTokens'] = $references['tokens'];
             $summary['itemRefIds'] = $references['values'];
+            $summary['itemRefTokenCounts'] = $references['counts'];
             $summary['invalidItemRefIds'] = $references['invalid'];
+            $summary['duplicateItemRefIds'] = $references['duplicates'];
             $summary['itemRefValid'] = $references['valid'];
             $summary['itemRefResolvedIds'] = $resolved['resolved'];
             $summary['itemRefMissingIds'] = $resolved['missing'];
+            $summary['itemRefTargetCount'] = count($resolved['targets']);
+            $summary['itemRefResolvedTargetCount'] = count($resolved['resolved']);
+            $summary['itemRefMissingTargetCount'] = count($resolved['missing']);
+            $summary['itemRefTargetElements'] = self::microdataItemRefTargetFieldValues($resolved['targets'], 'element');
+            $summary['itemRefTargetMicrodataKinds'] = self::microdataItemRefTargetFieldValues($resolved['targets'], 'microdata');
+            $summary['itemRefTargets'] = $resolved['targets'];
+            $summary['itemRefIssueCodes'] = self::itemRefIssueCodes($references['issueCodes'], $resolved['missing']);
+            array_push($microdataIssueCodes, ...$summary['itemRefIssueCodes']);
         }
 
+        $summary['microdataIssueCodes'] = array_values(array_unique($microdataIssueCodes));
+        $summary['microdataValid'] = $summary['microdataIssueCodes'] === [];
+
         return $summary;
+    }
+
+    /**
+     * @param list<string> $issueCodes
+     * @return list<string>
+     */
+    private static function prefixedTokenIssueCodes(string $attribute, array $issueCodes): array
+    {
+        return array_values(array_map(
+            static fn (string $code): string => str_replace('semantic-metadata', $attribute, $code),
+            $issueCodes
+        ));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function microdataItemIdIssueCodes(string $itemId): array
+    {
+        if ($itemId === '') {
+            return ['empty-itemid'];
+        }
+
+        return self::isSafeHtmlSemanticMetadataToken($itemId) ? [] : ['invalid-itemid-token'];
     }
 
     /**
@@ -22684,28 +22741,47 @@ final class XmlHtmlDom
     }
 
     /**
-     * @return array{tokens:list<string>, values:list<string>, invalid:list<string>, valid:bool}
+     * @return array{tokens:list<string>, values:list<string>, counts:array<string, int>, invalid:list<string>, duplicates:list<string>, issueCodes:list<string>, valid:bool}
      */
     private static function semanticMetadataTokenSummary(string $value): array
     {
         $tokens = self::spaceSeparatedTokens($value);
         $values = [];
         $invalid = [];
+        $counts = [];
         foreach ($tokens as $token) {
             if (!self::isSafeHtmlSemanticMetadataToken($token)) {
                 $invalid[] = $token;
                 continue;
             }
 
+            $counts[$token] = ($counts[$token] ?? 0) + 1;
             if (!in_array($token, $values, true)) {
                 $values[] = $token;
             }
+        }
+        $duplicates = self::duplicateStringValues(array_values(array_filter(
+            $tokens,
+            static fn (string $token): bool => self::isSafeHtmlSemanticMetadataToken($token)
+        )));
+        $issueCodes = [];
+        if ($tokens === []) {
+            $issueCodes[] = 'empty-semantic-metadata-token-list';
+        }
+        if ($invalid !== []) {
+            $issueCodes[] = 'invalid-semantic-metadata-token';
+        }
+        if ($duplicates !== []) {
+            $issueCodes[] = 'duplicate-semantic-metadata-token';
         }
 
         return [
             'tokens' => $tokens,
             'values' => $values,
+            'counts' => $counts,
             'invalid' => $invalid,
+            'duplicates' => $duplicates,
+            'issueCodes' => $issueCodes,
             'valid' => $tokens !== [] && $invalid === [],
         ];
     }
@@ -22728,28 +22804,47 @@ final class XmlHtmlDom
     }
 
     /**
-     * @return array{tokens:list<string>, values:list<string>, invalid:list<string>, valid:bool}
+     * @return array{tokens:list<string>, values:list<string>, counts:array<string, int>, invalid:list<string>, duplicates:list<string>, issueCodes:list<string>, valid:bool}
      */
     private static function idReferenceTokenSummary(string $value): array
     {
         $tokens = self::spaceSeparatedTokens($value);
         $values = [];
         $invalid = [];
+        $counts = [];
         foreach ($tokens as $token) {
             if (!self::isHtmlIdReferenceToken($token)) {
                 $invalid[] = $token;
                 continue;
             }
 
+            $counts[$token] = ($counts[$token] ?? 0) + 1;
             if (!in_array($token, $values, true)) {
                 $values[] = $token;
             }
+        }
+        $duplicates = self::duplicateStringValues(array_values(array_filter(
+            $tokens,
+            static fn (string $token): bool => self::isHtmlIdReferenceToken($token)
+        )));
+        $issueCodes = [];
+        if ($tokens === []) {
+            $issueCodes[] = 'empty-id-reference-token-list';
+        }
+        if ($invalid !== []) {
+            $issueCodes[] = 'invalid-id-reference-token';
+        }
+        if ($duplicates !== []) {
+            $issueCodes[] = 'duplicate-id-reference-token';
         }
 
         return [
             'tokens' => $tokens,
             'values' => $values,
+            'counts' => $counts,
             'invalid' => $invalid,
+            'duplicates' => $duplicates,
+            'issueCodes' => $issueCodes,
             'valid' => $tokens !== [] && $invalid === [],
         ];
     }
@@ -22762,25 +22857,106 @@ final class XmlHtmlDom
 
     /**
      * @param list<string> $ids
-     * @return array{resolved:list<string>, missing:list<string>}
+     * @return array{resolved:list<string>, missing:list<string>, targets:list<array<string, mixed>>}
      */
     private static function itemRefResolutionSummary(\DOMElement $element, array $ids): array
     {
         $resolved = [];
         $missing = [];
+        $targets = [];
         foreach ($ids as $id) {
-            if (self::htmlElementById($element, $id) instanceof \DOMElement) {
+            $target = self::htmlElementById($element, $id);
+            if ($target instanceof \DOMElement) {
                 $resolved[] = $id;
+                $targets[] = self::microdataItemRefTargetSummary($id, $target);
                 continue;
             }
 
             $missing[] = $id;
+            $targets[] = [
+                'id' => $id,
+                'status' => 'missing-target',
+                'element' => null,
+                'microdata' => null,
+                'itemScope' => false,
+                'itemProperties' => [],
+                'text' => null,
+            ];
         }
 
         return [
             'resolved' => $resolved,
             'missing' => $missing,
+            'targets' => $targets,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function microdataItemRefTargetSummary(string $id, \DOMElement $target): array
+    {
+        $attributes = self::htmlAttributes($target);
+        $itemProp = array_key_exists('itemprop', $attributes)
+            ? self::semanticMetadataTokenSummary($attributes['itemprop'])
+            : null;
+        $itemType = array_key_exists('itemtype', $attributes)
+            ? self::semanticMetadataTokenSummary($attributes['itemtype'])
+            : null;
+        $itemScope = array_key_exists('itemscope', $attributes);
+        $itemProperties = $itemProp === null ? [] : $itemProp['values'];
+        $microdata = $itemScope ? 'item' : ($itemProp === null ? 'metadata' : 'property');
+
+        return [
+            'id' => $id,
+            'status' => $itemScope && $itemProp !== null
+                ? 'resolved-item-property'
+                : ($itemScope ? 'resolved-item' : ($itemProp !== null ? 'resolved-property' : 'resolved-metadata')),
+            'element' => self::htmlElementName($target),
+            'elementId' => self::attributeOrNull($target, 'id'),
+            'microdata' => $microdata,
+            'itemScope' => $itemScope,
+            'itemPropRaw' => $attributes['itemprop'] ?? null,
+            'itemProperties' => $itemProperties,
+            'itemTypeRaw' => $attributes['itemtype'] ?? null,
+            'itemTypes' => $itemType === null ? [] : $itemType['values'],
+            'text' => self::normalizedText($target),
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $targets
+     * @return list<string>
+     */
+    private static function microdataItemRefTargetFieldValues(array $targets, string $field): array
+    {
+        $values = [];
+        foreach ($targets as $target) {
+            $value = $target[$field] ?? null;
+            if (is_string($value)) {
+                self::appendUniqueString($values, $value);
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param list<string> $referenceIssueCodes
+     * @param list<string> $missingIds
+     * @return list<string>
+     */
+    private static function itemRefIssueCodes(array $referenceIssueCodes, array $missingIds): array
+    {
+        $issueCodes = array_values(array_map(
+            static fn (string $code): string => str_replace('id-reference', 'itemref', $code),
+            $referenceIssueCodes
+        ));
+        if ($missingIds !== []) {
+            $issueCodes[] = 'missing-itemref-target';
+        }
+
+        return array_values(array_unique($issueCodes));
     }
 
     private static function inputModeState(string $value): ?string
