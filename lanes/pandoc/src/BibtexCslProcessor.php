@@ -827,7 +827,7 @@ final class BibtexCslProcessor
             $item['issue-title'] = $issueTitle;
         }
 
-        $originalTitle = $this->composedTitle($fields, ['origtitle', 'originaltitle', 'original-title'], ['origsubtitle', 'originalsubtitle', 'original-subtitle']);
+        $originalTitle = $this->composedTitle($fields, ['origtitle', 'orig-title', 'originaltitle', 'original-title'], ['origsubtitle', 'orig-subtitle', 'originalsubtitle', 'original-subtitle']);
         if ($originalTitle !== null && $originalTitle !== '') {
             $item['original-title'] = $originalTitle;
         }
@@ -984,11 +984,11 @@ final class BibtexCslProcessor
             'archive_location' => ['eprint', 'archive-location', 'archive_location', 'archivelocation'],
             'call-number' => ['callnumber', 'call-number', 'library', 'shelfmark', 'shelf-mark'],
             'language' => ['language', 'langid', 'hyphenation'],
-            'original-title-addon' => ['origtitleaddon', 'origtitle-addon', 'originaltitleaddon', 'original-title-addon'],
-            'original-publisher' => ['origpublisher', 'originalpublisher', 'original-publisher'],
-            'original-publisher-place' => ['origlocation', 'origaddress', 'originalpublisherplace', 'original-publisher-place'],
-            'original-language' => ['origlanguage', 'originallanguage', 'original-language'],
-            'original-genre' => ['origtype', 'origgenre', 'originaltype', 'original-type', 'originalgenre', 'original-genre'],
+            'original-title-addon' => ['origtitleaddon', 'origtitle-addon', 'orig-title-addon', 'originaltitleaddon', 'original-title-addon'],
+            'original-publisher' => ['origpublisher', 'orig-publisher', 'originalpublisher', 'original-publisher'],
+            'original-publisher-place' => ['origlocation', 'orig-location', 'origaddress', 'orig-address', 'originalpublisherplace', 'original-publisher-place'],
+            'original-language' => ['origlanguage', 'orig-language', 'originallanguage', 'original-language'],
+            'original-genre' => ['origtype', 'orig-type', 'origgenre', 'orig-genre', 'originaltype', 'original-type', 'originalgenre', 'original-genre'],
             'original-edition' => ['origedition', 'orig-edition', 'originaledition', 'original-edition'],
             'original-isbn' => ['origisbn', 'orig-isbn', 'originalisbn', 'original-isbn'],
             'original-issn' => ['origissn', 'orig-issn', 'originalissn', 'original-issn'],
@@ -1025,9 +1025,9 @@ final class BibtexCslProcessor
         $this->applyLiteralListField($item, $fields, 'publisher-place', ['address', 'location', 'publisher-place'], 'publisher-place-list');
         $this->applyLiteralListField($item, $fields, 'event-place', ['venue', 'eventvenue', 'eventlocation', 'eventplace', 'event-place', 'event-location'], 'event-place-list');
         $this->applyLiteralListField($item, $fields, 'language', ['language', 'langid', 'hyphenation'], 'language-list');
-        $this->applyLiteralListField($item, $fields, 'original-publisher', ['origpublisher', 'originalpublisher', 'original-publisher'], 'original-publisher-list');
-        $this->applyLiteralListField($item, $fields, 'original-publisher-place', ['origlocation', 'origaddress', 'originalpublisherplace', 'original-publisher-place'], 'original-publisher-place-list');
-        $this->applyLiteralListField($item, $fields, 'original-language', ['origlanguage', 'originallanguage', 'original-language'], 'original-language-list');
+        $this->applyLiteralListField($item, $fields, 'original-publisher', ['origpublisher', 'orig-publisher', 'originalpublisher', 'original-publisher'], 'original-publisher-list');
+        $this->applyLiteralListField($item, $fields, 'original-publisher-place', ['origlocation', 'orig-location', 'origaddress', 'orig-address', 'originalpublisherplace', 'original-publisher-place'], 'original-publisher-place-list');
+        $this->applyLiteralListField($item, $fields, 'original-language', ['origlanguage', 'orig-language', 'originallanguage', 'original-language'], 'original-language-list');
         $jurisdiction = $this->firstField($fields, ['jurisdiction']);
         if (($jurisdiction === null || $jurisdiction === '') && $this->itemTypeCarriesLegalJurisdiction((string) $item['type'])) {
             $jurisdiction = $this->firstField($fields, ['location', 'address']);
@@ -1154,7 +1154,7 @@ final class BibtexCslProcessor
 
         $originalDate = $this->dateVariableFromFields(
             $fields,
-            ['origdate', 'originaldate', 'original-date'],
+            ['origdate', 'orig-date', 'originaldate', 'original-date'],
             [['origyear', 'orig-year', 'originalyear', 'original-year'], ['origmonth', 'orig-month', 'originalmonth', 'original-month'], ['origday', 'orig-day', 'originalday', 'original-day']],
             [['origendyear', 'orig-end-year', 'originalendyear', 'original-end-year'], ['origendmonth', 'orig-end-month', 'originalendmonth', 'original-end-month'], ['origendday', 'orig-end-day', 'originalendday', 'original-end-day']]
         );
