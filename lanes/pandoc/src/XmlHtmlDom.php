@@ -17393,6 +17393,15 @@ final class XmlHtmlDom
         $referrerPolicy = $referrerPolicyRaw === null ? null : self::referrerPolicyState($referrerPolicyRaw);
         $blocking = self::htmlBlockingTokenSummary($script);
         $issues = [];
+        if ($crossoriginRaw !== null && $crossorigin === null) {
+            $issues[] = ['code' => 'invalid-script-crossorigin', 'crossoriginRaw' => $crossoriginRaw];
+        }
+        if ($fetchPriorityRaw !== null && $fetchPriority === null) {
+            $issues[] = ['code' => 'invalid-script-fetchpriority', 'fetchpriorityRaw' => $fetchPriorityRaw];
+        }
+        if ($referrerPolicyRaw !== null && $referrerPolicy === null) {
+            $issues[] = ['code' => 'invalid-script-referrerpolicy', 'referrerpolicyRaw' => $referrerPolicyRaw];
+        }
         foreach ($blocking['invalid'] as $token) {
             $issues[] = ['code' => 'invalid-script-blocking-token', 'token' => $token];
         }
@@ -19636,7 +19645,7 @@ final class XmlHtmlDom
                 'startRaw' => $startRaw,
                 'start' => self::integerAttribute($element, 'start', 1),
                 'markerType' => self::attributeOrNull($element, 'type'),
-            ];
+            ] + self::orderedListOrdinalReviewSummary($element, $startRaw);
         }
 
         $summary = [
@@ -19786,6 +19795,148 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function orderedListOrdinalReviewSummary(\DOMElement $list, ?string $startRaw): array
+    {
+        $records = self::orderedListItemOrdinalRecords($list);
+        $ordinals = array_values(array_map(
+            static fn (array $record): int => (int) ($record['listOrdinal'] ?? 0),
+            $records
+        ));
+        $ordinalCounts = array_count_values($ordinals);
+        $duplicateOrdinals = [];
+        foreach ($ordinalCounts as $ordinal => $count) {
+            if ($count > 1) {
+                $duplicateOrdinals[] = (int) $ordinal;
+            }
+        }
+
+        $invalidValues = array_values(array_filter(
+            $records,
+            static fn (array $record): bool => (bool) ($record['valueValid'] ?? true) === false
+        ));
+        $issues = [];
+        if ($startRaw !== null && self::integerAttribute($list, 'start', null) === null) {
+            $issues[] = [
+                'code' => 'invalid-ordered-list-start',
+                'startRaw' => $startRaw,
+            ];
+        }
+        foreach ($invalidValues as $record) {
+            $issues[] = [
+                'code' => 'invalid-list-item-value',
+                'itemIndex' => $record['index'],
+                'itemId' => $record['id'],
+                'valueRaw' => $record['valueRaw'],
+            ];
+        }
+        foreach ($duplicateOrdinals as $ordinal) {
+            $duplicates = array_values(array_filter(
+                $records,
+                static fn (array $record): bool => (int) ($record['listOrdinal'] ?? 0) === $ordinal
+            ));
+            $issues[] = [
+                'code' => 'duplicate-list-item-ordinal',
+                'ordinal' => $ordinal,
+                'itemIndexes' => array_values(array_map(
+                    static fn (array $record): int => (int) ($record['index'] ?? 0),
+                    $duplicates
+                )),
+                'itemIds' => array_values(array_filter(
+                    array_map(
+                        static fn (array $record): ?string => is_string($record['id'] ?? null) ? $record['id'] : null,
+                        $duplicates
+                    ),
+                    static fn (?string $id): bool => $id !== null
+                )),
+            ];
+        }
+
+        $start = self::integerAttribute($list, 'start', null);
+        $reversed = $list->hasAttribute('reversed');
+
+        return [
+            'orderedListReviewPolicy' => 'html-ordered-list-ordinal-review',
+            'orderedListReversed' => $reversed,
+            'orderedListStartRaw' => $startRaw,
+            'orderedListStart' => $start,
+            'orderedListStartValid' => $startRaw === null || $start !== null,
+            'orderedListStartSource' => $start !== null
+                ? 'start-attribute'
+                : ($reversed ? 'reversed-count' : 'default-start'),
+            'orderedListItemCount' => count($records),
+            'orderedListOrdinals' => $ordinals,
+            'orderedListOrdinalSources' => array_values(array_map(
+                static fn (array $record): ?string => is_string($record['listOrdinalSource'] ?? null) ? $record['listOrdinalSource'] : null,
+                $records
+            )),
+            'orderedListExplicitValueCount' => count(array_filter(
+                $records,
+                static fn (array $record): bool => (bool) ($record['explicitValue'] ?? false)
+            )),
+            'orderedListExplicitValueOrdinals' => array_values(array_map(
+                static fn (array $record): int => (int) ($record['listOrdinal'] ?? 0),
+                array_filter($records, static fn (array $record): bool => (bool) ($record['explicitValue'] ?? false))
+            )),
+            'orderedListInvalidValueCount' => count($invalidValues),
+            'orderedListInvalidValues' => array_values(array_map(
+                static fn (array $record): array => [
+                    'index' => $record['index'],
+                    'id' => $record['id'],
+                    'valueRaw' => $record['valueRaw'],
+                ],
+                $invalidValues
+            )),
+            'orderedListDuplicateOrdinals' => $duplicateOrdinals,
+            'orderedListHasDuplicateOrdinals' => $duplicateOrdinals !== [],
+            'orderedListItems' => $records,
+            'orderedListIssueCount' => count($issues),
+            'orderedListIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'orderedListIssues' => $issues,
+            'orderedListValid' => $issues === [],
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function orderedListItemOrdinalRecords(\DOMElement $list): array
+    {
+        $items = self::childHtmlElements($list, 'li');
+        $reversed = $list->hasAttribute('reversed');
+        $start = self::integerAttribute($list, 'start', null);
+        $current = $start ?? ($reversed ? count($items) : 1);
+        $implicitSource = $start !== null ? 'start-attribute' : ($reversed ? 'reversed-count' : 'default-start');
+        $records = [];
+
+        foreach ($items as $index => $item) {
+            $valueRaw = self::attributeOrNull($item, 'value');
+            $value = self::integerAttribute($item, 'value', null);
+            $ordinal = $value ?? $current;
+            $records[] = [
+                'index' => $index,
+                'id' => self::attributeOrNull($item, 'id'),
+                'text' => self::normalizedText($item),
+                'valueRaw' => $valueRaw,
+                'value' => $value,
+                'valueValid' => $valueRaw === null || $value !== null,
+                'explicitValue' => $value !== null,
+                'listOrdinal' => $ordinal,
+                'listOrdinalSource' => $value !== null ? 'value-attribute' : $implicitSource,
+            ];
+
+            $current = $ordinal + ($reversed ? -1 : 1);
+            $implicitSource = $value !== null ? 'previous-value' : $implicitSource;
+        }
+
+        return $records;
     }
 
     /**
@@ -19983,6 +20134,10 @@ final class XmlHtmlDom
             $summary += self::htmlNonceSummary($element, $attributes['nonce']);
         }
 
+        if (array_key_exists('elementtiming', $attributes)) {
+            $summary += self::elementTimingReviewSummary($element, $attributes['elementtiming']);
+        }
+
         if (array_key_exists('hidden', $attributes)) {
             $summary += self::hiddenAttributeSummary($element, $attributes['hidden']);
         }
@@ -20006,6 +20161,7 @@ final class XmlHtmlDom
             $summary['contentEditableRaw'] = $attributes['contenteditable'];
             $summary['contentEditable'] = $contentEditable;
             $summary['contentEditableValid'] = $contentEditable !== null;
+            $summary += self::contentEditableAttributeReviewSummary($element, $contentEditable);
         }
 
         $summary += self::effectiveContentEditableSummary($element, $attributes);
@@ -20016,7 +20172,9 @@ final class XmlHtmlDom
 
         if (array_key_exists('dropzone', $attributes)) {
             $dropZone = self::dropZoneSummary($attributes['dropzone']);
+            $dropZoneIssueCodes = self::dropZoneIssueCodes($dropZone);
             $summary['dropZoneReviewPolicy'] = 'html-dropzone-attribute-review';
+            $summary['dropZoneReviewStatus'] = $dropZoneIssueCodes === [] ? 'ok' : 'review';
             $summary['dropZoneRaw'] = $attributes['dropzone'];
             $summary['dropZoneTokens'] = $dropZone['tokens'];
             $summary['dropZoneItems'] = $dropZone['items'];
@@ -20026,6 +20184,9 @@ final class XmlHtmlDom
             $summary['invalidDropZoneTokens'] = $dropZone['invalid'];
             $summary['dropZoneMultipleEffects'] = $dropZone['multipleEffects'];
             $summary['dropZoneValid'] = $dropZone['valid'];
+            $summary['dropZoneIssueCodes'] = $dropZoneIssueCodes;
+            $summary['dropZoneIssueCount'] = count($dropZoneIssueCodes);
+            $summary['dropZoneReviewOnlyNoDragDropEngine'] = true;
         }
 
         if (array_key_exists('spellcheck', $attributes)) {
@@ -20033,6 +20194,7 @@ final class XmlHtmlDom
             $summary['spellcheckRaw'] = $attributes['spellcheck'];
             $summary['spellcheck'] = $spellcheck;
             $summary['spellcheckValid'] = $spellcheck !== null;
+            $summary += self::spellcheckAttributeReviewSummary($element, $spellcheck);
         }
 
         $summary += self::effectiveSpellcheckSummary($element, $attributes);
@@ -20084,16 +20246,22 @@ final class XmlHtmlDom
 
         if (array_key_exists('accesskey', $attributes)) {
             $accessKey = self::accessKeySummary($attributes['accesskey']);
+            $accessKeyDocument = self::accessKeyDocumentSummary($element, $accessKey['keys']);
+            $accessKeyCollision = $accessKey['keys'] === []
+                ? []
+                : self::accessKeyCollisionSummary($element, $accessKey['keys']);
+            $accessKeyIssueCodes = self::accessKeyIssueCodes($accessKey, $accessKeyDocument, $accessKeyCollision);
             $summary['accessKeyRaw'] = $attributes['accesskey'];
             $summary['accessKeyTokens'] = $accessKey['tokens'];
             $summary['accessKeys'] = $accessKey['keys'];
             $summary['invalidAccessKeyTokens'] = $accessKey['invalid'];
             $summary['duplicateAccessKeyTokens'] = $accessKey['duplicates'];
             $summary['accessKeyValid'] = $accessKey['valid'];
-            $summary += self::accessKeyDocumentSummary($element, $accessKey['keys']);
-            if ($accessKey['keys'] !== []) {
-                $summary += self::accessKeyCollisionSummary($element, $accessKey['keys']);
-            }
+            $summary += $accessKeyDocument;
+            $summary += $accessKeyCollision;
+            $summary['accessKeyReviewStatus'] = $accessKeyIssueCodes === [] ? 'ok' : 'review';
+            $summary['accessKeyIssueCodes'] = $accessKeyIssueCodes;
+            $summary['accessKeyIssueCount'] = count($accessKeyIssueCodes);
         }
 
         if (array_key_exists('autofocus', $attributes)) {
@@ -20175,6 +20343,7 @@ final class XmlHtmlDom
             $summary['popoverRaw'] = $attributes['popover'];
             $summary['popoverState'] = $popover;
             $summary['popoverValid'] = $popover !== null;
+            $summary += self::popoverAttributeReviewSummary($element, $attributes['popover'], $popover);
         }
 
         if (array_key_exists('popovertarget', $attributes)) {
@@ -20355,6 +20524,68 @@ final class XmlHtmlDom
             'nonceSharedInFragment' => count($sameValueElements) > 1,
             'nonceReviewCodes' => $reviewCodes,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function elementTimingReviewSummary(\DOMElement $element, string $raw): array
+    {
+        $token = trim($raw);
+        $issues = [];
+        if ($token === '') {
+            $issues[] = ['code' => 'empty-elementtiming-token'];
+        } elseif (!self::isHtmlReferenceToken($token)) {
+            $issues[] = ['code' => 'invalid-elementtiming-token', 'value' => $raw];
+        }
+
+        $resourceAttribute = self::elementTimingResourceAttribute($element);
+        $text = self::normalizedText($element);
+
+        return [
+            'elementTimingReviewPolicy' => 'html-elementtiming-token-review',
+            'elementTimingElement' => self::htmlElementName($element),
+            'elementTimingRaw' => $raw,
+            'elementTimingToken' => $issues === [] ? $token : null,
+            'elementTimingValid' => $issues === [],
+            'elementTimingByteLength' => strlen($raw),
+            'elementTimingTokenByteLength' => $token === '' ? 0 : strlen($token),
+            'elementTimingWhitespaceTrimmed' => $raw !== $token,
+            'elementTimingObservedKind' => self::elementTimingObservedKind($element, $resourceAttribute, $text),
+            'elementTimingTextLength' => strlen($text),
+            'elementTimingResourceAttribute' => $resourceAttribute,
+            'elementTimingResourceUrl' => $resourceAttribute === null ? null : self::attributeOrNull($element, $resourceAttribute),
+            'elementTimingIssues' => $issues,
+            'elementTimingIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+        ];
+    }
+
+    private static function elementTimingResourceAttribute(\DOMElement $element): ?string
+    {
+        foreach (['src', 'poster', 'href', 'data'] as $attribute) {
+            if (self::attributeOrNull($element, $attribute) !== null) {
+                return $attribute;
+            }
+        }
+
+        return null;
+    }
+
+    private static function elementTimingObservedKind(\DOMElement $element, ?string $resourceAttribute, string $text): string
+    {
+        $name = self::htmlElementName($element);
+
+        return match (true) {
+            in_array($name, ['img', 'image', 'picture'], true) => 'image',
+            in_array($name, ['audio', 'video'], true) => 'media',
+            in_array($name, ['canvas', 'svg'], true) => 'visual',
+            $resourceAttribute !== null => 'resource',
+            $text !== '' => 'text',
+            default => 'container',
+        };
     }
 
     /**
@@ -21464,6 +21695,33 @@ final class XmlHtmlDom
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    private static function contentEditableAttributeReviewSummary(\DOMElement $element, bool|string|null $state): array
+    {
+        $issueCodes = [];
+        if ($state === null) {
+            $issueCodes[] = 'invalid-html-contenteditable-token';
+        }
+
+        return [
+            'contentEditableReviewPolicy' => 'html-contenteditable-state-review',
+            'contentEditableReviewStatus' => $issueCodes === [] ? 'ok' : 'review',
+            'contentEditableElement' => self::htmlElementName($element),
+            'contentEditableMode' => match ($state) {
+                true => 'rich-text',
+                false => 'not-editable',
+                'plaintext-only' => 'plain-text',
+                default => null,
+            },
+            'contentEditableInvalidValueDefaulted' => $state === null,
+            'contentEditableIssueCodes' => $issueCodes,
+            'contentEditableIssueCount' => count($issueCodes),
+            'contentEditableReviewOnlyNoEditingEngine' => true,
+        ];
+    }
+
+    /**
      * @param array<string, string> $attributes
      * @return array<string, mixed>
      */
@@ -21525,6 +21783,28 @@ final class XmlHtmlDom
             'false' => false,
             default => null,
         };
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function spellcheckAttributeReviewSummary(\DOMElement $element, ?bool $state): array
+    {
+        $issueCodes = [];
+        if ($state === null) {
+            $issueCodes[] = 'invalid-html-spellcheck-token';
+        }
+
+        return [
+            'spellcheckReviewPolicy' => 'html-spellcheck-state-review',
+            'spellcheckReviewStatus' => $issueCodes === [] ? 'ok' : 'review',
+            'spellcheckElement' => self::htmlElementName($element),
+            'spellcheckCheckingEnabled' => $state,
+            'spellcheckInvalidValueDefaulted' => $state === null,
+            'spellcheckIssueCodes' => $issueCodes,
+            'spellcheckIssueCount' => count($issueCodes),
+            'spellcheckReviewOnlyNoSpellcheckingService' => true,
+        ];
     }
 
     /**
@@ -22094,6 +22374,8 @@ final class XmlHtmlDom
      */
     private static function inputHintReviewSummary(\DOMElement $element, array $attributes): array
     {
+        $hasInputMode = array_key_exists('inputmode', $attributes);
+        $hasEnterKeyHint = array_key_exists('enterkeyhint', $attributes);
         $inputMode = array_key_exists('inputmode', $attributes)
             ? self::inputModeState($attributes['inputmode'])
             : null;
@@ -22102,27 +22384,61 @@ final class XmlHtmlDom
             : null;
         $issueCodes = [];
 
-        if (array_key_exists('inputmode', $attributes) && $inputMode === null) {
+        if ($hasInputMode && $inputMode === null) {
             $issueCodes[] = 'invalid-html-inputmode-token';
         }
 
-        if (array_key_exists('enterkeyhint', $attributes) && $enterKeyHint === null) {
+        if ($hasEnterKeyHint && $enterKeyHint === null) {
             $issueCodes[] = 'invalid-html-enterkeyhint-token';
+        }
+
+        $presentAttributes = [];
+        $tokenRecords = [];
+
+        if ($hasInputMode) {
+            $presentAttributes[] = 'inputmode';
+            $tokenRecords[] = [
+                'attribute' => 'inputmode',
+                'raw' => $attributes['inputmode'],
+                'token' => $inputMode,
+                'valid' => $inputMode !== null,
+                'keyboardKind' => $inputMode === null ? null : self::inputModeKeyboardKind($inputMode),
+            ];
+        }
+
+        if ($hasEnterKeyHint) {
+            $presentAttributes[] = 'enterkeyhint';
+            $tokenRecords[] = [
+                'attribute' => 'enterkeyhint',
+                'raw' => $attributes['enterkeyhint'],
+                'token' => $enterKeyHint,
+                'valid' => $enterKeyHint !== null,
+                'actionKind' => $enterKeyHint === null ? null : self::enterKeyHintActionKind($enterKeyHint),
+            ];
         }
 
         $summary = [
             'inputHintReviewPolicy' => 'html-input-hint-keyboard-review',
+            'inputHintReviewStatus' => $issueCodes === [] ? 'ok' : 'review',
             'inputHintElement' => self::htmlElementName($element),
             'inputHintHostKind' => self::inputHintHostKind($element, $attributes),
+            'inputHintAttributes' => $presentAttributes,
+            'inputHintAttributeCount' => count($presentAttributes),
+            'inputHintTokenRecords' => $tokenRecords,
+            'inputHintTokenCount' => count($tokenRecords),
             'inputHintIssueCodes' => $issueCodes,
+            'inputHintIssueCount' => count($issueCodes),
             'inputHintValid' => $issueCodes === [],
+            'inputHintReviewOnlyNoVirtualKeyboard' => true,
+            'inputHintReviewOnlyNoImeEngine' => true,
+            'inputHintReviewHandoffPolicy' => 'metadata-only-no-virtual-keyboard-ime',
         ];
 
-        if (array_key_exists('inputmode', $attributes)) {
+        if ($hasInputMode) {
             $summary['inputModeKeyboardKind'] = $inputMode === null ? null : self::inputModeKeyboardKind($inputMode);
         }
 
-        if (array_key_exists('enterkeyhint', $attributes)) {
+        if ($hasEnterKeyHint) {
             $summary['enterKeyHintActionKind'] = $enterKeyHint === null ? null : self::enterKeyHintActionKind($enterKeyHint);
         }
 
@@ -22214,7 +22530,10 @@ final class XmlHtmlDom
         $state = self::draggableState($raw);
         $auto = $state === 'auto' || $state === null;
         $effective = $auto ? self::draggableAutoDefault($element) : $state;
+        $issueCodes = self::draggableIssueCodes($state);
         $summary = [
+            'draggableReviewPolicy' => 'html-draggable-state-review',
+            'draggableReviewStatus' => $issueCodes === [] ? 'ok' : 'review',
             'draggableRaw' => $raw,
             'draggable' => $state,
             'draggableKeyword' => match ($state) {
@@ -22233,6 +22552,9 @@ final class XmlHtmlDom
                 'auto' => 'attribute-auto',
                 default => 'auto-default',
             },
+            'draggableIssueCodes' => $issueCodes,
+            'draggableIssueCount' => count($issueCodes),
+            'draggableReviewOnlyNoDragDropEngine' => true,
         ];
 
         if ($auto) {
@@ -22240,6 +22562,14 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function draggableIssueCodes(mixed $state): array
+    {
+        return $state === null ? ['invalid-html-draggable-token'] : [];
     }
 
     private static function draggableAutoDefault(\DOMElement $element): bool
@@ -22620,6 +22950,44 @@ final class XmlHtmlDom
             'manual' => 'manual',
             default => null,
         };
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function popoverAttributeReviewSummary(\DOMElement $element, string $raw, ?string $state): array
+    {
+        $issues = [];
+        if ($state === null) {
+            $issues[] = [
+                'code' => 'invalid-html-popover-token',
+                'popoverRaw' => $raw,
+            ];
+        }
+
+        $summary = [
+            'popoverReviewPolicy' => 'html-popover-state-review',
+            'popoverReviewStatus' => $issues === [] ? 'ok' : 'review',
+            'popoverElement' => self::htmlElementName($element),
+            'popoverKeyword' => $state,
+            'popoverAuto' => $state === 'auto',
+            'popoverManual' => $state === 'manual',
+            'popoverInvalidValueDefaulted' => $state === null,
+            'popoverIssueCodes' => array_values(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            )),
+            'popoverIssueCount' => count($issues),
+            'popoverIssues' => $issues,
+            'popoverReviewOnlyNoPopoverEngine' => true,
+        ];
+
+        $elementId = self::attributeOrNull($element, 'id');
+        if ($elementId !== null && $elementId !== '') {
+            $summary['popoverElementId'] = $elementId;
+        }
+
+        return $summary;
     }
 
     private static function popoverTarget(string $value): ?string
@@ -23332,6 +23700,26 @@ final class XmlHtmlDom
         ];
     }
 
+    /**
+     * @param array{tokens:list<string>, invalid:list<string>, multipleEffects:bool} $dropZone
+     * @return list<string>
+     */
+    private static function dropZoneIssueCodes(array $dropZone): array
+    {
+        $issues = [];
+        if ($dropZone['tokens'] === []) {
+            $issues[] = 'empty-html-dropzone-token-list';
+        }
+        if ($dropZone['invalid'] !== []) {
+            $issues[] = 'invalid-html-dropzone-token';
+        }
+        if ($dropZone['multipleEffects']) {
+            $issues[] = 'multiple-html-dropzone-effects';
+        }
+
+        return $issues;
+    }
+
     private static function isHtmlDropZoneMimeType(string $value): bool
     {
         return preg_match('/^[a-z0-9!#$&^_.+-]+\/(?:[a-z0-9!#$&^_.+-]+|\*)$/', $value) === 1;
@@ -23456,6 +23844,34 @@ final class XmlHtmlDom
         }
 
         return preg_match_all('/./us', $token) === 1;
+    }
+
+    /**
+     * @param array{tokens:list<string>, keys:list<string>, invalid:list<string>, duplicates:list<string>, valid:bool} $accessKey
+     * @param array<string, mixed> $documentSummary
+     * @param array<string, mixed> $collisionSummary
+     * @return list<string>
+     */
+    private static function accessKeyIssueCodes(array $accessKey, array $documentSummary, array $collisionSummary): array
+    {
+        $issueCodes = [];
+        if (($accessKey['tokens'] ?? []) === []) {
+            $issueCodes[] = 'empty-accesskey-token-list';
+        }
+        if (($accessKey['invalid'] ?? []) !== []) {
+            $issueCodes[] = 'invalid-accesskey-token';
+        }
+        if (($accessKey['duplicates'] ?? []) !== []) {
+            $issueCodes[] = 'duplicate-accesskey-token';
+        }
+        if (($documentSummary['accessKeyConflictKeys'] ?? []) !== []) {
+            $issueCodes[] = 'document-accesskey-conflict';
+        }
+        if (($collisionSummary['accessKeyCollisionKeys'] ?? []) !== []) {
+            $issueCodes[] = 'html-accesskey-collision';
+        }
+
+        return array_values(array_unique($issueCodes));
     }
 
     /**
@@ -25967,6 +26383,12 @@ final class XmlHtmlDom
             $summary['constraintStep'] = $step;
             $summary['constraintStepValid'] = $step !== null;
         }
+        if ($name === 'input') {
+            $inputType = self::inputType($control);
+            if (in_array($inputType, ['number', 'range'], true)) {
+                $summary += self::formControlNumericConstraintReviewSummary($control, $inputType);
+            }
+        }
         if ($control->hasAttribute('pattern')) {
             $pattern = $control->getAttribute('pattern');
             $summary['patternRaw'] = $pattern;
@@ -26010,6 +26432,162 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function formControlNumericConstraintReviewSummary(\DOMElement $control, string $inputType): array
+    {
+        $applies = in_array($inputType, ['number', 'range'], true);
+        $minRaw = self::attributeOrNull($control, 'min');
+        $maxRaw = self::attributeOrNull($control, 'max');
+        $stepRaw = self::attributeOrNull($control, 'step');
+        $valueRaw = self::attributeOrNull($control, 'value');
+        $min = $minRaw === null ? null : self::finiteNumericToken($minRaw);
+        $max = $maxRaw === null ? null : self::finiteNumericToken($maxRaw);
+        $step = $stepRaw === null ? null : self::stepConstraintToken($stepRaw);
+        $stepAny = $step === 'any';
+        $effectiveStep = $stepAny ? null : (is_float($step) ? $step : 1.0);
+        $stepBase = is_float($min) ? $min : 0.0;
+        $value = $valueRaw === null ? null : self::finiteNumericToken($valueRaw);
+        $rangeValid = is_float($min) && is_float($max) ? $max >= $min : null;
+        $effectiveDisabled = self::isEffectivelyDisabledFormControl($control);
+        $readonly = self::inputTypeSupportsReadonlyValue($inputType) && $control->hasAttribute('readonly');
+        $belowMin = $applies && is_float($value) && is_float($min) && $value < $min;
+        $aboveMax = $applies && is_float($value) && is_float($max) && $value > $max;
+        $stepMismatch = $applies
+            && is_float($value)
+            && is_float($effectiveStep)
+            && self::numericStepMismatch($value, $stepBase, $effectiveStep);
+        $issues = [];
+
+        if (!$applies) {
+            $issues[] = [
+                'code' => 'numeric-constraint-unsupported-control',
+                'inputType' => $inputType,
+            ];
+        }
+        if ($minRaw !== null && $min === null) {
+            $issues[] = [
+                'code' => 'invalid-min-numeric-constraint',
+                'raw' => $minRaw,
+            ];
+        }
+        if ($maxRaw !== null && $max === null) {
+            $issues[] = [
+                'code' => 'invalid-max-numeric-constraint',
+                'raw' => $maxRaw,
+            ];
+        }
+        if ($rangeValid === false) {
+            $issues[] = [
+                'code' => 'invalid-numeric-constraint-range',
+                'min' => $min,
+                'max' => $max,
+            ];
+        }
+        if ($stepRaw !== null && $step === null) {
+            $issues[] = [
+                'code' => 'invalid-step-numeric-constraint',
+                'raw' => $stepRaw,
+            ];
+        }
+        if ($valueRaw !== null && $value === null) {
+            $issues[] = [
+                'code' => 'invalid-static-numeric-value',
+                'raw' => $valueRaw,
+            ];
+        }
+        if ($effectiveDisabled) {
+            $issues[] = ['code' => 'numeric-constraint-disabled-control'];
+        }
+        if ($readonly) {
+            $issues[] = ['code' => 'numeric-constraint-readonly-control'];
+        }
+        if (!$effectiveDisabled && !$readonly) {
+            if ($belowMin) {
+                $issues[] = [
+                    'code' => 'static-numeric-value-below-min',
+                    'value' => $value,
+                    'min' => $min,
+                ];
+            }
+            if ($aboveMax) {
+                $issues[] = [
+                    'code' => 'static-numeric-value-above-max',
+                    'value' => $value,
+                    'max' => $max,
+                ];
+            }
+            if ($stepMismatch) {
+                $issues[] = [
+                    'code' => 'static-numeric-value-step-mismatch',
+                    'value' => $value,
+                    'stepBase' => $stepBase,
+                    'step' => $effectiveStep,
+                ];
+            }
+        }
+
+        $issueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
+
+        return [
+            'numericConstraintReviewPolicy' => 'form-control-numeric-constraint-review',
+            'numericConstraintInputType' => $inputType,
+            'numericConstraintControlId' => self::attributeOrNull($control, 'id'),
+            'numericConstraintControlName' => self::attributeOrNull($control, 'name'),
+            'numericConstraintApplies' => $applies,
+            'numericMinRaw' => $minRaw,
+            'numericMin' => $min,
+            'numericMinValid' => $minRaw === null ? null : $min !== null,
+            'numericMaxRaw' => $maxRaw,
+            'numericMax' => $max,
+            'numericMaxValid' => $maxRaw === null ? null : $max !== null,
+            'numericRangeValid' => $rangeValid,
+            'numericStepRaw' => $stepRaw,
+            'numericStep' => $stepRaw === null ? null : $step,
+            'numericStepValid' => $stepRaw === null ? null : $step !== null,
+            'numericStepAny' => $stepAny,
+            'numericStepDefaulted' => $stepRaw === null,
+            'numericEffectiveStep' => $effectiveStep,
+            'numericStepBase' => $stepBase,
+            'numericStaticValueRaw' => $valueRaw,
+            'numericStaticValue' => $value,
+            'numericStaticValuePresent' => $valueRaw !== null,
+            'numericStaticValueValid' => $valueRaw === null ? null : $value !== null,
+            'numericStaticValueSource' => $valueRaw === null ? 'missing-value-attribute' : 'value-attribute',
+            'numericValueBelowMin' => $belowMin,
+            'numericValueAboveMax' => $aboveMax,
+            'numericStepMismatch' => $stepMismatch,
+            'numericEffectiveDisabled' => $effectiveDisabled,
+            'numericReadonly' => $readonly,
+            'numericWouldBlockStaticSubmission' => $applies
+                && !$effectiveDisabled
+                && !$readonly
+                && ($belowMin || $aboveMax || $stepMismatch || ($valueRaw !== null && $value === null)),
+            'numericReviewOnlyNoFormSubmission' => true,
+            'numericIssues' => $issues,
+            'numericIssueCodes' => $issueCodes,
+            'numericValid' => $issues === [],
+        ];
+    }
+
+    private static function numericStepMismatch(float $value, float $base, float $step): bool
+    {
+        if ($step <= 0.0) {
+            return false;
+        }
+
+        $quotient = ($value - $base) / $step;
+        if (!is_finite($quotient)) {
+            return false;
+        }
+
+        return abs($quotient - round($quotient)) > 1.0E-9;
     }
 
     /**
@@ -27739,6 +28317,7 @@ final class XmlHtmlDom
         $targetOpenerAllowed = $targetBlank && $hasOpener && !$hasNoopener && !$hasNoreferrer;
         $downloadRaw = self::attributeOrNull($element, 'download');
         $downloadRequested = $element->hasAttribute('download');
+        $downloadReview = self::hyperlinkDownloadReviewSummary($downloadRequested, $downloadRaw, $hrefSummary);
         $referrerPolicyRaw = self::attributeOrNull($element, 'referrerpolicy');
         $referrerPolicy = $referrerPolicyRaw === null ? null : self::referrerPolicyState($referrerPolicyRaw);
         $fragmentTarget = self::hyperlinkFragmentTargetSummary($element, $href);
@@ -27784,6 +28363,11 @@ final class XmlHtmlDom
 
         if ($referrerPolicyRaw !== null && $referrerPolicy === null) {
             $issues[] = ['code' => 'invalid-referrer-policy', 'referrerPolicyRaw' => $referrerPolicyRaw];
+        }
+        foreach (($downloadReview['downloadIssues'] ?? []) as $issue) {
+            if (is_array($issue)) {
+                $issues[] = $issue;
+            }
         }
 
         foreach ($pingUrls as $url) {
@@ -27873,7 +28457,67 @@ final class XmlHtmlDom
             'pingValid' => $pingUrls === [] ? null : $pingIssueCodes === [],
             'navigationIssues' => $issues,
             'navigationIssueCodes' => $navigationIssueCodes,
-        ] + $fragmentTarget;
+        ] + $fragmentTarget + $downloadReview;
+    }
+
+    /**
+     * @param array{kind:string, scheme:?string, unsafe:bool} $hrefSummary
+     * @return array<string, mixed>
+     */
+    private static function hyperlinkDownloadReviewSummary(
+        bool $downloadRequested,
+        ?string $downloadRaw,
+        array $hrefSummary
+    ): array {
+        if (!$downloadRequested) {
+            return [];
+        }
+
+        $suggestedFilename = trim($downloadRaw ?? '');
+        $hasSuggestedFilename = $suggestedFilename !== '';
+        $issues = [];
+
+        if (in_array($hrefSummary['kind'], ['missing', 'empty'], true)) {
+            $issues[] = ['code' => 'download-without-href'];
+        }
+        if ($hrefSummary['unsafe'] === true) {
+            $issues[] = [
+                'code' => 'unsafe-download-href',
+                'scheme' => $hrefSummary['scheme'],
+            ];
+        }
+        if ($hasSuggestedFilename && preg_match('/[\p{Cc}\p{Zl}\p{Zp}]/u', $suggestedFilename) === 1) {
+            $issues[] = [
+                'code' => 'download-filename-control-character',
+                'filename' => $suggestedFilename,
+            ];
+        }
+        if ($hasSuggestedFilename && (str_contains($suggestedFilename, '/') || str_contains($suggestedFilename, '\\'))) {
+            $issues[] = [
+                'code' => 'download-filename-path-separator',
+                'filename' => $suggestedFilename,
+            ];
+        }
+        $issueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
+
+        return [
+            'downloadReviewPolicy' => 'hyperlink-download-filename-review',
+            'downloadHasSuggestedFilename' => $hasSuggestedFilename,
+            'downloadSuggestedFilenameValid' => $hasSuggestedFilename
+                ? !in_array('download-filename-control-character', $issueCodes, true)
+                    && !in_array('download-filename-path-separator', $issueCodes, true)
+                : null,
+            'downloadWouldRequestNavigationDownload' => $downloadRequested
+                && !in_array($hrefSummary['kind'], ['missing', 'empty'], true)
+                && $hrefSummary['unsafe'] === false,
+            'downloadReviewOnlyNoNetworkRequest' => true,
+            'downloadIssues' => $issues,
+            'downloadIssueCodes' => $issueCodes,
+            'downloadValid' => $issues === [],
+        ];
     }
 
     /**
@@ -28256,8 +28900,18 @@ final class XmlHtmlDom
             }
         }
 
+        $issueCodes = [];
+        foreach ($issues as $issue) {
+            $code = $issue['code'] ?? null;
+            if (is_string($code) && $code !== '') {
+                $issueCodes[] = $code;
+            }
+        }
+        $issueCodes = array_values(array_unique($issueCodes));
+
         return [
             'docBookMediaObject' => $name,
+            'docBookMediaReviewPolicy' => 'docbook-media-object-issue-review',
             'docBookMediaInline' => $name === 'inlinemediaobject',
             'docBookMediaId' => self::docBookElementId($media),
             'docBookAltTexts' => $altTexts,
@@ -28278,7 +28932,10 @@ final class XmlHtmlDom
             'docBookLinkendAssociations' => $linkendAssociations,
             'docBookMissingAlt' => !$hasAccessibleText && $imageData !== [],
             'docBookMediaIssues' => $issues,
+            'docBookMediaIssueCodes' => $issueCodes,
             'docBookMediaIssueCount' => count($issues),
+            'docBookMediaIssueCodeCount' => count($issueCodes),
+            'docBookMediaValid' => $issues === [],
         ];
     }
 
