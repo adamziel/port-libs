@@ -4289,6 +4289,87 @@ XML);
         $t->contains('<dt>Ng 2026</dt><dd>Literal List Review Manual :: Review Press; Archive Desk :: New York; London :: Archivo Press; Migration Desk :: Madrid; Barcelona :: spanish; basque :: english; french</dd>', $blocks);
         $t->contains('<dt>Curator 2025</dt><dd>Event List Proceedings :: Migration Desk :: Portland Convention Center; Remote Stream</dd>', $blocks);
     },
+    'carries biblatex language id aliases in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@book{language-id-source,
+  author      = {Ng, Nia},
+  title       = {Language Identifier Packet},
+  date        = {2026},
+  publisher   = {Review Press},
+  language-id = {pt-BR}
+}
+
+@book{compact-languageid-source,
+  author     = {Roe, Pat},
+  title      = {Compact Language Identifier Packet},
+  date       = {2025},
+  languageid = {nl}
+}
+BIB;
+
+        $items = (new BibtexCslProcessor())->cslItems($source);
+        $t->same('pt-BR', $items['language-id-source']['language']);
+        $t->same('nl', $items['compact-languageid-source']['language']);
+        $t->same('pt-BR', $items['language-id-source']['rawBibtex']['fields']['language-id']);
+        $t->same('nl', $items['compact-languageid-source']['rawBibtex']['fields']['languageid']);
+
+        $processor = CitationCslProcessor::fromItems(array_values($items));
+        $languageId = $processor->item('language-id-source');
+        $compact = $processor->item('compact-languageid-source');
+        $t->same('pt-BR', $languageId['language'] ?? null);
+        $t->same(['pt-BR'], $languageId['languageList'] ?? null);
+        $t->same('nl', $compact['language'] ?? null);
+        $t->same(['nl'], $compact['languageList'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <sort>
+      <key variable="language-id"/>
+    </sort>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="language"/>
+        <text variable="language-id"/>
+        <text variable="languageid"/>
+        <text variable="language-list"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <sort>
+      <key variable="language-id"/>
+    </sort>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="language"/>
+      <text variable="language-id"/>
+      <text variable="language-list"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('language-id', $summary['citationSort'][0]['variable'] ?? null);
+        $t->same('language-id', $citationChildren[2]['variable'] ?? null);
+        $t->same('languageid', $citationChildren[3]['variable'] ?? null);
+        $t->same('[Roe | nl | nl | nl | nl; Ng | pt-BR | pt-BR | pt-BR | pt-BR]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'language-id-source', 'text' => '[@language-id-source]']),
+            new AstNode('citation', ['id' => 'compact-languageid-source', 'text' => '[@compact-languageid-source]']),
+        ]));
+        $t->same('Language Identifier Packet :: pt-BR :: pt-BR :: pt-BR', $styled->renderBibliographyEntry('language-id-source'));
+        $t->same('Compact Language Identifier Packet :: nl :: nl :: nl', $styled->renderBibliographyEntry('compact-languageid-source'));
+
+        $document = (new MarkdownReader())->read('Language ID aliases [@language-id-source; @compact-languageid-source] stay reviewable.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Language ID aliases [Roe | nl | nl | nl | nl; Ng | pt-BR | pt-BR | pt-BR | pt-BR] stay reviewable.</p>', $blocks);
+        $t->contains('<dt>Roe 2025</dt><dd>Compact Language Identifier Packet :: nl :: nl :: nl</dd>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Language Identifier Packet :: pt-BR :: pt-BR :: pt-BR</dd>', $blocks);
+    },
     'carries biblatex available and submitted dates in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @online{availability-packet,
