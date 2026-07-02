@@ -4467,6 +4467,134 @@ XML;
         $t->same("caf\xC3\xA9.xml", $bySegmentReview[$nonAsciiPart . '#2']['segment']);
         $t->same(['non-ascii'], $bySegmentReview[$nonAsciiPart . '#2']['flags']);
     },
+    'summarizes docx source zip package path character provenance for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $directoryPath = 'word/Media Assets/';
+        $mixedCaseWhitespacePath = 'word/Media Assets/Review Shot.PNG';
+        $percentEncodedPath = 'word/data/review%20encoded.xml';
+        $nonAsciiPath = "word/data/caf\xC3\xA9.xml";
+        $parts[$mixedCaseWhitespacePath] = 'review image placeholder';
+        $parts[$percentEncodedPath] = '<?xml version="1.0" encoding="UTF-8"?><encoded-review/>';
+        $parts[$nonAsciiPath] = '<?xml version="1.0" encoding="UTF-8"?><cafe-review/>';
+
+        $zipParts = [
+            [
+                'name' => $directoryPath,
+                'data' => '',
+                'compressionMethod' => 0,
+            ],
+        ];
+        foreach (docx_openxml_reader_zip_parts($parts) as $zipPart) {
+            $zipParts[] = $zipPart;
+        }
+
+        $document = (new DocxOpenXmlReader())->readZipPackage(ZipPackage::fromParts($zipParts));
+        $package = $document->attr('docx')['packageProvenance'];
+        $zipPackage = $package['zipPackage'];
+        $summary = $package['summary'];
+        $identity = $package['packageIdentity'];
+        $pathCharacters = $zipPackage['packagePathCharacters'];
+        $reviewByPath = [];
+        foreach ($pathCharacters['reviewEntries'] as $entry) {
+            $reviewByPath[$entry['packagePath']] = $entry;
+        }
+
+        $expectedUppercasePaths = [
+            '[Content_Types].xml',
+            'docProps/core.xml',
+            $directoryPath,
+            $mixedCaseWhitespacePath,
+        ];
+        sort($expectedUppercasePaths, SORT_STRING);
+        $expectedWhitespacePaths = [$directoryPath, $mixedCaseWhitespacePath];
+        sort($expectedWhitespacePaths, SORT_STRING);
+
+        $t->same('Imported DOCX Heading', $document->children[0]->attr('text'));
+        $t->same(true, $zipPackage['present']);
+        $t->same(count($zipParts), $pathCharacters['entryCount']);
+        $t->same(6, $pathCharacters['reviewEntryCount']);
+        $t->same(4, $pathCharacters['uppercaseEntryCount']);
+        $t->same(2, $pathCharacters['whitespaceEntryCount']);
+        $t->same(1, $pathCharacters['percentEncodedOctetEntryCount']);
+        $t->same(1, $pathCharacters['nonAsciiEntryCount']);
+        $t->same([
+            'non-ascii' => 1,
+            'percent-encoded-octet' => 1,
+            'uppercase' => 4,
+            'whitespace' => 2,
+        ], $pathCharacters['flagCounts']);
+        $t->same($expectedUppercasePaths, $pathCharacters['flagPackagePaths']['uppercase']);
+        $t->same($expectedWhitespacePaths, $pathCharacters['flagPackagePaths']['whitespace']);
+        $t->same([$percentEncodedPath], $pathCharacters['flagPackagePaths']['percent-encoded-octet']);
+        $t->same([$nonAsciiPath], $pathCharacters['flagPackagePaths']['non-ascii']);
+        $t->same('docx-zip-package-path-character-metadata-only', $pathCharacters['reviewPolicy']);
+        $t->same(false, $pathCharacters['canExposeBytes']);
+
+        $directoryEntry = $zipPackage['byPackagePath'][$directoryPath];
+        $mixedEntry = $zipPackage['byPackagePath'][$mixedCaseWhitespacePath];
+        $percentEntry = $zipPackage['byPackagePath'][$percentEncodedPath];
+        $nonAsciiEntry = $zipPackage['byPackagePath'][$nonAsciiPath];
+
+        $t->same(['uppercase', 'whitespace'], $directoryEntry['packagePathCharacterFlags']);
+        $t->same(true, $directoryEntry['isDirectory']);
+        $t->same(false, $directoryEntry['loadedPart']);
+        $t->same(null, $directoryEntry['partName']);
+        $t->same([
+            [
+                'pathSegmentIndex' => 1,
+                'segment' => 'Media Assets',
+                'flags' => ['uppercase', 'whitespace'],
+            ],
+        ], $directoryEntry['packagePathSegmentCharacterReviews']);
+        $t->same(['uppercase' => 1, 'whitespace' => 1], $directoryEntry['packagePathSegmentCharacterFlagCounts']);
+
+        $t->same(['uppercase', 'whitespace'], $mixedEntry['packagePathCharacterFlags']);
+        $t->same(true, $mixedEntry['loadedPart']);
+        $t->same(true, $mixedEntry['packagePathHasUppercase']);
+        $t->same(true, $mixedEntry['packagePathHasWhitespace']);
+        $t->same([
+            [
+                'pathSegmentIndex' => 1,
+                'segment' => 'Media Assets',
+                'flags' => ['uppercase', 'whitespace'],
+            ],
+            [
+                'pathSegmentIndex' => 2,
+                'segment' => 'Review Shot.PNG',
+                'flags' => ['uppercase', 'whitespace'],
+            ],
+        ], $mixedEntry['packagePathSegmentCharacterReviews']);
+        $t->same(['uppercase' => 2, 'whitespace' => 2], $mixedEntry['packagePathSegmentCharacterFlagCounts']);
+
+        $t->same(['percent-encoded-octet'], $percentEntry['packagePathCharacterFlags']);
+        $t->same(true, $percentEntry['packagePathHasPercentEncodedOctet']);
+        $t->same(false, $percentEntry['packagePathHasNonAscii']);
+        $t->same('review%20encoded.xml', $percentEntry['packagePathSegmentCharacterReviews'][0]['segment']);
+        $t->same(['percent-encoded-octet'], $percentEntry['packagePathSegmentCharacterFlags']);
+
+        $t->same(['non-ascii'], $nonAsciiEntry['packagePathCharacterFlags']);
+        $t->same(false, $nonAsciiEntry['packagePathHasPercentEncodedOctet']);
+        $t->same(true, $nonAsciiEntry['packagePathHasNonAscii']);
+        $t->same("caf\xC3\xA9.xml", $nonAsciiEntry['packagePathSegmentCharacterReviews'][0]['segment']);
+        $t->same(['non-ascii'], $nonAsciiEntry['packagePathSegmentCharacterFlags']);
+
+        $t->same($directoryEntry['packagePathCharacterFlags'], $reviewByPath[$directoryPath]['flags']);
+        $t->same(true, $reviewByPath[$directoryPath]['isDirectory']);
+        $t->same(false, $reviewByPath[$directoryPath]['loadedPart']);
+        $t->same($mixedEntry['packagePathSegmentCharacterReviews'], $reviewByPath[$mixedCaseWhitespacePath]['segmentReviews']);
+        $t->same($pathCharacters['reviewEntryCount'], $summary['zipPackagePathCharacterReviewEntryCount']);
+        $t->same($pathCharacters['flagCounts'], $summary['zipPackagePathCharacterFlagCounts']);
+        $t->same($pathCharacters['flagPackagePaths'], $summary['zipPackagePathCharacterFlagPackagePaths']);
+        $t->same($pathCharacters['reviewEntries'], $summary['zipPackagePathCharacterReviewEntries']);
+        $t->same($summary['zipPackagePathCharacterReviewEntryCount'], $identity['zipPackagePathCharacterReviewEntryCount']);
+        $t->same($summary['zipPackagePathCharacterFlagCounts'], $identity['zipPackagePathCharacterFlagCounts']);
+        $t->same($summary['zipPackagePathCharacterFlagPackagePaths'], $identity['zipPackagePathCharacterFlagPackagePaths']);
+        $t->same($summary['zipPackagePathCharacterReviewEntries'], $identity['zipPackagePathCharacterReviewEntries']);
+
+        $encoded = json_encode([$pathCharacters, $summary['zipPackagePathCharacterReviewEntries'], $identity]);
+        $t->true(is_string($encoded), 'zip package path character metadata should encode for review');
+        $t->true(!str_contains((string) $encoded, 'review image placeholder'), 'zip package path character metadata must not expose entry bytes');
+    },
     'preserves docx content type parameters across package provenance' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(

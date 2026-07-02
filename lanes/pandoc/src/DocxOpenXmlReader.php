@@ -13298,6 +13298,35 @@ final class DocxOpenXmlReader
         }
         $summary['zipUnsupportedCompressionPartNames'] = $unsupportedCompressionPartNames;
         $summary['zipUnsupportedCompressionEntries'] = $unsupportedCompressionEntries;
+        $zipPackagePathCharacters = is_array($zipPackage['packagePathCharacters'] ?? null)
+            ? $zipPackage['packagePathCharacters']
+            : $this->emptyZipPackagePathCharacterProvenance();
+        $summary['zipPackagePathCharacterReviewEntryCount'] =
+            (int) ($zipPackagePathCharacters['reviewEntryCount'] ?? 0);
+        $summary['zipPackagePathUppercaseEntryCount'] =
+            (int) ($zipPackagePathCharacters['uppercaseEntryCount'] ?? 0);
+        $summary['zipPackagePathWhitespaceEntryCount'] =
+            (int) ($zipPackagePathCharacters['whitespaceEntryCount'] ?? 0);
+        $summary['zipPackagePathPercentEncodedOctetEntryCount'] =
+            (int) ($zipPackagePathCharacters['percentEncodedOctetEntryCount'] ?? 0);
+        $summary['zipPackagePathNonAsciiEntryCount'] =
+            (int) ($zipPackagePathCharacters['nonAsciiEntryCount'] ?? 0);
+        $summary['zipPackagePathCharacterFlagCounts'] =
+            is_array($zipPackagePathCharacters['flagCounts'] ?? null)
+                ? $zipPackagePathCharacters['flagCounts']
+                : [];
+        $summary['zipPackagePathCharacterFlagPackagePaths'] =
+            is_array($zipPackagePathCharacters['flagPackagePaths'] ?? null)
+                ? $zipPackagePathCharacters['flagPackagePaths']
+                : [];
+        $summary['zipPackagePathCharacterReviewEntries'] =
+            is_array($zipPackagePathCharacters['reviewEntries'] ?? null)
+                ? $zipPackagePathCharacters['reviewEntries']
+                : [];
+        $summary['zipPackagePathCharacterReviewPolicy'] =
+            is_string($zipPackagePathCharacters['reviewPolicy'] ?? null)
+                ? $zipPackagePathCharacters['reviewPolicy']
+                : 'docx-zip-package-path-character-metadata-only';
         $summary['zipCentralDirectoryOrderMatchesLocalHeaderOrder'] = $zipPackage['centralDirectoryOrderMatchesLocalHeaderOrder'];
         $summary['zipCompressionMethods'] = $compressionMethods['methodBuckets'] ?? [];
         $summary['zipCompressionEntryCount'] = (int) ($compressionMethods['entryCount'] ?? 0);
@@ -14011,6 +14040,20 @@ final class DocxOpenXmlReader
             'zipUnsupportedCompressionMethodCount' => (int) ($zipPackage['unsupportedCompressionMethodCount'] ?? 0),
             'zipCentralDirectoryOrderMatchesLocalHeaderOrder' =>
                 $zipPackage['centralDirectoryOrderMatchesLocalHeaderOrder'] ?? null,
+            'zipPackagePathCharacterReviewEntryCount' =>
+                (int) ($summary['zipPackagePathCharacterReviewEntryCount'] ?? 0),
+            'zipPackagePathCharacterFlagCounts' =>
+                is_array($summary['zipPackagePathCharacterFlagCounts'] ?? null)
+                    ? $summary['zipPackagePathCharacterFlagCounts']
+                    : [],
+            'zipPackagePathCharacterFlagPackagePaths' =>
+                is_array($summary['zipPackagePathCharacterFlagPackagePaths'] ?? null)
+                    ? $summary['zipPackagePathCharacterFlagPackagePaths']
+                    : [],
+            'zipPackagePathCharacterReviewEntries' =>
+                is_array($summary['zipPackagePathCharacterReviewEntries'] ?? null)
+                    ? $summary['zipPackagePathCharacterReviewEntries']
+                    : [],
             'zipUnixOwners' => is_array($summary['zipUnixOwners'] ?? null)
                 ? $summary['zipUnixOwners']
                 : $this->emptyZipUnixOwnerProvenance(),
@@ -14181,6 +14224,7 @@ final class DocxOpenXmlReader
                 'platformAttributes' => $this->emptyZipPlatformAttributeProvenance(),
                 'timestamps' => $this->emptyZipTimestampProvenance(),
                 'unixOwners' => $this->emptyZipUnixOwnerProvenance(),
+                'packagePathCharacters' => $this->emptyZipPackagePathCharacterProvenance(),
                 'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
                 'canExposeBytes' => false,
                 'entries' => [],
@@ -14300,6 +14344,24 @@ final class DocxOpenXmlReader
             $internalAttributeEntry = $internalAttributesByName[$entry->name] ?? null;
             $platformMetadataEntry = $platformMetadataByName[$entry->name] ?? null;
             $unixOwnerEntry = $unixOwnersByName[$entry->name] ?? null;
+            $packagePathCharacterFlags = $this->packagePartNameCharacterFlags($entry->name);
+            $packagePathSegments = $this->packagePartPathSegments($entry->name);
+            $packagePathSegmentCharacterReviews = $this->packagePartPathSegmentCharacterReviews($packagePathSegments);
+            $packagePathSegmentCharacterFlags = [];
+            $packagePathSegmentCharacterFlagCounts = [];
+            foreach ($packagePathSegmentCharacterReviews as $packagePathSegmentCharacterReview) {
+                foreach (($packagePathSegmentCharacterReview['flags'] ?? []) as $flag) {
+                    if (!is_string($flag) || $flag === '') {
+                        continue;
+                    }
+
+                    $this->appendUniqueString($packagePathSegmentCharacterFlags, $flag);
+                    $packagePathSegmentCharacterFlagCounts[$flag] =
+                        ($packagePathSegmentCharacterFlagCounts[$flag] ?? 0) + 1;
+                }
+            }
+            sort($packagePathSegmentCharacterFlags, SORT_STRING);
+            ksort($packagePathSegmentCharacterFlagCounts, SORT_STRING);
             $summary = [
                 'packagePath' => $entry->name,
                 'partName' => $isDirectory ? null : $entry->name,
@@ -14426,6 +14488,19 @@ final class DocxOpenXmlReader
                 'hasMismatchedExtraFieldValues' => is_array($extraFieldEntry) ? (bool) ($extraFieldEntry['hasMismatchedExtraFieldValues'] ?? false) : false,
                 'isDirectory' => $isDirectory,
                 'loadedPart' => $loadedPart,
+                'packagePathCharacterFlags' => $packagePathCharacterFlags,
+                'packagePathHasUppercase' => in_array('uppercase', $packagePathCharacterFlags, true),
+                'packagePathHasWhitespace' => in_array('whitespace', $packagePathCharacterFlags, true),
+                'packagePathHasPercentEncodedOctet' => in_array('percent-encoded-octet', $packagePathCharacterFlags, true),
+                'packagePathHasNonAscii' => in_array('non-ascii', $packagePathCharacterFlags, true),
+                'packagePathSegmentCharacterReviews' => $packagePathSegmentCharacterReviews,
+                'packagePathSegmentCharacterReviewCount' => count($packagePathSegmentCharacterReviews),
+                'packagePathSegmentCharacterFlags' => $packagePathSegmentCharacterFlags,
+                'packagePathSegmentCharacterFlagCounts' => $packagePathSegmentCharacterFlagCounts,
+                'packagePathSegmentHasUppercase' => in_array('uppercase', $packagePathSegmentCharacterFlags, true),
+                'packagePathSegmentHasWhitespace' => in_array('whitespace', $packagePathSegmentCharacterFlags, true),
+                'packagePathSegmentHasPercentEncodedOctet' => in_array('percent-encoded-octet', $packagePathSegmentCharacterFlags, true),
+                'packagePathSegmentHasNonAscii' => in_array('non-ascii', $packagePathSegmentCharacterFlags, true),
                 'hasZipEntryComment' => is_array($commentEntry) && ($commentEntry['hasComment'] ?? false) === true,
                 'zipEntryCommentLength' => is_array($commentEntry) ? (int) ($commentEntry['commentLength'] ?? 0) : 0,
                 'zipEntryCommentEncoding' => is_array($commentEntry) ? ($commentEntry['commentEncoding'] ?? null) : null,
@@ -14487,12 +14562,111 @@ final class DocxOpenXmlReader
             'platformAttributes' => $platformAttributes,
             'timestamps' => $timestamps,
             'unixOwners' => $unixOwners,
+            'packagePathCharacters' => $this->zipPackagePathCharacterProvenance($entries),
             'localHeaderOrder' => $localHeaderOrder,
             'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
             'canExposeBytes' => false,
             'entries' => $entries,
             'byPackagePath' => $byPackagePath,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyZipPackagePathCharacterProvenance(): array
+    {
+        return [
+            'entryCount' => 0,
+            'reviewEntryCount' => 0,
+            'uppercaseEntryCount' => 0,
+            'whitespaceEntryCount' => 0,
+            'percentEncodedOctetEntryCount' => 0,
+            'nonAsciiEntryCount' => 0,
+            'flagCounts' => [],
+            'flagPackagePaths' => [],
+            'reviewEntries' => [],
+            'reviewPolicy' => 'docx-zip-package-path-character-metadata-only',
+            'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
+            'canExposeBytes' => false,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return array<string, mixed>
+     */
+    private function zipPackagePathCharacterProvenance(array $entries): array
+    {
+        $provenance = $this->emptyZipPackagePathCharacterProvenance();
+        $provenance['entryCount'] = count($entries);
+
+        foreach ($entries as $entry) {
+            if (!is_array($entry) || !is_string($entry['packagePath'] ?? null)) {
+                continue;
+            }
+
+            $flags = is_array($entry['packagePathCharacterFlags'] ?? null)
+                ? array_values(array_map('strval', $entry['packagePathCharacterFlags']))
+                : [];
+            if ($flags === []) {
+                continue;
+            }
+
+            ++$provenance['reviewEntryCount'];
+            foreach ($flags as $flag) {
+                if ($flag === '') {
+                    continue;
+                }
+
+                $provenance['flagCounts'][$flag] = ($provenance['flagCounts'][$flag] ?? 0) + 1;
+                if (!isset($provenance['flagPackagePaths'][$flag]) || !is_array($provenance['flagPackagePaths'][$flag])) {
+                    $provenance['flagPackagePaths'][$flag] = [];
+                }
+                $this->appendUniqueString($provenance['flagPackagePaths'][$flag], $entry['packagePath']);
+            }
+
+            if (in_array('uppercase', $flags, true)) {
+                ++$provenance['uppercaseEntryCount'];
+            }
+            if (in_array('whitespace', $flags, true)) {
+                ++$provenance['whitespaceEntryCount'];
+            }
+            if (in_array('percent-encoded-octet', $flags, true)) {
+                ++$provenance['percentEncodedOctetEntryCount'];
+            }
+            if (in_array('non-ascii', $flags, true)) {
+                ++$provenance['nonAsciiEntryCount'];
+            }
+
+            $provenance['reviewEntries'][] = [
+                'packagePath' => $entry['packagePath'],
+                'partName' => is_string($entry['partName'] ?? null) ? $entry['partName'] : null,
+                'isDirectory' => ($entry['isDirectory'] ?? false) === true,
+                'loadedPart' => ($entry['loadedPart'] ?? false) === true,
+                'compressionMethod' => $entry['compressionMethod'] ?? null,
+                'compressionMethodName' => is_string($entry['compressionMethodName'] ?? null)
+                    ? $entry['compressionMethodName']
+                    : null,
+                'byteLength' => (int) ($entry['byteLength'] ?? 0),
+                'flags' => $flags,
+                'segmentReviews' => is_array($entry['packagePathSegmentCharacterReviews'] ?? null)
+                    ? array_values($entry['packagePathSegmentCharacterReviews'])
+                    : [],
+                'segmentFlags' => is_array($entry['packagePathSegmentCharacterFlags'] ?? null)
+                    ? array_values(array_map('strval', $entry['packagePathSegmentCharacterFlags']))
+                    : [],
+            ];
+        }
+
+        ksort($provenance['flagCounts'], SORT_STRING);
+        ksort($provenance['flagPackagePaths'], SORT_STRING);
+        foreach ($provenance['flagPackagePaths'] as &$packagePaths) {
+            sort($packagePaths, SORT_STRING);
+        }
+        unset($packagePaths);
+
+        return $provenance;
     }
 
     /**
