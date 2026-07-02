@@ -5015,6 +5015,36 @@ return [
                 ],
                 'issues' => [],
             ],
+            'diagnosticOutputPolicy' => [
+                'reviewStatus' => 'review',
+                'controlCount' => 2,
+                'formatEntryCount' => 2,
+                'colorEntryCount' => 2,
+                'selectedFormat' => 'json',
+                'selectedFormatMachineReadable' => true,
+                'selectedFormatSafe' => true,
+                'formatOptions' => ['json'],
+                'distinctFormats' => ['json'],
+                'validFormatCount' => 1,
+                'invalidFormatCount' => 1,
+                'selectedColor' => 'never',
+                'selectedAnsiColor' => 'disabled',
+                'selectedColorSafe' => true,
+                'colorOptions' => ['never'],
+                'distinctColors' => ['never'],
+                'validColorCount' => 1,
+                'invalidColorCount' => 1,
+                'invalidControlCount' => 2,
+                'overrideCount' => 2,
+                'formatOverrideCount' => 1,
+                'colorOverrideCount' => 1,
+                'issues' => [
+                    'diagnostic-color-boundary-overridden',
+                    'diagnostic-color-invalid-boundary',
+                    'diagnostic-format-boundary-overridden',
+                    'diagnostic-format-invalid-boundary',
+                ],
+            ],
             'overrides' => [
                 [
                     'option' => 'diagnosticFormat',
@@ -5084,6 +5114,9 @@ return [
         $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
         $t->contains('typst-diagnostics-format:json', implode(',', $plan['diagnostics']));
         $t->contains('typst-diagnostics-color:never', implode(',', $plan['diagnostics']));
+        $t->contains('typst-diagnostic-output-policy:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-diagnostic-output-invalid:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-diagnostic-output-overrides:2', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-summary-diagnostics:2', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-summary-invalid-diagnostics:2', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-overrides:2', implode(',', $plan['diagnostics']));
