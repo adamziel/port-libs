@@ -21298,6 +21298,7 @@ final class XmlHtmlDom
         $anchorTarget = trim($anchorRaw);
         $anchorTargetValid = $anchorTarget !== '' && self::isHtmlIdReferenceToken($anchorTarget);
         $target = $anchorTargetValid ? self::htmlElementById($element, $anchorTarget) : null;
+        $targetSummary = $target instanceof \DOMElement ? self::anchorPositioningTargetSummary($target) : null;
         $issues = [];
 
         if ($anchorTarget === '') {
@@ -21326,7 +21327,10 @@ final class XmlHtmlDom
             'anchorTargetValid' => $anchorTargetValid,
             'anchorTargetFound' => $target instanceof \DOMElement,
             'anchorTargetKind' => self::anchorPositioningTargetKind($target, $anchorTarget, $anchorTargetValid),
-            'anchorTargetElement' => $target instanceof \DOMElement ? self::anchorPositioningTargetSummary($target) : null,
+            'anchorTargetElement' => $targetSummary,
+            'anchorTargetElementName' => $targetSummary['tag'] ?? null,
+            'anchorTargetElementId' => $targetSummary['id'] ?? null,
+            'anchorTargetElementText' => $targetSummary['text'] ?? null,
             'anchorIssues' => $issues,
             'anchorIssueCodes' => $issueCodes,
             'anchorReferencesTarget' => $issues === [],
