@@ -6779,6 +6779,9 @@ final class OpenDocumentPackage
                 'encrypted' => false,
                 'declared' => false,
                 'declaredSize' => null,
+                'declaredSizeRaw' => null,
+                'declaredSizeValid' => false,
+                'declaredSizeInvalid' => false,
                 'declaredSizeMismatch' => false,
                 'byteExposurePolicy' => 'linked-resource-package-bytes-blocked',
             ];
@@ -6819,6 +6822,9 @@ final class OpenDocumentPackage
             } elseif (!$mediaTypeValid) {
                 $issues[] = 'odf-linked-resource-package-invalid-media-type';
             }
+            if (($entry['declaredSizeInvalid'] ?? false) === true) {
+                $issues[] = 'odf-linked-resource-package-invalid-declared-size';
+            }
             foreach ($issues as $issue) {
                 $issueCodes[$issue] = true;
             }
@@ -6855,6 +6861,9 @@ final class OpenDocumentPackage
                 'storedByteLength' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null,
                 'storedCrc32' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
                 'declaredSize' => $entry['declaredSize'] ?? $entry['size'] ?? null,
+                'declaredSizeRaw' => $entry['declaredSizeRaw'] ?? null,
+                'declaredSizeValid' => ($entry['declaredSizeValid'] ?? false) === true,
+                'declaredSizeInvalid' => ($entry['declaredSizeInvalid'] ?? false) === true,
                 'declaredSizeMismatch' => ($entry['declaredSizeMismatch'] ?? false) === true,
                 'canExposeBytes' => false,
                 'canExposeAsDocumentMedia' => false,
@@ -6881,6 +6890,7 @@ final class OpenDocumentPackage
             'encryptedCount' => count(array_filter($items, static fn (array $item): bool => $item['encrypted'] === true)),
             'missingMediaTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('odf-linked-resource-package-missing-media-type', $item['issues'], true))),
             'invalidMediaTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('odf-linked-resource-package-invalid-media-type', $item['issues'], true))),
+            'invalidDeclaredSizeCount' => count(array_filter($items, static fn (array $item): bool => $item['declaredSizeInvalid'] === true)),
             'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
             'issueCodes' => array_keys($issueCodes),
             'kindCounts' => $kindCounts,
