@@ -11981,6 +11981,79 @@ XML);
     }
 };
 
+$buildWrongTypedRelationshipsPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-wrong-typed-rels-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdPresentation" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdWrongTypedSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdWrongTypedSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Wrong typed relationships</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:pic>
+      <p:nvPicPr><p:cNvPr id="7" name="Wrong Typed Picture" descr="Wrong typed alt"/></p:nvPicPr>
+      <p:blipFill><a:blip r:embed="rIdWrongTypedImage"/></p:blipFill>
+    </p:pic>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->addFromString('ppt/slides/_rels/slide1.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdWrongTypedImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="../media/wrong-typed-image.png"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/media/wrong-typed-image.png', 'wrong-typed-image-bytes');
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildNonRelationshipChildRelationshipsPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-non-relationship-children-');
     if ($path === false) {
@@ -14881,6 +14954,23 @@ XML);
         $t->same(1, $review['slideCount'] ?? null);
         $t->same('Untyped relationships', $document->children[0]->attr('text'));
         $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Untyped" , Space , Str "relationships" ]', $native);
+    },
+
+    'keeps pptx relationships with irrelevant Type usable for target lookup like upstream' => static function (TestRunner $t) use ($buildWrongTypedRelationshipsPptxPackage, $nodesOfType): void {
+        $document = (new PptxReader())->read($buildWrongTypedRelationshipsPptxPackage());
+        $review = $document->attr('pptx');
+        $images = $nodesOfType($document, 'image');
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same(1, $review['slideCount'] ?? null);
+        $t->same('Wrong typed relationships', $document->children[0]->attr('text'));
+        $t->same(1, count($images));
+        $t->same('ppt/media/wrong-typed-image.png', $images[0]->attr('url'));
+        $t->same('Wrong Typed Picture', $images[0]->attr('title'));
+        $t->same('Wrong typed alt', $images[0]->attr('alt'));
+        $t->same(0, $review['slides'][0]['imageIssueCount'] ?? null);
+        $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Wrong" , Space , Str "typed" , Space , Str "relationships" ]', $native);
+        $t->contains('Image ( "" , [  ] , [  ] ) [ Str "Wrong" , Space , Str "typed" , Space , Str "alt" ] ( "ppt/media/wrong-typed-image.png" , "Wrong Typed Picture" )', $native);
     },
 
     'uses pptx relationship children regardless of element name like upstream' => static function (TestRunner $t) use ($buildNonRelationshipChildRelationshipsPptxPackage, $nodesOfType): void {
