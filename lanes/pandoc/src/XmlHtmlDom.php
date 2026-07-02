@@ -30680,7 +30680,19 @@ final class XmlHtmlDom
     }
 
     /**
-     * @return array{imageMap:string, mapNameRaw:?string, mapName:?string, mapNameValid:bool, areaCount:int, areaHrefs:list<string>, areaLabels:list<string>, areas:list<array<string, mixed>>, defaultAreaCount:int, firstDefaultAreaIndex:?int, defaultAreaPrecedenceIssue:?array<string, mixed>, areaGeometryIssueCount:int, areaGeometryIssues:list<array<string, mixed>>}
+     * @param list<array<string, mixed>> $issues
+     * @return list<string>
+     */
+    private static function reviewIssueCodes(array $issues): array
+    {
+        return array_values(array_unique(array_filter(
+            array_map(static fn (array $issue): string => (string) ($issue['code'] ?? ''), $issues),
+            static fn (string $code): bool => $code !== ''
+        )));
+    }
+
+    /**
+     * @return array{imageMap:string, mapNameRaw:?string, mapName:?string, mapNameValid:bool, areaCount:int, areaHrefs:list<string>, areaLabels:list<string>, areas:list<array<string, mixed>>, defaultAreaCount:int, firstDefaultAreaIndex:?int, defaultAreaPrecedenceIssue:?array<string, mixed>, areaGeometryIssueCount:int, areaGeometryIssueCodes:list<string>, areaGeometryIssues:list<array<string, mixed>>, imageMapIssueCodes:list<string>, imageMapIssues:list<array<string, mixed>>}
      */
     private static function imageMapSummary(\DOMElement $map): array
     {
@@ -30734,7 +30746,9 @@ final class XmlHtmlDom
             'firstDefaultAreaIndex' => $areaGeometry['firstDefaultAreaIndex'],
             'defaultAreaPrecedenceIssue' => $areaGeometry['defaultAreaPrecedenceIssue'],
             'areaGeometryIssueCount' => count($areaGeometry['areaGeometryIssues']),
+            'areaGeometryIssueCodes' => self::reviewIssueCodes($areaGeometry['areaGeometryIssues']),
             'areaGeometryIssues' => $areaGeometry['areaGeometryIssues'],
+            'imageMapIssueCodes' => self::reviewIssueCodes($issues),
             'imageMapIssues' => $issues,
         ];
     }
@@ -30946,6 +30960,7 @@ final class XmlHtmlDom
                 'useMapAreaCount' => 0,
                 'useMapAreaHrefs' => [],
                 'useMapAreaLabels' => [],
+                'useMapIssueCodes' => ['invalid-usemap-reference'],
                 'useMapIssues' => [[
                     'code' => 'invalid-usemap-reference',
                     'useMapRaw' => $useMap['raw'],
@@ -30987,6 +31002,7 @@ final class XmlHtmlDom
             'useMapAreaCount' => $areaCount,
             'useMapAreaHrefs' => $areaHrefs,
             'useMapAreaLabels' => $areaLabels,
+            'useMapIssueCodes' => self::reviewIssueCodes($issues),
             'useMapIssues' => $issues,
         ];
     }
