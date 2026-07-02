@@ -16326,6 +16326,113 @@ XML;
         $t->true(in_array('vba-data', $inventory['word/vbaData.xml']['roles'], true), 'VBA data inventory role missing');
         $t->true(!isset($docx['media']['word/vbaProject.bin']), 'VBA project bytes should not be exposed as document media');
     },
+    'surfaces docx activex and vba sidecar relationship record diagnostics' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $controlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/control';
+        $binaryRel = 'http://schemas.microsoft.com/office/2006/relationships/activeXControlBinary';
+        $projectRel = 'http://schemas.microsoft.com/office/2006/relationships/vbaProject';
+        $signatureRel = 'http://schemas.microsoft.com/office/2006/relationships/vbaProjectSignature';
+        $dataRel = 'http://schemas.microsoft.com/office/2006/relationships/wordVbaData';
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/activeX/diagnostic.xml" ContentType="application/vnd.ms-office.activeX+xml"/>' . "\n" .
+            '  <Override PartName="/word/activeX/state-a.bin" ContentType="application/vnd.ms-office.activeX"/>' . "\n" .
+            '  <Override PartName="/word/activeX/state-b.bin" ContentType="application/vnd.ms-office.activeX"/>' . "\n" .
+            '  <Override PartName="/word/vbaProject.bin" ContentType="application/vnd.ms-office.vbaProject"/>' . "\n" .
+            '  <Override PartName="/word/vbaProjectSignatureA.bin" ContentType="application/vnd.ms-office.vbaProjectSignature"/>' . "\n" .
+            '  <Override PartName="/word/vbaProjectSignatureB.bin" ContentType="application/vnd.ms-office.vbaProjectSignature"/>' . "\n" .
+            '  <Override PartName="/word/vbaData.xml" ContentType="application/vnd.ms-word.vbaData+xml"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rDiagnosticActiveX" Type="' . $controlRel . '" Target="activeX/diagnostic.xml"/>' . "\n" .
+            '  <Relationship Id="rDiagnosticVba" Type="' . $projectRel . '" Target="vbaProject.bin"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '    <w:tbl>',
+            '    <w:p><w:r><w:object><w:control r:id="rDiagnosticActiveX" w:name="DiagnosticControl"/></w:object></w:r></w:p>' . "\n" .
+            '    <w:tbl>',
+            $parts['word/document.xml']
+        );
+        $parts['word/activeX/diagnostic.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<ax:ocx xmlns:ax="http://schemas.microsoft.com/office/2006/activeX" ax:classid="{55555555-6666-7777-8888-999999999999}"/>
+XML;
+        $parts['word/activeX/_rels/diagnostic.xml.rels'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rDuplicateBinary" Type="{$binaryRel}" Target="state-a.bin"/>
+  <Relationship Id="rDuplicateBinary" Type="{$binaryRel}" Target="state-b.bin?selected=1#state"/>
+</Relationships>
+XML;
+        $parts['word/activeX/state-a.bin'] = 'activex state a';
+        $parts['word/activeX/state-b.bin'] = 'activex state b';
+        $parts['word/vbaProject.bin'] = 'vba project diagnostic bytes';
+        $parts['word/_rels/vbaProject.bin.rels'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rDuplicateSignature" Type="{$signatureRel}" Target="vbaProjectSignatureA.bin"/>
+  <Relationship Id="rDuplicateSignature" Type="{$signatureRel}" Target="vbaProjectSignatureB.bin?selected=1#signature"/>
+  <Relationship Id="rDiagnosticData" Type="{$dataRel}" Target="vbaData.xml"/>
+</Relationships>
+XML;
+        $parts['word/vbaProjectSignatureA.bin'] = 'vba signature a';
+        $parts['word/vbaProjectSignatureB.bin'] = 'vba signature b';
+        $parts['word/vbaData.xml'] = '<wne:vbaSuppData xmlns:wne="http://schemas.microsoft.com/office/word/2006/wordml"/>';
+
+        $package = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance'];
+        $activeX = $package['activeXControls'];
+        $control = $activeX['byRelationshipId']['rDiagnosticActiveX'];
+        $binaryParts = $control['binaries'];
+        $vba = $package['vbaProjects'];
+        $project = $vba['byRelationshipId']['rDiagnosticVba'];
+        $signatures = $project['signatureParts'];
+        $dataParts = $project['dataParts'];
+        $summary = $package['summary'];
+
+        $t->same(1, $binaryParts['count']);
+        $t->same(2, $binaryParts['relationshipRecordCount']);
+        $t->same(2, $binaryParts['validRelationshipRecordCount']);
+        $t->same(0, $binaryParts['invalidRelationshipRecordCount']);
+        $t->same(1, $binaryParts['duplicateRelationshipIdCount']);
+        $t->same(2, $binaryParts['duplicateRelationshipRecordCount']);
+        $t->same(['rDuplicateBinary'], $binaryParts['duplicateRelationshipIds']);
+        $t->same(['rDuplicateBinary', 'rDuplicateBinary'], $binaryParts['relationshipRecordIds']);
+        $t->same(['word/activeX/state-a.bin', 'word/activeX/state-b.bin'], $binaryParts['relationshipRecordTargetParts']);
+        $t->same(2, count($binaryParts['relationshipRecordsById']['rDuplicateBinary']));
+        $t->same('word/activeX/state-b.bin', $binaryParts['byRelationshipId']['rDuplicateBinary']['targetPart']);
+        $t->same(2, $activeX['binaryRelationshipRecordCount']);
+        $t->same(1, $activeX['binaryDuplicateRelationshipIdCount']);
+        $t->same(['rDuplicateBinary'], $activeX['binaryDuplicateRelationshipIds']);
+        $t->same(2, $summary['activeXBinaryRelationshipRecordCount']);
+        $t->same(1, $summary['activeXBinaryDuplicateRelationshipIdCount']);
+
+        $t->same(1, $signatures['count']);
+        $t->same(2, $signatures['relationshipRecordCount']);
+        $t->same(2, $signatures['validRelationshipRecordCount']);
+        $t->same(0, $signatures['invalidRelationshipRecordCount']);
+        $t->same(1, $signatures['duplicateRelationshipIdCount']);
+        $t->same(2, $signatures['duplicateRelationshipRecordCount']);
+        $t->same(['rDuplicateSignature'], $signatures['duplicateRelationshipIds']);
+        $t->same(['word/vbaProjectSignatureA.bin', 'word/vbaProjectSignatureB.bin'], $signatures['relationshipRecordTargetParts']);
+        $t->same(2, count($signatures['relationshipRecordsById']['rDuplicateSignature']));
+        $t->same('word/vbaProjectSignatureB.bin', $signatures['byRelationshipId']['rDuplicateSignature']['targetPart']);
+        $t->same(1, $dataParts['count']);
+        $t->same(1, $dataParts['relationshipRecordCount']);
+        $t->same(0, $dataParts['duplicateRelationshipIdCount']);
+        $t->same(2, $vba['signatureRelationshipRecordCount']);
+        $t->same(1, $vba['signatureDuplicateRelationshipIdCount']);
+        $t->same(['rDuplicateSignature'], $vba['signatureDuplicateRelationshipIds']);
+        $t->same(1, $vba['dataPartRelationshipRecordCount']);
+        $t->same(2, $summary['vbaProjectSignatureRelationshipRecordCount']);
+        $t->same(1, $summary['vbaProjectSignatureDuplicateRelationshipIdCount']);
+        $t->same(1, $summary['vbaDataRelationshipRecordCount']);
+    },
     'preflights docx vba external target policy metadata' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $projectRel = 'http://schemas.microsoft.com/office/2006/relationships/vbaProject';
