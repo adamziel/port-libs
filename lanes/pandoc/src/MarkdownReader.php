@@ -3051,6 +3051,10 @@ final class MarkdownReader
      */
     private function tryReadHtmlPreCodeBlock(array $lines, int &$index): ?AstNode
     {
+        if ($this->prefersCommonMarkRawHtmlBlocks()) {
+            return null;
+        }
+
         $line = $lines[$index] ?? '';
         if (preg_match('/^ {0,3}<pre(?:\s+[^>]*)?>/i', $line) !== 1) {
             return null;
@@ -5364,6 +5368,13 @@ final class MarkdownReader
     private function htmlRawHtmlEnabled(): bool
     {
         return (bool) ($this->options['htmlRawHtml'] ?? $this->options['rawHtml'] ?? true);
+    }
+
+    private function prefersCommonMarkRawHtmlBlocks(): bool
+    {
+        $format = MarkdownFormatProfile::canonicalFormat($this->options['format'] ?? 'markdown');
+
+        return in_array($format, ['commonmark', 'commonmark_x', 'gfm'], true);
     }
 
     private function htmlElementIsCheckboxInput(\DOMElement $element): bool
