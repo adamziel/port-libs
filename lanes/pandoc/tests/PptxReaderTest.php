@@ -7504,6 +7504,117 @@ XML);
     }
 };
 
+$buildFirstSmartArtDataListsPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-first-smartart-data-lists-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/_rels/slide1.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdPointData" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData" Target="../diagrams/first-point-list.xml"/>
+  <Relationship Id="rIdConnectionData" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData" Target="../diagrams/first-connection-list.xml"/>
+  <Relationship Id="rIdLayout" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramLayout" Target="../diagrams/basic-layout.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>First SmartArt data lists</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="10" name="First Point List SmartArt"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"><dgm:relIds r:dm="rIdPointData" r:lo="rIdLayout"/></a:graphicData></a:graphic>
+    </p:graphicFrame>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="11" name="First Connection List SmartArt"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"><dgm:relIds r:dm="rIdConnectionData" r:lo="rIdLayout"/></a:graphicData></a:graphic>
+    </p:graphicFrame>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->addFromString('ppt/diagrams/basic-layout.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<dgm:layoutDef xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" uniqueId="urn:example/layout/basicBlockList"/>
+XML);
+    $zip->addFromString('ppt/diagrams/first-point-list.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<dgm:dataModel xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"
+               xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <dgm:ptLst/>
+  <dgm:ptLst>
+    <dgm:pt modelId="pointParent"><dgm:t><a:p><a:r><a:t>Later point-list parent</a:t></a:r></a:p></dgm:t></dgm:pt>
+    <dgm:pt modelId="pointChild"><dgm:t><a:p><a:r><a:t>Later point-list child</a:t></a:r></a:p></dgm:t></dgm:pt>
+  </dgm:ptLst>
+  <dgm:cxnLst>
+    <dgm:cxn srcId="pointParent" destId="pointChild"/>
+  </dgm:cxnLst>
+</dgm:dataModel>
+XML);
+    $zip->addFromString('ppt/diagrams/first-connection-list.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<dgm:dataModel xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"
+               xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <dgm:ptLst>
+    <dgm:pt modelId="connectionParent"><dgm:t><a:p><a:r><a:t>Later connection-list parent</a:t></a:r></a:p></dgm:t></dgm:pt>
+    <dgm:pt modelId="connectionChild"><dgm:t><a:p><a:r><a:t>Later connection-list child</a:t></a:r></a:p></dgm:t></dgm:pt>
+  </dgm:ptLst>
+  <dgm:cxnLst/>
+  <dgm:cxnLst>
+    <dgm:cxn srcId="connectionParent" destId="connectionChild"/>
+  </dgm:cxnLst>
+</dgm:dataModel>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildQualifiedGraphicDataUriPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-qualified-graphic-uri-');
     if ($path === false) {
@@ -13550,6 +13661,31 @@ XML);
         $t->true(!str_contains($native, 'Later RelIds child'), 'Later valid SmartArt data should not become visible through a second relIds sibling');
         $t->true(!str_contains($native, 'Only data should hide'), 'Partial first relIds should not trigger diagram data parsing without a layout relationship');
         $t->true(!str_contains($native, 'later-relids'), 'Later SmartArt layout names should not enter native output');
+    },
+
+    'uses only the first pptx SmartArt point and connection lists like upstream' => static function (TestRunner $t) use ($buildFirstSmartArtDataListsPptxPackage, $nodesOfType, $nodesWithClass): void {
+        $document = (new PptxReader())->read($buildFirstSmartArtDataListsPptxPackage());
+        $review = $document->attr('pptx');
+        $divs = $nodesOfType($document, 'div');
+        $smartArtDivs = $nodesWithClass($divs, 'smartart');
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same('First SmartArt data lists', $document->children[0]->attr('text'));
+        $t->same(2, count($smartArtDivs));
+        $t->same(['smartart', 'basicBlockList'], $smartArtDivs[0]->attr('classes'));
+        $t->same(['smartart', 'basicBlockList'], $smartArtDivs[1]->attr('classes'));
+        $t->same([], $smartArtDivs[0]->children);
+        $t->same([], $smartArtDivs[1]->children);
+        $t->same('First Point List SmartArt', $smartArtDivs[0]->attr('pptxShape')['name'] ?? null);
+        $t->same('First Connection List SmartArt', $smartArtDivs[1]->attr('pptxShape')['name'] ?? null);
+        $t->same(3, $review['slides'][0]['blockCount'] ?? null);
+        $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
+        $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "First" , Space , Str "SmartArt" , Space , Str "data" , Space , Str "lists" ]', $native);
+        $t->contains('Div ( "" , [ "smartart" , "basicBlockList" ] , [ ( "layout" , "basicBlockList" ) ] ) []', $native);
+        $t->true(!str_contains($native, 'Later point-list parent'), 'Later SmartArt ptLst siblings should stay hidden when the first direct ptLst is empty');
+        $t->true(!str_contains($native, 'Later point-list child'), 'Later SmartArt point-list child text should not become visible through a second ptLst sibling');
+        $t->true(!str_contains($native, 'Later connection-list parent'), 'A later valid cxnLst should not create visible SmartArt hierarchy when the first direct cxnLst is empty');
+        $t->true(!str_contains($native, 'Later connection-list child'), 'Later SmartArt connection-list child text should stay hidden behind the first empty cxnLst');
     },
 
     'requires unqualified pptx graphicData uri attributes like upstream' => static function (TestRunner $t) use ($buildQualifiedGraphicDataUriPptxPackage, $nodesOfType): void {
