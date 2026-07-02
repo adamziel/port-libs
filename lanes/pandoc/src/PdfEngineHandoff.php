@@ -829,6 +829,7 @@ final class PdfEngineHandoff
      *     pdfCatalogRequirementPolicy: array<string, mixed>,
      *     pdfLegalAttestationMetadata: array{object:string|null, type:string|null, language:string|null, status:string|null, jurisdiction:string|null, attestation:string|null, attestationObject:string|null, attestationBytes:int|null, attestationSha256:string|null, attestationSkipped:string|null, associatedFiles:list<string>, keys:list<string>}|array{},
      *     pdfTaggingMetadata: array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{},
+     *     pdfTaggingPolicy: array<string, mixed>,
      *     pdfStructureNamespaces: list<array{object:string|null, type:string|null, namespace:string|null, schemaObject:string|null, schemaType:string|null, roleMap:array<string, string>, keys:list<string>}>,
      *     pdfPageStructureParents: list<array{page:int, pageObject:string|null, structParents:int, source:string}>,
      *     pdfStructureParentTree: list<array{source:string, nodeObject:string|null, mcid:int, valueKind:string, valueObject:string|null, arrayCount:int|null, structureReferences:list<string>, missingReferences:list<string>, limits:list<int>}>,
@@ -1598,6 +1599,7 @@ final class PdfEngineHandoff
         $pdfLegalAttestationMetadata = [];
         $pdfLegalAttestationPolicy = [];
         $pdfTaggingMetadata = [];
+        $pdfTaggingPolicy = [];
         $pdfStructureNamespaces = [];
         $pdfPageStructureParents = [];
         $pdfStructureParentTree = [];
@@ -1759,6 +1761,7 @@ final class PdfEngineHandoff
                 $pdfLegalAttestationMetadata = $pdfInspection['legalAttestationMetadata'];
                 $pdfLegalAttestationPolicy = $pdfInspection['legalAttestationPolicy'];
                 $pdfTaggingMetadata = $pdfInspection['taggingMetadata'];
+                $pdfTaggingPolicy = $pdfInspection['taggingPolicy'];
                 $pdfStructureNamespaces = $pdfInspection['structureNamespaces'];
                 $pdfPageStructureParents = $pdfInspection['pageStructureParents'];
                 $pdfStructureParentTree = $pdfInspection['structureParentTree'];
@@ -3381,6 +3384,32 @@ final class PdfEngineHandoff
                     }
                     if (isset($pdfTaggingMetadata['structureChildren']) && is_int($pdfTaggingMetadata['structureChildren'])) {
                         $diagnostics[] = 'pdf-byte-structure-children:' . $pdfTaggingMetadata['structureChildren'];
+                    }
+                }
+                if ($pdfTaggingPolicy !== []) {
+                    $policyStatus = is_string($pdfTaggingPolicy['reviewStatus'] ?? null)
+                        ? $pdfTaggingPolicy['reviewStatus']
+                        : 'unknown';
+                    $diagnostics[] = 'pdf-byte-tagging-policy:' . $policyStatus;
+                    foreach ([
+                        'structureElementCount' => 'structure-elements',
+                        'parentTreeEntryCount' => 'parent-tree-entries',
+                        'idTreeEntryCount' => 'id-tree-entries',
+                        'pageStructParentCount' => 'page-struct-parents',
+                        'markedContentPropertyCount' => 'marked-content-properties',
+                        'markedContentArtifactCount' => 'marked-content-artifacts',
+                    ] as $policyKey => $diagnosticName) {
+                        if (isset($pdfTaggingPolicy[$policyKey]) && is_int($pdfTaggingPolicy[$policyKey]) && $pdfTaggingPolicy[$policyKey] > 0) {
+                            $diagnostics[] = 'pdf-byte-tagging-policy-' . $diagnosticName . ':' . $pdfTaggingPolicy[$policyKey];
+                        }
+                    }
+                    if (isset($pdfTaggingPolicy['issues']) && is_array($pdfTaggingPolicy['issues']) && $pdfTaggingPolicy['issues'] !== []) {
+                        $diagnostics[] = 'pdf-byte-tagging-policy-issues:' . count($pdfTaggingPolicy['issues']);
+                        foreach ($pdfTaggingPolicy['issues'] as $issue) {
+                            if (is_string($issue) && $issue !== '') {
+                                $diagnostics[] = 'pdf-byte-tagging-policy-issue:' . $issue;
+                            }
+                        }
                     }
                 }
                 if ($pdfStructureNamespaces !== []) {
@@ -5572,6 +5601,7 @@ final class PdfEngineHandoff
             'pdfLegalAttestationMetadata' => $pdfLegalAttestationMetadata,
             'pdfLegalAttestationPolicy' => $pdfLegalAttestationPolicy,
             'pdfTaggingMetadata' => $pdfTaggingMetadata,
+            'pdfTaggingPolicy' => $pdfTaggingPolicy,
             'pdfStructureNamespaces' => $pdfStructureNamespaces,
             'pdfPageStructureParents' => $pdfPageStructureParents,
             'pdfStructureParentTree' => $pdfStructureParentTree,
@@ -5752,6 +5782,7 @@ final class PdfEngineHandoff
      *     finalPdfCatalogRequirementPolicy: array<string, mixed>,
      *     finalPdfLegalAttestationMetadata: array{object:string|null, type:string|null, language:string|null, status:string|null, jurisdiction:string|null, attestation:string|null, attestationObject:string|null, attestationBytes:int|null, attestationSha256:string|null, attestationSkipped:string|null, associatedFiles:list<string>, keys:list<string>}|array{},
      *     finalPdfTaggingMetadata: array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{},
+     *     finalPdfTaggingPolicy: array<string, mixed>,
      *     finalPdfStructureNamespaces: list<array{object:string|null, type:string|null, namespace:string|null, schemaObject:string|null, schemaType:string|null, roleMap:array<string, string>, keys:list<string>}>,
      *     finalPdfPageStructureParents: list<array{page:int, pageObject:string|null, structParents:int, source:string}>,
      *     finalPdfStructureParentTree: list<array{source:string, nodeObject:string|null, mcid:int, valueKind:string, valueObject:string|null, arrayCount:int|null, structureReferences:list<string>, missingReferences:list<string>, limits:list<int>}>,
@@ -6092,6 +6123,7 @@ final class PdfEngineHandoff
             'finalPdfLegalAttestationMetadata' => is_array($finalRun) && is_array($finalRun['pdfLegalAttestationMetadata'] ?? null) ? $finalRun['pdfLegalAttestationMetadata'] : [],
             'finalPdfLegalAttestationPolicy' => is_array($finalRun) && is_array($finalRun['pdfLegalAttestationPolicy'] ?? null) ? $finalRun['pdfLegalAttestationPolicy'] : [],
             'finalPdfTaggingMetadata' => is_array($finalRun) && is_array($finalRun['pdfTaggingMetadata'] ?? null) ? $finalRun['pdfTaggingMetadata'] : [],
+            'finalPdfTaggingPolicy' => is_array($finalRun) && is_array($finalRun['pdfTaggingPolicy'] ?? null) ? $finalRun['pdfTaggingPolicy'] : [],
             'finalPdfStructureNamespaces' => is_array($finalRun) && is_array($finalRun['pdfStructureNamespaces'] ?? null) ? $finalRun['pdfStructureNamespaces'] : [],
             'finalPdfPageStructureParents' => is_array($finalRun) && is_array($finalRun['pdfPageStructureParents'] ?? null) ? $finalRun['pdfPageStructureParents'] : [],
             'finalPdfStructureParentTree' => is_array($finalRun) && is_array($finalRun['pdfStructureParentTree'] ?? null) ? $finalRun['pdfStructureParentTree'] : [],
@@ -13304,6 +13336,17 @@ final class PdfEngineHandoff
             $pageStructureParents
         );
         $structureIdTreePolicy = $this->summarizePdfStructureIdTreePolicy($structureIdTree, $structureElements);
+        $taggingPolicy = $this->summarizePdfTaggingPolicy(
+            $taggingMetadata,
+            $structureElements,
+            $structureParentTree,
+            $structureIdTree,
+            $markedContentProperties,
+            $markedContentArtifacts,
+            $pageStructureParents,
+            $structureParentTreePolicy,
+            $structureIdTreePolicy
+        );
         $encryption = $this->extractPdfEncryptionInfo($pdfBytes);
         $embeddedFileNames = $this->extractPdfEmbeddedFileNames($pdfBytes);
         foreach ($embeddedFiles as $embeddedFile) {
@@ -13396,6 +13439,7 @@ final class PdfEngineHandoff
             'legalAttestationMetadata' => $legalAttestationMetadata,
             'legalAttestationPolicy' => $this->summarizePdfLegalAttestationPolicy($legalAttestationMetadata),
             'taggingMetadata' => $taggingMetadata,
+            'taggingPolicy' => $taggingPolicy,
             'structureNamespaces' => $structureNamespaces,
             'pageStructureParents' => $pageStructureParents,
             'structureParentTree' => $structureParentTree,
@@ -16465,6 +16509,115 @@ final class PdfEngineHandoff
             'tagged' => $tagged,
             'structTreeRoot' => $structTreeRoot,
             'outputIntentCount' => count($outputIntents),
+            'issues' => $issues,
+        ];
+    }
+
+    /**
+     * @param array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{} $taggingMetadata
+     * @param list<array{object:string, type:string|null, parent:string|null, pageObject:string|null, id:string|null, alt:string|null, actualText:string|null, language:string|null, title:string|null, childCount:int|null}> $structureElements
+     * @param list<array{source:string, nodeObject:string|null, mcid:int, valueKind:string, valueObject:string|null, arrayCount:int|null, structureReferences:list<string>, missingReferences:list<string>, limits:list<int>}> $structureParentTree
+     * @param list<array{source:string, nodeObject:string|null, id:string, valueKind:string, valueObject:string|null, structureReferences:list<string>, missingReferences:list<string>, limits:list<string>}> $structureIdTree
+     * @param list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, mcid:int|null, language:string|null, alt:string|null, actualText:string|null, expanded:string|null, associatedFiles:list<string>}> $markedContentProperties
+     * @param list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, operator:string, type:string|null, subtype:string|null, bbox:list<float>|null, attached:list<string>, mcid:int|null, propertyName:string|null}> $markedContentArtifacts
+     * @param list<array{page:int, pageObject:string|null, structParents:int, source:string}> $pageStructureParents
+     * @param array<string, mixed> $structureParentTreePolicy
+     * @param array<string, mixed> $structureIdTreePolicy
+     * @return array<string, mixed>
+     */
+    private function summarizePdfTaggingPolicy(
+        array $taggingMetadata,
+        array $structureElements,
+        array $structureParentTree,
+        array $structureIdTree,
+        array $markedContentProperties,
+        array $markedContentArtifacts,
+        array $pageStructureParents,
+        array $structureParentTreePolicy,
+        array $structureIdTreePolicy
+    ): array {
+        if (
+            $taggingMetadata === []
+            && $structureElements === []
+            && $structureParentTree === []
+            && $structureIdTree === []
+            && $markedContentProperties === []
+            && $markedContentArtifacts === []
+            && $pageStructureParents === []
+        ) {
+            return [];
+        }
+
+        $marked = is_bool($taggingMetadata['marked'] ?? null) ? $taggingMetadata['marked'] : null;
+        $userProperties = is_bool($taggingMetadata['userProperties'] ?? null) ? $taggingMetadata['userProperties'] : null;
+        $suspects = is_bool($taggingMetadata['suspects'] ?? null) ? $taggingMetadata['suspects'] : null;
+        $structTreeRoot = is_string($taggingMetadata['structTreeRoot'] ?? null) && $taggingMetadata['structTreeRoot'] !== ''
+            ? $taggingMetadata['structTreeRoot']
+            : null;
+        $roleMapCount = isset($taggingMetadata['roleMap']) && is_array($taggingMetadata['roleMap'])
+            ? count($taggingMetadata['roleMap'])
+            : 0;
+        $structureChildren = is_int($taggingMetadata['structureChildren'] ?? null)
+            ? $taggingMetadata['structureChildren']
+            : null;
+        $parentTreePresent = is_string($taggingMetadata['parentTree'] ?? null) && $taggingMetadata['parentTree'] !== '';
+        $idTreePresent = is_string($taggingMetadata['idTree'] ?? null) && $taggingMetadata['idTree'] !== '';
+        $parentTreePolicyStatus = is_string($structureParentTreePolicy['reviewStatus'] ?? null)
+            ? $structureParentTreePolicy['reviewStatus']
+            : null;
+        $idTreePolicyStatus = is_string($structureIdTreePolicy['reviewStatus'] ?? null)
+            ? $structureIdTreePolicy['reviewStatus']
+            : null;
+
+        $issues = [];
+        if ($marked === true && $structTreeRoot === null) {
+            $issues[] = 'tagged-without-structure-tree';
+        }
+        if ($structTreeRoot !== null && $marked !== true) {
+            $issues[] = 'structure-tree-without-marked-flag';
+        }
+        if ($suspects === true) {
+            $issues[] = 'suspect-tagging-boundary';
+        }
+        if ($userProperties === true && $structureElements === []) {
+            $issues[] = 'user-properties-without-structure-elements';
+        }
+        if ($structTreeRoot !== null && $structureElements === []) {
+            $issues[] = 'structure-tree-without-elements';
+        }
+        if ($pageStructureParents !== [] && $structureParentTree === []) {
+            $issues[] = 'page-structparents-without-parent-tree';
+        }
+        if ($markedContentProperties !== [] && $structureParentTree === []) {
+            $issues[] = 'marked-content-without-parent-tree';
+        }
+        if ($parentTreePolicyStatus === 'review') {
+            $issues[] = 'parent-tree-policy-review';
+        }
+        if ($idTreePolicyStatus === 'review') {
+            $issues[] = 'id-tree-policy-review';
+        }
+        $issues = array_values(array_unique($issues));
+        sort($issues, SORT_STRING);
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'marked' => $marked,
+            'userProperties' => $userProperties,
+            'suspects' => $suspects,
+            'structTreeRoot' => $structTreeRoot,
+            'roleMapCount' => $roleMapCount,
+            'structureChildren' => $structureChildren,
+            'structureElementCount' => count($structureElements),
+            'parentTreePresent' => $parentTreePresent,
+            'parentTreeEntryCount' => count($structureParentTree),
+            'idTreePresent' => $idTreePresent,
+            'idTreeEntryCount' => count($structureIdTree),
+            'pageStructParentCount' => count($pageStructureParents),
+            'markedContentPropertyCount' => count($markedContentProperties),
+            'markedContentArtifactCount' => count($markedContentArtifacts),
+            'parentTreePolicyStatus' => $parentTreePolicyStatus,
+            'idTreePolicyStatus' => $idTreePolicyStatus,
             'issues' => $issues,
         ];
     }
