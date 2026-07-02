@@ -10989,7 +10989,17 @@ XML;
         foreach ($summary['relationshipTargetPathSegments'] as $segment) {
             $segments[$segment['segment']] = $segment;
         }
+        $positions = [];
+        foreach ($summary['relationshipTargetPathSegmentPositions'] as $position) {
+            $positions[$position['position']] = $position;
+        }
+        $lengthBuckets = [];
+        foreach ($summary['relationshipTargetPathSegmentLengths'] as $lengthBucket) {
+            $lengthBuckets[$lengthBucket['byteLengthBucket']] = $lengthBucket;
+        }
         $allRelationshipIds = array_merge(...array_column($summary['relationshipTargetPathSegments'], 'relationshipIds'));
+        $positionRelationshipIds = array_merge(...array_column($summary['relationshipTargetPathSegmentPositions'], 'relationshipIds'));
+        $lengthRelationshipIds = array_merge(...array_column($summary['relationshipTargetPathSegmentLengths'], 'relationshipIds'));
 
         $t->same(13, $summary['relationshipTargetPathSegmentCount']);
         $t->same(24, $summary['relationshipTargetPathSegmentOccurrenceCount']);
@@ -11010,6 +11020,57 @@ XML;
         ], array_column($summary['relationshipTargetPathSegments'], 'segment'));
         $t->true(!in_array('rLink', $allRelationshipIds, true), 'fixture external hyperlink should not enter target path segment buckets');
         $t->true(!in_array('rExternalSegment', $allRelationshipIds, true), 'external segment target should not enter target path segment buckets');
+        $t->true(!in_array('rExternalSegment', $positionRelationshipIds, true), 'external segment target should not enter target path segment position buckets');
+        $t->true(!in_array('rExternalSegment', $lengthRelationshipIds, true), 'external segment target should not enter target path segment length buckets');
+
+        $t->same(3, $summary['relationshipTargetPathSegmentPositionBucketCount']);
+        $t->same($summary['relationshipTargetPathSegmentOccurrenceCount'], $summary['relationshipTargetPathSegmentPositionOccurrenceCount']);
+        $t->same(['first' => 8, 'last' => 8, 'middle' => 8], $summary['relationshipTargetPathSegmentPositionCounts']);
+
+        $middlePosition = $positions['middle'];
+        $t->same(8, $middlePosition['occurrenceCount']);
+        $t->same(4, $middlePosition['relationshipCount']);
+        $t->same(3, $middlePosition['existingTargetCount']);
+        $t->same(1, $middlePosition['missingTargetCount']);
+        $t->same(107, $middlePosition['existingTargetByteLength']);
+        $t->same(['deep' => 3, 'media' => 4, 'missing' => 1], $middlePosition['segmentCounts']);
+        $t->same([1 => 4, 2 => 3, 3 => 1], $middlePosition['pathSegmentIndexCounts']);
+        $t->same(['default' => 4], $middlePosition['contentTypeSourceCounts']);
+        $t->same([$customXmlRel => 1, $imageRel => 3], $middlePosition['relationshipTypeCounts']);
+        $t->same(['rDeepSegment', 'rHeaderSegment', 'rImage', 'rMissingSegment'], $middlePosition['relationshipIds']);
+        $t->same(['word/media/deep/missing/segment.png', 'word/media/deep/segment.bin', 'word/media/deep/segment.png', 'word/media/review.png'], $middlePosition['targetParts']);
+        $t->same('word/media/deep/segment.png', $middlePosition['largestExistingTargetPart']['targetPart']);
+        $t->same(60, $middlePosition['largestExistingTargetPart']['targetBytes']);
+
+        $firstPosition = $positions['first'];
+        $t->same(['customXml' => 1, 'docProps' => 1, 'word' => 6], $firstPosition['segmentCounts']);
+        $t->same(1, $firstPosition['parameterizedTargetCount']);
+        $t->same('word/document.xml', $firstPosition['largestExistingTargetPart']['targetPart']);
+        $t->same(['word', 'document.xml'], $firstPosition['largestExistingTargetPart']['targetPathSegments']);
+
+        $t->same(3, $summary['relationshipTargetPathSegmentLengthBucketCount']);
+        $t->same($summary['relationshipTargetPathSegmentOccurrenceCount'], $summary['relationshipTargetPathSegmentLengthOccurrenceCount']);
+        $t->same(['1-8' => 16, '17-32' => 1, '9-16' => 7], $summary['relationshipTargetPathSegmentLengthCounts']);
+        $t->same(18, $summary['relationshipTargetPathSegmentMaxByteLength']);
+
+        $longLength = $lengthBuckets['17-32'];
+        $t->same(1, $longLength['occurrenceCount']);
+        $t->same(1, $longLength['relationshipCount']);
+        $t->same(18, $longLength['segmentByteLength']);
+        $t->same(18, $longLength['maxSegmentByteLength']);
+        $t->same(['segment-review.xml'], $longLength['segments']);
+        $t->same(['customXml' => 1], $longLength['targetDirectoryCounts']);
+        $t->same(['default' => 1], $longLength['contentTypeSourceCounts']);
+        $t->same(['rRootSegment'], $longLength['relationshipIds']);
+        $t->same('customXml/segment-review.xml', $longLength['largestExistingTargetPart']['targetPart']);
+        $t->same(hash('sha256', $parts['customXml/segment-review.xml']), $longLength['largestExistingTargetPart']['targetSha256']);
+
+        $shortLength = $lengthBuckets['1-8'];
+        $t->same(16, $shortLength['occurrenceCount']);
+        $t->same(7, $shortLength['relationshipCount']);
+        $t->same(6, $shortLength['uniqueSegmentCount']);
+        $t->same([0 => 7, 1 => 5, 2 => 3, 3 => 1], $shortLength['pathSegmentIndexCounts']);
+        $t->same(['core.xml', 'deep', 'docProps', 'media', 'missing', 'word'], $shortLength['segments']);
 
         $word = $segments['word'];
         $t->same(6, $word['relationshipCount']);
