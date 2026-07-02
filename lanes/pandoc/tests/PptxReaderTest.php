@@ -2886,6 +2886,74 @@ XML);
     }
 };
 
+$buildEmptyBulletParagraphPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-empty-bullet-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Empty bullet paragraphs</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="3" name="Body 1"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/>
+        <a:p><a:pPr><a:buChar char="&#8226;"/></a:pPr></a:p>
+        <a:p><a:pPr><a:buChar char="&#8226;"/></a:pPr><a:r><a:t>Visible bullet</a:t></a:r></a:p>
+      </p:txBody>
+    </p:sp>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildSignedBulletLevelPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-signed-bullet-level-');
     if ($path === false) {
@@ -8359,6 +8427,19 @@ return [
         $t->same(true, in_array('Plain buNone stays plain', $texts, true));
         $t->contains('BulletList [ [ Plain [ Str "Wingdings" , Space , Str "still" , Space , Str "wins"', $native);
         $t->contains('Para [ Str "Plain" , Space , Str "buNone" , Space , Str "stays" , Space , Str "plain" ]', $native);
+    },
+
+    'keeps empty pptx bullet paragraphs as empty list items like upstream' => static function (TestRunner $t) use ($buildEmptyBulletParagraphPptxPackage, $nodesOfType): void {
+        $document = (new PptxReader())->read($buildEmptyBulletParagraphPptxPackage());
+        $bulletLists = $nodesOfType($document, 'bullet_list');
+        $items = $bulletLists[0]->children ?? [];
+        $firstText = $items[0]->children[0]->children[0] ?? null;
+        $secondText = $items[1]->children[0]->children[0] ?? null;
+
+        $t->same(1, count($bulletLists));
+        $t->same(2, count($items));
+        $t->same('', $firstText instanceof AstNode ? $firstText->attr('text') : null);
+        $t->same('Visible bullet', $secondText instanceof AstNode ? $secondText->attr('text') : null);
     },
 
     'keeps signed pptx bullet levels distinct like upstream' => static function (TestRunner $t) use ($buildSignedBulletLevelPptxPackage): void {
