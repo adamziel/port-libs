@@ -107,6 +107,55 @@ final class OpcPackagePath
         return '/' . implode('/', $segments);
     }
 
+    /**
+     * @return list<string>
+     */
+    public static function partNameSegments(string $partName, bool $allowRoot = false): array
+    {
+        $partName = self::canonicalPartName($partName, $allowRoot);
+
+        return $partName === '/' ? [] : explode('/', ltrim($partName, '/'));
+    }
+
+    public static function partNameDirectory(string $partName): string
+    {
+        $segments = self::partNameSegments($partName);
+        array_pop($segments);
+
+        return $segments === [] ? '/' : '/' . implode('/', $segments);
+    }
+
+    public static function partNameDirectoryDepth(string $partName): int
+    {
+        return max(0, count(self::partNameSegments($partName)) - 1);
+    }
+
+    public static function partNameTopLevelSegment(string $partName): ?string
+    {
+        return self::partNameSegments($partName)[0] ?? null;
+    }
+
+    public static function partNameBaseName(string $partName): string
+    {
+        $segments = self::partNameSegments($partName);
+
+        return $segments[count($segments) - 1];
+    }
+
+    public static function partNameExtension(string $partName): ?string
+    {
+        $extension = self::partNameRawExtension($partName);
+
+        return $extension === null ? null : strtolower($extension);
+    }
+
+    public static function partNameRawExtension(string $partName): ?string
+    {
+        $extension = pathinfo(self::canonicalPartName($partName), PATHINFO_EXTENSION);
+
+        return $extension === '' ? null : $extension;
+    }
+
     public static function resolveInternalTarget(string $sourcePartName, string $target): string
     {
         if ($target === '') {
