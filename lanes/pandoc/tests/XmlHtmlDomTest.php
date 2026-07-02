@@ -3764,6 +3764,16 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->same(['data-package-part'], $packet['dataAttributeNames']);
         $t->same(1, $packet['ariaAttributeCount']);
         $t->same(['aria-label'], $packet['ariaAttributeNames']);
+        $t->same('html-fragment-semantic-category-rollup', $packet['semanticReviewPolicy']);
+        $t->same(5, $packet['semanticElementCount']);
+        $t->same(['document-outline', 'break', 'embedded-resource', 'active-content'], $packet['semanticCategories']);
+        $t->same([
+            'document-outline' => 1,
+            'break' => 2,
+            'embedded-resource' => 1,
+            'active-content' => 1,
+        ], $packet['semanticCategoryCounts']);
+        $t->same(['section', 'br', 'img', 'script', 'hr'], $packet['semanticElementNames']);
         $t->same('text', $packet['nodes'][0]['type']);
         $t->same('Lead ', $packet['nodes'][0]['text']);
         $t->same('section', $packet['nodes'][1]['name']);

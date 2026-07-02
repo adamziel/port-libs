@@ -14963,6 +14963,10 @@ final class XmlHtmlDom
             'dataAttributeNames' => [],
             'ariaAttributeCount' => 0,
             'ariaAttributeNames' => [],
+            'semanticElementCount' => 0,
+            'semanticCategories' => [],
+            'semanticCategoryCounts' => [],
+            'semanticElementNames' => [],
         ];
 
         foreach ($nodes as $node) {
@@ -15004,6 +15008,11 @@ final class XmlHtmlDom
             'dataAttributeNames' => $state['dataAttributeNames'],
             'ariaAttributeCount' => $state['ariaAttributeCount'],
             'ariaAttributeNames' => $state['ariaAttributeNames'],
+            'semanticReviewPolicy' => 'html-fragment-semantic-category-rollup',
+            'semanticElementCount' => $state['semanticElementCount'],
+            'semanticCategories' => $state['semanticCategories'],
+            'semanticCategoryCounts' => $state['semanticCategoryCounts'],
+            'semanticElementNames' => $state['semanticElementNames'],
         ];
     }
 
@@ -15060,12 +15069,79 @@ final class XmlHtmlDom
         }
 
         self::accumulateHtmlFragmentAttributeReviewSummary($node, $state);
+        self::accumulateHtmlFragmentSemanticReviewSummary($node, $state);
 
         foreach (($node['children'] ?? []) as $child) {
             if (is_array($child)) {
                 self::accumulateHtmlFragmentTreeReviewNode($child, $state, $depth + 1);
             }
         }
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     * @param array<string, mixed> $state
+     */
+    private static function accumulateHtmlFragmentSemanticReviewSummary(array $node, array &$state): void
+    {
+        $categories = self::htmlFragmentSemanticCategories($node);
+        if ($categories === []) {
+            return;
+        }
+
+        ++$state['semanticElementCount'];
+        $name = $node['name'] ?? null;
+        if (is_string($name) && $name !== '') {
+            self::appendUniqueString($state['semanticElementNames'], $name);
+        }
+
+        foreach ($categories as $category) {
+            self::appendUniqueString($state['semanticCategories'], $category);
+            $state['semanticCategoryCounts'][$category] = ($state['semanticCategoryCounts'][$category] ?? 0) + 1;
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     * @return list<string>
+     */
+    private static function htmlFragmentSemanticCategories(array $node): array
+    {
+        $fieldCategories = [
+            'documentOutline' => 'document-outline',
+            'landmark' => 'landmark',
+            'contactInfo' => 'contact-info',
+            'formControl' => 'form-control',
+            'measurement' => 'measurement',
+            'disclosure' => 'disclosure',
+            'dialog' => 'dialog',
+            'embeddedResource' => 'embedded-resource',
+            'hyperlink' => 'hyperlink',
+            'activeContent' => 'active-content',
+            'revision' => 'revision',
+            'quote' => 'quote',
+            'citedWork' => 'cited-work',
+            'textSemantic' => 'text-semantic',
+            'breakElement' => 'break',
+            'ruby' => 'ruby',
+            'rubyPart' => 'ruby',
+            'time' => 'time',
+            'dataElement' => 'data',
+            'preformatted' => 'preformatted',
+            'preformattedBlock' => 'preformatted',
+            'template' => 'template',
+            'noscript' => 'noscript',
+            'slotElement' => 'slot',
+        ];
+
+        $categories = [];
+        foreach ($fieldCategories as $field => $category) {
+            if (($node[$field] ?? null) !== null) {
+                self::appendUniqueString($categories, $category);
+            }
+        }
+
+        return $categories;
     }
 
     /**
