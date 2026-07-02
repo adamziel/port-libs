@@ -13932,7 +13932,7 @@ return [
         $t->same('rIdImage', $images[0]->attr('relationshipId'));
         $t->same('embed', $images[0]->attr('relationshipAttribute'));
         $t->same(0, $review['slides'][0]['imageIssueCount'] ?? null);
-        $t->contains('Image ( "" , [  ] , [  ] ) [ Str "Relative" , Space , Str "alt" ] ( "ppt/media/relative.png" , "Relative Picture" )', $native);
+        $t->contains('Image ( "" , [  ] , [  ] ) [ Str "Relative alt" ] ( "ppt/media/relative.png" , "Relative Picture" )', $native);
 
         $rootDocument = (new PptxReader())->read($buildRootTargetImagePptxPackage());
         $rootReview = $rootDocument->attr('pptx');
@@ -13946,7 +13946,7 @@ return [
         $t->same('rIdImage', $rootImages[0]->attr('relationshipId'));
         $t->same('embed', $rootImages[0]->attr('relationshipAttribute'));
         $t->same(0, $rootReview['slides'][0]['imageIssueCount'] ?? null);
-        $t->contains('Image ( "" , [  ] , [  ] ) [ Str "Root" , Space , Str "alt" ] ( "assets/root.png" , "Root Picture" )', $rootNative);
+        $t->contains('Image ( "" , [  ] , [  ] ) [ Str "Root alt" ] ( "assets/root.png" , "Root Picture" )', $rootNative);
     },
 
     'prefers pptx picture embed relationships over link relationships like upstream' => static function (TestRunner $t) use ($buildEmbedAndLinkPictureBlipPptxPackage, $nodesOfType): void {
@@ -13962,7 +13962,7 @@ return [
         $t->same('rIdEmbedImage', $images[0]->attr('relationshipId'));
         $t->same('embed', $images[0]->attr('relationshipAttribute'));
         $t->same(0, $review['slides'][0]['imageIssueCount'] ?? null);
-        $t->contains('Image ( "" , [  ] , [  ] ) [ Str "Embed" , Space , Str "wins" , Space , Str "alt" ] ( "ppt/media/embed-wins.png" , "Embed Wins Picture" )', $native);
+        $t->contains('Image ( "" , [  ] , [  ] ) [ Str "Embed wins alt" ] ( "ppt/media/embed-wins.png" , "Embed Wins Picture" )', $native);
         $t->true(!str_contains($native, 'link-loses.png'), 'A present r:link relationship should stay ignored when r:embed is available');
         $t->true(!str_contains($native, 'rIdLinkedImage'), 'The linked image relationship id should not drive visible output when r:embed is present');
     },
@@ -13996,7 +13996,7 @@ return [
         $t->same('rIdImage', $images[0]->attr('relationshipId'));
         $t->same('embed', $images[0]->attr('relationshipAttribute'));
         $t->same(0, $review['slides'][0]['imageIssueCount'] ?? null);
-        $t->contains('Image ( "" , [  ] , [  ] ) [ Str "Untyped" , Space , Str "alt" ] ( "ppt/media/untyped.png" , "Untyped Picture" )', $native);
+        $t->contains('Image ( "" , [  ] , [  ] ) [ Str "Untyped alt" ] ( "ppt/media/untyped.png" , "Untyped Picture" )', $native);
     },
 
     'keeps empty pptx image relationship ids usable like upstream' => static function (TestRunner $t) use ($buildEmptyImageRelationshipIdPptxPackage, $nodesOfType): void {
@@ -14012,7 +14012,7 @@ return [
         $t->same('', $images[0]->attr('relationshipId'));
         $t->same('embed', $images[0]->attr('relationshipAttribute'));
         $t->same(0, $review['slides'][0]['imageIssueCount'] ?? null);
-        $t->contains('Image ( "" , [  ] , [  ] ) [ Str "Empty" , Space , Str "relationship" , Space , Str "alt" ] ( "ppt/media/empty-id.png" , "Empty Id Picture" )', $native);
+        $t->contains('Image ( "" , [  ] , [  ] ) [ Str "Empty relationship alt" ] ( "ppt/media/empty-id.png" , "Empty Id Picture" )', $native);
     },
 
     'skips malformed pptx image relationships before later valid matches like upstream' => static function (TestRunner $t) use ($buildSkippedMalformedImageRelationshipsPptxPackage, $nodesOfType): void {
@@ -14028,7 +14028,7 @@ return [
         $t->same('rIdImage', $images[0]->attr('relationshipId'));
         $t->same('embed', $images[0]->attr('relationshipAttribute'));
         $t->same(0, $review['slides'][0]['imageIssueCount'] ?? null);
-        $t->contains('Image ( "" , [  ] , [  ] ) [ Str "Skipped" , Space , Str "malformed" , Space , Str "alt" ] ( "ppt/media/skipped-malformed.png" , "Skipped Malformed Picture" )', $native);
+        $t->contains('Image ( "" , [  ] , [  ] ) [ Str "Skipped malformed alt" ] ( "ppt/media/skipped-malformed.png" , "Skipped Malformed Picture" )', $native);
         $t->true(!str_contains($native, 'missing-id-should-skip.png'), 'Slide-local image relationships without Id should be skipped before image target lookup');
     },
 
@@ -14141,7 +14141,7 @@ return [
         $t->same('title', $images[0]->attr('pptxShape')['placeholderType'] ?? null);
         $t->same(0, $review['slides'][0]['imageIssueCount'] ?? null);
         $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Picture" , Space , Str "placeholder" , Space , Str "title" ]', $native);
-        $t->contains('Image ( "" , [  ] , [  ] ) [ Str "Title" , Space , Str "placeholder" , Space , Str "alt" ] ( "ppt/media/title-placeholder.png" , "Title Placeholder Picture" )', $native);
+        $t->contains('Image ( "" , [  ] , [  ] ) [ Str "Title placeholder alt" ] ( "ppt/media/title-placeholder.png" , "Title Placeholder Picture" )', $native);
     },
 
     'uses centered pptx title placeholders like upstream' => static function (TestRunner $t) use ($buildCenteredTitlePlaceholderPptxPackage, $nodesOfType): void {
@@ -14293,7 +14293,7 @@ return [
         $t->same(0, $review['slides'][0]['imageIssueCount'] ?? null);
         $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
         $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Local" , Space , Str "prefix" , Space , Str "relationships" ]', $native);
-        $t->contains('Image ( "" , [  ] , [  ] ) [ Str "Local" , Space , Str "prefix" , Space , Str "alt" ] ( "ppt/media/local-prefix.png" , "Local Prefix Picture" )', $native);
+        $t->contains('Image ( "" , [  ] , [  ] ) [ Str "Local prefix alt" ] ( "ppt/media/local-prefix.png" , "Local Prefix Picture" )', $native);
         $t->contains('Strong [ Str "Local" , Space , Str "prefix" , Space , Str "parent" ]', $native);
         $t->contains('BulletList [ [ Plain [ Str "Local" , Space , Str "prefix" , Space , Str "child"', $native);
         $t->true(!str_contains($native, 'Diagram parse error'), 'Element-local SmartArt relIds prefix should parse without diagnostics');
@@ -14391,7 +14391,7 @@ return [
         $t->same('External mode alt', $images[0]->attr('alt'));
         $t->same('embed', $images[0]->attr('relationshipAttribute'));
         $t->same(0, $review['slides'][0]['imageIssueCount'] ?? null);
-        $t->contains('Image ( "" , [  ] , [  ] ) [ Str "External" , Space , Str "mode" , Space , Str "alt" ] ( "ppt/media/external-mode.png" , "External Mode Picture" )', $native);
+        $t->contains('Image ( "" , [  ] , [  ] ) [ Str "External mode alt" ] ( "ppt/media/external-mode.png" , "External Mode Picture" )', $native);
     },
 
     'records external linked pptx images without fetching target' => static function (TestRunner $t) use ($buildExternalLinkedImagePptxPackage, $nodesOfType): void {
@@ -15856,7 +15856,7 @@ XML);
         $t->same('Wrong typed alt', $images[0]->attr('alt'));
         $t->same(0, $review['slides'][0]['imageIssueCount'] ?? null);
         $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Wrong" , Space , Str "typed" , Space , Str "relationships" ]', $native);
-        $t->contains('Image ( "" , [  ] , [  ] ) [ Str "Wrong" , Space , Str "typed" , Space , Str "alt" ] ( "ppt/media/wrong-typed-image.png" , "Wrong Typed Picture" )', $native);
+        $t->contains('Image ( "" , [  ] , [  ] ) [ Str "Wrong typed alt" ] ( "ppt/media/wrong-typed-image.png" , "Wrong Typed Picture" )', $native);
     },
 
     'uses pptx relationship children regardless of element name like upstream' => static function (TestRunner $t) use ($buildNonRelationshipChildRelationshipsPptxPackage, $nodesOfType): void {
@@ -15872,7 +15872,7 @@ XML);
         $t->same('Odd Child Picture', $images[0]->attr('title'));
         $t->same(0, $review['slides'][0]['imageIssueCount'] ?? null);
         $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Relationship" , Space , Str "child" , Space , Str "names" ]', $native);
-        $t->contains('Image ( "" , [  ] , [  ] ) [ Str "Odd" , Space , Str "child" , Space , Str "alt" ] ( "ppt/media/non-relationship-child.png" , "Odd Child Picture" )', $native);
+        $t->contains('Image ( "" , [  ] , [  ] ) [ Str "Odd child alt" ] ( "ppt/media/non-relationship-child.png" , "Odd Child Picture" )', $native);
     },
 
     'uses pptx relationship part roots regardless of element name like upstream' => static function (TestRunner $t) use ($buildRelationshipRootAliasPptxPackage, $nodesOfType): void {
@@ -15888,7 +15888,7 @@ XML);
         $t->same('Root Alias Picture', $images[0]->attr('title'));
         $t->same(0, $review['slides'][0]['imageIssueCount'] ?? null);
         $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Relationship" , Space , Str "root" , Space , Str "names" ]', $native);
-        $t->contains('Image ( "" , [  ] , [  ] ) [ Str "Root" , Space , Str "alias" , Space , Str "alt" ] ( "ppt/media/relationship-root-alias.png" , "Root Alias Picture" )', $native);
+        $t->contains('Image ( "" , [  ] , [  ] ) [ Str "Root alias alt" ] ( "ppt/media/relationship-root-alias.png" , "Root Alias Picture" )', $native);
     },
 
     'uses only unqualified pptx relationship attributes like upstream' => static function (TestRunner $t) use ($buildUnqualifiedRelationshipAttributesPptxPackage, $nodesOfType): void {
@@ -15905,7 +15905,7 @@ XML);
         $t->same('Unqualified Attribute Picture', $images[0]->attr('title'));
         $t->same(0, $review['slides'][0]['imageIssueCount'] ?? null);
         $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Unqualified" , Space , Str "relationship" , Space , Str "attributes" ]', $native);
-        $t->contains('Image ( "" , [  ] , [  ] ) [ Str "Unqualified" , Space , Str "attribute" , Space , Str "alt" ] ( "ppt/media/unqualified-relationship-attribute.png" , "Unqualified Attribute Picture" )', $native);
+        $t->contains('Image ( "" , [  ] , [  ] ) [ Str "Unqualified attribute alt" ] ( "ppt/media/unqualified-relationship-attribute.png" , "Unqualified Attribute Picture" )', $native);
     },
 
     'ignores pptx presentation slide id attributes like upstream' => static function (TestRunner $t) use ($buildIgnoredPresentationSlideIdsPptxPackage): void {

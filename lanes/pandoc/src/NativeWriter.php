@@ -1149,7 +1149,7 @@ final class NativeWriter
             'small_caps' => ['SmallCaps ' . $this->renderInlineList($node->children)],
             'code' => ['Code ' . $this->renderAttrTuple($node) . ' ' . $this->quote((string) $node->attr('text', ''))],
             'link' => ['Link ' . $this->renderAttrTuple($node) . ' ' . $this->renderInlineList($node->children) . ' ( ' . $this->quote((string) $node->attr('url', '')) . ' , ' . $this->quote((string) $node->attr('title', '')) . ' )'],
-            'image' => ['Image ' . $this->renderAttrTuple($node) . ' ' . $this->renderInlineList($node->children === [] ? $this->textInlines((string) $node->attr('alt', '')) : $node->children) . ' ( ' . $this->quote((string) $node->attr('url', $node->attr('src', ''))) . ' , ' . $this->quote((string) $node->attr('title', '')) . ' )'],
+            'image' => ['Image ' . $this->renderAttrTuple($node) . ' ' . $this->renderImageAltInlineList($node) . ' ( ' . $this->quote((string) $node->attr('url', $node->attr('src', ''))) . ' , ' . $this->quote((string) $node->attr('title', '')) . ' )'],
             'note' => ['Note ' . $this->renderBlockList($node->children, 0)],
             'quoted' => ['Quoted ' . (((string) $node->attr('kind', 'double')) === 'single' ? 'SingleQuote' : 'DoubleQuote') . ' ' . $this->renderInlineList($node->children)],
             'math' => ['Math ' . ($this->mathIsDisplay($node) ? 'DisplayMath' : 'InlineMath') . ' ' . $this->quote((string) $node->attr('text', ''))],
@@ -1392,6 +1392,16 @@ final class NativeWriter
         }
 
         return $parts === [] ? '[]' : '[' . implode('; ', $parts) . ']';
+    }
+
+    private function renderImageAltInlineList(AstNode $node): string
+    {
+        $alt = (string) $node->attr('alt', '');
+        if ($alt !== '' && $node->attr('singleStrAlt') === true) {
+            return '[ Str ' . $this->quote($alt) . ' ]';
+        }
+
+        return $this->renderInlineList($node->children === [] ? $this->textInlines($alt) : $node->children);
     }
 
     /**

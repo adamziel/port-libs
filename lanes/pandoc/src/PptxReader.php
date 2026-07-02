@@ -2431,14 +2431,21 @@ final class PptxReader
             return null;
         }
 
+        $altInlines = $alt === ''
+            ? []
+            : [new AstNode('text', [
+                'text' => $alt,
+            ])];
+
         $image = new AstNode('image', [
             'url' => $mediaPart,
             'src' => $mediaPart,
             'title' => $title,
             'alt' => $alt,
+            'singleStrAlt' => true,
             'relationshipId' => $relationshipId,
             'relationshipAttribute' => $relationshipAttribute,
-        ], $this->textInlines($alt));
+        ], $altInlines);
 
         return $image;
     }
