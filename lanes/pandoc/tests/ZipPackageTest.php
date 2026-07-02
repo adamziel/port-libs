@@ -1987,6 +1987,139 @@ return [
         $t->same($manifest['nameLengthBucketSummaries'], $raw['strictImport']['packageManifest']['nameLengthBucketSummaries']);
     },
 
+    'rolls up zip package manifest crc32 fingerprints before shared package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $crc32Hex = static fn (string $bytes): string => sprintf('%08x', (int) sprintf('%u', crc32($bytes)));
+        $xmlPayload = '<review><same>payload</same></review>';
+        $imagePayload = "same image bytes\n";
+        $corePayload = '<cp:coreProperties/>';
+        $xmlCrc32Hex = $crc32Hex($xmlPayload);
+        $imageCrc32Hex = $crc32Hex($imagePayload);
+        $emptyCrc32Hex = $crc32Hex('');
+        $duplicateCrc32Hexes = [$imageCrc32Hex, $xmlCrc32Hex];
+        sort($duplicateCrc32Hexes, SORT_STRING);
+
+        $zip = $buildZipPackage([
+            [
+                'name' => 'docProps/core.xml',
+                'data' => $corePayload,
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => $xmlPayload,
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/styles.xml',
+                'data' => $xmlPayload,
+                'method' => 8,
+                'descriptor' => true,
+            ],
+            [
+                'name' => 'word/media/cover.png',
+                'data' => $imagePayload,
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/preview.png',
+                'data' => $imagePayload,
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/',
+                'data' => '',
+                'method' => 0,
+            ],
+        ]);
+
+        $package = ZipPackage::fromString($zip);
+        $manifest = $package->packageManifestPreflight();
+        $strict = $package->strictImportPreflight(4096, 100.0, 4096);
+        $raw = ZipPackage::rawStrictImportPreflight($zip, 4096, 100.0, 4096);
+        $entriesByName = array_column($manifest['entries'], null, 'name');
+        $summariesByCrc32 = array_column($manifest['crc32Summaries'], null, 'crc32Hex');
+        $sumEntryField = static function (array $names, string $field) use ($entriesByName): int {
+            $total = 0;
+            foreach ($names as $name) {
+                $total += (int) $entriesByName[$name][$field];
+            }
+
+            return $total;
+        };
+        $xmlEntryNames = ['word/document.xml', 'word/styles.xml'];
+        $imageEntryNames = ['word/media/cover.png', 'word/media/preview.png'];
+        $expectedDuplicateSummaries = array_values(array_filter(
+            $manifest['crc32Summaries'],
+            static fn (array $summary): bool => in_array($summary['crc32Hex'], $duplicateCrc32Hexes, true)
+        ));
+
+        $t->same(4, $manifest['crc32SummaryCount']);
+        $t->same(2, $manifest['duplicateCrc32HexCount']);
+        $t->same(4, $manifest['duplicateCrc32EntryCount']);
+        $t->same(true, $manifest['hasDuplicateCrc32Entries']);
+        $t->same($duplicateCrc32Hexes, $manifest['duplicateCrc32Hexes']);
+        $t->same($xmlCrc32Hex, $entriesByName['word/document.xml']['crc32Hex']);
+        $t->same($xmlCrc32Hex, $entriesByName['word/styles.xml']['crc32Hex']);
+        $t->same($imageCrc32Hex, $entriesByName['word/media/cover.png']['crc32Hex']);
+        $t->same($imageCrc32Hex, $entriesByName['word/media/preview.png']['crc32Hex']);
+        $t->same($emptyCrc32Hex, $entriesByName['word/media/']['crc32Hex']);
+
+        $t->same([
+            'crc32Hex' => $xmlCrc32Hex,
+            'entryCount' => 2,
+            'fileEntryCount' => 2,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => $sumEntryField($xmlEntryNames, 'compressedSize'),
+            'uncompressedBytes' => 2 * strlen($xmlPayload),
+            'localRecordBytes' => $sumEntryField($xmlEntryNames, 'localRecordBytes'),
+            'sourceRecordBytes' => $sumEntryField($xmlEntryNames, 'sourceRecordBytes'),
+            'dataDescriptorEntryCount' => 1,
+            'dataDescriptorBytes' => $entriesByName['word/styles.xml']['dataDescriptorBytes'],
+            'directoryRoots' => ['word/'],
+            'compressionMethodNames' => ['deflated', 'stored'],
+            'entryNames' => $xmlEntryNames,
+        ], $summariesByCrc32[$xmlCrc32Hex]);
+        $t->same([
+            'crc32Hex' => $imageCrc32Hex,
+            'entryCount' => 2,
+            'fileEntryCount' => 2,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => 2 * strlen($imagePayload),
+            'uncompressedBytes' => 2 * strlen($imagePayload),
+            'localRecordBytes' => $sumEntryField($imageEntryNames, 'localRecordBytes'),
+            'sourceRecordBytes' => $sumEntryField($imageEntryNames, 'sourceRecordBytes'),
+            'dataDescriptorEntryCount' => 0,
+            'dataDescriptorBytes' => 0,
+            'directoryRoots' => ['word/'],
+            'compressionMethodNames' => ['stored'],
+            'entryNames' => $imageEntryNames,
+        ], $summariesByCrc32[$imageCrc32Hex]);
+        $t->same([
+            'crc32Hex' => $emptyCrc32Hex,
+            'entryCount' => 1,
+            'fileEntryCount' => 0,
+            'directoryEntryCount' => 1,
+            'compressedBytes' => 0,
+            'uncompressedBytes' => 0,
+            'localRecordBytes' => $entriesByName['word/media/']['localRecordBytes'],
+            'sourceRecordBytes' => $entriesByName['word/media/']['sourceRecordBytes'],
+            'dataDescriptorEntryCount' => 0,
+            'dataDescriptorBytes' => 0,
+            'directoryRoots' => ['word/'],
+            'compressionMethodNames' => ['stored'],
+            'entryNames' => ['word/media/'],
+        ], $summariesByCrc32[$emptyCrc32Hex]);
+        $t->same(['docProps/'], $summariesByCrc32[$crc32Hex($corePayload)]['directoryRoots']);
+        $t->same(['docProps/core.xml'], $summariesByCrc32[$crc32Hex($corePayload)]['entryNames']);
+        $t->same($expectedDuplicateSummaries, $manifest['duplicateCrc32Summaries']);
+        $t->same($manifest['crc32Summaries'], $strict['packageManifest']['crc32Summaries']);
+        $t->same($manifest['duplicateCrc32Summaries'], $strict['packageManifest']['duplicateCrc32Summaries']);
+        $t->same($manifest['crc32Summaries'], $raw['packageManifest']['crc32Summaries']);
+        $t->same($manifest['duplicateCrc32Summaries'], $raw['packageManifest']['duplicateCrc32Summaries']);
+        $t->same($manifest['crc32Summaries'], $raw['strictImport']['packageManifest']['crc32Summaries']);
+        $t->same($manifest['duplicateCrc32Summaries'], $raw['strictImport']['packageManifest']['duplicateCrc32Summaries']);
+    },
+
     'preflights zip package manifest path segment positions for shared package handoff' => static function (TestRunner $t) use ($buildZipPackage, $pathSegmentPositionReviews): void {
         $documentXml = '<w:document><w:body><w:p>path segment positions</w:p></w:body></w:document>';
         $scanBytes = "deep scan payload bytes\n";

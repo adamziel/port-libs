@@ -720,6 +720,14 @@ XML;
             'centralDirectoryRawCommentSha256',
             'centralDirectoryReviewFieldBytes',
         ];
+        $entryCommentFields = [
+            'entryCommentCount',
+            'hasEntryComments',
+            'commentedEntryNames',
+            'entryCommentSummaryCount',
+            'entryCommentSourceRecordBytes',
+            'entryCommentSummaries',
+        ];
 
         $t->same(true, $summary['valid']);
         $t->same(true, $rawSummary['valid']);
@@ -750,6 +758,14 @@ XML;
             $t->same($manifestDocumentEntry[$field], $documentEntry[$field], "{$field} package manifest handoff");
             $t->same($documentEntry[$field], $rawDocumentEntry[$field], "{$field} raw manifest handoff");
         }
+        foreach ($entryCommentFields as $field) {
+            $t->same($packageManifest[$field], $summary[$field], "{$field} package comment handoff");
+            $t->same($summary[$field], $rawSummary[$field], "{$field} raw comment handoff");
+        }
+        $t->same(1, $summary['entryCommentCount']);
+        $t->same(true, $summary['hasEntryComments']);
+        $t->same(['word/document.xml'], $summary['commentedEntryNames']);
+        $t->same(1, $summary['entryCommentSummaryCount']);
         $t->same(0x0a14, $documentEntry['versionMadeBy']);
         $t->same(10, $documentEntry['madeByHostSystem']);
         $t->same(20, $documentEntry['madeByVersion']);
