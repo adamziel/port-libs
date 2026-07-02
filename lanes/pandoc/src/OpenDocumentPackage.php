@@ -382,6 +382,7 @@ final class OpenDocumentPackage
         $packageExtensions = self::packageExtensionMetadata($this->package, $this->manifestEntries, $undeclaredPackageEntries);
         $packageStyles = $this->packageStyleProvenance($packageInventory);
         $packageCoreParts = $this->packageCorePartProvenance($packageInventory);
+        $documentPartVersions = $this->documentPartVersions();
         foreach ($this->manifestEntries as $entry) {
             if (self::isMediaResourceManifestEntry($entry)) {
                 $mediaParts[] = [
@@ -465,7 +466,7 @@ final class OpenDocumentPackage
             'missingMediaParts' => $missingMediaParts,
             'exposableMediaPartCount' => $exposableMediaPartCount,
             'corePackageHandoff' => $corePackageHandoff,
-            'documentPartVersions' => $this->documentPartVersions(),
+            'documentPartVersions' => $documentPartVersions,
             'encryptedCount' => count($encryptedParts),
             'encryptedParts' => $encryptedParts,
             'undeclaredPackageEntryCount' => count($undeclaredPackageEntries),
@@ -496,7 +497,7 @@ final class OpenDocumentPackage
             'manifestEncryption' => self::manifestEncryptionSummary($this->manifestEntries),
             'manifestReview' => self::manifestReview($this->manifestEntries, $undeclaredPackageEntries, $this->manifestRootAttributes),
             'packageInventory' => $packageInventory,
-            'packageIdentity' => $this->packageIdentity($packageInventory, $packageCoreParts),
+            'packageIdentity' => $this->packageIdentity($packageInventory, $packageCoreParts, $documentPartVersions),
             'metadata' => $this->metadata,
             'settings' => $this->settings,
             'styleNames' => array_keys($this->stylesByName),
@@ -1992,9 +1993,10 @@ final class OpenDocumentPackage
     /**
      * @param array<string, mixed> $packageInventory
      * @param array<string, mixed> $packageCoreParts
+     * @param array<string, mixed> $documentPartVersions
      * @return array<string, mixed>
      */
-    private function packageIdentity(array $packageInventory, array $packageCoreParts): array
+    private function packageIdentity(array $packageInventory, array $packageCoreParts, array $documentPartVersions): array
     {
         $manifestRootAttributes = $this->manifestRootAttributes;
         $manifestEntries = [];
@@ -2391,6 +2393,13 @@ final class OpenDocumentPackage
             'byteExposurePolicyCounts' => $packageInventory['byteExposurePolicyCounts'] ?? [],
             'roleCounts' => $packageInventory['roleCounts'] ?? [],
             'packageCoreParts' => $packageCoreParts,
+            'documentPartVersionCount' => $documentPartVersions['count'] ?? 0,
+            'documentPartVersionedCount' => $documentPartVersions['versionedCount'] ?? 0,
+            'documentPartMissingVersionCount' => $documentPartVersions['missingVersionCount'] ?? 0,
+            'documentPartVersionMismatchCount' => $documentPartVersions['versionMismatchCount'] ?? 0,
+            'documentPartRootCustomAttributeCount' => $documentPartVersions['rootCustomAttributeCount'] ?? 0,
+            'documentPartRootNamespaceDeclarationCount' => $documentPartVersions['rootNamespaceDeclarationCount'] ?? 0,
+            'documentPartVersions' => $documentPartVersions,
             'undeclaredEntryCount' => $packageInventory['undeclaredEntryCount'] ?? 0,
             'unsupportedCompressionMethodCount' => $packageInventory['unsupportedCompressionMethodCount'] ?? 0,
             'rawNameProvenanceEntryCount' => $packageInventory['rawNameProvenanceEntryCount'] ?? 0,

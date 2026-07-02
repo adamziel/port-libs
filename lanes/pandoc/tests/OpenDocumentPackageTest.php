@@ -5499,11 +5499,18 @@ XML;
             extraParts: [['name' => 'settings.xml', 'data' => $settingsWithVersionMismatch, 'compressionMethod' => 0]]
         ))->summarize();
         $report = $summary['documentPartVersions'];
+        $identity = $summary['packageIdentity'];
         $versionsByPart = [];
         foreach ($report['items'] as $item) {
             $versionsByPart[$item['part']] = $item;
         }
 
+        $t->same($report, $identity['documentPartVersions']);
+        $t->same(4, $identity['documentPartVersionCount']);
+        $t->same(3, $identity['documentPartVersionedCount']);
+        $t->same(1, $identity['documentPartMissingVersionCount']);
+        $t->same(2, $identity['documentPartVersionMismatchCount']);
+        $t->same(1, $identity['documentPartRootCustomAttributeCount']);
         $t->same('1.3', $report['manifestVersion']);
         $t->same(4, $report['count']);
         $t->same(3, $report['versionedCount']);

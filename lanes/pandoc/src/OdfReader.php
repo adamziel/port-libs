@@ -227,12 +227,14 @@ final class OdfReader
         $packageDictionaries = $this->packageDictionaryMetadata($package, $manifest, $undeclaredEntries);
         $packageEvents = $this->packageEventMetadata($package, $manifest, $undeclaredEntries);
         $packageExtensions = $this->packageExtensionMetadata($package, $manifest, $undeclaredEntries);
+        $documentPartVersions = $this->documentPartVersionMetadata($package, $manifest);
         $packageProvenance = $this->packageProvenance($package, $manifest, $mimetypeEntry, $undeclaredEntries, $styleCatalog, $styleDiagnostics);
+        $packageProvenance['documentPartVersions'] = $documentPartVersions;
+        $packageProvenance['packageIdentity'] = $this->packageIdentityProvenance($packageProvenance);
         $packageObjects = $packageProvenance['embeddedObjectPackages'];
         $packageStyles = is_array($packageProvenance['stylePackageProvenance'] ?? null)
             ? $packageProvenance['stylePackageProvenance']
             : [];
-        $documentPartVersions = $this->documentPartVersionMetadata($package, $manifest);
         if ($packageThumbnails['count'] > 0) {
             $metadata['odfPackageThumbnails'] = $packageThumbnails;
         }
@@ -3997,6 +3999,9 @@ final class OdfReader
         }
 
         $comments = is_array($provenance['comments'] ?? null) ? $provenance['comments'] : [];
+        $documentPartVersions = is_array($provenance['documentPartVersions'] ?? null)
+            ? $provenance['documentPartVersions']
+            : [];
         $payload = [
             'identityVersion' => 1,
             'packageType' => 'opendocument-text',
@@ -4024,6 +4029,13 @@ final class OdfReader
             'packagePartExtensionCounts' => $provenance['packagePartExtensionCounts'] ?? [],
             'packagePartByteExposurePolicyCounts' => $provenance['packagePartByteExposurePolicyCounts'] ?? [],
             'packageCoreParts' => $provenance['packageCoreParts'] ?? [],
+            'documentPartVersionCount' => $documentPartVersions['count'] ?? 0,
+            'documentPartVersionedCount' => $documentPartVersions['versionedCount'] ?? 0,
+            'documentPartMissingVersionCount' => $documentPartVersions['missingVersionCount'] ?? 0,
+            'documentPartVersionMismatchCount' => $documentPartVersions['versionMismatchCount'] ?? 0,
+            'documentPartRootCustomAttributeCount' => $documentPartVersions['rootCustomAttributeCount'] ?? 0,
+            'documentPartRootNamespaceDeclarationCount' => $documentPartVersions['rootNamespaceDeclarationCount'] ?? 0,
+            'documentPartVersions' => $documentPartVersions,
             'corePackageIssueCount' => is_array($provenance['packageCoreParts'] ?? null)
                 ? ($provenance['packageCoreParts']['issueCount'] ?? 0)
                 : 0,
@@ -4155,6 +4167,13 @@ final class OdfReader
             'packagePartExtensionCounts' => $provenance['packagePartExtensionCounts'] ?? [],
             'packagePartByteExposurePolicyCounts' => $provenance['packagePartByteExposurePolicyCounts'] ?? [],
             'packageCoreParts' => $provenance['packageCoreParts'] ?? [],
+            'documentPartVersionCount' => $documentPartVersions['count'] ?? 0,
+            'documentPartVersionedCount' => $documentPartVersions['versionedCount'] ?? 0,
+            'documentPartMissingVersionCount' => $documentPartVersions['missingVersionCount'] ?? 0,
+            'documentPartVersionMismatchCount' => $documentPartVersions['versionMismatchCount'] ?? 0,
+            'documentPartRootCustomAttributeCount' => $documentPartVersions['rootCustomAttributeCount'] ?? 0,
+            'documentPartRootNamespaceDeclarationCount' => $documentPartVersions['rootNamespaceDeclarationCount'] ?? 0,
+            'documentPartVersions' => $documentPartVersions,
             'corePackageIssueCount' => is_array($provenance['packageCoreParts'] ?? null)
                 ? ($provenance['packageCoreParts']['issueCount'] ?? 0)
                 : 0,

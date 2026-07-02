@@ -134,6 +134,13 @@ return [
         $t->same(1, $identity['roleCounts']['script-package']);
         $t->same(1, $identity['packagePartByteExposurePolicyCounts']['script-package-bytes-blocked']);
         $t->same(1, $identity['packagePartByteExposurePolicyCounts']['undeclared-package-entry-no-bytes']);
+        $t->same($result['documentPartVersions'], $identity['documentPartVersions']);
+        $t->same(3, $identity['documentPartVersionCount']);
+        $t->same(0, $identity['documentPartVersionedCount']);
+        $t->same(3, $identity['documentPartMissingVersionCount']);
+        $t->same(0, $identity['documentPartVersionMismatchCount']);
+        $t->same(0, $identity['documentPartRootCustomAttributeCount']);
+        $t->same(['content.xml', 'styles.xml', 'meta.xml'], $identity['documentPartVersions']['missingVersionParts']);
         $t->same(count($parts), $provenance['centralDirectorySourceRecordEntryCount']);
         $t->same(count($parts), $provenance['centralDirectorySourceRecordSha256Count']);
         $t->true($provenance['centralDirectorySourceRecordByteLength'] > count($parts) * 46);
