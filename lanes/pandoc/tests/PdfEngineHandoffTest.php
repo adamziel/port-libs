@@ -492,6 +492,13 @@ return [
             'openOutputViewerNames' => ['xdg-open'],
             'overrideCount' => 0,
             'historyEntryCount' => 0,
+            'issueOccurrenceCount' => 7,
+            'issueCounts' => [
+                'certificate-external-boundary' => 2,
+                'font-path-external-boundary' => 2,
+                'open-output-side-effect-boundary' => 1,
+                'package-cache-external-boundary' => 2,
+            ],
             'issueCount' => 4,
             'issues' => [
                 'package-cache-external-boundary',

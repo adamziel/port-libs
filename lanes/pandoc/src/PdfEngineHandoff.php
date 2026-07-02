@@ -788,6 +788,15 @@ final class PdfEngineHandoff
             }
             if ($typstBoundarySummary['issueCount'] > 0) {
                 $diagnostics[] = 'typst-boundary-summary-issues:' . $typstBoundarySummary['issueCount'];
+                if (($typstBoundarySummary['issueOccurrenceCount'] ?? 0) > $typstBoundarySummary['issueCount']) {
+                    $diagnostics[] = 'typst-boundary-summary-issue-occurrences:' . $typstBoundarySummary['issueOccurrenceCount'];
+                }
+                foreach (is_array($typstBoundarySummary['issueCounts'] ?? null) ? $typstBoundarySummary['issueCounts'] : [] as $issue => $count) {
+                    if (!is_string($issue) || !is_int($count) || $count < 1) {
+                        continue;
+                    }
+                    $diagnostics[] = 'typst-boundary-summary-issue:' . $issue . ':' . $count;
+                }
             }
         }
         if ($typstBoundaryMatrix !== []) {
@@ -10189,6 +10198,50 @@ final class PdfEngineHandoff
             is_array($provenance['issues'] ?? null) ? $provenance['issues'] : [],
             static fn (mixed $issue): bool => is_string($issue) && $issue !== ''
         ));
+        $issueCounts = [];
+        $recordIssue = static function (mixed $issue) use (&$issueCounts): void {
+            if (!is_string($issue) || $issue === '') {
+                return;
+            }
+
+            $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
+        };
+        $collectIssueCounts = null;
+        $collectIssueCounts = static function (mixed $value) use (&$collectIssueCounts, $recordIssue): void {
+            if (!is_array($value)) {
+                return;
+            }
+
+            foreach ($value as $key => $entry) {
+                if ($key === 'issues' && is_array($entry)) {
+                    foreach ($entry as $issue) {
+                        $recordIssue($issue);
+                    }
+                    continue;
+                }
+                if ($key === 'issue') {
+                    $recordIssue($entry);
+                    continue;
+                }
+                if (is_array($entry)) {
+                    $collectIssueCounts($entry);
+                }
+            }
+        };
+        foreach ($provenance as $key => $value) {
+            if ($key === 'issues') {
+                continue;
+            }
+
+            $collectIssueCounts($value);
+        }
+        foreach ($issues as $issue) {
+            if (!array_key_exists($issue, $issueCounts)) {
+                $issueCounts[$issue] = 1;
+            }
+        }
+        ksort($issueCounts);
+        $issueOccurrenceCount = array_sum($issueCounts);
 
         return [
             'reviewStatus' => is_string($provenance['reviewStatus'] ?? null) ? $provenance['reviewStatus'] : ($issues === [] ? 'ok' : 'review'),
@@ -10349,6 +10402,8 @@ final class PdfEngineHandoff
             'openOutputViewerNames' => $openOutputViewerNames,
             'overrideCount' => is_array($provenance['overrides'] ?? null) ? count($provenance['overrides']) : 0,
             'historyEntryCount' => $historyEntryCount,
+            'issueOccurrenceCount' => $issueOccurrenceCount,
+            'issueCounts' => $issueCounts,
             'issueCount' => count($issues),
             'issues' => $issues,
         ];
