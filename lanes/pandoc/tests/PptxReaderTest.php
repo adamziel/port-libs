@@ -9093,6 +9093,10 @@ XML);
       <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table-diagram"><dgm:relIds/></a:graphicData></a:graphic>
     </p:graphicFrame>
     <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="26" name="Chart Table URI"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart-table"><c:chart r:id="rIdChartTable" xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"/></a:graphicData></a:graphic>
+    </p:graphicFrame>
+    <p:graphicFrame>
       <p:nvGraphicFramePr><p:cNvPr id="17" name="Uppercase Table URI"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
       <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/TABLE"><a:tbl>
         <a:tr><a:tc><a:txBody><a:p><a:r><a:t>Uppercase URI table cell</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
@@ -17515,6 +17519,8 @@ XML);
         $t->same(3, count(array_filter($texts, static fn (string $text): bool => $text === '[Graphic: diagram-missing-rels]')));
         $t->true(!str_contains($native, 'chart-diagram'), 'Graphic URIs containing diagram should follow the upstream diagram branch before chart handling');
         $t->true(!str_contains($native, 'table-diagram'), 'Graphic URIs containing table should follow the upstream table branch before diagram handling');
+        $t->true(!str_contains($native, 'chart-table'), 'Graphic URIs containing table should stay in the upstream table branch even when chart is also present');
+        $t->true(!str_contains($native, 'rIdChartTable'), 'Chart-table URIs without direct table children should not fall through to chart relationship handling');
         $t->true(!str_contains($native, 'Uppercase URI table cell'), 'Graphic URI detection is case-sensitive like upstream and should not parse uppercase TABLE as a table');
         $t->true(!str_contains($native, 'rIdOnlyData'), 'Partial SmartArt relIds should not look up the present data relationship');
         $t->true(!str_contains($native, 'rIdOnlyLayout'), 'Partial SmartArt relIds should not look up the present layout relationship');
