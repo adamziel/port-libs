@@ -16521,6 +16521,7 @@ final class XmlHtmlDom
             $renderBlockingTokenPresent => 'declared-render-blocking-non-resource',
             default => 'declared-non-render-token',
         };
+        $sizesReview = self::linkIconSizesReviewSummary($link, $normalized);
         $issues = [];
         $loadingIssues = [];
         $fetchPolicyIssues = [];
@@ -16558,6 +16559,11 @@ final class XmlHtmlDom
             ];
         }
         array_push($issues, ...$fetchPolicyIssues);
+        foreach (($sizesReview['linkSizesIssues'] ?? []) as $issue) {
+            if (is_array($issue)) {
+                $issues[] = $issue;
+            }
+        }
         foreach ($invalidBlockingTokens as $token) {
             $issues[] = [
                 'code' => 'invalid-link-blocking-token',
@@ -16647,6 +16653,122 @@ final class XmlHtmlDom
                 $fetchPolicyIssues
             ))),
             'linkFetchPolicyValid' => $fetchPolicyIssues === [],
+        ] + $sizesReview;
+    }
+
+    /**
+     * @param list<string> $relTokens
+     * @return array<string, mixed>
+     */
+    private static function linkIconSizesReviewSummary(\DOMElement $link, array $relTokens): array
+    {
+        $raw = self::attributeOrNull($link, 'sizes');
+        if ($raw === null) {
+            return [];
+        }
+
+        $tokens = self::spaceSeparatedTokens($raw);
+        $validTokens = [];
+        $uniqueTokens = [];
+        $counts = [];
+        $duplicates = [];
+        $invalid = [];
+        $dimensions = [];
+        $records = [];
+        $any = false;
+
+        foreach ($tokens as $index => $token) {
+            $normalized = strtolower($token);
+            $width = null;
+            $height = null;
+            $kind = 'invalid';
+            $valid = false;
+
+            if ($normalized === 'any') {
+                $kind = 'any';
+                $valid = true;
+                $any = true;
+            } elseif (preg_match('/^([1-9][0-9]*)x([1-9][0-9]*)$/', $normalized, $matches) === 1) {
+                $kind = 'dimension';
+                $valid = true;
+                $width = (int) $matches[1];
+                $height = (int) $matches[2];
+                $dimensions[] = [
+                    'width' => $width,
+                    'height' => $height,
+                    'token' => $normalized,
+                ];
+            } else {
+                $invalid[] = $token;
+            }
+
+            if ($valid) {
+                $validTokens[] = $normalized;
+                if (!array_key_exists($normalized, $counts)) {
+                    $counts[$normalized] = 0;
+                    $uniqueTokens[] = $normalized;
+                }
+                ++$counts[$normalized];
+                if ($counts[$normalized] === 2) {
+                    $duplicates[] = $normalized;
+                }
+            }
+
+            $record = [
+                'index' => $index,
+                'token' => $token,
+                'normalizedToken' => $valid ? $normalized : null,
+                'kind' => $kind,
+                'valid' => $valid,
+                'duplicate' => $valid && $counts[$normalized] > 1,
+            ];
+            if ($width !== null && $height !== null) {
+                $record['width'] = $width;
+                $record['height'] = $height;
+            }
+            $records[] = $record;
+        }
+
+        $issues = [];
+        if ($tokens === []) {
+            $issues[] = ['code' => 'empty-link-sizes'];
+        }
+        foreach ($invalid as $token) {
+            $issues[] = ['code' => 'invalid-link-size-token', 'token' => $token];
+        }
+        foreach ($duplicates as $token) {
+            $issues[] = [
+                'code' => 'duplicate-link-size-token',
+                'token' => $token,
+                'count' => $counts[$token],
+            ];
+        }
+
+        $appliesToIcon = in_array('icon', $relTokens, true);
+        if (!$appliesToIcon) {
+            $issues[] = ['code' => 'link-sizes-without-icon-rel', 'relTokens' => $relTokens];
+        }
+
+        return [
+            'linkSizesReviewPolicy' => 'link-icon-sizes-token-review',
+            'linkSizesRaw' => $raw,
+            'linkSizesTokens' => $tokens,
+            'linkValidSizeTokens' => $validTokens,
+            'linkUniqueSizeTokens' => $uniqueTokens,
+            'linkSizeTokenCounts' => $counts,
+            'linkSizeRecords' => $records,
+            'invalidLinkSizeTokens' => $invalid,
+            'duplicateLinkSizeTokens' => $duplicates,
+            'linkSizesAppliesToIcon' => $appliesToIcon,
+            'linkIconSizeAny' => $any,
+            'linkIconSizeDimensions' => $dimensions,
+            'linkIconSizeDimensionCount' => count($dimensions),
+            'linkSizesIssues' => $issues,
+            'linkSizesIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'linkSizesValid' => $issues === [],
         ];
     }
 
