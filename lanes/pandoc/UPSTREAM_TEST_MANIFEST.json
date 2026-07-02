@@ -729,6 +729,8 @@
             "markdownWriterCitationSpanBoundaryFixtureAssertions": 14,
             "mappedSharedZipPackageNameLengthBucketCases": 1,
             "sharedZipPackageNameLengthBucketAssertions": 26,
+            "mappedSharedZipPackageDirectoryDepthBucketCases": 1,
+            "sharedZipPackageDirectoryDepthBucketAssertions": 32,
             "mappedOdfZipSourceRecordPackagePartExtensionCases": 1,
             "odfZipSourceRecordPackagePartExtensionAssertions": 65
         },
@@ -876,6 +878,8 @@
             "markdownWriterCitationSpanBoundaryFixtureAssertions": 14,
             "mappedSharedZipPackageNameLengthBucketCases": 1,
             "sharedZipPackageNameLengthBucketAssertions": 26,
+            "mappedSharedZipPackageDirectoryDepthBucketCases": 1,
+            "sharedZipPackageDirectoryDepthBucketAssertions": 32,
             "mappedOdfZipSourceRecordPackagePartExtensionCases": 1,
             "odfZipSourceRecordPackagePartExtensionAssertions": 65
         }
@@ -2167,6 +2171,8 @@
         "markdownWriterCitationSpanBoundaryFixtureAssertions": 14,
         "mappedSharedZipPackageNameLengthBucketCases": 1,
         "sharedZipPackageNameLengthBucketAssertions": 26,
+        "mappedSharedZipPackageDirectoryDepthBucketCases": 1,
+        "sharedZipPackageDirectoryDepthBucketAssertions": 32,
         "mappedOdfZipSourceRecordPackagePartExtensionCases": 1,
         "odfZipSourceRecordPackagePartExtensionAssertions": 65
     },
@@ -2313,6 +2319,8 @@
     "markdownWriterCitationSpanBoundaryFixtureAssertions": 14,
     "mappedSharedZipPackageNameLengthBucketCases": 1,
     "sharedZipPackageNameLengthBucketAssertions": 26,
+    "mappedSharedZipPackageDirectoryDepthBucketCases": 1,
+    "sharedZipPackageDirectoryDepthBucketAssertions": 32,
     "mappedOdfZipSourceRecordPackagePartExtensionCases": 1,
     "odfZipSourceRecordPackagePartExtensionAssertions": 65
 }
