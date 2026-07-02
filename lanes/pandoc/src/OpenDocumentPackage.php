@@ -3047,6 +3047,9 @@ final class OpenDocumentPackage
             'manifestMediaTypeParameterValuesByName' => $manifestMediaTypeSummary['mediaTypeParameterValuesByName'] ?? [],
             'manifestMediaTypeParameterValueCounts' => $manifestMediaTypeSummary['mediaTypeParameterValueCounts'] ?? [],
             'manifestMediaTypeParameterValueSummaries' => $manifestMediaTypeSummary['mediaTypeParameterValueSummaries'] ?? [],
+            'manifestMediaTypeSubtypeTreeCount' => $manifestMediaTypeSummary['mediaTypeSubtypeTreeCount'] ?? 0,
+            'manifestMediaTypeSubtypeTreeCounts' => $manifestMediaTypeSummary['mediaTypeSubtypeTreeCounts'] ?? [],
+            'manifestMediaTypeSubtypeTreeSummaries' => $manifestMediaTypeSummary['mediaTypeSubtypeTreeSummaries'] ?? [],
             'manifestEmptyMediaTypeCount' => $manifestMediaTypeSummary['emptyMediaTypeCount'] ?? 0,
             'manifestEmptyMediaTypeDirectoryCount' => $manifestMediaTypeSummary['emptyMediaTypeDirectoryCount'] ?? 0,
             'manifestEmptyMediaTypeNonDirectoryCount' => $manifestMediaTypeSummary['emptyMediaTypeNonDirectoryCount'] ?? 0,
@@ -3428,6 +3431,9 @@ final class OpenDocumentPackage
             'mediaTypeParameterValuesByName' => [],
             'mediaTypeParameterValueCounts' => [],
             'mediaTypeParameterValueSummaries' => [],
+            'mediaTypeSubtypeTreeCount' => 0,
+            'mediaTypeSubtypeTreeCounts' => [],
+            'mediaTypeSubtypeTreeSummaries' => [],
             'storedByteLength' => 0,
             'compressedByteLength' => 0,
             'exposableByteLength' => 0,
@@ -3706,8 +3712,17 @@ final class OpenDocumentPackage
             $groups[$mediaType]['rawMediaTypeCount'] = count($groups[$mediaType]['rawMediaTypes']);
             $items[] = $groups[$mediaType];
         }
+        $subtypeTreeRollup = self::manifestMediaTypeSubtypeTreeRollup(
+            $items,
+            $emptyMediaTypeParts,
+            count($emptyMediaTypeDirectoryParts),
+            count($emptyMediaTypeNonDirectoryItems)
+        );
 
         $summary['mediaTypeCount'] = count($items);
+        $summary['mediaTypeSubtypeTreeCount'] = $subtypeTreeRollup['count'];
+        $summary['mediaTypeSubtypeTreeCounts'] = $subtypeTreeRollup['counts'];
+        $summary['mediaTypeSubtypeTreeSummaries'] = $subtypeTreeRollup['summaries'];
         $summary['emptyMediaTypeCount'] = count($emptyMediaTypeParts);
         $summary['emptyMediaTypeParts'] = $emptyMediaTypeParts;
         $summary['emptyMediaTypeDirectoryCount'] = count($emptyMediaTypeDirectoryParts);
@@ -3721,6 +3736,116 @@ final class OpenDocumentPackage
         $summary['items'] = $items;
 
         return $summary;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @param list<string> $emptyMediaTypeParts
+     * @return array{count:int, counts:array<string, int>, summaries:list<array<string, mixed>>}
+     */
+    private static function manifestMediaTypeSubtypeTreeRollup(
+        array $items,
+        array $emptyMediaTypeParts,
+        int $emptyMediaTypeDirectoryCount,
+        int $emptyMediaTypeNonDirectoryCount
+    ): array {
+        $trees = [];
+        foreach ($items as $item) {
+            $mediaTypeBase = (string) ($item['mediaType'] ?? '');
+            $treeKey = self::mediaTypeSubtypeTreeKey($mediaTypeBase);
+            if (!isset($trees[$treeKey])) {
+                $trees[$treeKey] = [
+                    'mediaTypeSubtypeTreeKey' => $treeKey,
+                    'mediaTypeSubtypeTree' => $treeKey[0] === '(' ? null : $treeKey,
+                    'count' => 0,
+                    'parts' => [],
+                    'mediaTypeBaseCounts' => [],
+                    'rawMediaTypes' => [],
+                    'rawMediaTypeCount' => 0,
+                    'parameterizedItemCount' => 0,
+                    'existsCount' => 0,
+                    'missingCount' => 0,
+                    'directoryCount' => 0,
+                    'nonDirectoryCount' => 0,
+                    'encryptedCount' => 0,
+                    'declaredSizeMismatchCount' => 0,
+                    'invalidDeclaredSizeCount' => 0,
+                    'storedByteLength' => 0,
+                    'compressedByteLength' => 0,
+                    'exposableByteLength' => 0,
+                    'declaredSize' => 0,
+                ];
+            }
+
+            $count = (int) ($item['count'] ?? 0);
+            $directoryCount = (int) ($item['directoryCount'] ?? 0);
+            $trees[$treeKey]['count'] += $count;
+            $trees[$treeKey]['parts'] = array_merge(
+                $trees[$treeKey]['parts'],
+                array_values(array_map('strval', $item['parts'] ?? []))
+            );
+            $trees[$treeKey]['mediaTypeBaseCounts'][$mediaTypeBase] =
+                ($trees[$treeKey]['mediaTypeBaseCounts'][$mediaTypeBase] ?? 0) + $count;
+            $trees[$treeKey]['rawMediaTypes'] = array_merge(
+                $trees[$treeKey]['rawMediaTypes'],
+                array_values(array_map('strval', $item['rawMediaTypes'] ?? []))
+            );
+            $trees[$treeKey]['parameterizedItemCount'] += (int) ($item['parameterizedItemCount'] ?? 0);
+            $trees[$treeKey]['existsCount'] += (int) ($item['existsCount'] ?? 0);
+            $trees[$treeKey]['missingCount'] += (int) ($item['missingCount'] ?? 0);
+            $trees[$treeKey]['directoryCount'] += $directoryCount;
+            $trees[$treeKey]['nonDirectoryCount'] += max(0, $count - $directoryCount);
+            $trees[$treeKey]['encryptedCount'] += (int) ($item['encryptedCount'] ?? 0);
+            $trees[$treeKey]['declaredSizeMismatchCount'] += (int) ($item['declaredSizeMismatchCount'] ?? 0);
+            $trees[$treeKey]['invalidDeclaredSizeCount'] += (int) ($item['invalidDeclaredSizeCount'] ?? 0);
+            $trees[$treeKey]['storedByteLength'] += (int) ($item['storedByteLength'] ?? 0);
+            $trees[$treeKey]['compressedByteLength'] += (int) ($item['compressedByteLength'] ?? 0);
+            $trees[$treeKey]['exposableByteLength'] += (int) ($item['exposableByteLength'] ?? 0);
+            $trees[$treeKey]['declaredSize'] += (int) ($item['declaredSize'] ?? 0);
+        }
+
+        if ($emptyMediaTypeParts !== []) {
+            $trees['(empty)'] = [
+                'mediaTypeSubtypeTreeKey' => '(empty)',
+                'mediaTypeSubtypeTree' => null,
+                'count' => count($emptyMediaTypeParts),
+                'parts' => array_values(array_map('strval', $emptyMediaTypeParts)),
+                'mediaTypeBaseCounts' => ['(empty)' => count($emptyMediaTypeParts)],
+                'rawMediaTypes' => [],
+                'rawMediaTypeCount' => 0,
+                'parameterizedItemCount' => 0,
+                'existsCount' => 0,
+                'missingCount' => 0,
+                'directoryCount' => $emptyMediaTypeDirectoryCount,
+                'nonDirectoryCount' => $emptyMediaTypeNonDirectoryCount,
+                'encryptedCount' => 0,
+                'declaredSizeMismatchCount' => 0,
+                'invalidDeclaredSizeCount' => 0,
+                'storedByteLength' => 0,
+                'compressedByteLength' => 0,
+                'exposableByteLength' => 0,
+                'declaredSize' => 0,
+            ];
+        }
+
+        ksort($trees, SORT_STRING);
+        $counts = [];
+        foreach ($trees as $treeKey => $summary) {
+            $summary['parts'] = array_values(array_unique($summary['parts']));
+            sort($summary['parts'], SORT_STRING);
+            $summary['rawMediaTypes'] = array_values(array_unique($summary['rawMediaTypes']));
+            sort($summary['rawMediaTypes'], SORT_STRING);
+            $summary['rawMediaTypeCount'] = count($summary['rawMediaTypes']);
+            ksort($summary['mediaTypeBaseCounts'], SORT_STRING);
+            $counts[$treeKey] = (int) ($summary['count'] ?? 0);
+            $trees[$treeKey] = $summary;
+        }
+
+        return [
+            'count' => count($trees),
+            'counts' => $counts,
+            'summaries' => array_values($trees),
+        ];
     }
 
     /**
@@ -13652,6 +13777,47 @@ final class OpenDocumentPackage
             'mediaTypeParameters' => $parameters,
             'mediaTypeParameterMap' => $parameterMap,
         ];
+    }
+
+    private static function mediaTypeSubtypeTreeKey(string $mediaTypeBase): string
+    {
+        $subtype = self::mediaTypeSubtypeKey($mediaTypeBase);
+        if ($subtype === '(empty)' || $subtype === '(invalid)') {
+            return $subtype;
+        }
+
+        if (str_starts_with($subtype, 'vnd.')) {
+            return 'vendor';
+        }
+
+        if (str_starts_with($subtype, 'prs.')) {
+            return 'personal';
+        }
+
+        if (str_starts_with($subtype, 'x-')) {
+            return 'experimental';
+        }
+
+        return 'standard';
+    }
+
+    private static function mediaTypeSubtypeKey(string $mediaTypeBase): string
+    {
+        if ($mediaTypeBase === '') {
+            return '(empty)';
+        }
+
+        $slashPosition = strpos($mediaTypeBase, '/');
+        if ($slashPosition === false || $slashPosition === 0 || $slashPosition === strlen($mediaTypeBase) - 1) {
+            return '(invalid)';
+        }
+
+        $subtype = substr($mediaTypeBase, $slashPosition + 1);
+        if ($subtype === '' || strpos($subtype, '/') !== false) {
+            return '(invalid)';
+        }
+
+        return strtolower($subtype);
     }
 
     /**
