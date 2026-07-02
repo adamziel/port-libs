@@ -1320,6 +1320,9 @@ return [
             'nameLengthBucketSummaryCount' => $manifest['nameLengthBucketSummaryCount'],
             'nameLengthBuckets' => $manifest['nameLengthBuckets'],
             'nameLengthBucketSummaries' => $manifest['nameLengthBucketSummaries'],
+            'uncompressedByteLengthBucketSummaryCount' => $manifest['uncompressedByteLengthBucketSummaryCount'],
+            'uncompressedByteLengthBuckets' => $manifest['uncompressedByteLengthBuckets'],
+            'uncompressedByteLengthBucketSummaries' => $manifest['uncompressedByteLengthBucketSummaries'],
             'centralDirectoryRecordBytes' => array_sum(array_column($expectedEntries, 'centralDirectoryRecordBytes')),
             'centralDirectoryFixedHeaderBytes' => 46 * count($expectedEntries),
             'centralDirectoryVariableFieldBytes' => strlen('OEBPS/content.xhtml')
@@ -1985,6 +1988,158 @@ return [
         $t->same($manifest['nameLengthBucketSummaries'], $strict['packageManifest']['nameLengthBucketSummaries']);
         $t->same($manifest['nameLengthBucketSummaries'], $raw['packageManifest']['nameLengthBucketSummaries']);
         $t->same($manifest['nameLengthBucketSummaries'], $raw['strictImport']['packageManifest']['nameLengthBucketSummaries']);
+    },
+
+    'rolls up zip package manifest uncompressed byte length buckets before shared package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $zeroFileName = 'word/media/empty.bin';
+        $zeroDirectoryName = 'word/media/';
+        $smallName = 'word/media/thumb.bin';
+        $mediumName = 'word/document.xml';
+        $largeName = 'word/media/full.bin';
+        $smallBytes = str_repeat('s', 64);
+        $mediumBytes = str_repeat('m', 512);
+        $largeBytes = str_repeat('l', 2048);
+
+        $zip = $buildZipPackage([
+            [
+                'name' => $zeroFileName,
+                'data' => '',
+                'method' => 0,
+            ],
+            [
+                'name' => $zeroDirectoryName,
+                'data' => '',
+                'method' => 0,
+            ],
+            [
+                'name' => $smallName,
+                'data' => $smallBytes,
+                'method' => 0,
+            ],
+            [
+                'name' => $mediumName,
+                'data' => $mediumBytes,
+                'method' => 0,
+            ],
+            [
+                'name' => $largeName,
+                'data' => $largeBytes,
+                'method' => 0,
+            ],
+        ]);
+        $package = ZipPackage::fromString($zip);
+        $manifest = $package->packageManifestPreflight();
+        $strict = $package->strictImportPreflight(8192, 100.0, 8192);
+        $raw = ZipPackage::rawStrictImportPreflight($zip, 8192, 100.0, 8192);
+
+        $entriesByName = array_column($manifest['entries'], null, 'name');
+        $expectedBucket = static function (
+            string $bucket,
+            int $minUncompressedBytes,
+            ?int $maxUncompressedBytes,
+            array $names
+        ) use ($entriesByName): array {
+            $fileEntryCount = 0;
+            $directoryEntryCount = 0;
+            $compressedBytes = 0;
+            $uncompressedBytes = 0;
+            $localRecordBytes = 0;
+            $sourceRecordBytes = 0;
+            $dataDescriptorEntryCount = 0;
+            $dataDescriptorBytes = 0;
+            $directoryRoots = [];
+            $packagePartExtensionKeys = [];
+            $compressionMethodNames = [];
+            $largestUncompressedEntryName = null;
+            $largestUncompressedBytes = null;
+            $addUniqueString = static function (array &$values, string $value): void {
+                if ($value !== '' && !in_array($value, $values, true)) {
+                    $values[] = $value;
+                }
+            };
+
+            foreach ($names as $name) {
+                $entry = $entriesByName[$name];
+                if ($entry['isDirectory']) {
+                    ++$directoryEntryCount;
+                } else {
+                    ++$fileEntryCount;
+                }
+
+                $entryCompressedBytes = (int) $entry['compressedSize'];
+                $entryUncompressedBytes = (int) $entry['uncompressedSize'];
+                $compressedBytes += $entryCompressedBytes;
+                $uncompressedBytes += $entryUncompressedBytes;
+                $localRecordBytes += (int) $entry['localRecordBytes'];
+                $sourceRecordBytes += (int) $entry['sourceRecordBytes'];
+                if ((int) $entry['dataDescriptorBytes'] > 0) {
+                    ++$dataDescriptorEntryCount;
+                    $dataDescriptorBytes += (int) $entry['dataDescriptorBytes'];
+                }
+
+                $addUniqueString($directoryRoots, (string) $entry['directoryRoot']);
+                $addUniqueString($packagePartExtensionKeys, (string) $entry['packagePartExtensionKey']);
+                $addUniqueString($compressionMethodNames, (string) $entry['compressionMethodName']);
+
+                if ($largestUncompressedBytes === null || $entryUncompressedBytes > $largestUncompressedBytes) {
+                    $largestUncompressedEntryName = $name;
+                    $largestUncompressedBytes = $entryUncompressedBytes;
+                }
+            }
+
+            sort($directoryRoots, SORT_STRING);
+            sort($packagePartExtensionKeys, SORT_STRING);
+            sort($compressionMethodNames, SORT_STRING);
+
+            return [
+                'uncompressedByteLengthBucket' => $bucket,
+                'minUncompressedBytes' => $minUncompressedBytes,
+                'maxUncompressedBytes' => $maxUncompressedBytes,
+                'entryCount' => count($names),
+                'fileEntryCount' => $fileEntryCount,
+                'directoryEntryCount' => $directoryEntryCount,
+                'compressedBytes' => $compressedBytes,
+                'uncompressedBytes' => $uncompressedBytes,
+                'localRecordBytes' => $localRecordBytes,
+                'sourceRecordBytes' => $sourceRecordBytes,
+                'dataDescriptorEntryCount' => $dataDescriptorEntryCount,
+                'dataDescriptorBytes' => $dataDescriptorBytes,
+                'directoryRoots' => $directoryRoots,
+                'packagePartExtensionKeys' => $packagePartExtensionKeys,
+                'compressionMethodNames' => $compressionMethodNames,
+                'entryNames' => $names,
+                'largestUncompressedEntryName' => $largestUncompressedEntryName,
+                'largestUncompressedBytes' => $largestUncompressedBytes,
+            ];
+        };
+        $buckets = array_column(
+            $manifest['uncompressedByteLengthBucketSummaries'],
+            null,
+            'uncompressedByteLengthBucket'
+        );
+
+        $t->same(4, $manifest['uncompressedByteLengthBucketSummaryCount']);
+        $t->same(
+            ['zero-bytes', '1-to-127-bytes', '128-to-1023-bytes', '1024-plus-bytes'],
+            $manifest['uncompressedByteLengthBuckets']
+        );
+        $t->same($expectedBucket('zero-bytes', 0, 0, [$zeroFileName, $zeroDirectoryName]), $buckets['zero-bytes']);
+        $t->same($expectedBucket('1-to-127-bytes', 1, 127, [$smallName]), $buckets['1-to-127-bytes']);
+        $t->same($expectedBucket('128-to-1023-bytes', 128, 1023, [$mediumName]), $buckets['128-to-1023-bytes']);
+        $t->same($expectedBucket('1024-plus-bytes', 1024, null, [$largeName]), $buckets['1024-plus-bytes']);
+
+        $t->same(
+            $manifest['uncompressedByteLengthBucketSummaries'],
+            $strict['packageManifest']['uncompressedByteLengthBucketSummaries']
+        );
+        $t->same(
+            $manifest['uncompressedByteLengthBucketSummaries'],
+            $raw['packageManifest']['uncompressedByteLengthBucketSummaries']
+        );
+        $t->same(
+            $manifest['uncompressedByteLengthBucketSummaries'],
+            $raw['strictImport']['packageManifest']['uncompressedByteLengthBucketSummaries']
+        );
     },
 
     'preflights zip package manifest path segment positions for shared package handoff' => static function (TestRunner $t) use ($buildZipPackage, $pathSegmentPositionReviews): void {
@@ -3375,6 +3530,9 @@ return [
             'nameLengthBucketSummaryCount' => $manifest['nameLengthBucketSummaryCount'],
             'nameLengthBuckets' => $manifest['nameLengthBuckets'],
             'nameLengthBucketSummaries' => $manifest['nameLengthBucketSummaries'],
+            'uncompressedByteLengthBucketSummaryCount' => $manifest['uncompressedByteLengthBucketSummaryCount'],
+            'uncompressedByteLengthBuckets' => $manifest['uncompressedByteLengthBuckets'],
+            'uncompressedByteLengthBucketSummaries' => $manifest['uncompressedByteLengthBucketSummaries'],
             'centralDirectoryRecordBytes' => $manifest['centralDirectoryRecordBytes'],
             'centralDirectoryFixedHeaderBytes' => $manifest['centralDirectoryFixedHeaderBytes'],
             'centralDirectoryVariableFieldBytes' => $manifest['centralDirectoryVariableFieldBytes'],
