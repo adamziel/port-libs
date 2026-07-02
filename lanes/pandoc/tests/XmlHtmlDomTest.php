@@ -9216,7 +9216,8 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<p><ins cite="./changes/insert.html" datetime="2026-06-11 12:30Z">Inserted <em>text</em></ins>'
                 . '<del cite="https://example.test/revision#old" datetime="2026-06-10T09:15:30-0500">Removed</del>'
-                . '<ins datetime="2026-02-30">Invalid date</ins></p>',
+                . '<ins cite="javascript:alert(1)" datetime="2026-02-30">Invalid date</ins>'
+                . '<del cite="" datetime="">Empty metadata</del></p>',
             'revision review fragment'
         );
         $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
@@ -9226,33 +9227,92 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $inserted = $paragraph['children'][0];
         $deleted = $paragraph['children'][1];
         $invalid = $paragraph['children'][2];
+        $empty = $paragraph['children'][3];
 
         $t->same('p', $paragraph['name']);
         $t->same('ins', $inserted['name']);
+        $t->same('html-revision-cite-datetime-review', $inserted['revisionReviewPolicy']);
         $t->same('insertion', $inserted['revision']);
         $t->same('ins', $inserted['revisionTag']);
+        $t->same('Inserted text', $inserted['revisionText']);
         $t->same('./changes/insert.html', $inserted['revisionCite']);
+        $t->same('./changes/insert.html', $inserted['revisionCiteRaw']);
+        $t->same(true, $inserted['revisionCitePresent']);
+        $t->same(false, $inserted['revisionCiteEmpty']);
+        $t->same('relative', $inserted['revisionCiteKind']);
+        $t->same(null, $inserted['revisionCiteScheme']);
+        $t->same(false, $inserted['revisionCiteUnsafe']);
+        $t->same(true, $inserted['revisionCiteUsable']);
+        $t->same(true, $inserted['revisionCiteValid']);
+        $t->same([], $inserted['revisionCiteIssueCodes']);
         $t->same('2026-06-11 12:30Z', $inserted['revisionDatetimeRaw']);
+        $t->same(true, $inserted['revisionDatetimePresent']);
         $t->same('2026-06-11T12:30Z', $inserted['revisionDatetime']);
         $t->same('global-datetime', $inserted['revisionDatetimeKind']);
         $t->same(true, $inserted['revisionDatetimeValid']);
+        $t->same([], $inserted['revisionDatetimeIssueCodes']);
+        $t->same([], $inserted['revisionIssueCodes']);
+        $t->same(true, $inserted['revisionValid']);
         $t->same('Inserted text', $inserted['text']);
         $t->same('em', $inserted['children'][1]['name']);
+
         $t->same('del', $deleted['name']);
         $t->same('deletion', $deleted['revision']);
         $t->same('https://example.test/revision#old', $deleted['revisionCite']);
+        $t->same('absolute', $deleted['revisionCiteKind']);
+        $t->same('https', $deleted['revisionCiteScheme']);
+        $t->same(false, $deleted['revisionCiteUnsafe']);
+        $t->same(true, $deleted['revisionCiteValid']);
         $t->same('2026-06-10T09:15:30-05:00', $deleted['revisionDatetime']);
         $t->same('global-datetime', $deleted['revisionDatetimeKind']);
         $t->same(true, $deleted['revisionDatetimeValid']);
+        $t->same(true, $deleted['revisionValid']);
+
         $t->same('ins', $invalid['name']);
+        $t->same('javascript:alert(1)', $invalid['revisionCiteRaw']);
+        $t->same('absolute', $invalid['revisionCiteKind']);
+        $t->same('javascript', $invalid['revisionCiteScheme']);
+        $t->same(true, $invalid['revisionCiteUnsafe']);
+        $t->same(false, $invalid['revisionCiteUsable']);
+        $t->same(false, $invalid['revisionCiteValid']);
+        $t->same(['unsafe-revision-cite'], $invalid['revisionCiteIssueCodes']);
+        $t->same([
+            [
+                'code' => 'unsafe-revision-cite',
+                'citeRaw' => 'javascript:alert(1)',
+                'scheme' => 'javascript',
+            ],
+        ], $invalid['revisionCiteIssues']);
         $t->same('2026-02-30', $invalid['revisionDatetimeRaw']);
         $t->same(null, $invalid['revisionDatetime']);
         $t->same('invalid', $invalid['revisionDatetimeKind']);
         $t->same(false, $invalid['revisionDatetimeValid']);
+        $t->same(['invalid-revision-datetime'], $invalid['revisionDatetimeIssueCodes']);
+        $t->same(['unsafe-revision-cite', 'invalid-revision-datetime'], $invalid['revisionIssueCodes']);
+        $t->same(false, $invalid['revisionValid']);
+
+        $t->same('del', $empty['name']);
+        $t->same('', $empty['revisionCiteRaw']);
+        $t->same(true, $empty['revisionCitePresent']);
+        $t->same(true, $empty['revisionCiteEmpty']);
+        $t->same('empty', $empty['revisionCiteKind']);
+        $t->same(false, $empty['revisionCiteUnsafe']);
+        $t->same(false, $empty['revisionCiteUsable']);
+        $t->same(false, $empty['revisionCiteValid']);
+        $t->same(['empty-revision-cite'], $empty['revisionCiteIssueCodes']);
+        $t->same('', $empty['revisionDatetimeRaw']);
+        $t->same(true, $empty['revisionDatetimePresent']);
+        $t->same(null, $empty['revisionDatetime']);
+        $t->same('invalid', $empty['revisionDatetimeKind']);
+        $t->same(false, $empty['revisionDatetimeValid']);
+        $t->same(['empty-revision-datetime'], $empty['revisionDatetimeIssueCodes']);
+        $t->same(['empty-revision-cite', 'empty-revision-datetime'], $empty['revisionIssueCodes']);
+        $t->same(false, $empty['revisionValid']);
         $t->same(
-            '<p><ins cite="./changes/insert.html" datetime="2026-06-11 12:30Z">Inserted <em>text</em></ins><del cite="https://example.test/revision#old" datetime="2026-06-10T09:15:30-0500">Removed</del><ins datetime="2026-02-30">Invalid date</ins></p>',
+            '<p><ins cite="./changes/insert.html" datetime="2026-06-11 12:30Z">Inserted <em>text</em></ins><del cite="https://example.test/revision#old" datetime="2026-06-10T09:15:30-0500">Removed</del><ins cite="javascript:alert(1)" datetime="2026-02-30">Invalid date</ins><del cite="" datetime="">Empty metadata</del></p>',
             $html
         );
+        json_encode($summary, JSON_THROW_ON_ERROR);
     },
     'summarizes html quote citation provenance for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(

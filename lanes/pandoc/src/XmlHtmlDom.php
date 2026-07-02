@@ -29072,30 +29072,73 @@ final class XmlHtmlDom
      */
     private static function revisionSummary(\DOMElement $element, string $name): array
     {
+        $citeRaw = self::attributeOrNull($element, 'cite');
+        $datetimeRaw = self::attributeOrNull($element, 'datetime');
+        $citeReview = self::hyperlinkUrlReviewSummary($citeRaw);
+        $citeIssues = [];
+        if ($citeRaw !== null) {
+            if (trim($citeRaw) === '') {
+                $citeIssues[] = ['code' => 'empty-revision-cite'];
+            } elseif (($citeReview['kind'] ?? null) === 'invalid') {
+                $citeIssues[] = ['code' => 'invalid-revision-cite', 'citeRaw' => $citeRaw];
+            } elseif (($citeReview['unsafe'] ?? false) === true) {
+                $citeIssues[] = [
+                    'code' => 'unsafe-revision-cite',
+                    'citeRaw' => $citeRaw,
+                    'scheme' => $citeReview['scheme'],
+                ];
+            }
+        }
+
+        $datetime = $datetimeRaw === null ? null : self::revisionDatetimeSummary($datetimeRaw);
+        $datetimeIssues = [];
+        if ($datetimeRaw !== null && $datetime === null) {
+            $datetimeIssues[] = [
+                'code' => trim($datetimeRaw) === '' ? 'empty-revision-datetime' : 'invalid-revision-datetime',
+                'datetimeRaw' => $datetimeRaw,
+            ];
+        }
+        $issues = array_merge($citeIssues, $datetimeIssues);
+
         $summary = [
+            'revisionReviewPolicy' => 'html-revision-cite-datetime-review',
             'revision' => $name === 'ins' ? 'insertion' : 'deletion',
             'revisionTag' => $name,
-            'revisionCite' => self::attributeOrNull($element, 'cite'),
-            'revisionDatetimeRaw' => self::attributeOrNull($element, 'datetime'),
-            'revisionDatetime' => null,
-            'revisionDatetimeKind' => null,
-            'revisionDatetimeValid' => false,
+            'revisionText' => self::normalizedText($element),
+            'revisionCite' => $citeRaw,
+            'revisionCiteRaw' => $citeRaw,
+            'revisionCitePresent' => $citeRaw !== null,
+            'revisionCiteEmpty' => $citeRaw === null ? null : trim($citeRaw) === '',
+            'revisionCiteKind' => $citeReview['kind'],
+            'revisionCiteScheme' => $citeReview['scheme'],
+            'revisionCiteUnsafe' => $citeReview['unsafe'],
+            'revisionCiteUsable' => $citeRaw === null
+                ? null
+                : !in_array($citeReview['kind'], ['empty', 'invalid', 'missing'], true)
+                    && ($citeReview['unsafe'] ?? false) === false,
+            'revisionCiteValid' => $citeRaw === null ? null : $citeIssues === [],
+            'revisionCiteIssues' => $citeIssues,
+            'revisionCiteIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) $issue['code'],
+                $citeIssues
+            ))),
+            'revisionDatetimeRaw' => $datetimeRaw,
+            'revisionDatetimePresent' => $datetimeRaw !== null,
+            'revisionDatetime' => $datetime['value'] ?? null,
+            'revisionDatetimeKind' => $datetime['kind'] ?? ($datetimeRaw === null ? null : 'invalid'),
+            'revisionDatetimeValid' => $datetime !== null,
+            'revisionDatetimeIssues' => $datetimeIssues,
+            'revisionDatetimeIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) $issue['code'],
+                $datetimeIssues
+            ))),
+            'revisionIssues' => $issues,
+            'revisionIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) $issue['code'],
+                $issues
+            ))),
+            'revisionValid' => $issues === [],
         ];
-
-        if ($summary['revisionDatetimeRaw'] === null) {
-            return $summary;
-        }
-
-        $datetime = self::revisionDatetimeSummary($summary['revisionDatetimeRaw']);
-        if ($datetime === null) {
-            $summary['revisionDatetimeKind'] = 'invalid';
-
-            return $summary;
-        }
-
-        $summary['revisionDatetime'] = $datetime['value'];
-        $summary['revisionDatetimeKind'] = $datetime['kind'];
-        $summary['revisionDatetimeValid'] = true;
 
         return $summary;
     }
