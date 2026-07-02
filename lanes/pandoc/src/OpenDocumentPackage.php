@@ -1159,6 +1159,7 @@ final class OpenDocumentPackage
         $manifestMediaFamilyCompressedByteLengths = [];
         $packagePathKindCounts = [];
         $packageTopLevelSegmentCounts = [];
+        $entryNamesByPackageTopLevelSegment = [];
         $packagePathExtensionCounts = [];
         $packageAreaCounts = [];
         $packageAreaByteLengths = [];
@@ -1280,6 +1281,8 @@ final class OpenDocumentPackage
             $item = [
                 'path' => $entry->name,
                 'pathShape' => $pathShape,
+                'packagePathKind' => $pathShape['kind'] ?? null,
+                'packageTopLevelSegment' => $pathShape['topLevelSegment'] ?? null,
                 'packageDirectoryBaseName' => $pathShape['directoryBaseName'] ?? null,
                 'packageDirectoryBaseNameStem' => $pathShape['directoryBaseNameStem'] ?? null,
                 'packageCaseFoldDirectoryBaseNameStem' => $pathShape['caseFoldDirectoryBaseNameStem'] ?? null,
@@ -1472,6 +1475,7 @@ final class OpenDocumentPackage
             $topLevelSegment = $pathShape['topLevelSegment'] ?? null;
             if (is_string($topLevelSegment) && $topLevelSegment !== '') {
                 $packageTopLevelSegmentCounts[$topLevelSegment] = ($packageTopLevelSegmentCounts[$topLevelSegment] ?? 0) + 1;
+                $entryNamesByPackageTopLevelSegment[$topLevelSegment][$entry->name] = true;
             }
             $pathExtension = $pathShape['extension'] ?? null;
             if (is_string($pathExtension) && $pathExtension !== '') {
@@ -1592,6 +1596,7 @@ final class OpenDocumentPackage
         ksort($manifestMediaFamilyCompressedByteLengths, SORT_STRING);
         ksort($packagePathKindCounts, SORT_STRING);
         ksort($packageTopLevelSegmentCounts, SORT_STRING);
+        self::sortPackageStringListMap($entryNamesByPackageTopLevelSegment, SORT_STRING);
         ksort($packagePathExtensionCounts, SORT_STRING);
         ksort($packageAreaCounts, SORT_STRING);
         ksort($packageAreaByteLengths, SORT_STRING);
@@ -1785,6 +1790,7 @@ final class OpenDocumentPackage
             'manifestMediaFamilyCompressedByteLengths' => $manifestMediaFamilyCompressedByteLengths,
             'packagePathKindCounts' => $packagePathKindCounts,
             'packageTopLevelSegmentCounts' => $packageTopLevelSegmentCounts,
+            'entryNamesByPackageTopLevelSegment' => $entryNamesByPackageTopLevelSegment,
             'packageCaseFoldTopLevelSegmentCount' => $packageCaseFoldTopLevelSegments['packageCaseFoldTopLevelSegmentCount'],
             'packageCaseFoldTopLevelSegmentCounts' => $packageCaseFoldTopLevelSegments['packageCaseFoldTopLevelSegmentCounts'],
             'duplicatePackageCaseFoldTopLevelSegmentCount' => $packageCaseFoldTopLevelSegments['duplicatePackageCaseFoldTopLevelSegmentCount'],
@@ -2735,6 +2741,8 @@ final class OpenDocumentPackage
             $packageEntries[] = self::withoutEmptyValues([
                 'path' => $part['path'] ?? null,
                 'pathShape' => $part['pathShape'] ?? [],
+                'packagePathKind' => $part['packagePathKind'] ?? null,
+                'packageTopLevelSegment' => $part['packageTopLevelSegment'] ?? null,
                 'packageDirectoryBaseName' => $part['packageDirectoryBaseName'] ?? null,
                 'packageDirectoryBaseNameStem' => $part['packageDirectoryBaseNameStem'] ?? null,
                 'packageCaseFoldDirectoryBaseNameStem' => $part['packageCaseFoldDirectoryBaseNameStem'] ?? null,
@@ -3160,6 +3168,7 @@ final class OpenDocumentPackage
             'packageZipTimestampSources' => $packageInventory['packageZipTimestampSources'] ?? [],
             'packagePathKindCounts' => $packageInventory['packagePathKindCounts'] ?? [],
             'packageTopLevelSegmentCounts' => $packageInventory['packageTopLevelSegmentCounts'] ?? [],
+            'entryNamesByPackageTopLevelSegment' => $packageInventory['entryNamesByPackageTopLevelSegment'] ?? [],
             'packageCaseFoldTopLevelSegmentCount' => $packageInventory['packageCaseFoldTopLevelSegmentCount'] ?? 0,
             'packageCaseFoldTopLevelSegmentCounts' => $packageInventory['packageCaseFoldTopLevelSegmentCounts'] ?? [],
             'duplicatePackageCaseFoldTopLevelSegmentCount' => $packageInventory['duplicatePackageCaseFoldTopLevelSegmentCount'] ?? 0,

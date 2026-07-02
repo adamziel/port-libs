@@ -1538,6 +1538,7 @@ final class OdfReader
         $packagePathsByPackageArea = [];
         $packagePathKindCounts = [];
         $packageTopLevelSegmentCounts = [];
+        $entryNamesByPackageTopLevelSegment = [];
         $packagePathExtensionCounts = [];
         $packagePathDepthCounts = [];
         $packagePathsByPathDepth = [];
@@ -2085,6 +2086,7 @@ final class OdfReader
             $topLevelSegment = $packagePathShape['topLevelSegment'] ?? null;
             if (is_string($topLevelSegment) && $topLevelSegment !== '') {
                 $packageTopLevelSegmentCounts[$topLevelSegment] = ($packageTopLevelSegmentCounts[$topLevelSegment] ?? 0) + 1;
+                $entryNamesByPackageTopLevelSegment[$topLevelSegment][$entry->name] = true;
             }
             $pathExtension = $packagePathShape['extension'] ?? null;
             if (is_string($pathExtension) && $pathExtension !== '') {
@@ -2183,6 +2185,7 @@ final class OdfReader
         self::sortPackageStringListMap($packagePathsByPackageArea, SORT_STRING);
         ksort($packagePathKindCounts, SORT_STRING);
         ksort($packageTopLevelSegmentCounts, SORT_STRING);
+        self::sortPackageStringListMap($entryNamesByPackageTopLevelSegment, SORT_STRING);
         ksort($packagePathExtensionCounts, SORT_STRING);
         ksort($packagePathDepthCounts, SORT_NUMERIC);
         self::sortPackageStringListMap($packagePathsByPathDepth, SORT_NUMERIC);
@@ -2417,6 +2420,7 @@ final class OdfReader
             'packagePathsByPackageArea' => $packagePathsByPackageArea,
             'packagePathKindCounts' => $packagePathKindCounts,
             'packageTopLevelSegmentCounts' => $packageTopLevelSegmentCounts,
+            'entryNamesByPackageTopLevelSegment' => $entryNamesByPackageTopLevelSegment,
             'packageCaseFoldTopLevelSegmentCount' => $packageCaseFoldTopLevelSegments['packageCaseFoldTopLevelSegmentCount'],
             'packageCaseFoldTopLevelSegmentCounts' => $packageCaseFoldTopLevelSegments['packageCaseFoldTopLevelSegmentCounts'],
             'duplicatePackageCaseFoldTopLevelSegmentCount' => $packageCaseFoldTopLevelSegments['duplicatePackageCaseFoldTopLevelSegmentCount'],
@@ -3822,6 +3826,7 @@ final class OdfReader
             'packagePathsByPackageArea' => $provenance['packagePathsByPackageArea'] ?? [],
             'packagePathKindCounts' => $provenance['packagePathKindCounts'] ?? [],
             'packageTopLevelSegmentCounts' => $provenance['packageTopLevelSegmentCounts'] ?? [],
+            'entryNamesByPackageTopLevelSegment' => $provenance['entryNamesByPackageTopLevelSegment'] ?? [],
             'packageCaseFoldTopLevelSegmentCount' => $provenance['packageCaseFoldTopLevelSegmentCount'] ?? 0,
             'packageCaseFoldTopLevelSegmentCounts' => $provenance['packageCaseFoldTopLevelSegmentCounts'] ?? [],
             'duplicatePackageCaseFoldTopLevelSegmentCount' => $provenance['duplicatePackageCaseFoldTopLevelSegmentCount'] ?? 0,
@@ -4191,6 +4196,7 @@ final class OdfReader
             'packagePathsByPackageArea' => $provenance['packagePathsByPackageArea'] ?? [],
             'packagePathKindCounts' => $provenance['packagePathKindCounts'] ?? [],
             'packageTopLevelSegmentCounts' => $provenance['packageTopLevelSegmentCounts'] ?? [],
+            'entryNamesByPackageTopLevelSegment' => $provenance['entryNamesByPackageTopLevelSegment'] ?? [],
             'packageCaseFoldTopLevelSegmentCount' => $provenance['packageCaseFoldTopLevelSegmentCount'] ?? 0,
             'packageCaseFoldTopLevelSegmentCounts' => $provenance['packageCaseFoldTopLevelSegmentCounts'] ?? [],
             'duplicatePackageCaseFoldTopLevelSegmentCount' => $provenance['duplicatePackageCaseFoldTopLevelSegmentCount'] ?? 0,
