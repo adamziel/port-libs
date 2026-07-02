@@ -8906,6 +8906,109 @@ XML);
         $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Review Checklist. Import Handbook: Volume Desk Edition. Main title: Migration Source Dossier: Multi-volume Reviewer Set. Main title addendum: Internal archive packet. Vol. 2 of 4. Part 1. Chap. 7. 320 pp. 2026. 33-39.</dd>', $blocks);
         $t->contains('<dt>Curator 2025</dt><dd>Curator, Eli. Migration Source Dossier: Multi-volume Reviewer Set. 4 vols. Review Press, 2025.</dd>', $blocks);
     },
+    'maps bounded biblatex compact extent aliases into csl metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@inbook{compact-extent-alias,
+  author          = {Lopez, Lia},
+  title           = {Compact Extent Alias Packet},
+  booktitle       = {Extent Review Handbook},
+  date            = {2026},
+  pages           = {11--15},
+  numberofvolumes = {3},
+  numberofpages   = {240},
+  chapternumber   = {5}
+}
+
+@inbook{hyphen-extent-alias,
+  author            = {Ng, Nia},
+  title             = {Hyphen Extent Alias Packet},
+  book-title        = {Hyphen Extent Handbook},
+  date              = {2025},
+  pages             = {B2--B4},
+  number-of-volumes = {2},
+  number-of-pages   = {180},
+  chapter-number    = {Appendix B}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $itemsById = array_column($items, null, 'id');
+        $compact = $itemsById['compact-extent-alias'];
+        $hyphen = $itemsById['hyphen-extent-alias'];
+
+        $t->same(2, count($items));
+        $t->same('11-15', $compact['page'] ?? null);
+        $t->same('3', $compact['number-of-volumes'] ?? null);
+        $t->same('240', $compact['number-of-pages'] ?? null);
+        $t->same('5', $compact['chapter-number'] ?? null);
+        $t->same('3', $compact['rawBibtex']['fields']['numberofvolumes'] ?? null);
+        $t->same('5', $compact['rawBibtex']['fields']['chapternumber'] ?? null);
+        $t->same('B2-B4', $hyphen['page'] ?? null);
+        $t->same('2', $hyphen['number-of-volumes'] ?? null);
+        $t->same('180', $hyphen['number-of-pages'] ?? null);
+        $t->same('Appendix B', $hyphen['chapter-number'] ?? null);
+        $t->same('2', $hyphen['rawBibtex']['fields']['number-of-volumes'] ?? null);
+        $t->same('Appendix B', $hyphen['rawBibtex']['fields']['chapter-number'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $compactItem = $processor->item('compact-extent-alias');
+        $hyphenItem = $processor->item('hyphen-extent-alias');
+        $t->same('11', $compactItem['pageFirst'] ?? null);
+        $t->same('3', $compactItem['numberOfVolumes'] ?? null);
+        $t->same('240', $compactItem['numberOfPages'] ?? null);
+        $t->same('5', $compactItem['chapterNumber'] ?? null);
+        $t->same('B2', $hyphenItem['pageFirst'] ?? null);
+        $t->same('2', $hyphenItem['numberOfVolumes'] ?? null);
+        $t->same('180', $hyphenItem['numberOfPages'] ?? null);
+        $t->same('Appendix B', $hyphenItem['chapterNumber'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded BibLaTeX Compact Extent Alias Review</title>
+    <id>https://example.test/styles/bounded-biblatex-compact-extent-alias-review</id>
+    <updated>2026-07-02T00:00:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="page"/>
+        <text variable="page-first"/>
+        <text variable="number-of-volumes"/>
+        <text variable="number-of-pages"/>
+        <text variable="chapter-number"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="container-title"/>
+      <text variable="number-of-volumes"/>
+      <text variable="number-of-pages"/>
+      <text variable="chapter-number"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $t->same('Bounded BibLaTeX Compact Extent Alias Review', $summary['title'] ?? null);
+        $t->same('[Lopez | 11-15 | 11 | 3 | 240 | 5; Ng | B2-B4 | B2 | 2 | 180 | Appendix B]', $styled->renderCitationCluster([
+            $citation('compact-extent-alias', '[@compact-extent-alias]'),
+            $citation('hyphen-extent-alias', '[@hyphen-extent-alias]'),
+        ]));
+        $t->same('Compact Extent Alias Packet :: Extent Review Handbook :: 3 :: 240 :: 5', $styled->renderBibliographyEntry('compact-extent-alias'));
+        $t->same('Hyphen Extent Alias Packet :: Hyphen Extent Handbook :: 2 :: 180 :: Appendix B', $styled->renderBibliographyEntry('hyphen-extent-alias'));
+
+        $document = (new MarkdownReader())->read('Compact extent aliases [@compact-extent-alias; @hyphen-extent-alias] stay visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Compact extent aliases [Lopez | 11-15 | 11 | 3 | 240 | 5; Ng | B2-B4 | B2 | 2 | 180 | Appendix B] stay visible.</p>', $blocks);
+        $t->contains('<dt>Lopez 2026</dt><dd>Compact Extent Alias Packet :: Extent Review Handbook :: 3 :: 240 :: 5</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Hyphen Extent Alias Packet :: Hyphen Extent Handbook :: 2 :: 180 :: Appendix B</dd>', $blocks);
+    },
     'maps bounded biblatex note addendum and howpublished review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @online{review-note-source,
