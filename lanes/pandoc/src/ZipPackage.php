@@ -3129,6 +3129,12 @@ final class ZipPackage
      *     centralOnlyExtraFieldIdCount:int,
      *     localOnlyExtraFieldIdCount:int,
      *     extraFieldIdUsage:list<array<string, mixed>>,
+     *     extraFieldIdHexes:list<string>,
+     *     centralExtraFieldIdHexes:list<string>,
+     *     localExtraFieldIdHexes:list<string>,
+     *     sharedExtraFieldIdHexes:list<string>,
+     *     centralOnlyExtraFieldIdHexes:list<string>,
+     *     localOnlyExtraFieldIdHexes:list<string>,
      *     duplicateEntries:list<array<string, mixed>>,
      *     mismatchedEntries:list<array<string, mixed>>,
      *     valueMismatchedEntries:list<array<string, mixed>>,
@@ -3192,12 +3198,19 @@ final class ZipPackage
             $summary = [
                 'name' => $entry->name,
                 'centralExtraFieldIds' => $centralExtraFieldIds,
+                'centralExtraFieldIdHexes' => self::extraFieldIdHexes($centralExtraFieldIds),
                 'localExtraFieldIds' => $localExtraFieldIds,
+                'localExtraFieldIdHexes' => self::extraFieldIdHexes($localExtraFieldIds),
                 'duplicateCentralExtraFieldIds' => $duplicateCentralExtraFieldIds,
+                'duplicateCentralExtraFieldIdHexes' => self::extraFieldIdHexes($duplicateCentralExtraFieldIds),
                 'duplicateLocalExtraFieldIds' => $duplicateLocalExtraFieldIds,
+                'duplicateLocalExtraFieldIdHexes' => self::extraFieldIdHexes($duplicateLocalExtraFieldIds),
                 'centralOnlyExtraFieldIds' => $centralOnlyExtraFieldIds,
+                'centralOnlyExtraFieldIdHexes' => self::extraFieldIdHexes($centralOnlyExtraFieldIds),
                 'localOnlyExtraFieldIds' => $localOnlyExtraFieldIds,
+                'localOnlyExtraFieldIdHexes' => self::extraFieldIdHexes($localOnlyExtraFieldIds),
                 'mismatchedExtraFieldValueIds' => $mismatchedExtraFieldValueIds,
+                'mismatchedExtraFieldValueIdHexes' => self::extraFieldIdHexes($mismatchedExtraFieldValueIds),
                 'hasDuplicateExtraFieldIds' => $hasDuplicateExtraFieldIds,
                 'hasMismatchedExtraFieldIds' => $hasMismatchedExtraFieldIds,
                 'hasMismatchedExtraFieldValues' => $hasMismatchedExtraFieldValues,
@@ -3232,6 +3245,12 @@ final class ZipPackage
             'centralOnlyExtraFieldIdCount' => $idUsage['centralOnlyExtraFieldIdCount'],
             'localOnlyExtraFieldIdCount' => $idUsage['localOnlyExtraFieldIdCount'],
             'extraFieldIdUsage' => $idUsage['extraFieldIdUsage'],
+            'extraFieldIdHexes' => $idUsage['extraFieldIdHexes'],
+            'centralExtraFieldIdHexes' => $idUsage['centralExtraFieldIdHexes'],
+            'localExtraFieldIdHexes' => $idUsage['localExtraFieldIdHexes'],
+            'sharedExtraFieldIdHexes' => $idUsage['sharedExtraFieldIdHexes'],
+            'centralOnlyExtraFieldIdHexes' => $idUsage['centralOnlyExtraFieldIdHexes'],
+            'localOnlyExtraFieldIdHexes' => $idUsage['localOnlyExtraFieldIdHexes'],
             'duplicateEntries' => $duplicateEntries,
             'mismatchedEntries' => $mismatchedEntries,
             'valueMismatchedEntries' => $valueMismatchedEntries,
@@ -4426,6 +4445,12 @@ final class ZipPackage
      *     centralOnlyExtraFieldIdCount:int,
      *     localOnlyExtraFieldIdCount:int,
      *     extraFieldIdUsage:list<array<string, mixed>>,
+     *     extraFieldIdHexes:list<string>,
+     *     centralExtraFieldIdHexes:list<string>,
+     *     localExtraFieldIdHexes:list<string>,
+     *     sharedExtraFieldIdHexes:list<string>,
+     *     centralOnlyExtraFieldIdHexes:list<string>,
+     *     localOnlyExtraFieldIdHexes:list<string>,
      *     isSupportedByBoundedReader:bool,
      *     issues:list<string>,
      *     issueEntries:list<array<string, mixed>>,
@@ -4555,12 +4580,19 @@ final class ZipPackage
                 'centralExtraFieldLength' => $extraLength,
                 'localExtraFieldLength' => $localHeader['extraFieldLength'],
                 'centralExtraFieldIds' => $centralExtraFieldIds,
+                'centralExtraFieldIdHexes' => self::extraFieldIdHexes($centralExtraFieldIds),
                 'localExtraFieldIds' => $localExtraFieldIds,
+                'localExtraFieldIdHexes' => self::extraFieldIdHexes($localExtraFieldIds),
                 'duplicateCentralExtraFieldIds' => $duplicateCentralExtraFieldIds,
+                'duplicateCentralExtraFieldIdHexes' => self::extraFieldIdHexes($duplicateCentralExtraFieldIds),
                 'duplicateLocalExtraFieldIds' => $duplicateLocalExtraFieldIds,
+                'duplicateLocalExtraFieldIdHexes' => self::extraFieldIdHexes($duplicateLocalExtraFieldIds),
                 'centralOnlyExtraFieldIds' => $centralOnlyExtraFieldIds,
+                'centralOnlyExtraFieldIdHexes' => self::extraFieldIdHexes($centralOnlyExtraFieldIds),
                 'localOnlyExtraFieldIds' => $localOnlyExtraFieldIds,
+                'localOnlyExtraFieldIdHexes' => self::extraFieldIdHexes($localOnlyExtraFieldIds),
                 'mismatchedExtraFieldValueIds' => $mismatchedExtraFieldValueIds,
+                'mismatchedExtraFieldValueIdHexes' => self::extraFieldIdHexes($mismatchedExtraFieldValueIds),
                 'hasDuplicateExtraFieldIds' => $duplicateCentralExtraFieldIds !== [] || $duplicateLocalExtraFieldIds !== [],
                 'hasMismatchedExtraFieldIds' => $centralOnlyExtraFieldIds !== [] || $localOnlyExtraFieldIds !== [],
                 'hasMismatchedExtraFieldValues' => $mismatchedExtraFieldValueIds !== [],
@@ -4625,6 +4657,12 @@ final class ZipPackage
             'centralOnlyExtraFieldIdCount' => $idUsage['centralOnlyExtraFieldIdCount'],
             'localOnlyExtraFieldIdCount' => $idUsage['localOnlyExtraFieldIdCount'],
             'extraFieldIdUsage' => $idUsage['extraFieldIdUsage'],
+            'extraFieldIdHexes' => $idUsage['extraFieldIdHexes'],
+            'centralExtraFieldIdHexes' => $idUsage['centralExtraFieldIdHexes'],
+            'localExtraFieldIdHexes' => $idUsage['localExtraFieldIdHexes'],
+            'sharedExtraFieldIdHexes' => $idUsage['sharedExtraFieldIdHexes'],
+            'centralOnlyExtraFieldIdHexes' => $idUsage['centralOnlyExtraFieldIdHexes'],
+            'localOnlyExtraFieldIdHexes' => $idUsage['localOnlyExtraFieldIdHexes'],
             'isSupportedByBoundedReader' => $issues === [],
             'issues' => $issues,
             'issueEntries' => $issueEntries,
@@ -5286,6 +5324,12 @@ final class ZipPackage
      *     selectedSharedExtraFieldIdCount:int,
      *     selectedCentralOnlyExtraFieldIdCount:int,
      *     selectedLocalOnlyExtraFieldIdCount:int,
+     *     selectedExtraFieldIdHexes:list<string>,
+     *     selectedCentralExtraFieldIdHexes:list<string>,
+     *     selectedLocalExtraFieldIdHexes:list<string>,
+     *     selectedSharedExtraFieldIdHexes:list<string>,
+     *     selectedCentralOnlyExtraFieldIdHexes:list<string>,
+     *     selectedLocalOnlyExtraFieldIdHexes:list<string>,
      *     handoffExtraFieldEntryCount:int,
      *     handoffCentralExtraFieldEntryCount:int,
      *     handoffLocalExtraFieldEntryCount:int,
@@ -5298,6 +5342,12 @@ final class ZipPackage
      *     handoffSharedExtraFieldIdCount:int,
      *     handoffCentralOnlyExtraFieldIdCount:int,
      *     handoffLocalOnlyExtraFieldIdCount:int,
+     *     handoffExtraFieldIdHexes:list<string>,
+     *     handoffCentralExtraFieldIdHexes:list<string>,
+     *     handoffLocalExtraFieldIdHexes:list<string>,
+     *     handoffSharedExtraFieldIdHexes:list<string>,
+     *     handoffCentralOnlyExtraFieldIdHexes:list<string>,
+     *     handoffLocalOnlyExtraFieldIdHexes:list<string>,
      *     selectedPlatformAttributeProvenanceEntryCount:int,
      *     selectedExternalAttributeEntryCount:int,
      *     selectedInternalAttributeEntryCount:int,
@@ -6947,6 +6997,12 @@ final class ZipPackage
             'selectedSharedExtraFieldIdCount' => $selectedExtraFieldIdUsage['sharedExtraFieldIdCount'],
             'selectedCentralOnlyExtraFieldIdCount' => $selectedExtraFieldIdUsage['centralOnlyExtraFieldIdCount'],
             'selectedLocalOnlyExtraFieldIdCount' => $selectedExtraFieldIdUsage['localOnlyExtraFieldIdCount'],
+            'selectedExtraFieldIdHexes' => $selectedExtraFieldIdUsage['extraFieldIdHexes'],
+            'selectedCentralExtraFieldIdHexes' => $selectedExtraFieldIdUsage['centralExtraFieldIdHexes'],
+            'selectedLocalExtraFieldIdHexes' => $selectedExtraFieldIdUsage['localExtraFieldIdHexes'],
+            'selectedSharedExtraFieldIdHexes' => $selectedExtraFieldIdUsage['sharedExtraFieldIdHexes'],
+            'selectedCentralOnlyExtraFieldIdHexes' => $selectedExtraFieldIdUsage['centralOnlyExtraFieldIdHexes'],
+            'selectedLocalOnlyExtraFieldIdHexes' => $selectedExtraFieldIdUsage['localOnlyExtraFieldIdHexes'],
             'handoffExtraFieldEntryCount' => $handoffExtraFieldSummary['extraFieldEntryCount'],
             'handoffCentralExtraFieldEntryCount' => $handoffExtraFieldSummary['centralExtraFieldEntryCount'],
             'handoffLocalExtraFieldEntryCount' => $handoffExtraFieldSummary['localExtraFieldEntryCount'],
@@ -6959,6 +7015,12 @@ final class ZipPackage
             'handoffSharedExtraFieldIdCount' => $handoffExtraFieldSummary['sharedExtraFieldIdCount'],
             'handoffCentralOnlyExtraFieldIdCount' => $handoffExtraFieldSummary['centralOnlyExtraFieldIdCount'],
             'handoffLocalOnlyExtraFieldIdCount' => $handoffExtraFieldSummary['localOnlyExtraFieldIdCount'],
+            'handoffExtraFieldIdHexes' => $handoffExtraFieldSummary['extraFieldIdHexes'],
+            'handoffCentralExtraFieldIdHexes' => $handoffExtraFieldSummary['centralExtraFieldIdHexes'],
+            'handoffLocalExtraFieldIdHexes' => $handoffExtraFieldSummary['localExtraFieldIdHexes'],
+            'handoffSharedExtraFieldIdHexes' => $handoffExtraFieldSummary['sharedExtraFieldIdHexes'],
+            'handoffCentralOnlyExtraFieldIdHexes' => $handoffExtraFieldSummary['centralOnlyExtraFieldIdHexes'],
+            'handoffLocalOnlyExtraFieldIdHexes' => $handoffExtraFieldSummary['localOnlyExtraFieldIdHexes'],
             'selectedPlatformAttributeProvenanceEntryCount' => count($selectedPlatformAttributeProvenanceEntries),
             'selectedExternalAttributeEntryCount' => $selectedExternalAttributeEntryCount,
             'selectedInternalAttributeEntryCount' => $selectedInternalAttributeEntryCount,
@@ -9162,7 +9224,7 @@ final class ZipPackage
 
     /**
      * @param list<array<string, mixed>> $entries
-     * @return array{extraFieldEntryCount:int, centralExtraFieldEntryCount:int, localExtraFieldEntryCount:int, extraFieldRecordCount:int, centralExtraFieldRecordCount:int, localExtraFieldRecordCount:int, extraFieldIdCount:int, centralExtraFieldIdCount:int, localExtraFieldIdCount:int, sharedExtraFieldIdCount:int, centralOnlyExtraFieldIdCount:int, localOnlyExtraFieldIdCount:int, extraFieldIdUsage:list<array<string, mixed>>, extraFieldProvenanceEntries:list<array<string, mixed>>}
+     * @return array{extraFieldEntryCount:int, centralExtraFieldEntryCount:int, localExtraFieldEntryCount:int, extraFieldRecordCount:int, centralExtraFieldRecordCount:int, localExtraFieldRecordCount:int, extraFieldIdCount:int, centralExtraFieldIdCount:int, localExtraFieldIdCount:int, sharedExtraFieldIdCount:int, centralOnlyExtraFieldIdCount:int, localOnlyExtraFieldIdCount:int, extraFieldIdUsage:list<array<string, mixed>>, extraFieldIdHexes:list<string>, centralExtraFieldIdHexes:list<string>, localExtraFieldIdHexes:list<string>, sharedExtraFieldIdHexes:list<string>, centralOnlyExtraFieldIdHexes:list<string>, localOnlyExtraFieldIdHexes:list<string>, extraFieldProvenanceEntries:list<array<string, mixed>>}
      */
     private static function entryHandoffExtraFieldSummary(array $entries): array
     {
@@ -9226,12 +9288,14 @@ final class ZipPackage
                     : 0,
                 'centralExtraFieldRecordCount' => $centralRecordCount,
                 'centralExtraFieldIds' => $centralExtraFieldIds,
+                'centralExtraFieldIdHexes' => self::extraFieldIdHexes($centralExtraFieldIds),
                 'hasCentralExtraFields' => $hasCentralExtraFields,
                 'localExtraFieldLength' => is_int($entry['localExtraFieldLength'] ?? null)
                     ? $entry['localExtraFieldLength']
                     : 0,
                 'localExtraFieldRecordCount' => $localRecordCount,
                 'localExtraFieldIds' => $localExtraFieldIds,
+                'localExtraFieldIdHexes' => self::extraFieldIdHexes($localExtraFieldIds),
                 'hasLocalExtraFields' => $hasLocalExtraFields,
                 'centralLocalExtraFieldIdsMatch' => is_bool($entry['centralLocalExtraFieldIdsMatch'] ?? null)
                     ? $entry['centralLocalExtraFieldIdsMatch']
@@ -9258,6 +9322,12 @@ final class ZipPackage
             'centralOnlyExtraFieldIdCount' => $idUsage['centralOnlyExtraFieldIdCount'],
             'localOnlyExtraFieldIdCount' => $idUsage['localOnlyExtraFieldIdCount'],
             'extraFieldIdUsage' => $idUsage['extraFieldIdUsage'],
+            'extraFieldIdHexes' => $idUsage['extraFieldIdHexes'],
+            'centralExtraFieldIdHexes' => $idUsage['centralExtraFieldIdHexes'],
+            'localExtraFieldIdHexes' => $idUsage['localExtraFieldIdHexes'],
+            'sharedExtraFieldIdHexes' => $idUsage['sharedExtraFieldIdHexes'],
+            'centralOnlyExtraFieldIdHexes' => $idUsage['centralOnlyExtraFieldIdHexes'],
+            'localOnlyExtraFieldIdHexes' => $idUsage['localOnlyExtraFieldIdHexes'],
             'extraFieldProvenanceEntries' => $provenanceEntries,
         ];
     }
@@ -12524,6 +12594,115 @@ final class ZipPackage
      * @param list<array<string, mixed>> $entries
      * @return list<array<string, mixed>>
      */
+    private static function entryHandoffPathSegmentSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            $segments = is_array($entry['pathSegments'] ?? null)
+                ? array_values(array_filter($entry['pathSegments'], static fn (mixed $segment): bool => is_string($segment) && $segment !== ''))
+                : self::entryHandoffPathSegments($name);
+            if ($name === '' || $segments === []) {
+                continue;
+            }
+
+            $seenSegmentsForEntry = [];
+            foreach ($segments as $segmentIndex => $segment) {
+                if (!isset($summaries[$segment])) {
+                    $summaries[$segment] = [
+                        'segment' => $segment,
+                        'caseFoldSegment' => self::caseFoldZipEntryName($segment),
+                        'occurrenceCount' => 0,
+                        'entryCount' => 0,
+                        'fileEntryCount' => 0,
+                        'directoryEntryCount' => 0,
+                        'compressedBytes' => 0,
+                        'uncompressedBytes' => 0,
+                        'localRecordBytes' => 0,
+                        'sourceRecordBytes' => 0,
+                        'dataDescriptorEntryCount' => 0,
+                        'dataDescriptorBytes' => 0,
+                        'pathSegmentIndexCounts' => [],
+                        'directoryRootCounts' => [],
+                        'packagePartExtensionCounts' => [],
+                        'compressionMethodCounts' => [],
+                        'entryNames' => [],
+                    ];
+                }
+
+                ++$summaries[$segment]['occurrenceCount'];
+                $summaries[$segment]['pathSegmentIndexCounts'][$segmentIndex] =
+                    ($summaries[$segment]['pathSegmentIndexCounts'][$segmentIndex] ?? 0) + 1;
+
+                if (isset($seenSegmentsForEntry[$segment])) {
+                    continue;
+                }
+                $seenSegmentsForEntry[$segment] = true;
+
+                ++$summaries[$segment]['entryCount'];
+                if (($entry['isDirectory'] ?? false) === true) {
+                    ++$summaries[$segment]['directoryEntryCount'];
+                } else {
+                    ++$summaries[$segment]['fileEntryCount'];
+                }
+
+                $summaries[$segment]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+                $summaries[$segment]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+                $summaries[$segment]['localRecordBytes'] += (int) ($entry['localRecordBytes'] ?? 0);
+                $summaries[$segment]['sourceRecordBytes'] += (int) ($entry['sourceRecordBytes'] ?? 0);
+                $dataDescriptorBytes = (int) ($entry['dataDescriptorBytes'] ?? 0);
+                if ($dataDescriptorBytes > 0) {
+                    ++$summaries[$segment]['dataDescriptorEntryCount'];
+                    $summaries[$segment]['dataDescriptorBytes'] += $dataDescriptorBytes;
+                }
+
+                $directoryRoot = is_string($entry['directoryRoot'] ?? null) && $entry['directoryRoot'] !== ''
+                    ? $entry['directoryRoot']
+                    : self::entryHandoffDirectoryRoot($name);
+                $summaries[$segment]['directoryRootCounts'][$directoryRoot] =
+                    ($summaries[$segment]['directoryRootCounts'][$directoryRoot] ?? 0) + 1;
+
+                $extensionKey = is_string($entry['packagePartExtensionKey'] ?? null) && $entry['packagePartExtensionKey'] !== ''
+                    ? $entry['packagePartExtensionKey']
+                    : (
+                        (($entry['isDirectory'] ?? false) === true)
+                            ? '(directory)'
+                            : (
+                                is_string($entry['entryExtensionKey'] ?? null) && $entry['entryExtensionKey'] !== ''
+                                    ? $entry['entryExtensionKey']
+                                    : '(none)'
+                            )
+                    );
+                $summaries[$segment]['packagePartExtensionCounts'][$extensionKey] =
+                    ($summaries[$segment]['packagePartExtensionCounts'][$extensionKey] ?? 0) + 1;
+
+                $compressionMethod = is_int($entry['compressionMethod'] ?? null)
+                    ? (string) $entry['compressionMethod']
+                    : '(missing)';
+                $summaries[$segment]['compressionMethodCounts'][$compressionMethod] =
+                    ($summaries[$segment]['compressionMethodCounts'][$compressionMethod] ?? 0) + 1;
+                $summaries[$segment]['entryNames'][] = $name;
+            }
+        }
+
+        foreach ($summaries as &$summary) {
+            ksort($summary['pathSegmentIndexCounts'], SORT_NUMERIC);
+            ksort($summary['directoryRootCounts'], SORT_STRING);
+            ksort($summary['packagePartExtensionCounts'], SORT_STRING);
+            ksort($summary['compressionMethodCounts'], SORT_STRING);
+            sort($summary['entryNames'], SORT_STRING);
+        }
+        unset($summary);
+
+        ksort($summaries, SORT_STRING);
+
+        return array_values($summaries);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
     private static function entryHandoffPathDepthSummaries(array $entries): array
     {
         $summaries = [];
@@ -12601,9 +12780,20 @@ final class ZipPackage
 
     private static function entryHandoffPathDepth(string $name): int
     {
-        $segments = array_values(array_filter(explode('/', $name), static fn (string $segment): bool => $segment !== ''));
+        return count(self::entryHandoffPathSegments($name));
+    }
 
-        return count($segments);
+    /**
+     * @return list<string>
+     */
+    private static function entryHandoffPathSegments(string $name): array
+    {
+        $trimmedName = trim($name, '/');
+        if ($trimmedName === '') {
+            return [];
+        }
+
+        return array_values(array_filter(explode('/', $trimmedName), static fn (string $segment): bool => $segment !== ''));
     }
 
     /**
@@ -13363,10 +13553,12 @@ final class ZipPackage
      *     centralExtraFieldLength:int,
      *     centralExtraFieldRecordCount:int,
      *     centralExtraFieldIds:list<int>,
+     *     centralExtraFieldIdHexes:list<string>,
      *     hasCentralExtraFields:bool,
      *     localExtraFieldLength:int,
      *     localExtraFieldRecordCount:int,
      *     localExtraFieldIds:list<int>,
+     *     localExtraFieldIdHexes:list<string>,
      *     hasLocalExtraFields:bool,
      *     centralLocalExtraFieldIdsMatch:bool,
      *     hasExtraFieldProvenance:bool
@@ -13395,10 +13587,12 @@ final class ZipPackage
             'centralExtraFieldLength' => strlen($entry->centralExtraFieldData),
             'centralExtraFieldRecordCount' => count($centralExtraFields),
             'centralExtraFieldIds' => $centralExtraFieldIds,
+            'centralExtraFieldIdHexes' => self::extraFieldIdHexes($centralExtraFieldIds),
             'hasCentralExtraFields' => $centralExtraFields !== [],
             'localExtraFieldLength' => strlen($localExtraFieldData),
             'localExtraFieldRecordCount' => count($localExtraFields),
             'localExtraFieldIds' => $localExtraFieldIds,
+            'localExtraFieldIdHexes' => self::extraFieldIdHexes($localExtraFieldIds),
             'hasLocalExtraFields' => $localExtraFields !== [],
             'centralLocalExtraFieldIdsMatch' => $centralExtraFieldIds === $localExtraFieldIds,
             'hasExtraFieldProvenance' => $centralExtraFields !== [] || $localExtraFields !== [],
@@ -14227,9 +14421,17 @@ final class ZipPackage
      *     hasSplitArchiveMarkers:bool,
      *     centralDirectoryNonEntryRecordCount:int,
      *     splitArchiveEntryCount:int,
+     *     diskStartSummaryCount:int,
+     *     splitArchiveDiskStartSummaryCount:int,
+     *     diskStartValues:list<int>,
+     *     splitArchiveDiskStartValues:list<int>,
+     *     diskStartEntryCounts:array<int, int>,
+     *     splitArchiveDiskStartEntryCounts:array<int, int>,
      *     isSupportedByBoundedReader:bool,
      *     issues:list<string>,
      *     centralDirectoryNonEntryRecords:list<array{type:string, offset:int, length:int, endOffset:int}>,
+     *     diskStartSummaries:list<array{diskStart:int, entryCount:int, splitArchiveEntryCount:int, centralDirectoryIndexes:list<int>, localHeaderOffsets:list<int>, entryNames:list<string>}>,
+     *     splitArchiveDiskStartSummaries:list<array{diskStart:int, entryCount:int, splitArchiveEntryCount:int, centralDirectoryIndexes:list<int>, localHeaderOffsets:list<int>, entryNames:list<string>}>,
      *     splitArchiveEntries:list<array{name:string, rawName:string, centralDirectoryIndex:int, diskStart:int, localHeaderOffset:int, issues:list<string>}>,
      *     entries:list<array{name:string, rawName:string, centralDirectoryIndex:int, diskStart:int, localHeaderOffset:int, issues:list<string>}>
      * }
@@ -14253,6 +14455,9 @@ final class ZipPackage
 
         $entries = [];
         $splitArchiveEntries = [];
+        $diskStartEntryCounts = [];
+        $splitArchiveDiskStartEntryCounts = [];
+        $diskStartSummaries = [];
         $centralDirectoryNonEntryRecords = [];
         $cursor = $archive['centralDirectoryOffset'];
         $index = 0;
@@ -14304,8 +14509,25 @@ final class ZipPackage
                 'issues' => $issues,
             ];
             $entries[] = $entry;
+            $diskStartEntryCounts[$diskStart] = ($diskStartEntryCounts[$diskStart] ?? 0) + 1;
+            if (!isset($diskStartSummaries[$diskStart])) {
+                $diskStartSummaries[$diskStart] = [
+                    'diskStart' => $diskStart,
+                    'entryCount' => 0,
+                    'splitArchiveEntryCount' => 0,
+                    'centralDirectoryIndexes' => [],
+                    'localHeaderOffsets' => [],
+                    'entryNames' => [],
+                ];
+            }
+            ++$diskStartSummaries[$diskStart]['entryCount'];
+            $diskStartSummaries[$diskStart]['centralDirectoryIndexes'][] = $index;
+            $diskStartSummaries[$diskStart]['localHeaderOffsets'][] = $localHeaderOffset;
+            $diskStartSummaries[$diskStart]['entryNames'][] = $decodedName['text'];
             if ($issues !== []) {
                 $splitArchiveEntries[] = $entry;
+                $splitArchiveDiskStartEntryCounts[$diskStart] = ($splitArchiveDiskStartEntryCounts[$diskStart] ?? 0) + 1;
+                ++$diskStartSummaries[$diskStart]['splitArchiveEntryCount'];
             }
 
             $cursor += 46 + $variableLength;
@@ -14351,6 +14573,14 @@ final class ZipPackage
         if ($splitArchiveEntries !== []) {
             $issues[] = 'split-entry-disk-start';
         }
+        ksort($diskStartEntryCounts, SORT_NUMERIC);
+        ksort($splitArchiveDiskStartEntryCounts, SORT_NUMERIC);
+        ksort($diskStartSummaries, SORT_NUMERIC);
+        $splitArchiveDiskStartSummaries = array_values(array_filter(
+            $diskStartSummaries,
+            static fn (array $summary): bool => $summary['diskStart'] !== 0
+        ));
+        $diskStartSummaries = array_values($diskStartSummaries);
 
         return [
             'entryCount' => count($entries),
@@ -14364,9 +14594,17 @@ final class ZipPackage
             'hasSplitArchiveMarkers' => $issues !== [],
             'centralDirectoryNonEntryRecordCount' => count($centralDirectoryNonEntryRecords),
             'splitArchiveEntryCount' => count($splitArchiveEntries),
+            'diskStartSummaryCount' => count($diskStartSummaries),
+            'splitArchiveDiskStartSummaryCount' => count($splitArchiveDiskStartSummaries),
+            'diskStartValues' => array_keys($diskStartEntryCounts),
+            'splitArchiveDiskStartValues' => array_keys($splitArchiveDiskStartEntryCounts),
+            'diskStartEntryCounts' => $diskStartEntryCounts,
+            'splitArchiveDiskStartEntryCounts' => $splitArchiveDiskStartEntryCounts,
             'isSupportedByBoundedReader' => $issues === [],
             'issues' => $issues,
             'centralDirectoryNonEntryRecords' => $centralDirectoryNonEntryRecords,
+            'diskStartSummaries' => $diskStartSummaries,
+            'splitArchiveDiskStartSummaries' => $splitArchiveDiskStartSummaries,
             'splitArchiveEntries' => $splitArchiveEntries,
             'entries' => $entries,
         ];
@@ -19664,7 +19902,12 @@ final class ZipPackage
                 'entryBaseName' => self::entryHandoffBaseName($entry->name),
                 'entryExtension' => $entryExtension,
                 'entryExtensionKey' => $entryExtension ?? '(none)',
+                'packagePartExtensionKey' => $isDirectory ? '(directory)' : ($entryExtension ?? '(none)'),
+                'caseFoldName' => self::caseFoldZipEntryName($entry->name),
+                'caseFoldLeafName' => self::entryHandoffCaseFoldLeafName($entry->name),
+                'pathSegments' => self::entryHandoffPathSegments($entry->name),
                 'pathDepth' => self::entryHandoffPathDepth($entry->name),
+                'pathPrefixes' => self::entryHandoffPathPrefixes($entry->name),
                 'packagePartKind' => self::entryHandoffPackagePartKind($entry->name, $isDirectory),
                 'compressionMethod' => $entry->compressionMethod,
                 'compressionMethodName' => self::compressionMethodName($entry->compressionMethod),
@@ -19672,6 +19915,7 @@ final class ZipPackage
                 'crc32Hex' => $entry->crc32Hex(),
                 'compressedSize' => $entry->compressedSize,
                 'uncompressedSize' => $entry->uncompressedSize,
+                'expansionRatio' => self::expansionRatio($entry->uncompressedSize, $entry->compressedSize),
                 'localHeaderOffset' => $entry->localHeaderOffset,
                 'localHeaderLength' => $localHeaderLength,
                 'localHeaderSha256' => $localHeaderSha256,
@@ -19700,8 +19944,36 @@ final class ZipPackage
 
         $centralDirectoryOrderNames = $this->names();
         $localHeaderOrderNames = $this->localNames();
+        $directoryRootSummaries = self::entryHandoffDirectoryRootSummaries($entries);
+        $parentDirectorySummaries = self::entryHandoffParentDirectorySummaries($entries);
+        $packagePartKindSummaries = self::entryHandoffPackagePartKindSummaries($entries);
+        $extensionSummaries = self::entryHandoffExtensionSummaries($entries);
+        $entryExtensionSummaries = self::entryHandoffEntryExtensionSummaries($entries);
+        $pathSegmentSummaries = self::entryHandoffPathSegmentSummaries($entries);
+        $pathSegmentCounts = [];
+        $pathSegmentEntryCounts = [];
+        $pathSegmentOccurrenceCount = 0;
+        foreach ($pathSegmentSummaries as $summary) {
+            $segment = (string) $summary['segment'];
+            $pathSegmentCounts[$segment] = (int) $summary['occurrenceCount'];
+            $pathSegmentEntryCounts[$segment] = (int) $summary['entryCount'];
+            $pathSegmentOccurrenceCount += (int) $summary['occurrenceCount'];
+        }
+        $pathDepthSummaries = self::entryHandoffPathDepthSummaries($entries);
+        $pathPrefixSummaries = self::entryHandoffPathPrefixSummaries($entries);
         $leafNameSummaries = self::entryHandoffLeafNameSummaries($entries);
         $sharedLeafNameSummaries = self::entryHandoffSharedLeafNameSummaries($leafNameSummaries);
+        $caseFoldNameCollisionSummaries = self::entryHandoffCaseFoldNameCollisionSummaries($entries);
+        $caseFoldLeafNameCollisionSummaries = self::entryHandoffCaseFoldLeafNameCollisionSummaries($entries);
+        $expansionRatioBucketSummaries = self::entryHandoffExpansionRatioBucketSummaries($entries);
+        $manifestOrderSummary = self::entryHandoffOrderSummary($entries);
+        $manifestOrderIssueCodes = $manifestOrderSummary['centralDirectoryOrderMatchesLocalHeaderOrder']
+            ? []
+            : ['central-directory-local-header-order-mismatch'];
+        $unknownExpansionRatioEntryCount = self::entryHandoffSummaryTotal(
+            $expansionRatioBucketSummaries,
+            'unknownExpansionRatioEntryCount'
+        );
         $manifestPayload = [
             'manifestVersion' => 'zip-package-manifest-v1',
             'centralDirectoryOrderNames' => $centralDirectoryOrderNames,
@@ -19721,17 +19993,65 @@ final class ZipPackage
             'directoryEntryCount' => $directoryEntryCount,
             'compressedBytes' => $compressedBytes,
             'uncompressedBytes' => $uncompressedBytes,
+            'expansionRatio' => self::expansionRatio($uncompressedBytes, $compressedBytes),
             'storedEntryCount' => $storedEntryCount,
             'deflatedEntryCount' => $deflatedEntryCount,
             'unsupportedCompressionMethodCount' => $unsupportedCompressionMethodCount,
+            'directoryRootCount' => count($directoryRootSummaries),
+            'parentDirectoryCount' => count($parentDirectorySummaries),
+            'packagePartKindCount' => count($packagePartKindSummaries),
+            'mediaPartEntryCount' => self::entryHandoffKindEntryCount($packagePartKindSummaries, 'media'),
+            'relationshipPartEntryCount' => self::entryHandoffKindEntryCount($packagePartKindSummaries, 'relationship-part'),
+            'markupPartEntryCount' => self::entryHandoffKindEntryCount($packagePartKindSummaries, 'markup-part'),
+            'metadataPartEntryCount' => self::entryHandoffKindEntryCount($packagePartKindSummaries, 'metadata'),
+            'extensionBucketCount' => count($extensionSummaries),
+            'extensionlessFileEntryCount' => self::entryHandoffExtensionlessFileEntryCount($extensionSummaries),
+            'entryExtensionBucketCount' => count($entryExtensionSummaries),
+            'extensionlessEntryCount' => self::entryHandoffEntryExtensionlessEntryCount($entryExtensionSummaries),
+            'pathSegmentSummaryCount' => count($pathSegmentSummaries),
+            'pathSegmentOccurrenceCount' => $pathSegmentOccurrenceCount,
+            'pathSegmentCounts' => $pathSegmentCounts,
+            'pathSegmentEntryCounts' => $pathSegmentEntryCounts,
+            'pathDepthBucketCount' => count($pathDepthSummaries),
+            'maxPathDepth' => self::entryHandoffMaxPathDepth($pathDepthSummaries),
+            'pathPrefixCount' => count($pathPrefixSummaries),
+            'unknownExpansionRatioEntryCount' => $unknownExpansionRatioEntryCount,
+            'hasUnknownExpansionRatioEntries' => $unknownExpansionRatioEntryCount > 0,
+            'expansionRatioBucketCount' => count($expansionRatioBucketSummaries),
             'leafNameCount' => count($leafNameSummaries),
             'sharedLeafNameCount' => count($sharedLeafNameSummaries),
             'sharedLeafNameEntryCount' => array_sum(array_map(
                 static fn (array $summary): int => (int) ($summary['entryCount'] ?? 0),
                 $sharedLeafNameSummaries
             )),
+            'caseFoldNameCollisionCount' => count($caseFoldNameCollisionSummaries),
+            'caseFoldNameCollisionEntryCount' => self::entryHandoffSummaryTotal(
+                $caseFoldNameCollisionSummaries,
+                'entryCount'
+            ),
+            'caseFoldLeafNameCollisionCount' => count($caseFoldLeafNameCollisionSummaries),
+            'caseFoldLeafNameCollisionEntryCount' => self::entryHandoffSummaryTotal(
+                $caseFoldLeafNameCollisionSummaries,
+                'entryCount'
+            ),
+            'manifestOrderReviewStatus' => $manifestOrderIssueCodes === [] ? 'ok' : 'review',
+            'manifestOrderIssueCodes' => $manifestOrderIssueCodes,
+            'manifestOrderIssueCount' => count($manifestOrderIssueCodes),
+            'manifestOrderMismatchEntryCount' => $manifestOrderSummary['mismatchEntryCount'],
+            'manifestOrderSummary' => $manifestOrderSummary,
+            'directoryRootSummaries' => $directoryRootSummaries,
+            'parentDirectorySummaries' => $parentDirectorySummaries,
+            'packagePartKindSummaries' => $packagePartKindSummaries,
+            'extensionSummaries' => $extensionSummaries,
+            'entryExtensionSummaries' => $entryExtensionSummaries,
+            'pathSegmentSummaries' => $pathSegmentSummaries,
+            'pathDepthSummaries' => $pathDepthSummaries,
+            'pathPrefixSummaries' => $pathPrefixSummaries,
+            'expansionRatioBucketSummaries' => $expansionRatioBucketSummaries,
             'leafNameSummaries' => $leafNameSummaries,
             'sharedLeafNameSummaries' => $sharedLeafNameSummaries,
+            'caseFoldNameCollisionSummaries' => $caseFoldNameCollisionSummaries,
+            'caseFoldLeafNameCollisionSummaries' => $caseFoldLeafNameCollisionSummaries,
             'sourceByteSpanEntryCount' => count($this->entries),
             'sourceLocalRecordBytes' => $sourceLocalRecordBytes,
             'sourceLocalHeaderBytes' => $sourceLocalHeaderBytes,
@@ -23349,6 +23669,20 @@ final class ZipPackage
     }
 
     /**
+     * @param list<int> $ids
+     * @return list<string>
+     */
+    private static function extraFieldIdHexes(array $ids): array
+    {
+        $hexes = [];
+        foreach ($ids as $id) {
+            $hexes[] = sprintf('0x%04x', $id);
+        }
+
+        return $hexes;
+    }
+
+    /**
      * @param list<array{name:string, centralExtraFieldIds:list<int>, localExtraFieldIds:list<int>}> $entries
      *
      * @return array{
@@ -23358,7 +23692,13 @@ final class ZipPackage
      *     sharedExtraFieldIdCount:int,
      *     centralOnlyExtraFieldIdCount:int,
      *     localOnlyExtraFieldIdCount:int,
-     *     extraFieldIdUsage:list<array<string, mixed>>
+     *     extraFieldIdUsage:list<array<string, mixed>>,
+     *     extraFieldIdHexes:list<string>,
+     *     centralExtraFieldIdHexes:list<string>,
+     *     localExtraFieldIdHexes:list<string>,
+     *     sharedExtraFieldIdHexes:list<string>,
+     *     centralOnlyExtraFieldIdHexes:list<string>,
+     *     localOnlyExtraFieldIdHexes:list<string>
      * }
      */
     private static function extraFieldIdUsageSummary(array $entries): array
@@ -23384,27 +23724,40 @@ final class ZipPackage
         $sharedIdCount = 0;
         $centralOnlyIdCount = 0;
         $localOnlyIdCount = 0;
+        $extraFieldIdHexes = [];
+        $centralExtraFieldIdHexes = [];
+        $localExtraFieldIdHexes = [];
+        $sharedExtraFieldIdHexes = [];
+        $centralOnlyExtraFieldIdHexes = [];
+        $localOnlyExtraFieldIdHexes = [];
         $rows = [];
         foreach ($usage as $id => $row) {
             $appearsInCentral = $row['centralRecordCount'] > 0;
             $appearsInLocal = $row['localRecordCount'] > 0;
+            $idHex = sprintf('0x%04x', $id);
+            $extraFieldIdHexes[] = $idHex;
             if ($appearsInCentral) {
                 $centralIdCount++;
+                $centralExtraFieldIdHexes[] = $idHex;
             }
             if ($appearsInLocal) {
                 $localIdCount++;
+                $localExtraFieldIdHexes[] = $idHex;
             }
             if ($appearsInCentral && $appearsInLocal) {
                 $sharedIdCount++;
+                $sharedExtraFieldIdHexes[] = $idHex;
             } elseif ($appearsInCentral) {
                 $centralOnlyIdCount++;
+                $centralOnlyExtraFieldIdHexes[] = $idHex;
             } elseif ($appearsInLocal) {
                 $localOnlyIdCount++;
+                $localOnlyExtraFieldIdHexes[] = $idHex;
             }
 
             $rows[] = [
                 'id' => $id,
-                'idHex' => sprintf('0x%04x', $id),
+                'idHex' => $idHex,
                 'centralRecordCount' => $row['centralRecordCount'],
                 'localRecordCount' => $row['localRecordCount'],
                 'centralEntryCount' => count($row['centralEntryNames']),
@@ -23427,6 +23780,12 @@ final class ZipPackage
             'centralOnlyExtraFieldIdCount' => $centralOnlyIdCount,
             'localOnlyExtraFieldIdCount' => $localOnlyIdCount,
             'extraFieldIdUsage' => $rows,
+            'extraFieldIdHexes' => $extraFieldIdHexes,
+            'centralExtraFieldIdHexes' => $centralExtraFieldIdHexes,
+            'localExtraFieldIdHexes' => $localExtraFieldIdHexes,
+            'sharedExtraFieldIdHexes' => $sharedExtraFieldIdHexes,
+            'centralOnlyExtraFieldIdHexes' => $centralOnlyExtraFieldIdHexes,
+            'localOnlyExtraFieldIdHexes' => $localOnlyExtraFieldIdHexes,
         ];
     }
 
