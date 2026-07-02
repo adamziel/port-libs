@@ -1317,6 +1317,9 @@ return [
             'expansionRatioBucketSummaryCount' => count($expectedExpansionRatioBucketSummaries),
             'expansionRatioBuckets' => $expectedExpansionRatioBuckets,
             'expansionRatioBucketSummaries' => $expectedExpansionRatioBucketSummaries,
+            'sourceRecordByteLengthBucketSummaryCount' => $manifest['sourceRecordByteLengthBucketSummaryCount'],
+            'sourceRecordByteLengthBuckets' => $manifest['sourceRecordByteLengthBuckets'],
+            'sourceRecordByteLengthBucketSummaries' => $manifest['sourceRecordByteLengthBucketSummaries'],
             'nameLengthBucketSummaryCount' => $manifest['nameLengthBucketSummaryCount'],
             'nameLengthBuckets' => $manifest['nameLengthBuckets'],
             'nameLengthBucketSummaries' => $manifest['nameLengthBucketSummaries'],
@@ -1985,6 +1988,113 @@ return [
         $t->same($manifest['nameLengthBucketSummaries'], $strict['packageManifest']['nameLengthBucketSummaries']);
         $t->same($manifest['nameLengthBucketSummaries'], $raw['packageManifest']['nameLengthBucketSummaries']);
         $t->same($manifest['nameLengthBucketSummaries'], $raw['strictImport']['packageManifest']['nameLengthBucketSummaries']);
+    },
+
+    'rolls up zip package manifest source record byte buckets before shared package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $tinyName = 'tiny';
+        $tinyDirectoryName = 'word/media/';
+        $mediumName = 'word/document.xml';
+        $largeName = 'word/media/large.bin';
+        $hugeName = 'word/media/huge.bin';
+        $mediumBytes = str_repeat('M', 180);
+        $largeBytes = str_repeat('L', 900);
+        $hugeBytes = str_repeat('H', 2100);
+
+        $zip = $buildZipPackage([
+            [
+                'name' => $tinyName,
+                'data' => '',
+                'method' => 0,
+            ],
+            [
+                'name' => $tinyDirectoryName,
+                'data' => '',
+                'method' => 0,
+            ],
+            [
+                'name' => $mediumName,
+                'data' => $mediumBytes,
+                'method' => 0,
+            ],
+            [
+                'name' => $largeName,
+                'data' => $largeBytes,
+                'method' => 0,
+            ],
+            [
+                'name' => $hugeName,
+                'data' => $hugeBytes,
+                'method' => 0,
+            ],
+        ]);
+        $package = ZipPackage::fromString($zip);
+        $manifest = $package->packageManifestPreflight();
+        $strict = $package->strictImportPreflight(8192, 100.0, 8192);
+        $raw = ZipPackage::rawStrictImportPreflight($zip, 8192, 100.0, 8192);
+
+        $entriesByName = array_column($manifest['entries'], null, 'name');
+        $sumEntryField = static function (array $names, string $field) use ($entriesByName): int {
+            $total = 0;
+            foreach ($names as $name) {
+                $total += (int) $entriesByName[$name][$field];
+            }
+
+            return $total;
+        };
+        $buckets = array_column($manifest['sourceRecordByteLengthBucketSummaries'], null, 'sourceRecordByteLengthBucket');
+
+        $t->same(4, $manifest['sourceRecordByteLengthBucketSummaryCount']);
+        $t->same([
+            'up-to-127-bytes',
+            '128-to-511-bytes',
+            '512-to-2047-bytes',
+            '2048-plus-bytes',
+        ], $manifest['sourceRecordByteLengthBuckets']);
+
+        $tinyBucketNames = [$tinyName, $tinyDirectoryName];
+        $t->same([
+            'sourceRecordByteLengthBucket' => 'up-to-127-bytes',
+            'minSourceRecordBytes' => 0,
+            'maxSourceRecordBytes' => 127,
+            'entryCount' => 2,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 1,
+            'sourceRecordBytes' => $sumEntryField($tinyBucketNames, 'sourceRecordBytes'),
+            'localRecordBytes' => $sumEntryField($tinyBucketNames, 'localRecordBytes'),
+            'centralDirectoryRecordBytes' => $sumEntryField($tinyBucketNames, 'centralDirectoryRecordBytes'),
+            'compressedBytes' => 0,
+            'uncompressedBytes' => 0,
+            'dataDescriptorEntryCount' => 0,
+            'dataDescriptorBytes' => 0,
+            'directoryRoots' => ['/', 'word/'],
+            'packagePartExtensionKeys' => ['(directory)', '(none)'],
+            'compressionMethodNames' => ['stored'],
+            'entryNames' => $tinyBucketNames,
+            'largestSourceRecordEntryName' => $tinyDirectoryName,
+            'largestSourceRecordBytes' => $entriesByName[$tinyDirectoryName]['sourceRecordBytes'],
+        ], $buckets['up-to-127-bytes']);
+
+        $t->same(1, $buckets['128-to-511-bytes']['entryCount']);
+        $t->same([$mediumName], $buckets['128-to-511-bytes']['entryNames']);
+        $t->same($entriesByName[$mediumName]['sourceRecordBytes'], $buckets['128-to-511-bytes']['sourceRecordBytes']);
+        $t->same('xml', $buckets['128-to-511-bytes']['packagePartExtensionKeys'][0]);
+        $t->same($mediumName, $buckets['128-to-511-bytes']['largestSourceRecordEntryName']);
+
+        $t->same(1, $buckets['512-to-2047-bytes']['entryCount']);
+        $t->same([$largeName], $buckets['512-to-2047-bytes']['entryNames']);
+        $t->same($entriesByName[$largeName]['sourceRecordBytes'], $buckets['512-to-2047-bytes']['sourceRecordBytes']);
+        $t->same('bin', $buckets['512-to-2047-bytes']['packagePartExtensionKeys'][0]);
+        $t->same($largeName, $buckets['512-to-2047-bytes']['largestSourceRecordEntryName']);
+
+        $t->same(1, $buckets['2048-plus-bytes']['entryCount']);
+        $t->same([$hugeName], $buckets['2048-plus-bytes']['entryNames']);
+        $t->same($entriesByName[$hugeName]['sourceRecordBytes'], $buckets['2048-plus-bytes']['sourceRecordBytes']);
+        $t->same(null, $buckets['2048-plus-bytes']['maxSourceRecordBytes']);
+        $t->same($hugeName, $buckets['2048-plus-bytes']['largestSourceRecordEntryName']);
+
+        $t->same($manifest['sourceRecordByteLengthBucketSummaries'], $strict['packageManifest']['sourceRecordByteLengthBucketSummaries']);
+        $t->same($manifest['sourceRecordByteLengthBucketSummaries'], $raw['packageManifest']['sourceRecordByteLengthBucketSummaries']);
+        $t->same($manifest['sourceRecordByteLengthBucketSummaries'], $raw['strictImport']['packageManifest']['sourceRecordByteLengthBucketSummaries']);
     },
 
     'preflights zip package manifest path segment positions for shared package handoff' => static function (TestRunner $t) use ($buildZipPackage, $pathSegmentPositionReviews): void {
@@ -3372,6 +3482,9 @@ return [
             'expansionRatioBucketSummaryCount' => $manifest['expansionRatioBucketSummaryCount'],
             'expansionRatioBuckets' => $manifest['expansionRatioBuckets'],
             'expansionRatioBucketSummaries' => $manifest['expansionRatioBucketSummaries'],
+            'sourceRecordByteLengthBucketSummaryCount' => $manifest['sourceRecordByteLengthBucketSummaryCount'],
+            'sourceRecordByteLengthBuckets' => $manifest['sourceRecordByteLengthBuckets'],
+            'sourceRecordByteLengthBucketSummaries' => $manifest['sourceRecordByteLengthBucketSummaries'],
             'nameLengthBucketSummaryCount' => $manifest['nameLengthBucketSummaryCount'],
             'nameLengthBuckets' => $manifest['nameLengthBuckets'],
             'nameLengthBucketSummaries' => $manifest['nameLengthBucketSummaries'],

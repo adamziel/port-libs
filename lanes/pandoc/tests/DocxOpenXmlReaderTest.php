@@ -1429,6 +1429,9 @@ XML,
         $t->same($manifest['expansionRatioBucketSummaryCount'], $summary['zipPackageManifestExpansionRatioBucketSummaryCount']);
         $t->same($manifest['expansionRatioBuckets'], $summary['zipPackageManifestExpansionRatioBuckets']);
         $t->same($manifest['expansionRatioBucketSummaries'], $summary['zipPackageManifestExpansionRatioBucketSummaries']);
+        $t->same($manifest['sourceRecordByteLengthBucketSummaryCount'], $summary['zipPackageManifestSourceRecordByteLengthBucketSummaryCount']);
+        $t->same($manifest['sourceRecordByteLengthBuckets'], $summary['zipPackageManifestSourceRecordByteLengthBuckets']);
+        $t->same($manifest['sourceRecordByteLengthBucketSummaries'], $summary['zipPackageManifestSourceRecordByteLengthBucketSummaries']);
         $t->same($manifest['largestEntry'], $summary['zipPackageManifestLargestEntry']);
         $t->same($manifest['zeroByteEntryCount'], $summary['zipPackageManifestZeroByteEntryCount']);
         $t->same($manifest['zeroByteFileCount'], $summary['zipPackageManifestZeroByteFileCount']);
