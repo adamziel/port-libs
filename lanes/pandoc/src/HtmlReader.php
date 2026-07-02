@@ -78,6 +78,7 @@ final class HtmlReader
         $topLevelIndexes = [];
         $globalPropertyNames = [];
         $globalPropertyCount = 0;
+        $globalTruncatedPropertyValueCount = 0;
         $diagnostics = [];
         $reportedItemCount = min(count($itemElements), self::MICRODATA_MAX_ITEMS);
 
@@ -95,6 +96,7 @@ final class HtmlReader
             }
 
             $globalPropertyCount += (int) $item['propertyCount'];
+            $globalTruncatedPropertyValueCount += (int) $item['truncatedPropertyValueCount'];
             foreach ($item['propertyNames'] as $name) {
                 if (!in_array($name, $globalPropertyNames, true)) {
                     $globalPropertyNames[] = $name;
@@ -108,6 +110,7 @@ final class HtmlReader
             'htmlMicrodataReportedItemCount' => $reportedItemCount,
             'htmlMicrodataTopLevelItemCount' => count($topLevelIndexes),
             'htmlMicrodataPropertyCount' => $globalPropertyCount,
+            'htmlMicrodataTruncatedPropertyValueCount' => $globalTruncatedPropertyValueCount,
             'htmlMicrodataPropertyNames' => $globalPropertyNames,
             'htmlMicrodataItems' => $items,
             'htmlMicrodataTopLevelItemIndexes' => $topLevelIndexes,
@@ -191,6 +194,7 @@ final class HtmlReader
 
         $properties = array_slice($properties, 0, self::MICRODATA_MAX_PROPERTIES_PER_ITEM);
         $propertyNameCounts = self::microdataPropertyNameCounts($properties);
+        $truncatedPropertyValueCount = self::microdataTruncatedPropertyValueCount($properties);
 
         $summary = [
             'microdataReviewPolicy' => 'html-microdata-metadata-only',
@@ -200,6 +204,7 @@ final class HtmlReader
             'itemrefIds' => $itemrefIds,
             'missingItemrefIds' => $missingItemrefIds,
             'propertyCount' => count($properties),
+            'truncatedPropertyValueCount' => $truncatedPropertyValueCount,
             'propertyNames' => array_keys($propertyNameCounts),
             'propertyNameCounts' => $propertyNameCounts,
             'properties' => $properties,
@@ -260,13 +265,17 @@ final class HtmlReader
     private static function microdataPropertySummary(\DOMElement $element): array
     {
         [$value, $valueSource, $valueType] = self::microdataPropertyValue($element);
+        $boundedValue = self::boundedMicrodataValue($value);
         $summary = [
             'elementName' => XmlHtmlDom::htmlElementName($element),
             'itempropRaw' => $element->getAttribute('itemprop'),
             'names' => self::spaceSeparatedTokens($element->getAttribute('itemprop')),
-            'value' => self::boundedMicrodataValue($value),
+            'value' => $boundedValue,
             'valueSource' => $valueSource,
             'valueType' => $valueType,
+            'sourceValueBytes' => strlen($value),
+            'valueBytes' => strlen($boundedValue),
+            'valueTruncated' => $boundedValue !== $value,
         ];
 
         if ($element->hasAttribute('id')) {
@@ -316,11 +325,16 @@ final class HtmlReader
      */
     private static function microdataItemReference(\DOMElement $element): array
     {
+        $text = Html5Dom::normalizedText($element);
+        $boundedText = self::boundedMicrodataValue($text);
         $reference = [
             'elementName' => XmlHtmlDom::htmlElementName($element),
             'itemTypes' => self::spaceSeparatedTokens($element->getAttribute('itemtype')),
             'itemId' => $element->hasAttribute('itemid') ? $element->getAttribute('itemid') : null,
-            'text' => self::boundedMicrodataValue(Html5Dom::normalizedText($element)),
+            'text' => $boundedText,
+            'sourceTextBytes' => strlen($text),
+            'textBytes' => strlen($boundedText),
+            'textTruncated' => $boundedText !== $text,
         ];
 
         if ($element->hasAttribute('id')) {
@@ -344,6 +358,21 @@ final class HtmlReader
         }
 
         return $counts;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $properties
+     */
+    private static function microdataTruncatedPropertyValueCount(array $properties): int
+    {
+        $count = 0;
+        foreach ($properties as $property) {
+            if (($property['valueTruncated'] ?? false) === true) {
+                $count++;
+            }
+        }
+
+        return $count;
     }
 
     /**
@@ -401,6 +430,11 @@ final class HtmlReader
             return $value;
         }
 
-        return substr($value, 0, self::MICRODATA_MAX_VALUE_BYTES);
+        $truncated = substr($value, 0, self::MICRODATA_MAX_VALUE_BYTES);
+        while ($truncated !== '' && preg_match('//u', $truncated) !== 1) {
+            $truncated = substr($truncated, 0, -1);
+        }
+
+        return $truncated;
     }
 }

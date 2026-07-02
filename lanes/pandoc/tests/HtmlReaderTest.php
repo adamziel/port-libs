@@ -37,6 +37,7 @@ $tests['extracts html reader microdata item metadata with itemref and nested ite
         $t->same(1, $meta['htmlMicrodataTopLevelItemCount']);
         $t->same([0], $meta['htmlMicrodataTopLevelItemIndexes']);
         $t->same(8, $meta['htmlMicrodataPropertyCount']);
+        $t->same(0, $meta['htmlMicrodataTruncatedPropertyValueCount']);
         $t->same(
             ['headline', 'url', 'mainEntityOfPage', 'image', 'datePublished', 'author', 'keywords', 'name', 'text'],
             $meta['htmlMicrodataPropertyNames']
@@ -50,6 +51,7 @@ $tests['extracts html reader microdata item metadata with itemref and nested ite
         $t->same(['extra', 'missing'], $article['itemrefIds']);
         $t->same(['missing'], $article['missingItemrefIds']);
         $t->same(6, $article['propertyCount']);
+        $t->same(0, $article['truncatedPropertyValueCount']);
         $t->same(
             ['headline', 'url', 'mainEntityOfPage', 'image', 'datePublished', 'author', 'keywords'],
             $article['propertyNames']
@@ -67,6 +69,9 @@ $tests['extracts html reader microdata item metadata with itemref and nested ite
         $t->same(['headline'], $articleProperties[0]['names']);
         $t->same('Launch Notes', $articleProperties[0]['value']);
         $t->same('text', $articleProperties[0]['valueSource']);
+        $t->same(strlen('Launch Notes'), $articleProperties[0]['sourceValueBytes']);
+        $t->same(strlen('Launch Notes'), $articleProperties[0]['valueBytes']);
+        $t->same(false, $articleProperties[0]['valueTruncated']);
         $t->same(['url', 'mainEntityOfPage'], $articleProperties[1]['names']);
         $t->same('/posts/42', $articleProperties[1]['value']);
         $t->same('href', $articleProperties[1]['valueSource']);
@@ -141,8 +146,33 @@ foreach ($valueSourceCases as $name => [$markup, $propertyName, $expectedValue, 
             $t->same($expectedValue, $property['value']);
             $t->same($expectedSource, $property['valueSource']);
             $t->same($expectedType, $property['valueType']);
+            $t->same(strlen($expectedValue), $property['sourceValueBytes']);
+            $t->same(strlen($expectedValue), $property['valueBytes']);
+            $t->same(false, $property['valueTruncated']);
         };
 }
+
+$tests['records html reader microdata bounded value byte provenance'] =
+    static function (TestRunner $t): void {
+        $longValue = str_repeat('a', 511) . 'é' . 'tail';
+        $document = (new HtmlReader())->read(
+            '<!doctype html><html><body><section itemscope itemtype="https://schema.org/Article">'
+            . '<span itemprop="description">' . $longValue . '</span>'
+            . '</section></body></html>'
+        );
+        $meta = $document->attr('meta');
+        $item = $meta['htmlMicrodataItems'][0];
+        $property = $item['properties'][0];
+
+        $t->same(1, $meta['htmlMicrodataTruncatedPropertyValueCount']);
+        $t->same(1, $item['truncatedPropertyValueCount']);
+        $t->same('description', $property['names'][0]);
+        $t->same(strlen($longValue), $property['sourceValueBytes']);
+        $t->same(511, $property['valueBytes']);
+        $t->same(str_repeat('a', 511), $property['value']);
+        $t->true($property['valueTruncated']);
+        $t->same(1, preg_match('//u', $property['value']));
+    };
 
 $tests['keeps html reader imports alive when microdata dom parse is unavailable'] =
     static function (TestRunner $t): void {
@@ -160,7 +190,7 @@ $tests['keeps html reader imports alive when microdata dom parse is unavailable'
 
 $tests['records html reader microdata metadata mapped-case count'] =
     static function (TestRunner $t) use ($valueSourceCases): void {
-        $t->same(7, 1 + count($valueSourceCases) + 1);
+        $t->same(8, 1 + count($valueSourceCases) + 1 + 1);
     };
 
 return $tests;

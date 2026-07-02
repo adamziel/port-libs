@@ -2,6 +2,8 @@
     "schemaVersion": 1,
     "lane": "pandoc",
     "priority": 6,
+    "mappedHtmlReaderMicrodataMetadataCases": 8,
+    "htmlReaderMicrodataMetadataAssertions": 96,
     "mappedOdfManifestMissingMediaTypeCases": 1,
     "odfManifestMissingMediaTypeAssertions": 22,
     "mappedOdfReaderZipTimestampProvenanceCases": 1,
