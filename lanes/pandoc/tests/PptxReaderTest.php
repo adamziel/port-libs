@@ -11123,6 +11123,43 @@ return [
         throw new RuntimeException('Expected missing slide part to reject the PPTX package');
     },
 
+    'rejects malformed core pptx slide relationship parts like upstream' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-invalid-slide-rels-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary PPTX path');
+        }
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            @unlink($path);
+            throw new RuntimeException('Unable to create temporary PPTX package');
+        }
+        $zip->addFromString('_rels/.rels', '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdPresentation" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/></Relationships>');
+        $zip->addFromString('ppt/presentation.xml', '<?xml version="1.0"?><p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><p:sldIdLst><p:sldId id="256" r:id="rIdSlide"/></p:sldIdLst></p:presentation>');
+        $zip->addFromString('ppt/_rels/presentation.xml.rels', '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/></Relationships>');
+        $zip->addFromString('ppt/slides/slide1.xml', '<?xml version="1.0"?><p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/><p:sp><p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr><p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Invalid slide rels should fail first</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:sld>');
+        $zip->addFromString('ppt/slides/_rels/slide1.xml.rels', '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdImage" Target="../media/image.png">');
+        $zip->close();
+
+        try {
+            $bytes = file_get_contents($path);
+            if (!is_string($bytes)) {
+                throw new RuntimeException('Unable to read temporary PPTX package');
+            }
+        } finally {
+            @unlink($path);
+        }
+
+        try {
+            (new PptxReader())->read($bytes);
+        } catch (InvalidArgumentException $exception) {
+            $t->true(str_starts_with($exception->getMessage(), 'Unable to parse PPTX relationships'), $exception->getMessage());
+
+            return;
+        }
+
+        throw new RuntimeException('Expected malformed core slide relationship part to reject the PPTX package');
+    },
+
     'rejects pptx slide relationships without Target like upstream' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-missing-slide-target-');
         if ($path === false) {
