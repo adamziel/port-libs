@@ -1144,6 +1144,14 @@ final class OpenDocumentPackage
         $dosAttributesByName = self::zipPreflightEntriesByName($dosAttributes);
         $internalAttributes = $this->package->internalAttributePreflight();
         $internalAttributesByName = self::zipPreflightEntriesByName($internalAttributes);
+        $zipCentralDirectorySignature = self::zipCentralDirectorySignatureProvenance(
+            ZipPackage::centralDirectorySignaturePolicyPreflight($this->package->bytes())
+        );
+        $zipArchive = self::zipArchiveProvenance(
+            $this->package->archivePreflight(),
+            $zipCentralDirectorySignature,
+            strlen($this->package->bytes())
+        );
         $objectPackageRootParts = self::embeddedObjectPackageRootParts($this->manifestEntries);
         $localOrderByName = [];
         foreach ($localHeaderOrder['entries'] as $entry) {
@@ -1666,6 +1674,21 @@ final class OpenDocumentPackage
             'decodedNameDiffersFromRawNameEntryCount' => $decodedNameDiffersFromRawNameEntryCount,
             'rawNameProvenanceEntries' => $rawNameProvenanceEntries,
             'zipSourceRecords' => self::zipSourceRecordSummary($packageManifest, $parts),
+            'zipArchive' => $zipArchive,
+            'zipArchiveLength' => $zipArchive['archiveLength'],
+            'zipEocdOffset' => $zipArchive['eocdOffset'],
+            'zipCentralDirectoryOffset' => $zipArchive['centralDirectoryOffset'],
+            'zipCentralDirectorySize' => $zipArchive['centralDirectorySize'],
+            'zipCentralDirectoryEnd' => $zipArchive['centralDirectoryEnd'],
+            'zipArchiveIssueCount' => $zipArchive['issueCount'],
+            'zipArchiveIssueCodes' => $zipArchive['issueCodes'],
+            'zipCentralDirectorySignature' => $zipCentralDirectorySignature,
+            'zipCentralDirectorySignaturePresent' => $zipCentralDirectorySignature['present'],
+            'zipCentralDirectorySignatureOffset' => $zipCentralDirectorySignature['offset'],
+            'zipCentralDirectorySignatureLength' => $zipCentralDirectorySignature['signatureLength'],
+            'zipCentralDirectorySignatureSha256' => $zipCentralDirectorySignature['signatureSha256'],
+            'zipCentralDirectorySignatureIssueCount' => $zipCentralDirectorySignature['issueCount'],
+            'zipCentralDirectorySignatureIssueCodes' => $zipCentralDirectorySignature['issueCodes'],
             'centralDirectorySourceRecordEntryCount' => $centralDirectorySourceRecordEntryCount,
             'centralDirectorySourceRecordByteLength' => $centralDirectorySourceRecordByteLength,
             'centralDirectorySourceRecordSha256Count' => $centralDirectorySourceRecordSha256Count,
@@ -2346,6 +2369,10 @@ final class OpenDocumentPackage
         }
 
         $comments = is_array($packageInventory['comments'] ?? null) ? $packageInventory['comments'] : [];
+        $zipArchive = is_array($packageInventory['zipArchive'] ?? null) ? $packageInventory['zipArchive'] : [];
+        $zipCentralDirectorySignature = is_array($packageInventory['zipCentralDirectorySignature'] ?? null)
+            ? $packageInventory['zipCentralDirectorySignature']
+            : [];
         $payload = [
             'identityVersion' => 1,
             'packageType' => 'opendocument-text',
@@ -2398,6 +2425,8 @@ final class OpenDocumentPackage
             'unicodePathExtraEntryCount' => $packageInventory['unicodePathExtraEntryCount'] ?? 0,
             'decodedNameDiffersFromRawNameEntryCount' => $packageInventory['decodedNameDiffersFromRawNameEntryCount'] ?? 0,
             'rawNameProvenanceEntries' => $packageInventory['rawNameProvenanceEntries'] ?? [],
+            'zipArchive' => $zipArchive,
+            'zipCentralDirectorySignature' => $zipCentralDirectorySignature,
             'encryptedCount' => count($this->encryptedManifestEntries()),
             'corePackageIssueCount' => $packageCoreParts['issueCount'] ?? 0,
             'corePackageIssueCodes' => $packageCoreParts['issueCodes'] ?? [],
@@ -3875,6 +3904,126 @@ final class OpenDocumentPackage
             'canExposeBytes' => false,
             'byteExposurePolicy' => 'zip-source-record-provenance-metadata-only',
             'items' => $items,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $archive
+     * @param array<string, mixed> $centralDirectorySignature
+     * @return array<string, mixed>
+     */
+    private static function zipArchiveProvenance(
+        array $archive,
+        array $centralDirectorySignature,
+        int $archiveLength
+    ): array {
+        $issues = [];
+        $appendIssue = static function (?string $issue) use (&$issues): void {
+            if ($issue !== null && $issue !== '' && !in_array($issue, $issues, true)) {
+                $issues[] = $issue;
+            }
+        };
+
+        if (($archive['isSingleDisk'] ?? false) !== true) {
+            $appendIssue('split-archive-eocd');
+        }
+        if (($archive['requiresZip64'] ?? false) === true) {
+            $appendIssue('zip64-end-of-central-directory-required');
+        }
+        foreach (is_array($archive['zip64Issues'] ?? null) ? $archive['zip64Issues'] : [] as $issue) {
+            $appendIssue(is_string($issue) ? $issue : null);
+        }
+        if (($archive['isArchiveLayoutSupported'] ?? false) !== true && $issues === []) {
+            $appendIssue('unsupported-archive-layout');
+        }
+
+        $packageComment = is_string($archive['packageComment'] ?? null) ? $archive['packageComment'] : '';
+
+        return [
+            'archiveLength' => $archiveLength,
+            'eocdOffset' => $archive['eocdOffset'] ?? null,
+            'diskNumber' => $archive['diskNumber'] ?? null,
+            'centralDirectoryDisk' => $archive['centralDirectoryDisk'] ?? null,
+            'diskEntryCount' => $archive['diskEntryCount'] ?? null,
+            'totalEntryCount' => $archive['totalEntryCount'] ?? null,
+            'centralDirectorySize' => $archive['centralDirectorySize'] ?? null,
+            'centralDirectoryOffset' => $archive['centralDirectoryOffset'] ?? null,
+            'centralDirectoryEnd' => $archive['centralDirectoryEnd'] ?? null,
+            'hasPackageComment' => ($archive['packageCommentLength'] ?? 0) > 0,
+            'packageCommentLength' => $archive['packageCommentLength'] ?? strlen($packageComment),
+            'packageCommentSha256' => $packageComment === '' ? null : hash('sha256', $packageComment),
+            'isSingleDisk' => ($archive['isSingleDisk'] ?? false) === true,
+            'requiresZip64' => ($archive['requiresZip64'] ?? false) === true,
+            'isArchiveLayoutSupported' => ($archive['isArchiveLayoutSupported'] ?? false) === true,
+            'hasZip64EndOfCentralDirectoryLocator' => ($archive['hasZip64EndOfCentralDirectoryLocator'] ?? false) === true,
+            'hasZip64EndOfCentralDirectory' => ($archive['hasZip64EndOfCentralDirectory'] ?? false) === true,
+            'zip64EndOfCentralDirectoryLocatorOffset' => $archive['zip64EndOfCentralDirectoryLocatorOffset'] ?? null,
+            'zip64EndOfCentralDirectoryOffset' => $archive['zip64EndOfCentralDirectoryOffset'] ?? null,
+            'zip64EndOfCentralDirectoryRecordEnd' => $archive['zip64EndOfCentralDirectoryRecordEnd'] ?? null,
+            'zip64EndOfCentralDirectorySize' => $archive['zip64EndOfCentralDirectorySize'] ?? null,
+            'zip64EndOfCentralDirectoryPayloadSize' => $archive['zip64EndOfCentralDirectoryPayloadSize'] ?? null,
+            'zip64EndOfCentralDirectoryExtensibleDataSize' => $archive['zip64EndOfCentralDirectoryExtensibleDataSize'] ?? null,
+            'zip64TotalDisks' => $archive['zip64TotalDisks'] ?? null,
+            'zip64DiskNumber' => $archive['zip64DiskNumber'] ?? null,
+            'zip64CentralDirectoryDisk' => $archive['zip64CentralDirectoryDisk'] ?? null,
+            'zip64TotalEntryCount' => $archive['zip64TotalEntryCount'] ?? null,
+            'zip64CentralDirectorySize' => $archive['zip64CentralDirectorySize'] ?? null,
+            'zip64CentralDirectoryOffset' => $archive['zip64CentralDirectoryOffset'] ?? null,
+            'zip64CentralDirectoryEnd' => $archive['zip64CentralDirectoryEnd'] ?? null,
+            'zip64IssueCodes' => is_array($archive['zip64Issues'] ?? null) ? $archive['zip64Issues'] : [],
+            'hasCentralDirectorySignature' => ($centralDirectorySignature['present'] ?? false) === true,
+            'centralDirectorySignatureOffset' => $centralDirectorySignature['offset'] ?? null,
+            'centralDirectorySignatureLength' => $centralDirectorySignature['signatureLength'] ?? 0,
+            'centralDirectorySignatureSha256' => $centralDirectorySignature['signatureSha256'] ?? null,
+            'centralDirectorySignatureVerification' => $centralDirectorySignature['cryptographicVerification'] ?? 'not-present',
+            'issueCount' => count($issues),
+            'issueCodes' => $issues,
+            'byteExposurePolicy' => 'odf-zip-archive-metadata-only',
+            'canExposeBytes' => false,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $signature
+     * @return array<string, mixed>
+     */
+    private static function zipCentralDirectorySignatureProvenance(array $signature): array
+    {
+        $present = ($signature['present'] ?? false) === true;
+        $issues = [];
+        $appendIssue = static function (?string $issue) use (&$issues): void {
+            if ($issue !== null && $issue !== '' && !in_array($issue, $issues, true)) {
+                $issues[] = $issue;
+            }
+        };
+
+        foreach (is_array($signature['issues'] ?? null) ? $signature['issues'] : [] as $issue) {
+            $appendIssue(is_string($issue) ? $issue : null);
+        }
+        if ($present) {
+            $appendIssue('central-directory-signature-unverified');
+        }
+
+        return [
+            'entryCount' => $signature['entryCount'] ?? 0,
+            'centralDirectoryOffset' => $signature['centralDirectoryOffset'] ?? null,
+            'centralDirectoryEnd' => $signature['centralDirectoryEnd'] ?? null,
+            'eocdOffset' => $signature['eocdOffset'] ?? null,
+            'present' => $present,
+            'offset' => $signature['offset'] ?? null,
+            'dataOffset' => $signature['dataOffset'] ?? null,
+            'endOffset' => $signature['endOffset'] ?? null,
+            'location' => is_string($signature['location'] ?? null) ? $signature['location'] : null,
+            'signatureLength' => $signature['signatureLength'] ?? 0,
+            'signatureSha256' => is_string($signature['signatureSha256'] ?? null) ? $signature['signatureSha256'] : null,
+            'cryptographicVerification' => is_string($signature['cryptographicVerification'] ?? null)
+                ? $signature['cryptographicVerification']
+                : ($present ? 'not-performed-native-bounded-reader' : 'not-present'),
+            'isSupportedByBoundedReader' => $issues === [],
+            'issueCount' => count($issues),
+            'issueCodes' => $issues,
+            'byteExposurePolicy' => 'odf-zip-central-directory-signature-metadata-only',
+            'canExposeBytes' => false,
         ];
     }
 
