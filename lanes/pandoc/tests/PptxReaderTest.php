@@ -13048,6 +13048,53 @@ XML);
     }
 };
 
+$buildBoundarySlideTargetPptxPackage = static function (string $target): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-boundary-slide-target-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdPresentation" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="{$target}"/>
+</Relationships>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildMissingSlideRelationshipPartPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-no-slide-rels-');
     if ($path === false) {
@@ -17013,6 +17060,23 @@ XML);
         $t->same('PPT prefixed slide target', $document->children[0]->attr('text'));
         $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "PPT" , Space , Str "prefixed" , Space , Str "slide" , Space , Str "target" ]', $native);
         $t->true(!str_contains($native, 'Normally resolved slide target'), 'Already ppt-prefixed slide targets should still be prefixed before package lookup');
+    },
+
+    'keeps boundary pptx slide targets as literal ppt-prefixed entry lookups like upstream' => static function (TestRunner $t) use ($buildBoundarySlideTargetPptxPackage): void {
+        foreach ([
+            'slides/' => 'ppt/slides/',
+            'ppt/slides/' => 'ppt/ppt/slides/',
+        ] as $target => $partName) {
+            try {
+                (new PptxReader())->read($buildBoundarySlideTargetPptxPackage($target));
+            } catch (RuntimeException $exception) {
+                $t->same('Entry not found: ' . $partName, $exception->getMessage(), $target);
+
+                continue;
+            }
+
+            throw new RuntimeException('Expected boundary slide Target ' . $target . ' to look up ' . $partName . ' like upstream');
+        }
     },
 
     'treats missing pptx slide relationship parts as empty relationship lists like upstream' => static function (TestRunner $t) use ($buildMissingSlideRelationshipPartPptxPackage, $nodesOfType): void {
