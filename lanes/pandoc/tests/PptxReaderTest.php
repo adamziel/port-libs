@@ -6449,6 +6449,100 @@ XML);
     }
 };
 
+$buildQualifiedUniqueIdSmartArtLayoutPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-qualified-uniqueid-layout-smartart-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Qualified uniqueId layout SmartArt</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="20" name="Qualified UniqueId SmartArt"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"><dgm:relIds r:dm="rIdData" r:lo="rIdLayout"/></a:graphicData></a:graphic>
+    </p:graphicFrame>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->addFromString('ppt/slides/_rels/slide1.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdData" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData" Target="../diagrams/data1.xml"/>
+  <Relationship Id="rIdLayout" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramLayout" Target="../diagrams/layout1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/diagrams/layout1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<dgm:layoutDef xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"
+               xmlns:q="urn:qualified-smartart-layout"
+               q:uniqueId="urn:example/layout/qualifiedUniqueIdShouldNotWin">
+  <dgm:title val="titleFallbackWins"/>
+</dgm:layoutDef>
+XML);
+    $zip->addFromString('ppt/diagrams/data1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<dgm:dataModel xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <dgm:ptLst>
+    <dgm:pt modelId="parent"><dgm:t><a:p><a:r><a:t>Qualified uniqueId parent</a:t></a:r></a:p></dgm:t></dgm:pt>
+    <dgm:pt modelId="child"><dgm:t><a:p><a:r><a:t>Qualified uniqueId child</a:t></a:r></a:p></dgm:t></dgm:pt>
+  </dgm:ptLst>
+  <dgm:cxnLst>
+    <dgm:cxn srcId="parent" destId="child"/>
+  </dgm:cxnLst>
+</dgm:dataModel>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildDuplicateModelIdSmartArtPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-duplicate-modelid-smartart-');
     if ($path === false) {
@@ -13115,6 +13209,23 @@ return [
         $t->contains('Strong [ Str "Empty" , Space , Str "title" , Space , Str "parent" ]', $native);
         $t->contains('BulletList [ [ Plain [ Str "Empty" , Space , Str "title" , Space , Str "child"', $native);
         $t->true(!str_contains($native, 'unknown'), 'A present empty dgm:title val should be used as the layout name instead of falling back to unknown');
+    },
+
+    'ignores qualified SmartArt layout uniqueIds like upstream' => static function (TestRunner $t) use ($buildQualifiedUniqueIdSmartArtLayoutPptxPackage, $nodesOfType, $nodesWithClass): void {
+        $document = (new PptxReader())->read($buildQualifiedUniqueIdSmartArtLayoutPptxPackage());
+        $review = $document->attr('pptx');
+        $divs = $nodesOfType($document, 'div');
+        $smartArtDivs = $nodesWithClass($divs, 'smartart');
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same(1, count($smartArtDivs));
+        $t->same(['smartart', 'titleFallbackWins'], $smartArtDivs[0]->attr('classes'));
+        $t->same(['layout' => 'titleFallbackWins'], $smartArtDivs[0]->attr('attributes'));
+        $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
+        $t->contains('Strong [ Str "Qualified" , Space , Str "uniqueId" , Space , Str "parent" ]', $native);
+        $t->contains('BulletList [ [ Plain [ Str "Qualified" , Space , Str "uniqueId" , Space , Str "child"', $native);
+        $t->true(!str_contains($native, 'qualifiedUniqueIdShouldNotWin'), 'Qualified SmartArt layout uniqueId attributes should not become native layout names');
+        $t->true(!str_contains($native, 'Diagram parse error'), 'Qualified SmartArt layout uniqueIds should fall back to title labels without diagnostics');
     },
 
     'uses the last duplicate pptx SmartArt modelId text like upstream' => static function (TestRunner $t) use ($buildDuplicateModelIdSmartArtPptxPackage, $nodesOfType, $nodesWithClass): void {
