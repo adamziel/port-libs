@@ -134,6 +134,17 @@ return [
         $t->same(1, $identity['roleCounts']['script-package']);
         $t->same(1, $identity['packagePartByteExposurePolicyCounts']['script-package-bytes-blocked']);
         $t->same(1, $identity['packagePartByteExposurePolicyCounts']['undeclared-package-entry-no-bytes']);
+        $t->same([
+            'package-bytes-exposable' => 4,
+            'package-root-no-bytes' => 1,
+            'script-package-bytes-blocked' => 1,
+        ], $identity['manifestByteExposurePolicyCounts']);
+        $t->same(6, $identity['manifestByteExposurePolicyItemCount']);
+        $t->same(
+            ['/', 'content.xml', 'styles.xml', 'meta.xml', 'Pictures/hero.png?cache=1#cover', 'Basic/Standard/Review.xml?macro=approve#entry'],
+            array_column($identity['manifestByteExposurePolicyItems'], 'fullPath')
+        );
+        $t->same($provenance['manifestByteExposurePolicyItems'], $identity['manifestByteExposurePolicyItems']);
         $t->same(count($parts), $provenance['centralDirectorySourceRecordEntryCount']);
         $t->same(count($parts), $provenance['centralDirectorySourceRecordSha256Count']);
         $t->true($provenance['centralDirectorySourceRecordByteLength'] > count($parts) * 46);

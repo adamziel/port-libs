@@ -111,6 +111,35 @@ return [
             'META-INF/documentsignatures.xml' => 'signaturePackagePart',
             'database/script' => 'databasePackagePart',
         ];
+        $expectedManifestByteExposurePolicyCounts = [
+            'configuration-package-bytes-blocked' => 1,
+            'database-package-bytes-blocked' => 1,
+            'font-package-bytes-blocked' => 1,
+            'layout-cache-package-bytes-blocked' => 1,
+            'meta-inf-sidecar-package-bytes-blocked' => 1,
+            'object-replacement-package-bytes-blocked' => 1,
+            'package-bytes-exposable' => 4,
+            'package-root-no-bytes' => 1,
+            'rdf-metadata-bytes-blocked' => 1,
+            'script-package-bytes-blocked' => 1,
+            'signature-package-bytes-blocked' => 1,
+        ];
+        $expectedManifestByteExposurePolicyPaths = [
+            '/',
+            'content.xml',
+            'styles.xml',
+            'meta.xml',
+            'Pictures/hero.png',
+            'Basic/Standard/Review.xml',
+            'Configurations2/accelerator/current.xml',
+            'Fonts/ReviewSans.woff2',
+            'manifest.rdf',
+            'ObjectReplacements/preview.png',
+            'layout-cache',
+            'META-INF/review-state.xml',
+            'META-INF/documentsignatures.xml',
+            'database/script',
+        ];
 
         foreach ($expectedFlags as $path => $flag) {
             $t->same(true, $manifestByPath[$path][$flag], "{$path} manifest identity flag");
@@ -129,6 +158,18 @@ return [
         $t->same('meta-inf-sidecar-package-bytes-blocked', $manifestByPath['META-INF/review-state.xml']['byteExposurePolicy']);
         $t->same('signature-package-bytes-blocked', $manifestByPath['META-INF/documentsignatures.xml']['byteExposurePolicy']);
         $t->same('database-package-bytes-blocked', $manifestByPath['database/script']['byteExposurePolicy']);
+        $t->same($expectedManifestByteExposurePolicyCounts, $summary['manifestReview']['manifestByteExposurePolicyCounts']);
+        $t->same(14, $summary['manifestReview']['manifestByteExposurePolicyItemCount']);
+        $t->same(
+            $expectedManifestByteExposurePolicyPaths,
+            array_column($summary['manifestReview']['manifestByteExposurePolicyItems'], 'path')
+        );
+        $t->same($expectedManifestByteExposurePolicyCounts, $identity['manifestByteExposurePolicyCounts']);
+        $t->same(14, $identity['manifestByteExposurePolicyItemCount']);
+        $t->same(
+            $expectedManifestByteExposurePolicyPaths,
+            array_column($identity['manifestByteExposurePolicyItems'], 'path')
+        );
         $t->same('odf-package-identity-metadata-only', $identity['byteExposurePolicy']);
     },
 ];

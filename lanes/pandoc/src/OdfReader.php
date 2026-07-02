@@ -4031,6 +4031,8 @@ final class OdfReader
                 ? ($provenance['packageCoreParts']['issueCodes'] ?? [])
                 : [],
             'manifestByteExposurePolicyCounts' => $provenance['manifestByteExposurePolicyCounts'] ?? [],
+            'manifestByteExposurePolicyItemCount' => $provenance['manifestByteExposurePolicyItemCount'] ?? 0,
+            'manifestByteExposurePolicyItems' => $provenance['manifestByteExposurePolicyItems'] ?? [],
             'manifestCustomAttributeNames' => $provenance['manifestCustomAttributeNames'] ?? [],
             'rawNameProvenanceEntries' => $provenance['rawNameProvenanceEntries'] ?? [],
             'platformMetadataEntryCount' => $provenance['platformMetadataEntryCount'] ?? 0,
@@ -4161,6 +4163,9 @@ final class OdfReader
             'corePackageIssueCodes' => is_array($provenance['packageCoreParts'] ?? null)
                 ? ($provenance['packageCoreParts']['issueCodes'] ?? [])
                 : [],
+            'manifestByteExposurePolicyCounts' => $provenance['manifestByteExposurePolicyCounts'] ?? [],
+            'manifestByteExposurePolicyItemCount' => $provenance['manifestByteExposurePolicyItemCount'] ?? 0,
+            'manifestByteExposurePolicyItems' => $provenance['manifestByteExposurePolicyItems'] ?? [],
             'generalPurposeFlagStrictReviewEntryCount' => $provenance['generalPurposeFlagStrictReviewEntryCount'] ?? 0,
             'generalPurposeFlagDataDescriptorEntryCount' => $provenance['generalPurposeFlagDataDescriptorEntryCount'] ?? 0,
             'generalPurposeFlagDeflateOptionEntryCount' => $provenance['generalPurposeFlagDeflateOptionEntryCount'] ?? 0,
