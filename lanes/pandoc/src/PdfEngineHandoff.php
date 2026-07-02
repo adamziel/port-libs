@@ -1153,6 +1153,7 @@ final class PdfEngineHandoff
         $sourceMapExternalInputs = [];
         $sourceMapLineRangesByKey = [];
         $typstTimingSourcePolicy = [];
+        $typstRuntimeSourceSummary = [];
         $engineLogFiles = [];
         $engineLogTexts = [];
         $status = 'ok';
@@ -1632,6 +1633,11 @@ final class PdfEngineHandoff
         );
         $typstErrorSourceIssueCount = $this->countTypstDiagnosticSourceIssues($typstErrorProvenance);
         $typstErrorSourcePolicy = $this->typstErrorSourcePolicyFor($typstErrorProvenance);
+        $typstRuntimeSourceSummary = $this->typstRuntimeSourceSummaryFor(
+            $typstTimingSourcePolicy,
+            $typstWarningSourcePolicy,
+            $typstErrorSourcePolicy
+        );
         $engineMissingDependencies = $this->extractEngineMissingDependencies($engineTexts);
         $engineMissingDependencyKinds = $this->summarizeEngineMissingDependencyKinds($engineMissingDependencies);
         $bibliographyMessages = $this->extractBibliographyMessages(array_merge($engineTexts, $bibliographyLogTexts));
@@ -1694,6 +1700,23 @@ final class PdfEngineHandoff
             }
             if ($typstErrorSourcePolicy['packageReferenceCount'] > 0) {
                 $diagnostics[] = 'typst-error-source-packages:' . $typstErrorSourcePolicy['packageReferenceCount'];
+            }
+        }
+        if ($typstRuntimeSourceSummary !== []) {
+            $diagnostics[] = 'typst-runtime-source-summary:' . $typstRuntimeSourceSummary['reviewStatus'];
+            $diagnostics[] = 'typst-runtime-source-channels:' . $typstRuntimeSourceSummary['channelCount'];
+            $diagnostics[] = 'typst-runtime-source-observations:' . $typstRuntimeSourceSummary['observationCount'];
+            foreach ($typstRuntimeSourceSummary['sourceKindCounts'] as $sourceKind => $count) {
+                $diagnostics[] = 'typst-runtime-source-kind:' . $sourceKind . ':' . $count;
+            }
+            foreach ($typstRuntimeSourceSummary['sourceClassCounts'] as $sourceClass => $count) {
+                $diagnostics[] = 'typst-runtime-source-class:' . $sourceClass . ':' . $count;
+            }
+            if ($typstRuntimeSourceSummary['packageReferenceCount'] > 0) {
+                $diagnostics[] = 'typst-runtime-source-packages:' . $typstRuntimeSourceSummary['packageReferenceCount'];
+            }
+            if ($typstRuntimeSourceSummary['sourceIssueCount'] > 0) {
+                $diagnostics[] = 'typst-runtime-source-issues:' . $typstRuntimeSourceSummary['sourceIssueCount'];
             }
         }
         $typstBoundaryMatrix = $this->typstBoundaryMatrixFor(
@@ -5559,6 +5582,9 @@ final class PdfEngineHandoff
         if (($typstTimingSourcePolicy['reviewStatus'] ?? 'ok') !== 'ok') {
             $artifactProvenanceIssues[] = 'typst-timing-source-policy:' . $typstTimingSourcePolicy['reviewStatus'];
         }
+        if (($typstRuntimeSourceSummary['reviewStatus'] ?? 'ok') !== 'ok') {
+            $artifactProvenanceIssues[] = 'typst-runtime-source-summary:' . $typstRuntimeSourceSummary['reviewStatus'];
+        }
         if (($pdfEofMarkerPolicy['reviewStatus'] ?? 'ok') !== 'ok') {
             $artifactProvenanceIssues[] = 'pdf-eof-marker-policy:' . $pdfEofMarkerPolicy['reviewStatus'];
         }
@@ -5626,6 +5652,7 @@ final class PdfEngineHandoff
             'typstReadBoundaryPolicy' => $typstReadBoundaryPolicy,
             'typstOutputFormatPolicy' => $typstOutputFormatPolicy,
             'typstTimingSourcePolicy' => $typstTimingSourcePolicy,
+            'typstRuntimeSourceSummary' => $typstRuntimeSourceSummary,
             'typstPackageDependencies' => $engineTypstPackageDependencies,
             'engineDependencyEdges' => $engineDependencyEdges,
             'typstDependencyEdgePackageProvenance' => $typstDependencyEdgePackageProvenance,
@@ -5668,6 +5695,7 @@ final class PdfEngineHandoff
             'typstReadBoundaryPolicy' => $typstReadBoundaryPolicy,
             'typstOutputFormatPolicy' => $typstOutputFormatPolicy,
             'typstTimingSourcePolicy' => $typstTimingSourcePolicy,
+            'typstRuntimeSourceSummary' => $typstRuntimeSourceSummary,
             'engineBoundaryRoot' => $engineBoundaryRoot,
             'engineBoundaryViolations' => $engineBoundaryViolations,
             'engineTranscriptInputFiles' => $engineTranscriptInputFileList,
@@ -6395,6 +6423,7 @@ final class PdfEngineHandoff
             'finalTypstReadBoundaryPolicy' => is_array($finalRun) && is_array($finalRun['typstReadBoundaryPolicy'] ?? null) ? $finalRun['typstReadBoundaryPolicy'] : [],
             'finalTypstOutputFormatPolicy' => is_array($finalRun) && is_array($finalRun['typstOutputFormatPolicy'] ?? null) ? $finalRun['typstOutputFormatPolicy'] : [],
             'finalTypstTimingSourcePolicy' => is_array($finalRun) && is_array($finalRun['typstTimingSourcePolicy'] ?? null) ? $finalRun['typstTimingSourcePolicy'] : [],
+            'finalTypstRuntimeSourceSummary' => is_array($finalRun) && is_array($finalRun['typstRuntimeSourceSummary'] ?? null) ? $finalRun['typstRuntimeSourceSummary'] : [],
             'finalTypstWarningProvenance' => is_array($finalRun) && is_array($finalRun['typstWarningProvenance'] ?? null) ? $finalRun['typstWarningProvenance'] : [],
             'finalTypstWarningSourcePolicy' => is_array($finalRun) && is_array($finalRun['typstWarningSourcePolicy'] ?? null) ? $finalRun['typstWarningSourcePolicy'] : [],
             'finalTypstErrorProvenance' => is_array($finalRun) && is_array($finalRun['typstErrorProvenance'] ?? null) ? $finalRun['typstErrorProvenance'] : [],
@@ -14252,6 +14281,158 @@ final class PdfEngineHandoff
     private function typstErrorSourcePolicyFor(array $errors): array
     {
         return $this->typstDiagnosticSourcePolicyFor($errors, 'error');
+    }
+
+    /**
+     * @param array<string, mixed> $timingSourcePolicy
+     * @param array<string, mixed> $warningSourcePolicy
+     * @param array<string, mixed> $errorSourcePolicy
+     * @return array<string, mixed>
+     */
+    private function typstRuntimeSourceSummaryFor(
+        array $timingSourcePolicy,
+        array $warningSourcePolicy,
+        array $errorSourcePolicy
+    ): array {
+        $policies = [
+            'timing' => ['policy' => $timingSourcePolicy, 'countKey' => 'sourceFileCount'],
+            'warning' => ['policy' => $warningSourcePolicy, 'countKey' => 'warningCount'],
+            'error' => ['policy' => $errorSourcePolicy, 'countKey' => 'errorCount'],
+        ];
+        $channels = [];
+        $channelSummaries = [];
+        $sourceKindCounts = [];
+        $sourceClassCounts = [];
+        $boundaryStatusCounts = [];
+        $sourceFiles = [];
+        $packageReferences = [];
+        $packageReferencesByChannel = [];
+        $issues = [];
+        $observationCount = 0;
+        $locatedSourceCount = 0;
+        $sourceIssueCount = 0;
+        $reviewStatus = 'ok';
+
+        $mergeCounts = static function (array &$target, mixed $counts): void {
+            if (!is_array($counts)) {
+                return;
+            }
+
+            foreach ($counts as $key => $count) {
+                if (!is_string($key) || $key === '' || !is_int($count)) {
+                    continue;
+                }
+
+                $target[$key] = ($target[$key] ?? 0) + $count;
+            }
+        };
+        $stringList = static function (mixed $entries): array {
+            if (!is_array($entries)) {
+                return [];
+            }
+
+            return array_values(array_filter(
+                $entries,
+                static fn (mixed $entry): bool => is_string($entry) && $entry !== ''
+            ));
+        };
+
+        foreach ($policies as $channel => $entry) {
+            $policy = is_array($entry['policy'] ?? null) ? $entry['policy'] : [];
+            if ($policy === []) {
+                continue;
+            }
+
+            $channels[] = $channel;
+            $countKey = is_string($entry['countKey'] ?? null) ? $entry['countKey'] : '';
+            $channelObservationCount = is_int($policy[$countKey] ?? null)
+                ? $policy[$countKey]
+                : (is_int($policy['sourceFileCount'] ?? null) ? $policy['sourceFileCount'] : 0);
+            $channelLocatedSourceCount = is_int($policy['locatedSourceCount'] ?? null) ? $policy['locatedSourceCount'] : 0;
+            $channelIssueCount = is_int($policy['sourceIssueCount'] ?? null)
+                ? $policy['sourceIssueCount']
+                : count(is_array($policy['issues'] ?? null) ? $policy['issues'] : []);
+            $channelPackageReferences = $stringList($policy['packageReferences'] ?? null);
+            $channelSourceFiles = $stringList($policy['distinctSourceFiles'] ?? null);
+            if ($channelSourceFiles === []) {
+                $channelSourceFiles = $stringList($policy['sourceFiles'] ?? null);
+            }
+
+            foreach ($channelSourceFiles as $sourceFile) {
+                $sourceFiles[$sourceFile] = true;
+            }
+            foreach ($channelPackageReferences as $packageReference) {
+                $packageReferences[$packageReference] = true;
+            }
+            foreach (is_array($policy['issues'] ?? null) ? $policy['issues'] : [] as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $issues[] = $issue;
+                }
+            }
+            $mergeCounts($sourceKindCounts, $policy['sourceKindCounts'] ?? null);
+            $mergeCounts($sourceClassCounts, $policy['sourceClassCounts'] ?? null);
+            $mergeCounts($boundaryStatusCounts, $policy['boundaryStatusCounts'] ?? null);
+
+            $observationCount += $channelObservationCount;
+            $locatedSourceCount += $channelLocatedSourceCount;
+            $sourceIssueCount += $channelIssueCount;
+            if (($policy['reviewStatus'] ?? 'ok') !== 'ok' || $channelIssueCount > 0) {
+                $reviewStatus = 'review';
+            }
+
+            sort($channelSourceFiles);
+            sort($channelPackageReferences);
+            $packageReferencesByChannel[$channel] = $channelPackageReferences;
+            $channelSummaries[] = [
+                'channel' => $channel,
+                'reviewStatus' => is_string($policy['reviewStatus'] ?? null) ? $policy['reviewStatus'] : ($channelIssueCount === 0 ? 'ok' : 'review'),
+                'observationCount' => $channelObservationCount,
+                'locatedSourceCount' => $channelLocatedSourceCount,
+                'distinctSourceFileCount' => count($channelSourceFiles),
+                'sourceFiles' => $channelSourceFiles,
+                'sourceIssueCount' => $channelIssueCount,
+                'sourceKindCounts' => is_array($policy['sourceKindCounts'] ?? null) ? $policy['sourceKindCounts'] : [],
+                'sourceClassCounts' => is_array($policy['sourceClassCounts'] ?? null) ? $policy['sourceClassCounts'] : [],
+                'boundaryStatusCounts' => is_array($policy['boundaryStatusCounts'] ?? null) ? $policy['boundaryStatusCounts'] : [],
+                'packageReferenceCount' => count($channelPackageReferences),
+                'packageReferences' => $channelPackageReferences,
+            ];
+        }
+
+        if ($channels === []) {
+            return [];
+        }
+
+        ksort($sourceKindCounts);
+        ksort($sourceClassCounts);
+        ksort($boundaryStatusCounts);
+        ksort($packageReferencesByChannel);
+        $sourceFileList = array_keys($sourceFiles);
+        sort($sourceFileList);
+        $packageReferenceList = array_keys($packageReferences);
+        sort($packageReferenceList);
+        $issues = array_values(array_unique($issues));
+        sort($issues);
+
+        return [
+            'reviewStatus' => $reviewStatus,
+            'channelCount' => count($channels),
+            'channels' => $channels,
+            'observationCount' => $observationCount,
+            'locatedSourceCount' => $locatedSourceCount,
+            'distinctSourceFileCount' => count($sourceFileList),
+            'distinctSourceFiles' => $sourceFileList,
+            'sourceKindCounts' => $sourceKindCounts,
+            'sourceClassCounts' => $sourceClassCounts,
+            'boundaryStatusCounts' => $boundaryStatusCounts,
+            'packageReferenceCount' => count($packageReferenceList),
+            'packageReferences' => $packageReferenceList,
+            'packageReferencesByChannel' => $packageReferencesByChannel,
+            'sourceIssueCount' => $sourceIssueCount,
+            'distinctSourceIssueCount' => count($issues),
+            'issues' => $issues,
+            'channelSummaries' => $channelSummaries,
+        ];
     }
 
     /**
