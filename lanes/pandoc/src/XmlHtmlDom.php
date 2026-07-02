@@ -1982,6 +1982,7 @@ final class XmlHtmlDom
         $referenceIds = $referenceBackMatter['referenceIds'];
         $fundingReview = self::jatsFundingReviewSummary($root, $referenceBackMatter);
         $acknowledgments = self::jatsAcknowledgmentSummaries($root, $referenceIds);
+        $footnoteReview = self::jatsFootnoteReviewSummary($root, $xrefs);
         $figureIds = self::jatsElementIds($root, 'fig');
         $tableWrapIds = self::jatsElementIds($root, 'table-wrap');
         $rootProvenance = self::xmlRootProvenance($root);
@@ -2041,6 +2042,11 @@ final class XmlHtmlDom
             (int) $fundingReview['fundingGroupCount'],
             (int) $fundingReview['awardGroupCount'],
             count($acknowledgments),
+            (int) $footnoteReview['footnoteGroupCount'],
+            (int) $footnoteReview['footnoteCount'],
+            (int) $footnoteReview['missingFootnoteXrefTargetCount'],
+            (int) $footnoteReview['unreferencedFootnoteCount'],
+            (int) $footnoteReview['duplicateFootnoteIdCount'],
             count($figureIds),
             $figureMetadataCounts['withLabel'],
             $figureMetadataCounts['withCaption'],
@@ -2329,6 +2335,27 @@ final class XmlHtmlDom
             'acknowledgmentCount' => count($acknowledgments),
             'acknowledgmentLinkedReferenceIds' => self::jatsUniqueMergedStrings($acknowledgments, 'linkedReferenceIds'),
             'acknowledgmentMissingReferenceIds' => self::jatsUniqueMergedStrings($acknowledgments, 'missingReferenceIds'),
+            'footnoteReviewPolicy' => 'jats-bits-footnotes-metadata-only-block-footnote-text-payloads',
+            'footnotePayloadBytesExposed' => false,
+            'footnoteGroups' => $footnoteReview['footnoteGroups'],
+            'footnoteGroupCount' => $footnoteReview['footnoteGroupCount'],
+            'footnotes' => $footnoteReview['footnotes'],
+            'footnoteIds' => $footnoteReview['footnoteIds'],
+            'footnoteCount' => $footnoteReview['footnoteCount'],
+            'footnoteTypes' => $footnoteReview['footnoteTypes'],
+            'missingIdFootnoteCount' => $footnoteReview['missingIdFootnoteCount'],
+            'duplicateFootnoteIds' => $footnoteReview['duplicateFootnoteIds'],
+            'duplicateFootnoteIdCount' => $footnoteReview['duplicateFootnoteIdCount'],
+            'footnoteXrefLinks' => $footnoteReview['footnoteXrefLinks'],
+            'footnoteXrefLinkCount' => $footnoteReview['footnoteXrefLinkCount'],
+            'resolvedFootnoteXrefTargetIds' => $footnoteReview['resolvedFootnoteXrefTargetIds'],
+            'missingFootnoteXrefTargetIds' => $footnoteReview['missingFootnoteXrefTargetIds'],
+            'missingFootnoteXrefTargetCount' => $footnoteReview['missingFootnoteXrefTargetCount'],
+            'unreferencedFootnoteIds' => $footnoteReview['unreferencedFootnoteIds'],
+            'unreferencedFootnoteCount' => $footnoteReview['unreferencedFootnoteCount'],
+            'footnoteDiagnosticCodes' => $footnoteReview['footnoteDiagnosticCodes'],
+            'footnoteDiagnosticCount' => $footnoteReview['footnoteDiagnosticCount'],
+            'footnoteDiagnostics' => $footnoteReview['footnoteDiagnostics'],
             'backReferenceIds' => $backMatterReferenceIds,
             'backReferenceCount' => count($backMatterReferenceIds),
             'hasBackMatter' => $backMatter instanceof \DOMElement,
@@ -2435,6 +2462,11 @@ final class XmlHtmlDom
         int $fundingGroupCount,
         int $awardGroupCount,
         int $acknowledgmentCount,
+        int $footnoteGroupCount,
+        int $footnoteCount,
+        int $missingFootnoteXrefTargetCount,
+        int $unreferencedFootnoteCount,
+        int $duplicateFootnoteIdCount,
         int $figureCount,
         int $figureWithLabelCount,
         int $figureWithCaptionCount,
@@ -2648,6 +2680,56 @@ final class XmlHtmlDom
                 false,
                 true,
                 ['acknowledgmentCount' => $acknowledgmentCount]
+            );
+        }
+
+        if ($footnoteGroupCount > 0 || $footnoteCount > 0) {
+            $diagnostics[] = self::jatsDirectReaderDiagnostic(
+                'footnotes-review-only',
+                'unsupported',
+                'Footnote groups and footnote targets are summarized for review but are not mapped as full JATS/BITS reader output.',
+                false,
+                true,
+                [
+                    'footnoteGroupCount' => $footnoteGroupCount,
+                    'footnoteCount' => $footnoteCount,
+                    'missingFootnoteXrefTargetCount' => $missingFootnoteXrefTargetCount,
+                    'unreferencedFootnoteCount' => $unreferencedFootnoteCount,
+                    'duplicateFootnoteIdCount' => $duplicateFootnoteIdCount,
+                ]
+            );
+        }
+
+        if ($missingFootnoteXrefTargetCount > 0) {
+            $diagnostics[] = self::jatsDirectReaderDiagnostic(
+                'footnote-xrefs-unresolved',
+                'warning',
+                'Some footnote xref targets do not resolve to fn elements.',
+                false,
+                true,
+                ['missingFootnoteXrefTargetCount' => $missingFootnoteXrefTargetCount]
+            );
+        }
+
+        if ($unreferencedFootnoteCount > 0) {
+            $diagnostics[] = self::jatsDirectReaderDiagnostic(
+                'footnotes-unreferenced',
+                'warning',
+                'Some footnote elements are not referenced by fn xrefs.',
+                false,
+                true,
+                ['unreferencedFootnoteCount' => $unreferencedFootnoteCount]
+            );
+        }
+
+        if ($duplicateFootnoteIdCount > 0) {
+            $diagnostics[] = self::jatsDirectReaderDiagnostic(
+                'footnotes-duplicate-id',
+                'warning',
+                'Duplicate footnote identifiers were found in JATS/BITS footnote metadata.',
+                false,
+                true,
+                ['duplicateFootnoteIdCount' => $duplicateFootnoteIdCount]
             );
         }
 
@@ -10578,6 +10660,228 @@ final class XmlHtmlDom
         }
 
         return $acknowledgments;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $xrefs
+     * @return array<string, mixed>
+     */
+    private static function jatsFootnoteReviewSummary(\DOMElement $root, array $xrefs): array
+    {
+        $footnoteGroups = [];
+        foreach (self::descendantElements($root, 'fn-group') as $index => $group) {
+            $footnoteGroups[] = self::jatsFootnoteGroupSummary($group, $index, $root);
+        }
+
+        $footnotes = [];
+        foreach (self::descendantElements($root, 'fn') as $index => $footnote) {
+            $footnotes[] = self::jatsFootnoteSummary($footnote, $index, $root);
+        }
+
+        $allFootnoteIds = array_values(array_filter(
+            array_map(static fn (array $footnote): ?string => $footnote['id'] ?? null, $footnotes),
+            static fn (?string $id): bool => $id !== null && $id !== ''
+        ));
+        $footnoteIds = self::jatsUniqueNonEmptyStrings($allFootnoteIds);
+        $duplicateFootnoteIds = self::jatsDuplicateStrings($allFootnoteIds);
+        $footnoteXrefLinks = self::jatsFootnoteXrefLinks($xrefs);
+        $resolvedFootnoteXrefTargetIds = self::jatsUniqueNonEmptyStrings(array_map(
+            static fn (array $link): ?string => ($link['resolved'] ?? null) === true ? ($link['targetId'] ?? null) : null,
+            $footnoteXrefLinks
+        ));
+        $missingFootnoteXrefTargetIds = self::jatsUniqueNonEmptyStrings(array_map(
+            static fn (array $link): ?string => ($link['resolved'] ?? null) === false ? ($link['targetId'] ?? null) : null,
+            $footnoteXrefLinks
+        ));
+        $resolvedLookup = array_fill_keys($resolvedFootnoteXrefTargetIds, true);
+        $unreferencedFootnoteIds = array_values(array_filter(
+            $footnoteIds,
+            static fn (string $id): bool => !isset($resolvedLookup[$id])
+        ));
+        $diagnostics = self::jatsFootnoteDiagnostics(
+            $footnotes,
+            $duplicateFootnoteIds,
+            $missingFootnoteXrefTargetIds,
+            $unreferencedFootnoteIds
+        );
+
+        return [
+            'footnoteGroups' => $footnoteGroups,
+            'footnoteGroupCount' => count($footnoteGroups),
+            'footnotes' => $footnotes,
+            'footnoteIds' => $footnoteIds,
+            'footnoteCount' => count($footnotes),
+            'footnoteTypes' => self::jatsFlattenUniqueStringField($footnotes, 'type'),
+            'missingIdFootnoteCount' => count(array_filter(
+                $footnotes,
+                static fn (array $footnote): bool => ($footnote['id'] ?? null) === null
+            )),
+            'duplicateFootnoteIds' => $duplicateFootnoteIds,
+            'duplicateFootnoteIdCount' => count($duplicateFootnoteIds),
+            'footnoteXrefLinks' => $footnoteXrefLinks,
+            'footnoteXrefLinkCount' => count($footnoteXrefLinks),
+            'resolvedFootnoteXrefTargetIds' => $resolvedFootnoteXrefTargetIds,
+            'missingFootnoteXrefTargetIds' => $missingFootnoteXrefTargetIds,
+            'missingFootnoteXrefTargetCount' => count($missingFootnoteXrefTargetIds),
+            'unreferencedFootnoteIds' => $unreferencedFootnoteIds,
+            'unreferencedFootnoteCount' => count($unreferencedFootnoteIds),
+            'footnoteDiagnostics' => $diagnostics,
+            'footnoteDiagnosticCodes' => array_values(array_map(
+                static fn (array $diagnostic): string => (string) $diagnostic['code'],
+                $diagnostics
+            )),
+            'footnoteDiagnosticCount' => count($diagnostics),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function jatsFootnoteGroupSummary(\DOMElement $group, int $index, \DOMElement $root): array
+    {
+        $footnotes = [];
+        foreach (self::descendantElements($group, 'fn') as $footnoteIndex => $footnote) {
+            $footnotes[] = self::jatsFootnoteSummary($footnote, $footnoteIndex, $root);
+        }
+
+        return [
+            'index' => $index,
+            'id' => self::jatsTrimmedAttribute($group, 'id'),
+            'title' => self::jatsFirstText($group, ['title']),
+            'footnoteIds' => self::jatsFlattenUniqueStringField($footnotes, 'id'),
+            'footnoteCount' => count($footnotes),
+            'footnoteTypes' => self::jatsFlattenUniqueStringField($footnotes, 'type'),
+            'footnoteLabels' => self::jatsFlattenUniqueStringField($footnotes, 'label'),
+            'missingIdFootnoteCount' => count(array_filter(
+                $footnotes,
+                static fn (array $footnote): bool => ($footnote['id'] ?? null) === null
+            )),
+            'payloadBytesExposed' => false,
+            'sourcePosition' => self::jatsElementSourcePosition($group, $root),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function jatsFootnoteSummary(\DOMElement $footnote, int $index, \DOMElement $root): array
+    {
+        $text = self::normalizedText($footnote);
+        $group = self::jatsNearestAncestorElement($footnote, 'fn-group');
+
+        return [
+            'index' => $index,
+            'id' => self::jatsTrimmedAttribute($footnote, 'id'),
+            'groupId' => $group instanceof \DOMElement ? self::jatsTrimmedAttribute($group, 'id') : null,
+            'type' => self::jatsTrimmedAttribute($footnote, 'fn-type')
+                ?? self::jatsTrimmedAttribute($footnote, 'content-type')
+                ?? self::jatsTrimmedAttribute($footnote, 'specific-use'),
+            'label' => self::jatsFirstText($footnote, ['label']),
+            'paragraphCount' => count(self::descendantElements($footnote, 'p')),
+            'textBlocked' => true,
+            'textLength' => strlen($text),
+            'textSha256' => hash('sha256', $text),
+            'payloadBytesExposed' => false,
+            'sourcePosition' => self::jatsElementSourcePosition($footnote, $root),
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $xrefs
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsFootnoteXrefLinks(array $xrefs): array
+    {
+        $links = [];
+        foreach ($xrefs as $xref) {
+            $refType = strtolower(trim((string) ($xref['refType'] ?? '')));
+            $targetElements = is_array($xref['targetElements'] ?? null) ? $xref['targetElements'] : [];
+            foreach ($targetElements as $targetElement) {
+                if (!is_array($targetElement)) {
+                    continue;
+                }
+
+                $targetId = self::stringOrNull($targetElement['target'] ?? null);
+                $element = self::stringOrNull($targetElement['element'] ?? null);
+                if ($targetId === null || ($refType !== 'fn' && $element !== 'fn')) {
+                    continue;
+                }
+
+                $xrefText = is_string($xref['text'] ?? null) ? $xref['text'] : '';
+                $links[] = [
+                    'ordinal' => $xref['ordinal'] ?? null,
+                    'refType' => $xref['refType'] ?? null,
+                    'targetId' => $targetId,
+                    'targetElement' => $element,
+                    'resolved' => $element === 'fn',
+                    'sourceTextBlocked' => true,
+                    'sourceTextLength' => strlen($xrefText),
+                    'sourceTextSha256' => hash('sha256', $xrefText),
+                ];
+            }
+        }
+
+        return $links;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $footnotes
+     * @param list<string> $duplicateFootnoteIds
+     * @param list<string> $missingFootnoteXrefTargetIds
+     * @param list<string> $unreferencedFootnoteIds
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsFootnoteDiagnostics(
+        array $footnotes,
+        array $duplicateFootnoteIds,
+        array $missingFootnoteXrefTargetIds,
+        array $unreferencedFootnoteIds
+    ): array {
+        $diagnostics = [];
+        $missingIdCount = count(array_filter(
+            $footnotes,
+            static fn (array $footnote): bool => ($footnote['id'] ?? null) === null
+        ));
+        if ($missingIdCount > 0) {
+            $diagnostics[] = [
+                'code' => 'missing-footnote-id',
+                'severity' => 'warning',
+                'count' => $missingIdCount,
+            ];
+        }
+
+        foreach ($duplicateFootnoteIds as $duplicateId) {
+            $matching = array_values(array_filter(
+                $footnotes,
+                static fn (array $footnote): bool => ($footnote['id'] ?? null) === $duplicateId
+            ));
+            $diagnostics[] = [
+                'code' => 'duplicate-footnote-id',
+                'severity' => 'warning',
+                'id' => $duplicateId,
+                'count' => count($matching),
+            ];
+        }
+
+        if ($missingFootnoteXrefTargetIds !== []) {
+            $diagnostics[] = [
+                'code' => 'missing-footnote-xref-target',
+                'severity' => 'warning',
+                'targetIds' => $missingFootnoteXrefTargetIds,
+                'count' => count($missingFootnoteXrefTargetIds),
+            ];
+        }
+
+        if ($unreferencedFootnoteIds !== []) {
+            $diagnostics[] = [
+                'code' => 'unreferenced-footnote',
+                'severity' => 'warning',
+                'ids' => $unreferencedFootnoteIds,
+                'count' => count($unreferencedFootnoteIds),
+            ];
+        }
+
+        return $diagnostics;
     }
 
     /**

@@ -1708,6 +1708,98 @@ XML, 'BITS funding backlink collision XML', preserveWhiteSpace: false);
         $t->true(!str_contains($encodedPacket, 'secret-one payload'), 'Expected funding statement text to stay blocked from BITS packet JSON');
         $t->true(!str_contains($encodedPacket, 'Shared Citation Payload'), 'Expected citation text to stay blocked from BITS packet JSON');
     },
+    'summarizes jats bits footnote groups and fn xref diagnostics without footnote payload text' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadXmlDocument(<<<'XML'
+<article article-type="research-article">
+  <front>
+    <article-meta>
+      <title-group><article-title>Footnote Review</article-title></title-group>
+    </article-meta>
+  </front>
+  <body>
+    <sec id="s1"><title>Body</title><p>Body note <xref ref-type="fn" rid="fn-a">1</xref>, missing note <xref ref-type="fn" rid="fn-missing">missing</xref>, and implicit note <xref rid="fn-inline">inline</xref>.</p></sec>
+  </body>
+  <back>
+    <fn-group id="notes">
+      <title>Notes</title>
+      <fn id="fn-a" fn-type="author-note"><label>1</label><p>Secret author footnote payload</p></fn>
+      <fn id="fn-unref" content-type="data-note"><label>Data</label><p>Secret data footnote payload</p></fn>
+      <fn><label>*</label><p>Secret missing id footnote payload</p></fn>
+      <fn id="fn-a"><label>Duplicate</label><p>Secret duplicate footnote payload</p></fn>
+    </fn-group>
+    <fn id="fn-inline" specific-use="editor-note"><label>i</label><p>Secret inline footnote payload</p></fn>
+  </back>
+</article>
+XML, 'JATS footnote metadata XML', preserveWhiteSpace: false);
+        $packet = XmlHtmlDom::summarizeJatsFrontMatter($dom);
+
+        $t->same(false, $packet['directReaderParity']);
+        $t->same([
+            'direct-reader-unsupported',
+            'body-sections-review-only',
+            'footnotes-review-only',
+            'footnote-xrefs-unresolved',
+            'footnotes-unreferenced',
+            'footnotes-duplicate-id',
+        ], $packet['directReaderDiagnosticCodes']);
+        $t->same(1, $packet['directReaderDiagnostics'][2]['details']['footnoteGroupCount'] ?? null);
+        $t->same(5, $packet['directReaderDiagnostics'][2]['details']['footnoteCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][2]['details']['missingFootnoteXrefTargetCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][2]['details']['unreferencedFootnoteCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][2]['details']['duplicateFootnoteIdCount'] ?? null);
+        $t->same('jats-bits-footnotes-metadata-only-block-footnote-text-payloads', $packet['footnoteReviewPolicy']);
+        $t->same(false, $packet['footnotePayloadBytesExposed']);
+        $t->same(1, $packet['footnoteGroupCount']);
+        $t->same('notes', $packet['footnoteGroups'][0]['id'] ?? null);
+        $t->same('Notes', $packet['footnoteGroups'][0]['title'] ?? null);
+        $t->same(4, $packet['footnoteGroups'][0]['footnoteCount'] ?? null);
+        $t->same(['fn-a', 'fn-unref'], $packet['footnoteGroups'][0]['footnoteIds'] ?? null);
+        $t->same(['author-note', 'data-note'], $packet['footnoteGroups'][0]['footnoteTypes'] ?? null);
+        $t->same(['1', 'Data', '*', 'Duplicate'], $packet['footnoteGroups'][0]['footnoteLabels'] ?? null);
+        $t->same(5, $packet['footnoteCount']);
+        $t->same(['fn-a', 'fn-unref', 'fn-inline'], $packet['footnoteIds']);
+        $t->same(['author-note', 'data-note', 'editor-note'], $packet['footnoteTypes']);
+        $t->same(1, $packet['missingIdFootnoteCount']);
+        $t->same(['fn-a'], $packet['duplicateFootnoteIds']);
+        $t->same(1, $packet['duplicateFootnoteIdCount']);
+        $t->same('fn-a', $packet['footnotes'][0]['id'] ?? null);
+        $t->same('notes', $packet['footnotes'][0]['groupId'] ?? null);
+        $t->same('author-note', $packet['footnotes'][0]['type'] ?? null);
+        $t->same('1', $packet['footnotes'][0]['label'] ?? null);
+        $t->same(true, $packet['footnotes'][0]['textBlocked'] ?? null);
+        $t->same(1, preg_match('/^[a-f0-9]{64}$/', (string) ($packet['footnotes'][0]['textSha256'] ?? '')));
+        $t->same(3, $packet['footnoteXrefLinkCount']);
+        $t->same('fn-a', $packet['footnoteXrefLinks'][0]['targetId'] ?? null);
+        $t->same('fn', $packet['footnoteXrefLinks'][0]['targetElement'] ?? null);
+        $t->same(true, $packet['footnoteXrefLinks'][0]['resolved'] ?? null);
+        $t->same(hash('sha256', '1'), $packet['footnoteXrefLinks'][0]['sourceTextSha256'] ?? null);
+        $t->same('fn-missing', $packet['footnoteXrefLinks'][1]['targetId'] ?? null);
+        $t->same(false, $packet['footnoteXrefLinks'][1]['resolved'] ?? null);
+        $t->same('fn-inline', $packet['footnoteXrefLinks'][2]['targetId'] ?? null);
+        $t->same(null, $packet['footnoteXrefLinks'][2]['refType'] ?? null);
+        $t->same(true, $packet['footnoteXrefLinks'][2]['resolved'] ?? null);
+        $t->same(['fn-a', 'fn-inline'], $packet['resolvedFootnoteXrefTargetIds']);
+        $t->same(['fn-missing'], $packet['missingFootnoteXrefTargetIds']);
+        $t->same(1, $packet['missingFootnoteXrefTargetCount']);
+        $t->same(['fn-unref'], $packet['unreferencedFootnoteIds']);
+        $t->same(1, $packet['unreferencedFootnoteCount']);
+        $t->same([
+            'missing-footnote-id',
+            'duplicate-footnote-id',
+            'missing-footnote-xref-target',
+            'unreferenced-footnote',
+        ], $packet['footnoteDiagnosticCodes']);
+        $t->same(4, $packet['footnoteDiagnosticCount']);
+        $t->same('fn-a', $packet['footnoteDiagnostics'][1]['id'] ?? null);
+        $t->same(['fn-missing'], $packet['footnoteDiagnostics'][2]['targetIds'] ?? null);
+        $t->same(['fn-unref'], $packet['footnoteDiagnostics'][3]['ids'] ?? null);
+
+        $encodedPacket = json_encode($packet, JSON_THROW_ON_ERROR);
+        $t->true(!str_contains($encodedPacket, 'Secret author footnote payload'), 'Expected author footnote text to stay blocked from packet JSON');
+        $t->true(!str_contains($encodedPacket, 'Secret data footnote payload'), 'Expected data footnote text to stay blocked from packet JSON');
+        $t->true(!str_contains($encodedPacket, 'Secret duplicate footnote payload'), 'Expected duplicate footnote text to stay blocked from packet JSON');
+        $t->true(!str_contains($encodedPacket, 'Secret inline footnote payload'), 'Expected inline footnote text to stay blocked from packet JSON');
+    },
     'summarizes jats bits publication metadata links history permissions and serial identifiers' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadXmlDocument(<<<'XML'
 <article article-type="research-article" xmlns:xlink="http://www.w3.org/1999/xlink">
