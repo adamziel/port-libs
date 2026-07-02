@@ -1073,6 +1073,26 @@ return [
                 'dataDescriptorBytes' => 0,
             ],
         ];
+        $expectedCompressionMethodSpecificationNameSummaries = [
+            [
+                'compressionMethod' => 0,
+                'compressionMethodName' => 'stored',
+                'compressionMethodSpecificationName' => 'stored',
+                'entryCount' => 2,
+                'compressedBytes' => strlen($mimetype),
+                'uncompressedBytes' => strlen($mimetype),
+                'isSupported' => true,
+            ],
+            [
+                'compressionMethod' => 8,
+                'compressionMethodName' => 'deflated',
+                'compressionMethodSpecificationName' => 'deflated',
+                'entryCount' => 1,
+                'compressedBytes' => strlen(gzdeflate($contentXhtml)),
+                'uncompressedBytes' => strlen($contentXhtml),
+                'isSupported' => true,
+            ],
+        ];
         $expectedGeneralPurposeFlagSummaries = [
             [
                 'generalPurposeFlags' => 0x0800,
@@ -1347,6 +1367,9 @@ return [
             'caseInsensitiveNameCollisionGroups' => [],
             'caseInsensitiveNameCollisionEntries' => [],
             'compressionMethodSummaries' => $expectedCompressionMethodSummaries,
+            'compressionMethodSpecificationNameSummaryCount' => 2,
+            'unsupportedCompressionMethodSpecificationNames' => [],
+            'compressionMethodSpecificationNameSummaries' => $expectedCompressionMethodSpecificationNameSummaries,
             'generalPurposeFlagSummaries' => $expectedGeneralPurposeFlagSummaries,
             'versionNeededToExtractSummaryCount' => 1,
             'versionNeededToExtractVersions' => [20],
@@ -1502,6 +1525,12 @@ return [
         $t->same([], $manifest['caseInsensitiveNameCollisionEntries']);
         $t->same(2, $manifest['compressionMethodSummaryCount']);
         $t->same($expectedCompressionMethodSummaries, $manifest['compressionMethodSummaries']);
+        $t->same(2, $manifest['compressionMethodSpecificationNameSummaryCount']);
+        $t->same([], $manifest['unsupportedCompressionMethodSpecificationNames']);
+        $t->same(
+            $expectedCompressionMethodSpecificationNameSummaries,
+            $manifest['compressionMethodSpecificationNameSummaries']
+        );
         $t->same(1, $manifest['generalPurposeFlagSummaryCount']);
         $t->same(3, $manifest['generalPurposeUtf8NameEntryCount']);
         $t->same(0, $manifest['generalPurposeDataDescriptorEntryCount']);
@@ -3177,6 +3206,26 @@ return [
                 'dataDescriptorBytes' => strlen($descriptorBytes),
             ],
         ];
+        $expectedCompressionMethodSpecificationNameSummaries = [
+            [
+                'compressionMethod' => 0,
+                'compressionMethodName' => 'stored',
+                'compressionMethodSpecificationName' => 'stored',
+                'entryCount' => 1,
+                'compressedBytes' => strlen($documentXml),
+                'uncompressedBytes' => strlen($documentXml),
+                'isSupported' => true,
+            ],
+            [
+                'compressionMethod' => 8,
+                'compressionMethodName' => 'deflated',
+                'compressionMethodSpecificationName' => 'deflated',
+                'entryCount' => 1,
+                'compressedBytes' => strlen($commentsCompressed),
+                'uncompressedBytes' => strlen($commentsXml),
+                'isSupported' => true,
+            ],
+        ];
         $expectedGeneralPurposeFlagSummaries = [
             [
                 'generalPurposeFlags' => 0x0800,
@@ -3398,6 +3447,9 @@ return [
             'caseInsensitiveNameCollisionGroups' => [],
             'caseInsensitiveNameCollisionEntries' => [],
             'compressionMethodSummaries' => $expectedCompressionMethodSummaries,
+            'compressionMethodSpecificationNameSummaryCount' => 2,
+            'unsupportedCompressionMethodSpecificationNames' => [],
+            'compressionMethodSpecificationNameSummaries' => $expectedCompressionMethodSpecificationNameSummaries,
             'generalPurposeFlagSummaries' => $expectedGeneralPurposeFlagSummaries,
             'versionNeededToExtractSummaryCount' => 1,
             'versionNeededToExtractVersions' => [20],
@@ -3493,6 +3545,12 @@ return [
         $t->same(2, $manifest['generalPurposeUtf8NameEntryCount']);
         $t->same(1, $manifest['generalPurposeDataDescriptorEntryCount']);
         $t->same(0, $manifest['generalPurposeDeflateOptionEntryCount']);
+        $t->same(2, $manifest['compressionMethodSpecificationNameSummaryCount']);
+        $t->same([], $manifest['unsupportedCompressionMethodSpecificationNames']);
+        $t->same(
+            $expectedCompressionMethodSpecificationNameSummaries,
+            $manifest['compressionMethodSpecificationNameSummaries']
+        );
         $t->same($expectedGeneralPurposeFlagSummaries, $manifest['generalPurposeFlagSummaries']);
         $t->same(1, $manifest['versionNeededToExtractSummaryCount']);
         $t->same([20], $manifest['versionNeededToExtractVersions']);
@@ -12640,6 +12698,115 @@ return [
         $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 256, 20.0, 256);
         $t->same($expectedBuckets, $rawStrict['compressionMethods']['methodBuckets']);
         $t->same($expectedBuckets, $rawStrict['strictImport']['compressionMethods']['methodBuckets']);
+        $t->contains('unsupported-compression-methods', implode(',', $rawStrict['diagnostics']));
+    },
+
+    'labels zip compression method specification names before shared package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:p>method specification names</w:p></w:document>';
+        $storedBytes = 'stored review payload';
+        $bzip2Bytes = 'bzip2 payload remains metadata only';
+        $lzmaBytes = 'lzma payload remains metadata only';
+        $zstandardBytes = 'zstandard payload remains metadata only';
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/review.txt',
+                'data' => $storedBytes,
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/review-bzip2.bin',
+                'data' => $bzip2Bytes,
+                'method' => 12,
+            ],
+            [
+                'name' => 'word/media/review-lzma.bin',
+                'data' => $lzmaBytes,
+                'method' => 14,
+            ],
+            [
+                'name' => 'word/media/review-zstd.bin',
+                'data' => $zstandardBytes,
+                'method' => 93,
+            ],
+        ]);
+        $package = ZipPackage::fromString($zip);
+        $deflatedCompressed = strlen(gzdeflate($documentXml));
+        $expectedSpecificationSummaries = [
+            [
+                'compressionMethod' => 0,
+                'compressionMethodName' => 'stored',
+                'compressionMethodSpecificationName' => 'stored',
+                'entryCount' => 1,
+                'compressedBytes' => strlen($storedBytes),
+                'uncompressedBytes' => strlen($storedBytes),
+                'isSupported' => true,
+            ],
+            [
+                'compressionMethod' => 8,
+                'compressionMethodName' => 'deflated',
+                'compressionMethodSpecificationName' => 'deflated',
+                'entryCount' => 1,
+                'compressedBytes' => $deflatedCompressed,
+                'uncompressedBytes' => strlen($documentXml),
+                'isSupported' => true,
+            ],
+            [
+                'compressionMethod' => 12,
+                'compressionMethodName' => 'unsupported',
+                'compressionMethodSpecificationName' => 'bzip2',
+                'entryCount' => 1,
+                'compressedBytes' => strlen($bzip2Bytes),
+                'uncompressedBytes' => strlen($bzip2Bytes),
+                'isSupported' => false,
+            ],
+            [
+                'compressionMethod' => 14,
+                'compressionMethodName' => 'unsupported',
+                'compressionMethodSpecificationName' => 'lzma',
+                'entryCount' => 1,
+                'compressedBytes' => strlen($lzmaBytes),
+                'uncompressedBytes' => strlen($lzmaBytes),
+                'isSupported' => false,
+            ],
+            [
+                'compressionMethod' => 93,
+                'compressionMethodName' => 'unsupported',
+                'compressionMethodSpecificationName' => 'zstandard',
+                'entryCount' => 1,
+                'compressedBytes' => strlen($zstandardBytes),
+                'uncompressedBytes' => strlen($zstandardBytes),
+                'isSupported' => false,
+            ],
+        ];
+        $expectedUnsupportedNames = ['bzip2', 'lzma', 'zstandard'];
+
+        $summary = $package->compressionMethodPreflight();
+        $rawPolicy = ZipPackage::compressionMethodPolicyPreflight($zip);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 512, 100.0, 512);
+        $manifest = $package->packageManifestPreflight();
+
+        $t->same(5, $summary['entryCount']);
+        $t->same(3, $summary['unsupportedCompressionMethodCount']);
+        $t->same('unsupported', $summary['entries'][2]['compressionMethodName']);
+        $t->same('unsupported', $summary['entries'][3]['compressionMethodName']);
+        $t->same('unsupported', $summary['entries'][4]['compressionMethodName']);
+        $t->same(5, $summary['compressionMethodSpecificationNameSummaryCount']);
+        $t->same($expectedUnsupportedNames, $summary['unsupportedCompressionMethodSpecificationNames']);
+        $t->same($expectedSpecificationSummaries, $summary['compressionMethodSpecificationNameSummaries']);
+        $t->same($expectedUnsupportedNames, $rawPolicy['unsupportedCompressionMethodSpecificationNames']);
+        $t->same($expectedSpecificationSummaries, $rawPolicy['compressionMethodSpecificationNameSummaries']);
+        $t->same($expectedUnsupportedNames, $rawStrict['compressionMethods']['unsupportedCompressionMethodSpecificationNames']);
+        $t->same($expectedSpecificationSummaries, $rawStrict['compressionMethods']['compressionMethodSpecificationNameSummaries']);
+        $t->same($expectedUnsupportedNames, $rawStrict['strictImport']['compressionMethods']['unsupportedCompressionMethodSpecificationNames']);
+        $t->same($expectedSpecificationSummaries, $rawStrict['strictImport']['compressionMethods']['compressionMethodSpecificationNameSummaries']);
+        $t->same($expectedUnsupportedNames, $manifest['unsupportedCompressionMethodSpecificationNames']);
+        $t->same($expectedSpecificationSummaries, $manifest['compressionMethodSpecificationNameSummaries']);
+        $t->throws(\RuntimeException::class, static fn (): string => $package->read('word/media/review-bzip2.bin'));
         $t->contains('unsupported-compression-methods', implode(',', $rawStrict['diagnostics']));
     },
 

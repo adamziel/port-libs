@@ -263,6 +263,13 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['packageThumbnailInvalidCount'] = $packageThumbnails['invalidCount'];
         $packageProvenance['summary']['packageThumbnailIssueCount'] = $packageThumbnails['issueCount'];
         $packageProvenance['summary']['packageThumbnailIssueCodes'] = $packageThumbnails['issueCodes'];
+        $packageProvenance['summary']['packageThumbnailContentTypeCounts'] = $packageThumbnails['contentTypeCounts'];
+        $packageProvenance['summary']['packageThumbnailContentTypeBaseCounts'] = $packageThumbnails['contentTypeBaseCounts'];
+        $packageProvenance['summary']['packageThumbnailContentTypeSourceCounts'] = $packageThumbnails['contentTypeSourceCounts'];
+        $packageProvenance['summary']['packageThumbnailTargetPartExtensionCounts'] = $packageThumbnails['targetPartExtensionCounts'];
+        $packageProvenance['summary']['packageThumbnailTargetDirectoryCounts'] = $packageThumbnails['targetDirectoryCounts'];
+        $packageProvenance['summary']['packageThumbnailReadableByteLength'] = $packageThumbnails['readableByteLength'];
+        $packageProvenance['summary']['packageThumbnailLargestReadableThumbnail'] = $packageThumbnails['largestReadableThumbnail'];
         $digitalSignatures = $this->packageDigitalSignatureProvenance($parts, $rootRelationships, $contentTypes);
         $packageProvenance['digitalSignatures'] = $digitalSignatures;
         $packageProvenance['summary']['digitalSignatureOriginCount'] = $digitalSignatures['originCount'];
@@ -38938,6 +38945,13 @@ final class DocxOpenXmlReader
         $targetParts = [];
         $externalTargets = [];
         $contentTypesSeen = [];
+        $contentTypeCounts = [];
+        $contentTypeBaseCounts = [];
+        $contentTypeSourceCounts = [];
+        $targetPartExtensionCounts = [];
+        $targetDirectoryCounts = [];
+        $readableByteLength = 0;
+        $largestReadableThumbnail = null;
         $issueCodes = [];
         $rootHasMultipleThumbnails = count($thumbnailRelationships) > 1;
         foreach ($thumbnailRelationships as $relationship) {
@@ -39018,9 +39032,56 @@ final class DocxOpenXmlReader
                 $this->appendUniqueString($externalTargets, is_string($summary['target'] ?? null) ? $summary['target'] : null);
             }
             $this->appendUniqueString($contentTypesSeen, is_string($summary['contentType'] ?? null) ? $summary['contentType'] : null);
+
+            if ($external) {
+                $contentTypeKey = '(external)';
+                $contentTypeBaseKey = '(external)';
+                $contentTypeSourceKey = '(external)';
+            } else {
+                $contentTypeKey = is_string($item['contentType'] ?? null) && $item['contentType'] !== ''
+                    ? $item['contentType']
+                    : '(missing)';
+                $contentTypeBaseKey = is_string($item['contentTypeBase'] ?? null) && $item['contentTypeBase'] !== ''
+                    ? $item['contentTypeBase']
+                    : '(missing)';
+                $contentTypeSourceKey = is_string($item['contentTypeSource'] ?? null) && $item['contentTypeSource'] !== ''
+                    ? $item['contentTypeSource']
+                    : 'missing';
+            }
+            $targetPartExtensionKey = $external
+                ? '(external)'
+                : ($targetPart === null ? '(missing)' : ($this->packagePartExtension($targetPart) ?? '(none)'));
+            $targetDirectoryKey = $external
+                ? '(external)'
+                : ($targetPart === null ? '(missing)' : $this->packagePartDirectory($targetPart));
+
+            $contentTypeCounts[$contentTypeKey] = ($contentTypeCounts[$contentTypeKey] ?? 0) + 1;
+            $contentTypeBaseCounts[$contentTypeBaseKey] = ($contentTypeBaseCounts[$contentTypeBaseKey] ?? 0) + 1;
+            $contentTypeSourceCounts[$contentTypeSourceKey] = ($contentTypeSourceCounts[$contentTypeSourceKey] ?? 0) + 1;
+            $targetPartExtensionCounts[$targetPartExtensionKey] = ($targetPartExtensionCounts[$targetPartExtensionKey] ?? 0) + 1;
+            $targetDirectoryCounts[$targetDirectoryKey] = ($targetDirectoryCounts[$targetDirectoryKey] ?? 0) + 1;
+
+            if ($external === false && $exists && is_int($item['byteLength'])) {
+                $readableByteLength += $item['byteLength'];
+                if (
+                    $largestReadableThumbnail === null
+                    || $item['byteLength'] > $largestReadableThumbnail['byteLength']
+                    || (
+                        $item['byteLength'] === $largestReadableThumbnail['byteLength']
+                        && strcmp((string) $item['targetPart'], (string) $largestReadableThumbnail['targetPart']) < 0
+                    )
+                ) {
+                    $largestReadableThumbnail = $this->packageThumbnailReadableSnapshot($item);
+                }
+            }
         }
 
         ksort($issueCodes, SORT_STRING);
+        ksort($contentTypeCounts, SORT_STRING);
+        ksort($contentTypeBaseCounts, SORT_STRING);
+        ksort($contentTypeSourceCounts, SORT_STRING);
+        ksort($targetPartExtensionCounts, SORT_STRING);
+        ksort($targetDirectoryCounts, SORT_STRING);
 
         return [
             'count' => count($items),
@@ -39039,9 +39100,37 @@ final class DocxOpenXmlReader
             'targetParts' => $targetParts,
             'externalTargets' => $externalTargets,
             'contentTypes' => $contentTypesSeen,
+            'contentTypeCounts' => $contentTypeCounts,
+            'contentTypeBaseCounts' => $contentTypeBaseCounts,
+            'contentTypeSourceCounts' => $contentTypeSourceCounts,
+            'targetPartExtensionCounts' => $targetPartExtensionCounts,
+            'targetDirectoryCounts' => $targetDirectoryCounts,
+            'readableByteLength' => $readableByteLength,
+            'largestReadableThumbnail' => $largestReadableThumbnail,
             'issueCodes' => array_keys($issueCodes),
             'byRelationshipId' => $byRelationshipId,
             'items' => $items,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $thumbnail
+     * @return array<string, mixed>
+     */
+    private function packageThumbnailReadableSnapshot(array $thumbnail): array
+    {
+        return [
+            'id' => $thumbnail['id'] ?? null,
+            'target' => $thumbnail['target'] ?? null,
+            'targetPart' => $thumbnail['targetPart'] ?? null,
+            'contentType' => $thumbnail['contentType'] ?? null,
+            'contentTypeBase' => $thumbnail['contentTypeBase'] ?? null,
+            'contentTypeSource' => $thumbnail['contentTypeSource'] ?? null,
+            'byteLength' => $thumbnail['byteLength'] ?? null,
+            'crc32' => $thumbnail['crc32'] ?? null,
+            'sha256' => $thumbnail['sha256'] ?? null,
+            'issues' => $thumbnail['issues'] ?? [],
+            'reviewPolicy' => $thumbnail['reviewPolicy'] ?? null,
         ];
     }
 
