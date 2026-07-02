@@ -110,7 +110,7 @@ return [
         $root = $makeTempDir();
         try {
             $writeEpub($root . '/same.epub', 'Same', 'Hello body');
-            file_put_contents($root . '/same.native', '[Header 1 ("same",[],[]) [Str "Same"],Para [Str "Hello",Space,Str "body"]]');
+            file_put_contents($root . '/same.native', '[Para [Span ("chapter.xhtml",[],[]) []],Header 1 ("",[],[]) [Str "Same"],Para [Str "Hello",Space,Str "body"]]');
             $writeEpub($root . '/different.epub', 'Different', 'Hello body');
             file_put_contents($root . '/different.native', '[Para [Str "different"]]');
             $writeEpub($root . '/package-only.epub', 'Package Only', 'Only package coverage');
@@ -153,7 +153,7 @@ return [
         $root = $makeTempDir();
         try {
             $writeEpub($root . '/same.epub', 'Same', 'Hello body');
-            file_put_contents($root . '/same.native', '[Header 1 ("same",[],[]) [Str "Same"],Para [Str "Hello",Space,Str "body"]]');
+            file_put_contents($root . '/same.native', '[Para [Span ("chapter.xhtml",[],[]) []],Header 1 ("",[],[]) [Str "Same"],Para [Str "Hello",Space,Str "body"]]');
             $writeEpub($root . '/different.epub', 'Different', 'Hello body');
             file_put_contents($root . '/different.native', '[Para [Str "different"]]');
             $writeEpub($root . '/package-only.epub', 'Package Only', 'Only package coverage');

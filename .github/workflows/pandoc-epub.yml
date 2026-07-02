@@ -118,7 +118,8 @@ jobs:
             --json \
             summary \
             --require-package-parity=8 \
-            --require-native-readiness=3
+            --require-native-readiness=3 \
+            --require-mapped-parity=3
 
       - name: Run focused EPUB parity tests
         run: |

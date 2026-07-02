@@ -77,8 +77,29 @@ final class EpubReader
         $resources = [];
         $referenced_resources = [];
         $image_resources = $this->imageResources($base_path, $manifest);
+        $spine_filenames = array_map(
+            fn (array $spine_item): string => $this->spineFilename((string) ($spine_item['href'] ?? '')),
+            array_values(array_filter(
+                $spine_items,
+                fn (array $spine_item): bool => ($spine_item['linear'] ?? true) === true
+            ))
+        );
+
+        $cover = $this->coverImageHref($package, $manifest);
+        if ($cover !== null) {
+            $children[] = new AstNode('paragraph', ['text' => ''], [
+                new AstNode('image', [
+                    'url' => $cover,
+                    'title' => '',
+                    'alt' => '',
+                ]),
+            ]);
+        }
 
         foreach ($spine_items as $spine_item) {
+            if (($spine_item['linear'] ?? true) !== true) {
+                continue;
+            }
             $idref = $spine_item['idref'];
             if (!isset($manifest[$idref])) {
                 continue;
@@ -94,8 +115,21 @@ final class EpubReader
                 continue;
             }
             $resources[] = $href;
-            $rewritten = $this->rewriteRelativeLinks($this->bodyMarkup($xhtml), $this->dirname($href), $referenced_resources);
-            $document = (new MarkdownReader(['htmlNativeDivs' => true]))->read($rewritten);
+            $document = (new MarkdownReader([
+                'htmlNativeDivs' => true,
+                'htmlEpubExtensions' => true,
+                'htmlImplicitHeadingIds' => false,
+                'htmlPlainInlineBlocks' => true,
+                'htmlPreserveSoftBreaks' => true,
+            ]))->read($this->contentDocumentMarkup($xhtml));
+            $document = $this->fixEpubContentReferences(
+                $document,
+                $item['href'],
+                $base_path,
+                $spine_filenames,
+                $referenced_resources
+            );
+            $children[] = $this->spineMarker($this->spineFilename($item['href']));
             array_push($children, ...$document->children);
         }
 
@@ -598,52 +632,277 @@ final class EpubReader
         return $entries;
     }
 
-    private function bodyMarkup(string $xhtml): string
+    private function contentDocumentMarkup(string $xhtml): string
     {
-        try {
-            $dom = $this->loadXml($xhtml, 'EPUB XHTML content document');
-        } catch (\InvalidArgumentException) {
-            return $xhtml;
-        }
+        $xhtml = preg_replace('/^\xEF\xBB\xBF/', '', $xhtml) ?? $xhtml;
+        $xhtml = preg_replace('/^\s*<\?xml[^>]*>\s*/i', '', $xhtml) ?? $xhtml;
 
-        foreach ($dom->getElementsByTagName('*') as $element) {
-            if (!$element instanceof \DOMElement || $element->localName !== 'body') {
+        return ltrim($xhtml);
+    }
+
+    private function spineMarker(string $filename): AstNode
+    {
+        return new AstNode('paragraph', ['text' => ''], [
+            new AstNode('span', ['id' => $filename], []),
+        ]);
+    }
+
+    /**
+     * @param array<string, array{href: string, media-type: string, properties: list<string>}> $manifest
+     */
+    private function coverImageHref(\DOMElement $package, array $manifest): ?string
+    {
+        $cover_id = '';
+        foreach ($package->getElementsByTagName('*') as $element) {
+            if (!$element instanceof \DOMElement || $element->localName !== 'meta') {
                 continue;
             }
-            $parts = [];
-            foreach ($element->childNodes as $child) {
-                if ($child instanceof \DOMText && trim($child->textContent) === '') {
-                    continue;
-                }
-                $serialized = $dom->saveXML($child);
-                if (is_string($serialized) && trim($serialized) !== '') {
-                    $parts[] = trim($serialized);
-                }
+            if (strtolower(trim($element->getAttribute('name'))) === 'cover') {
+                $cover_id = trim($element->getAttribute('content'));
+                break;
             }
-
-            return implode("\n", $parts);
         }
 
-        return $xhtml;
+        foreach ($manifest as $id => $item) {
+            $properties = array_map('strtolower', $item['properties']);
+            if ($id === $cover_id || in_array('cover-image', $properties, true)) {
+                return $item['href'];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $spine_filenames
+     * @param list<string> $referenced_resources
+     */
+    private function fixEpubContentReferences(
+        AstNode $document,
+        string $content_path,
+        string $package_base_path,
+        array $spine_filenames,
+        array &$referenced_resources
+    ): AstNode {
+        $filename = $this->spineFilename($content_path);
+        $content_dir = $this->dirname($content_path);
+
+        return $this->fixEpubNode($document, $filename, $content_dir, $package_base_path, $spine_filenames, $referenced_resources);
+    }
+
+    /**
+     * @param list<string> $spine_filenames
+     * @param list<string> $referenced_resources
+     */
+    private function fixEpubNode(
+        AstNode $node,
+        string $filename,
+        string $content_dir,
+        string $package_base_path,
+        array $spine_filenames,
+        array &$referenced_resources
+    ): AstNode {
+        $attrs = in_array($node->type, ['blockquote', 'definition_list'], true)
+            ? []
+            : $this->fixEpubNodeAttrs($node->attrs, $filename);
+        if ($node->type === 'list_item') {
+            unset($attrs['text']);
+        }
+        if ($node->type === 'link') {
+            $url = (string) ($attrs['url'] ?? '');
+            if ($url !== '') {
+                $this->recordReferencedResource($url, $content_dir, $package_base_path, $referenced_resources);
+                $attrs['url'] = $this->fixEpubLinkUrl($url, $filename, $spine_filenames);
+            }
+        } elseif ($node->type === 'image') {
+            $url = (string) ($attrs['url'] ?? '');
+            if ($url !== '') {
+                $this->recordReferencedResource($url, $content_dir, $package_base_path, $referenced_resources);
+                $attrs['url'] = $this->fixEpubImageUrl($url, $content_dir);
+            }
+        }
+
+        $children = [];
+        foreach ($node->children as $child) {
+            $children[] = $this->fixEpubNode($child, $filename, $content_dir, $package_base_path, $spine_filenames, $referenced_resources);
+        }
+        $children = $this->trimTextBeforeInlineImages($children);
+
+        return new AstNode($node->type, $attrs, $children);
+    }
+
+    /**
+     * @param list<AstNode> $children
+     * @return list<AstNode>
+     */
+    private function trimTextBeforeInlineImages(array $children): array
+    {
+        foreach ($children as $index => $child) {
+            if ($child->type !== 'image' || $index === 0) {
+                continue;
+            }
+
+            $previous = $children[$index - 1] ?? null;
+            if (!$previous instanceof AstNode || $previous->type !== 'text') {
+                continue;
+            }
+
+            $text = rtrim((string) $previous->attr('text', ''));
+            if ($text === '') {
+                unset($children[$index - 1]);
+                continue;
+            }
+            if ($text !== $previous->attr('text', '')) {
+                $children[$index - 1] = new AstNode('text', array_merge($previous->attrs, ['text' => $text]), $previous->children);
+            }
+        }
+
+        return array_values($children);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function fixEpubNodeAttrs(array $attrs, string $filename): array
+    {
+        unset($attrs['htmlAttributes']);
+
+        $attributes = [];
+        if (isset($attrs['attributes']) && is_array($attrs['attributes'])) {
+            foreach ($attrs['attributes'] as $name => $value) {
+                $name = (string) $name;
+                if (str_starts_with($name, 'epub:')) {
+                    foreach ($this->tokenList((string) $value) as $epub_type) {
+                        $attrs['classes'][] = $epub_type;
+                    }
+                    continue;
+                }
+                if ($name === 'xml:lang') {
+                    $name = 'lang';
+                }
+                $attributes[$name] = $value;
+            }
+        }
+        if ($attributes === []) {
+            unset($attrs['attributes']);
+        } else {
+            $attrs['attributes'] = $attributes;
+        }
+
+        if (isset($attrs['id']) && is_string($attrs['id']) && $attrs['id'] !== '') {
+            $attrs['id'] = $this->prefixedEpubId($filename, $attrs['id']);
+        }
+
+        if (isset($attrs['classes']) && is_array($attrs['classes'])) {
+            $classes = [];
+            foreach ($attrs['classes'] as $class) {
+                $class = trim((string) $class);
+                if ($class !== '' && !in_array($class, $classes, true)) {
+                    $classes[] = $class;
+                }
+            }
+            if ($classes === []) {
+                unset($attrs['classes']);
+            } else {
+                $attrs['classes'] = $classes;
+            }
+        }
+
+        if (isset($attrs['html']) && is_string($attrs['html']) && $attrs['html'] !== '') {
+            $attrs['format'] ??= 'html';
+            $attrs['text'] ??= $attrs['html'];
+        }
+        if (array_key_exists('loose', $attrs)) {
+            unset($attrs['loose']);
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @param list<string> $spine_filenames
+     */
+    private function fixEpubLinkUrl(string $url, string $filename, array $spine_filenames): string
+    {
+        if (
+            $this->isAbsoluteUrl($url)
+            || str_starts_with(strtolower($url), 'data:')
+            || str_starts_with(strtolower($url), 'mailto:')
+        ) {
+            return $url;
+        }
+
+        [$path, $fragment] = $this->splitUrlFragment($url);
+        if ($fragment !== '') {
+            $target = $path === '' ? $filename : $this->spineFilename($path);
+            $url = $this->prefixedEpubId($target, $fragment);
+        }
+
+        foreach ($spine_filenames as $spine_filename) {
+            if ($spine_filename !== '' && str_starts_with($url, $spine_filename)) {
+                return '#' . $url;
+            }
+        }
+
+        return $url;
+    }
+
+    private function fixEpubImageUrl(string $url, string $content_dir): string
+    {
+        if (!$this->isPackageRelativeResourceUrl($url)) {
+            return $url;
+        }
+
+        [$path, $fragment] = $this->splitUrlFragment($url);
+        $normalized = $this->normalizeZipPath($content_dir . '/' . $path);
+
+        return $fragment === '' ? $normalized : $normalized . '#' . $fragment;
     }
 
     /**
      * @param list<string> $referenced_resources
      */
-    private function rewriteRelativeLinks(string $html, string $base_path, array &$referenced_resources): string
+    private function recordReferencedResource(string $url, string $content_dir, string $package_base_path, array &$referenced_resources): void
     {
-        return preg_replace_callback('/\b(src|href)=(["\'])([^"\']+)\2/i', function (array $match) use ($base_path, &$referenced_resources): string {
-            $url = html_entity_decode($match[3], ENT_QUOTES | ENT_HTML5, 'UTF-8');
-            $rewritten = $this->rewriteRelativeResourceUrl($url, $base_path);
-            if ($this->isPackageRelativeResourceUrl($url)) {
-                $referenced_resources[] = $rewritten;
-            }
-            if ($rewritten === $url) {
-                return $match[0];
-            }
+        if (!$this->isPackageRelativeResourceUrl($url)) {
+            return;
+        }
 
-            return $match[1] . '=' . $match[2] . $rewritten . $match[2];
-        }, $html) ?? $html;
+        [$path, $fragment] = $this->splitUrlFragment($url);
+        if ($path === '') {
+            return;
+        }
+
+        $resource = $this->normalizeZipPath($package_base_path . '/' . $content_dir . '/' . $path);
+        if ($fragment !== '') {
+            $resource .= '#' . $fragment;
+        }
+        $referenced_resources[] = $resource;
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    private function splitUrlFragment(string $url): array
+    {
+        $hash = strpos($url, '#');
+        if ($hash === false) {
+            return [$url, ''];
+        }
+
+        return [substr($url, 0, $hash), substr($url, $hash + 1)];
+    }
+
+    private function prefixedEpubId(string $filename, string $id): string
+    {
+        return $id === '' ? '' : $filename . '_' . $id;
+    }
+
+    private function spineFilename(string $path): string
+    {
+        $filename = basename(str_replace('\\', '/', $path));
+
+        return str_replace('%2F', '/', rawurlencode($filename));
     }
 
     private function rewriteRelativeResourceUrl(string $url, string $base_path): string
