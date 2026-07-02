@@ -12639,6 +12639,38 @@ XML);
     }
 };
 
+$buildBoundaryPresentationTargetPptxPackage = static function (string $target): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-boundary-presentation-target-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdPresentation" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="{$target}"/>
+</Relationships>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildPercentEncodedPresentationTargetPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-percent-presentation-target-');
     if ($path === false) {
@@ -16921,6 +16953,23 @@ XML);
         }
 
         throw new RuntimeException('Expected empty root presentation Target to look up the empty package entry like upstream');
+    },
+
+    'keeps boundary pptx root officeDocument targets as literal entry lookups like upstream' => static function (TestRunner $t) use ($buildBoundaryPresentationTargetPptxPackage): void {
+        foreach ([
+            'ppt' => 'ppt',
+            'ppt/' => 'ppt/',
+        ] as $target => $partName) {
+            try {
+                (new PptxReader())->read($buildBoundaryPresentationTargetPptxPackage($target));
+            } catch (RuntimeException $exception) {
+                $t->same('Entry not found: ' . $partName, $exception->getMessage(), $target);
+
+                continue;
+            }
+
+            throw new RuntimeException('Expected boundary root officeDocument Target ' . $target . ' to look up ' . $partName . ' like upstream');
+        }
     },
 
     'ignores pptx slide relationship TargetMode like upstream' => static function (TestRunner $t) use ($buildExternalModeSlideRelationshipPptxPackage, $nodesOfType): void {
