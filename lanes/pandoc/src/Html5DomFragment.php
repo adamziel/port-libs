@@ -6865,7 +6865,7 @@ final class Html5DomFragment
             }
 
             if ($mode === 'html' && self::isHtmlAriaMetadataAttribute($name)) {
-                $ariaMetadata = self::normalizeHtmlAriaMetadataAttribute($name, $value, $tagName, $diagnostics);
+                $ariaMetadata = self::normalizeHtmlAriaMetadataAttribute($name, $value, $tagName, $element, $diagnostics);
                 foreach ($ariaMetadata as $metadataName => $metadataValue) {
                     $attrs[$metadataName] = $metadataValue;
                 }
@@ -6877,6 +6877,7 @@ final class Html5DomFragment
                     $name,
                     $value,
                     $tagName,
+                    $element,
                     $diagnostics
                 );
                 foreach ($customMetadata as $metadataName => $metadataValue) {
@@ -8557,16 +8558,17 @@ final class Html5DomFragment
         string $name,
         string $value,
         string $tagName,
+        \DOMElement $element,
         array &$diagnostics
     ): array {
         $attribute = strtolower($name);
         if ($attribute === 'role') {
-            $roles = self::normalizeHtmlAriaRoleTokens($value, $tagName, $diagnostics);
+            $roles = self::normalizeHtmlAriaRoleTokens($value, $tagName, $element, $diagnostics);
             if ($roles === null) {
                 return [];
             }
 
-            self::addHtmlAriaMetadataDiagnostic($diagnostics, $tagName, 'role');
+            self::addHtmlAriaMetadataDiagnostic($diagnostics, $tagName, 'role', $element);
 
             return ['data-pandoc-aria-role' => $roles];
         }
@@ -8575,20 +8577,20 @@ final class Html5DomFragment
         if (self::isHtmlAriaTextAttribute($attribute)) {
             $metadataValue = self::normalizeHtmlAriaTextValue($value);
         } elseif (self::isHtmlAriaIdrefAttribute($attribute)) {
-            $metadataValue = self::normalizeHtmlAriaIdrefValue($attribute, $value, $tagName, $diagnostics);
+            $metadataValue = self::normalizeHtmlAriaIdrefValue($attribute, $value, $tagName, $element, $diagnostics);
         } elseif (self::isHtmlAriaTokenAttribute($attribute)) {
-            $metadataValue = self::normalizeHtmlAriaTokenValue($attribute, $value, $tagName, $diagnostics);
+            $metadataValue = self::normalizeHtmlAriaTokenValue($attribute, $value, $tagName, $element, $diagnostics);
         } elseif (self::isHtmlAriaIntegerAttribute($attribute)) {
-            $metadataValue = self::normalizeHtmlAriaIntegerValue($attribute, $value, $tagName, $diagnostics);
+            $metadataValue = self::normalizeHtmlAriaIntegerValue($attribute, $value, $tagName, $element, $diagnostics);
         } elseif (self::isHtmlAriaNumberAttribute($attribute)) {
-            $metadataValue = self::normalizeHtmlAriaNumberValue($attribute, $value, $tagName, $diagnostics);
+            $metadataValue = self::normalizeHtmlAriaNumberValue($attribute, $value, $tagName, $element, $diagnostics);
         } else {
-            $diagnostics[] = [
+            $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'unsafe-attribute',
                 'tag' => $tagName,
                 'attribute' => $attribute,
                 'reason' => 'unsupported-aria-review-attribute',
-            ];
+            ], $element);
 
             return [];
         }
@@ -8597,7 +8599,7 @@ final class Html5DomFragment
             return [];
         }
 
-        self::addHtmlAriaMetadataDiagnostic($diagnostics, $tagName, $attribute);
+        self::addHtmlAriaMetadataDiagnostic($diagnostics, $tagName, $attribute, $element);
 
         return ['data-pandoc-' . $attribute => $metadataValue];
     }
@@ -8605,7 +8607,12 @@ final class Html5DomFragment
     /**
      * @param list<array<string, mixed>> $diagnostics
      */
-    private static function normalizeHtmlAriaRoleTokens(string $value, string $tagName, array &$diagnostics): ?string
+    private static function normalizeHtmlAriaRoleTokens(
+        string $value,
+        string $tagName,
+        \DOMElement $element,
+        array &$diagnostics
+    ): ?string
     {
         $tokens = self::splitHtmlSemanticTokens($value);
         if ($tokens === []) {
@@ -8616,12 +8623,12 @@ final class Html5DomFragment
         foreach ($tokens as $token) {
             $role = strtolower($token);
             if (!self::isReviewableHtmlAriaRole($role)) {
-                $diagnostics[] = [
+                $diagnostics[] = self::diagnosticWithSourceLine([
                     'code' => 'unsafe-attribute',
                     'tag' => $tagName,
                     'attribute' => 'role',
                     'token' => $token,
-                ];
+                ], $element);
                 continue;
             }
 
@@ -8767,6 +8774,7 @@ final class Html5DomFragment
         string $attribute,
         string $value,
         string $tagName,
+        \DOMElement $element,
         array &$diagnostics
     ): ?string {
         $tokens = self::splitHtmlSemanticTokens($value);
@@ -8777,12 +8785,12 @@ final class Html5DomFragment
         $normalized = [];
         foreach ($tokens as $token) {
             if (!self::isSafeHtmlAriaIdToken($token)) {
-                $diagnostics[] = [
+                $diagnostics[] = self::diagnosticWithSourceLine([
                     'code' => 'unsafe-attribute',
                     'tag' => $tagName,
                     'attribute' => $attribute,
                     'token' => $token,
-                ];
+                ], $element);
                 continue;
             }
 
@@ -8843,6 +8851,7 @@ final class Html5DomFragment
         string $attribute,
         string $value,
         string $tagName,
+        \DOMElement $element,
         array &$diagnostics
     ): ?string {
         $allowed = self::htmlAriaTokenStates($attribute);
@@ -8859,12 +8868,12 @@ final class Html5DomFragment
         foreach ($tokens as $token) {
             $state = strtolower($token);
             if (!in_array($state, $allowed, true)) {
-                $diagnostics[] = [
+                $diagnostics[] = self::diagnosticWithSourceLine([
                     'code' => 'unsafe-attribute',
                     'tag' => $tagName,
                     'attribute' => $attribute,
                     'value' => $state,
-                ];
+                ], $element);
                 continue;
             }
 
@@ -8904,15 +8913,16 @@ final class Html5DomFragment
         string $attribute,
         string $value,
         string $tagName,
+        \DOMElement $element,
         array &$diagnostics
     ): ?string {
         $cleaned = self::cleanHtmlMetadataAttribute($value);
         if (preg_match('/^-?[0-9]+$/', $cleaned) !== 1) {
-            $diagnostics[] = [
+            $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'unsafe-attribute',
                 'tag' => $tagName,
                 'attribute' => $attribute,
-            ];
+            ], $element);
 
             return null;
         }
@@ -8920,12 +8930,12 @@ final class Html5DomFragment
         $number = (int) $cleaned;
         $allowsMinusOne = in_array($attribute, ['aria-colcount', 'aria-rowcount', 'aria-setsize'], true);
         if ($number < ($allowsMinusOne ? -1 : 1) || $number === 0) {
-            $diagnostics[] = [
+            $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'unsafe-attribute',
                 'tag' => $tagName,
                 'attribute' => $attribute,
                 'value' => $cleaned,
-            ];
+            ], $element);
 
             return null;
         }
@@ -8945,15 +8955,16 @@ final class Html5DomFragment
         string $attribute,
         string $value,
         string $tagName,
+        \DOMElement $element,
         array &$diagnostics
     ): ?string {
         $cleaned = self::cleanHtmlMetadataAttribute($value);
         if (preg_match('/^-?(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)$/', $cleaned) !== 1) {
-            $diagnostics[] = [
+            $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'unsafe-attribute',
                 'tag' => $tagName,
                 'attribute' => $attribute,
-            ];
+            ], $element);
 
             return null;
         }
@@ -8975,14 +8986,19 @@ final class Html5DomFragment
     /**
      * @param list<array<string, mixed>> $diagnostics
      */
-    private static function addHtmlAriaMetadataDiagnostic(array &$diagnostics, string $tagName, string $attributeName): void
+    private static function addHtmlAriaMetadataDiagnostic(
+        array &$diagnostics,
+        string $tagName,
+        string $attributeName,
+        \DOMElement $element
+    ): void
     {
-        $diagnostics[] = [
+        $diagnostics[] = self::diagnosticWithSourceLine([
             'code' => 'aria-metadata-review',
             'tag' => $tagName,
             'attribute' => $attributeName,
             'reason' => 'aria-attribute-preserved-as-review-metadata',
-        ];
+        ], $element);
     }
 
     private static function isHtmlCustomElementMetadataAttribute(
@@ -9014,44 +9030,45 @@ final class Html5DomFragment
         string $name,
         string $value,
         string $tagName,
+        \DOMElement $element,
         array &$diagnostics
     ): array {
         $attribute = strtolower($name);
         if ($attribute === 'is') {
             $customName = self::normalizeHtmlCustomElementName($value);
             if ($customName === null) {
-                $diagnostics[] = [
+                $diagnostics[] = self::diagnosticWithSourceLine([
                     'code' => 'unsafe-attribute',
                     'tag' => $tagName,
                     'attribute' => 'is',
                     'reason' => 'invalid-custom-element-name',
-                ];
+                ], $element);
 
                 return [];
             }
 
-            self::addHtmlCustomElementMetadataDiagnostic($diagnostics, $tagName, 'is');
+            self::addHtmlCustomElementMetadataDiagnostic($diagnostics, $tagName, 'is', $element);
 
             return ['data-pandoc-custom-is' => $customName];
         }
 
         if ($attribute === 'part') {
-            $parts = self::normalizeHtmlCustomPartTokenList($value, $tagName, $diagnostics);
+            $parts = self::normalizeHtmlCustomPartTokenList($value, $tagName, $element, $diagnostics);
             if ($parts === null) {
                 return [];
             }
 
-            self::addHtmlCustomElementMetadataDiagnostic($diagnostics, $tagName, 'part');
+            self::addHtmlCustomElementMetadataDiagnostic($diagnostics, $tagName, 'part', $element);
 
             return ['data-pandoc-custom-part' => $parts];
         }
 
-        $exportedParts = self::normalizeHtmlCustomExportParts($value, $tagName, $diagnostics);
+        $exportedParts = self::normalizeHtmlCustomExportParts($value, $tagName, $element, $diagnostics);
         if ($exportedParts === null) {
             return [];
         }
 
-        self::addHtmlCustomElementMetadataDiagnostic($diagnostics, $tagName, 'exportparts');
+        self::addHtmlCustomElementMetadataDiagnostic($diagnostics, $tagName, 'exportparts', $element);
 
         return ['data-pandoc-custom-exportparts' => $exportedParts];
     }
@@ -9085,7 +9102,12 @@ final class Html5DomFragment
     /**
      * @param list<array<string, mixed>> $diagnostics
      */
-    private static function normalizeHtmlCustomPartTokenList(string $value, string $tagName, array &$diagnostics): ?string
+    private static function normalizeHtmlCustomPartTokenList(
+        string $value,
+        string $tagName,
+        \DOMElement $element,
+        array &$diagnostics
+    ): ?string
     {
         $tokens = self::splitHtmlSemanticTokens($value);
         if ($tokens === []) {
@@ -9095,12 +9117,12 @@ final class Html5DomFragment
         $normalized = [];
         foreach ($tokens as $token) {
             if (!self::isSafeHtmlCustomPartToken($token)) {
-                $diagnostics[] = [
+                $diagnostics[] = self::diagnosticWithSourceLine([
                     'code' => 'unsafe-attribute',
                     'tag' => $tagName,
                     'attribute' => 'part',
                     'token' => $token,
-                ];
+                ], $element);
                 continue;
             }
             if (!in_array($token, $normalized, true)) {
@@ -9114,7 +9136,12 @@ final class Html5DomFragment
     /**
      * @param list<array<string, mixed>> $diagnostics
      */
-    private static function normalizeHtmlCustomExportParts(string $value, string $tagName, array &$diagnostics): ?string
+    private static function normalizeHtmlCustomExportParts(
+        string $value,
+        string $tagName,
+        \DOMElement $element,
+        array &$diagnostics
+    ): ?string
     {
         $cleaned = self::cleanHtmlMetadataAttribute($value);
         if ($cleaned === '') {
@@ -9132,12 +9159,12 @@ final class Html5DomFragment
             $source = $parts[0] ?? '';
             $target = $parts[1] ?? '';
             if (!self::isSafeHtmlCustomPartToken($source) || ($target !== '' && !self::isSafeHtmlCustomPartToken($target))) {
-                $diagnostics[] = [
+                $diagnostics[] = self::diagnosticWithSourceLine([
                     'code' => 'unsafe-attribute',
                     'tag' => $tagName,
                     'attribute' => 'exportparts',
                     'token' => $mapping,
-                ];
+                ], $element);
                 continue;
             }
 
@@ -9161,14 +9188,15 @@ final class Html5DomFragment
     private static function addHtmlCustomElementMetadataDiagnostic(
         array &$diagnostics,
         string $tagName,
-        string $attributeName
+        string $attributeName,
+        \DOMElement $element
     ): void {
-        $diagnostics[] = [
+        $diagnostics[] = self::diagnosticWithSourceLine([
             'code' => 'custom-element-review',
             'tag' => $tagName,
             'attribute' => $attributeName,
             'reason' => 'custom-element-hook-preserved-as-review-metadata',
-        ];
+        ], $element);
     }
 
     private static function isHtmlSemanticMetadataAttribute(string $name): bool
