@@ -11867,6 +11867,43 @@ XML);
     }
 };
 
+$buildExternalTargetRootOfficeDocumentPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-root-office-doc-external-target-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdPresentation" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="https://example.invalid/presentation.xml" TargetMode="External"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildRootLevelPresentationRelationshipPartPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-root-level-presentation-rels-');
     if ($path === false) {
@@ -16062,6 +16099,18 @@ return [
         $t->same('ppt/presentation.xml', $review['presentationPart'] ?? null);
         $t->same(1, $review['slideCount'] ?? null);
         $t->same('Root TargetMode ignored', $headings[0]->attr('text'));
+    },
+
+    'keeps external pptx root officeDocument targets as literal entry lookups like upstream' => static function (TestRunner $t) use ($buildExternalTargetRootOfficeDocumentPptxPackage): void {
+        try {
+            (new PptxReader())->read($buildExternalTargetRootOfficeDocumentPptxPackage());
+        } catch (RuntimeException $exception) {
+            $t->same('Entry not found: https://example.invalid/presentation.xml', $exception->getMessage());
+
+            return;
+        }
+
+        throw new RuntimeException('Expected external root officeDocument Target to stay a literal archive entry lookup like upstream');
     },
 
     'uses upstream literal root-level pptx presentation relationship paths' => static function (TestRunner $t) use ($buildRootLevelPresentationRelationshipPartPptxPackage): void {
