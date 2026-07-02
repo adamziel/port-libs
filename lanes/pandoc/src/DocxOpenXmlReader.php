@@ -44965,6 +44965,43 @@ final class DocxOpenXmlReader
             'partRawExtensions' => is_array($summary['partRawExtensions'] ?? null)
                 ? array_values($summary['partRawExtensions'])
                 : [],
+            'partXmlCdataSectionPartCount' => (int) ($summary['partXmlCdataSectionPartCount'] ?? 0),
+            'partXmlCdataSectionCount' => (int) ($summary['partXmlCdataSectionCount'] ?? 0),
+            'partXmlCdataSectionByteLength' => (int) ($summary['partXmlCdataSectionByteLength'] ?? 0),
+            'partXmlCdataSectionPartNames' => self::packageIdentityStringList(
+                $summary['partXmlCdataSectionPartNames'] ?? []
+            ),
+            'partXmlCdataSections' => is_array($summary['partXmlCdataSections'] ?? null)
+                ? array_values($summary['partXmlCdataSections'])
+                : [],
+            'partXmlCdataSectionsTruncated' => ($summary['partXmlCdataSectionsTruncated'] ?? false) === true,
+            'partXmlCommentPartCount' => (int) ($summary['partXmlCommentPartCount'] ?? 0),
+            'partXmlCommentCount' => (int) ($summary['partXmlCommentCount'] ?? 0),
+            'partXmlCommentByteLength' => (int) ($summary['partXmlCommentByteLength'] ?? 0),
+            'partXmlCommentPartNames' => self::packageIdentityStringList($summary['partXmlCommentPartNames'] ?? []),
+            'partXmlComments' => is_array($summary['partXmlComments'] ?? null)
+                ? array_values($summary['partXmlComments'])
+                : [],
+            'partXmlCommentsTruncated' => ($summary['partXmlCommentsTruncated'] ?? false) === true,
+            'partXmlProcessingInstructionPartCount' => (int) (
+                $summary['partXmlProcessingInstructionPartCount'] ?? 0
+            ),
+            'partXmlProcessingInstructionCount' => (int) ($summary['partXmlProcessingInstructionCount'] ?? 0),
+            'partXmlProcessingInstructionDataByteLength' => (int) (
+                $summary['partXmlProcessingInstructionDataByteLength'] ?? 0
+            ),
+            'partXmlProcessingInstructionTargets' => self::packageIdentityStringList(
+                $summary['partXmlProcessingInstructionTargets'] ?? []
+            ),
+            'partXmlProcessingInstructionPartNames' => self::packageIdentityStringList(
+                $summary['partXmlProcessingInstructionPartNames'] ?? []
+            ),
+            'partXmlProcessingInstructions' => is_array($summary['partXmlProcessingInstructions'] ?? null)
+                ? array_values($summary['partXmlProcessingInstructions'])
+                : [],
+            'partXmlProcessingInstructionsTruncated' => (
+                $summary['partXmlProcessingInstructionsTruncated'] ?? false
+            ) === true,
             'packageBasenameCount' => (int) ($summary['partBaseNameCount'] ?? 0),
             'packageBasenameCounts' => $this->packageIdentityCountMap($summary['partBaseNameCounts'] ?? []),
             'entryNamesByPackageBasename' => $this->packageIdentityStringListMap(
@@ -45139,6 +45176,29 @@ final class DocxOpenXmlReader
                 'contentTypeSource' => is_string($part['contentTypeSource'] ?? null) ? $part['contentTypeSource'] : 'missing',
                 'contentTypeHasParameters' => ($part['contentTypeHasParameters'] ?? false) === true,
                 'contentTypeParameterCount' => (int) ($part['contentTypeParameterCount'] ?? 0),
+                'xmlCdataSectionCount' => (int) ($part['xmlCdataSectionCount'] ?? 0),
+                'xmlCdataSectionByteLength' => (int) ($part['xmlCdataSectionByteLength'] ?? 0),
+                'xmlCdataSections' => is_array($part['xmlCdataSections'] ?? null)
+                    ? array_values($part['xmlCdataSections'])
+                    : [],
+                'xmlCdataSectionsTruncated' => ($part['xmlCdataSectionsTruncated'] ?? false) === true,
+                'xmlCommentCount' => (int) ($part['xmlCommentCount'] ?? 0),
+                'xmlCommentByteLength' => (int) ($part['xmlCommentByteLength'] ?? 0),
+                'xmlComments' => is_array($part['xmlComments'] ?? null) ? array_values($part['xmlComments']) : [],
+                'xmlCommentsTruncated' => ($part['xmlCommentsTruncated'] ?? false) === true,
+                'xmlProcessingInstructionCount' => (int) ($part['xmlProcessingInstructionCount'] ?? 0),
+                'xmlProcessingInstructionDataByteLength' => (int) (
+                    $part['xmlProcessingInstructionDataByteLength'] ?? 0
+                ),
+                'xmlProcessingInstructionTargets' => self::packageIdentityStringList(
+                    $part['xmlProcessingInstructionTargets'] ?? []
+                ),
+                'xmlProcessingInstructions' => is_array($part['xmlProcessingInstructions'] ?? null)
+                    ? array_values($part['xmlProcessingInstructions'])
+                    : [],
+                'xmlProcessingInstructionsTruncated' => (
+                    $part['xmlProcessingInstructionsTruncated'] ?? false
+                ) === true,
                 'isRelationshipPart' => ($part['isRelationshipPart'] ?? false) === true,
                 'zipEntryPresent' => ($part['zipEntryPresent'] ?? false) === true,
                 'zipExpansionRatio' => is_int($part['zipExpansionRatio'] ?? null)
