@@ -19823,6 +19823,8 @@ final class ZipPackage
                 self::appendUniqueIssue($sourceByteSpanIssues, $issue);
             }
             $entryExtension = self::entryHandoffExtension($entry->name, $isDirectory);
+            $madeByVersion = $entry->madeByVersion();
+            $versionNeededToExtract = $entry->neededToExtractVersion();
             $summary = [
                 'name' => $entry->name,
                 'isDirectory' => $isDirectory,
@@ -19841,6 +19843,12 @@ final class ZipPackage
                 'pathDepth' => self::entryHandoffPathDepth($entry->name),
                 'pathPrefixes' => self::entryHandoffPathPrefixes($entry->name),
                 'packagePartKind' => self::entryHandoffPackagePartKind($entry->name, $isDirectory),
+                'madeByHostSystem' => $entry->madeByHostSystem(),
+                'madeByHostSystemName' => self::creatorHostSystemName($entry->madeByHostSystem()),
+                'madeByVersion' => $madeByVersion,
+                'versionMadeBy' => $entry->versionMadeBy,
+                'versionNeededToExtract' => $versionNeededToExtract,
+                'creatorVersionMeetsNeeded' => $madeByVersion >= $versionNeededToExtract,
                 'compressionMethod' => $entry->compressionMethod,
                 'compressionMethodName' => self::compressionMethodName($entry->compressionMethod),
                 'crc32' => $entry->crc32,
@@ -19898,6 +19906,8 @@ final class ZipPackage
         $caseFoldNameCollisionSummaries = self::entryHandoffCaseFoldNameCollisionSummaries($entries);
         $caseFoldLeafNameCollisionSummaries = self::entryHandoffCaseFoldLeafNameCollisionSummaries($entries);
         $expansionRatioBucketSummaries = self::entryHandoffExpansionRatioBucketSummaries($entries);
+        $creatorHostSystemSummaries = self::entryHandoffCreatorHostSystemSummaries($entries);
+        $creatorHostSystemIssues = self::entryHandoffCreatorHostSystemIssues($creatorHostSystemSummaries);
         $manifestOrderSummary = self::entryHandoffOrderSummary($entries);
         $manifestOrderIssueCodes = $manifestOrderSummary['centralDirectoryOrderMatchesLocalHeaderOrder']
             ? []
@@ -19966,6 +19976,17 @@ final class ZipPackage
                 $caseFoldLeafNameCollisionSummaries,
                 'entryCount'
             ),
+            'creatorHostSystemBucketCount' => count($creatorHostSystemSummaries),
+            'unknownCreatorHostSystemEntryCount' => self::entryHandoffCreatorHostSystemIssueEntryCount(
+                $creatorHostSystemSummaries,
+                'unknown-creator-host-system'
+            ),
+            'creatorVersionBelowNeededEntryCount' => self::entryHandoffCreatorHostSystemIssueEntryCount(
+                $creatorHostSystemSummaries,
+                'creator-version-below-version-needed'
+            ),
+            'creatorHostSystemIssueCount' => count($creatorHostSystemIssues),
+            'creatorHostSystemIssues' => $creatorHostSystemIssues,
             'manifestOrderReviewStatus' => $manifestOrderIssueCodes === [] ? 'ok' : 'review',
             'manifestOrderIssueCodes' => $manifestOrderIssueCodes,
             'manifestOrderIssueCount' => count($manifestOrderIssueCodes),
@@ -19984,6 +20005,7 @@ final class ZipPackage
             'sharedLeafNameSummaries' => $sharedLeafNameSummaries,
             'caseFoldNameCollisionSummaries' => $caseFoldNameCollisionSummaries,
             'caseFoldLeafNameCollisionSummaries' => $caseFoldLeafNameCollisionSummaries,
+            'creatorHostSystemSummaries' => $creatorHostSystemSummaries,
             'sourceByteSpanEntryCount' => count($this->entries),
             'sourceLocalRecordBytes' => $sourceLocalRecordBytes,
             'sourceLocalHeaderBytes' => $sourceLocalHeaderBytes,
@@ -20037,6 +20059,8 @@ final class ZipPackage
 
             $compressedBytes += $entry->compressedSize;
             $uncompressedBytes += $entry->uncompressedSize;
+            $madeByVersion = $entry->madeByVersion();
+            $versionNeededToExtract = $entry->neededToExtractVersion();
 
             $entries[] = [
                 'name' => $entry->name,
@@ -20050,6 +20074,12 @@ final class ZipPackage
                 'pathDepth' => self::entryHandoffPathDepth($entry->name),
                 'extension' => $isDirectory ? null : self::entryHandoffFileExtension($entry->name),
                 'packagePartKind' => self::entryHandoffPackagePartKind($entry->name, $isDirectory),
+                'madeByHostSystem' => $entry->madeByHostSystem(),
+                'madeByHostSystemName' => self::creatorHostSystemName($entry->madeByHostSystem()),
+                'madeByVersion' => $madeByVersion,
+                'versionMadeBy' => $entry->versionMadeBy,
+                'versionNeededToExtract' => $versionNeededToExtract,
+                'creatorVersionMeetsNeeded' => $madeByVersion >= $versionNeededToExtract,
                 'compressedSize' => $entry->compressedSize,
                 'uncompressedSize' => $entry->uncompressedSize,
             ];
@@ -20062,6 +20092,8 @@ final class ZipPackage
         $pathDepthSummaries = self::entryHandoffPathDepthSummaries($entries);
         $leafNameSummaries = self::entryHandoffLeafNameSummaries($entries);
         $sharedLeafNameSummaries = self::entryHandoffSharedLeafNameSummaries($leafNameSummaries);
+        $creatorHostSystemSummaries = self::entryHandoffCreatorHostSystemSummaries($entries);
+        $creatorHostSystemIssues = self::entryHandoffCreatorHostSystemIssues($creatorHostSystemSummaries);
 
         return [
             'entryCount' => count($entries),
@@ -20086,6 +20118,17 @@ final class ZipPackage
                 static fn (array $summary): int => (int) ($summary['entryCount'] ?? 0),
                 $sharedLeafNameSummaries
             )),
+            'creatorHostSystemBucketCount' => count($creatorHostSystemSummaries),
+            'unknownCreatorHostSystemEntryCount' => self::entryHandoffCreatorHostSystemIssueEntryCount(
+                $creatorHostSystemSummaries,
+                'unknown-creator-host-system'
+            ),
+            'creatorVersionBelowNeededEntryCount' => self::entryHandoffCreatorHostSystemIssueEntryCount(
+                $creatorHostSystemSummaries,
+                'creator-version-below-version-needed'
+            ),
+            'creatorHostSystemIssueCount' => count($creatorHostSystemIssues),
+            'creatorHostSystemIssues' => $creatorHostSystemIssues,
             'directoryRootSummaries' => $directoryRootSummaries,
             'parentDirectorySummaries' => $parentDirectorySummaries,
             'packagePartKindSummaries' => $packagePartKindSummaries,
@@ -20093,6 +20136,7 @@ final class ZipPackage
             'pathDepthSummaries' => $pathDepthSummaries,
             'leafNameSummaries' => $leafNameSummaries,
             'sharedLeafNameSummaries' => $sharedLeafNameSummaries,
+            'creatorHostSystemSummaries' => $creatorHostSystemSummaries,
             'entries' => $entries,
         ];
     }
