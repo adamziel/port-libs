@@ -32308,6 +32308,18 @@ XML);
         <secondary-title>Journal of Title Diagnostics</secondary-title>
         <tertiary-title>Proceedings of Review Metadata</tertiary-title>
         <alternate-title>Title Diag. Packet</alternate-title>
+        <translated-title>EndNote XML Translation Packet</translated-title>
+        <translated-subtitle>Translation Appendix</translated-subtitle>
+        <title-translation>Legacy Translation Packet</title-translation>
+        <title-translation-subtitle>Legacy Translation Appendix</title-translation-subtitle>
+        <reviewed-title>EndNote Reviewed Work</reviewed-title>
+        <reviewed-subtitle>Source Appendix</reviewed-subtitle>
+        <review-title>Legacy Reviewed Work</review-title>
+        <reviewed-genre>facsimile review</reviewed-genre>
+        <original-title>EndNote Original Manual</original-title>
+        <original-subtitle>Archive Leaf</original-subtitle>
+        <orig-title>Legacy Original Manual</orig-title>
+        <original-title-addon>source proof</original-title-addon>
       </titles>
       <dates>
         <year></year>
@@ -32351,9 +32363,17 @@ XML;
         $t->same('Journal of Title Diagnostics', $item['container-title']);
         $t->same('Title Diag. Packet', $item['short-title']);
         $t->same('Proceedings of Review Metadata', $item['collection-title']);
+        $t->same('EndNote XML Translation Packet', $item['translated-title']);
+        $t->same('Translation Appendix', $item['translated-subtitle']);
+        $t->same('EndNote Reviewed Work', $item['reviewed-title']);
+        $t->same('Source Appendix', $item['reviewed-subtitle']);
+        $t->same('facsimile review', $item['reviewed-genre']);
+        $t->same('EndNote Original Manual', $item['original-title']);
+        $t->same('Archive Leaf', $item['original-subtitle']);
+        $t->same('source proof', $item['original-title-addon']);
         $t->same(['date-parts' => [[2026, 6, 12]], 'raw' => '2026-06-12'], $item['issued']);
         $t->same('ref-type: Journal Article -> article-journal; work-type: peer reviewed article; publication-type: online ahead of print', $item['rawEndnoteXml']['publicationTypeHintSummary']);
-        $t->same('title: EndNote XML Title Date Packet; secondary-title: Journal of Title Diagnostics; tertiary-title: Proceedings of Review Metadata; alternate-title: Title Diag. Packet', $item['rawEndnoteXml']['titleVariantSummary']);
+        $t->same('title: EndNote XML Title Date Packet; secondary-title: Journal of Title Diagnostics; tertiary-title: Proceedings of Review Metadata; alternate-title: Title Diag. Packet; translated-title: EndNote XML Translation Packet; translated-subtitle: Translation Appendix; title-translation: Legacy Translation Packet; title-translation-subtitle: Legacy Translation Appendix; reviewed-title: EndNote Reviewed Work; reviewed-subtitle: Source Appendix; review-title: Legacy Reviewed Work; reviewed-genre: facsimile review; original-title: EndNote Original Manual; original-subtitle: Archive Leaf; orig-title: Legacy Original Manual; original-title-addon: source proof', $item['rawEndnoteXml']['titleVariantSummary']);
         $t->same(['year', 'date', 'date'], array_column($item['rawEndnoteXml']['dateFields'], 'field'));
         $t->same(['', '2026-06-12', '2026-13-40'], array_column($item['rawEndnoteXml']['dateFields'], 'value'));
         $t->same([
@@ -32371,6 +32391,14 @@ XML;
         $normalized = $processor->item('endnote-title-dates');
         $t->same('Title Diag. Packet', $normalized['shortTitle'] ?? null);
         $t->same('Proceedings of Review Metadata', $normalized['collectionTitle'] ?? null);
+        $t->same('EndNote XML Translation Packet: Translation Appendix', $normalized['translatedTitle'] ?? null);
+        $t->same('Translation Appendix', $normalized['translatedSubtitle'] ?? null);
+        $t->same('EndNote Reviewed Work: Source Appendix', $normalized['reviewedTitle'] ?? null);
+        $t->same('facsimile review', $normalized['reviewedGenre'] ?? null);
+        $t->same('EndNote Original Manual: Archive Leaf', $normalized['originalTitle'] ?? null);
+        $t->same('Archive Leaf', $normalized['originalSubtitle'] ?? null);
+        $t->same('source proof', $normalized['originalTitleAddon'] ?? null);
+        $t->same('Legacy Translation Packet', $normalized['raw']['rawEndnoteXml']['titleFields'][6]['value'] ?? null);
         $t->same('JTD', $normalized['containerTitleShort'] ?? null);
         $t->same([2026, 6, 12], $normalized['issuedDate']['parts'] ?? null);
         $t->same('endnote-date-empty-field: 1; endnote-date-malformed-field: 1', $normalized['endnoteDateDiagnosticSummary'] ?? null);
@@ -32390,6 +32418,9 @@ XML;
       <group delimiter=" | ">
         <text variable="title"/>
         <text variable="short-title"/>
+        <text variable="translated-title"/>
+        <text variable="reviewed-title"/>
+        <text variable="original-title"/>
         <date variable="issued"/>
         <text variable="endnote-date-diagnostic-summary"/>
         <text variable="endnote-publication-type-hint-summary"/>
@@ -32403,6 +32434,9 @@ XML;
       <text variable="title"/>
       <text variable="container-title"/>
       <text variable="short-title"/>
+      <text variable="translated-title"/>
+      <text variable="reviewed-title"/>
+      <text variable="original-title"/>
       <text variable="endnote-title-variant-summary"/>
       <text variable="endnote-unsupported-field-summary"/>
     </layout>
@@ -32414,18 +32448,23 @@ XML);
         $diagnostics = $processor->citationLocatorDiagnostics($locatorCitation);
         $t->same('citation-locator-suffix-inferred', $diagnostics[0]['reason'] ?? null);
         $t->same(
-            '[see EndNote XML Title Date Packet | Title Diag. Packet | 2026-06-12 | endnote-date-empty-field: 1; endnote-date-malformed-field: 1 | ref-type: Journal Article -> article-journal; work-type: peer reviewed article; publication-type: online ahead of print | endnote-attachment-not-imported | citation-locator-suffix-inferred]',
+            '[see EndNote XML Title Date Packet | Title Diag. Packet | EndNote XML Translation Packet: Translation Appendix | EndNote Reviewed Work: Source Appendix | EndNote Original Manual: Archive Leaf | 2026-06-12 | endnote-date-empty-field: 1; endnote-date-malformed-field: 1 | ref-type: Journal Article -> article-journal; work-type: peer reviewed article; publication-type: online ahead of print | endnote-attachment-not-imported | citation-locator-suffix-inferred]',
             $styled->renderCitationCluster([$locatorCitation])
         );
         $t->same(
-            'EndNote XML Title Date Packet :: Journal of Title Diagnostics :: Title Diag. Packet :: title: EndNote XML Title Date Packet; secondary-title: Journal of Title Diagnostics; tertiary-title: Proceedings of Review Metadata; alternate-title: Title Diag. Packet :: custom3: Unsupported title/date note; remote-database-name: Legacy EndNote Library; research-notes: Keep raw date warning',
+            'EndNote XML Title Date Packet :: Journal of Title Diagnostics :: Title Diag. Packet :: EndNote XML Translation Packet: Translation Appendix :: EndNote Reviewed Work: Source Appendix :: EndNote Original Manual: Archive Leaf :: title: EndNote XML Title Date Packet; secondary-title: Journal of Title Diagnostics; tertiary-title: Proceedings of Review Metadata; alternate-title: Title Diag. Packet; translated-title: EndNote XML Translation Packet; translated-subtitle: Translation Appendix; title-translation: Legacy Translation Packet; title-translation-subtitle: Legacy Translation Appendix; reviewed-title: EndNote Reviewed Work; reviewed-subtitle: Source Appendix; review-title: Legacy Reviewed Work; reviewed-genre: facsimile review; original-title: EndNote Original Manual; original-subtitle: Archive Leaf; orig-title: Legacy Original Manual; original-title-addon: source proof :: custom3: Unsupported title/date note; remote-database-name: Legacy EndNote Library; research-notes: Keep raw date warning',
             $styled->renderBibliographyEntry('endnote-title-dates')
         );
+        $bibliographyEntry = $processor->renderBibliographyEntry('endnote-title-dates');
+        $t->contains('Translated title: EndNote XML Translation Packet: Translation Appendix.', $bibliographyEntry);
+        $t->contains('Reviewed title: EndNote Reviewed Work: Source Appendix.', $bibliographyEntry);
+        $t->contains('Original title: EndNote Original Manual: Archive Leaf.', $bibliographyEntry);
+        $t->contains('Original title addendum: source proof.', $bibliographyEntry);
 
         $document = (new MarkdownReader())->read('EndNote XML title dates cite [see @endnote-title-dates, sec. 2-3].');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
-        $t->contains('<p>EndNote XML title dates cite [see EndNote XML Title Date Packet | Title Diag. Packet | 2026-06-12 | endnote-date-empty-field: 1; endnote-date-malformed-field: 1 | ref-type: Journal Article -&gt; article-journal; work-type: peer reviewed article; publication-type: online ahead of print | endnote-attachment-not-imported].</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>EndNote XML Title Date Packet :: Journal of Title Diagnostics :: Title Diag. Packet :: title: EndNote XML Title Date Packet; secondary-title: Journal of Title Diagnostics; tertiary-title: Proceedings of Review Metadata; alternate-title: Title Diag. Packet :: custom3: Unsupported title/date note; remote-database-name: Legacy EndNote Library; research-notes: Keep raw date warning</dd>', $blocks);
+        $t->contains('<p>EndNote XML title dates cite [see EndNote XML Title Date Packet | Title Diag. Packet | EndNote XML Translation Packet: Translation Appendix | EndNote Reviewed Work: Source Appendix | EndNote Original Manual: Archive Leaf | 2026-06-12 | endnote-date-empty-field: 1; endnote-date-malformed-field: 1 | ref-type: Journal Article -&gt; article-journal; work-type: peer reviewed article; publication-type: online ahead of print | endnote-attachment-not-imported].</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>EndNote XML Title Date Packet :: Journal of Title Diagnostics :: Title Diag. Packet :: EndNote XML Translation Packet: Translation Appendix :: EndNote Reviewed Work: Source Appendix :: EndNote Original Manual: Archive Leaf :: title: EndNote XML Title Date Packet; secondary-title: Journal of Title Diagnostics; tertiary-title: Proceedings of Review Metadata; alternate-title: Title Diag. Packet; translated-title: EndNote XML Translation Packet; translated-subtitle: Translation Appendix; title-translation: Legacy Translation Packet; title-translation-subtitle: Legacy Translation Appendix; reviewed-title: EndNote Reviewed Work; reviewed-subtitle: Source Appendix; review-title: Legacy Reviewed Work; reviewed-genre: facsimile review; original-title: EndNote Original Manual; original-subtitle: Archive Leaf; orig-title: Legacy Original Manual; original-title-addon: source proof :: custom3: Unsupported title/date note; remote-database-name: Legacy EndNote Library; research-notes: Keep raw date warning</dd>', $blocks);
     },
     'parses bounded ris records into csl bibliography items' => static function (TestRunner $t) use ($citation): void {
         $ris = <<<'RIS'

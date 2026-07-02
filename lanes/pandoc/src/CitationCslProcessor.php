@@ -2258,6 +2258,14 @@ final class CitationCslProcessor
                 : self::endnoteFirstText($record, ['full-title', 'periodical-title']),
             'container-title-short' => self::endnoteFirstText($record, ['abbr-1', 'abbr-2', 'abbr-3']),
             'collection-title' => $titleFields['tertiaryTitle'],
+            'translated-title' => $titleFields['translatedTitle'],
+            'translated-subtitle' => $titleFields['translatedSubtitle'],
+            'reviewed-title' => $titleFields['reviewedTitle'],
+            'reviewed-subtitle' => $titleFields['reviewedSubtitle'],
+            'reviewed-genre' => $titleFields['reviewedGenre'],
+            'original-title' => $titleFields['originalTitle'],
+            'original-subtitle' => $titleFields['originalSubtitle'],
+            'original-title-addon' => $titleFields['originalTitleAddon'],
             'publisher' => self::endnoteFirstText($record, ['publisher']),
             'publisher-place' => self::endnoteFirstText($record, ['pub-location', 'place-published', 'city']),
             'volume' => self::endnoteFirstText($record, ['volume']),
@@ -2417,19 +2425,59 @@ final class CitationCslProcessor
      *     tertiaryTitle:string,
      *     alternateTitle:string,
      *     shortTitle:string,
+     *     translatedTitle:string,
+     *     translatedSubtitle:string,
+     *     reviewedTitle:string,
+     *     reviewedSubtitle:string,
+     *     reviewedGenre:string,
+     *     originalTitle:string,
+     *     originalSubtitle:string,
+     *     originalTitleAddon:string,
      *     fields:list<array{field:string, value:string, parent:string}>,
      *     summary:string
      * }
      */
     private static function endnoteTitleFields(\DOMElement $record): array
     {
-        $fieldNames = ['title', 'secondary-title', 'tertiary-title', 'alternate-title', 'alt-title', 'short-title'];
+        $fieldNames = [
+            'title',
+            'secondary-title',
+            'tertiary-title',
+            'alternate-title',
+            'alt-title',
+            'short-title',
+            'translated-title',
+            'translated-subtitle',
+            'title-translation',
+            'title-translation-subtitle',
+            'subtitle-translation',
+            'reviewed-title',
+            'reviewed-subtitle',
+            'review-title',
+            'review-subtitle',
+            'reviewed-genre',
+            'review-genre',
+            'original-title',
+            'original-subtitle',
+            'orig-title',
+            'orig-subtitle',
+            'original-title-addon',
+            'orig-title-addon',
+        ];
         $fields = self::endnoteRawTextFields($record, $fieldNames);
         $title = self::endnoteFirstRawField($fields, ['title']);
         $secondaryTitle = self::endnoteFirstRawField($fields, ['secondary-title']);
         $tertiaryTitle = self::endnoteFirstRawField($fields, ['tertiary-title']);
         $alternateTitle = self::endnoteFirstRawField($fields, ['alternate-title', 'alt-title']);
         $shortTitle = self::endnoteFirstRawField($fields, ['short-title', 'alternate-title', 'alt-title']);
+        $translatedTitle = self::endnoteFirstRawField($fields, ['translated-title', 'title-translation']);
+        $translatedSubtitle = self::endnoteFirstRawField($fields, ['translated-subtitle', 'title-translation-subtitle', 'subtitle-translation']);
+        $reviewedTitle = self::endnoteFirstRawField($fields, ['reviewed-title', 'review-title']);
+        $reviewedSubtitle = self::endnoteFirstRawField($fields, ['reviewed-subtitle', 'review-subtitle']);
+        $reviewedGenre = self::endnoteFirstRawField($fields, ['reviewed-genre', 'review-genre']);
+        $originalTitle = self::endnoteFirstRawField($fields, ['original-title', 'orig-title']);
+        $originalSubtitle = self::endnoteFirstRawField($fields, ['original-subtitle', 'orig-subtitle']);
+        $originalTitleAddon = self::endnoteFirstRawField($fields, ['original-title-addon', 'orig-title-addon']);
 
         return [
             'title' => $title,
@@ -2437,6 +2485,14 @@ final class CitationCslProcessor
             'tertiaryTitle' => $tertiaryTitle,
             'alternateTitle' => $alternateTitle,
             'shortTitle' => $shortTitle,
+            'translatedTitle' => $translatedTitle,
+            'translatedSubtitle' => $translatedSubtitle,
+            'reviewedTitle' => $reviewedTitle,
+            'reviewedSubtitle' => $reviewedSubtitle,
+            'reviewedGenre' => $reviewedGenre,
+            'originalTitle' => $originalTitle,
+            'originalSubtitle' => $originalSubtitle,
+            'originalTitleAddon' => $originalTitleAddon,
             'fields' => $fields,
             'summary' => self::endnoteFieldSummary($fields),
         ];
