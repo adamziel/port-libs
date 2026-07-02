@@ -16196,6 +16196,7 @@ final class XmlHtmlDom
 
             return $summary
                 + self::linkResourceReviewSummary($element, $relRaw)
+                + self::linkSizesReviewSummary($element)
                 + self::srcsetResourceReviewSummary($imageSrcset, 'imageSrcset');
         }
 
@@ -16396,6 +16397,8 @@ final class XmlHtmlDom
         $tokens = $relRaw === null ? [] : self::spaceSeparatedTokens($relRaw);
         $knownTokens = [
             'alternate' => true,
+            'apple-touch-icon' => true,
+            'apple-touch-startup-image' => true,
             'author' => true,
             'canonical' => true,
             'dns-prefetch' => true,
@@ -16404,6 +16407,7 @@ final class XmlHtmlDom
             'icon' => true,
             'license' => true,
             'manifest' => true,
+            'mask-icon' => true,
             'modulepreload' => true,
             'next' => true,
             'pingback' => true,
@@ -16417,10 +16421,13 @@ final class XmlHtmlDom
         ];
         $resourceTokenKinds = [
             'alternate' => 'alternate',
+            'apple-touch-icon' => 'icon',
+            'apple-touch-startup-image' => 'icon',
             'canonical' => 'canonical',
             'dns-prefetch' => 'resource-hint',
             'icon' => 'icon',
             'manifest' => 'manifest',
+            'mask-icon' => 'icon',
             'modulepreload' => 'modulepreload',
             'preconnect' => 'resource-hint',
             'prefetch' => 'resource-hint',
@@ -16647,6 +16654,127 @@ final class XmlHtmlDom
                 $fetchPolicyIssues
             ))),
             'linkFetchPolicyValid' => $fetchPolicyIssues === [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function linkSizesReviewSummary(\DOMElement $link): array
+    {
+        if (!$link->hasAttribute('sizes')) {
+            return [];
+        }
+
+        $raw = self::attributeOrNull($link, 'sizes') ?? '';
+        $tokens = self::spaceSeparatedTokens($raw);
+        $records = [];
+        $dimensions = [];
+        $normalizedCounts = [];
+        $invalid = [];
+        $issues = [];
+        $anyPresent = false;
+
+        foreach ($tokens as $token) {
+            $lower = strtolower($token);
+            $record = [
+                'token' => $token,
+                'kind' => 'invalid',
+                'normalized' => null,
+                'width' => null,
+                'height' => null,
+                'valid' => false,
+            ];
+
+            if ($lower === 'any') {
+                $record['kind'] = 'any';
+                $record['normalized'] = 'any';
+                $record['valid'] = true;
+                $anyPresent = true;
+            } elseif (preg_match('/^([0-9]+)[xX]([0-9]+)$/', $token, $matches) === 1) {
+                $width = self::positiveIntegerToken((string) $matches[1], 2147483647);
+                $height = self::positiveIntegerToken((string) $matches[2], 2147483647);
+                if ($width !== null && $height !== null) {
+                    $record['kind'] = 'dimension';
+                    $record['normalized'] = $width . 'x' . $height;
+                    $record['width'] = $width;
+                    $record['height'] = $height;
+                    $record['valid'] = true;
+                    $dimensions[] = [
+                        'token' => $token,
+                        'normalized' => $record['normalized'],
+                        'width' => $width,
+                        'height' => $height,
+                    ];
+                }
+            }
+
+            if ($record['valid'] === true) {
+                $normalized = (string) $record['normalized'];
+                $normalizedCounts[$normalized] = ($normalizedCounts[$normalized] ?? 0) + 1;
+            } else {
+                $invalid[] = $token;
+                $issues[] = ['code' => 'invalid-link-size-token', 'token' => $token];
+            }
+
+            $records[] = $record;
+        }
+
+        if ($tokens === []) {
+            $issues[] = ['code' => 'empty-link-sizes'];
+        }
+
+        $duplicateTokens = [];
+        foreach ($normalizedCounts as $token => $count) {
+            if ($count > 1) {
+                $duplicateTokens[] = $token;
+                $issues[] = [
+                    'code' => 'duplicate-link-size-token',
+                    'token' => $token,
+                    'count' => $count,
+                ];
+            }
+        }
+
+        $relTokens = [];
+        foreach (self::spaceSeparatedTokens(self::attributeOrNull($link, 'rel') ?? '') as $relToken) {
+            if (self::isSafeHtmlRelToken($relToken)) {
+                $lower = strtolower($relToken);
+                if (!in_array($lower, $relTokens, true)) {
+                    $relTokens[] = $lower;
+                }
+            }
+        }
+        $iconRelTokens = array_values(array_intersect($relTokens, [
+            'apple-touch-icon',
+            'apple-touch-startup-image',
+            'icon',
+            'mask-icon',
+        ]));
+        $appliesToIcon = $iconRelTokens !== [];
+        if (!$appliesToIcon) {
+            $issues[] = ['code' => 'link-sizes-without-icon-rel', 'relTokens' => $relTokens];
+        }
+
+        return [
+            'linkSizesReviewPolicy' => 'html-link-icon-sizes-token-review',
+            'linkSizesAttributePresent' => true,
+            'linkSizesRaw' => $raw,
+            'linkSizesTokens' => $tokens,
+            'linkSizesTokenRecords' => $records,
+            'linkSizesAnyPresent' => $anyPresent,
+            'linkSizesDimensions' => $dimensions,
+            'linkSizesDimensionCount' => count($dimensions),
+            'duplicateLinkSizeTokens' => $duplicateTokens,
+            'invalidLinkSizeTokens' => $invalid,
+            'linkSizesIconRelTokens' => $iconRelTokens,
+            'linkSizesAppliesToIconRel' => $appliesToIcon,
+            'linkSizesIssues' => $issues,
+            'linkSizesIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'linkSizesValid' => $issues === [],
         ];
     }
 
