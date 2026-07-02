@@ -2292,6 +2292,10 @@ XML);
     <p:pic>
       <p:blipFill><a:blip r:embed="rIdImage"/></p:blipFill>
     </p:pic>
+    <p:pic>
+      <p:nvPicPr><p:cNvPicPr/><p:nvPr/></p:nvPicPr>
+      <p:blipFill><a:blip r:embed="rIdMissingCNvPrImage"/></p:blipFill>
+    </p:pic>
   </p:spTree></p:cSld>
 </p:sld>
 XML);
@@ -2299,9 +2303,11 @@ XML);
 <?xml version="1.0" encoding="UTF-8"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/picture.png"/>
+  <Relationship Id="rIdMissingCNvPrImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/missing-cnvpr.png"/>
 </Relationships>
 XML);
     $zip->addFromString('ppt/media/picture.png', 'fake-picture-bytes');
+    $zip->addFromString('ppt/media/missing-cnvpr.png', 'fake-missing-cnvpr-picture-bytes');
     $zip->close();
 
     try {
@@ -9307,10 +9313,12 @@ return [
         $native = PandocConverter::write($document, 'native');
 
         $t->same([], $nodesOfType($document, 'image'));
-        $t->same(1, $review['slides'][0]['imageIssueCount'] ?? null);
+        $t->same(2, $review['slides'][0]['imageIssueCount'] ?? null);
         $t->same('missing-picture-nonvisual-properties', $review['slides'][0]['imageIssues'][0]['issue'] ?? null);
+        $t->same('missing-picture-nonvisual-properties', $review['slides'][0]['imageIssues'][1]['issue'] ?? null);
         $t->true(!str_contains($native, 'Image'), 'Malformed PPTX picture should not emit a native Image inline');
         $t->true(!str_contains($native, 'ppt/media/picture.png'), 'Malformed PPTX picture media target should not leak into visible native content');
+        $t->true(!str_contains($native, 'ppt/media/missing-cnvpr.png'), 'PPTX picture missing p:cNvPr should not leak its media target into visible native content');
     },
 
     'skips pptx pictures without blip elements like upstream' => static function (TestRunner $t) use ($buildPictureWithoutBlipPptxPackage, $nodesOfType): void {
