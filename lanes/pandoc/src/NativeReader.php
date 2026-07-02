@@ -966,6 +966,17 @@ final class NativeReader
 
     private function parseLinkInline(): AstNode
     {
+        if ($this->nextTokenIsSymbol('[')) {
+            $inlines = $this->parseInlineList();
+            [$url, $title] = $this->parseTargetTuple();
+
+            return new AstNode('link', [
+                'url' => $url,
+                'title' => $title,
+                'targetNative' => [$url, $title],
+            ], $inlines);
+        }
+
         $attrs = $this->parseAttrTuple();
         $inlines = $this->parseInlineList();
         [$url, $title] = $this->parseTargetTuple();
@@ -977,6 +988,18 @@ final class NativeReader
 
     private function parseImageInline(): AstNode
     {
+        if ($this->nextTokenIsSymbol('[')) {
+            $inlines = $this->parseInlineList();
+            [$url, $title] = $this->parseTargetTuple();
+
+            return new AstNode('image', [
+                'url' => $url,
+                'title' => $title,
+                'alt' => $this->plainInlineText($inlines),
+                'targetNative' => [$url, $title],
+            ], $inlines);
+        }
+
         $attrs = $this->parseAttrTuple();
         $inlines = $this->parseInlineList();
         [$url, $title] = $this->parseTargetTuple();
@@ -1604,6 +1627,13 @@ final class NativeReader
         }
 
         return false;
+    }
+
+    private function nextTokenIsSymbol(string $symbol): bool
+    {
+        $token = $this->peek();
+
+        return $token !== null && $token['type'] === 'symbol' && $token['value'] === $symbol;
     }
 
     private function expectIdentifier(string $identifier): void
