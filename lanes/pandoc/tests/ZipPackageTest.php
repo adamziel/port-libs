@@ -907,6 +907,7 @@ return [
                     'compressedSize' => $entry['compressedSize'],
                     'uncompressedSize' => $entry['uncompressedSize'],
                     'expansionRatio' => $entry['expansionRatio'],
+                    'localHeaderOffsetBucket' => $manifestEntry['localHeaderOffsetBucket'],
                     'localHeaderSha256' => hash(
                         'sha256',
                         substr($zip, $manifestEntry['localHeaderOffset'], $manifestEntry['localHeaderLength'])
@@ -1320,6 +1321,11 @@ return [
             'nameLengthBucketSummaryCount' => $manifest['nameLengthBucketSummaryCount'],
             'nameLengthBuckets' => $manifest['nameLengthBuckets'],
             'nameLengthBucketSummaries' => $manifest['nameLengthBucketSummaries'],
+            'localHeaderOffsetBucketSummaryCount' => $manifest['localHeaderOffsetBucketSummaryCount'],
+            'localHeaderOffsetBuckets' => $manifest['localHeaderOffsetBuckets'],
+            'localHeaderOffsetBucketEntryCounts' => $manifest['localHeaderOffsetBucketEntryCounts'],
+            'entryNamesByLocalHeaderOffsetBucket' => $manifest['entryNamesByLocalHeaderOffsetBucket'],
+            'localHeaderOffsetBucketSummaries' => $manifest['localHeaderOffsetBucketSummaries'],
             'centralDirectoryRecordBytes' => array_sum(array_column($expectedEntries, 'centralDirectoryRecordBytes')),
             'centralDirectoryFixedHeaderBytes' => 46 * count($expectedEntries),
             'centralDirectoryVariableFieldBytes' => strlen('OEBPS/content.xhtml')
@@ -1603,6 +1609,7 @@ return [
                 'compressedSize' => $entry['compressedSize'],
                 'uncompressedSize' => $entry['uncompressedSize'],
                 'expansionRatio' => $entry['expansionRatio'],
+                'localHeaderOffsetBucket' => $entry['localHeaderOffsetBucket'],
                 'localHeaderSha256' => $entry['localHeaderSha256'],
                 'localHeaderFixedHeaderBytes' => $entry['localHeaderFixedHeaderBytes'],
                 'localHeaderVariableFieldBytes' => $entry['localHeaderVariableFieldBytes'],
@@ -1985,6 +1992,145 @@ return [
         $t->same($manifest['nameLengthBucketSummaries'], $strict['packageManifest']['nameLengthBucketSummaries']);
         $t->same($manifest['nameLengthBucketSummaries'], $raw['packageManifest']['nameLengthBucketSummaries']);
         $t->same($manifest['nameLengthBucketSummaries'], $raw['strictImport']['packageManifest']['nameLengthBucketSummaries']);
+    },
+
+    'rolls up zip package manifest local header offset buckets before shared package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $startName = 'mimetype';
+        $earlyName = 'word/document.xml';
+        $middleName = 'word/media/pad.bin';
+        $lateName = 'word/media/tail.bin';
+        $mimetype = str_repeat('m', 64);
+        $documentXml = str_repeat('d', 220);
+        $padBytes = str_repeat('p', 700);
+        $tailBytes = str_repeat('t', 37);
+
+        $zip = $buildZipPackage([
+            [
+                'name' => $startName,
+                'data' => $mimetype,
+                'method' => 0,
+            ],
+            [
+                'name' => $earlyName,
+                'data' => $documentXml,
+                'method' => 0,
+            ],
+            [
+                'name' => $middleName,
+                'data' => $padBytes,
+                'method' => 0,
+            ],
+            [
+                'name' => $lateName,
+                'data' => $tailBytes,
+                'method' => 8,
+                'descriptor' => true,
+            ],
+        ]);
+        $package = ZipPackage::fromString($zip);
+        $manifest = $package->packageManifestPreflight();
+        $strict = $package->strictImportPreflight(2048, 100.0, 4096);
+        $raw = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 4096);
+
+        $entriesByName = array_column($manifest['entries'], null, 'name');
+        $buckets = array_column($manifest['localHeaderOffsetBucketSummaries'], null, 'localHeaderOffsetBucket');
+        $expectedBucket = static function (string $bucket, int $min, ?int $max, array $names) use ($entriesByName): array {
+            $fileEntryCount = 0;
+            $directoryEntryCount = 0;
+            $compressedBytes = 0;
+            $uncompressedBytes = 0;
+            $localHeaderBytes = 0;
+            $localRecordBytes = 0;
+            $sourceRecordBytes = 0;
+            $dataDescriptorEntryCount = 0;
+            $dataDescriptorBytes = 0;
+            $directoryRoots = [];
+            $compressionMethodNames = [];
+
+            foreach ($names as $name) {
+                $entry = $entriesByName[$name];
+                if ($entry['isDirectory']) {
+                    ++$directoryEntryCount;
+                } else {
+                    ++$fileEntryCount;
+                }
+                $compressedBytes += $entry['compressedSize'];
+                $uncompressedBytes += $entry['uncompressedSize'];
+                $localHeaderBytes += $entry['localHeaderLength'];
+                $localRecordBytes += $entry['localRecordBytes'];
+                $sourceRecordBytes += $entry['sourceRecordBytes'];
+                if ($entry['dataDescriptorBytes'] > 0) {
+                    ++$dataDescriptorEntryCount;
+                    $dataDescriptorBytes += $entry['dataDescriptorBytes'];
+                }
+                if (!in_array($entry['directoryRoot'], $directoryRoots, true)) {
+                    $directoryRoots[] = $entry['directoryRoot'];
+                }
+                if (!in_array($entry['compressionMethodName'], $compressionMethodNames, true)) {
+                    $compressionMethodNames[] = $entry['compressionMethodName'];
+                }
+            }
+
+            sort($directoryRoots, SORT_STRING);
+            sort($compressionMethodNames, SORT_STRING);
+            $lastName = $names[count($names) - 1];
+
+            return [
+                'localHeaderOffsetBucket' => $bucket,
+                'minLocalHeaderOffset' => $min,
+                'maxLocalHeaderOffset' => $max,
+                'entryCount' => count($names),
+                'fileEntryCount' => $fileEntryCount,
+                'directoryEntryCount' => $directoryEntryCount,
+                'compressedBytes' => $compressedBytes,
+                'uncompressedBytes' => $uncompressedBytes,
+                'localHeaderBytes' => $localHeaderBytes,
+                'localRecordBytes' => $localRecordBytes,
+                'sourceRecordBytes' => $sourceRecordBytes,
+                'dataDescriptorEntryCount' => $dataDescriptorEntryCount,
+                'dataDescriptorBytes' => $dataDescriptorBytes,
+                'firstLocalHeaderOffset' => $entriesByName[$names[0]]['localHeaderOffset'],
+                'lastLocalHeaderOffset' => $entriesByName[$lastName]['localHeaderOffset'],
+                'firstEntryName' => $names[0],
+                'lastEntryName' => $lastName,
+                'directoryRoots' => $directoryRoots,
+                'compressionMethodNames' => $compressionMethodNames,
+                'entryNames' => $names,
+            ];
+        };
+
+        $t->same(0, $entriesByName[$startName]['localHeaderOffset']);
+        $t->same('start-of-archive', $entriesByName[$startName]['localHeaderOffsetBucket']);
+        $t->same('1-to-255-bytes', $entriesByName[$earlyName]['localHeaderOffsetBucket']);
+        $t->same('256-to-1023-bytes', $entriesByName[$middleName]['localHeaderOffsetBucket']);
+        $t->same('1024-plus-bytes', $entriesByName[$lateName]['localHeaderOffsetBucket']);
+        $t->same(4, $manifest['localHeaderOffsetBucketSummaryCount']);
+        $t->same(
+            ['start-of-archive', '1-to-255-bytes', '256-to-1023-bytes', '1024-plus-bytes'],
+            $manifest['localHeaderOffsetBuckets']
+        );
+        $t->same([
+            'start-of-archive' => 1,
+            '1-to-255-bytes' => 1,
+            '256-to-1023-bytes' => 1,
+            '1024-plus-bytes' => 1,
+        ], $manifest['localHeaderOffsetBucketEntryCounts']);
+        $t->same([
+            'start-of-archive' => [$startName],
+            '1-to-255-bytes' => [$earlyName],
+            '256-to-1023-bytes' => [$middleName],
+            '1024-plus-bytes' => [$lateName],
+        ], $manifest['entryNamesByLocalHeaderOffsetBucket']);
+        $t->same($expectedBucket('start-of-archive', 0, 0, [$startName]), $buckets['start-of-archive']);
+        $t->same($expectedBucket('1-to-255-bytes', 1, 255, [$earlyName]), $buckets['1-to-255-bytes']);
+        $t->same($expectedBucket('256-to-1023-bytes', 256, 1023, [$middleName]), $buckets['256-to-1023-bytes']);
+        $t->same($expectedBucket('1024-plus-bytes', 1024, null, [$lateName]), $buckets['1024-plus-bytes']);
+        $t->same(1, $buckets['1024-plus-bytes']['dataDescriptorEntryCount']);
+        $t->same($entriesByName[$lateName]['dataDescriptorBytes'], $buckets['1024-plus-bytes']['dataDescriptorBytes']);
+
+        $t->same($manifest['localHeaderOffsetBucketSummaries'], $strict['packageManifest']['localHeaderOffsetBucketSummaries']);
+        $t->same($manifest['localHeaderOffsetBucketSummaries'], $raw['packageManifest']['localHeaderOffsetBucketSummaries']);
+        $t->same($manifest['localHeaderOffsetBucketSummaries'], $raw['strictImport']['packageManifest']['localHeaderOffsetBucketSummaries']);
     },
 
     'preflights zip package manifest path segment positions for shared package handoff' => static function (TestRunner $t) use ($buildZipPackage, $pathSegmentPositionReviews): void {
@@ -3040,6 +3186,7 @@ return [
                 'compressedSize' => strlen($documentXml),
                 'uncompressedSize' => strlen($documentXml),
                 'expansionRatio' => 1.0,
+                'localHeaderOffsetBucket' => $documentEntry['localHeaderOffsetBucket'],
                 'localHeaderSha256' => $documentEntry['localHeaderSha256'],
                 'localHeaderFixedHeaderBytes' => $documentEntry['localHeaderFixedHeaderBytes'],
                 'localHeaderVariableFieldBytes' => $documentEntry['localHeaderVariableFieldBytes'],
@@ -3121,6 +3268,7 @@ return [
                 'compressedSize' => strlen($commentsCompressed),
                 'uncompressedSize' => strlen($commentsXml),
                 'expansionRatio' => strlen($commentsXml) / strlen($commentsCompressed),
+                'localHeaderOffsetBucket' => $commentsEntry['localHeaderOffsetBucket'],
                 'localHeaderSha256' => $commentsEntry['localHeaderSha256'],
                 'localHeaderFixedHeaderBytes' => $commentsEntry['localHeaderFixedHeaderBytes'],
                 'localHeaderVariableFieldBytes' => $commentsEntry['localHeaderVariableFieldBytes'],
@@ -3375,6 +3523,11 @@ return [
             'nameLengthBucketSummaryCount' => $manifest['nameLengthBucketSummaryCount'],
             'nameLengthBuckets' => $manifest['nameLengthBuckets'],
             'nameLengthBucketSummaries' => $manifest['nameLengthBucketSummaries'],
+            'localHeaderOffsetBucketSummaryCount' => $manifest['localHeaderOffsetBucketSummaryCount'],
+            'localHeaderOffsetBuckets' => $manifest['localHeaderOffsetBuckets'],
+            'localHeaderOffsetBucketEntryCounts' => $manifest['localHeaderOffsetBucketEntryCounts'],
+            'entryNamesByLocalHeaderOffsetBucket' => $manifest['entryNamesByLocalHeaderOffsetBucket'],
+            'localHeaderOffsetBucketSummaries' => $manifest['localHeaderOffsetBucketSummaries'],
             'centralDirectoryRecordBytes' => $manifest['centralDirectoryRecordBytes'],
             'centralDirectoryFixedHeaderBytes' => $manifest['centralDirectoryFixedHeaderBytes'],
             'centralDirectoryVariableFieldBytes' => $manifest['centralDirectoryVariableFieldBytes'],
@@ -3579,6 +3732,7 @@ return [
                 'compressedSize' => $entry['compressedSize'],
                 'uncompressedSize' => $entry['uncompressedSize'],
                 'expansionRatio' => $entry['expansionRatio'],
+                'localHeaderOffsetBucket' => $entry['localHeaderOffsetBucket'],
                 'localHeaderSha256' => $entry['localHeaderSha256'],
                 'localHeaderFixedHeaderBytes' => $entry['localHeaderFixedHeaderBytes'],
                 'localHeaderVariableFieldBytes' => $entry['localHeaderVariableFieldBytes'],
