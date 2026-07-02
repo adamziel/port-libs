@@ -17080,6 +17080,20 @@ XML);
         $t->contains('<img src="ppt/media/image1.png"', $html);
     },
 
+    'rejects non-zip pptx bytes before package parsing like upstream' => static function (TestRunner $t): void {
+        foreach (['empty' => '', 'plain text' => 'not a pptx package'] as $case => $bytes) {
+            try {
+                (new PptxReader())->read($bytes);
+            } catch (RuntimeException $exception) {
+                $t->same('ZIP package is too short to contain an end-of-central-directory record', $exception->getMessage(), $case);
+
+                continue;
+            }
+
+            throw new RuntimeException('Expected ' . $case . ' PPTX bytes to fail before package parsing');
+        }
+    },
+
     'rejects pptx packages without a presentation relationship' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-empty-');
         if ($path === false) {
