@@ -15740,6 +15740,13 @@ final class ZipPackage
             static fn (array $summary): string => (string) $summary['packagePartBaseName'],
             $packagePartBaseNameSummaries
         );
+        $packagePartBaseNameEntryCounts = [];
+        $entryNamesByPackagePartBaseName = [];
+        foreach ($packagePartBaseNameSummaries as $summary) {
+            $baseName = (string) $summary['packagePartBaseName'];
+            $packagePartBaseNameEntryCounts[$baseName] = (int) $summary['entryCount'];
+            $entryNamesByPackagePartBaseName[$baseName] = $summary['entryNames'];
+        }
         $duplicatePackagePartBaseNameSummaries = array_values(array_filter(
             $packagePartBaseNameSummaries,
             static fn (array $summary): bool => (int) $summary['entryCount'] > 1
@@ -15753,6 +15760,13 @@ final class ZipPackage
             static fn (array $summary): string => (string) $summary['packagePartCaseFoldBaseName'],
             $packagePartCaseFoldBaseNameSummaries
         );
+        $packagePartCaseFoldBaseNameEntryCounts = [];
+        $entryNamesByPackagePartCaseFoldBaseName = [];
+        foreach ($packagePartCaseFoldBaseNameSummaries as $summary) {
+            $caseFoldBaseName = (string) $summary['packagePartCaseFoldBaseName'];
+            $packagePartCaseFoldBaseNameEntryCounts[$caseFoldBaseName] = (int) $summary['entryCount'];
+            $entryNamesByPackagePartCaseFoldBaseName[$caseFoldBaseName] = $summary['entryNames'];
+        }
         $duplicatePackagePartCaseFoldBaseNameSummaries = array_values(array_filter(
             $packagePartCaseFoldBaseNameSummaries,
             static fn (array $summary): bool => (int) $summary['entryCount'] > 1
@@ -15766,6 +15780,13 @@ final class ZipPackage
             static fn (array $summary): string => (string) $summary['packagePartBaseNameStem'],
             $packagePartBaseNameStemSummaries
         );
+        $packagePartBaseNameStemFileEntryCounts = [];
+        $entryNamesByPackagePartBaseNameStem = [];
+        foreach ($packagePartBaseNameStemSummaries as $summary) {
+            $baseNameStem = (string) $summary['packagePartBaseNameStem'];
+            $packagePartBaseNameStemFileEntryCounts[$baseNameStem] = (int) $summary['fileEntryCount'];
+            $entryNamesByPackagePartBaseNameStem[$baseNameStem] = $summary['entryNames'];
+        }
         $duplicatePackagePartBaseNameStemSummaries = array_values(array_filter(
             $packagePartBaseNameStemSummaries,
             static fn (array $summary): bool => (int) $summary['fileEntryCount'] > 1
@@ -15779,6 +15800,13 @@ final class ZipPackage
             static fn (array $summary): string => (string) $summary['packagePartCaseFoldBaseNameStem'],
             $packagePartCaseFoldBaseNameStemSummaries
         );
+        $packagePartCaseFoldBaseNameStemFileEntryCounts = [];
+        $entryNamesByPackagePartCaseFoldBaseNameStem = [];
+        foreach ($packagePartCaseFoldBaseNameStemSummaries as $summary) {
+            $caseFoldBaseNameStem = (string) $summary['packagePartCaseFoldBaseNameStem'];
+            $packagePartCaseFoldBaseNameStemFileEntryCounts[$caseFoldBaseNameStem] = (int) $summary['fileEntryCount'];
+            $entryNamesByPackagePartCaseFoldBaseNameStem[$caseFoldBaseNameStem] = $summary['entryNames'];
+        }
         $duplicatePackagePartCaseFoldBaseNameStemSummaries = array_values(array_filter(
             $packagePartCaseFoldBaseNameStemSummaries,
             static fn (array $summary): bool => (int) $summary['fileEntryCount'] > 1
@@ -15951,24 +15979,32 @@ final class ZipPackage
             'packagePartExtensionSummaries' => $packagePartExtensionSummaries,
             'packagePartBaseNameSummaryCount' => count($packagePartBaseNameSummaries),
             'packagePartBaseNames' => $packagePartBaseNames,
+            'packagePartBaseNameEntryCounts' => $packagePartBaseNameEntryCounts,
+            'entryNamesByPackagePartBaseName' => $entryNamesByPackagePartBaseName,
             'packagePartBaseNameSummaries' => $packagePartBaseNameSummaries,
             'duplicatePackagePartBaseNameCount' => count($duplicatePackagePartBaseNameSummaries),
             'duplicatePackagePartBaseNames' => $duplicatePackagePartBaseNames,
             'duplicatePackagePartBaseNameSummaries' => $duplicatePackagePartBaseNameSummaries,
             'packagePartCaseFoldBaseNameSummaryCount' => count($packagePartCaseFoldBaseNameSummaries),
             'packagePartCaseFoldBaseNames' => $packagePartCaseFoldBaseNames,
+            'packagePartCaseFoldBaseNameEntryCounts' => $packagePartCaseFoldBaseNameEntryCounts,
+            'entryNamesByPackagePartCaseFoldBaseName' => $entryNamesByPackagePartCaseFoldBaseName,
             'packagePartCaseFoldBaseNameSummaries' => $packagePartCaseFoldBaseNameSummaries,
             'duplicatePackagePartCaseFoldBaseNameCount' => count($duplicatePackagePartCaseFoldBaseNameSummaries),
             'duplicatePackagePartCaseFoldBaseNames' => $duplicatePackagePartCaseFoldBaseNames,
             'duplicatePackagePartCaseFoldBaseNameSummaries' => $duplicatePackagePartCaseFoldBaseNameSummaries,
             'packagePartBaseNameStemSummaryCount' => count($packagePartBaseNameStemSummaries),
             'packagePartBaseNameStems' => $packagePartBaseNameStems,
+            'packagePartBaseNameStemFileEntryCounts' => $packagePartBaseNameStemFileEntryCounts,
+            'entryNamesByPackagePartBaseNameStem' => $entryNamesByPackagePartBaseNameStem,
             'packagePartBaseNameStemSummaries' => $packagePartBaseNameStemSummaries,
             'duplicatePackagePartBaseNameStemCount' => count($duplicatePackagePartBaseNameStemSummaries),
             'duplicatePackagePartBaseNameStems' => $duplicatePackagePartBaseNameStems,
             'duplicatePackagePartBaseNameStemSummaries' => $duplicatePackagePartBaseNameStemSummaries,
             'packagePartCaseFoldBaseNameStemSummaryCount' => count($packagePartCaseFoldBaseNameStemSummaries),
             'packagePartCaseFoldBaseNameStems' => $packagePartCaseFoldBaseNameStems,
+            'packagePartCaseFoldBaseNameStemFileEntryCounts' => $packagePartCaseFoldBaseNameStemFileEntryCounts,
+            'entryNamesByPackagePartCaseFoldBaseNameStem' => $entryNamesByPackagePartCaseFoldBaseNameStem,
             'packagePartCaseFoldBaseNameStemSummaries' => $packagePartCaseFoldBaseNameStemSummaries,
             'duplicatePackagePartCaseFoldBaseNameStemCount' => count($duplicatePackagePartCaseFoldBaseNameStemSummaries),
             'duplicatePackagePartCaseFoldBaseNameStems' => $duplicatePackagePartCaseFoldBaseNameStems,
@@ -16162,6 +16198,8 @@ final class ZipPackage
             'packagePartExtensionSummaries' => $packagePartExtensionSummaries,
             'packagePartBaseNameSummaryCount' => count($packagePartBaseNameSummaries),
             'packagePartBaseNames' => $packagePartBaseNames,
+            'packagePartBaseNameEntryCounts' => $packagePartBaseNameEntryCounts,
+            'entryNamesByPackagePartBaseName' => $entryNamesByPackagePartBaseName,
             'packagePartBaseNameSummaries' => $packagePartBaseNameSummaries,
             'duplicatePackagePartBaseNameCount' => count($duplicatePackagePartBaseNameSummaries),
             'hasDuplicatePackagePartBaseNames' => $duplicatePackagePartBaseNameSummaries !== [],
@@ -16169,6 +16207,8 @@ final class ZipPackage
             'duplicatePackagePartBaseNameSummaries' => $duplicatePackagePartBaseNameSummaries,
             'packagePartCaseFoldBaseNameSummaryCount' => count($packagePartCaseFoldBaseNameSummaries),
             'packagePartCaseFoldBaseNames' => $packagePartCaseFoldBaseNames,
+            'packagePartCaseFoldBaseNameEntryCounts' => $packagePartCaseFoldBaseNameEntryCounts,
+            'entryNamesByPackagePartCaseFoldBaseName' => $entryNamesByPackagePartCaseFoldBaseName,
             'packagePartCaseFoldBaseNameSummaries' => $packagePartCaseFoldBaseNameSummaries,
             'duplicatePackagePartCaseFoldBaseNameCount' => count($duplicatePackagePartCaseFoldBaseNameSummaries),
             'hasDuplicatePackagePartCaseFoldBaseNames' => $duplicatePackagePartCaseFoldBaseNameSummaries !== [],
@@ -16176,6 +16216,8 @@ final class ZipPackage
             'duplicatePackagePartCaseFoldBaseNameSummaries' => $duplicatePackagePartCaseFoldBaseNameSummaries,
             'packagePartBaseNameStemSummaryCount' => count($packagePartBaseNameStemSummaries),
             'packagePartBaseNameStems' => $packagePartBaseNameStems,
+            'packagePartBaseNameStemFileEntryCounts' => $packagePartBaseNameStemFileEntryCounts,
+            'entryNamesByPackagePartBaseNameStem' => $entryNamesByPackagePartBaseNameStem,
             'packagePartBaseNameStemSummaries' => $packagePartBaseNameStemSummaries,
             'duplicatePackagePartBaseNameStemCount' => count($duplicatePackagePartBaseNameStemSummaries),
             'hasDuplicatePackagePartBaseNameStems' => $duplicatePackagePartBaseNameStemSummaries !== [],
@@ -16183,6 +16225,8 @@ final class ZipPackage
             'duplicatePackagePartBaseNameStemSummaries' => $duplicatePackagePartBaseNameStemSummaries,
             'packagePartCaseFoldBaseNameStemSummaryCount' => count($packagePartCaseFoldBaseNameStemSummaries),
             'packagePartCaseFoldBaseNameStems' => $packagePartCaseFoldBaseNameStems,
+            'packagePartCaseFoldBaseNameStemFileEntryCounts' => $packagePartCaseFoldBaseNameStemFileEntryCounts,
+            'entryNamesByPackagePartCaseFoldBaseNameStem' => $entryNamesByPackagePartCaseFoldBaseNameStem,
             'packagePartCaseFoldBaseNameStemSummaries' => $packagePartCaseFoldBaseNameStemSummaries,
             'duplicatePackagePartCaseFoldBaseNameStemCount' => count($duplicatePackagePartCaseFoldBaseNameStemSummaries),
             'hasDuplicatePackagePartCaseFoldBaseNameStems' => $duplicatePackagePartCaseFoldBaseNameStemSummaries !== [],

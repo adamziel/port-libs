@@ -1373,24 +1373,32 @@ return [
             'packagePartExtensionSummaries' => $expectedPackagePartExtensionSummaries,
             'packagePartBaseNameSummaryCount' => $manifest['packagePartBaseNameSummaryCount'],
             'packagePartBaseNames' => $manifest['packagePartBaseNames'],
+            'packagePartBaseNameEntryCounts' => $manifest['packagePartBaseNameEntryCounts'],
+            'entryNamesByPackagePartBaseName' => $manifest['entryNamesByPackagePartBaseName'],
             'packagePartBaseNameSummaries' => $manifest['packagePartBaseNameSummaries'],
             'duplicatePackagePartBaseNameCount' => $manifest['duplicatePackagePartBaseNameCount'],
             'duplicatePackagePartBaseNames' => $manifest['duplicatePackagePartBaseNames'],
             'duplicatePackagePartBaseNameSummaries' => $manifest['duplicatePackagePartBaseNameSummaries'],
             'packagePartCaseFoldBaseNameSummaryCount' => $manifest['packagePartCaseFoldBaseNameSummaryCount'],
             'packagePartCaseFoldBaseNames' => $manifest['packagePartCaseFoldBaseNames'],
+            'packagePartCaseFoldBaseNameEntryCounts' => $manifest['packagePartCaseFoldBaseNameEntryCounts'],
+            'entryNamesByPackagePartCaseFoldBaseName' => $manifest['entryNamesByPackagePartCaseFoldBaseName'],
             'packagePartCaseFoldBaseNameSummaries' => $manifest['packagePartCaseFoldBaseNameSummaries'],
             'duplicatePackagePartCaseFoldBaseNameCount' => $manifest['duplicatePackagePartCaseFoldBaseNameCount'],
             'duplicatePackagePartCaseFoldBaseNames' => $manifest['duplicatePackagePartCaseFoldBaseNames'],
             'duplicatePackagePartCaseFoldBaseNameSummaries' => $manifest['duplicatePackagePartCaseFoldBaseNameSummaries'],
             'packagePartBaseNameStemSummaryCount' => $manifest['packagePartBaseNameStemSummaryCount'],
             'packagePartBaseNameStems' => $manifest['packagePartBaseNameStems'],
+            'packagePartBaseNameStemFileEntryCounts' => $manifest['packagePartBaseNameStemFileEntryCounts'],
+            'entryNamesByPackagePartBaseNameStem' => $manifest['entryNamesByPackagePartBaseNameStem'],
             'packagePartBaseNameStemSummaries' => $manifest['packagePartBaseNameStemSummaries'],
             'duplicatePackagePartBaseNameStemCount' => $manifest['duplicatePackagePartBaseNameStemCount'],
             'duplicatePackagePartBaseNameStems' => $manifest['duplicatePackagePartBaseNameStems'],
             'duplicatePackagePartBaseNameStemSummaries' => $manifest['duplicatePackagePartBaseNameStemSummaries'],
             'packagePartCaseFoldBaseNameStemSummaryCount' => $manifest['packagePartCaseFoldBaseNameStemSummaryCount'],
             'packagePartCaseFoldBaseNameStems' => $manifest['packagePartCaseFoldBaseNameStems'],
+            'packagePartCaseFoldBaseNameStemFileEntryCounts' => $manifest['packagePartCaseFoldBaseNameStemFileEntryCounts'],
+            'entryNamesByPackagePartCaseFoldBaseNameStem' => $manifest['entryNamesByPackagePartCaseFoldBaseNameStem'],
             'packagePartCaseFoldBaseNameStemSummaries' => $manifest['packagePartCaseFoldBaseNameStemSummaries'],
             'duplicatePackagePartCaseFoldBaseNameStemCount' => $manifest['duplicatePackagePartCaseFoldBaseNameStemCount'],
             'duplicatePackagePartCaseFoldBaseNameStems' => $manifest['duplicatePackagePartCaseFoldBaseNameStems'],
@@ -2302,6 +2310,8 @@ return [
             return $bytes;
         };
         $documentStemNames = ['word/document.xml', 'customXml/document.xml'];
+        $caseFoldDocumentNames = ['word/document.xml', 'customXml/document.xml', 'CustomXml/DOCUMENT.XML'];
+        $caseFoldReviewNames = ['word/media/review.png', 'word/Media/Review.PNG'];
 
         $t->same('Review.PNG', $entriesByName['word/Media/Review.PNG']['packagePartBaseName']);
         $t->same('review.png', $entriesByName['word/Media/Review.PNG']['packagePartCaseFoldBaseName']);
@@ -2316,12 +2326,29 @@ return [
         $t->same(1, $manifest['duplicatePackagePartBaseNameCount']);
         $t->same(true, $manifest['hasDuplicatePackagePartBaseNames']);
         $t->same(['document.xml'], $manifest['duplicatePackagePartBaseNames']);
+        $t->same([
+            'DOCUMENT.XML' => 1,
+            'Review.PNG' => 1,
+            'document.xml' => 2,
+            'media' => 1,
+            'mimetype' => 1,
+            'review.png' => 1,
+        ], $manifest['packagePartBaseNameEntryCounts']);
+        $t->same($documentStemNames, $manifest['entryNamesByPackagePartBaseName']['document.xml']);
         $t->same(2, $baseNamesByKey['document.xml']['entryCount']);
         $t->same(['customXml/' => 1, 'word/' => 1], $baseNamesByKey['document.xml']['directoryRootCounts']);
         $t->same(['xml' => 2], $baseNamesByKey['document.xml']['packagePartExtensionKeyCounts']);
 
         $t->same(5, $manifest['packagePartBaseNameStemSummaryCount']);
         $t->same(['DOCUMENT', 'Review', 'document', 'mimetype', 'review'], $manifest['packagePartBaseNameStems']);
+        $t->same([
+            'DOCUMENT' => 1,
+            'Review' => 1,
+            'document' => 2,
+            'mimetype' => 1,
+            'review' => 1,
+        ], $manifest['packagePartBaseNameStemFileEntryCounts']);
+        $t->same($documentStemNames, $manifest['entryNamesByPackagePartBaseNameStem']['document']);
         $t->same(1, $manifest['duplicatePackagePartBaseNameStemCount']);
         $t->same(true, $manifest['hasDuplicatePackagePartBaseNameStems']);
         $t->same(['document'], $manifest['duplicatePackagePartBaseNameStems']);
@@ -2343,6 +2370,13 @@ return [
         $t->same(2, $manifest['duplicatePackagePartCaseFoldBaseNameCount']);
         $t->same(true, $manifest['hasDuplicatePackagePartCaseFoldBaseNames']);
         $t->same(['document.xml', 'review.png'], $manifest['duplicatePackagePartCaseFoldBaseNames']);
+        $t->same([
+            'document.xml' => 3,
+            'media' => 1,
+            'mimetype' => 1,
+            'review.png' => 2,
+        ], $manifest['packagePartCaseFoldBaseNameEntryCounts']);
+        $t->same($caseFoldDocumentNames, $manifest['entryNamesByPackagePartCaseFoldBaseName']['document.xml']);
         $t->same(3, $caseFoldBaseNamesByKey['document.xml']['entryCount']);
         $t->same(2, $caseFoldBaseNamesByKey['document.xml']['packagePartBaseNameVariantCount']);
         $t->same([
@@ -2367,6 +2401,12 @@ return [
         $t->same(2, $manifest['duplicatePackagePartCaseFoldBaseNameStemCount']);
         $t->same(true, $manifest['hasDuplicatePackagePartCaseFoldBaseNameStems']);
         $t->same(['document', 'review'], $manifest['duplicatePackagePartCaseFoldBaseNameStems']);
+        $t->same([
+            'document' => 3,
+            'mimetype' => 1,
+            'review' => 2,
+        ], $manifest['packagePartCaseFoldBaseNameStemFileEntryCounts']);
+        $t->same($caseFoldReviewNames, $manifest['entryNamesByPackagePartCaseFoldBaseNameStem']['review']);
         $t->same(3, $caseFoldStemsByKey['document']['fileEntryCount']);
         $t->same([
             'DOCUMENT' => 1,
@@ -3424,24 +3464,32 @@ return [
             'packagePartExtensionSummaries' => $expectedPackagePartExtensionSummaries,
             'packagePartBaseNameSummaryCount' => $manifest['packagePartBaseNameSummaryCount'],
             'packagePartBaseNames' => $manifest['packagePartBaseNames'],
+            'packagePartBaseNameEntryCounts' => $manifest['packagePartBaseNameEntryCounts'],
+            'entryNamesByPackagePartBaseName' => $manifest['entryNamesByPackagePartBaseName'],
             'packagePartBaseNameSummaries' => $manifest['packagePartBaseNameSummaries'],
             'duplicatePackagePartBaseNameCount' => $manifest['duplicatePackagePartBaseNameCount'],
             'duplicatePackagePartBaseNames' => $manifest['duplicatePackagePartBaseNames'],
             'duplicatePackagePartBaseNameSummaries' => $manifest['duplicatePackagePartBaseNameSummaries'],
             'packagePartCaseFoldBaseNameSummaryCount' => $manifest['packagePartCaseFoldBaseNameSummaryCount'],
             'packagePartCaseFoldBaseNames' => $manifest['packagePartCaseFoldBaseNames'],
+            'packagePartCaseFoldBaseNameEntryCounts' => $manifest['packagePartCaseFoldBaseNameEntryCounts'],
+            'entryNamesByPackagePartCaseFoldBaseName' => $manifest['entryNamesByPackagePartCaseFoldBaseName'],
             'packagePartCaseFoldBaseNameSummaries' => $manifest['packagePartCaseFoldBaseNameSummaries'],
             'duplicatePackagePartCaseFoldBaseNameCount' => $manifest['duplicatePackagePartCaseFoldBaseNameCount'],
             'duplicatePackagePartCaseFoldBaseNames' => $manifest['duplicatePackagePartCaseFoldBaseNames'],
             'duplicatePackagePartCaseFoldBaseNameSummaries' => $manifest['duplicatePackagePartCaseFoldBaseNameSummaries'],
             'packagePartBaseNameStemSummaryCount' => $manifest['packagePartBaseNameStemSummaryCount'],
             'packagePartBaseNameStems' => $manifest['packagePartBaseNameStems'],
+            'packagePartBaseNameStemFileEntryCounts' => $manifest['packagePartBaseNameStemFileEntryCounts'],
+            'entryNamesByPackagePartBaseNameStem' => $manifest['entryNamesByPackagePartBaseNameStem'],
             'packagePartBaseNameStemSummaries' => $manifest['packagePartBaseNameStemSummaries'],
             'duplicatePackagePartBaseNameStemCount' => $manifest['duplicatePackagePartBaseNameStemCount'],
             'duplicatePackagePartBaseNameStems' => $manifest['duplicatePackagePartBaseNameStems'],
             'duplicatePackagePartBaseNameStemSummaries' => $manifest['duplicatePackagePartBaseNameStemSummaries'],
             'packagePartCaseFoldBaseNameStemSummaryCount' => $manifest['packagePartCaseFoldBaseNameStemSummaryCount'],
             'packagePartCaseFoldBaseNameStems' => $manifest['packagePartCaseFoldBaseNameStems'],
+            'packagePartCaseFoldBaseNameStemFileEntryCounts' => $manifest['packagePartCaseFoldBaseNameStemFileEntryCounts'],
+            'entryNamesByPackagePartCaseFoldBaseNameStem' => $manifest['entryNamesByPackagePartCaseFoldBaseNameStem'],
             'packagePartCaseFoldBaseNameStemSummaries' => $manifest['packagePartCaseFoldBaseNameStemSummaries'],
             'duplicatePackagePartCaseFoldBaseNameStemCount' => $manifest['duplicatePackagePartCaseFoldBaseNameStemCount'],
             'duplicatePackagePartCaseFoldBaseNameStems' => $manifest['duplicatePackagePartCaseFoldBaseNameStems'],
