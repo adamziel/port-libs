@@ -10002,6 +10002,7 @@ XML);
       <p:nvSpPr><p:cNvPr id="3" name="Body 1"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
       <p:txBody><a:bodyPr/><a:lstStyle/>
         <a:p><a:r><a:t>Drawing text</a:t></a:r><a:r><a:t></a:t></a:r><bad:r><bad:t>Foreign text</bad:t></bad:r><bad:wrapper><bad:t>Nested foreign text</bad:t></bad:wrapper></a:p>
+        <a:p><a:r><a:t>Outer <bad:t>Inner duplicate</bad:t></a:t></a:r></a:p>
       </p:txBody>
     </p:sp>
   </p:spTree></p:cSld>
@@ -16494,8 +16495,10 @@ return [
         $t->same(1, $review['slideCount'] ?? null);
         $t->same('Namespace agnostic text', $document->children[0]->attr('text'));
         $t->same(true, in_array('Drawing text Foreign text Nested foreign text', $paragraphTexts, true));
+        $t->same(true, in_array('Outer Inner duplicate Inner duplicate', $paragraphTexts, true));
         $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
         $t->contains('Para [ Str "Drawing" , Space , Str "text" , Space , Str "Foreign" , Space , Str "text" , Space , Str "Nested" , Space , Str "foreign" , Space , Str "text" ]', $native);
+        $t->contains('Para [ Str "Outer" , Space , Str "Inner" , Space , Str "duplicate" , Space , Str "Inner" , Space , Str "duplicate" ]', $native);
     },
 
     'uses pptx paragraph-property descendant text elements like upstream' => static function (TestRunner $t) use ($buildParagraphPropertyDescendantTextPptxPackage, $nodesOfType): void {
