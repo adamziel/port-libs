@@ -2346,6 +2346,7 @@ final class OpenDocumentPackage
         }
 
         $comments = is_array($packageInventory['comments'] ?? null) ? $packageInventory['comments'] : [];
+        $manifestByteExposurePolicies = self::manifestByteExposurePolicySummary($this->manifestEntries);
         $payload = [
             'identityVersion' => 1,
             'packageType' => 'opendocument-text',
@@ -2389,6 +2390,9 @@ final class OpenDocumentPackage
             'leafNameSummaries' => $packageInventory['leafNameSummaries'] ?? [],
             'sharedLeafNameSummaries' => $packageInventory['sharedLeafNameSummaries'] ?? [],
             'byteExposurePolicyCounts' => $packageInventory['byteExposurePolicyCounts'] ?? [],
+            'manifestByteExposurePolicyCounts' => $manifestByteExposurePolicies['manifestByteExposurePolicyCounts'],
+            'manifestByteExposurePolicyItemCount' => $manifestByteExposurePolicies['manifestByteExposurePolicyItemCount'],
+            'manifestByteExposurePolicyItems' => $manifestByteExposurePolicies['manifestByteExposurePolicyItems'],
             'roleCounts' => $packageInventory['roleCounts'] ?? [],
             'packageCoreParts' => $packageCoreParts,
             'undeclaredEntryCount' => $packageInventory['undeclaredEntryCount'] ?? 0,
@@ -10744,6 +10748,7 @@ final class OpenDocumentPackage
             self::MANIFEST_DECLARED_SIZE_LARGEST_ITEM_LIMIT
         );
         $summary['largestDeclaredSizeItemCount'] = count($summary['largestDeclaredSizeItems']);
+        $summary += self::manifestByteExposurePolicySummary($entries);
         sort($summary['manifestCustomAttributeNames'], SORT_STRING);
         sort($summary['manifestCustomChildElementNames'], SORT_STRING);
         sort($summary['manifestMediaTypeParameterNames'], SORT_STRING);
@@ -11792,6 +11797,48 @@ final class OpenDocumentPackage
             'missingMediaType' => ($entry['missingMediaType'] ?? false) === true,
             'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? null,
             'diagnostics' => $entry['diagnostics'] ?? [],
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return array{manifestByteExposurePolicyCounts:array<string, int>, manifestByteExposurePolicyItemCount:int, manifestByteExposurePolicyItems:list<array<string, mixed>>}
+     */
+    private static function manifestByteExposurePolicySummary(array $entries): array
+    {
+        $policyCounts = [];
+        $policyItems = [];
+
+        foreach ($entries as $entry) {
+            $byteExposurePolicy = $entry['byteExposurePolicy'] ?? null;
+            if (!is_string($byteExposurePolicy) || $byteExposurePolicy === '') {
+                continue;
+            }
+
+            $policyCounts[$byteExposurePolicy] = ($policyCounts[$byteExposurePolicy] ?? 0) + 1;
+            $policyItems[] = self::withoutEmptyValues([
+                'manifestIndex' => $entry['manifestIndex'] ?? null,
+                'fullPath' => $entry['path'] ?? null,
+                'path' => $entry['path'] ?? null,
+                'part' => $entry['packagePath'] ?? null,
+                'packagePath' => $entry['packagePath'] ?? null,
+                'mediaType' => $entry['mediaType'] ?? null,
+                'missingMediaType' => ($entry['missingMediaType'] ?? false) === true,
+                'byteExposurePolicy' => $byteExposurePolicy,
+                'exists' => ($entry['exists'] ?? false) === true,
+                'isDirectory' => ($entry['isDirectory'] ?? false) === true,
+                'encrypted' => ($entry['encrypted'] ?? false) === true,
+                'canExposeBytes' => ($entry['canExposeBytes'] ?? false) === true,
+                'diagnostics' => $entry['diagnostics'] ?? [],
+            ]);
+        }
+
+        ksort($policyCounts, SORT_STRING);
+
+        return [
+            'manifestByteExposurePolicyCounts' => $policyCounts,
+            'manifestByteExposurePolicyItemCount' => count($policyItems),
+            'manifestByteExposurePolicyItems' => $policyItems,
         ];
     }
 
