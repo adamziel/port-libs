@@ -4662,6 +4662,10 @@ XML);
       <p:nvGraphicFramePr><p:cNvPr id="20" name="Root SmartArt Frame"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
       <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"><dgm:relIds r:dm="rIdData" r:lo="rIdLayout"/></a:graphicData></a:graphic>
     </p:graphicFrame>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="21" name="Literal SmartArt Frame"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"><dgm:relIds r:dm="rIdLiteralData" r:lo="rIdLiteralLayout"/></a:graphicData></a:graphic>
+    </p:graphicFrame>
   </p:spTree></p:cSld>
 </p:sld>
 XML);
@@ -4670,6 +4674,8 @@ XML);
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdData" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData" Target="/ppt/diagrams/data1.xml"/>
   <Relationship Id="rIdLayout" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramLayout" Target="/ppt/diagrams/layout1.xml"/>
+  <Relationship Id="rIdLiteralData" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData" Target="diagrams/data-literal.xml"/>
+  <Relationship Id="rIdLiteralLayout" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramLayout" Target="diagrams/layout-literal.xml"/>
 </Relationships>
 XML);
     $zip->addFromString('ppt/diagrams/layout1.xml', <<<'XML'
@@ -4682,6 +4688,22 @@ XML);
   <dgm:ptLst>
     <dgm:pt modelId="parent"><dgm:t><a:p><a:r><a:t>Root target parent</a:t></a:r></a:p></dgm:t></dgm:pt>
     <dgm:pt modelId="child"><dgm:t><a:p><a:r><a:t>Root target child</a:t></a:r></a:p></dgm:t></dgm:pt>
+  </dgm:ptLst>
+  <dgm:cxnLst>
+    <dgm:cxn srcId="parent" destId="child"/>
+  </dgm:cxnLst>
+</dgm:dataModel>
+XML);
+    $zip->addFromString('diagrams/layout-literal.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<dgm:layoutDef xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" uniqueId="urn:microsoft.com/office/officeart/2005/8/layout/literalLayout"/>
+XML);
+    $zip->addFromString('diagrams/data-literal.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<dgm:dataModel xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <dgm:ptLst>
+    <dgm:pt modelId="parent"><dgm:t><a:p><a:r><a:t>Literal target parent</a:t></a:r></a:p></dgm:t></dgm:pt>
+    <dgm:pt modelId="child"><dgm:t><a:p><a:r><a:t>Literal target child</a:t></a:r></a:p></dgm:t></dgm:pt>
   </dgm:ptLst>
   <dgm:cxnLst>
     <dgm:cxn srcId="parent" destId="child"/>
@@ -10499,12 +10521,17 @@ return [
         $review = $document->attr('pptx');
         $paragraphs = $nodesOfType($document, 'paragraph');
         $divs = $nodesOfType($document, 'div');
+        $smartArtDivs = $nodesWithClass($divs, 'smartart');
         $texts = array_map(static fn (AstNode $paragraph): string => (string) $paragraph->attr('text'), $paragraphs);
         $native = PandocConverter::write($document, 'native');
 
-        $t->same([], $nodesWithClass($divs, 'smartart'));
+        $t->same(1, count($smartArtDivs));
+        $t->same(['smartart', 'literalLayout'], $smartArtDivs[0]->attr('classes'));
+        $t->same(['layout' => 'literalLayout'], $smartArtDivs[0]->attr('attributes'));
         $t->same(true, in_array('[Diagram parse error: File not found in archive: /ppt/diagrams/data1.xml]', $texts, true));
         $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
+        $t->contains('Strong [ Str "Literal" , Space , Str "target" , Space , Str "parent" ]', $native);
+        $t->contains('BulletList [ [ Plain [ Str "Literal" , Space , Str "target" , Space , Str "child"', $native);
         $t->true(!str_contains($native, 'Root target parent'), 'Root-relative SmartArt target should not be normalized into parsed visible content');
         $t->true(!str_contains($native, 'Root target child'), 'Root-relative SmartArt target children should stay hidden when upstream would miss the part');
         $t->contains('Para [ Str "[Diagram" , Space , Str "parse" , Space , Str "error:" , Space , Str "File" , Space , Str "not" , Space , Str "found" , Space , Str "in" , Space , Str "archive:" , Space , Str "/ppt/diagrams/data1.xml]" ]', $native);
