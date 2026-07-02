@@ -717,6 +717,8 @@
             "sharedZipCentralDirectoryExpansionRatioBucketAssertions": 42,
             "mappedOdfPackagePathByteLengthBucketCases": 1,
             "odfPackagePathByteLengthBucketAssertions": 66,
+            "mappedOdfPackageDirectoryInventoryCases": 1,
+            "odfPackageDirectoryInventoryAssertions": 132,
             "mappedDocxOpenXmlUnixOwnerMetadataProvenanceCases": 1,
             "docxOpenXmlUnixOwnerMetadataProvenanceAssertions": 95,
             "legacyBiblatexOriginalLinkIdentifierCases": 1,
@@ -729,6 +731,8 @@
             "markdownWriterCitationSpanBoundaryFixtureAssertions": 14,
             "mappedSharedZipPackageNameLengthBucketCases": 1,
             "sharedZipPackageNameLengthBucketAssertions": 26,
+            "mappedSharedZipPackageDirectoryDepthBucketCases": 1,
+            "sharedZipPackageDirectoryDepthBucketAssertions": 32,
             "mappedOdfZipSourceRecordPackagePartExtensionCases": 1,
             "odfZipSourceRecordPackagePartExtensionAssertions": 65
         },
@@ -867,6 +871,8 @@
             "sharedZipCentralDirectoryExpansionRatioBucketAssertions": 42,
             "mappedOdfPackagePathByteLengthBucketCases": 1,
             "odfPackagePathByteLengthBucketAssertions": 66,
+            "mappedOdfPackageDirectoryInventoryCases": 1,
+            "odfPackageDirectoryInventoryAssertions": 132,
             "legacyBiblatexOriginalLinkIdentifierCases": 1,
             "mappedLegacyBiblatexOriginalLinkIdentifierCases": 1,
             "legacyBiblatexOriginalLinkIdentifierAssertions": 32,
@@ -876,6 +882,8 @@
             "markdownWriterCitationSpanBoundaryFixtureAssertions": 14,
             "mappedSharedZipPackageNameLengthBucketCases": 1,
             "sharedZipPackageNameLengthBucketAssertions": 26,
+            "mappedSharedZipPackageDirectoryDepthBucketCases": 1,
+            "sharedZipPackageDirectoryDepthBucketAssertions": 32,
             "mappedOdfZipSourceRecordPackagePartExtensionCases": 1,
             "odfZipSourceRecordPackagePartExtensionAssertions": 65
         }
@@ -2159,6 +2167,8 @@
         "sharedZipCentralDirectoryExpansionRatioBucketAssertions": 42,
         "mappedOdfPackagePathByteLengthBucketCases": 1,
         "odfPackagePathByteLengthBucketAssertions": 66,
+        "mappedOdfPackageDirectoryInventoryCases": 1,
+        "odfPackageDirectoryInventoryAssertions": 132,
         "legacyBiblatexOriginalLinkIdentifierCases": 1,
         "mappedLegacyBiblatexOriginalLinkIdentifierCases": 1,
         "legacyBiblatexOriginalLinkIdentifierAssertions": 32,
@@ -2167,6 +2177,8 @@
         "markdownWriterCitationSpanBoundaryFixtureAssertions": 14,
         "mappedSharedZipPackageNameLengthBucketCases": 1,
         "sharedZipPackageNameLengthBucketAssertions": 26,
+        "mappedSharedZipPackageDirectoryDepthBucketCases": 1,
+        "sharedZipPackageDirectoryDepthBucketAssertions": 32,
         "mappedOdfZipSourceRecordPackagePartExtensionCases": 1,
         "odfZipSourceRecordPackagePartExtensionAssertions": 65
     },
@@ -2304,6 +2316,8 @@
     "sharedZipCentralDirectoryExpansionRatioBucketAssertions": 42,
     "mappedOdfPackagePathByteLengthBucketCases": 1,
     "odfPackagePathByteLengthBucketAssertions": 66,
+    "mappedOdfPackageDirectoryInventoryCases": 1,
+    "odfPackageDirectoryInventoryAssertions": 132,
     "mappedDocxOpenXmlUnixOwnerMetadataProvenanceCases": 1,
     "docxOpenXmlUnixOwnerMetadataProvenanceAssertions": 95,
     "legacyBiblatexOriginalLinkIdentifierCases": 1,
@@ -2313,6 +2327,8 @@
     "markdownWriterCitationSpanBoundaryFixtureAssertions": 14,
     "mappedSharedZipPackageNameLengthBucketCases": 1,
     "sharedZipPackageNameLengthBucketAssertions": 26,
+    "mappedSharedZipPackageDirectoryDepthBucketCases": 1,
+    "sharedZipPackageDirectoryDepthBucketAssertions": 32,
     "mappedOdfZipSourceRecordPackagePartExtensionCases": 1,
     "odfZipSourceRecordPackagePartExtensionAssertions": 65
 }
