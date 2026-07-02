@@ -1250,6 +1250,7 @@ final class OpenDocumentPackage
             $packagePathByteLengthBucket = self::packagePathByteLengthBucket($packagePathByteLength);
             $packagePartExtension = self::packagePartExtension($entry->name);
             $rawPackagePartExtension = self::packagePartRawExtension($entry->name);
+            $pathSegmentNameCharacters = self::packagePathSegmentNameCharacterReview($pathShape);
             $roles = self::packageEntryRoles($entry, $manifestEntry, $isUndeclared, $embeddedObjectPackage);
             $byteExposurePolicy = null;
             if (is_array($manifestEntry)) {
@@ -1294,6 +1295,12 @@ final class OpenDocumentPackage
                 'packagePartExtensionHasUppercase' => $rawPackagePartExtension !== null && preg_match('/[A-Z]/', $rawPackagePartExtension) === 1,
                 'packagePartExtensionWasNormalized' => $packagePartExtension !== null && $rawPackagePartExtension !== null && $packagePartExtension !== $rawPackagePartExtension,
                 'extensionlessPackagePart' => !$entry->isDirectory() && $packagePartExtension === null,
+                'packagePathSegmentNameCharacterFlags' => $pathSegmentNameCharacters['flags'],
+                'packagePathSegmentNameHasUppercase' => $pathSegmentNameCharacters['hasUppercase'],
+                'packagePathSegmentNameHasWhitespace' => $pathSegmentNameCharacters['hasWhitespace'],
+                'packagePathSegmentNameHasPercentEncodedOctet' => $pathSegmentNameCharacters['hasPercentEncodedOctet'],
+                'packagePathSegmentNameHasNonAscii' => $pathSegmentNameCharacters['hasNonAscii'],
+                'packagePathSegmentNameCharacterReviews' => $pathSegmentNameCharacters['reviews'],
                 'roles' => $roles,
                 'centralDirectoryIndex' => $centralDirectoryIndex,
                 'localHeaderOrder' => is_array($localOrder) ? $localOrder['localHeaderOrder'] : null,
@@ -1622,6 +1629,7 @@ final class OpenDocumentPackage
         $packageZipTimestampSources = self::packageZipTimestampSourceInventory($parts);
         $packageExtraFields = self::packageExtraFieldInventory($parts);
         $packagePathByteLengths = self::packagePathByteLengthInventory($parts);
+        $packagePathSegmentNameCharacters = self::packagePathSegmentNameCharacterSummary($parts);
         $manifestPackageCoverage = self::manifestPackageCoverageProvenance($this->manifestEntries, $parts, $undeclaredEntries);
         $packageByteHandoff = OpenDocumentPackageByteHandoff::summarize($this->package, $parts, 'path');
         $centralDirectoryOrderMismatchRoles = self::centralDirectoryOrderMismatchRoleInventory($parts);
@@ -1813,6 +1821,23 @@ final class OpenDocumentPackage
             'packagePathByteLengthByteExposurePolicyCounts' => $packagePathByteLengths['packagePathByteLengthByteExposurePolicyCounts'],
             'entryNamesByPackagePathByteLengthByteExposurePolicy' => $packagePathByteLengths['entryNamesByPackagePathByteLengthByteExposurePolicy'],
             'packagePathByteLengthBucketSummaries' => $packagePathByteLengths['packagePathByteLengthBucketSummaries'],
+            'packagePathSegmentNameCharacterReviewSegmentCount' => $packagePathSegmentNameCharacters['segmentCount'],
+            'packagePathSegmentNameCharacterReviewOccurrenceCount' => $packagePathSegmentNameCharacters['occurrenceCount'],
+            'packagePathSegmentNameCharacterReviewPartCount' => $packagePathSegmentNameCharacters['partCount'],
+            'packagePathSegmentNameUppercaseOccurrenceCount' => (int) ($packagePathSegmentNameCharacters['flagOccurrenceCounts']['uppercase'] ?? 0),
+            'packagePathSegmentNameWhitespaceOccurrenceCount' => (int) ($packagePathSegmentNameCharacters['flagOccurrenceCounts']['whitespace'] ?? 0),
+            'packagePathSegmentNamePercentEncodedOctetOccurrenceCount' => (int) ($packagePathSegmentNameCharacters['flagOccurrenceCounts']['percent-encoded-octet'] ?? 0),
+            'packagePathSegmentNameNonAsciiOccurrenceCount' => (int) ($packagePathSegmentNameCharacters['flagOccurrenceCounts']['non-ascii'] ?? 0),
+            'packagePathSegmentNameUppercasePartCount' => (int) ($packagePathSegmentNameCharacters['flagPartCounts']['uppercase'] ?? 0),
+            'packagePathSegmentNameWhitespacePartCount' => (int) ($packagePathSegmentNameCharacters['flagPartCounts']['whitespace'] ?? 0),
+            'packagePathSegmentNamePercentEncodedOctetPartCount' => (int) ($packagePathSegmentNameCharacters['flagPartCounts']['percent-encoded-octet'] ?? 0),
+            'packagePathSegmentNameNonAsciiPartCount' => (int) ($packagePathSegmentNameCharacters['flagPartCounts']['non-ascii'] ?? 0),
+            'packagePathSegmentNameCharacterFlagOccurrenceCounts' => $packagePathSegmentNameCharacters['flagOccurrenceCounts'],
+            'packagePathSegmentNameCharacterFlagPartCounts' => $packagePathSegmentNameCharacters['flagPartCounts'],
+            'packagePathSegmentNameCharacterFlagSegments' => $packagePathSegmentNameCharacters['flagSegments'],
+            'packagePathSegmentNameCharacterFlagPartNames' => $packagePathSegmentNameCharacters['flagPartNames'],
+            'packagePathSegmentNameCharacterReviewSegmentNames' => $packagePathSegmentNameCharacters['segmentNames'],
+            'packagePathSegmentNameCharacterReviewSegments' => $packagePathSegmentNameCharacters['segments'],
             'zipPackageManifestPathSegmentPositionRoleCounts' => $zipPackageManifestPathSegmentPositionRoleCounts,
             'entryNamesByZipPackageManifestPathSegmentPositionRole' => $entryNamesByZipPackageManifestPathSegmentPositionRole,
             'zipPackageManifestPathSegmentPositionByteExposurePolicyCounts' => $zipPackageManifestPathSegmentPositionByteExposurePolicyCounts,
@@ -2749,6 +2774,12 @@ final class OpenDocumentPackage
                 'packagePartExtensionHasUppercase' => ($part['packagePartExtensionHasUppercase'] ?? false) === true,
                 'packagePartExtensionWasNormalized' => ($part['packagePartExtensionWasNormalized'] ?? false) === true,
                 'extensionlessPackagePart' => ($part['extensionlessPackagePart'] ?? false) === true,
+                'packagePathSegmentNameCharacterFlags' => $part['packagePathSegmentNameCharacterFlags'] ?? [],
+                'packagePathSegmentNameHasUppercase' => ($part['packagePathSegmentNameHasUppercase'] ?? false) === true,
+                'packagePathSegmentNameHasWhitespace' => ($part['packagePathSegmentNameHasWhitespace'] ?? false) === true,
+                'packagePathSegmentNameHasPercentEncodedOctet' => ($part['packagePathSegmentNameHasPercentEncodedOctet'] ?? false) === true,
+                'packagePathSegmentNameHasNonAscii' => ($part['packagePathSegmentNameHasNonAscii'] ?? false) === true,
+                'packagePathSegmentNameCharacterReviews' => $part['packagePathSegmentNameCharacterReviews'] ?? [],
                 'roles' => $part['roles'] ?? [],
                 'centralDirectoryIndex' => $part['centralDirectoryIndex'] ?? null,
                 'localHeaderOrder' => $part['localHeaderOrder'] ?? null,
@@ -3188,6 +3219,23 @@ final class OpenDocumentPackage
             'packagePathByteLengthByteExposurePolicyCounts' => $packageInventory['packagePathByteLengthByteExposurePolicyCounts'] ?? [],
             'entryNamesByPackagePathByteLengthByteExposurePolicy' => $packageInventory['entryNamesByPackagePathByteLengthByteExposurePolicy'] ?? [],
             'packagePathByteLengthBucketSummaries' => $packageInventory['packagePathByteLengthBucketSummaries'] ?? [],
+            'packagePathSegmentNameCharacterReviewSegmentCount' => $packageInventory['packagePathSegmentNameCharacterReviewSegmentCount'] ?? 0,
+            'packagePathSegmentNameCharacterReviewOccurrenceCount' => $packageInventory['packagePathSegmentNameCharacterReviewOccurrenceCount'] ?? 0,
+            'packagePathSegmentNameCharacterReviewPartCount' => $packageInventory['packagePathSegmentNameCharacterReviewPartCount'] ?? 0,
+            'packagePathSegmentNameUppercaseOccurrenceCount' => $packageInventory['packagePathSegmentNameUppercaseOccurrenceCount'] ?? 0,
+            'packagePathSegmentNameWhitespaceOccurrenceCount' => $packageInventory['packagePathSegmentNameWhitespaceOccurrenceCount'] ?? 0,
+            'packagePathSegmentNamePercentEncodedOctetOccurrenceCount' => $packageInventory['packagePathSegmentNamePercentEncodedOctetOccurrenceCount'] ?? 0,
+            'packagePathSegmentNameNonAsciiOccurrenceCount' => $packageInventory['packagePathSegmentNameNonAsciiOccurrenceCount'] ?? 0,
+            'packagePathSegmentNameUppercasePartCount' => $packageInventory['packagePathSegmentNameUppercasePartCount'] ?? 0,
+            'packagePathSegmentNameWhitespacePartCount' => $packageInventory['packagePathSegmentNameWhitespacePartCount'] ?? 0,
+            'packagePathSegmentNamePercentEncodedOctetPartCount' => $packageInventory['packagePathSegmentNamePercentEncodedOctetPartCount'] ?? 0,
+            'packagePathSegmentNameNonAsciiPartCount' => $packageInventory['packagePathSegmentNameNonAsciiPartCount'] ?? 0,
+            'packagePathSegmentNameCharacterFlagOccurrenceCounts' => $packageInventory['packagePathSegmentNameCharacterFlagOccurrenceCounts'] ?? [],
+            'packagePathSegmentNameCharacterFlagPartCounts' => $packageInventory['packagePathSegmentNameCharacterFlagPartCounts'] ?? [],
+            'packagePathSegmentNameCharacterFlagSegments' => $packageInventory['packagePathSegmentNameCharacterFlagSegments'] ?? [],
+            'packagePathSegmentNameCharacterFlagPartNames' => $packageInventory['packagePathSegmentNameCharacterFlagPartNames'] ?? [],
+            'packagePathSegmentNameCharacterReviewSegmentNames' => $packageInventory['packagePathSegmentNameCharacterReviewSegmentNames'] ?? [],
+            'packagePathSegmentNameCharacterReviewSegments' => $packageInventory['packagePathSegmentNameCharacterReviewSegments'] ?? [],
             'zipPackageManifestPathSegmentPositionRoleCounts' => $packageInventory['zipPackageManifestPathSegmentPositionRoleCounts'] ?? [],
             'entryNamesByZipPackageManifestPathSegmentPositionRole' => $packageInventory['entryNamesByZipPackageManifestPathSegmentPositionRole'] ?? [],
             'zipPackageManifestPathSegmentPositionByteExposurePolicyCounts' => $packageInventory['zipPackageManifestPathSegmentPositionByteExposurePolicyCounts'] ?? [],
@@ -6581,6 +6629,363 @@ final class OpenDocumentPackage
         }
 
         return 'other';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function packagePathNameCharacterFlags(string $name): array
+    {
+        $flags = [];
+        if (preg_match('/[A-Z]/', $name) === 1) {
+            $flags[] = 'uppercase';
+        }
+        if (preg_match('/[ \t\r\n\f\v]/', $name) === 1) {
+            $flags[] = 'whitespace';
+        }
+        if (preg_match('/%[0-9A-Fa-f]{2}/', $name) === 1) {
+            $flags[] = 'percent-encoded-octet';
+        }
+        if (preg_match('/[^\x00-\x7F]/', $name) === 1) {
+            $flags[] = 'non-ascii';
+        }
+
+        return $flags;
+    }
+
+    /**
+     * @param array<string, mixed> $pathShape
+     * @return array{
+     *     flags:list<string>,
+     *     hasUppercase:bool,
+     *     hasWhitespace:bool,
+     *     hasPercentEncodedOctet:bool,
+     *     hasNonAscii:bool,
+     *     reviews:list<array<string, mixed>>
+     * }
+     */
+    private static function packagePathSegmentNameCharacterReview(array $pathShape): array
+    {
+        $segments = is_array($pathShape['segments'] ?? null) ? array_values($pathShape['segments']) : [];
+        $segmentCount = count($segments);
+        $allFlags = [];
+        $reviews = [];
+        foreach ($segments as $segmentIndex => $segment) {
+            if (!is_string($segment) || $segment === '') {
+                continue;
+            }
+
+            $flags = self::packagePathNameCharacterFlags($segment);
+            if ($flags === []) {
+                continue;
+            }
+
+            foreach ($flags as $flag) {
+                $allFlags[$flag] = true;
+            }
+
+            $isOnly = $segmentCount === 1;
+            $position = match (true) {
+                $isOnly => 'only',
+                $segmentIndex === 0 => 'first',
+                $segmentIndex === $segmentCount - 1 => 'last',
+                default => 'middle',
+            };
+
+            $reviews[] = [
+                'pathSegmentIndex' => $segmentIndex,
+                'segment' => $segment,
+                'caseFoldSegment' => strtolower($segment),
+                'position' => $position,
+                'flags' => $flags,
+            ];
+        }
+
+        $flags = array_keys($allFlags);
+        sort($flags, SORT_STRING);
+
+        return [
+            'flags' => $flags,
+            'hasUppercase' => in_array('uppercase', $flags, true),
+            'hasWhitespace' => in_array('whitespace', $flags, true),
+            'hasPercentEncodedOctet' => in_array('percent-encoded-octet', $flags, true),
+            'hasNonAscii' => in_array('non-ascii', $flags, true),
+            'reviews' => $reviews,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $parts
+     * @return array<string, mixed>
+     */
+    private static function packagePathSegmentNameCharacterSummary(array $parts): array
+    {
+        $segments = [];
+        $partsSeenBySegment = [];
+        $flagOccurrenceCounts = [];
+        $flagSegments = [];
+        $flagPartNames = [];
+        $partNames = [];
+        $occurrenceCount = 0;
+
+        foreach ($parts as $name => $part) {
+            if (!is_array($part)) {
+                continue;
+            }
+
+            $entryName = is_string($part['path'] ?? null) ? $part['path'] : (string) $name;
+            $pathShape = is_array($part['pathShape'] ?? null) ? $part['pathShape'] : self::pathShape($entryName);
+            $pathSegments = is_array($pathShape['segments'] ?? null)
+                ? array_values(array_filter(
+                    array_map(
+                        static fn (mixed $segment): string => is_scalar($segment) ? (string) $segment : '',
+                        $pathShape['segments']
+                    ),
+                    static fn (string $segment): bool => $segment !== ''
+                ))
+                : [];
+            if ($pathSegments === []) {
+                continue;
+            }
+
+            $directory = is_string($part['packageDirectory'] ?? null)
+                ? $part['packageDirectory']
+                : (is_string($pathShape['directory'] ?? null) ? $pathShape['directory'] : null);
+            $directoryKey = $directory !== null && $directory !== '' ? $directory : '(root)';
+            $baseName = is_string($part['packageBasename'] ?? null)
+                ? $part['packageBasename']
+                : (is_string($pathShape['basename'] ?? null) ? $pathShape['basename'] : null);
+            $baseNameKey = $baseName ?? '(none)';
+            $pathSegmentCount = is_int($part['packagePathDepth'] ?? null)
+                ? (int) $part['packagePathDepth']
+                : count($pathSegments);
+            $topLevelSegment = is_string($pathShape['topLevelSegment'] ?? null) ? $pathShape['topLevelSegment'] : '';
+            $topLevelSegmentKey = $topLevelSegment === '' ? '(none)' : $topLevelSegment;
+            $partExtension = array_key_exists('packagePartExtension', $part) && $part['packagePartExtension'] !== null
+                ? (string) $part['packagePartExtension']
+                : self::packagePartExtension($entryName);
+            $partExtensionKey = ($partExtension === null || $partExtension === '') ? '(none)' : $partExtension;
+            $byteLength = is_int($part['byteLength'] ?? null) ? $part['byteLength'] : 0;
+            $compressedByteLength = is_int($part['compressedByteLength'] ?? null) ? $part['compressedByteLength'] : 0;
+            $mediaTypeBase = is_string($part['manifestMediaTypeBase'] ?? null) && $part['manifestMediaTypeBase'] !== ''
+                ? $part['manifestMediaTypeBase']
+                : '(missing)';
+            $mediaFamily = is_string($part['manifestMediaFamily'] ?? null) && $part['manifestMediaFamily'] !== ''
+                ? $part['manifestMediaFamily']
+                : '(missing)';
+            $byteExposurePolicy = is_string($part['byteExposurePolicy'] ?? null) && $part['byteExposurePolicy'] !== ''
+                ? $part['byteExposurePolicy']
+                : '(missing)';
+            $roles = array_values(array_filter(
+                array_map('strval', is_array($part['roles'] ?? null) ? $part['roles'] : []),
+                static fn (string $role): bool => $role !== ''
+            ));
+
+            foreach ($pathSegments as $pathSegmentIndex => $segment) {
+                $flags = self::packagePathNameCharacterFlags($segment);
+                if ($flags === []) {
+                    continue;
+                }
+
+                $isOnly = $pathSegmentCount === 1;
+                $pathSegmentPosition = match (true) {
+                    $isOnly => 'only',
+                    $pathSegmentIndex === 0 => 'first',
+                    $pathSegmentIndex === $pathSegmentCount - 1 => 'last',
+                    default => 'middle',
+                };
+
+                if (!isset($segments[$segment])) {
+                    $segments[$segment] = [
+                        'segment' => $segment,
+                        'caseFoldSegment' => strtolower($segment),
+                        'occurrenceCount' => 0,
+                        'partCount' => 0,
+                        'byteLength' => 0,
+                        'compressedByteLength' => 0,
+                        'declaredPartCount' => 0,
+                        'undeclaredPartCount' => 0,
+                        'directoryEntryCount' => 0,
+                        'fileEntryCount' => 0,
+                        'exposablePartCount' => 0,
+                        'blockedPartCount' => 0,
+                        'flags' => $flags,
+                        'flagOccurrenceCounts' => [],
+                        'flagPartCounts' => [],
+                        'pathSegmentIndexCounts' => [],
+                        'pathSegmentPositionCounts' => [],
+                        'pathDepthCounts' => [],
+                        'topLevelSegmentCounts' => [],
+                        'directoryCounts' => [],
+                        'baseNameCounts' => [],
+                        'partExtensionCounts' => [],
+                        'manifestMediaTypeBaseCounts' => [],
+                        'manifestMediaFamilyCounts' => [],
+                        'byteExposurePolicyCounts' => [],
+                        'roleCounts' => [],
+                        'partNames' => [],
+                        'largestPart' => null,
+                        'reviewPolicy' => 'odf-package-path-segment-name-character-metadata-only',
+                    ];
+                }
+
+                ++$occurrenceCount;
+                ++$segments[$segment]['occurrenceCount'];
+                $segments[$segment]['pathSegmentIndexCounts'][$pathSegmentIndex] =
+                    ($segments[$segment]['pathSegmentIndexCounts'][$pathSegmentIndex] ?? 0) + 1;
+                $segments[$segment]['pathSegmentPositionCounts'][$pathSegmentPosition] =
+                    ($segments[$segment]['pathSegmentPositionCounts'][$pathSegmentPosition] ?? 0) + 1;
+
+                foreach ($flags as $flag) {
+                    $flagOccurrenceCounts[$flag] = ($flagOccurrenceCounts[$flag] ?? 0) + 1;
+                    $flagSegments[$flag][$segment] = true;
+                    $segments[$segment]['flagOccurrenceCounts'][$flag] =
+                        ($segments[$segment]['flagOccurrenceCounts'][$flag] ?? 0) + 1;
+                }
+
+                if (isset($partsSeenBySegment[$segment][$entryName])) {
+                    continue;
+                }
+
+                $partsSeenBySegment[$segment][$entryName] = true;
+                $partNames[$entryName] = true;
+                ++$segments[$segment]['partCount'];
+                $segments[$segment]['byteLength'] += $byteLength;
+                $segments[$segment]['compressedByteLength'] += $compressedByteLength;
+                if (($part['declaredInManifest'] ?? false) === true) {
+                    ++$segments[$segment]['declaredPartCount'];
+                }
+                if (($part['undeclared'] ?? false) === true) {
+                    ++$segments[$segment]['undeclaredPartCount'];
+                }
+                if (($part['isDirectory'] ?? false) === true) {
+                    ++$segments[$segment]['directoryEntryCount'];
+                } else {
+                    ++$segments[$segment]['fileEntryCount'];
+                }
+                if (($part['canExposeBytes'] ?? false) === true) {
+                    ++$segments[$segment]['exposablePartCount'];
+                } else {
+                    ++$segments[$segment]['blockedPartCount'];
+                }
+
+                foreach ($flags as $flag) {
+                    $flagPartNames[$flag][$entryName] = true;
+                    $segments[$segment]['flagPartCounts'][$flag] =
+                        ($segments[$segment]['flagPartCounts'][$flag] ?? 0) + 1;
+                }
+
+                $segments[$segment]['pathDepthCounts'][$pathSegmentCount] =
+                    ($segments[$segment]['pathDepthCounts'][$pathSegmentCount] ?? 0) + 1;
+                $segments[$segment]['topLevelSegmentCounts'][$topLevelSegmentKey] =
+                    ($segments[$segment]['topLevelSegmentCounts'][$topLevelSegmentKey] ?? 0) + 1;
+                $segments[$segment]['directoryCounts'][$directoryKey] =
+                    ($segments[$segment]['directoryCounts'][$directoryKey] ?? 0) + 1;
+                $segments[$segment]['baseNameCounts'][$baseNameKey] =
+                    ($segments[$segment]['baseNameCounts'][$baseNameKey] ?? 0) + 1;
+                $segments[$segment]['partExtensionCounts'][$partExtensionKey] =
+                    ($segments[$segment]['partExtensionCounts'][$partExtensionKey] ?? 0) + 1;
+                $segments[$segment]['manifestMediaTypeBaseCounts'][$mediaTypeBase] =
+                    ($segments[$segment]['manifestMediaTypeBaseCounts'][$mediaTypeBase] ?? 0) + 1;
+                $segments[$segment]['manifestMediaFamilyCounts'][$mediaFamily] =
+                    ($segments[$segment]['manifestMediaFamilyCounts'][$mediaFamily] ?? 0) + 1;
+                $segments[$segment]['byteExposurePolicyCounts'][$byteExposurePolicy] =
+                    ($segments[$segment]['byteExposurePolicyCounts'][$byteExposurePolicy] ?? 0) + 1;
+                foreach ($roles as $role) {
+                    $segments[$segment]['roleCounts'][$role] =
+                        ($segments[$segment]['roleCounts'][$role] ?? 0) + 1;
+                }
+                if (!in_array($entryName, $segments[$segment]['partNames'], true)) {
+                    $segments[$segment]['partNames'][] = $entryName;
+                }
+
+                $partSummary = [
+                    'partName' => $entryName,
+                    'segment' => $segment,
+                    'pathSegmentIndex' => $pathSegmentIndex,
+                    'pathSegmentPosition' => $pathSegmentPosition,
+                    'directory' => $directory,
+                    'baseName' => $baseName,
+                    'pathSegmentCount' => $pathSegmentCount,
+                    'pathSegments' => $pathSegments,
+                    'topLevelSegment' => $topLevelSegment,
+                    'partExtension' => $partExtension,
+                    'byteLength' => $byteLength,
+                    'compressedByteLength' => $compressedByteLength,
+                    'crc32' => is_string($part['crc32'] ?? null) ? $part['crc32'] : null,
+                    'byteSha256' => is_string($part['byteSha256'] ?? null) ? $part['byteSha256'] : null,
+                    'manifestMediaTypeBase' => $mediaTypeBase === '(missing)' ? null : $mediaTypeBase,
+                    'manifestMediaFamily' => $mediaFamily === '(missing)' ? null : $mediaFamily,
+                    'byteExposurePolicy' => $byteExposurePolicy === '(missing)' ? null : $byteExposurePolicy,
+                    'declaredInManifest' => ($part['declaredInManifest'] ?? false) === true,
+                    'undeclared' => ($part['undeclared'] ?? false) === true,
+                    'isDirectory' => ($part['isDirectory'] ?? false) === true,
+                    'canExposeBytes' => ($part['canExposeBytes'] ?? false) === true,
+                    'roles' => $roles,
+                ];
+                $largestPart = $segments[$segment]['largestPart'];
+                if (
+                    !is_array($largestPart)
+                    || $partSummary['byteLength'] > (int) ($largestPart['byteLength'] ?? 0)
+                    || (
+                        $partSummary['byteLength'] === (int) ($largestPart['byteLength'] ?? 0)
+                        && strcmp($partSummary['partName'], (string) ($largestPart['partName'] ?? '')) < 0
+                    )
+                ) {
+                    $segments[$segment]['largestPart'] = $partSummary;
+                }
+            }
+        }
+
+        ksort($flagOccurrenceCounts, SORT_STRING);
+        ksort($flagSegments, SORT_STRING);
+        foreach ($flagSegments as &$segmentNames) {
+            $segmentNames = array_keys($segmentNames);
+            sort($segmentNames, SORT_STRING);
+        }
+        unset($segmentNames);
+
+        ksort($flagPartNames, SORT_STRING);
+        $flagPartCounts = [];
+        foreach ($flagPartNames as $flag => &$flaggedPartNames) {
+            $flaggedPartNames = array_keys($flaggedPartNames);
+            sort($flaggedPartNames, SORT_STRING);
+            $flagPartCounts[(string) $flag] = count($flaggedPartNames);
+        }
+        unset($flaggedPartNames);
+        ksort($flagPartCounts, SORT_STRING);
+
+        ksort($segments, SORT_STRING);
+        foreach ($segments as &$segment) {
+            sort($segment['flags'], SORT_STRING);
+            ksort($segment['flagOccurrenceCounts'], SORT_STRING);
+            ksort($segment['flagPartCounts'], SORT_STRING);
+            ksort($segment['pathSegmentIndexCounts'], SORT_NUMERIC);
+            ksort($segment['pathSegmentPositionCounts'], SORT_STRING);
+            ksort($segment['pathDepthCounts'], SORT_NUMERIC);
+            ksort($segment['topLevelSegmentCounts'], SORT_STRING);
+            ksort($segment['directoryCounts'], SORT_STRING);
+            ksort($segment['baseNameCounts'], SORT_STRING);
+            ksort($segment['partExtensionCounts'], SORT_STRING);
+            ksort($segment['manifestMediaTypeBaseCounts'], SORT_STRING);
+            ksort($segment['manifestMediaFamilyCounts'], SORT_STRING);
+            ksort($segment['byteExposurePolicyCounts'], SORT_STRING);
+            ksort($segment['roleCounts'], SORT_STRING);
+            sort($segment['partNames'], SORT_STRING);
+        }
+        unset($segment);
+
+        return [
+            'segmentCount' => count($segments),
+            'occurrenceCount' => $occurrenceCount,
+            'partCount' => count($partNames),
+            'segmentNames' => array_keys($segments),
+            'flagOccurrenceCounts' => $flagOccurrenceCounts,
+            'flagPartCounts' => $flagPartCounts,
+            'flagSegments' => $flagSegments,
+            'flagPartNames' => $flagPartNames,
+            'segments' => array_values($segments),
+        ];
     }
 
     private static function canonicalIdentityValue(mixed $value): mixed

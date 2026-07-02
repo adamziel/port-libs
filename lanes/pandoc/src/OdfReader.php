@@ -1837,6 +1837,7 @@ final class OdfReader
             $packagePathByteLengthBucket = self::packagePathByteLengthBucket($packagePathByteLength);
             $packagePartExtension = self::packagePartExtension($entry->name);
             $rawPackagePartExtension = self::packagePartRawExtension($entry->name);
+            $pathSegmentNameCharacters = self::packagePathSegmentNameCharacterReview($packagePathShape);
             $timestampProvenance = self::zipTimestampProvenance($modificationTimeByName[$entry->name] ?? null);
             $extraFieldProvenance = self::zipExtraFieldProvenance($extraFieldsByName[$entry->name] ?? null);
             $unixOwnerProvenance = self::zipUnixOwnerMetadataProvenance($unixOwnersByName[$entry->name] ?? null);
@@ -1907,6 +1908,12 @@ final class OdfReader
                 'packagePartExtensionHasUppercase' => $rawPackagePartExtension !== null && preg_match('/[A-Z]/', $rawPackagePartExtension) === 1,
                 'packagePartExtensionWasNormalized' => $packagePartExtension !== null && $rawPackagePartExtension !== null && $packagePartExtension !== $rawPackagePartExtension,
                 'extensionlessPackagePart' => !$entry->isDirectory() && $packagePartExtension === null,
+                'packagePathSegmentNameCharacterFlags' => $pathSegmentNameCharacters['flags'],
+                'packagePathSegmentNameHasUppercase' => $pathSegmentNameCharacters['hasUppercase'],
+                'packagePathSegmentNameHasWhitespace' => $pathSegmentNameCharacters['hasWhitespace'],
+                'packagePathSegmentNameHasPercentEncodedOctet' => $pathSegmentNameCharacters['hasPercentEncodedOctet'],
+                'packagePathSegmentNameHasNonAscii' => $pathSegmentNameCharacters['hasNonAscii'],
+                'packagePathSegmentNameCharacterReviews' => $pathSegmentNameCharacters['reviews'],
                 'roles' => $roles,
                 'centralDirectoryIndex' => $centralDirectoryIndex,
                 'localHeaderOrder' => is_array($localOrder) ? $localOrder['localHeaderOrder'] : null,
@@ -2211,6 +2218,7 @@ final class OdfReader
         $packageZipTimestampSources = self::packageZipTimestampSourceInventory($parts);
         $packageExtraFields = self::packageExtraFieldInventory($parts);
         $packagePathByteLengths = self::packagePathByteLengthInventory($parts);
+        $packagePathSegmentNameCharacters = self::packagePathSegmentNameCharacterSummary($parts);
         $manifestPackageCoverage = self::manifestPackageCoverageProvenance($manifestFileEntryOrder, $parts, $undeclaredEntries);
         $packageByteHandoff = OpenDocumentPackageByteHandoff::summarize($package, $parts, 'part');
         $centralDirectoryOrderMismatchRoles = self::centralDirectoryOrderMismatchRoleInventory($parts);
@@ -2440,6 +2448,23 @@ final class OdfReader
             'packagePathByteLengthByteExposurePolicyCounts' => $packagePathByteLengths['packagePathByteLengthByteExposurePolicyCounts'],
             'entryNamesByPackagePathByteLengthByteExposurePolicy' => $packagePathByteLengths['entryNamesByPackagePathByteLengthByteExposurePolicy'],
             'packagePathByteLengthBucketSummaries' => $packagePathByteLengths['packagePathByteLengthBucketSummaries'],
+            'packagePathSegmentNameCharacterReviewSegmentCount' => $packagePathSegmentNameCharacters['segmentCount'],
+            'packagePathSegmentNameCharacterReviewOccurrenceCount' => $packagePathSegmentNameCharacters['occurrenceCount'],
+            'packagePathSegmentNameCharacterReviewPartCount' => $packagePathSegmentNameCharacters['partCount'],
+            'packagePathSegmentNameUppercaseOccurrenceCount' => (int) ($packagePathSegmentNameCharacters['flagOccurrenceCounts']['uppercase'] ?? 0),
+            'packagePathSegmentNameWhitespaceOccurrenceCount' => (int) ($packagePathSegmentNameCharacters['flagOccurrenceCounts']['whitespace'] ?? 0),
+            'packagePathSegmentNamePercentEncodedOctetOccurrenceCount' => (int) ($packagePathSegmentNameCharacters['flagOccurrenceCounts']['percent-encoded-octet'] ?? 0),
+            'packagePathSegmentNameNonAsciiOccurrenceCount' => (int) ($packagePathSegmentNameCharacters['flagOccurrenceCounts']['non-ascii'] ?? 0),
+            'packagePathSegmentNameUppercasePartCount' => (int) ($packagePathSegmentNameCharacters['flagPartCounts']['uppercase'] ?? 0),
+            'packagePathSegmentNameWhitespacePartCount' => (int) ($packagePathSegmentNameCharacters['flagPartCounts']['whitespace'] ?? 0),
+            'packagePathSegmentNamePercentEncodedOctetPartCount' => (int) ($packagePathSegmentNameCharacters['flagPartCounts']['percent-encoded-octet'] ?? 0),
+            'packagePathSegmentNameNonAsciiPartCount' => (int) ($packagePathSegmentNameCharacters['flagPartCounts']['non-ascii'] ?? 0),
+            'packagePathSegmentNameCharacterFlagOccurrenceCounts' => $packagePathSegmentNameCharacters['flagOccurrenceCounts'],
+            'packagePathSegmentNameCharacterFlagPartCounts' => $packagePathSegmentNameCharacters['flagPartCounts'],
+            'packagePathSegmentNameCharacterFlagSegments' => $packagePathSegmentNameCharacters['flagSegments'],
+            'packagePathSegmentNameCharacterFlagPartNames' => $packagePathSegmentNameCharacters['flagPartNames'],
+            'packagePathSegmentNameCharacterReviewSegmentNames' => $packagePathSegmentNameCharacters['segmentNames'],
+            'packagePathSegmentNameCharacterReviewSegments' => $packagePathSegmentNameCharacters['segments'],
             'zipPackageManifestPathSegmentPositionRoleCounts' => $zipPackageManifestPathSegmentPositionRoleCounts,
             'entryNamesByZipPackageManifestPathSegmentPositionRole' => $entryNamesByZipPackageManifestPathSegmentPositionRole,
             'zipPackageManifestPathSegmentPositionByteExposurePolicyCounts' => $zipPackageManifestPathSegmentPositionByteExposurePolicyCounts,
