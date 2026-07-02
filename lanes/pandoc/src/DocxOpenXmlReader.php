@@ -15604,6 +15604,17 @@ final class DocxOpenXmlReader
         unset($contentTypeParameter);
 
         $partDirectories = $this->packagePartDirectorySummary($partInventory);
+        $partDirectoryCounts = [];
+        $partNamesByPartDirectory = [];
+        foreach ($partDirectories as $directorySummary) {
+            $directory = (string) ($directorySummary['directory'] ?? '');
+            $partDirectoryCounts[$directory] = (int) ($directorySummary['partCount'] ?? 0);
+            $partNames = array_values(array_map('strval', $directorySummary['partNames'] ?? []));
+            sort($partNames, SORT_STRING);
+            $partNamesByPartDirectory[$directory] = $partNames;
+        }
+        ksort($partDirectoryCounts, SORT_STRING);
+        ksort($partNamesByPartDirectory, SORT_STRING);
         $partDirectoryBaseNames = $this->packagePartDirectoryBaseNameSummary($partInventory);
         $partDirectoryBaseNameCounts = [];
         foreach ($partDirectoryBaseNames as $directoryBaseNameSummary) {
@@ -19550,6 +19561,8 @@ final class DocxOpenXmlReader
             'packageAreaSummaries' => $packageAreas['packageAreaSummaries'],
             'partNamesByPackageArea' => $packageAreas['partNamesByPackageArea'],
             'partDirectoryCount' => count($partDirectories),
+            'partDirectoryCounts' => $partDirectoryCounts,
+            'partNamesByPartDirectory' => $partNamesByPartDirectory,
             'partDirectoryDepthCount' => count($partDirectoryDepths),
             'partDirectoryDepthCounts' => $partDirectoryDepthCounts,
             'partDirectoryDepthParameterizedBucketCount' => $parameterizedPartDirectoryDepthBucketCount,
@@ -44976,6 +44989,13 @@ final class DocxOpenXmlReader
             ),
             'entryNamesByPackageCaseFoldedBasename' => $this->packageIdentityStringListMap(
                 $summary['partNamesByCaseFoldBaseName'] ?? []
+            ),
+            'packageDirectoryCount' => (int) ($summary['partDirectoryCount'] ?? 0),
+            'packageDirectoryCounts' => $this->packageIdentityCountMap(
+                $summary['partDirectoryCounts'] ?? []
+            ),
+            'entryNamesByPackageDirectory' => $this->packageIdentityStringListMap(
+                $summary['partNamesByPartDirectory'] ?? []
             ),
             'packageDirectoryBaseNameCount' => (int) ($summary['partDirectoryBaseNameCount'] ?? 0),
             'packageDirectoryBaseNameCounts' => $this->packageIdentityCountMap(
