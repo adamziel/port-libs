@@ -15819,6 +15819,11 @@ final class ZipPackage
             static fn (array $summary): string => (string) $summary['nameLengthBucket'],
             $nameLengthBucketSummaries
         );
+        $uncompressedByteLengthBucketSummaries = self::packageManifestUncompressedByteLengthBucketSummaries($entries);
+        $uncompressedByteLengthBuckets = array_map(
+            static fn (array $summary): string => (string) $summary['uncompressedByteLengthBucket'],
+            $uncompressedByteLengthBucketSummaries
+        );
         $expansionRatio = self::expansionRatio($uncompressedBytes, $compressedBytes);
         $manifestPayload = [
             'manifestVersion' => 'zip-package-manifest-v1',
@@ -15901,6 +15906,9 @@ final class ZipPackage
             'nameLengthBucketSummaryCount' => count($nameLengthBucketSummaries),
             'nameLengthBuckets' => $nameLengthBuckets,
             'nameLengthBucketSummaries' => $nameLengthBucketSummaries,
+            'uncompressedByteLengthBucketSummaryCount' => count($uncompressedByteLengthBucketSummaries),
+            'uncompressedByteLengthBuckets' => $uncompressedByteLengthBuckets,
+            'uncompressedByteLengthBucketSummaries' => $uncompressedByteLengthBucketSummaries,
             'centralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
             'centralDirectoryFixedHeaderBytes' => $centralDirectoryFixedHeaderBytes,
             'centralDirectoryVariableFieldBytes' => $centralDirectoryVariableFieldBytes,
@@ -16034,6 +16042,9 @@ final class ZipPackage
             'nameLengthBucketSummaryCount' => count($nameLengthBucketSummaries),
             'nameLengthBuckets' => $nameLengthBuckets,
             'nameLengthBucketSummaries' => $nameLengthBucketSummaries,
+            'uncompressedByteLengthBucketSummaryCount' => count($uncompressedByteLengthBucketSummaries),
+            'uncompressedByteLengthBuckets' => $uncompressedByteLengthBuckets,
+            'uncompressedByteLengthBucketSummaries' => $uncompressedByteLengthBucketSummaries,
             'localHeaderBytes' => $localHeaderBytes,
             'localHeaderFixedHeaderBytes' => $localHeaderFixedHeaderBytes,
             'localHeaderFixedFieldEntryCount' => count($localHeaderFixedFieldEntries),
@@ -16467,6 +16478,133 @@ final class ZipPackage
             'nameLengthBucket' => '128-plus-bytes',
             'minNameBytes' => 128,
             'maxNameBytes' => null,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function packageManifestUncompressedByteLengthBucketSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $uncompressedSize = (int) ($entry['uncompressedSize'] ?? 0);
+            $bucket = self::packageManifestUncompressedByteLengthBucket($uncompressedSize);
+            $bucketKey = $bucket['uncompressedByteLengthBucket'];
+            if (!isset($summaries[$bucketKey])) {
+                $summaries[$bucketKey] = [
+                    'uncompressedByteLengthBucket' => $bucket['uncompressedByteLengthBucket'],
+                    'minUncompressedBytes' => $bucket['minUncompressedBytes'],
+                    'maxUncompressedBytes' => $bucket['maxUncompressedBytes'],
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'localRecordBytes' => 0,
+                    'sourceRecordBytes' => 0,
+                    'dataDescriptorEntryCount' => 0,
+                    'dataDescriptorBytes' => 0,
+                    'directoryRoots' => [],
+                    'packagePartExtensionKeys' => [],
+                    'compressionMethodNames' => [],
+                    'entryNames' => [],
+                    'largestUncompressedEntryName' => null,
+                    'largestUncompressedBytes' => null,
+                ];
+            }
+
+            ++$summaries[$bucketKey]['entryCount'];
+            if (($entry['isDirectory'] ?? false) === true) {
+                ++$summaries[$bucketKey]['directoryEntryCount'];
+            } else {
+                ++$summaries[$bucketKey]['fileEntryCount'];
+            }
+
+            $summaries[$bucketKey]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+            $summaries[$bucketKey]['uncompressedBytes'] += $uncompressedSize;
+            $summaries[$bucketKey]['localRecordBytes'] += (int) ($entry['localRecordBytes'] ?? 0);
+            $summaries[$bucketKey]['sourceRecordBytes'] += (int) ($entry['sourceRecordBytes'] ?? 0);
+            $dataDescriptorBytes = (int) ($entry['dataDescriptorBytes'] ?? 0);
+            if ($dataDescriptorBytes > 0) {
+                ++$summaries[$bucketKey]['dataDescriptorEntryCount'];
+                $summaries[$bucketKey]['dataDescriptorBytes'] += $dataDescriptorBytes;
+            }
+            $summaries[$bucketKey]['entryNames'][] = $name;
+
+            foreach ([
+                'directoryRoots' => (string) ($entry['directoryRoot'] ?? ''),
+                'packagePartExtensionKeys' => (string) ($entry['packagePartExtensionKey'] ?? ''),
+                'compressionMethodNames' => (string) ($entry['compressionMethodName'] ?? ''),
+            ] as $field => $value) {
+                if ($value !== '' && !in_array($value, $summaries[$bucketKey][$field], true)) {
+                    $summaries[$bucketKey][$field][] = $value;
+                }
+            }
+
+            $largestUncompressedBytes = $summaries[$bucketKey]['largestUncompressedBytes'];
+            if (!is_int($largestUncompressedBytes) || $uncompressedSize > $largestUncompressedBytes) {
+                $summaries[$bucketKey]['largestUncompressedEntryName'] = $name;
+                $summaries[$bucketKey]['largestUncompressedBytes'] = $uncompressedSize;
+            }
+        }
+
+        foreach ($summaries as &$summary) {
+            sort($summary['directoryRoots'], SORT_STRING);
+            sort($summary['packagePartExtensionKeys'], SORT_STRING);
+            sort($summary['compressionMethodNames'], SORT_STRING);
+        }
+        unset($summary);
+
+        $ordered = [];
+        foreach (['zero-bytes', '1-to-127-bytes', '128-to-1023-bytes', '1024-plus-bytes'] as $bucket) {
+            if (isset($summaries[$bucket])) {
+                $ordered[] = $summaries[$bucket];
+            }
+        }
+
+        return $ordered;
+    }
+
+    /**
+     * @return array{uncompressedByteLengthBucket:string,minUncompressedBytes:int,maxUncompressedBytes:?int}
+     */
+    private static function packageManifestUncompressedByteLengthBucket(int $uncompressedBytes): array
+    {
+        if ($uncompressedBytes <= 0) {
+            return [
+                'uncompressedByteLengthBucket' => 'zero-bytes',
+                'minUncompressedBytes' => 0,
+                'maxUncompressedBytes' => 0,
+            ];
+        }
+
+        if ($uncompressedBytes <= 127) {
+            return [
+                'uncompressedByteLengthBucket' => '1-to-127-bytes',
+                'minUncompressedBytes' => 1,
+                'maxUncompressedBytes' => 127,
+            ];
+        }
+
+        if ($uncompressedBytes <= 1023) {
+            return [
+                'uncompressedByteLengthBucket' => '128-to-1023-bytes',
+                'minUncompressedBytes' => 128,
+                'maxUncompressedBytes' => 1023,
+            ];
+        }
+
+        return [
+            'uncompressedByteLengthBucket' => '1024-plus-bytes',
+            'minUncompressedBytes' => 1024,
+            'maxUncompressedBytes' => null,
         ];
     }
 
