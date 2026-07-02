@@ -9861,6 +9861,90 @@ XML);
     }
 };
 
+$buildCaseVariantShapeNamesPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-case-variant-shape-names-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Case-sensitive shapes</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="3" name="Body 1"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Visible lowercase body</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:Sp>
+      <p:nvSpPr><p:cNvPr id="4" name="Uppercase Text Shape"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Uppercase text body should hide</a:t></a:r></a:p></p:txBody>
+    </p:Sp>
+    <p:Pic>
+      <p:nvPicPr><p:cNvPr id="5" name="Uppercase Picture" descr="Uppercase picture alt"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>
+      <p:blipFill><a:blip r:embed="rIdUppercaseImage" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/></p:blipFill>
+    </p:Pic>
+    <p:GraphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="6" name="Uppercase Graphic Frame"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl><a:tr><a:tc><a:txBody><a:p><a:r><a:t>Uppercase table cell should hide</a:t></a:r></a:p></a:txBody></a:tc></a:tr></a:tbl></a:graphicData></a:graphic>
+    </p:GraphicFrame>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->addFromString('ppt/slides/_rels/slide1.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdUppercaseImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/uppercase-picture.png"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/media/uppercase-picture.png', 'uppercase-picture-bytes');
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildNamespaceAgnosticDrawingTextPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-raw-t-text-');
     if ($path === false) {
@@ -16364,6 +16448,27 @@ return [
         $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
         $t->true(!str_contains($native, 'Wrong namespace body'), 'Non-presentation namespace shapes should stay out of upstream-compatible output');
         $t->true(!str_contains($native, 'Unqualified namespace body'), 'Unqualified PPTX shape local names should stay out of upstream-compatible output');
+    },
+
+    'requires exact pptx shape local names like upstream' => static function (TestRunner $t) use ($buildCaseVariantShapeNamesPptxPackage, $nodesOfType): void {
+        $document = (new PptxReader())->read($buildCaseVariantShapeNamesPptxPackage());
+        $review = $document->attr('pptx');
+        $paragraphTexts = array_map(static fn (AstNode $paragraph): string => (string) $paragraph->attr('text'), $nodesOfType($document, 'paragraph'));
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same(1, $review['slideCount'] ?? null);
+        $t->same('Case-sensitive shapes', $document->children[0]->attr('text'));
+        $t->same(['Visible lowercase body'], $paragraphTexts);
+        $t->same([], $nodesOfType($document, 'image'));
+        $t->same([], $nodesOfType($document, 'table'));
+        $t->same(2, $review['slides'][0]['blockCount'] ?? null);
+        $t->same(0, $review['slides'][0]['imageIssueCount'] ?? null);
+        $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
+        $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Case-sensitive" , Space , Str "shapes" ]', $native);
+        $t->contains('Para [ Str "Visible" , Space , Str "lowercase" , Space , Str "body" ]', $native);
+        $t->true(!str_contains($native, 'Uppercase text body should hide'), 'Case-variant p:Sp elements should not become visible text boxes');
+        $t->true(!str_contains($native, 'Uppercase Picture'), 'Case-variant p:Pic elements should not become visible images or review issues');
+        $t->true(!str_contains($native, 'Uppercase table cell should hide'), 'Case-variant p:GraphicFrame elements should not become visible tables');
     },
 
     'uses namespace-agnostic pptx text elements like upstream' => static function (TestRunner $t) use ($buildNamespaceAgnosticDrawingTextPptxPackage, $nodesOfType): void {
