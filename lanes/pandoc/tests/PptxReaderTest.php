@@ -2076,6 +2076,10 @@ XML);
       <p:nvSpPr><p:cNvPr id="5" name="Missing Type Body"/><p:cNvSpPr/><p:nvPr><p:ph/></p:nvPr></p:nvSpPr>
       <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Missing title type stays body</a:t></a:r></a:p></p:txBody>
     </p:sp>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="6" name="Wrong Case Type Body"/><p:cNvSpPr/><p:nvPr><p:ph type="Title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Wrong case title type stays body</a:t></a:r></a:p></p:txBody>
+    </p:sp>
   </p:spTree></p:cSld>
 </p:sld>
 XML);
@@ -11131,11 +11135,12 @@ return [
 
         $t->same(1, $review['slideCount'] ?? null);
         $t->same('Centered title placeholder', $document->children[0]->attr('text'));
-        $t->same(['Visible centered-title body', 'Qualified title type stays body', 'Missing title type stays body'], $paragraphTexts);
+        $t->same(['Visible centered-title body', 'Qualified title type stays body', 'Missing title type stays body', 'Wrong case title type stays body'], $paragraphTexts);
         $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Centered" , Space , Str "title" , Space , Str "placeholder" ]', $native);
         $t->contains('Para [ Str "Visible" , Space , Str "centered-title" , Space , Str "body" ]', $native);
         $t->contains('Para [ Str "Qualified" , Space , Str "title" , Space , Str "type" , Space , Str "stays" , Space , Str "body" ]', $native);
         $t->contains('Para [ Str "Missing" , Space , Str "title" , Space , Str "type" , Space , Str "stays" , Space , Str "body" ]', $native);
+        $t->contains('Para [ Str "Wrong" , Space , Str "case" , Space , Str "title" , Space , Str "type" , Space , Str "stays" , Space , Str "body" ]', $native);
     },
 
     'uses the first empty pptx title placeholder like upstream' => static function (TestRunner $t) use ($buildFirstEmptyTitlePlaceholderPptxPackage, $nodesOfType): void {
