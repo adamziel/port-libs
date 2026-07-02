@@ -3024,6 +3024,9 @@ final class OpenDocumentPackage
             $byteExposurePolicy = is_string($partSummary['byteExposurePolicy'] ?? null)
                 ? $partSummary['byteExposurePolicy']
                 : '';
+            $compressionMethodName = is_string($partSummary['compressionMethodName'] ?? null) && $partSummary['compressionMethodName'] !== ''
+                ? $partSummary['compressionMethodName']
+                : 'unknown';
             $roles = array_values(array_map('strval', is_array($partSummary['roles'] ?? null) ? $partSummary['roles'] : []));
 
             if (!isset($topLevelSegments[$topLevelSegment])) {
@@ -3051,6 +3054,7 @@ final class OpenDocumentPackage
                 $undeclared,
                 $canExposeBytes,
                 $byteExposurePolicy,
+                $compressionMethodName,
                 $roles
             );
             self::addPackageAreaDepthItemToGroup(
@@ -3067,6 +3071,7 @@ final class OpenDocumentPackage
                 $undeclared,
                 $canExposeBytes,
                 $byteExposurePolicy,
+                $compressionMethodName,
                 $roles
             );
 
@@ -3093,6 +3098,7 @@ final class OpenDocumentPackage
                     $undeclared,
                     $canExposeBytes,
                     $byteExposurePolicy,
+                    $compressionMethodName,
                     $roles
                 );
             }
@@ -3182,6 +3188,8 @@ final class OpenDocumentPackage
             'baseName' => is_string($part['baseName'] ?? null) ? $part['baseName'] : self::packagePartBaseName($partName),
             'byteLength' => is_int($part['byteLength'] ?? null) ? $part['byteLength'] : 0,
             'compressedByteLength' => is_int($part['compressedByteLength'] ?? null) ? $part['compressedByteLength'] : 0,
+            'compressionMethod' => is_int($part['compressionMethod'] ?? null) ? $part['compressionMethod'] : null,
+            'compressionMethodName' => is_string($part['compressionMethodName'] ?? null) ? $part['compressionMethodName'] : null,
             'roles' => array_values(array_map('strval', is_array($part['roles'] ?? null) ? $part['roles'] : [])),
             'byteExposurePolicy' => is_string($part['byteExposurePolicy'] ?? null) ? $part['byteExposurePolicy'] : null,
             'declaredInManifest' => ($part['declaredInManifest'] ?? false) === true,
@@ -3208,6 +3216,9 @@ final class OpenDocumentPackage
             'exposableEntryCount' => 0,
             'blockedEntryCount' => 0,
             'roleCounts' => [],
+            'compressionMethodCounts' => [],
+            'compressionMethodByteLengths' => [],
+            'compressionMethodCompressedByteLengths' => [],
             'byteExposurePolicyCounts' => [],
             'directoryDepthCounts' => [],
             'topLevelSegmentCounts' => [],
@@ -3238,6 +3249,7 @@ final class OpenDocumentPackage
         bool $undeclared,
         bool $canExposeBytes,
         string $byteExposurePolicy,
+        string $compressionMethodName,
         array $roles
     ): void {
         ++$group['partCount'];
@@ -3268,6 +3280,12 @@ final class OpenDocumentPackage
         if ($byteExposurePolicy !== '') {
             $group['byteExposurePolicyCounts'][$byteExposurePolicy] = ($group['byteExposurePolicyCounts'][$byteExposurePolicy] ?? 0) + 1;
         }
+        if ($compressionMethodName === '') {
+            $compressionMethodName = 'unknown';
+        }
+        $group['compressionMethodCounts'][$compressionMethodName] = ($group['compressionMethodCounts'][$compressionMethodName] ?? 0) + 1;
+        $group['compressionMethodByteLengths'][$compressionMethodName] = ($group['compressionMethodByteLengths'][$compressionMethodName] ?? 0) + $byteLength;
+        $group['compressionMethodCompressedByteLengths'][$compressionMethodName] = ($group['compressionMethodCompressedByteLengths'][$compressionMethodName] ?? 0) + $compressedByteLength;
         foreach ($roles as $role) {
             if (!is_string($role) || $role === '') {
                 continue;
@@ -3290,6 +3308,9 @@ final class OpenDocumentPackage
     private static function finalizePackageAreaDepthGroup(array $group): array
     {
         ksort($group['roleCounts'], SORT_STRING);
+        ksort($group['compressionMethodCounts'], SORT_STRING);
+        ksort($group['compressionMethodByteLengths'], SORT_STRING);
+        ksort($group['compressionMethodCompressedByteLengths'], SORT_STRING);
         ksort($group['byteExposurePolicyCounts'], SORT_STRING);
         ksort($group['directoryDepthCounts'], SORT_NUMERIC);
         ksort($group['topLevelSegmentCounts'], SORT_STRING);

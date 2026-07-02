@@ -11987,6 +11987,10 @@ XML;
         $result = (new OdfReader())->readPackage($buildZipPackageWithCentralDirectoryOrder($parts, array_column($parts, 'name')));
         $provenance = $result['importReport']['manifest']['packageProvenance'];
         $documentProvenance = $result['document']->attr('manifest')['packageProvenance'];
+        $roleSummaries = [];
+        foreach ($provenance['packageRoleSummaries'] as $item) {
+            $roleSummaries[$item['role']] = $item;
+        }
         $manifestDeclaredBytes = strlen($contentXml) + strlen($stylesXml) + strlen($metaXml) + strlen('PNGDATA') + strlen($reviewImage) + strlen($scriptXml) + strlen($unsupportedImage);
         $manifestDeclaredCompressedBytes = strlen(gzdeflate($contentXml)) + strlen(gzdeflate($stylesXml)) + strlen(gzdeflate($metaXml)) + strlen('PNGDATA') + strlen($reviewImage) + strlen($scriptXml) + strlen($unsupportedImage);
         $exposableBytes = strlen($contentXml) + strlen($stylesXml) + strlen($metaXml) + strlen('PNGDATA') + strlen($reviewImage);
@@ -12016,6 +12020,29 @@ XML;
         $t->same(strlen($scriptXml), $provenance['roleByteLengths']['script-package']);
         $t->same(strlen($thumbnail), $provenance['roleByteLengths']['package-thumbnail']);
         $t->same(strlen($thumbnail), $provenance['roleByteLengths']['undeclared-package-entry']);
+        $t->same([
+            'deflated' => 3,
+            'stored' => 3,
+            'unsupported' => 1,
+        ], $roleSummaries['manifest-declared']['compressionMethodCounts']);
+        $t->same([
+            'deflated' => strlen($contentXml) + strlen($stylesXml) + strlen($metaXml),
+            'stored' => strlen('PNGDATA') + strlen($reviewImage) + strlen($scriptXml),
+            'unsupported' => strlen($unsupportedImage),
+        ], $roleSummaries['manifest-declared']['compressionMethodByteLengths']);
+        $t->same([
+            'deflated' => strlen(gzdeflate($contentXml)) + strlen(gzdeflate($stylesXml)) + strlen(gzdeflate($metaXml)),
+            'stored' => strlen('PNGDATA') + strlen($reviewImage) + strlen($scriptXml),
+            'unsupported' => strlen($unsupportedImage),
+        ], $roleSummaries['manifest-declared']['compressionMethodCompressedByteLengths']);
+        $t->same([
+            'stored' => 2,
+            'unsupported' => 1,
+        ], $roleSummaries['media-resource']['compressionMethodCounts']);
+        $t->same([
+            'stored' => strlen('PNGDATA') + strlen($reviewImage),
+            'unsupported' => strlen($unsupportedImage),
+        ], $roleSummaries['media-resource']['compressionMethodByteLengths']);
 
         $t->same([
             'package-bytes-exposable' => 5,

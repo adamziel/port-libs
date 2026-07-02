@@ -2609,6 +2609,10 @@ XML;
 
         $summary = OpenDocumentPackage::fromPackage($package)->summarize();
         $inventory = $summary['packageInventory'];
+        $roleSummaries = [];
+        foreach ($inventory['packageRoleSummaries'] as $item) {
+            $roleSummaries[$item['role']] = $item;
+        }
         $contentCompressedBytes = strlen(gzdeflate($contentXml));
         $stylesCompressedBytes = strlen(gzdeflate($stylesXml));
         $manifestDeclaredBytes = strlen($contentXml)
@@ -2664,6 +2668,29 @@ XML;
         $t->same(strlen($heroBytes) + strlen($audioBytes), $inventory['roleCompressedByteLengths']['media-resource']);
         $t->same(strlen($noteBytes), $inventory['roleByteLengths']['undeclared-package-entry']);
         $t->same(strlen($noteBytes), $inventory['roleCompressedByteLengths']['undeclared-package-entry']);
+        $t->same([
+            'deflated' => 2,
+            'stored' => 2,
+            'unsupported' => 1,
+        ], $roleSummaries['manifest-declared']['compressionMethodCounts']);
+        $t->same([
+            'deflated' => strlen($contentXml) + strlen($stylesXml),
+            'stored' => strlen($metaXml) + strlen($heroBytes),
+            'unsupported' => strlen($audioBytes),
+        ], $roleSummaries['manifest-declared']['compressionMethodByteLengths']);
+        $t->same([
+            'deflated' => $contentCompressedBytes + $stylesCompressedBytes,
+            'stored' => strlen($metaXml) + strlen($heroBytes),
+            'unsupported' => strlen($audioBytes),
+        ], $roleSummaries['manifest-declared']['compressionMethodCompressedByteLengths']);
+        $t->same([
+            'stored' => 1,
+            'unsupported' => 1,
+        ], $roleSummaries['media-resource']['compressionMethodCounts']);
+        $t->same([
+            'stored' => strlen($heroBytes),
+            'unsupported' => strlen($audioBytes),
+        ], $roleSummaries['media-resource']['compressionMethodByteLengths']);
         $t->same(['Media/theme.ogg'], $inventory['unsupportedCompressionPartNames']);
         $t->same(false, $inventory['parts']['Media/theme.ogg']['canExposeBytes']);
         $t->same('unsupported', $inventory['parts']['Media/theme.ogg']['compressionMethodName']);
