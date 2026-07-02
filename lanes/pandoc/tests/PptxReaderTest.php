@@ -6695,6 +6695,84 @@ XML);
     }
 };
 
+$buildExternalTargetSmartArtPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-external-smartart-target-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>External SmartArt target</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="20" name="External Target SmartArt"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"><dgm:relIds r:dm="rIdData" r:lo="rIdLayout"/></a:graphicData></a:graphic>
+    </p:graphicFrame>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->addFromString('ppt/slides/_rels/slide1.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdData" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData" Target="https://example.test/smartart-data.xml" TargetMode="External"/>
+  <Relationship Id="rIdLayout" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramLayout" Target="../diagrams/external-target-layout.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/diagrams/external-target-layout.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<dgm:layoutDef xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" uniqueId="urn:microsoft.com/office/officeart/2005/8/layout/externalTargetShouldHide"/>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildEmptyTypeSmartArtConnectionPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-empty-type-smartart-');
     if ($path === false) {
@@ -15472,6 +15550,28 @@ return [
         $t->true(!str_contains($native, 'Dot layout child'), 'Dot-segment SmartArt layout target children should stay hidden when upstream would miss the part');
         $t->contains('Para [ Str "[Diagram" , Space , Str "parse" , Space , Str "error:" , Space , Str "File" , Space , Str "not" , Space , Str "found" , Space , Str "in" , Space , Str "archive:" , Space , Str "ppt/diagrams/../diagrams/data-dot.xml]" ]', $native);
         $t->contains('Para [ Str "[Diagram" , Space , Str "parse" , Space , Str "error:" , Space , Str "File" , Space , Str "not" , Space , Str "found" , Space , Str "in" , Space , Str "archive:" , Space , Str "ppt/diagrams/../diagrams/layout-dot.xml]" ]', $native);
+    },
+
+    'keeps external pptx SmartArt targets as literal missing parts like upstream' => static function (TestRunner $t) use ($buildExternalTargetSmartArtPptxPackage, $nodesOfType, $nodesWithClass): void {
+        $document = (new PptxReader())->read($buildExternalTargetSmartArtPptxPackage());
+        $review = $document->attr('pptx');
+        $paragraphs = $nodesOfType($document, 'paragraph');
+        $divs = $nodesOfType($document, 'div');
+        $texts = array_map(static fn (AstNode $paragraph): string => (string) $paragraph->attr('text'), $paragraphs);
+        $native = PandocConverter::write($document, 'native');
+        $diagnostics = array_values(array_filter(
+            $paragraphs,
+            static fn (AstNode $paragraph): bool => str_starts_with((string) $paragraph->attr('text'), '[Diagram parse error:')
+        ));
+
+        $t->same([], $nodesWithClass($divs, 'smartart'));
+        $t->same(true, in_array('[Diagram parse error: File not found in archive: https://example.test/smartart-data.xml]', $texts, true));
+        $t->same(1, count($diagnostics));
+        $t->same('External Target SmartArt', $diagnostics[0]->attr('pptxShape')['name'] ?? null);
+        $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
+        $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "External" , Space , Str "SmartArt" , Space , Str "target" ]', $native);
+        $t->contains('Para [ Str "[Diagram" , Space , Str "parse" , Space , Str "error:" , Space , Str "File" , Space , Str "not" , Space , Str "found" , Space , Str "in" , Space , Str "archive:" , Space , Str "https://example.test/smartart-data.xml]" ]', $native);
+        $t->true(!str_contains($native, 'externalTargetShouldHide'), 'The valid local layout target should not parse after an external-looking data target is missing');
     },
 
     'keeps empty-type empty-id and missing-modelId pptx SmartArt connections hierarchical like upstream' => static function (TestRunner $t) use ($buildEmptyTypeSmartArtConnectionPptxPackage, $nodesOfType, $nodesWithClass): void {
