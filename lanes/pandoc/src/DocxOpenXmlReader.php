@@ -12714,6 +12714,13 @@ final class DocxOpenXmlReader
         $summary['zipPackageManifestExpansionRatioBucketSummaries'] = is_array($zipPackageManifest['expansionRatioBucketSummaries'] ?? null)
             ? $zipPackageManifest['expansionRatioBucketSummaries']
             : [];
+        $summary['zipPackageManifestSourceRecordByteLengthBucketSummaryCount'] = (int) ($zipPackageManifest['sourceRecordByteLengthBucketSummaryCount'] ?? 0);
+        $summary['zipPackageManifestSourceRecordByteLengthBuckets'] = is_array($zipPackageManifest['sourceRecordByteLengthBuckets'] ?? null)
+            ? $zipPackageManifest['sourceRecordByteLengthBuckets']
+            : [];
+        $summary['zipPackageManifestSourceRecordByteLengthBucketSummaries'] = is_array($zipPackageManifest['sourceRecordByteLengthBucketSummaries'] ?? null)
+            ? $zipPackageManifest['sourceRecordByteLengthBucketSummaries']
+            : [];
         $summary['zipPackageManifestLargestEntry'] = is_array($zipPackageManifest['largestEntry'] ?? null)
             ? $zipPackageManifest['largestEntry']
             : null;
@@ -14283,6 +14290,13 @@ final class DocxOpenXmlReader
                 : [],
             'packageManifestExpansionRatioBucketSummaries' => is_array($packageManifest['expansionRatioBucketSummaries'] ?? null)
                 ? $packageManifest['expansionRatioBucketSummaries']
+                : [],
+            'packageManifestSourceRecordByteLengthBucketSummaryCount' => (int) ($packageManifest['sourceRecordByteLengthBucketSummaryCount'] ?? 0),
+            'packageManifestSourceRecordByteLengthBuckets' => is_array($packageManifest['sourceRecordByteLengthBuckets'] ?? null)
+                ? $packageManifest['sourceRecordByteLengthBuckets']
+                : [],
+            'packageManifestSourceRecordByteLengthBucketSummaries' => is_array($packageManifest['sourceRecordByteLengthBucketSummaries'] ?? null)
+                ? $packageManifest['sourceRecordByteLengthBucketSummaries']
                 : [],
             'packageManifestLargestEntry' => is_array($packageManifest['largestEntry'] ?? null)
                 ? $packageManifest['largestEntry']
