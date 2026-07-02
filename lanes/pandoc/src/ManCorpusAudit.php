@@ -14,9 +14,11 @@ final class ManCorpusAudit
 
     /** @var array<string, true> */
     private const IGNORED_ATTRS = [
+        'attrConstructor' => true,
+        'attrNative' => true,
+        'constructor' => true,
         'man' => true,
         'meta' => true,
-        'nativeFormat' => true,
         'sourceFormat' => true,
         'id' => true,
     ];
@@ -575,7 +577,7 @@ final class ManCorpusAudit
         $attrs = [];
         foreach ($node->attrs as $key => $value) {
             $key = (string) $key;
-            if (isset(self::IGNORED_ATTRS[$key])) {
+            if (self::isIgnoredAttr($key)) {
                 continue;
             }
             if ($key === 'text' && in_array($node->type, ['plain', 'paragraph', 'heading', 'table_cell', 'term'], true)) {
@@ -706,7 +708,7 @@ final class ManCorpusAudit
 
         $normalized = [];
         foreach ($value as $key => $item) {
-            if (isset(self::IGNORED_ATTRS[(string) $key])) {
+            if (self::isIgnoredAttr((string) $key)) {
                 continue;
             }
             $normalized[(string) $key] = $this->normalizedValue($item);
@@ -728,6 +730,11 @@ final class ManCorpusAudit
         }
 
         return $value !== [];
+    }
+
+    private static function isIgnoredAttr(string $key): bool
+    {
+        return isset(self::IGNORED_ATTRS[$key]) || str_starts_with($key, 'native');
     }
 
     private function firstControlLeak(AstNode $document): ?string
