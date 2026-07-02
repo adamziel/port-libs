@@ -607,8 +607,16 @@ final class PdfEngineHandoff
         if ($typstBoundarySummary !== []) {
             $diagnostics[] = 'typst-boundary-summary:' . $typstBoundarySummary['reviewStatus'];
             $diagnostics[] = 'typst-boundary-summary-paths:' . $typstBoundarySummary['pathEntryCount'];
+            $pathEntryCountsByCategory = is_array($typstBoundarySummary['pathEntryCountsByCategory'] ?? null) ? $typstBoundarySummary['pathEntryCountsByCategory'] : [];
+            if ($pathEntryCountsByCategory !== []) {
+                $diagnostics[] = 'typst-boundary-summary-categories:' . count($pathEntryCountsByCategory);
+            }
             if ($typstBoundarySummary['unsafePathEntryCount'] > 0) {
                 $diagnostics[] = 'typst-boundary-summary-unsafe-paths:' . $typstBoundarySummary['unsafePathEntryCount'];
+            }
+            $unsafePathEntryCountsByCategory = is_array($typstBoundarySummary['unsafePathEntryCountsByCategory'] ?? null) ? $typstBoundarySummary['unsafePathEntryCountsByCategory'] : [];
+            if ($unsafePathEntryCountsByCategory !== []) {
+                $diagnostics[] = 'typst-boundary-summary-unsafe-categories:' . count($unsafePathEntryCountsByCategory);
             }
             if ($typstBoundarySummary['sidecarOutputCount'] > 0) {
                 $diagnostics[] = 'typst-boundary-summary-sidecars:' . $typstBoundarySummary['sidecarOutputCount'];
@@ -8888,30 +8896,60 @@ final class PdfEngineHandoff
         }
 
         $pathEntries = [];
-        $appendPathEntry = static function (mixed $entry) use (&$pathEntries): void {
+        $pathEntryCountsByCategory = [];
+        $pathEntryKindCountsByCategory = [];
+        $unsafePathEntryCountsByCategory = [];
+        $appendPathEntry = static function (mixed $entry, string $category) use (
+            &$pathEntries,
+            &$pathEntryCountsByCategory,
+            &$pathEntryKindCountsByCategory,
+            &$unsafePathEntryCountsByCategory
+        ): void {
             if (!is_array($entry) || !is_string($entry['kind'] ?? null)) {
                 return;
             }
 
+            $kind = $entry['kind'];
+            if (!in_array($kind, ['relative', 'workspace', 'absolute', 'uri', 'stdout', 'invalid'], true)) {
+                $kind = 'invalid';
+            }
+
             $pathEntries[] = $entry;
+            $pathEntryCountsByCategory[$category] = ($pathEntryCountsByCategory[$category] ?? 0) + 1;
+            if (!isset($pathEntryKindCountsByCategory[$category])) {
+                $pathEntryKindCountsByCategory[$category] = [];
+            }
+            $pathEntryKindCountsByCategory[$category][$kind] = ($pathEntryKindCountsByCategory[$category][$kind] ?? 0) + 1;
+            if (($entry['safe'] ?? false) !== true) {
+                $unsafePathEntryCountsByCategory[$category] = ($unsafePathEntryCountsByCategory[$category] ?? 0) + 1;
+            }
         };
 
-        $appendPathEntry($provenance['root'] ?? null);
-        $appendPathEntry($provenance['rootEnvironment'] ?? null);
-        foreach (['fontPaths', 'certificates'] as $listKey) {
-            foreach (is_array($provenance[$listKey] ?? null) ? $provenance[$listKey] : [] as $entry) {
-                $appendPathEntry($entry);
-            }
+        $appendPathEntry($provenance['root'] ?? null, 'root');
+        $appendPathEntry($provenance['rootEnvironment'] ?? null, 'rootEnvironment');
+        foreach (is_array($provenance['fontPaths'] ?? null) ? $provenance['fontPaths'] : [] as $entry) {
+            $appendPathEntry($entry, 'fontPath');
         }
-        $appendPathEntry($provenance['certificateEnvironment'] ?? null);
-        $appendPathEntry($provenance['packagePath'] ?? null);
-        $appendPathEntry($provenance['packagePathEnvironment'] ?? null);
-        $appendPathEntry($provenance['packageCache'] ?? null);
-        $appendPathEntry($provenance['packageCacheEnvironment'] ?? null);
+        foreach (is_array($provenance['certificates'] ?? null) ? $provenance['certificates'] : [] as $entry) {
+            $appendPathEntry($entry, 'certificate');
+        }
+        $appendPathEntry($provenance['certificateEnvironment'] ?? null, 'certificateEnvironment');
+        $appendPathEntry($provenance['packagePath'] ?? null, 'packagePath');
+        $appendPathEntry($provenance['packagePathEnvironment'] ?? null, 'packagePathEnvironment');
+        $appendPathEntry($provenance['packageCache'] ?? null, 'packageCache');
+        $appendPathEntry($provenance['packageCacheEnvironment'] ?? null, 'packageCacheEnvironment');
         if (is_array($provenance['dependencyOutput'] ?? null)) {
-            $appendPathEntry($provenance['dependencyOutput']['file'] ?? null);
+            $appendPathEntry($provenance['dependencyOutput']['file'] ?? null, 'dependencyOutput');
         }
-        $appendPathEntry($provenance['timingsOutput'] ?? null);
+        $appendPathEntry($provenance['timingsOutput'] ?? null, 'timingsOutput');
+
+        ksort($pathEntryCountsByCategory);
+        ksort($unsafePathEntryCountsByCategory);
+        foreach ($pathEntryKindCountsByCategory as &$kindCountsByCategory) {
+            ksort($kindCountsByCategory);
+        }
+        unset($kindCountsByCategory);
+        ksort($pathEntryKindCountsByCategory);
 
         $kindCounts = [
             'relative' => 0,
@@ -9011,6 +9049,9 @@ final class PdfEngineHandoff
             'uriPathEntryCount' => $kindCounts['uri'],
             'stdoutPathEntryCount' => $kindCounts['stdout'],
             'invalidPathEntryCount' => $kindCounts['invalid'],
+            'pathEntryCountsByCategory' => $pathEntryCountsByCategory,
+            'pathEntryKindCountsByCategory' => $pathEntryKindCountsByCategory,
+            'unsafePathEntryCountsByCategory' => $unsafePathEntryCountsByCategory,
             'fontPathCount' => is_array($provenance['fontPaths'] ?? null) ? count($provenance['fontPaths']) : 0,
             'certificateCount' => is_array($provenance['certificates'] ?? null) ? count($provenance['certificates']) : 0,
             'packageStorageEntryCount' => is_array($provenance['packageStoragePolicy'] ?? null) && is_int($provenance['packageStoragePolicy']['storageEntryCount'] ?? null)
