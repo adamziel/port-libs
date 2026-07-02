@@ -424,4 +424,39 @@ return [
             'wiki-format-registry-accounting-only',
         ], $gate['diagnostics']);
     },
+    'reports roff manual direct format ship gate blockers from registry status' => static function (TestRunner $t): void {
+        $gate = PandocFormatRegistry::roffManualFormatShipGate();
+
+        $t->same('roff-manual', $gate['family']);
+        $t->same('PandocFormatRegistry::roffManualFormatReviewPacket', $gate['source']);
+        $t->same(false, $gate['shippable']);
+        $t->same('blocked', $gate['directParityStatus']);
+        $t->same('blocked', $gate['readerStatus']);
+        $t->same('blocked', $gate['writerStatus']);
+        $t->same(2, $gate['acceptedInputFormatCount']);
+        $t->same(2, $gate['acceptedOutputFormatCount']);
+        $t->same(3, $gate['uniqueFormatCount']);
+        $t->same(false, $gate['directReaderParityClaimed']);
+        $t->same(false, $gate['directWriterParityClaimed']);
+        $t->same([], $gate['directReaderCompleteFormats']);
+        $t->same([], $gate['directWriterCompleteFormats']);
+        $t->same(['man', 'mdoc'], $gate['readerBlockingFormats']);
+        $t->same(['man', 'ms'], $gate['writerBlockingFormats']);
+        $t->same(2, $gate['readerBlockingFormatCount']);
+        $t->same(2, $gate['writerBlockingFormatCount']);
+        $t->same(['man', 'mdoc'], $gate['unsupportedInputs']);
+        $t->same([], $gate['partialInputs']);
+        $t->same(['man', 'ms'], $gate['unsupportedOutputs']);
+        $t->same([], $gate['partialOutputs']);
+        $t->same([
+            'native PHP roff/manual readers for every accepted upstream roff/manual input format',
+            'native PHP roff/manual writers for every accepted upstream roff/manual output format',
+            'focused direct-format fixtures without invoking Pandoc or external roff/manual renderers',
+        ], $gate['activationRequirements']);
+        $t->same([
+            'roff-manual-reader-parity-incomplete',
+            'roff-manual-writer-parity-incomplete',
+            'roff-manual-format-registry-accounting-only',
+        ], $gate['diagnostics']);
+    },
 ];

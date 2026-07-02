@@ -1099,6 +1099,105 @@ final class PandocFormatRegistry
         ];
     }
 
+    /**
+     * @return array{
+     *     family:string,
+     *     source:string,
+     *     shippable:bool,
+     *     directParityStatus:string,
+     *     readerStatus:string,
+     *     writerStatus:string,
+     *     acceptedInputFormatCount:int,
+     *     acceptedOutputFormatCount:int,
+     *     uniqueFormatCount:int,
+     *     directReaderParityClaimed:bool,
+     *     directWriterParityClaimed:bool,
+     *     directReaderCompleteFormats:list<string>,
+     *     directWriterCompleteFormats:list<string>,
+     *     readerBlockingFormats:list<string>,
+     *     writerBlockingFormats:list<string>,
+     *     readerBlockingFormatCount:int,
+     *     writerBlockingFormatCount:int,
+     *     unsupportedInputs:list<string>,
+     *     partialInputs:list<string>,
+     *     unsupportedOutputs:list<string>,
+     *     partialOutputs:list<string>,
+     *     activationRequirements:list<string>,
+     *     diagnostics:list<string>
+     * }
+     */
+    public static function roffManualFormatShipGate(): array
+    {
+        $packet = self::roffManualFormatReviewPacket();
+        $directReaderCompleteFormats = [];
+        $directWriterCompleteFormats = [];
+        $readerBlockingFormats = [];
+        $writerBlockingFormats = [];
+
+        foreach ($packet['inputFormats'] as $format) {
+            if ($packet['formats'][$format]['directReaderParityClaimed']) {
+                $directReaderCompleteFormats[] = $format;
+            } else {
+                $readerBlockingFormats[] = $format;
+            }
+        }
+
+        foreach ($packet['outputFormats'] as $format) {
+            if ($packet['formats'][$format]['directWriterParityClaimed']) {
+                $directWriterCompleteFormats[] = $format;
+            } else {
+                $writerBlockingFormats[] = $format;
+            }
+        }
+
+        $readerStatus = $readerBlockingFormats === [] ? 'ready' : 'blocked';
+        $writerStatus = $writerBlockingFormats === [] ? 'ready' : 'blocked';
+        $shippable = $readerStatus === 'ready' && $writerStatus === 'ready';
+        $diagnostics = [];
+
+        if ($readerStatus === 'blocked') {
+            $diagnostics[] = 'roff-manual-reader-parity-incomplete';
+        }
+
+        if ($writerStatus === 'blocked') {
+            $diagnostics[] = 'roff-manual-writer-parity-incomplete';
+        }
+
+        if (!$shippable) {
+            $diagnostics[] = 'roff-manual-format-registry-accounting-only';
+        }
+
+        return [
+            'family' => 'roff-manual',
+            'source' => 'PandocFormatRegistry::roffManualFormatReviewPacket',
+            'shippable' => $shippable,
+            'directParityStatus' => $shippable ? 'ready' : 'blocked',
+            'readerStatus' => $readerStatus,
+            'writerStatus' => $writerStatus,
+            'acceptedInputFormatCount' => count($packet['inputFormats']),
+            'acceptedOutputFormatCount' => count($packet['outputFormats']),
+            'uniqueFormatCount' => count($packet['uniqueFormats']),
+            'directReaderParityClaimed' => $packet['directReaderParityClaimed'],
+            'directWriterParityClaimed' => $packet['directWriterParityClaimed'],
+            'directReaderCompleteFormats' => $directReaderCompleteFormats,
+            'directWriterCompleteFormats' => $directWriterCompleteFormats,
+            'readerBlockingFormats' => $readerBlockingFormats,
+            'writerBlockingFormats' => $writerBlockingFormats,
+            'readerBlockingFormatCount' => count($readerBlockingFormats),
+            'writerBlockingFormatCount' => count($writerBlockingFormats),
+            'unsupportedInputs' => $packet['unsupportedInputs'],
+            'partialInputs' => $packet['partialInputs'],
+            'unsupportedOutputs' => $packet['unsupportedOutputs'],
+            'partialOutputs' => $packet['partialOutputs'],
+            'activationRequirements' => [
+                'native PHP roff/manual readers for every accepted upstream roff/manual input format',
+                'native PHP roff/manual writers for every accepted upstream roff/manual output format',
+                'focused direct-format fixtures without invoking Pandoc or external roff/manual renderers',
+            ],
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
     public static function inferTabularDataFormatFromExtension(string $extension): ?string
     {
         $extension = strtolower(ltrim(trim($extension), '.'));
