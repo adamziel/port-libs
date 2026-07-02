@@ -19755,6 +19755,7 @@ final class ZipPackage
         $sourceCentralDirectoryReviewFieldBytes = 0;
         $sourceTotalRecordBytes = 0;
         $sourceByteSpanIssues = [];
+        $timestampSummaryEntries = [];
 
         foreach ($this->entries as $centralDirectoryIndex => $entry) {
             $localHeader = $this->readLocalHeader($entry);
@@ -19822,6 +19823,15 @@ final class ZipPackage
             foreach ($sourceByteSpanProvenance['sourceByteSpanIssues'] as $issue) {
                 self::appendUniqueIssue($sourceByteSpanIssues, $issue);
             }
+            $timestampProvenance = self::entryTimestampHandoffProvenance($entry, $localHeader);
+            $timestampSummaryEntries[] = [
+                'name' => $entry->name,
+                'isDirectory' => $isDirectory,
+                'compressedSize' => $entry->compressedSize,
+                'uncompressedSize' => $entry->uncompressedSize,
+                'centralModifiedDosTime' => $entry->lastModifiedTime,
+                'centralModifiedDosDate' => $entry->lastModifiedDate,
+            ] + $timestampProvenance;
             $entryExtension = self::entryHandoffExtension($entry->name, $isDirectory);
             $summary = [
                 'name' => $entry->name,
@@ -19848,6 +19858,8 @@ final class ZipPackage
                 'compressedSize' => $entry->compressedSize,
                 'uncompressedSize' => $entry->uncompressedSize,
                 'expansionRatio' => self::expansionRatio($entry->uncompressedSize, $entry->compressedSize),
+                'modifiedDosTime' => $entry->lastModifiedTime,
+                'modifiedDosDate' => $entry->lastModifiedDate,
                 'localHeaderOffset' => $entry->localHeaderOffset,
                 'localHeaderLength' => $localHeaderLength,
                 'localHeaderSha256' => $localHeaderSha256,
@@ -19857,7 +19869,7 @@ final class ZipPackage
                 'centralDirectoryRecordOffset' => $entry->centralDirectoryRecordOffset,
                 'centralDirectoryRecordEnd' => $entry->centralDirectoryRecordEnd,
                 'centralDirectoryRecordSha256' => $centralDirectoryRecordSha256,
-            ] + $sourceByteSpanProvenance;
+            ] + $timestampProvenance + $sourceByteSpanProvenance;
             $entries[] = $summary;
             $manifestEntries[] = [
                 'name' => $summary['name'],
@@ -19902,6 +19914,7 @@ final class ZipPackage
         $manifestOrderIssueCodes = $manifestOrderSummary['centralDirectoryOrderMatchesLocalHeaderOrder']
             ? []
             : ['central-directory-local-header-order-mismatch'];
+        $manifestTimestampSummary = self::entryHandoffTimestampSummary($timestampSummaryEntries);
         $unknownExpansionRatioEntryCount = self::entryHandoffSummaryTotal(
             $expansionRatioBucketSummaries,
             'unknownExpansionRatioEntryCount'
@@ -19971,6 +19984,22 @@ final class ZipPackage
             'manifestOrderIssueCount' => count($manifestOrderIssueCodes),
             'manifestOrderMismatchEntryCount' => $manifestOrderSummary['mismatchEntryCount'],
             'manifestOrderSummary' => $manifestOrderSummary,
+            'timestampProvenanceEntryCount' => $manifestTimestampSummary['provenanceEntryCount'],
+            'timestampEntryCount' => $manifestTimestampSummary['timestampEntryCount'],
+            'dosTimestampEntryCount' => $manifestTimestampSummary['dosTimestampEntryCount'],
+            'extendedTimestampEntryCount' => $manifestTimestampSummary['extendedTimestampEntryCount'],
+            'ntfsTimestampEntryCount' => $manifestTimestampSummary['ntfsTimestampEntryCount'],
+            'localTimestampEntryCount' => $manifestTimestampSummary['localTimestampEntryCount'],
+            'localExtendedTimestampEntryCount' => $manifestTimestampSummary['localExtendedTimestampEntryCount'],
+            'localNtfsTimestampEntryCount' => $manifestTimestampSummary['localNtfsTimestampEntryCount'],
+            'invalidDosTimestampEntryCount' => $manifestTimestampSummary['invalidDosTimestampEntryCount'],
+            'timestampIssueEntryCount' => $manifestTimestampSummary['issueEntryCount'],
+            'timestampIssueCount' => count($manifestTimestampSummary['issues']),
+            'timestampSourceSummaryCount' => count($manifestTimestampSummary['sourceSummaries']),
+            'timestampIssues' => $manifestTimestampSummary['issues'],
+            'timestampSourceSummaries' => $manifestTimestampSummary['sourceSummaries'],
+            'timestampProvenanceEntries' => $manifestTimestampSummary['provenanceEntries'],
+            'timestampIssueEntries' => $manifestTimestampSummary['issueEntries'],
             'directoryRootSummaries' => $directoryRootSummaries,
             'parentDirectorySummaries' => $parentDirectorySummaries,
             'packagePartKindSummaries' => $packagePartKindSummaries,
