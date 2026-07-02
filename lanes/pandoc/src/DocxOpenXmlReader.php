@@ -20473,6 +20473,18 @@ final class DocxOpenXmlReader
             'duplicateContentTypeOverrideCaseFoldBaseNameStemDeclarationCount' => (int) ($contentTypesPart['duplicateOverrideCaseFoldBaseNameStemDeclarationCount'] ?? 0),
             'duplicateContentTypeOverrideCaseFoldBaseNameStems' => $contentTypesPart['duplicateOverrideCaseFoldBaseNameStems'] ?? [],
             'duplicateContentTypeOverrideCaseFoldBaseNameStemGroups' => $contentTypesPart['duplicateOverrideCaseFoldBaseNameStemGroups'] ?? [],
+            'contentTypeOverrideDirectoryBaseNameCount' => (int) ($contentTypesPart['overrideDirectoryBaseNameCount'] ?? 0),
+            'contentTypeOverrideDirectoryBaseNameCounts' => $contentTypesPart['overrideDirectoryBaseNameCounts'] ?? [],
+            'duplicateContentTypeOverrideDirectoryBaseNameCount' => (int) ($contentTypesPart['duplicateOverrideDirectoryBaseNameCount'] ?? 0),
+            'duplicateContentTypeOverrideDirectoryBaseNameDeclarationCount' => (int) ($contentTypesPart['duplicateOverrideDirectoryBaseNameDeclarationCount'] ?? 0),
+            'duplicateContentTypeOverrideDirectoryBaseNames' => $contentTypesPart['duplicateOverrideDirectoryBaseNames'] ?? [],
+            'duplicateContentTypeOverrideDirectoryBaseNameGroups' => $contentTypesPart['duplicateOverrideDirectoryBaseNameGroups'] ?? [],
+            'contentTypeOverrideCaseFoldDirectoryBaseNameCount' => (int) ($contentTypesPart['overrideCaseFoldDirectoryBaseNameCount'] ?? 0),
+            'contentTypeOverrideCaseFoldDirectoryBaseNameCounts' => $contentTypesPart['overrideCaseFoldDirectoryBaseNameCounts'] ?? [],
+            'duplicateContentTypeOverrideCaseFoldDirectoryBaseNameCount' => (int) ($contentTypesPart['duplicateOverrideCaseFoldDirectoryBaseNameCount'] ?? 0),
+            'duplicateContentTypeOverrideCaseFoldDirectoryBaseNameDeclarationCount' => (int) ($contentTypesPart['duplicateOverrideCaseFoldDirectoryBaseNameDeclarationCount'] ?? 0),
+            'duplicateContentTypeOverrideCaseFoldDirectoryBaseNames' => $contentTypesPart['duplicateOverrideCaseFoldDirectoryBaseNames'] ?? [],
+            'duplicateContentTypeOverrideCaseFoldDirectoryBaseNameGroups' => $contentTypesPart['duplicateOverrideCaseFoldDirectoryBaseNameGroups'] ?? [],
             'contentTypeSourceCounts' => $contentTypeSourceCounts,
             'contentTypeSourceByteLengths' => $contentTypeSourceByteLengths,
             'contentTypeBaseCounts' => $contentTypeBaseCounts,
@@ -42447,6 +42459,16 @@ final class DocxOpenXmlReader
             $overrideDeclarationSummary['declarations'],
             true,
         );
+        $overrideDirectoryBaseNameSummary = $this->contentTypeOverrideDirectoryBaseNameSummary(
+            $parts,
+            $overrideDeclarationSummary['declarations'],
+            false,
+        );
+        $overrideCaseFoldDirectoryBaseNameSummary = $this->contentTypeOverrideDirectoryBaseNameSummary(
+            $parts,
+            $overrideDeclarationSummary['declarations'],
+            true,
+        );
         $missingOverrides = array_values(array_filter(
             $overrideDeclarationSummary['declarations'],
             static fn (array $declaration): bool => ($declaration['exists'] ?? true) === false,
@@ -42520,6 +42542,18 @@ final class DocxOpenXmlReader
             'duplicateOverrideCaseFoldBaseNameStemDeclarationCount' => $overrideCaseFoldBaseNameStemSummary['duplicateDeclarationCount'],
             'duplicateOverrideCaseFoldBaseNameStems' => $overrideCaseFoldBaseNameStemSummary['duplicateStems'],
             'duplicateOverrideCaseFoldBaseNameStemGroups' => $overrideCaseFoldBaseNameStemSummary['duplicateGroups'],
+            'overrideDirectoryBaseNameCount' => $overrideDirectoryBaseNameSummary['directoryBaseNameCount'],
+            'overrideDirectoryBaseNameCounts' => $overrideDirectoryBaseNameSummary['directoryBaseNameCounts'],
+            'duplicateOverrideDirectoryBaseNameCount' => $overrideDirectoryBaseNameSummary['duplicateDirectoryBaseNameCount'],
+            'duplicateOverrideDirectoryBaseNameDeclarationCount' => $overrideDirectoryBaseNameSummary['duplicateDeclarationCount'],
+            'duplicateOverrideDirectoryBaseNames' => $overrideDirectoryBaseNameSummary['duplicateDirectoryBaseNames'],
+            'duplicateOverrideDirectoryBaseNameGroups' => $overrideDirectoryBaseNameSummary['duplicateGroups'],
+            'overrideCaseFoldDirectoryBaseNameCount' => $overrideCaseFoldDirectoryBaseNameSummary['directoryBaseNameCount'],
+            'overrideCaseFoldDirectoryBaseNameCounts' => $overrideCaseFoldDirectoryBaseNameSummary['directoryBaseNameCounts'],
+            'duplicateOverrideCaseFoldDirectoryBaseNameCount' => $overrideCaseFoldDirectoryBaseNameSummary['duplicateDirectoryBaseNameCount'],
+            'duplicateOverrideCaseFoldDirectoryBaseNameDeclarationCount' => $overrideCaseFoldDirectoryBaseNameSummary['duplicateDeclarationCount'],
+            'duplicateOverrideCaseFoldDirectoryBaseNames' => $overrideCaseFoldDirectoryBaseNameSummary['duplicateDirectoryBaseNames'],
+            'duplicateOverrideCaseFoldDirectoryBaseNameGroups' => $overrideCaseFoldDirectoryBaseNameSummary['duplicateGroups'],
             'missingOverrideCount' => count($missingOverrides),
             'missingOverrideParts' => array_column($missingOverrides, 'partName'),
             'missingOverrides' => $missingOverrides,
@@ -43351,6 +43385,215 @@ final class DocxOpenXmlReader
             'duplicateStemCount' => count($duplicateGroups),
             'duplicateDeclarationCount' => $duplicateDeclarationCount,
             'duplicateStems' => $duplicateStems,
+            'duplicateGroups' => $duplicateGroups,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param list<array<string, mixed>> $declarations
+     * @return array<string, mixed>
+     */
+    private function contentTypeOverrideDirectoryBaseNameSummary(array $parts, array $declarations, bool $caseFold): array
+    {
+        $groups = [];
+        foreach ($declarations as $declaration) {
+            $partName = is_string($declaration['partName'] ?? null) ? $declaration['partName'] : '';
+            if ($partName === '') {
+                continue;
+            }
+
+            $directory = $this->packagePartDirectory($partName);
+            $directoryBaseName = $this->packagePartDirectoryBaseName($directory);
+            $directoryBaseNameKey = $caseFold ? $this->packagePartCaseFoldKey($directoryBaseName) : $directoryBaseName;
+            $keyField = $caseFold ? 'caseFoldDirectoryBaseName' : 'directoryBaseName';
+            if (!isset($groups[$directoryBaseNameKey])) {
+                $groups[$directoryBaseNameKey] = [
+                    $keyField => $directoryBaseNameKey,
+                    'declarationCount' => 0,
+                    'existingDeclarationCount' => 0,
+                    'missingDeclarationCount' => 0,
+                    'invalidDeclarationCount' => 0,
+                    'parameterizedDeclarationCount' => 0,
+                    'relationshipPartDeclarationCount' => 0,
+                    'existingPartByteLength' => 0,
+                    'directoryVariantCount' => 0,
+                    'partNameCounts' => [],
+                    'directoryCounts' => [],
+                    'topLevelSegmentCounts' => [],
+                    'baseNameCounts' => [],
+                    'partExtensionCounts' => [],
+                    'contentTypeBaseCounts' => [],
+                    'contentTypeParameterNameCounts' => [],
+                    'roleCounts' => [],
+                    'issueCounts' => [],
+                    'partNames' => [],
+                    'existingPartNames' => [],
+                    'missingPartNames' => [],
+                    'largestExistingPart' => null,
+                    '_seenExistingPartNames' => [],
+                ];
+                if ($caseFold) {
+                    $groups[$directoryBaseNameKey]['directoryBaseNameVariantCount'] = 0;
+                    $groups[$directoryBaseNameKey]['directoryBaseNameCounts'] = [];
+                }
+            }
+
+            ++$groups[$directoryBaseNameKey]['declarationCount'];
+            $groups[$directoryBaseNameKey]['partNameCounts'][$partName] =
+                (int) ($groups[$directoryBaseNameKey]['partNameCounts'][$partName] ?? 0) + 1;
+            $groups[$directoryBaseNameKey]['directoryCounts'][$directory] =
+                (int) ($groups[$directoryBaseNameKey]['directoryCounts'][$directory] ?? 0) + 1;
+            if ($caseFold) {
+                $groups[$directoryBaseNameKey]['directoryBaseNameCounts'][$directoryBaseName] =
+                    (int) ($groups[$directoryBaseNameKey]['directoryBaseNameCounts'][$directoryBaseName] ?? 0) + 1;
+            }
+            $this->appendUniqueString($groups[$directoryBaseNameKey]['partNames'], $partName);
+
+            $exists = ($declaration['exists'] ?? false) === true && isset($parts[$partName]);
+            if ($exists) {
+                ++$groups[$directoryBaseNameKey]['existingDeclarationCount'];
+                $this->appendUniqueString($groups[$directoryBaseNameKey]['existingPartNames'], $partName);
+            } else {
+                ++$groups[$directoryBaseNameKey]['missingDeclarationCount'];
+                $this->appendUniqueString($groups[$directoryBaseNameKey]['missingPartNames'], $partName);
+            }
+
+            if (($declaration['valid'] ?? true) !== true) {
+                ++$groups[$directoryBaseNameKey]['invalidDeclarationCount'];
+            }
+            if (($declaration['relationshipPart'] ?? false) === true) {
+                ++$groups[$directoryBaseNameKey]['relationshipPartDeclarationCount'];
+            }
+
+            $topLevelSegment = $this->packagePartTopLevelSegment($partName);
+            $groups[$directoryBaseNameKey]['topLevelSegmentCounts'][$topLevelSegment] =
+                (int) ($groups[$directoryBaseNameKey]['topLevelSegmentCounts'][$topLevelSegment] ?? 0) + 1;
+
+            $baseName = $this->packagePartBaseName($partName);
+            $groups[$directoryBaseNameKey]['baseNameCounts'][$baseName] =
+                (int) ($groups[$directoryBaseNameKey]['baseNameCounts'][$baseName] ?? 0) + 1;
+
+            $partExtension = $this->packagePartExtension($partName);
+            $partExtensionKey = $partExtension ?? '(none)';
+            $groups[$directoryBaseNameKey]['partExtensionCounts'][$partExtensionKey] =
+                (int) ($groups[$directoryBaseNameKey]['partExtensionCounts'][$partExtensionKey] ?? 0) + 1;
+
+            $contentTypeBase = is_string($declaration['contentTypeBase'] ?? null)
+                ? $declaration['contentTypeBase']
+                : '';
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            $groups[$directoryBaseNameKey]['contentTypeBaseCounts'][$contentTypeBaseKey] =
+                (int) ($groups[$directoryBaseNameKey]['contentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
+
+            $parameterMap = is_array($declaration['contentTypeParameterMap'] ?? null)
+                ? $declaration['contentTypeParameterMap']
+                : [];
+            if ($parameterMap !== []) {
+                ++$groups[$directoryBaseNameKey]['parameterizedDeclarationCount'];
+            }
+            foreach ($parameterMap as $parameterName => $_parameterValue) {
+                if (is_string($parameterName) && $parameterName !== '') {
+                    $groups[$directoryBaseNameKey]['contentTypeParameterNameCounts'][$parameterName] =
+                        (int) ($groups[$directoryBaseNameKey]['contentTypeParameterNameCounts'][$parameterName] ?? 0) + 1;
+                }
+            }
+
+            foreach ($this->contentTypeOverrideDeclarationRoles($declaration) as $role) {
+                $groups[$directoryBaseNameKey]['roleCounts'][$role] =
+                    (int) ($groups[$directoryBaseNameKey]['roleCounts'][$role] ?? 0) + 1;
+            }
+            foreach (array_values(array_map('strval', is_array($declaration['issues'] ?? null) ? $declaration['issues'] : [])) as $issue) {
+                if ($issue === '') {
+                    continue;
+                }
+                $groups[$directoryBaseNameKey]['issueCounts'][$issue] =
+                    (int) ($groups[$directoryBaseNameKey]['issueCounts'][$issue] ?? 0) + 1;
+            }
+
+            if (!$exists || isset($groups[$directoryBaseNameKey]['_seenExistingPartNames'][$partName])) {
+                continue;
+            }
+
+            $groups[$directoryBaseNameKey]['_seenExistingPartNames'][$partName] = true;
+            $bytes = strlen($parts[$partName]);
+            $groups[$directoryBaseNameKey]['existingPartByteLength'] += $bytes;
+            $partSummary = [
+                'partName' => $partName,
+                'directory' => $directory,
+                'directoryBaseName' => $directoryBaseName,
+                'caseFoldDirectoryBaseName' => $this->packagePartCaseFoldKey($directoryBaseName),
+                'topLevelSegment' => $topLevelSegment,
+                'baseName' => $baseName,
+                'baseNameStem' => $this->packagePartBaseNameStem($partName),
+                'partExtension' => $partExtension,
+                'bytes' => $bytes,
+                'sha256' => hash('sha256', $parts[$partName]),
+                'contentType' => is_string($declaration['contentType'] ?? null) ? $declaration['contentType'] : '',
+                'contentTypeBase' => $contentTypeBase,
+                'contentTypeHasParameters' => (bool) ($declaration['contentTypeHasParameters'] ?? false),
+                'contentTypeParameterMap' => $parameterMap,
+                'roles' => $this->contentTypeOverrideDeclarationRoles($declaration),
+            ];
+            $largestExistingPart = $groups[$directoryBaseNameKey]['largestExistingPart'];
+            if (
+                !is_array($largestExistingPart)
+                || $bytes > (int) ($largestExistingPart['bytes'] ?? 0)
+                || (
+                    $bytes === (int) ($largestExistingPart['bytes'] ?? 0)
+                    && strcmp($partName, (string) ($largestExistingPart['partName'] ?? '')) < 0
+                )
+            ) {
+                $groups[$directoryBaseNameKey]['largestExistingPart'] = $partSummary;
+            }
+        }
+
+        ksort($groups, SORT_STRING);
+
+        $duplicateGroups = [];
+        $duplicateDirectoryBaseNames = [];
+        $duplicateDeclarationCount = 0;
+        $directoryBaseNameCounts = [];
+        foreach ($groups as $directoryBaseName => &$group) {
+            ksort($group['partNameCounts'], SORT_STRING);
+            ksort($group['directoryCounts'], SORT_STRING);
+            ksort($group['topLevelSegmentCounts'], SORT_STRING);
+            ksort($group['baseNameCounts'], SORT_STRING);
+            ksort($group['partExtensionCounts'], SORT_STRING);
+            ksort($group['contentTypeBaseCounts'], SORT_STRING);
+            ksort($group['contentTypeParameterNameCounts'], SORT_STRING);
+            ksort($group['roleCounts'], SORT_STRING);
+            ksort($group['issueCounts'], SORT_STRING);
+            sort($group['partNames'], SORT_STRING);
+            sort($group['existingPartNames'], SORT_STRING);
+            sort($group['missingPartNames'], SORT_STRING);
+            if ($caseFold) {
+                ksort($group['directoryBaseNameCounts'], SORT_STRING);
+                $group['directoryBaseNameVariantCount'] = count($group['directoryBaseNameCounts']);
+            }
+            $group['directoryVariantCount'] = count($group['directoryCounts']);
+            unset($group['_seenExistingPartNames']);
+
+            $declarationCount = (int) $group['declarationCount'];
+            $directoryBaseNameCounts[(string) $directoryBaseName] = $declarationCount;
+            if ($declarationCount < 2) {
+                continue;
+            }
+
+            $duplicateGroups[] = $group;
+            $duplicateDirectoryBaseNames[] = (string) $directoryBaseName;
+            $duplicateDeclarationCount += $declarationCount;
+        }
+        unset($group);
+
+        sort($duplicateDirectoryBaseNames, SORT_STRING);
+
+        return [
+            'directoryBaseNameCount' => count($groups),
+            'directoryBaseNameCounts' => $directoryBaseNameCounts,
+            'duplicateDirectoryBaseNameCount' => count($duplicateGroups),
+            'duplicateDeclarationCount' => $duplicateDeclarationCount,
+            'duplicateDirectoryBaseNames' => $duplicateDirectoryBaseNames,
             'duplicateGroups' => $duplicateGroups,
         ];
     }
