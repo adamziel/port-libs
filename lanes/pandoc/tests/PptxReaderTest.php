@@ -909,6 +909,86 @@ XML);
     }
 };
 
+$buildRaggedBodyRowTablePptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-ragged-body-row-table-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Ragged body row table</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="8" name="Ragged Body Row Table"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl>
+        <a:tblPr/>
+        <a:tblGrid><a:gridCol w="1828800"/><a:gridCol w="1828800"/><a:gridCol w="1828800"/></a:tblGrid>
+        <a:tr>
+          <a:tc><a:txBody><a:p><a:r><a:t>Header A</a:t></a:r></a:p></a:txBody></a:tc>
+          <a:tc><a:txBody><a:p><a:r><a:t>Header B</a:t></a:r></a:p></a:txBody></a:tc>
+        </a:tr>
+        <a:tr>
+          <a:tc><a:txBody><a:p><a:r><a:t>Body A</a:t></a:r></a:p></a:txBody></a:tc>
+          <a:tc><a:txBody><a:p><a:r><a:t>Body B</a:t></a:r></a:p></a:txBody></a:tc>
+          <a:tc><a:txBody><a:p><a:r><a:t>Body C</a:t></a:r></a:p></a:txBody></a:tc>
+        </a:tr>
+        <a:tr>
+          <a:tc><a:txBody><a:p><a:r><a:t>Short A</a:t></a:r></a:p></a:txBody></a:tc>
+        </a:tr>
+      </a:tbl></a:graphicData></a:graphic>
+    </p:graphicFrame>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildEmptyTextPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-empty-text-');
     if ($path === false) {
@@ -13537,6 +13617,26 @@ return [
         $t->contains('TableHead ( "" , [  ] , [  ] ) [ Row ( "" , [  ] , [  ] ) [ Cell', $native);
         $t->contains('TableBody ( "" , [  ] , [  ] ) (RowHeadColumns 0) [  ] [ Row ( "" , [  ] , [  ] ) [  ] ]', $native);
         $t->true(!str_contains($native, 'Empty Body Row Table'), 'Empty body-row table shape names should not leak into visible output');
+    },
+
+    'preserves ragged pptx table body rows like upstream' => static function (TestRunner $t) use ($buildRaggedBodyRowTablePptxPackage, $nodesOfType): void {
+        $document = (new PptxReader())->read($buildRaggedBodyRowTablePptxPackage());
+        $review = $document->attr('pptx');
+        $tables = $nodesOfType($document, 'table');
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same(1, count($tables));
+        $t->same(2, $tables[0]->attr('nativeColumnCount'));
+        $t->same(2, count($tables[0]->children[0]->children[0]->children));
+        $t->same(2, count($tables[0]->children[1]->children));
+        $t->same(3, count($tables[0]->children[1]->children[0]->children));
+        $t->same(1, count($tables[0]->children[1]->children[1]->children));
+        $t->same('Body C', $tables[0]->children[1]->children[0]->children[2]->attr('text'));
+        $t->same('Short A', $tables[0]->children[1]->children[1]->children[0]->attr('text'));
+        $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
+        $t->contains('Str "Body" , Space , Str "C"', $native);
+        $t->contains('Str "Short" , Space , Str "A"', $native);
+        $t->true(!str_contains($native, 'Ragged Body Row Table'), 'Ragged table shape names should not leak into visible output');
     },
 
     'preserves upstream empty pptx text as explicit empty text nodes' => static function (TestRunner $t) use ($buildEmptyTextPptxPackage, $nodesOfType): void {
