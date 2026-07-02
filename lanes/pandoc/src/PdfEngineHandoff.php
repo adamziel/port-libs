@@ -725,6 +725,20 @@ final class PdfEngineHandoff
             if (($typstBoundarySummary['outputFormatEntryCount'] ?? 0) > 0) {
                 $diagnostics[] = 'typst-boundary-summary-output-formats:' . $typstBoundarySummary['outputFormatEntryCount'];
             }
+            if (($typstBoundarySummary['bundleExportControlCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-boundary-summary-bundle-export:' . $typstBoundarySummary['bundleExportControlCount'];
+                if (($typstBoundarySummary['bundleExportFormat'] ?? null) !== null) {
+                    $diagnostics[] = 'typst-boundary-summary-bundle-export-format:' . $typstBoundarySummary['bundleExportFormat'];
+                }
+                $diagnostics[] = 'typst-boundary-summary-bundle-export-feature:'
+                    . (($typstBoundarySummary['bundleExportFeatureEnabled'] ?? false) === true ? 'enabled' : 'missing');
+                if (($typstBoundarySummary['bundleExportMultiFileOutput'] ?? false) === true) {
+                    $diagnostics[] = 'typst-boundary-summary-bundle-export-multi-file-output';
+                }
+                if (($typstBoundarySummary['bundleExportIssueCount'] ?? 0) > 0) {
+                    $diagnostics[] = 'typst-boundary-summary-bundle-export-issues:' . $typstBoundarySummary['bundleExportIssueCount'];
+                }
+            }
             if (($typstBoundarySummary['pdfExportControlCount'] ?? 0) > 0) {
                 $diagnostics[] = 'typst-boundary-summary-pdf-export-controls:' . $typstBoundarySummary['pdfExportControlCount'];
             }
@@ -9838,6 +9852,19 @@ final class PdfEngineHandoff
         $outputFormatEntryCount = is_int($outputFormatPolicy['formatEntryCount'] ?? null)
             ? $outputFormatPolicy['formatEntryCount']
             : (int) ($outputFormat !== []);
+        $bundleExport = is_array($provenance['bundleExport'] ?? null) ? $provenance['bundleExport'] : [];
+        $bundleExportFeatures = array_values(array_filter(
+            is_array($bundleExport['features'] ?? null) ? $bundleExport['features'] : [],
+            static fn (mixed $feature): bool => is_string($feature) && $feature !== ''
+        ));
+        $bundleExportFeatureCount = is_int($bundleExport['featureCount'] ?? null)
+            ? $bundleExport['featureCount']
+            : count($bundleExportFeatures);
+        $bundleExportIssues = array_values(array_unique(array_filter(
+            is_array($bundleExport['issues'] ?? null) ? $bundleExport['issues'] : [],
+            static fn (mixed $issue): bool => is_string($issue) && $issue !== ''
+        )));
+        sort($bundleExportIssues);
         $executionPolicy = is_array($provenance['executionPolicy'] ?? null) ? $provenance['executionPolicy'] : [];
         $executionJobs = is_array($executionPolicy['jobs'] ?? null) ? $executionPolicy['jobs'] : [];
         $executionJobHistory = is_array($provenance['jobsHistory'] ?? null) ? $provenance['jobsHistory'] : [];
@@ -10280,6 +10307,17 @@ final class PdfEngineHandoff
             'outputFormatOptionCount' => count($outputFormatOptions),
             'distinctOutputFormatCount' => count($distinctOutputFormats),
             'outputFormatIssueCount' => count($outputFormatIssues),
+            'bundleExportControlCount' => (int) ($bundleExport !== []),
+            'bundleExportEnabled' => ($bundleExport['enabled'] ?? false) === true,
+            'bundleExportFormat' => is_string($bundleExport['format'] ?? null) ? $bundleExport['format'] : null,
+            'bundleExportFeatureEnabled' => ($bundleExport['featureEnabled'] ?? false) === true,
+            'bundleExportFeatureSource' => is_string($bundleExport['featureSource'] ?? null) ? $bundleExport['featureSource'] : null,
+            'bundleExportFeatureCount' => $bundleExportFeatureCount,
+            'bundleExportFeatures' => $bundleExportFeatures,
+            'bundleExportMultiFileOutput' => ($bundleExport['multiFileOutput'] ?? false) === true,
+            'bundleExportAssetOutputPossible' => ($bundleExport['assetOutputPossible'] ?? false) === true,
+            'bundleExportIssueCount' => count($bundleExportIssues),
+            'bundleExportIssues' => $bundleExportIssues,
             'pdfExportControlCount' => $pdfExportControlCount,
             'pdfExportPageSelectionPresent' => $pageSelection !== [],
             'pdfExportPageSelectionValue' => is_string($pageSelection['value'] ?? null) ? $pageSelection['value'] : null,
