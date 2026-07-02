@@ -11619,6 +11619,9 @@ final class OpenDocumentPackage
         $nonRootItems = [];
         $invalidTokenItems = [];
         $modeCounts = [];
+        $roleCounts = [];
+        $modeRoleCounts = [];
+        $entryNamesByRole = [];
         $issueCodeCounts = [];
         $rootMode = null;
         $definedModeCount = 0;
@@ -11640,6 +11643,7 @@ final class OpenDocumentPackage
             if (!$classification['validToken']) {
                 $issues[] = 'odf-preferred-view-mode-invalid-token';
             }
+            $roles = self::missingManifestDeclaredRoles($entry);
 
             $review = self::withoutEmptyValues([
                 'manifestIndex' => $entry['manifestIndex'] ?? null,
@@ -11654,10 +11658,16 @@ final class OpenDocumentPackage
                 'definedMode' => $classification['definedMode'],
                 'namespacedToken' => $classification['namespacedToken'],
                 'modeFamily' => $classification['modeFamily'],
+                'roles' => $roles,
                 'issues' => $issues,
             ]);
             $items[] = $review;
             $modeCounts[$mode] = ($modeCounts[$mode] ?? 0) + 1;
+            foreach ($roles as $role) {
+                $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
+                $modeRoleCounts[$mode][$role] = ($modeRoleCounts[$mode][$role] ?? 0) + 1;
+                $entryNamesByRole[$role][] = $path;
+            }
 
             if ($isRootEntry) {
                 $rootMode = $mode;
@@ -11679,6 +11689,17 @@ final class OpenDocumentPackage
         }
 
         ksort($modeCounts, SORT_STRING);
+        ksort($roleCounts, SORT_STRING);
+        ksort($modeRoleCounts, SORT_STRING);
+        foreach ($modeRoleCounts as &$modeRoleCount) {
+            ksort($modeRoleCount, SORT_STRING);
+        }
+        unset($modeRoleCount);
+        ksort($entryNamesByRole, SORT_STRING);
+        foreach ($entryNamesByRole as &$entryNames) {
+            sort($entryNames, SORT_STRING);
+        }
+        unset($entryNames);
         ksort($issueCodeCounts, SORT_STRING);
 
         return [
@@ -11693,6 +11714,9 @@ final class OpenDocumentPackage
             'issueCodes' => array_keys($issueCodeCounts),
             'issueCodeCounts' => $issueCodeCounts,
             'modeCounts' => $modeCounts,
+            'roleCounts' => $roleCounts,
+            'modeRoleCounts' => $modeRoleCounts,
+            'entryNamesByRole' => $entryNamesByRole,
             'nonRootItems' => $nonRootItems,
             'invalidTokenItems' => $invalidTokenItems,
             'items' => $items,

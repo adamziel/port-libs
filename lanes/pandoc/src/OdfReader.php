@@ -1474,7 +1474,6 @@ final class OdfReader
         $undeclaredByPart = [];
         $mediaResourceSummary = $this->manifestMediaResourceRoleSummary($manifest);
         $manifestMediaTypeSummary = $this->manifestMediaTypeSummary($manifest);
-        $preferredViewModeSummary = self::manifestPreferredViewModeSummary($manifest);
         $manifestEncryptionSummary = self::manifestEncryptionSummary($manifest);
         $packageDirectoryCount = 0;
         $manifestPartReferenceSuffixItems = [];
@@ -1500,6 +1499,10 @@ final class OdfReader
         $manifestCustomChildElementNames = [];
         $manifestCustomChildElementItems = [];
         $objectPackageRootParts = $this->objectPackageRootParts($manifest);
+        $preferredViewModeSummary = self::manifestPreferredViewModeSummary(
+            $manifest,
+            fn (array $item): array => $this->missingManifestDeclaredRoles($item, $objectPackageRootParts)
+        );
         $manifestDeclaredSizeRoles = $this->manifestDeclaredSizeRoleSummary($manifest, $objectPackageRootParts);
         $roleCounts = [];
         $undeclaredRoleCounts = [];
@@ -21696,12 +21699,15 @@ final class OdfReader
      * @param list<array<string, mixed>> $manifest
      * @return array<string, mixed>
      */
-    private static function manifestPreferredViewModeSummary(array $manifest): array
+    private static function manifestPreferredViewModeSummary(array $manifest, ?callable $rolesForItem = null): array
     {
         $items = [];
         $nonRootItems = [];
         $invalidTokenItems = [];
         $modeCounts = [];
+        $roleCounts = [];
+        $modeRoleCounts = [];
+        $entryNamesByRole = [];
         $issueCodeCounts = [];
         $rootMode = null;
         $definedModeCount = 0;
@@ -21723,6 +21729,7 @@ final class OdfReader
             if (!$classification['validToken']) {
                 $issues[] = 'odf-preferred-view-mode-invalid-token';
             }
+            $roles = $rolesForItem !== null ? $rolesForItem($item) : ['manifest-declared'];
 
             $review = self::withoutEmpty([
                 'manifestIndex' => $item['manifestIndex'] ?? null,
@@ -21735,10 +21742,19 @@ final class OdfReader
                 'definedMode' => $classification['definedMode'],
                 'namespacedToken' => $classification['namespacedToken'],
                 'modeFamily' => $classification['modeFamily'],
+                'roles' => $roles,
                 'issues' => $issues,
             ]);
             $items[] = $review;
             $modeCounts[$mode] = ($modeCounts[$mode] ?? 0) + 1;
+            foreach ($roles as $role) {
+                if (!is_string($role) || $role === '') {
+                    continue;
+                }
+                $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
+                $modeRoleCounts[$mode][$role] = ($modeRoleCounts[$mode][$role] ?? 0) + 1;
+                $entryNamesByRole[$role][] = $fullPath;
+            }
 
             if ($isRootEntry) {
                 $rootMode = $mode;
@@ -21760,6 +21776,17 @@ final class OdfReader
         }
 
         ksort($modeCounts, SORT_STRING);
+        ksort($roleCounts, SORT_STRING);
+        ksort($modeRoleCounts, SORT_STRING);
+        foreach ($modeRoleCounts as &$modeRoleCount) {
+            ksort($modeRoleCount, SORT_STRING);
+        }
+        unset($modeRoleCount);
+        ksort($entryNamesByRole, SORT_STRING);
+        foreach ($entryNamesByRole as &$entryNames) {
+            sort($entryNames, SORT_STRING);
+        }
+        unset($entryNames);
         ksort($issueCodeCounts, SORT_STRING);
 
         return [
@@ -21774,6 +21801,9 @@ final class OdfReader
             'issueCodes' => array_keys($issueCodeCounts),
             'issueCodeCounts' => $issueCodeCounts,
             'modeCounts' => $modeCounts,
+            'roleCounts' => $roleCounts,
+            'modeRoleCounts' => $modeRoleCounts,
+            'entryNamesByRole' => $entryNamesByRole,
             'nonRootItems' => $nonRootItems,
             'invalidTokenItems' => $invalidTokenItems,
             'items' => $items,
