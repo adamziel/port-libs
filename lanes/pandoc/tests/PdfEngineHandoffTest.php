@@ -17235,6 +17235,7 @@ MARKDOWN);
         $imageBytes = "jpeg image bytes\n";
         $formBytes = "filtered form xobject bytes\n";
         $appearanceBytes = "jpx appearance bytes\n";
+        $embeddedFontBytes = "filtered embedded font bytes\n";
         $embeddedBytes = "encrypted reviewer attachment bytes\n";
         $xrefBytes = "filtered xref stream bytes\n";
         $objectStreamHeader = "20 0\n";
@@ -17248,7 +17249,7 @@ MARKDOWN);
             '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
             'endobj',
             '3 0 obj',
-            '<< /Type /Page /Parent 2 0 R /Resources << /XObject << /ImFiltered 8 0 R /FxFiltered 9 0 R >> >> /Contents 6 0 R /Annots [5 0 R] >>',
+            '<< /Type /Page /Parent 2 0 R /Resources << /Font << /FEmbedded 15 0 R >> /XObject << /ImFiltered 8 0 R /FxFiltered 9 0 R >> >> /Contents 6 0 R /Annots [5 0 R] >>',
             'endobj',
             '5 0 obj',
             '<< /Type /Annot /Subtype /Widget /T (review.status) /AP << /N 10 0 R >> >>',
@@ -17296,6 +17297,18 @@ MARKDOWN);
             '<< /Type /EmbeddedFile /Subtype /application#2Fzip /Filter /Crypt /Length ' . strlen($embeddedBytes) . ' >>',
             'stream',
             $embeddedBytes,
+            'endstream',
+            'endobj',
+            '15 0 obj',
+            '<< /Type /Font /Subtype /Type1 /BaseFont /ReviewSans /FontDescriptor 16 0 R >>',
+            'endobj',
+            '16 0 obj',
+            '<< /Type /FontDescriptor /FontName /ReviewSans /Flags 32 /ItalicAngle 0 /FontWeight 400 /FontFile2 17 0 R >>',
+            'endobj',
+            '17 0 obj',
+            '<< /Filter /FlateDecode /Length ' . strlen($embeddedFontBytes) . ' >>',
+            'stream',
+            $embeddedFontBytes,
             'endstream',
             'endobj',
             'trailer',
@@ -17374,6 +17387,15 @@ MARKDOWN);
                 'streamSkipped' => null,
             ],
             [
+                'surface' => 'embedded-font',
+                'source' => 'page:3 0 R.Font.FEmbedded.FontFile2',
+                'object' => '17 0 R',
+                'filters' => ['FlateDecode'],
+                'action' => 'deferred-decode',
+                'streamBytes' => strlen($embeddedFontBytes),
+                'streamSkipped' => 'filtered',
+            ],
+            [
                 'surface' => 'embedded-file',
                 'source' => 'embedded-file:catalog.AF:review-source.bin',
                 'object' => '14 0 R',
@@ -17384,19 +17406,20 @@ MARKDOWN);
             ],
         ];
         $expected = [
-            'streamCount' => 7,
-            'filterCount' => 8,
+            'streamCount' => 8,
+            'filterCount' => 9,
             'filters' => [
                 'ASCII85Decode' => 1,
                 'Crypt' => 1,
                 'DCTDecode' => 1,
-                'FlateDecode' => 3,
+                'FlateDecode' => 4,
                 'JPXDecode' => 1,
                 'LZWDecode' => 1,
             ],
             'surfaces' => [
                 'annotation-appearance' => 1,
                 'embedded-file' => 1,
+                'embedded-font' => 1,
                 'form-xobject' => 1,
                 'image-xobject' => 1,
                 'object-stream' => 1,
@@ -17404,7 +17427,7 @@ MARKDOWN);
                 'xref-stream' => 1,
             ],
             'actions' => [
-                'deferred-decode' => 4,
+                'deferred-decode' => 5,
                 'image-codec-review' => 2,
                 'requires-decryption' => 1,
             ],
@@ -17413,13 +17436,14 @@ MARKDOWN);
 
         $t->same(true, $result['ok']);
         $t->same($expected, $result['pdfStreamFilterPolicy'] ?? null);
-        $t->contains('pdf-byte-stream-filter-policy:7', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-stream-filter-policy:8', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-stream-filter:Crypt:1', implode(',', $result['diagnostics']));
-        $t->contains('pdf-byte-stream-filter:FlateDecode:3', implode(',', $result['diagnostics']));
-        $t->contains('pdf-byte-stream-filter-action:deferred-decode:4', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-stream-filter:FlateDecode:4', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-stream-filter-action:deferred-decode:5', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-stream-filter-action:image-codec-review:2', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-stream-filter-action:requires-decryption:1', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-stream-filter-surface:embedded-file:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-stream-filter-surface:embedded-font:1', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-stream-filter-surface:page-content:1', implode(',', $result['diagnostics']));
         $t->same(true, $sequence['ok']);
         $t->same($expected, $sequence['finalPdfStreamFilterPolicy'] ?? null);
