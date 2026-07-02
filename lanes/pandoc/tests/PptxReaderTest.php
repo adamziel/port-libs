@@ -9035,6 +9035,99 @@ XML);
     }
 };
 
+$buildForeignSmartArtRelIdsPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-foreign-smartart-relids-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/_rels/slide1.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdData" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData" Target="../diagrams/foreign-relids-data.xml"/>
+  <Relationship Id="rIdLayout" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramLayout" Target="../diagrams/foreign-relids-layout.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:foreign="urn:foreign-smartart-relids"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Foreign relIds SmartArt</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="10" name="Foreign RelIds SmartArt"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram">
+        <foreign:relIds r:dm="rIdData" r:lo="rIdLayout"/>
+      </a:graphicData></a:graphic>
+    </p:graphicFrame>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->addFromString('ppt/diagrams/foreign-relids-data.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<dgm:dataModel xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"
+               xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <dgm:ptLst>
+    <dgm:pt modelId="parent"><dgm:t><a:p><a:r><a:t>Foreign relIds parent</a:t></a:r></a:p></dgm:t></dgm:pt>
+    <dgm:pt modelId="child"><dgm:t><a:p><a:r><a:t>Foreign relIds child</a:t></a:r></a:p></dgm:t></dgm:pt>
+  </dgm:ptLst>
+  <dgm:cxnLst>
+    <dgm:cxn srcId="parent" destId="child"/>
+  </dgm:cxnLst>
+</dgm:dataModel>
+XML);
+    $zip->addFromString('ppt/diagrams/foreign-relids-layout.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<dgm:layoutDef xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" uniqueId="urn:example/layout/foreign-relids-layout"/>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildFirstSmartArtDataListsPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-first-smartart-data-lists-');
     if ($path === false) {
@@ -16841,6 +16934,28 @@ XML);
         $t->true(!str_contains($native, 'Later RelIds child'), 'Later valid SmartArt data should not become visible through a second relIds sibling');
         $t->true(!str_contains($native, 'Only data should hide'), 'Partial first relIds should not trigger diagram data parsing without a layout relationship');
         $t->true(!str_contains($native, 'later-relids'), 'Later SmartArt layout names should not enter native output');
+    },
+
+    'uses pptx SmartArt relIds local names across namespaces like upstream' => static function (TestRunner $t) use ($buildForeignSmartArtRelIdsPptxPackage, $nodesOfType, $nodesWithClass): void {
+        $document = (new PptxReader())->read($buildForeignSmartArtRelIdsPptxPackage());
+        $review = $document->attr('pptx');
+        $divs = $nodesOfType($document, 'div');
+        $smartArtDivs = $nodesWithClass($divs, 'smartart');
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same('Foreign relIds SmartArt', $document->children[0]->attr('text'));
+        $t->same(1, count($smartArtDivs));
+        $t->same(['smartart', 'foreign-relids-layout'], $smartArtDivs[0]->attr('classes'));
+        $t->same('Foreign RelIds SmartArt', $smartArtDivs[0]->attr('pptxShape')['name'] ?? null);
+        $t->same(2, $review['slides'][0]['blockCount'] ?? null);
+        $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
+        $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Foreign" , Space , Str "relIds" , Space , Str "SmartArt" ]', $native);
+        $t->contains('Div ( "" , [ "smartart" , "foreign-relids-layout" ] , [ ( "layout" , "foreign-relids-layout" ) ] )', $native);
+        $t->contains('Strong [ Str "Foreign" , Space , Str "relIds" , Space , Str "parent" ]', $native);
+        $t->contains('BulletList [ [ Plain [ Str "Foreign" , Space , Str "relIds" , Space , Str "child"', $native);
+        $t->true(!str_contains($native, '[Graphic: diagram-no-relIds]'), 'Foreign-namespace relIds should still be discovered by local name');
+        $t->true(!str_contains($native, '[Graphic: diagram-missing-rels]'), 'Foreign-namespace relIds should expose valid r:dm and r:lo attributes');
+        $t->true(!str_contains($native, '[Diagram parse error:'), 'Foreign-namespace relIds should parse the referenced diagram parts');
     },
 
     'uses only the first pptx SmartArt point and connection lists like upstream' => static function (TestRunner $t) use ($buildFirstSmartArtDataListsPptxPackage, $nodesOfType, $nodesWithClass): void {
