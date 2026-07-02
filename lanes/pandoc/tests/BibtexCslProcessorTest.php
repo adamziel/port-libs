@@ -1632,7 +1632,7 @@ BIB;
         $t->same('2.1.0', $item['version']);
         $t->same('revised', $item['status']);
         $t->same('print-on-demand packet', $item['medium']);
-        $t->same('Gia Garcia. Migration Manual. Review Press. 2026. Collection: Review Sources. Collection abbreviation: RS. Collection number: 7. Edition: 2. Version: 2.1.0. Status: revised. Medium: print-on-demand packet.', $bibliography);
+        $t->same('Gia Garcia. Migration Manual. Review Press. 2026. Original publisher: Archivo Press, Madrid. Collection: Review Sources. Collection abbreviation: RS. Collection number: 7. Edition: 2. Version: 2.1.0. Status: revised. Medium: print-on-demand packet.', $bibliography);
 
         $styled = CitationCslProcessor::fromItems([$item])->withCslStyle(<<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>

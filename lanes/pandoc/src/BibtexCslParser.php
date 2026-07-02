@@ -729,7 +729,7 @@ final class BibtexCslParser
         $publisherList = self::literalListFromFirstField($fields, ['publisher', 'institution', 'school', 'organization']);
         $publisherPlaceList = self::literalListFromFirstField($fields, self::publisherPlaceFieldNames($type, $fields));
         $originalPublisherList = self::literalListFromFirstField($fields, ['origpublisher', 'originalpublisher', 'original-publisher']);
-        $originalPublisherPlaceList = self::literalListFromFirstField($fields, ['origlocation', 'origaddress', 'originalpublisherplace', 'original-publisher-place']);
+        $originalPublisherPlaceList = self::literalListFromFirstField($fields, ['origlocation', 'origaddress', 'origpublisherplace', 'orig-publisher-place', 'origpublisherplacelist', 'orig-publisher-place-list', 'originalpublisherplace', 'original-publisher-place']);
         $languageList = self::literalListFromFirstField($fields, ['language']);
         $originalLanguageList = self::literalListFromFirstField($fields, ['origlanguage', 'originallanguage', 'original-language']);
         $eventPlaceList = self::literalListFromFirstField($fields, ['eventvenue', 'event-venue', 'eventlocation', 'event-location', 'eventplace', 'event-place', 'venue']);
@@ -914,6 +914,10 @@ final class BibtexCslParser
             'original-issue' => self::firstField($fields, ['origissue', 'orig-issue', 'originalissue', 'original-issue']),
             'original-number' => self::firstField($fields, ['orignumber', 'orig-number', 'originalnumber', 'original-number']),
             'original-edition' => self::firstField($fields, ['origedition', 'orig-edition', 'originaledition', 'original-edition']),
+            'original-isbn' => self::firstField($fields, ['origisbn', 'orig-isbn', 'originalisbn', 'original-isbn']),
+            'original-issn' => self::firstField($fields, ['origissn', 'orig-issn', 'originalissn', 'original-issn']),
+            'original-doi' => self::firstField($fields, ['origdoi', 'orig-doi', 'originaldoi', 'original-doi']),
+            'original-url' => self::firstField($fields, ['origurl', 'orig-url', 'originalurl', 'original-url']),
             'original-date-addon' => self::firstField($fields, ['origdateaddon', 'origdate-addon', 'orig-date-addon', 'originaldateaddon', 'original-date-addon']),
             'original-publisher' => self::literalListDisplay($originalPublisherList),
             'original-publisher-place' => self::literalListDisplay($originalPublisherPlaceList),
