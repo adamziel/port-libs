@@ -8762,17 +8762,31 @@ final class OdfReader
             $containedMediaFamilyCounts = [];
             $containedMediaFamilyByteLengths = [];
             $containedMediaFamilyCompressedByteLengths = [];
+            $containedXmlRootElementPartNames = [];
+            $containedXmlRootElementNames = [];
+            $containedXmlRootElementNameCounts = [];
+            $containedXmlRootElementNamespaceUris = [];
+            $containedXmlRootElementNamespaceUriCounts = [];
+            $containedXmlRootElements = [];
+            $containedXmlRootElementsTruncated = false;
             foreach ($entriesByPart as $part => $entry) {
                 if ($part === $rootPart || !str_starts_with($part, $rootPart) || $entry->isDirectory()) {
                     continue;
                 }
 
+                $manifestItem = $manifestByPart[$entry->name] ?? null;
                 $containedClassification = self::embeddedObjectContainedPartClassification(
                     $entry->name,
-                    $manifestByPart[$entry->name] ?? null
+                    $manifestItem
                 );
                 $containedRole = $containedClassification['containedRole'];
                 $containedMediaFamily = $containedClassification['containedMediaFamily'];
+                $xmlRootElement = self::packagePartXmlRootElementMetadata(
+                    $package,
+                    $entry,
+                    is_array($manifestItem) ? (string) ($manifestItem['mediaTypeBase'] ?? '') : ''
+                );
+                $hasXmlRootElement = ($xmlRootElement['hasRootElement'] ?? false) === true;
                 $partSummary = [
                     'part' => $entry->name,
                     'byteLength' => $entry->uncompressedSize,
@@ -8783,6 +8797,18 @@ final class OdfReader
                     'declaredInManifest' => isset($declaredContainedParts[$entry->name]),
                     'containedRole' => $containedRole,
                     'containedMediaFamily' => $containedMediaFamily,
+                    'canExposeBytes' => false,
+                    'byteExposurePolicy' => 'embedded-object-package-bytes-blocked',
+                    'xmlHasRootElement' => $hasXmlRootElement,
+                    'xmlRootElementName' => $xmlRootElement['name'] ?? null,
+                    'xmlRootElementLocalName' => $xmlRootElement['localName'] ?? null,
+                    'xmlRootElementPrefix' => $xmlRootElement['prefix'] ?? null,
+                    'xmlRootElementNamespaceUri' => $xmlRootElement['namespaceUri'] ?? null,
+                    'xmlRootElementPath' => $xmlRootElement['path'] ?? null,
+                    'xmlRootElementAttributeCount' => $xmlRootElement['attributeCount'] ?? 0,
+                    'xmlRootElementAttributeNames' => $xmlRootElement['attributeNames'] ?? [],
+                    'xmlRootElementNamespaceDeclarationCount' => $xmlRootElement['namespaceDeclarationCount'] ?? 0,
+                    'xmlRootElementNamespaceDeclarationNames' => $xmlRootElement['namespaceDeclarationNames'] ?? [],
                 ];
                 $containedParts[] = $partSummary;
                 $containedByteLength += $entry->uncompressedSize;
@@ -8795,6 +8821,28 @@ final class OdfReader
                 if (!isset($declaredContainedParts[$entry->name])) {
                     $undeclaredContainedParts[] = $partSummary;
                 }
+                if ($hasXmlRootElement) {
+                    $containedXmlRootElementPartNames[] = $entry->name;
+                    $rootName = $xmlRootElement['name'] ?? null;
+                    if (is_string($rootName) && $rootName !== '') {
+                        $containedXmlRootElementNameCounts[$rootName] = ($containedXmlRootElementNameCounts[$rootName] ?? 0) + 1;
+                        if (!in_array($rootName, $containedXmlRootElementNames, true)) {
+                            $containedXmlRootElementNames[] = $rootName;
+                        }
+                    }
+                    $namespaceUri = $xmlRootElement['namespaceUri'] ?? null;
+                    if (is_string($namespaceUri) && $namespaceUri !== '') {
+                        $containedXmlRootElementNamespaceUriCounts[$namespaceUri] = ($containedXmlRootElementNamespaceUriCounts[$namespaceUri] ?? 0) + 1;
+                        if (!in_array($namespaceUri, $containedXmlRootElementNamespaceUris, true)) {
+                            $containedXmlRootElementNamespaceUris[] = $namespaceUri;
+                        }
+                    }
+                    if (count($containedXmlRootElements) >= 32) {
+                        $containedXmlRootElementsTruncated = true;
+                    } else {
+                        $containedXmlRootElements[] = ['part' => $entry->name] + $xmlRootElement;
+                    }
+                }
             }
 
             usort($containedParts, static fn (array $left, array $right): int => strcmp((string) $left['part'], (string) $right['part']));
@@ -8805,6 +8853,12 @@ final class OdfReader
             ksort($containedMediaFamilyCounts, SORT_STRING);
             ksort($containedMediaFamilyByteLengths, SORT_STRING);
             ksort($containedMediaFamilyCompressedByteLengths, SORT_STRING);
+            sort($containedXmlRootElementPartNames, SORT_STRING);
+            sort($containedXmlRootElementNames, SORT_STRING);
+            sort($containedXmlRootElementNamespaceUris, SORT_STRING);
+            ksort($containedXmlRootElementNameCounts, SORT_STRING);
+            ksort($containedXmlRootElementNamespaceUriCounts, SORT_STRING);
+            usort($containedXmlRootElements, static fn (array $left, array $right): int => strcmp((string) $left['part'], (string) $right['part']));
 
             $exists = $containedParts !== [] || isset($entriesByPart[$rootPart]);
             $encrypted = ($rootItem['encrypted'] ?? false) === true || $encryptedDeclaredContainedParts !== [];
@@ -8849,6 +8903,14 @@ final class OdfReader
                 'containedMediaFamilyCounts' => $containedMediaFamilyCounts,
                 'containedMediaFamilyByteLengths' => $containedMediaFamilyByteLengths,
                 'containedMediaFamilyCompressedByteLengths' => $containedMediaFamilyCompressedByteLengths,
+                'containedXmlRootElementPartCount' => count($containedXmlRootElementPartNames),
+                'containedXmlRootElementPartNames' => $containedXmlRootElementPartNames,
+                'containedXmlRootElementNames' => $containedXmlRootElementNames,
+                'containedXmlRootElementNameCounts' => $containedXmlRootElementNameCounts,
+                'containedXmlRootElementNamespaceUris' => $containedXmlRootElementNamespaceUris,
+                'containedXmlRootElementNamespaceUriCounts' => $containedXmlRootElementNamespaceUriCounts,
+                'containedXmlRootElements' => $containedXmlRootElements,
+                'containedXmlRootElementsTruncated' => $containedXmlRootElementsTruncated,
                 'containedParts' => $containedParts,
                 'declaredContainedPartCount' => count($declaredContainedPartItems),
                 'declaredContainedParts' => $declaredContainedPartItems,
@@ -8868,6 +8930,38 @@ final class OdfReader
             }
         }
         ksort($issueCodes, SORT_STRING);
+        $containedXmlRootElementNames = [];
+        $containedXmlRootElementNamespaceUris = [];
+        $containedXmlRootElements = [];
+        $containedXmlRootElementsTruncated = false;
+        foreach ($items as $item) {
+            foreach (($item['containedXmlRootElementNames'] ?? []) as $name) {
+                if (is_string($name) && $name !== '' && !in_array($name, $containedXmlRootElementNames, true)) {
+                    $containedXmlRootElementNames[] = $name;
+                }
+            }
+            foreach (($item['containedXmlRootElementNamespaceUris'] ?? []) as $namespaceUri) {
+                if (is_string($namespaceUri) && $namespaceUri !== '' && !in_array($namespaceUri, $containedXmlRootElementNamespaceUris, true)) {
+                    $containedXmlRootElementNamespaceUris[] = $namespaceUri;
+                }
+            }
+            foreach (($item['containedXmlRootElements'] ?? []) as $rootElement) {
+                if (!is_array($rootElement)) {
+                    continue;
+                }
+                if (count($containedXmlRootElements) >= 64) {
+                    $containedXmlRootElementsTruncated = true;
+                    continue;
+                }
+                $containedXmlRootElements[] = $rootElement;
+            }
+            if (($item['containedXmlRootElementsTruncated'] ?? false) === true) {
+                $containedXmlRootElementsTruncated = true;
+            }
+        }
+        sort($containedXmlRootElementNames, SORT_STRING);
+        sort($containedXmlRootElementNamespaceUris, SORT_STRING);
+        usort($containedXmlRootElements, static fn (array $left, array $right): int => strcmp((string) ($left['part'] ?? ''), (string) ($right['part'] ?? '')));
 
         return [
             'count' => count($items),
@@ -8882,6 +8976,13 @@ final class OdfReader
             'containedMediaFamilyCounts' => self::sumEmbeddedObjectPackageBuckets($items, 'containedMediaFamilyCounts'),
             'containedMediaFamilyByteLengths' => self::sumEmbeddedObjectPackageBuckets($items, 'containedMediaFamilyByteLengths'),
             'containedMediaFamilyCompressedByteLengths' => self::sumEmbeddedObjectPackageBuckets($items, 'containedMediaFamilyCompressedByteLengths'),
+            'containedXmlRootElementPartCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['containedXmlRootElementPartCount'] ?? 0), $items)),
+            'containedXmlRootElementNames' => $containedXmlRootElementNames,
+            'containedXmlRootElementNameCounts' => self::sumEmbeddedObjectPackageBuckets($items, 'containedXmlRootElementNameCounts'),
+            'containedXmlRootElementNamespaceUris' => $containedXmlRootElementNamespaceUris,
+            'containedXmlRootElementNamespaceUriCounts' => self::sumEmbeddedObjectPackageBuckets($items, 'containedXmlRootElementNamespaceUriCounts'),
+            'containedXmlRootElements' => $containedXmlRootElements,
+            'containedXmlRootElementsTruncated' => $containedXmlRootElementsTruncated,
             'declaredContainedPartCount' => array_sum(array_map(static fn (array $item): int => (int) $item['declaredContainedPartCount'], $items)),
             'existingDeclaredContainedPartCount' => array_sum(array_map(static fn (array $item): int => (int) $item['existingDeclaredContainedPartCount'], $items)),
             'missingDeclaredContainedPartCount' => array_sum(array_map(static fn (array $item): int => (int) $item['missingDeclaredContainedPartCount'], $items)),
