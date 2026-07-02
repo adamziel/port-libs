@@ -3980,6 +3980,10 @@ XML);
       <p:nvGraphicFramePr><p:cNvPr id="20" name="Broken SmartArt Frame"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
       <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"><dgm:relIds r:dm="rIdData" r:lo="rIdLayout"/></a:graphicData></a:graphic>
     </p:graphicFrame>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="21" name="Missing Layout SmartArt Frame"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"><dgm:relIds r:dm="rIdData2" r:lo="rIdMissingLayout"/></a:graphicData></a:graphic>
+    </p:graphicFrame>
   </p:spTree></p:cSld>
 </p:sld>
 XML);
@@ -3988,11 +3992,25 @@ XML);
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdData" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData" Target="../diagrams/missing-data.xml"/>
   <Relationship Id="rIdLayout" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramLayout" Target="../diagrams/layout1.xml"/>
+  <Relationship Id="rIdData2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData" Target="../diagrams/data2.xml"/>
+  <Relationship Id="rIdMissingLayout" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramLayout" Target="../diagrams/missing-layout.xml"/>
 </Relationships>
 XML);
     $zip->addFromString('ppt/diagrams/layout1.xml', <<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
 <dgm:layoutDef xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" uniqueId="urn:microsoft.com/office/officeart/2005/8/layout/basicBlockList"/>
+XML);
+    $zip->addFromString('ppt/diagrams/data2.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<dgm:dataModel xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <dgm:ptLst>
+    <dgm:pt modelId="parent"><dgm:t><a:p><a:r><a:t>Missing layout parent</a:t></a:r></a:p></dgm:t></dgm:pt>
+    <dgm:pt modelId="child"><dgm:t><a:p><a:r><a:t>Missing layout child</a:t></a:r></a:p></dgm:t></dgm:pt>
+  </dgm:ptLst>
+  <dgm:cxnLst>
+    <dgm:cxn srcId="parent" destId="child"/>
+  </dgm:cxnLst>
+</dgm:dataModel>
 XML);
     $zip->close();
 
@@ -9253,7 +9271,7 @@ return [
         $t->same(['x' => 111, 'y' => 222, 'cx' => 333, 'cy' => 444], $issue['layout'] ?? null);
     },
 
-    'keeps broken pptx SmartArt as visible parse diagnostics' => static function (TestRunner $t) use ($buildBrokenSmartArtPptxPackage, $nodesOfType): void {
+    'keeps broken pptx SmartArt data and layout parts as visible parse diagnostics' => static function (TestRunner $t) use ($buildBrokenSmartArtPptxPackage, $nodesOfType): void {
         $document = (new PptxReader())->read($buildBrokenSmartArtPptxPackage());
         $review = $document->attr('pptx');
         $paragraphs = $nodesOfType($document, 'paragraph');
@@ -9262,12 +9280,17 @@ return [
             $paragraphs,
             static fn (AstNode $paragraph): bool => str_contains((string) $paragraph->attr('text'), 'File not found in archive')
         ));
+        $native = PandocConverter::write($document, 'native');
 
         $t->same(true, in_array('[Diagram parse error: File not found in archive: ppt/diagrams/missing-data.xml]', $texts, true));
-        $t->same(1, count($diagnostics));
+        $t->same(true, in_array('[Diagram parse error: File not found in archive: ppt/diagrams/missing-layout.xml]', $texts, true));
+        $t->same(2, count($diagnostics));
         $t->same('graphicFrame', $diagnostics[0]->attr('pptxShape')['element'] ?? null);
         $t->same('Broken SmartArt Frame', $diagnostics[0]->attr('pptxShape')['name'] ?? null);
+        $t->same('Missing Layout SmartArt Frame', $diagnostics[1]->attr('pptxShape')['name'] ?? null);
         $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
+        $t->true(!str_contains($native, 'Missing layout parent'), 'Data text should stay hidden when the SmartArt layout part is missing');
+        $t->true(!str_contains($native, 'Missing layout child'), 'Child text should stay hidden when the SmartArt layout part is missing');
     },
 
     'keeps invalid pptx SmartArt XML as a parse diagnostic like upstream' => static function (TestRunner $t) use ($buildInvalidSmartArtDataXmlPptxPackage, $nodesOfType): void {
