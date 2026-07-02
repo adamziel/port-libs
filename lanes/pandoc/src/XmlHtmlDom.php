@@ -20048,11 +20048,7 @@ final class XmlHtmlDom
         }
 
         if (array_key_exists('spellcheck', $attributes)) {
-            $spellcheck = self::htmlSpellcheckState($attributes['spellcheck']);
-            $summary['spellcheckRaw'] = $attributes['spellcheck'];
-            $summary['spellcheck'] = $spellcheck;
-            $summary['spellcheckValid'] = $spellcheck !== null;
-            $summary += self::spellcheckAttributeReviewSummary($element, $spellcheck);
+            $summary += self::spellcheckAttributeReviewSummary($element, $attributes['spellcheck']);
         }
 
         $summary += self::effectiveSpellcheckSummary($element, $attributes);
@@ -21616,9 +21612,13 @@ final class XmlHtmlDom
         bool $state,
         bool $inherited
     ): array {
+        $review = self::spellcheckAttributeReviewSummary($source, $raw);
         $summary = [
+            'effectiveSpellcheckReviewPolicy' => 'html-spellcheck-attribute-review',
             'effectiveSpellcheckRaw' => $raw,
             'effectiveSpellcheck' => $state,
+            'effectiveSpellcheckKeyword' => $review['spellcheckKeyword'],
+            'effectiveSpellcheckIssueCodes' => $review['spellcheckAttributeIssueCodes'],
             'spellcheckInherited' => $inherited,
             'spellcheckSource' => $inherited ? 'ancestor-spellcheck' : 'self-spellcheck',
             'spellcheckSourceElement' => self::htmlElementName($source),
@@ -21646,21 +21646,44 @@ final class XmlHtmlDom
     /**
      * @return array<string, mixed>
      */
-    private static function spellcheckAttributeReviewSummary(\DOMElement $element, ?bool $state): array
+    private static function spellcheckAttributeReviewSummary(\DOMElement $element, string $raw): array
     {
+        $state = self::htmlSpellcheckState($raw);
         $issueCodes = [];
+        $attributeIssues = [];
         if ($state === null) {
             $issueCodes[] = 'invalid-html-spellcheck-token';
+            $attributeIssues[] = [
+                'code' => 'invalid-spellcheck-token',
+                'spellcheckRaw' => $raw,
+            ];
         }
+        $attributeIssueCodes = array_values(array_map(
+            static fn (array $issue): string => (string) $issue['code'],
+            $attributeIssues
+        ));
 
         return [
             'spellcheckReviewPolicy' => 'html-spellcheck-state-review',
+            'spellcheckAttributeReviewPolicy' => 'html-spellcheck-attribute-review',
             'spellcheckReviewStatus' => $issueCodes === [] ? 'ok' : 'review',
             'spellcheckElement' => self::htmlElementName($element),
+            'spellcheckRaw' => $raw,
+            'spellcheck' => $state,
+            'spellcheckKeyword' => match ($state) {
+                true => 'true',
+                false => 'false',
+                default => null,
+            },
+            'spellcheckValid' => $state !== null,
             'spellcheckCheckingEnabled' => $state,
+            'spellcheckEmptyValueDefaulted' => $raw === '',
             'spellcheckInvalidValueDefaulted' => $state === null,
+            'spellcheckIssues' => $attributeIssues,
             'spellcheckIssueCodes' => $issueCodes,
             'spellcheckIssueCount' => count($issueCodes),
+            'spellcheckAttributeIssueCodes' => $attributeIssueCodes,
+            'spellcheckAttributeIssueCount' => count($attributeIssueCodes),
             'spellcheckReviewOnlyNoSpellcheckingService' => true,
         ];
     }
