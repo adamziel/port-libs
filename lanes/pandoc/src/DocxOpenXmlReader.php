@@ -42433,6 +42433,14 @@ final class DocxOpenXmlReader
                 'exists' => isset($parts[$partName]),
             ] + $this->contentTypeReport($contentType);
         }
+        $missingOverrides = [];
+        foreach ($overrides as $partName => $override) {
+            if (($override['exists'] ?? false) === true) {
+                continue;
+            }
+
+            $missingOverrides[] = $override;
+        }
         $parameterizedContentTypes = $this->parameterizedContentTypeDeclarations($defaults, $overrides);
         $defaultDeclarationSummary = $this->contentTypeDefaultDeclarationSummary($parts, $contentTypes);
         $overrideDeclarationSummary = $this->contentTypeOverrideDeclarationSummary($parts, $overrides);
@@ -42535,6 +42543,9 @@ final class DocxOpenXmlReader
             'missingOverrideTargetExtensionCounts' => $missingOverrideTargetSummary['extensionCounts'],
             'parameterizedContentTypeCount' => count($parameterizedContentTypes),
             'parameterizedContentTypes' => $parameterizedContentTypes,
+            'missingOverrideCount' => count($missingOverrides),
+            'missingOverrideParts' => array_column($missingOverrides, 'partName'),
+            'missingOverrides' => $missingOverrides,
             'preflight' => $preflight,
             'valid' => $preflight === null ? false : $preflight['valid'],
             'xmlParseError' => $preflight === null ? null : $preflight['parseError'],
