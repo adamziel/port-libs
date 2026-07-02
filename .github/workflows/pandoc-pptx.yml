@@ -108,12 +108,19 @@ jobs:
             summary \
             --require-mapped-parity=1
 
-      - name: Run optional pandoc executable PPTX comparison
+      - name: Install pandoc executable
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pandoc
+          pandoc --version | head -n 1
+
+      - name: Require pandoc executable PPTX comparison
         run: |
           php tools/pandoc-pptx-executable-native-ast.php \
             --pptx-dir=.upstream-cache/pandoc-current/test/pptx-reader \
             --json \
-            summary
+            summary \
+            --require-executable-parity=1
 
       - name: Run focused PPTX parity tests
         run: |
