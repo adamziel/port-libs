@@ -1480,6 +1480,8 @@ final class OdfReader
         $manifestPartReferenceSuffixItems = [];
         $manifestPartReferenceQueryCount = 0;
         $manifestPartReferenceFragmentCount = 0;
+        $manifestPartReferenceSuffixMediaFamilyCounts = [];
+        $manifestPartReferenceSuffixByteExposurePolicyCounts = [];
         $manifestPathKindCounts = [];
         $manifestTopLevelSegmentCounts = [];
         $manifestPathExtensionCounts = [];
@@ -1749,6 +1751,9 @@ final class OdfReader
                 $manifestByPart[$part] = $item;
             }
             if (is_string($item['partSuffix'] ?? null)) {
+                $suffixMediaFamily = is_string($part) && $part !== ''
+                    ? $this->packagePartManifestMediaFamily($part, $item, null)
+                    : null;
                 $manifestPartReferenceSuffixItems[] = [
                     'fullPath' => $item['fullPath'] ?? null,
                     'part' => $part,
@@ -1756,6 +1761,7 @@ final class OdfReader
                     'partSuffix' => $item['partSuffix'],
                     'partQuery' => $item['partQuery'] ?? null,
                     'partFragment' => $item['partFragment'] ?? null,
+                    'manifestMediaFamily' => $suffixMediaFamily,
                     'mediaType' => $item['mediaType'] ?? null,
                     'exists' => ($item['exists'] ?? false) === true,
                     'isDirectory' => ($item['isDirectory'] ?? false) === true,
@@ -1763,6 +1769,13 @@ final class OdfReader
                     'canExposeBytes' => ($item['canExposeBytes'] ?? false) === true,
                     'byteExposurePolicy' => $item['byteExposurePolicy'] ?? null,
                 ];
+                if (is_string($suffixMediaFamily) && $suffixMediaFamily !== '') {
+                    $manifestPartReferenceSuffixMediaFamilyCounts[$suffixMediaFamily] = ($manifestPartReferenceSuffixMediaFamilyCounts[$suffixMediaFamily] ?? 0) + 1;
+                }
+                $suffixByteExposurePolicy = is_string($item['byteExposurePolicy'] ?? null) ? $item['byteExposurePolicy'] : '';
+                if ($suffixByteExposurePolicy !== '') {
+                    $manifestPartReferenceSuffixByteExposurePolicyCounts[$suffixByteExposurePolicy] = ($manifestPartReferenceSuffixByteExposurePolicyCounts[$suffixByteExposurePolicy] ?? 0) + 1;
+                }
             }
             $manifestPathShape = is_array($item['pathShape'] ?? null) ? $item['pathShape'] : [];
             $manifestPathKind = $manifestPathShape['kind'] ?? null;
@@ -2174,6 +2187,8 @@ final class OdfReader
         ksort($manifestPathKindCounts, SORT_STRING);
         ksort($manifestTopLevelSegmentCounts, SORT_STRING);
         ksort($manifestPathExtensionCounts, SORT_STRING);
+        ksort($manifestPartReferenceSuffixMediaFamilyCounts, SORT_STRING);
+        ksort($manifestPartReferenceSuffixByteExposurePolicyCounts, SORT_STRING);
         ksort($packagePartByteExposurePolicyCounts, SORT_STRING);
         ksort($packagePartByteExposurePolicyByteLengths, SORT_STRING);
         ksort($packagePartByteExposurePolicyCompressedByteLengths, SORT_STRING);
@@ -2278,6 +2293,8 @@ final class OdfReader
             'manifestPartReferenceQueryCount' => $manifestPartReferenceQueryCount,
             'manifestPartReferenceFragmentCount' => $manifestPartReferenceFragmentCount,
             'manifestPartReferenceSuffixItems' => $manifestPartReferenceSuffixItems,
+            'manifestPartReferenceSuffixMediaFamilyCounts' => $manifestPartReferenceSuffixMediaFamilyCounts,
+            'manifestPartReferenceSuffixByteExposurePolicyCounts' => $manifestPartReferenceSuffixByteExposurePolicyCounts,
             'manifestPathKindCounts' => $manifestPathKindCounts,
             'manifestTopLevelSegmentCounts' => $manifestTopLevelSegmentCounts,
             'manifestPathExtensionCounts' => $manifestPathExtensionCounts,
