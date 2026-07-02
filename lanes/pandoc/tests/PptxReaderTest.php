@@ -4425,6 +4425,83 @@ XML);
     }
 };
 
+$buildUnsupportedContentPartPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-content-part-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Content part diagnostics</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:contentPart r:id="rIdContent">
+      <p:nvContentPartPr><p:cNvPr id="9" name="Content Part 8" descr="Content part desc"/><p:cNvContentPartPr/><p:nvPr/></p:nvContentPartPr>
+      <p:spPr><a:xfrm><a:off x="111" y="222"/><a:ext cx="333" cy="444"/></a:xfrm></p:spPr>
+      <p:extLst><p:ext><a:t>Hidden content part text</a:t></p:ext></p:extLst>
+    </p:contentPart>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="10" name="Body 1"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Visible body after content part</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->addFromString('ppt/slides/_rels/slide1.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdContent" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/unknownContentPart" Target="../contentParts/content1.xml"/>
+</Relationships>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildHyperlinkedTextPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-link-');
     if ($path === false) {
@@ -13862,6 +13939,28 @@ return [
         $t->same('Connector 8', $issue['name'] ?? null);
         $t->same('Connector desc', $issue['descr'] ?? null);
         $t->same(['x' => 111, 'y' => 222, 'cx' => 333, 'cy' => 444], $issue['layout'] ?? null);
+    },
+
+    'records unsupported pptx contentPart shapes without visible output like upstream' => static function (TestRunner $t) use ($buildUnsupportedContentPartPptxPackage, $nodesOfType): void {
+        $document = (new PptxReader())->read($buildUnsupportedContentPartPptxPackage());
+        $review = $document->attr('pptx');
+        $paragraphs = $nodesOfType($document, 'paragraph');
+        $texts = array_map(static fn (AstNode $paragraph): string => (string) $paragraph->attr('text'), $paragraphs);
+        $native = PandocConverter::write($document, 'native');
+        $issue = $review['slides'][0]['shapeIssues'][0] ?? [];
+
+        $t->same('Content part diagnostics', $document->children[0]->attr('text'));
+        $t->same(true, in_array('Visible body after content part', $texts, true));
+        $t->same(false, in_array('Hidden content part text', $texts, true));
+        $t->same(1, $review['slides'][0]['shapeIssueCount'] ?? null);
+        $t->same('unsupported-drawable-shape', $issue['issue'] ?? null);
+        $t->same('contentPart', $issue['element'] ?? null);
+        $t->same('9', $issue['id'] ?? null);
+        $t->same('Content Part 8', $issue['name'] ?? null);
+        $t->same('Content part desc', $issue['descr'] ?? null);
+        $t->same(['x' => 111, 'y' => 222, 'cx' => 333, 'cy' => 444], $issue['layout'] ?? null);
+        $t->contains('Para [ Str "Visible" , Space , Str "body" , Space , Str "after" , Space , Str "content" , Space , Str "part" ]', $native);
+        $t->true(!str_contains($native, 'Hidden content part text'), 'contentPart descendants should stay out of upstream-compatible output');
     },
 
     'keeps broken pptx SmartArt data and layout parts as visible parse diagnostics' => static function (TestRunner $t) use ($buildBrokenSmartArtPptxPackage, $nodesOfType): void {
