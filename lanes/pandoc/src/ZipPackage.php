@@ -14353,6 +14353,8 @@ final class ZipPackage
      *     hasSplitArchiveMarkers:bool,
      *     centralDirectoryNonEntryRecordCount:int,
      *     splitArchiveEntryCount:int,
+     *     eocdSplitMarkerCount:int,
+     *     eocdSplitMarkerFields:list<string>,
      *     diskStartSummaryCount:int,
      *     splitArchiveDiskStartSummaryCount:int,
      *     diskStartValues:list<int>,
@@ -14362,6 +14364,7 @@ final class ZipPackage
      *     isSupportedByBoundedReader:bool,
      *     issues:list<string>,
      *     centralDirectoryNonEntryRecords:list<array{type:string, offset:int, length:int, endOffset:int}>,
+     *     eocdSplitMarkers:list<array{field:string, value:int, expected:int, issue:string}>,
      *     diskStartSummaries:list<array{diskStart:int, entryCount:int, splitArchiveEntryCount:int, centralDirectoryIndexes:list<int>, localHeaderOffsets:list<int>, entryNames:list<string>}>,
      *     splitArchiveDiskStartSummaries:list<array{diskStart:int, entryCount:int, splitArchiveEntryCount:int, centralDirectoryIndexes:list<int>, localHeaderOffsets:list<int>, entryNames:list<string>}>,
      *     splitArchiveEntries:list<array{name:string, rawName:string, centralDirectoryIndex:int, diskStart:int, localHeaderOffset:int, issues:list<string>}>,
@@ -14499,6 +14502,23 @@ final class ZipPackage
         }
 
         $issues = [];
+        $eocdSplitMarkers = [];
+        foreach ([
+            ['diskNumber', $archive['diskNumber'], 0],
+            ['centralDirectoryDisk', $archive['centralDirectoryDisk'], 0],
+            ['diskEntryCount', $archive['diskEntryCount'], $archive['totalEntryCount']],
+        ] as [$field, $value, $expected]) {
+            if ($value === $expected) {
+                continue;
+            }
+
+            $eocdSplitMarkers[] = [
+                'field' => $field,
+                'value' => $value,
+                'expected' => $expected,
+                'issue' => 'split-archive-eocd',
+            ];
+        }
         if (!$archive['isSingleDisk']) {
             $issues[] = 'split-archive-eocd';
         }
@@ -14526,6 +14546,8 @@ final class ZipPackage
             'hasSplitArchiveMarkers' => $issues !== [],
             'centralDirectoryNonEntryRecordCount' => count($centralDirectoryNonEntryRecords),
             'splitArchiveEntryCount' => count($splitArchiveEntries),
+            'eocdSplitMarkerCount' => count($eocdSplitMarkers),
+            'eocdSplitMarkerFields' => array_column($eocdSplitMarkers, 'field'),
             'diskStartSummaryCount' => count($diskStartSummaries),
             'splitArchiveDiskStartSummaryCount' => count($splitArchiveDiskStartSummaries),
             'diskStartValues' => array_keys($diskStartEntryCounts),
@@ -14535,6 +14557,7 @@ final class ZipPackage
             'isSupportedByBoundedReader' => $issues === [],
             'issues' => $issues,
             'centralDirectoryNonEntryRecords' => $centralDirectoryNonEntryRecords,
+            'eocdSplitMarkers' => $eocdSplitMarkers,
             'diskStartSummaries' => $diskStartSummaries,
             'splitArchiveDiskStartSummaries' => $splitArchiveDiskStartSummaries,
             'splitArchiveEntries' => $splitArchiveEntries,
