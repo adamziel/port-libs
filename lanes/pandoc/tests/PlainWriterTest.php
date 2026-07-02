@@ -43,6 +43,8 @@ return [
         $t->same(22, $result['diagnostics']['maxOutputDisplayWidth']);
         $t->same(0, $result['diagnostics']['forcedWrapBreakCount']);
         $t->same(0, $result['diagnostics']['maxForcedWrapSegmentDisplayWidth']);
+        $t->same(0, $result['diagnostics']['wrapBypassLineCount']);
+        $t->same(0, $result['diagnostics']['maxWrapBypassDisplayWidth']);
         $t->same(1, $result['diagnostics']['hardBreakCount']);
         $t->same(9, $result['diagnostics']['softBreakOpportunityCount']);
         $t->same(9, $result['diagnostics']['spaceBreakOpportunityCount']);
@@ -304,6 +306,8 @@ return [
         $t->same(33, $result['diagnostics']['maxOutputDisplayWidth']);
         $t->same(2, $result['diagnostics']['overColumnLineCount']);
         $t->same(33, $result['diagnostics']['maxOverColumnDisplayWidth']);
+        $t->same(2, $result['diagnostics']['wrapBypassLineCount']);
+        $t->same(33, $result['diagnostics']['maxWrapBypassDisplayWidth']);
         $t->same(2, $result['diagnostics']['hardBreakCount']);
         $t->same(3, $result['diagnostics']['softBreakOpportunityCount']);
         $t->same([
@@ -337,6 +341,27 @@ return [
             'protectedSeparatorCount' => 0,
             'lineEndingNormalizationCount' => 0,
         ], $result['diagnostics']['blocks'][0]);
+    },
+    'reports wrap mode bypassed over column lines in plain writer diagnostics' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('code_block', ['text' => "Alpha beta gamma\nshort\nReviewer queue diagnostic tail"]),
+        ]);
+
+        $result = (new PlainWriter(['columns' => 12, 'wrap' => 'preserve']))->writeWithDiagnostics($document);
+
+        $t->same("Alpha beta gamma\nshort\nReviewer queue diagnostic tail", $result['text']);
+        $t->same('preserve', $result['diagnostics']['wrapMode']);
+        $t->same(12, $result['diagnostics']['columns']);
+        $t->same(0, $result['diagnostics']['wrappedBlockCount']);
+        $t->same(0, $result['diagnostics']['softWrapBreakCount']);
+        $t->same(0, $result['diagnostics']['wrapSplitLineCount']);
+        $t->same(0, $result['diagnostics']['generatedWrapBreakCount']);
+        $t->same(2, $result['diagnostics']['overColumnLineCount']);
+        $t->same(30, $result['diagnostics']['maxOverColumnDisplayWidth']);
+        $t->same(2, $result['diagnostics']['wrapBypassLineCount']);
+        $t->same(30, $result['diagnostics']['maxWrapBypassDisplayWidth']);
+        $t->same(0, $result['diagnostics']['forcedWrapBreakCount']);
+        $t->same(0, $result['diagnostics']['maxForcedWrapSegmentDisplayWidth']);
     },
     'reports tab break opportunities in plain writer wrapping diagnostics' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [

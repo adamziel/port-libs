@@ -53,6 +53,8 @@ final class PlainWriter
      *     maxOutputDisplayWidth:int,
      *     overColumnLineCount:int,
      *     maxOverColumnDisplayWidth:int,
+     *     wrapBypassLineCount:int,
+     *     maxWrapBypassDisplayWidth:int,
      *     forcedWrapBreakCount:int,
      *     maxForcedWrapSegmentDisplayWidth:int,
      *     maxUnbreakableDisplayWidth:int,
@@ -138,6 +140,8 @@ final class PlainWriter
         $maxOutputDisplayWidth = 0;
         $overColumnLineCount = 0;
         $maxOverColumnDisplayWidth = 0;
+        $wrapBypassLineCount = 0;
+        $maxWrapBypassDisplayWidth = 0;
         $forcedWrapBreakCount = 0;
         $maxForcedWrapSegmentDisplayWidth = 0;
         $maxUnbreakableDisplayWidth = 0;
@@ -206,11 +210,14 @@ final class PlainWriter
             $sourceMax = $this->maxDisplayWidth($sourceLines, $ambiguousWidth);
             $outputMax = $this->maxDisplayWidth($wrappedLines, $ambiguousWidth);
             $overColumn = $this->overColumnLineMetrics($wrappedLines, $columns, $ambiguousWidth);
+            $wrapBypass = $this->wrapBypassMetrics($sourceLines, $columns, $wrapMode, $ambiguousWidth);
             $forcedWrap = $this->forcedWrapMetrics($sourceLines, $columns, $wrapMode, $ambiguousWidth);
             $unbreakable = $this->overlongUnbreakableSpanDiagnostics($sourceLines, $columns, $ambiguousWidth);
             $maxOutputDisplayWidth = max($maxOutputDisplayWidth, $outputMax);
             $overColumnLineCount += $overColumn['count'];
             $maxOverColumnDisplayWidth = max($maxOverColumnDisplayWidth, $overColumn['maxDisplayWidth']);
+            $wrapBypassLineCount += $wrapBypass['count'];
+            $maxWrapBypassDisplayWidth = max($maxWrapBypassDisplayWidth, $wrapBypass['maxDisplayWidth']);
             $forcedWrapBreakCount += $forcedWrap['forcedWrapBreakCount'];
             $maxForcedWrapSegmentDisplayWidth = max(
                 $maxForcedWrapSegmentDisplayWidth,
@@ -303,6 +310,8 @@ final class PlainWriter
                 'maxOutputDisplayWidth' => $maxOutputDisplayWidth,
                 'overColumnLineCount' => $overColumnLineCount,
                 'maxOverColumnDisplayWidth' => $maxOverColumnDisplayWidth,
+                'wrapBypassLineCount' => $wrapBypassLineCount,
+                'maxWrapBypassDisplayWidth' => $maxWrapBypassDisplayWidth,
                 'forcedWrapBreakCount' => $forcedWrapBreakCount,
                 'maxForcedWrapSegmentDisplayWidth' => $maxForcedWrapSegmentDisplayWidth,
                 'maxUnbreakableDisplayWidth' => $maxUnbreakableDisplayWidth,
@@ -765,6 +774,19 @@ final class PlainWriter
         }
 
         return ['count' => $count, 'maxDisplayWidth' => $max];
+    }
+
+    /**
+     * @param list<string> $sourceLines
+     * @return array{count:int, maxDisplayWidth:int}
+     */
+    private function wrapBypassMetrics(array $sourceLines, int $columns, string $wrapMode, string $ambiguousWidth): array
+    {
+        if ($wrapMode === 'auto' || $columns <= 0) {
+            return ['count' => 0, 'maxDisplayWidth' => 0];
+        }
+
+        return $this->overColumnLineMetrics($sourceLines, $columns, $ambiguousWidth);
     }
 
     private function softWrapBreakCount(string $source, int $wrappedLineCount, int $columns, string $wrapMode): int
