@@ -1128,11 +1128,15 @@ final class PdfEngineHandoff
         $this->appendTypstImportPathPolicyDiagnostics($diagnostics, $typstImportPathPolicy);
         $sourceSha256 = null;
         $sourceArtifactsSha256 = [];
+        $sourceArtifactsByteLengths = [];
         $missingSourceArtifacts = [];
         $resourceArtifactsSha256 = [];
+        $resourceArtifactsByteLengths = [];
         $missingResourceFiles = [];
         $producedArtifactsSha256 = [];
+        $producedArtifactsByteLengths = [];
         $engineDependencyArtifactsSha256 = [];
+        $engineDependencyArtifactsByteLengths = [];
         $engineInputFiles = [];
         $engineExternalInputFiles = [];
         $engineExternalDependencies = [];
@@ -1144,9 +1148,11 @@ final class PdfEngineHandoff
         $engineTranscriptExternalInputFiles = [];
         $missingEngineTranscriptInputFiles = [];
         $bibliographyArtifactsSha256 = [];
+        $bibliographyArtifactsByteLengths = [];
         $bibliographyLogFiles = [];
         $bibliographyLogTexts = [];
         $sourceMapArtifactsSha256 = [];
+        $sourceMapArtifactsByteLengths = [];
         $sourceMapFiles = [];
         $sourceMapInputsByKey = [];
         $sourceMapInputFiles = [];
@@ -1187,6 +1193,7 @@ final class PdfEngineHandoff
             }
 
             $sourceArtifactsSha256[$artifactPath] = hash('sha256', $files[$artifactPath]);
+            $sourceArtifactsByteLengths[$artifactPath] = strlen($files[$artifactPath]);
         }
         if ($sourceArtifactsSha256 !== [] && $reason === null) {
             $diagnostics[] = 'source-artifacts-validated:' . count($sourceArtifactsSha256);
@@ -1205,6 +1212,7 @@ final class PdfEngineHandoff
             }
 
             $resourceArtifactsSha256[$resourcePath] = hash('sha256', $files[$resourcePath]);
+            $resourceArtifactsByteLengths[$resourcePath] = strlen($files[$resourcePath]);
         }
         if ($resourceArtifactsSha256 !== [] && $reason === null) {
             $diagnostics[] = 'resource-files-validated:' . count($resourceArtifactsSha256);
@@ -1221,8 +1229,10 @@ final class PdfEngineHandoff
             }
 
             $producedArtifactsSha256[$path] = hash('sha256', $bytes);
+            $producedArtifactsByteLengths[$path] = strlen($bytes);
             if ($this->isBibliographyArtifactPath($path)) {
                 $bibliographyArtifactsSha256[$path] = hash('sha256', $bytes);
+                $bibliographyArtifactsByteLengths[$path] = strlen($bytes);
                 if ($this->isBibliographyLogPath($path)) {
                     $bibliographyLogFiles[] = $path;
                     $bibliographyLogTexts[] = $bytes;
@@ -1230,6 +1240,7 @@ final class PdfEngineHandoff
             }
             if ($this->isEngineDependencyArtifactPath($path)) {
                 $engineDependencyArtifactsSha256[$path] = hash('sha256', $bytes);
+                $engineDependencyArtifactsByteLengths[$path] = strlen($bytes);
                 try {
                     $dependencies = $this->extractEngineDependencyArtifact(
                         $path,
@@ -1289,6 +1300,7 @@ final class PdfEngineHandoff
             if ($this->isSourceMapArtifactPath($path)) {
                 $sourceMapFiles[] = $path;
                 $sourceMapArtifactsSha256[$path] = hash('sha256', $bytes);
+                $sourceMapArtifactsByteLengths[$path] = strlen($bytes);
                 try {
                     $sourceMap = $this->extractSourceMapArtifact($path, $bytes);
                 } catch (\RuntimeException $exception) {
@@ -1326,9 +1338,13 @@ final class PdfEngineHandoff
             }
         }
         ksort($producedArtifactsSha256);
+        ksort($producedArtifactsByteLengths);
         ksort($engineDependencyArtifactsSha256);
+        ksort($engineDependencyArtifactsByteLengths);
         ksort($bibliographyArtifactsSha256);
+        ksort($bibliographyArtifactsByteLengths);
         ksort($sourceMapArtifactsSha256);
+        ksort($sourceMapArtifactsByteLengths);
         sort($engineLogFiles);
         sort($bibliographyLogFiles);
         sort($sourceMapFiles);
@@ -5497,8 +5513,10 @@ final class PdfEngineHandoff
             is_array($plan['handoffInputProvenance'] ?? null) ? $plan['handoffInputProvenance'] : [],
             $sourceSha256,
             $sourceArtifactsSha256,
+            $sourceArtifactsByteLengths,
             $missingSourceArtifacts,
             $resourceArtifactsSha256,
+            $resourceArtifactsByteLengths,
             $missingResourceFiles
         );
         $artifactProvenanceIssues = [];
@@ -5604,6 +5622,13 @@ final class PdfEngineHandoff
             'expectedEngineArtifacts' => $expectedEngineArtifacts,
             'missingExpectedEngineArtifacts' => $missingExpectedEngineArtifacts,
             'producedEngineArtifactsSha256' => $producedArtifactsSha256,
+            'producedEngineArtifactsByteLengths' => $producedArtifactsByteLengths,
+            'engineDependencyArtifactsSha256' => $engineDependencyArtifactsSha256,
+            'engineDependencyArtifactsByteLengths' => $engineDependencyArtifactsByteLengths,
+            'bibliographyArtifactsSha256' => $bibliographyArtifactsSha256,
+            'bibliographyArtifactsByteLengths' => $bibliographyArtifactsByteLengths,
+            'sourceMapArtifactsSha256' => $sourceMapArtifactsSha256,
+            'sourceMapArtifactsByteLengths' => $sourceMapArtifactsByteLengths,
             'engineLogFiles' => $engineLogFiles,
             'engineWarnings' => $engineMessages['warnings'],
             'typstWarningProvenance' => $typstWarningProvenance,
@@ -5647,10 +5672,14 @@ final class PdfEngineHandoff
             'sourceInput' => $sourceInput,
             'handoffInputProvenance' => $handoffInputProvenance,
             'sourceArtifactsSha256' => $sourceArtifactsSha256,
+            'sourceArtifactsByteLengths' => $sourceArtifactsByteLengths,
             'resourceArtifactsSha256' => $resourceArtifactsSha256,
+            'resourceArtifactsByteLengths' => $resourceArtifactsByteLengths,
             'missingResourceFiles' => $missingResourceFiles,
             'producedArtifactsSha256' => $producedArtifactsSha256,
+            'producedArtifactsByteLengths' => $producedArtifactsByteLengths,
             'engineDependencyArtifactsSha256' => $engineDependencyArtifactsSha256,
+            'engineDependencyArtifactsByteLengths' => $engineDependencyArtifactsByteLengths,
             'engineInputFiles' => $engineInputFileList,
             'engineExternalInputFiles' => $engineExternalInputFileList,
             'engineTypstPackageInputs' => $engineTypstPackageInputList,
@@ -5675,8 +5704,10 @@ final class PdfEngineHandoff
             'missingEngineInputFiles' => $missingEngineInputFiles,
             'missingEngineTranscriptInputFiles' => $missingEngineTranscriptInputFiles,
             'bibliographyArtifactsSha256' => $bibliographyArtifactsSha256,
+            'bibliographyArtifactsByteLengths' => $bibliographyArtifactsByteLengths,
             'bibliographyLogFiles' => $bibliographyLogFiles,
             'sourceMapArtifactsSha256' => $sourceMapArtifactsSha256,
+            'sourceMapArtifactsByteLengths' => $sourceMapArtifactsByteLengths,
             'sourceMapFiles' => $sourceMapFiles,
             'sourceMapInputs' => $sourceMapInputs,
             'sourceMapInputFiles' => $sourceMapInputFileList,
@@ -6037,7 +6068,9 @@ final class PdfEngineHandoff
      *     finalPdfEncryptionCryptFilters: list<array{name:string, object:string|null, cryptFilterMethod:string|null, length:int|null, authEvent:string|null, recipients:int, rawKeys:list<string>}>,
      *     sourceSha256: string|null,
      *     finalResourceArtifactsSha256: array<string, string>,
+     *     finalResourceArtifactsByteLengths: array<string, int>,
      *     finalEngineDependencyArtifactsSha256: array<string, string>,
+     *     finalEngineDependencyArtifactsByteLengths: array<string, int>,
      *     finalEngineInputFiles: list<string>,
      *     finalEngineExternalInputFiles: list<string>,
      *     finalEngineTypstPackageInputs: list<string>,
@@ -6057,7 +6090,9 @@ final class PdfEngineHandoff
      *     finalEngineTranscriptInputFiles: list<string>,
      *     finalEngineTranscriptExternalInputFiles: list<string>,
      *     finalBibliographyArtifactsSha256: array<string, string>,
+     *     finalBibliographyArtifactsByteLengths: array<string, int>,
      *     finalSourceMapArtifactsSha256: array<string, string>,
+     *     finalSourceMapArtifactsByteLengths: array<string, int>,
      *     finalSourceMapFiles: list<string>,
      *     finalSourceMapInputs: list<array{tag:int, path:string}>,
      *     finalSourceMapInputFiles: list<string>,
@@ -6377,7 +6412,9 @@ final class PdfEngineHandoff
             'sourceSha256' => is_array($finalRun) && is_string($finalRun['sourceSha256'] ?? null) ? $finalRun['sourceSha256'] : null,
             'finalSourceInput' => is_array($finalRun) && is_array($finalRun['sourceInput'] ?? null) ? $finalRun['sourceInput'] : [],
             'finalResourceArtifactsSha256' => is_array($finalRun) && is_array($finalRun['resourceArtifactsSha256'] ?? null) ? $finalRun['resourceArtifactsSha256'] : [],
+            'finalResourceArtifactsByteLengths' => is_array($finalRun) && is_array($finalRun['resourceArtifactsByteLengths'] ?? null) ? $finalRun['resourceArtifactsByteLengths'] : [],
             'finalEngineDependencyArtifactsSha256' => is_array($finalRun) && is_array($finalRun['engineDependencyArtifactsSha256'] ?? null) ? $finalRun['engineDependencyArtifactsSha256'] : [],
+            'finalEngineDependencyArtifactsByteLengths' => is_array($finalRun) && is_array($finalRun['engineDependencyArtifactsByteLengths'] ?? null) ? $finalRun['engineDependencyArtifactsByteLengths'] : [],
             'finalEngineInputFiles' => is_array($finalRun) && is_array($finalRun['engineInputFiles'] ?? null) ? $finalRun['engineInputFiles'] : [],
             'finalEngineExternalInputFiles' => is_array($finalRun) && is_array($finalRun['engineExternalInputFiles'] ?? null) ? $finalRun['engineExternalInputFiles'] : [],
             'finalEngineTypstPackageInputs' => is_array($finalRun) && is_array($finalRun['engineTypstPackageInputs'] ?? null) ? $finalRun['engineTypstPackageInputs'] : [],
@@ -6404,7 +6441,9 @@ final class PdfEngineHandoff
             'finalEngineTranscriptInputFiles' => is_array($finalRun) && is_array($finalRun['engineTranscriptInputFiles'] ?? null) ? $finalRun['engineTranscriptInputFiles'] : [],
             'finalEngineTranscriptExternalInputFiles' => is_array($finalRun) && is_array($finalRun['engineTranscriptExternalInputFiles'] ?? null) ? $finalRun['engineTranscriptExternalInputFiles'] : [],
             'finalBibliographyArtifactsSha256' => is_array($finalRun) && is_array($finalRun['bibliographyArtifactsSha256'] ?? null) ? $finalRun['bibliographyArtifactsSha256'] : [],
+            'finalBibliographyArtifactsByteLengths' => is_array($finalRun) && is_array($finalRun['bibliographyArtifactsByteLengths'] ?? null) ? $finalRun['bibliographyArtifactsByteLengths'] : [],
             'finalSourceMapArtifactsSha256' => is_array($finalRun) && is_array($finalRun['sourceMapArtifactsSha256'] ?? null) ? $finalRun['sourceMapArtifactsSha256'] : [],
+            'finalSourceMapArtifactsByteLengths' => is_array($finalRun) && is_array($finalRun['sourceMapArtifactsByteLengths'] ?? null) ? $finalRun['sourceMapArtifactsByteLengths'] : [],
             'finalSourceMapFiles' => is_array($finalRun) && is_array($finalRun['sourceMapFiles'] ?? null) ? $finalRun['sourceMapFiles'] : [],
             'finalSourceMapInputs' => is_array($finalRun) && is_array($finalRun['sourceMapInputs'] ?? null) ? $finalRun['sourceMapInputs'] : [],
             'finalSourceMapInputFiles' => is_array($finalRun) && is_array($finalRun['sourceMapInputFiles'] ?? null) ? $finalRun['sourceMapInputFiles'] : [],
@@ -6647,8 +6686,10 @@ final class PdfEngineHandoff
     /**
      * @param array<string, mixed> $provenance
      * @param array<string, string> $sourceArtifactsSha256
+     * @param array<string, int> $sourceArtifactsByteLengths
      * @param list<string> $missingSourceArtifacts
      * @param array<string, string> $resourceArtifactsSha256
+     * @param array<string, int> $resourceArtifactsByteLengths
      * @param list<string> $missingResourceFiles
      * @return array<string, mixed>
      */
@@ -6656,8 +6697,10 @@ final class PdfEngineHandoff
         array $provenance,
         ?string $sourceSha256,
         array $sourceArtifactsSha256,
+        array $sourceArtifactsByteLengths,
         array $missingSourceArtifacts,
         array $resourceArtifactsSha256,
+        array $resourceArtifactsByteLengths,
         array $missingResourceFiles
     ): array {
         $validationIssues = [];
@@ -6670,9 +6713,11 @@ final class PdfEngineHandoff
 
         $provenance['sourceSha256'] = $sourceSha256;
         $provenance['sourceArtifactsSha256'] = $sourceArtifactsSha256;
+        $provenance['sourceArtifactsByteLengths'] = $sourceArtifactsByteLengths;
         $provenance['validatedSourceArtifactCount'] = count($sourceArtifactsSha256);
         $provenance['missingSourceArtifacts'] = array_values($missingSourceArtifacts);
         $provenance['resourceArtifactsSha256'] = $resourceArtifactsSha256;
+        $provenance['resourceArtifactsByteLengths'] = $resourceArtifactsByteLengths;
         $provenance['validatedResourceFileCount'] = count($resourceArtifactsSha256);
         $provenance['missingResourceFiles'] = array_values($missingResourceFiles);
         $provenance['validationStatus'] = $validationIssues === [] ? 'ok' : 'failed';
