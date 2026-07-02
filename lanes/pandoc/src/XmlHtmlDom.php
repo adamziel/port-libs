@@ -1211,6 +1211,38 @@ final class XmlHtmlDom
     /**
      * @return array<string, mixed>
      */
+    public static function summarizeHtmlFragmentIdReferences(\DOMDocument $dom): array
+    {
+        $root = self::requireFragmentRoot($dom);
+        $definitions = self::htmlFragmentIdDefinitionRecords($root);
+        $definitionsById = self::htmlFragmentIdDefinitionsById($definitions);
+        $references = self::htmlFragmentIdReferenceRecords($root, $definitionsById);
+        $definitionSummary = self::htmlFragmentIdDefinitionSummary($definitions);
+        $referenceSummary = self::htmlFragmentIdReferenceSummary($references);
+        $issueCodes = $definitionSummary['idDefinitionIssueCodes'];
+        foreach ($referenceSummary['idReferenceIssueCodes'] as $code) {
+            self::appendUniqueString($issueCodes, (string) $code);
+        }
+
+        return [
+            'formatFamily' => 'xml-html5-dom',
+            'format' => 'html',
+            'idReferenceReviewPolicy' => 'html-fragment-id-idref-review',
+            'directReaderParity' => false,
+            'directReaderDiagnosticCodes' => ['html-fragment-id-reference-review-only'],
+            'directReaderDiagnosticCount' => 1,
+            ...$definitionSummary,
+            ...$referenceSummary,
+            'idReferencePacketIssueCodes' => $issueCodes,
+            'idReferencePacketValid' => $issueCodes === [],
+            'idDefinitions' => $definitions,
+            'idReferences' => $references,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function summarizeHtmlFragmentResourceUrls(\DOMDocument $dom, ?string $baseUrl = null): array
     {
         $root = self::requireFragmentRoot($dom);
@@ -15214,6 +15246,444 @@ final class XmlHtmlDom
         }
 
         return $codes;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function htmlFragmentIdDefinitionRecords(\DOMElement $root): array
+    {
+        $records = [];
+        foreach ($root->getElementsByTagName('*') as $element) {
+            if (!$element instanceof \DOMElement || !$element->hasAttribute('id')) {
+                continue;
+            }
+
+            $raw = $element->getAttribute('id');
+            $id = self::htmlIdAttributeSummary($raw);
+            $records[] = [
+                'index' => count($records),
+                'element' => self::htmlElementName($element),
+                'elementPath' => self::htmlNodeReviewPath($element),
+                'idRaw' => $raw,
+                'id' => $id['id'],
+                'valid' => $id['valid'],
+                'duplicate' => false,
+                'occurrenceCount' => 0,
+                'text' => self::normalizedText($element),
+            ];
+        }
+
+        $counts = [];
+        foreach ($records as $record) {
+            $id = $record['id'] ?? null;
+            if (($record['valid'] ?? false) === true && is_string($id)) {
+                $counts[$id] = ($counts[$id] ?? 0) + 1;
+            }
+        }
+
+        foreach ($records as &$record) {
+            $id = $record['id'] ?? null;
+            $count = ($record['valid'] ?? false) === true && is_string($id)
+                ? (int) ($counts[$id] ?? 0)
+                : 0;
+            $record['occurrenceCount'] = $count;
+            $record['duplicate'] = $count > 1;
+        }
+        unset($record);
+
+        return $records;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $definitions
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private static function htmlFragmentIdDefinitionsById(array $definitions): array
+    {
+        $byId = [];
+        foreach ($definitions as $definition) {
+            $id = $definition['id'] ?? null;
+            if (($definition['valid'] ?? false) === true && is_string($id)) {
+                $byId[$id][] = $definition;
+            }
+        }
+
+        return $byId;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $definitions
+     * @return array<string, mixed>
+     */
+    private static function htmlFragmentIdDefinitionSummary(array $definitions): array
+    {
+        $ids = [];
+        $invalid = [];
+        $duplicateIds = [];
+        $duplicateDefinitions = [];
+
+        foreach ($definitions as $definition) {
+            $id = $definition['id'] ?? null;
+            if (($definition['valid'] ?? false) !== true || !is_string($id)) {
+                $invalid[] = $definition;
+                continue;
+            }
+
+            self::appendUniqueString($ids, $id);
+            if (($definition['duplicate'] ?? false) === true) {
+                self::appendUniqueString($duplicateIds, $id);
+                $duplicateDefinitions[] = $definition;
+            }
+        }
+
+        $issueCodes = [];
+        if ($invalid !== []) {
+            $issueCodes[] = 'invalid-html-id-definition';
+        }
+        if ($duplicateIds !== []) {
+            $issueCodes[] = 'duplicate-html-id-definition';
+        }
+
+        return [
+            'idDefinitionCount' => count($definitions),
+            'validIdDefinitionCount' => count($definitions) - count($invalid),
+            'invalidIdDefinitionCount' => count($invalid),
+            'duplicateIdDefinitionCount' => count($duplicateIds),
+            'duplicateIdDefinitionOccurrenceCount' => count($duplicateDefinitions),
+            'idDefinitionIds' => $ids,
+            'invalidIdDefinitions' => $invalid,
+            'duplicateIdDefinitionIds' => $duplicateIds,
+            'duplicateIdDefinitions' => $duplicateDefinitions,
+            'idDefinitionIssueCodes' => $issueCodes,
+        ];
+    }
+
+    /**
+     * @param array<string, list<array<string, mixed>>> $definitionsById
+     * @return list<array<string, mixed>>
+     */
+    private static function htmlFragmentIdReferenceRecords(\DOMElement $root, array $definitionsById): array
+    {
+        $records = [];
+        foreach ($root->getElementsByTagName('*') as $element) {
+            if (!$element instanceof \DOMElement) {
+                continue;
+            }
+
+            $attributes = self::htmlAttributes($element);
+            foreach (self::htmlFragmentIdReferenceAttributeSpecs(self::htmlElementName($element), $attributes) as $spec) {
+                $records[] = self::htmlFragmentIdReferenceRecord($element, $spec, $definitionsById, count($records));
+            }
+        }
+
+        return $records;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @return list<array{attribute:string, kind:string, multiple:bool}>
+     */
+    private static function htmlFragmentIdReferenceAttributeSpecs(string $elementName, array $attributes): array
+    {
+        $specs = [];
+        if (array_key_exists('for', $attributes)) {
+            $specs[] = [
+                'attribute' => 'for',
+                'kind' => $elementName === 'output' ? 'output-for' : 'label-for',
+                'multiple' => $elementName === 'output',
+            ];
+        }
+        if (array_key_exists('form', $attributes)) {
+            $specs[] = [
+                'attribute' => 'form',
+                'kind' => 'form-owner',
+                'multiple' => false,
+            ];
+        }
+        if ($elementName === 'input' && array_key_exists('list', $attributes)) {
+            $specs[] = [
+                'attribute' => 'list',
+                'kind' => 'datalist',
+                'multiple' => false,
+            ];
+        }
+        if (in_array($elementName, ['td', 'th'], true) && array_key_exists('headers', $attributes)) {
+            $specs[] = [
+                'attribute' => 'headers',
+                'kind' => 'table-headers',
+                'multiple' => true,
+            ];
+        }
+        if (array_key_exists('popovertarget', $attributes)) {
+            $specs[] = [
+                'attribute' => 'popovertarget',
+                'kind' => 'popover-target',
+                'multiple' => false,
+            ];
+        }
+        if (array_key_exists('commandfor', $attributes)) {
+            $specs[] = [
+                'attribute' => 'commandfor',
+                'kind' => 'button-command-target',
+                'multiple' => false,
+            ];
+        }
+        if (array_key_exists('anchor', $attributes)) {
+            $specs[] = [
+                'attribute' => 'anchor',
+                'kind' => 'anchor-positioning-target',
+                'multiple' => false,
+            ];
+        }
+
+        foreach (self::ARIA_ID_REFERENCE_ATTRIBUTES as $attribute => $multiple) {
+            if (array_key_exists($attribute, $attributes)) {
+                $specs[] = [
+                    'attribute' => $attribute,
+                    'kind' => 'aria-id-reference',
+                    'multiple' => $multiple,
+                ];
+            }
+        }
+
+        return $specs;
+    }
+
+    /**
+     * @param array{attribute:string, kind:string, multiple:bool} $spec
+     * @param array<string, list<array<string, mixed>>> $definitionsById
+     * @return array<string, mixed>
+     */
+    private static function htmlFragmentIdReferenceRecord(
+        \DOMElement $element,
+        array $spec,
+        array $definitionsById,
+        int $index
+    ): array {
+        $attribute = $spec['attribute'];
+        $raw = $element->getAttribute($attribute);
+        $tokens = self::spaceSeparatedTokens($raw);
+        $ids = [];
+        $resolvedIds = [];
+        $missingIds = [];
+        $invalidTokens = [];
+        $duplicateTokens = [];
+        $duplicateTargetIds = [];
+        $references = [];
+        $issues = [];
+        $seen = [];
+
+        if ($tokens === []) {
+            $issues[] = [
+                'code' => 'empty-html-id-reference',
+                'attribute' => $attribute,
+            ];
+        }
+
+        foreach ($tokens as $tokenIndex => $token) {
+            $reference = [
+                'index' => $tokenIndex,
+                'token' => $token,
+                'state' => 'unresolved',
+            ];
+            $firstIndex = $seen[$token] ?? null;
+            if ($firstIndex === null) {
+                $seen[$token] = $tokenIndex;
+            } else {
+                $reference['duplicateToken'] = true;
+                $reference['firstIndex'] = $firstIndex;
+                self::appendUniqueString($duplicateTokens, $token);
+                $issues[] = [
+                    'code' => 'duplicate-html-id-reference-token',
+                    'attribute' => $attribute,
+                    'token' => $token,
+                    'index' => $tokenIndex,
+                    'firstIndex' => $firstIndex,
+                ];
+            }
+
+            if (!self::isHtmlIdReferenceToken($token)) {
+                self::appendUniqueString($invalidTokens, $token);
+                $reference['state'] = 'invalid-token';
+                $issues[] = [
+                    'code' => 'invalid-html-id-reference-token',
+                    'attribute' => $attribute,
+                    'token' => $token,
+                    'index' => $tokenIndex,
+                ];
+                $references[] = $reference;
+                continue;
+            }
+
+            self::appendUniqueString($ids, $token);
+            $targets = $definitionsById[$token] ?? [];
+            if ($targets === []) {
+                self::appendUniqueString($missingIds, $token);
+                $reference['state'] = 'missing-target';
+                $reference['targetCount'] = 0;
+                $reference['targets'] = [];
+                $issues[] = [
+                    'code' => 'missing-html-id-reference-target',
+                    'attribute' => $attribute,
+                    'token' => $token,
+                    'index' => $tokenIndex,
+                ];
+                $references[] = $reference;
+                continue;
+            }
+
+            if (count($targets) > 1) {
+                self::appendUniqueString($duplicateTargetIds, $token);
+                $issues[] = [
+                    'code' => 'duplicate-html-id-reference-target',
+                    'attribute' => $attribute,
+                    'token' => $token,
+                    'index' => $tokenIndex,
+                    'targetCount' => count($targets),
+                ];
+            } else {
+                self::appendUniqueString($resolvedIds, $token);
+            }
+
+            $reference['state'] = count($targets) > 1 ? 'duplicate-target-id' : 'resolved';
+            $reference['targetCount'] = count($targets);
+            $reference['targets'] = array_map(
+                static fn (array $target): array => self::htmlFragmentIdTargetSummary($target),
+                $targets
+            );
+            $references[] = $reference;
+        }
+
+        if (!$spec['multiple'] && count($ids) > 1) {
+            $issues[] = [
+                'code' => 'multiple-html-id-reference-tokens',
+                'attribute' => $attribute,
+                'idCount' => count($ids),
+                'ids' => $ids,
+            ];
+        }
+
+        $issueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
+
+        return [
+            'index' => $index,
+            'element' => self::htmlElementName($element),
+            'elementPath' => self::htmlNodeReviewPath($element),
+            'attribute' => $attribute,
+            'kind' => $spec['kind'],
+            'multiple' => $spec['multiple'],
+            'raw' => $raw,
+            'tokens' => $tokens,
+            'tokenCount' => count($tokens),
+            'ids' => $ids,
+            'resolvedIds' => $resolvedIds,
+            'missingIds' => $missingIds,
+            'invalidTokens' => $invalidTokens,
+            'duplicateTokens' => $duplicateTokens,
+            'duplicateTargetIds' => $duplicateTargetIds,
+            'references' => $references,
+            'issues' => $issues,
+            'issueCodes' => $issueCodes,
+            'resolved' => $issueCodes === [],
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $references
+     * @return array<string, mixed>
+     */
+    private static function htmlFragmentIdReferenceSummary(array $references): array
+    {
+        $attributes = [];
+        $kinds = [];
+        $referencedIds = [];
+        $resolvedIds = [];
+        $missingIds = [];
+        $invalidTokens = [];
+        $duplicateTokens = [];
+        $duplicateTargetIds = [];
+        $issueCodes = [];
+        $issues = [];
+        $tokenCount = 0;
+        $resolvedReferenceCount = 0;
+
+        foreach ($references as $reference) {
+            $attribute = $reference['attribute'] ?? null;
+            if (is_string($attribute)) {
+                self::appendUniqueString($attributes, $attribute);
+            }
+            $kind = $reference['kind'] ?? null;
+            if (is_string($kind)) {
+                self::appendUniqueString($kinds, $kind);
+            }
+            $tokenCount += (int) ($reference['tokenCount'] ?? 0);
+            if (($reference['resolved'] ?? false) === true) {
+                ++$resolvedReferenceCount;
+            }
+
+            foreach ($reference['ids'] ?? [] as $id) {
+                self::appendUniqueString($referencedIds, (string) $id);
+            }
+            foreach ($reference['resolvedIds'] ?? [] as $id) {
+                self::appendUniqueString($resolvedIds, (string) $id);
+            }
+            foreach ($reference['missingIds'] ?? [] as $id) {
+                self::appendUniqueString($missingIds, (string) $id);
+            }
+            foreach ($reference['invalidTokens'] ?? [] as $token) {
+                self::appendUniqueString($invalidTokens, (string) $token);
+            }
+            foreach ($reference['duplicateTokens'] ?? [] as $token) {
+                self::appendUniqueString($duplicateTokens, (string) $token);
+            }
+            foreach ($reference['duplicateTargetIds'] ?? [] as $id) {
+                self::appendUniqueString($duplicateTargetIds, (string) $id);
+            }
+            foreach ($reference['issueCodes'] ?? [] as $code) {
+                self::appendUniqueString($issueCodes, (string) $code);
+            }
+            foreach ($reference['issues'] ?? [] as $issue) {
+                if (is_array($issue)) {
+                    $issues[] = ['referenceIndex' => $reference['index'] ?? null] + $issue;
+                }
+            }
+        }
+
+        return [
+            'idReferenceCount' => count($references),
+            'resolvedIdReferenceCount' => $resolvedReferenceCount,
+            'unresolvedIdReferenceCount' => count($references) - $resolvedReferenceCount,
+            'idReferenceTokenCount' => $tokenCount,
+            'idReferenceAttributeNames' => $attributes,
+            'idReferenceKinds' => $kinds,
+            'referencedIds' => $referencedIds,
+            'resolvedReferenceIds' => $resolvedIds,
+            'missingReferenceIds' => $missingIds,
+            'invalidReferenceTokens' => $invalidTokens,
+            'duplicateReferenceTokens' => $duplicateTokens,
+            'duplicateReferenceTargetIds' => $duplicateTargetIds,
+            'idReferenceIssues' => $issues,
+            'idReferenceIssueCodes' => $issueCodes,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $definition
+     * @return array<string, mixed>
+     */
+    private static function htmlFragmentIdTargetSummary(array $definition): array
+    {
+        return [
+            'definitionIndex' => $definition['index'] ?? null,
+            'element' => $definition['element'] ?? null,
+            'elementPath' => $definition['elementPath'] ?? null,
+            'id' => $definition['id'] ?? null,
+            'text' => $definition['text'] ?? '',
+        ];
     }
 
     private static function htmlNodeReviewPath(\DOMNode $node): string
