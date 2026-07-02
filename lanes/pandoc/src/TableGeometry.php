@@ -13532,7 +13532,7 @@ final class TableGeometry
 
     private static function cellRowspanToEnd(AstNode $cell): bool
     {
-        return self::cellRawRowspan($cell) === 0;
+        return $cell->attr('rowspanToEnd') === true || self::cellRawRowspan($cell) === 0;
     }
 
     private static function cellRawRowspan(AstNode $cell): int
