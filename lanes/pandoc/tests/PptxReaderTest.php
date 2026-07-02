@@ -5349,6 +5349,12 @@ XML);
       <p:nvGraphicFramePr><p:cNvPr id="15" name="Table Diagram URI"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
       <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table-diagram"><dgm:relIds/></a:graphicData></a:graphic>
     </p:graphicFrame>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="17" name="Uppercase Table URI"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/TABLE"><a:tbl>
+        <a:tr><a:tc><a:txBody><a:p><a:r><a:t>Uppercase URI table cell</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
+      </a:tbl></a:graphicData></a:graphic>
+    </p:graphicFrame>
   </p:spTree></p:cSld>
 </p:sld>
 XML);
@@ -9385,6 +9391,7 @@ return [
         foreach ([
             '[Graphic: no-uri]',
             '[Graphic: other: ]',
+            '[Graphic: other: http://schemas.openxmlformats.org/drawingml/2006/TABLE]',
             '[Graphic: diagram-no-relIds]',
             '[Graphic: diagram-missing-rels]',
             '[Diagram parse error: Relationship not found: rIdMissingData]',
@@ -9395,11 +9402,13 @@ return [
 
         $t->contains('Para [ Str "[Graphic:" , Space , Str "no-uri]" ]', $native);
         $t->contains('Para [ Str "[Graphic:" , Space , Str "other:" , Space , Str "]" ]', $native);
+        $t->contains('Para [ Str "[Graphic:" , Space , Str "other:" , Space , Str "http://schemas.openxmlformats.org/drawingml/2006/TABLE]" ]', $native);
         $t->contains('Para [ Str "[Graphic:" , Space , Str "diagram-no-relIds]" ]', $native);
         $t->contains('Para [ Str "[Graphic:" , Space , Str "diagram-missing-rels]" ]', $native);
         $t->contains('Para [ Str "[Diagram" , Space , Str "parse" , Space , Str "error:" , Space , Str "Relationship" , Space , Str "not" , Space , Str "found:" , Space , Str "rIdMissingData]" ]', $native);
         $t->true(!str_contains($native, 'chart-diagram'), 'Graphic URIs containing diagram should follow the upstream diagram branch before chart handling');
         $t->true(!str_contains($native, 'table-diagram'), 'Graphic URIs containing table should follow the upstream table branch before diagram handling');
+        $t->true(!str_contains($native, 'Uppercase URI table cell'), 'Graphic URI detection is case-sensitive like upstream and should not parse uppercase TABLE as a table');
 
         $placeholderParagraphs = array_values(array_filter(
             $paragraphs,
@@ -9407,13 +9416,14 @@ return [
                 || str_starts_with((string) $paragraph->attr('text'), '[Diagram parse error:')
         ));
 
-        $t->same(6, count($placeholderParagraphs));
+        $t->same(7, count($placeholderParagraphs));
         $t->same('No URI Graphic', $placeholderParagraphs[0]->attr('pptxShape')['name'] ?? null);
         $t->same('Empty URI Graphic', $placeholderParagraphs[1]->attr('pptxShape')['name'] ?? null);
         $t->same('Diagram No RelIds', $placeholderParagraphs[2]->attr('pptxShape')['name'] ?? null);
         $t->same('Diagram Missing Rels', $placeholderParagraphs[3]->attr('pptxShape')['name'] ?? null);
         $t->same('Diagram Unknown Rel', $placeholderParagraphs[4]->attr('pptxShape')['name'] ?? null);
         $t->same('Chart Diagram URI', $placeholderParagraphs[5]->attr('pptxShape')['name'] ?? null);
+        $t->same('Uppercase Table URI', $placeholderParagraphs[6]->attr('pptxShape')['name'] ?? null);
         $t->true(!str_contains($native, 'Missing GraphicData'), 'Graphic frames without graphicData should be skipped like upstream');
         $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
     },
