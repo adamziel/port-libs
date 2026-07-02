@@ -7227,18 +7227,111 @@ final class OpenDocumentPackage
         $packageFileEntryCount = 0;
         $packageDirectoryEntryCount = 0;
         $packageDeclaredZipEntryCount = 0;
+        $manifestPackageReferenceTopLevelSegmentCounts = [];
+        $manifestPackageExistingReferenceTopLevelSegmentCounts = [];
+        $manifestPackageCoveredReferenceTopLevelSegmentCounts = [];
+        $manifestPackageMissingReferenceTopLevelSegmentCounts = [];
+        $manifestPackageVirtualDirectoryReferenceTopLevelSegmentCounts = [];
+        $packageEntryTopLevelSegmentCounts = [];
+        $packageDeclaredZipEntryTopLevelSegmentCounts = [];
+        $packageUndeclaredZipEntryTopLevelSegmentCounts = [];
+        $manifestPackageCoverageIssueTopLevelSegmentCounts = [];
+        $manifestPackageCoverageTopLevelSegmentSummaries = [];
+
+        $sortStringList = static function (array $items): array {
+            $items = array_values(array_unique(array_filter(
+                $items,
+                static fn (mixed $item): bool => is_string($item) && $item !== ''
+            )));
+            sort($items, SORT_STRING);
+
+            return $items;
+        };
+
+        $topLevelSegmentForPath = static function (string $path): ?string {
+            $trimmed = trim($path, '/');
+            if ($trimmed === '') {
+                return null;
+            }
+
+            $segments = explode('/', $trimmed);
+            $segment = $segments[0] ?? null;
+
+            return is_string($segment) && $segment !== '' ? $segment : null;
+        };
+
+        $recordTopLevelSegmentCount = static function (array &$counts, ?string $segment): void {
+            if ($segment === null || $segment === '') {
+                return;
+            }
+
+            $counts[$segment] = ($counts[$segment] ?? 0) + 1;
+        };
+
+        $ensureTopLevelSegmentSummary = static function (array &$summaries, string $segment): void {
+            if (isset($summaries[$segment])) {
+                return;
+            }
+
+            $summaries[$segment] = [
+                'topLevelSegment' => $segment,
+                'manifestPackageReferenceCount' => 0,
+                'manifestPackageFileReferenceCount' => 0,
+                'manifestPackageDirectoryReferenceCount' => 0,
+                'manifestPackageExistingReferenceCount' => 0,
+                'manifestPackageCoveredReferenceCount' => 0,
+                'manifestPackageMissingReferenceCount' => 0,
+                'manifestPackageVirtualDirectoryReferenceCount' => 0,
+                'manifestPackageCoverageComplete' => true,
+                'manifestPackageZipCoverageComplete' => true,
+                'manifestPackageReferencePaths' => [],
+                'manifestPackageExistingReferencePaths' => [],
+                'manifestPackageCoveredReferencePaths' => [],
+                'manifestPackageMissingReferencePaths' => [],
+                'manifestPackageDirectoryReferencePaths' => [],
+                'manifestPackageVirtualDirectoryReferencePaths' => [],
+                'packageEntryCount' => 0,
+                'packageFileEntryCount' => 0,
+                'packageDirectoryEntryCount' => 0,
+                'packageDeclaredZipEntryCount' => 0,
+                'packageUndeclaredZipEntryCount' => 0,
+                'packageEntryPaths' => [],
+                'packageDeclaredZipEntryPaths' => [],
+                'packageUndeclaredZipEntryPaths' => [],
+                'issueCount' => 0,
+                'issueCodes' => [],
+            ];
+        };
 
         foreach ($packageParts as $name => $part) {
             $path = is_string($part['path'] ?? null) ? $part['path'] : (string) $name;
             $packagePaths[] = $path;
+            $topLevelSegment = $topLevelSegmentForPath($path);
+            if ($topLevelSegment !== null) {
+                $recordTopLevelSegmentCount($packageEntryTopLevelSegmentCounts, $topLevelSegment);
+                $ensureTopLevelSegmentSummary($manifestPackageCoverageTopLevelSegmentSummaries, $topLevelSegment);
+                ++$manifestPackageCoverageTopLevelSegmentSummaries[$topLevelSegment]['packageEntryCount'];
+                $manifestPackageCoverageTopLevelSegmentSummaries[$topLevelSegment]['packageEntryPaths'][] = $path;
+            }
             if (($part['isDirectory'] ?? false) === true) {
                 ++$packageDirectoryEntryCount;
+                if ($topLevelSegment !== null) {
+                    ++$manifestPackageCoverageTopLevelSegmentSummaries[$topLevelSegment]['packageDirectoryEntryCount'];
+                }
             } else {
                 ++$packageFileEntryCount;
+                if ($topLevelSegment !== null) {
+                    ++$manifestPackageCoverageTopLevelSegmentSummaries[$topLevelSegment]['packageFileEntryCount'];
+                }
             }
             if (($part['declaredInManifest'] ?? false) === true) {
                 ++$packageDeclaredZipEntryCount;
                 $declaredZipEntryPaths[] = $path;
+                if ($topLevelSegment !== null) {
+                    $recordTopLevelSegmentCount($packageDeclaredZipEntryTopLevelSegmentCounts, $topLevelSegment);
+                    ++$manifestPackageCoverageTopLevelSegmentSummaries[$topLevelSegment]['packageDeclaredZipEntryCount'];
+                    $manifestPackageCoverageTopLevelSegmentSummaries[$topLevelSegment]['packageDeclaredZipEntryPaths'][] = $path;
+                }
             }
         }
 
@@ -7246,6 +7339,13 @@ final class OpenDocumentPackage
             $path = $entry['path'] ?? null;
             if (is_string($path) && $path !== '') {
                 $undeclaredZipEntryPaths[] = $path;
+                $topLevelSegment = $topLevelSegmentForPath($path);
+                if ($topLevelSegment !== null) {
+                    $recordTopLevelSegmentCount($packageUndeclaredZipEntryTopLevelSegmentCounts, $topLevelSegment);
+                    $ensureTopLevelSegmentSummary($manifestPackageCoverageTopLevelSegmentSummaries, $topLevelSegment);
+                    ++$manifestPackageCoverageTopLevelSegmentSummaries[$topLevelSegment]['packageUndeclaredZipEntryCount'];
+                    $manifestPackageCoverageTopLevelSegmentSummaries[$topLevelSegment]['packageUndeclaredZipEntryPaths'][] = $path;
+                }
             }
         }
 
@@ -7260,27 +7360,61 @@ final class OpenDocumentPackage
             $exists = ($entry['exists'] ?? false) === true;
             $hasZipEntry = isset($packageParts[$packagePath]);
             $manifestPackageReferencePaths[] = $packagePath;
+            $topLevelSegment = $topLevelSegmentForPath($packagePath);
+            if ($topLevelSegment !== null) {
+                $recordTopLevelSegmentCount($manifestPackageReferenceTopLevelSegmentCounts, $topLevelSegment);
+                $ensureTopLevelSegmentSummary($manifestPackageCoverageTopLevelSegmentSummaries, $topLevelSegment);
+                ++$manifestPackageCoverageTopLevelSegmentSummaries[$topLevelSegment]['manifestPackageReferenceCount'];
+                $manifestPackageCoverageTopLevelSegmentSummaries[$topLevelSegment]['manifestPackageReferencePaths'][] = $packagePath;
+            }
             if ($isDirectory) {
                 ++$manifestPackageDirectoryReferenceCount;
                 $directoryPackageReferencePaths[] = $packagePath;
+                if ($topLevelSegment !== null) {
+                    ++$manifestPackageCoverageTopLevelSegmentSummaries[$topLevelSegment]['manifestPackageDirectoryReferenceCount'];
+                    $manifestPackageCoverageTopLevelSegmentSummaries[$topLevelSegment]['manifestPackageDirectoryReferencePaths'][] = $packagePath;
+                }
             } else {
                 ++$manifestPackageFileReferenceCount;
+                if ($topLevelSegment !== null) {
+                    ++$manifestPackageCoverageTopLevelSegmentSummaries[$topLevelSegment]['manifestPackageFileReferenceCount'];
+                }
             }
             if ($exists) {
                 ++$manifestPackageExistingReferenceCount;
                 $existingPackageReferencePaths[] = $packagePath;
+                if ($topLevelSegment !== null) {
+                    $recordTopLevelSegmentCount($manifestPackageExistingReferenceTopLevelSegmentCounts, $topLevelSegment);
+                    ++$manifestPackageCoverageTopLevelSegmentSummaries[$topLevelSegment]['manifestPackageExistingReferenceCount'];
+                    $manifestPackageCoverageTopLevelSegmentSummaries[$topLevelSegment]['manifestPackageExistingReferencePaths'][] = $packagePath;
+                }
             }
             if ($hasZipEntry) {
                 ++$manifestPackageCoveredReferenceCount;
                 $coveredPackageReferencePaths[] = $packagePath;
+                if ($topLevelSegment !== null) {
+                    $recordTopLevelSegmentCount($manifestPackageCoveredReferenceTopLevelSegmentCounts, $topLevelSegment);
+                    ++$manifestPackageCoverageTopLevelSegmentSummaries[$topLevelSegment]['manifestPackageCoveredReferenceCount'];
+                    $manifestPackageCoverageTopLevelSegmentSummaries[$topLevelSegment]['manifestPackageCoveredReferencePaths'][] = $packagePath;
+                }
             }
             if (!$exists) {
                 ++$manifestPackageMissingReferenceCount;
                 $missingPackageReferencePaths[] = $packagePath;
+                if ($topLevelSegment !== null) {
+                    $recordTopLevelSegmentCount($manifestPackageMissingReferenceTopLevelSegmentCounts, $topLevelSegment);
+                    ++$manifestPackageCoverageTopLevelSegmentSummaries[$topLevelSegment]['manifestPackageMissingReferenceCount'];
+                    $manifestPackageCoverageTopLevelSegmentSummaries[$topLevelSegment]['manifestPackageMissingReferencePaths'][] = $packagePath;
+                }
             }
             if ($isDirectory && $exists && !$hasZipEntry) {
                 ++$manifestPackageVirtualDirectoryReferenceCount;
                 $virtualDirectoryPackageReferencePaths[] = $packagePath;
+                if ($topLevelSegment !== null) {
+                    $recordTopLevelSegmentCount($manifestPackageVirtualDirectoryReferenceTopLevelSegmentCounts, $topLevelSegment);
+                    ++$manifestPackageCoverageTopLevelSegmentSummaries[$topLevelSegment]['manifestPackageVirtualDirectoryReferenceCount'];
+                    $manifestPackageCoverageTopLevelSegmentSummaries[$topLevelSegment]['manifestPackageVirtualDirectoryReferencePaths'][] = $packagePath;
+                }
             }
 
             $part = is_array($packageParts[$packagePath] ?? null) ? $packageParts[$packagePath] : null;
@@ -7322,16 +7456,6 @@ final class OpenDocumentPackage
             ]);
         }
 
-        $sortStringList = static function (array $items): array {
-            $items = array_values(array_unique(array_filter(
-                $items,
-                static fn (mixed $item): bool => is_string($item) && $item !== ''
-            )));
-            sort($items, SORT_STRING);
-
-            return $items;
-        };
-
         $issueCodes = [];
         if ($manifestPackageMissingReferenceCount > 0) {
             $issueCodes[] = 'missing-manifest-declared-package-references';
@@ -7345,6 +7469,46 @@ final class OpenDocumentPackage
         ksort($manifestPackageMissingReferenceMediaFamilyCounts, SORT_STRING);
         ksort($manifestPackageReferenceByteExposurePolicyCounts, SORT_STRING);
         ksort($manifestPackageMissingReferenceByteExposurePolicyCounts, SORT_STRING);
+        ksort($manifestPackageReferenceTopLevelSegmentCounts, SORT_STRING);
+        ksort($manifestPackageExistingReferenceTopLevelSegmentCounts, SORT_STRING);
+        ksort($manifestPackageCoveredReferenceTopLevelSegmentCounts, SORT_STRING);
+        ksort($manifestPackageMissingReferenceTopLevelSegmentCounts, SORT_STRING);
+        ksort($manifestPackageVirtualDirectoryReferenceTopLevelSegmentCounts, SORT_STRING);
+        ksort($packageEntryTopLevelSegmentCounts, SORT_STRING);
+        ksort($packageDeclaredZipEntryTopLevelSegmentCounts, SORT_STRING);
+        ksort($packageUndeclaredZipEntryTopLevelSegmentCounts, SORT_STRING);
+        ksort($manifestPackageCoverageTopLevelSegmentSummaries, SORT_STRING);
+        foreach ($manifestPackageCoverageTopLevelSegmentSummaries as $segment => $summary) {
+            $summary['manifestPackageCoverageComplete'] = $summary['manifestPackageMissingReferenceCount'] === 0;
+            $summary['manifestPackageZipCoverageComplete'] =
+                $summary['manifestPackageCoveredReferenceCount'] === (
+                    $summary['manifestPackageReferenceCount'] - $summary['manifestPackageVirtualDirectoryReferenceCount']
+                );
+            $segmentIssueCodes = [];
+            if ($summary['manifestPackageMissingReferenceCount'] > 0) {
+                $segmentIssueCodes[] = 'missing-manifest-declared-package-references';
+            }
+            if ($summary['packageUndeclaredZipEntryCount'] > 0) {
+                $segmentIssueCodes[] = 'undeclared-zip-package-entries';
+            }
+            $summary['issueCount'] = count($segmentIssueCodes);
+            $summary['issueCodes'] = $segmentIssueCodes;
+            if ($summary['issueCount'] > 0) {
+                $manifestPackageCoverageIssueTopLevelSegmentCounts[$segment] = $summary['issueCount'];
+            }
+            $summary['manifestPackageReferencePaths'] = $sortStringList($summary['manifestPackageReferencePaths']);
+            $summary['manifestPackageExistingReferencePaths'] = $sortStringList($summary['manifestPackageExistingReferencePaths']);
+            $summary['manifestPackageCoveredReferencePaths'] = $sortStringList($summary['manifestPackageCoveredReferencePaths']);
+            $summary['manifestPackageMissingReferencePaths'] = $sortStringList($summary['manifestPackageMissingReferencePaths']);
+            $summary['manifestPackageDirectoryReferencePaths'] = $sortStringList($summary['manifestPackageDirectoryReferencePaths']);
+            $summary['manifestPackageVirtualDirectoryReferencePaths'] = $sortStringList($summary['manifestPackageVirtualDirectoryReferencePaths']);
+            $summary['packageEntryPaths'] = $sortStringList($summary['packageEntryPaths']);
+            $summary['packageDeclaredZipEntryPaths'] = $sortStringList($summary['packageDeclaredZipEntryPaths']);
+            $summary['packageUndeclaredZipEntryPaths'] = $sortStringList($summary['packageUndeclaredZipEntryPaths']);
+            $manifestPackageCoverageTopLevelSegmentSummaries[$segment] = $summary;
+        }
+        ksort($manifestPackageCoverageIssueTopLevelSegmentCounts, SORT_STRING);
+        $manifestPackageCoverageTopLevelSegmentNames = array_keys($manifestPackageCoverageTopLevelSegmentSummaries);
 
         return [
             'present' => true,
@@ -7367,6 +7531,13 @@ final class OpenDocumentPackage
             'manifestPackageMissingReferenceMediaFamilyCounts' => $manifestPackageMissingReferenceMediaFamilyCounts,
             'manifestPackageReferenceByteExposurePolicyCounts' => $manifestPackageReferenceByteExposurePolicyCounts,
             'manifestPackageMissingReferenceByteExposurePolicyCounts' => $manifestPackageMissingReferenceByteExposurePolicyCounts,
+            'manifestPackageCoverageTopLevelSegmentCount' => count($manifestPackageCoverageTopLevelSegmentNames),
+            'manifestPackageCoverageTopLevelSegmentNames' => $manifestPackageCoverageTopLevelSegmentNames,
+            'manifestPackageReferenceTopLevelSegmentCounts' => $manifestPackageReferenceTopLevelSegmentCounts,
+            'manifestPackageExistingReferenceTopLevelSegmentCounts' => $manifestPackageExistingReferenceTopLevelSegmentCounts,
+            'manifestPackageCoveredReferenceTopLevelSegmentCounts' => $manifestPackageCoveredReferenceTopLevelSegmentCounts,
+            'manifestPackageMissingReferenceTopLevelSegmentCounts' => $manifestPackageMissingReferenceTopLevelSegmentCounts,
+            'manifestPackageVirtualDirectoryReferenceTopLevelSegmentCounts' => $manifestPackageVirtualDirectoryReferenceTopLevelSegmentCounts,
             'packageEntryCount' => count($packageParts),
             'packageFileEntryCount' => $packageFileEntryCount,
             'packageDirectoryEntryCount' => $packageDirectoryEntryCount,
@@ -7375,10 +7546,15 @@ final class OpenDocumentPackage
             'packageEntryPaths' => $sortStringList($packagePaths),
             'packageDeclaredZipEntryPaths' => $sortStringList($declaredZipEntryPaths),
             'packageUndeclaredZipEntryPaths' => $sortStringList($undeclaredZipEntryPaths),
+            'packageEntryTopLevelSegmentCounts' => $packageEntryTopLevelSegmentCounts,
+            'packageDeclaredZipEntryTopLevelSegmentCounts' => $packageDeclaredZipEntryTopLevelSegmentCounts,
+            'packageUndeclaredZipEntryTopLevelSegmentCounts' => $packageUndeclaredZipEntryTopLevelSegmentCounts,
             'issueCount' => count($issueCodes),
             'issueCodes' => $issueCodes,
+            'manifestPackageCoverageIssueTopLevelSegmentCounts' => $manifestPackageCoverageIssueTopLevelSegmentCounts,
             'byteExposurePolicy' => 'odf-manifest-package-coverage-metadata-only',
             'canExposeBytes' => false,
+            'manifestPackageCoverageTopLevelSegments' => array_values($manifestPackageCoverageTopLevelSegmentSummaries),
             'manifestReferences' => $manifestReferences,
         ];
     }

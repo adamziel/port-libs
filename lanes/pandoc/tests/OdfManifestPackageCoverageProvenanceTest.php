@@ -110,6 +110,32 @@ return [
             'mimetype',
             'styles.xml',
         ];
+        $expectedReferenceTopLevelSegmentCounts = [
+            'Pictures' => 3,
+            'content.xml' => 1,
+            'meta.xml' => 1,
+            'styles.xml' => 1,
+        ];
+        $expectedCoveredTopLevelSegmentCounts = [
+            'Pictures' => 1,
+            'content.xml' => 1,
+            'meta.xml' => 1,
+            'styles.xml' => 1,
+        ];
+        $expectedExistingTopLevelSegmentCounts = [
+            'Pictures' => 2,
+            'content.xml' => 1,
+            'meta.xml' => 1,
+            'styles.xml' => 1,
+        ];
+        $expectedPackageTopLevelSegmentCounts = [
+            'META-INF' => 1,
+            'Pictures' => 2,
+            'content.xml' => 1,
+            'meta.xml' => 1,
+            'mimetype' => 1,
+            'styles.xml' => 1,
+        ];
 
         foreach ([$compactCoverage, $richCoverage] as $coverage) {
             $t->same(true, $coverage['present']);
@@ -140,6 +166,20 @@ return [
                 'package-bytes-exposable' => 4,
             ], $coverage['manifestPackageReferenceByteExposurePolicyCounts']);
             $t->same(['missing-package-part' => 1], $coverage['manifestPackageMissingReferenceByteExposurePolicyCounts']);
+            $t->same(6, $coverage['manifestPackageCoverageTopLevelSegmentCount']);
+            $t->same([
+                'META-INF',
+                'Pictures',
+                'content.xml',
+                'meta.xml',
+                'mimetype',
+                'styles.xml',
+            ], $coverage['manifestPackageCoverageTopLevelSegmentNames']);
+            $t->same($expectedReferenceTopLevelSegmentCounts, $coverage['manifestPackageReferenceTopLevelSegmentCounts']);
+            $t->same($expectedExistingTopLevelSegmentCounts, $coverage['manifestPackageExistingReferenceTopLevelSegmentCounts']);
+            $t->same($expectedCoveredTopLevelSegmentCounts, $coverage['manifestPackageCoveredReferenceTopLevelSegmentCounts']);
+            $t->same(['Pictures' => 1], $coverage['manifestPackageMissingReferenceTopLevelSegmentCounts']);
+            $t->same(['Pictures' => 1], $coverage['manifestPackageVirtualDirectoryReferenceTopLevelSegmentCounts']);
             $t->same(7, $coverage['packageEntryCount']);
             $t->same(7, $coverage['packageFileEntryCount']);
             $t->same(0, $coverage['packageDirectoryEntryCount']);
@@ -148,11 +188,15 @@ return [
             $t->same($expectedPackagePaths, $coverage['packageEntryPaths']);
             $t->same($expectedCoveredPaths, $coverage['packageDeclaredZipEntryPaths']);
             $t->same(['Pictures/orphan.png'], $coverage['packageUndeclaredZipEntryPaths']);
+            $t->same($expectedPackageTopLevelSegmentCounts, $coverage['packageEntryTopLevelSegmentCounts']);
+            $t->same($expectedCoveredTopLevelSegmentCounts, $coverage['packageDeclaredZipEntryTopLevelSegmentCounts']);
+            $t->same(['Pictures' => 1], $coverage['packageUndeclaredZipEntryTopLevelSegmentCounts']);
             $t->same(2, $coverage['issueCount']);
             $t->same([
                 'missing-manifest-declared-package-references',
                 'undeclared-zip-package-entries',
             ], $coverage['issueCodes']);
+            $t->same(['Pictures' => 2], $coverage['manifestPackageCoverageIssueTopLevelSegmentCounts']);
             $t->same('odf-manifest-package-coverage-metadata-only', $coverage['byteExposurePolicy']);
             $t->same(false, $coverage['canExposeBytes']);
 
@@ -166,6 +210,39 @@ return [
             $t->same('missing-package-part', $references['Pictures/missing.png']['byteExposurePolicy']);
             $t->same('directory', $references['Pictures/']['manifestMediaFamily']);
             $t->same(['manifest-declared', 'media-resource'], $references['Pictures/hero.png']['roles']);
+
+            $segments = $indexBy($coverage['manifestPackageCoverageTopLevelSegments'], 'topLevelSegment');
+            $t->same(3, $segments['Pictures']['manifestPackageReferenceCount']);
+            $t->same(2, $segments['Pictures']['manifestPackageFileReferenceCount']);
+            $t->same(1, $segments['Pictures']['manifestPackageDirectoryReferenceCount']);
+            $t->same(2, $segments['Pictures']['manifestPackageExistingReferenceCount']);
+            $t->same(1, $segments['Pictures']['manifestPackageCoveredReferenceCount']);
+            $t->same(1, $segments['Pictures']['manifestPackageMissingReferenceCount']);
+            $t->same(1, $segments['Pictures']['manifestPackageVirtualDirectoryReferenceCount']);
+            $t->same(false, $segments['Pictures']['manifestPackageCoverageComplete']);
+            $t->same(false, $segments['Pictures']['manifestPackageZipCoverageComplete']);
+            $t->same(['Pictures/', 'Pictures/hero.png', 'Pictures/missing.png'], $segments['Pictures']['manifestPackageReferencePaths']);
+            $t->same(['Pictures/', 'Pictures/hero.png'], $segments['Pictures']['manifestPackageExistingReferencePaths']);
+            $t->same(['Pictures/hero.png'], $segments['Pictures']['manifestPackageCoveredReferencePaths']);
+            $t->same(['Pictures/missing.png'], $segments['Pictures']['manifestPackageMissingReferencePaths']);
+            $t->same(['Pictures/'], $segments['Pictures']['manifestPackageDirectoryReferencePaths']);
+            $t->same(['Pictures/'], $segments['Pictures']['manifestPackageVirtualDirectoryReferencePaths']);
+            $t->same(2, $segments['Pictures']['packageEntryCount']);
+            $t->same(2, $segments['Pictures']['packageFileEntryCount']);
+            $t->same(0, $segments['Pictures']['packageDirectoryEntryCount']);
+            $t->same(1, $segments['Pictures']['packageDeclaredZipEntryCount']);
+            $t->same(1, $segments['Pictures']['packageUndeclaredZipEntryCount']);
+            $t->same(['Pictures/hero.png', 'Pictures/orphan.png'], $segments['Pictures']['packageEntryPaths']);
+            $t->same(['Pictures/hero.png'], $segments['Pictures']['packageDeclaredZipEntryPaths']);
+            $t->same(['Pictures/orphan.png'], $segments['Pictures']['packageUndeclaredZipEntryPaths']);
+            $t->same(2, $segments['Pictures']['issueCount']);
+            $t->same([
+                'missing-manifest-declared-package-references',
+                'undeclared-zip-package-entries',
+            ], $segments['Pictures']['issueCodes']);
+            $t->same(0, $segments['META-INF']['manifestPackageReferenceCount']);
+            $t->same(1, $segments['META-INF']['packageEntryCount']);
+            $t->same(0, $segments['META-INF']['issueCount']);
         }
 
         $t->same($compactCoverage, $compactInventory['manifestPackageCoverage']);
