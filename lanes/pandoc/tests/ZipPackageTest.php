@@ -767,6 +767,9 @@ return [
                 'pathSegmentPositionReviews' => $pathSegmentPositionReviews(['OEBPS', 'content.xhtml']),
                 'pathSegmentCount' => 2,
                 'directoryDepth' => 1,
+                'packagePartDirectory' => 'OEBPS/',
+                'packagePartDirectoryBaseName' => 'OEBPS',
+                'packagePartCaseFoldDirectoryBaseName' => 'oebps',
                 'packagePartBaseName' => 'content.xhtml',
                 'packagePartCaseFoldBaseName' => 'content.xhtml',
                 'packagePartBaseNameStem' => 'content',
@@ -795,6 +798,9 @@ return [
                 'pathSegmentPositionReviews' => $pathSegmentPositionReviews(['OEBPS', 'images']),
                 'pathSegmentCount' => 2,
                 'directoryDepth' => 1,
+                'packagePartDirectory' => 'OEBPS/images/',
+                'packagePartDirectoryBaseName' => 'images',
+                'packagePartCaseFoldDirectoryBaseName' => 'images',
                 'packagePartBaseName' => 'images',
                 'packagePartCaseFoldBaseName' => 'images',
                 'packagePartBaseNameStem' => null,
@@ -823,6 +829,9 @@ return [
                 'pathSegmentPositionReviews' => $pathSegmentPositionReviews(['mimetype']),
                 'pathSegmentCount' => 1,
                 'directoryDepth' => 0,
+                'packagePartDirectory' => null,
+                'packagePartDirectoryBaseName' => null,
+                'packagePartCaseFoldDirectoryBaseName' => null,
                 'packagePartBaseName' => 'mimetype',
                 'packagePartCaseFoldBaseName' => 'mimetype',
                 'packagePartBaseNameStem' => 'mimetype',
@@ -887,6 +896,9 @@ return [
                     'pathSegmentPositionReviews' => $entry['pathSegmentPositionReviews'],
                     'pathSegmentCount' => $entry['pathSegmentCount'],
                     'directoryDepth' => $entry['directoryDepth'],
+                    'packagePartDirectory' => $entry['packagePartDirectory'],
+                    'packagePartDirectoryBaseName' => $entry['packagePartDirectoryBaseName'],
+                    'packagePartCaseFoldDirectoryBaseName' => $entry['packagePartCaseFoldDirectoryBaseName'],
                     'packagePartBaseName' => $entry['packagePartBaseName'],
                     'packagePartCaseFoldBaseName' => $entry['packagePartCaseFoldBaseName'],
                     'packagePartBaseNameStem' => $entry['packagePartBaseNameStem'],
@@ -1371,6 +1383,18 @@ return [
             'extensionlessPackagePartCount' => 1,
             'packagePartExtensions' => $expectedPackagePartExtensions,
             'packagePartExtensionSummaries' => $expectedPackagePartExtensionSummaries,
+            'packagePartDirectoryBaseNameSummaryCount' => $manifest['packagePartDirectoryBaseNameSummaryCount'],
+            'packagePartDirectoryBaseNames' => $manifest['packagePartDirectoryBaseNames'],
+            'packagePartDirectoryBaseNameSummaries' => $manifest['packagePartDirectoryBaseNameSummaries'],
+            'duplicatePackagePartDirectoryBaseNameCount' => $manifest['duplicatePackagePartDirectoryBaseNameCount'],
+            'duplicatePackagePartDirectoryBaseNames' => $manifest['duplicatePackagePartDirectoryBaseNames'],
+            'duplicatePackagePartDirectoryBaseNameSummaries' => $manifest['duplicatePackagePartDirectoryBaseNameSummaries'],
+            'packagePartCaseFoldDirectoryBaseNameSummaryCount' => $manifest['packagePartCaseFoldDirectoryBaseNameSummaryCount'],
+            'packagePartCaseFoldDirectoryBaseNames' => $manifest['packagePartCaseFoldDirectoryBaseNames'],
+            'packagePartCaseFoldDirectoryBaseNameSummaries' => $manifest['packagePartCaseFoldDirectoryBaseNameSummaries'],
+            'duplicatePackagePartCaseFoldDirectoryBaseNameCount' => $manifest['duplicatePackagePartCaseFoldDirectoryBaseNameCount'],
+            'duplicatePackagePartCaseFoldDirectoryBaseNames' => $manifest['duplicatePackagePartCaseFoldDirectoryBaseNames'],
+            'duplicatePackagePartCaseFoldDirectoryBaseNameSummaries' => $manifest['duplicatePackagePartCaseFoldDirectoryBaseNameSummaries'],
             'packagePartBaseNameSummaryCount' => $manifest['packagePartBaseNameSummaryCount'],
             'packagePartBaseNames' => $manifest['packagePartBaseNames'],
             'packagePartBaseNameSummaries' => $manifest['packagePartBaseNameSummaries'],
@@ -1583,6 +1607,9 @@ return [
                 'pathSegmentPositionReviews' => $entry['pathSegmentPositionReviews'],
                 'pathSegmentCount' => $entry['pathSegmentCount'],
                 'directoryDepth' => $entry['directoryDepth'],
+                'packagePartDirectory' => $entry['packagePartDirectory'],
+                'packagePartDirectoryBaseName' => $entry['packagePartDirectoryBaseName'],
+                'packagePartCaseFoldDirectoryBaseName' => $entry['packagePartCaseFoldDirectoryBaseName'],
                 'packagePartBaseName' => $entry['packagePartBaseName'],
                 'packagePartCaseFoldBaseName' => $entry['packagePartCaseFoldBaseName'],
                 'packagePartBaseNameStem' => $entry['packagePartBaseNameStem'],
@@ -2289,6 +2316,14 @@ return [
         foreach ($manifest['packagePartCaseFoldBaseNameSummaries'] as $summary) {
             $caseFoldBaseNamesByKey[$summary['packagePartCaseFoldBaseName']] = $summary;
         }
+        $directoryBaseNamesByKey = [];
+        foreach ($manifest['packagePartDirectoryBaseNameSummaries'] as $summary) {
+            $directoryBaseNamesByKey[$summary['packagePartDirectoryBaseName']] = $summary;
+        }
+        $caseFoldDirectoryBaseNamesByKey = [];
+        foreach ($manifest['packagePartCaseFoldDirectoryBaseNameSummaries'] as $summary) {
+            $caseFoldDirectoryBaseNamesByKey[$summary['packagePartCaseFoldDirectoryBaseName']] = $summary;
+        }
         $caseFoldStemsByKey = [];
         foreach ($manifest['packagePartCaseFoldBaseNameStemSummaries'] as $summary) {
             $caseFoldStemsByKey[$summary['packagePartCaseFoldBaseNameStem']] = $summary;
@@ -2307,10 +2342,61 @@ return [
         $t->same('review.png', $entriesByName['word/Media/Review.PNG']['packagePartCaseFoldBaseName']);
         $t->same('Review', $entriesByName['word/Media/Review.PNG']['packagePartBaseNameStem']);
         $t->same('review', $entriesByName['word/Media/Review.PNG']['packagePartCaseFoldBaseNameStem']);
+        $t->same('word/Media/', $entriesByName['word/Media/Review.PNG']['packagePartDirectory']);
+        $t->same('Media', $entriesByName['word/Media/Review.PNG']['packagePartDirectoryBaseName']);
+        $t->same('media', $entriesByName['word/Media/Review.PNG']['packagePartCaseFoldDirectoryBaseName']);
+        $t->same('word/media/', $entriesByName['word/media/']['packagePartDirectory']);
+        $t->same('media', $entriesByName['word/media/']['packagePartDirectoryBaseName']);
         $t->same('media', $entriesByName['word/media/']['packagePartBaseName']);
         $t->same(null, $entriesByName['word/media/']['packagePartBaseNameStem']);
+        $t->same(null, $entriesByName['mimetype']['packagePartDirectory']);
+        $t->same(null, $entriesByName['mimetype']['packagePartDirectoryBaseName']);
         $t->same('mimetype', $entriesByName['mimetype']['packagePartBaseName']);
         $t->same('mimetype', $entriesByName['mimetype']['packagePartBaseNameStem']);
+
+        $t->same(5, $manifest['packagePartDirectoryBaseNameSummaryCount']);
+        $t->same(['CustomXml', 'Media', 'customXml', 'media', 'word'], $manifest['packagePartDirectoryBaseNames']);
+        $t->same(1, $manifest['duplicatePackagePartDirectoryBaseNameCount']);
+        $t->same(true, $manifest['hasDuplicatePackagePartDirectoryBaseNames']);
+        $t->same(['media'], $manifest['duplicatePackagePartDirectoryBaseNames']);
+        $t->same(2, $directoryBaseNamesByKey['media']['entryCount']);
+        $t->same(1, $directoryBaseNamesByKey['media']['fileEntryCount']);
+        $t->same(1, $directoryBaseNamesByKey['media']['directoryEntryCount']);
+        $t->same($sumEntryBytes(['word/media/review.png', 'word/media/'], 'sourceRecordBytes'), $directoryBaseNamesByKey['media']['sourceRecordBytes']);
+        $t->same(['word/media/' => 2], $directoryBaseNamesByKey['media']['packagePartDirectoryCounts']);
+        $t->same(['(directory)' => 1, 'png' => 1], $directoryBaseNamesByKey['media']['packagePartExtensionKeyCounts']);
+        $t->same(['word/' => 2], $directoryBaseNamesByKey['media']['directoryRootCounts']);
+        $t->same(['word/media/review.png', 'word/media/'], $directoryBaseNamesByKey['media']['entryNames']);
+
+        $t->same(3, $manifest['packagePartCaseFoldDirectoryBaseNameSummaryCount']);
+        $t->same(['customxml', 'media', 'word'], $manifest['packagePartCaseFoldDirectoryBaseNames']);
+        $t->same(2, $manifest['duplicatePackagePartCaseFoldDirectoryBaseNameCount']);
+        $t->same(true, $manifest['hasDuplicatePackagePartCaseFoldDirectoryBaseNames']);
+        $t->same(['customxml', 'media'], $manifest['duplicatePackagePartCaseFoldDirectoryBaseNames']);
+        $t->same(3, $caseFoldDirectoryBaseNamesByKey['media']['entryCount']);
+        $t->same(2, $caseFoldDirectoryBaseNamesByKey['media']['fileEntryCount']);
+        $t->same(1, $caseFoldDirectoryBaseNamesByKey['media']['directoryEntryCount']);
+        $t->same(2, $caseFoldDirectoryBaseNamesByKey['media']['packagePartDirectoryBaseNameVariantCount']);
+        $t->same([
+            'Media' => 1,
+            'media' => 2,
+        ], $caseFoldDirectoryBaseNamesByKey['media']['packagePartDirectoryBaseNameCounts']);
+        $t->same([
+            'word/Media/' => 1,
+            'word/media/' => 2,
+        ], $caseFoldDirectoryBaseNamesByKey['media']['packagePartDirectoryCounts']);
+        $t->same(['(directory)' => 1, 'png' => 2], $caseFoldDirectoryBaseNamesByKey['media']['packagePartExtensionKeyCounts']);
+        $t->same(['word/' => 3], $caseFoldDirectoryBaseNamesByKey['media']['directoryRootCounts']);
+        $t->same(
+            ['word/media/review.png', 'word/Media/Review.PNG', 'word/media/'],
+            $caseFoldDirectoryBaseNamesByKey['media']['entryNames']
+        );
+        $t->same(2, $caseFoldDirectoryBaseNamesByKey['customxml']['entryCount']);
+        $t->same(2, $caseFoldDirectoryBaseNamesByKey['customxml']['packagePartDirectoryBaseNameVariantCount']);
+        $t->same([
+            'CustomXml' => 1,
+            'customXml' => 1,
+        ], $caseFoldDirectoryBaseNamesByKey['customxml']['packagePartDirectoryBaseNameCounts']);
 
         $t->same(6, $manifest['packagePartBaseNameSummaryCount']);
         $t->same(1, $manifest['duplicatePackagePartBaseNameCount']);
@@ -3020,6 +3106,9 @@ return [
                 'pathSegmentPositionReviews' => $pathSegmentPositionReviews(['word', 'document.xml']),
                 'pathSegmentCount' => 2,
                 'directoryDepth' => 1,
+                'packagePartDirectory' => 'word/',
+                'packagePartDirectoryBaseName' => 'word',
+                'packagePartCaseFoldDirectoryBaseName' => 'word',
                 'packagePartBaseName' => 'document.xml',
                 'packagePartCaseFoldBaseName' => 'document.xml',
                 'packagePartBaseNameStem' => 'document',
@@ -3101,6 +3190,9 @@ return [
                 'pathSegmentPositionReviews' => $pathSegmentPositionReviews(['word', 'comments.xml']),
                 'pathSegmentCount' => 2,
                 'directoryDepth' => 1,
+                'packagePartDirectory' => 'word/',
+                'packagePartDirectoryBaseName' => 'word',
+                'packagePartCaseFoldDirectoryBaseName' => 'word',
                 'packagePartBaseName' => 'comments.xml',
                 'packagePartCaseFoldBaseName' => 'comments.xml',
                 'packagePartBaseNameStem' => 'comments',
@@ -3422,6 +3514,18 @@ return [
             'extensionlessPackagePartCount' => 0,
             'packagePartExtensions' => $expectedPackagePartExtensions,
             'packagePartExtensionSummaries' => $expectedPackagePartExtensionSummaries,
+            'packagePartDirectoryBaseNameSummaryCount' => $manifest['packagePartDirectoryBaseNameSummaryCount'],
+            'packagePartDirectoryBaseNames' => $manifest['packagePartDirectoryBaseNames'],
+            'packagePartDirectoryBaseNameSummaries' => $manifest['packagePartDirectoryBaseNameSummaries'],
+            'duplicatePackagePartDirectoryBaseNameCount' => $manifest['duplicatePackagePartDirectoryBaseNameCount'],
+            'duplicatePackagePartDirectoryBaseNames' => $manifest['duplicatePackagePartDirectoryBaseNames'],
+            'duplicatePackagePartDirectoryBaseNameSummaries' => $manifest['duplicatePackagePartDirectoryBaseNameSummaries'],
+            'packagePartCaseFoldDirectoryBaseNameSummaryCount' => $manifest['packagePartCaseFoldDirectoryBaseNameSummaryCount'],
+            'packagePartCaseFoldDirectoryBaseNames' => $manifest['packagePartCaseFoldDirectoryBaseNames'],
+            'packagePartCaseFoldDirectoryBaseNameSummaries' => $manifest['packagePartCaseFoldDirectoryBaseNameSummaries'],
+            'duplicatePackagePartCaseFoldDirectoryBaseNameCount' => $manifest['duplicatePackagePartCaseFoldDirectoryBaseNameCount'],
+            'duplicatePackagePartCaseFoldDirectoryBaseNames' => $manifest['duplicatePackagePartCaseFoldDirectoryBaseNames'],
+            'duplicatePackagePartCaseFoldDirectoryBaseNameSummaries' => $manifest['duplicatePackagePartCaseFoldDirectoryBaseNameSummaries'],
             'packagePartBaseNameSummaryCount' => $manifest['packagePartBaseNameSummaryCount'],
             'packagePartBaseNames' => $manifest['packagePartBaseNames'],
             'packagePartBaseNameSummaries' => $manifest['packagePartBaseNameSummaries'],
@@ -3559,6 +3663,9 @@ return [
                 'pathSegmentPositionReviews' => $entry['pathSegmentPositionReviews'],
                 'pathSegmentCount' => $entry['pathSegmentCount'],
                 'directoryDepth' => $entry['directoryDepth'],
+                'packagePartDirectory' => $entry['packagePartDirectory'],
+                'packagePartDirectoryBaseName' => $entry['packagePartDirectoryBaseName'],
+                'packagePartCaseFoldDirectoryBaseName' => $entry['packagePartCaseFoldDirectoryBaseName'],
                 'packagePartBaseName' => $entry['packagePartBaseName'],
                 'packagePartCaseFoldBaseName' => $entry['packagePartCaseFoldBaseName'],
                 'packagePartBaseNameStem' => $entry['packagePartBaseNameStem'],
