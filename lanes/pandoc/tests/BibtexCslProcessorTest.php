@@ -3047,6 +3047,139 @@ BIB;
         $t->contains('BibLaTeX entry set: Packet Audit Trails (2026); Archive Site (2026-05-31); missing: missing-source', $blocks);
         $t->contains('BibLaTeX xdata packets: Shared Review Policy (2026-06-05); missing: missing-policy', $blocks);
     },
+    'resolves biblatex crossref xdata and entryset aliases in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@xdata{shared-review-policy,
+  ids       = {legacy-review-policy, archived-review-policy},
+  title     = {Shared Review Policy},
+  date      = {2026-06-05},
+  publisher = {Alias Review Press},
+  location  = {Lisbon},
+  rights    = {Alias metadata only}
+}
+
+@proceedings{canonical-proceedings,
+  ids        = {legacy-proceedings},
+  title      = {Alias Proceedings},
+  subtitle   = {CSL Track},
+  date       = {2026},
+  eventtitle = {Alias Summit},
+  venue      = {Porto},
+  xdata      = {legacy-review-policy}
+}
+
+@inproceedings{alias-crossref-paper,
+  author   = {Ng, Nia},
+  title    = {Alias Crossref Packet},
+  pages    = {21--25},
+  crossref = {legacy-proceedings},
+  xdata    = {archived-review-policy}
+}
+
+@online{canonical-appendix,
+  ids     = {legacy-appendix},
+  author  = {{Archive Desk}},
+  title   = {Alias Appendix Packet},
+  date    = {2025-12-31},
+  url     = {https://example.test/appendix},
+  options = {dataonly}
+}
+
+@set{alias-entry-set,
+  title    = {Alias Entry Set},
+  date     = {2026},
+  entryset = {legacy-appendix, missing-appendix}
+}
+
+@online{alias-xdata-child,
+  author = {Roe, Pat},
+  title  = {Alias Xdata Packet},
+  date   = {2026-06-07},
+  url    = {https://example.test/xdata-alias},
+  xdata  = {legacy-review-policy, missing-policy}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $paper = $items['alias-crossref-paper'];
+        $set = $items['alias-entry-set'];
+        $xdata = $items['alias-xdata-child'];
+
+        $t->same('paper-conference', $paper['type']);
+        $t->same('Alias Proceedings: CSL Track', $paper['container-title']);
+        $t->same('Alias Summit', $paper['event']);
+        $t->same('Porto', $paper['event-place']);
+        $t->same('Alias Review Press', $paper['publisher']);
+        $t->same('Lisbon', $paper['publisher-place']);
+        $t->same('Alias metadata only', $paper['rights']);
+        $t->same(false, array_key_exists('citation-aliases', $paper));
+        $t->same(['archived-review-policy'], $paper['xdataKeys']);
+        $t->same('shared-review-policy', $paper['xdataItems'][0]['id'] ?? null);
+        $t->same('archived-review-policy', $paper['xdataItems'][0]['citationKey'] ?? null);
+        $t->same('Shared Review Policy (2026-06-05)', $paper['xdataSummary']);
+        $t->same(false, array_key_exists('missingXdataKeys', $paper));
+        $t->same(['legacy-proceedings'], $paper['crossrefKeys']);
+        $t->same('canonical-proceedings', $paper['crossrefItems'][0]['id'] ?? null);
+        $t->same('legacy-proceedings', $paper['crossrefItems'][0]['citationKey'] ?? null);
+        $t->same('Alias Proceedings: CSL Track (2026)', $paper['crossrefSummary']);
+        $t->same(false, array_key_exists('missingCrossrefKeys', $paper));
+
+        $t->same(['legacy-appendix', 'missing-appendix'], $set['entrySet']);
+        $t->same('canonical-appendix', $set['entrySetItems'][0]['id'] ?? null);
+        $t->same('legacy-appendix', $set['entrySetItems'][0]['citationKey'] ?? null);
+        $t->same(true, $set['entrySetItems'][0]['dataOnly'] ?? null);
+        $t->same(['missing-appendix'], $set['missingEntrySetKeys']);
+        $t->same('Alias Appendix Packet (2025-12-31); missing: missing-appendix', $set['entrySetSummary']);
+
+        $t->same(['legacy-review-policy', 'missing-policy'], $xdata['xdataKeys']);
+        $t->same('shared-review-policy', $xdata['xdataItems'][0]['id'] ?? null);
+        $t->same('legacy-review-policy', $xdata['xdataItems'][0]['citationKey'] ?? null);
+        $t->same(['missing-policy'], $xdata['missingXdataKeys']);
+        $t->same('Shared Review Policy (2026-06-05); missing: missing-policy', $xdata['xdataSummary']);
+
+        $t->contains('BibLaTeX crossref parent: Alias Proceedings: CSL Track (2026)', $processor->renderBibliographyText($paper));
+        $t->contains('BibLaTeX xdata packets: Shared Review Policy (2026-06-05)', $processor->renderBibliographyText($paper));
+        $t->contains('BibLaTeX entry set: Alias Appendix Packet (2025-12-31); missing: missing-appendix', $processor->renderBibliographyText($set));
+        $t->contains('BibLaTeX xdata packets: Shared Review Policy (2026-06-05); missing: missing-policy', $processor->renderBibliographyText($xdata));
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="crossref-summary"/>
+        <text variable="xdata-summary"/>
+        <text variable="entry-set-summary"/>
+        <text variable="missing-entry-set-keys"/>
+        <text variable="missing-xdata-keys"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="crossref-summary"/>
+      <text variable="xdata-summary"/>
+      <text variable="entry-set-summary"/>
+      <text variable="missing-entry-set-keys"/>
+      <text variable="missing-xdata-keys"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $normalized = $styled->item('alias-crossref-paper');
+        $t->same('Alias Proceedings: CSL Track (2026)', $normalized['crossrefSummary'] ?? null);
+        $t->same('Shared Review Policy (2026-06-05)', $normalized['xdataSummary'] ?? null);
+        $t->same('[Alias Crossref Packet | Crossref: Alias Proceedings: CSL Track (2026) | Shared Review Policy (2026-06-05)]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'alias-crossref-paper', 'text' => '[@alias-crossref-paper]']),
+        ]));
+        $t->same('Alias Entry Set :: Alias Appendix Packet (2025-12-31); missing: missing-appendix :: missing-appendix', $styled->renderBibliographyEntry('alias-entry-set'));
+        $t->same('Alias Xdata Packet :: Shared Review Policy (2026-06-05); missing: missing-policy :: missing-policy', $styled->renderBibliographyEntry('alias-xdata-child'));
+    },
     'carries biblatex citation aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @book{canonical-source,
