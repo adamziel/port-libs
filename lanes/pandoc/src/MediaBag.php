@@ -848,7 +848,7 @@ final class MediaBag
             $records[] = ['key' => $pathOnlySource, 'repair' => 'path-only'];
             $records[] = ['key' => self::canonicalizeSource($pathOnlySource), 'repair' => 'path-only'];
         }
-        $decodedPathOnlySource = self::decodedRelativeSourceKey($pathOnlySource);
+        $decodedPathOnlySource = self::decodedResourceSourceKey($pathOnlySource);
         if ($decodedPathOnlySource !== null) {
             $records[] = ['key' => $decodedPathOnlySource, 'repair' => 'percent-decoded'];
             $records[] = ['key' => self::canonicalizeSource($decodedPathOnlySource), 'repair' => 'percent-decoded'];
@@ -1184,22 +1184,58 @@ final class MediaBag
         return implode(',', array_values(array_unique($reasons)));
     }
 
-    private static function decodedRelativeSourceKey(string $source): ?string
+    private static function decodedResourceSourceKey(string $source): ?string
     {
-        if (str_starts_with($source, 'data:') || self::isUri($source) || !str_contains($source, '%')) {
+        if (str_starts_with($source, 'data:') || !str_contains($source, '%')) {
             return null;
         }
 
         $decoded = rawurldecode($source);
-        if (
-            $decoded === $source
-            || str_contains($decoded, "\0")
-            || !self::isSafeRelativeMediaPath($decoded)
-        ) {
+        if ($decoded === $source || str_contains($decoded, "\0")) {
             return null;
         }
 
-        return $decoded;
+        if (self::isUri($source)) {
+            return self::sameUriAuthority($source, $decoded) && self::hasSafeDecodedUriPath($decoded)
+                ? $decoded
+                : null;
+        }
+
+        return self::isSafeRelativeMediaPath($decoded) ? $decoded : null;
+    }
+
+    private static function sameUriAuthority(string $source, string $decoded): bool
+    {
+        $sourceParts = parse_url($source);
+        $decodedParts = parse_url($decoded);
+        if (!is_array($sourceParts) || !is_array($decodedParts)) {
+            return false;
+        }
+
+        foreach (['scheme', 'host', 'user', 'pass', 'port'] as $part) {
+            $sourcePart = $sourceParts[$part] ?? null;
+            $decodedPart = $decodedParts[$part] ?? null;
+            if ($part === 'scheme' || $part === 'host') {
+                $sourcePart = is_string($sourcePart) ? strtolower($sourcePart) : $sourcePart;
+                $decodedPart = is_string($decodedPart) ? strtolower($decodedPart) : $decodedPart;
+            }
+
+            if ($sourcePart !== $decodedPart) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static function hasSafeDecodedUriPath(string $uri): bool
+    {
+        $path = parse_url($uri, PHP_URL_PATH);
+        if (!is_string($path) || $path === '') {
+            return true;
+        }
+
+        return !str_contains(str_replace('\\', '/', $path), '..');
     }
 
     private function placeholderFor(AstNode $image): AstNode

@@ -420,6 +420,92 @@ return [
         ], $extracted['diagnostics']);
     },
 
+    'maps percent encoded remote media urls through decoded uri resource keys' => static function (TestRunner $t): void {
+        $bag = new MediaBag();
+        $decodedBytes = "<svg><text>decoded remote chart</text></svg>\n";
+        $exactBytes = "<svg><text>exact remote chart</text></svg>\n";
+        $shadowBytes = "<svg><text>decoded shadow chart</text></svg>\n";
+        $decodedSource = 'https://cdn.example.test/media/review%20chart.svg?download=1#review';
+        $decodedKey = 'https://cdn.example.test/media/review chart.svg';
+        $exactSource = 'https://cdn.example.test/media/exact%20chart.svg?download=1#review';
+        $exactKey = 'https://cdn.example.test/media/exact chart.svg';
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('image', [
+                    'url' => $decodedSource,
+                    'title' => 'Decoded remote chart',
+                ], [new AstNode('text', ['text' => 'Decoded remote chart'])]),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('image', [
+                    'url' => $exactSource,
+                    'title' => 'Exact remote chart',
+                ], [new AstNode('text', ['text' => 'Exact remote chart'])]),
+            ]),
+        ]);
+
+        $filled = $bag->fillDocument($document, [
+            $decodedKey => [
+                'contents' => $decodedBytes,
+                'mimeType' => 'image/svg+xml',
+            ],
+            $exactSource => [
+                'contents' => $exactBytes,
+                'mimeType' => 'image/svg+xml',
+            ],
+            $exactKey => [
+                'contents' => $shadowBytes,
+                'mimeType' => 'image/svg+xml',
+            ],
+        ]);
+        $directoryBySource = [];
+        foreach ($bag->directory() as $entry) {
+            $directoryBySource[$entry['source']] = $entry;
+        }
+        $decodedPath = sha1($decodedBytes) . '.svg';
+        $exactPath = sha1($exactBytes) . '.svg';
+
+        $t->same([
+            'media-resource-loaded:' . $decodedSource,
+            'media-resource-repair-conflict:' . $exactSource,
+            'media-resource-percent-decode-conflict:' . $exactSource,
+            'media-resource-loaded:' . $exactSource,
+        ], $filled['diagnostics']);
+        $t->same(2, count($directoryBySource));
+        $t->same($decodedPath, $directoryBySource[$decodedSource]['path']);
+        $t->same($exactPath, $directoryBySource[$exactSource]['path']);
+        $t->same('/media/review chart.svg', $directoryBySource[$decodedSource]['sourcePath']);
+        $t->same('percent-decoded-path-rejected,uri-hash-path', $directoryBySource[$decodedSource]['pathRepairSummary']);
+        $t->same($decodedBytes, $bag->lookup($decodedSource)['contents']);
+        $t->same($exactBytes, $bag->lookup($exactSource)['contents']);
+        $t->true(!str_contains(implode(',', array_column($directoryBySource, 'path')), '%20'), 'Encoded URI octets must not become remote media paths');
+        $t->true(!str_contains(implode(',', array_column($directoryBySource, 'path')), ' '), 'Decoded URI spaces must not become remote media paths');
+
+        $extracted = $bag->extractMedia($filled['document'], 'remote-media');
+        $mappedDocument = $extracted['document'];
+        $entriesBySource = [];
+        foreach ($extracted['entries'] as $entry) {
+            $entriesBySource[$entry['source']] = $entry;
+        }
+        $decodedAttributes = $mappedDocument->children[0]->children[0]->attr('attributes');
+        $exactAttributes = $mappedDocument->children[1]->children[0]->attr('attributes');
+
+        $t->same('remote-media/' . $decodedPath, $mappedDocument->children[0]->children[0]->attr('url'));
+        $t->same('remote-media/' . $exactPath, $mappedDocument->children[1]->children[0]->attr('url'));
+        $t->same($decodedBytes, $entriesBySource[$decodedSource]['contents']);
+        $t->same($exactBytes, $entriesBySource[$exactSource]['contents']);
+        $t->same($decodedPath, $entriesBySource[$decodedSource]['mediaPath']);
+        $t->same($exactPath, $entriesBySource[$exactSource]['mediaPath']);
+        $t->same($decodedSource, $decodedAttributes['data-pandoc-media-source']);
+        $t->same($exactSource, $exactAttributes['data-pandoc-media-source']);
+        $t->same($decodedPath, $decodedAttributes['data-pandoc-media-path']);
+        $t->same($exactPath, $exactAttributes['data-pandoc-media-path']);
+        $t->same([
+            'media-resource-mapped:' . $decodedSource,
+            'media-resource-mapped:' . $exactSource,
+        ], $extracted['diagnostics']);
+    },
+
     'normalizes parameterized declared media types during resource mapping' => static function (TestRunner $t): void {
         $bag = new MediaBag();
         $bytes = "<svg><text>parameterized type</text></svg>\n";
