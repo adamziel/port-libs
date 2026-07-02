@@ -1194,6 +1194,46 @@ return [
             static fn (array $summary): string => $summary['directoryRoot'],
             $expectedDirectoryRootSummaries
         );
+        $expectedDirectoryDepthSummaries = [
+            [
+                'directoryDepth' => 0,
+                'entryCount' => 1,
+                'fileEntryCount' => 1,
+                'directoryEntryCount' => 0,
+                'compressedBytes' => strlen($mimetype),
+                'uncompressedBytes' => strlen($mimetype),
+                'localRecordBytes' => $expectedEntriesByName['mimetype']['localRecordBytes'],
+                'sourceRecordBytes' => $expectedEntriesByName['mimetype']['sourceRecordBytes'],
+                'dataDescriptorEntryCount' => 0,
+                'dataDescriptorBytes' => 0,
+                'directoryRootCounts' => ['/' => 1],
+                'directoryRoots' => ['/'],
+                'packagePartExtensionKeyCounts' => ['(none)' => 1],
+                'packagePartExtensionKeys' => ['(none)'],
+                'compressionMethodCounts' => ['0' => 1],
+                'entryNames' => ['mimetype'],
+            ],
+            [
+                'directoryDepth' => 1,
+                'entryCount' => 2,
+                'fileEntryCount' => 1,
+                'directoryEntryCount' => 1,
+                'compressedBytes' => strlen(gzdeflate($contentXhtml)),
+                'uncompressedBytes' => strlen($contentXhtml),
+                'localRecordBytes' => $expectedEntriesByName['OEBPS/content.xhtml']['localRecordBytes']
+                    + $expectedEntriesByName['OEBPS/images/']['localRecordBytes'],
+                'sourceRecordBytes' => $expectedEntriesByName['OEBPS/content.xhtml']['sourceRecordBytes']
+                    + $expectedEntriesByName['OEBPS/images/']['sourceRecordBytes'],
+                'dataDescriptorEntryCount' => 0,
+                'dataDescriptorBytes' => 0,
+                'directoryRootCounts' => ['OEBPS/' => 2],
+                'directoryRoots' => ['OEBPS/'],
+                'packagePartExtensionKeyCounts' => ['(directory)' => 1, 'xhtml' => 1],
+                'packagePartExtensionKeys' => ['(directory)', 'xhtml'],
+                'compressionMethodCounts' => ['0' => 1, '8' => 1],
+                'entryNames' => ['OEBPS/content.xhtml', 'OEBPS/images/'],
+            ],
+        ];
         $expectedLocalHeaderOrderRelationCounts = [
             'same-order' => 0,
             'local-before-central-order' => 1,
@@ -1342,6 +1382,10 @@ return [
             'maxPathSegmentCount' => 2,
             'maxDirectoryDepth' => 1,
             'deepestEntryNames' => ['OEBPS/content.xhtml', 'OEBPS/images/'],
+            'directoryDepthSummaryCount' => count($expectedDirectoryDepthSummaries),
+            'directoryDepths' => [0, 1],
+            'directoryDepthEntryCounts' => [1, 2],
+            'directoryDepthSummaries' => $expectedDirectoryDepthSummaries,
             'caseInsensitiveNameCollisionGroupCount' => 0,
             'caseInsensitiveNameCollisionEntryCount' => 0,
             'caseInsensitiveNameCollisionGroups' => [],
@@ -1495,6 +1539,10 @@ return [
         $t->same(2, $manifest['maxPathSegmentCount']);
         $t->same(1, $manifest['maxDirectoryDepth']);
         $t->same(['OEBPS/content.xhtml', 'OEBPS/images/'], $manifest['deepestEntryNames']);
+        $t->same(2, $manifest['directoryDepthSummaryCount']);
+        $t->same([0, 1], $manifest['directoryDepths']);
+        $t->same([1, 2], $manifest['directoryDepthEntryCounts']);
+        $t->same($expectedDirectoryDepthSummaries, $manifest['directoryDepthSummaries']);
         $t->same(0, $manifest['caseInsensitiveNameCollisionGroupCount']);
         $t->same(0, $manifest['caseInsensitiveNameCollisionEntryCount']);
         $t->same(false, $manifest['hasCaseInsensitiveNameCollisions']);
@@ -1985,6 +2033,144 @@ return [
         $t->same($manifest['nameLengthBucketSummaries'], $strict['packageManifest']['nameLengthBucketSummaries']);
         $t->same($manifest['nameLengthBucketSummaries'], $raw['packageManifest']['nameLengthBucketSummaries']);
         $t->same($manifest['nameLengthBucketSummaries'], $raw['strictImport']['packageManifest']['nameLengthBucketSummaries']);
+    },
+
+    'rolls up zip package manifest directory depths before shared package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $mimetype = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+        $documentXml = '<w:document><w:body><w:p>depth summaries</w:p></w:body></w:document>';
+        $imageBytes = "image-bytes\n";
+        $themeXml = '<a:theme name="depth-summary"/>';
+        $itemPropsXml = '<ds:datastoreItem ds:itemID="{depth-summary}"/>';
+
+        $zip = $buildZipPackage([
+            [
+                'name' => 'mimetype',
+                'data' => $mimetype,
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/',
+                'data' => '',
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/image.png',
+                'data' => $imageBytes,
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/theme/theme1.xml',
+                'data' => $themeXml,
+                'method' => 0,
+            ],
+            [
+                'name' => 'customXml/itemProps/item1.xml',
+                'data' => $itemPropsXml,
+                'method' => 0,
+            ],
+        ]);
+        $package = ZipPackage::fromString($zip);
+        $manifest = $package->packageManifestPreflight();
+        $strict = $package->strictImportPreflight(4096, 100.0, 4096);
+        $raw = ZipPackage::rawStrictImportPreflight($zip, 4096, 100.0, 4096);
+
+        $entriesByName = array_column($manifest['entries'], null, 'name');
+        $sumEntryField = static function (array $names, string $field) use ($entriesByName): int {
+            $total = 0;
+            foreach ($names as $name) {
+                $total += (int) $entriesByName[$name][$field];
+            }
+
+            return $total;
+        };
+        $depths = array_column($manifest['directoryDepthSummaries'], null, 'directoryDepth');
+
+        $t->same(0, $entriesByName['mimetype']['directoryDepth']);
+        $t->same(1, $entriesByName['word/media/']['directoryDepth']);
+        $t->same(1, $entriesByName['word/document.xml']['directoryDepth']);
+        $t->same(2, $entriesByName['word/media/image.png']['directoryDepth']);
+        $t->same(2, $entriesByName['customXml/itemProps/item1.xml']['directoryDepth']);
+        $t->same(2, $manifest['maxDirectoryDepth']);
+        $t->same([
+            'word/media/image.png',
+            'word/theme/theme1.xml',
+            'customXml/itemProps/item1.xml',
+        ], $manifest['deepestEntryNames']);
+        $t->same(3, $manifest['directoryDepthSummaryCount']);
+        $t->same([0, 1, 2], $manifest['directoryDepths']);
+        $t->same([1, 2, 3], $manifest['directoryDepthEntryCounts']);
+
+        $t->same([
+            'directoryDepth' => 0,
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($mimetype),
+            'uncompressedBytes' => strlen($mimetype),
+            'localRecordBytes' => $entriesByName['mimetype']['localRecordBytes'],
+            'sourceRecordBytes' => $entriesByName['mimetype']['sourceRecordBytes'],
+            'dataDescriptorEntryCount' => 0,
+            'dataDescriptorBytes' => 0,
+            'directoryRootCounts' => ['/' => 1],
+            'directoryRoots' => ['/'],
+            'packagePartExtensionKeyCounts' => ['(none)' => 1],
+            'packagePartExtensionKeys' => ['(none)'],
+            'compressionMethodCounts' => ['0' => 1],
+            'entryNames' => ['mimetype'],
+        ], $depths[0]);
+
+        $depthOneNames = ['word/document.xml', 'word/media/'];
+        $t->same([
+            'directoryDepth' => 1,
+            'entryCount' => 2,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 1,
+            'compressedBytes' => strlen($documentXml),
+            'uncompressedBytes' => strlen($documentXml),
+            'localRecordBytes' => $sumEntryField($depthOneNames, 'localRecordBytes'),
+            'sourceRecordBytes' => $sumEntryField($depthOneNames, 'sourceRecordBytes'),
+            'dataDescriptorEntryCount' => 0,
+            'dataDescriptorBytes' => 0,
+            'directoryRootCounts' => ['word/' => 2],
+            'directoryRoots' => ['word/'],
+            'packagePartExtensionKeyCounts' => ['(directory)' => 1, 'xml' => 1],
+            'packagePartExtensionKeys' => ['(directory)', 'xml'],
+            'compressionMethodCounts' => ['0' => 2],
+            'entryNames' => $depthOneNames,
+        ], $depths[1]);
+
+        $depthTwoNames = [
+            'customXml/itemProps/item1.xml',
+            'word/media/image.png',
+            'word/theme/theme1.xml',
+        ];
+        $t->same([
+            'directoryDepth' => 2,
+            'entryCount' => 3,
+            'fileEntryCount' => 3,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => $sumEntryField($depthTwoNames, 'compressedSize'),
+            'uncompressedBytes' => strlen($itemPropsXml) + strlen($imageBytes) + strlen($themeXml),
+            'localRecordBytes' => $sumEntryField($depthTwoNames, 'localRecordBytes'),
+            'sourceRecordBytes' => $sumEntryField($depthTwoNames, 'sourceRecordBytes'),
+            'dataDescriptorEntryCount' => 0,
+            'dataDescriptorBytes' => 0,
+            'directoryRootCounts' => ['customXml/' => 1, 'word/' => 2],
+            'directoryRoots' => ['customXml/', 'word/'],
+            'packagePartExtensionKeyCounts' => ['png' => 1, 'xml' => 2],
+            'packagePartExtensionKeys' => ['png', 'xml'],
+            'compressionMethodCounts' => ['0' => 2, '8' => 1],
+            'entryNames' => $depthTwoNames,
+        ], $depths[2]);
+
+        $t->same($manifest['directoryDepthSummaries'], $strict['packageManifest']['directoryDepthSummaries']);
+        $t->same($manifest['directoryDepthSummaries'], $raw['packageManifest']['directoryDepthSummaries']);
+        $t->same($manifest['directoryDepthSummaries'], $raw['strictImport']['packageManifest']['directoryDepthSummaries']);
     },
 
     'preflights zip package manifest path segment positions for shared package handoff' => static function (TestRunner $t) use ($buildZipPackage, $pathSegmentPositionReviews): void {
@@ -3273,6 +3459,26 @@ return [
                 'entryNames' => ['word/document.xml', 'word/comments.xml'],
             ],
         ];
+        $expectedDirectoryDepthSummaries = [
+            [
+                'directoryDepth' => 1,
+                'entryCount' => 2,
+                'fileEntryCount' => 2,
+                'directoryEntryCount' => 0,
+                'compressedBytes' => strlen($documentXml) + strlen($commentsCompressed),
+                'uncompressedBytes' => strlen($documentXml) + strlen($commentsXml),
+                'localRecordBytes' => $documentEntry['localRecordBytes'] + $commentsEntry['localRecordBytes'],
+                'sourceRecordBytes' => $documentEntry['sourceRecordBytes'] + $commentsEntry['sourceRecordBytes'],
+                'dataDescriptorEntryCount' => 1,
+                'dataDescriptorBytes' => strlen($descriptorBytes),
+                'directoryRootCounts' => ['word/' => 2],
+                'directoryRoots' => ['word/'],
+                'packagePartExtensionKeyCounts' => ['xml' => 2],
+                'packagePartExtensionKeys' => ['xml'],
+                'compressionMethodCounts' => ['0' => 1, '8' => 1],
+                'entryNames' => ['word/comments.xml', 'word/document.xml'],
+            ],
+        ];
         $expectedPackagePartExtensionSummaries = [
             [
                 'extensionKey' => 'xml',
@@ -3393,6 +3599,10 @@ return [
             'maxPathSegmentCount' => 2,
             'maxDirectoryDepth' => 1,
             'deepestEntryNames' => ['word/document.xml', 'word/comments.xml'],
+            'directoryDepthSummaryCount' => count($expectedDirectoryDepthSummaries),
+            'directoryDepths' => [1],
+            'directoryDepthEntryCounts' => [1 => 2],
+            'directoryDepthSummaries' => $expectedDirectoryDepthSummaries,
             'caseInsensitiveNameCollisionGroupCount' => 0,
             'caseInsensitiveNameCollisionEntryCount' => 0,
             'caseInsensitiveNameCollisionGroups' => [],
@@ -3475,6 +3685,10 @@ return [
         $t->same(2, $manifest['maxPathSegmentCount']);
         $t->same(1, $manifest['maxDirectoryDepth']);
         $t->same(['word/document.xml', 'word/comments.xml'], $manifest['deepestEntryNames']);
+        $t->same(1, $manifest['directoryDepthSummaryCount']);
+        $t->same([1], $manifest['directoryDepths']);
+        $t->same([1 => 2], $manifest['directoryDepthEntryCounts']);
+        $t->same($expectedDirectoryDepthSummaries, $manifest['directoryDepthSummaries']);
         $t->same(0, $manifest['caseInsensitiveNameCollisionGroupCount']);
         $t->same(0, $manifest['caseInsensitiveNameCollisionEntryCount']);
         $t->same(false, $manifest['hasCaseInsensitiveNameCollisions']);
