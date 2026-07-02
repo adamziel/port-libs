@@ -6442,21 +6442,21 @@ final class Html5DomFragment
 
         $language = self::normalizeHtmlLanguageTag($htmlElement->getAttribute($attributeName));
         if ($language === null) {
-            $diagnostics[] = [
+            $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'unsafe-attribute',
                 'tag' => 'html',
                 'attribute' => $attributeName,
-            ];
+            ], $htmlElement);
 
             return null;
         }
 
-        $diagnostics[] = [
+        $diagnostics[] = self::diagnosticWithSourceLine([
             'code' => 'document-metadata-review',
             'tag' => 'html',
             'attribute' => $attributeName,
             'name' => 'language',
-        ];
+        ], $htmlElement);
 
         return $language;
     }
@@ -6474,23 +6474,23 @@ final class Html5DomFragment
         if ($direction === null) {
             $sourceDirection = strtolower(self::cleanHtmlMetadataAttribute($htmlElement->getAttribute('dir')));
             if ($sourceDirection !== '') {
-                $diagnostics[] = [
+                $diagnostics[] = self::diagnosticWithSourceLine([
                     'code' => 'unsafe-attribute',
                     'tag' => 'html',
                     'attribute' => 'dir',
                     'value' => $sourceDirection,
-                ];
+                ], $htmlElement);
             }
 
             return null;
         }
 
-        $diagnostics[] = [
+        $diagnostics[] = self::diagnosticWithSourceLine([
             'code' => 'document-metadata-review',
             'tag' => 'html',
             'attribute' => 'dir',
             'name' => 'direction',
-        ];
+        ], $htmlElement);
 
         return $direction;
     }

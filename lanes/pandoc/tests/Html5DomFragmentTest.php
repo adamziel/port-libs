@@ -4602,6 +4602,16 @@ return [
             $fragment->diagnosticCodes(),
             static fn (string $code): bool => $code !== 'libxml-repair'
         ));
+        $documentMetadataDiagnostics = array_values(array_filter(
+            $fragment->diagnostics(),
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? '') === 'document-metadata-review'
+                && ($diagnostic['tag'] ?? '') === 'html'
+        ));
+        $astDocumentMetadataDiagnostics = array_values(array_filter(
+            $document->children[0]->attr('diagnostics'),
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? '') === 'document-metadata-review'
+                && ($diagnostic['tag'] ?? '') === 'html'
+        ));
 
         $t->same($expected, $html);
         $t->contains($expected, $blocks);
@@ -4625,6 +4635,12 @@ return [
         $t->same('title', $nodes[2]['attrs']['data-pandoc-meta-name']);
         $t->same('p', $nodes[3]['name']);
         $t->same('/migration/document-language-review.html', $document->children[0]->attr('part'));
+        $t->same(['lang', 'dir'], array_map(static fn (array $diagnostic): string => (string) ($diagnostic['attribute'] ?? ''), $documentMetadataDiagnostics));
+        $t->same([1, 1], array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $documentMetadataDiagnostics));
+        $t->same(
+            array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $documentMetadataDiagnostics),
+            array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $astDocumentMetadataDiagnostics)
+        );
         $t->true(!str_contains($html, '<html'), 'Expected original html wrapper to be stripped from sanitized output');
         $t->true(!str_contains($html, '<body'), 'Expected original body wrapper to be stripped from sanitized output');
         $t->true(!str_contains($html, 'source-spoof'), 'Expected source-owned Pandoc metadata on html to stay hidden');
@@ -5250,6 +5266,68 @@ return [
         }
         foreach (['<legacy-', ' is=', ' part=', ' exportparts='] as $blocked) {
             $t->true(!str_contains($blocks, $blocked), 'Expected WordPress blocks to omit live custom element hooks: ' . $blocked);
+        }
+    },
+    'adds source line metadata to aria and custom element helper diagnostics before WordPress handoff' => static function (TestRunner $t): void {
+        $source = '<section role="region bad-role" aria-label=" Review " aria-describedby="good bad&lt;id" aria-busy="maybe" aria-unsupported="source">' . "\n"
+            . '<h2 id="good">Good</h2>' . "\n"
+            . '</section>' . "\n"
+            . '<legacy-card part="card bad&lt;part" exportparts="good: card, bad&lt;map">Card</legacy-card>' . "\n"
+            . '<p is="bad">Bad</p>';
+        $fragment = Html5DomFragment::fromHtml($source);
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/aria-custom-diagnostic-lines-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $html = $fragment->serialize();
+        $diagnostics = array_values(array_filter(
+            $fragment->diagnostics(),
+            static fn (array $diagnostic): bool => in_array($diagnostic['code'] ?? '', ['aria-metadata-review', 'custom-element-review', 'unsafe-attribute'], true)
+                && in_array($diagnostic['attribute'] ?? '', ['role', 'aria-label', 'aria-describedby', 'aria-busy', 'aria-unsupported', 'part', 'exportparts', 'is'], true)
+        ));
+        $astDiagnostics = array_values(array_filter(
+            $document->children[0]->attr('diagnostics'),
+            static fn (array $diagnostic): bool => in_array($diagnostic['code'] ?? '', ['aria-metadata-review', 'custom-element-review', 'unsafe-attribute'], true)
+                && in_array($diagnostic['attribute'] ?? '', ['role', 'aria-label', 'aria-describedby', 'aria-busy', 'aria-unsupported', 'part', 'exportparts', 'is'], true)
+        ));
+
+        $t->same('/migration/aria-custom-diagnostic-lines-review.html', $document->children[0]->attr('part'));
+        $t->contains($html, $blocks);
+        $t->same([
+            'unsafe-attribute',
+            'aria-metadata-review',
+            'aria-metadata-review',
+            'unsafe-attribute',
+            'aria-metadata-review',
+            'unsafe-attribute',
+            'unsafe-attribute',
+            'unsafe-attribute',
+            'custom-element-review',
+            'unsafe-attribute',
+            'custom-element-review',
+            'unsafe-attribute',
+        ], array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), $diagnostics));
+        $t->same([
+            'role',
+            'role',
+            'aria-label',
+            'aria-describedby',
+            'aria-describedby',
+            'aria-busy',
+            'aria-unsupported',
+            'part',
+            'part',
+            'exportparts',
+            'exportparts',
+            'is',
+        ], array_map(static fn (array $diagnostic): string => (string) ($diagnostic['attribute'] ?? ''), $diagnostics));
+        $t->same([1, 1, 1, 1, 1, 1, 1, 4, 4, 4, 4, 5], array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $diagnostics));
+        $t->same(
+            array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $diagnostics),
+            array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $astDiagnostics)
+        );
+        foreach ([' role=', ' aria-', '<legacy-card', ' part=', ' exportparts=', ' is=', 'bad-role', 'bad&lt;id', 'bad&lt;part', 'bad&lt;map'] as $blocked) {
+            $t->true(!str_contains($html, $blocked), 'Expected live ARIA/custom metadata to be stripped or converted: ' . $blocked);
         }
     },
     'adds ruby annotation metadata before WordPress handoff' => static function (TestRunner $t): void {
