@@ -8562,6 +8562,105 @@ XML);
     }
 };
 
+$buildChartIssuePlaceholderPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-chart-issue-placeholders-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/_rels/slide1.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdExternalChart" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="https://example.invalid/chart.xml" TargetMode="External"/>
+  <Relationship Id="rIdMissingChart" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="../charts/missing.xml"/>
+  <Relationship Id="rIdWrongRootChart" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="../charts/wrong-root.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Chart issue placeholders</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="10" name="Missing Chart Element"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart"/></a:graphic>
+    </p:graphicFrame>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="11" name="Missing Chart Relationship Id"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart/></a:graphicData></a:graphic>
+    </p:graphicFrame>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="12" name="Unknown Chart Relationship"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart r:id="rIdUnknownChart"/></a:graphicData></a:graphic>
+    </p:graphicFrame>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="13" name="External Chart Relationship"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart r:id="rIdExternalChart"/></a:graphicData></a:graphic>
+    </p:graphicFrame>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="14" name="Missing Chart Part"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart r:id="rIdMissingChart"/></a:graphicData></a:graphic>
+    </p:graphicFrame>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="15" name="Unexpected Chart Root"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart r:id="rIdWrongRootChart"/></a:graphicData></a:graphic>
+    </p:graphicFrame>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->addFromString('ppt/charts/wrong-root.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<c:notChartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"/>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildFirstGraphicDataPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-first-graphic-data-');
     if ($path === false) {
@@ -16294,6 +16393,56 @@ XML);
         $t->true(!str_contains($native, 'Missing GraphicData'), 'Graphic frames without graphicData should be skipped like upstream');
         $t->true(!str_contains($native, 'Missing Graphic'), 'Graphic frames without a:graphic should be skipped like upstream');
         $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
+    },
+
+    'keeps pptx chart metadata failures as upstream graphic placeholders' => static function (TestRunner $t) use ($buildChartIssuePlaceholderPptxPackage, $nodesOfType): void {
+        $document = (new PptxReader())->read($buildChartIssuePlaceholderPptxPackage());
+        $review = $document->attr('pptx');
+        $paragraphs = $nodesOfType($document, 'paragraph');
+        $native = PandocConverter::write($document, 'native');
+        $placeholder = '[Graphic: other: http://schemas.openxmlformats.org/drawingml/2006/chart]';
+        $chartParagraphs = array_values(array_filter(
+            $paragraphs,
+            static fn (AstNode $paragraph): bool => (string) $paragraph->attr('text') === $placeholder
+        ));
+        $charts = $review['slides'][0]['charts'] ?? [];
+        $issues = array_map(static fn (array $chart): array => $chart['issues'] ?? [], $charts);
+
+        $t->same('Chart issue placeholders', $document->children[0]->attr('text'));
+        $t->same(1, $review['slideCount'] ?? null);
+        $t->same(6, count($chartParagraphs));
+        $t->same(6, $review['slides'][0]['chartCount'] ?? null);
+        $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
+        $t->same([
+            ['missing-chart-element'],
+            ['missing-chart-relationship-id'],
+            ['unknown-chart-relationship'],
+            ['external-chart-part'],
+            ['missing-or-invalid-chart-part'],
+            ['unexpected-chart-root'],
+        ], $issues);
+
+        $t->same('', $charts[0]['relationshipId'] ?? null);
+        $t->same('', $charts[1]['relationshipId'] ?? null);
+        $t->same('rIdUnknownChart', $charts[2]['relationshipId'] ?? null);
+        $t->same('rIdExternalChart', $charts[3]['relationshipId'] ?? null);
+        $t->same('https://example.invalid/chart.xml', $charts[3]['target'] ?? null);
+        $t->same(true, $charts[3]['external'] ?? null);
+        $t->same('', $charts[3]['partName'] ?? null);
+        $t->same('ppt/charts/missing.xml', $charts[4]['partName'] ?? null);
+        $t->same('ppt/charts/wrong-root.xml', $charts[5]['partName'] ?? null);
+
+        foreach ($chartParagraphs as $index => $chartParagraph) {
+            $t->same($charts[$index] ?? null, $chartParagraph->attr('pptxChart') ?? null);
+        }
+        $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Chart" , Space , Str "issue" , Space , Str "placeholders" ]', $native);
+        $t->contains('Para [ Str "[Graphic:" , Space , Str "other:" , Space , Str "http://schemas.openxmlformats.org/drawingml/2006/chart]" ]', $native);
+        $t->true(!str_contains($native, 'Missing Chart Element'), 'Chart shape names should stay metadata-only');
+        $t->true(!str_contains($native, 'Missing Chart Relationship Id'), 'Chart shape names should stay metadata-only');
+        $t->true(!str_contains($native, 'Unknown Chart Relationship'), 'Chart shape names should stay metadata-only');
+        $t->true(!str_contains($native, 'External Chart Relationship'), 'Chart shape names should stay metadata-only');
+        $t->true(!str_contains($native, 'Missing Chart Part'), 'Chart shape names should stay metadata-only');
+        $t->true(!str_contains($native, 'Unexpected Chart Root'), 'Chart shape names should stay metadata-only');
     },
 
     'uses only the first pptx graphic and graphicData children like upstream' => static function (TestRunner $t) use ($buildFirstGraphicDataPptxPackage, $nodesOfType): void {

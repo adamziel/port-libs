@@ -1483,7 +1483,14 @@ final class PptxReader
         $seen = [];
         foreach ($blocks as $block) {
             foreach ($this->collectChartReviewsFromNode($block) as $record) {
-                $key = (string) ($record['relationshipId'] ?? '') . "\0" . (string) ($record['partName'] ?? '') . "\0" . (string) ($record['title'] ?? '');
+                $issues = is_array($record['issues'] ?? null)
+                    ? array_map(static fn ($issue): string => (string) $issue, $record['issues'])
+                    : [];
+                $key = (string) ($record['graphicUri'] ?? '') . "\0"
+                    . (string) ($record['relationshipId'] ?? '') . "\0"
+                    . (string) ($record['partName'] ?? '') . "\0"
+                    . (string) ($record['title'] ?? '') . "\0"
+                    . implode("\0", $issues);
                 if (isset($seen[$key])) {
                     continue;
                 }
