@@ -367,7 +367,7 @@ XML,
         $parts['[Content_Types].xml'] = str_replace(
             '</Types>',
             '  <Override PartName="/customXml/item1.xml" ContentType="application/xml"/>' . "\n" .
-            '  <Override PartName="/word/missing-comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>' . "\n" .
+            '  <Override PartName="/word/missing-comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml; profile=missing-comments"/>' . "\n" .
             '</Types>',
             $parts['[Content_Types].xml']
         );
@@ -401,6 +401,16 @@ XML,
         $t->same('application/xml', $contentTypesPart['overrides']['customXml/item1.xml']['contentType']);
         $t->same(true, $contentTypesPart['overrides']['customXml/item1.xml']['exists']);
         $t->same(false, $contentTypesPart['overrides']['word/missing-comments.xml']['exists']);
+        $t->same(1, $contentTypesPart['missingOverrideCount']);
+        $t->same(['word/missing-comments.xml'], $contentTypesPart['missingOverrideParts']);
+        $t->same('word/missing-comments.xml', $contentTypesPart['missingOverrides'][0]['partName']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml; profile=missing-comments', $contentTypesPart['missingOverrides'][0]['contentType']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml', $contentTypesPart['missingOverrides'][0]['contentTypeBase']);
+        $t->same(true, $contentTypesPart['missingOverrides'][0]['contentTypeHasParameters']);
+        $t->same(['profile' => 'missing-comments'], $contentTypesPart['missingOverrides'][0]['contentTypeParameterMap']);
+        $t->same(1, $package['summary']['contentTypeMissingOverrideCount']);
+        $t->same(['word/missing-comments.xml'], $package['summary']['contentTypeMissingOverrideParts']);
+        $t->same($contentTypesPart['missingOverrides'], $package['summary']['contentTypeMissingOverrides']);
 
         $t->same('word/document.xml', $package['documentPart']);
         $t->same('/', $rootRelationshipsPart['sourcePart']);
