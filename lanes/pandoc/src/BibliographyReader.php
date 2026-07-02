@@ -111,6 +111,10 @@ final class BibliographyReader
         $typeCounts = [];
         $nameVariableCounts = [];
         $dateVariableCounts = [];
+        $dateRangeEndpointCounts = [];
+        $openEndedDateVariableCounts = [];
+        $openEndedDateDirectionCounts = [];
+        $literalDateVariableCounts = [];
         $identifierFieldCounts = [];
         $relationFieldCounts = [];
         $relationReferenceCounts = [];
@@ -137,6 +141,10 @@ final class BibliographyReader
             foreach ($review['datePartCounts'] as $variable => $count) {
                 $dateVariableCounts[$variable] = ($dateVariableCounts[$variable] ?? 0) + $count;
             }
+            $this->mergeCountMap($dateRangeEndpointCounts, $review['dateRangeEndpointCounts']);
+            $this->mergeCountMap($openEndedDateVariableCounts, $review['openEndedDateVariableCounts']);
+            $this->mergeCountMap($openEndedDateDirectionCounts, $review['openEndedDateDirectionCounts']);
+            $this->mergeCountMap($literalDateVariableCounts, $review['literalDateVariableCounts']);
             foreach ($review['identifierFields'] as $fieldName) {
                 $identifierFieldCounts[$fieldName] = ($identifierFieldCounts[$fieldName] ?? 0) + 1;
             }
@@ -159,6 +167,10 @@ final class BibliographyReader
         ksort($typeCounts);
         ksort($nameVariableCounts);
         ksort($dateVariableCounts);
+        ksort($dateRangeEndpointCounts);
+        ksort($openEndedDateVariableCounts);
+        ksort($openEndedDateDirectionCounts);
+        ksort($literalDateVariableCounts);
         ksort($identifierFieldCounts);
         ksort($relationFieldCounts);
         ksort($relationReferenceCounts);
@@ -177,6 +189,10 @@ final class BibliographyReader
             'relationBearingItemCount' => $relationBearingItemCount,
             'nameVariableCounts' => $nameVariableCounts,
             'dateVariableCounts' => $dateVariableCounts,
+            'dateRangeEndpointCounts' => $dateRangeEndpointCounts,
+            'openEndedDateVariableCounts' => $openEndedDateVariableCounts,
+            'openEndedDateDirectionCounts' => $openEndedDateDirectionCounts,
+            'literalDateVariableCounts' => $literalDateVariableCounts,
             'identifierFieldCounts' => $identifierFieldCounts,
             'relationFieldCounts' => $relationFieldCounts,
             'relationReferenceCount' => array_sum($relationReferenceCounts),
@@ -194,6 +210,7 @@ final class BibliographyReader
         $fieldNames = $this->uniqueSortedStrings(array_map('strval', array_keys($item)));
         $nameVariableCounts = $this->cslJsonNameVariableCounts($item);
         $datePartCounts = $this->cslJsonDatePartCounts($item);
+        $dateShapeReview = $this->dateShapeReview($item);
         $identifierFields = $this->presentFieldNames($item, [
             'DOI', 'doi',
             'ISBN', 'isbn', 'ISBN-13', 'isbn-13', 'ISBN13', 'isbn13', 'ISBN-10', 'isbn-10', 'ISBN10', 'isbn10',
@@ -240,6 +257,13 @@ final class BibliographyReader
             'nameCount' => array_sum($nameVariableCounts),
             'dateVariableCount' => count($datePartCounts),
             'datePartCounts' => $datePartCounts,
+            'dateRangeEndpointCounts' => $dateShapeReview['dateRangeEndpointCounts'],
+            'dateRangeVariableCount' => count($dateShapeReview['dateRangeEndpointCounts']),
+            'openEndedDateVariableCounts' => $dateShapeReview['openEndedDateVariableCounts'],
+            'openEndedDateVariableCount' => array_sum($dateShapeReview['openEndedDateVariableCounts']),
+            'openEndedDateDirectionCounts' => $dateShapeReview['openEndedDateDirectionCounts'],
+            'literalDateVariableCounts' => $dateShapeReview['literalDateVariableCounts'],
+            'literalDateVariableCount' => array_sum($dateShapeReview['literalDateVariableCounts']),
             'identifierFieldCount' => count($identifierFields),
             'identifierFields' => $identifierFields,
             'linkBearing' => $linkFields !== [],

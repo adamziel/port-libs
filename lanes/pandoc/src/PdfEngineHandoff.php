@@ -9838,6 +9838,36 @@ final class PdfEngineHandoff
         $outputFormatEntryCount = is_int($outputFormatPolicy['formatEntryCount'] ?? null)
             ? $outputFormatPolicy['formatEntryCount']
             : (int) ($outputFormat !== []);
+        $outputFormatHistory = is_array($provenance['outputFormatHistory'] ?? null) ? $provenance['outputFormatHistory'] : [];
+        $outputFormatEntries = $outputFormatHistory;
+        if ($outputFormatEntries === [] && $outputFormat !== []) {
+            $outputFormatEntries[] = $outputFormat;
+        }
+        $safeOutputFormatCount = 0;
+        $unsafeOutputFormatCount = 0;
+        $pdfOutputFormatCount = 0;
+        $nonPdfOutputFormatCount = 0;
+        foreach ($outputFormatEntries as $entry) {
+            if (!is_array($entry)) {
+                ++$unsafeOutputFormatCount;
+                continue;
+            }
+
+            if (($entry['safe'] ?? false) === true) {
+                ++$safeOutputFormatCount;
+            } else {
+                ++$unsafeOutputFormatCount;
+            }
+
+            if (($entry['format'] ?? null) === 'pdf') {
+                ++$pdfOutputFormatCount;
+            } elseif (is_string($entry['format'] ?? null) && $entry['format'] !== '') {
+                ++$nonPdfOutputFormatCount;
+            }
+        }
+        $selectedOutputFormat = is_string($outputFormat['format'] ?? null)
+            ? $outputFormat['format']
+            : (is_string($outputFormatPolicy['explicitFormat'] ?? null) ? $outputFormatPolicy['explicitFormat'] : null);
         $executionPolicy = is_array($provenance['executionPolicy'] ?? null) ? $provenance['executionPolicy'] : [];
         $executionJobs = is_array($executionPolicy['jobs'] ?? null) ? $executionPolicy['jobs'] : [];
         $executionJobHistory = is_array($provenance['jobsHistory'] ?? null) ? $provenance['jobsHistory'] : [];
@@ -10280,6 +10310,12 @@ final class PdfEngineHandoff
             'outputFormatOptionCount' => count($outputFormatOptions),
             'distinctOutputFormatCount' => count($distinctOutputFormats),
             'outputFormatIssueCount' => count($outputFormatIssues),
+            'selectedOutputFormat' => $selectedOutputFormat,
+            'outputFormatHistoryCount' => count($outputFormatHistory),
+            'safeOutputFormatCount' => $safeOutputFormatCount,
+            'unsafeOutputFormatCount' => $unsafeOutputFormatCount,
+            'pdfOutputFormatCount' => $pdfOutputFormatCount,
+            'nonPdfOutputFormatCount' => $nonPdfOutputFormatCount,
             'pdfExportControlCount' => $pdfExportControlCount,
             'pdfExportPageSelectionPresent' => $pageSelection !== [],
             'pdfExportPageSelectionValue' => is_string($pageSelection['value'] ?? null) ? $pageSelection['value'] : null,

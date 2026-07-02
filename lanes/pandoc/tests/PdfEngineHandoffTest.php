@@ -425,6 +425,12 @@ return [
             'outputFormatOptionCount' => 0,
             'distinctOutputFormatCount' => 0,
             'outputFormatIssueCount' => 0,
+            'selectedOutputFormat' => null,
+            'outputFormatHistoryCount' => 0,
+            'safeOutputFormatCount' => 0,
+            'unsafeOutputFormatCount' => 0,
+            'pdfOutputFormatCount' => 0,
+            'nonPdfOutputFormatCount' => 0,
             'pdfExportControlCount' => 3,
             'pdfExportPageSelectionPresent' => true,
             'pdfExportPageSelectionValue' => '1-2',
@@ -569,6 +575,12 @@ return [
         $t->same(2, $summary['outputFormatOptionCount']);
         $t->same(2, $summary['distinctOutputFormatCount']);
         $t->same(3, $summary['outputFormatIssueCount']);
+        $t->same('pdf', $summary['selectedOutputFormat']);
+        $t->same(2, $summary['outputFormatHistoryCount']);
+        $t->same(1, $summary['safeOutputFormatCount']);
+        $t->same(1, $summary['unsafeOutputFormatCount']);
+        $t->same(1, $summary['pdfOutputFormatCount']);
+        $t->same(1, $summary['nonPdfOutputFormatCount']);
         $t->same(2, $summary['issueCount']);
         $t->contains('typst-boundary-summary-output-formats:2', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-summary-issues:2', implode(',', $plan['diagnostics']));

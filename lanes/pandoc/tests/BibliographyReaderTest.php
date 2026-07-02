@@ -440,6 +440,78 @@ XML;
         $t->same(false, str_contains($reviewJson, 'private-related-two'));
         $t->same(false, str_contains($reviewJson, 'Private Crossref Title'));
     },
+    'records metadata only csl json date shape review provenance' => static function (TestRunner $t): void {
+        $cslJson = json_encode([
+            [
+                'id' => 'csl-date-private-one',
+                'type' => 'article-journal',
+                'title' => 'Secret CSL JSON Date Shape Packet',
+                'issued' => ['date-parts' => [[2026, 6, 1], [2026, 6, 3]]],
+                'accessed' => [
+                    'date-parts' => [[2026, 7, 1]],
+                    'open-ended' => 'end',
+                ],
+                'originalDate' => [
+                    'date-parts' => [[1999]],
+                    'open-ended' => 'start',
+                ],
+                'event-date' => ['literal' => 'private event window'],
+            ],
+            [
+                'id' => 'csl-date-private-two',
+                'type' => 'book',
+                'title' => 'Secret CSL JSON Split Date Packet',
+                'date' => ['date-parts' => [[2020, 5, 9], [2021, 6, 11]]],
+                'submitted' => ['date-parts' => [[2025], [2026]]],
+                'labelDate' => [
+                    'date-parts' => [[2024]],
+                    'open-ended' => 'start',
+                ],
+                'availableDate' => ['literal' => 'private availability window'],
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $document = (new BibliographyReader('csljson'))->read($cslJson);
+        $review = $document->attr('cslJsonReview');
+        $items = $review['items'];
+
+        $t->same($review, $document->attr('bibliography')['cslJsonReview'] ?? null);
+        $t->same($items, $document->attr('cslJsonItemReviews'));
+        $t->same('csl-json-bibliography', $review['scope']);
+        $t->same(false, $review['externalTooling']);
+        $t->same(['csl-date-private-one', 'csl-date-private-two'], $review['itemIds']);
+        $t->same(['issued' => 4, 'submitted' => 2], $review['dateRangeEndpointCounts']);
+        $t->same(['accessed' => 1, 'label-date' => 1, 'original-date' => 1], $review['openEndedDateVariableCounts']);
+        $t->same(['end' => 1, 'start' => 2], $review['openEndedDateDirectionCounts']);
+        $t->same(['available-date' => 1, 'event-date' => 1], $review['literalDateVariableCounts']);
+
+        $first = $items[0];
+        $t->same('csl-date-private-one', $first['id']);
+        $t->same(['accessed' => 3, 'event-date' => 0, 'issued' => 3, 'originalDate' => 1], $first['datePartCounts']);
+        $t->same(['issued' => 2], $first['dateRangeEndpointCounts']);
+        $t->same(1, $first['dateRangeVariableCount']);
+        $t->same(['accessed' => 1, 'original-date' => 1], $first['openEndedDateVariableCounts']);
+        $t->same(2, $first['openEndedDateVariableCount']);
+        $t->same(['end' => 1, 'start' => 1], $first['openEndedDateDirectionCounts']);
+        $t->same(['event-date' => 1], $first['literalDateVariableCounts']);
+        $t->same(1, $first['literalDateVariableCount']);
+
+        $second = $items[1];
+        $t->same('csl-date-private-two', $second['id']);
+        $t->same(['availableDate' => 0, 'date' => 3, 'labelDate' => 1, 'submitted' => 1], $second['datePartCounts']);
+        $t->same(['issued' => 2, 'submitted' => 2], $second['dateRangeEndpointCounts']);
+        $t->same(2, $second['dateRangeVariableCount']);
+        $t->same(['label-date' => 1], $second['openEndedDateVariableCounts']);
+        $t->same(['start' => 1], $second['openEndedDateDirectionCounts']);
+        $t->same(['available-date' => 1], $second['literalDateVariableCounts']);
+        $t->same(1, $second['literalDateVariableCount']);
+
+        $reviewJson = json_encode($review, JSON_THROW_ON_ERROR);
+        $t->same(false, str_contains($reviewJson, 'Secret CSL JSON Date Shape Packet'));
+        $t->same(false, str_contains($reviewJson, 'Secret CSL JSON Split Date Packet'));
+        $t->same(false, str_contains($reviewJson, 'private event window'));
+        $t->same(false, str_contains($reviewJson, 'private availability window'));
+    },
     'records metadata only ris reader review provenance' => static function (TestRunner $t): void {
         $ris = <<<'RIS'
 TY  - JOUR
