@@ -7336,6 +7336,100 @@ final class ZipPackage
      * @param list<array<string, mixed>> $entries
      * @return list<array<string, mixed>>
      */
+    private static function packageManifestDirectoryDepthSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $directoryDepth = is_int($entry['directoryDepth'] ?? null)
+                ? (int) $entry['directoryDepth']
+                : max(0, (int) ($entry['pathSegmentCount'] ?? 1) - 1);
+            if ($directoryDepth < 0) {
+                continue;
+            }
+
+            if (!isset($summaries[$directoryDepth])) {
+                $summaries[$directoryDepth] = [
+                    'directoryDepth' => $directoryDepth,
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'localRecordBytes' => 0,
+                    'sourceRecordBytes' => 0,
+                    'dataDescriptorEntryCount' => 0,
+                    'dataDescriptorBytes' => 0,
+                    'directoryRoots' => [],
+                    'packagePartExtensionKeys' => [],
+                    'compressionMethodNames' => [],
+                    'entryNames' => [],
+                    'largestEntryNames' => [],
+                    'largestEntryUncompressedBytes' => null,
+                ];
+            }
+
+            ++$summaries[$directoryDepth]['entryCount'];
+            if (($entry['isDirectory'] ?? false) === true) {
+                ++$summaries[$directoryDepth]['directoryEntryCount'];
+            } else {
+                ++$summaries[$directoryDepth]['fileEntryCount'];
+            }
+
+            $compressedSize = (int) ($entry['compressedSize'] ?? 0);
+            $uncompressedSize = (int) ($entry['uncompressedSize'] ?? 0);
+            $summaries[$directoryDepth]['compressedBytes'] += $compressedSize;
+            $summaries[$directoryDepth]['uncompressedBytes'] += $uncompressedSize;
+            $summaries[$directoryDepth]['localRecordBytes'] += (int) ($entry['localRecordBytes'] ?? 0);
+            $summaries[$directoryDepth]['sourceRecordBytes'] += (int) ($entry['sourceRecordBytes'] ?? 0);
+            $dataDescriptorBytes = (int) ($entry['dataDescriptorBytes'] ?? 0);
+            if ($dataDescriptorBytes > 0) {
+                ++$summaries[$directoryDepth]['dataDescriptorEntryCount'];
+                $summaries[$directoryDepth]['dataDescriptorBytes'] += $dataDescriptorBytes;
+            }
+
+            $summaries[$directoryDepth]['entryNames'][] = $name;
+            foreach ([
+                'directoryRoots' => (string) ($entry['directoryRoot'] ?? ''),
+                'packagePartExtensionKeys' => (string) ($entry['packagePartExtensionKey'] ?? ''),
+                'compressionMethodNames' => (string) ($entry['compressionMethodName'] ?? ''),
+            ] as $field => $value) {
+                if ($value !== '' && !in_array($value, $summaries[$directoryDepth][$field], true)) {
+                    $summaries[$directoryDepth][$field][] = $value;
+                }
+            }
+
+            $largestEntryUncompressedBytes = $summaries[$directoryDepth]['largestEntryUncompressedBytes'];
+            if (!is_int($largestEntryUncompressedBytes) || $uncompressedSize > $largestEntryUncompressedBytes) {
+                $summaries[$directoryDepth]['largestEntryUncompressedBytes'] = $uncompressedSize;
+                $summaries[$directoryDepth]['largestEntryNames'] = [$name];
+            } elseif ($uncompressedSize === $largestEntryUncompressedBytes) {
+                $summaries[$directoryDepth]['largestEntryNames'][] = $name;
+            }
+        }
+
+        foreach ($summaries as &$summary) {
+            sort($summary['directoryRoots'], SORT_STRING);
+            sort($summary['packagePartExtensionKeys'], SORT_STRING);
+            sort($summary['compressionMethodNames'], SORT_STRING);
+            sort($summary['entryNames'], SORT_STRING);
+            sort($summary['largestEntryNames'], SORT_STRING);
+        }
+        unset($summary);
+
+        ksort($summaries, SORT_NUMERIC);
+
+        return array_values($summaries);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
     private static function packageManifestPartExtensionSummaries(array $entries): array
     {
         $summaries = [];
@@ -15735,6 +15829,18 @@ final class ZipPackage
             $pathSegmentPositionEntryCounts[$position] = (int) $summary['entryCount'];
             $pathSegmentPositionOccurrenceCount += (int) $summary['occurrenceCount'];
         }
+        $directoryDepthSummaries = self::packageManifestDirectoryDepthSummaries($entries);
+        $directoryDepths = [];
+        $directoryDepthCounts = [];
+        $directoryDepthFileEntryCounts = [];
+        $directoryDepthDirectoryEntryCounts = [];
+        foreach ($directoryDepthSummaries as $summary) {
+            $directoryDepth = (int) $summary['directoryDepth'];
+            $directoryDepths[] = $directoryDepth;
+            $directoryDepthCounts[$directoryDepth] = (int) $summary['entryCount'];
+            $directoryDepthFileEntryCounts[$directoryDepth] = (int) $summary['fileEntryCount'];
+            $directoryDepthDirectoryEntryCounts[$directoryDepth] = (int) $summary['directoryEntryCount'];
+        }
         $packagePartBaseNameSummaries = self::packageManifestPartBaseNameSummaries($entries);
         $packagePartBaseNames = array_map(
             static fn (array $summary): string => (string) $summary['packagePartBaseName'],
@@ -15919,6 +16025,12 @@ final class ZipPackage
             'maxPathSegmentCount' => $maxPathSegmentCount,
             'maxDirectoryDepth' => $maxDirectoryDepth,
             'deepestEntryNames' => $deepestEntryNames,
+            'directoryDepthSummaryCount' => count($directoryDepthSummaries),
+            'directoryDepths' => $directoryDepths,
+            'directoryDepthCounts' => $directoryDepthCounts,
+            'directoryDepthFileEntryCounts' => $directoryDepthFileEntryCounts,
+            'directoryDepthDirectoryEntryCounts' => $directoryDepthDirectoryEntryCounts,
+            'directoryDepthSummaries' => $directoryDepthSummaries,
             'caseInsensitiveNameCollisionGroupCount' => count($caseInsensitiveNameCollisionGroups),
             'caseInsensitiveNameCollisionEntryCount' => count($caseInsensitiveNameCollisionEntries),
             'caseInsensitiveNameCollisionGroups' => $caseInsensitiveNameCollisionGroups,
@@ -16110,6 +16222,12 @@ final class ZipPackage
             'maxPathSegmentCount' => $maxPathSegmentCount,
             'maxDirectoryDepth' => $maxDirectoryDepth,
             'deepestEntryNames' => $deepestEntryNames,
+            'directoryDepthSummaryCount' => count($directoryDepthSummaries),
+            'directoryDepths' => $directoryDepths,
+            'directoryDepthCounts' => $directoryDepthCounts,
+            'directoryDepthFileEntryCounts' => $directoryDepthFileEntryCounts,
+            'directoryDepthDirectoryEntryCounts' => $directoryDepthDirectoryEntryCounts,
+            'directoryDepthSummaries' => $directoryDepthSummaries,
             'caseInsensitiveNameCollisionGroupCount' => count($caseInsensitiveNameCollisionGroups),
             'caseInsensitiveNameCollisionEntryCount' => count($caseInsensitiveNameCollisionEntries),
             'hasCaseInsensitiveNameCollisions' => $caseInsensitiveNameCollisionEntries !== [],
