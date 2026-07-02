@@ -922,13 +922,13 @@ final class WordPressBlockWriter
         $classes = ['wp-element-caption'];
         $sourceClass = trim((string) ($attrs['class'] ?? ''));
         if ($sourceClass !== '') {
-            array_push($classes, ...preg_split('/\s+/', $sourceClass, -1, PREG_SPLIT_NO_EMPTY));
+            array_unshift($classes, ...preg_split('/\s+/', $sourceClass, -1, PREG_SPLIT_NO_EMPTY));
         }
         $attrs['class'] = implode(' ', array_values(array_unique($classes)));
 
         unset($attrs['align']);
 
-        return $this->renderStoredHtmlAttrs(new AstNode('figcaption', ['htmlAttributes' => $attrs]), true, []);
+        return $this->renderBlockHtmlAttrs(new AstNode('figcaption', ['htmlAttributes' => $attrs]));
     }
 
     /**
@@ -1706,6 +1706,10 @@ final class WordPressBlockWriter
         $value = trim($value);
         if ($value === '' && !in_array($name, ['border', 'nowrap'], true)) {
             return null;
+        }
+
+        if (str_starts_with($name, 'data-')) {
+            return preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', $value) === 1 ? null : $value;
         }
 
         if ($name === 'style') {
