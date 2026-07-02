@@ -280,6 +280,13 @@ final class MarkdownReader
                 array_push($blocks, ...$rawHtmlContainer);
                 continue;
             }
+            $commonMarkRawHtmlTag = $paragraph === [] && $listStack === []
+                ? $this->tryReadCommonMarkCompleteRawHtmlTagBlock($lines, $index)
+                : null;
+            if ($commonMarkRawHtmlTag !== null) {
+                $blocks[] = $commonMarkRawHtmlTag;
+                continue;
+            }
             $htmlInlineFragment = $paragraph === [] && $listStack === [] ? $this->tryReadHtmlInlineFragmentBlock($lines, $index) : null;
             if ($htmlInlineFragment !== null) {
                 $blocks[] = $htmlInlineFragment;
@@ -1617,6 +1624,66 @@ final class MarkdownReader
         }
 
         return $this->tryReadRawHtmlBlock($lines, $index);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function tryReadCommonMarkCompleteRawHtmlTagBlock(array $lines, int &$index): ?AstNode
+    {
+        if (!$this->commonMarkRawHtmlType7Enabled()) {
+            return null;
+        }
+
+        $line = $this->expandTabsToSpaces($lines[$index] ?? '');
+        $tag = $this->commonMarkCompleteRawHtmlTagLineName($line);
+        if ($tag === null || $this->rawHtmlTagUsesEarlierBlockRule($tag)) {
+            return null;
+        }
+
+        return $this->readRawHtmlUntilBlankLine($lines, $index);
+    }
+
+    private function commonMarkRawHtmlType7Enabled(): bool
+    {
+        if (!$this->htmlRawHtmlEnabled()) {
+            return false;
+        }
+
+        $format = MarkdownFormatProfile::canonicalFormat($this->options['format'] ?? 'markdown');
+
+        return in_array($format, ['commonmark', 'commonmark_x', 'gfm'], true);
+    }
+
+    private function commonMarkCompleteRawHtmlTagLineName(string $line): ?string
+    {
+        $tag = '[A-Za-z][A-Za-z0-9:-]*';
+        $attribute = '[A-Za-z_:][A-Za-z0-9_.:-]*(?:\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s"\'=<>`]+))?';
+
+        if (preg_match(
+            '/^ {0,3}<\/(' . $tag . ')\s*>[ \t]*$/u',
+            $line,
+            $match
+        ) === 1) {
+            return strtolower($match[1]);
+        }
+
+        if (preg_match(
+            '/^ {0,3}<(' . $tag . ')(?:\s+' . $attribute . ')*\s*\/?>[ \t]*$/u',
+            $line,
+            $match
+        ) === 1) {
+            return strtolower($match[1]);
+        }
+
+        return null;
+    }
+
+    private function rawHtmlTagUsesEarlierBlockRule(string $tag): bool
+    {
+        return in_array($tag, ['script', 'style', 'pre', 'textarea', 'noscript', 'xmp', 'table', 'hr'], true)
+            || $this->isCommonMarkBlankTerminatedRawHtmlTag($tag)
+            || $this->isRawHtmlCustomTagName($tag);
     }
 
     /**
@@ -8914,13 +8981,20 @@ final class MarkdownReader
             $indent = $this->countIndentColumns($line);
             if ($indent >= $contentIndent) {
                 $continuation = rtrim($this->stripIndentColumns($line, $contentIndent));
+                $commonMarkType7RawHtml = $paragraph === []
+                    && $this->lineCanStartCommonMarkCompleteRawHtmlTagBlock($continuation);
                 if (
                     $this->lineCanStartRawHtmlBlock($continuation)
                     || ($paragraph === [] && $this->lineCanStartRawHtmlClosingBlock($continuation))
+                    || $commonMarkType7RawHtml
                 ) {
                     $rawLines = $this->collectListItemIndentedContinuationLines($lines, $cursor, $baseIndent, $contentIndent);
                     $rawIndex = 0;
                     $rawHtmlBlock = $this->tryReadRawHtmlBlock($rawLines, $rawIndex);
+                    if ($rawHtmlBlock === null && $commonMarkType7RawHtml) {
+                        $rawIndex = 0;
+                        $rawHtmlBlock = $this->tryReadCommonMarkCompleteRawHtmlTagBlock($rawLines, $rawIndex);
+                    }
                     if ($rawHtmlBlock !== null) {
                         $this->flushListItemParagraph($paragraph, $parts);
                         $parts[] = $rawHtmlBlock;
@@ -9046,6 +9120,17 @@ final class MarkdownReader
         }
 
         return $this->tryParseRawHtmlOpeningTag($expanded) !== null;
+    }
+
+    private function lineCanStartCommonMarkCompleteRawHtmlTagBlock(string $line): bool
+    {
+        if (!$this->commonMarkRawHtmlType7Enabled()) {
+            return false;
+        }
+
+        $tag = $this->commonMarkCompleteRawHtmlTagLineName($this->expandTabsToSpaces($line));
+
+        return $tag !== null && !$this->rawHtmlTagUsesEarlierBlockRule($tag);
     }
 
     private function lineCanStartRawHtmlClosingBlock(string $line): bool
@@ -11253,7 +11338,7 @@ final class MarkdownReader
                 continue;
             }
             if ($node->type === 'raw_html_inline') {
-                $text .= (string) $node->attr('text', $node->attr('html', ''));
+                $text .= (string) $node->attr('text', '');
                 continue;
             }
             if ($node->type === 'raw_tex' || $node->type === 'raw_tex_inline') {
@@ -11291,7 +11376,7 @@ final class MarkdownReader
                 continue;
             }
             if ($node->type === 'raw_html_inline') {
-                $text .= (string) $node->attr('text', $node->attr('html', ''));
+                $text .= (string) $node->attr('text', '');
                 continue;
             }
             if ($node->type === 'raw_tex' || $node->type === 'raw_tex_inline') {

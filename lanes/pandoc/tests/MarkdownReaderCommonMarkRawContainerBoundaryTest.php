@@ -48,6 +48,16 @@ $rawForms = [
         'source' => "<section data-review=\"1\">\nraw **markdown**",
         'blankTerminated' => true,
     ],
+    'type7 span blank line' => [
+        'source' => "<span data-review=\"type7\">\nraw **markdown**\n</span>",
+        'blankTerminated' => true,
+        'leadingBlank' => true,
+    ],
+    'type7 source blank line' => [
+        'source' => '<source src="clip.webm" type="video/webm">',
+        'blankTerminated' => true,
+        'leadingBlank' => true,
+    ],
 ];
 
 $prefixLines = static function (string $source, string $prefix): string {
@@ -61,9 +71,12 @@ $cases = [];
 foreach ($rawForms as $name => $rawForm) {
     $source = $rawForm['source'];
     $blankTerminated = $rawForm['blankTerminated'];
+    $leadingBlank = $rawForm['leadingBlank'] ?? false;
 
     $cases['blockquote ' . $name] = [
-        'markdown' => "> before\n" . $prefixLines($source, '> ')
+        'markdown' => '> before'
+            . ($leadingBlank ? "\n>" : '')
+            . "\n" . $prefixLines($source, '> ')
             . ($blankTerminated ? "\n>" : '')
             . "\n> after",
         'containerType' => 'blockquote',
@@ -72,7 +85,9 @@ foreach ($rawForms as $name => $rawForm) {
     ];
 
     $cases['list ' . $name] = [
-        'markdown' => "- before\n" . $prefixLines($source, '  ')
+        'markdown' => '- before'
+            . ($leadingBlank ? "\n" : '')
+            . "\n" . $prefixLines($source, '  ')
             . ($blankTerminated ? "\n" : '')
             . "\n  after",
         'containerType' => 'bullet_list',
@@ -103,7 +118,7 @@ $firstRawHtml = static function (array $children): AstNode {
 $tests = [
     'records commonmark raw container boundary mapped-case count' =>
         static function (TestRunner $t) use ($cases): void {
-            $t->same(12, count($cases));
+            $t->same(16, count($cases));
         },
 ];
 
