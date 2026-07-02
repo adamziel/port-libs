@@ -13588,6 +13588,9 @@ final class DocxOpenXmlReader
             $zipPackageManifest['centralDirectoryOrderMatchesLocalHeaderOrder'] ?? null;
         $zipPackageManifestLocalHeaderSha256Count = 0;
         $zipPackageManifestCompressedDataSha256Count = 0;
+        $zipPackageManifestDataDescriptorSourceSpanEntryCount = 0;
+        $zipPackageManifestDataDescriptorByteLength = 0;
+        $zipPackageManifestDataDescriptorSha256Count = 0;
         $zipPackageManifestCentralDirectoryRecordSha256Count = 0;
         foreach (($zipPackageManifest['entries'] ?? []) as $zipPackageManifestEntry) {
             if (!is_array($zipPackageManifestEntry)) {
@@ -13599,12 +13602,30 @@ final class DocxOpenXmlReader
             if (is_string($zipPackageManifestEntry['compressedDataSha256'] ?? null)) {
                 ++$zipPackageManifestCompressedDataSha256Count;
             }
+            $dataDescriptorBytes = $zipPackageManifestEntry['dataDescriptorBytes'] ?? null;
+            if (($zipPackageManifestEntry['sourceByteSpanIncludesDataDescriptor'] ?? false) === true) {
+                ++$zipPackageManifestDataDescriptorSourceSpanEntryCount;
+            }
+            if (is_int($dataDescriptorBytes)) {
+                $zipPackageManifestDataDescriptorByteLength += $dataDescriptorBytes;
+            }
+            if (is_string($zipPackageManifestEntry['dataDescriptorSha256'] ?? null)) {
+                ++$zipPackageManifestDataDescriptorSha256Count;
+            }
             if (is_string($zipPackageManifestEntry['centralDirectoryRecordSha256'] ?? null)) {
                 ++$zipPackageManifestCentralDirectoryRecordSha256Count;
             }
         }
         $summary['zipPackageManifestLocalHeaderSha256Count'] = $zipPackageManifestLocalHeaderSha256Count;
         $summary['zipPackageManifestCompressedDataSha256Count'] = $zipPackageManifestCompressedDataSha256Count;
+        $summary['zipPackageManifestDataDescriptorSourceSpanEntryCount'] =
+            $zipPackageManifestDataDescriptorSourceSpanEntryCount;
+        $summary['zipPackageManifestDataDescriptorByteLength'] = $zipPackageManifestDataDescriptorByteLength;
+        $summary['zipPackageManifestDataDescriptorSha256Count'] =
+            $zipPackageManifestDataDescriptorSha256Count;
+        $summary['zipPackageManifestDataDescriptorSourceSpanByteExposurePolicy'] =
+            'docx-zip-data-descriptor-source-span-metadata-only';
+        $summary['zipPackageManifestDataDescriptorSourceSpanCanExposeBytes'] = false;
         $summary['zipPackageManifestCentralDirectoryRecordSha256Count'] =
             $zipPackageManifestCentralDirectoryRecordSha256Count;
         $zipLocalHeaders = is_array($zipPackage['localHeaders'] ?? null) ? $zipPackage['localHeaders'] : [];
@@ -14324,6 +14345,15 @@ final class DocxOpenXmlReader
                 'compressedDataOffset' => $manifestEntry['compressedDataOffset'] ?? null,
                 'compressedDataEnd' => $manifestEntry['compressedDataEnd'] ?? null,
                 'compressedDataSha256' => $manifestEntry['compressedDataSha256'] ?? null,
+                'sourceByteSpanIncludesDataDescriptor' =>
+                    (bool) ($manifestEntry['sourceByteSpanIncludesDataDescriptor'] ?? false),
+                'dataDescriptorBytes' => (int) ($manifestEntry['dataDescriptorBytes'] ?? 0),
+                'dataDescriptorSha256' => is_string($manifestEntry['dataDescriptorSha256'] ?? null)
+                    ? $manifestEntry['dataDescriptorSha256']
+                    : null,
+                'dataDescriptorSourceByteSpanPolicy' =>
+                    'docx-zip-data-descriptor-source-span-metadata-only',
+                'dataDescriptorSourceByteSpanCanExposeBytes' => false,
                 'centralDirectoryRecordOffset' => $manifestEntry['centralDirectoryRecordOffset'] ?? null,
                 'centralDirectoryRecordEnd' => $manifestEntry['centralDirectoryRecordEnd'] ?? null,
                 'centralDirectoryRecordSha256' => $manifestEntry['centralDirectoryRecordSha256'] ?? null,
@@ -15800,6 +15830,15 @@ final class DocxOpenXmlReader
             $partInventory[$partName]['zipCompressedDataOffset'] = $entry['compressedDataOffset'] ?? null;
             $partInventory[$partName]['zipCompressedDataEnd'] = $entry['compressedDataEnd'] ?? null;
             $partInventory[$partName]['zipCompressedDataSha256'] = $entry['compressedDataSha256'] ?? null;
+            $partInventory[$partName]['sourceByteSpanIncludesDataDescriptor'] =
+                $entry['sourceByteSpanIncludesDataDescriptor'] ?? false;
+            $partInventory[$partName]['dataDescriptorBytes'] = $entry['dataDescriptorBytes'] ?? 0;
+            $partInventory[$partName]['dataDescriptorSha256'] = $entry['dataDescriptorSha256'] ?? null;
+            $partInventory[$partName]['dataDescriptorSourceByteSpanPolicy'] =
+                $entry['dataDescriptorSourceByteSpanPolicy']
+                    ?? 'docx-zip-data-descriptor-source-span-metadata-only';
+            $partInventory[$partName]['dataDescriptorSourceByteSpanCanExposeBytes'] =
+                $entry['dataDescriptorSourceByteSpanCanExposeBytes'] ?? false;
             $partInventory[$partName]['zipCentralDirectoryRecordOffset'] = $entry['centralDirectoryRecordOffset'] ?? null;
             $partInventory[$partName]['zipCentralDirectoryRecordEnd'] = $entry['centralDirectoryRecordEnd'] ?? null;
             $partInventory[$partName]['zipCentralDirectoryRecordSha256'] = $entry['centralDirectoryRecordSha256'] ?? null;
