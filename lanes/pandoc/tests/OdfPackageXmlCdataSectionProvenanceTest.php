@@ -98,22 +98,26 @@ XML;
             $t->same(3, $inventory['packagePartXmlCdataSectionPartCount'], "{$label} CDATA part count");
             $t->same(3, $inventory['packagePartXmlCdataSectionCount'], "{$label} CDATA section count");
             $t->same($expectedByteLength, $inventory['packagePartXmlCdataSectionByteLength'], "{$label} CDATA byte length");
+            $t->same([2 => 2, 3 => 1], $inventory['packagePartXmlCdataSectionParentDepthCounts'], "{$label} CDATA parent depth counts");
             $t->same($expectedPartNames, $inventory['packagePartXmlCdataSectionPartNames'], "{$label} CDATA part names");
             $t->same(false, $inventory['packagePartXmlCdataSectionsTruncated'], "{$label} CDATA summary not truncated");
 
             $t->same(1, $reviewPart['xmlCdataSectionCount'], "{$label} review section count");
             $t->same(strlen($reviewCdata), $reviewPart['xmlCdataSectionByteLength'], "{$label} review byte length");
+            $t->same([2 => 1], $reviewPart['xmlCdataSectionParentDepthCounts'], "{$label} review parent depth counts");
             $t->same('/review:state/review:value', $reviewPart['xmlCdataSections'][0]['parentPath'], "{$label} review parent path");
             $t->same(2, $reviewPart['xmlCdataSections'][0]['parentDepth'], "{$label} review parent depth");
             $t->same(sprintf('%08x', crc32($reviewCdata)), $reviewPart['xmlCdataSections'][0]['crc32'], "{$label} review crc32");
             $t->same(hash('sha256', $reviewCdata), $reviewPart['xmlCdataSections'][0]['sha256'], "{$label} review sha256");
 
             $t->same(1, $auditPart['xmlCdataSectionCount'], "{$label} audit section count");
+            $t->same([3 => 1], $auditPart['xmlCdataSectionParentDepthCounts'], "{$label} audit parent depth counts");
             $t->same('/audit:state/audit:item/audit:value', $auditPart['xmlCdataSections'][0]['parentPath'], "{$label} audit parent path");
             $t->same(3, $auditPart['xmlCdataSections'][0]['parentDepth'], "{$label} audit parent depth");
             $t->same(hash('sha256', $auditCdata), $auditPart['xmlCdataSections'][0]['sha256'], "{$label} audit sha256");
 
             $t->same(1, $loosePart['xmlCdataSectionCount'], "{$label} loose section count");
+            $t->same([2 => 1], $loosePart['xmlCdataSectionParentDepthCounts'], "{$label} loose parent depth counts");
             $t->same('/loose:packet/loose:value', $loosePart['xmlCdataSections'][0]['parentPath'], "{$label} loose parent path");
             $t->same(2, $loosePart['xmlCdataSections'][0]['parentDepth'], "{$label} loose parent depth");
             $t->same(hash('sha256', $looseCdata), $loosePart['xmlCdataSections'][0]['sha256'], "{$label} loose sha256");
