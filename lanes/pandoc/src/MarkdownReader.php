@@ -358,7 +358,9 @@ final class MarkdownReader
                 $blocks[] = new AstNode('horizontal_rule');
                 continue;
             }
-            $lineBlock = $paragraph === [] && $listStack === [] ? $this->tryReadLineBlock($lines, $index) : null;
+            $lineBlock = $paragraph === [] && $listStack === [] && $this->lineBlockExtensionEnabled()
+                ? $this->tryReadLineBlock($lines, $index)
+                : null;
             if ($lineBlock !== null) {
                 $blocks[] = $lineBlock;
                 continue;
@@ -421,7 +423,7 @@ final class MarkdownReader
                 $blocks[] = $indentedCodeBlock;
                 continue;
             }
-            $definitionList = $this->tryReadDefinitionList($lines, $index);
+            $definitionList = $this->definitionListExtensionEnabled() ? $this->tryReadDefinitionList($lines, $index) : null;
             if ($definitionList !== null) {
                 $this->flushParagraph($paragraph, $blocks);
                 $this->flushListStack($listStack, $blocks);
@@ -9735,8 +9737,19 @@ final class MarkdownReader
                 break;
             }
 
-            $termText = trim($lines[$cursor]);
-            $definitionCursor = $cursor + 1;
+            $termLines = [];
+            $definitionCursor = $cursor;
+            while ($definitionCursor < $count && $this->canStartDefinitionTerm($lines[$definitionCursor])) {
+                $termLines[] = trim($lines[$definitionCursor]);
+                $definitionCursor++;
+                if ($definitionCursor >= $count || trim($lines[$definitionCursor]) === '' || $this->isDefinitionMarker($lines[$definitionCursor])) {
+                    break;
+                }
+            }
+            if ($termLines === []) {
+                break;
+            }
+
             $looseFirstDefinition = false;
             if ($definitionCursor < $count && trim($lines[$definitionCursor]) === '') {
                 $looseFirstDefinition = true;
@@ -9747,6 +9760,7 @@ final class MarkdownReader
             }
 
             $cursor = $definitionCursor;
+            $termText = implode("\n", $termLines);
             $definitions = [];
             $looseDefinition = false;
             $blankBeforeLaterDefinition = false;
@@ -9786,7 +9800,7 @@ final class MarkdownReader
                 }
             }
 
-            $term = new AstNode('term', ['text' => $termText], $this->parseInlines($termText));
+            $term = new AstNode('term', ['text' => $termText], $this->parseDefinitionTermInlines($termText));
             $items[] = new AstNode('definition_item', ['term' => $termText], array_merge([$term], $definitions));
         }
 
@@ -9799,6 +9813,17 @@ final class MarkdownReader
         return new AstNode('definition_list', [], $items);
     }
 
+    /**
+     * @return list<AstNode>
+     */
+    private function parseDefinitionTermInlines(string $termText): array
+    {
+        return array_map(
+            static fn (AstNode $node): AstNode => $node->type === 'softbreak' ? new AstNode('linebreak') : $node,
+            $this->parseInlines($termText)
+        );
+    }
+
     private function canStartDefinitionTerm(string $line): bool
     {
         $trimmed = trim($line);
@@ -9809,7 +9834,8 @@ final class MarkdownReader
             return false;
         }
 
-        return !preg_match('/^(#{1,6})\s+|^[-*+]\s+|^\d+[.)]\s+|^\s{0,4}[:~]/', $line);
+        return !preg_match('/^(#{1,6})\s+|^[-*+]\s+|^\d+[.)]\s+/', $line)
+            && $this->matchDefinitionMarker($line) === null;
     }
 
     private function isDefinitionMarker(string $line): bool
@@ -9822,11 +9848,42 @@ final class MarkdownReader
      */
     private function matchDefinitionMarker(string $line): ?array
     {
-        if (preg_match('/^\s{0,4}([:~])\s*(.*)$/', $line, $m) !== 1) {
+        if (preg_match('/^ {0,3}([:~])(.*)$/', $line, $m) !== 1) {
             return null;
         }
 
-        return ['marker' => $m[1], 'content' => $m[2]];
+        if (str_starts_with($m[2], $m[1] . $m[1])) {
+            return null;
+        }
+
+        $spaceCount = strspn($m[2], ' ');
+        $content = substr($m[2], min($spaceCount, 3));
+
+        return ['marker' => $m[1], 'content' => $content];
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function definitionMarkerFollowsTermLines(array $lines, int $cursor): bool
+    {
+        $count = count($lines);
+        if ($cursor >= $count || !$this->canStartDefinitionTerm($lines[$cursor])) {
+            return false;
+        }
+
+        while ($cursor < $count && $this->canStartDefinitionTerm($lines[$cursor])) {
+            $cursor++;
+            if ($cursor >= $count || trim($lines[$cursor]) === '' || $this->isDefinitionMarker($lines[$cursor])) {
+                break;
+            }
+        }
+
+        if ($cursor < $count && trim($lines[$cursor]) === '') {
+            $cursor++;
+        }
+
+        return $cursor < $count && $this->isDefinitionMarker($lines[$cursor]);
     }
 
     /**
@@ -9836,7 +9893,7 @@ final class MarkdownReader
     {
         $blankBeforeNextDefinition = false;
         $marker = $this->matchDefinitionMarker($lines[$cursor]);
-        $blocks = $marker === null ? [] : $this->parseDefinitionBlocks(trim($marker['content']));
+        $blocks = $marker === null ? [] : $this->parseDefinitionBlocks($marker['content']);
         $cursor++;
         $count = count($lines);
 
@@ -9868,6 +9925,8 @@ final class MarkdownReader
                     $blocks[] = $block;
                 }
                 continue;
+            } elseif ($this->definitionMarkerFollowsTermLines($lines, $cursor)) {
+                break;
             } else {
                 $this->appendLazyDefinitionLine($blocks, trim($line));
             }
@@ -9957,13 +10016,16 @@ final class MarkdownReader
      */
     private function parseDefinitionBlocks(string $content): array
     {
-        if ($content === '') {
+        $content = rtrim($content);
+        if (trim($content) === '') {
             return [];
         }
 
-        if (preg_match('/^(?:[-*+]|\d{1,9}[.)]|#\.)\s+/', $content) === 1) {
+        if (preg_match('/^(?: {4,}|\t)|^(?:[-*+]|\d{1,9}[.)]|#\.)\s+|^(?:>|#{1,6}\s+|`{3,}|~{3,}|\|)/', $content) === 1) {
             return $this->read($content)->children;
         }
+
+        $content = trim($content);
 
         return [new AstNode('paragraph', ['text' => $content], $this->parseInlines($content))];
     }
@@ -11210,6 +11272,32 @@ final class MarkdownReader
         $canonical = MarkdownFormatProfile::canonicalFormat($format);
 
         return in_array($canonical, ['markdown', 'commonmark_x', 'markdown_phpextra', 'markdown_mmd'], true);
+    }
+
+    private function definitionListExtensionEnabled(): bool
+    {
+        $overrides = $this->markdownExtensionOverrides();
+        if (array_key_exists('definition_lists', $overrides)) {
+            return $overrides['definition_lists'];
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['markdown', 'commonmark_x', 'markdown_phpextra', 'markdown_mmd'], true);
+    }
+
+    private function lineBlockExtensionEnabled(): bool
+    {
+        $overrides = $this->markdownExtensionOverrides();
+        if (array_key_exists('line_blocks', $overrides)) {
+            return $overrides['line_blocks'];
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['markdown', 'commonmark_x'], true);
     }
 
     private function commonMarkRawHtmlBlockPrecedenceEnabled(): bool

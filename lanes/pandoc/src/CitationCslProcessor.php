@@ -7837,13 +7837,48 @@ final class CitationCslProcessor
     private function missingCitationEntryText(AstNode $citation): string
     {
         $entry = $this->sourceCitationText($citation);
-        $suffix = $this->citationSuffix($citation);
-        if ($suffix !== '') {
-            $entry .= ', ' . $suffix;
+        $prefix = $this->citationPrefix($citation);
+        if ($prefix !== '' && !$this->sourceCitationTextHasPrefix($entry, $prefix)) {
+            $entry = $prefix . ($entry === '' ? '' : ' ' . $entry);
         }
 
-        $prefix = $this->citationPrefix($citation);
-        return $prefix === '' ? $entry : $prefix . ' ' . $entry;
+        $suffix = $this->citationSuffix($citation);
+        if ($suffix !== '' && !$this->sourceCitationTextHasSuffix($entry, $suffix)) {
+            $entry .= ($entry === '' ? '' : ', ') . $suffix;
+        }
+
+        return $entry;
+    }
+
+    private function sourceCitationTextHasPrefix(string $text, string $prefix): bool
+    {
+        $text = $this->normalizedCitationSourceText($text);
+        $prefix = $this->normalizedCitationSourceText($prefix);
+        if ($text === '' || $prefix === '') {
+            return false;
+        }
+
+        $text = ltrim($text, '[(');
+
+        return $text === $prefix || str_starts_with($text, $prefix . ' ');
+    }
+
+    private function sourceCitationTextHasSuffix(string $text, string $suffix): bool
+    {
+        $text = $this->normalizedCitationSourceText($text);
+        $suffix = $this->normalizedCitationSourceText($suffix);
+        if ($text === '' || $suffix === '') {
+            return false;
+        }
+
+        $text = rtrim($text, '])');
+
+        return $text === $suffix || str_ends_with($text, ' ' . $suffix) || str_ends_with($text, ', ' . $suffix);
+    }
+
+    private function normalizedCitationSourceText(string $text): string
+    {
+        return trim(preg_replace('/\s+/u', ' ', $text) ?? $text);
     }
 
     /**

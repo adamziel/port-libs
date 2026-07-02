@@ -114,9 +114,12 @@ final class BibliographyReader
         $identifierFieldCounts = [];
         $relationFieldCounts = [];
         $relationReferenceCounts = [];
+        $citationAliasFieldCounts = [];
+        $citationAliasValueCounts = [];
         $titleBearingItemCount = 0;
         $linkBearingItemCount = 0;
         $relationBearingItemCount = 0;
+        $citationAliasBearingItemCount = 0;
 
         foreach ($items as $index => $item) {
             $review = $this->cslJsonItemReview($item, $index);
@@ -144,6 +147,10 @@ final class BibliographyReader
                 $relationFieldCounts[$fieldName] = ($relationFieldCounts[$fieldName] ?? 0) + 1;
             }
             $this->mergeCountMap($relationReferenceCounts, $review['relationReferenceCounts']);
+            foreach ($review['citationAliasFields'] as $fieldName) {
+                $citationAliasFieldCounts[$fieldName] = ($citationAliasFieldCounts[$fieldName] ?? 0) + 1;
+            }
+            $this->mergeCountMap($citationAliasValueCounts, $review['citationAliasValueCounts']);
 
             if ($review['titleBearing']) {
                 $titleBearingItemCount++;
@@ -154,6 +161,9 @@ final class BibliographyReader
             if ($review['relationFieldCount'] > 0) {
                 $relationBearingItemCount++;
             }
+            if ($review['citationAliasFieldCount'] > 0) {
+                $citationAliasBearingItemCount++;
+            }
         }
 
         ksort($typeCounts);
@@ -162,6 +172,8 @@ final class BibliographyReader
         ksort($identifierFieldCounts);
         ksort($relationFieldCounts);
         ksort($relationReferenceCounts);
+        ksort($citationAliasFieldCounts);
+        ksort($citationAliasValueCounts);
 
         return [
             'scope' => 'csl-json-bibliography',
@@ -181,6 +193,10 @@ final class BibliographyReader
             'relationFieldCounts' => $relationFieldCounts,
             'relationReferenceCount' => array_sum($relationReferenceCounts),
             'relationReferenceCounts' => $relationReferenceCounts,
+            'citationAliasBearingItemCount' => $citationAliasBearingItemCount,
+            'citationAliasFieldCounts' => $citationAliasFieldCounts,
+            'citationAliasValueCount' => array_sum($citationAliasValueCounts),
+            'citationAliasValueCounts' => $citationAliasValueCounts,
             'items' => $reviews,
         ];
     }
@@ -224,6 +240,8 @@ final class BibliographyReader
             $relationReferenceCounts[$relationField] = $this->cslJsonListValueCount($item[$relationField]);
         }
         ksort($relationReferenceCounts);
+        $citationAliasValueCounts = $this->cslJsonCitationAliasValueCounts($item);
+        $citationAliasFields = array_keys($citationAliasValueCounts);
         $id = $item['id'] ?? '';
         $type = $item['type'] ?? '';
 
@@ -248,6 +266,10 @@ final class BibliographyReader
             'relationFields' => $relationFields,
             'relationReferenceCount' => array_sum($relationReferenceCounts),
             'relationReferenceCounts' => $relationReferenceCounts,
+            'citationAliasFieldCount' => count($citationAliasFields),
+            'citationAliasFields' => $citationAliasFields,
+            'citationAliasValueCount' => array_sum($citationAliasValueCounts),
+            'citationAliasValueCounts' => $citationAliasValueCounts,
             'payloadExposurePolicy' => 'source-values-omitted',
         ];
     }
@@ -1275,6 +1297,35 @@ final class BibliographyReader
         }
 
         return array_is_list($value) ? count($value) : 1;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array<string, int>
+     */
+    private function cslJsonCitationAliasValueCounts(array $item): array
+    {
+        $counts = [];
+        foreach ([
+            'citation-aliases',
+            'citationAliases',
+            'citation-alias',
+            'citationAlias',
+            'citationalias',
+            'ids',
+        ] as $fieldName) {
+            if (!array_key_exists($fieldName, $item) || !$this->fieldHasValue($item[$fieldName])) {
+                continue;
+            }
+
+            $count = $this->cslJsonListValueCount($item[$fieldName]);
+            if ($count > 0) {
+                $counts[$fieldName] = $count;
+            }
+        }
+        ksort($counts);
+
+        return $counts;
     }
 
     /**
