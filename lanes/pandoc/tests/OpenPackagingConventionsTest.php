@@ -2020,6 +2020,115 @@ XML;
         $t->same(2, $summary['roleCounts']['media']);
         $t->same(2, $rawSummary['roleCounts']['media']);
     },
+    'summarizes OPC ZIP manifest package part name length buckets before XML package handoff' => static function (TestRunner $t): void {
+        $longName = 'word/media/' . str_repeat('a', 52) . '.png';
+        $veryLongName = 'word/media/' . str_repeat('b', 116) . '.bin';
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Default Extension="bin" ContentType="application/octet-stream"/>
+</Types>
+XML;
+        $parts = [
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'compressionMethod' => 0],
+            ['name' => '_rels/.rels', 'data' => '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"/>', 'compressionMethod' => 0],
+            ['name' => 'a.xml', 'data' => '<a/>', 'compressionMethod' => 0],
+            ['name' => 'word/document.xml', 'data' => '<w:document/>', 'compressionMethod' => 0],
+            ['name' => 'word/media/', 'data' => '', 'compressionMethod' => 0],
+            ['name' => $longName, 'data' => 'PNGDATA', 'compressionMethod' => 0],
+            ['name' => $veryLongName, 'data' => 'BINDATA', 'compressionMethod' => 0],
+        ];
+
+        $summary = OpcRelationshipGraph::preflightZipEntryManifest(ZipPackage::fromParts($parts));
+        $rawSummary = OpcRelationshipGraph::preflightZipCentralDirectoryManifest(ZipPackage::build($parts));
+        $entries = [];
+        foreach ($summary['entries'] as $entry) {
+            $entries[$entry['entryName']] = $entry;
+        }
+        $rawEntries = [];
+        foreach ($rawSummary['entries'] as $entry) {
+            $rawEntries[$entry['entryName']] = $entry;
+        }
+        $bucketSummaries = [];
+        foreach ($summary['packagePartNameLengthBucketSummaries'] as $bucketSummary) {
+            $bucketSummaries[$bucketSummary['packagePartNameLengthBucket']] = $bucketSummary;
+        }
+        $rawBucketSummaries = [];
+        foreach ($rawSummary['packagePartNameLengthBucketSummaries'] as $bucketSummary) {
+            $rawBucketSummaries[$bucketSummary['packagePartNameLengthBucket']] = $bucketSummary;
+        }
+
+        $longPartName = '/' . $longName;
+        $veryLongPartName = '/' . $veryLongName;
+        $expectedBucketCounts = [
+            'up-to-15-bytes' => 2,
+            '16-to-63-bytes' => 2,
+            '64-to-127-bytes' => 1,
+            '128-plus-bytes' => 1,
+        ];
+        $expectedEntryNamesByBucket = [
+            'up-to-15-bytes' => ['_rels/.rels', 'a.xml'],
+            '16-to-63-bytes' => ['[Content_Types].xml', 'word/document.xml'],
+            '64-to-127-bytes' => [$longName],
+            '128-plus-bytes' => [$veryLongName],
+        ];
+
+        $t->same(true, $summary['valid']);
+        $t->same(true, $rawSummary['valid']);
+        $t->same(4, $summary['packagePartNameLengthBucketSummaryCount']);
+        $t->same(4, $rawSummary['packagePartNameLengthBucketSummaryCount']);
+        $t->same([
+            'up-to-15-bytes',
+            '16-to-63-bytes',
+            '64-to-127-bytes',
+            '128-plus-bytes',
+        ], $summary['packagePartNameLengthBuckets']);
+        $t->same($summary['packagePartNameLengthBuckets'], $rawSummary['packagePartNameLengthBuckets']);
+        $t->same($expectedBucketCounts, $summary['packagePartNameLengthBucketCounts']);
+        $t->same($summary['packagePartNameLengthBucketCounts'], $rawSummary['packagePartNameLengthBucketCounts']);
+        $t->same($expectedEntryNamesByBucket, $summary['entryNamesByPackagePartNameLengthBucket']);
+        $t->same(
+            $summary['entryNamesByPackagePartNameLengthBucket'],
+            $rawSummary['entryNamesByPackagePartNameLengthBucket']
+        );
+
+        $t->same(strlen('/a.xml'), $entries['a.xml']['partNameBytes']);
+        $t->same('up-to-15-bytes', $entries['a.xml']['packagePartNameLengthBucket']);
+        $t->same(0, $entries['a.xml']['packagePartNameLengthBucketMin']);
+        $t->same(15, $entries['a.xml']['packagePartNameLengthBucketMax']);
+        $t->same(strlen('/word/document.xml'), $entries['word/document.xml']['partNameBytes']);
+        $t->same('16-to-63-bytes', $entries['word/document.xml']['packagePartNameLengthBucket']);
+        $t->same(strlen($longPartName), $entries[$longName]['partNameBytes']);
+        $t->same('64-to-127-bytes', $entries[$longName]['packagePartNameLengthBucket']);
+        $t->same(strlen($veryLongPartName), $entries[$veryLongName]['partNameBytes']);
+        $t->same('128-plus-bytes', $entries[$veryLongName]['packagePartNameLengthBucket']);
+        $t->same(null, $entries['word/media/']['partNameBytes']);
+        $t->same(null, $entries['word/media/']['packagePartNameLengthBucket']);
+        $t->same($entries['a.xml']['partNameBytes'], $rawEntries['a.xml']['partNameBytes']);
+        $t->same($entries[$veryLongName]['packagePartNameLengthBucket'], $rawEntries[$veryLongName]['packagePartNameLengthBucket']);
+
+        $t->same(0, $bucketSummaries['up-to-15-bytes']['minPackagePartNameBytes']);
+        $t->same(15, $bucketSummaries['up-to-15-bytes']['maxPackagePartNameBytes']);
+        $t->same(strlen('/a.xml'), $bucketSummaries['up-to-15-bytes']['minObservedPartNameBytes']);
+        $t->same(strlen('/_rels/.rels'), $bucketSummaries['up-to-15-bytes']['maxObservedPartNameBytes']);
+        $t->same(['/_rels/.rels'], $bucketSummaries['up-to-15-bytes']['longestPartNames']);
+        $t->same(strlen('/_rels/.rels') + strlen('/a.xml'), $bucketSummaries['up-to-15-bytes']['partNameBytes']);
+        $t->same(
+            strlen('/[Content_Types].xml') + strlen('/word/document.xml'),
+            $bucketSummaries['16-to-63-bytes']['partNameBytes']
+        );
+        $t->same([$longPartName], $bucketSummaries['64-to-127-bytes']['partNames']);
+        $t->same([$longPartName], $bucketSummaries['64-to-127-bytes']['longestPartNames']);
+        $t->same([$veryLongPartName], $bucketSummaries['128-plus-bytes']['partNames']);
+        $t->same([$veryLongPartName], $bucketSummaries['128-plus-bytes']['longestPartNames']);
+        $t->same(128, $bucketSummaries['128-plus-bytes']['minPackagePartNameBytes']);
+        $t->same(null, $bucketSummaries['128-plus-bytes']['maxPackagePartNameBytes']);
+        $t->same($bucketSummaries['up-to-15-bytes']['partNameBytes'], $rawBucketSummaries['up-to-15-bytes']['partNameBytes']);
+        $t->same($bucketSummaries['64-to-127-bytes']['entryNames'], $rawBucketSummaries['64-to-127-bytes']['entryNames']);
+        $t->same($bucketSummaries['128-plus-bytes']['longestPartNames'], $rawBucketSummaries['128-plus-bytes']['longestPartNames']);
+    },
     'summarizes OPC ZIP manifest compression provenance before XML package handoff' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
