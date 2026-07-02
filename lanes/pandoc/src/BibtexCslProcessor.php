@@ -1277,7 +1277,17 @@ final class BibtexCslProcessor
             $item['biblatex-options'] = $options;
         }
 
-        $languageOptions = $this->biblatexOptionList($fields['langidopts'] ?? '');
+        $languageOptions = $this->biblatexOptionList($this->firstField($fields, [
+            'langidopts',
+            'langid-options',
+            'langidoptions',
+            'language-options',
+            'languageoptions',
+            'language-opts',
+            'languageopts',
+            'hyphenation-options',
+            'hyphenationoptions',
+        ]) ?? '');
         if ($languageOptions !== []) {
             $item['biblatex-language-options'] = $languageOptions;
         }
