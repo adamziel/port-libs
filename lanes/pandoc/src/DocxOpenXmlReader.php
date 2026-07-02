@@ -15888,11 +15888,28 @@ final class DocxOpenXmlReader
         ksort($partContentTypeSyntaxSuffixCounts, SORT_STRING);
         $partContentTypeSources = $this->packagePartContentTypeSourceSummary($partInventory);
         $partContentTypeSourceCounts = [];
+        $partContentTypeSourceDirectoryCounts = [];
+        $partContentTypeSourceTopLevelSegmentCounts = [];
+        $partContentTypeSourcePackageAreaCounts = [];
         foreach ($partContentTypeSources as $sourceSummary) {
             $sourceKey = (string) ($sourceSummary['contentTypeSource'] ?? 'missing');
             $partContentTypeSourceCounts[$sourceKey] = (int) ($sourceSummary['partCount'] ?? 0);
+            $partContentTypeSourceDirectoryCounts[$sourceKey] = is_array($sourceSummary['directoryCounts'] ?? null)
+                ? $sourceSummary['directoryCounts']
+                : [];
+            $partContentTypeSourceTopLevelSegmentCounts[$sourceKey] =
+                is_array($sourceSummary['topLevelSegmentCounts'] ?? null)
+                    ? $sourceSummary['topLevelSegmentCounts']
+                    : [];
+            $partContentTypeSourcePackageAreaCounts[$sourceKey] =
+                is_array($sourceSummary['packageAreaCounts'] ?? null)
+                    ? $sourceSummary['packageAreaCounts']
+                    : [];
         }
         ksort($partContentTypeSourceCounts, SORT_STRING);
+        ksort($partContentTypeSourceDirectoryCounts, SORT_STRING);
+        ksort($partContentTypeSourceTopLevelSegmentCounts, SORT_STRING);
+        ksort($partContentTypeSourcePackageAreaCounts, SORT_STRING);
         $partBaseNameCounts = [];
         $partNamesByPartBaseName = [];
         $duplicatePartBaseNames = [];
@@ -19731,6 +19748,9 @@ final class DocxOpenXmlReader
             'partContentTypeStructuredSyntaxPartCount' => $partContentTypeStructuredSyntaxPartCount,
             'partContentTypeSourceCount' => count($partContentTypeSources),
             'partContentTypeSourceCounts' => $partContentTypeSourceCounts,
+            'partContentTypeSourceDirectoryCounts' => $partContentTypeSourceDirectoryCounts,
+            'partContentTypeSourceTopLevelSegmentCounts' => $partContentTypeSourceTopLevelSegmentCounts,
+            'partContentTypeSourcePackageAreaCounts' => $partContentTypeSourcePackageAreaCounts,
             'partContentTypeCount' => count($partContentTypes),
             'partContentTypeParameterNameCount' => count($partContentTypeParameterNames),
             'partContentTypeParameterNameCounts' => $partContentTypeParameterNameCounts,
@@ -24540,6 +24560,9 @@ final class DocxOpenXmlReader
                     'contentTypeBaseCounts' => [],
                     'contentTypeSyntaxSuffixCounts' => [],
                     'partExtensionCounts' => [],
+                    'directoryCounts' => [],
+                    'topLevelSegmentCounts' => [],
+                    'packageAreaCounts' => [],
                     'defaultExtensions' => [],
                     'overridePartNames' => [],
                     'roleCounts' => [],
@@ -24581,6 +24604,23 @@ final class DocxOpenXmlReader
             $sources[$contentTypeSource]['partExtensionCounts'][$partExtensionKey] =
                 ($sources[$contentTypeSource]['partExtensionCounts'][$partExtensionKey] ?? 0) + 1;
 
+            $directory = is_string($part['directory'] ?? null)
+                ? $part['directory']
+                : $this->packagePartDirectory((string) $partName);
+            $topLevelSegment = is_string($part['topLevelSegment'] ?? null)
+                ? $part['topLevelSegment']
+                : $this->packagePartTopLevelSegment((string) $partName);
+            $topLevelSegmentKey = $topLevelSegment === '' ? '(none)' : $topLevelSegment;
+            $packageArea = is_string($part['packageArea'] ?? null)
+                ? $part['packageArea']
+                : $this->packagePartArea((string) $partName);
+            $sources[$contentTypeSource]['directoryCounts'][$directory] =
+                ($sources[$contentTypeSource]['directoryCounts'][$directory] ?? 0) + 1;
+            $sources[$contentTypeSource]['topLevelSegmentCounts'][$topLevelSegmentKey] =
+                ($sources[$contentTypeSource]['topLevelSegmentCounts'][$topLevelSegmentKey] ?? 0) + 1;
+            $sources[$contentTypeSource]['packageAreaCounts'][$packageArea] =
+                ($sources[$contentTypeSource]['packageAreaCounts'][$packageArea] ?? 0) + 1;
+
             $this->appendUniqueString(
                 $sources[$contentTypeSource]['contentTypes'],
                 is_string($part['contentType'] ?? null) ? $part['contentType'] : null,
@@ -24602,9 +24642,9 @@ final class DocxOpenXmlReader
 
             $partSummary = [
                 'partName' => (string) ($part['partName'] ?? $partName),
-                'directory' => is_string($part['directory'] ?? null)
-                    ? $part['directory']
-                    : $this->packagePartDirectory((string) $partName),
+                'directory' => $directory,
+                'topLevelSegment' => $topLevelSegment,
+                'packageArea' => $packageArea,
                 'baseName' => is_string($part['baseName'] ?? null)
                     ? $part['baseName']
                     : $this->packagePartBaseName((string) $partName),
@@ -24643,6 +24683,9 @@ final class DocxOpenXmlReader
             ksort($summary['contentTypeBaseCounts'], SORT_STRING);
             ksort($summary['contentTypeSyntaxSuffixCounts'], SORT_STRING);
             ksort($summary['partExtensionCounts'], SORT_STRING);
+            ksort($summary['directoryCounts'], SORT_STRING);
+            ksort($summary['topLevelSegmentCounts'], SORT_STRING);
+            ksort($summary['packageAreaCounts'], SORT_STRING);
             ksort($summary['roleCounts'], SORT_STRING);
             $sources[$source] = $summary;
         }

@@ -14072,6 +14072,33 @@ XML;
 
         $t->same(3, $summary['partContentTypeSourceCount']);
         $t->same(['default' => 7, 'missing' => 1, 'override' => 3], $summary['partContentTypeSourceCounts']);
+        $t->same([
+            'default' => [
+                '/' => 1,
+                '_rels' => 1,
+                'customXml' => 1,
+                'word' => 2,
+                'word/_rels' => 1,
+                'word/media' => 1,
+            ],
+            'missing' => ['customXml' => 1],
+            'override' => ['customXml' => 1, 'docProps' => 1, 'word' => 1],
+        ], $summary['partContentTypeSourceDirectoryCounts']);
+        $t->same([
+            'default' => [
+                '[Content_Types].xml' => 1,
+                '_rels' => 1,
+                'customXml' => 1,
+                'word' => 4,
+            ],
+            'missing' => ['customXml' => 1],
+            'override' => ['customXml' => 1, 'docProps' => 1, 'word' => 1],
+        ], $summary['partContentTypeSourceTopLevelSegmentCounts']);
+        $t->same([
+            'default' => ['/' => 1, '_rels/' => 1, 'customXml/' => 1, 'word/' => 4],
+            'missing' => ['customXml/' => 1],
+            'override' => ['customXml/' => 1, 'docProps/' => 1, 'word/' => 1],
+        ], $summary['partContentTypeSourcePackageAreaCounts']);
         $t->same(['default', 'missing', 'override'], array_column($summary['partContentTypeSources'], 'contentTypeSource'));
         $t->same(['default' => 7, 'missing' => 1, 'override' => 3], $summary['contentTypeSourceCounts']);
 
@@ -14089,6 +14116,21 @@ XML;
         ], $default['contentTypeBaseCounts']);
         $t->same(['(none)' => 4, 'json' => 1, 'xml' => 2], $default['contentTypeSyntaxSuffixCounts']);
         $t->same(['json' => 1, 'png' => 1, 'rels' => 2, 'xml' => 3], $default['partExtensionCounts']);
+        $t->same([
+            '/' => 1,
+            '_rels' => 1,
+            'customXml' => 1,
+            'word' => 2,
+            'word/_rels' => 1,
+            'word/media' => 1,
+        ], $default['directoryCounts']);
+        $t->same([
+            '[Content_Types].xml' => 1,
+            '_rels' => 1,
+            'customXml' => 1,
+            'word' => 4,
+        ], $default['topLevelSegmentCounts']);
+        $t->same(['/' => 1, '_rels/' => 1, 'customXml/' => 1, 'word/' => 4], $default['packageAreaCounts']);
         $t->same(['json', 'png', 'rels', 'xml'], $default['defaultExtensions']);
         $t->same([], $default['overridePartNames']);
         $t->same([
@@ -14101,6 +14143,8 @@ XML;
         ], $default['roleCounts']);
         $t->same('customXml/default-source.json', $default['largestPart']['partName']);
         $t->same('customXml', $default['largestPart']['directory']);
+        $t->same('customXml', $default['largestPart']['topLevelSegment']);
+        $t->same('customXml/', $default['largestPart']['packageArea']);
         $t->same('default-source.json', $default['largestPart']['baseName']);
         $t->same('json', $default['largestPart']['partExtension']);
         $t->same(2048, $default['largestPart']['bytes']);
@@ -14125,10 +14169,15 @@ XML;
         ], $override['contentTypeBaseCounts']);
         $t->same(['xml' => 3], $override['contentTypeSyntaxSuffixCounts']);
         $t->same(['xml' => 3], $override['partExtensionCounts']);
+        $t->same(['customXml' => 1, 'docProps' => 1, 'word' => 1], $override['directoryCounts']);
+        $t->same(['customXml' => 1, 'docProps' => 1, 'word' => 1], $override['topLevelSegmentCounts']);
+        $t->same(['customXml/' => 1, 'docProps/' => 1, 'word/' => 1], $override['packageAreaCounts']);
         $t->same(['customXml/override-source.xml', 'docProps/core.xml', 'word/document.xml'], $override['overridePartNames']);
         $t->same(['core-properties' => 1, 'office-document' => 1, 'package-part' => 1, 'root-relationship-target' => 2], $override['roleCounts']);
         $t->same('word/document.xml', $override['largestPart']['partName']);
         $t->same('word', $override['largestPart']['directory']);
+        $t->same('word', $override['largestPart']['topLevelSegment']);
+        $t->same('word/', $override['largestPart']['packageArea']);
         $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $override['largestPart']['contentTypeBase']);
         $t->same(null, $override['largestPart']['defaultExtension']);
         $t->same('word/document.xml', $override['largestPart']['overridePartName']);
@@ -14143,10 +14192,16 @@ XML;
         $t->same(['(missing)' => 1], $missing['contentTypeBaseCounts']);
         $t->same(['(missing)' => 1], $missing['contentTypeSyntaxSuffixCounts']);
         $t->same(['bin' => 1], $missing['partExtensionCounts']);
+        $t->same(['customXml' => 1], $missing['directoryCounts']);
+        $t->same(['customXml' => 1], $missing['topLevelSegmentCounts']);
+        $t->same(['customXml/' => 1], $missing['packageAreaCounts']);
         $t->same(['bin'], $missing['defaultExtensions']);
         $t->same(['package-part' => 1], $missing['roleCounts']);
         $t->same(['customXml/untyped-source.bin'], $missing['partNames']);
         $t->same('customXml/untyped-source.bin', $missing['largestPart']['partName']);
+        $t->same('customXml', $missing['largestPart']['directory']);
+        $t->same('customXml', $missing['largestPart']['topLevelSegment']);
+        $t->same('customXml/', $missing['largestPart']['packageArea']);
         $t->same('', $missing['largestPart']['contentTypeBase']);
         $t->same(null, $missing['largestPart']['contentTypeSyntaxSuffix']);
         $t->same('missing', $missing['largestPart']['contentTypeSource']);
