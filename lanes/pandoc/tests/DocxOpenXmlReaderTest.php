@@ -22875,6 +22875,144 @@ XML;
         $t->same(['rCommentExternalA'], $comments['byId']['12']['referencedRelationshipIds']);
         $t->same('https://example.test/comment-collision?review=1#src', $comments['byId']['12']['referencedRelationships']['rCommentExternalA']['target']);
     },
+    'summarizes docx note and comment relationship collisions and item provenance' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/notes/review-footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>' . "\n" .
+            '  <Override PartName="/notes/review-endnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml"/>' . "\n" .
+            '  <Override PartName="/word/comments/review-comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rFootnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="../notes/review-footnotes.xml"/>' . "\n" .
+            '  <Relationship Id="rEndnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes" Target="../notes/review-endnotes.xml"/>' . "\n" .
+            '  <Relationship Id="rComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments/review-comments.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['notes/review-footnotes.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:footnote w:id="42">
+    <w:p>
+      <w:hyperlink r:id="rFootExternalA"><w:r><w:t>external A</w:t></w:r></w:hyperlink>
+      <w:hyperlink r:id="rFootDuplicate"><w:r><w:t>duplicate</w:t></w:r></w:hyperlink>
+      <w:hyperlink r:id="rFootMissing"><w:r><w:t>missing media</w:t></w:r></w:hyperlink>
+    </w:p>
+  </w:footnote>
+</w:footnotes>
+XML;
+        $parts['notes/_rels/review-footnotes.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rFootExternalA" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/foot-shared?slot=shared#src" TargetMode="External"/>
+  <Relationship Id="rFootExternalB" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/foot-shared?slot=shared#src" TargetMode="External"/>
+  <Relationship Id="rFootDuplicate" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/foot-duplicate-one" TargetMode="External"/>
+  <Relationship Id="rFootDuplicate" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/foot-duplicate-two" TargetMode="External"/>
+  <Relationship Id="rFootMissing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing-foot.bin?missing=1#asset"/>
+</Relationships>
+XML;
+        $parts['notes/review-endnotes.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:endnote w:id="7">
+    <w:p>
+      <w:hyperlink r:id="rEndSharedA"><w:r><w:t>shared target</w:t></w:r></w:hyperlink>
+      <w:hyperlink r:id="rEndDuplicate"><w:r><w:t>duplicate endnote id</w:t></w:r></w:hyperlink>
+    </w:p>
+  </w:endnote>
+</w:endnotes>
+XML;
+        $parts['notes/_rels/review-endnotes.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rEndSharedA" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/end-shared.png?variant=a#img"/>
+  <Relationship Id="rEndSharedB" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/end-shared.png?variant=b#img"/>
+  <Relationship Id="rEndDuplicate" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/end-duplicate-a.png"/>
+  <Relationship Id="rEndDuplicate" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/end-duplicate-b.png"/>
+</Relationships>
+XML;
+        $parts['word/comments/review-comments.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:comment w:id="12">
+    <w:p>
+      <w:hyperlink r:id="rCommentSuffixA"><w:r><w:t>suffix A</w:t></w:r></w:hyperlink>
+      <w:hyperlink r:id="rCommentExternalA"><w:r><w:t>external comment</w:t></w:r></w:hyperlink>
+      <w:hyperlink r:id="rCommentDuplicate"><w:r><w:t>duplicate comment id</w:t></w:r></w:hyperlink>
+    </w:p>
+  </w:comment>
+</w:comments>
+XML;
+        $parts['word/comments/_rels/review-comments.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rCommentSuffixA" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/comment-a.png?review=repeat#asset"/>
+  <Relationship Id="rCommentSuffixB" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/comment-b.png?review=repeat#asset"/>
+  <Relationship Id="rCommentExternalA" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/comment-collision" TargetMode="External"/>
+  <Relationship Id="rCommentExternalB" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/comment-collision" TargetMode="External"/>
+  <Relationship Id="rCommentDuplicate" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/comment-duplicate-one" TargetMode="External"/>
+  <Relationship Id="rCommentDuplicate" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/comment-duplicate-two" TargetMode="External"/>
+</Relationships>
+XML;
+        $parts['notes/media/end-shared.png'] = 'end shared image bytes';
+        $parts['notes/media/end-duplicate-a.png'] = 'end duplicate a image bytes';
+        $parts['notes/media/end-duplicate-b.png'] = 'end duplicate b image bytes';
+        $parts['word/comments/media/comment-a.png'] = 'comment a image bytes';
+        $parts['word/comments/media/comment-b.png'] = 'comment b image bytes';
+
+        $docx = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx');
+        $footnotes = $docx['footnotes'];
+        $endnotes = $docx['endnotes'];
+        $comments = $docx['comments'];
+
+        $t->same(5, $footnotes['relationshipRecordCount']);
+        $t->same(1, $footnotes['duplicateRelationshipIdCount']);
+        $t->same(2, $footnotes['duplicateRelationshipRecordCount']);
+        $t->same(['rFootDuplicate'], $footnotes['duplicateRelationshipIds']);
+        $t->same('rFootDuplicate', $footnotes['duplicateRelationshipIdItems'][0]['id']);
+        $t->same(['https://example.test/foot-duplicate-one', 'https://example.test/foot-duplicate-two'], $footnotes['duplicateRelationshipIdItems'][0]['targets']);
+        $t->same(1, $footnotes['externalRelationshipTargetCollisionCount']);
+        $t->same(2, $footnotes['externalRelationshipTargetCollisionRelationshipCount']);
+        $t->same('https://example.test/foot-shared?slot=shared#src', $footnotes['externalRelationshipTargetCollisions'][0]['target']);
+        $t->same(['rFootExternalA', 'rFootExternalB'], $footnotes['externalRelationshipTargetCollisions'][0]['relationshipIds']);
+        $t->same(1, $footnotes['repeatedRelationshipTargetReferenceSuffixCount']);
+        $t->same(['?slot=shared#src'], $footnotes['repeatedRelationshipTargetReferenceSuffixes']);
+        $t->same(['missing-target-content-type', 'missing-target-part'], $footnotes['relationshipIssueCodes']);
+        $t->same(['rFootDuplicate', 'rFootExternalA', 'rFootMissing'], $footnotes['byId']['42']['relationshipIds']);
+        $t->same(['rFootDuplicate', 'rFootExternalA', 'rFootMissing'], $footnotes['byId']['42']['referencedRelationshipIds']);
+        $t->same(['rFootDuplicate'], $footnotes['byId']['42']['referencedDuplicateRelationshipIds']);
+        $t->same('https://example.test/foot-duplicate-two', $footnotes['byId']['42']['referencedRelationships']['rFootDuplicate']['target']);
+        $t->same('notes/media/missing-foot.bin', $footnotes['byId']['42']['referencedRelationships']['rFootMissing']['targetPart']);
+
+        $t->same(4, $endnotes['relationshipRecordCount']);
+        $t->same(1, $endnotes['duplicateRelationshipIdCount']);
+        $t->same(['rEndDuplicate'], $endnotes['duplicateRelationshipIds']);
+        $t->same(1, $endnotes['internalRelationshipTargetCollisionCount']);
+        $t->same(2, $endnotes['internalRelationshipTargetCollisionRelationshipCount']);
+        $t->same('notes/media/end-shared.png', $endnotes['internalRelationshipTargetCollisions'][0]['targetPart']);
+        $t->same(['rEndSharedA', 'rEndSharedB'], $endnotes['internalRelationshipTargetCollisions'][0]['relationshipIds']);
+        $t->same(['rEndDuplicate', 'rEndSharedA'], $endnotes['byId']['7']['referencedRelationshipIds']);
+        $t->same(['rEndDuplicate'], $endnotes['byId']['7']['referencedDuplicateRelationshipIds']);
+        $t->same('notes/media/end-duplicate-b.png', $endnotes['byId']['7']['referencedRelationships']['rEndDuplicate']['targetPart']);
+
+        $t->same(6, $comments['relationshipRecordCount']);
+        $t->same(1, $comments['duplicateRelationshipIdCount']);
+        $t->same(['rCommentDuplicate'], $comments['duplicateRelationshipIds']);
+        $t->same(1, $comments['externalRelationshipTargetCollisionCount']);
+        $t->same('https://example.test/comment-collision', $comments['externalRelationshipTargetCollisions'][0]['target']);
+        $t->same(['rCommentExternalA', 'rCommentExternalB'], $comments['externalRelationshipTargetCollisions'][0]['relationshipIds']);
+        $t->same(1, $comments['repeatedRelationshipTargetReferenceSuffixCount']);
+        $t->same(['?review=repeat#asset'], $comments['repeatedRelationshipTargetReferenceSuffixes']);
+        $t->same(['rCommentSuffixA', 'rCommentSuffixB'], $comments['repeatedRelationshipTargetReferenceSuffixGroups'][0]['relationshipIds']);
+        $t->same(['rCommentDuplicate', 'rCommentExternalA', 'rCommentSuffixA'], $comments['byId']['12']['referencedRelationshipIds']);
+        $t->same(['rCommentDuplicate'], $comments['byId']['12']['referencedDuplicateRelationshipIds']);
+        $t->same('https://example.test/comment-duplicate-two', $comments['byId']['12']['referencedRelationships']['rCommentDuplicate']['target']);
+        $t->same('word/comments/media/comment-a.png', $comments['byId']['12']['referencedRelationships']['rCommentSuffixA']['targetPart']);
+    },
     'preserves docx commentsExtended package metadata from relationship target' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
