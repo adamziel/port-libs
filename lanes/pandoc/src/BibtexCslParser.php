@@ -831,7 +831,7 @@ final class BibtexCslParser
             'chapter-number' => self::firstField($fields, ['chapter']),
             'section' => self::firstField($fields, ['section']),
             'part' => self::firstField($fields, ['part', 'part-number', 'partnumber']),
-            'printing-number' => self::firstField($fields, ['printingnumber', 'printing-number', 'printnumber', 'print-number']),
+            'printing-number' => self::firstField($fields, ['printingnumber', 'printing-number', 'printnumber', 'print-number', 'printing']),
             'supplement' => self::firstField($fields, ['supplement']),
             'supplement-number' => self::firstField($fields, ['supplementnumber', 'supplement-number']),
             'genre' => self::firstField($fields, ['type', 'entrysubtype']),

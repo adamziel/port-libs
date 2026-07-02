@@ -19065,6 +19065,9 @@ final class XmlHtmlDom
         if ($name === 'kbd') {
             $summary += self::keyboardInputReviewSummary($element);
         }
+        if ($name === 'mark') {
+            $summary += self::markHighlightReviewSummary($element);
+        }
         if ($name === 'bdi' || $name === 'bdo') {
             if ($name === 'bdi' && !$element->hasAttribute('dir')) {
                 $summary['textDirection'] = 'auto';
@@ -19078,6 +19081,85 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function markHighlightReviewSummary(\DOMElement $mark): array
+    {
+        $textRaw = $mark->textContent;
+        $text = self::normalizedText($mark);
+        $parent = $mark->parentNode;
+        $parentName = $parent instanceof \DOMElement ? self::htmlElementName($parent) : null;
+        $nestedHighlightTexts = [];
+        $insideLink = false;
+        $insideRevision = false;
+        $insideHeading = false;
+        $issues = [];
+
+        foreach (self::descendantHtmlElements($mark, 'mark') as $nestedHighlight) {
+            $nestedHighlightTexts[] = self::normalizedText($nestedHighlight);
+        }
+
+        for ($ancestor = $mark->parentNode; $ancestor instanceof \DOMElement; $ancestor = $ancestor->parentNode) {
+            $ancestorName = self::htmlElementName($ancestor);
+            if ($ancestorName === 'a' || $ancestorName === 'area') {
+                $insideLink = true;
+            } elseif ($ancestorName === 'ins' || $ancestorName === 'del') {
+                $insideRevision = true;
+            } elseif (in_array($ancestorName, ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'], true)) {
+                $insideHeading = true;
+            }
+        }
+
+        if ($text === '') {
+            $issues[] = ['code' => 'empty-mark-highlight'];
+        }
+        if ($nestedHighlightTexts !== []) {
+            $issues[] = [
+                'code' => 'nested-mark-highlight',
+                'count' => count($nestedHighlightTexts),
+            ];
+        }
+
+        $context = 'inline-highlight';
+        if ($parentName === 'mark') {
+            $context = 'nested-highlight';
+        } elseif ($insideLink) {
+            $context = 'link-highlight';
+        } elseif ($insideRevision) {
+            $context = 'revision-highlight';
+        } elseif ($insideHeading) {
+            $context = 'heading-highlight';
+        }
+
+        $issueCodes = [];
+        foreach ($issues as $issue) {
+            $code = (string) $issue['code'];
+            if (!in_array($code, $issueCodes, true)) {
+                $issueCodes[] = $code;
+            }
+        }
+
+        return [
+            'markHighlightReviewPolicy' => 'html-mark-highlight-review',
+            'markHighlightElement' => 'mark',
+            'markHighlightTextRaw' => $textRaw,
+            'markHighlightText' => $text,
+            'markHighlightTextByteLength' => strlen($textRaw),
+            'markHighlightNormalizedTextByteLength' => strlen($text),
+            'markHighlightTextSha256' => hash('sha256', $textRaw),
+            'markHighlightContext' => $context,
+            'markHighlightParentElement' => $parentName,
+            'markHighlightHasNestedHighlights' => $nestedHighlightTexts !== [],
+            'markHighlightNestedCount' => count($nestedHighlightTexts),
+            'markHighlightNestedTexts' => $nestedHighlightTexts,
+            'markHighlightValid' => $issues === [],
+            'markHighlightIssueCodes' => $issueCodes,
+            'markHighlightIssueCount' => count($issues),
+            'markHighlightIssues' => $issues,
+        ];
     }
 
     /**
