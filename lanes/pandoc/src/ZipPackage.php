@@ -593,6 +593,13 @@ final class ZipPackage
         $localExtraFieldEntryCount = 0;
         $localExtraFieldRecordCount = 0;
         $localExtraFieldRecordIds = [];
+        $localDataDescriptorEntryCount = 0;
+        $localSignedDataDescriptorEntryCount = 0;
+        $localUnsignedDataDescriptorEntryCount = 0;
+        $localDataDescriptorBytes = 0;
+        $localZeroHeaderPlaceholderEntryCount = 0;
+        $localDataDescriptorIssues = [];
+        $localDataDescriptorIssueEntries = [];
 
         foreach ($localEntries as $entry) {
             $localHeader = $this->readLocalHeader($entry);
@@ -608,16 +615,61 @@ final class ZipPackage
             $usesDataDescriptor = ($entry->generalPurposeFlags & 0x0008) !== 0;
             $descriptorOffset = null;
             $descriptorLength = null;
+            $dataDescriptorHasSignature = null;
+            $dataDescriptorValueOffset = null;
+            $dataDescriptorSpan = null;
+            $dataDescriptorEnd = null;
+            $dataDescriptorSurplusBytes = null;
+            $dataDescriptorTruncatedBytes = null;
+            $dataDescriptorCrc32 = null;
+            $dataDescriptorCrc32Hex = null;
+            $dataDescriptorUsesZip64SizedFields = null;
+            $dataDescriptorValuesMatchCentral = null;
+            $dataDescriptorIssues = [];
             $hasZeroLocalHeaderPlaceholders = null;
 
             if ($usesDataDescriptor) {
                 $descriptor = $this->dataDescriptorMetadata($entry, $compressedDataEnd, $nextOffset);
                 $descriptorOffset = $descriptor['descriptorOffset'];
                 $descriptorLength = $descriptor['descriptorLength'];
+                $dataDescriptorHasSignature = $descriptor['hasSignature'];
+                $dataDescriptorValueOffset = $descriptor['valueOffset'];
+                $dataDescriptorSpan = $descriptor['descriptorSpan'];
+                $dataDescriptorEnd = $descriptor['descriptorEnd'];
+                $dataDescriptorSurplusBytes = $descriptor['surplusDescriptorBytes'];
+                $dataDescriptorTruncatedBytes = $descriptor['truncatedDescriptorBytes'];
+                $dataDescriptorCrc32 = $descriptor['crc32'];
+                $dataDescriptorCrc32Hex = $descriptor['crc32Hex'];
+                $dataDescriptorUsesZip64SizedFields = $descriptor['usesZip64SizedDescriptor'];
+                $dataDescriptorValuesMatchCentral = $descriptor['descriptorValuesMatchCentral'];
+                $dataDescriptorIssues = $descriptor['issues'];
                 $recordEnd += $descriptorLength;
                 $hasZeroLocalHeaderPlaceholders = $localHeader['crc32'] === 0
                     && $localHeader['compressedSize'] === 0
                     && $localHeader['uncompressedSize'] === 0;
+                $localDataDescriptorEntryCount++;
+                $localDataDescriptorBytes += $descriptorLength;
+                if ($dataDescriptorHasSignature) {
+                    $localSignedDataDescriptorEntryCount++;
+                } else {
+                    $localUnsignedDataDescriptorEntryCount++;
+                }
+                if ($hasZeroLocalHeaderPlaceholders) {
+                    $localZeroHeaderPlaceholderEntryCount++;
+                }
+                if ($dataDescriptorIssues !== []) {
+                    $localDataDescriptorIssueEntries[] = [
+                        'name' => $entry->name,
+                        'descriptorOffset' => $descriptorOffset,
+                        'descriptorLength' => $descriptorLength,
+                        'dataDescriptorIssues' => $dataDescriptorIssues,
+                    ];
+                    foreach ($dataDescriptorIssues as $issue) {
+                        if (!in_array($issue, $localDataDescriptorIssues, true)) {
+                            $localDataDescriptorIssues[] = $issue;
+                        }
+                    }
+                }
             }
 
             $hasLocalExtraFields = $localHeader['extraFieldLength'] > 0;
@@ -685,6 +737,17 @@ final class ZipPackage
                 'usesDataDescriptor' => $usesDataDescriptor,
                 'descriptorOffset' => $descriptorOffset,
                 'descriptorLength' => $descriptorLength,
+                'dataDescriptorHasSignature' => $dataDescriptorHasSignature,
+                'dataDescriptorValueOffset' => $dataDescriptorValueOffset,
+                'dataDescriptorSpan' => $dataDescriptorSpan,
+                'dataDescriptorEnd' => $dataDescriptorEnd,
+                'dataDescriptorSurplusBytes' => $dataDescriptorSurplusBytes,
+                'dataDescriptorTruncatedBytes' => $dataDescriptorTruncatedBytes,
+                'dataDescriptorCrc32' => $dataDescriptorCrc32,
+                'dataDescriptorCrc32Hex' => $dataDescriptorCrc32Hex,
+                'dataDescriptorUsesZip64SizedFields' => $dataDescriptorUsesZip64SizedFields,
+                'dataDescriptorValuesMatchCentral' => $dataDescriptorValuesMatchCentral,
+                'dataDescriptorIssues' => $dataDescriptorIssues,
                 'recordEnd' => $recordEnd,
                 'nextOffset' => $nextOffset,
                 'isContiguousWithNext' => $recordEnd === $nextOffset,
@@ -714,6 +777,16 @@ final class ZipPackage
             'localHeaderExtraFieldBytes' => $localExtraFieldBytes,
             'hasLocalHeaderVariableFields' => $localVariableFieldBytes > 0,
             'hasLocalExtraFields' => $localExtraFieldEntryCount > 0,
+            'localDataDescriptorEntryCount' => $localDataDescriptorEntryCount,
+            'localSignedDataDescriptorEntryCount' => $localSignedDataDescriptorEntryCount,
+            'localUnsignedDataDescriptorEntryCount' => $localUnsignedDataDescriptorEntryCount,
+            'localDataDescriptorBytes' => $localDataDescriptorBytes,
+            'localZeroHeaderPlaceholderEntryCount' => $localZeroHeaderPlaceholderEntryCount,
+            'localDataDescriptorIssueEntryCount' => count($localDataDescriptorIssueEntries),
+            'hasLocalDataDescriptors' => $localDataDescriptorEntryCount > 0,
+            'hasLocalDataDescriptorIssues' => $localDataDescriptorIssueEntries !== [],
+            'localDataDescriptorIssues' => $localDataDescriptorIssues,
+            'localDataDescriptorIssueEntries' => $localDataDescriptorIssueEntries,
             'entries' => $entries,
         ];
     }
