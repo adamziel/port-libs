@@ -3951,7 +3951,9 @@ final class DocxOpenXmlReader
             'duplicateRelationshipIdItems' => [],
             'invalidRelationshipRecordCount' => 0,
             'relationshipRecordIssueCount' => 0,
+            'relationshipRecordIssueCounts' => [],
             'relationshipRecordIssueCodes' => [],
+            'relationshipRecordIssueBuckets' => [],
             'invalidRelationshipRecords' => [],
             'relationships' => [],
             'relationshipRecords' => [],
@@ -4019,7 +4021,9 @@ final class DocxOpenXmlReader
             $item['duplicateRelationshipIdItems'] = $partRelationshipProvenance['duplicateRelationshipIdItems'];
             $item['invalidRelationshipRecordCount'] = (int) $partRelationshipProvenance['invalidRelationshipRecordCount'];
             $item['relationshipRecordIssueCount'] = (int) $partRelationshipProvenance['relationshipRecordIssueCount'];
+            $item['relationshipRecordIssueCounts'] = $partRelationshipProvenance['relationshipRecordIssueCounts'];
             $item['relationshipRecordIssueCodes'] = $partRelationshipProvenance['relationshipRecordIssueCodes'];
+            $item['relationshipRecordIssueBuckets'] = $partRelationshipProvenance['relationshipRecordIssueBuckets'];
             $item['invalidRelationshipRecords'] = $partRelationshipProvenance['invalidRelationshipRecords'];
             $item['relationships'] = $partRelationshipProvenance['relationships'];
             $item['relationshipRecords'] = $partRelationshipProvenance['relationshipRecords'];
@@ -11938,8 +11942,14 @@ final class DocxOpenXmlReader
                 : [],
             'invalidRelationshipRecordCount' => (int) ($relationshipPart['invalidRelationshipRecordCount'] ?? 0),
             'relationshipRecordIssueCount' => (int) ($relationshipPart['relationshipRecordIssueCount'] ?? 0),
+            'relationshipRecordIssueCounts' => is_array($relationshipPart['relationshipRecordIssueCounts'] ?? null)
+                ? $relationshipPart['relationshipRecordIssueCounts']
+                : [],
             'relationshipRecordIssueCodes' => is_array($relationshipPart['relationshipRecordIssueCodes'] ?? null)
                 ? $relationshipPart['relationshipRecordIssueCodes']
+                : [],
+            'relationshipRecordIssueBuckets' => is_array($relationshipPart['relationshipRecordIssueBuckets'] ?? null)
+                ? $relationshipPart['relationshipRecordIssueBuckets']
                 : [],
             'invalidRelationshipRecords' => is_array($relationshipPart['invalidRelationshipRecords'] ?? null)
                 ? $relationshipPart['invalidRelationshipRecords']
@@ -12315,7 +12325,9 @@ final class DocxOpenXmlReader
             'duplicateRelationshipIdItems' => $relationshipDiagnostics['duplicateRelationshipIdItems'],
             'invalidRelationshipRecordCount' => $relationshipDiagnostics['invalidRelationshipRecordCount'],
             'relationshipRecordIssueCount' => $relationshipDiagnostics['relationshipRecordIssueCount'],
+            'relationshipRecordIssueCounts' => $relationshipDiagnostics['relationshipRecordIssueCounts'],
             'relationshipRecordIssueCodes' => $relationshipDiagnostics['relationshipRecordIssueCodes'],
+            'relationshipRecordIssueBuckets' => $relationshipDiagnostics['relationshipRecordIssueBuckets'],
             'invalidRelationshipRecords' => $relationshipDiagnostics['invalidRelationshipRecords'],
             'internalRelationshipCount' => $relationshipDiagnostics['internalRelationshipCount'],
             'externalRelationshipCount' => $relationshipDiagnostics['externalRelationshipCount'],
@@ -16574,6 +16586,7 @@ final class DocxOpenXmlReader
         $relationshipsWithExplicitInternalTargetMode = [];
         $relationshipsWithUnexpectedTargetMode = [];
         $relationshipRecordIssueCodes = [];
+        $relationshipRecordIssueBuckets = [];
         $relationshipPartIssueCodes = [];
         $targetParts = [];
         $partsWithoutContentType = [];
@@ -18457,11 +18470,19 @@ final class DocxOpenXmlReader
                     continue;
                 }
 
-                $invalidRelationshipRecords[] = $this->relationshipProvenanceSummaryItem($record) + [
+                $invalidRelationshipRecord = $this->relationshipProvenanceSummaryItem($record) + [
                     'ordinal' => $record['ordinal'] ?? null,
                     'valid' => (bool) ($record['valid'] ?? false),
                     'issues' => $record['issues'] ?? [],
                 ];
+                $invalidRelationshipRecords[] = $invalidRelationshipRecord;
+                foreach ($invalidRelationshipRecord['issues'] as $issue) {
+                    if (!is_string($issue) || $issue === '') {
+                        continue;
+                    }
+
+                    $relationshipRecordIssueBuckets[$issue][] = $invalidRelationshipRecord;
+                }
             }
         }
 
@@ -18504,6 +18525,7 @@ final class DocxOpenXmlReader
         unset($targetQueryParameter);
         ksort($relationshipRecordTargetModeCounts);
         ksort($relationshipRecordIssueCodes);
+        ksort($relationshipRecordIssueBuckets);
         ksort($relationshipPartIssueCodes);
         ksort($relationshipSourceKindCounts);
         ksort($relationshipSourceDirectoryCounts);
@@ -19911,7 +19933,9 @@ final class DocxOpenXmlReader
             'duplicateRelationshipIds' => $duplicateRelationshipIds,
             'invalidRelationshipRecordCount' => $invalidRelationshipRecordCount,
             'relationshipRecordIssueCount' => $relationshipRecordIssueCount,
+            'relationshipRecordIssueCounts' => $this->issueBucketCounts($relationshipRecordIssueBuckets),
             'relationshipRecordIssueCodes' => array_keys($relationshipRecordIssueCodes),
+            'relationshipRecordIssueBuckets' => $relationshipRecordIssueBuckets,
             'relationshipPartInvalidXmlCount' => $relationshipPartInvalidXmlCount,
             'relationshipPartUnexpectedRootCount' => $relationshipPartUnexpectedRootCount,
             'relationshipPartIssueCount' => $relationshipPartIssueCount,
@@ -43587,17 +43611,9 @@ final class DocxOpenXmlReader
         $duplicateItems = $this->duplicateRelationshipIdItems($relationshipRecords);
         $duplicateRecordCount = count(array_filter($relationshipRecords, static fn (array $record): bool => ($record['duplicateId'] ?? false) === true));
         $invalidRecords = array_values(array_filter($relationshipRecords, static fn (array $record): bool => ($record['valid'] ?? true) !== true));
-        $recordIssueCodes = [];
-        $recordIssueCount = 0;
-        foreach ($invalidRecords as $record) {
-            foreach (($record['issues'] ?? []) as $issue) {
-                if (is_string($issue) && $issue !== '') {
-                    $recordIssueCodes[$issue] = true;
-                    ++$recordIssueCount;
-                }
-            }
-        }
-        ksort($recordIssueCodes);
+        $recordIssueBuckets = $this->relationshipRecordIssueBuckets($invalidRecords);
+        $recordIssueCounts = $this->issueBucketCounts($recordIssueBuckets);
+        $recordIssueCount = array_sum($recordIssueCounts);
 
         return [
             'partName' => $relationshipsPart,
@@ -43621,7 +43637,9 @@ final class DocxOpenXmlReader
             'duplicateRelationshipIdItems' => $duplicateItems,
             'invalidRelationshipRecordCount' => count($invalidRecords),
             'relationshipRecordIssueCount' => $recordIssueCount,
-            'relationshipRecordIssueCodes' => array_keys($recordIssueCodes),
+            'relationshipRecordIssueCounts' => $recordIssueCounts,
+            'relationshipRecordIssueCodes' => array_keys($recordIssueCounts),
+            'relationshipRecordIssueBuckets' => $recordIssueBuckets,
             'invalidRelationshipRecords' => $invalidRecords,
             'relationships' => $relationshipSummaries,
             'relationshipRecords' => $relationshipRecords,
@@ -43745,6 +43763,40 @@ final class DocxOpenXmlReader
         }
 
         return $issues;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $relationshipRecords
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private function relationshipRecordIssueBuckets(array $relationshipRecords): array
+    {
+        $buckets = [];
+        foreach ($relationshipRecords as $record) {
+            $issues = is_array($record['issues'] ?? null)
+                ? array_values(array_map('strval', $record['issues']))
+                : [];
+            if ($issues === []) {
+                continue;
+            }
+
+            $item = $this->relationshipProvenanceSummaryItem($record) + [
+                'ordinal' => $record['ordinal'] ?? null,
+                'valid' => (bool) ($record['valid'] ?? false),
+                'issues' => $issues,
+            ];
+            foreach ($issues as $issue) {
+                if ($issue === '') {
+                    continue;
+                }
+
+                $buckets[$issue][] = $item;
+            }
+        }
+
+        ksort($buckets, SORT_STRING);
+
+        return $buckets;
     }
 
     /**
@@ -49685,7 +49737,9 @@ final class DocxOpenXmlReader
             'duplicateRelationshipIdItems' => $relationshipDiagnostics['duplicateRelationshipIdItems'],
             'invalidRelationshipRecordCount' => $relationshipDiagnostics['invalidRelationshipRecordCount'],
             'relationshipRecordIssueCount' => $relationshipDiagnostics['relationshipRecordIssueCount'],
+            'relationshipRecordIssueCounts' => $relationshipDiagnostics['relationshipRecordIssueCounts'],
             'relationshipRecordIssueCodes' => $relationshipDiagnostics['relationshipRecordIssueCodes'],
+            'relationshipRecordIssueBuckets' => $relationshipDiagnostics['relationshipRecordIssueBuckets'],
             'invalidRelationshipRecords' => $relationshipDiagnostics['invalidRelationshipRecords'],
             'internalRelationshipCount' => $relationshipDiagnostics['internalRelationshipCount'],
             'externalRelationshipCount' => $relationshipDiagnostics['externalRelationshipCount'],
