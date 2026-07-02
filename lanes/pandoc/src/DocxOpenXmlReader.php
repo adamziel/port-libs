@@ -16249,6 +16249,63 @@ final class DocxOpenXmlReader
         }
         ksort($partZipSourceRecordPackagePartRawExtensionCounts, SORT_STRING);
         ksort($partZipSourceRecordPackagePartRawExtensionBytes, SORT_STRING);
+        $partZipSourceRecordPackagePartTopLevelSegments =
+            $this->packagePartZipSourceRecordPackagePartTopLevelSegmentSummary($partInventory);
+        $partZipSourceRecordPackagePartTopLevelSegmentCounts = [];
+        $partZipSourceRecordPackagePartTopLevelSegmentBytes = [];
+        $partZipSourceRecordPackagePartTopLevelSegmentDataDescriptorPartCount = 0;
+        $partZipSourceRecordPackagePartTopLevelSegmentIssuePartCount = 0;
+        $partZipSourceRecordDuplicatePackagePartTopLevelSegmentCount = 0;
+        $partZipSourceRecordDuplicatePackagePartTopLevelSegmentPartCount = 0;
+        $partZipSourceRecordDuplicatePackagePartTopLevelSegments = [];
+        foreach ($partZipSourceRecordPackagePartTopLevelSegments as $sourceRecordTopLevelSegment) {
+            $topLevelSegment = (string) ($sourceRecordTopLevelSegment['topLevelSegment'] ?? '');
+            $partCount = (int) ($sourceRecordTopLevelSegment['partCount'] ?? 0);
+            $partZipSourceRecordPackagePartTopLevelSegmentCounts[$topLevelSegment] = $partCount;
+            $partZipSourceRecordPackagePartTopLevelSegmentBytes[$topLevelSegment] =
+                (int) ($sourceRecordTopLevelSegment['sourceRecordBytes'] ?? 0);
+            $partZipSourceRecordPackagePartTopLevelSegmentDataDescriptorPartCount +=
+                (int) ($sourceRecordTopLevelSegment['dataDescriptorPartCount'] ?? 0);
+            $partZipSourceRecordPackagePartTopLevelSegmentIssuePartCount +=
+                (int) ($sourceRecordTopLevelSegment['sourceByteSpanIssuePartCount'] ?? 0);
+            if ($partCount > 1) {
+                ++$partZipSourceRecordDuplicatePackagePartTopLevelSegmentCount;
+                $partZipSourceRecordDuplicatePackagePartTopLevelSegmentPartCount += $partCount;
+                $partZipSourceRecordDuplicatePackagePartTopLevelSegments[] = $topLevelSegment;
+            }
+        }
+        ksort($partZipSourceRecordPackagePartTopLevelSegmentCounts, SORT_STRING);
+        ksort($partZipSourceRecordPackagePartTopLevelSegmentBytes, SORT_STRING);
+        $partZipSourceRecordPackagePartCaseFoldTopLevelSegments =
+            $this->packagePartZipSourceRecordPackagePartCaseFoldTopLevelSegmentSummary(
+                $partZipSourceRecordPackagePartTopLevelSegments
+            );
+        $partZipSourceRecordPackagePartCaseFoldTopLevelSegmentCounts = [];
+        $partZipSourceRecordPackagePartCaseFoldTopLevelSegmentBytes = [];
+        $partZipSourceRecordPackagePartCaseFoldTopLevelSegmentDataDescriptorPartCount = 0;
+        $partZipSourceRecordPackagePartCaseFoldTopLevelSegmentIssuePartCount = 0;
+        $partZipSourceRecordDuplicatePackagePartCaseFoldTopLevelSegmentCount = 0;
+        $partZipSourceRecordDuplicatePackagePartCaseFoldTopLevelSegmentPartCount = 0;
+        $partZipSourceRecordDuplicatePackagePartCaseFoldTopLevelSegments = [];
+        foreach ($partZipSourceRecordPackagePartCaseFoldTopLevelSegments as $sourceRecordCaseFoldTopLevelSegment) {
+            $caseFoldTopLevelSegment =
+                (string) ($sourceRecordCaseFoldTopLevelSegment['caseFoldTopLevelSegment'] ?? '');
+            $partCount = (int) ($sourceRecordCaseFoldTopLevelSegment['partCount'] ?? 0);
+            $partZipSourceRecordPackagePartCaseFoldTopLevelSegmentCounts[$caseFoldTopLevelSegment] = $partCount;
+            $partZipSourceRecordPackagePartCaseFoldTopLevelSegmentBytes[$caseFoldTopLevelSegment] =
+                (int) ($sourceRecordCaseFoldTopLevelSegment['sourceRecordBytes'] ?? 0);
+            $partZipSourceRecordPackagePartCaseFoldTopLevelSegmentDataDescriptorPartCount +=
+                (int) ($sourceRecordCaseFoldTopLevelSegment['dataDescriptorPartCount'] ?? 0);
+            $partZipSourceRecordPackagePartCaseFoldTopLevelSegmentIssuePartCount +=
+                (int) ($sourceRecordCaseFoldTopLevelSegment['sourceByteSpanIssuePartCount'] ?? 0);
+            if ((int) ($sourceRecordCaseFoldTopLevelSegment['topLevelSegmentVariantCount'] ?? 0) > 1) {
+                ++$partZipSourceRecordDuplicatePackagePartCaseFoldTopLevelSegmentCount;
+                $partZipSourceRecordDuplicatePackagePartCaseFoldTopLevelSegmentPartCount += $partCount;
+                $partZipSourceRecordDuplicatePackagePartCaseFoldTopLevelSegments[] = $caseFoldTopLevelSegment;
+            }
+        }
+        ksort($partZipSourceRecordPackagePartCaseFoldTopLevelSegmentCounts, SORT_STRING);
+        ksort($partZipSourceRecordPackagePartCaseFoldTopLevelSegmentBytes, SORT_STRING);
         $partZipSourceRecordPackagePartBaseNameStems =
             $this->packagePartZipSourceRecordPackagePartBaseNameStemSummary($partInventory);
         $partZipSourceRecordPackagePartBaseNameStemCounts = [];
@@ -19849,6 +19906,40 @@ final class DocxOpenXmlReader
                 $partZipSourceRecordPackagePartRawExtensionDataDescriptorPartCount,
             'partZipSourceRecordPackagePartRawExtensionIssuePartCount' =>
                 $partZipSourceRecordPackagePartRawExtensionIssuePartCount,
+            'partZipSourceRecordPackagePartTopLevelSegmentCount' => count(
+                $partZipSourceRecordPackagePartTopLevelSegments
+            ),
+            'partZipSourceRecordPackagePartTopLevelSegmentCounts' =>
+                $partZipSourceRecordPackagePartTopLevelSegmentCounts,
+            'partZipSourceRecordPackagePartTopLevelSegmentBytes' =>
+                $partZipSourceRecordPackagePartTopLevelSegmentBytes,
+            'partZipSourceRecordPackagePartTopLevelSegmentDataDescriptorPartCount' =>
+                $partZipSourceRecordPackagePartTopLevelSegmentDataDescriptorPartCount,
+            'partZipSourceRecordPackagePartTopLevelSegmentIssuePartCount' =>
+                $partZipSourceRecordPackagePartTopLevelSegmentIssuePartCount,
+            'partZipSourceRecordDuplicatePackagePartTopLevelSegmentCount' =>
+                $partZipSourceRecordDuplicatePackagePartTopLevelSegmentCount,
+            'partZipSourceRecordDuplicatePackagePartTopLevelSegmentPartCount' =>
+                $partZipSourceRecordDuplicatePackagePartTopLevelSegmentPartCount,
+            'partZipSourceRecordDuplicatePackagePartTopLevelSegments' =>
+                $partZipSourceRecordDuplicatePackagePartTopLevelSegments,
+            'partZipSourceRecordPackagePartCaseFoldTopLevelSegmentCount' => count(
+                $partZipSourceRecordPackagePartCaseFoldTopLevelSegments
+            ),
+            'partZipSourceRecordPackagePartCaseFoldTopLevelSegmentCounts' =>
+                $partZipSourceRecordPackagePartCaseFoldTopLevelSegmentCounts,
+            'partZipSourceRecordPackagePartCaseFoldTopLevelSegmentBytes' =>
+                $partZipSourceRecordPackagePartCaseFoldTopLevelSegmentBytes,
+            'partZipSourceRecordPackagePartCaseFoldTopLevelSegmentDataDescriptorPartCount' =>
+                $partZipSourceRecordPackagePartCaseFoldTopLevelSegmentDataDescriptorPartCount,
+            'partZipSourceRecordPackagePartCaseFoldTopLevelSegmentIssuePartCount' =>
+                $partZipSourceRecordPackagePartCaseFoldTopLevelSegmentIssuePartCount,
+            'partZipSourceRecordDuplicatePackagePartCaseFoldTopLevelSegmentCount' =>
+                $partZipSourceRecordDuplicatePackagePartCaseFoldTopLevelSegmentCount,
+            'partZipSourceRecordDuplicatePackagePartCaseFoldTopLevelSegmentPartCount' =>
+                $partZipSourceRecordDuplicatePackagePartCaseFoldTopLevelSegmentPartCount,
+            'partZipSourceRecordDuplicatePackagePartCaseFoldTopLevelSegments' =>
+                $partZipSourceRecordDuplicatePackagePartCaseFoldTopLevelSegments,
             'partZipSourceRecordPackagePartBaseNameStemCount' => count($partZipSourceRecordPackagePartBaseNameStems),
             'partZipSourceRecordPackagePartBaseNameStemCounts' => $partZipSourceRecordPackagePartBaseNameStemCounts,
             'partZipSourceRecordPackagePartBaseNameStemBytes' => $partZipSourceRecordPackagePartBaseNameStemBytes,
@@ -20565,6 +20656,9 @@ final class DocxOpenXmlReader
             'partZipSourceRecordContentTypeSources' => $partZipSourceRecordContentTypeSources,
             'partZipSourceRecordPackagePartExtensions' => $partZipSourceRecordPackagePartExtensions,
             'partZipSourceRecordPackagePartRawExtensions' => $partZipSourceRecordPackagePartRawExtensions,
+            'partZipSourceRecordPackagePartTopLevelSegments' => $partZipSourceRecordPackagePartTopLevelSegments,
+            'partZipSourceRecordPackagePartCaseFoldTopLevelSegments' =>
+                $partZipSourceRecordPackagePartCaseFoldTopLevelSegments,
             'partZipSourceRecordPackagePartBaseNameStems' => $partZipSourceRecordPackagePartBaseNameStems,
             'partZipSourceRecordPackagePartCaseFoldBaseNameStems' => $partZipSourceRecordPackagePartCaseFoldBaseNameStems,
             'partZipSourceRecordPackagePartDirectoryBaseNameStems' => $partZipSourceRecordPackagePartDirectoryBaseNameStems,
@@ -23267,6 +23361,357 @@ final class DocxOpenXmlReader
         }
 
         return array_values($extensions);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return list<array<string, mixed>>
+     */
+    private function packagePartZipSourceRecordPackagePartTopLevelSegmentSummary(array $partInventory): array
+    {
+        $intField = static function (array $part, string $field): int {
+            $value = $part[$field] ?? null;
+
+            return is_int($value) ? $value : 0;
+        };
+        $byteFields = [
+            'sourceRecordBytes',
+            'localRecordBytes',
+            'localHeaderBytes',
+            'localHeaderFixedHeaderBytes',
+            'localHeaderVariableFieldBytes',
+            'localHeaderRawNameBytes',
+            'localHeaderExtraFieldBytes',
+            'localHeaderReviewFieldBytes',
+            'compressedDataBytes',
+            'dataDescriptorBytes',
+            'centralDirectoryRecordBytes',
+            'centralDirectoryFixedHeaderBytes',
+            'centralDirectoryVariableFieldBytes',
+            'centralDirectoryRawNameBytes',
+            'centralDirectoryExtraFieldBytes',
+            'centralDirectoryRawCommentBytes',
+            'centralDirectoryReviewFieldBytes',
+        ];
+        $aggregateFields = array_merge($byteFields, [
+            'dataDescriptorPartCount',
+            'sourceByteSpanIssuePartCount',
+            'sourceByteSpanIssueCount',
+        ]);
+
+        $segments = [];
+        foreach ($partInventory as $partName => $part) {
+            if (($part['zipEntryPresent'] ?? false) !== true) {
+                continue;
+            }
+
+            $partName = (string) ($part['partName'] ?? $partName);
+            $topLevelSegment = is_string($part['topLevelSegment'] ?? null)
+                ? $part['topLevelSegment']
+                : $this->packagePartTopLevelSegment($partName);
+            if (!isset($segments[$topLevelSegment])) {
+                $segments[$topLevelSegment] = [
+                    'topLevelSegment' => $topLevelSegment,
+                    'partCount' => 0,
+                    'pathDepthVariantCount' => 0,
+                    'directoryCount' => 0,
+                    'extensionVariantCount' => 0,
+                    'baseNameVariantCount' => 0,
+                    'directoryRootCounts' => [],
+                    'pathDepthCounts' => [],
+                    'directoryCounts' => [],
+                    'partExtensionCounts' => [],
+                    'baseNameCounts' => [],
+                    'contentTypeSourceCounts' => [],
+                    'contentTypeBaseCounts' => [],
+                    'compressionMethodCounts' => [],
+                    'roleCounts' => [],
+                    'directories' => [],
+                    'partNames' => [],
+                    'largestSourceRecordPart' => null,
+                ] + array_fill_keys($aggregateFields, 0);
+            }
+
+            $directoryRoot = is_string($part['zipDirectoryRoot'] ?? null)
+                ? $part['zipDirectoryRoot']
+                : $topLevelSegment;
+            if ($directoryRoot === '') {
+                $directoryRoot = '/';
+            }
+            $pathSegmentCount = is_int($part['pathSegmentCount'] ?? null)
+                ? (int) $part['pathSegmentCount']
+                : count($this->packagePartPathSegments($partName));
+            $directory = is_string($part['directory'] ?? null)
+                ? $part['directory']
+                : $this->packagePartDirectory($partName);
+            $baseName = is_string($part['baseName'] ?? null)
+                ? $part['baseName']
+                : $this->packagePartBaseName($partName);
+            $partExtension = is_string($part['partExtension'] ?? null) ? $part['partExtension'] : null;
+            $partExtensionKey = $partExtension ?? '(none)';
+            $sourceByteSpanIssues = is_array($part['sourceByteSpanIssues'] ?? null)
+                ? array_values(array_filter($part['sourceByteSpanIssues'], static fn (mixed $issue): bool => is_string($issue)))
+                : [];
+            $sourceRecordMetrics = [];
+            foreach ($byteFields as $field) {
+                $sourceRecordMetrics[$field] = $intField($part, $field);
+            }
+            $sourceRecordMetrics['sourceByteSpanIssueCount'] = count($sourceByteSpanIssues);
+            $contentTypeSource = is_string($part['contentTypeSource'] ?? null) ? $part['contentTypeSource'] : 'missing';
+            if ($contentTypeSource === '') {
+                $contentTypeSource = 'missing';
+            }
+            $contentTypeBase = is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '';
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            $compressionMethod = is_int($part['compressionMethod'] ?? null) ? (string) $part['compressionMethod'] : '(missing)';
+            $partRoles = array_values(array_unique(array_filter(
+                array_map('strval', $part['roles'] ?? []),
+                static fn (string $role): bool => $role !== '',
+            )));
+            if ($partRoles === []) {
+                $partRoles = ['package-part'];
+            }
+
+            ++$segments[$topLevelSegment]['partCount'];
+            $segments[$topLevelSegment]['partNames'][] = $partName;
+            $segments[$topLevelSegment]['directories'][$directory] = true;
+            $segments[$topLevelSegment]['directoryRootCounts'][$directoryRoot] =
+                ($segments[$topLevelSegment]['directoryRootCounts'][$directoryRoot] ?? 0) + 1;
+            $segments[$topLevelSegment]['pathDepthCounts'][$pathSegmentCount] =
+                ($segments[$topLevelSegment]['pathDepthCounts'][$pathSegmentCount] ?? 0) + 1;
+            $segments[$topLevelSegment]['directoryCounts'][$directory] =
+                ($segments[$topLevelSegment]['directoryCounts'][$directory] ?? 0) + 1;
+            $segments[$topLevelSegment]['partExtensionCounts'][$partExtensionKey] =
+                ($segments[$topLevelSegment]['partExtensionCounts'][$partExtensionKey] ?? 0) + 1;
+            $segments[$topLevelSegment]['baseNameCounts'][$baseName] =
+                ($segments[$topLevelSegment]['baseNameCounts'][$baseName] ?? 0) + 1;
+            $segments[$topLevelSegment]['contentTypeSourceCounts'][$contentTypeSource] =
+                ($segments[$topLevelSegment]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+            $segments[$topLevelSegment]['contentTypeBaseCounts'][$contentTypeBaseKey] =
+                ($segments[$topLevelSegment]['contentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
+            $segments[$topLevelSegment]['compressionMethodCounts'][$compressionMethod] =
+                ($segments[$topLevelSegment]['compressionMethodCounts'][$compressionMethod] ?? 0) + 1;
+            foreach ($byteFields as $field) {
+                $segments[$topLevelSegment][$field] += $sourceRecordMetrics[$field];
+            }
+            $segments[$topLevelSegment]['sourceByteSpanIssueCount'] +=
+                $sourceRecordMetrics['sourceByteSpanIssueCount'];
+            if ($sourceRecordMetrics['dataDescriptorBytes'] > 0 || ($part['usesDataDescriptor'] ?? false) === true) {
+                ++$segments[$topLevelSegment]['dataDescriptorPartCount'];
+            }
+            if ($sourceRecordMetrics['sourceByteSpanIssueCount'] > 0) {
+                ++$segments[$topLevelSegment]['sourceByteSpanIssuePartCount'];
+            }
+
+            foreach ($partRoles as $role) {
+                $segments[$topLevelSegment]['roleCounts'][$role] =
+                    ($segments[$topLevelSegment]['roleCounts'][$role] ?? 0) + 1;
+            }
+
+            $partSummary = [
+                'partName' => $partName,
+                'topLevelSegment' => $topLevelSegment,
+                'directoryRoot' => $directoryRoot,
+                'pathSegmentCount' => $pathSegmentCount,
+                'directory' => $directory,
+                'baseName' => $baseName,
+                'partExtension' => $partExtension,
+                'bytes' => (int) ($part['bytes'] ?? 0),
+                'compressedByteLength' => $intField($part, 'compressedByteLength'),
+                'compressionMethod' => is_int($part['compressionMethod'] ?? null) ? (int) $part['compressionMethod'] : null,
+                'compressionMethodName' => is_string($part['compressionMethodName'] ?? null) ? $part['compressionMethodName'] : null,
+                'sourceByteSpanIssues' => $sourceByteSpanIssues,
+                'contentType' => is_string($part['contentType'] ?? null) ? $part['contentType'] : '',
+                'contentTypeBase' => $contentTypeBase,
+                'contentTypeSource' => $contentTypeSource,
+                'roles' => $partRoles,
+            ] + $sourceRecordMetrics;
+            $largestPart = $segments[$topLevelSegment]['largestSourceRecordPart'];
+            if (
+                !is_array($largestPart)
+                || $partSummary['sourceRecordBytes'] > (int) ($largestPart['sourceRecordBytes'] ?? 0)
+                || (
+                    $partSummary['sourceRecordBytes'] === (int) ($largestPart['sourceRecordBytes'] ?? 0)
+                    && strcmp($partSummary['partName'], (string) ($largestPart['partName'] ?? '')) < 0
+                )
+            ) {
+                $segments[$topLevelSegment]['largestSourceRecordPart'] = $partSummary;
+            }
+        }
+
+        ksort($segments, SORT_STRING);
+        foreach ($segments as $topLevelSegment => $summary) {
+            $directories = array_keys($summary['directories']);
+            sort($directories, SORT_STRING);
+            sort($summary['partNames'], SORT_STRING);
+            ksort($summary['directoryRootCounts'], SORT_STRING);
+            ksort($summary['pathDepthCounts'], SORT_NUMERIC);
+            ksort($summary['directoryCounts'], SORT_STRING);
+            ksort($summary['partExtensionCounts'], SORT_STRING);
+            ksort($summary['baseNameCounts'], SORT_STRING);
+            ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['contentTypeBaseCounts'], SORT_STRING);
+            ksort($summary['compressionMethodCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            $summary['directories'] = $directories;
+            $summary['pathDepthVariantCount'] = count($summary['pathDepthCounts']);
+            $summary['directoryCount'] = count($directories);
+            $summary['extensionVariantCount'] = count($summary['partExtensionCounts']);
+            $summary['baseNameVariantCount'] = count($summary['baseNameCounts']);
+            $segments[$topLevelSegment] = $summary;
+        }
+
+        return array_values($segments);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $topLevelSegmentSummaries
+     * @return list<array<string, mixed>>
+     */
+    private function packagePartZipSourceRecordPackagePartCaseFoldTopLevelSegmentSummary(
+        array $topLevelSegmentSummaries
+    ): array {
+        $aggregateFields = [
+            'sourceRecordBytes',
+            'localRecordBytes',
+            'localHeaderBytes',
+            'localHeaderFixedHeaderBytes',
+            'localHeaderVariableFieldBytes',
+            'localHeaderRawNameBytes',
+            'localHeaderExtraFieldBytes',
+            'localHeaderReviewFieldBytes',
+            'compressedDataBytes',
+            'dataDescriptorBytes',
+            'dataDescriptorPartCount',
+            'centralDirectoryRecordBytes',
+            'centralDirectoryFixedHeaderBytes',
+            'centralDirectoryVariableFieldBytes',
+            'centralDirectoryRawNameBytes',
+            'centralDirectoryExtraFieldBytes',
+            'centralDirectoryRawCommentBytes',
+            'centralDirectoryReviewFieldBytes',
+            'sourceByteSpanIssuePartCount',
+            'sourceByteSpanIssueCount',
+        ];
+        $mapFields = [
+            'topLevelSegmentCounts',
+            'directoryRootCounts',
+            'pathDepthCounts',
+            'directoryCounts',
+            'partExtensionCounts',
+            'baseNameCounts',
+            'contentTypeSourceCounts',
+            'contentTypeBaseCounts',
+            'compressionMethodCounts',
+            'roleCounts',
+        ];
+
+        $caseFoldSegments = [];
+        foreach ($topLevelSegmentSummaries as $topLevelSegmentSummary) {
+            $topLevelSegment = is_string($topLevelSegmentSummary['topLevelSegment'] ?? null)
+                ? $topLevelSegmentSummary['topLevelSegment']
+                : '';
+            $caseFoldTopLevelSegment = $this->packagePartCaseFoldKey($topLevelSegment);
+            if (!isset($caseFoldSegments[$caseFoldTopLevelSegment])) {
+                $caseFoldSegments[$caseFoldTopLevelSegment] = [
+                    'caseFoldTopLevelSegment' => $caseFoldTopLevelSegment,
+                    'partCount' => 0,
+                    'topLevelSegmentVariantCount' => 0,
+                    'pathDepthVariantCount' => 0,
+                    'directoryCount' => 0,
+                    'extensionVariantCount' => 0,
+                    'baseNameVariantCount' => 0,
+                    'topLevelSegmentCounts' => [],
+                    'directoryRootCounts' => [],
+                    'pathDepthCounts' => [],
+                    'directoryCounts' => [],
+                    'partExtensionCounts' => [],
+                    'baseNameCounts' => [],
+                    'contentTypeSourceCounts' => [],
+                    'contentTypeBaseCounts' => [],
+                    'compressionMethodCounts' => [],
+                    'roleCounts' => [],
+                    'directories' => [],
+                    'partNames' => [],
+                    'largestSourceRecordPart' => null,
+                ] + array_fill_keys($aggregateFields, 0);
+            }
+
+            $partCount = (int) ($topLevelSegmentSummary['partCount'] ?? 0);
+            $caseFoldSegments[$caseFoldTopLevelSegment]['partCount'] += $partCount;
+            $caseFoldSegments[$caseFoldTopLevelSegment]['topLevelSegmentCounts'][$topLevelSegment] =
+                ($caseFoldSegments[$caseFoldTopLevelSegment]['topLevelSegmentCounts'][$topLevelSegment] ?? 0)
+                + $partCount;
+            foreach ($aggregateFields as $field) {
+                $caseFoldSegments[$caseFoldTopLevelSegment][$field] +=
+                    (int) ($topLevelSegmentSummary[$field] ?? 0);
+            }
+            foreach ($mapFields as $field) {
+                if ($field === 'topLevelSegmentCounts') {
+                    continue;
+                }
+                $sourceMap = is_array($topLevelSegmentSummary[$field] ?? null)
+                    ? $topLevelSegmentSummary[$field]
+                    : [];
+                foreach ($sourceMap as $key => $count) {
+                    $caseFoldSegments[$caseFoldTopLevelSegment][$field][(string) $key] =
+                        ($caseFoldSegments[$caseFoldTopLevelSegment][$field][(string) $key] ?? 0)
+                        + (int) $count;
+                }
+            }
+            foreach (($topLevelSegmentSummary['directories'] ?? []) as $directory) {
+                if (is_string($directory) && $directory !== '') {
+                    $caseFoldSegments[$caseFoldTopLevelSegment]['directories'][] = $directory;
+                }
+            }
+            foreach (($topLevelSegmentSummary['partNames'] ?? []) as $partName) {
+                if (is_string($partName) && $partName !== '') {
+                    $caseFoldSegments[$caseFoldTopLevelSegment]['partNames'][] = $partName;
+                }
+            }
+
+            $partSummary = $topLevelSegmentSummary['largestSourceRecordPart'] ?? null;
+            if (is_array($partSummary)) {
+                $partSummary['caseFoldTopLevelSegment'] = $caseFoldTopLevelSegment;
+                $largestPart = $caseFoldSegments[$caseFoldTopLevelSegment]['largestSourceRecordPart'];
+                if (
+                    !is_array($largestPart)
+                    || (int) ($partSummary['sourceRecordBytes'] ?? 0) > (int) ($largestPart['sourceRecordBytes'] ?? 0)
+                    || (
+                        (int) ($partSummary['sourceRecordBytes'] ?? 0) === (int) ($largestPart['sourceRecordBytes'] ?? 0)
+                        && strcmp((string) ($partSummary['partName'] ?? ''), (string) ($largestPart['partName'] ?? '')) < 0
+                    )
+                ) {
+                    $caseFoldSegments[$caseFoldTopLevelSegment]['largestSourceRecordPart'] = $partSummary;
+                }
+            }
+        }
+
+        ksort($caseFoldSegments, SORT_STRING);
+        foreach ($caseFoldSegments as $caseFoldTopLevelSegment => $summary) {
+            $summary['directories'] = array_values(array_unique(array_map('strval', $summary['directories'])));
+            $summary['partNames'] = array_values(array_unique(array_map('strval', $summary['partNames'])));
+            sort($summary['directories'], SORT_STRING);
+            sort($summary['partNames'], SORT_STRING);
+            ksort($summary['topLevelSegmentCounts'], SORT_STRING);
+            ksort($summary['directoryRootCounts'], SORT_STRING);
+            ksort($summary['pathDepthCounts'], SORT_NUMERIC);
+            ksort($summary['directoryCounts'], SORT_STRING);
+            ksort($summary['partExtensionCounts'], SORT_STRING);
+            ksort($summary['baseNameCounts'], SORT_STRING);
+            ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['contentTypeBaseCounts'], SORT_STRING);
+            ksort($summary['compressionMethodCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            $summary['topLevelSegmentVariantCount'] = count($summary['topLevelSegmentCounts']);
+            $summary['pathDepthVariantCount'] = count($summary['pathDepthCounts']);
+            $summary['directoryCount'] = count($summary['directories']);
+            $summary['extensionVariantCount'] = count($summary['partExtensionCounts']);
+            $summary['baseNameVariantCount'] = count($summary['baseNameCounts']);
+            $caseFoldSegments[$caseFoldTopLevelSegment] = $summary;
+        }
+
+        return array_values($caseFoldSegments);
     }
 
     /**
@@ -44823,6 +45268,68 @@ final class DocxOpenXmlReader
                 $summary['partZipSourceRecordPackagePartRawExtensions'] ?? null
             )
                 ? array_values($summary['partZipSourceRecordPackagePartRawExtensions'])
+                : [],
+            'partZipSourceRecordPackagePartTopLevelSegmentCount' => (int) (
+                $summary['partZipSourceRecordPackagePartTopLevelSegmentCount'] ?? 0
+            ),
+            'partZipSourceRecordPackagePartTopLevelSegmentCounts' => $this->packageIdentityCountMap(
+                $summary['partZipSourceRecordPackagePartTopLevelSegmentCounts'] ?? []
+            ),
+            'partZipSourceRecordPackagePartTopLevelSegmentBytes' => $this->packageIdentityCountMap(
+                $summary['partZipSourceRecordPackagePartTopLevelSegmentBytes'] ?? []
+            ),
+            'partZipSourceRecordPackagePartTopLevelSegmentDataDescriptorPartCount' => (int) (
+                $summary['partZipSourceRecordPackagePartTopLevelSegmentDataDescriptorPartCount'] ?? 0
+            ),
+            'partZipSourceRecordPackagePartTopLevelSegmentIssuePartCount' => (int) (
+                $summary['partZipSourceRecordPackagePartTopLevelSegmentIssuePartCount'] ?? 0
+            ),
+            'partZipSourceRecordDuplicatePackagePartTopLevelSegmentCount' => (int) (
+                $summary['partZipSourceRecordDuplicatePackagePartTopLevelSegmentCount'] ?? 0
+            ),
+            'partZipSourceRecordDuplicatePackagePartTopLevelSegmentPartCount' => (int) (
+                $summary['partZipSourceRecordDuplicatePackagePartTopLevelSegmentPartCount'] ?? 0
+            ),
+            'partZipSourceRecordDuplicatePackagePartTopLevelSegments' => is_array(
+                $summary['partZipSourceRecordDuplicatePackagePartTopLevelSegments'] ?? null
+            )
+                ? array_values($summary['partZipSourceRecordDuplicatePackagePartTopLevelSegments'])
+                : [],
+            'partZipSourceRecordPackagePartTopLevelSegments' => is_array(
+                $summary['partZipSourceRecordPackagePartTopLevelSegments'] ?? null
+            )
+                ? array_values($summary['partZipSourceRecordPackagePartTopLevelSegments'])
+                : [],
+            'partZipSourceRecordPackagePartCaseFoldTopLevelSegmentCount' => (int) (
+                $summary['partZipSourceRecordPackagePartCaseFoldTopLevelSegmentCount'] ?? 0
+            ),
+            'partZipSourceRecordPackagePartCaseFoldTopLevelSegmentCounts' => $this->packageIdentityCountMap(
+                $summary['partZipSourceRecordPackagePartCaseFoldTopLevelSegmentCounts'] ?? []
+            ),
+            'partZipSourceRecordPackagePartCaseFoldTopLevelSegmentBytes' => $this->packageIdentityCountMap(
+                $summary['partZipSourceRecordPackagePartCaseFoldTopLevelSegmentBytes'] ?? []
+            ),
+            'partZipSourceRecordPackagePartCaseFoldTopLevelSegmentDataDescriptorPartCount' => (int) (
+                $summary['partZipSourceRecordPackagePartCaseFoldTopLevelSegmentDataDescriptorPartCount'] ?? 0
+            ),
+            'partZipSourceRecordPackagePartCaseFoldTopLevelSegmentIssuePartCount' => (int) (
+                $summary['partZipSourceRecordPackagePartCaseFoldTopLevelSegmentIssuePartCount'] ?? 0
+            ),
+            'partZipSourceRecordDuplicatePackagePartCaseFoldTopLevelSegmentCount' => (int) (
+                $summary['partZipSourceRecordDuplicatePackagePartCaseFoldTopLevelSegmentCount'] ?? 0
+            ),
+            'partZipSourceRecordDuplicatePackagePartCaseFoldTopLevelSegmentPartCount' => (int) (
+                $summary['partZipSourceRecordDuplicatePackagePartCaseFoldTopLevelSegmentPartCount'] ?? 0
+            ),
+            'partZipSourceRecordDuplicatePackagePartCaseFoldTopLevelSegments' => is_array(
+                $summary['partZipSourceRecordDuplicatePackagePartCaseFoldTopLevelSegments'] ?? null
+            )
+                ? array_values($summary['partZipSourceRecordDuplicatePackagePartCaseFoldTopLevelSegments'])
+                : [],
+            'partZipSourceRecordPackagePartCaseFoldTopLevelSegments' => is_array(
+                $summary['partZipSourceRecordPackagePartCaseFoldTopLevelSegments'] ?? null
+            )
+                ? array_values($summary['partZipSourceRecordPackagePartCaseFoldTopLevelSegments'])
                 : [],
             'partZipSourceRecordPackagePartBaseNameStemCount' => (int) (
                 $summary['partZipSourceRecordPackagePartBaseNameStemCount'] ?? 0
