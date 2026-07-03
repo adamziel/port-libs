@@ -1,0 +1,140 @@
+name: Pandoc HTML and delimited text parity
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/pandoc-html-delimited.yml'
+      - 'lanes/pandoc/**'
+      - 'tools/**'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/pandoc-html-delimited.yml'
+      - 'lanes/pandoc/**'
+      - 'tools/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PANDOC_HTML_DELIMITED_UPSTREAM_PINNED_COMMIT: 4f5226df4faa0d66dd2c089465b13886360ab3c2
+
+jobs:
+  focused-html-delimited:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: dom, intl, mbstring, zip
+          coverage: none
+
+      - name: Lint HTML and delimited parity files
+        run: |
+          php -l lanes/pandoc/src/AstNode.php
+          php -l lanes/pandoc/src/DelimitedTextReader.php
+          php -l lanes/pandoc/src/DelimitedTextUpstreamReaderEvidence.php
+          php -l lanes/pandoc/src/Html5Dom.php
+          php -l lanes/pandoc/src/Html5DomFragment.php
+          php -l lanes/pandoc/src/HtmlNativeAstComparisonHarness.php
+          php -l lanes/pandoc/src/HtmlReader.php
+          php -l lanes/pandoc/src/HtmlUpstreamReaderEvidence.php
+          php -l lanes/pandoc/src/NativeReader.php
+          php -l lanes/pandoc/src/NativeWriter.php
+          php -l lanes/pandoc/tests/DelimitedTextReaderTest.php
+          php -l lanes/pandoc/tests/DelimitedTextUpstreamReaderEvidenceTest.php
+          php -l lanes/pandoc/tests/HtmlNativeAstComparisonHarnessTest.php
+          php -l lanes/pandoc/tests/HtmlReaderTest.php
+          php -l lanes/pandoc/tests/HtmlUpstreamReaderEvidenceTest.php
+          php -l tools/pandoc-delimited-text-reader-evidence.php
+          php -l tools/pandoc-html-native-ast.php
+          php -l tools/pandoc-html-reader-evidence.php
+
+      - name: Restore pinned Pandoc HTML/delimited upstream cache
+        id: pandoc-html-delimited-upstream-cache
+        uses: actions/cache@v4
+        with:
+          path: .upstream-cache/pandoc-current
+          key: pandoc-html-delimited-upstream-sparse-v1-${{ runner.os }}-${{ env.PANDOC_HTML_DELIMITED_UPSTREAM_PINNED_COMMIT }}
+
+      - name: Hydrate pinned Pandoc HTML/delimited upstream cache
+        if: steps.pandoc-html-delimited-upstream-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          target=.upstream-cache/pandoc-current
+          mkdir -p "$(dirname "$target")"
+          git init "$target"
+          git -C "$target" remote add origin https://github.com/jgm/pandoc.git
+          git -C "$target" sparse-checkout init --no-cone
+          git -C "$target" sparse-checkout set \
+            /test/Tests/Readers/HTML.hs \
+            /test/command/csv.md \
+            /test/command/01.csv \
+            /test/command/3533-rst-csv-tables.csv \
+            /test/command/3533-rst-csv-tables.md \
+            /src/Text/Pandoc/Readers/HTML.hs \
+            /src/Text/Pandoc/CSV.hs \
+            /src/Text/Pandoc/Readers/CSV.hs
+          git -C "$target" fetch --depth=1 --filter=blob:none origin "$PANDOC_HTML_DELIMITED_UPSTREAM_PINNED_COMMIT"
+          git -C "$target" switch --detach FETCH_HEAD
+
+      - name: Verify pinned Pandoc HTML/delimited upstream cache
+        run: |
+          set -euo pipefail
+          target=.upstream-cache/pandoc-current
+          test "$(git -C "$target" rev-parse HEAD)" = "$PANDOC_HTML_DELIMITED_UPSTREAM_PINNED_COMMIT"
+          test -f "$target/test/Tests/Readers/HTML.hs"
+          test -f "$target/test/command/csv.md"
+          test -f "$target/test/command/01.csv"
+          test -f "$target/test/command/3533-rst-csv-tables.csv"
+          test -f "$target/test/command/3533-rst-csv-tables.md"
+          test -f "$target/src/Text/Pandoc/Readers/HTML.hs"
+          test -f "$target/src/Text/Pandoc/CSV.hs"
+          test -f "$target/src/Text/Pandoc/Readers/CSV.hs"
+
+      - name: Require upstream HTML reader evidence
+        run: |
+          php tools/pandoc-html-reader-evidence.php \
+            --upstream-root=.upstream-cache/pandoc-current \
+            --json \
+            --require-selected-fixture-count=60 \
+            --require-static-current-evidence \
+            --require-native-mapped-parity=60 \
+            --require-runner-not-run \
+            --require-runner-plan \
+            --require-no-validation-issues
+
+      - name: Require checked-in HTML native AST parity
+        run: |
+          php tools/pandoc-html-native-ast.php \
+            --html-dir=lanes/pandoc/fixtures \
+            --json \
+            summary \
+            --require-mapped-parity=60
+
+      - name: Require delimited text reader evidence
+        run: |
+          php tools/pandoc-delimited-text-reader-evidence.php \
+            --repo-root=. \
+            --json \
+            --require-honest-denominators \
+            --require-generated-csv-native-parity=27 \
+            --require-generated-tsv-native-parity=21 \
+            --require-runner-not-run \
+            --require-runner-plan \
+            --require-no-validation-issues
+
+      - name: Run focused HTML and delimited parity tests
+        run: |
+          php tools/run-tests.php \
+            lanes/pandoc/tests/DelimitedTextReaderTest.php \
+            lanes/pandoc/tests/DelimitedTextUpstreamReaderEvidenceTest.php \
+            lanes/pandoc/tests/HtmlNativeAstComparisonHarnessTest.php \
+            lanes/pandoc/tests/HtmlReaderTest.php \
+            lanes/pandoc/tests/HtmlUpstreamReaderEvidenceTest.php

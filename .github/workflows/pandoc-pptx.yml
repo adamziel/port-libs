@@ -100,7 +100,12 @@ jobs:
             --json \
             --require-test-count=1 \
             --require-fixture-pair-count=1 \
-            --require-no-validation-issues
+            --require-no-validation-issues \
+            --require-static-current-evidence \
+            --require-static-native-mapped-parity \
+            --require-static-executable-native-ast-parity \
+            --require-runner-not-run \
+            --require-runner-plan
 
       - name: Require upstream PPTX native AST parity fixture
         run: |
