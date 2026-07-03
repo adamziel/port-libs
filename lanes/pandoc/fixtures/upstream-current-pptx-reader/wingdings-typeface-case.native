@@ -1,0 +1,10 @@
+[ Header
+    2 ( "slide-1" , [] , [] ) [ Str "Wingdings case slide" ]
+, Para [ Str "Lowercase wingdings stays plain" ]
+, Para [ Str "Uppercase WINGDINGS stays plain" ]
+, Para [ Str "Qualified Wingdings typeface stays plain" ]
+, BulletList
+    [ [ Plain [ Str "Title case Wingdings bullet" ] ]
+    , [ Plain [ Str "NotWingdings substring bullet" ] ]
+    ]
+]
