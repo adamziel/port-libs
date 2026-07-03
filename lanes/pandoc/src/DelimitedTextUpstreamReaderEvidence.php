@@ -15,7 +15,7 @@ final class DelimitedTextUpstreamReaderEvidence
     public const CHECKED_IN_GENERATED_TSV_NATIVE_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/generated-current-tsv-reader';
     public const EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT = 2;
     public const EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT = 0;
-    public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 2;
+    public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 3;
 
     private const CHECKED_IN_CURRENT_CSV_FIXTURES = [
         'csv.md' => [
@@ -63,6 +63,20 @@ final class DelimitedTextUpstreamReaderEvidence
             'sha256' => '51b8ce6dc3164f654f50f7fc1597e2788b04a2b634a32a3f52d51951b68260b6',
             'bytes' => 1975,
         ],
+        'unicode-safe.tsv' => [
+            'role' => 'generated-tsv-native-parity-input-fixture',
+            'sample' => 'unicode-safe',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/unicode-safe.tsv',
+            'sha256' => 'cd7a0f7e2c4737a1884c0ff3ec73bf6a5990fbdfb6ba1b588b6a6d9202ab3e02',
+            'bytes' => 91,
+        ],
+        'unicode-safe.native' => [
+            'role' => 'generated-tsv-native-parity-expected-native-output',
+            'sample' => 'unicode-safe',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/unicode-safe.native',
+            'sha256' => 'e7d3ea0f37e8d3b0613155eaaf480edf042cd5e22aa4291866ae8a0e627fe990',
+            'bytes' => 1370,
+        ],
     ];
 
     private const GENERATED_TSV_NATIVE_SAMPLES = [
@@ -73,6 +87,10 @@ final class DelimitedTextUpstreamReaderEvidence
         'quote-trailing' => [
             'inputPath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/quote-trailing.tsv',
             'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/quote-trailing.native',
+        ],
+        'unicode-safe' => [
+            'inputPath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/unicode-safe.tsv',
+            'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/unicode-safe.native',
         ],
     ];
 
@@ -248,7 +266,7 @@ final class DelimitedTextUpstreamReaderEvidence
                     'the checked-in csv.md and 01.csv snapshots match the pinned upstream command fixture hashes',
                     'the upstream command corpus has two CSV direct-reader fixtures tracked by this PHP reader',
                     'there is no dedicated upstream TSV command fixture in this pinned corpus',
-                    'the generated TSV-to-native parity fixture pair is present as local evidence and is not counted as an upstream TSV direct fixture',
+                    'the generated TSV-to-native parity fixture pairs are present as local evidence and are not counted as upstream TSV direct fixtures',
                 ],
                 'doesNotAssert' => [
                     'that upstream Haskell/Cabal/Tasty tests were executed',
@@ -559,7 +577,7 @@ final class DelimitedTextUpstreamReaderEvidence
 
     private static function claim(): string
     {
-        return 'Tracks the current upstream direct CSV command-reader fixtures, the absence of dedicated TSV command fixtures, and two generated TSV-to-native evidence samples for the delimited text reader.';
+        return 'Tracks the current upstream direct CSV command-reader fixtures, the absence of dedicated TSV command fixtures, and three generated TSV-to-native evidence samples for the delimited text reader.';
     }
 
     /**
@@ -573,7 +591,7 @@ final class DelimitedTextUpstreamReaderEvidence
                 'that the current pinned upstream CSV reader source files are present when an upstream checkout is inspected',
                 'that no dedicated TSV command fixture is available in the pinned direct-reader evidence set',
                 'static checked-in current csv.md and 01.csv fixture identity when staticCurrentEvidence is valid',
-                'two generated TSV-to-native local samples when generatedTsvNativeParityEvidence is valid',
+                'three generated TSV-to-native local samples when generatedTsvNativeParityEvidence is valid',
             ],
             'doesNotAssert' => [
                 'that upstream Haskell/Cabal/Tasty tests were executed',

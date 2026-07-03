@@ -130,10 +130,10 @@ return [
         $t->same('tab', $packet['delimiter'] ?? null);
         $t->same(0, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
-        $t->same(2, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
+        $t->same(3, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
-        $t->same(2, $generatedEvidence['sampleCount'] ?? null);
-        $t->same(4, $generatedEvidence['checkedInFixtureCount'] ?? null);
+        $t->same(3, $generatedEvidence['sampleCount'] ?? null);
+        $t->same(6, $generatedEvidence['checkedInFixtureCount'] ?? null);
         $t->same('simple.tsv', $generatedEvidence['checkedInFixtures'][0]['name'] ?? null);
         $t->same('fcee0aed5a2fde11bbd19f2fc4445357a0d7bbd9c9962df6630fed4b6178ff8e', $generatedEvidence['checkedInFixtures'][0]['checkedInFile']['sha256'] ?? null);
         $t->same(['Fruit', 'Price', 'Quantity'], $table->attr('columnNames'));
@@ -158,9 +158,9 @@ return [
         $t->same('tab', $packet['delimiter'] ?? null);
         $t->same(0, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
-        $t->same(2, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
+        $t->same(3, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
-        $t->same(2, $generatedEvidence['sampleCount'] ?? null);
+        $t->same(3, $generatedEvidence['sampleCount'] ?? null);
         $t->same('quote-trailing.tsv', $generatedEvidence['checkedInFixtures'][2]['name'] ?? null);
         $t->same('c5694bc5e74a5920c4752369bd967be614f3d7f8fde6395bcd05c9b5f22d85dd', $generatedEvidence['checkedInFixtures'][2]['checkedInFile']['sha256'] ?? null);
         $t->same('quote-trailing.native', $generatedEvidence['checkedInFixtures'][3]['name'] ?? null);
@@ -183,6 +183,41 @@ return [
         $t->same('final', $table->children[1]->children[2]->children[2]->attr('text'));
         $t->contains('Plain [ Str "literal" , Space , Str "\"quotes\"" , Space , Str "stay" ]', $native);
         $t->contains('Plain [ Str "comma," , Space , Str "pipe" , Space , Str "|" , Space , Str "stay" ]', $native);
+        $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
+    },
+    'matches generated tsv unicode safe native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+        $fixture = $generatedTsvNativeFixture('unicode-safe');
+        $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
+            'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/unicode-safe.tsv',
+        ]);
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+        $native = PandocConverter::write($document, 'native');
+        $generatedEvidence = $packet['upstreamEvidence']['generatedNativeParityEvidence'] ?? [];
+
+        $t->same('tsv', $packet['format'] ?? null);
+        $t->same('tab', $packet['delimiter'] ?? null);
+        $t->same(0, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(3, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
+        $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
+        $t->same(3, $generatedEvidence['sampleCount'] ?? null);
+        $t->same('unicode-safe.tsv', $generatedEvidence['checkedInFixtures'][4]['name'] ?? null);
+        $t->same('cd7a0f7e2c4737a1884c0ff3ec73bf6a5990fbdfb6ba1b588b6a6d9202ab3e02', $generatedEvidence['checkedInFixtures'][4]['checkedInFile']['sha256'] ?? null);
+        $t->same('unicode-safe.native', $generatedEvidence['checkedInFixtures'][5]['name'] ?? null);
+        $t->same('e7d3ea0f37e8d3b0613155eaaf480edf042cd5e22aa4291866ae8a0e627fe990', $generatedEvidence['checkedInFixtures'][5]['checkedInFile']['sha256'] ?? null);
+        $t->same(['label', 'description', 'flag'], $table->attr('columnNames'));
+        $t->same(3, $packet['rowCount'] ?? null);
+        $t->same(2, $packet['bodyRowCount'] ?? null);
+        $t->same(3, $packet['columnCount'] ?? null);
+        $t->same(9, $packet['fieldCount'] ?? null);
+        $t->same(0, $packet['diagnosticCount'] ?? null);
+        $t->same(0, $packet['controlCharacters']['totalCount'] ?? null);
+        $t->same("Caf\xC3\xA9 and snowman \xE2\x98\x83", $table->children[1]->children[0]->children[1]->attr('text'));
+        $t->same("\xE6\x9D\xB1\xE4\xBA\xAC and rocket \xF0\x9F\x9A\x80", $table->children[1]->children[1]->children[1]->attr('text'));
+        $t->same('safe\\x1F', $table->children[1]->children[1]->children[2]->attr('text'));
+        $t->contains('Plain [ Str "Caf\233" , Space , Str "and" , Space , Str "snowman" , Space , Str "\9731" ]', $native);
+        $t->contains('Plain [ Str "\26481\20140" , Space , Str "and" , Space , Str "rocket" , Space , Str "\128640" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
     'matches pinned upstream csv parser option fixtures' => static function (TestRunner $t): void {
@@ -312,7 +347,7 @@ return [
         $t->same('42a8bc56612d061388889a10d73b1d34fb870595785ee550ef43c6a065a77ad6', $csvStatic['checkedInFixtures'][0]['checkedInFile']['sha256'] ?? null);
         $t->same(2719, $csvStatic['checkedInFixtures'][0]['checkedInFile']['bytes'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $csvStatic['generatedTsvNativeStaticEvidence']['validation']['status'] ?? null);
-        $t->same(2, $csvStatic['generatedTsvNativeStaticEvidence']['sampleCount'] ?? null);
+        $t->same(3, $csvStatic['generatedTsvNativeStaticEvidence']['sampleCount'] ?? null);
         $t->same(0, $csvStatic['generatedTsvNativeStaticEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(true, DelimitedTextUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence(['staticCurrentEvidence' => $csvStatic]));
 
@@ -327,10 +362,11 @@ return [
         $t->same(2, $tsvEvidence['csvDirectFixtureDenominator'] ?? null);
         $t->same(0, $tsvEvidence['tsvDirectFixtureDenominator'] ?? null);
         $t->same(0, $tsvEvidence['parserOptionFixtureCount'] ?? null);
-        $t->same(2, $tsvEvidence['generatedNativeParitySampleCount'] ?? null);
+        $t->same(3, $tsvEvidence['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $tsvEvidence['generatedNativeParityEvidence']['validation']['status'] ?? null);
         $t->same('simple', $tsvEvidence['generatedNativeParityEvidence']['samples'][0]['name'] ?? null);
         $t->same('quote-trailing', $tsvEvidence['generatedNativeParityEvidence']['samples'][1]['name'] ?? null);
+        $t->same('unicode-safe', $tsvEvidence['generatedNativeParityEvidence']['samples'][2]['name'] ?? null);
         $t->true(in_array('tsv-tab-delimiter-reader', $tsvEvidence['closedGaps'] ?? [], true));
         $t->true(in_array('generated-tsv-native-parity-sample', $tsvEvidence['closedGaps'] ?? [], true));
         $t->true(in_array('no-dedicated-upstream-tsv-command-fixture-in-pinned-corpus', $tsvEvidence['openGaps'] ?? [], true));
