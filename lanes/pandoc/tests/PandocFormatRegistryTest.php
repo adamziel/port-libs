@@ -34,6 +34,7 @@ use PortLibs\Pandoc\PlainWriter;
 use PortLibs\Pandoc\PptxReader;
 use PortLibs\Pandoc\PptxWriter;
 use PortLibs\Pandoc\RtfReader;
+use PortLibs\Pandoc\RstReader;
 use PortLibs\Pandoc\XmlReader;
 use PortLibs\Pandoc\XlsxReader;
 
@@ -188,9 +189,11 @@ return [
         $t->same(PptxReader::class, $support['pptx']['implementation']);
         $t->same('partial', $support['rtf']['status']);
         $t->same(RtfReader::class, $support['rtf']['implementation']);
+        $t->same('partial', $support['rst']['status']);
+        $t->same(RstReader::class, $support['rst']['implementation']);
         $t->same('partial', $support['xlsx']['status']);
         $t->same(XlsxReader::class, $support['xlsx']['implementation']);
-        $t->same(15, count(PandocFormatRegistry::unsupportedInputFormats()));
+        $t->same(14, count(PandocFormatRegistry::unsupportedInputFormats()));
     },
     'maps current php output support against every upstream output token' => static function (TestRunner $t): void {
         $support = PandocFormatRegistry::phpOutputSupport();
@@ -320,7 +323,7 @@ return [
         $t->same('unsupported', $outputSupport['ms']['status']);
         $t->same('', $outputSupport['ms']['implementation']);
         $t->contains('.ms/.roff extension inference', $outputSupport['ms']['notes']);
-        $t->same(15, count(PandocFormatRegistry::unsupportedInputFormats()));
+        $t->same(14, count(PandocFormatRegistry::unsupportedInputFormats()));
         $t->same(56, count(PandocFormatRegistry::unsupportedOutputFormats()));
     },
     'tracks roff manual direction buckets without direct parity claims' => static function (TestRunner $t): void {

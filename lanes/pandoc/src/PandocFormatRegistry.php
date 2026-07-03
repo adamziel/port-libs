@@ -425,6 +425,11 @@ final class PandocFormatRegistry
             'implementation' => BibliographyReader::class,
             'notes' => 'Bibliography reader parses bounded RIS records into CSL item metadata with type aliases, field provenance, attachments, user fields, and custom diagnostics. Full Pandoc RIS reader parity remains open.',
         ],
+        'rst' => [
+            'status' => 'partial',
+            'implementation' => RstReader::class,
+            'notes' => 'Bounded reStructuredText reader maps section titles, paragraphs, emphasis/strong/literal/link inlines, bullet and enumerated lists, field and definition lists, block quotes, literal/code blocks, and image directives into the shared AST. Full Pandoc RST directive, role, substitution, table, citation, and option parity remains open.',
+        ],
         'rtf' => [
             'status' => 'partial',
             'implementation' => RtfReader::class,
