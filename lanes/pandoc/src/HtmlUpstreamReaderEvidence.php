@@ -31,6 +31,9 @@ final class HtmlUpstreamReaderEvidence
     private const RUNNER_REQUIRED_ARTIFACTS = [
         '.port-libs/pandoc-runner/artifacts/html-targeted-run/result.json',
     ];
+    private const RUNNER_RESULT_ARTIFACT_KIND = 'upstream-html-reader-runner-result-artifact';
+    private const RUNNER_TRANSCRIPT_KIND = 'upstream-html-reader-runner-transcript';
+    private const RUNNER_RESULT_ARTIFACT_SCHEMA_VERSION = 2;
 
     private const CHECKED_IN_HTML_FIXTURES = [
         'upstream-html-anchor-image-attrs.html' => [
@@ -296,8 +299,13 @@ final class HtmlUpstreamReaderEvidence
 
     private readonly string $repoRoot;
     private readonly string $upstreamRoot;
+    private readonly ?string $runnerResultArtifact;
 
-    public function __construct(string $repoRoot, string $upstreamRoot = self::DEFAULT_RELATIVE_UPSTREAM_ROOT)
+    public function __construct(
+        string $repoRoot,
+        string $upstreamRoot = self::DEFAULT_RELATIVE_UPSTREAM_ROOT,
+        ?string $runnerResultArtifact = null
+    )
     {
         if ($repoRoot === '') {
             throw new \InvalidArgumentException('Repository root must not be empty');
@@ -305,9 +313,13 @@ final class HtmlUpstreamReaderEvidence
         if ($upstreamRoot === '') {
             throw new \InvalidArgumentException('Upstream root must not be empty');
         }
+        if ($runnerResultArtifact === '') {
+            throw new \InvalidArgumentException('Runner result artifact must not be empty');
+        }
 
         $this->repoRoot = rtrim($repoRoot, DIRECTORY_SEPARATOR);
         $this->upstreamRoot = $upstreamRoot;
+        $this->runnerResultArtifact = $runnerResultArtifact;
     }
 
     /**
@@ -319,6 +331,8 @@ final class HtmlUpstreamReaderEvidence
         $staticEvidence = self::checkedInCurrentEvidence($this->repoRoot);
         $nativeAstEvidence = $this->nativeAstEvidence();
         if (!is_dir($root)) {
+            $denominator = $this->emptyDenominator();
+
             return [
                 'schemaVersion' => 1,
                 'tool' => self::TOOL_NAME,
@@ -329,11 +343,11 @@ final class HtmlUpstreamReaderEvidence
                     'commit' => null,
                     'expectedCommit' => self::EXPECTED_UPSTREAM_COMMIT,
                 ],
-                'denominator' => $this->emptyDenominator(),
+                'denominator' => $denominator,
                 'sourceInventory' => $this->emptySourceInventory(),
                 'staticCurrentEvidence' => $staticEvidence,
                 'nativeAstEvidence' => $nativeAstEvidence,
-                'runnerEvidence' => self::runnerNotRunEvidence(),
+                'runnerEvidence' => $this->runnerEvidence($denominator),
                 'validation' => [
                     'status' => 'not-evaluated-missing-upstream-root',
                     'issues' => ['missing-upstream-root'],
@@ -362,7 +376,7 @@ final class HtmlUpstreamReaderEvidence
             'sourceInventory' => $sourceInventory,
             'staticCurrentEvidence' => $staticEvidence,
             'nativeAstEvidence' => $nativeAstEvidence,
-            'runnerEvidence' => self::runnerNotRunEvidence(),
+            'runnerEvidence' => $this->runnerEvidence(self::selectedFixtureDenominator()),
             'validation' => [
                 'status' => $validationIssues === [] ? 'valid-upstream-html-reader-evidence' : 'invalid-upstream-html-reader-evidence',
                 'issues' => $validationIssues,
@@ -475,6 +489,9 @@ final class HtmlUpstreamReaderEvidence
                 ? $denominator['selectedFixtureCount']
                 : ($staticDenominator['selectedFixtureCount'] ?? 0)
         );
+        $runnerResultLine = self::hasRunnerResultArtifactEvidence($report)
+            ? 'Supplied upstream Haskell/Cabal runner result artifact is validated; full HTML reader parity is not asserted.'
+            : 'No upstream Haskell/Cabal runner result or full HTML reader parity is asserted.';
 
         return implode(PHP_EOL, [
             'Pandoc HTML reader evidence',
@@ -493,8 +510,9 @@ final class HtmlUpstreamReaderEvidence
                 . ' unpairedNative=' . (int) ($native['unpairedNativeFixtureCount'] ?? 0),
             'Runner status: ' . (string) ($runner['status'] ?? 'unknown'),
             'Runner plan: ' . (string) ($runner['commandPlanStatus'] ?? 'unknown'),
+            'Runner result artifact: ' . (string) (($runner['validation']['status'] ?? null) ?? 'not-evaluated'),
             'Validation: ' . (string) ($validation['status'] ?? 'unknown'),
-            'No upstream Haskell/Cabal runner result or full HTML reader parity is asserted.',
+            $runnerResultLine,
         ]) . PHP_EOL;
     }
 
@@ -575,6 +593,69 @@ final class HtmlUpstreamReaderEvidence
     /**
      * @param array<string, mixed> $report
      */
+    public static function hasRunnerResultArtifactEvidence(array $report): bool
+    {
+        $runner = is_array($report['runnerEvidence'] ?? null) ? $report['runnerEvidence'] : [];
+        $artifact = is_array($runner['resultArtifact'] ?? null) ? $runner['resultArtifact'] : [];
+        $validation = is_array($runner['validation'] ?? null) ? $runner['validation'] : [];
+        $binding = is_array($runner['upstreamBinding'] ?? null) ? $runner['upstreamBinding'] : [];
+        $target = is_array($runner['target'] ?? null) ? $runner['target'] : [];
+        $transcripts = is_array($runner['transcripts'] ?? null) ? $runner['transcripts'] : [];
+
+        return ($runner['status'] ?? null) === 'completed'
+            && ($runner['executed'] ?? null) === true
+            && ($runner['commandPlanStatus'] ?? null) === 'runner-result-artifact-validated'
+            && ($runner['scope'] ?? null) === 'upstream-haskell-runner'
+            && ($runner['runner'] ?? null) === 'Cabal/Tasty Pandoc HTML reader suite'
+            && ($binding['name'] ?? null) === 'jgm/pandoc'
+            && ($binding['expectedCommit'] ?? null) === self::EXPECTED_UPSTREAM_COMMIT
+            && ($binding['observedCommit'] ?? null) === self::EXPECTED_UPSTREAM_COMMIT
+            && ($target['testSuite'] ?? null) === self::RUNNER_TEST_SUITE
+            && ($target['tastyGroupPath'] ?? null) === self::RUNNER_TASTY_GROUP_PATH
+            && ($target['tastyPattern'] ?? null) === self::RUNNER_TASTY_PATTERN
+            && ($artifact['kind'] ?? null) === self::RUNNER_RESULT_ARTIFACT_KIND
+            && ($artifact['present'] ?? null) === true
+            && is_string($artifact['sha256'] ?? null)
+            && is_int($artifact['bytes'] ?? null)
+            && ($validation['status'] ?? null) === 'valid-upstream-html-reader-runner-result-artifact'
+            && ($validation['issues'] ?? null) === []
+            && self::hasValidRunnerTranscriptEvidence($transcripts);
+    }
+
+    /**
+     * @param list<mixed> $transcripts
+     */
+    private static function hasValidRunnerTranscriptEvidence(array $transcripts): bool
+    {
+        if (count($transcripts) !== count(self::RUNNER_REQUIRED_TRANSCRIPTS)) {
+            return false;
+        }
+
+        foreach (self::RUNNER_REQUIRED_TRANSCRIPTS as $index => $path) {
+            $transcript = $transcripts[$index] ?? null;
+            if (!is_array($transcript)) {
+                return false;
+            }
+            if (($transcript['kind'] ?? null) !== self::RUNNER_TRANSCRIPT_KIND) {
+                return false;
+            }
+            if (($transcript['path'] ?? null) !== $path) {
+                return false;
+            }
+            if (($transcript['present'] ?? null) !== true) {
+                return false;
+            }
+            if (!is_string($transcript['sha256'] ?? null) || !is_int($transcript['bytes'] ?? null)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array<string, mixed> $report
+     */
     public static function hasNoValidationIssues(array $report): bool
     {
         $validation = is_array($report['validation'] ?? null) ? $report['validation'] : [];
@@ -608,6 +689,382 @@ final class HtmlUpstreamReaderEvidence
             'categoryCounts' => $categories,
             'nativeMappedPairCount' => self::EXPECTED_NATIVE_MAPPED_PAIR_COUNT,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function runnerEvidence(array $denominator): array
+    {
+        if ($this->runnerResultArtifact === null) {
+            return self::runnerNotRunEvidence();
+        }
+
+        return $this->runnerResultArtifactEvidence($denominator);
+    }
+
+    /**
+     * @param array<string, mixed> $denominator
+     * @return array<string, mixed>
+     */
+    private function runnerResultArtifactEvidence(array $denominator): array
+    {
+        $path = $this->absoluteRunnerResultArtifact();
+        $artifact = $this->runnerResultArtifactFileEvidence($path);
+        $transcripts = $this->runnerTranscriptFileEvidenceList();
+        $issues = [];
+        $payload = [];
+
+        if (($artifact['present'] ?? false) !== true) {
+            $issues[] = 'missing-runner-result-artifact';
+        } else {
+            try {
+                $decoded = json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
+                if (!is_array($decoded)) {
+                    $issues[] = 'invalid-runner-result-artifact-json';
+                } else {
+                    $payload = $decoded;
+                }
+            } catch (\JsonException) {
+                $issues[] = 'invalid-runner-result-artifact-json';
+            }
+        }
+
+        $upstream = is_array($payload['upstream'] ?? null) ? $payload['upstream'] : [];
+        $target = is_array($payload['target'] ?? null) ? $payload['target'] : [];
+        $command = is_array($payload['command'] ?? null) ? $payload['command'] : null;
+        $expectedCommand = self::runnerFutureCommands()[2];
+        $expectedTestNames = self::readerCaseNames($denominator);
+        $observedTestNames = self::stringList($payload['testNames'] ?? ($payload['listedTests'] ?? []));
+        $observedTranscriptPaths = self::stringList($payload['transcriptPaths'] ?? []);
+        $observedTranscriptRecords = self::runnerTranscriptRecords($payload['transcripts'] ?? []);
+        if ($observedTranscriptPaths === [] && $observedTranscriptRecords !== []) {
+            $observedTranscriptPaths = self::runnerTranscriptRecordPaths($observedTranscriptRecords);
+        }
+        $runnerExecuted = ($payload['runnerExecuted'] ?? $payload['executed'] ?? null) === true;
+        $exitCode = is_int($payload['exitCode'] ?? null) ? (int) $payload['exitCode'] : null;
+        $testCount = is_int($payload['testCount'] ?? null) ? (int) $payload['testCount'] : null;
+        $passedCount = is_int($payload['passedCount'] ?? null) ? (int) $payload['passedCount'] : null;
+        $failedCount = is_int($payload['failedCount'] ?? null) ? (int) $payload['failedCount'] : null;
+        $skippedCount = is_int($payload['skippedCount'] ?? null) ? (int) $payload['skippedCount'] : null;
+
+        if ($payload !== []) {
+            if (($payload['schemaVersion'] ?? null) !== self::RUNNER_RESULT_ARTIFACT_SCHEMA_VERSION) {
+                $issues[] = 'runner-result-schema-version-mismatch';
+            }
+            if (($payload['runner'] ?? null) !== 'Cabal/Tasty Pandoc HTML reader suite') {
+                $issues[] = 'runner-result-runner-name-mismatch';
+            }
+            if (!$runnerExecuted) {
+                $issues[] = 'runner-result-executed-flag-missing-or-false';
+            }
+            if (($upstream['name'] ?? null) !== 'jgm/pandoc' || ($upstream['commit'] ?? null) !== self::EXPECTED_UPSTREAM_COMMIT) {
+                $issues[] = 'runner-result-upstream-commit-mismatch';
+            }
+            if (
+                ($target['testSuite'] ?? null) !== self::RUNNER_TEST_SUITE
+                || ($target['tastyGroupPath'] ?? null) !== self::RUNNER_TASTY_GROUP_PATH
+                || ($target['tastyPattern'] ?? null) !== self::RUNNER_TASTY_PATTERN
+            ) {
+                $issues[] = 'runner-result-target-mismatch';
+            }
+            if ($command !== $expectedCommand) {
+                $issues[] = 'runner-result-command-mismatch';
+            }
+            if ($exitCode !== 0) {
+                $issues[] = 'runner-result-exit-code-nonzero';
+            }
+            if (
+                $testCount !== count($expectedTestNames)
+                || $passedCount !== count($expectedTestNames)
+                || $failedCount !== 0
+                || $skippedCount !== 0
+            ) {
+                $issues[] = 'runner-result-counts-mismatch';
+            }
+            if ($observedTestNames !== $expectedTestNames) {
+                $issues[] = 'runner-result-test-names-mismatch';
+            }
+            if ($observedTranscriptPaths !== self::RUNNER_REQUIRED_TRANSCRIPTS) {
+                $issues[] = 'runner-result-transcript-paths-mismatch';
+            }
+            foreach (self::runnerTranscriptValidationIssues($observedTranscriptRecords, $transcripts) as $issue) {
+                $issues[] = $issue;
+            }
+        }
+
+        $issues = array_values(array_unique($issues));
+
+        return [
+            'runner' => 'Cabal/Tasty Pandoc HTML reader suite',
+            'scope' => 'upstream-haskell-runner',
+            'status' => $issues === [] ? 'completed' : 'invalid',
+            'executed' => $runnerExecuted,
+            'command' => $command,
+            'resultArtifact' => $artifact,
+            'commandPlanStatus' => $issues === [] ? 'runner-result-artifact-validated' : 'runner-result-artifact-invalid',
+            'upstreamBinding' => [
+                'name' => 'jgm/pandoc',
+                'expectedCommit' => self::EXPECTED_UPSTREAM_COMMIT,
+                'observedCommit' => is_string($upstream['commit'] ?? null) ? $upstream['commit'] : null,
+                'entryPoint' => 'test/test-pandoc.hs',
+                'readerTestModule' => 'test/Tests/Readers/HTML.hs',
+            ],
+            'target' => [
+                'testSuite' => is_string($target['testSuite'] ?? null) ? $target['testSuite'] : null,
+                'tastyGroupPath' => is_array($target['tastyGroupPath'] ?? null) ? $target['tastyGroupPath'] : null,
+                'tastyPattern' => is_string($target['tastyPattern'] ?? null) ? $target['tastyPattern'] : null,
+            ],
+            'expected' => [
+                'schemaVersion' => self::RUNNER_RESULT_ARTIFACT_SCHEMA_VERSION,
+                'runner' => 'Cabal/Tasty Pandoc HTML reader suite',
+                'testCount' => count($expectedTestNames),
+                'passedCount' => count($expectedTestNames),
+                'failedCount' => 0,
+                'skippedCount' => 0,
+                'testNames' => $expectedTestNames,
+                'transcriptPaths' => self::RUNNER_REQUIRED_TRANSCRIPTS,
+                'transcripts' => self::runnerTranscriptRecordsFromEvidence($transcripts),
+                'command' => $expectedCommand,
+            ],
+            'observed' => [
+                'schemaVersion' => $payload['schemaVersion'] ?? null,
+                'runner' => $payload['runner'] ?? null,
+                'exitCode' => $exitCode,
+                'testCount' => $testCount,
+                'passedCount' => $passedCount,
+                'failedCount' => $failedCount,
+                'skippedCount' => $skippedCount,
+                'testNames' => $observedTestNames,
+                'transcriptPaths' => $observedTranscriptPaths,
+                'transcripts' => $observedTranscriptRecords,
+            ],
+            'futureCommands' => self::runnerFutureCommands(),
+            'requiredTranscripts' => self::RUNNER_REQUIRED_TRANSCRIPTS,
+            'requiredArtifacts' => self::RUNNER_REQUIRED_ARTIFACTS,
+            'transcripts' => $transcripts,
+            'validation' => [
+                'status' => $issues === []
+                    ? 'valid-upstream-html-reader-runner-result-artifact'
+                    : 'invalid-upstream-html-reader-runner-result-artifact',
+                'issues' => $issues,
+            ],
+            'claim' => $issues === []
+                ? 'A supplied upstream HTML reader runner result artifact matches the pinned targeted Tasty runner evidence contract.'
+                : 'The supplied upstream HTML reader runner result artifact did not satisfy the pinned targeted Tasty runner evidence contract.',
+        ];
+    }
+
+    /**
+     * @return array{kind: string, path: string, present: bool, sha256: ?string, bytes: ?int}
+     */
+    private function runnerResultArtifactFileEvidence(string $path): array
+    {
+        $present = is_file($path);
+        $sha256 = $present ? hash_file('sha256', $path) : null;
+        $bytes = $present ? filesize($path) : null;
+
+        return [
+            'kind' => self::RUNNER_RESULT_ARTIFACT_KIND,
+            'path' => $this->displayPath($path),
+            'present' => $present,
+            'sha256' => is_string($sha256) ? $sha256 : null,
+            'bytes' => is_int($bytes) ? $bytes : null,
+        ];
+    }
+
+    /**
+     * @return list<array{kind: string, path: string, present: bool, sha256: ?string, bytes: ?int}>
+     */
+    private function runnerTranscriptFileEvidenceList(): array
+    {
+        $files = [];
+        foreach (self::RUNNER_REQUIRED_TRANSCRIPTS as $path) {
+            $files[] = $this->runnerTranscriptFileEvidence($path);
+        }
+
+        return $files;
+    }
+
+    /**
+     * @return array{kind: string, path: string, present: bool, sha256: ?string, bytes: ?int}
+     */
+    private function runnerTranscriptFileEvidence(string $relativePath): array
+    {
+        $path = $this->absoluteRunnerTranscriptPath($relativePath);
+        $present = is_file($path);
+        $sha256 = $present ? hash_file('sha256', $path) : null;
+        $bytes = $present ? filesize($path) : null;
+
+        return [
+            'kind' => self::RUNNER_TRANSCRIPT_KIND,
+            'path' => $this->displayPath($path),
+            'present' => $present,
+            'sha256' => is_string($sha256) ? $sha256 : null,
+            'bytes' => is_int($bytes) ? $bytes : null,
+        ];
+    }
+
+    private function absoluteRunnerTranscriptPath(string $path): string
+    {
+        if (str_starts_with($path, DIRECTORY_SEPARATOR)) {
+            return $path;
+        }
+
+        return $this->repoRoot . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $path);
+    }
+
+    /**
+     * @return list<array{path: string, sha256: ?string, bytes: ?int}>
+     */
+    private static function runnerTranscriptRecords(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $records = [];
+        foreach ($value as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $records[] = [
+                'path' => is_string($item['path'] ?? null) ? $item['path'] : '',
+                'sha256' => is_string($item['sha256'] ?? null) ? $item['sha256'] : null,
+                'bytes' => is_int($item['bytes'] ?? null) ? $item['bytes'] : null,
+            ];
+        }
+
+        return $records;
+    }
+
+    /**
+     * @param list<array{path: string, sha256: ?string, bytes: ?int}> $records
+     * @return list<string>
+     */
+    private static function runnerTranscriptRecordPaths(array $records): array
+    {
+        return array_map(
+            static fn (array $record): string => $record['path'],
+            $records
+        );
+    }
+
+    /**
+     * @param list<array{kind: string, path: string, present: bool, sha256: ?string, bytes: ?int}> $files
+     * @return list<array{path: string, sha256: ?string, bytes: ?int}>
+     */
+    private static function runnerTranscriptRecordsFromEvidence(array $files): array
+    {
+        $records = [];
+        foreach ($files as $file) {
+            $records[] = [
+                'path' => $file['path'],
+                'sha256' => $file['sha256'],
+                'bytes' => $file['bytes'],
+            ];
+        }
+
+        return $records;
+    }
+
+    /**
+     * @param list<array{path: string, sha256: ?string, bytes: ?int}> $observedRecords
+     * @param list<array{kind: string, path: string, present: bool, sha256: ?string, bytes: ?int}> $files
+     * @return list<string>
+     */
+    private static function runnerTranscriptValidationIssues(array $observedRecords, array $files): array
+    {
+        $issues = [];
+        if ($observedRecords === []) {
+            $issues[] = 'runner-result-transcript-records-missing';
+        }
+        if (self::runnerTranscriptRecordPaths($observedRecords) !== self::RUNNER_REQUIRED_TRANSCRIPTS) {
+            $issues[] = 'runner-result-transcript-record-paths-mismatch';
+        }
+
+        $recordsByPath = [];
+        foreach ($observedRecords as $record) {
+            if (isset($recordsByPath[$record['path']])) {
+                $issues[] = 'runner-result-transcript-record-paths-not-unique';
+                continue;
+            }
+            $recordsByPath[$record['path']] = $record;
+        }
+
+        $filesByPath = [];
+        foreach ($files as $file) {
+            $filesByPath[$file['path']] = $file;
+        }
+
+        foreach (self::RUNNER_REQUIRED_TRANSCRIPTS as $path) {
+            $file = $filesByPath[$path] ?? null;
+            if (!is_array($file) || ($file['present'] ?? null) !== true) {
+                $issues[] = 'runner-result-transcript-file-missing';
+                continue;
+            }
+
+            $record = $recordsByPath[$path] ?? null;
+            if (!is_array($record)) {
+                $issues[] = 'runner-result-transcript-record-missing';
+                continue;
+            }
+            if (($record['sha256'] ?? null) !== $file['sha256']) {
+                $issues[] = 'runner-result-transcript-sha256-mismatch';
+            }
+            if (($record['bytes'] ?? null) !== $file['bytes']) {
+                $issues[] = 'runner-result-transcript-bytes-mismatch';
+            }
+        }
+
+        return array_values(array_unique($issues));
+    }
+
+    private function absoluteRunnerResultArtifact(): string
+    {
+        $path = (string) $this->runnerResultArtifact;
+        if (str_starts_with($path, DIRECTORY_SEPARATOR)) {
+            return $path;
+        }
+
+        return $this->repoRoot . DIRECTORY_SEPARATOR . trim($path, DIRECTORY_SEPARATOR);
+    }
+
+    /**
+     * @param array<string, mixed> $denominator
+     * @return list<string>
+     */
+    private static function readerCaseNames(array $denominator): array
+    {
+        $fixtures = is_array($denominator['selectedFixtures'] ?? null) ? $denominator['selectedFixtures'] : [];
+        $names = [];
+        foreach ($fixtures as $fixture) {
+            if (is_array($fixture) && is_string($fixture['name'] ?? null)) {
+                $names[] = $fixture['name'];
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function stringList(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $strings = [];
+        foreach ($value as $item) {
+            if (is_string($item)) {
+                $strings[] = $item;
+            }
+        }
+
+        return $strings;
     }
 
     /**
@@ -709,8 +1166,9 @@ final class HtmlUpstreamReaderEvidence
                 'that each selected fixture has a same-basename checked-in native expectation file',
                 'that each selected fixture is referenced by at least one local focused test',
                 'that the existing native AST gate observes 62 checked-in same-basename HTML/native matches',
-                'that upstream Haskell runner evidence is explicitly not-run',
+                'that upstream Haskell runner evidence is either explicitly not-run or supplied as a validated result artifact',
                 'the future upstream runner command plan targets test:test-pandoc Readers/HTML at the pinned upstream commit without execution',
+                'a supplied upstream runner result artifact is validated against the pinned HTML Tasty target, commit, test names, pass/fail counts, and transcript file identities when explicitly provided',
             ],
             'doesNotAssert' => [
                 'full upstream Tests.Readers.HTML runner parity',

@@ -22,6 +22,9 @@ Options:
   --require-runner-not-run            Exit 1 unless upstream runner evidence is structured as not-run.
   --require-runner-plan               Exit 1 unless upstream runner evidence includes the pinned
                                       non-executed test:test-pandoc HTML command plan.
+  --runner-result-artifact PATH       Validate a captured upstream runner result JSON artifact
+                                      and its transcript file identities.
+  --require-runner-result-artifact    Exit 1 unless the supplied runner result artifact is valid.
   --require-no-validation-issues      Exit 1 when hydrated-upstream validation reports any issue.
   --help                              Show this help.
 
@@ -39,7 +42,9 @@ try {
     $requireStaticCurrentEvidence = false;
     $requireRunnerNotRun = false;
     $requireRunnerPlan = false;
+    $requireRunnerResultArtifact = false;
     $requireNoValidationIssues = false;
+    $runnerResultArtifact = null;
     $args = array_slice($argv, 1);
 
     for ($i = 0, $count = count($args); $i < $count; ++$i) {
@@ -73,6 +78,10 @@ try {
             $requireRunnerPlan = true;
             continue;
         }
+        if ($arg === '--require-runner-result-artifact') {
+            $requireRunnerResultArtifact = true;
+            continue;
+        }
         if ($arg === '--require-no-validation-issues') {
             $requireNoValidationIssues = true;
             continue;
@@ -91,6 +100,14 @@ try {
         }
         if (str_starts_with($arg, '--upstream-root=')) {
             $upstreamRoot = substr($arg, strlen('--upstream-root='));
+            continue;
+        }
+        if ($arg === '--runner-result-artifact') {
+            $runnerResultArtifact = $nextValue('--runner-result-artifact');
+            continue;
+        }
+        if (str_starts_with($arg, '--runner-result-artifact=')) {
+            $runnerResultArtifact = substr($arg, strlen('--runner-result-artifact='));
             continue;
         }
         if ($arg === '--require-selected-fixture-count') {
@@ -129,7 +146,7 @@ try {
         throw new InvalidArgumentException("Unknown option: {$arg}");
     }
 
-    $report = (new HtmlUpstreamReaderEvidence($repoRoot, $upstreamRoot))->report();
+    $report = (new HtmlUpstreamReaderEvidence($repoRoot, $upstreamRoot, $runnerResultArtifact))->report();
     if ($json) {
         fwrite(STDOUT, json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR) . PHP_EOL);
     } else {
@@ -160,6 +177,10 @@ try {
     }
     if ($requireRunnerPlan && !HtmlUpstreamReaderEvidence::hasRunnerPlanEvidence($report)) {
         fwrite(STDERR, "pandoc-html-reader-evidence: runner command-plan evidence is invalid\n");
+        exit(1);
+    }
+    if ($requireRunnerResultArtifact && !HtmlUpstreamReaderEvidence::hasRunnerResultArtifactEvidence($report)) {
+        fwrite(STDERR, "pandoc-html-reader-evidence: runner result artifact evidence is invalid\n");
         exit(1);
     }
     if ($requireNoValidationIssues && !HtmlUpstreamReaderEvidence::hasNoValidationIssues($report)) {
