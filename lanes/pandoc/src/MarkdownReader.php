@@ -1154,6 +1154,9 @@ final class MarkdownReader
         if ($text === '' || $this->tryParseMarkdownHeading($line) !== null) {
             return null;
         }
+        if ($this->matchListMarker($line) !== null) {
+            return null;
+        }
 
         $marker = $this->expandTabsToSpaces($lines[$index + 1]);
         if (preg_match('/^ {0,3}(=+|-+)[ \t]*$/', $marker, $m) !== 1) {
@@ -10436,29 +10439,14 @@ final class MarkdownReader
             if ($task !== null) {
                 $taskChecked = $task['checked'];
                 $firstText = $task['text'];
-                if ($this->isBlockQuoteLine($firstText)) {
-                    $quoteIndex = 0;
-                    $quote = $this->tryReadBlockQuote([$firstText], $quoteIndex);
-                    if ($quote !== null) {
-                        $parts[] = $quote;
-                        $cursor++;
-                    } else {
-                        $paragraph[] = $firstText;
-                        $cursor++;
-                    }
-
-                    return [
-                        'parts' => $parts,
-                        'next' => $cursor,
-                        'loose' => $loose,
-                        'text' => $firstText,
-                        'number' => $marker['start'],
-                        'taskChecked' => $taskChecked,
-                    ];
-                }
             }
-            $paragraph[] = $firstText;
-            $cursor++;
+            if ($this->isBlockQuoteLine($firstText)) {
+                [$quote, $cursor] = $this->readListItemBlockQuote($lines, $cursor, $baseIndent, $contentIndent, $firstText);
+                $parts[] = $quote;
+            } else {
+                $paragraph[] = $firstText;
+                $cursor++;
+            }
         } else {
             $cursor++;
         }
@@ -10497,7 +10485,7 @@ final class MarkdownReader
                 break;
             }
 
-            if ($this->isHorizontalRule($line)) {
+            if ($this->isHorizontalRule($line) && $this->countIndentColumns($line) < $contentIndent) {
                 break;
             }
 
@@ -10525,6 +10513,21 @@ final class MarkdownReader
             $indent = $this->countIndentColumns($line);
             if ($indent >= $contentIndent) {
                 $continuation = rtrim($this->stripIndentColumns($line, $contentIndent));
+                if ($this->isBlockQuoteLine($continuation)) {
+                    $this->flushListItemParagraph($paragraph, $parts);
+                    [$quote, $cursor] = $this->readListItemBlockQuote($lines, $cursor, $baseIndent, $contentIndent, $continuation);
+                    $parts[] = $quote;
+                    continue;
+                }
+
+                $continuationBlock = $this->tryReadListItemIndentedBlock($lines, $cursor, $baseIndent, $contentIndent, $continuation);
+                if ($continuationBlock !== null) {
+                    $this->flushListItemParagraph($paragraph, $parts);
+                    $parts[] = $continuationBlock['node'];
+                    $cursor = $continuationBlock['next'];
+                    continue;
+                }
+
                 if (
                     $this->lineCanStartRawHtmlBlock($continuation)
                     || ($paragraph === [] && $this->lineCanStartRawHtmlClosingBlock($continuation))
@@ -10564,6 +10567,71 @@ final class MarkdownReader
             'number' => $marker['start'],
             'taskChecked' => $taskChecked,
         ];
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{0:AstNode, 1:int}
+     */
+    private function readListItemBlockQuote(
+        array $lines,
+        int $cursor,
+        int $baseIndent,
+        int $contentIndent,
+        string $firstLine
+    ): array {
+        $quoteLines = [$firstLine];
+        $quoteLines = array_merge(
+            $quoteLines,
+            $this->collectListItemIndentedContinuationLines($lines, $cursor + 1, $baseIndent, $contentIndent)
+        );
+        $quoteIndex = 0;
+        $quote = $this->tryReadBlockQuote($quoteLines, $quoteIndex);
+
+        return [$quote ?? new AstNode('blockquote'), $cursor + $quoteIndex + 1];
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{node:AstNode, next:int}|null
+     */
+    private function tryReadListItemIndentedBlock(
+        array $lines,
+        int $cursor,
+        int $baseIndent,
+        int $contentIndent,
+        string $firstLine
+    ): ?array {
+        $heading = $this->tryParseMarkdownHeading($firstLine);
+        if ($heading !== null) {
+            return [
+                'node' => new AstNode(
+                    'heading',
+                    $this->markdownHeadingAstAttrs($heading, $heading['id'] ?? ''),
+                    $this->parseInlines($heading['text'])
+                ),
+                'next' => $cursor + 1,
+            ];
+        }
+
+        if ($this->isHorizontalRule($firstLine)) {
+            return [
+                'node' => new AstNode('horizontal_rule'),
+                'next' => $cursor + 1,
+            ];
+        }
+
+        $blockLines = $this->collectListItemIndentedContinuationLines($lines, $cursor, $baseIndent, $contentIndent);
+        $blockIndex = 0;
+        $fencedCode = $this->tryReadFencedCodeBlock($blockLines, $blockIndex);
+        if ($fencedCode !== null) {
+            return [
+                'node' => $fencedCode,
+                'next' => $cursor + $blockIndex + 1,
+            ];
+        }
+
+        return null;
     }
 
     /**
@@ -11027,36 +11095,41 @@ final class MarkdownReader
             ];
         }
 
-        if (preg_match('/^( *)([-*+])( +)(.*)$/', $expanded, $m) === 1) {
+        if (preg_match('/^( *)([-*+])(?:( +)(.*)|)$/', $expanded, $m) === 1) {
+            $padding = isset($m[3]) ? strlen($m[3]) : 1;
+
             return [
                 'indent' => strlen($m[1]),
                 'ordered' => false,
                 'start' => null,
-                'text' => $m[4],
-                'contentIndent' => strlen($m[1]) + 1 + strlen($m[3]),
-                'padding' => strlen($m[3]),
+                'text' => $m[4] ?? '',
+                'contentIndent' => strlen($m[1]) + 1 + $padding,
+                'padding' => $padding,
                 'style' => null,
                 'delimiter' => null,
                 'marker' => $m[2],
             ];
         }
 
-        if (preg_match('/^( *)#([.)])( +)(.*)$/', $expanded, $m) === 1) {
+        if (preg_match('/^( *)#([.)])(?:( +)(.*)|)$/', $expanded, $m) === 1) {
+            $padding = isset($m[3]) ? strlen($m[3]) : 1;
+
             return [
                 'indent' => strlen($m[1]),
                 'ordered' => true,
                 'start' => 1,
-                'text' => $m[4],
-                'contentIndent' => strlen($m[1]) + 2 + strlen($m[3]),
-                'padding' => strlen($m[3]),
+                'text' => $m[4] ?? '',
+                'contentIndent' => strlen($m[1]) + 2 + $padding,
+                'padding' => $padding,
                 'style' => 'default',
                 'delimiter' => 'default',
                 'marker' => '#',
             ];
         }
 
-        if (preg_match('/^( *)\(([0-9]{1,9}|[A-Za-z]+)\)( +)(.*)$/', $expanded, $m) === 1) {
-            $ordinal = $this->parseOrderedMarkerOrdinal($m[2], 'two_parens', strlen($m[3]), strlen($m[1]));
+        if (preg_match('/^( *)\(([0-9]{1,9}|[A-Za-z]+)\)(?:( +)(.*)|)$/', $expanded, $m) === 1) {
+            $padding = isset($m[3]) ? strlen($m[3]) : 1;
+            $ordinal = $this->parseOrderedMarkerOrdinal($m[2], 'two_parens', $padding, strlen($m[1]));
             if ($ordinal === null) {
                 return null;
             }
@@ -11065,32 +11138,35 @@ final class MarkdownReader
                 'indent' => strlen($m[1]),
                 'ordered' => true,
                 'start' => $ordinal['start'],
-                'text' => $m[4],
-                'contentIndent' => strlen($m[1]) + strlen($m[2]) + 2 + strlen($m[3]),
-                'padding' => strlen($m[3]),
+                'text' => $m[4] ?? '',
+                'contentIndent' => strlen($m[1]) + strlen($m[2]) + 2 + $padding,
+                'padding' => $padding,
                 'style' => $ordinal['style'],
                 'delimiter' => 'two_parens',
                 'marker' => '(' . $m[2] . ')',
             ];
         }
 
-        if (preg_match('/^( *)(\d{1,9})([.)])( +)(.*)$/', $expanded, $m) === 1) {
+        if (preg_match('/^( *)(\d{1,9})([.)])(?:( +)(.*)|)$/', $expanded, $m) === 1) {
+            $padding = isset($m[4]) ? strlen($m[4]) : 1;
+
             return [
                 'indent' => strlen($m[1]),
                 'ordered' => true,
                 'start' => (int) $m[2],
-                'text' => $m[5],
-                'contentIndent' => strlen($m[1]) + strlen($m[2]) + 1 + strlen($m[4]),
-                'padding' => strlen($m[4]),
+                'text' => $m[5] ?? '',
+                'contentIndent' => strlen($m[1]) + strlen($m[2]) + 1 + $padding,
+                'padding' => $padding,
                 'style' => 'decimal',
                 'delimiter' => $m[3] === ')' ? 'one_paren' : 'period',
                 'marker' => $m[2] . $m[3],
             ];
         }
 
-        if (preg_match('/^( *)([A-Za-z]+)([.)])( +)(.*)$/', $expanded, $m) === 1) {
+        if (preg_match('/^( *)([A-Za-z]+)([.)])(?:( +)(.*)|)$/', $expanded, $m) === 1) {
             $delimiter = $m[3] === ')' ? 'one_paren' : 'period';
-            $ordinal = $this->parseOrderedMarkerOrdinal($m[2], $delimiter, strlen($m[4]), strlen($m[1]));
+            $padding = isset($m[4]) ? strlen($m[4]) : 1;
+            $ordinal = $this->parseOrderedMarkerOrdinal($m[2], $delimiter, $padding, strlen($m[1]));
             if ($ordinal === null) {
                 return null;
             }
@@ -11099,9 +11175,9 @@ final class MarkdownReader
                 'indent' => strlen($m[1]),
                 'ordered' => true,
                 'start' => $ordinal['start'],
-                'text' => $m[5],
-                'contentIndent' => strlen($m[1]) + strlen($m[2]) + 1 + strlen($m[4]),
-                'padding' => strlen($m[4]),
+                'text' => $m[5] ?? '',
+                'contentIndent' => strlen($m[1]) + strlen($m[2]) + 1 + $padding,
+                'padding' => $padding,
                 'style' => $ordinal['style'],
                 'delimiter' => $delimiter,
                 'marker' => $m[2] . $m[3],
@@ -11117,16 +11193,18 @@ final class MarkdownReader
     private function matchNumberedExampleMarker(string $line): ?array
     {
         $expanded = $this->expandTabsToSpaces($line);
-        if (preg_match('/^( *)\(@([A-Za-z0-9_-]*)\)( +)(.*)$/', $expanded, $m) !== 1) {
+        if (preg_match('/^( *)\(@([A-Za-z0-9_-]*)\)(?:( +)(.*)|)$/', $expanded, $m) !== 1) {
             return null;
         }
+
+        $padding = isset($m[3]) ? strlen($m[3]) : 1;
 
         return [
             'indent' => strlen($m[1]),
             'label' => $m[2],
-            'text' => $m[4],
-            'contentIndent' => strlen($m[1]) + strlen($m[2]) + 3 + strlen($m[3]),
-            'padding' => strlen($m[3]),
+            'text' => $m[4] ?? '',
+            'contentIndent' => strlen($m[1]) + strlen($m[2]) + 3 + $padding,
+            'padding' => $padding,
         ];
     }
 
