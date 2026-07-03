@@ -10,7 +10,7 @@ final class EpubMediaBagComparisonHarness
 
     private const DEFAULT_MAX_EXAMPLES = 12;
     private const VERDICT = 'media-bag-comparison-not-full-epub-parity';
-    private const CLAIM = 'Compares local PHP EPUB reader image-resource output with upstream Tests.Readers.EPUB media-bag expectations by normalized media path, MIME type, and byte size; no upstream Haskell runner, AST parity, writer parity, or full EPUB feature parity is asserted.';
+    private const CLAIM = 'Compares local PHP EPUB reader media-bag directory output with upstream Tests.Readers.EPUB media-bag expectations by normalized media path, MIME type, and byte size; no upstream Haskell runner, AST parity, writer parity, or full EPUB feature parity is asserted.';
     private const CURRENT_MEDIA_BAG_SIGNATURE_KIND = 'checked-in-current-epub-media-bag-signature';
     private const CURRENT_MEDIA_BAG_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
     private const CURRENT_MEDIA_BAG_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-6-case-media-bag-snapshot';
@@ -694,11 +694,6 @@ final class EpubMediaBagComparisonHarness
             return ['ok' => false, 'bag' => [], 'error' => 'php-ziparchive-unavailable'];
         }
 
-        $zip = new \ZipArchive();
-        if ($zip->open($path) !== true) {
-            return ['ok' => false, 'bag' => [], 'error' => 'unable-to-open-epub'];
-        }
-
         try {
             $document = (new EpubReader())->readEpubFile($path);
             $meta = $document->attr('meta', []);
@@ -706,34 +701,28 @@ final class EpubMediaBagComparisonHarness
                 return ['ok' => false, 'bag' => [], 'error' => 'epub-reader-meta-missing'];
             }
 
-            $rootfile = is_string($meta['epubRootfile'] ?? null) ? $meta['epubRootfile'] : '';
-            $rootDirectory = $this->dirname($rootfile);
-            $manifestByPath = [];
-            foreach (is_array($meta['epubManifestItems'] ?? null) ? $meta['epubManifestItems'] : [] as $item) {
-                if (!is_array($item) || !is_string($item['path'] ?? null)) {
-                    continue;
-                }
-                $manifestByPath[(string) $item['path']] = $item;
+            $directory = is_array($meta['epubMediaResourceDirectory'] ?? null)
+                ? $meta['epubMediaResourceDirectory']
+                : null;
+            if ($directory === null) {
+                return ['ok' => false, 'bag' => [], 'error' => 'epub-reader-media-resource-directory-missing'];
             }
 
             $bag = [];
-            foreach (is_array($meta['epubMediaBagResources'] ?? null) ? $meta['epubMediaBagResources'] : [] as $resource) {
-                if (!is_string($resource) || $resource === '') {
+            foreach ($directory as $item) {
+                if (!is_array($item)) {
                     continue;
                 }
-                $manifestItem = is_array($manifestByPath[$resource] ?? null) ? $manifestByPath[$resource] : [];
                 $bag[] = [
-                    'path' => $this->pathRelativeToRootDirectory($resource, $rootDirectory),
-                    'mime' => strtolower((string) ($manifestItem['mediaType'] ?? $this->mimeFromPath($resource))),
-                    'size' => $this->zipEntrySize($zip, $resource),
+                    'path' => (string) ($item['path'] ?? ''),
+                    'mime' => strtolower((string) ($item['mimeType'] ?? '')),
+                    'size' => (int) ($item['byteLength'] ?? 0),
                 ];
             }
 
             return ['ok' => true, 'bag' => $this->normalizeBag($bag), 'error' => null];
         } catch (\Throwable $throwable) {
             return ['ok' => false, 'bag' => [], 'error' => $throwable::class . ': ' . $throwable->getMessage()];
-        } finally {
-            $zip->close();
         }
     }
 
@@ -790,50 +779,6 @@ final class EpubMediaBagComparisonHarness
         return null;
     }
 
-    private function pathRelativeToRootDirectory(string $path, string $rootDirectory): string
-    {
-        $normalized = ltrim(str_replace('\\', '/', $path), '/');
-        $root = trim(str_replace('\\', '/', $rootDirectory), '/');
-        if ($root !== '' && str_starts_with($normalized, $root . '/')) {
-            return substr($normalized, strlen($root) + 1);
-        }
-
-        return $normalized;
-    }
-
-    private function dirname(string $path): string
-    {
-        $normalized = trim(str_replace('\\', '/', $path), '/');
-        if ($normalized === '' || !str_contains($normalized, '/')) {
-            return '';
-        }
-
-        return substr($normalized, 0, (int) strrpos($normalized, '/'));
-    }
-
-    private function zipEntrySize(\ZipArchive $zip, string $entryName): int
-    {
-        $stat = $zip->statName($entryName);
-        if (is_array($stat) && isset($stat['size'])) {
-            return (int) $stat['size'];
-        }
-
-        $bytes = $zip->getFromName($entryName);
-        return is_string($bytes) ? strlen($bytes) : 0;
-    }
-
-    private function mimeFromPath(string $path): string
-    {
-        return match (strtolower(pathinfo($path, PATHINFO_EXTENSION))) {
-            'gif' => 'image/gif',
-            'jpeg', 'jpg' => 'image/jpeg',
-            'png' => 'image/png',
-            'svg' => 'image/svg+xml',
-            'webp' => 'image/webp',
-            default => 'application/octet-stream',
-        };
-    }
-
     /**
      * @return array<string, list<string>>
      */
@@ -841,9 +786,9 @@ final class EpubMediaBagComparisonHarness
     {
         return [
             'includes' => [
-                'local EpubReader epubMediaBagResources entries derived from emitted image nodes',
-                'OPF manifest media-type values',
-                'uncompressed ZIP entry byte sizes',
+                'local EpubReader epubMediaResourceDirectory entries loaded from emitted image nodes',
+                'MediaBag normalized MIME type values',
+                'MediaBag byte lengths from inserted ZIP entry payloads',
                 'Pandoc-style paths relative to the OPF root directory',
             ],
             'excludes' => [

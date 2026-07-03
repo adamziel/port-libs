@@ -90,6 +90,7 @@ final class EpubReader
         $resources = [];
         $referenced_resources = [];
         $media_bag_resources = [];
+        $media_bag_sources = [];
         $image_resources = $this->imageResources($base_path, $manifest);
         $linear_spine_image_hrefs = $this->linearSpineImageHrefs($spine_items, $manifest);
         $spine_filenames = array_map(
@@ -102,7 +103,10 @@ final class EpubReader
 
         $cover = $this->coverImageHref($package, $manifest);
         if ($cover !== null && !in_array($cover, $linear_spine_image_hrefs, true)) {
-            $this->recordMediaBagResource($cover, '', $base_path, $media_bag_resources);
+            $cover_resource = $this->recordMediaBagResource($cover, '', $base_path, $media_bag_resources);
+            if ($cover_resource !== null) {
+                $this->recordMediaBagSource($this->mediaBagSourceUrl($cover), $cover_resource, $media_bag_sources);
+            }
             $children[] = new AstNode('paragraph', ['text' => ''], [
                 new AstNode('image', [
                     'url' => $cover,
@@ -133,6 +137,7 @@ final class EpubReader
                 $resources[] = $href;
                 $referenced_resources[] = $href;
                 $media_bag_resources[] = $href;
+                $this->recordMediaBagSource($this->mediaBagSourceUrl($item['href']), $href, $media_bag_sources);
                 $children[] = $this->directImageSpineBlock($item['href']);
                 continue;
             }
@@ -157,7 +162,8 @@ final class EpubReader
                 $base_path,
                 $spine_filenames,
                 $referenced_resources,
-                $media_bag_resources
+                $media_bag_resources,
+                $media_bag_sources
             );
             $children[] = $this->spineMarker($this->spineFilename($item['href']));
             array_push($children, ...$document->children);
@@ -178,6 +184,11 @@ final class EpubReader
         $metadata['epubReferencedResources'] = array_values(array_unique($referenced_resources));
         $metadata['epubImageResources'] = $image_resources;
         $metadata['epubMediaBagResources'] = array_values(array_unique($media_bag_resources));
+        $media_bag = $this->readEpubMediaBag($zip, $base_path, $manifest, $media_bag_sources);
+        $metadata['epubMediaResourcePolicy'] = 'reader-media-bag-from-emitted-image-resources';
+        $metadata['epubMediaResourceDirectory'] = $media_bag['directory'];
+        $metadata['epubMediaResourceCount'] = count($media_bag['directory']);
+        $metadata['epubMediaResourceDiagnostics'] = $media_bag['diagnostics'];
         $metadata['epubTocResources'] = $toc['resources'];
         $metadata['epubTocEntryCount'] = count($toc['entries']);
         $metadata['epubLandmarkEntryCount'] = count($toc['landmarks']);
@@ -943,18 +954,20 @@ final class EpubReader
         string $package_base_path,
         array $spine_filenames,
         array &$referenced_resources,
-        array &$media_bag_resources
+        array &$media_bag_resources,
+        array &$media_bag_sources
     ): AstNode {
         $filename = $this->spineFilename($content_path);
         $content_dir = $this->dirname($content_path);
 
-        return $this->fixEpubNode($document, $filename, $content_dir, $package_base_path, $spine_filenames, $referenced_resources, $media_bag_resources);
+        return $this->fixEpubNode($document, $filename, $content_dir, $package_base_path, $spine_filenames, $referenced_resources, $media_bag_resources, $media_bag_sources);
     }
 
     /**
      * @param list<string> $spine_filenames
      * @param list<string> $referenced_resources
      * @param list<string> $media_bag_resources
+     * @param array<string, string> $media_bag_sources
      */
     private function fixEpubNode(
         AstNode $node,
@@ -963,7 +976,8 @@ final class EpubReader
         string $package_base_path,
         array $spine_filenames,
         array &$referenced_resources,
-        array &$media_bag_resources
+        array &$media_bag_resources,
+        array &$media_bag_sources
     ): AstNode {
         $attrs = in_array($node->type, ['blockquote', 'definition_list'], true)
             ? []
@@ -981,14 +995,17 @@ final class EpubReader
             $url = (string) ($attrs['url'] ?? '');
             if ($url !== '') {
                 $this->recordReferencedResource($url, $content_dir, $package_base_path, $referenced_resources);
-                $this->recordMediaBagResource($url, $content_dir, $package_base_path, $media_bag_resources);
+                $resource = $this->recordMediaBagResource($url, $content_dir, $package_base_path, $media_bag_resources);
                 $attrs['url'] = $this->fixEpubImageUrl($url, $content_dir);
+                if ($resource !== null) {
+                    $this->recordMediaBagSource($this->mediaBagSourceUrl($attrs['url']), $resource, $media_bag_sources);
+                }
             }
         }
 
         $children = [];
         foreach ($node->children as $child) {
-            $children[] = $this->fixEpubNode($child, $filename, $content_dir, $package_base_path, $spine_filenames, $referenced_resources, $media_bag_resources);
+            $children[] = $this->fixEpubNode($child, $filename, $content_dir, $package_base_path, $spine_filenames, $referenced_resources, $media_bag_resources, $media_bag_sources);
         }
         $children = $this->trimTextBeforeInlineImages($children);
 
@@ -1145,9 +1162,22 @@ final class EpubReader
     /**
      * @param list<string> $media_bag_resources
      */
-    private function recordMediaBagResource(string $url, string $content_dir, string $package_base_path, array &$media_bag_resources): void
+    private function recordMediaBagResource(string $url, string $content_dir, string $package_base_path, array &$media_bag_resources): ?string
     {
-        $this->recordPackageRelativeResource($url, $content_dir, $package_base_path, $media_bag_resources, false);
+        return $this->recordPackageRelativeResource($url, $content_dir, $package_base_path, $media_bag_resources, false);
+    }
+
+    /**
+     * @param array<string, string> $media_bag_sources
+     */
+    private function recordMediaBagSource(string $source, string $resource, array &$media_bag_sources): void
+    {
+        $source = $this->mediaBagSourceUrl($source);
+        if ($source === '' || $resource === '') {
+            return;
+        }
+
+        $media_bag_sources[$source] ??= $resource;
     }
 
     /**
@@ -1159,15 +1189,15 @@ final class EpubReader
         string $package_base_path,
         array &$resources,
         bool $include_fragment
-    ): void
+    ): ?string
     {
         if (!$this->isPackageRelativeResourceUrl($url)) {
-            return;
+            return null;
         }
 
         [$path, $fragment] = $this->splitUrlFragment($url);
         if ($path === '') {
-            return;
+            return null;
         }
 
         $resource = $this->normalizeZipPath($package_base_path . '/' . $content_dir . '/' . $path);
@@ -1175,6 +1205,115 @@ final class EpubReader
             $resource .= '#' . $fragment;
         }
         $resources[] = $resource;
+
+        return $resource;
+    }
+
+    /**
+     * @param array<string, array{href: string, media-type: string, properties: list<string>}> $manifest
+     * @param array<string, string> $media_bag_sources
+     * @return array{directory: list<array<string, mixed>>, diagnostics: list<string>}
+     */
+    private function readEpubMediaBag(\ZipArchive $zip, string $base_path, array $manifest, array $media_bag_sources): array
+    {
+        $bag = new MediaBag();
+        $diagnostics = [];
+        $media_types = $this->manifestMediaTypesByResourcePath($base_path, $manifest);
+
+        foreach ($media_bag_sources as $source => $resource) {
+            $bytes = $zip->getFromName($resource);
+            if (!is_string($bytes)) {
+                $diagnostics[] = 'epub-media-resource-missing:' . $resource;
+                continue;
+            }
+
+            $bag->insertMedia($source, $media_types[$resource] ?? null, $bytes);
+            $diagnostics[] = 'epub-media-resource-loaded:' . $resource;
+        }
+
+        return [
+            'directory' => $this->epubMediaResourceDirectory($bag->directory(), $media_bag_sources, $base_path),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, array{href: string, media-type: string, properties: list<string>}> $manifest
+     * @return array<string, string>
+     */
+    private function manifestMediaTypesByResourcePath(string $base_path, array $manifest): array
+    {
+        $media_types = [];
+        foreach ($manifest as $item) {
+            $href = $item['href'];
+            if ($this->isAbsoluteUrl($href)) {
+                continue;
+            }
+            $path = $this->normalizeZipPath($base_path . '/' . $href);
+            $media_type = $this->mediaTypeBase($item['media-type']);
+            if ($path !== '' && $media_type !== '') {
+                $media_types[$path] = $media_type;
+            }
+        }
+
+        return $media_types;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $directory
+     * @param array<string, string> $media_bag_sources
+     * @return list<array<string, mixed>>
+     */
+    private function epubMediaResourceDirectory(array $directory, array $media_bag_sources, string $base_path): array
+    {
+        $entries = [];
+        foreach ($directory as $entry) {
+            $source = is_string($entry['source'] ?? null) ? $entry['source'] : '';
+            $zip_entry = $media_bag_sources[$source] ?? $source;
+            $entry['zipEntry'] = $zip_entry;
+            $entry['path'] = $this->pathRelativeToPackageBase($zip_entry, $base_path);
+            $entries[] = $entry;
+        }
+
+        usort(
+            $entries,
+            static fn (array $left, array $right): int => [
+                (string) ($left['path'] ?? ''),
+                (string) ($left['source'] ?? ''),
+            ] <=> [
+                (string) ($right['path'] ?? ''),
+                (string) ($right['source'] ?? ''),
+            ]
+        );
+
+        return $entries;
+    }
+
+    private function mediaBagSourceUrl(string $url): string
+    {
+        $source = str_replace('\\', '/', $url);
+        $query = strpos($source, '?');
+        $fragment = strpos($source, '#');
+        $positions = array_filter(
+            [$query, $fragment],
+            static fn (int|false $position): bool => $position !== false
+        );
+        if ($positions !== []) {
+            $source = substr($source, 0, min($positions));
+        }
+
+        return $source;
+    }
+
+    private function pathRelativeToPackageBase(string $path, string $base_path): string
+    {
+        $path = $this->normalizeZipPath($path);
+        $base_path = $this->normalizeZipPath($base_path);
+        if ($base_path !== '' && str_starts_with($path, $base_path . '/')) {
+            return substr($path, strlen($base_path) + 1);
+        }
+
+        return $path;
     }
 
     /**

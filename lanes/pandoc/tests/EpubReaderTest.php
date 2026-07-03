@@ -598,8 +598,10 @@ XML);
   </body>
 </html>
 HTML);
-        $zip->addFromString('OPS/images/used.png', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII='));
-        $zip->addFromString('OPS/images/linked.gif', base64_decode('R0lGODlhAQABAPAAAP///wAAACH5BAAAAAAALAAAAAABAAEAAAICRAEAOw=='));
+        $usedImageBytes = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=');
+        $linkedImageBytes = base64_decode('R0lGODlhAQABAPAAAP///wAAACH5BAAAAAAALAAAAAABAAEAAAICRAEAOw==');
+        $zip->addFromString('OPS/images/used.png', $usedImageBytes);
+        $zip->addFromString('OPS/images/linked.gif', $linkedImageBytes);
         $zip->addFromString('OPS/images/unused.jpg', "\xFF\xD8\xFF\xD9");
         $zip->close();
 
@@ -622,6 +624,24 @@ HTML);
             'OPS/images/unused.jpg',
         ], $meta['epubImageResources']);
         $t->same(['OPS/images/used.png'], $meta['epubMediaBagResources']);
+        $t->same('reader-media-bag-from-emitted-image-resources', $meta['epubMediaResourcePolicy']);
+        $t->same(1, $meta['epubMediaResourceCount']);
+        $t->same(['epub-media-resource-loaded:OPS/images/used.png'], $meta['epubMediaResourceDiagnostics']);
+        $t->same([
+            [
+                'path' => 'images/used.png',
+                'zipEntry' => 'OPS/images/used.png',
+                'mimeType' => 'image/png',
+                'byteLength' => strlen($usedImageBytes),
+                'sha1' => sha1($usedImageBytes),
+            ],
+        ], array_map(static fn (array $entry): array => [
+            'path' => (string) $entry['path'],
+            'zipEntry' => (string) $entry['zipEntry'],
+            'mimeType' => (string) $entry['mimeType'],
+            'byteLength' => (int) $entry['byteLength'],
+            'sha1' => (string) $entry['sha1'],
+        ], $meta['epubMediaResourceDirectory']));
     },
     'reads epub ncx table of contents metadata' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-');

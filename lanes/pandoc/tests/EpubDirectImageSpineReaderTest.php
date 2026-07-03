@@ -135,6 +135,7 @@ return [
             'images/photo',
             'images/chart.png',
         ];
+        $bytesByUrl = $imageBytes();
 
         $t->same('Direct Image Spine EPUB', $meta['title']);
         $t->same(['paragraph', 'paragraph', 'paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
@@ -151,6 +152,25 @@ return [
         $t->same($fullPaths, $meta['epubReadableResources']);
         $t->same($fullPaths, $meta['epubReferencedResources']);
         $t->same($fullPaths, $meta['epubImageResources']);
+        $t->same($fullPaths, $meta['epubMediaBagResources']);
+        $t->same('reader-media-bag-from-emitted-image-resources', $meta['epubMediaResourcePolicy']);
+        $t->same(3, $meta['epubMediaResourceCount']);
+        $t->same([
+            'epub-media-resource-loaded:OPS/images/check.gif',
+            'epub-media-resource-loaded:OPS/images/photo',
+            'epub-media-resource-loaded:OPS/images/chart.png',
+        ], $meta['epubMediaResourceDiagnostics']);
+        $t->same([
+            ['path' => 'images/chart.png', 'zipEntry' => 'OPS/images/chart.png', 'mimeType' => 'image/png', 'byteLength' => strlen($bytesByUrl['images/chart.png']), 'sha1' => sha1($bytesByUrl['images/chart.png'])],
+            ['path' => 'images/check.gif', 'zipEntry' => 'OPS/images/check.gif', 'mimeType' => 'image/gif', 'byteLength' => strlen($bytesByUrl['images/check.gif']), 'sha1' => sha1($bytesByUrl['images/check.gif'])],
+            ['path' => 'images/photo', 'zipEntry' => 'OPS/images/photo', 'mimeType' => 'image/jpeg', 'byteLength' => strlen($bytesByUrl['images/photo']), 'sha1' => sha1($bytesByUrl['images/photo'])],
+        ], array_map(static fn (array $entry): array => [
+            'path' => (string) $entry['path'],
+            'zipEntry' => (string) $entry['zipEntry'],
+            'mimeType' => (string) $entry['mimeType'],
+            'byteLength' => (int) $entry['byteLength'],
+            'sha1' => (string) $entry['sha1'],
+        ], $meta['epubMediaResourceDirectory']));
         $t->same([true, true, true], array_map(static fn (array $item): bool => (bool) $item['readable'], $meta['epubManifestItems']));
         $t->same([true, true, true], array_map(static fn (array $item): bool => (bool) $item['readable'], $meta['epubSpineItemRefs']));
         $t->contains('( "images/check.gif" , "" )', $native);
