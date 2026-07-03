@@ -1,0 +1,5 @@
+[ OrderedList
+    ( 1 , Example , TwoParens )
+    [ [ Plain [ Str "Alpha" ] ] , [ Plain [ Str "Beta" ] ] ]
+, Para [ Str "See" , Space , Str "(1)." ]
+]

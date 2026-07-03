@@ -11,10 +11,21 @@ final class MarkdownNativeAstComparisonHarness
     private const CLAIM = 'Compares local PHP Markdown reader output with paired .native fixtures by normalized AST shape; reader provenance and NativeReader constructor provenance are excluded, but no upstream Haskell runner or full Markdown dialect parity is asserted.';
 
     private const MARKDOWN_READER_OPTIONS_BY_BASENAME = [
+        'upstream-markdown-definition-list-html-div' => ['format' => 'markdown+definition_lists+raw_html'],
+        'upstream-markdown-definition-list-nested-list' => ['format' => 'markdown+definition_lists'],
+        'upstream-markdown-emoji-symbols' => ['format' => 'markdown+emoji'],
+        'upstream-markdown-fenced-code-attributes' => ['format' => 'markdown+fenced_code_attributes'],
         'upstream-markdown-fenced-div' => ['format' => 'markdown+fenced_divs+native_divs'],
+        'upstream-markdown-footnote-continuation-boundaries' => ['format' => 'markdown+footnotes'],
+        'upstream-markdown-footnote-definitions' => ['format' => 'markdown+footnotes'],
         'upstream-markdown-header-attributes' => ['format' => 'markdown+header_attributes+implicit_header_references'],
         'upstream-markdown-line-blocks' => ['format' => 'markdown+line_blocks'],
+        'upstream-markdown-mmd-short-scripts' => ['format' => 'markdown_mmd'],
+        'upstream-markdown-numbered-examples' => ['format' => 'markdown+example_lists'],
         'upstream-markdown-pipe-table-escaped-cell' => ['format' => 'markdown+pipe_tables'],
+        'upstream-markdown-raw-email-address' => ['format' => 'markdown-citations'],
+        'upstream-markdown-raw-html-invalid-comment' => ['format' => 'markdown+raw_html'],
+        'upstream-markdown-task-list' => ['format' => 'markdown+task_lists'],
     ];
 
     /** @var array<string, true> */
@@ -335,6 +346,7 @@ final class MarkdownNativeAstComparisonHarness
                 'table geometry review packets',
                 'default table widths, zero rowHeadColumns, and empty captions/feet',
                 'reader-derived block cached text metadata, including paragraph/list-item text',
+                'reader-derived Markdown source provenance such as list markers, task-list collection flags, note labels, numbered-example labels, code info strings, emoji source text, raw HTML format/text duplicates, and rendering hints',
                 'source id/classes/key-value attrs on Pandoc inline constructors without native Attr tuples; inline constructor, text, and children remain compared',
             ],
             'doesNotAssert' => [
@@ -440,6 +452,30 @@ final class MarkdownNativeAstComparisonHarness
                 continue;
             }
             if ($key === 'text' && $node->type === 'list_item') {
+                continue;
+            }
+            if ($key === 'marker' && self::isListShapeMetadataNode($node)) {
+                continue;
+            }
+            if ($key === 'taskList' && $node->type === 'bullet_list') {
+                continue;
+            }
+            if ($key === 'label' && $node->type === 'note') {
+                continue;
+            }
+            if (($key === 'exampleLabel' || $key === 'number') && $node->type === 'list_item') {
+                continue;
+            }
+            if ($key === 'info' && $node->type === 'code_block') {
+                continue;
+            }
+            if ($key === 'markdownSource') {
+                continue;
+            }
+            if ($key === 'renderCaptionInlines') {
+                continue;
+            }
+            if ($node->type === 'raw_html' && ($key === 'format' || $key === 'text')) {
                 continue;
             }
             if ($key === 'loose' && self::isListShapeMetadataNode($node)) {

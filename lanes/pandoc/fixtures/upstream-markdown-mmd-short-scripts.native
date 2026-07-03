@@ -1,0 +1,33 @@
+[ Para
+    [ Str "O"
+    , Subscript [ Str "2" ]
+    , Space
+    , Str "is"
+    , Space
+    , Str "dangerous"
+    ]
+, Para [ Str "O" , Subscript [ Str "2" ] ]
+, Para [ Str "O" , Subscript [ Str "2" ] , Str "." ]
+, Para
+    [ Str "O"
+    , Subscript [ Str "2" ]
+    , Emph [ Str "combustible!" ]
+    ]
+, Para [ Str "y~" , Emph [ Str "2" ] ]
+, Para
+    [ Str "x"
+    , Superscript [ Str "2" ]
+    , Space
+    , Str "="
+    , Space
+    , Str "y"
+    ]
+, Para [ Str "x" , Superscript [ Str "2" ] ]
+, Para [ Str "x" , Superscript [ Str "2" ] , Str "." ]
+, Para
+    [ Str "x"
+    , Superscript [ Str "2" ]
+    , Emph [ Str "combustible!" ]
+    ]
+, Para [ Str "y^" , Emph [ Str "2" ] ]
+]

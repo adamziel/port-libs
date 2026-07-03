@@ -1,0 +1,45 @@
+[ BulletList
+    [ [ Plain
+          [ Str "\9744"
+          , Space
+          , Str "Review"
+          , Space
+          , Str "imported"
+          , Space
+          , Str "media"
+          ]
+      ]
+    , [ Plain
+          [ Str "\9746"
+          , Space
+          , Str "Confirm"
+          , Space
+          , Str "source"
+          , Space
+          , Str "links"
+          ]
+      , BulletList
+          [ [ Plain
+                [ Str "\9744"
+                , Space
+                , Str "Attach"
+                , Space
+                , Str "follow-up"
+                ]
+            ]
+          ]
+      ]
+    , [ Plain
+          [ Str "\9746"
+          , Space
+          , Str "Mark"
+          , Space
+          , Str "ready"
+          , Space
+          , Str "to"
+          , Space
+          , Str "publish"
+          ]
+      ]
+    ]
+]

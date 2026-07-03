@@ -13,7 +13,7 @@ final class MarkdownUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-markdown-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
     public const EXPECTED_SELECTED_FIXTURE_COUNT = 47;
-    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 21;
+    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 33;
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/Markdown.hs',
@@ -908,7 +908,7 @@ final class MarkdownUpstreamReaderEvidence
             'doesAssert' => [
                 'the identity and count of forty-seven selected checked-in upstream-derived Markdown fixtures',
                 'that focused local tests cover those selected fixture files',
-                'that twenty-one checked-in Markdown/native fixture pairs have normalized AST equality through the local PHP reader harness',
+                'that thirty-three checked-in Markdown/native fixture pairs have normalized AST equality through the local PHP reader harness',
                 'that the upstream Markdown reader source inventory is present when a hydrated upstream checkout is inspected',
                 'that upstream Haskell runner evidence is explicitly not-run',
             ],

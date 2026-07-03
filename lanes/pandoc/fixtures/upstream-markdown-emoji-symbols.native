@@ -1,0 +1,12 @@
+[ Para
+    [ Span
+        ( "" , [ "emoji" ] , [ ( "data-emoji" , "smile" ) ] )
+        [ Str "\128516" ]
+    , Space
+    , Str "and"
+    , Space
+    , Span
+        ( "" , [ "emoji" ] , [ ( "data-emoji" , "+1" ) ] )
+        [ Str "\128077" ]
+    ]
+]
