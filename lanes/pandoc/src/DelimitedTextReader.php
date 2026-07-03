@@ -470,7 +470,7 @@ final class DelimitedTextReader
      *     fieldMetadataRows:list<list<array<string, mixed>>>,
      *     sourceRowIndexes:list<int>,
      *     blankRows:list<int>,
-     *     diagnostics:list<array{code:string, severity:string, message:string, row:int, column:int, offset:int}>,
+     *     diagnostics:list<array<string, mixed>>,
      *     metrics:array{
      *         quotedFieldCount:int,
      *         doubledQuoteEscapeCount:int,
@@ -492,6 +492,10 @@ final class DelimitedTextReader
         $escape = $dialect['escape'];
         $keepSpace = $dialect['keepSpace'];
         $length = strlen($text);
+        $lineStarts = $this->lineStartOffsets($text);
+        $sourceSpan = function (int $sourceStartOffset, int $sourceEndOffset) use ($lineStarts): array {
+            return $this->sourceSpan($lineStarts, $sourceStartOffset, $sourceEndOffset);
+        };
         $rows = [];
         $fieldMetadataRows = [];
         $sourceRowIndexes = [];
@@ -537,9 +541,11 @@ final class DelimitedTextReader
             &$afterClosingQuote,
             &$afterClosingQuoteWhitespace,
             &$fieldHadQuotedLineBreak,
-            &$metrics
+            &$metrics,
+            $sourceSpan
         ): void {
             $sourceEndOffset = max($fieldStartOffset, $sourceEndOffset);
+            $span = $sourceSpan($fieldStartOffset, $sourceEndOffset);
             $row[] = $field;
             $rowFieldMetadata[] = [
                 'sourceRow' => $rowIndex,
@@ -550,6 +556,7 @@ final class DelimitedTextReader
                 'sourceEndOffset' => $sourceEndOffset,
                 'sourceByteRange' => [$fieldStartOffset, $sourceEndOffset],
                 'sourceByteLength' => $sourceEndOffset - $fieldStartOffset,
+                ...$span,
                 'sourceQuoted' => $quotedField,
                 'sourceMultiline' => $fieldHadQuotedLineBreak,
             ];
@@ -776,7 +783,7 @@ final class DelimitedTextReader
             'fieldMetadataRows' => $fieldMetadataRows,
             'sourceRowIndexes' => $sourceRowIndexes,
             'blankRows' => $blankRows,
-            'diagnostics' => $diagnostics,
+            'diagnostics' => $this->diagnosticsWithSourcePositions($diagnostics, $lineStarts),
             'metrics' => $metrics,
         ];
     }
@@ -884,6 +891,106 @@ final class DelimitedTextReader
         ];
     }
 
+    /**
+     * @return list<int>
+     */
+    private function lineStartOffsets(string $text): array
+    {
+        $starts = [0];
+        $length = strlen($text);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $text[$offset];
+            if ($char === "\r") {
+                if (($text[$offset + 1] ?? '') === "\n") {
+                    $offset++;
+                }
+                $starts[] = $offset + 1;
+                continue;
+            }
+
+            if ($char === "\n") {
+                $starts[] = $offset + 1;
+            }
+        }
+
+        return $starts;
+    }
+
+    /**
+     * @param list<int> $lineStarts
+     * @return array{sourceLine:int, sourceLineNumber:int, sourceByteColumn:int, sourceByteColumnNumber:int}
+     */
+    private function sourcePosition(array $lineStarts, int $offset): array
+    {
+        $offset = max(0, $offset);
+        $line = 0;
+        $high = count($lineStarts) - 1;
+        while ($line < $high) {
+            $mid = intdiv($line + $high + 1, 2);
+            if ($lineStarts[$mid] <= $offset) {
+                $line = $mid;
+            } else {
+                $high = $mid - 1;
+            }
+        }
+
+        $column = $offset - $lineStarts[$line];
+
+        return [
+            'sourceLine' => $line,
+            'sourceLineNumber' => $line + 1,
+            'sourceByteColumn' => $column,
+            'sourceByteColumnNumber' => $column + 1,
+        ];
+    }
+
+    /**
+     * @param list<int> $lineStarts
+     * @return array<string, mixed>
+     */
+    private function sourceSpan(array $lineStarts, int $startOffset, int $endOffset): array
+    {
+        $start = $this->sourcePosition($lineStarts, $startOffset);
+        $end = $this->sourcePosition($lineStarts, max($startOffset, $endOffset));
+
+        return [
+            'sourceStartLine' => $start['sourceLine'],
+            'sourceStartLineNumber' => $start['sourceLineNumber'],
+            'sourceStartByteColumn' => $start['sourceByteColumn'],
+            'sourceStartByteColumnNumber' => $start['sourceByteColumnNumber'],
+            'sourceEndLine' => $end['sourceLine'],
+            'sourceEndLineNumber' => $end['sourceLineNumber'],
+            'sourceEndByteColumn' => $end['sourceByteColumn'],
+            'sourceEndByteColumnNumber' => $end['sourceByteColumnNumber'],
+            'sourceLocationUnit' => 'byte-column',
+            'sourceEndOffsetPolicy' => 'exclusive',
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @param list<int> $lineStarts
+     * @return list<array<string, mixed>>
+     */
+    private function diagnosticsWithSourcePositions(array $diagnostics, array $lineStarts): array
+    {
+        foreach ($diagnostics as &$diagnostic) {
+            if (!is_int($diagnostic['offset'] ?? null)) {
+                continue;
+            }
+
+            $position = $this->sourcePosition($lineStarts, $diagnostic['offset']);
+            $diagnostic['sourceLine'] = $position['sourceLine'];
+            $diagnostic['sourceLineNumber'] = $position['sourceLineNumber'];
+            $diagnostic['sourceByteColumn'] = $position['sourceByteColumn'];
+            $diagnostic['sourceByteColumnNumber'] = $position['sourceByteColumnNumber'];
+            $diagnostic['sourceLocationUnit'] = 'byte-column';
+        }
+        unset($diagnostic);
+
+        return $diagnostics;
+    }
+
     private function skipPostDelimiterWhitespace(string $text, int &$offset, string $delimiter, bool $keepSpace): void
     {
         if ($keepSpace) {
@@ -982,6 +1089,16 @@ final class DelimitedTextReader
                 ? array_values($metadata['sourceByteRange'])
                 : [0, 0],
             'sourceByteLength' => (int) ($metadata['sourceByteLength'] ?? 0),
+            'sourceStartLine' => (int) ($metadata['sourceStartLine'] ?? 0),
+            'sourceStartLineNumber' => (int) ($metadata['sourceStartLineNumber'] ?? 1),
+            'sourceStartByteColumn' => (int) ($metadata['sourceStartByteColumn'] ?? 0),
+            'sourceStartByteColumnNumber' => (int) ($metadata['sourceStartByteColumnNumber'] ?? 1),
+            'sourceEndLine' => (int) ($metadata['sourceEndLine'] ?? 0),
+            'sourceEndLineNumber' => (int) ($metadata['sourceEndLineNumber'] ?? 1),
+            'sourceEndByteColumn' => (int) ($metadata['sourceEndByteColumn'] ?? 0),
+            'sourceEndByteColumnNumber' => (int) ($metadata['sourceEndByteColumnNumber'] ?? 1),
+            'sourceLocationUnit' => (string) ($metadata['sourceLocationUnit'] ?? 'byte-column'),
+            'sourceEndOffsetPolicy' => (string) ($metadata['sourceEndOffsetPolicy'] ?? 'exclusive'),
             'sourceQuoted' => (bool) ($metadata['sourceQuoted'] ?? false),
             'sourceMultiline' => (bool) ($metadata['sourceMultiline'] ?? false),
         ];

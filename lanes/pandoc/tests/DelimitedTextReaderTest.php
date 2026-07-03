@@ -2985,6 +2985,21 @@ return [
             'delimited-text-quote-in-unquoted-field',
             'delimited-text-quote-in-unquoted-field',
         ], $codes);
+        $t->same(1, $packet['diagnostics'][0]['sourceLine'] ?? null);
+        $t->same(2, $packet['diagnostics'][0]['sourceLineNumber'] ?? null);
+        $t->same(2, $packet['diagnostics'][0]['column'] ?? null);
+        $t->same(
+            strpos('1,"Doubled ""quote"" value","Backslash \"quote\" marker"', '\\"'),
+            $packet['diagnostics'][0]['sourceByteColumn'] ?? null
+        );
+        $t->same('byte-column', $packet['diagnostics'][0]['sourceLocationUnit'] ?? null);
+        $t->same(2, $packet['diagnostics'][2]['sourceLine'] ?? null);
+        $t->same(3, $packet['diagnostics'][2]['sourceLineNumber'] ?? null);
+        $t->same(1, $packet['diagnostics'][2]['column'] ?? null);
+        $t->same(
+            strpos('2,unquoted "literal" quote,ok', '"'),
+            $packet['diagnostics'][2]['sourceByteColumn'] ?? null
+        );
         $t->same('Doubled "quote" value', $table->children[1]->children[0]->children[1]->attr('text'));
         $t->same('Backslash \"quote\" marker', $table->children[1]->children[0]->children[2]->attr('text'));
         $t->same('unquoted "literal" quote', $table->children[1]->children[1]->children[1]->attr('text'));
@@ -3359,6 +3374,14 @@ return [
         $t->same(0, $headerTitle->attr('sourceRow'));
         $t->same(1, $headerTitle->attr('sourceField'));
         $t->same(false, $headerTitle->attr('sourceQuoted'));
+        $t->same(0, $headerTitle->attr('sourceStartLine'));
+        $t->same(1, $headerTitle->attr('sourceStartLineNumber'));
+        $t->same(3, $headerTitle->attr('sourceStartByteColumn'));
+        $t->same(4, $headerTitle->attr('sourceStartByteColumnNumber'));
+        $t->same(0, $headerTitle->attr('sourceEndLine'));
+        $t->same(8, $headerTitle->attr('sourceEndByteColumn'));
+        $t->same('byte-column', $headerTitle->attr('sourceLocationUnit'));
+        $t->same('exclusive', $headerTitle->attr('sourceEndOffsetPolicy'));
         $t->same('title', $sourceSlice($headerTitle));
         $t->same('retained', $quotedTitle->attr('sourceFieldStatus'));
         $t->same(1, $quotedTitle->attr('sourceRow'));
@@ -3367,6 +3390,11 @@ return [
         $t->same(2, $quotedTitle->attr('sourceFieldNumber'));
         $t->same(true, $quotedTitle->attr('sourceQuoted'));
         $t->same(false, $quotedTitle->attr('sourceMultiline'));
+        $t->same(1, $quotedTitle->attr('sourceStartLine'));
+        $t->same(2, $quotedTitle->attr('sourceStartLineNumber'));
+        $t->same(3, $quotedTitle->attr('sourceStartByteColumn'));
+        $t->same(1, $quotedTitle->attr('sourceEndLine'));
+        $t->same(29, $quotedTitle->attr('sourceEndByteColumn'));
         $t->same('"Legacy, ""quoted"" title"', $sourceSlice($quotedTitle));
         $t->same('truncated', $multilineTitle->attr('rowRepair'));
         $t->same('retained', $multilineTitle->attr('sourceFieldStatus'));
@@ -3375,6 +3403,11 @@ return [
         $t->same(1, $multilineTitle->attr('sourceField'));
         $t->same(true, $multilineTitle->attr('sourceQuoted'));
         $t->same(true, $multilineTitle->attr('sourceMultiline'));
+        $t->same(2, $multilineTitle->attr('sourceStartLine'));
+        $t->same(3, $multilineTitle->attr('sourceStartLineNumber'));
+        $t->same(3, $multilineTitle->attr('sourceStartByteColumn'));
+        $t->same(3, $multilineTitle->attr('sourceEndLine'));
+        $t->same(11, $multilineTitle->attr('sourceEndByteColumn'));
         $t->same('"Two' . "\n" . 'line title"', $sourceSlice($multilineTitle));
         $t->same('padded', $paddedPublished->attr('rowRepair'));
         $t->same('padded', $paddedPublished->attr('sourceFieldStatus'));
@@ -3382,6 +3415,7 @@ return [
         $t->same(4, $paddedPublished->attr('sourceRowNumber'));
         $t->same(null, $paddedPublished->attr('sourceField'));
         $t->same(null, $paddedPublished->attr('sourceStartOffset'));
+        $t->same(null, $paddedPublished->attr('sourceStartLine'));
     },
     'records tsv blank rows trailing empty fields and repair summaries' => static function (TestRunner $t): void {
         $document = (new DelimitedTextReader())->readTsv(implode("\n", [
