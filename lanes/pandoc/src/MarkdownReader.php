@@ -14487,6 +14487,33 @@ final class MarkdownReader
 
     private function scriptExtensionEnabled(string $delimiter): bool
     {
+        return $this->pairedScriptExtensionEnabled($delimiter) || $this->shortScriptExtensionEnabled($delimiter);
+    }
+
+    private function pairedScriptExtensionEnabled(string $delimiter): bool
+    {
+        $extension = match ($delimiter) {
+            '^' => 'superscript',
+            '~' => 'subscript',
+            default => null,
+        };
+        if ($extension === null) {
+            return false;
+        }
+
+        $overrides = $this->markdownExtensionOverrides();
+        if (array_key_exists($extension, $overrides)) {
+            return $overrides[$extension];
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['markdown', 'commonmark_x'], true);
+    }
+
+    private function shortScriptExtensionEnabled(string $delimiter): bool
+    {
         $extension = match ($delimiter) {
             '^' => 'superscript',
             '~' => 'subscript',
@@ -17458,7 +17485,12 @@ final class MarkdownReader
 
         $end = $this->findClosingScriptDelimiter($text, $offset + 1, $delimiter);
         if ($end === null) {
-            return $this->tryParseShortScript($text, $offset, $delimiter);
+            return $this->shortScriptExtensionEnabled($delimiter)
+                ? $this->tryParseShortScript($text, $offset, $delimiter)
+                : null;
+        }
+        if (!$this->pairedScriptExtensionEnabled($delimiter)) {
+            return null;
         }
         if ($end === $offset + 1) {
             return null;
