@@ -13,7 +13,7 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 44;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 45;
 
     private const STATIC_CURRENT_READER_CASES = [
         [
@@ -383,6 +383,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => '9a880e7716e4fb9301d13de65664811376cfbb7fdbc7e78772432187be00fd64',
             'pptxBytes' => 1548,
             'nativeBytes' => 161,
+        ],
+        'signed-bullet-level' => [
+            'name' => 'generated signed bullet level parity',
+            'pptx' => 'pptx-reader/signed-bullet-level.pptx',
+            'native' => 'pptx-reader/signed-bullet-level.native',
+            'pairKey' => 'pptx-reader/signed-bullet-level.pptx|pptx-reader/signed-bullet-level.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/signed-bullet-level.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/signed-bullet-level.native',
+            'pptxSha256' => '96eabf5aee2a41ac7f18672924541ea658a775931d88c9eb81d4807b3cac8152',
+            'nativeSha256' => 'e683a48f7c2966aec3033ea3b0e8e28beb48de02fee0c2fa09651cc55f25cdaf',
+            'pptxBytes' => 1420,
+            'nativeBytes' => 236,
         ],
         'hidden-slide' => [
             'name' => 'generated hidden slide inclusion parity',
