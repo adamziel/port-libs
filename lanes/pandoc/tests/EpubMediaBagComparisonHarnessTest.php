@@ -170,6 +170,8 @@ return [
         $t->same('media-bag-equality-observed-not-runner-parity', $report['mediaBagParityStatus']);
         $t->same('covered-by-current-media-bag-evidence', $report['orderedRemainingGaps'][0]['status']);
         $t->same(true, EpubMediaBagComparisonHarness::hasRequiredMediaBagParity($report, 6));
+        $t->same(true, EpubMediaBagComparisonHarness::hasRequiredMediaBagItemCount($report, 10));
+        $t->same(false, EpubMediaBagComparisonHarness::hasRequiredMediaBagItemCount($report, 9));
     },
 
     'cli gates checked-in current epub media bag fixtures through checked-in selector' => static function (TestRunner $t) use ($fixtureRoot): void {
@@ -179,7 +181,8 @@ return [
             . ' --checked-in-fixtures'
             . ' --json'
             . ' summary'
-            . ' --require-media-bag-parity=6';
+            . ' --require-media-bag-parity=6'
+            . ' --require-media-bag-item-count=10';
         $output = [];
         $exitCode = 0;
         exec($command, $output, $exitCode);
@@ -199,13 +202,20 @@ return [
         $t->same('open', $decoded['orderedRemainingGaps'][1]['status']);
         $t->same('open', $decoded['orderedRemainingGaps'][2]['status']);
         $t->same(true, EpubMediaBagComparisonHarness::hasRequiredMediaBagParity($decoded, 6));
+        $t->same(true, EpubMediaBagComparisonHarness::hasRequiredMediaBagItemCount($decoded, 10));
 
-        $failingCommand = str_replace('--require-media-bag-parity=6', '--require-media-bag-parity=7', $command) . ' 2>/dev/null';
-        $failingOutput = [];
-        $failingExitCode = 0;
-        exec($failingCommand, $failingOutput, $failingExitCode);
+        $failingParityCommand = str_replace('--require-media-bag-parity=6', '--require-media-bag-parity=7', $command) . ' 2>/dev/null';
+        $failingParityOutput = [];
+        $failingParityExitCode = 0;
+        exec($failingParityCommand, $failingParityOutput, $failingParityExitCode);
 
-        $t->same(1, $failingExitCode);
+        $failingItemCountCommand = str_replace('--require-media-bag-item-count=10', '--require-media-bag-item-count=11', $command) . ' 2>/dev/null';
+        $failingItemCountOutput = [];
+        $failingItemCountExitCode = 0;
+        exec($failingItemCountCommand, $failingItemCountOutput, $failingItemCountExitCode);
+
+        $t->same(1, $failingParityExitCode);
+        $t->same(1, $failingItemCountExitCode);
     },
 
     'compares emitted image media bag without counting unused manifest images' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile, $writeScopedMediaBagEpub): void {
@@ -300,6 +310,7 @@ HS);
             $t->same(6, $decoded['mediaBagMatchCount']);
             $t->same(0, $decoded['mediaBagMismatchCount']);
             $t->same(true, EpubMediaBagComparisonHarness::hasRequiredMediaBagParity($decoded, 6));
+            $t->same(true, EpubMediaBagComparisonHarness::hasRequiredMediaBagItemCount($decoded, 10));
 
             $failingCommand = str_replace('--require-media-bag-parity=6', '--require-media-bag-parity=7', $command) . ' 2>/dev/null';
             $failingOutput = [];

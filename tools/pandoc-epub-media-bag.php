@@ -16,13 +16,14 @@ $upstreamRootArgumentWasProvided = false;
 $fixtureBaseArgumentWasProvided = false;
 $limit = 0;
 $requiredMediaBagParity = null;
+$requiredMediaBagItemCount = null;
 $json = false;
 $summary = false;
 
 foreach (array_slice($argv, 1) as $argument) {
     if ($argument === '--help' || $argument === '-h') {
         fwrite(STDOUT, <<<'TXT'
-Usage: php tools/pandoc-epub-media-bag.php [--upstream-root=PATH|--checked-in-fixtures] [--fixture-base=PATH] [--limit=N] [--json] [--require-media-bag-parity=N] [summary]
+Usage: php tools/pandoc-epub-media-bag.php [--upstream-root=PATH|--checked-in-fixtures] [--fixture-base=PATH] [--limit=N] [--json] [--require-media-bag-parity=N] [--require-media-bag-item-count=N] [summary]
 
 Compares local PHP EPUB reader media-bag output with upstream Tests.Readers.EPUB
 expectations by normalized path, MIME type, and byte size when the upstream cache
@@ -32,6 +33,8 @@ Use --checked-in-fixtures for the checked-in current EPUB reader fixture snapsho
 at lanes/pandoc/fixtures/upstream-current-epub-reader.
 With --require-media-bag-parity=N, exits 1 unless exactly N EPUB fixtures are
 compared, parsed, and matched by normalized media-bag tuples.
+With --require-media-bag-item-count=N, exits 1 unless both upstream expectations
+and local extraction report exactly N media-bag items.
 
 TXT);
         exit(0);
@@ -76,6 +79,16 @@ TXT);
             exit(2);
         }
         $requiredMediaBagParity = (int) $rawCount;
+        continue;
+    }
+
+    if (str_starts_with($argument, '--require-media-bag-item-count=')) {
+        $rawCount = substr($argument, strlen('--require-media-bag-item-count='));
+        if (!ctype_digit($rawCount)) {
+            fwrite(STDERR, "--require-media-bag-item-count must be a non-negative integer\n");
+            exit(2);
+        }
+        $requiredMediaBagItemCount = (int) $rawCount;
         continue;
     }
 
@@ -145,6 +158,17 @@ if (
     fwrite(
         STDERR,
         "pandoc-epub-media-bag: normalized media-bag parity did not match {$requiredMediaBagParity}/{$requiredMediaBagParity} EPUB fixtures\n"
+    );
+    exit(1);
+}
+
+if (
+    $requiredMediaBagItemCount !== null
+    && !EpubMediaBagComparisonHarness::hasRequiredMediaBagItemCount($report, $requiredMediaBagItemCount)
+) {
+    fwrite(
+        STDERR,
+        "pandoc-epub-media-bag: expected/actual media-bag item count did not match {$requiredMediaBagItemCount}\n"
     );
     exit(1);
 }

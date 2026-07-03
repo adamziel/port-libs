@@ -193,6 +193,21 @@ final class EpubMediaBagComparisonHarness
     }
 
     /**
+     * @param array<string, mixed> $report
+     */
+    public static function hasRequiredMediaBagItemCount(array $report, int $requiredItemCount): bool
+    {
+        if ($requiredItemCount < 0) {
+            throw new \InvalidArgumentException('Required EPUB media-bag item count must not be negative');
+        }
+
+        return ($report['skipped'] ?? false) === false
+            && ($report['status'] ?? null) === 'completed'
+            && (int) ($report['expectedMediaItemCount'] ?? -1) === $requiredItemCount
+            && (int) ($report['actualMediaItemCount'] ?? -1) === $requiredItemCount;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function skippedReport(string $upstreamRoot, string $reason): array
