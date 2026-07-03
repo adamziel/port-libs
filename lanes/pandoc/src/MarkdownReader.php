@@ -13102,7 +13102,7 @@ final class MarkdownReader
             }
             $previous = $offset > 0 ? $label[$offset - 1] : '';
             $next = $label[$offset + $runLength] ?? '';
-            if (($next !== '' && ctype_space($next)) || ($previous !== '' && ctype_space($previous))) {
+            if ($next !== '' && ctype_space($next) && $previous !== '' && ctype_space($previous)) {
                 $protected .= str_repeat('\\' . $char, $runLength);
             } else {
                 $protected .= str_repeat($char, $runLength);
@@ -13119,6 +13119,10 @@ final class MarkdownReader
     private function tryParseWikiLink(string $text, int $offset): ?array
     {
         if (substr($text, $offset, 2) !== '[[' || $this->isEscapedInlinePosition($text, $offset)) {
+            return null;
+        }
+
+        if ($this->hasOrdinaryBracketedLinkAt($text, $offset)) {
             return null;
         }
 
@@ -13147,6 +13151,32 @@ final class MarkdownReader
             ),
             'next' => $end + 2,
         ];
+    }
+
+    private function hasOrdinaryBracketedLinkAt(string $text, int $offset): bool
+    {
+        $label = $this->parseBracketedLabel($text, $offset, true);
+        if ($label === null) {
+            return false;
+        }
+
+        $next = $label['next'];
+        if (($text[$next] ?? '') === '(') {
+            return $this->parseInlineLinkTarget($text, $next) !== null;
+        }
+
+        if (($text[$next] ?? '') !== '[') {
+            return false;
+        }
+
+        $reference = $this->parseBracketedLabel($text, $next);
+        if ($reference === null) {
+            return false;
+        }
+
+        $referenceLabel = $reference['text'] === '' ? $label['text'] : $reference['text'];
+
+        return isset($this->referenceLinks[$this->normalizeReferenceLabel($referenceLabel)]);
     }
 
     private function findClosingWikiLink(string $text, int $offset): ?int
@@ -14684,6 +14714,14 @@ final class MarkdownReader
                 }
             }
 
+            if ($parseInlineSpans && $text[$cursor] === '<') {
+                $rawHtml = $this->tryParseRawHtmlInline($text, $cursor);
+                if ($rawHtml !== null) {
+                    $cursor = $rawHtml['next'] - 1;
+                    continue;
+                }
+            }
+
             if ($text[$cursor] === '\\') {
                 $cursor++;
                 continue;
@@ -16019,19 +16057,30 @@ final class MarkdownReader
 
     private function canOpenInlineDelimiter(string $text, int $offset, string $char, int $size): bool
     {
-        if ($char !== '_') {
-            return true;
-        }
-
         $previous = $offset > 0 ? $text[$offset - 1] : '';
-        $nextOffset = $offset + $size;
+        $runLength = max($size, $this->countDelimiterRun($text, $offset, $char));
+        $nextOffset = $offset + $runLength;
         $next = $nextOffset < strlen($text) ? $text[$nextOffset] : '';
-        if ($this->isAsciiAlnum($previous) && ($next === '{' || $next === '}')) {
+
+        if (!$this->isLeftFlankingInlineDelimiterRun($previous, $next)) {
             return false;
         }
 
-        if ($this->isIntrawordUnderscoreBoundary($previous, $next)) {
-            return false;
+        if ($char === '_') {
+            if (
+                $this->isRightFlankingInlineDelimiterRun($previous, $next)
+                && !$this->isAsciiPunctuation($previous)
+            ) {
+                return false;
+            }
+
+            if ($this->isAsciiAlnum($previous) && ($next === '{' || $next === '}')) {
+                return false;
+            }
+
+            if ($this->isIntrawordUnderscoreBoundary($previous, $next)) {
+                return false;
+            }
         }
 
         return true;
@@ -16039,22 +16088,47 @@ final class MarkdownReader
 
     private function canCloseInlineDelimiter(string $text, int $offset, string $char, int $size): bool
     {
-        if ($char !== '_') {
-            return true;
-        }
-
         $previous = $offset > 0 ? $text[$offset - 1] : '';
-        $nextOffset = $offset + $size;
+        $runLength = max($size, $this->countDelimiterRun($text, $offset, $char));
+        $nextOffset = $offset + $runLength;
         $next = $nextOffset < strlen($text) ? $text[$nextOffset] : '';
-        if (($previous === '{' || $previous === '}') && $this->isAsciiAlnum($next)) {
+
+        if (!$this->isRightFlankingInlineDelimiterRun($previous, $next)) {
             return false;
         }
 
-        if ($this->isIntrawordUnderscoreBoundary($previous, $next)) {
-            return false;
+        if ($char === '_') {
+            if (
+                $this->isLeftFlankingInlineDelimiterRun($previous, $next)
+                && !$this->isAsciiPunctuation($next)
+            ) {
+                return false;
+            }
+
+            if (($previous === '{' || $previous === '}') && $this->isAsciiAlnum($next)) {
+                return false;
+            }
+
+            if ($this->isIntrawordUnderscoreBoundary($previous, $next)) {
+                return false;
+            }
         }
 
         return true;
+    }
+
+    private function isLeftFlankingInlineDelimiterRun(string $previous, string $next): bool
+    {
+        return $next !== ''
+            && !ctype_space($next)
+            && (!$this->isAsciiPunctuation($next) || $previous === '' || ctype_space($previous) || $this->isAsciiPunctuation($previous));
+    }
+
+    private function isRightFlankingInlineDelimiterRun(string $previous, string $next): bool
+    {
+        return $previous !== ''
+            && !ctype_space($previous)
+            && (!$this->isAsciiPunctuation($previous) || $next === '' || ctype_space($next) || $this->isAsciiPunctuation($next));
     }
 
     private function isIntrawordUnderscoreBoundary(string $previous, string $next): bool
@@ -16065,6 +16139,11 @@ final class MarkdownReader
     private function isAsciiAlnum(string $char): bool
     {
         return $char !== '' && preg_match('/[A-Za-z0-9]/', $char) === 1;
+    }
+
+    private function isAsciiPunctuation(string $char): bool
+    {
+        return $char !== '' && strlen($char) === 1 && ctype_punct($char);
     }
 
     private function countBackticks(string $text, int $offset): int
