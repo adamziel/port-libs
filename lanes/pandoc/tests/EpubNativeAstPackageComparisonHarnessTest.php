@@ -350,7 +350,11 @@ return [
             $t->same(['generated-navigation'], $coverage['fixturesWithRemoteManifestResources']);
             $t->same(['generated-navigation'], $coverage['fixturesWithExternalManifestItems']);
             $t->same([], $coverage['fixturesWithMissingLocalManifestItems']);
+            $t->same(['generated-navigation'], $coverage['fixturesWithManifestFallbackItems']);
             $t->same([], $coverage['fixturesWithManifestFallbacks']);
+            $t->same([], $coverage['fixturesWithResolvedManifestFallbacks']);
+            $t->same([], $coverage['fixturesWithUsableManifestFallbacks']);
+            $t->same(['generated-navigation'], $coverage['fixturesWithMissingManifestFallbacks']);
             $t->same([], $coverage['fixturesWithNonLinearSpineItems']);
             $t->same([
                 'metadataCreators' => 1,
@@ -406,6 +410,10 @@ return [
             ], $decoded['packageFeatureCoverage']['manifestResourceKindCounts']);
             $t->same(['text' => 1], $decoded['packageFeatureCoverage']['guideReferenceTypeCounts']);
             $t->same(['record' => 1], $decoded['packageFeatureCoverage']['packageLinkRelCounts']);
+            $t->same(['generated-navigation'], $decoded['packageFeatureCoverage']['fixturesWithManifestFallbackItems']);
+            $t->same([], $decoded['packageFeatureCoverage']['fixturesWithResolvedManifestFallbacks']);
+            $t->same([], $decoded['packageFeatureCoverage']['fixturesWithUsableManifestFallbacks']);
+            $t->same(['generated-navigation'], $decoded['packageFeatureCoverage']['fixturesWithMissingManifestFallbacks']);
             $t->same(
                 $coverage['fixtureFeatureSignatures'],
                 $decoded['packageFeatureCoverage']['fixtureFeatureSignatures']
@@ -766,8 +774,23 @@ return [
             'fixturesWithMissingLocalManifestItems' => [
                 'missing-local-manifest-resource',
             ],
+            'fixturesWithManifestFallbackItems' => [
+                'manifest-fallback-chain',
+                'nav-ncx-linear-guide',
+                'video-manifest-resource',
+            ],
             'fixturesWithManifestFallbacks' => [
                 'manifest-fallback-chain',
+            ],
+            'fixturesWithResolvedManifestFallbacks' => [
+                'manifest-fallback-chain',
+            ],
+            'fixturesWithUsableManifestFallbacks' => [
+                'manifest-fallback-chain',
+            ],
+            'fixturesWithMissingManifestFallbacks' => [
+                'nav-ncx-linear-guide',
+                'video-manifest-resource',
             ],
             'fixturesWithNonLinearSpineItems' => [
                 'epub2_cover',
@@ -801,7 +824,7 @@ return [
                 'missingManifestFallbacks' => 2,
             ],
         ];
-        $expectedPackageFeatureSignatureSha256 = '4983df89c3b99a3a49ac596cefed2c012e4d037857757ad75eeac2026a6d20e2';
+        $expectedPackageFeatureSignatureSha256 = '8fef8a5de786ba46af53e378b9bb3fce8680e8d596a882fd2b00e7b772894edf';
         $expectedCurrentNativeAstSignatureSha256 = '7814ec1439b23843170aa562792e9e27020cb1dbfbc8664a7c020b5d2ddc5e38';
         $expectedCurrentNativeAstFixtures = [
             'auxiliary-lot-guide-index',
@@ -1257,7 +1280,7 @@ return [
         $t->contains('resourceKinds=asset:2,audio:1,cover-image:2,font:1,image:12,media-overlay:1,navigation:25,script:1,style:15,svg:1,video:1,xhtml:35', $text);
         $t->contains('guideRefTypes=bibliography:1,cover:2,glossary:1,index:1,notes:1,text:1,toc:1', $text);
         $t->contains('packageLinkRels=cc:attributionURL:1,cc:license:2,record:1', $text);
-        $t->contains('remoteManifest=1 externalManifest=1 missingLocalManifest=1 manifestFallbacks=1', $text);
+        $t->contains('remoteManifest=1 externalManifest=1 missingLocalManifest=1 manifestFallbackItems=3 manifestFallbacks=1 resolvedFallbacks=1 usableFallbacks=1 missingFallbacks=2', $text);
 
         $command = escapeshellarg(PHP_BINARY)
             . ' '
@@ -1347,6 +1370,10 @@ return [
         $t->same(['nav' => 20, 'ncx' => 3], $defaultFixtureIdentityDecoded['packageFeatureCoverage']['navigationTypeCounts']);
         $t->same(['linear' => 34, 'non-linear' => 7], $defaultFixtureIdentityDecoded['packageFeatureCoverage']['spineLinearStateCounts']);
         $t->same($expectedPackageFeatureCoverage['fixturesWithCreators'], $defaultFixtureIdentityDecoded['packageFeatureCoverage']['fixturesWithCreators']);
+        $t->same($expectedPackageFeatureCoverage['fixturesWithManifestFallbackItems'], $defaultFixtureIdentityDecoded['packageFeatureCoverage']['fixturesWithManifestFallbackItems']);
+        $t->same($expectedPackageFeatureCoverage['fixturesWithResolvedManifestFallbacks'], $defaultFixtureIdentityDecoded['packageFeatureCoverage']['fixturesWithResolvedManifestFallbacks']);
+        $t->same($expectedPackageFeatureCoverage['fixturesWithUsableManifestFallbacks'], $defaultFixtureIdentityDecoded['packageFeatureCoverage']['fixturesWithUsableManifestFallbacks']);
+        $t->same($expectedPackageFeatureCoverage['fixturesWithMissingManifestFallbacks'], $defaultFixtureIdentityDecoded['packageFeatureCoverage']['fixturesWithMissingManifestFallbacks']);
         $t->same(28, $defaultFixtureIdentityDecoded['packageFeatureCoverage']['totals']['metadataCreators']);
         $t->same(['cover-image' => 2, 'mathml' => 2, 'nav' => 20, 'remote-resources' => 1, 'rendition:layout-pre-paginated' => 1, 'scripted' => 2, 'svg' => 2, 'switch' => 1], $defaultFixtureIdentityDecoded['packageFeatureCoverage']['manifestPropertyCounts']);
         $t->same([

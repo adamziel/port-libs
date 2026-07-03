@@ -14,7 +14,7 @@ final class EpubNativeAstPackageComparisonHarness
     private const PACKAGE_FEATURE_SIGNATURE_KIND = 'checked-in-current-epub-package-feature-signature';
     private const PACKAGE_FEATURE_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
     private const PACKAGE_FEATURE_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-24-fixture-snapshot';
-    private const CHECKED_IN_CURRENT_PACKAGE_FEATURE_SIGNATURE_SHA256 = '4983df89c3b99a3a49ac596cefed2c012e4d037857757ad75eeac2026a6d20e2';
+    private const CHECKED_IN_CURRENT_PACKAGE_FEATURE_SIGNATURE_SHA256 = '8fef8a5de786ba46af53e378b9bb3fce8680e8d596a882fd2b00e7b772894edf';
     private const CURRENT_NATIVE_AST_SIGNATURE_KIND = 'checked-in-current-epub-normalized-native-ast-signature';
     private const CURRENT_NATIVE_AST_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
     private const CURRENT_NATIVE_AST_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-24-fixture-normalized-ast-snapshot';
@@ -697,8 +697,23 @@ final class EpubNativeAstPackageComparisonHarness
         'fixturesWithMissingLocalManifestItems' => [
             'missing-local-manifest-resource',
         ],
+        'fixturesWithManifestFallbackItems' => [
+            'manifest-fallback-chain',
+            'nav-ncx-linear-guide',
+            'video-manifest-resource',
+        ],
         'fixturesWithManifestFallbacks' => [
             'manifest-fallback-chain',
+        ],
+        'fixturesWithResolvedManifestFallbacks' => [
+            'manifest-fallback-chain',
+        ],
+        'fixturesWithUsableManifestFallbacks' => [
+            'manifest-fallback-chain',
+        ],
+        'fixturesWithMissingManifestFallbacks' => [
+            'nav-ncx-linear-guide',
+            'video-manifest-resource',
         ],
         'fixturesWithNonLinearSpineItems' => [
             'epub2_cover',
@@ -1044,8 +1059,20 @@ final class EpubNativeAstPackageComparisonHarness
             $packageLinkRelCounts = is_array($featureCoverage['packageLinkRelCounts'] ?? null)
                 ? $featureCoverage['packageLinkRelCounts']
                 : [];
+            $manifestFallbackItemFixtures = is_array($featureCoverage['fixturesWithManifestFallbackItems'] ?? null)
+                ? $featureCoverage['fixturesWithManifestFallbackItems']
+                : [];
+            $resolvedManifestFallbackFixtures = is_array($featureCoverage['fixturesWithResolvedManifestFallbacks'] ?? null)
+                ? $featureCoverage['fixturesWithResolvedManifestFallbacks']
+                : [];
+            $usableManifestFallbackFixtures = is_array($featureCoverage['fixturesWithUsableManifestFallbacks'] ?? null)
+                ? $featureCoverage['fixturesWithUsableManifestFallbacks']
+                : [];
+            $missingManifestFallbackFixtures = is_array($featureCoverage['fixturesWithMissingManifestFallbacks'] ?? null)
+                ? $featureCoverage['fixturesWithMissingManifestFallbacks']
+                : [];
             $lines[] = sprintf(
-                'packageFeatureCoverage: fixtures=%d nav=%d ncx=%d covers=%d landmarks=%d pageLists=%d auxiliaryNav=%d metadataCreators=%d manifestItems=%d readingOrderItems=%d spineLinear=%s nonLinearSpineFixtures=%d imageAssets=%d stylesheetAssets=%d resourceKinds=%s guideRefTypes=%s packageLinkRels=%s remoteManifest=%d externalManifest=%d missingLocalManifest=%d manifestFallbacks=%d',
+                'packageFeatureCoverage: fixtures=%d nav=%d ncx=%d covers=%d landmarks=%d pageLists=%d auxiliaryNav=%d metadataCreators=%d manifestItems=%d readingOrderItems=%d spineLinear=%s nonLinearSpineFixtures=%d imageAssets=%d stylesheetAssets=%d resourceKinds=%s guideRefTypes=%s packageLinkRels=%s remoteManifest=%d externalManifest=%d missingLocalManifest=%d manifestFallbackItems=%d manifestFallbacks=%d resolvedFallbacks=%d usableFallbacks=%d missingFallbacks=%d',
                 (int) ($featureCoverage['fixtureCount'] ?? 0),
                 (int) ($navigationTypeCounts['nav'] ?? 0),
                 (int) ($navigationTypeCounts['ncx'] ?? 0),
@@ -1070,7 +1097,11 @@ final class EpubNativeAstPackageComparisonHarness
                 (int) ($totals['remoteResourceManifestItems'] ?? 0),
                 (int) ($totals['externalManifestItems'] ?? 0),
                 (int) ($totals['missingLocalManifestItems'] ?? 0),
-                (int) ($totals['manifestFallbacks'] ?? 0)
+                count($manifestFallbackItemFixtures),
+                (int) ($totals['manifestFallbacks'] ?? 0),
+                count($resolvedManifestFallbackFixtures),
+                count($usableManifestFallbackFixtures),
+                count($missingManifestFallbackFixtures)
             );
         }
         $featureSignature = is_array($report['packageFeatureSignature'] ?? null) ? $report['packageFeatureSignature'] : [];
@@ -1526,7 +1557,11 @@ final class EpubNativeAstPackageComparisonHarness
             'fixturesWithRemoteManifestResources' => [],
             'fixturesWithExternalManifestItems' => [],
             'fixturesWithMissingLocalManifestItems' => [],
+            'fixturesWithManifestFallbackItems' => [],
             'fixturesWithManifestFallbacks' => [],
+            'fixturesWithResolvedManifestFallbacks' => [],
+            'fixturesWithUsableManifestFallbacks' => [],
+            'fixturesWithMissingManifestFallbacks' => [],
             'fixturesWithNonLinearSpineItems' => [],
             'totals' => [
                 'metadataCreators' => 0,
@@ -2256,8 +2291,20 @@ final class EpubNativeAstPackageComparisonHarness
             if ($fixture !== '' && (int) ($summary['missingLocalManifestItemCount'] ?? 0) > 0) {
                 $coverage['fixturesWithMissingLocalManifestItems'][] = $fixture;
             }
+            if ($fixture !== '' && (int) ($summary['manifestFallbackItemCount'] ?? 0) > 0) {
+                $coverage['fixturesWithManifestFallbackItems'][] = $fixture;
+            }
             if ($fixture !== '' && (int) ($summary['manifestFallbackCount'] ?? 0) > 0) {
                 $coverage['fixturesWithManifestFallbacks'][] = $fixture;
+            }
+            if ($fixture !== '' && (int) ($summary['resolvedManifestFallbackCount'] ?? 0) > 0) {
+                $coverage['fixturesWithResolvedManifestFallbacks'][] = $fixture;
+            }
+            if ($fixture !== '' && (int) ($summary['usableManifestFallbackCount'] ?? 0) > 0) {
+                $coverage['fixturesWithUsableManifestFallbacks'][] = $fixture;
+            }
+            if ($fixture !== '' && (int) ($summary['missingManifestFallbackCount'] ?? 0) > 0) {
+                $coverage['fixturesWithMissingManifestFallbacks'][] = $fixture;
             }
             $spineLinearCounts = is_array($summary['spineLinearStateCounts'] ?? null) ? $summary['spineLinearStateCounts'] : [];
             if ($fixture !== '' && (int) ($spineLinearCounts['non-linear'] ?? 0) > 0) {
