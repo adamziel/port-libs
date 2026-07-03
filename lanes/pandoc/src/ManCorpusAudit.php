@@ -763,12 +763,21 @@ final class ManCorpusAudit
 
     private function firstControlLeak(AstNode $document): ?string
     {
-        $text = $this->visibleText($document);
-        if (preg_match('/(?:^|\\s)(\\.(?:TH|SH|SS|TP|PP|LP|IP|RS|RE|B|I|SM|SB|BI|BR|IB|IR|RB|RI|nf|fi|EX|EE|TS|TE|br|sp|nh|ad|if|ie|el|ds|nr|PD|so|Dd|Dt|Os|Sh|Ss|Nm|Nd|Bl|It|El|Fl|Ar|Cm|Pa|Xr))(?:\\s|$)/', $text, $match) !== 1) {
-            return null;
+        if ($document->type === 'text' || $document->type === 'code') {
+            $text = (string) $document->attr('text', '');
+            if (preg_match('/^\\s*(\\.(?:TH|SH|SS|TP|PP|LP|IP|RS|RE|B|I|SM|SB|BI|BR|IB|IR|RB|RI|nf|fi|EX|EE|TS|TE|br|sp|nh|ad|if|ie|el|ds|nr|PD|so|Dd|Dt|Os|Sh|Ss|Nm|Nd|Bl|It|El|Fl|Ar|Cm|Pa|Xr))(?:\\s|$)/m', $text, $match) === 1) {
+                return (string) $match[1];
+            }
         }
 
-        return (string) $match[1];
+        foreach ($document->children as $child) {
+            $leak = $this->firstControlLeak($child);
+            if ($leak !== null) {
+                return $leak;
+            }
+        }
+
+        return null;
     }
 
     private function visibleText(AstNode $node): string

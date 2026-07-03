@@ -112,8 +112,13 @@ final class MdocReader
             $macro = $this->macroLine($line);
             if ($macro !== null) {
                 [$name, $rawArgs] = $macro;
-                if ($name === 'El') {
-                    break;
+                if ($name === 'El' || $name === 'Ed') {
+                    ++$this->index;
+                    continue;
+                }
+                if ($name === 'It') {
+                    $blocks[] = $this->parseDetachedListBlock();
+                    continue;
                 }
                 if ($this->isMetadataMacro($name)) {
                     $this->captureMetadata($name, $rawArgs);
@@ -305,6 +310,27 @@ final class MdocReader
         return new AstNode('bullet_list', ['loose' => false], $items);
     }
 
+    private function parseDetachedListBlock(): AstNode
+    {
+        $items = [];
+        while ($this->index < count($this->lines)) {
+            $macro = $this->macroLine($this->lines[$this->index] ?? '');
+            if ($macro === null || $macro[0] !== 'It') {
+                break;
+            }
+
+            ++$this->index;
+            $initialInlines = $this->parseTokenStream($this->parseArgs($macro[1]));
+            $blocks = $this->parseListItemBlocks($initialInlines);
+            $items[] = new AstNode('list_item', [
+                'text' => $this->plainInlineText($blocks),
+                'loose' => false,
+            ], $blocks);
+        }
+
+        return new AstNode('bullet_list', ['loose' => false], $items);
+    }
+
     /**
      * @param list<AstNode> $initialInlines
      * @return list<AstNode>
@@ -325,7 +351,7 @@ final class MdocReader
             }
 
             $macro = $this->macroLine($line);
-            if ($macro !== null && in_array($macro[0], ['It', 'El'], true)) {
+            if ($macro !== null && in_array($macro[0], ['It', 'El', 'Ed'], true)) {
                 break;
             }
             if ($macro !== null && ($macro[0] === 'Sh' || $macro[0] === 'Ss')) {
@@ -649,7 +675,7 @@ final class MdocReader
 
     private function isBlockBoundaryMacro(string $name): bool
     {
-        return in_array($name, ['Sh', 'Ss', 'Bl', 'El', 'It'], true);
+        return in_array($name, ['Sh', 'Ss', 'Bl', 'El', 'Ed', 'It'], true);
     }
 
     private function isParagraphBreakMacro(string $name): bool
@@ -684,6 +710,7 @@ final class MdocReader
      */
     private function parseArgs(string $raw): array
     {
+        $raw = $this->stripInlineComment($raw);
         $args = [];
         $length = strlen($raw);
         $offset = 0;

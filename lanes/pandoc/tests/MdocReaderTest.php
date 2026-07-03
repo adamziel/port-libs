@@ -112,6 +112,39 @@ MDOC);
         $t->same(['Cm'], $classes($definition->children[1]->children[0]->children[0]));
     },
 
+    'recovers detached mdoc item macros and unmatched closers from real manuals' => static function (TestRunner $t) use ($read, $plainText, $types, $classes): void {
+        $document = $read(<<<'MDOC'
+.Dd July 3, 2026
+.Dt BROKEN 1
+.Os
+.Sh DESCRIPTION
+.Nm broken
+accepts recovery items.
+.It
+.Ar file
+The input file.
+.It Fl q Quiet mode. \" do not import .Ar comments
+.Ed
+.El
+.Sh OPTIONS
+.It Fl v Verbose output.
+MDOC);
+
+        $description = $document->children[1];
+        $descriptionList = $document->children[2];
+        $options = $document->children[4];
+
+        $t->same(['heading', 'paragraph', 'bullet_list', 'heading', 'bullet_list'], $types($document));
+        $t->same('broken accepts recovery items.', $plainText($description));
+        $t->same('file The input file.', $plainText($descriptionList->children[0]));
+        $t->same('-q Quiet mode.', $plainText($descriptionList->children[1]));
+        $t->true(!str_contains($plainText($descriptionList->children[1]), '.Ar'), 'trailing mdoc macro comments stay hidden');
+        $t->same('OPTIONS', $plainText($document->children[3]));
+        $t->same('-v Verbose output.', $plainText($options->children[0]));
+        $t->same(['variable'], $classes($descriptionList->children[0]->children[0]->children[0]));
+        $t->same(['Fl'], $classes($descriptionList->children[1]->children[0]->children[0]));
+    },
+
     'reads mdoc through converter and preserves synopsis native shape' => static function (TestRunner $t): void {
         $source = <<<'MDOC'
 .Dd July 2, 2026
