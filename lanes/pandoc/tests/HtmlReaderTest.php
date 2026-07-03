@@ -26,6 +26,25 @@ $tests['imports upstream html xml lang metadata from root element'] =
         $t->same('hola', $document->children[0]->attr('text'));
     };
 
+$tests['appends html meta name fields without trimming or lowercasing like upstream pandoc'] =
+    static function (TestRunner $t): void {
+        $document = (new HtmlReader())->read(<<<'HTML'
+<html><head>
+<meta name="keywords" content="one">
+<meta name="keywords" content="two">
+<meta name="Empty" content="">
+<meta name="spaced" content="  keep  ">
+</head><body><p>x</p></body></html>
+HTML);
+        $meta = $document->attr('meta');
+
+        $t->same(['one', 'two'], $meta['keywords'] ?? null);
+        $t->same('', $meta['Empty'] ?? null);
+        $t->same('  keep  ', $meta['spaced'] ?? null);
+        $t->true(!array_key_exists('empty', $meta));
+        $t->same('x', $document->children[0]->attr('text'));
+    };
+
 $tests['imports upstream html sup and sub inline nodes'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-sup-sub-inline.html'));

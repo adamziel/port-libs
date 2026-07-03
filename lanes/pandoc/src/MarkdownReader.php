@@ -4003,18 +4003,35 @@ final class MarkdownReader
                 continue;
             }
 
-            $name = strtolower(trim($node->getAttribute('name')));
+            $name = trim($node->getAttribute('name'));
             if ($name === '') {
                 continue;
             }
 
-            $content = trim($node->getAttribute('content'));
-            if ($content !== '') {
-                $meta[$name] = $content;
-            }
+            $this->appendHtmlMetaField($meta, $name, $node->getAttribute('content'));
         }
 
         return $meta === [] ? [] : ['meta' => $meta];
+    }
+
+    /**
+     * @param array<string, mixed> $meta
+     */
+    private function appendHtmlMetaField(array &$meta, string $name, string $content): void
+    {
+        if (!array_key_exists($name, $meta)) {
+            $meta[$name] = $content;
+            return;
+        }
+
+        $existing = $meta[$name];
+        if (is_array($existing) && array_is_list($existing)) {
+            $existing[] = $content;
+            $meta[$name] = $existing;
+            return;
+        }
+
+        $meta[$name] = [$existing, $content];
     }
 
     private function htmlDocumentLang(\DOMDocument $dom): string

@@ -15185,7 +15185,7 @@ NATIVE;
         $t->contains('<col style="width:9.7076%"/>', $blocks);
         $t->contains('<th rowspan="2" style="text-align:left">A</th>', $blocks);
         $t->contains('<th colspan="3">E</th>', $blocks);
-        $t->contains('<th style="text-align:left"><strong>G</strong></th><th><strong>H</strong></th><th><strong>I</strong></th>', $blocks);
+        $t->contains('<th><strong>G</strong></th><th><strong>H</strong></th><th><strong>I</strong></th>', $blocks);
     },
     'maps upstream native docx table gridbefore placeholders into wordpress cells' => static function (TestRunner $t): void {
         $native = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-native-docx-table-gridbefore-slice.native');

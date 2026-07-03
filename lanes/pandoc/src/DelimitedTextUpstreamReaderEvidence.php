@@ -245,8 +245,8 @@ final class DelimitedTextUpstreamReaderEvidence
             'role' => 'generated-csv-native-parity-expected-native-output',
             'sample' => 'cr-only-rows',
             'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/cr-only-rows.native',
-            'sha256' => 'a505f9be0ae0712a85d2ce4f9d035e7299d2b730b327a9d81ddfe10bbc2a8b3f',
-            'bytes' => 1227,
+            'sha256' => 'e3bad4c4dc164b635eec375b48010d2b7cecd6e94274b5cc90484e24276f6a91',
+            'bytes' => 1145,
         ],
         'unterminated-quote-eof.csv' => [
             'role' => 'generated-csv-native-parity-input-fixture',

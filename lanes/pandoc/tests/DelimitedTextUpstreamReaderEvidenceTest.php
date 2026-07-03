@@ -231,8 +231,8 @@ return [
         $t->same('fca94752c9fdfbe612a0a998c33a2ba3d5fd816db58ab9648bd41d9318bf3624', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][28]['checkedInFile']['sha256']);
         $t->same(45, $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][28]['checkedInFile']['bytes']);
         $t->same('cr-only-rows.native', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][29]['name']);
-        $t->same('a505f9be0ae0712a85d2ce4f9d035e7299d2b730b327a9d81ddfe10bbc2a8b3f', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][29]['checkedInFile']['sha256']);
-        $t->same(1227, $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][29]['checkedInFile']['bytes']);
+        $t->same('e3bad4c4dc164b635eec375b48010d2b7cecd6e94274b5cc90484e24276f6a91', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][29]['checkedInFile']['sha256']);
+        $t->same(1145, $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][29]['checkedInFile']['bytes']);
         $t->same('cr-only-rows', $evidence['generatedCsvNativeStaticEvidence']['samples'][14]['name']);
         $t->same([], $evidence['generatedCsvNativeStaticEvidence']['samples'][14]['readerOptions']);
         $t->same('unterminated-quote-eof.csv', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][30]['name']);
@@ -667,8 +667,8 @@ return [
         $t->same('valid-static-fixture-snapshot', $evidence['samples'][14]['staticFixtureBinding']['expectedNativeFixture']['status']);
         $t->same('lanes/pandoc/fixtures/generated-current-csv-reader/cr-only-rows.csv', $evidence['samples'][14]['staticFixtureBinding']['inputFixture']['checkedInPath']);
         $t->same('lanes/pandoc/fixtures/generated-current-csv-reader/cr-only-rows.native', $evidence['samples'][14]['staticFixtureBinding']['expectedNativeFixture']['checkedInPath']);
-        $t->same(3, $evidence['samples'][14]['rowCount']);
-        $t->same(3, $evidence['samples'][14]['columnCount']);
+        $t->same(1, $evidence['samples'][14]['rowCount']);
+        $t->same(7, $evidence['samples'][14]['columnCount']);
         $t->same('matched', $evidence['samples'][15]['status']);
         $t->same('unterminated-quote-eof', $evidence['samples'][15]['name']);
         $t->same('lanes/pandoc/fixtures/generated-current-csv-reader/unterminated-quote-eof.csv', $evidence['samples'][15]['inputPath']);

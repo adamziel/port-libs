@@ -41,7 +41,7 @@ final class DelimitedTextReader
     public function read(string $text, string $format = 'csv', array $options = []): AstNode
     {
         $inputPrefix = $this->inputPrefixReview($text);
-        $sourceText = $this->inputTextAfterSupportedPrefix($text, $inputPrefix);
+        $sourceText = $this->pandocSourceText($this->inputTextAfterSupportedPrefix($text, $inputPrefix), $inputPrefix);
         $formatResolution = $this->formatResolution($format, $sourceText, $options);
         $format = $formatResolution['format'];
         $dialect = $this->dialectProfile($format, $options);
@@ -1384,6 +1384,20 @@ final class DelimitedTextReader
         }
 
         return substr($text, $firstContentOffset);
+    }
+
+    /**
+     * @param array<string, mixed> $inputPrefix
+     */
+    private function pandocSourceText(string $text, array &$inputPrefix): string
+    {
+        $carriageReturnCount = substr_count($text, "\r");
+        $inputPrefix['carriageReturnNormalization'] = [
+            'policy' => 'pandoc-sources-remove-carriage-returns',
+            'removedCount' => $carriageReturnCount,
+        ];
+
+        return $carriageReturnCount === 0 ? $text : str_replace("\r", '', $text);
     }
 
     private function leadingWhitespaceLinePrefixByteCount(string $text): int

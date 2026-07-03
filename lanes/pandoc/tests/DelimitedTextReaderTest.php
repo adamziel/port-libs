@@ -777,7 +777,7 @@ return [
         $t->contains('Plain [ Str "semi;" , Space , Str "\"quoted\"" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
-    'matches generated csv cr-only rows native parity fixture without inflating csv denominator' => static function (TestRunner $t) use ($generatedCsvNativeFixture, $nativeTokenStream): void {
+    'strips csv carriage returns before parsing like upstream pandoc sources' => static function (TestRunner $t) use ($generatedCsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedCsvNativeFixture('cr-only-rows');
         $document = (new DelimitedTextReader())->readCsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/cr-only-rows.csv',
@@ -801,22 +801,22 @@ return [
         $t->same('cr-only-rows.csv', $generatedEvidence['checkedInFixtures'][28]['name'] ?? null);
         $t->same('fca94752c9fdfbe612a0a998c33a2ba3d5fd816db58ab9648bd41d9318bf3624', $generatedEvidence['checkedInFixtures'][28]['checkedInFile']['sha256'] ?? null);
         $t->same('cr-only-rows.native', $generatedEvidence['checkedInFixtures'][29]['name'] ?? null);
-        $t->same('a505f9be0ae0712a85d2ce4f9d035e7299d2b730b327a9d81ddfe10bbc2a8b3f', $generatedEvidence['checkedInFixtures'][29]['checkedInFile']['sha256'] ?? null);
+        $t->same('e3bad4c4dc164b635eec375b48010d2b7cecd6e94274b5cc90484e24276f6a91', $generatedEvidence['checkedInFixtures'][29]['checkedInFile']['sha256'] ?? null);
         $t->same('cr-only-rows', $generatedEvidence['samples'][14]['name'] ?? null);
         $t->same([], $generatedEvidence['samples'][14]['readerOptions'] ?? null);
-        $t->same(['id', 'title', 'status'], $table->attr('columnNames'));
-        $t->same(3, $packet['rowCount'] ?? null);
-        $t->same(2, $packet['bodyRowCount'] ?? null);
-        $t->same(3, $packet['columnCount'] ?? null);
-        $t->same(9, $packet['fieldCount'] ?? null);
+        $t->same(3, $packet['inputPrefix']['carriageReturnNormalization']['removedCount'] ?? null);
+        $t->same('pandoc-sources-remove-carriage-returns', $packet['inputPrefix']['carriageReturnNormalization']['policy'] ?? null);
+        $t->same(['id', 'title', 'status1', 'Alpha', 'ok2', 'Beta, CR', 'done'], $table->attr('columnNames'));
+        $t->same(1, $packet['rowCount'] ?? null);
+        $t->same(0, $packet['bodyRowCount'] ?? null);
+        $t->same(7, $packet['columnCount'] ?? null);
+        $t->same(7, $packet['fieldCount'] ?? null);
         $t->same(1, $packet['quotedFieldCount'] ?? null);
-        $t->same(true, $packet['finalRecordTerminated'] ?? null);
-        $t->same([0, 1, 2], $packet['rowWidthSummary']['sourceRowIndexes'] ?? null);
+        $t->same(false, $packet['finalRecordTerminated'] ?? null);
+        $t->same([0], $packet['rowWidthSummary']['sourceRowIndexes'] ?? null);
         $t->same(0, $packet['raggedRowCount'] ?? null);
         $t->same(0, $packet['diagnosticCount'] ?? null);
-        $t->same('Alpha', $table->children[1]->children[0]->children[1]->attr('text'));
-        $t->same('Beta, CR', $table->children[1]->children[1]->children[1]->attr('text'));
-        $t->same('done', $table->children[1]->children[1]->children[2]->attr('text'));
+        $t->same([], $table->children[1]->children);
         $t->contains('Plain [ Str "Beta," , Space , Str "CR" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },

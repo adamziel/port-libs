@@ -935,11 +935,12 @@ final class WordPressBlockWriter
             ? '<figcaption' . $this->renderTableFigcaptionAttrs($node) . '>' . $captionHtml . '</figcaption>'
             : '';
         $accessibility = $this->tableAccessibilityByCell($node);
+        $cellColumns = $this->tableVisualColumnsByCell($node);
         $html = '<table' . $this->renderTableElementAttrs($node) . '>' . $this->renderTableColgroup($node);
         if ($head instanceof AstNode && $head->children !== []) {
             $html .= '<thead' . $this->renderStoredHtmlAttrs($head, true, []) . '>';
             foreach ($head->children as $row) {
-                $html .= $this->renderTableRow($row, $node, true, 0, $accessibility);
+                $html .= $this->renderTableRow($row, $node, true, 0, $accessibility, $cellColumns);
             }
             $html .= '</thead>';
         }
@@ -953,20 +954,20 @@ final class WordPressBlockWriter
             if (is_array($bodyHeadRows)) {
                 foreach ($bodyHeadRows as $row) {
                     if ($row instanceof AstNode) {
-                        $html .= $this->renderTableRow($row, $node, true, 0, $accessibility);
+                        $html .= $this->renderTableRow($row, $node, true, 0, $accessibility, $cellColumns);
                     }
                 }
             }
             $rowHeadColumns = max(0, (int) $body->attr('rowHeadColumns', 0));
             foreach ($body->children as $row) {
-                $html .= $this->renderTableRow($row, $node, false, $rowHeadColumns, $accessibility);
+                $html .= $this->renderTableRow($row, $node, false, $rowHeadColumns, $accessibility, $cellColumns);
             }
             $html .= '</tbody>';
         }
         if ($foot instanceof AstNode && $foot->children !== []) {
             $html .= '<tfoot' . $this->renderStoredHtmlAttrs($foot, true, []) . '>';
             foreach ($foot->children as $row) {
-                $html .= $this->renderTableRow($row, $node, false, 0, $accessibility);
+                $html .= $this->renderTableRow($row, $node, false, 0, $accessibility, $cellColumns);
             }
             $html .= '</tfoot>';
         }
@@ -1203,8 +1204,16 @@ final class WordPressBlockWriter
 
     /**
      * @param array<int, array<string, mixed>> $accessibility
+     * @param array<int, int> $cellColumns
      */
-    private function renderTableRow(AstNode $row, AstNode $table, bool $header, int $rowHeadColumns = 0, array $accessibility = []): string
+    private function renderTableRow(
+        AstNode $row,
+        AstNode $table,
+        bool $header,
+        int $rowHeadColumns = 0,
+        array $accessibility = [],
+        array $cellColumns = []
+    ): string
     {
         $html = '<tr' . $this->renderStoredHtmlAttrs($row, true, []) . '>';
         $logicalColumn = 0;
@@ -1213,8 +1222,10 @@ final class WordPressBlockWriter
                 continue;
             }
             $colspan = max(1, (int) $cell->attr('colspan', 1));
-            $attrs = $this->renderTableCellAttrs($table, $logicalColumn, $cell, $accessibility[spl_object_id($cell)] ?? []);
-            $tag = $header || $cell->attr('header') === true || ($logicalColumn < $rowHeadColumns && $logicalColumn + $colspan <= $rowHeadColumns) ? 'th' : 'td';
+            $cellId = spl_object_id($cell);
+            $visualColumn = $cellColumns[$cellId] ?? $logicalColumn;
+            $attrs = $this->renderTableCellAttrs($table, $visualColumn, $cell, $accessibility[$cellId] ?? []);
+            $tag = $header || $cell->attr('header') === true || ($visualColumn < $rowHeadColumns && $visualColumn + $colspan <= $rowHeadColumns) ? 'th' : 'td';
             $html .= '<' . $tag . $attrs . '>' . $this->renderTableCellContent($cell) . '</' . $tag . '>';
             $logicalColumn += $colspan;
         }
@@ -1415,6 +1426,24 @@ final class WordPressBlockWriter
                 }
                 $byCell[spl_object_id($node)] = $attrs;
             }
+        }
+
+        return $byCell;
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    private function tableVisualColumnsByCell(AstNode $table): array
+    {
+        $byCell = [];
+        foreach (TableGeometry::cellCoverage($table) as $record) {
+            $node = $record['node'] ?? null;
+            if (!$node instanceof AstNode) {
+                continue;
+            }
+
+            $byCell[spl_object_id($node)] = max(0, (int) ($record['column'] ?? 0));
         }
 
         return $byCell;
