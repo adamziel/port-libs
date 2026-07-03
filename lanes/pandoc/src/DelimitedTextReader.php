@@ -742,9 +742,9 @@ final class DelimitedTextReader
             throw new \InvalidArgumentException("Malformed {$format} input: leading blank or whitespace-only records before line {$line} are not valid.");
         }
 
-        $blankRows = is_array($parse['blankRows'] ?? null) ? $parse['blankRows'] : [];
+        $blankRows = $this->strictRejectedBlankRows($parse);
         if ($blankRows !== []) {
-            $row = (int) $blankRows[0] + 1;
+            $row = $blankRows[0] + 1;
             throw new \InvalidArgumentException("Malformed {$format} input: blank record at line {$row}.");
         }
 
@@ -788,6 +788,25 @@ final class DelimitedTextReader
         }
 
         return null;
+    }
+
+    /**
+     * @param array{
+     *     sourceRowIndexes?:list<int>,
+     *     blankRows?:list<int>
+     * } $parse
+     * @return list<int>
+     */
+    private function strictRejectedBlankRows(array $parse): array
+    {
+        $blankRows = is_array($parse['blankRows'] ?? null) ? $parse['blankRows'] : [];
+        $sourceRowIndexes = is_array($parse['sourceRowIndexes'] ?? null) ? $parse['sourceRowIndexes'] : [];
+        $lastSourceRow = $sourceRowIndexes === [] ? -1 : max($sourceRowIndexes);
+
+        return array_values(array_filter(
+            $blankRows,
+            static fn (int $blankRow): bool => $blankRow <= $lastSourceRow
+        ));
     }
 
     /**

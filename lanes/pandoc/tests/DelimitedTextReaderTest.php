@@ -3113,6 +3113,35 @@ return [
         $t->same(1, $relaxedPacket['blankRowCount'] ?? null);
         $t->same(['delimited-text-blank-rows-skipped'], array_column($relaxedPacket['diagnostics'] ?? [], 'code'));
     },
+    'allows trailing blank records in strict csv and tsv parsing like upstream eof whitespace' => static function (TestRunner $t): void {
+        $reader = new DelimitedTextReader();
+        $csvDocument = $reader->readCsv("a,b\n1,2\n\n\n");
+        $tsvDocument = $reader->readTsv("a\tb\n1\t2\n\n");
+        $csvTable = $csvDocument->children[0];
+        $tsvTable = $tsvDocument->children[0];
+        $csvPacket = $csvTable->attr('delimitedText');
+        $tsvPacket = $tsvTable->attr('delimitedText');
+
+        $t->same(['a', 'b'], $csvTable->attr('columnNames'));
+        $t->same(2, $csvPacket['rowCount'] ?? null);
+        $t->same(1, $csvPacket['bodyRowCount'] ?? null);
+        $t->same(2, $csvPacket['blankRowCount'] ?? null);
+        $t->same([2, 3], $csvPacket['blankRows'] ?? null);
+        $t->same([0, 1], $csvPacket['rowWidthSummary']['sourceRowIndexes'] ?? null);
+        $t->same(['delimited-text-blank-rows-skipped'], array_column($csvPacket['diagnostics'] ?? [], 'code'));
+        $t->same('1', $csvTable->children[1]->children[0]->children[0]->attr('text'));
+        $t->same('2', $csvTable->children[1]->children[0]->children[1]->attr('text'));
+
+        $t->same(['a', 'b'], $tsvTable->attr('columnNames'));
+        $t->same(2, $tsvPacket['rowCount'] ?? null);
+        $t->same(1, $tsvPacket['bodyRowCount'] ?? null);
+        $t->same(1, $tsvPacket['blankRowCount'] ?? null);
+        $t->same([2], $tsvPacket['blankRows'] ?? null);
+        $t->same([0, 1], $tsvPacket['rowWidthSummary']['sourceRowIndexes'] ?? null);
+        $t->same(['delimited-text-blank-rows-skipped'], array_column($tsvPacket['diagnostics'] ?? [], 'code'));
+        $t->same('1', $tsvTable->children[1]->children[0]->children[0]->attr('text'));
+        $t->same('2', $tsvTable->children[1]->children[0]->children[1]->attr('text'));
+    },
     'rejects non-boolean delimited text strict parsing option' => static function (TestRunner $t): void {
         $message = '';
         try {
