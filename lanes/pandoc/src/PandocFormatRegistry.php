@@ -368,7 +368,7 @@ final class PandocFormatRegistry
         'man' => [
             'status' => 'partial',
             'implementation' => ManReader::class,
-            'notes' => 'Bounded roff man reader maps the pinned upstream Tests.Readers.Man macro, escape, list, code block, and table unit semantics into the shared AST. Full roff/man parity remains open.',
+            'notes' => 'Bounded roff man reader maps the pinned upstream Tests.Readers.Man macro, escape, list, definition-list, title metadata, link, synopsis option, code block, and table unit semantics into the shared AST. Full roff/man parity remains open.',
         ],
         'markdown' => [
             'status' => 'partial',

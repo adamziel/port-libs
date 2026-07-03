@@ -11,12 +11,17 @@ final class ManReader
 
     private int $index = 0;
 
+    /** @var array<string, mixed> */
+    private array $meta = [];
+
     public function read(string $roff): AstNode
     {
         $this->lines = $this->logicalLines(str_replace(["\r\n", "\r"], "\n", $roff));
         $this->index = 0;
+        $this->meta = [];
 
-        return new AstNode('document', [
+        $blocks = $this->parseBlocks();
+        $attrs = [
             'sourceFormat' => 'man',
             'man' => [
                 'reader' => self::class,
@@ -28,13 +33,22 @@ final class ManReader
                         'macros',
                         'escapes',
                         'lists',
+                        'definition lists',
+                        'title metadata',
+                        'links',
+                        'synopsis options',
                         'code blocks',
                         'tables',
                     ],
                     'fixtureStatus' => 'Tests.Readers.Man is an inline Haskell builder assertion suite, not a fixture-pair suite.',
                 ],
             ],
-        ], $this->parseBlocks());
+        ];
+        if ($this->meta !== []) {
+            $attrs['meta'] = $this->meta;
+        }
+
+        return new AstNode('document', $attrs, $blocks);
     }
 
     /**
@@ -94,15 +108,17 @@ final class ManReader
                     $this->skipMacroDefinition();
                     continue;
                 }
-                if ($this->isIgnoredRequest($name) || $this->isParagraphBreakMacro($name)) {
+                if ($name === 'TH') {
+                    $this->recordTitleMetadata($rawArgs);
                     ++$this->index;
                     continue;
                 }
                 if ($name === 'SH' || $name === 'SS') {
                     ++$this->index;
+                    $headingInlines = $this->headingInlines($rawArgs);
                     $blocks[] = new AstNode('heading', [
                         'level' => $name === 'SH' ? 1 : 2,
-                    ], $this->parseInlines($this->argsText($this->parseArgs($rawArgs))));
+                    ], $headingInlines);
                     continue;
                 }
                 if ($name === 'TP') {
@@ -126,11 +142,17 @@ final class ManReader
                     $blocks[] = $this->parseTable();
                     continue;
                 }
-                if ($this->isInlineMacro($name)) {
-                    ++$this->index;
-                    $blocks[] = new AstNode('paragraph', [], $this->inlineMacroInlines($name, $rawArgs));
+                if ($this->isInlineParagraphStart($name)) {
+                    $blocks[] = $this->parseParagraph();
                     continue;
                 }
+                if ($this->isIgnoredRequest($name) || $this->isParagraphBreakMacro($name)) {
+                    ++$this->index;
+                    continue;
+                }
+
+                ++$this->index;
+                continue;
             }
 
             $blocks[] = $this->parseParagraph();
@@ -141,7 +163,7 @@ final class ManReader
 
     private function parseParagraph(): AstNode
     {
-        $text = '';
+        $inlines = [];
         $joinNextLineTightly = false;
         while ($this->index < count($this->lines)) {
             $line = $this->lines[$this->index];
@@ -149,16 +171,45 @@ final class ManReader
             if ($trimmed === '') {
                 break;
             }
-            if ($text !== '' && $this->isBlockStart($line)) {
+            if ($inlines !== [] && $this->isBlockStart($line)) {
                 break;
             }
-            if (!$this->isCommentLine($trimmed)) {
-                $this->appendRoffTextLine($text, $joinNextLineTightly, $line);
+            if ($this->isCommentLine($trimmed)) {
+                ++$this->index;
+                continue;
             }
+
+            $macro = $this->macroLine($line);
+            if ($macro !== null) {
+                [$name, $rawArgs] = $macro;
+                if ($this->isInlineMacro($name)) {
+                    ++$this->index;
+                    $this->appendInlineNodes($inlines, $this->inlineMacroInlines($name, $rawArgs), $joinNextLineTightly);
+                    $joinNextLineTightly = false;
+                    continue;
+                }
+                if ($name === 'UR' || $name === 'MT') {
+                    $this->appendInlineNodes($inlines, $this->parseDelimitedLinkInlines($name, $rawArgs), $joinNextLineTightly);
+                    $joinNextLineTightly = false;
+                    continue;
+                }
+                if ($this->isIgnoredRequest($name) || $this->isParagraphBreakMacro($name)) {
+                    ++$this->index;
+                    continue;
+                }
+                if ($inlines !== []) {
+                    break;
+                }
+                ++$this->index;
+                continue;
+            }
+
+            $this->appendInlineNodes($inlines, $this->parseInlines($this->stripInlineComment($line)), $joinNextLineTightly);
+            $joinNextLineTightly = strpos($line, '\#') !== false;
             ++$this->index;
         }
 
-        return new AstNode('paragraph', [], $this->parseInlines($text));
+        return new AstNode('paragraph', [], $this->coalesceTextNodes($inlines));
     }
 
     private function isBlockStart(string $line): bool
@@ -168,8 +219,7 @@ final class ManReader
             return false;
         }
 
-        return in_array($macro[0], ['SH', 'SS', 'TP', 'IP', 'RS', 'RE', 'nf', 'fi', 'EX', 'EE', 'TS', 'TE'], true)
-            || $this->isInlineMacro($macro[0])
+        return in_array($macro[0], ['TH', 'SH', 'SS', 'TP', 'IP', 'RS', 'RE', 'nf', 'fi', 'EX', 'EE', 'TS', 'TE'], true)
             || $this->isIgnoredRequest($macro[0])
             || $this->isParagraphBreakMacro($macro[0]);
     }
@@ -195,7 +245,7 @@ final class ManReader
 
     private function isParagraphBreakMacro(string $name): bool
     {
-        return in_array($name, ['P', 'PP', 'LP', 'Pp', 'br', 'sp'], true);
+        return in_array($name, ['P', 'PP', 'LP', 'Pp', 'sp'], true);
     }
 
     private function isIgnoredRequest(string $name): bool
@@ -255,20 +305,163 @@ final class ManReader
 
     private function isInlineMacro(string $name): bool
     {
-        return in_array($name, ['B', 'I', 'SM', 'SB', 'BI', 'BR', 'IB', 'IR', 'RB', 'RI'], true);
+        return in_array($name, ['B', 'I', 'SM', 'SB', 'BI', 'BR', 'IB', 'IR', 'RB', 'RI', 'SY', 'YS', 'OP', 'br'], true);
+    }
+
+    private function isInlineParagraphStart(string $name): bool
+    {
+        return $this->isInlineMacro($name) || $name === 'UR' || $name === 'MT';
     }
 
     /**
-     * @return list<string>
+     * @return list<AstNode>
+     */
+    private function headingInlines(string $rawArgs): array
+    {
+        $args = $this->parseArgs($rawArgs);
+        if ($args !== []) {
+            return $this->parseInlines($this->argsText($args));
+        }
+
+        if ($this->index < count($this->lines)
+            && trim($this->lines[$this->index]) !== ''
+            && !$this->isBlockStart($this->lines[$this->index])
+            && $this->macroLine($this->lines[$this->index]) === null
+        ) {
+            $line = $this->stripInlineComment($this->lines[$this->index]);
+            ++$this->index;
+
+            return $this->parseInlines($line);
+        }
+
+        return [];
+    }
+
+    private function recordTitleMetadata(string $rawArgs): void
+    {
+        $args = $this->parseArgs($rawArgs);
+        $fields = [
+            'titleInlines',
+            'section',
+            'dateInlines',
+            'footer',
+            'header',
+        ];
+
+        foreach ($fields as $offset => $field) {
+            if (!isset($args[$offset])) {
+                continue;
+            }
+            $inlines = $this->parseInlines($args[$offset]);
+            if ($field === 'titleInlines' || $field === 'dateInlines') {
+                $this->meta[$field] = $inlines;
+                continue;
+            }
+            $this->meta[$field] = [
+                'type' => 'MetaInlines',
+                'value' => $inlines,
+            ];
+        }
+    }
+
+    /**
+     * @param list<AstNode> $target
+     * @param list<AstNode> $nodes
+     */
+    private function appendInlineNodes(array &$target, array $nodes, bool $joinTightly = false): void
+    {
+        if ($nodes === []) {
+            return;
+        }
+        if ($target !== [] && !$joinTightly) {
+            $target[] = $this->textNode(' ');
+        }
+        array_push($target, ...$nodes);
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function parseDelimitedLinkInlines(string $name, string $rawArgs): array
+    {
+        $terminator = $name === 'MT' ? 'ME' : 'UE';
+        $args = $this->parseArgs($rawArgs);
+        $url = $this->argsText(array_slice($args, 0, 1));
+        if ($name === 'MT' && $url !== '') {
+            $url = 'mailto:' . $url;
+        }
+
+        ++$this->index;
+        $label = [];
+        while ($this->index < count($this->lines)) {
+            $line = $this->lines[$this->index];
+            $trimmed = trim($line);
+            if ($trimmed === '' || $this->isCommentLine($trimmed)) {
+                ++$this->index;
+                continue;
+            }
+
+            $macro = $this->macroLine($line);
+            if ($macro !== null && $macro[0] === $terminator) {
+                ++$this->index;
+                $link = new AstNode('link', ['url' => $url, 'title' => ''], $this->coalesceTextNodes($label));
+                $endInlines = $this->parseInlines($this->argsText($this->parseArgs($macro[1])));
+
+                return $endInlines === [] ? [$link] : array_merge([$link], $endInlines);
+            }
+            if ($macro !== null && $this->isInlineMacro($macro[0])) {
+                ++$this->index;
+                $this->appendInlineNodes($label, $this->inlineMacroInlines($macro[0], $macro[1]));
+                continue;
+            }
+            if ($macro !== null) {
+                break;
+            }
+
+            $this->appendInlineNodes($label, $this->parseInlines($this->stripInlineComment($line)));
+            ++$this->index;
+        }
+
+        return [new AstNode('link', ['url' => $url, 'title' => ''], $this->coalesceTextNodes($label))];
+    }
+
+    /**
+     * @return list<AstNode>
      */
     private function inlineMacroInlines(string $name, string $rawArgs): array
     {
         $args = $this->parseArgs($rawArgs);
-        if ($args === [] && $this->index < count($this->lines) && !$this->isBlockStart($this->lines[$this->index])) {
+        if ($args === []
+            && $this->index < count($this->lines)
+            && !$this->isBlockStart($this->lines[$this->index])
+            && $this->macroLine($this->lines[$this->index]) === null
+        ) {
             $args = [$this->stripInlineComment($this->lines[$this->index])];
             ++$this->index;
         }
 
+        if ($name === 'br') {
+            return [new AstNode('linebreak')];
+        }
+        if ($name === 'YS') {
+            return [];
+        }
+        if ($name === 'SY') {
+            return [new AstNode('strong', [], $this->parseInlines($this->argsText($args)))];
+        }
+        if ($name === 'OP') {
+            if ($args === []) {
+                return [];
+            }
+            $inlines = [$this->textNode('[ '), new AstNode('strong', [], $this->parseInlines((string) $args[0]))];
+            $tail = array_slice($args, 1);
+            if ($tail !== []) {
+                $inlines[] = $this->textNode(' ' . $this->argsText($tail));
+            }
+            $inlines[] = $this->textNode(' ]');
+
+            return $inlines;
+        }
         if ($name === 'B' || $name === 'SB') {
             return [new AstNode('strong', [], $this->parseInlines($this->argsText($args)))];
         }
@@ -653,11 +846,28 @@ final class ManReader
                 break;
             }
             ++$this->index;
-            $items[] = $this->parseListItem();
+            $blocks = $this->parseListItemBlocks();
+            if ($first['kind'] === 'definition') {
+                $termInlines = $descriptor['termInlines'];
+                $termText = (string) $descriptor['term'];
+                $items[] = new AstNode('definition_item', ['term' => $termText], [
+                    new AstNode('term', ['text' => $termText], $termInlines),
+                    new AstNode('definition', [], $blocks),
+                ]);
+                continue;
+            }
+
+            $items[] = new AstNode('list_item', [
+                'text' => $this->plainInlineText($blocks),
+                'loose' => false,
+            ], $blocks);
         }
 
         if ($first['kind'] === 'bullet') {
             return new AstNode('bullet_list', ['loose' => false], $items);
+        }
+        if ($first['kind'] === 'definition') {
+            return new AstNode('definition_list', [], $items);
         }
 
         return new AstNode('ordered_list', [
@@ -669,7 +879,7 @@ final class ManReader
     }
 
     /**
-     * @return array{kind:string, start:int, style:string, delimiter:string}|null
+     * @return array{kind:string, start:int, style:string, delimiter:string, term:string, termInlines:list<AstNode>}|null
      */
     private function currentIpDescriptor(): ?array
     {
@@ -680,12 +890,27 @@ final class ManReader
 
         $args = $this->parseArgs($macro[1]);
         $marker = $args[0] ?? '';
-        $markerText = $this->plainInlineText($this->parseInlines($marker));
-        if ($markerText === "\u{2022}") {
-            return ['kind' => 'bullet', 'start' => 1, 'style' => 'default', 'delimiter' => 'default'];
+        $markerInlines = $this->parseInlines($marker);
+        $markerText = $this->plainInlineText($markerInlines);
+        if ($markerText === "\u{2022}" || in_array($markerText, ['-', '*', '+'], true)) {
+            return [
+                'kind' => 'bullet',
+                'start' => 1,
+                'style' => 'default',
+                'delimiter' => 'default',
+                'term' => $markerText,
+                'termInlines' => $markerInlines,
+            ];
         }
         if (preg_match('/^([0-9]+)$/', $markerText, $match) === 1) {
-            return ['kind' => 'ordered', 'start' => (int) $match[1], 'style' => 'decimal', 'delimiter' => 'default'];
+            return [
+                'kind' => 'ordered',
+                'start' => (int) $match[1],
+                'style' => 'decimal',
+                'delimiter' => 'default',
+                'term' => $markerText,
+                'termInlines' => $markerInlines,
+            ];
         }
         if (preg_match('/^([A-Z])\\)$/', $markerText, $match) === 1) {
             return [
@@ -693,15 +918,24 @@ final class ManReader
                 'start' => ord((string) $match[1]) - ord('A') + 1,
                 'style' => 'upper_alpha',
                 'delimiter' => 'one_paren',
+                'term' => $markerText,
+                'termInlines' => $markerInlines,
             ];
         }
 
-        return ['kind' => 'bullet', 'start' => 1, 'style' => 'default', 'delimiter' => 'default'];
+        return [
+            'kind' => 'definition',
+            'start' => 1,
+            'style' => 'default',
+            'delimiter' => 'default',
+            'term' => $markerText,
+            'termInlines' => $markerInlines,
+        ];
     }
 
     /**
-     * @param array{kind:string, start:int, style:string, delimiter:string} $left
-     * @param array{kind:string, start:int, style:string, delimiter:string} $right
+     * @param array{kind:string, start:int, style:string, delimiter:string, term:string, termInlines:list<AstNode>} $left
+     * @param array{kind:string, start:int, style:string, delimiter:string, term:string, termInlines:list<AstNode>} $right
      */
     private function sameListKind(array $left, array $right): bool
     {
@@ -710,18 +944,21 @@ final class ManReader
             && $left['delimiter'] === $right['delimiter'];
     }
 
-    private function parseListItem(): AstNode
+    /**
+     * @return list<AstNode>
+     */
+    private function parseListItemBlocks(): array
     {
         $children = [];
-        $paragraphText = '';
+        $paragraphInlines = [];
         $joinNextLineTightly = false;
-        $flushParagraph = function () use (&$children, &$paragraphText, &$joinNextLineTightly): void {
-            if ($paragraphText === '') {
+        $flushParagraph = function () use (&$children, &$paragraphInlines, &$joinNextLineTightly): void {
+            if ($paragraphInlines === []) {
                 return;
             }
 
-            $children[] = new AstNode('paragraph', [], $this->parseInlines($paragraphText));
-            $paragraphText = '';
+            $children[] = new AstNode('paragraph', [], $this->coalesceTextNodes($paragraphInlines));
+            $paragraphInlines = [];
             $joinNextLineTightly = false;
         };
         while ($this->index < count($this->lines)) {
@@ -757,31 +994,32 @@ final class ManReader
                 $children[] = $this->parseTable();
                 continue;
             }
+            if ($macro !== null && ($macro[0] === 'UR' || $macro[0] === 'MT')) {
+                $this->appendInlineNodes($paragraphInlines, $this->parseDelimitedLinkInlines($macro[0], $macro[1]), $joinNextLineTightly);
+                $joinNextLineTightly = false;
+                continue;
+            }
             if ($macro !== null && ($this->isIgnoredRequest($macro[0]) || $this->isParagraphBreakMacro($macro[0]))) {
                 $flushParagraph();
                 ++$this->index;
                 continue;
             }
             if ($macro !== null && $this->isInlineMacro($macro[0])) {
-                $this->appendPlainTextPart(
-                    $paragraphText,
-                    $joinNextLineTightly,
-                    $this->plainInlineText($this->inlineMacroInlines($macro[0], $macro[1]))
-                );
-                $joinNextLineTightly = false;
                 ++$this->index;
+                $this->appendInlineNodes($paragraphInlines, $this->inlineMacroInlines($macro[0], $macro[1]), $joinNextLineTightly);
+                $joinNextLineTightly = false;
                 continue;
             }
 
-            $this->appendRoffTextLine($paragraphText, $joinNextLineTightly, $line);
+            if (!$this->isCommentLine($trimmed)) {
+                $this->appendInlineNodes($paragraphInlines, $this->parseInlines($this->stripInlineComment($line)), $joinNextLineTightly);
+                $joinNextLineTightly = strpos($line, '\#') !== false;
+            }
             ++$this->index;
         }
         $flushParagraph();
 
-        return new AstNode('list_item', [
-            'text' => $this->plainInlineText($children),
-            'loose' => false,
-        ], $children);
+        return $children;
     }
 
     private function parseTaggedParagraphList(): AstNode
@@ -794,7 +1032,16 @@ final class ManReader
             }
 
             ++$this->index;
-            $termInlines = $this->parseTaggedParagraphTerm();
+            $termGroups = [$this->parseTaggedParagraphTerm()];
+            while ($this->index < count($this->lines)) {
+                $next = $this->macroLine($this->lines[$this->index]);
+                if ($next === null || $next[0] !== 'TQ') {
+                    break;
+                }
+                ++$this->index;
+                $termGroups[] = $this->parseTaggedParagraphTerm();
+            }
+            $termInlines = $this->joinTermGroups($termGroups);
             $termText = $this->plainInlineText($termInlines);
             $definitionBlocks = $this->parseTaggedParagraphDefinition();
             $items[] = new AstNode('definition_item', ['term' => $termText], [
@@ -804,6 +1051,23 @@ final class ManReader
         }
 
         return new AstNode('definition_list', [], $items);
+    }
+
+    /**
+     * @param list<list<AstNode>> $groups
+     * @return list<AstNode>
+     */
+    private function joinTermGroups(array $groups): array
+    {
+        $inlines = [];
+        foreach ($groups as $group) {
+            if ($inlines !== []) {
+                $inlines[] = new AstNode('linebreak');
+            }
+            array_push($inlines, ...$group);
+        }
+
+        return $this->coalesceTextNodes($inlines);
     }
 
     /**
@@ -820,7 +1084,7 @@ final class ManReader
             }
 
             $macro = $this->macroLine($line);
-            if ($macro !== null && in_array($macro[0], ['TP', 'IP', 'SH', 'SS', 'RE'], true)) {
+            if ($macro !== null && in_array($macro[0], ['TP', 'TQ', 'IP', 'SH', 'SS', 'RE'], true)) {
                 return [];
             }
             if ($macro !== null && $this->isMacroDefinitionRequest($macro[0])) {
@@ -835,6 +1099,9 @@ final class ManReader
                 ++$this->index;
 
                 return $this->inlineMacroInlines($macro[0], $macro[1]);
+            }
+            if ($macro !== null && ($macro[0] === 'UR' || $macro[0] === 'MT')) {
+                return $this->parseDelimitedLinkInlines($macro[0], $macro[1]);
             }
 
             ++$this->index;
@@ -861,7 +1128,7 @@ final class ManReader
 
             $macro = $this->macroLine($line);
             if ($macro !== null) {
-                if (in_array($macro[0], ['TP', 'SH', 'SS', 'RE'], true)) {
+                if (in_array($macro[0], ['TP', 'TQ', 'SH', 'SS', 'RE'], true)) {
                     break;
                 }
                 if ($this->isMacroDefinitionRequest($macro[0])) {
@@ -870,6 +1137,10 @@ final class ManReader
                 }
                 if ($this->isIgnoredRequest($macro[0]) || $this->isParagraphBreakMacro($macro[0])) {
                     ++$this->index;
+                    continue;
+                }
+                if ($macro[0] === 'UR' || $macro[0] === 'MT') {
+                    $blocks[] = $this->parseParagraph();
                     continue;
                 }
                 if ($macro[0] === 'IP') {
@@ -890,8 +1161,7 @@ final class ManReader
                     continue;
                 }
                 if ($this->isInlineMacro($macro[0])) {
-                    ++$this->index;
-                    $blocks[] = new AstNode('paragraph', [], $this->inlineMacroInlines($macro[0], $macro[1]));
+                    $blocks[] = $this->parseParagraph();
                     continue;
                 }
             }

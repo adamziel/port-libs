@@ -157,13 +157,12 @@ ROFF);
 
         $types = array_map(static fn (AstNode $node): string => $node->type, $document->children);
         $visible = $plainText($document);
-        $definitionList = $document->children[4];
+        $definitionList = $document->children[3];
         $secondDefinition = $definitionList->children[1]->children[1];
 
-        $t->same(['heading', 'paragraph', 'paragraph', 'paragraph', 'definition_list'], $types);
+        $t->same(['heading', 'paragraph', 'paragraph', 'definition_list'], $types);
         $t->same('NAME', $plainText($document->children[0]));
-        $t->same('tool', $plainText($document->children[1]));
-        $t->same('- do work', $plainText($document->children[2]));
+        $t->same('tool - do work', $plainText($document->children[1]));
         $t->contains('The tool command prints "quoted" text.', $visible);
         $t->true(!str_contains($visible, '.TH'), 'TH request leaked into visible text');
         $t->true(!str_contains($visible, '.nh'), 'nh request leaked into visible text');
@@ -245,9 +244,10 @@ ROFF);
 
         $list = $document->children[1];
 
-        $t->same(['heading', 'bullet_list', 'heading', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
+        $t->same(['heading', 'definition_list', 'heading', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
         $t->same('OPTIONS', $plainText($document->children[0]));
-        $t->same('bold option continues here.', $plainText($list->children[0]));
+        $t->same('--flag', $plainText($list->children[0]->children[0]));
+        $t->same('bold option continues here.', $plainText($list->children[0]->children[1]));
         $t->same('NEXT', $plainText($document->children[2]));
         $t->same('After list.', $plainText($document->children[3]));
     },
@@ -268,13 +268,63 @@ ROFF);
 
         $visible = $plainText($document);
 
-        $t->same(['heading', 'paragraph', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
+        $t->same(['heading', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
         $t->same('NAME', $plainText($document->children[0]));
-        $t->same('tool', $plainText($document->children[1]));
-        $t->same('- visible command', $plainText($document->children[2]));
+        $t->same('tool - visible command', $plainText($document->children[1]));
         $t->true(!str_contains($visible, 'HIDDEN'), 'macro definition body should not become visible text');
         $t->true(!str_contains($visible, '.TH'), 'TH request should not leak after leading comments');
         $t->true(!str_contains($visible, '.SH'), 'comments in macro args should stay hidden');
+    },
+
+    'maps upstream man title metadata and delimited link macros' => static function (TestRunner $t) use ($read, $plainText): void {
+        $document = $read(<<<'ROFF'
+.TH "TOOL" "1" "July 2026" "tool 1.0" "User Commands"
+.SH LINKS
+.UR https://example.test
+Example site
+.UE .
+.MT desk@example.test
+Email desk
+.ME
+ROFF);
+
+        $meta = $document->attr('meta');
+        $paragraph = $document->children[1];
+        $firstLink = $paragraph->children[0];
+        $secondLink = $paragraph->children[2];
+
+        $t->same('TOOL', $plainText(new AstNode('paragraph', [], $meta['titleInlines'])));
+        $t->same('1', $plainText(new AstNode('paragraph', [], $meta['section']['value'])));
+        $t->same('July 2026', $plainText(new AstNode('paragraph', [], $meta['dateInlines'])));
+        $t->same('tool 1.0', $plainText(new AstNode('paragraph', [], $meta['footer']['value'])));
+        $t->same('User Commands', $plainText(new AstNode('paragraph', [], $meta['header']['value'])));
+        $t->same('link', $firstLink->type);
+        $t->same('https://example.test', $firstLink->attr('url'));
+        $t->same('Example site', $plainText($firstLink));
+        $t->same('. ', $plainText(new AstNode('paragraph', [], [$paragraph->children[1]])));
+        $t->same('link', $secondLink->type);
+        $t->same('mailto:desk@example.test', $secondLink->attr('url'));
+        $t->same('Email desk', $plainText($secondLink));
+    },
+
+    'maps upstream man synopsis option and tagged paragraph alias macros' => static function (TestRunner $t) use ($read, $plainText, $inlineTypes): void {
+        $synopsis = $read(".SY tool\n.OP -f file\n.YS\n")->children[0];
+        $tagged = $read(<<<'ROFF'
+.TP
+.B --help
+.TQ
+.B -h
+Show help.
+ROFF)->children[0];
+        $term = $tagged->children[0]->children[0];
+        $definition = $tagged->children[0]->children[1];
+
+        $t->same(['strong', 'text', 'strong', 'text'], $inlineTypes($synopsis));
+        $t->same('tool [ -f file ]', $plainText($synopsis));
+        $t->same('definition_list', $tagged->type);
+        $t->same('--help -h', $plainText($term));
+        $t->same(['strong', 'linebreak', 'strong'], $inlineTypes($term));
+        $t->same('Show help.', $plainText($definition));
     },
 
     'reads man through converter and renders shared ast outputs' => static function (TestRunner $t): void {
