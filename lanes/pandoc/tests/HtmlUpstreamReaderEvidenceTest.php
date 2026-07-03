@@ -280,6 +280,21 @@ return [
         $t->same(1, $failingExitCode);
     },
 
+    'workflow gates current html fixture denominator' => static function (TestRunner $t): void {
+        $repoRoot = dirname(__DIR__, 3);
+        $workflow = file_get_contents($repoRoot . '/.github/workflows/pandoc-html-delimited.yml');
+        if ($workflow === false) {
+            throw new RuntimeException('Unable to read pandoc-html-delimited workflow');
+        }
+
+        $t->contains('--require-selected-fixture-count=61', $workflow);
+        $t->contains('--require-native-mapped-parity=61', $workflow);
+        $t->contains('--require-mapped-parity=61', $workflow);
+        $t->true(!str_contains($workflow, '--require-selected-fixture-count=60'));
+        $t->true(!str_contains($workflow, '--require-native-mapped-parity=60'));
+        $t->true(!str_contains($workflow, '--require-mapped-parity=60'));
+    },
+
     'cli rejects hydrated html source evidence without expected upstream commit' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeHtmlEvidenceTree): void {
         $repoRoot = dirname(__DIR__, 3);
         $root = $makeTempDir();
