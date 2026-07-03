@@ -20,6 +20,19 @@ final class DelimitedTextUpstreamReaderEvidence
     public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 27;
     public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 21;
 
+    private const RUNNER_TEST_SUITE = 'test:test-pandoc';
+    private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/delimited-text-targeted-run';
+    private const RUNNER_TASTY_GROUP_PATH = ['Command:', 'csv.md', '#1'];
+    private const RUNNER_TASTY_PATTERN = '$2 == "Command:" && $3 == "csv.md" && $4 == "#1"';
+    private const RUNNER_REQUIRED_TRANSCRIPTS = [
+        '.port-libs/pandoc-runner/logs/runner-test-dependencies.txt',
+        '.port-libs/pandoc-runner/logs/delimited-text-targeted-list-tests.txt',
+        '.port-libs/pandoc-runner/logs/delimited-text-targeted-run.txt',
+    ];
+    private const RUNNER_REQUIRED_ARTIFACTS = [
+        '.port-libs/pandoc-runner/artifacts/delimited-text-targeted-run/result.json',
+    ];
+
     private const CHECKED_IN_CURRENT_CSV_FIXTURES = [
         'csv.md' => [
             'role' => 'direct-csv-command-reader-native-output',
@@ -1034,6 +1047,7 @@ final class DelimitedTextUpstreamReaderEvidence
                 'staticCurrentEvidence' => self::checkedInCurrentEvidence($this->repoRoot),
                 'generatedCsvNativeParityEvidence' => $generatedCsvNativeParityEvidence,
                 'generatedTsvNativeParityEvidence' => $generatedTsvNativeParityEvidence,
+                'runnerEvidence' => self::runnerNotRunEvidence(),
                 'validation' => [
                     'status' => 'not-evaluated-missing-upstream-root',
                     'issues' => ['missing-upstream-root'],
@@ -1089,6 +1103,7 @@ final class DelimitedTextUpstreamReaderEvidence
             'staticCurrentEvidence' => self::checkedInCurrentEvidence($this->repoRoot),
             'generatedCsvNativeParityEvidence' => $generatedCsvNativeParityEvidence,
             'generatedTsvNativeParityEvidence' => $generatedTsvNativeParityEvidence,
+            'runnerEvidence' => self::runnerNotRunEvidence(),
             'validation' => [
                 'status' => $validationIssues === [] ? 'valid-upstream-delimited-text-reader-evidence' : 'invalid-upstream-delimited-text-reader-evidence',
                 'issues' => $validationIssues,
@@ -1699,6 +1714,7 @@ final class DelimitedTextUpstreamReaderEvidence
         $staticValidation = is_array($staticEvidence['validation'] ?? null) ? $staticEvidence['validation'] : [];
         $generatedCsvNative = is_array($report['generatedCsvNativeParityEvidence'] ?? null) ? $report['generatedCsvNativeParityEvidence'] : [];
         $generatedTsvNative = is_array($report['generatedTsvNativeParityEvidence'] ?? null) ? $report['generatedTsvNativeParityEvidence'] : [];
+        $runner = is_array($report['runnerEvidence'] ?? null) ? $report['runnerEvidence'] : [];
 
         return implode(PHP_EOL, [
             'Pandoc delimited text reader evidence',
@@ -1715,6 +1731,7 @@ final class DelimitedTextUpstreamReaderEvidence
             'Generated TSV native parity: ' . (int) ($generatedTsvNative['generatedNativeMatchCount'] ?? 0)
                 . '/' . (int) ($generatedTsvNative['sampleCount'] ?? 0)
                 . ' status=' . (string) ($generatedTsvNative['parityStatus'] ?? 'unknown'),
+            'Runner plan: ' . (string) ($runner['commandPlanStatus'] ?? 'unknown'),
             'Validation: ' . (string) ($validation['status'] ?? 'unknown'),
             'No upstream Haskell/Cabal runner result or full CSV/TSV feature parity is asserted.',
         ]) . PHP_EOL;
@@ -1753,6 +1770,128 @@ final class DelimitedTextUpstreamReaderEvidence
 
         return ($validation['status'] ?? null) === 'valid-upstream-delimited-text-reader-evidence'
             && ($validation['issues'] ?? null) === [];
+    }
+
+    /**
+     * @param array<string, mixed> $reportOrEvidence
+     */
+    public static function hasRunnerPlanEvidence(array $reportOrEvidence): bool
+    {
+        $runner = is_array($reportOrEvidence['runnerEvidence'] ?? null)
+            ? $reportOrEvidence['runnerEvidence']
+            : $reportOrEvidence;
+        $binding = is_array($runner['upstreamBinding'] ?? null) ? $runner['upstreamBinding'] : [];
+        $target = is_array($runner['target'] ?? null) ? $runner['target'] : [];
+
+        return ($runner['scope'] ?? null) === 'upstream-haskell-runner'
+            && ($runner['status'] ?? null) === 'not-run'
+            && ($runner['executed'] ?? null) === false
+            && array_key_exists('command', $runner)
+            && $runner['command'] === null
+            && array_key_exists('resultArtifact', $runner)
+            && $runner['resultArtifact'] === null
+            && ($runner['commandPlanStatus'] ?? null) === 'planned-not-run'
+            && ($binding['name'] ?? null) === 'jgm/pandoc'
+            && ($binding['expectedCommit'] ?? null) === self::EXPECTED_UPSTREAM_COMMIT
+            && ($binding['entryPoint'] ?? null) === 'test/test-pandoc.hs'
+            && ($binding['commandTestModule'] ?? null) === 'test/Tests/Command.hs'
+            && ($binding['commandFixture'] ?? null) === 'test/command/csv.md'
+            && ($binding['directInputFixture'] ?? null) === 'test/command/01.csv'
+            && ($target['testSuite'] ?? null) === self::RUNNER_TEST_SUITE
+            && ($target['tastyGroupPath'] ?? null) === self::RUNNER_TASTY_GROUP_PATH
+            && ($target['tastyPattern'] ?? null) === self::RUNNER_TASTY_PATTERN
+            && ($target['selectedDirectFixtureFormat'] ?? null) === 'csv'
+            && ($target['tsvDirectFixtureAvailable'] ?? null) === false
+            && ($runner['futureCommands'] ?? null) === self::runnerFutureCommands()
+            && ($runner['requiredTranscripts'] ?? null) === self::RUNNER_REQUIRED_TRANSCRIPTS
+            && ($runner['requiredArtifacts'] ?? null) === self::RUNNER_REQUIRED_ARTIFACTS;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function runnerNotRunEvidence(): array
+    {
+        return [
+            'runner' => 'Cabal/Tasty Pandoc command reader suite',
+            'scope' => 'upstream-haskell-runner',
+            'status' => 'not-run',
+            'executed' => false,
+            'command' => null,
+            'resultArtifact' => null,
+            'commandPlanStatus' => 'planned-not-run',
+            'upstreamBinding' => [
+                'name' => 'jgm/pandoc',
+                'expectedCommit' => self::EXPECTED_UPSTREAM_COMMIT,
+                'entryPoint' => 'test/test-pandoc.hs',
+                'commandTestModule' => 'test/Tests/Command.hs',
+                'commandFixture' => 'test/command/csv.md',
+                'directInputFixture' => 'test/command/01.csv',
+            ],
+            'target' => [
+                'testSuite' => self::RUNNER_TEST_SUITE,
+                'tastyGroupPath' => self::RUNNER_TASTY_GROUP_PATH,
+                'tastyPattern' => self::RUNNER_TASTY_PATTERN,
+                'selectedDirectFixtureFormat' => 'csv',
+                'tsvDirectFixtureAvailable' => false,
+            ],
+            'futureCommands' => self::runnerFutureCommands(),
+            'requiredTranscripts' => self::RUNNER_REQUIRED_TRANSCRIPTS,
+            'requiredArtifacts' => self::RUNNER_REQUIRED_ARTIFACTS,
+            'reason' => 'This native PHP evidence packet is generated without executing the upstream Haskell runner.',
+            'claim' => 'No upstream Haskell runner parity is claimed.',
+        ];
+    }
+
+    /**
+     * @return list<array{purpose: string, program: string, arguments: list<string>}>
+     */
+    private static function runnerFutureCommands(): array
+    {
+        return [
+            [
+                'purpose' => 'prepare runner dependencies in an isolated build directory',
+                'program' => 'cabal',
+                'arguments' => [
+                    'v2-build',
+                    '--offline',
+                    '--dry-run',
+                    '--only-dependencies',
+                    '--project-dir=.',
+                    '--builddir=' . self::RUNNER_BUILD_DIR,
+                    self::RUNNER_TEST_SUITE,
+                ],
+            ],
+            [
+                'purpose' => 'list targeted CSV command reader tests',
+                'program' => 'cabal',
+                'arguments' => [
+                    'v2-run',
+                    '--offline',
+                    '--project-dir=.',
+                    '--builddir=' . self::RUNNER_BUILD_DIR,
+                    self::RUNNER_TEST_SUITE,
+                    '--',
+                    '--list-tests',
+                    '--pattern',
+                    self::RUNNER_TASTY_PATTERN,
+                ],
+            ],
+            [
+                'purpose' => 'run targeted CSV command reader tests',
+                'program' => 'cabal',
+                'arguments' => [
+                    'v2-run',
+                    '--offline',
+                    '--project-dir=.',
+                    '--builddir=' . self::RUNNER_BUILD_DIR,
+                    self::RUNNER_TEST_SUITE,
+                    '--',
+                    '--pattern',
+                    self::RUNNER_TASTY_PATTERN,
+                ],
+            ],
+        ];
     }
 
     /**
@@ -2053,9 +2192,11 @@ final class DelimitedTextUpstreamReaderEvidence
                 'static checked-in current csv.md and 01.csv fixture identity when staticCurrentEvidence is valid',
                 'twenty-seven generated CSV-to-native local samples when generatedCsvNativeParityEvidence is valid',
                 'twenty-one generated TSV-to-native local samples when generatedTsvNativeParityEvidence is valid',
+                'the non-executed upstream command-test runner plan for the pinned csv.md command fixture',
             ],
             'doesNotAssert' => [
                 'that upstream Haskell/Cabal/Tasty tests were executed',
+                'that the planned Cabal/Tasty runner command has produced a result artifact',
                 'that local PHP output matches every upstream CSV-adjacent command fixture',
                 'that the generated CSV samples are upstream command fixtures',
                 'that the generated TSV samples are upstream command fixtures',

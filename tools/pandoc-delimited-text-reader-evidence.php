@@ -25,6 +25,8 @@ Options:
                                   samples match their native fixtures.
   --require-runner-not-run        Exit 1 unless upstream runner evidence is
                                   structured as not-run for CSV and TSV.
+  --require-runner-plan           Exit 1 unless upstream runner evidence includes
+                                  the pinned non-executed Command:/csv.md/#1 plan.
   --require-no-validation-issues  Exit 1 when any validation issue is reported.
   --help                          Show this help.
 
@@ -165,6 +167,32 @@ $validateRunnerNotRun = static function (array $csv, array $tsv): array {
     return $issues;
 };
 
+$validateRunnerPlan = static function (array $csv, array $tsv): array {
+    $issues = [];
+    $expect = static function (bool $condition, string $message) use (&$issues): void {
+        if (!$condition) {
+            $issues[] = $message;
+        }
+    };
+
+    foreach (['CSV' => $csv, 'TSV' => $tsv] as $label => $evidence) {
+        $runner = is_array($evidence['runnerEvidence'] ?? null) ? $evidence['runnerEvidence'] : [];
+        $target = is_array($runner['target'] ?? null) ? $runner['target'] : [];
+
+        $expect(
+            DelimitedTextUpstreamReaderEvidence::hasRunnerPlanEvidence($runner),
+            "{$label} runner command-plan evidence must match the pinned Command:/csv.md/#1 target"
+        );
+        $expect(($runner['commandPlanStatus'] ?? null) === 'planned-not-run', "{$label} runner command plan must be planned-not-run");
+        $expect(($target['tastyGroupPath'] ?? null) === ['Command:', 'csv.md', '#1'], "{$label} runner target must be Command:/csv.md/#1");
+        $expect(($target['tastyPattern'] ?? null) === '$2 == "Command:" && $3 == "csv.md" && $4 == "#1"', "{$label} runner pattern must target the csv.md command fixture");
+        $expect(in_array('.port-libs/pandoc-runner/logs/delimited-text-targeted-run.txt', $runner['requiredTranscripts'] ?? [], true), "{$label} runner plan must require the targeted run transcript");
+        $expect(in_array('.port-libs/pandoc-runner/artifacts/delimited-text-targeted-run/result.json', $runner['requiredArtifacts'] ?? [], true), "{$label} runner plan must require the targeted result artifact path");
+    }
+
+    return $issues;
+};
+
 $formatTextReport = static function (array $report): string {
     $csv = $report['csv'];
     $tsv = $report['tsv'];
@@ -189,7 +217,9 @@ $formatTextReport = static function (array $report): string {
             . '/' . $generatedTsvNative['sampleCount']
             . ' (' . $generatedTsvNative['parityStatus'] . ')',
         'CSV runner status: ' . $csv['runnerEvidence']['status'] . ' (executed: ' . ($csv['runnerEvidence']['executed'] ? 'yes' : 'no') . ')',
+        'CSV runner plan: ' . ($csv['runnerEvidence']['commandPlanStatus'] ?? 'unknown'),
         'TSV runner status: ' . $tsv['runnerEvidence']['status'] . ' (executed: ' . ($tsv['runnerEvidence']['executed'] ? 'yes' : 'no') . ')',
+        'TSV runner plan: ' . ($tsv['runnerEvidence']['commandPlanStatus'] ?? 'unknown'),
     ];
 
     if ($report['validationIssues'] === []) {
@@ -213,6 +243,7 @@ try {
     $requiredGeneratedCsvNativeParityCount = null;
     $requiredGeneratedTsvNativeParityCount = null;
     $requireRunnerNotRun = false;
+    $requireRunnerPlan = false;
     $requireNoValidationIssues = false;
     $args = array_slice($argv, 1);
 
@@ -274,6 +305,10 @@ try {
             $requireRunnerNotRun = true;
             continue;
         }
+        if ($arg === '--require-runner-plan') {
+            $requireRunnerPlan = true;
+            continue;
+        }
         if ($arg === '--require-no-validation-issues') {
             $requireNoValidationIssues = true;
             continue;
@@ -304,6 +339,7 @@ try {
     $generatedCsvNativeIssues = $validateGeneratedCsvNativeParity($generatedCsvNativeParity, $requiredGeneratedCsvNativeParityCount);
     $generatedTsvNativeParity = DelimitedTextUpstreamReaderEvidence::generatedTsvNativeParityEvidence($repoRoot);
     $generatedTsvNativeIssues = $validateGeneratedTsvNativeParity($generatedTsvNativeParity, $requiredGeneratedTsvNativeParityCount);
+    $runnerPlanIssues = $validateRunnerPlan($csvEvidence, $tsvEvidence);
     $report = [
         'tool' => 'pandoc-delimited-text-reader-evidence',
         'claim' => 'Native CSV/TSV reader evidence only; upstream Haskell runner is not executed.',
@@ -316,8 +352,9 @@ try {
             'generatedCsvNativeParity' => $generatedCsvNativeIssues === [],
             'generatedTsvNativeParity' => $generatedTsvNativeIssues === [],
             'runnerNotRun' => $runnerIssues === [],
+            'runnerPlan' => $runnerPlanIssues === [],
         ],
-        'validationIssues' => [...$denominatorIssues, ...$generatedCsvNativeIssues, ...$generatedTsvNativeIssues, ...$runnerIssues],
+        'validationIssues' => [...$denominatorIssues, ...$generatedCsvNativeIssues, ...$generatedTsvNativeIssues, ...$runnerIssues, ...$runnerPlanIssues],
     ];
 
     if ($json) {
@@ -340,6 +377,10 @@ try {
     }
     if ($requireRunnerNotRun && $runnerIssues !== []) {
         fwrite(STDERR, "pandoc-delimited-text-reader-evidence: runner not-run validation reported issues\n");
+        exit(1);
+    }
+    if ($requireRunnerPlan && $runnerPlanIssues !== []) {
+        fwrite(STDERR, "pandoc-delimited-text-reader-evidence: runner command-plan validation reported issues\n");
         exit(1);
     }
     if ($requireNoValidationIssues && $report['validationIssues'] !== []) {

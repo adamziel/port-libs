@@ -73,11 +73,20 @@ return [
         $t->same(['missing-upstream-root'], $report['validation']['issues']);
         $t->same('valid-checked-in-current-delimited-text-reader-evidence', $report['staticCurrentEvidence']['validation']['status']);
         $t->same(true, DelimitedTextUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($report));
+        $t->same(true, DelimitedTextUpstreamReaderEvidence::hasRunnerPlanEvidence($report));
         $t->same(false, DelimitedTextUpstreamReaderEvidence::hasNoValidationIssues($report));
+        $t->same('planned-not-run', $report['runnerEvidence']['commandPlanStatus']);
+        $t->same(['Command:', 'csv.md', '#1'], $report['runnerEvidence']['target']['tastyGroupPath']);
+        $t->same('$2 == "Command:" && $3 == "csv.md" && $4 == "#1"', $report['runnerEvidence']['target']['tastyPattern']);
+        $t->same('$2 == "Command:" && $3 == "csv.md" && $4 == "#1"', $report['runnerEvidence']['futureCommands'][1]['arguments'][8]);
+        $t->same('$2 == "Command:" && $3 == "csv.md" && $4 == "#1"', $report['runnerEvidence']['futureCommands'][2]['arguments'][7]);
+        $t->true(in_array('.port-libs/pandoc-runner/logs/delimited-text-targeted-run.txt', $report['runnerEvidence']['requiredTranscripts'], true));
+        $t->true(in_array('.port-libs/pandoc-runner/artifacts/delimited-text-targeted-run/result.json', $report['runnerEvidence']['requiredArtifacts'], true));
         $t->contains('Pandoc delimited text reader evidence', $text);
         $t->contains('Static current evidence: valid-checked-in-current-delimited-text-reader-evidence checkedInFixtures=2', $text);
         $t->contains('Generated CSV native parity: 27/27 status=generated-csv-native-parity-observed-not-upstream-fixture', $text);
         $t->contains('Generated TSV native parity: 21/21 status=generated-tsv-native-parity-observed-not-upstream-fixture', $text);
+        $t->contains('Runner plan: planned-not-run', $text);
     },
     'reports checked-in current csv command fixture static evidence' => static function (TestRunner $t): void {
         $repoRoot = dirname(__DIR__, 3);
@@ -1084,6 +1093,7 @@ return [
             $t->same('generated-tsv-native-parity-observed-not-upstream-fixture', $report['generatedTsvNativeParityEvidence']['parityStatus']);
             $t->same(true, DelimitedTextUpstreamReaderEvidence::hasNoValidationIssues($report));
             $t->same(true, DelimitedTextUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($report));
+            $t->same(true, DelimitedTextUpstreamReaderEvidence::hasRunnerPlanEvidence($report));
         } finally {
             $removeTree($root);
         }
@@ -1099,6 +1109,7 @@ return [
             . ' --require-generated-csv-native-parity=27'
             . ' --require-generated-tsv-native-parity=21'
             . ' --require-runner-not-run'
+            . ' --require-runner-plan'
             . ' --require-no-validation-issues';
         $output = [];
         $exitCode = 0;
@@ -1117,6 +1128,11 @@ return [
         $t->same(21, $decoded['tsv']['generatedNativeParitySampleCount']);
         $t->same(21, $decoded['generatedTsvNativeParity']['generatedNativeMatchCount']);
         $t->same('generated-tsv-native-parity-observed-not-upstream-fixture', $decoded['generatedTsvNativeParity']['parityStatus']);
+        $t->same(true, $decoded['validation']['runnerPlan']);
+        $t->same('planned-not-run', $decoded['csv']['runnerEvidence']['commandPlanStatus']);
+        $t->same(['Command:', 'csv.md', '#1'], $decoded['csv']['runnerEvidence']['target']['tastyGroupPath']);
+        $t->same('$2 == "Command:" && $3 == "csv.md" && $4 == "#1"', $decoded['csv']['runnerEvidence']['target']['tastyPattern']);
+        $t->same(false, $decoded['tsv']['runnerEvidence']['target']['tsvDirectFixtureAvailable']);
         $t->same([], $decoded['validationIssues']);
     },
     'cli gates generated csv native parity against explicit repo root' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {

@@ -1202,15 +1202,7 @@ final class DelimitedTextReader
         $generatedTsvNativeStaticEvidence = is_array($staticCurrentEvidence['generatedTsvNativeStaticEvidence'] ?? null)
             ? $staticCurrentEvidence['generatedTsvNativeStaticEvidence']
             : [];
-        $runnerEvidence = [
-            'runner' => 'Cabal/Tasty Pandoc reader suite',
-            'status' => 'not-run',
-            'executed' => false,
-            'command' => null,
-            'resultArtifact' => null,
-            'reason' => 'This native PHP evidence packet is generated without executing the upstream Haskell runner.',
-            'claim' => 'No upstream Haskell runner parity is claimed.',
-        ];
+        $runnerEvidence = DelimitedTextUpstreamReaderEvidence::runnerNotRunEvidence();
         $notRunEvidence = [
             [
                 'scope' => 'upstream-haskell-runner',
