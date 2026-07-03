@@ -1287,6 +1287,11 @@ final class MarkdownReader
         return function_exists('mb_strtolower') ? mb_strtolower($label, 'UTF-8') : strtolower($label);
     }
 
+    private function canonicalFootnoteLabel(string $label): string
+    {
+        return $this->decodeHtmlEntities($this->unescapeLinkComponent($label));
+    }
+
     private function isValidReferenceLabel(string $label): bool
     {
         $normalized = $this->normalizeReferenceLabel($label);
@@ -1940,13 +1945,21 @@ final class MarkdownReader
      */
     private function tryParseFootnoteDefinitionStart(string $line): ?array
     {
-        if (preg_match('/^ {0,3}\[\^([^\]\s]+)\]:[ \t]*(.*)$/', $line, $m) !== 1) {
+        if (preg_match('/^ {0,3}/', $line, $indent) !== 1) {
+            return null;
+        }
+
+        $label = $this->parseBracketedLabel($line, strlen($indent[0]));
+        if ($label === null || !str_starts_with($label['text'], '^') || strlen($label['text']) === 1) {
+            return null;
+        }
+        if (($line[$label['next']] ?? '') !== ':') {
             return null;
         }
 
         return [
-            'label' => $m[1],
-            'content' => rtrim($m[2]),
+            'label' => $this->canonicalFootnoteLabel(substr($label['text'], 1)),
+            'content' => rtrim(ltrim(substr($line, $label['next'] + 1), " \t")),
         ];
     }
 
@@ -13256,18 +13269,20 @@ final class MarkdownReader
             return null;
         }
 
-        if (preg_match('/\G\[\^([^\]\s]+)\]/', $text, $m, 0, $offset) !== 1) {
+        $label = $this->parseBracketedLabel($text, $offset);
+        if ($label === null || !str_starts_with($label['text'], '^') || strlen($label['text']) === 1) {
             return null;
         }
 
-        $definition = $this->footnoteDefinitions[$this->normalizeReferenceLabel($m[1])] ?? null;
+        $sourceLabel = $this->canonicalFootnoteLabel(substr($label['text'], 1));
+        $definition = $this->footnoteDefinitions[$this->normalizeReferenceLabel($sourceLabel)] ?? null;
         if ($definition === null) {
             return null;
         }
 
         return [
-            'node' => new AstNode('note', ['label' => $m[1]], $this->parseFootnoteBlocks($definition)),
-            'next' => $offset + strlen($m[0]),
+            'node' => new AstNode('note', ['label' => $sourceLabel], $this->parseFootnoteBlocks($definition)),
+            'next' => $label['next'],
         ];
     }
 
