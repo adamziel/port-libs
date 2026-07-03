@@ -17507,16 +17507,14 @@ XML);
         throw new RuntimeException('Expected root-relative slide Target to stay literal like upstream');
     },
 
-    'uses upstream literal pptx slide targets instead of normalizing dot segments' => static function (TestRunner $t) use ($buildDotSegmentSlideTargetPptxPackage): void {
-        try {
-            (new PptxReader())->read($buildDotSegmentSlideTargetPptxPackage());
-        } catch (RuntimeException $exception) {
-            $t->same('Entry not found: ppt/./slides/slide1.xml', $exception->getMessage());
+    'normalizes pptx dot-segment slide targets like pandoc executable' => static function (TestRunner $t) use ($buildDotSegmentSlideTargetPptxPackage): void {
+        $document = (new PptxReader())->read($buildDotSegmentSlideTargetPptxPackage());
+        $review = $document->attr('pptx');
+        $native = PandocConverter::write($document, 'native');
 
-            return;
-        }
-
-        throw new RuntimeException('Expected dot-segment slide Target to stay literal like upstream');
+        $t->same('ppt/slides/slide1.xml', $review['slides'][0]['partName'] ?? null);
+        $t->same('Dot segment slide target body', $document->children[0]->attr('text'));
+        $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Dot" , Space , Str "segment" , Space , Str "slide" , Space , Str "target" , Space , Str "body" ]', $native);
     },
 
     'uses upstream literal pptx slide targets instead of percent-decoding' => static function (TestRunner $t) use ($buildPercentEncodedSlideTargetPptxPackage): void {
