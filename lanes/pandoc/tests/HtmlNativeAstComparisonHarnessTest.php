@@ -34,10 +34,14 @@ return [
         $tablePlacementNative = $root . '/upstream-html-doc-noteref-table-placement.native';
         $lineBlockHtml = $root . '/upstream-html-line-block.html';
         $lineBlockNative = $root . '/upstream-html-line-block.native';
+        $preCodeHtml = $root . '/upstream-html-pre-code-attributes.html';
+        $preCodeNative = $root . '/upstream-html-pre-code-attributes.native';
         $inlineCodeHtml = $root . '/upstream-html-inline-code-aliases.html';
         $inlineCodeNative = $root . '/upstream-html-inline-code-aliases.native';
         $langMetadataHtml = $root . '/upstream-html-lang-metadata.html';
         $langMetadataNative = $root . '/upstream-html-lang-metadata.native';
+        $spanlikeHtml = $root . '/upstream-html-spanlike-inline.html';
+        $spanlikeNative = $root . '/upstream-html-spanlike-inline.native';
         $styleRawHtml = $root . '/upstream-html-style-raw-block.html';
         $styleRawNative = $root . '/upstream-html-style-raw-block.native';
         $scriptRawHtml = $root . '/upstream-html-script-raw-block.html';
@@ -59,10 +63,14 @@ return [
         $t->true(is_file($tablePlacementNative), 'Native doc-noteref table placement fixture must be checked in');
         $t->true(is_file($lineBlockHtml), 'HTML line-block fixture must be checked in');
         $t->true(is_file($lineBlockNative), 'Native line-block fixture must be checked in');
+        $t->true(is_file($preCodeHtml), 'HTML pre-code attributes fixture must be checked in');
+        $t->true(is_file($preCodeNative), 'Native pre-code attributes fixture must be checked in');
         $t->true(is_file($inlineCodeHtml), 'HTML inline-code fixture must be checked in');
         $t->true(is_file($inlineCodeNative), 'Native inline-code fixture must be checked in');
         $t->true(is_file($langMetadataHtml), 'HTML lang-metadata fixture must be checked in');
         $t->true(is_file($langMetadataNative), 'Native lang-metadata fixture must be checked in');
+        $t->true(is_file($spanlikeHtml), 'HTML spanlike-inline fixture must be checked in');
+        $t->true(is_file($spanlikeNative), 'Native spanlike-inline fixture must be checked in');
         $t->true(is_file($styleRawHtml), 'HTML style raw-block fixture must be checked in');
         $t->true(is_file($styleRawNative), 'Native style raw-block fixture must be checked in');
         $t->true(is_file($scriptRawHtml), 'HTML script raw-block fixture must be checked in');
@@ -77,20 +85,20 @@ return [
         $text = $harness->formatReport($report);
 
         $t->same('completed', $report['status']);
-        $t->same(12, $report['totalPairCount']);
-        $t->same(12, $report['comparedPairCount']);
-        $t->same(12, $report['htmlParsedCount']);
-        $t->same(12, $report['nativeParsedCount']);
-        $t->same(12, $report['bothParsedCount']);
+        $t->same(14, $report['totalPairCount']);
+        $t->same(14, $report['comparedPairCount']);
+        $t->same(14, $report['htmlParsedCount']);
+        $t->same(14, $report['nativeParsedCount']);
+        $t->same(14, $report['bothParsedCount']);
         $t->same(0, $report['parseFailureCount']);
-        $t->same(12, $report['normalizedAstMatchCount']);
+        $t->same(14, $report['normalizedAstMatchCount']);
         $t->same(0, $report['normalizedAstMismatchCount']);
         $t->same('normalized-ast-equality-observed-not-runner-parity', $report['astParityStatus']);
-        $t->same(true, HtmlNativeAstComparisonHarness::hasRequiredMappedParity($report, 12));
+        $t->same(true, HtmlNativeAstComparisonHarness::hasRequiredMappedParity($report, 14));
         $t->same('covered-by-current-normalized-ast-evidence', $report['orderedRemainingGaps'][0]['status']);
-        $t->same('The current checked-in gate covers 12 paired fixture(s).', $report['orderedRemainingGaps'][2]['currentEvidence']);
-        $t->contains('pairs: total=12 compared=12 parsedBoth=12 parseFailures=0', $text);
-        $t->contains('normalizedAst: matches=12 (100.00%) mismatches=0', $text);
+        $t->same('The current checked-in gate covers 14 paired fixture(s).', $report['orderedRemainingGaps'][2]['currentEvidence']);
+        $t->contains('pairs: total=14 compared=14 parsedBoth=14 parseFailures=0', $text);
+        $t->contains('normalizedAst: matches=14 (100.00%) mismatches=0', $text);
 
         $command = escapeshellarg(PHP_BINARY)
             . ' '
@@ -98,14 +106,14 @@ return [
             . ' --html-dir=' . escapeshellarg($root)
             . ' --json'
             . ' summary'
-            . ' --require-mapped-parity=12';
+            . ' --require-mapped-parity=14';
         $output = [];
         $exitCode = 0;
         exec($command, $output, $exitCode);
         $decoded = json_decode(implode("\n", $output), true, 512, JSON_THROW_ON_ERROR);
 
         $t->same(0, $exitCode);
-        $t->same(12, $decoded['normalizedAstMatchCount']);
+        $t->same(14, $decoded['normalizedAstMatchCount']);
         $t->same(0, $decoded['normalizedAstMismatchCount']);
     },
 ];

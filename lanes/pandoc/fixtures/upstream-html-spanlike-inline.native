@@ -1,0 +1,39 @@
+[ Para
+    [ Str "Reviewer"
+    , Space
+    , Str "shortcut"
+    , Space
+    , Span
+        ( "publish-shortcut"
+        , [ "kbd" , "source-key" ]
+        , [ ( "origin" , "classic-editor" ) ]
+        )
+        [ Str "Ctrl+Alt+P" ]
+    , Space
+    , Str "opens"
+    , Space
+    , Span
+        ( "" , [ "mark" , "source-highlight" ] , [] )
+        [ Str "publish" , Space , Str "preview" ]
+    , Str "."
+    ]
+, Para
+    [ Span
+        ( "" , [ "dfn" ] , [] )
+        [ Span
+            ( ""
+            , [ "abbr" ]
+            , [ ( "title" , "HyperText Markup Language" ) ]
+            )
+            [ Str "HTML" ]
+        ]
+    , Space
+    , Str "source"
+    , Space
+    , Str "terms"
+    , Space
+    , Str "stay"
+    , Space
+    , Str "reviewable."
+    ]
+]
