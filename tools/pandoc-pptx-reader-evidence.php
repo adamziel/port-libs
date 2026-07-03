@@ -26,6 +26,9 @@ Options:
   --require-static-native-mapped-parity
                                   Exit 1 unless the checked-in current PPTX/native
                                   snapshot matches by normalized AST shape.
+  --require-static-executable-native-ast-parity
+                                  Exit 1 unless the checked-in executable Pandoc
+                                  native AST snapshot validates all 45 pairs.
   --require-runner-not-run        Exit 1 unless upstream runner evidence is structured as not-run.
   --require-runner-plan           Exit 1 unless upstream runner evidence includes the pinned
                                   planned-not-run command plan.
@@ -45,6 +48,7 @@ $summaryReport = static function (array $report): array {
     $staticEvidence = is_array($report['staticCurrentEvidence'] ?? null) ? $report['staticCurrentEvidence'] : [];
     $staticDenominator = is_array($staticEvidence['readerDenominator'] ?? null) ? $staticEvidence['readerDenominator'] : [];
     $staticNativeParity = is_array($staticEvidence['nativeAstMappedParity'] ?? null) ? $staticEvidence['nativeAstMappedParity'] : [];
+    $staticExecutableParity = is_array($staticEvidence['executableNativeAstMappedParity'] ?? null) ? $staticEvidence['executableNativeAstMappedParity'] : [];
 
     return [
         'schemaVersion' => $report['schemaVersion'] ?? null,
@@ -83,6 +87,30 @@ $summaryReport = static function (array $report): array {
                 'astParityStatus' => $staticNativeParity['astParityStatus'] ?? null,
                 'hasRequiredMappedParity' => $staticNativeParity['hasRequiredMappedParity'] ?? false,
             ],
+            'executableNativeAstMappedParity' => [
+                'kind' => $staticExecutableParity['kind'] ?? null,
+                'status' => $staticExecutableParity['status'] ?? null,
+                'skipped' => $staticExecutableParity['skipped'] ?? null,
+                'requiredPptxCount' => $staticExecutableParity['requiredPptxCount'] ?? 0,
+                'snapshotFile' => $staticExecutableParity['snapshotFile'] ?? [],
+                'capturedDate' => $staticExecutableParity['capturedDate'] ?? null,
+                'pandocVersion' => $staticExecutableParity['pandocVersion'] ?? null,
+                'totalPptxCount' => $staticExecutableParity['totalPptxCount'] ?? 0,
+                'comparedPptxCount' => $staticExecutableParity['comparedPptxCount'] ?? 0,
+                'localParsedCount' => $staticExecutableParity['localParsedCount'] ?? 0,
+                'pandocParsedCount' => $staticExecutableParity['pandocParsedCount'] ?? 0,
+                'nativeFixtureParsedCount' => $staticExecutableParity['nativeFixtureParsedCount'] ?? 0,
+                'bothParsedCount' => $staticExecutableParity['bothParsedCount'] ?? 0,
+                'parseFailureCount' => $staticExecutableParity['parseFailureCount'] ?? 0,
+                'normalizedAstMatchCount' => $staticExecutableParity['normalizedAstMatchCount'] ?? 0,
+                'normalizedAstMismatchCount' => $staticExecutableParity['normalizedAstMismatchCount'] ?? 0,
+                'pandocNativeFixtureComparedCount' => $staticExecutableParity['pandocNativeFixtureComparedCount'] ?? 0,
+                'pandocNativeFixtureMatchCount' => $staticExecutableParity['pandocNativeFixtureMatchCount'] ?? 0,
+                'pandocNativeFixtureMismatchCount' => $staticExecutableParity['pandocNativeFixtureMismatchCount'] ?? 0,
+                'astParityStatus' => $staticExecutableParity['astParityStatus'] ?? null,
+                'hasRequiredExecutableParity' => $staticExecutableParity['hasRequiredExecutableParity'] ?? false,
+                'validation' => $staticExecutableParity['validation'] ?? [],
+            ],
             'validation' => $staticEvidence['validation'] ?? [],
         ],
         'runnerEvidence' => $report['runnerEvidence'] ?? [],
@@ -99,6 +127,7 @@ try {
     $requireNoValidationIssues = false;
     $requireStaticCurrentEvidence = false;
     $requireStaticNativeMappedParity = false;
+    $requireStaticExecutableNativeAstParity = false;
     $requireRunnerNotRun = false;
     $requireRunnerPlan = false;
     $requireRunnerResultArtifact = false;
@@ -139,6 +168,10 @@ try {
         }
         if ($arg === '--require-static-native-mapped-parity') {
             $requireStaticNativeMappedParity = true;
+            continue;
+        }
+        if ($arg === '--require-static-executable-native-ast-parity') {
+            $requireStaticExecutableNativeAstParity = true;
             continue;
         }
         if ($arg === '--require-runner-not-run') {
@@ -251,6 +284,14 @@ try {
 
     if ($requireStaticNativeMappedParity && !PptxUpstreamReaderEvidence::hasRequiredStaticNativeMappedParity($report)) {
         fwrite(STDERR, "pandoc-pptx-reader-evidence: checked-in current PPTX/native mapped AST parity did not match the pinned static snapshot\n");
+        exit(1);
+    }
+
+    if (
+        $requireStaticExecutableNativeAstParity
+        && !PptxUpstreamReaderEvidence::hasRequiredStaticExecutableNativeAstParity($report)
+    ) {
+        fwrite(STDERR, "pandoc-pptx-reader-evidence: checked-in current executable PPTX/native AST parity did not match the pinned static snapshot\n");
         exit(1);
     }
 

@@ -15,6 +15,9 @@ final class PptxUpstreamReaderEvidence
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
     public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 45;
 
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'd820f6e0738e4a42d16444b0e82d3a1b9090e28c027e402a5e17f89e61d0ef20';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 9350;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -697,6 +700,7 @@ final class PptxUpstreamReaderEvidence
         $staticValidation = is_array($staticEvidence['validation'] ?? null) ? $staticEvidence['validation'] : [];
         $staticDenominator = is_array($staticEvidence['readerDenominator'] ?? null) ? $staticEvidence['readerDenominator'] : [];
         $staticNativeParity = is_array($staticEvidence['nativeAstMappedParity'] ?? null) ? $staticEvidence['nativeAstMappedParity'] : [];
+        $staticExecutableParity = is_array($staticEvidence['executableNativeAstMappedParity'] ?? null) ? $staticEvidence['executableNativeAstMappedParity'] : [];
         $runner = is_array($report['runnerEvidence'] ?? null) ? $report['runnerEvidence'] : [];
         $runnerResultLine = self::hasRunnerResultArtifactEvidence($report)
             ? 'Supplied upstream Haskell/Cabal runner result artifact is validated; PPTX writer parity and full PowerPoint feature parity are not asserted.'
@@ -720,6 +724,10 @@ final class PptxUpstreamReaderEvidence
                 . ' matches=' . (int) ($staticNativeParity['normalizedAstMatchCount'] ?? 0)
                 . ' mismatches=' . (int) ($staticNativeParity['normalizedAstMismatchCount'] ?? 0)
                 . ' required=' . (int) ($staticNativeParity['requiredPairCount'] ?? self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT),
+            'Static executable native AST parity: ' . (string) ($staticExecutableParity['astParityStatus'] ?? 'unknown')
+                . ' matches=' . (int) ($staticExecutableParity['normalizedAstMatchCount'] ?? 0)
+                . ' mismatches=' . (int) ($staticExecutableParity['normalizedAstMismatchCount'] ?? 0)
+                . ' required=' . (int) ($staticExecutableParity['requiredPptxCount'] ?? self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT),
             'Runner status: ' . (string) ($runner['status'] ?? 'unknown'),
             'Runner plan: ' . (string) ($runner['commandPlanStatus'] ?? 'unknown'),
             'Runner result artifact: ' . (string) (($runner['validation']['status'] ?? null) ?? 'not-evaluated'),
@@ -772,7 +780,8 @@ final class PptxUpstreamReaderEvidence
             && ($validation['issues'] ?? null) === []
             && (int) ($denominator['expectedCompareCount'] ?? -1) === self::EXPECTED_STATIC_READER_TEST_COMPARE_COUNT
             && (int) ($evidence['checkedInFixturePairCount'] ?? -1) === self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT
-            && self::hasRequiredStaticNativeMappedParity($report);
+            && self::hasRequiredStaticNativeMappedParity($report)
+            && self::hasRequiredStaticExecutableNativeAstParity($report);
     }
 
     /**
@@ -792,6 +801,38 @@ final class PptxUpstreamReaderEvidence
             && (int) ($parity['normalizedAstMatchCount'] ?? -1) === self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT
             && (int) ($parity['normalizedAstMismatchCount'] ?? -1) === 0
             && ($parity['astParityStatus'] ?? null) === 'normalized-ast-equality-observed-not-runner-parity';
+    }
+
+    /**
+     * @param array<string, mixed> $report
+     */
+    public static function hasRequiredStaticExecutableNativeAstParity(array $report): bool
+    {
+        $evidence = is_array($report['staticCurrentEvidence'] ?? null) ? $report['staticCurrentEvidence'] : [];
+        $parity = is_array($evidence['executableNativeAstMappedParity'] ?? null) ? $evidence['executableNativeAstMappedParity'] : [];
+        $validation = is_array($parity['validation'] ?? null) ? $parity['validation'] : [];
+        $snapshotFile = is_array($parity['snapshotFile'] ?? null) ? $parity['snapshotFile'] : [];
+
+        return ($parity['hasRequiredExecutableParity'] ?? null) === true
+            && ($validation['status'] ?? null) === 'valid-checked-in-current-pptx-executable-native-ast-parity'
+            && ($validation['issues'] ?? null) === []
+            && ($snapshotFile['present'] ?? null) === true
+            && ($snapshotFile['sha256'] ?? null) === self::CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256
+            && (int) ($snapshotFile['bytes'] ?? -1) === self::CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES
+            && (int) ($parity['requiredPptxCount'] ?? -1) === self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT
+            && (int) ($parity['totalPptxCount'] ?? -1) === self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT
+            && (int) ($parity['comparedPptxCount'] ?? -1) === self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT
+            && (int) ($parity['localParsedCount'] ?? -1) === self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT
+            && (int) ($parity['pandocParsedCount'] ?? -1) === self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT
+            && (int) ($parity['nativeFixtureParsedCount'] ?? -1) === self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT
+            && (int) ($parity['bothParsedCount'] ?? -1) === self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT
+            && (int) ($parity['parseFailureCount'] ?? -1) === 0
+            && (int) ($parity['normalizedAstMatchCount'] ?? -1) === self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT
+            && (int) ($parity['normalizedAstMismatchCount'] ?? -1) === 0
+            && (int) ($parity['pandocNativeFixtureComparedCount'] ?? -1) === self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT
+            && (int) ($parity['pandocNativeFixtureMatchCount'] ?? -1) === self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT
+            && (int) ($parity['pandocNativeFixtureMismatchCount'] ?? -1) === 0
+            && ($parity['astParityStatus'] ?? null) === 'normalized-ast-equality-observed-against-pandoc-executable';
     }
 
     /**
@@ -1442,6 +1483,7 @@ final class PptxUpstreamReaderEvidence
         }
         $nativeAstReport = (new PptxNativeAstComparisonHarness())->run($fixtureDirectory);
         $nativeAstMappedParity = self::nativeAstMappedParityEvidence($nativeAstReport);
+        $executableNativeAstMappedParity = $this->executableNativeAstSnapshotEvidence();
 
         $issues = [];
         if (!is_dir($fixtureDirectory)) {
@@ -1463,6 +1505,13 @@ final class PptxUpstreamReaderEvidence
         }
         if (($nativeAstMappedParity['hasRequiredMappedParity'] ?? false) !== true) {
             $issues[] = 'checked-in-current-native-ast-mapped-parity-mismatch';
+        }
+        if (($executableNativeAstMappedParity['hasRequiredExecutableParity'] ?? false) !== true) {
+            $issues[] = 'checked-in-current-executable-native-ast-parity-mismatch';
+        }
+        $executableValidation = is_array($executableNativeAstMappedParity['validation'] ?? null) ? $executableNativeAstMappedParity['validation'] : [];
+        if (($executableValidation['issues'] ?? []) !== []) {
+            $issues[] = 'checked-in-current-executable-native-ast-snapshot-invalid';
         }
 
         $snapshotPairs = [];
@@ -1529,6 +1578,7 @@ final class PptxUpstreamReaderEvidence
             'checkedInUnpairedPptxFixtures' => $checkedInUnpairedFixtures['pptx'],
             'checkedInUnpairedNativeFixtures' => $checkedInUnpairedFixtures['native'],
             'nativeAstMappedParity' => $nativeAstMappedParity,
+            'executableNativeAstMappedParity' => $executableNativeAstMappedParity,
             'validation' => [
                 'status' => $issues === [] ? 'valid-checked-in-current-pptx-reader-evidence' : 'invalid-checked-in-current-pptx-reader-evidence',
                 'issues' => array_values(array_unique($issues)),
@@ -1540,6 +1590,7 @@ final class PptxUpstreamReaderEvidence
                     'the checked-in current PPTX fixture directory contains ' . count(self::checkedInStaticFixturePairNames()) . ' same-stem PPTX/native pairs and no unpaired PPTX/native files',
                     'the checked-in ' . self::fixturePairNameList(self::checkedInStaticFixturePairNames()) . ' files match the expected SHA-256 hashes and byte counts for this snapshot',
                     'local PHP PPTX reader output matches all ' . self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT . ' checked-in current PPTX/native pairs by normalized AST shape',
+                    'checked-in executable native AST evidence shows pandoc 3.10, local PHP output, and paired .native fixtures match all ' . self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT . ' checked-in current PPTX fixtures by normalized AST shape',
                 ],
                 'doesNotAssert' => [
                     'that upstream Haskell/Cabal/Tasty tests were executed',
@@ -1553,6 +1604,96 @@ final class PptxUpstreamReaderEvidence
                 ],
             ],
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function executableNativeAstSnapshotEvidence(): array
+    {
+        $snapshotFile = $this->snapshotFileEvidence(
+            self::CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH,
+            self::CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256,
+            self::CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES
+        );
+        $issues = [];
+        $payload = [];
+        $path = $this->repoRoot . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, self::CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH);
+
+        if (($snapshotFile['present'] ?? false) !== true) {
+            $issues[] = 'missing-checked-in-current-pptx-executable-native-ast-snapshot';
+        } else {
+            if (($snapshotFile['sha256'] ?? null) !== self::CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256) {
+                $issues[] = 'checked-in-current-pptx-executable-native-ast-snapshot-sha256-mismatch';
+            }
+            if ((int) ($snapshotFile['bytes'] ?? -1) !== self::CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES) {
+                $issues[] = 'checked-in-current-pptx-executable-native-ast-snapshot-byte-count-mismatch';
+            }
+
+            try {
+                $decoded = json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
+                if (is_array($decoded)) {
+                    $payload = $decoded;
+                } else {
+                    $issues[] = 'checked-in-current-pptx-executable-native-ast-snapshot-json-root-not-object';
+                }
+            } catch (\JsonException) {
+                $issues[] = 'checked-in-current-pptx-executable-native-ast-snapshot-invalid-json';
+            }
+        }
+
+        if ($payload !== []) {
+            if (($payload['schemaVersion'] ?? null) !== 1) {
+                $issues[] = 'checked-in-current-pptx-executable-native-ast-schema-version-mismatch';
+            }
+            if (($payload['tool'] ?? null) !== 'pandoc-pptx-executable-native-ast') {
+                $issues[] = 'checked-in-current-pptx-executable-native-ast-tool-mismatch';
+            }
+            if (($payload['evidenceKind'] ?? null) !== 'checked-in-real-pandoc-executable-pptx-native-ast-snapshot') {
+                $issues[] = 'checked-in-current-pptx-executable-native-ast-kind-mismatch';
+            }
+            if (($payload['sourceTool'] ?? null) !== 'tools/pandoc-pptx-executable-native-ast.php') {
+                $issues[] = 'checked-in-current-pptx-executable-native-ast-source-tool-mismatch';
+            }
+            if (($payload['sourceCommand'] ?? null) !== [
+                'php',
+                'tools/pandoc-pptx-executable-native-ast.php',
+                '--pptx-dir=' . self::CHECKED_IN_CURRENT_FIXTURE_DIRECTORY,
+                '--pandoc-bin=/opt/homebrew/bin/pandoc',
+                '--json',
+                '--require-executable-parity=' . self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT,
+            ]) {
+                $issues[] = 'checked-in-current-pptx-executable-native-ast-source-command-mismatch';
+            }
+            if (($payload['capturedDate'] ?? null) !== '2026-07-03') {
+                $issues[] = 'checked-in-current-pptx-executable-native-ast-captured-date-mismatch';
+            }
+            if (($payload['pptxDirectory'] ?? null) !== self::CHECKED_IN_CURRENT_FIXTURE_DIRECTORY) {
+                $issues[] = 'checked-in-current-pptx-executable-native-ast-directory-mismatch';
+            }
+            if (($payload['pandocVersion'] ?? null) !== 'pandoc 3.10') {
+                $issues[] = 'checked-in-current-pptx-executable-native-ast-pandoc-version-mismatch';
+            }
+            if (self::stringList($payload['fixtureStems'] ?? []) !== self::expectedExecutableFixtureStems()) {
+                $issues[] = 'checked-in-current-pptx-executable-native-ast-fixture-stems-mismatch';
+            }
+            if (!PptxExecutableNativeAstComparisonHarness::hasRequiredExecutableParity($payload, self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT)) {
+                $issues[] = 'checked-in-current-pptx-executable-native-ast-parity-mismatch';
+            }
+        }
+
+        return self::executableNativeAstMappedParityEvidence($payload, $snapshotFile, $issues);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function expectedExecutableFixtureStems(): array
+    {
+        $stems = array_keys(self::CHECKED_IN_CURRENT_FIXTURE_SNAPSHOT);
+        sort($stems, SORT_STRING);
+
+        return $stems;
     }
 
     /**
@@ -1598,6 +1739,73 @@ final class PptxUpstreamReaderEvidence
                     'upstream Haskell/Cabal runner execution',
                     'PPTX writer golden package parity',
                     'byte-level PPTX package equality',
+                    'full PowerPoint feature parity',
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $report
+     * @param array{path: string, present: bool, sha256: ?string, expectedSha256: string, bytes: ?int, expectedBytes: int} $snapshotFile
+     * @param list<string> $issues
+     * @return array<string, mixed>
+     */
+    private static function executableNativeAstMappedParityEvidence(array $report, array $snapshotFile, array $issues): array
+    {
+        return [
+            'kind' => 'checked-in-current-pptx-executable-native-normalized-ast-parity',
+            'tool' => (string) ($report['tool'] ?? 'pandoc-pptx-executable-native-ast'),
+            'status' => (string) ($report['status'] ?? 'unknown'),
+            'skipped' => (bool) ($report['skipped'] ?? true),
+            'reason' => $report['reason'] ?? null,
+            'evidenceKind' => (string) ($report['evidenceKind'] ?? 'checked-in-real-pandoc-executable-pptx-native-ast-snapshot'),
+            'requiredPptxCount' => self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT,
+            'snapshotFile' => $snapshotFile,
+            'sourceTool' => is_string($report['sourceTool'] ?? null) ? $report['sourceTool'] : null,
+            'sourceCommand' => is_array($report['sourceCommand'] ?? null) ? $report['sourceCommand'] : [],
+            'capturedDate' => is_string($report['capturedDate'] ?? null) ? $report['capturedDate'] : null,
+            'pptxDirectory' => (string) ($report['pptxDirectory'] ?? ''),
+            'pandocExecutable' => is_string($report['pandocExecutable'] ?? null) ? $report['pandocExecutable'] : null,
+            'pandocVersion' => is_string($report['pandocVersion'] ?? null) ? $report['pandocVersion'] : null,
+            'totalPptxCount' => (int) ($report['totalPptxCount'] ?? 0),
+            'comparedPptxCount' => (int) ($report['comparedPptxCount'] ?? 0),
+            'localParsedCount' => (int) ($report['localParsedCount'] ?? 0),
+            'pandocParsedCount' => (int) ($report['pandocParsedCount'] ?? 0),
+            'nativeFixtureParsedCount' => (int) ($report['nativeFixtureParsedCount'] ?? 0),
+            'bothParsedCount' => (int) ($report['bothParsedCount'] ?? 0),
+            'parseFailureCount' => (int) ($report['parseFailureCount'] ?? 0),
+            'normalizedAstMatchCount' => (int) ($report['normalizedAstMatchCount'] ?? 0),
+            'normalizedAstMismatchCount' => (int) ($report['normalizedAstMismatchCount'] ?? 0),
+            'normalizedAstMatchPercent' => $report['normalizedAstMatchPercent'] ?? null,
+            'pandocNativeFixtureComparedCount' => (int) ($report['pandocNativeFixtureComparedCount'] ?? 0),
+            'pandocNativeFixtureMatchCount' => (int) ($report['pandocNativeFixtureMatchCount'] ?? 0),
+            'pandocNativeFixtureMismatchCount' => (int) ($report['pandocNativeFixtureMismatchCount'] ?? 0),
+            'pandocNativeFixtureMatchPercent' => $report['pandocNativeFixtureMatchPercent'] ?? null,
+            'astParityStatus' => (string) ($report['astParityStatus'] ?? 'unknown'),
+            'fixtureStems' => self::stringList($report['fixtureStems'] ?? []),
+            'hasRequiredExecutableParity' => PptxExecutableNativeAstComparisonHarness::hasRequiredExecutableParity(
+                $report,
+                self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT
+            ),
+            'parseFailures' => is_array($report['parseFailures'] ?? null) ? $report['parseFailures'] : [],
+            'mismatchCategories' => is_array($report['mismatchCategories'] ?? null) ? $report['mismatchCategories'] : [],
+            'mismatchComparisons' => is_array($report['mismatchComparisons'] ?? null) ? $report['mismatchComparisons'] : [],
+            'pandocNativeFixtureMismatchComparisons' => is_array($report['pandocNativeFixtureMismatchComparisons'] ?? null) ? $report['pandocNativeFixtureMismatchComparisons'] : [],
+            'orderedRemainingGaps' => is_array($report['orderedRemainingGaps'] ?? null) ? $report['orderedRemainingGaps'] : [],
+            'validation' => [
+                'status' => $issues === [] ? 'valid-checked-in-current-pptx-executable-native-ast-parity' : 'invalid-checked-in-current-pptx-executable-native-ast-parity',
+                'issues' => array_values(array_unique($issues)),
+            ],
+            'claim' => (string) ($report['claim'] ?? 'Checked-in executable Pandoc/native normalized AST comparison.'),
+            'claimBoundaries' => [
+                'doesAssert' => [
+                    'checked-in executable Pandoc native output, local PHP PPTX reader output, and paired checked-in native fixtures are equal after documented normalization',
+                ],
+                'doesNotAssert' => [
+                    'upstream Haskell/Cabal runner execution',
+                    'fresh local Pandoc execution during this reader evidence gate',
+                    'PPTX writer golden package parity',
                     'full PowerPoint feature parity',
                 ],
             ],
