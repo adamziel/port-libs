@@ -10778,7 +10778,11 @@ final class MarkdownReader
                 $taskChecked = $task['checked'];
                 $firstText = $task['text'];
             }
-            if ($this->isBlockQuoteLine($firstText)) {
+            $lineBlock = $this->readListItemLineBlock($lines, $cursor, $baseIndent, $contentIndent, $firstText);
+            if ($lineBlock !== null) {
+                $parts[] = $lineBlock['node'];
+                $cursor = $lineBlock['next'];
+            } elseif ($this->isBlockQuoteLine($firstText)) {
                 [$quote, $cursor] = $this->readListItemBlockQuote($lines, $cursor, $baseIndent, $contentIndent, $firstText);
                 $parts[] = $quote;
             } else {
@@ -10855,6 +10859,14 @@ final class MarkdownReader
                     $this->flushListItemParagraph($paragraph, $parts);
                     [$quote, $cursor] = $this->readListItemBlockQuote($lines, $cursor, $baseIndent, $contentIndent, $continuation);
                     $parts[] = $quote;
+                    continue;
+                }
+
+                $lineBlock = $this->readListItemLineBlock($lines, $cursor, $baseIndent, $contentIndent, $continuation);
+                if ($lineBlock !== null) {
+                    $this->flushListItemParagraph($paragraph, $parts);
+                    $parts[] = $lineBlock['node'];
+                    $cursor = $lineBlock['next'];
                     continue;
                 }
 
@@ -10938,6 +10950,38 @@ final class MarkdownReader
         $quote = $this->tryReadBlockQuote($quoteLines, $quoteIndex);
 
         return [$quote ?? new AstNode('blockquote'), $cursor + $quoteIndex + 1];
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{node:AstNode, next:int}|null
+     */
+    private function readListItemLineBlock(
+        array $lines,
+        int $cursor,
+        int $baseIndent,
+        int $contentIndent,
+        string $firstLine
+    ): ?array {
+        if (!$this->lineBlockExtensionEnabled() || preg_match('/^ {0,3}\|/', $this->expandTabsToSpaces($firstLine)) !== 1) {
+            return null;
+        }
+
+        $blockLines = [$firstLine];
+        $blockLines = array_merge(
+            $blockLines,
+            $this->collectListItemIndentedContinuationLines($lines, $cursor + 1, $baseIndent, $contentIndent)
+        );
+        $blockIndex = 0;
+        $lineBlock = $this->tryReadLineBlock($blockLines, $blockIndex);
+        if ($lineBlock === null) {
+            return null;
+        }
+
+        return [
+            'node' => $lineBlock,
+            'next' => $cursor + $blockIndex + 1,
+        ];
     }
 
     /**
