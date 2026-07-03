@@ -210,7 +210,9 @@ final class ManReader
             'de',
             'de1',
             'ds',
+            'EE',
             'el',
+            'fi',
             'hy',
             'ie',
             'if',
@@ -228,6 +230,7 @@ final class ManReader
             'rm',
             'so',
             'ta',
+            'TE',
             'ti',
             'tr',
         ], true);
@@ -817,6 +820,9 @@ final class ManReader
             }
 
             $macro = $this->macroLine($line);
+            if ($macro !== null && in_array($macro[0], ['TP', 'IP', 'SH', 'SS', 'RE'], true)) {
+                return [];
+            }
             if ($macro !== null && $this->isMacroDefinitionRequest($macro[0])) {
                 $this->skipMacroDefinition();
                 continue;
@@ -956,6 +962,10 @@ final class ManReader
             if ($macro !== null && $macro[0] === 'TE') {
                 ++$this->index;
                 break;
+            }
+            if ($macro !== null && ($this->isIgnoredRequest($macro[0]) || $this->isParagraphBreakMacro($macro[0]))) {
+                ++$this->index;
+                continue;
             }
 
             if (trim($line) === 'T{') {

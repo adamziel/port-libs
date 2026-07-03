@@ -763,21 +763,52 @@ final class ManCorpusAudit
 
     private function firstControlLeak(AstNode $document): ?string
     {
-        if ($document->type === 'text' || $document->type === 'code') {
-            $text = (string) $document->attr('text', '');
-            if (preg_match('/^\\s*(\\.(?:TH|SH|SS|TP|PP|LP|IP|RS|RE|B|I|SM|SB|BI|BR|IB|IR|RB|RI|nf|fi|EX|EE|TS|TE|br|sp|nh|ad|if|ie|el|ds|nr|PD|so|Dd|Dt|Os|Sh|Ss|Nm|Nd|Bl|It|El|Fl|Ar|Cm|Pa|Xr))(?:\\s|$)/m', $text, $match) === 1) {
-                return (string) $match[1];
-            }
-        }
-
-        foreach ($document->children as $child) {
-            $leak = $this->firstControlLeak($child);
-            if ($leak !== null) {
-                return $leak;
-            }
+        $text = $this->visibleTextForLeakDetection($document);
+        if (preg_match('/(?:^|\\n)\\s*(\\.(?:TH|SH|SS|TP|PP|LP|IP|RS|RE|B|I|SM|SB|BI|BR|IB|IR|RB|RI|nf|fi|EX|EE|TS|TE|br|sp|nh|ad|if|ie|el|ds|nr|PD|so|Dd|Dt|Os|Sh|Ss|Nm|Nd|Bl|It|El|Fl|Ar|Cm|Pa|Xr))(?:\\s|$)/', $text, $match) === 1) {
+            return (string) $match[1];
         }
 
         return null;
+    }
+
+    private function visibleTextForLeakDetection(AstNode $node): string
+    {
+        if (in_array($node->type, ['code', 'emph', 'quoted', 'small_caps', 'strong'], true)) {
+            return '';
+        }
+        if ($node->type === 'text' || $node->type === 'code') {
+            return (string) $node->attr('text', '');
+        }
+        if (in_array($node->type, ['space', 'softbreak', 'linebreak'], true)) {
+            return ' ';
+        }
+
+        $parts = array_values(array_filter(
+            array_map(fn (AstNode $child): string => $this->visibleTextForLeakDetection($child), $node->children),
+            static fn (string $part): bool => $part !== ''
+        ));
+
+        return implode($this->leakDetectionChildSeparator($node), $parts);
+    }
+
+    private function leakDetectionChildSeparator(AstNode $node): string
+    {
+        return in_array($node->type, [
+            'document',
+            'blockquote',
+            'bullet_list',
+            'ordered_list',
+            'definition_list',
+            'definition_item',
+            'definition',
+            'list_item',
+            'line_block',
+            'table',
+            'table_head',
+            'table_body',
+            'table_foot',
+            'row',
+        ], true) ? "\n" : '';
     }
 
     private function visibleText(AstNode $node): string

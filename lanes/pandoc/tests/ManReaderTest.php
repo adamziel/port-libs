@@ -178,6 +178,61 @@ ROFF);
         $t->same("\ntool --flag", $secondDefinition->children[1]->attr('text'));
     },
 
+    'does not use man block boundaries as tagged paragraph terms' => static function (TestRunner $t) use ($read, $plainText): void {
+        $document = $read(<<<'ROFF'
+.SH OPTIONS
+.TP
+.TP
+.B --real
+Real option.
+.TP
+.SH NEXT
+After options.
+ROFF);
+
+        $list = $document->children[1];
+
+        $t->same(['heading', 'definition_list', 'heading', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
+        $t->same('', $plainText($list->children[0]->children[0]));
+        $t->same('--real', $plainText($list->children[1]->children[0]));
+        $t->same('Real option.', $plainText($list->children[1]->children[1]));
+        $t->same('NEXT', $plainText($document->children[2]));
+        $t->same('After options.', $plainText($document->children[3]));
+    },
+
+    'ignores unmatched man code and table terminators outside active blocks' => static function (TestRunner $t) use ($read, $plainText): void {
+        $document = $read(".fi\n.EE\n.TE\n.SH NAME\ntool\n");
+        $visible = $plainText($document);
+
+        $t->same(['heading', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
+        $t->same('NAME', $plainText($document->children[0]));
+        $t->same('tool', $plainText($document->children[1]));
+        $t->true(!str_contains($visible, '.fi'), 'unmatched fi terminator should stay hidden');
+        $t->true(!str_contains($visible, '.EE'), 'unmatched EE terminator should stay hidden');
+        $t->true(!str_contains($visible, '.TE'), 'unmatched TE terminator should stay hidden');
+    },
+
+    'skips paragraph requests inside man table bodies' => static function (TestRunner $t) use ($read, $plainText): void {
+        $table = $read(<<<'ROFF'
+.TS
+l l.
+.PP
+left	right
+.PP
+next	value
+.TE
+ROFF)->children[0];
+
+        $rows = $table->children[1]->children;
+
+        $t->same('table', $table->type);
+        $t->same(2, count($rows));
+        $t->same('left', $plainText($rows[0]->children[0]));
+        $t->same('right', $plainText($rows[0]->children[1]));
+        $t->same('next', $plainText($rows[1]->children[0]));
+        $t->same('value', $plainText($rows[1]->children[1]));
+    },
+
     'keeps man IP lists from swallowing following sections and inline macro lines' => static function (TestRunner $t) use ($read, $plainText): void {
         $document = $read(<<<'ROFF'
 .SH OPTIONS
