@@ -8,6 +8,7 @@ use PortLibs\Pandoc\DelimitedTextReader;
 use PortLibs\Pandoc\DocBookReader;
 use PortLibs\Pandoc\DocxReader;
 use PortLibs\Pandoc\DocxWriter;
+use PortLibs\Pandoc\DokuWikiReader;
 use PortLibs\Pandoc\EpubReader;
 use PortLibs\Pandoc\EpubWriter;
 use PortLibs\Pandoc\Fb2Reader;
@@ -173,6 +174,8 @@ return [
         $t->same(DelimitedTextReader::class, $support['tsv']['implementation']);
         $t->same('partial', $support['docx']['status']);
         $t->same(DocxReader::class, $support['docx']['implementation']);
+        $t->same('partial', $support['dokuwiki']['status']);
+        $t->same(DokuWikiReader::class, $support['dokuwiki']['implementation']);
         $t->same('partial', $support['epub']['status']);
         $t->same(EpubReader::class, $support['epub']['implementation']);
         $t->same('partial', $support['fb2']['status']);
@@ -187,7 +190,7 @@ return [
         $t->same(RtfReader::class, $support['rtf']['implementation']);
         $t->same('partial', $support['xlsx']['status']);
         $t->same(XlsxReader::class, $support['xlsx']['implementation']);
-        $t->same(16, count(PandocFormatRegistry::unsupportedInputFormats()));
+        $t->same(15, count(PandocFormatRegistry::unsupportedInputFormats()));
     },
     'maps current php output support against every upstream output token' => static function (TestRunner $t): void {
         $support = PandocFormatRegistry::phpOutputSupport();
@@ -247,11 +250,15 @@ return [
             $t->same(false, $registry[$format]['directReaderParityClaimed']);
         }
 
-        foreach (['creole', 'dokuwiki', 'mediawiki', 'tikiwiki', 'twiki', 'vimwiki'] as $format) {
+        foreach (['creole', 'mediawiki', 'tikiwiki', 'twiki', 'vimwiki'] as $format) {
             $t->same('unsupported', $registry[$format]['input']['status'], "{$format} reader remains unsupported");
             $t->same('', $registry[$format]['input']['implementation']);
             $t->same(false, $registry[$format]['directReaderParityClaimed']);
         }
+
+        $t->same('partial', $registry['dokuwiki']['input']['status']);
+        $t->same(DokuWikiReader::class, $registry['dokuwiki']['input']['implementation']);
+        $t->same(false, $registry['dokuwiki']['directReaderParityClaimed']);
 
         $t->same('partial', $registry['jira']['input']['status']);
         $t->same(JiraReader::class, $registry['jira']['input']['implementation']);
@@ -276,8 +283,8 @@ return [
         $t->same(['dokuwiki', 'jira', 'mediawiki'], $summary['directionBuckets']['input-output']);
         $t->same(['creole', 'tikiwiki', 'twiki', 'vimwiki'], $summary['directionBuckets']['input-only']);
         $t->same(['xwiki', 'zimwiki'], $summary['directionBuckets']['output-only']);
-        $t->same(['jira'], $summary['inputStatusBuckets']['partial']);
-        $t->same(['creole', 'dokuwiki', 'mediawiki', 'tikiwiki', 'twiki', 'vimwiki'], $summary['inputStatusBuckets']['unsupported']);
+        $t->same(['dokuwiki', 'jira'], $summary['inputStatusBuckets']['partial']);
+        $t->same(['creole', 'mediawiki', 'tikiwiki', 'twiki', 'vimwiki'], $summary['inputStatusBuckets']['unsupported']);
         $t->same(['dokuwiki', 'jira', 'mediawiki', 'xwiki', 'zimwiki'], $summary['outputStatusBuckets']['unsupported']);
         $t->same(['dokuwiki' => 'dokuwiki', 'wiki' => 'mediawiki'], $summary['extensionInference']);
         $t->same(false, $summary['directReaderParityClaimed']);
@@ -313,7 +320,7 @@ return [
         $t->same('unsupported', $outputSupport['ms']['status']);
         $t->same('', $outputSupport['ms']['implementation']);
         $t->contains('.ms/.roff extension inference', $outputSupport['ms']['notes']);
-        $t->same(16, count(PandocFormatRegistry::unsupportedInputFormats()));
+        $t->same(15, count(PandocFormatRegistry::unsupportedInputFormats()));
         $t->same(56, count(PandocFormatRegistry::unsupportedOutputFormats()));
     },
     'tracks roff manual direction buckets without direct parity claims' => static function (TestRunner $t): void {

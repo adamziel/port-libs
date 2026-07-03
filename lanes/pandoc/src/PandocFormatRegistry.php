@@ -310,6 +310,11 @@ final class PandocFormatRegistry
             'implementation' => DocxReader::class,
             'notes' => 'Bounded DOCX package reader parses document.xml, styles, numbering levels/start/style/delimiter attributes, relationships, notes/comments, headers/footers, media references, bookmarks, simple reference fields, OMML equations, and core properties into the shared AST. Full DOCX parity remains open.',
         ],
+        'dokuwiki' => [
+            'status' => 'partial',
+            'implementation' => DokuWikiReader::class,
+            'notes' => 'Bounded DokuWiki reader maps headings, paragraphs, core inline styles, links, images, lists, tables, and code/file blocks into the shared AST. Full DokuWiki reader parity remains open.',
+        ],
         'epub' => [
             'status' => 'partial',
             'implementation' => EpubReader::class,

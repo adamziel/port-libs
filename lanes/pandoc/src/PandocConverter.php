@@ -180,6 +180,7 @@ final class PandocConverter
             BibliographyReader::class => new BibliographyReader($format, $options),
             DocBookReader::class => new DocBookReader(array_replace($options, ['format' => $format])),
             DocxReader::class => new DocxReader($options),
+            DokuWikiReader::class => new DokuWikiReader(),
             EpubReader::class => new EpubReader($options),
             Fb2Reader::class => new Fb2Reader(),
             HtmlReader::class => new HtmlReader($options),
