@@ -10837,7 +10837,40 @@ final class MarkdownReader
             && !$this->isHorizontalRule($line)
             && !$this->isBlockQuoteLine($line)
             && !$this->isDefinitionMarker($line)
+            && !$this->lineCanStartSiblingBlockAfterListItem($line)
             && preg_match('/^(#{1,6})\s+/', $line) !== 1;
+    }
+
+    private function lineCanStartSiblingBlockAfterListItem(string $line): bool
+    {
+        $expanded = $this->expandTabsToSpaces($line);
+
+        if (preg_match('/^ {0,3}(`{3,}|~{3,})[ \t]*(.*)$/', $expanded, $m) === 1) {
+            return $m[1][0] !== '`' || !str_contains($m[2], '`');
+        }
+
+        if ($this->fencedDivExtensionEnabled() && preg_match('/^ {0,3}:{3,}/', $expanded) === 1) {
+            return true;
+        }
+
+        if ($this->lineBlockExtensionEnabled() && preg_match('/^ {0,3}\|/', $expanded) === 1) {
+            return true;
+        }
+
+        if ($this->lineCanStartRawHtmlBlock($expanded) || $this->lineCanStartRawHtmlClosingBlock($expanded)) {
+            return true;
+        }
+
+        if ($this->rawTexEnabled()) {
+            if ($this->tryReadRawTexMacroDefinition($expanded) !== null) {
+                return true;
+            }
+            if (preg_match('/^ {0,3}\\\\(?:begin\{[^}\s]+\}|placeformula\s+\\\\startformula|start[A-Za-z@]+)/', $expanded) === 1) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
