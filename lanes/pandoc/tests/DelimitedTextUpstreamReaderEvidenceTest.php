@@ -76,10 +76,22 @@ return [
         $t->same(true, DelimitedTextUpstreamReaderEvidence::hasRunnerPlanEvidence($report));
         $t->same(false, DelimitedTextUpstreamReaderEvidence::hasNoValidationIssues($report));
         $t->same('planned-not-run', $report['runnerEvidence']['commandPlanStatus']);
+        $t->same('upstream-runner-command-plan', $report['runnerEvidence']['commandPlan']['kind']);
+        $t->same('planned-not-run', $report['runnerEvidence']['commandPlan']['status']);
+        $t->same('hydrated Pandoc upstream checkout root', $report['runnerEvidence']['commandPlan']['workingDirectory']);
+        $t->same('offline', $report['runnerEvidence']['commandPlan']['networkMode']);
+        $t->same(3, $report['runnerEvidence']['commandPlan']['commandCount']);
+        $t->same('upstream-runner-non-execution-boundary', $report['runnerEvidence']['executionBoundary']['kind']);
+        $t->same('plan-only-not-run', $report['runnerEvidence']['executionBoundary']['status']);
+        $t->same(true, $report['runnerEvidence']['executionBoundary']['planOnly']);
+        $t->same(0, $report['runnerEvidence']['executionBoundary']['executedCommandCount']);
+        $t->same([], $report['runnerEvidence']['executionBoundary']['executedCommands']);
+        $t->same(false, $report['runnerEvidence']['executionBoundary']['upstreamRunnerParityClaimed']);
         $t->same(['Command:', 'csv.md', '#1'], $report['runnerEvidence']['target']['tastyGroupPath']);
         $t->same('$2 == "Command:" && $3 == "csv.md" && $4 == "#1"', $report['runnerEvidence']['target']['tastyPattern']);
         $t->same('$2 == "Command:" && $3 == "csv.md" && $4 == "#1"', $report['runnerEvidence']['futureCommands'][1]['arguments'][8]);
         $t->same('$2 == "Command:" && $3 == "csv.md" && $4 == "#1"', $report['runnerEvidence']['futureCommands'][2]['arguments'][7]);
+        $t->same('hydrated Pandoc upstream checkout root', $report['runnerEvidence']['futureCommands'][2]['workingDirectory']);
         $t->true(in_array('.port-libs/pandoc-runner/logs/delimited-text-targeted-run.txt', $report['runnerEvidence']['requiredTranscripts'], true));
         $t->true(in_array('.port-libs/pandoc-runner/artifacts/delimited-text-targeted-run/result.json', $report['runnerEvidence']['requiredArtifacts'], true));
         $t->contains('Pandoc delimited text reader evidence', $text);
@@ -87,6 +99,8 @@ return [
         $t->contains('Generated CSV native parity: 27/27 status=generated-csv-native-parity-observed-not-upstream-fixture', $text);
         $t->contains('Generated TSV native parity: 21/21 status=generated-tsv-native-parity-observed-not-upstream-fixture', $text);
         $t->contains('Runner plan: planned-not-run', $text);
+        $t->contains('Runner target: Command:/csv.md/#1', $text);
+        $t->contains('Runner execution boundary: plan-only-not-run', $text);
     },
     'reports checked-in current csv command fixture static evidence' => static function (TestRunner $t): void {
         $repoRoot = dirname(__DIR__, 3);
@@ -1130,9 +1144,19 @@ return [
         $t->same('generated-tsv-native-parity-observed-not-upstream-fixture', $decoded['generatedTsvNativeParity']['parityStatus']);
         $t->same(true, $decoded['validation']['runnerPlan']);
         $t->same('planned-not-run', $decoded['csv']['runnerEvidence']['commandPlanStatus']);
+        $t->same('upstream-runner-command-plan', $decoded['csv']['runnerEvidence']['commandPlan']['kind']);
+        $t->same('hydrated Pandoc upstream checkout root', $decoded['csv']['runnerEvidence']['commandPlan']['workingDirectory']);
+        $t->same('offline', $decoded['csv']['runnerEvidence']['commandPlan']['networkMode']);
+        $t->same(3, $decoded['csv']['runnerEvidence']['commandPlan']['commandCount']);
+        $t->same('upstream-runner-non-execution-boundary', $decoded['csv']['runnerEvidence']['executionBoundary']['kind']);
+        $t->same('plan-only-not-run', $decoded['csv']['runnerEvidence']['executionBoundary']['status']);
+        $t->same(true, $decoded['csv']['runnerEvidence']['executionBoundary']['planOnly']);
+        $t->same(0, $decoded['csv']['runnerEvidence']['executionBoundary']['executedCommandCount']);
+        $t->same(false, $decoded['csv']['runnerEvidence']['executionBoundary']['upstreamRunnerParityClaimed']);
         $t->same(['Command:', 'csv.md', '#1'], $decoded['csv']['runnerEvidence']['target']['tastyGroupPath']);
         $t->same('$2 == "Command:" && $3 == "csv.md" && $4 == "#1"', $decoded['csv']['runnerEvidence']['target']['tastyPattern']);
         $t->same(false, $decoded['tsv']['runnerEvidence']['target']['tsvDirectFixtureAvailable']);
+        $t->same('plan-only-not-run', $decoded['tsv']['runnerEvidence']['executionBoundary']['status']);
         $t->same([], $decoded['validationIssues']);
     },
     'cli gates generated csv native parity against explicit repo root' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {

@@ -22,6 +22,7 @@ final class DelimitedTextUpstreamReaderEvidence
 
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/delimited-text-targeted-run';
+    private const RUNNER_WORKING_DIRECTORY = 'hydrated Pandoc upstream checkout root';
     private const RUNNER_TASTY_GROUP_PATH = ['Command:', 'csv.md', '#1'];
     private const RUNNER_TASTY_PATTERN = '$2 == "Command:" && $3 == "csv.md" && $4 == "#1"';
     private const RUNNER_REQUIRED_TRANSCRIPTS = [
@@ -1031,6 +1032,7 @@ final class DelimitedTextUpstreamReaderEvidence
         $root = $this->absoluteUpstreamRoot();
         $generatedCsvNativeParityEvidence = self::generatedCsvNativeParityEvidence($this->repoRoot);
         $generatedTsvNativeParityEvidence = self::generatedTsvNativeParityEvidence($this->repoRoot);
+        $runnerEvidence = self::runnerNotRunEvidence();
         if (!is_dir($root)) {
             return [
                 'schemaVersion' => 1,
@@ -1047,7 +1049,7 @@ final class DelimitedTextUpstreamReaderEvidence
                 'staticCurrentEvidence' => self::checkedInCurrentEvidence($this->repoRoot),
                 'generatedCsvNativeParityEvidence' => $generatedCsvNativeParityEvidence,
                 'generatedTsvNativeParityEvidence' => $generatedTsvNativeParityEvidence,
-                'runnerEvidence' => self::runnerNotRunEvidence(),
+                'runnerEvidence' => $runnerEvidence,
                 'validation' => [
                     'status' => 'not-evaluated-missing-upstream-root',
                     'issues' => ['missing-upstream-root'],
@@ -1059,7 +1061,7 @@ final class DelimitedTextUpstreamReaderEvidence
 
         $upstreamFixtures = $this->upstreamFixtureEvidence($root);
         $sourceInventory = $this->sourceInventory($root);
-        $validationIssues = $this->validationIssues($upstreamFixtures, $sourceInventory, $generatedCsvNativeParityEvidence, $generatedTsvNativeParityEvidence);
+        $validationIssues = $this->validationIssues($upstreamFixtures, $sourceInventory, $generatedCsvNativeParityEvidence, $generatedTsvNativeParityEvidence, $runnerEvidence);
 
         return [
             'schemaVersion' => 1,
@@ -1103,7 +1105,7 @@ final class DelimitedTextUpstreamReaderEvidence
             'staticCurrentEvidence' => self::checkedInCurrentEvidence($this->repoRoot),
             'generatedCsvNativeParityEvidence' => $generatedCsvNativeParityEvidence,
             'generatedTsvNativeParityEvidence' => $generatedTsvNativeParityEvidence,
-            'runnerEvidence' => self::runnerNotRunEvidence(),
+            'runnerEvidence' => $runnerEvidence,
             'validation' => [
                 'status' => $validationIssues === [] ? 'valid-upstream-delimited-text-reader-evidence' : 'invalid-upstream-delimited-text-reader-evidence',
                 'issues' => $validationIssues,
@@ -1715,6 +1717,8 @@ final class DelimitedTextUpstreamReaderEvidence
         $generatedCsvNative = is_array($report['generatedCsvNativeParityEvidence'] ?? null) ? $report['generatedCsvNativeParityEvidence'] : [];
         $generatedTsvNative = is_array($report['generatedTsvNativeParityEvidence'] ?? null) ? $report['generatedTsvNativeParityEvidence'] : [];
         $runner = is_array($report['runnerEvidence'] ?? null) ? $report['runnerEvidence'] : [];
+        $target = is_array($runner['target'] ?? null) ? $runner['target'] : [];
+        $executionBoundary = is_array($runner['executionBoundary'] ?? null) ? $runner['executionBoundary'] : [];
 
         return implode(PHP_EOL, [
             'Pandoc delimited text reader evidence',
@@ -1732,6 +1736,8 @@ final class DelimitedTextUpstreamReaderEvidence
                 . '/' . (int) ($generatedTsvNative['sampleCount'] ?? 0)
                 . ' status=' . (string) ($generatedTsvNative['parityStatus'] ?? 'unknown'),
             'Runner plan: ' . (string) ($runner['commandPlanStatus'] ?? 'unknown'),
+            'Runner target: ' . implode('/', array_map('strval', is_array($target['tastyGroupPath'] ?? null) ? $target['tastyGroupPath'] : [])),
+            'Runner execution boundary: ' . (string) ($executionBoundary['status'] ?? 'unknown'),
             'Validation: ' . (string) ($validation['status'] ?? 'unknown'),
             'No upstream Haskell/Cabal runner result or full CSV/TSV feature parity is asserted.',
         ]) . PHP_EOL;
@@ -1782,6 +1788,8 @@ final class DelimitedTextUpstreamReaderEvidence
             : $reportOrEvidence;
         $binding = is_array($runner['upstreamBinding'] ?? null) ? $runner['upstreamBinding'] : [];
         $target = is_array($runner['target'] ?? null) ? $runner['target'] : [];
+        $commandPlan = is_array($runner['commandPlan'] ?? null) ? $runner['commandPlan'] : [];
+        $executionBoundary = is_array($runner['executionBoundary'] ?? null) ? $runner['executionBoundary'] : [];
 
         return ($runner['scope'] ?? null) === 'upstream-haskell-runner'
             && ($runner['status'] ?? null) === 'not-run'
@@ -1802,6 +1810,20 @@ final class DelimitedTextUpstreamReaderEvidence
             && ($target['tastyPattern'] ?? null) === self::RUNNER_TASTY_PATTERN
             && ($target['selectedDirectFixtureFormat'] ?? null) === 'csv'
             && ($target['tsvDirectFixtureAvailable'] ?? null) === false
+            && ($commandPlan['kind'] ?? null) === 'upstream-runner-command-plan'
+            && ($commandPlan['status'] ?? null) === 'planned-not-run'
+            && ($commandPlan['workingDirectory'] ?? null) === self::RUNNER_WORKING_DIRECTORY
+            && ($commandPlan['buildDirectory'] ?? null) === self::RUNNER_BUILD_DIR
+            && ($commandPlan['networkMode'] ?? null) === 'offline'
+            && ($commandPlan['commandCount'] ?? null) === count(self::runnerFutureCommands())
+            && ($commandPlan['commands'] ?? null) === self::runnerFutureCommands()
+            && ($executionBoundary['kind'] ?? null) === 'upstream-runner-non-execution-boundary'
+            && ($executionBoundary['status'] ?? null) === 'plan-only-not-run'
+            && ($executionBoundary['planOnly'] ?? null) === true
+            && ($executionBoundary['executed'] ?? null) === false
+            && ($executionBoundary['executedCommandCount'] ?? null) === 0
+            && ($executionBoundary['executedCommands'] ?? null) === []
+            && ($executionBoundary['upstreamRunnerParityClaimed'] ?? null) === false
             && ($runner['futureCommands'] ?? null) === self::runnerFutureCommands()
             && ($runner['requiredTranscripts'] ?? null) === self::RUNNER_REQUIRED_TRANSCRIPTS
             && ($runner['requiredArtifacts'] ?? null) === self::RUNNER_REQUIRED_ARTIFACTS;
@@ -1836,6 +1858,30 @@ final class DelimitedTextUpstreamReaderEvidence
                 'tsvDirectFixtureAvailable' => false,
             ],
             'futureCommands' => self::runnerFutureCommands(),
+            'commandPlan' => [
+                'kind' => 'upstream-runner-command-plan',
+                'status' => 'planned-not-run',
+                'workingDirectory' => self::RUNNER_WORKING_DIRECTORY,
+                'projectDirectoryArgument' => '.',
+                'buildDirectory' => self::RUNNER_BUILD_DIR,
+                'networkMode' => 'offline',
+                'commandCount' => count(self::runnerFutureCommands()),
+                'commands' => self::runnerFutureCommands(),
+            ],
+            'executionBoundary' => [
+                'kind' => 'upstream-runner-non-execution-boundary',
+                'status' => 'plan-only-not-run',
+                'planOnly' => true,
+                'executed' => false,
+                'executedCommandCount' => 0,
+                'executedCommands' => [],
+                'upstreamRunnerParityClaimed' => false,
+                'requiredBeforeClaimingParity' => [
+                    'execute the targeted Cabal/Tasty run command in the pinned upstream checkout',
+                    'capture the required runner transcripts',
+                    'write and validate the required runner result artifact',
+                ],
+            ],
             'requiredTranscripts' => self::RUNNER_REQUIRED_TRANSCRIPTS,
             'requiredArtifacts' => self::RUNNER_REQUIRED_ARTIFACTS,
             'reason' => 'This native PHP evidence packet is generated without executing the upstream Haskell runner.',
@@ -1844,13 +1890,14 @@ final class DelimitedTextUpstreamReaderEvidence
     }
 
     /**
-     * @return list<array{purpose: string, program: string, arguments: list<string>}>
+     * @return list<array{purpose: string, workingDirectory: string, program: string, arguments: list<string>}>
      */
     private static function runnerFutureCommands(): array
     {
         return [
             [
                 'purpose' => 'prepare runner dependencies in an isolated build directory',
+                'workingDirectory' => self::RUNNER_WORKING_DIRECTORY,
                 'program' => 'cabal',
                 'arguments' => [
                     'v2-build',
@@ -1864,6 +1911,7 @@ final class DelimitedTextUpstreamReaderEvidence
             ],
             [
                 'purpose' => 'list targeted CSV command reader tests',
+                'workingDirectory' => self::RUNNER_WORKING_DIRECTORY,
                 'program' => 'cabal',
                 'arguments' => [
                     'v2-run',
@@ -1879,6 +1927,7 @@ final class DelimitedTextUpstreamReaderEvidence
             ],
             [
                 'purpose' => 'run targeted CSV command reader tests',
+                'workingDirectory' => self::RUNNER_WORKING_DIRECTORY,
                 'program' => 'cabal',
                 'arguments' => [
                     'v2-run',
@@ -2292,9 +2341,10 @@ final class DelimitedTextUpstreamReaderEvidence
      * @param array<string, mixed> $sourceInventory
      * @param array<string, mixed> $generatedCsvNativeParityEvidence
      * @param array<string, mixed> $generatedTsvNativeParityEvidence
+     * @param array<string, mixed> $runnerEvidence
      * @return list<string>
      */
-    private function validationIssues(array $upstreamFixtures, array $sourceInventory, array $generatedCsvNativeParityEvidence, array $generatedTsvNativeParityEvidence): array
+    private function validationIssues(array $upstreamFixtures, array $sourceInventory, array $generatedCsvNativeParityEvidence, array $generatedTsvNativeParityEvidence, array $runnerEvidence): array
     {
         $issues = [];
         foreach ($upstreamFixtures as $fixture) {
@@ -2317,6 +2367,10 @@ final class DelimitedTextUpstreamReaderEvidence
 
         if (!self::hasRequiredGeneratedTsvNativeParity($generatedTsvNativeParityEvidence)) {
             $issues[] = 'generated-tsv-native-parity-not-observed';
+        }
+
+        if (!self::hasRunnerPlanEvidence($runnerEvidence)) {
+            $issues[] = 'invalid-runner-command-plan-evidence';
         }
 
         return array_values(array_unique($issues));

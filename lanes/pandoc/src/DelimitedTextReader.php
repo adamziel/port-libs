@@ -1167,7 +1167,7 @@ final class DelimitedTextReader
      *     staticCurrentEvidence:array<string, mixed>,
      *     generatedNativeParitySampleCount:int,
      *     generatedNativeParityEvidence:array<string, mixed>,
-     *     runnerEvidence:array{runner:string, status:string, executed:bool, command:null, resultArtifact:null, reason:string, claim:string},
+     *     runnerEvidence:array<string, mixed>,
      *     notRunEvidence:list<array{scope:string, runner:string, status:string, executed:bool, reason:string}>,
      *     closedGaps:list<string>,
      *     openGaps:list<string>,

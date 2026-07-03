@@ -178,6 +178,8 @@ $validateRunnerPlan = static function (array $csv, array $tsv): array {
     foreach (['CSV' => $csv, 'TSV' => $tsv] as $label => $evidence) {
         $runner = is_array($evidence['runnerEvidence'] ?? null) ? $evidence['runnerEvidence'] : [];
         $target = is_array($runner['target'] ?? null) ? $runner['target'] : [];
+        $commandPlan = is_array($runner['commandPlan'] ?? null) ? $runner['commandPlan'] : [];
+        $executionBoundary = is_array($runner['executionBoundary'] ?? null) ? $runner['executionBoundary'] : [];
 
         $expect(
             DelimitedTextUpstreamReaderEvidence::hasRunnerPlanEvidence($runner),
@@ -186,6 +188,17 @@ $validateRunnerPlan = static function (array $csv, array $tsv): array {
         $expect(($runner['commandPlanStatus'] ?? null) === 'planned-not-run', "{$label} runner command plan must be planned-not-run");
         $expect(($target['tastyGroupPath'] ?? null) === ['Command:', 'csv.md', '#1'], "{$label} runner target must be Command:/csv.md/#1");
         $expect(($target['tastyPattern'] ?? null) === '$2 == "Command:" && $3 == "csv.md" && $4 == "#1"', "{$label} runner pattern must target the csv.md command fixture");
+        $expect(($commandPlan['kind'] ?? null) === 'upstream-runner-command-plan', "{$label} runner command plan kind must be explicit");
+        $expect(($commandPlan['status'] ?? null) === 'planned-not-run', "{$label} runner command plan status must be planned-not-run");
+        $expect(($commandPlan['workingDirectory'] ?? null) === 'hydrated Pandoc upstream checkout root', "{$label} runner command plan must identify the upstream checkout working directory");
+        $expect(($commandPlan['networkMode'] ?? null) === 'offline', "{$label} runner command plan must stay offline");
+        $expect(($commandPlan['commandCount'] ?? null) === 3, "{$label} runner command plan must include dependency, list, and run commands");
+        $expect(($executionBoundary['kind'] ?? null) === 'upstream-runner-non-execution-boundary', "{$label} runner execution boundary kind must be explicit");
+        $expect(($executionBoundary['status'] ?? null) === 'plan-only-not-run', "{$label} runner execution boundary status must be plan-only-not-run");
+        $expect(($executionBoundary['planOnly'] ?? null) === true, "{$label} runner execution boundary must be plan-only");
+        $expect(($executionBoundary['executedCommandCount'] ?? null) === 0, "{$label} runner execution boundary must report zero executed commands");
+        $expect(($executionBoundary['executedCommands'] ?? null) === [], "{$label} runner execution boundary must not contain executed commands");
+        $expect(($executionBoundary['upstreamRunnerParityClaimed'] ?? null) === false, "{$label} runner execution boundary must not claim upstream runner parity");
         $expect(in_array('.port-libs/pandoc-runner/logs/delimited-text-targeted-run.txt', $runner['requiredTranscripts'] ?? [], true), "{$label} runner plan must require the targeted run transcript");
         $expect(in_array('.port-libs/pandoc-runner/artifacts/delimited-text-targeted-run/result.json', $runner['requiredArtifacts'] ?? [], true), "{$label} runner plan must require the targeted result artifact path");
     }
@@ -218,8 +231,10 @@ $formatTextReport = static function (array $report): string {
             . ' (' . $generatedTsvNative['parityStatus'] . ')',
         'CSV runner status: ' . $csv['runnerEvidence']['status'] . ' (executed: ' . ($csv['runnerEvidence']['executed'] ? 'yes' : 'no') . ')',
         'CSV runner plan: ' . ($csv['runnerEvidence']['commandPlanStatus'] ?? 'unknown'),
+        'CSV runner boundary: ' . ($csv['runnerEvidence']['executionBoundary']['status'] ?? 'unknown'),
         'TSV runner status: ' . $tsv['runnerEvidence']['status'] . ' (executed: ' . ($tsv['runnerEvidence']['executed'] ? 'yes' : 'no') . ')',
         'TSV runner plan: ' . ($tsv['runnerEvidence']['commandPlanStatus'] ?? 'unknown'),
+        'TSV runner boundary: ' . ($tsv['runnerEvidence']['executionBoundary']['status'] ?? 'unknown'),
     ];
 
     if ($report['validationIssues'] === []) {
