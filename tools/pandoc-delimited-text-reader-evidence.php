@@ -14,6 +14,7 @@ Usage: php tools/pandoc-delimited-text-reader-evidence.php [options]
 
 Options:
   --json                          Emit JSON instead of text.
+  --repo-root PATH                Repository root. Defaults to the parent of tools/.
   --require-honest-denominators   Exit 1 unless CSV/TSV direct fixture
                                   denominators are split honestly.
   --require-generated-tsv-native-parity
@@ -141,6 +142,7 @@ $formatTextReport = static function (array $report): string {
 };
 
 try {
+    $repoRoot = dirname(__DIR__);
     $json = false;
     $requireHonestDenominators = false;
     $requireGeneratedTsvNativeParity = false;
@@ -148,7 +150,17 @@ try {
     $requireNoValidationIssues = false;
     $args = array_slice($argv, 1);
 
-    foreach ($args as $arg) {
+    for ($i = 0, $count = count($args); $i < $count; ++$i) {
+        $arg = $args[$i];
+        $nextValue = static function (string $name) use ($args, &$i, $count): string {
+            if ($i + 1 >= $count) {
+                throw new InvalidArgumentException("Missing value for {$name}");
+            }
+            ++$i;
+
+            return $args[$i];
+        };
+
         if ($arg === '--help' || $arg === '-h') {
             fwrite(STDOUT, $usage() . PHP_EOL);
             exit(0);
@@ -173,8 +185,19 @@ try {
             $requireNoValidationIssues = true;
             continue;
         }
+        if ($arg === '--repo-root') {
+            $repoRoot = $nextValue('--repo-root');
+            continue;
+        }
+        if (str_starts_with($arg, '--repo-root=')) {
+            $repoRoot = substr($arg, strlen('--repo-root='));
+            continue;
+        }
 
         throw new InvalidArgumentException("Unknown option: {$arg}");
+    }
+    if ($repoRoot === '') {
+        throw new InvalidArgumentException('Repository root must not be empty');
     }
 
     $reader = new DelimitedTextReader();
@@ -184,7 +207,7 @@ try {
     $tsvEvidence = $tsvPacket['upstreamEvidence'] ?? [];
     $denominatorIssues = $validateHonestDenominators($csvEvidence, $tsvEvidence);
     $runnerIssues = $validateRunnerNotRun($csvEvidence, $tsvEvidence);
-    $generatedTsvNativeParity = DelimitedTextUpstreamReaderEvidence::generatedTsvNativeParityEvidence(dirname(__DIR__));
+    $generatedTsvNativeParity = DelimitedTextUpstreamReaderEvidence::generatedTsvNativeParityEvidence($repoRoot);
     $generatedTsvNativeIssues = $validateGeneratedTsvNativeParity($generatedTsvNativeParity);
     $report = [
         'tool' => 'pandoc-delimited-text-reader-evidence',

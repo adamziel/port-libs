@@ -173,6 +173,7 @@ return [
         $command = escapeshellarg(PHP_BINARY)
             . ' '
             . escapeshellarg($repoRoot . '/tools/pandoc-delimited-text-reader-evidence.php')
+            . ' --repo-root=' . escapeshellarg($repoRoot)
             . ' --json'
             . ' --require-honest-denominators'
             . ' --require-generated-tsv-native-parity'
@@ -190,5 +191,31 @@ return [
         $t->same(2, $decoded['generatedTsvNativeParity']['generatedNativeMatchCount']);
         $t->same('generated-tsv-native-parity-observed-not-upstream-fixture', $decoded['generatedTsvNativeParity']['parityStatus']);
         $t->same([], $decoded['validationIssues']);
+    },
+    'cli gates generated tsv native parity against explicit repo root' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $repoRoot = dirname(__DIR__, 3);
+        $missingRoot = $makeTempDir();
+        try {
+            $command = escapeshellarg(PHP_BINARY)
+                . ' '
+                . escapeshellarg($repoRoot . '/tools/pandoc-delimited-text-reader-evidence.php')
+                . ' --repo-root=' . escapeshellarg($missingRoot)
+                . ' --json'
+                . ' --require-generated-tsv-native-parity'
+                . ' 2>/dev/null';
+            $output = [];
+            $exitCode = 0;
+            exec($command, $output, $exitCode);
+            $decoded = json_decode(implode("\n", $output), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same(1, $exitCode);
+            $t->same(2, $decoded['generatedTsvNativeParity']['sampleCount']);
+            $t->same(0, $decoded['generatedTsvNativeParity']['comparedSampleCount']);
+            $t->same(2, $decoded['generatedTsvNativeParity']['parseFailureCount']);
+            $t->same('blocked-by-generated-tsv-native-fixture-validation', $decoded['generatedTsvNativeParity']['parityStatus']);
+            $t->true(in_array('Generated TSV native parity parse failure count must be 0', $decoded['validationIssues'], true));
+        } finally {
+            $removeTree($missingRoot);
+        }
     },
 ];
