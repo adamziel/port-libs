@@ -10702,7 +10702,7 @@ final class MarkdownReader
 
         while ($cursor < $count) {
             $marker = $this->matchListMarker($lines[$cursor], $cursor);
-            if (!$this->isSameListMarker($marker, $baseIndent, $ordered, $style, $delimiter)) {
+            if (!$this->isSameListMarker($marker, $baseIndent, $ordered, $style, $delimiter, $listMarker)) {
                 break;
             }
 
@@ -10719,7 +10719,7 @@ final class MarkdownReader
 
             if ($blankCursor > $cursor) {
                 $nextMarker = $blankCursor < $count ? $this->matchListMarker($lines[$blankCursor], $blankCursor) : null;
-                if ($this->isSameListMarker($nextMarker, $baseIndent, $ordered, $style, $delimiter)) {
+                if ($this->isSameListMarker($nextMarker, $baseIndent, $ordered, $style, $delimiter, $listMarker)) {
                     $listLoose = true;
                     $cursor = $blankCursor;
                     continue;
@@ -10870,7 +10870,7 @@ final class MarkdownReader
 
             $lineMarker = $this->matchListMarker($line, $cursor);
             if ($lineMarker !== null) {
-                if ($this->isSameListMarker($lineMarker, $baseIndent, $ordered, $style, $delimiter)) {
+                if ($this->isSameListMarker($lineMarker, $baseIndent, $ordered, $style, $delimiter, $marker['marker'])) {
                     break;
                 }
 
@@ -11863,13 +11863,21 @@ final class MarkdownReader
         int $baseIndent,
         bool $ordered,
         ?string $style,
-        ?string $delimiter
+        ?string $delimiter,
+        ?string $listMarker = null
     ): bool {
-        return $marker !== null
-            && $marker['indent'] === $baseIndent
-            && $marker['ordered'] === $ordered
-            && $marker['style'] === $style
-            && $marker['delimiter'] === $delimiter;
+        if (
+            $marker === null
+            || $marker['indent'] !== $baseIndent
+            || $marker['ordered'] !== $ordered
+            || $marker['style'] !== $style
+            || $marker['delimiter'] !== $delimiter
+        ) {
+            return false;
+        }
+
+        return $ordered
+            || $marker['marker'] === $listMarker;
     }
 
     private function isNestedListMarker(?array $marker, int $baseIndent, int $contentIndent): bool
