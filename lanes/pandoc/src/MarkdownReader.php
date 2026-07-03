@@ -328,6 +328,7 @@ final class MarkdownReader
                 continue;
             }
             $htmlInlineFragment = $paragraph === [] && $listStack === [] && !$this->suppressHtmlInlineFragmentBlock
+                && !$this->commonMarkRawHtmlBlockPrecedenceEnabled()
                 ? $this->tryReadHtmlInlineFragmentBlock($lines, $index)
                 : null;
             if ($htmlInlineFragment !== null) {
