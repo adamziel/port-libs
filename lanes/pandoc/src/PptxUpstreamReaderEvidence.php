@@ -89,7 +89,8 @@ final class PptxUpstreamReaderEvidence
             ? $this->parseReaderCases((string) file_get_contents($readerTestPath))
             : [];
         $fixturePairs = $this->fixturePairs($fixtureDirectory);
-        $validationIssues = $this->validationIssues($root, $readerCases, $fixturePairs);
+        $unpairedFixtures = $this->unpairedFixtureFiles($fixtureDirectory);
+        $validationIssues = $this->validationIssues($root, $readerCases, $fixturePairs, $unpairedFixtures);
 
         return [
             'schemaVersion' => 1,
@@ -109,6 +110,10 @@ final class PptxUpstreamReaderEvidence
                 'referencedPairCount' => count($readerCases),
                 'readerCases' => $readerCases,
                 'fixturePairs' => array_values($fixturePairs),
+                'unpairedPptxFixtureCount' => count($unpairedFixtures['pptx']),
+                'unpairedNativeFixtureCount' => count($unpairedFixtures['native']),
+                'unpairedPptxFixtures' => $unpairedFixtures['pptx'],
+                'unpairedNativeFixtures' => $unpairedFixtures['native'],
                 'missingReferencedFiles' => $this->missingReferencedFiles($root, $readerCases),
                 'unreferencedFixturePairs' => $this->unreferencedFixturePairs($readerCases, $fixturePairs),
             ],
@@ -143,10 +148,14 @@ final class PptxUpstreamReaderEvidence
             'Upstream: ' . (string) ($upstream['commit'] ?? 'unknown')
                 . ' expected=' . (string) ($upstream['expectedCommit'] ?? self::EXPECTED_UPSTREAM_COMMIT),
             'Reader test comparisons: ' . (int) ($denominator['readerTestCompareCount'] ?? 0),
-            'Fixture pairs: ' . (int) ($denominator['fixturePairCount'] ?? 0),
+            'Fixture pairs: ' . (int) ($denominator['fixturePairCount'] ?? 0)
+                . ' unpairedPptx=' . (int) ($denominator['unpairedPptxFixtureCount'] ?? 0)
+                . ' unpairedNative=' . (int) ($denominator['unpairedNativeFixtureCount'] ?? 0),
             'Static current evidence: ' . (string) ($staticValidation['status'] ?? 'unknown')
                 . ' comparisons=' . (int) ($staticDenominator['expectedCompareCount'] ?? 0)
-                . ' checkedInPairs=' . (int) ($staticEvidence['checkedInFixturePairCount'] ?? 0),
+                . ' checkedInPairs=' . (int) ($staticEvidence['checkedInFixturePairCount'] ?? 0)
+                . ' checkedInUnpairedPptx=' . (int) ($staticEvidence['checkedInUnpairedPptxFixtureCount'] ?? 0)
+                . ' checkedInUnpairedNative=' . (int) ($staticEvidence['checkedInUnpairedNativeFixtureCount'] ?? 0),
             'Runner status: ' . (string) ($runner['status'] ?? 'unknown'),
             'Validation: ' . (string) ($validation['status'] ?? 'unknown'),
             'No upstream Haskell/Cabal runner result or full PowerPoint feature parity is asserted.',
@@ -228,7 +237,7 @@ final class PptxUpstreamReaderEvidence
             'doesAssert' => [
                 'the count and file paths of upstream PPTX reader golden comparisons in Tests.Readers.Pptx',
                 'that every referenced PPTX/native fixture file exists in the pinned sparse upstream checkout',
-                'that root-level test/pptx-reader PPTX/native fixture pairs are accounted for',
+                'that root-level test/pptx-reader PPTX/native fixture pairs and unpaired files are accounted for',
                 'static checked-in current upstream basic.pptx/basic.native fixture identity when staticCurrentEvidence is valid',
                 'that upstream Haskell runner evidence is explicitly not-run',
             ],
@@ -320,6 +329,7 @@ final class PptxUpstreamReaderEvidence
     {
         $fixtureDirectory = $this->repoRoot . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, self::CHECKED_IN_CURRENT_FIXTURE_DIRECTORY);
         $checkedInFixturePairs = array_values($this->fixturePairs($fixtureDirectory));
+        $checkedInUnpairedFixtures = $this->unpairedFixtureFiles($fixtureDirectory);
         $checkedInPairKeys = [];
         foreach ($checkedInFixturePairs as $pair) {
             $checkedInPairKeys[(string) $pair['pairKey']] = true;
@@ -336,6 +346,12 @@ final class PptxUpstreamReaderEvidence
 
         if (count($checkedInFixturePairs) !== self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT) {
             $issues[] = 'checked-in-fixture-pair-count-does-not-match-static-reader-denominator';
+        }
+        if ($checkedInUnpairedFixtures['pptx'] !== []) {
+            $issues[] = 'checked-in-current-unpaired-pptx-fixtures';
+        }
+        if ($checkedInUnpairedFixtures['native'] !== []) {
+            $issues[] = 'checked-in-current-unpaired-native-fixtures';
         }
 
         $snapshotPairs = [];
@@ -397,6 +413,10 @@ final class PptxUpstreamReaderEvidence
             'checkedInFixtureDirectory' => self::CHECKED_IN_CURRENT_FIXTURE_DIRECTORY,
             'checkedInFixturePairCount' => count($checkedInFixturePairs),
             'checkedInFixturePairs' => $snapshotPairs,
+            'checkedInUnpairedPptxFixtureCount' => count($checkedInUnpairedFixtures['pptx']),
+            'checkedInUnpairedNativeFixtureCount' => count($checkedInUnpairedFixtures['native']),
+            'checkedInUnpairedPptxFixtures' => $checkedInUnpairedFixtures['pptx'],
+            'checkedInUnpairedNativeFixtures' => $checkedInUnpairedFixtures['native'],
             'validation' => [
                 'status' => $issues === [] ? 'valid-checked-in-current-pptx-reader-evidence' : 'invalid-checked-in-current-pptx-reader-evidence',
                 'issues' => array_values(array_unique($issues)),
@@ -405,7 +425,7 @@ final class PptxUpstreamReaderEvidence
             'claimBoundaries' => [
                 'doesAssert' => [
                     'Tests.Readers.Pptx at the pinned upstream commit has one golden comparison for pptx-reader/basic.pptx and pptx-reader/basic.native',
-                    'the checked-in current upstream PPTX fixture directory contains one same-stem PPTX/native pair',
+                    'the checked-in current upstream PPTX fixture directory contains one same-stem PPTX/native pair and no unpaired PPTX/native files',
                     'the checked-in basic.pptx/basic.native files match the expected SHA-256 hashes and byte counts for this snapshot',
                 ],
                 'doesNotAssert' => [
@@ -449,6 +469,10 @@ final class PptxUpstreamReaderEvidence
             'referencedPairCount' => 0,
             'readerCases' => [],
             'fixturePairs' => [],
+            'unpairedPptxFixtureCount' => 0,
+            'unpairedNativeFixtureCount' => 0,
+            'unpairedPptxFixtures' => [],
+            'unpairedNativeFixtures' => [],
             'missingReferencedFiles' => [],
             'unreferencedFixturePairs' => [],
         ];
@@ -499,17 +523,8 @@ final class PptxUpstreamReaderEvidence
             return [];
         }
 
-        $pptxByStem = [];
-        foreach (glob($fixtureDirectory . '/*.pptx') ?: [] as $path) {
-            $stem = basename($path, '.pptx');
-            $pptxByStem[$stem] = 'pptx-reader/' . basename($path);
-        }
-
-        $nativeByStem = [];
-        foreach (glob($fixtureDirectory . '/*.native') ?: [] as $path) {
-            $stem = basename($path, '.native');
-            $nativeByStem[$stem] = 'pptx-reader/' . basename($path);
-        }
+        $pptxByStem = $this->fixtureFilesByStem($fixtureDirectory, 'pptx');
+        $nativeByStem = $this->fixtureFilesByStem($fixtureDirectory, 'native');
 
         $pairs = [];
         foreach (array_intersect(array_keys($pptxByStem), array_keys($nativeByStem)) as $stem) {
@@ -524,6 +539,44 @@ final class PptxUpstreamReaderEvidence
         ksort($pairs, SORT_STRING);
 
         return $pairs;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function fixtureFilesByStem(string $fixtureDirectory, string $extension): array
+    {
+        if (!is_dir($fixtureDirectory)) {
+            return [];
+        }
+
+        $files = [];
+        foreach (glob($fixtureDirectory . '/*.' . $extension) ?: [] as $path) {
+            $stem = basename($path, '.' . $extension);
+            $files[$stem] = 'pptx-reader/' . basename($path);
+        }
+        ksort($files, SORT_STRING);
+
+        return $files;
+    }
+
+    /**
+     * @return array{pptx:list<string>, native:list<string>}
+     */
+    private function unpairedFixtureFiles(string $fixtureDirectory): array
+    {
+        $pptxByStem = $this->fixtureFilesByStem($fixtureDirectory, 'pptx');
+        $nativeByStem = $this->fixtureFilesByStem($fixtureDirectory, 'native');
+
+        $unpairedPptx = array_values(array_diff_key($pptxByStem, $nativeByStem));
+        $unpairedNative = array_values(array_diff_key($nativeByStem, $pptxByStem));
+        sort($unpairedPptx, SORT_STRING);
+        sort($unpairedNative, SORT_STRING);
+
+        return [
+            'pptx' => $unpairedPptx,
+            'native' => $unpairedNative,
+        ];
     }
 
     /**
@@ -573,9 +626,10 @@ final class PptxUpstreamReaderEvidence
     /**
      * @param list<array{name: string, pptx: string, native: string, pairKey: string}> $readerCases
      * @param array<string, array{pptx: string, native: string, pairKey: string}> $fixturePairs
+     * @param array{pptx:list<string>, native:list<string>} $unpairedFixtures
      * @return list<string>
      */
-    private function validationIssues(string $root, array $readerCases, array $fixturePairs): array
+    private function validationIssues(string $root, array $readerCases, array $fixturePairs, array $unpairedFixtures): array
     {
         $issues = [];
         if (!is_file($root . '/test/Tests/Readers/Pptx.hs')) {
@@ -595,6 +649,12 @@ final class PptxUpstreamReaderEvidence
         }
         if ($this->unreferencedFixturePairs($readerCases, $fixturePairs) !== []) {
             $issues[] = 'unreferenced-fixture-pairs';
+        }
+        if ($unpairedFixtures['pptx'] !== []) {
+            $issues[] = 'unpaired-pptx-fixtures';
+        }
+        if ($unpairedFixtures['native'] !== []) {
+            $issues[] = 'unpaired-native-fixtures';
         }
         if (count($readerCases) !== count($fixturePairs)) {
             $issues[] = 'reader-test-count-does-not-match-fixture-pair-count';

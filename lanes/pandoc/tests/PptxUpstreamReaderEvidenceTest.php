@@ -109,6 +109,10 @@ return [
             $t->same('text extraction', $report['denominator']['readerCases'][0]['name']);
             $t->same('pptx-reader/basic.pptx', $report['denominator']['readerCases'][0]['pptx']);
             $t->same('pptx-reader/basic.native', $report['denominator']['readerCases'][0]['native']);
+            $t->same(0, $report['denominator']['unpairedPptxFixtureCount']);
+            $t->same(0, $report['denominator']['unpairedNativeFixtureCount']);
+            $t->same([], $report['denominator']['unpairedPptxFixtures']);
+            $t->same([], $report['denominator']['unpairedNativeFixtures']);
             $t->same([], $report['denominator']['missingReferencedFiles']);
             $t->same([], $report['denominator']['unreferencedFixturePairs']);
             $t->same(6, $report['sourceInventory']['presentFileCount']);
@@ -141,6 +145,10 @@ return [
         $t->same('pptx-reader/basic.pptx', $static['readerDenominator']['expectedReaderCases'][0]['pptx']);
         $t->same('pptx-reader/basic.native', $static['readerDenominator']['expectedReaderCases'][0]['native']);
         $t->same(1, $static['checkedInFixturePairCount']);
+        $t->same(0, $static['checkedInUnpairedPptxFixtureCount']);
+        $t->same(0, $static['checkedInUnpairedNativeFixtureCount']);
+        $t->same([], $static['checkedInUnpairedPptxFixtures']);
+        $t->same([], $static['checkedInUnpairedNativeFixtures']);
         $t->same('basic', $pair['stem']);
         $t->same('pptx-reader/basic.pptx|pptx-reader/basic.native', $pair['pairKey']);
         $t->same('e48fd9c2f8369d1792197e301d5fea676bf6e51097a24af7d85831a6f96dc2dc', $pair['checkedInPptx']['sha256']);
@@ -165,13 +173,20 @@ HS);
             $writeFile($root, 'test/pptx-reader/extra.native', '[Para [Str "extra"]]');
             $writeFile($root, 'test/pptx-reader/extra2.pptx', 'extra2 pptx bytes');
             $writeFile($root, 'test/pptx-reader/extra2.native', '[Para [Str "extra2"]]');
+            $writeFile($root, 'test/pptx-reader/orphan.native', '[Para [Str "orphan"]]');
 
             $report = (new PptxUpstreamReaderEvidence($root, '.'))->report();
 
             $t->same('invalid-upstream-pptx-reader-denominator', $report['validation']['status']);
             $t->true(in_array('missing-referenced-fixture-files', $report['validation']['issues'], true));
             $t->true(in_array('unreferenced-fixture-pairs', $report['validation']['issues'], true));
+            $t->true(in_array('unpaired-pptx-fixtures', $report['validation']['issues'], true));
+            $t->true(in_array('unpaired-native-fixtures', $report['validation']['issues'], true));
             $t->true(in_array('reader-test-count-does-not-match-fixture-pair-count', $report['validation']['issues'], true));
+            $t->same(1, $report['denominator']['unpairedPptxFixtureCount']);
+            $t->same(1, $report['denominator']['unpairedNativeFixtureCount']);
+            $t->same(['pptx-reader/basic.pptx'], $report['denominator']['unpairedPptxFixtures']);
+            $t->same(['pptx-reader/orphan.native'], $report['denominator']['unpairedNativeFixtures']);
             $t->same(1, count($report['denominator']['missingReferencedFiles']));
             $t->same('test/pptx-reader/basic.native', $report['denominator']['missingReferencedFiles'][0]['path']);
             $t->same(2, count($report['denominator']['unreferencedFixturePairs']));
