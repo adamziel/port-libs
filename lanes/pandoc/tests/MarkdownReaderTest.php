@@ -13768,7 +13768,7 @@ HTML);
         $t->true(!str_contains($blocks, '<script'), 'Disabled raw HTML WordPress handoff should not emit generic script tags');
         $t->true(!str_contains($blocks, '<textarea'), 'Disabled raw HTML WordPress handoff should not emit textarea tags');
     },
-    'maps upstream html reader style elements as raw html blocks in full documents' => static function (TestRunner $t): void {
+    'maps upstream html reader style elements as raw html inlines in full documents' => static function (TestRunner $t): void {
         $reader = new MarkdownReader();
         $document = $reader->read(implode("\n", [
             '<!doctype html>',
@@ -13782,32 +13782,33 @@ HTML);
             '</body>',
             '</html>',
         ]));
-        $raw = $document->children[1] ?? new AstNode('missing');
+        $styleParagraph = $document->children[1] ?? new AstNode('missing');
+        $raw = $styleParagraph->children[0] ?? new AstNode('missing');
         $native = (new NativeWriter(['blocksOnly' => true]))->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
-        $t->same(['paragraph', 'raw_html', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
+        $t->same(['paragraph', 'paragraph', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
         $t->same('Before stylesheet.', $document->children[0]->attr('text'));
-        $t->same('raw_html', $raw->type);
+        $t->same('raw_html_inline', $raw->type);
         $t->contains('<style id="legacy-theme-css" data-source="batch-42">', $raw->attr('html'));
         $t->contains('.legacy-card { border: 1px solid #ddd; }', $raw->attr('html'));
         $t->contains('</style>', $raw->attr('html'));
         $t->same('After stylesheet.', $document->children[2]->attr('text'));
-        $t->contains('RawBlock (Format "html") "<style id=\\"legacy-theme-css\\" data-source=\\"batch-42\\">\\n.legacy-card { border: 1px solid #ddd; }\\n</style>"', $native);
-        $t->contains('<!-- wp:html -->' . "\n" . '<style id="legacy-theme-css" data-source="batch-42">', $blocks);
-        $t->contains('</style>' . "\n" . '<!-- /wp:html -->', $blocks);
-        $t->true(!str_contains($blocks, '<p><style'), 'Full HTML style blocks should not be wrapped in paragraph markup');
+        $t->contains('Para [ RawInline (Format "html") "<style id=\\"legacy-theme-css\\" data-source=\\"batch-42\\">\\n.legacy-card { border: 1px solid #ddd; }\\n</style>" ]', $native);
+        $t->contains('<p><style id="legacy-theme-css" data-source="batch-42">', $blocks);
+        $t->contains('</style></p>', $blocks);
 
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-html-style-raw-block.html');
         $fixtureDocument = $reader->read($fixture);
-        $fixtureRaw = $fixtureDocument->children[1] ?? new AstNode('missing');
+        $fixtureStyleParagraph = $fixtureDocument->children[1] ?? new AstNode('missing');
+        $fixtureRaw = $fixtureStyleParagraph->children[0] ?? new AstNode('missing');
         $fixtureBlocks = (new WordPressBlockWriter())->write($fixtureDocument);
 
         $t->same('HTML Style Raw Block Import', $fixtureDocument->attr('meta')['title'] ?? '');
-        $t->same('raw_html', $fixtureRaw->type);
+        $t->same('raw_html_inline', $fixtureRaw->type);
         $t->contains('.legacy-card .caption { font-style: italic; }', $fixtureRaw->attr('html'));
         $t->contains('<p>Before migration stylesheet.</p>', $fixtureBlocks);
-        $t->contains('<style id="legacy-theme-css" data-source="batch-42">', $fixtureBlocks);
+        $t->contains('<p><style id="legacy-theme-css" data-source="batch-42">', $fixtureBlocks);
         $t->contains('<p>After migration stylesheet.</p>', $fixtureBlocks);
     },
     'maps upstream html reader script elements as raw html blocks in full documents' => static function (TestRunner $t): void {

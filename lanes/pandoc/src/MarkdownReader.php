@@ -4215,7 +4215,7 @@ final class MarkdownReader
                 return null;
             }
 
-            return $this->buildHtmlRawBlockNode($element);
+            return new AstNode('paragraph', ['text' => ''], [$this->buildHtmlRawInlineNode($element)]);
         }
         if ($name === 'div' && $this->isHtmlLineBlockDiv($element)) {
             return $this->buildHtmlLineBlockNode($element);
@@ -6894,7 +6894,13 @@ final class MarkdownReader
             $raw = '<' . strtolower($element->localName) . '></' . strtolower($element->localName) . '>';
         }
 
-        return new AstNode('raw_html_inline', ['html' => trim($raw)]);
+        $html = trim($raw);
+
+        return new AstNode('raw_html_inline', [
+            'format' => 'html',
+            'html' => $html,
+            'text' => $html,
+        ]);
     }
 
     private function buildHtmlRawBlockNode(\DOMElement $element): AstNode
