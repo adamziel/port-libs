@@ -26,6 +26,23 @@ $tests['imports upstream html xml lang metadata from root element'] =
         $t->same('hola', $document->children[0]->attr('text'));
     };
 
+$tests['imports upstream html sup and sub inline nodes'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-sup-sub-inline.html'));
+        $paragraph = $document->children[0];
+
+        $t->same(['paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same(
+            ['text', 'subscript', 'text', 'superscript', 'text'],
+            array_map(static fn ($node): string => $node->type, $paragraph->children)
+        );
+        $t->same('Formula H', $paragraph->children[0]->attr('text'));
+        $t->same('2', $paragraph->children[1]->children[0]->attr('text'));
+        $t->same('O and release note', $paragraph->children[2]->attr('text'));
+        $t->same('review', $paragraph->children[3]->children[0]->attr('text'));
+        $t->same(' stay inline.', $paragraph->children[4]->attr('text'));
+    };
+
 $tests['extracts html reader microdata item metadata with itemref and nested item scopes'] =
     static function (TestRunner $t): void {
         $html = '<!doctype html><html><head><title>Microdata Dispatch</title></head><body>'

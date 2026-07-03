@@ -1,0 +1,19 @@
+[ Para
+    [ Str "Formula"
+    , Space
+    , Str "H"
+    , Subscript [ Str "2" ]
+    , Str "O"
+    , Space
+    , Str "and"
+    , Space
+    , Str "release"
+    , Space
+    , Str "note"
+    , Superscript [ Str "review" ]
+    , Space
+    , Str "stay"
+    , Space
+    , Str "inline."
+    ]
+]
