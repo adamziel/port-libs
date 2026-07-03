@@ -141,9 +141,10 @@ return [
         $t->same(2, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
         $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
-        $t->same(2, $generatedEvidence['sampleCount'] ?? null);
-        $t->same(4, $generatedEvidence['checkedInFixtureCount'] ?? null);
+        $t->same(3, $generatedEvidence['sampleCount'] ?? null);
+        $t->same(6, $generatedEvidence['checkedInFixtureCount'] ?? null);
         $t->same(2, $generatedEvidence['csvDirectFixtureDenominator'] ?? null);
+        $t->same([], $generatedEvidence['samples'][0]['readerOptions'] ?? null);
         $t->same('quoted-multiline.csv', $generatedEvidence['checkedInFixtures'][0]['name'] ?? null);
         $t->same('a038fe6edd54cf98e2b3afaf14dd4e5cbdbbdb86ab2b62d9bd60cd783ce3324e', $generatedEvidence['checkedInFixtures'][0]['checkedInFile']['sha256'] ?? null);
         $t->same(['id', 'title', 'note', 'flag'], $table->attr('columnNames'));
@@ -184,8 +185,8 @@ return [
         $t->same(2, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
         $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
-        $t->same(2, $generatedEvidence['sampleCount'] ?? null);
-        $t->same(4, $generatedEvidence['checkedInFixtureCount'] ?? null);
+        $t->same(3, $generatedEvidence['sampleCount'] ?? null);
+        $t->same(6, $generatedEvidence['checkedInFixtureCount'] ?? null);
         $t->same('post-delimiter-space.csv', $generatedEvidence['checkedInFixtures'][2]['name'] ?? null);
         $t->same('109867931d7a1d37a49d565c175d085415b378800e2acd2d4ec8f1c24935601f', $generatedEvidence['checkedInFixtures'][2]['checkedInFile']['sha256'] ?? null);
         $t->same('post-delimiter-space.native', $generatedEvidence['checkedInFixtures'][3]['name'] ?? null);
@@ -208,6 +209,48 @@ return [
         $t->same('closing quote ignores spaces', $table->children[1]->children[2]->children[2]->attr('text'));
         $t->contains('Plain [ Str "alpha," , Space , Str "beta" ]', $native);
         $t->contains('Plain [ Str "quote" , Space , Str "\"inside\"" ]', $native);
+        $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
+    },
+    'matches generated csv backslash escaped quote native parity fixture without inflating csv denominator' => static function (TestRunner $t) use ($generatedCsvNativeFixture, $nativeTokenStream): void {
+        $fixture = $generatedCsvNativeFixture('backslash-escaped-quote');
+        $document = (new DelimitedTextReader())->readCsv($fixture['input'], [
+            'sourcePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/backslash-escaped-quote.csv',
+            'escape' => '\\',
+        ]);
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+        $native = PandocConverter::write($document, 'native');
+        $generatedEvidence = $packet['upstreamEvidence']['generatedNativeParityEvidence'] ?? [];
+
+        $t->same('csv', $packet['format'] ?? null);
+        $t->same(',', $packet['delimiter'] ?? null);
+        $t->same('\\', $packet['escape'] ?? null);
+        $t->same('escape-character', $packet['dialect']['escapeMode'] ?? null);
+        $t->same(2, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(2, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
+        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(3, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
+        $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
+        $t->same(3, $generatedEvidence['sampleCount'] ?? null);
+        $t->same(6, $generatedEvidence['checkedInFixtureCount'] ?? null);
+        $t->same('backslash-escaped-quote.csv', $generatedEvidence['checkedInFixtures'][4]['name'] ?? null);
+        $t->same('ae11512ae25941072ef5c297914c544a0815f2a2aba9527a9c80ca1ac5aa406e', $generatedEvidence['checkedInFixtures'][4]['checkedInFile']['sha256'] ?? null);
+        $t->same('backslash-escaped-quote.native', $generatedEvidence['checkedInFixtures'][5]['name'] ?? null);
+        $t->same('0a512d33990f2629025b2eaae15e34d070fe5e985926e6d2d06d2937ac8ef1b5', $generatedEvidence['checkedInFixtures'][5]['checkedInFile']['sha256'] ?? null);
+        $t->same(['escape' => '\\'], $generatedEvidence['samples'][2]['readerOptions'] ?? null);
+        $t->same(['id', 'note'], $table->attr('columnNames'));
+        $t->same(3, $packet['rowCount'] ?? null);
+        $t->same(2, $packet['bodyRowCount'] ?? null);
+        $t->same(2, $packet['columnCount'] ?? null);
+        $t->same(6, $packet['fieldCount'] ?? null);
+        $t->same(2, $packet['quotedFieldCount'] ?? null);
+        $t->same(2, $packet['escapedQuoteSequenceCount'] ?? null);
+        $t->same(0, $packet['doubledQuoteEscapeCount'] ?? null);
+        $t->same(0, $packet['diagnosticCount'] ?? null);
+        $t->same('"', $table->children[1]->children[0]->children[1]->attr('text'));
+        $t->same('left " right', $table->children[1]->children[1]->children[1]->attr('text'));
+        $t->contains('Plain [ Str "\"" ]', $native);
+        $t->contains('Plain [ Str "left" , Space , Str "\"" , Space , Str "right" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
     'matches generated tsv native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
@@ -465,7 +508,14 @@ return [
             'test/command/3533-rst-csv-tables.csv',
             'test/command/3533-rst-csv-tables.md',
         ], $csvEvidence['integrationFixtures'] ?? null);
+        $t->same(3, $csvEvidence['generatedNativeParitySampleCount'] ?? null);
+        $t->same('valid-checked-in-generated-csv-native-parity-evidence', $csvEvidence['generatedNativeParityEvidence']['validation']['status'] ?? null);
+        $t->same('quoted-multiline', $csvEvidence['generatedNativeParityEvidence']['samples'][0]['name'] ?? null);
+        $t->same('post-delimiter-space', $csvEvidence['generatedNativeParityEvidence']['samples'][1]['name'] ?? null);
+        $t->same('backslash-escaped-quote', $csvEvidence['generatedNativeParityEvidence']['samples'][2]['name'] ?? null);
+        $t->same(['escape' => '\\'], $csvEvidence['generatedNativeParityEvidence']['samples'][2]['readerOptions'] ?? null);
         $t->true(in_array('direct-csv-command-reader', $csvEvidence['closedGaps'] ?? [], true));
+        $t->true(in_array('generated-csv-native-parity-sample', $csvEvidence['closedGaps'] ?? [], true));
         $t->true(in_array('rst-csv-table-integration-requires-rst-reader', $csvEvidence['openGaps'] ?? [], true));
         $t->same('not-run', $csvEvidence['runnerEvidence']['status'] ?? null);
         $t->same(false, $csvEvidence['runnerEvidence']['executed'] ?? null);

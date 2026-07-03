@@ -933,6 +933,9 @@ final class DelimitedTextReader
             'semicolon-delimiter-multiline-cell',
         ];
         $staticCurrentEvidence = DelimitedTextUpstreamReaderEvidence::checkedInCurrentEvidence(dirname(__DIR__, 3));
+        $generatedCsvNativeStaticEvidence = is_array($staticCurrentEvidence['generatedCsvNativeStaticEvidence'] ?? null)
+            ? $staticCurrentEvidence['generatedCsvNativeStaticEvidence']
+            : [];
         $generatedTsvNativeStaticEvidence = is_array($staticCurrentEvidence['generatedTsvNativeStaticEvidence'] ?? null)
             ? $staticCurrentEvidence['generatedTsvNativeStaticEvidence']
             : [];
@@ -1014,14 +1017,15 @@ final class DelimitedTextReader
             'integrationFixtureCount' => count($rstCsvFixtures),
             'integrationFixtures' => $rstCsvFixtures,
             'staticCurrentEvidence' => $staticCurrentEvidence,
-            'generatedNativeParitySampleCount' => 0,
-            'generatedNativeParityEvidence' => [],
+            'generatedNativeParitySampleCount' => DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT,
+            'generatedNativeParityEvidence' => $generatedCsvNativeStaticEvidence,
             'runnerEvidence' => $runnerEvidence,
             'notRunEvidence' => $notRunEvidence,
             'closedGaps' => [
                 'direct-csv-command-reader',
                 'shared-csv-parser-option-fixtures',
                 'csv-row-repair-and-control-character-provenance',
+                'generated-csv-native-parity-sample',
             ],
             'openGaps' => [
                 'rst-csv-table-integration-requires-rst-reader',
@@ -1029,6 +1033,7 @@ final class DelimitedTextReader
             ],
             'claimBoundaries' => [
                 'The direct CSV command reader fixture and parser option behavior are covered locally.',
+                'Generated CSV-to-native sample evidence is local executable evidence and is not counted as an upstream CSV direct fixture.',
                 'The two RST csv-table files are tracked as upstream CSV-adjacent evidence but remain blocked on native RST reader support.',
                 'This packet does not claim upstream Haskell runner parity.',
             ],

@@ -22,7 +22,7 @@ Options:
                                   samples match their native fixtures.
   --require-generated-csv-native-parity
                                   Exit 1 unless the generated CSV-to-native
-                                  sample matches its native fixture.
+                                  samples match their native fixtures.
   --require-runner-not-run        Exit 1 unless upstream runner evidence is
                                   structured as not-run for CSV and TSV.
   --require-no-validation-issues  Exit 1 when any validation issue is reported.

@@ -16,7 +16,7 @@ final class DelimitedTextUpstreamReaderEvidence
     public const CHECKED_IN_GENERATED_TSV_NATIVE_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/generated-current-tsv-reader';
     public const EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT = 2;
     public const EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT = 0;
-    public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 2;
+    public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 3;
     public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 4;
 
     private const CHECKED_IN_CURRENT_CSV_FIXTURES = [
@@ -64,6 +64,20 @@ final class DelimitedTextUpstreamReaderEvidence
             'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/post-delimiter-space.native',
             'sha256' => '766278b6bf6c85a71a50a50df5c8ee776c7e774020897f8f39e34d9841a9c8d1',
             'bytes' => 1684,
+        ],
+        'backslash-escaped-quote.csv' => [
+            'role' => 'generated-csv-native-parity-input-fixture',
+            'sample' => 'backslash-escaped-quote',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/backslash-escaped-quote.csv',
+            'sha256' => 'ae11512ae25941072ef5c297914c544a0815f2a2aba9527a9c80ca1ac5aa406e',
+            'bytes' => 33,
+        ],
+        'backslash-escaped-quote.native' => [
+            'role' => 'generated-csv-native-parity-expected-native-output',
+            'sample' => 'backslash-escaped-quote',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/backslash-escaped-quote.native',
+            'sha256' => '0a512d33990f2629025b2eaae15e34d070fe5e985926e6d2d06d2937ac8ef1b5',
+            'bytes' => 932,
         ],
     ];
 
@@ -134,6 +148,13 @@ final class DelimitedTextUpstreamReaderEvidence
         'post-delimiter-space' => [
             'inputPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/post-delimiter-space.csv',
             'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/post-delimiter-space.native',
+        ],
+        'backslash-escaped-quote' => [
+            'inputPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/backslash-escaped-quote.csv',
+            'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/backslash-escaped-quote.native',
+            'options' => [
+                'escape' => '\\',
+            ],
         ],
     ];
 
@@ -391,6 +412,7 @@ final class DelimitedTextUpstreamReaderEvidence
                 'name' => (string) $name,
                 'inputPath' => (string) $sample['inputPath'],
                 'expectedNativePath' => (string) $sample['expectedNativePath'],
+                'readerOptions' => is_array($sample['options'] ?? null) ? $sample['options'] : [],
             ];
         }
 
@@ -511,6 +533,8 @@ final class DelimitedTextUpstreamReaderEvidence
         foreach (self::GENERATED_CSV_NATIVE_SAMPLES as $name => $sample) {
             $inputPath = (string) $sample['inputPath'];
             $expectedNativePath = (string) $sample['expectedNativePath'];
+            $readerOptions = is_array($sample['options'] ?? null) ? $sample['options'] : [];
+            $readerOptions['sourcePath'] = $inputPath;
             $absoluteInputPath = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $inputPath);
             $absoluteExpectedNativePath = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $expectedNativePath);
             $input = is_file($absoluteInputPath) ? file_get_contents($absoluteInputPath) : false;
@@ -521,6 +545,7 @@ final class DelimitedTextUpstreamReaderEvidence
                     'sample' => (string) $name,
                     'inputPath' => $inputPath,
                     'expectedNativePath' => $expectedNativePath,
+                    'readerOptions' => $readerOptions,
                     'inputError' => is_string($input) ? null : 'missing-or-unreadable-csv-input-fixture',
                     'expectedNativeError' => is_string($expectedNative) ? null : 'missing-or-unreadable-native-fixture',
                 ];
@@ -534,13 +559,14 @@ final class DelimitedTextUpstreamReaderEvidence
             }
 
             try {
-                $document = (new DelimitedTextReader())->readCsv($input, ['sourcePath' => $inputPath]);
+                $document = (new DelimitedTextReader())->readCsv($input, $readerOptions);
                 $generatedNative = PandocConverter::write($document, 'native');
             } catch (\Throwable $throwable) {
                 $failure = [
                     'sample' => (string) $name,
                     'inputPath' => $inputPath,
                     'expectedNativePath' => $expectedNativePath,
+                    'readerOptions' => $readerOptions,
                     'inputError' => $throwable::class . ': ' . $throwable->getMessage(),
                     'expectedNativeError' => null,
                 ];
@@ -575,6 +601,7 @@ final class DelimitedTextUpstreamReaderEvidence
                 'status' => $matched ? 'matched' : 'mismatched',
                 'inputPath' => $inputPath,
                 'expectedNativePath' => $expectedNativePath,
+                'readerOptions' => $readerOptions,
                 'reader' => 'csv',
                 'expectedNativeSha256' => hash('sha256', $expectedNative),
                 'generatedNativeSha256' => hash('sha256', $generatedNative),
@@ -896,7 +923,7 @@ final class DelimitedTextUpstreamReaderEvidence
 
     private static function claim(): string
     {
-        return 'Tracks the current upstream direct CSV command-reader fixtures, two generated CSV-to-native evidence samples, the absence of dedicated TSV command fixtures, and four generated TSV-to-native evidence samples for the delimited text reader.';
+        return 'Tracks the current upstream direct CSV command-reader fixtures, three generated CSV-to-native evidence samples, the absence of dedicated TSV command fixtures, and four generated TSV-to-native evidence samples for the delimited text reader.';
     }
 
     /**
@@ -910,7 +937,7 @@ final class DelimitedTextUpstreamReaderEvidence
                 'that the current pinned upstream CSV reader source files are present when an upstream checkout is inspected',
                 'that no dedicated TSV command fixture is available in the pinned direct-reader evidence set',
                 'static checked-in current csv.md and 01.csv fixture identity when staticCurrentEvidence is valid',
-                'two generated CSV-to-native local samples when generatedCsvNativeParityEvidence is valid',
+                'three generated CSV-to-native local samples when generatedCsvNativeParityEvidence is valid',
                 'four generated TSV-to-native local samples when generatedTsvNativeParityEvidence is valid',
             ],
             'doesNotAssert' => [
