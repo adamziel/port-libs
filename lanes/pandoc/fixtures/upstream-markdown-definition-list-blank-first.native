@@ -1,0 +1,5 @@
+[ DefinitionList [ ( [ Str "foo1" ] , [ [ Para [ Str "bar" ]
+] ] ) , ( [ Str "foo2" ] , [ [ Para [ Str "bar2" ]
+] , [ Para [ Str "bar3" ]
+] ] ) ]
+]

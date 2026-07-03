@@ -350,6 +350,8 @@ final class MarkdownNativeAstComparisonHarness
                 'reader-derived block cached text metadata, including paragraph/list-item text',
                 'reader-derived Markdown source provenance such as list markers, task-list collection flags, note labels, numbered-example labels, code info strings, emoji source text, raw HTML format/text duplicates, and rendering hints',
                 'source id/classes/key-value attrs on Pandoc inline constructors without native Attr tuples; inline constructor, text, and children remain compared',
+                'NativeReader citation record sidecars and equivalent string-vs-inline citation affix representation',
+                'definition-list looseness metadata not represented by Pandoc native text constructors',
             ],
             'doesNotAssert' => [
                 'upstream Haskell/Cabal runner execution',
@@ -483,7 +485,13 @@ final class MarkdownNativeAstComparisonHarness
             if ($key === 'loose' && self::isListShapeMetadataNode($node)) {
                 continue;
             }
-            if ($key === 'loose' && $node->type === 'definition' && $value === false) {
+            if ($key === 'loose' && $node->type === 'definition') {
+                continue;
+            }
+            if ($node->type === 'citation' && self::isCitationNativeSidecarAttr($key)) {
+                continue;
+            }
+            if ($node->type === 'small_caps' && in_array($key, ['id', 'classes', 'attributes'], true)) {
                 continue;
             }
             if ($key === 'taskChecked' && $node->type === 'list_item' && is_bool($value)) {
@@ -500,7 +508,9 @@ final class MarkdownNativeAstComparisonHarness
                 continue;
             }
 
-            $normalizedValue = $this->normalizedValue($value);
+            $normalizedValue = $node->type === 'citation' && in_array($key, ['prefix', 'suffix'], true)
+                ? $this->normalizedCitationAffixValue($value)
+                : $this->normalizedValue($value);
             if ($normalizedValue === [] || $normalizedValue === null || $normalizedValue === '') {
                 continue;
             }
@@ -535,6 +545,31 @@ final class MarkdownNativeAstComparisonHarness
     private static function isListShapeMetadataNode(AstNode $node): bool
     {
         return in_array($node->type, ['bullet_list', 'ordered_list', 'definition_list', 'list_item'], true);
+    }
+
+    private static function isCitationNativeSidecarAttr(string $key): bool
+    {
+        return in_array($key, [
+            'citationHash',
+            'citationNoteNum',
+            'citationSourceInlines',
+            'citations',
+            'hash',
+            'noteNum',
+        ], true);
+    }
+
+    private function normalizedCitationAffixValue(mixed $value): mixed
+    {
+        if (is_string($value)) {
+            return $value === '' ? [] : [[
+                'type' => 'text',
+                'attrs' => ['text' => $value],
+                'children' => [],
+            ]];
+        }
+
+        return $this->normalizedValue($value);
     }
 
     /**

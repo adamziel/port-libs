@@ -1,0 +1,4 @@
+[ Para [ Cite [ Citation { citationId = "foo" , citationPrefix = [] , citationSuffix = [] , citationMode = AuthorInText , citationNoteNum = 1 , citationHash = 0 } ] [ Str "@foo" ] , Space , Span ( "" , [ "bar" ] , [  ] ) [ Str "test" ] ]
+, Para [ Cite [ Citation { citationId = "foo" , citationPrefix = [] , citationSuffix = [] , citationMode = AuthorInText , citationNoteNum = 1 , citationHash = 0 } ] [ Str "@foo" ] , Space , Span ( "source" , [ "bar" ] , [ ( "data-kind" , "span" ) ] ) [ Emph [ Str "marked" ] , Space , Str "span" ] ]
+, Para [ Cite [ Citation { citationId = "foo" , citationPrefix = [] , citationSuffix = [ Str "p." , Space , Str "7" ] , citationMode = AuthorInText , citationNoteNum = 1 , citationHash = 0 } ] [ Str "@foo" , Space , Str "[p." , Space , Str "7]" ] ]
+]
