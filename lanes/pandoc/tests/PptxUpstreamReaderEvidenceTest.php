@@ -139,6 +139,7 @@ return [
         $minimalPair = $static['checkedInFixturePairs'][1];
         $bulletsPair = $static['checkedInFixturePairs'][2];
         $twoSlidesPair = $static['checkedInFixturePairs'][3];
+        $speakerNotesPair = $static['checkedInFixturePairs'][4];
 
         $t->same(PptxUpstreamReaderEvidence::STATUS_SKIPPED_MISSING_SOURCE, $report['status']);
         $t->same('valid-checked-in-current-pptx-reader-evidence', $static['validation']['status']);
@@ -147,7 +148,7 @@ return [
         $t->same('text extraction', $static['readerDenominator']['expectedReaderCases'][0]['name']);
         $t->same('pptx-reader/basic.pptx', $static['readerDenominator']['expectedReaderCases'][0]['pptx']);
         $t->same('pptx-reader/basic.native', $static['readerDenominator']['expectedReaderCases'][0]['native']);
-        $t->same(4, $static['checkedInFixturePairCount']);
+        $t->same(5, $static['checkedInFixturePairCount']);
         $t->same(0, $static['checkedInUnpairedPptxFixtureCount']);
         $t->same(0, $static['checkedInUnpairedNativeFixtureCount']);
         $t->same([], $static['checkedInUnpairedPptxFixtures']);
@@ -179,6 +180,13 @@ return [
         $t->same('269e2c8b638af9834b52a0ff23c795578f9b21404e27c60d846cf81b3520596a', $twoSlidesPair['checkedInNative']['sha256']);
         $t->same(1897, $twoSlidesPair['checkedInPptx']['bytes']);
         $t->same(177, $twoSlidesPair['checkedInNative']['bytes']);
+        $t->same('speaker-notes', $speakerNotesPair['stem']);
+        $t->same('generated speaker notes visibility parity', $speakerNotesPair['name']);
+        $t->same('pptx-reader/speaker-notes.pptx|pptx-reader/speaker-notes.native', $speakerNotesPair['pairKey']);
+        $t->same('52d0a82f3a84c594a9be816307c90b918cb914802bd3622a4cf9e2c06f40ddc5', $speakerNotesPair['checkedInPptx']['sha256']);
+        $t->same('24f10e8e2632d64f9afb7a3aac8b0e48570d8ef61d76f6f0a51f841d104142f1', $speakerNotesPair['checkedInNative']['sha256']);
+        $t->same(2511, $speakerNotesPair['checkedInPptx']['bytes']);
+        $t->same(95, $speakerNotesPair['checkedInNative']['bytes']);
         $t->same(false, PptxUpstreamReaderEvidence::hasNoValidationIssues($report));
         $t->same(true, PptxUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($report));
         $t->same(true, PptxUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
@@ -186,7 +194,8 @@ return [
         $t->true(in_array('that minimal.pptx/minimal.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('that bullets.pptx/bullets.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('that two-slides.pptx/two-slides.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
-        $t->contains('Static current evidence: valid-checked-in-current-pptx-reader-evidence comparisons=1 checkedInPairs=4', $text);
+        $t->true(in_array('that speaker-notes.pptx/speaker-notes.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
+        $t->contains('Static current evidence: valid-checked-in-current-pptx-reader-evidence comparisons=1 checkedInPairs=5', $text);
         $t->contains('Runner status: not-run', $text);
     },
     'reports invalid pptx reader evidence for missing and unreferenced fixtures' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile): void {
