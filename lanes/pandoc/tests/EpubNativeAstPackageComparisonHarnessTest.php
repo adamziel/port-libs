@@ -182,6 +182,7 @@ return [
             $t->same([], $report['packageFeatureCoverage']['navigationTypeCounts']);
             $t->same([], $report['packageFeatureCoverage']['manifestResourceKindCounts']);
             $t->same([], $report['packageFeatureCoverage']['guideReferenceTypeCounts']);
+            $t->same([], $report['packageFeatureCoverage']['fixtureFeatureSignatures']);
             $t->same('not-evaluated', $report['orderedRemainingGaps'][0]['status']);
             $t->contains('Pandoc EPUB native/package comparison: skipped', $text);
         } finally {
@@ -310,6 +311,21 @@ return [
             $t->same(['landmarks', 'loi', 'page-list', 'toc'], $coverage['navigationSectionTypes']);
             $t->same(['text' => 1], $coverage['guideReferenceTypeCounts']);
             $t->same(['record' => 1], $coverage['packageLinkRelCounts']);
+            $t->same([
+                'generated-navigation' => [
+                    'navigationType' => 'nav',
+                    'navigationSectionTypes' => ['landmarks', 'loi', 'page-list', 'toc'],
+                    'manifestResourceKindCounts' => [
+                        'asset' => 1,
+                        'navigation' => 1,
+                        'style' => 1,
+                        'xhtml' => 1,
+                    ],
+                    'guideReferenceTypeCounts' => ['text' => 1],
+                    'packageLinkRelCounts' => ['record' => 1],
+                    'coverImagePartPresent' => false,
+                ],
+            ], $coverage['fixtureFeatureSignatures']);
             $t->same(['generated-navigation'], $coverage['fixturesWithGuideReferences']);
             $t->same(['generated-navigation'], $coverage['fixturesWithPackageLinks']);
             $t->same(['generated-navigation'], $coverage['fixturesWithCreators']);
@@ -370,6 +386,10 @@ return [
             ], $decoded['packageFeatureCoverage']['manifestResourceKindCounts']);
             $t->same(['text' => 1], $decoded['packageFeatureCoverage']['guideReferenceTypeCounts']);
             $t->same(['record' => 1], $decoded['packageFeatureCoverage']['packageLinkRelCounts']);
+            $t->same(
+                $coverage['fixtureFeatureSignatures'],
+                $decoded['packageFeatureCoverage']['fixtureFeatureSignatures']
+            );
             $t->same(['generated-navigation'], $decoded['packageFeatureCoverage']['fixturesWithCreators']);
             $t->same(1, $decoded['packageFeatureCoverage']['totals']['metadataCreators']);
         } finally {
@@ -608,6 +628,37 @@ return [
         foreach ($expectedPackageFeatureCoverage as $key => $expected) {
             $t->same($expected, $report['packageFeatureCoverage'][$key]);
         }
+        $t->same(8, count($report['packageFeatureCoverage']['fixtureFeatureSignatures']));
+        $t->same([
+            'navigationType' => 'nav',
+            'navigationSectionTypes' => ['landmarks', 'toc'],
+            'manifestResourceKindCounts' => [
+                'cover-image' => 1,
+                'image' => 3,
+                'navigation' => 1,
+                'style' => 2,
+                'xhtml' => 1,
+            ],
+            'guideReferenceTypeCounts' => [],
+            'packageLinkRelCounts' => [],
+            'coverImagePartPresent' => true,
+        ], $report['packageFeatureCoverage']['fixtureFeatureSignatures']['img']);
+        $t->same([
+            'navigationType' => 'nav',
+            'navigationSectionTypes' => ['landmarks', 'toc'],
+            'manifestResourceKindCounts' => [
+                'cover-image' => 1,
+                'navigation' => 2,
+                'style' => 2,
+                'xhtml' => 1,
+            ],
+            'guideReferenceTypeCounts' => [],
+            'packageLinkRelCounts' => [
+                'cc:attributionURL' => 1,
+                'cc:license' => 2,
+            ],
+            'coverImagePartPresent' => true,
+        ], $report['packageFeatureCoverage']['fixtureFeatureSignatures']['wasteland']);
         $t->same(true, EpubNativeAstPackageComparisonHarness::hasRequiredCurrentPackageFeatureCoverage($report));
         $t->same('covered-by-current-package-evidence', $report['orderedRemainingGaps'][0]['status']);
         $t->same('covered-by-current-normalized-ast-evidence', $report['orderedRemainingGaps'][1]['status']);
@@ -647,6 +698,10 @@ return [
         foreach ($expectedPackageFeatureCoverage as $key => $expected) {
             $t->same($expected, $decoded['packageFeatureCoverage'][$key]);
         }
+        $t->same(
+            $report['packageFeatureCoverage']['fixtureFeatureSignatures'],
+            $decoded['packageFeatureCoverage']['fixtureFeatureSignatures']
+        );
 
         $defaultFixtureIdentityCommand = 'env -u PANDOC_UPSTREAM_EPUB_DIR '
             . escapeshellarg(PHP_BINARY)
@@ -689,6 +744,10 @@ return [
             'cc:attributionURL' => 1,
             'cc:license' => 2,
         ], $defaultFixtureIdentityDecoded['packageFeatureCoverage']['packageLinkRelCounts']);
+        $t->same(
+            $report['packageFeatureCoverage']['fixtureFeatureSignatures']['wasteland'],
+            $defaultFixtureIdentityDecoded['packageFeatureCoverage']['fixtureFeatureSignatures']['wasteland']
+        );
     },
 
     'cli gates epub package and native readiness without requiring ast equality' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeEpub): void {

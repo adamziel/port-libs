@@ -49,7 +49,7 @@ Gates:
   --require-mapped-parity=N        Require exactly N EPUB/native pairs with normalized AST equality.
   --require-fixture-identity       Require the checked-in current EPUB fixture snapshot hashes and byte counts.
   --require-current-package-feature-coverage
-                                   Require the checked-in current EPUB package feature coverage aggregate.
+                                   Require the checked-in current EPUB package feature coverage snapshot.
 
 TXT);
         exit(0);
@@ -186,7 +186,7 @@ if (
 ) {
     fwrite(
         STDERR,
-        "pandoc-epub-native-ast-package: checked-in current EPUB package feature coverage did not match the expected snapshot for {$epubDirectory}\n"
+        "pandoc-epub-native-ast-package: checked-in current EPUB package feature coverage snapshot did not match the expected snapshot for {$epubDirectory}\n"
         . "hint: use --checked-in-fixtures or --epub-dir=lanes/pandoc/fixtures/upstream-current-epub-reader/epub to gate the checked-in snapshot\n"
     );
     exit(1);

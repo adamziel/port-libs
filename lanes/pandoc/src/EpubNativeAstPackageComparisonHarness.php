@@ -8,7 +8,7 @@ final class EpubNativeAstPackageComparisonHarness
 {
     private const DEFAULT_MAX_EXAMPLES = 12;
     private const VERDICT = 'epub-native-ast-package-comparison-not-full-epub-parity';
-    private const CLAIM = 'Compares local PHP EPUB package parsing and reader output with a supplied checked-in current EPUB fixture directory and same-basename .native goldens. Package parsing/reader acceptance, fixture identity, and native AST equality are reported separately; no upstream Haskell runner, writer parity, or full EPUB feature parity is asserted.';
+    private const CLAIM = 'Compares local PHP EPUB package parsing and reader output with a supplied checked-in current EPUB fixture directory and same-basename .native goldens. Package parsing/reader acceptance, fixture identity, package feature coverage, and native AST equality are reported separately; no upstream Haskell runner, writer parity, or full EPUB feature parity is asserted.';
 
     /** @var array<string, true> */
     private const IGNORED_ATTRS = [
@@ -163,6 +163,114 @@ final class EpubNativeAstPackageComparisonHarness
         'packageLinkRelCounts' => [
             'cc:attributionURL' => 1,
             'cc:license' => 2,
+        ],
+        'fixtureFeatureSignatures' => [
+            'epub2_cover' => [
+                'navigationType' => 'ncx',
+                'navigationSectionTypes' => ['toc'],
+                'manifestResourceKindCounts' => [
+                    'image' => 1,
+                    'navigation' => 1,
+                    'style' => 1,
+                    'xhtml' => 2,
+                ],
+                'guideReferenceTypeCounts' => ['cover' => 1],
+                'packageLinkRelCounts' => [],
+                'coverImagePartPresent' => true,
+            ],
+            'epub2_no_cover' => [
+                'navigationType' => 'ncx',
+                'navigationSectionTypes' => ['toc'],
+                'manifestResourceKindCounts' => [
+                    'navigation' => 1,
+                    'style' => 1,
+                    'xhtml' => 1,
+                ],
+                'guideReferenceTypeCounts' => ['toc' => 1],
+                'packageLinkRelCounts' => [],
+                'coverImagePartPresent' => false,
+            ],
+            'epub2_picture' => [
+                'navigationType' => 'ncx',
+                'navigationSectionTypes' => ['toc'],
+                'manifestResourceKindCounts' => [
+                    'image' => 1,
+                    'navigation' => 1,
+                    'style' => 1,
+                    'xhtml' => 2,
+                ],
+                'guideReferenceTypeCounts' => ['cover' => 1],
+                'packageLinkRelCounts' => [],
+                'coverImagePartPresent' => true,
+            ],
+            'features' => [
+                'navigationType' => 'nav',
+                'navigationSectionTypes' => ['landmarks', 'toc'],
+                'manifestResourceKindCounts' => [
+                    'navigation' => 1,
+                    'style' => 2,
+                    'xhtml' => 3,
+                ],
+                'guideReferenceTypeCounts' => [],
+                'packageLinkRelCounts' => [],
+                'coverImagePartPresent' => false,
+            ],
+            'formatting' => [
+                'navigationType' => 'nav',
+                'navigationSectionTypes' => ['landmarks', 'toc'],
+                'manifestResourceKindCounts' => [
+                    'image' => 1,
+                    'navigation' => 1,
+                    'style' => 2,
+                    'xhtml' => 7,
+                ],
+                'guideReferenceTypeCounts' => [],
+                'packageLinkRelCounts' => [],
+                'coverImagePartPresent' => false,
+            ],
+            'img' => [
+                'navigationType' => 'nav',
+                'navigationSectionTypes' => ['landmarks', 'toc'],
+                'manifestResourceKindCounts' => [
+                    'cover-image' => 1,
+                    'image' => 3,
+                    'navigation' => 1,
+                    'style' => 2,
+                    'xhtml' => 1,
+                ],
+                'guideReferenceTypeCounts' => [],
+                'packageLinkRelCounts' => [],
+                'coverImagePartPresent' => true,
+            ],
+            'img_no_cover' => [
+                'navigationType' => 'nav',
+                'navigationSectionTypes' => ['landmarks', 'toc'],
+                'manifestResourceKindCounts' => [
+                    'image' => 3,
+                    'navigation' => 1,
+                    'style' => 2,
+                    'xhtml' => 1,
+                ],
+                'guideReferenceTypeCounts' => [],
+                'packageLinkRelCounts' => [],
+                'coverImagePartPresent' => false,
+            ],
+            'wasteland' => [
+                'navigationType' => 'nav',
+                'navigationSectionTypes' => ['landmarks', 'toc'],
+                'manifestResourceKindCounts' => [
+                    'cover-image' => 1,
+                    'navigation' => 2,
+                    'style' => 2,
+                    'xhtml' => 1,
+                ],
+                'guideReferenceTypeCounts' => [],
+                'packageLinkRelCounts' => [
+                    'cc:attributionURL' => 1,
+                    'cc:license' => 2,
+                ],
+                'coverImagePartPresent' => true,
+            ],
         ],
         'fixturesWithCoverImagePart' => [
             'epub2_cover',
@@ -729,6 +837,7 @@ final class EpubNativeAstPackageComparisonHarness
             'navigationSectionTypes' => [],
             'guideReferenceTypeCounts' => [],
             'packageLinkRelCounts' => [],
+            'fixtureFeatureSignatures' => [],
             'fixturesWithGuideReferences' => [],
             'fixturesWithPackageLinks' => [],
             'fixturesWithCoverImagePart' => [],
@@ -977,6 +1086,7 @@ final class EpubNativeAstPackageComparisonHarness
         $guideReferenceTypeCounts = [];
         $packageLinkRelCounts = [];
         $navigationSectionTypes = [];
+        $fixtureFeatureSignatures = [];
 
         foreach ($summaries as $summary) {
             $fixture = is_string($summary['fixture'] ?? null) ? $summary['fixture'] : '';
@@ -1026,6 +1136,9 @@ final class EpubNativeAstPackageComparisonHarness
                 }
             }
 
+            if ($fixture !== '') {
+                $fixtureFeatureSignatures[$fixture] = self::fixtureFeatureSignature($summary);
+            }
             if ($fixture !== '' && (int) ($summary['guideReferenceCount'] ?? 0) > 0) {
                 $coverage['fixturesWithGuideReferences'][] = $fixture;
             }
@@ -1096,8 +1209,66 @@ final class EpubNativeAstPackageComparisonHarness
         $coverage['packageLinkRelCounts'] = $packageLinkRelCounts;
         $coverage['navigationSectionTypes'] = array_keys($navigationSectionTypes);
         sort($coverage['navigationSectionTypes'], SORT_STRING);
+        ksort($fixtureFeatureSignatures, SORT_STRING);
+        $coverage['fixtureFeatureSignatures'] = $fixtureFeatureSignatures;
 
         return $coverage;
+    }
+
+    /**
+     * @param array<string, mixed> $summary
+     * @return array{navigationType: string, navigationSectionTypes: list<string>, manifestResourceKindCounts: array<string, int>, guideReferenceTypeCounts: array<string, int>, packageLinkRelCounts: array<string, int>, coverImagePartPresent: bool}
+     */
+    private static function fixtureFeatureSignature(array $summary): array
+    {
+        return [
+            'navigationType' => is_string($summary['navigationType'] ?? null) ? $summary['navigationType'] : '',
+            'navigationSectionTypes' => self::stringList($summary['navigationSectionTypes'] ?? []),
+            'manifestResourceKindCounts' => self::intCountMap($summary['manifestResourceKindCounts'] ?? []),
+            'guideReferenceTypeCounts' => self::intCountMap($summary['guideReferenceTypeCounts'] ?? []),
+            'packageLinkRelCounts' => self::intCountMap($summary['packageLinkRelCounts'] ?? []),
+            'coverImagePartPresent' => is_string($summary['coverImagePart'] ?? null) && $summary['coverImagePart'] !== '',
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function stringList(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $items = [];
+        foreach ($value as $item) {
+            if (is_string($item) && $item !== '') {
+                $items[] = $item;
+            }
+        }
+        sort($items, SORT_STRING);
+
+        return array_values(array_unique($items));
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private static function intCountMap(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $counts = [];
+        foreach ($value as $key => $count) {
+            if (is_string($key) && $key !== '') {
+                $counts[$key] = (int) $count;
+            }
+        }
+        ksort($counts, SORT_STRING);
+
+        return $counts;
     }
 
     /**
