@@ -1,0 +1,9 @@
+[ Header
+    2 ( "slide-1" , [] , [] ) [ Str "Paragraph properties" ]
+, BulletList
+    [ [ Plain [ Str "Level zero anchor" ] ]
+    , [ Plain [ Str "First paragraph properties level wins" ] ]
+    ]
+, BulletList [ [ Plain [ Str "Level one split" ] ] ]
+, Para [ Str "Later bullet marker ignored" ]
+]
