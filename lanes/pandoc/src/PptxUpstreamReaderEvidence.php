@@ -13,7 +13,7 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 41;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 42;
 
     private const STATIC_CURRENT_READER_CASES = [
         [
@@ -311,6 +311,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => '1aea7cedcb9155ee19a55db0d2825b1427dab1f51bbb460d140cd637e2bec266',
             'pptxBytes' => 2363,
             'nativeBytes' => 195,
+        ],
+        'empty-bullet-paragraph' => [
+            'name' => 'generated empty bullet paragraph parity',
+            'pptx' => 'pptx-reader/empty-bullet-paragraph.pptx',
+            'native' => 'pptx-reader/empty-bullet-paragraph.native',
+            'pairKey' => 'pptx-reader/empty-bullet-paragraph.pptx|pptx-reader/empty-bullet-paragraph.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/empty-bullet-paragraph.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/empty-bullet-paragraph.native',
+            'pptxSha256' => 'e7660917ee56111797224aa96d1a70783169c574117eaf9dbd36299c4efbfaff',
+            'nativeSha256' => 'a7420eaafce9765543a82c54d9b0ecdc185ff5557ad60ee77ec3cd6cfc154e10',
+            'pptxBytes' => 1526,
+            'nativeBytes' => 162,
         ],
         'generated-table' => [
             'name' => 'generated table extraction parity',

@@ -1,0 +1,7 @@
+[ Header
+    2 ( "slide-1" , [] , [] ) [ Str "Empty bullet paragraphs" ]
+, BulletList
+    [ [ Plain [ Str "" ] ]
+    , [ Plain [ Str "Visible bullet" ] ]
+    ]
+]
