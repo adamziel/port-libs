@@ -322,7 +322,7 @@ final class HtmlNativeAstComparisonHarness
                 'table geometry review packets',
                 'default table widths, zero rowHeadColumns, and empty captions/feet',
                 'derived table-cell header flags when rowHeadColumns carries the semantic row-header contract',
-                'reader-derived list looseness flags and list-item cached text metadata; list item block shape remains compared',
+                'reader-derived list looseness flags and list-item cached text metadata; task-list sidecars are normalized to Pandoc ballot-box text; list item block shape remains compared',
                 'source id/classes/key-value attrs on Pandoc inline constructors without native Attr tuples; inline constructor, text, and children remain compared',
                 'redundant raw HTML format attrs and duplicate raw HTML text attrs; raw HTML payload remains compared',
             ],
@@ -402,6 +402,7 @@ final class HtmlNativeAstComparisonHarness
     private function normalizedNode(AstNode $node): array
     {
         $attrs = [];
+        $taskChecked = null;
         foreach ($node->attrs as $key => $value) {
             $key = (string) $key;
             if (self::isIgnoredAttrKey($key)) {
@@ -414,6 +415,10 @@ final class HtmlNativeAstComparisonHarness
                 continue;
             }
             if ($key === 'loose' && self::isListShapeMetadataNode($node)) {
+                continue;
+            }
+            if ($key === 'taskChecked' && $node->type === 'list_item' && is_bool($value)) {
+                $taskChecked = $value;
                 continue;
             }
             if (self::isRedundantRawHtmlAttr($node, $key, $value)) {
@@ -442,11 +447,15 @@ final class HtmlNativeAstComparisonHarness
             $attrs[$key] = $normalizedValue;
         }
         ksort($attrs, SORT_STRING);
+        $children = $this->normalizedChildren($node->children);
+        if ($node->type === 'list_item' && $taskChecked !== null) {
+            $children = $this->withNormalizedTaskMarker($children, $taskChecked);
+        }
 
         return [
             'type' => $node->type,
             'attrs' => $attrs,
-            'children' => $this->normalizedChildren($node->children),
+            'children' => $children,
         ];
     }
 
@@ -534,6 +543,33 @@ final class HtmlNativeAstComparisonHarness
         }
 
         $normalized[] = $node;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $children
+     * @return list<array<string, mixed>>
+     */
+    private function withNormalizedTaskMarker(array $children, bool $checked): array
+    {
+        $marker = $checked ? "\u{2612}" : "\u{2610}";
+        $prefix = $marker . ' ';
+        if (isset($children[0]) && $this->isPlainTextNode($children[0])) {
+            $text = $children[0]['attrs']['text'];
+            if (str_starts_with($text, $marker)) {
+                return $children;
+            }
+            $children[0]['attrs']['text'] = $prefix . $text;
+
+            return $children;
+        }
+
+        array_unshift($children, [
+            'type' => 'text',
+            'attrs' => ['text' => rtrim($prefix)],
+            'children' => [],
+        ]);
+
+        return $children;
     }
 
     /**
