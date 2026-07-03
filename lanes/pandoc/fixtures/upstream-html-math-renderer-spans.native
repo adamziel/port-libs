@@ -1,0 +1,38 @@
+[ Para
+    [ Str "Inline"
+    , Space
+    , Str "equation"
+    , Space
+    , Math InlineMath "x^2 + y^2"
+    , Space
+    , Str "stays"
+    , Space
+    , Str "single."
+    ]
+, Para
+    [ Str "Display"
+    , Space
+    , Str "equation"
+    , Space
+    , Math DisplayMath "\\alpha + \\omega"
+    , Space
+    , Str "stays"
+    , Space
+    , Str "single."
+    ]
+, Para
+    [ Str "Legacy"
+    , Space
+    , Str "preview"
+    , Space
+    , Str "falls"
+    , Space
+    , Str "back"
+    , Space
+    , Str "to"
+    , Space
+    , Str "source"
+    , Space
+    , Str "text."
+    ]
+]
