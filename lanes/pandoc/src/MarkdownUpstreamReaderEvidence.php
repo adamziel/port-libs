@@ -12,7 +12,7 @@ final class MarkdownUpstreamReaderEvidence
     public const STATUS_COMPLETED = 'completed-upstream-markdown-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-markdown-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
-    public const EXPECTED_SELECTED_FIXTURE_COUNT = 45;
+    public const EXPECTED_SELECTED_FIXTURE_COUNT = 46;
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/Markdown.hs',
@@ -565,6 +565,18 @@ final class MarkdownUpstreamReaderEvidence
             ],
             'sha256' => 'bcd100bebcaa3c2d7e1e51df1a3e72cebbbc93760b6d903039ee149d0153640f',
             'bytes' => 78,
+        ],
+        'upstream-markdown-heading-boundaries.md' => [
+            'role' => 'markdown-heading-boundary-reader-fixture',
+            'sourceKind' => 'selected-upstream-markdown-reader-case',
+            'sourceReference' => 'Tests.Readers.Markdown Headers/blank line before header, bracketed text (#2062), and setext header',
+            'formatProfile' => 'markdown ATX/setext heading boundaries and implicit identifiers',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-markdown-heading-boundaries.md',
+            'coverageTests' => [
+                'lanes/pandoc/tests/MarkdownReaderHeadingBoundaryFixtureCompletionTest.php',
+            ],
+            'sha256' => '6497aa032094a74bfdb6cc714e4f922dfc3a29c14b1196bb84337f201caf1f52',
+            'bytes' => 44,
         ],
     ];
 
