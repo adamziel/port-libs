@@ -219,6 +219,7 @@ return [
             'epub/guide-glossary-reference.epub',
             'epub/guide-notes-reference.epub',
             'epub/manifest-fallback-chain.epub',
+            'epub/media-manifest-mix.epub',
             'epub/media-overlay-package.epub',
             'epub/missing-local-manifest-resource.epub',
             'epub/missing-media-overlay.epub',
