@@ -113,7 +113,7 @@ final class MarkdownFormatProfile
         'yaml_metadata_blocks' => 'yaml_metadata_block',
     ];
 
-    /** @var array<string, array{yamlMetadata:bool, titleBlock:bool, rawAttribute:bool, rawHtml:bool, rawTex:bool, rawMarkdown:bool, definitionLists:bool, taskLists:bool, pipeTables:bool, simpleTables:bool, gridTables:bool, multilineTables:bool}> */
+    /** @var array<string, array{yamlMetadata:bool, titleBlock:bool, rawAttribute:bool, rawHtml:bool, rawTex:bool, rawMarkdown:bool, definitionLists:bool, footnotes:bool, citations:bool, taskLists:bool, pipeTables:bool, simpleTables:bool, gridTables:bool, multilineTables:bool}> */
     private const DEFAULTS = [
         'markdown' => [
             'yamlMetadata' => true,
@@ -123,6 +123,8 @@ final class MarkdownFormatProfile
             'rawTex' => true,
             'rawMarkdown' => true,
             'definitionLists' => true,
+            'footnotes' => true,
+            'citations' => true,
             'taskLists' => true,
             'pipeTables' => true,
             'simpleTables' => true,
@@ -137,6 +139,8 @@ final class MarkdownFormatProfile
             'rawTex' => false,
             'rawMarkdown' => true,
             'definitionLists' => false,
+            'footnotes' => false,
+            'citations' => false,
             'taskLists' => false,
             'pipeTables' => false,
             'simpleTables' => false,
@@ -151,6 +155,8 @@ final class MarkdownFormatProfile
             'rawTex' => true,
             'rawMarkdown' => true,
             'definitionLists' => true,
+            'footnotes' => true,
+            'citations' => true,
             'taskLists' => true,
             'pipeTables' => true,
             'simpleTables' => true,
@@ -165,6 +171,8 @@ final class MarkdownFormatProfile
             'rawTex' => false,
             'rawMarkdown' => true,
             'definitionLists' => false,
+            'footnotes' => false,
+            'citations' => false,
             'taskLists' => true,
             'pipeTables' => true,
             'simpleTables' => false,
@@ -179,6 +187,8 @@ final class MarkdownFormatProfile
             'rawTex' => false,
             'rawMarkdown' => true,
             'definitionLists' => true,
+            'footnotes' => true,
+            'citations' => true,
             'taskLists' => false,
             'pipeTables' => true,
             'simpleTables' => true,
@@ -193,6 +203,8 @@ final class MarkdownFormatProfile
             'rawTex' => false,
             'rawMarkdown' => true,
             'definitionLists' => true,
+            'footnotes' => true,
+            'citations' => false,
             'taskLists' => false,
             'pipeTables' => true,
             'simpleTables' => true,
@@ -207,6 +219,8 @@ final class MarkdownFormatProfile
             'rawTex' => false,
             'rawMarkdown' => true,
             'definitionLists' => false,
+            'footnotes' => false,
+            'citations' => false,
             'taskLists' => false,
             'pipeTables' => false,
             'simpleTables' => false,
@@ -378,6 +392,7 @@ final class MarkdownFormatProfile
                 'fenced_code_attributes',
                 'fenced_divs',
                 'fancy_lists',
+                'footnotes',
                 'hard_line_breaks',
                 'header_attributes',
                 'ignore_line_breaks',
@@ -523,6 +538,22 @@ final class MarkdownFormatProfile
     public static function definitionListsEnabled(array $options, bool $defaultWithoutFormat): bool
     {
         return self::enabled($options, 'definitionLists', $defaultWithoutFormat, 'definition_lists');
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     */
+    public static function footnotesEnabled(array $options, bool $defaultWithoutFormat): bool
+    {
+        return self::enabled($options, 'footnotes', $defaultWithoutFormat, 'footnotes');
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     */
+    public static function citationsEnabled(array $options, bool $defaultWithoutFormat): bool
+    {
+        return self::enabled($options, 'citations', $defaultWithoutFormat, 'citations');
     }
 
     /**

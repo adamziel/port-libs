@@ -9,6 +9,33 @@ final class MarkdownWriter
     private const MAX_TEMPLATE_PARTIAL_DEPTH = 50;
     private const TEMPLATE_BREAKABLE_SPACE = "\x1F";
     private const TEMPLATE_BLOCK_KEY = "\0pandoc_plain_template_block";
+    private const CITATION_LOCATOR_LABELS = [
+        'page' => 'p.',
+        'article-locator' => 'art.',
+        'appendix' => 'app.',
+        'book' => 'bk.',
+        'canon' => 'c.',
+        'chapter' => 'ch.',
+        'column' => 'col.',
+        'elocation' => 'e-loc.',
+        'equation' => 'eq.',
+        'figure' => 'fig.',
+        'folio' => 'fol.',
+        'line' => 'l.',
+        'note' => 'n.',
+        'opus' => 'op.',
+        'paragraph' => 'para.',
+        'part' => 'pt.',
+        'rule' => 'r.',
+        'section' => 'sec.',
+        'sub-verbo' => 's.v.',
+        'supplement' => 'supp.',
+        'table' => 'tbl.',
+        'timestamp' => 'ts.',
+        'title' => 'tit.',
+        'verse' => 'v.',
+        'volume' => 'vol.',
+    ];
 
     /** @var list<array{label:string, node:AstNode}> */
     private array $notes = [];
@@ -142,6 +169,12 @@ final class MarkdownWriter
      */
     private function renderBlock(AstNode $node, int $indent): array
     {
+        if ($this->blockShouldRenderAsHtml($node)) {
+            $html = $this->renderBlockAsHtml($node);
+
+            return $html === '' ? [] : $this->prefixLines(explode("\n", $html), $indent);
+        }
+
         return match ($node->type) {
             'paragraph', 'plain' => $this->renderPlainOrParagraphBlock($node, $indent),
             'heading' => $this->renderHeading($node, $indent),
@@ -158,6 +191,19 @@ final class MarkdownWriter
             'div' => $this->renderDiv($node, $indent),
             default => [],
         };
+    }
+
+    private function blockShouldRenderAsHtml(AstNode $node): bool
+    {
+        $blockFormat = strtolower(trim((string) $node->attr('markdownBlockFormat', '')));
+        $listFormat = strtolower(trim((string) $node->attr('markdownListFormat', '')));
+        if ($blockFormat === 'html' || ($this->isListBlock($node) && $listFormat === 'html')) {
+            return true;
+        }
+
+        return ($node->type === 'bullet_list' || $node->type === 'ordered_list')
+            && !$this->taskListsEnabled()
+            && $this->listContainsTaskItems($node);
     }
 
     /**
@@ -5453,6 +5499,17 @@ final class MarkdownWriter
         return $lines;
     }
 
+    private function listContainsTaskItems(AstNode $node): bool
+    {
+        foreach ($node->children as $item) {
+            if ($item->type === 'list_item' && is_bool($item->attr('taskChecked', null))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private function listItemIsHeader(AstNode $item): bool
     {
         return $item->attr('listHeader') === true;
@@ -7295,6 +7352,13 @@ final class MarkdownWriter
 
     private function renderCitation(AstNode $node): string
     {
+        return $this->citationsEnabled()
+            ? $this->renderCitationMarkdownSource($node)
+            : $this->renderHtmlCitationFallback($node);
+    }
+
+    private function renderCitationMarkdownSource(AstNode $node): string
+    {
         $rendered = $node->attr('rendered', null);
         if (is_scalar($rendered) && (string) $rendered !== '') {
             return (string) $rendered;
@@ -7309,8 +7373,8 @@ final class MarkdownWriter
 
         $first = $citations[0];
         if ($this->citationMode($first) === 'author_in_text') {
-            $locator = $this->renderCitationAffix($first['locator'] ?? []);
             $suffix = $this->renderCitationAffix($first['suffix'] ?? []);
+            $locator = $this->renderCitationLocator($first, $suffix);
             $rest = $this->renderCitationEntries(array_slice($citations, 1));
             $inside = $suffix;
             if ($inside !== '' && $rest !== '') {
@@ -7351,7 +7415,7 @@ final class MarkdownWriter
                 if ($citation instanceof AstNode) {
                     $entries[] = $this->citationEntryFromNode($citation);
                 } elseif (is_array($citation)) {
-                    $entries[] = $citation;
+                    $entries[] = $this->normalizeCitationEntry($citation);
                 }
             }
 
@@ -7368,15 +7432,45 @@ final class MarkdownWriter
     }
 
     /**
+     * @param array<string, mixed> $citation
+     * @return array<string, mixed>
+     */
+    private function normalizeCitationEntry(array $citation): array
+    {
+        if (!isset($citation['id']) && isset($citation['citationId'])) {
+            $citation['id'] = $citation['citationId'];
+        }
+        if (!isset($citation['mode']) && isset($citation['citationMode'])) {
+            $citation['mode'] = $citation['citationMode'];
+        }
+        if (!isset($citation['prefix']) && isset($citation['citationPrefix'])) {
+            $citation['prefix'] = $citation['citationPrefix'];
+        }
+        if (!isset($citation['suffix']) && isset($citation['citationSuffix'])) {
+            $citation['suffix'] = $citation['citationSuffix'];
+        }
+        if (!isset($citation['locatorLabel']) && isset($citation['citationLocatorLabel'])) {
+            $citation['locatorLabel'] = $citation['citationLocatorLabel'];
+        }
+        if (!isset($citation['locatorValue']) && isset($citation['citationLocatorValue'])) {
+            $citation['locatorValue'] = $citation['citationLocatorValue'];
+        }
+
+        return $citation;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function citationEntryFromNode(AstNode $node): array
     {
         return [
-            'id' => (string) $node->attr('id', ''),
+            'id' => (string) $node->attr('id', $node->attr('citationId', '')),
             'mode' => (string) $node->attr('mode', 'normal'),
             'prefix' => $node->attr('prefix', []),
             'locator' => $node->attr('locator', []),
+            'locatorLabel' => $node->attr('locatorLabel', $node->attr('citationLocatorLabel', '')),
+            'locatorValue' => $node->attr('locatorValue', $node->attr('citationLocatorValue', '')),
             'suffix' => $node->attr('suffix', []),
         ];
     }
@@ -7403,8 +7497,8 @@ final class MarkdownWriter
     private function renderCitationEntry(array $citation): string
     {
         $prefix = $this->renderCitationAffix($citation['prefix'] ?? []);
-        $locator = $this->renderCitationAffix($citation['locator'] ?? []);
         $suffix = $this->renderCitationAffix($citation['suffix'] ?? []);
+        $locator = $this->renderCitationLocator($citation, $suffix);
         $key = ($this->citationMode($citation) === 'suppress_author' ? '-' : '')
             . '@'
             . $this->renderCitationKey((string) ($citation['id'] ?? ''));
@@ -7438,8 +7532,12 @@ final class MarkdownWriter
 
     private function renderCitationAffix(mixed $value): string
     {
-        if (is_string($value)) {
+        if (is_string($value) || is_int($value) || is_float($value)) {
             return $this->renderInlines([new AstNode('text', ['text' => $value])]);
+        }
+
+        if ($value instanceof AstNode) {
+            return $this->renderInlines([$value]);
         }
 
         if (is_array($value)) {
@@ -7447,7 +7545,7 @@ final class MarkdownWriter
             foreach ($value as $inline) {
                 if ($inline instanceof AstNode) {
                     $nodes[] = $inline;
-                } elseif (is_string($inline)) {
+                } elseif (is_string($inline) || is_int($inline) || is_float($inline)) {
                     $nodes[] = new AstNode('text', ['text' => $inline]);
                 }
             }
@@ -7456,6 +7554,70 @@ final class MarkdownWriter
         }
 
         return '';
+    }
+
+    /**
+     * @param array<string, mixed> $citation
+     */
+    private function renderCitationLocator(array $citation, string $suffix): string
+    {
+        $locator = $this->renderCitationAffix($citation['locator'] ?? []);
+        if ($locator !== '') {
+            return $locator;
+        }
+
+        if ($suffix !== '') {
+            return '';
+        }
+
+        $value = $citation['locatorValue'] ?? $citation['citationLocatorValue'] ?? null;
+        $locatorValue = $this->renderCitationAffix($value);
+        if ($locatorValue === '') {
+            return '';
+        }
+
+        $label = $this->normalizedCitationLocatorLabel(
+            (string) ($citation['locatorLabel'] ?? $citation['citationLocatorLabel'] ?? '')
+        );
+        $prefix = self::CITATION_LOCATOR_LABELS[$label] ?? trim(str_replace('-', ' ', $label));
+
+        return $prefix === '' ? $locatorValue : $prefix . ' ' . $locatorValue;
+    }
+
+    private function normalizedCitationLocatorLabel(string $label): string
+    {
+        $label = strtolower(trim($label));
+        $label = str_replace(['_', ' '], '-', $label);
+        $label = rtrim($label, '.');
+
+        return match ($label) {
+            'p', 'pp', 'page', 'pages' => 'page',
+            'art', 'arts', 'article', 'articles', 'article-locator', 'article-locators' => 'article-locator',
+            'app', 'apps', 'appendix', 'appendices', 'appendixes' => 'appendix',
+            'bk', 'bks', 'book', 'books' => 'book',
+            'c', 'cc', 'canon', 'canons' => 'canon',
+            'chap', 'chaps', 'chapter', 'chapters' => 'chapter',
+            'col', 'cols', 'column', 'columns' => 'column',
+            'e-loc', 'e-locs', 'eloc', 'elocs', 'elocation', 'elocations', 'e-location', 'e-locations' => 'elocation',
+            'eq', 'eqs', 'equation', 'equations' => 'equation',
+            'fig', 'figs', 'figure', 'figures' => 'figure',
+            'fol', 'fols', 'folio', 'folios' => 'folio',
+            'l', 'll', 'line', 'lines' => 'line',
+            'n', 'nn', 'note', 'notes' => 'note',
+            'op', 'opp', 'opus', 'opera' => 'opus',
+            'pt', 'pts', 'part', 'parts' => 'part',
+            'r', 'rr', 'rule', 'rules' => 'rule',
+            'sec', 'secs', 'section', 'sections', "\u{00A7}", "\u{00A7}\u{00A7}" => 'section',
+            'para', 'paras', 'paragraph', 'paragraphs', "\u{00B6}", "\u{00B6}\u{00B6}" => 'paragraph',
+            's.v', 's.vv', 's.-v', 's.-vv', 'sv', 'svv', 'sub-verbo', 'sub-verbum', 'sub-verba', 'sub-verbis' => 'sub-verbo',
+            'supp', 'supps', 'suppl', 'suppls', 'supplement', 'supplements' => 'supplement',
+            'tbl', 'tbls', 'table', 'tables' => 'table',
+            'ts', 'timestamp', 'timestamps' => 'timestamp',
+            'tit', 'tits', 'ttl', 'ttls', 'title', 'titles' => 'title',
+            'v', 'vv', 'verse', 'verses' => 'verse',
+            'vol', 'vols', 'volume', 'volumes' => 'volume',
+            default => $label === '' ? 'page' : $label,
+        };
     }
 
     private function renderCitationKey(string $id): string
@@ -8071,6 +8233,10 @@ final class MarkdownWriter
 
     private function renderNoteReference(AstNode $node): string
     {
+        if (!$this->footnotesEnabled()) {
+            return $this->renderHtmlFootnoteFallback($node);
+        }
+
         $label = $this->registerNote($node);
 
         return '[^' . $label . ']';
@@ -9323,6 +9489,19 @@ final class MarkdownWriter
             return '<hr />';
         }
 
+        if ($node->type === 'line_block') {
+            $lines = [];
+            foreach ($node->children as $lineNode) {
+                if ($lineNode->type !== 'line') {
+                    continue;
+                }
+
+                $lines[] = $this->renderHtmlInlines($this->lineBlockLineInlines($lineNode));
+            }
+
+            return '<div class="line-block">' . implode('<br />', $lines) . '</div>';
+        }
+
         if ($node->type === 'blockquote') {
             $contents = $this->renderBlocksAsHtmlFragments($node->children);
 
@@ -9353,11 +9532,19 @@ final class MarkdownWriter
     private function renderHtmlListBlock(AstNode $node, bool $ordered): string
     {
         $tag = $ordered ? 'ol' : 'ul';
+        if (!$ordered && $this->listContainsTaskItems($node)) {
+            $node = $this->nodeWithAdditionalClass($node, 'task-list');
+        }
+
         $attributes = $this->nodeHtmlAttributePairs($node, $ordered ? ['start'] : []);
         if ($ordered) {
             $start = (int) $node->attr('start', 1);
             if ($start !== 1) {
                 $attributes[] = ['start', (string) $start];
+            }
+            $type = $this->orderedListHtmlType($node);
+            if ($type !== '' && !$this->nodeHasHtmlAttribute($node, 'type')) {
+                $attributes[] = ['type', $type];
             }
         }
 
@@ -9367,7 +9554,13 @@ final class MarkdownWriter
                 continue;
             }
 
-            $items .= '<li' . $this->renderNodeHtmlAttributes($item) . '>'
+            $itemAttributes = $this->nodeHtmlAttributePairs($item);
+            $number = $item->attr('number', null);
+            if ($ordered && is_scalar($number) && !$this->nodeHasHtmlAttribute($item, 'value')) {
+                $itemAttributes[] = ['value', (string) $number];
+            }
+
+            $items .= '<li' . $this->renderHtmlAttributes($itemAttributes) . '>'
                 . $this->renderListItemAsHtmlFragment($item)
                 . '</li>';
         }
@@ -9375,13 +9568,34 @@ final class MarkdownWriter
         return '<' . $tag . $this->renderHtmlAttributes($attributes) . '>' . $items . '</' . $tag . '>';
     }
 
+    private function orderedListHtmlType(AstNode $node): string
+    {
+        $style = preg_replace('/[^a-z0-9]+/', '', strtolower((string) $node->attr('style', 'decimal'))) ?? '';
+
+        return match ($style) {
+            'loweralpha' => 'a',
+            'upperalpha' => 'A',
+            'lowerroman' => 'i',
+            'upperroman' => 'I',
+            default => '',
+        };
+    }
+
     private function renderListItemAsHtmlFragment(AstNode $item): string
     {
-        if ($this->childrenAreInlineOnly($item->children)) {
-            return $this->renderHtmlInlines($item->children);
+        $checkbox = '';
+        $task = $item->attr('taskChecked', null);
+        if (is_bool($task)) {
+            $checkbox = $task
+                ? '<input type="checkbox" checked="" />'
+                : '<input type="checkbox" />';
         }
 
-        return $this->renderBlocksAsHtmlFragments($item->children);
+        if ($this->childrenAreInlineOnly($item->children)) {
+            return $checkbox . $this->renderHtmlInlines($item->children);
+        }
+
+        return $checkbox . $this->renderBlocksAsHtmlFragments($item->children);
     }
 
     /**
@@ -9745,6 +9959,30 @@ final class MarkdownWriter
         $options['format'] = $this->markdownFormatWithExtensionOption();
 
         return MarkdownFormatProfile::definitionListsEnabled($options, true);
+    }
+
+    private function footnotesEnabled(): bool
+    {
+        $options = $this->options;
+        $options['format'] = $this->markdownFormatWithExtensionOption();
+
+        return MarkdownFormatProfile::footnotesEnabled($options, true);
+    }
+
+    private function citationsEnabled(): bool
+    {
+        $options = $this->options;
+        $options['format'] = $this->markdownFormatWithExtensionOption();
+
+        return MarkdownFormatProfile::citationsEnabled($options, true);
+    }
+
+    private function taskListsEnabled(): bool
+    {
+        $options = $this->options;
+        $options['format'] = $this->markdownFormatWithExtensionOption();
+
+        return MarkdownFormatProfile::taskListsEnabled($options, true);
     }
 
     private function lineBlocksEnabled(): bool
@@ -10636,7 +10874,8 @@ final class MarkdownWriter
             'raw_tex' => $this->escapeHtml((string) $node->attr('tex', '')),
             'raw_inline' => $this->renderRawInlineAsHtml($node),
             'raw_markdown' => $this->escapeHtml((string) $node->attr('text', $node->attr('markdown', ''))),
-            'citation', 'citation_group' => $this->escapeHtml($this->renderHtmlCitationFallback($node)),
+            'citation', 'citation_group' => $this->renderHtmlCitationFallback($node),
+            'note' => $this->renderHtmlFootnoteFallback($node),
             default => $this->renderHtmlInlines($node->children, $insideLink),
         };
     }
@@ -10658,18 +10897,45 @@ final class MarkdownWriter
 
     private function renderHtmlCitationFallback(AstNode $node): string
     {
+        $attributes = [['class', 'citation']];
         $citations = $this->citationEntries($node);
-        if (count($citations) === 1) {
-            $citation = $citations[0];
-            $prefix = $this->renderCitationAffix($citation['prefix'] ?? []);
-            $locator = $this->renderCitationAffix($citation['locator'] ?? []);
-            $suffix = $this->renderCitationAffix($citation['suffix'] ?? []);
-            if ($prefix === '' && $locator === '' && $suffix !== '' && $this->citationMode($citation) === 'normal') {
-                return '[@' . $this->renderCitationKey((string) ($citation['id'] ?? '')) . ', ' . $suffix . ']';
+        $ids = [];
+        foreach ($citations as $citation) {
+            $id = (string) ($citation['id'] ?? $citation['citationId'] ?? '');
+            if ($id !== '') {
+                $ids[] = $id;
+            }
+        }
+        if ($ids !== []) {
+            $attributes[] = ['data-cites', implode(' ', $ids)];
+        }
+
+        return '<span' . $this->renderHtmlAttributes($attributes) . '>'
+            . $this->escapeHtml($this->renderCitationMarkdownSource($node))
+            . '</span>';
+    }
+
+    private function renderHtmlFootnoteFallback(AstNode $node): string
+    {
+        return '<span class="footnote">'
+            . $this->renderFootnoteFallbackHtmlContents($node)
+            . '</span>';
+    }
+
+    private function renderFootnoteFallbackHtmlContents(AstNode $node): string
+    {
+        if ($node->children === []) {
+            return '';
+        }
+
+        if (count($node->children) === 1) {
+            $first = $node->children[0];
+            if ($first->type === 'paragraph' || $first->type === 'plain') {
+                return $this->renderHtmlInlines($first->children);
             }
         }
 
-        return $this->renderCitation($node);
+        return $this->renderBlocksAsHtmlFragments($node->children);
     }
 
     private function nodeWithAdditionalClass(AstNode $node, string $class): AstNode
