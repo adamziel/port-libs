@@ -46,6 +46,8 @@ return [
         $langMetadataNative = $root . '/upstream-html-lang-metadata.native';
         $headerNativeDivsHtml = $root . '/upstream-html-header-native-divs.html';
         $headerNativeDivsNative = $root . '/upstream-html-header-native-divs.native';
+        $iframeLocalResourceHtml = $root . '/upstream-html-iframe-local-resource.html';
+        $iframeLocalResourceNative = $root . '/upstream-html-iframe-local-resource.native';
         $mainNativeDivsHtml = $root . '/upstream-html-main-native-divs.html';
         $mainNativeDivsNative = $root . '/upstream-html-main-native-divs.native';
         $sectionAsideNativeDivsHtml = $root . '/upstream-html-section-aside-native-divs.html';
@@ -87,6 +89,8 @@ return [
         $t->true(is_file($langMetadataNative), 'Native lang-metadata fixture must be checked in');
         $t->true(is_file($headerNativeDivsHtml), 'HTML header native-divs fixture must be checked in');
         $t->true(is_file($headerNativeDivsNative), 'Native header native-divs fixture must be checked in');
+        $t->true(is_file($iframeLocalResourceHtml), 'HTML iframe local resource fixture must be checked in');
+        $t->true(is_file($iframeLocalResourceNative), 'Native iframe local resource fixture must be checked in');
         $t->true(is_file($mainNativeDivsHtml), 'HTML main native-divs fixture must be checked in');
         $t->true(is_file($mainNativeDivsNative), 'Native main native-divs fixture must be checked in');
         $t->true(is_file($sectionAsideNativeDivsHtml), 'HTML section-aside native-divs fixture must be checked in');
@@ -109,20 +113,20 @@ return [
         $text = $harness->formatReport($report);
 
         $t->same('completed', $report['status']);
-        $t->same(20, $report['totalPairCount']);
-        $t->same(20, $report['comparedPairCount']);
-        $t->same(20, $report['htmlParsedCount']);
-        $t->same(20, $report['nativeParsedCount']);
-        $t->same(20, $report['bothParsedCount']);
+        $t->same(21, $report['totalPairCount']);
+        $t->same(21, $report['comparedPairCount']);
+        $t->same(21, $report['htmlParsedCount']);
+        $t->same(21, $report['nativeParsedCount']);
+        $t->same(21, $report['bothParsedCount']);
         $t->same(0, $report['parseFailureCount']);
-        $t->same(20, $report['normalizedAstMatchCount']);
+        $t->same(21, $report['normalizedAstMatchCount']);
         $t->same(0, $report['normalizedAstMismatchCount']);
         $t->same('normalized-ast-equality-observed-not-runner-parity', $report['astParityStatus']);
-        $t->same(true, HtmlNativeAstComparisonHarness::hasRequiredMappedParity($report, 20));
+        $t->same(true, HtmlNativeAstComparisonHarness::hasRequiredMappedParity($report, 21));
         $t->same('covered-by-current-normalized-ast-evidence', $report['orderedRemainingGaps'][0]['status']);
-        $t->same('The current checked-in gate covers 20 paired fixture(s).', $report['orderedRemainingGaps'][2]['currentEvidence']);
-        $t->contains('pairs: total=20 compared=20 parsedBoth=20 parseFailures=0', $text);
-        $t->contains('normalizedAst: matches=20 (100.00%) mismatches=0', $text);
+        $t->same('The current checked-in gate covers 21 paired fixture(s).', $report['orderedRemainingGaps'][2]['currentEvidence']);
+        $t->contains('pairs: total=21 compared=21 parsedBoth=21 parseFailures=0', $text);
+        $t->contains('normalizedAst: matches=21 (100.00%) mismatches=0', $text);
 
         $command = escapeshellarg(PHP_BINARY)
             . ' '
@@ -130,14 +134,14 @@ return [
             . ' --html-dir=' . escapeshellarg($root)
             . ' --json'
             . ' summary'
-            . ' --require-mapped-parity=20';
+            . ' --require-mapped-parity=21';
         $output = [];
         $exitCode = 0;
         exec($command, $output, $exitCode);
         $decoded = json_decode(implode("\n", $output), true, 512, JSON_THROW_ON_ERROR);
 
         $t->same(0, $exitCode);
-        $t->same(20, $decoded['normalizedAstMatchCount']);
+        $t->same(21, $decoded['normalizedAstMatchCount']);
         $t->same(0, $decoded['normalizedAstMismatchCount']);
     },
 ];

@@ -1,0 +1,10 @@
+[ Para
+    [ Str "Before"
+    , Space
+    , Str "embedded"
+    , Space
+    , Str "source"
+    , Space
+    , Str "frames."
+    ]
+]
