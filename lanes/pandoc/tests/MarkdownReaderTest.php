@@ -1115,8 +1115,8 @@ return [
         $t->same('raw_block', $texBlock->type);
         $t->same('tex', $texBlock->attr('format'));
         $t->same("\\begin{review}\nsource\n\\end{review}", $texBlock->attr('text'));
-        $t->contains('*Hi \foo{there}*', $markdown);
-        $t->contains('*Hi <blink>there</blink>*', $markdown);
+        $t->contains('*Hi `\foo{there}`{=latex}*', $markdown);
+        $t->contains('*Hi `<blink>`{=html}there`</blink>`{=html}*', $markdown);
         $t->contains('`<outline text="Legacy"/>`{=opml}', $markdown);
         $t->contains('<section data-source="batch-42">Review</section>', $markdown);
         $t->contains("\\begin{review}\nsource\n\\end{review}", $markdown);

@@ -3318,7 +3318,7 @@ final class MarkdownWriter
             $implicitImage = $this->implicitFigureImage($node, $image);
             if (
                 $implicitImage instanceof AstNode
-                && ($this->linkAttributesEnabled() || $this->isNullAttrTuple($this->imageAttrTuple($implicitImage)))
+                && $this->figureCanRenderImplicitImage($node, $implicitImage)
             ) {
                 return [str_repeat(' ', $indent) . $this->renderImage($implicitImage, [])];
             }
@@ -3335,6 +3335,16 @@ final class MarkdownWriter
         $body = $this->renderBlockCollection($this->figureBlockChildren($node));
 
         return $body === '' ? [] : $this->prefixLines(explode("\n", $body), $indent);
+    }
+
+    private function figureCanRenderImplicitImage(AstNode $figure, AstNode $image): bool
+    {
+        $figureAttrs = $this->linkAttrTuple($figure);
+        if ($figureAttrs['classes'] !== [] || $figureAttrs['attributes'] !== []) {
+            return false;
+        }
+
+        return $this->linkAttributesEnabled() || $this->isNullAttrTuple($this->imageAttrTuple($image));
     }
 
     /**
@@ -9950,12 +9960,12 @@ final class MarkdownWriter
 
     private function renderRawHtmlLink(AstNode $node): string
     {
-        $attributes = $this->nodeHtmlAttributePairs($node, ['href', 'title']);
-        $attributes[] = ['href', $this->linkUrl($node)];
+        $attributes = [['href', $this->linkUrl($node)]];
         $title = $this->linkTitle($node);
         if ($title !== '') {
             $attributes[] = ['title', $title];
         }
+        array_push($attributes, ...$this->nodeHtmlAttributePairs($node, ['href', 'title']));
 
         return '<a'
             . $this->renderHtmlAttributes($attributes)
@@ -9966,8 +9976,19 @@ final class MarkdownWriter
 
     private function renderRawHtmlImage(AstNode $node): string
     {
-        $attributes = $this->nodeHtmlAttributePairs($node, ['src', 'alt', 'title']);
-        $attributes[] = ['src', $this->imageUrl($node)];
+        $attributes = [['src', $this->imageUrl($node)]];
+        $title = $this->imageTitle($node);
+        if ($title !== '') {
+            $attributes[] = ['title', $title];
+        }
+
+        $nodeAttributes = $this->nodeHtmlAttributePairs($node, ['src', 'alt', 'title']);
+        foreach ($nodeAttributes as $pair) {
+            if (in_array(strtolower($pair[0]), ['id', 'class'], true)) {
+                $attributes[] = $pair;
+            }
+        }
+
         $alt = $this->imageAltText($node);
         if ($alt === '') {
             $alt = $this->plainInlineText($this->imageLabelNodesForLink($node));
@@ -9975,9 +9996,11 @@ final class MarkdownWriter
         if ($alt !== '') {
             $attributes[] = ['alt', $alt];
         }
-        $title = $this->imageTitle($node);
-        if ($title !== '') {
-            $attributes[] = ['title', $title];
+
+        foreach ($nodeAttributes as $pair) {
+            if (!in_array(strtolower($pair[0]), ['id', 'class'], true)) {
+                $attributes[] = $pair;
+            }
         }
 
         return '<img' . $this->renderHtmlAttributes($attributes) . ' />';

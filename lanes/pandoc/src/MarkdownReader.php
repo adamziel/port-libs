@@ -259,6 +259,11 @@ final class MarkdownReader
                 $blocks[] = $nestedHtmlTable;
                 continue;
             }
+            $rawHtmlDetails = $paragraph === [] && $listStack === [] ? $this->tryReadRawHtmlDetailsBlock($lines, $index) : null;
+            if ($rawHtmlDetails !== null) {
+                array_push($blocks, ...$rawHtmlDetails);
+                continue;
+            }
             $commonMarkRawHtmlBlock = $paragraph === [] && $listStack === []
                 ? $this->tryReadCommonMarkPrecedenceRawHtmlBlock($lines, $index)
                 : null;
@@ -321,11 +326,6 @@ final class MarkdownReader
             $htmlNativeDivsContainer = $paragraph === [] && $listStack === [] ? $this->tryReadHtmlNativeDivsContainerBlock($lines, $index) : null;
             if ($htmlNativeDivsContainer !== null) {
                 $blocks[] = $htmlNativeDivsContainer;
-                continue;
-            }
-            $rawHtmlDetails = $paragraph === [] && $listStack === [] ? $this->tryReadRawHtmlDetailsBlock($lines, $index) : null;
-            if ($rawHtmlDetails !== null) {
-                array_push($blocks, ...$rawHtmlDetails);
                 continue;
             }
             $rawHtmlContainer = $paragraph === [] && $listStack === [] ? $this->tryReadRawHtmlSingleLineContainerBlock($lines, $index) : null;

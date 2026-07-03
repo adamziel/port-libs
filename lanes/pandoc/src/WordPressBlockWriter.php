@@ -3813,7 +3813,7 @@ final class WordPressBlockWriter
         foreach ($classes as $class) {
             if ($this->isHtmlSpanLikeElement($class)) {
                 $wrappers[] = $class === 'mark'
-                    ? ['tag' => 'span', 'classes' => ['mark']]
+                    ? ['tag' => 'mark', 'classes' => []]
                     : ['tag' => $class, 'classes' => []];
             }
         }
