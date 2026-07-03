@@ -3366,6 +3366,71 @@ XML);
         $t->contains('<dl id="review-glossary" class="migration-terms"><dt>Review status</dt><dd>Ready for <strong>direct XHTML</strong> handoff.</dd>', $blocks);
         $t->contains('<dt>Resource note</dt><dd><p>Keep package-local links like <a href="EPUB/chapter1.xhtml#opening-note">opening note</a> reviewable.</p><ul><li>Preserve nested checks.</li></ul></dd></dl>', $blocks);
     },
+    'maps epub xhtml mathml into native math and fallback spans' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-xhtml-mathml-' . str_replace('.', '', uniqid('', true));
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:reader-mathml-review</dc:identifier>
+    <dc:title>MathML Review</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/chapter.xhtml', <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <body>
+    <p>Inline <math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msup><mi>x</mi><mn>2</mn></msup></mrow><annotation encoding="application/x-tex">x^2</annotation></semantics></math> and fallback <math xmlns="http://www.w3.org/1998/Math/MathML" id="mathml-only" data-source="mathml-only"><mrow><mi>y</mi><mo>+</mo><mn>1</mn></mrow></math>.</p>
+    <p><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mi>E</mi><mo>=</mo><mi>m</mi><msup><mi>c</mi><mn>2</mn></msup></mrow><annotation encoding="application/x-tex">E=mc^2</annotation></semantics></math></p>
+    <p><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mtext>∫ − ∞ ∞ e − x 2 d x = π</mtext></math></p>
+  </body>
+</html>
+XML);
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $blocks = (new WordPressBlockWriter())->write($document);
+            $inline = $document->children[0];
+            $display = $document->children[1]->children[0] ?? new AstNode('missing');
+            $known = $document->children[2]->children[0] ?? new AstNode('missing');
+            $fallback = $inline->children[3] ?? new AstNode('missing');
+
+            $t->same(['paragraph', 'paragraph', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
+            $t->same('Inline x^2 and fallback y+1.', $inline->attr('text'));
+            $t->same(['text', 'math', 'text', 'span', 'text'], array_map(static fn (AstNode $node): string => $node->type, $inline->children));
+            $t->same(false, $inline->children[1]->attr('display'));
+            $t->same('x^2', $inline->children[1]->attr('text'));
+            $t->same('mathml-only', $fallback->attr('id'));
+            $t->same(['math'], $fallback->attr('classes'));
+            $t->same(['source' => 'mathml-only'], $fallback->attr('attributes'));
+            $t->same('math', $fallback->attr('htmlAttributes')['class']);
+            $t->same('math', $display->type);
+            $t->same(true, $display->attr('display'));
+            $t->same('E=mc^2', $display->attr('text'));
+            $t->same('math', $known->type);
+            $t->same('\int_{- \infty}^{\infty}e^{- x^{2}}\, dx = \sqrt{\pi}', $known->attr('text'));
+            $t->contains('<span class="math inline">\(x^2\)</span>', $blocks);
+            $t->contains('data-source="mathml-only"', $blocks);
+            $t->contains('<span class="math display">\[E=mc^2\]</span>', $blocks);
+            $t->contains('<span class="math display">\[\int_{- \infty}^{\infty}e^{- x^{2}}\, dx = \sqrt{\pi}\]</span>', $blocks);
+        } finally {
+            $removeDirectory($root);
+        }
+    },
     'maps epub xhtml definition lists into shared ast and wordpress blocks' => static function (TestRunner $t) use ($fixture): void {
         $document = (new EpubPackageReader())->readDirectory($fixture());
         $blocks = (new WordPressBlockWriter())->write($document);

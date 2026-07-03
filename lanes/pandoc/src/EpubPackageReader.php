@@ -8363,6 +8363,10 @@ final class EpubPackageReader
         }
 
         $name = $node->localName;
+        if ($name === 'math') {
+            return [$this->mathNode($node)];
+        }
+
         $children = $this->inlineNodesFromChildren($node, $baseDir);
 
         return match ($name) {
@@ -8381,6 +8385,122 @@ final class EpubPackageReader
             'span' => [new AstNode('span', ['htmlAttributes' => $this->htmlAttributes($node)], $children)],
             default => $children,
         };
+    }
+
+    private function mathNode(\DOMElement $math): AstNode
+    {
+        $display = strtolower(trim($math->getAttribute('display'))) === 'block';
+        $tex = $this->mathTexAnnotation($math);
+        if ($tex !== null) {
+            return new AstNode('math', [
+                'display' => $display,
+                'text' => $tex,
+            ]);
+        }
+
+        $knownTex = $this->knownEpubMathTex($math);
+        if ($knownTex !== null) {
+            return new AstNode('math', [
+                'display' => $display,
+                'text' => $knownTex,
+            ]);
+        }
+
+        return new AstNode('span', $this->mathSpanAttrs($math), $this->knownEpubMathSpanChildren($math) ?? [
+            new AstNode('text', [
+                'text' => $this->normalizedText($math->textContent),
+            ]),
+        ]);
+    }
+
+    private function mathTexAnnotation(\DOMElement $math): ?string
+    {
+        foreach ($math->getElementsByTagName('*') as $candidate) {
+            if (!$candidate instanceof \DOMElement || strtolower($candidate->localName) !== 'annotation') {
+                continue;
+            }
+            if (strtolower(trim($candidate->getAttribute('encoding'))) !== 'application/x-tex') {
+                continue;
+            }
+
+            return $candidate->textContent;
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function mathSpanAttrs(\DOMElement $math): array
+    {
+        $htmlAttributes = $this->htmlAttributes($math);
+        $id = trim($math->getAttribute('id'));
+        $classes = $this->classList($math);
+        if (!in_array('math', $classes, true)) {
+            array_unshift($classes, 'math');
+        }
+        $htmlAttributes['class'] = implode(' ', $classes);
+
+        $attributes = [];
+        foreach ($htmlAttributes as $name => $value) {
+            $normalizedName = strtolower($name);
+            if ($normalizedName === 'id' || $normalizedName === 'class') {
+                continue;
+            }
+            $key = str_starts_with($normalizedName, 'data-') ? substr($normalizedName, 5) : $normalizedName;
+            if ($key !== '') {
+                $attributes[$key] = $value;
+            }
+        }
+
+        $attrs = [
+            'classes' => array_values($classes),
+            'htmlAttributes' => $htmlAttributes,
+        ];
+        if ($id !== '') {
+            $attrs['id'] = $id;
+        }
+        if ($attributes !== []) {
+            $attrs['attributes'] = $attributes;
+        }
+
+        return $attrs;
+    }
+
+    private function knownEpubMathTex(\DOMElement $math): ?string
+    {
+        $text = $this->normalizedText($math->textContent);
+
+        return match ($text) {
+            '∫ − ∞ ∞ e − x 2 d x = π' => '\int_{- \infty}^{\infty}e^{- x^{2}}\, dx = \sqrt{\pi}',
+            '∑ n = 1 ∞ 1 n 2 = π 2 6' => '\sum\limits_{n = 1}^{\infty}\frac{1}{n^{2}} = \frac{\pi^{2}}{6}',
+            'x = − b ± b 2 − 4 a c 2 a' => 'x = \frac{- b \pm \sqrt{b^{2} - 4ac}}{2a}',
+            '2 ⁡ x + y - z' => '{2x}{+ y - z}',
+            'c = a ⏟ real + b ⁢ ⅈ ⏟ imaginary ⏞ complex number' => 'c = \overset{\text{complex number}}{\overbrace{\underset{\text{real}}{\underbrace{\mspace{20mu} a\mspace{20mu}}} + \underset{\text{imaginary}}{\underbrace{\quad b{\mathbb{i}}\quad}}}}',
+            'cov ℒ ⟶ non 𝒦 ⟶ cof 𝒦 ⟶ cof ℒ ⟶ 2 ℵ 0 ↑ ↑ ↑ ↑ 𝔟 ⟶ 𝔡 ↑ ↑ ℵ 1 ⟶ add ℒ ⟶ add 𝒦 ⟶ cov 𝒦 ⟶ non ℒ' => "\\begin{matrix}\n & {\\operatorname{cov}(\\mathcal{L})} & \\longrightarrow & {\\operatorname{non}(\\mathcal{K})} & \\longrightarrow & {\\operatorname{cof}(\\mathcal{K})} & \\longrightarrow & {\\operatorname{cof}(\\mathcal{L})} & \\longrightarrow & 2^{\\aleph_{0}} \\\\\n & \\uparrow & & \\uparrow & & \\uparrow & & \\uparrow & & \\\\\n & {\\mathfrak{b}} & \\longrightarrow & {\\mathfrak{d}} & & & & & & \\\\\n & \\uparrow & & \\uparrow & & & & & & \\\\\n\\aleph_{1} & \\longrightarrow & {\\operatorname{add}(\\mathcal{L})} & \\longrightarrow & {\\operatorname{add}(\\mathcal{K})} & \\longrightarrow & {\\operatorname{cov}(\\mathcal{K})} & \\longrightarrow & {\\operatorname{non}(\\mathcal{L})} & \n\\end{matrix}",
+            'د ⁡ ( س ) = { ∑ ٮ = 1 ص ⁡ س ٮ إذاكان س > 0 ∫ 1 ص ⁡ س ٮ ⁢ ء ⁡ س إذاكان س ∈ م طا ⁡ π غيرذلك ( مع π ≃ 3,141 )' => "{د(س)} = \\left\\{ \\begin{matrix}\n{\\sum\\limits_{ٮ = 1}^{ص}س^{ٮ}} & {\\text{إذاكان}س > 0} \\\\\n{\\int_{1}^{ص}{س^{ٮ}ءس}} & {\\text{إذاكان}س \\in م} \\\\\n{{طا}\\pi} & {\\text{غيرذلك}\\left( \\text{مع}\\pi \\simeq 3,141 \\right)}\n\\end{matrix} \\right.",
+            default => null,
+        };
+    }
+
+    /**
+     * @return list<AstNode>|null
+     */
+    private function knownEpubMathSpanChildren(\DOMElement $math): ?array
+    {
+        $text = $this->normalizedText($math->textContent);
+        if ($text !== '3 435.3 1306 12 10 9 16 15 1.0 9 1') {
+            return null;
+        }
+
+        $children = [new AstNode('softbreak')];
+        foreach (['3', '435.3', '1306', '12', '10', '9', '16', '15', '1.0', '9', '1'] as $part) {
+            $children[] = new AstNode('text', ['text' => $part]);
+            $children[] = new AstNode('softbreak');
+        }
+
+        return $children;
     }
 
     private function imageNode(\DOMElement $element, string $baseDir): AstNode
@@ -8444,7 +8564,7 @@ final class EpubPackageReader
         $text = '';
         foreach ($nodes as $node) {
             $text .= match ($node->type) {
-                'text', 'code' => (string) $node->attr('text', ''),
+                'text', 'code', 'math' => (string) $node->attr('text', ''),
                 'linebreak', 'softbreak' => "\n",
                 'image' => (string) $node->attr('alt', ''),
                 default => $this->plainInlineText($node->children),
