@@ -45,7 +45,7 @@ final class JsonWriter
     {
         $entries = [];
         foreach ($meta as $key => $value) {
-            if (in_array($key, ['titleInlines', 'authorInlines', 'dateInlines', 'authors'], true)) {
+            if (in_array($key, ['titleInlines', 'authorInlines', 'dateInlines', 'authors', 'abstractBlocks'], true)) {
                 continue;
             }
 
@@ -82,6 +82,10 @@ final class JsonWriter
             $entries['date'] = ['type' => 'MetaInlines', 'value' => $meta['dateInlines']];
         } elseif (isset($meta['date'])) {
             $entries['date'] = ['type' => 'MetaInlines', 'value' => $this->textInlines((string) $meta['date'])];
+        }
+
+        if (isset($meta['abstractBlocks']) && is_array($meta['abstractBlocks']) && $this->isAstNodeList($meta['abstractBlocks'])) {
+            $entries['abstract'] = ['type' => 'MetaBlocks', 'value' => $meta['abstractBlocks']];
         }
 
         ksort($entries);

@@ -266,7 +266,13 @@ final class YamlMetadataReview
             $key = self::normalizeYamlKey($sourceKey, $state);
             $entryPath = self::yamlPathAppend($path, $key);
             $nextIndent = self::nextYamlContentIndent($lines, $index + 1);
-            if ($sourceValue === '' && $nextIndent !== null && $nextIndent > $lineIndent) {
+            $blockScalar = self::yamlBlockScalarHeaderFromSource($sourceValue, $entryPath, $baseLine + $index, $state);
+            if ($blockScalar !== null) {
+                [$value, $nextIndex] = self::parseYamlBlockScalar($lines, $index + 1, $lineIndent, $blockScalar);
+                if (($blockScalar['anchor'] ?? null) !== null && $blockScalar['anchor'] !== '') {
+                    $state['anchors'][$blockScalar['anchor']] = $value;
+                }
+            } elseif ($sourceValue === '' && $nextIndent !== null && $nextIndent > $lineIndent) {
                 if (str_starts_with(trim($lines[self::nextYamlContentIndex($lines, $index + 1) ?? $index] ?? ''), '- ')) {
                     [$value, $nextIndex] = self::parseYamlBlockSequence($lines, $index + 1, $nextIndent, $entryPath, $state, $baseLine);
                 } else {
@@ -335,11 +341,20 @@ final class YamlMetadataReview
                 [$sourceKey, $sourceValue] = $mapping;
                 $key = self::normalizeYamlKey($sourceKey, $state);
                 $fieldPath = self::yamlPathAppend($itemPath, $key);
+                $blockScalar = self::yamlBlockScalarHeaderFromSource($sourceValue, $fieldPath, $baseLine + $index, $state);
+                if ($blockScalar !== null) {
+                    [$fieldValue, $nextIndex] = self::parseYamlBlockScalar($lines, $index + 1, $lineIndent, $blockScalar);
+                    if (($blockScalar['anchor'] ?? null) !== null && $blockScalar['anchor'] !== '') {
+                        $state['anchors'][$blockScalar['anchor']] = $fieldValue;
+                    }
+                } else {
+                    $fieldValue = self::parseYamlValue($sourceValue, $fieldPath, $baseLine + $index, $state);
+                    $nextIndex = $index + 1;
+                }
                 $item = [
-                    $key => self::parseYamlValue($sourceValue, $fieldPath, $baseLine + $index, $state),
+                    $key => $fieldValue,
                 ];
-                $nextIndex = $index + 1;
-                if ($nextIndent !== null && $nextIndent > $lineIndent) {
+                if ($blockScalar === null && $nextIndent !== null && $nextIndent > $lineIndent) {
                     [$children, $nextIndex] = self::parseYamlBlockMapping($lines, $index + 1, $nextIndent, $itemPath, $state, $baseLine, false);
                     $item = array_replace($item, $children);
                 }
@@ -359,11 +374,157 @@ final class YamlMetadataReview
                 continue;
             }
 
+            $blockScalar = self::yamlBlockScalarHeaderFromSource($source, $itemPath, $baseLine + $index, $state);
+            if ($blockScalar !== null) {
+                [$value, $nextIndex] = self::parseYamlBlockScalar($lines, $index + 1, $lineIndent, $blockScalar);
+                if (($blockScalar['anchor'] ?? null) !== null && $blockScalar['anchor'] !== '') {
+                    $state['anchors'][$blockScalar['anchor']] = $value;
+                }
+                $items[] = $value;
+                $index = $nextIndex;
+                continue;
+            }
+
             $items[] = self::parseYamlValue($source, $itemPath, $baseLine + $index, $state);
             $index++;
         }
 
         return [$items, $index];
+    }
+
+    /**
+     * @param array<string, mixed> $state
+     * @return array{style:string, chomping:string, indent:int|null, anchor:string|null}|null
+     */
+    private static function yamlBlockScalarHeaderFromSource(
+        string $source,
+        string $path,
+        int $line,
+        array &$state
+    ): ?array {
+        [$clean, $anchor, $tags] = self::consumeYamlValueDirectives(trim($source), $state);
+        $header = self::parseYamlBlockScalarHeader($clean);
+        if ($header === null) {
+            return null;
+        }
+
+        foreach ($tags as $tag) {
+            self::recordYamlTagProvenance($tag, $path, $line, $state);
+        }
+
+        return $header + ['anchor' => $anchor];
+    }
+
+    /**
+     * @return array{style:string, chomping:string, indent:int|null}|null
+     */
+    private static function parseYamlBlockScalarHeader(string $source): ?array
+    {
+        if (preg_match('/^([|>])([+-]?[1-9]?|[1-9]?[+-]?)(?:[ \t]*(?:#.*)?)?$/', trim($source), $m) !== 1) {
+            return null;
+        }
+
+        $chomping = '';
+        $indent = null;
+        foreach (str_split($m[2]) as $indicator) {
+            if ($indicator === '+' || $indicator === '-') {
+                $chomping = $indicator;
+                continue;
+            }
+
+            if ($indicator >= '1' && $indicator <= '9') {
+                $indent = (int) $indicator;
+            }
+        }
+
+        return [
+            'style' => $m[1],
+            'chomping' => $chomping,
+            'indent' => $indent,
+        ];
+    }
+
+    /**
+     * @param list<string> $lines
+     * @param array{style:string, chomping:string, indent:int|null, anchor:string|null} $header
+     * @return array{0:string, 1:int}
+     */
+    private static function parseYamlBlockScalar(array $lines, int $start, int $parentIndent, array $header): array
+    {
+        $contentIndent = $header['indent'] === null ? null : $parentIndent + $header['indent'];
+        $contentLines = [];
+        $count = count($lines);
+        $index = $start;
+        for (; $index < $count; $index++) {
+            $line = $lines[$index];
+            if (trim($line) === '') {
+                $contentLines[] = '';
+                continue;
+            }
+
+            $lineIndent = self::yamlIndent($line);
+            if ($lineIndent <= $parentIndent) {
+                break;
+            }
+
+            if ($contentIndent === null) {
+                $contentIndent = $lineIndent;
+            }
+
+            $contentLines[] = substr($line, min($contentIndent, strlen($line)));
+        }
+
+        return [
+            self::yamlBlockScalarText($contentLines, $header['style'], $header['chomping']),
+            $index,
+        ];
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private static function yamlBlockScalarText(array $lines, string $style, string $chomping): string
+    {
+        $renderLines = $lines;
+        if ($chomping !== '+') {
+            while ($renderLines !== [] && end($renderLines) === '') {
+                array_pop($renderLines);
+            }
+        }
+
+        $text = $style === '>'
+            ? self::foldYamlBlockScalarLines($renderLines)
+            : implode("\n", $renderLines);
+
+        if ($chomping === '-') {
+            return $text;
+        }
+
+        return $text === '' && $renderLines === [] ? '' : $text . "\n";
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private static function foldYamlBlockScalarLines(array $lines): string
+    {
+        $text = '';
+        $paragraphOpen = false;
+        foreach ($lines as $line) {
+            if ($line === '') {
+                $text .= "\n";
+                $paragraphOpen = false;
+                continue;
+            }
+
+            if ($paragraphOpen) {
+                $text .= ' ';
+            }
+            $text .= $line;
+            $paragraphOpen = true;
+        }
+
+        return $text;
     }
 
     /**

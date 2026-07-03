@@ -181,7 +181,7 @@ final class PandocJsonWriter
         $normalized = [];
         foreach ($meta as $key => $value) {
             $field = (string) $key;
-            if (in_array($field, ['titleInlines', 'authorInlines', 'authors', 'dateInlines'], true)) {
+            if (in_array($field, ['titleInlines', 'authorInlines', 'authors', 'dateInlines', 'abstractBlocks'], true)) {
                 continue;
             }
             $normalized[$field] = $value;
@@ -205,6 +205,11 @@ final class PandocJsonWriter
             $normalized['date'] = ['type' => 'inlines', 'children' => $dateInlines];
         }
 
+        $abstractBlocks = $this->blockMetaChildren($meta['abstractBlocks'] ?? null);
+        if ($abstractBlocks !== null) {
+            $normalized['abstract'] = ['type' => 'blocks', 'children' => $abstractBlocks];
+        }
+
         return $normalized;
     }
 
@@ -220,6 +225,20 @@ final class PandocJsonWriter
         $nodes = array_values($value);
 
         return $this->allInlineNodes($nodes) ? $nodes : null;
+    }
+
+    /**
+     * @return list<AstNode>|null
+     */
+    private function blockMetaChildren(mixed $value): ?array
+    {
+        if (!is_array($value) || !array_is_list($value) || !$this->allAstNodes($value)) {
+            return null;
+        }
+
+        $nodes = array_values($value);
+
+        return $nodes !== [] && !$this->allInlineNodes($nodes) ? $nodes : null;
     }
 
     /**

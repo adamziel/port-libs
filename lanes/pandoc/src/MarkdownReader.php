@@ -179,6 +179,7 @@ final class MarkdownReader
             if ($yamlAttrs !== []) {
                 $documentAttrs = array_replace_recursive($documentAttrs, $yamlAttrs);
                 $this->metadataMarkdownExtensionSuffix = $this->markdownMetadataExtensionSuffix($documentAttrs['meta'] ?? []);
+                $documentAttrs = $this->withYamlMetadataHelpers($documentAttrs);
                 $this->documentHasYamlMetadata = true;
             }
         }
@@ -928,6 +929,49 @@ final class MarkdownReader
         }
 
         return $authors;
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     * @return array<string, mixed>
+     */
+    private function withYamlMetadataHelpers(array $attrs): array
+    {
+        $meta = $attrs['meta'] ?? null;
+        if (!is_array($meta) || array_key_exists('abstractBlocks', $meta)) {
+            return $attrs;
+        }
+
+        $abstract = $meta['abstract'] ?? null;
+        if (!is_string($abstract) && !is_int($abstract) && !is_float($abstract)) {
+            return $attrs;
+        }
+
+        $blocks = $this->metadataBlocksFromMarkdown((string) $abstract);
+        if ($blocks !== []) {
+            $meta['abstractBlocks'] = $blocks;
+            $attrs['meta'] = $meta;
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function metadataBlocksFromMarkdown(string $markdown): array
+    {
+        if (trim($markdown) === '') {
+            return [];
+        }
+
+        $options = $this->options;
+        $options['format'] = $this->markdownFormatWithExtensionOption();
+        $options['extensions'] = '';
+        $options['yamlMetadata'] = false;
+        $options['titleBlock'] = false;
+
+        return (new self($options))->read($markdown)->children;
     }
 
     /**

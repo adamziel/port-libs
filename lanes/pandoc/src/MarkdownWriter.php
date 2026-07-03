@@ -260,7 +260,7 @@ final class MarkdownWriter
 
         $lines = [];
         foreach ($meta as $key => $value) {
-            if (in_array((string) $key, ['titleInlines', 'authorInlines', 'dateInlines', 'authors'], true)) {
+            if (in_array((string) $key, ['titleInlines', 'authorInlines', 'dateInlines', 'authors', 'abstractBlocks'], true)) {
                 continue;
             }
             array_push($lines, ...$this->renderYamlMetadataEntry((string) $key, $value, 0));
