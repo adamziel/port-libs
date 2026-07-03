@@ -11,6 +11,25 @@ use PortLibs\Pandoc\PandocJsonWriter;
 use PortLibs\Pandoc\TableGeometry;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
+$upstreamCsvCommandFixture = static function (): array {
+    $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-current-csv-reader/csv.md');
+    if (preg_match('/% pandoc -f csv -t native\n(?P<input>.*?)\n\^D\n(?P<native>\[ Table.*\n\])\n```/s', $fixture, $matches) !== 1) {
+        throw new RuntimeException('Unable to parse checked-in upstream CSV command fixture');
+    }
+
+    return [
+        'input' => $matches['input'] . "\n",
+        'native' => $matches['native'],
+    ];
+};
+
+$nativeTokenStream = static function (string $native): string {
+    $native = (string) preg_replace('/\[\s*\]/', '[]', $native);
+    $native = (string) preg_replace('/\(\s*""\s*,\s*\[\]\s*,\s*\[\]\s*\)/', '("",[],[])', $native);
+
+    return (string) preg_replace('/\s+/', ' ', trim($native));
+};
+
 return [
     'maps csv input into a native table ast with review evidence and exports' => static function (TestRunner $t): void {
         $document = (new DelimitedTextReader())->readCsv(implode("\n", [
@@ -65,19 +84,15 @@ return [
         $t->contains('<td>Legacy, &quot;quoted&quot; title</td>', $wordpress);
         $t->same('Table', $json['blocks'][0]['t'] ?? null);
     },
-    'matches pinned upstream csv command reader semantics' => static function (TestRunner $t): void {
-        $document = (new DelimitedTextReader())->readCsv(implode("\n", [
-            'Fruit,Price,Quantity',
-            'Apple,25 cents,33',
-            '"""Navel"" Orange","35 cents",22',
-            ',,45',
-            '',
-        ]));
+    'matches pinned upstream csv command reader semantics' => static function (TestRunner $t) use ($upstreamCsvCommandFixture, $nativeTokenStream): void {
+        $fixture = $upstreamCsvCommandFixture();
+        $document = (new DelimitedTextReader())->readCsv($fixture['input']);
         $table = $document->children[0];
         $packet = $table->attr('delimitedText');
         $native = PandocConverter::write($document, 'native');
 
         $t->same(2, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->contains(DelimitedTextUpstreamReaderEvidence::EXPECTED_UPSTREAM_COMMIT, $packet['upstreamEvidence']['source'] ?? '');
         $t->same(['Fruit', 'Price', 'Quantity'], $table->attr('columnNames'));
         $t->same('Apple', $table->children[1]->children[0]->children[0]->attr('text'));
         $t->same('25 cents', $table->children[1]->children[0]->children[1]->attr('text'));
@@ -90,6 +105,7 @@ return [
         $t->same('45', $table->children[1]->children[2]->children[2]->attr('text'));
         $t->contains('Plain [ Str "\"Navel\"" , Space , Str "Orange" ]', $native);
         $t->contains('Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) []', $native);
+        $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
     'matches pinned upstream csv parser option fixtures' => static function (TestRunner $t): void {
         $reader = new DelimitedTextReader();

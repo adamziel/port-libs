@@ -6,6 +6,7 @@ declare(strict_types=1);
 require __DIR__ . '/bootstrap.php';
 
 use PortLibs\Pandoc\DelimitedTextReader;
+use PortLibs\Pandoc\DelimitedTextUpstreamReaderEvidence;
 
 $usage = static function (): string {
     return <<<'TEXT'
@@ -34,6 +35,7 @@ $validateHonestDenominators = static function (array $csv, array $tsv): array {
     };
 
     $expect(($csv['reader'] ?? null) === 'csv', 'CSV evidence reader must be csv');
+    $expect(str_contains((string) ($csv['source'] ?? ''), DelimitedTextUpstreamReaderEvidence::EXPECTED_UPSTREAM_COMMIT), 'CSV evidence source must identify the pinned current upstream commit');
     $expect(($csv['denominatorScope'] ?? null) === 'direct-reader-fixtures', 'CSV denominator scope must be direct-reader-fixtures');
     $expect(($csv['denominator'] ?? null) === 2, 'CSV direct denominator must be 2');
     $expect(($csv['directFixtureDenominator'] ?? null) === 2, 'CSV direct fixture denominator must be 2');
@@ -44,6 +46,7 @@ $validateHonestDenominators = static function (array $csv, array $tsv): array {
     $expect(($csv['integrationFixtureCount'] ?? null) === 2, 'CSV-adjacent RST integration fixture count must stay separate at 2');
 
     $expect(($tsv['reader'] ?? null) === 'tsv', 'TSV evidence reader must be tsv');
+    $expect(str_contains((string) ($tsv['source'] ?? ''), DelimitedTextUpstreamReaderEvidence::EXPECTED_UPSTREAM_COMMIT), 'TSV evidence source must identify the pinned current upstream commit');
     $expect(($tsv['denominatorScope'] ?? null) === 'direct-reader-fixtures', 'TSV denominator scope must be direct-reader-fixtures');
     $expect(($tsv['denominator'] ?? null) === 0, 'TSV direct denominator must be 0');
     $expect(($tsv['directFixtureDenominator'] ?? null) === 0, 'TSV direct fixture denominator must be 0');
