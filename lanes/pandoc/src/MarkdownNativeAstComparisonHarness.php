@@ -352,6 +352,7 @@ final class MarkdownNativeAstComparisonHarness
                 'source id/classes/key-value attrs on Pandoc inline constructors without native Attr tuples; inline constructor, text, and children remain compared',
                 'NativeReader citation record sidecars and equivalent string-vs-inline citation affix representation',
                 'definition-list looseness metadata not represented by Pandoc native text constructors',
+                'local Markdown implicit-figure image sidecars when Figure attrs, caption blocks, image label, and image target already carry the native-visible structure',
             ],
             'doesNotAssert' => [
                 'upstream Haskell/Cabal runner execution',
@@ -443,7 +444,7 @@ final class MarkdownNativeAstComparisonHarness
     /**
      * @return array{type:string, attrs:array<string, mixed>, children:list<array<string, mixed>>}
      */
-    private function normalizedNode(AstNode $node): array
+    private function normalizedNode(AstNode $node, ?string $parentType = null): array
     {
         $attrs = [];
         $taskChecked = null;
@@ -494,6 +495,12 @@ final class MarkdownNativeAstComparisonHarness
             if ($node->type === 'small_caps' && in_array($key, ['id', 'classes', 'attributes'], true)) {
                 continue;
             }
+            if ($node->type === 'image' && $key === 'figureAttributes' && $parentType === 'figure') {
+                continue;
+            }
+            if ($node->type === 'image' && $key === 'alt' && $this->isNativeRedundantImageAltAttr($node, $value, $parentType)) {
+                continue;
+            }
             if ($key === 'taskChecked' && $node->type === 'list_item' && is_bool($value)) {
                 $taskChecked = $value;
                 continue;
@@ -517,7 +524,7 @@ final class MarkdownNativeAstComparisonHarness
             $attrs[$key] = $normalizedValue;
         }
         ksort($attrs, SORT_STRING);
-        $children = $this->normalizedChildren($node->children);
+        $children = $this->normalizedChildren($node->children, $node->type);
         if ($node->type === 'list_item' && $taskChecked !== null) {
             $children = $this->withNormalizedTaskMarker($children, $taskChecked);
         }
@@ -527,6 +534,23 @@ final class MarkdownNativeAstComparisonHarness
             'attrs' => $attrs,
             'children' => $children,
         ];
+    }
+
+    private function isNativeRedundantImageAltAttr(AstNode $node, mixed $value, ?string $parentType): bool
+    {
+        $alt = (string) $value;
+        if ($alt === '') {
+            return true;
+        }
+
+        $label = $this->plainInlineText($node->children);
+        if ($label !== '' && $alt === $label) {
+            return true;
+        }
+
+        return $parentType === 'figure'
+            && $label !== ''
+            && $label === (string) $node->attr('caption', '');
     }
 
     private static function isIgnoredAttrKey(string $key): bool
@@ -576,11 +600,11 @@ final class MarkdownNativeAstComparisonHarness
      * @param list<AstNode> $children
      * @return list<array<string, mixed>>
      */
-    private function normalizedChildren(array $children): array
+    private function normalizedChildren(array $children, ?string $parentType = null): array
     {
         $normalized = [];
         foreach ($children as $child) {
-            $node = $this->normalizedNode($child);
+            $node = $this->normalizedNode($child, $parentType);
             if ($this->isEmptyTableFootNode($node)) {
                 continue;
             }
@@ -594,6 +618,23 @@ final class MarkdownNativeAstComparisonHarness
         }
 
         return $normalized;
+    }
+
+    /**
+     * @param list<AstNode> $children
+     */
+    private function plainInlineText(array $children): string
+    {
+        $text = '';
+        foreach ($children as $child) {
+            $text .= match ($child->type) {
+                'text' => (string) $child->attr('text', ''),
+                'space', 'softbreak', 'linebreak' => ' ',
+                default => $this->plainInlineText($child->children),
+            };
+        }
+
+        return $text;
     }
 
     /**

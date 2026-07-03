@@ -13,7 +13,7 @@ final class MarkdownUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-markdown-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
     public const EXPECTED_SELECTED_FIXTURE_COUNT = 47;
-    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 44;
+    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 45;
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/Markdown.hs',
