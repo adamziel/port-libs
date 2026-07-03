@@ -693,6 +693,118 @@ HTML);
             'sha1' => (string) $entry['sha1'],
         ], $meta['epubMediaResourceDirectory']));
     },
+    'loads package parts while preserving epub href query and fragment provenance' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-href-suffix-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary EPUB package');
+        }
+        $zip->addFromString('META-INF/container.xml', <<<'XML'
+<?xml version="1.0"?>
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="OPS/package.opf?profile=compact#primary" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="book-id">
+  <metadata>
+    <dc:identifier id="book-id">book-href-suffix</dc:identifier>
+    <dc:title>Href Suffix EPUB</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="text/chapter.xhtml?source=archive#body" media-type="application/xhtml+xml"/>
+    <item id="nav" href="nav.xhtml?profile=toc" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="cover" href="images/cover.png?revision=20260703#cover" media-type="image/png" properties="cover-image"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('OPS/text/chapter.xhtml', <<<'HTML'
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <body>
+    <h1 id="body">Href Suffix EPUB</h1>
+    <p><img src="../images/cover.png?display=inline#pixel" alt="Cover suffix"/></p>
+    <p><a href="chapter.xhtml?source=archive#body">Self link</a></p>
+  </body>
+</html>
+HTML);
+        $zip->addFromString('OPS/nav.xhtml', <<<'HTML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <ol><li><a href="text/chapter.xhtml?source=nav#body">Chapter with suffix</a></li></ol>
+    </nav>
+  </body>
+</html>
+HTML);
+        $coverBytes = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=');
+        $zip->addFromString('OPS/images/cover.png', $coverBytes);
+        $zip->close();
+
+        try {
+            $document = (new EpubReader())->readEpubFile($path);
+            $meta = $document->attr('meta');
+            $blocks = (new WordPressBlockWriter())->write($document);
+        } finally {
+            @unlink($path);
+        }
+
+        $t->same('Href Suffix EPUB', $meta['title']);
+        $t->same('OPS/package.opf', $meta['epubRootfile']);
+        $t->same('text/chapter.xhtml?source=archive#body', $meta['epubManifestItems'][0]['href']);
+        $t->same('OPS/text/chapter.xhtml?source=archive#body', $meta['epubManifestItems'][0]['path']);
+        $t->same(true, $meta['epubManifestItems'][0]['readable']);
+        $t->same('nav.xhtml?profile=toc', $meta['epubManifestItems'][1]['href']);
+        $t->same('OPS/nav.xhtml?profile=toc', $meta['epubManifestItems'][1]['path']);
+        $t->same(true, $meta['epubManifestItems'][1]['navigation']);
+        $t->same(true, $meta['epubManifestItems'][1]['readable']);
+        $t->same('images/cover.png?revision=20260703#cover', $meta['epubManifestItems'][2]['href']);
+        $t->same('OPS/images/cover.png?revision=20260703#cover', $meta['epubManifestItems'][2]['path']);
+        $t->same(true, $meta['epubManifestItems'][2]['coverImage']);
+        $t->same('text/chapter.xhtml?source=archive#body', $meta['epubSpineItemRefs'][0]['href']);
+        $t->same('OPS/text/chapter.xhtml?source=archive#body', $meta['epubSpineItemRefs'][0]['path']);
+        $t->same(true, $meta['epubSpineItemRefs'][0]['readable']);
+        $t->same(['OPS/text/chapter.xhtml'], $meta['epubReadableResources']);
+        $t->same(['OPS/images/cover.png#pixel', 'OPS/text/chapter.xhtml#body'], $meta['epubReferencedResources']);
+        $t->same(['OPS/images/cover.png'], $meta['epubImageResources']);
+        $t->same(['OPS/images/cover.png'], $meta['epubMediaBagResources']);
+        $t->same(1, $meta['epubMediaResourceCount']);
+        $t->same(['epub-media-resource-loaded:OPS/images/cover.png'], $meta['epubMediaResourceDiagnostics']);
+        $t->same([
+            [
+                'path' => 'images/cover.png',
+                'zipEntry' => 'OPS/images/cover.png',
+                'mimeType' => 'image/png',
+                'byteLength' => strlen($coverBytes),
+                'sha1' => sha1($coverBytes),
+            ],
+        ], array_map(static fn (array $entry): array => [
+            'path' => (string) $entry['path'],
+            'zipEntry' => (string) $entry['zipEntry'],
+            'mimeType' => (string) $entry['mimeType'],
+            'byteLength' => (int) $entry['byteLength'],
+            'sha1' => (string) $entry['sha1'],
+        ], $meta['epubMediaResourceDirectory']));
+        $t->same(['OPS/nav.xhtml'], $meta['epubTocResources']);
+        $t->same([
+            ['text' => 'Chapter with suffix', 'href' => 'OPS/text/chapter.xhtml?source=nav#body', 'level' => 1],
+        ], $meta['epubTocEntries']);
+        $t->contains('href="#chapter.xhtml_body"', $blocks);
+        $t->contains('src="images/cover.png#pixel"', $blocks);
+    },
     'reads epub ncx table of contents metadata' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-');
         if ($path === false) {

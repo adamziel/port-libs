@@ -102,14 +102,15 @@ final class EpubReader
         );
 
         $cover = $this->coverImageHref($package, $manifest);
-        if ($cover !== null && !in_array($cover, $linear_spine_image_hrefs, true)) {
+        $cover_part = $cover === null ? null : $this->stripUrlQueryAndFragment($cover);
+        if ($cover !== null && !in_array($cover_part, $linear_spine_image_hrefs, true)) {
             $cover_resource = $this->recordMediaBagResource($cover, '', $base_path, $media_bag_resources);
             if ($cover_resource !== null) {
                 $this->recordMediaBagSource($this->mediaBagSourceUrl($cover), $cover_resource, $media_bag_sources);
             }
             $children[] = new AstNode('paragraph', ['text' => ''], [
                 new AstNode('image', [
-                    'url' => $cover,
+                    'url' => $this->stripUrlQueryAndFragment($cover),
                     'title' => '',
                     'alt' => '',
                 ]),
@@ -125,11 +126,11 @@ final class EpubReader
                 continue;
             }
             $item = $manifest[$idref];
-            $href = $this->normalizeZipPath($base_path . '/' . $item['href']);
             $media_type = $this->mediaTypeBase($item['media-type']);
             if ($this->isAbsoluteUrl($item['href'])) {
                 continue;
             }
+            $href = $this->packagePartPath($item['href'], $base_path);
             if ($this->isDirectSpineImageMediaType($media_type)) {
                 if (!$this->zipEntryExists($zip, $href)) {
                     continue;
@@ -138,7 +139,7 @@ final class EpubReader
                 $referenced_resources[] = $href;
                 $media_bag_resources[] = $href;
                 $this->recordMediaBagSource($this->mediaBagSourceUrl($item['href']), $href, $media_bag_sources);
-                $children[] = $this->directImageSpineBlock($item['href']);
+                $children[] = $this->directImageSpineBlock($this->stripUrlQueryAndFragment($item['href']));
                 continue;
             }
             if (!$this->isReadablePackageXhtml($href, $media_type)) {
@@ -238,12 +239,12 @@ final class EpubReader
                 $fallback = $path;
             }
             if ($this->mediaTypeBase($rootfile->getAttribute('media-type')) === self::OPF_MEDIA_TYPE) {
-                return $this->normalizeZipPath($path);
+                return $this->packagePartPath($path);
             }
         }
 
         if ($fallback !== '') {
-            return $this->normalizeZipPath($fallback);
+            return $this->packagePartPath($fallback);
         }
 
         throw new \InvalidArgumentException('EPUB container does not declare an OPF rootfile.');
@@ -451,7 +452,10 @@ final class EpubReader
     {
         $resources = [];
         foreach ($manifest as $item) {
-            $href = $this->normalizeZipPath($base_path . '/' . $item['href']);
+            if ($this->isAbsoluteUrl($item['href'])) {
+                continue;
+            }
+            $href = $this->packagePartPath($item['href'], $base_path);
             $media_type = strtolower($item['media-type']);
             if (str_starts_with($media_type, 'image/') || $this->pathLooksLikeImage($href)) {
                 $resources[] = $href;
@@ -471,6 +475,7 @@ final class EpubReader
         foreach ($manifest as $id => $item) {
             $href = $item['href'];
             $path = $this->rewriteRelativeResourceUrl($href, $base_path);
+            $part_path = $this->isAbsoluteUrl($href) ? $path : $this->packagePartPath($href, $base_path);
             $media_type = strtolower($item['media-type']);
             $properties = $item['properties'];
             $lower_properties = array_map('strtolower', $properties);
@@ -482,9 +487,9 @@ final class EpubReader
                 'mediaType' => $item['media-type'],
                 'properties' => $properties,
                 'external' => $this->isAbsoluteUrl($href),
-                'readable' => !$this->isAbsoluteUrl($href) && $this->isReadableSpineItem($path, $media_type),
+                'readable' => !$this->isAbsoluteUrl($href) && $this->isReadableSpineItem($part_path, $media_type),
                 'navigation' => in_array('nav', $lower_properties, true),
-                'ncx' => str_contains($media_type, 'x-dtbncx') || str_ends_with(strtolower($path), '.ncx'),
+                'ncx' => str_contains($media_type, 'x-dtbncx') || str_ends_with(strtolower($part_path), '.ncx'),
                 'coverImage' => in_array('cover-image', $lower_properties, true),
             ];
         }
@@ -510,6 +515,7 @@ final class EpubReader
             $manifest_item = $manifest[$idref] ?? null;
             $href = is_array($manifest_item) ? $manifest_item['href'] : '';
             $path = $href === '' ? '' : $this->rewriteRelativeResourceUrl($href, $base_path);
+            $part_path = $href === '' || $this->isAbsoluteUrl($href) ? $path : $this->packagePartPath($href, $base_path);
             $media_type = is_array($manifest_item) ? $manifest_item['media-type'] : '';
             $external = $href !== '' && $this->isAbsoluteUrl($href);
             $linear = !$element->hasAttribute('linear') || $element->getAttribute('linear') === 'yes';
@@ -526,7 +532,7 @@ final class EpubReader
                 'manifestProperties' => is_array($manifest_item) ? $manifest_item['properties'] : [],
                 'missingManifestItem' => !is_array($manifest_item),
                 'external' => $external,
-                'readable' => is_array($manifest_item) && !$external && $this->isReadableSpineItem($path, $media_type),
+                'readable' => is_array($manifest_item) && !$external && $this->isReadableSpineItem($part_path, $media_type),
             ];
         }
 
@@ -561,7 +567,10 @@ final class EpubReader
         $navigation_sections = [];
         $section_types = [];
         foreach ($manifest as $id => $item) {
-            $href = $this->normalizeZipPath($base_path . '/' . $item['href']);
+            if ($this->isAbsoluteUrl($item['href'])) {
+                continue;
+            }
+            $href = $this->packagePartPath($item['href'], $base_path);
             $media_type = strtolower($item['media-type']);
             $properties = array_map('strtolower', $item['properties']);
             $is_nav = in_array('nav', $properties, true);
@@ -958,8 +967,9 @@ final class EpubReader
         array &$media_bag_resources,
         array &$media_bag_sources
     ): AstNode {
-        $filename = $this->spineFilename($content_path);
-        $content_dir = $this->dirname($content_path);
+        $content_part = $this->stripUrlQueryAndFragment($content_path);
+        $filename = $this->spineFilename($content_part);
+        $content_dir = $this->dirname($content_part);
 
         return $this->fixEpubNode($document, $filename, $content_dir, $package_base_path, $spine_filenames, $referenced_resources, $media_bag_resources, $media_bag_sources);
     }
@@ -1114,10 +1124,15 @@ final class EpubReader
             return $url;
         }
 
-        [$path, $fragment] = $this->splitUrlFragment($url);
-        if ($fragment !== '') {
+        [$path, $query, $fragment] = $this->splitUrlSuffix($url);
+        if ($fragment !== null && $fragment !== '') {
             $target = $path === '' ? $filename : $this->spineFilename($path);
             $url = $this->prefixedEpubId($target, $fragment);
+        } elseif ($query !== null && $path !== '') {
+            $target = $this->spineFilename($path);
+            if (in_array($target, $spine_filenames, true)) {
+                return '#' . $target;
+            }
         }
 
         foreach ($spine_filenames as $spine_filename) {
@@ -1135,10 +1150,10 @@ final class EpubReader
             return $url;
         }
 
-        [$path, $fragment] = $this->splitUrlFragment($url);
+        [$path, , $fragment] = $this->splitUrlSuffix($url);
         $normalized = $this->normalizeZipPath($content_dir . '/' . $path);
 
-        return $fragment === '' ? $normalized : $normalized . '#' . $fragment;
+        return $fragment === null || $fragment === '' ? $normalized : $normalized . '#' . $fragment;
     }
 
     private function directImageSpineBlock(string $href): AstNode
@@ -1196,13 +1211,13 @@ final class EpubReader
             return null;
         }
 
-        [$path, $fragment] = $this->splitUrlFragment($url);
+        [$path, , $fragment] = $this->splitUrlSuffix($url);
         if ($path === '') {
             return null;
         }
 
         $resource = $this->normalizeZipPath($package_base_path . '/' . $content_dir . '/' . $path);
-        if ($include_fragment && $fragment !== '') {
+        if ($include_fragment && $fragment !== null && $fragment !== '') {
             $resource .= '#' . $fragment;
         }
         $resources[] = $resource;
@@ -1250,7 +1265,7 @@ final class EpubReader
             if ($this->isAbsoluteUrl($href)) {
                 continue;
             }
-            $path = $this->normalizeZipPath($base_path . '/' . $href);
+            $path = $this->packagePartPath($href, $base_path);
             $media_type = $this->mediaTypeBase($item['media-type']);
             if ($path !== '' && $media_type !== '') {
                 $media_types[$path] = $media_type;
@@ -1318,16 +1333,45 @@ final class EpubReader
     }
 
     /**
-     * @return array{0: string, 1: string}
+     * @return array{0: string, 1: ?string, 2: ?string}
      */
-    private function splitUrlFragment(string $url): array
+    private function splitUrlSuffix(string $url): array
     {
         $hash = strpos($url, '#');
-        if ($hash === false) {
-            return [$url, ''];
+        $without_fragment = $hash === false ? $url : substr($url, 0, $hash);
+        $fragment = $hash === false ? null : substr($url, $hash + 1);
+        $query_offset = strpos($without_fragment, '?');
+        $path = $query_offset === false ? $without_fragment : substr($without_fragment, 0, $query_offset);
+        $query = $query_offset === false ? null : substr($without_fragment, $query_offset + 1);
+
+        return [$path, $query, $fragment];
+    }
+
+    private function appendUrlSuffix(string $path, ?string $query, ?string $fragment): string
+    {
+        if ($query !== null) {
+            $path .= '?' . $query;
+        }
+        if ($fragment !== null) {
+            $path .= '#' . $fragment;
         }
 
-        return [substr($url, 0, $hash), substr($url, $hash + 1)];
+        return $path;
+    }
+
+    private function stripUrlQueryAndFragment(string $url): string
+    {
+        return $this->splitUrlSuffix($url)[0];
+    }
+
+    private function packagePartPath(string $url, string $base_path = ''): string
+    {
+        $path = $this->stripUrlQueryAndFragment($url);
+        if ($path === '') {
+            return '';
+        }
+
+        return $this->normalizeZipPath($base_path === '' ? $path : $base_path . '/' . $path);
     }
 
     private function prefixedEpubId(string $filename, string $id): string
@@ -1337,6 +1381,7 @@ final class EpubReader
 
     private function spineFilename(string $path): string
     {
+        $path = $this->stripUrlQueryAndFragment($path);
         $filename = basename(str_replace('\\', '/', $path));
 
         return str_replace('%2F', '/', rawurlencode($filename));
@@ -1348,7 +1393,12 @@ final class EpubReader
             return $url;
         }
 
-        return $this->normalizeZipPath($base_path . '/' . $url);
+        [$path, $query, $fragment] = $this->splitUrlSuffix($url);
+        if ($path === '') {
+            return $url;
+        }
+
+        return $this->appendUrlSuffix($this->normalizeZipPath($base_path . '/' . $path), $query, $fragment);
     }
 
     private function isPackageRelativeResourceUrl(string $url): bool
@@ -1409,7 +1459,7 @@ final class EpubReader
             }
             $href = $item['href'];
             if (!$this->isAbsoluteUrl($href) && $this->isDirectSpineImageMediaType($item['media-type'])) {
-                $hrefs[] = $href;
+                $hrefs[] = $this->stripUrlQueryAndFragment($href);
             }
         }
 
