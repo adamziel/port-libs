@@ -301,6 +301,19 @@ $tests['imports generated current html table foot rows'] =
         $t->same('After table.', $document->children[1]->attr('text'));
     };
 
+$tests['imports generated current html thematic break as horizontal rule'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-thematic-break.html'));
+
+        $t->same(
+            ['paragraph', 'horizontal_rule', 'paragraph'],
+            array_map(static fn ($node): string => $node->type, $document->children)
+        );
+        $t->same('Before rule.', $document->children[0]->attr('text'));
+        $t->same([], $document->children[1]->attrs);
+        $t->same('After rule.', $document->children[2]->attr('text'));
+    };
+
 $tests['preserves html doc-endnotes container when no noteref was resolved'] =
     static function (TestRunner $t): void {
         $document = (new HtmlReader())->read(
