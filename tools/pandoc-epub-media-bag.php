@@ -8,8 +8,12 @@ use PortLibs\Pandoc\EpubMediaBagComparisonHarness;
 require __DIR__ . '/bootstrap.php';
 
 $repoRoot = dirname(__DIR__);
+$checkedInFixtureRoot = 'lanes/pandoc/fixtures/upstream-current-epub-reader';
 $upstreamRoot = getenv('PANDOC_UPSTREAM_ROOT') ?: getenv('PANDOC_EPUB_UPSTREAM_ROOT') ?: $repoRoot . '/.upstream-cache/pandoc-current';
 $fixtureBase = getenv('PANDOC_EPUB_FIXTURE_BASE') ?: null;
+$useCheckedInFixtures = false;
+$upstreamRootArgumentWasProvided = false;
+$fixtureBaseArgumentWasProvided = false;
 $limit = 0;
 $requiredMediaBagParity = null;
 $json = false;
@@ -18,12 +22,14 @@ $summary = false;
 foreach (array_slice($argv, 1) as $argument) {
     if ($argument === '--help' || $argument === '-h') {
         fwrite(STDOUT, <<<'TXT'
-Usage: php tools/pandoc-epub-media-bag.php [--upstream-root=PATH] [--fixture-base=PATH] [--limit=N] [--json] [--require-media-bag-parity=N] [summary]
+Usage: php tools/pandoc-epub-media-bag.php [--upstream-root=PATH|--checked-in-fixtures] [--fixture-base=PATH] [--limit=N] [--json] [--require-media-bag-parity=N] [summary]
 
 Compares local PHP EPUB reader media-bag output with upstream Tests.Readers.EPUB
 expectations by normalized path, MIME type, and byte size when the upstream cache
 is present. Missing cache is reported as skipped with exit 0 unless required
 parity is requested.
+Use --checked-in-fixtures for the checked-in current EPUB reader fixture snapshot
+at lanes/pandoc/fixtures/upstream-current-epub-reader.
 With --require-media-bag-parity=N, exits 1 unless exactly N EPUB fixtures are
 compared, parsed, and matched by normalized media-bag tuples.
 
@@ -41,13 +47,20 @@ TXT);
         continue;
     }
 
+    if ($argument === '--checked-in-fixtures') {
+        $useCheckedInFixtures = true;
+        continue;
+    }
+
     if (str_starts_with($argument, '--upstream-root=')) {
         $upstreamRoot = substr($argument, strlen('--upstream-root='));
+        $upstreamRootArgumentWasProvided = true;
         continue;
     }
 
     if (str_starts_with($argument, '--fixture-base=')) {
         $fixtureBase = substr($argument, strlen('--fixture-base='));
+        $fixtureBaseArgumentWasProvided = true;
         continue;
     }
 
@@ -68,6 +81,16 @@ TXT);
 
     fwrite(STDERR, "Unknown argument: {$argument}\n");
     exit(2);
+}
+
+if ($useCheckedInFixtures && ($upstreamRootArgumentWasProvided || $fixtureBaseArgumentWasProvided)) {
+    fwrite(STDERR, "--checked-in-fixtures cannot be combined with --upstream-root or --fixture-base\n");
+    exit(2);
+}
+
+if ($useCheckedInFixtures) {
+    $upstreamRoot = $checkedInFixtureRoot;
+    $fixtureBase = $checkedInFixtureRoot;
 }
 
 if ($upstreamRoot !== '' && !str_starts_with($upstreamRoot, DIRECTORY_SEPARATOR)) {

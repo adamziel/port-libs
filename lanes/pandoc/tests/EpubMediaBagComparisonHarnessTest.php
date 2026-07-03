@@ -172,12 +172,11 @@ return [
         $t->same(true, EpubMediaBagComparisonHarness::hasRequiredMediaBagParity($report, 6));
     },
 
-    'cli gates checked-in current epub media bag fixtures without hydrated upstream cache' => static function (TestRunner $t) use ($fixtureRoot): void {
+    'cli gates checked-in current epub media bag fixtures through checked-in selector' => static function (TestRunner $t) use ($fixtureRoot): void {
         $command = escapeshellarg(PHP_BINARY)
             . ' '
             . escapeshellarg(dirname(__DIR__, 3) . '/tools/pandoc-epub-media-bag.php')
-            . ' --upstream-root=' . escapeshellarg($fixtureRoot())
-            . ' --fixture-base=' . escapeshellarg($fixtureRoot())
+            . ' --checked-in-fixtures'
             . ' --json'
             . ' summary'
             . ' --require-media-bag-parity=6';
@@ -188,12 +187,25 @@ return [
 
         $t->same(0, $exitCode);
         $t->same('completed', $decoded['status']);
+        $t->same($fixtureRoot(), $decoded['upstreamRoot']);
+        $t->same($fixtureRoot(), $decoded['fixtureBase']);
+        $t->same('media-bag-comparison-not-full-epub-parity', $decoded['verdict']);
         $t->same(6, $decoded['comparedCaseCount']);
         $t->same(6, $decoded['mediaBagMatchCount']);
         $t->same(0, $decoded['mediaBagMismatchCount']);
         $t->same(10, $decoded['expectedMediaItemCount']);
         $t->same(10, $decoded['actualMediaItemCount']);
+        $t->same('media-bag-equality-observed-not-runner-parity', $decoded['mediaBagParityStatus']);
+        $t->same('open', $decoded['orderedRemainingGaps'][1]['status']);
+        $t->same('open', $decoded['orderedRemainingGaps'][2]['status']);
         $t->same(true, EpubMediaBagComparisonHarness::hasRequiredMediaBagParity($decoded, 6));
+
+        $failingCommand = str_replace('--require-media-bag-parity=6', '--require-media-bag-parity=7', $command) . ' 2>/dev/null';
+        $failingOutput = [];
+        $failingExitCode = 0;
+        exec($failingCommand, $failingOutput, $failingExitCode);
+
+        $t->same(1, $failingExitCode);
     },
 
     'compares emitted image media bag without counting unused manifest images' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile, $writeScopedMediaBagEpub): void {
