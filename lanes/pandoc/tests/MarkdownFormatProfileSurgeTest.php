@@ -11,27 +11,27 @@ $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $va
 $paragraph = static fn (string $value): AstNode => new AstNode('paragraph', [], [$text($value)]);
 
 $profileCases = [
-    ['format' => 'markdown', 'canonical' => 'markdown', 'yamlMetadata' => true, 'titleBlock' => true, 'rawAttribute' => true, 'rawTex' => true],
-    ['format' => 'pandoc', 'canonical' => 'markdown', 'yamlMetadata' => true, 'titleBlock' => true, 'rawAttribute' => true, 'rawTex' => true],
-    ['format' => 'commonmark', 'canonical' => 'commonmark', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false],
-    ['format' => 'commonmark_x', 'canonical' => 'commonmark_x', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => true, 'rawTex' => false, 'writerRawTex' => true],
-    ['format' => 'commonmark-x', 'canonical' => 'commonmark_x', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => true, 'rawTex' => false, 'writerRawTex' => true],
-    ['format' => 'gfm', 'canonical' => 'gfm', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false],
-    ['format' => 'markdown_github', 'canonical' => 'gfm', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false],
-    ['format' => 'markdown-github', 'canonical' => 'gfm', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false],
-    ['format' => 'markdown+github', 'canonical' => 'gfm', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false],
-    ['format' => 'markdown_mmd', 'canonical' => 'markdown_mmd', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false, 'writerRawTex' => true],
-    ['format' => 'markdown-mmd', 'canonical' => 'markdown_mmd', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false, 'writerRawTex' => true],
-    ['format' => 'markdown+mmd', 'canonical' => 'markdown_mmd', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false, 'writerRawTex' => true],
-    ['format' => 'markdown+multimarkdown', 'canonical' => 'markdown_mmd', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false, 'writerRawTex' => true],
-    ['format' => 'markdown_phpextra', 'canonical' => 'markdown_phpextra', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false, 'writerRawTex' => true],
-    ['format' => 'markdown-php-extra', 'canonical' => 'markdown_phpextra', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false, 'writerRawTex' => true],
-    ['format' => 'markdown+php_extra', 'canonical' => 'markdown_phpextra', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false, 'writerRawTex' => true],
-    ['format' => 'markdown+php-extra', 'canonical' => 'markdown_phpextra', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false, 'writerRawTex' => true],
-    ['format' => 'markdown+phpextra', 'canonical' => 'markdown_phpextra', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false, 'writerRawTex' => true],
-    ['format' => 'markdown_strict', 'canonical' => 'markdown_strict', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false, 'writerRawTex' => true],
-    ['format' => 'markdown-strict', 'canonical' => 'markdown_strict', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false, 'writerRawTex' => true],
-    ['format' => 'markdown+strict', 'canonical' => 'markdown_strict', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false, 'writerRawTex' => true],
+    ['format' => 'markdown', 'canonical' => 'markdown', 'yamlMetadata' => true, 'titleBlock' => true, 'rawAttribute' => true, 'rawTex' => true, 'footnotes' => true],
+    ['format' => 'pandoc', 'canonical' => 'markdown', 'yamlMetadata' => true, 'titleBlock' => true, 'rawAttribute' => true, 'rawTex' => true, 'footnotes' => true],
+    ['format' => 'commonmark', 'canonical' => 'commonmark', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false, 'footnotes' => false],
+    ['format' => 'commonmark_x', 'canonical' => 'commonmark_x', 'yamlMetadata' => true, 'titleBlock' => false, 'rawAttribute' => true, 'rawTex' => false, 'footnotes' => true, 'writerRawTex' => true],
+    ['format' => 'commonmark-x', 'canonical' => 'commonmark_x', 'yamlMetadata' => true, 'titleBlock' => false, 'rawAttribute' => true, 'rawTex' => false, 'footnotes' => true, 'writerRawTex' => true],
+    ['format' => 'gfm', 'canonical' => 'gfm', 'yamlMetadata' => true, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false, 'footnotes' => true],
+    ['format' => 'markdown_github', 'canonical' => 'gfm', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false, 'footnotes' => true],
+    ['format' => 'markdown-github', 'canonical' => 'gfm', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false, 'footnotes' => true],
+    ['format' => 'markdown+github', 'canonical' => 'gfm', 'yamlMetadata' => true, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false, 'footnotes' => true],
+    ['format' => 'markdown_mmd', 'canonical' => 'markdown_mmd', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false, 'footnotes' => true, 'writerRawTex' => true],
+    ['format' => 'markdown-mmd', 'canonical' => 'markdown_mmd', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false, 'footnotes' => true, 'writerRawTex' => true],
+    ['format' => 'markdown+mmd', 'canonical' => 'markdown_mmd', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false, 'footnotes' => true, 'writerRawTex' => true],
+    ['format' => 'markdown+multimarkdown', 'canonical' => 'markdown_mmd', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false, 'footnotes' => true, 'writerRawTex' => true],
+    ['format' => 'markdown_phpextra', 'canonical' => 'markdown_phpextra', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false, 'footnotes' => true, 'writerRawTex' => true],
+    ['format' => 'markdown-php-extra', 'canonical' => 'markdown_phpextra', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false, 'footnotes' => true, 'writerRawTex' => true],
+    ['format' => 'markdown+php_extra', 'canonical' => 'markdown_phpextra', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false, 'footnotes' => true, 'writerRawTex' => true],
+    ['format' => 'markdown+php-extra', 'canonical' => 'markdown_phpextra', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false, 'footnotes' => true, 'writerRawTex' => true],
+    ['format' => 'markdown+phpextra', 'canonical' => 'markdown_phpextra', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false, 'footnotes' => true, 'writerRawTex' => true],
+    ['format' => 'markdown_strict', 'canonical' => 'markdown_strict', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false, 'footnotes' => false, 'writerRawTex' => true],
+    ['format' => 'markdown-strict', 'canonical' => 'markdown_strict', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false, 'footnotes' => false, 'writerRawTex' => true],
+    ['format' => 'markdown+strict', 'canonical' => 'markdown_strict', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false, 'footnotes' => false, 'writerRawTex' => true],
 ];
 
 $slug = static function (string $format): string {
@@ -163,6 +163,26 @@ foreach ($profileCases as $case) {
             }
         };
 
+    $tests['maps upstream markdown format profile footnote gate ' . $case['format']] =
+        static function (TestRunner $t) use ($case, $slug): void {
+            $label = $slug($case['format']);
+            $document = (new MarkdownReader(['format' => $case['format']]))->read(implode("\n", [
+                'Ref[^' . $label . '].',
+                '',
+                '[^' . $label . ']: Footnote profile ' . $label . '.',
+            ]));
+            $paragraph = $document->children[0] ?? new AstNode('missing');
+            $hasNote = false;
+            foreach ($paragraph->children as $inline) {
+                if ($inline->type === 'note') {
+                    $hasNote = true;
+                    break;
+                }
+            }
+
+            $t->same($case['footnotes'], $hasNote);
+        };
+
     $tests['maps upstream markdown writer format profile yaml metadata default ' . $case['format']] =
         static function (TestRunner $t) use ($case, $slug, $paragraph): void {
             $label = $slug($case['format']);
@@ -290,6 +310,36 @@ $overrideCases = [
             $t->same(false, in_array(($document->children[0] ?? new AstNode('missing'))->type, ['raw_html', 'raw_block'], true));
         },
     ],
+    [
+        'name' => 'commonmark disabled footnotes keeps caret note syntax literal',
+        'assert' => static function (TestRunner $t): void {
+            $document = (new MarkdownReader(['format' => 'commonmark']))->read("Ref[^a].\n\n[^a]: note body");
+            $t->same(2, count($document->children));
+            $t->same('Ref[^a].', ($document->children[0] ?? new AstNode('missing'))->attr('text'));
+            $t->same('[^a]: note body', ($document->children[1] ?? new AstNode('missing'))->attr('text'));
+        },
+    ],
+    [
+        'name' => 'gfm footnotes extension disable keeps caret note syntax literal',
+        'assert' => static function (TestRunner $t): void {
+            $document = (new MarkdownReader(['format' => 'gfm-footnotes']))->read("Ref[^a].\n\n[^a]: note body");
+            $t->same(2, count($document->children));
+            $t->same('Ref[^a].', ($document->children[0] ?? new AstNode('missing'))->attr('text'));
+            $t->same('[^a]: note body', ($document->children[1] ?? new AstNode('missing'))->attr('text'));
+        },
+    ],
+    [
+        'name' => 'markdown footnotes extension disable treats caret label as reference',
+        'assert' => static function (TestRunner $t): void {
+            $document = (new MarkdownReader(['format' => 'markdown-footnotes']))->read("Ref[^a].\n\n[^a]: note body");
+            $paragraph = $document->children[0] ?? new AstNode('missing');
+            $link = $paragraph->children[1] ?? new AstNode('missing');
+
+            $t->same(1, count($document->children));
+            $t->same('link', $link->type);
+            $t->same('note%20body', $link->attr('url'));
+        },
+    ],
 ];
 
 foreach ($overrideCases as $case) {
@@ -301,7 +351,7 @@ foreach ($overrideCases as $case) {
 
 $tests['records upstream markdown format profile surge mapped-case count'] =
     static function (TestRunner $t) use ($profileCases, $overrideCases): void {
-        $t->same(178, count($profileCases) * 8 + count($overrideCases));
+        $t->same(202, count($profileCases) * 9 + count($overrideCases));
     };
 
 return $tests;

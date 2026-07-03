@@ -193,7 +193,10 @@ final class MarkdownReader
             }
         }
         [$lines, $titleBlock] = $this->titleBlockEnabled() ? $this->extractTitleBlock($lines) : [$lines, null];
-        [$lines, $references, $footnotes, $abbreviations] = $this->extractReferenceDefinitions($lines);
+        [$lines, $references, $footnotes, $abbreviations] = $this->extractReferenceDefinitions(
+            $lines,
+            $this->footnoteExtensionEnabled()
+        );
         $lines = $this->splitMixedHtmlFlowLines($lines);
         [$exampleReferences, $exampleNumbersByLine] = $this->numberedExampleExtensionEnabled()
             ? $this->collectNumberedExampleReferences($lines)
@@ -1002,13 +1005,14 @@ final class MarkdownReader
      * @param list<string> $lines
      * @return array{0:list<string>, 1:array<string, array{url:string, title:string}>, 2:array<string, string>, 3:array<string, string>}
      */
-    private function extractReferenceDefinitions(array $lines): array
+    private function extractReferenceDefinitions(array $lines, bool $footnotesEnabled): array
     {
         $content = [];
         $references = [];
         $footnotes = [];
         $abbreviations = [];
         $count = count($lines);
+        $allowFootnoteLabelsAsReferences = !$footnotesEnabled && $this->footnoteLabelsAsReferenceDefinitionsWhenDisabled();
 
         for ($index = 0; $index < $count; $index++) {
             $boundaryEnd = $this->markdownReferenceBoundaryEndIndex($lines, $index);
@@ -1022,7 +1026,7 @@ final class MarkdownReader
 
             $line = $lines[$index];
             $expanded = $this->expandTabsToSpaces($line);
-            $footnote = $this->tryParseFootnoteDefinitionStart($expanded);
+            $footnote = $footnotesEnabled ? $this->tryParseFootnoteDefinitionStart($expanded) : null;
             if ($footnote !== null) {
                 [$body, $nextIndex] = $this->collectFootnoteDefinitionBody($lines, $index, $footnote['content']);
                 $footnotes[$this->normalizeReferenceLabel($footnote['label'])] = implode("\n", $body);
@@ -1030,9 +1034,15 @@ final class MarkdownReader
                 continue;
             }
 
-            $reference = $this->tryParseReferenceDefinitionStart($expanded);
+            $reference = $this->tryParseReferenceDefinitionStart($expanded, $allowFootnoteLabelsAsReferences);
             if ($reference !== null) {
-                [$targetSource, $nextIndex] = $this->collectReferenceDefinitionTarget($lines, $index, $reference['content']);
+                [$targetSource, $nextIndex] = $this->collectReferenceDefinitionTarget(
+                    $lines,
+                    $index,
+                    $reference['content'],
+                    $allowFootnoteLabelsAsReferences,
+                    $footnotesEnabled
+                );
                 $target = $this->parseLinkDestinationAndTitle($targetSource);
                 if ($target !== null && $this->isValidReferenceLabel($reference['label'])) {
                     $normalizedLabel = $this->normalizeReferenceLabel($reference['label']);
@@ -1961,9 +1971,9 @@ final class MarkdownReader
     /**
      * @return array{label:string, url:string, title:string}|null
      */
-    private function tryParseReferenceDefinition(string $line): ?array
+    private function tryParseReferenceDefinition(string $line, bool $allowFootnoteLabel = false): ?array
     {
-        $reference = $this->tryParseReferenceDefinitionStart($line);
+        $reference = $this->tryParseReferenceDefinitionStart($line, $allowFootnoteLabel);
         if ($reference === null) {
             return null;
         }
@@ -1983,14 +1993,14 @@ final class MarkdownReader
     /**
      * @return array{label:string, content:string}|null
      */
-    private function tryParseReferenceDefinitionStart(string $line): ?array
+    private function tryParseReferenceDefinitionStart(string $line, bool $allowFootnoteLabel = false): ?array
     {
         if (preg_match('/^ {0,3}/', $line, $indent) !== 1) {
             return null;
         }
 
         $offset = strlen($indent[0]);
-        if (substr($line, $offset, 2) === '[^') {
+        if (!$allowFootnoteLabel && substr($line, $offset, 2) === '[^') {
             return null;
         }
 
@@ -2040,7 +2050,13 @@ final class MarkdownReader
      * @param list<string> $lines
      * @return array{0:string, 1:int}
      */
-    private function collectReferenceDefinitionTarget(array $lines, int $index, string $firstLine): array
+    private function collectReferenceDefinitionTarget(
+        array $lines,
+        int $index,
+        string $firstLine,
+        bool $allowFootnoteLabel = false,
+        bool $footnotesEnabled = true
+    ): array
     {
         $target = trim($firstLine);
         $cursor = $index + 1;
@@ -2059,14 +2075,26 @@ final class MarkdownReader
                 $target .= ' ' . $candidate;
                 $cursor++;
             } elseif ($candidate !== '') {
-                $multilineTitle = $this->collectReferenceDefinitionMultilineTitle($lines, $cursor + 1, $target . ' ' . $candidate);
+                $multilineTitle = $this->collectReferenceDefinitionMultilineTitle(
+                    $lines,
+                    $cursor + 1,
+                    $target . ' ' . $candidate,
+                    $allowFootnoteLabel,
+                    $footnotesEnabled
+                );
                 if ($multilineTitle !== null) {
                     return $multilineTitle;
                 }
             }
         }
 
-        $multilineTitle = $this->collectReferenceDefinitionMultilineTitle($lines, $cursor, $target);
+        $multilineTitle = $this->collectReferenceDefinitionMultilineTitle(
+            $lines,
+            $cursor,
+            $target,
+            $allowFootnoteLabel,
+            $footnotesEnabled
+        );
         if ($multilineTitle !== null) {
             return $multilineTitle;
         }
@@ -2078,7 +2106,13 @@ final class MarkdownReader
      * @param list<string> $lines
      * @return array{0:string, 1:int}|null
      */
-    private function collectReferenceDefinitionMultilineTitle(array $lines, int $cursor, string $target): ?array
+    private function collectReferenceDefinitionMultilineTitle(
+        array $lines,
+        int $cursor,
+        string $target,
+        bool $allowFootnoteLabel = false,
+        bool $footnotesEnabled = true
+    ): ?array
     {
         if (!$this->hasUnclosedReferenceDefinitionTitle($target)) {
             return null;
@@ -2090,8 +2124,8 @@ final class MarkdownReader
             $line = trim($this->expandTabsToSpaces($lines[$cursor]));
             if (
                 $line === ''
-                || $this->tryParseReferenceDefinitionStart($line) !== null
-                || $this->tryParseFootnoteDefinitionStart($line) !== null
+                || $this->tryParseReferenceDefinitionStart($line, $allowFootnoteLabel) !== null
+                || ($footnotesEnabled && $this->tryParseFootnoteDefinitionStart($line) !== null)
             ) {
                 return null;
             }
@@ -14273,7 +14307,9 @@ final class MarkdownReader
                 continue;
             }
 
-            $footnoteReference = $this->resolveFootnoteReferences ? $this->tryParseFootnoteReference($text, $offset) : null;
+            $footnoteReference = $this->resolveFootnoteReferences && $this->footnoteExtensionEnabled()
+                ? $this->tryParseFootnoteReference($text, $offset)
+                : null;
             if ($footnoteReference !== null) {
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $footnoteReference['node'];
@@ -15389,7 +15425,24 @@ final class MarkdownReader
         $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
         $canonical = MarkdownFormatProfile::canonicalFormat($format);
 
-        return in_array($canonical, ['markdown', 'commonmark_x', 'markdown_phpextra', 'markdown_mmd'], true);
+        return $canonical === 'markdown';
+    }
+
+    private function footnoteExtensionEnabled(): bool
+    {
+        $options = $this->options;
+        $options['format'] = $this->markdownFormatWithExtensionOption();
+
+        return MarkdownFormatProfile::footnotesEnabled($options, true);
+    }
+
+    private function footnoteLabelsAsReferenceDefinitionsWhenDisabled(): bool
+    {
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['markdown', 'markdown_mmd', 'markdown_phpextra', 'markdown_strict'], true)
+            || $this->deprecatedGithubMarkdownAlias($format);
     }
 
     private function markExtensionEnabled(): bool
@@ -15724,11 +15777,18 @@ final class MarkdownReader
 
         $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
         $canonical = MarkdownFormatProfile::canonicalFormat($format);
-        $normalizedFormat = is_scalar($format) ? strtolower(trim((string) $format)) : '';
-        $deprecatedGithubMarkdownAlias = preg_match('/^markdown[_-]github(?:[+-]|$)/', $normalizedFormat) === 1;
 
         return in_array($canonical, ['markdown', 'commonmark_x', 'markdown_mmd'], true)
-            || ($canonical === 'gfm' && !$deprecatedGithubMarkdownAlias);
+            || ($canonical === 'gfm' && !$this->deprecatedGithubMarkdownAlias($format));
+    }
+
+    private function deprecatedGithubMarkdownAlias(mixed $format): bool
+    {
+        if (!is_scalar($format)) {
+            return false;
+        }
+
+        return preg_match('/^markdown[_-]github(?:[+-]|$)/', strtolower(trim((string) $format))) === 1;
     }
 
     private function singleBackslashMathExtensionEnabled(): bool

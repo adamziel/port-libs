@@ -112,17 +112,18 @@ $aliasExpectations = [
         'bare uri' => true,
     ]),
     'markdown-php-extra' => array_replace($disabledFeatures, [
-        'inline footnote' => true,
         'bracketed span' => true,
     ]),
     'markdown-strict' => $disabledFeatures,
     'markdown-mmd' => array_replace($disabledFeatures, [
         'citation' => true,
-        'inline footnote' => true,
         'dollar math' => true,
         'bracketed span' => true,
     ]),
-    'commonmark-x' => $allFeatures,
+    'commonmark-x' => array_replace($allFeatures, [
+        'inline footnote' => false,
+        'raw tex' => false,
+    ]),
 ];
 
 $lineBreakFormats = [

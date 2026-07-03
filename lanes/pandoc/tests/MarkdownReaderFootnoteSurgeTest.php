@@ -98,15 +98,13 @@ $bodyCases = [
     'bullet list continuation' => [
         'source' => "Opening\n    - bullet item",
         'summary' => [
-            ['type' => 'paragraph', 'text' => 'Opening'],
-            ['type' => 'bullet_list', 'items' => ['bullet item']],
+            ['type' => 'paragraph', 'text' => 'Opening - bullet item'],
         ],
     ],
     'ordered list continuation' => [
         'source' => "Opening\n    1. ordered item",
         'summary' => [
-            ['type' => 'paragraph', 'text' => 'Opening'],
-            ['type' => 'ordered_list', 'items' => ['ordered item'], 'start' => 1, 'style' => 'decimal', 'delimiter' => 'period'],
+            ['type' => 'paragraph', 'text' => 'Opening 1. ordered item'],
         ],
     ],
     'fenced code continuation' => [

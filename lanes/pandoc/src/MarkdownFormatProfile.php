@@ -150,7 +150,7 @@ final class MarkdownFormatProfile
             'listsWithoutPrecedingBlankline' => true,
         ],
         'commonmark_x' => [
-            'yamlMetadata' => false,
+            'yamlMetadata' => true,
             'titleBlock' => false,
             'rawAttribute' => true,
             'rawHtml' => true,
@@ -167,14 +167,14 @@ final class MarkdownFormatProfile
             'listsWithoutPrecedingBlankline' => true,
         ],
         'gfm' => [
-            'yamlMetadata' => false,
+            'yamlMetadata' => true,
             'titleBlock' => false,
             'rawAttribute' => false,
             'rawHtml' => true,
             'rawTex' => false,
             'rawMarkdown' => true,
             'definitionLists' => false,
-            'footnotes' => false,
+            'footnotes' => true,
             'citations' => false,
             'taskLists' => true,
             'pipeTables' => true,
@@ -497,7 +497,21 @@ final class MarkdownFormatProfile
      */
     public static function yamlMetadataEnabled(array $options, bool $defaultWithoutFormat): bool
     {
-        return self::enabled($options, 'yamlMetadata', $defaultWithoutFormat, 'yaml_metadata_block');
+        if (array_key_exists('yamlMetadata', $options)) {
+            return self::boolFlag($options['yamlMetadata'], $defaultWithoutFormat);
+        }
+
+        if (!array_key_exists('format', $options)) {
+            return $defaultWithoutFormat;
+        }
+
+        $format = $options['format'];
+        $canonical = self::canonicalFormat($format);
+        $default = self::isDeprecatedGithubMarkdownAlias($format)
+            ? false
+            : (self::DEFAULTS[$canonical]['yamlMetadata'] ?? $defaultWithoutFormat);
+
+        return self::extensionFlag($format, 'yaml_metadata_block', $default);
     }
 
     /**
@@ -630,6 +644,15 @@ final class MarkdownFormatProfile
         $default = self::DEFAULTS[$canonical][$key] ?? $defaultWithoutFormat;
 
         return self::extensionFlag($format, $extension, $default);
+    }
+
+    private static function isDeprecatedGithubMarkdownAlias(mixed $format): bool
+    {
+        if (!is_scalar($format)) {
+            return false;
+        }
+
+        return preg_match('/^markdown[_-]github(?:[+-]|$)/', strtolower(trim((string) $format))) === 1;
     }
 
     private static function boolFlag(mixed $value, bool $default): bool
