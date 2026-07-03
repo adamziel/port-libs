@@ -13372,7 +13372,7 @@ final class MarkdownReader
                 return $cluster;
             }
 
-            if (preg_match('/\G\[@([A-Za-z0-9_:.#\/$%&+?<>~|-]+)\]/u', $text, $m, 0, $offset) !== 1) {
+            if (preg_match('/\G\[@([\p{L}\p{N}\p{M}_:.#\/$%&+?<>~|-]+)\]/u', $text, $m, 0, $offset) !== 1) {
                 return null;
             }
 
@@ -13391,7 +13391,7 @@ final class MarkdownReader
         }
 
         $previous = $offset === 0 ? '' : $text[$offset - 1];
-        if ($previous !== '' && preg_match('/[A-Za-z0-9_@.\/-]/', $previous) === 1) {
+        if ($previous !== '' && preg_match('/[\p{L}\p{N}\p{M}_@.\/-]/u', $previous) === 1) {
             return null;
         }
 
@@ -13422,7 +13422,7 @@ final class MarkdownReader
             ];
         }
 
-        if (preg_match('/\G@([A-Za-z0-9_:.#\/$%&+?<>~|-]*[A-Za-z0-9_#\/$%&+?<>~|-])/u', $text, $m, 0, $offset) !== 1) {
+        if (preg_match('/\G@([\p{L}\p{N}\p{M}_:.#\/$%&+?<>~|-]*[\p{L}\p{N}\p{M}_#\/$%&+?<>~|-])/u', $text, $m, 0, $offset) !== 1) {
             return null;
         }
 
@@ -13568,7 +13568,7 @@ final class MarkdownReader
             return null;
         }
 
-        if (preg_match('/\G@([A-Za-z0-9_:.#\/$%&+?<>~|-]*[A-Za-z0-9_#\/$%&+?<>~|-])/u', $content, $match, 0, $at) !== 1) {
+        if (preg_match('/\G@([\p{L}\p{N}\p{M}_:.#\/$%&+?<>~|-]*[\p{L}\p{N}\p{M}_#\/$%&+?<>~|-])/u', $content, $match, 0, $at) !== 1) {
             return null;
         }
 
@@ -13611,7 +13611,7 @@ final class MarkdownReader
             }
 
             $previous = $start === 0 ? '' : $content[$start - 1];
-            if ($previous !== '' && preg_match('/[A-Za-z0-9_@.\/-]/', $previous) === 1) {
+            if ($previous !== '' && preg_match('/[\p{L}\p{N}\p{M}_@.\/-]/u', $previous) === 1) {
                 continue;
             }
 
