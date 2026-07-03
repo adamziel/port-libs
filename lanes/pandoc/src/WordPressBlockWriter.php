@@ -4183,6 +4183,9 @@ final class WordPressBlockWriter
         $attributes = $node->attr('attributes', []);
         if (is_array($attributes)) {
             foreach ($attributes as $name => $value) {
+                if (isset($htmlAttributes['data-' . $name])) {
+                    continue;
+                }
                 if (!isset($htmlAttributes[$name])) {
                     $htmlAttributes[$name] = $value;
                 }
