@@ -24,6 +24,8 @@ $requireCurrentPackageFeatureCoverage = false;
 $requireCurrentPackageFeatureSignature = false;
 $requireCurrentNativeAstSignature = false;
 $requireRunnerPlan = false;
+$requireRunnerResultArtifact = false;
+$runnerResultArtifact = null;
 $json = false;
 $summary = false;
 
@@ -58,6 +60,10 @@ Gates:
   --require-current-native-ast-signature
                                    Require the checked-in current EPUB fixture identity plus exact normalized native AST signature.
   --require-runner-plan            Require the non-executed upstream pandoc EPUB-to-native runner plan.
+  --runner-result-artifact=PATH    Validate a captured upstream EPUB-to-native runner result JSON artifact
+                                   and its transcript file identities.
+  --require-runner-result-artifact
+                                   Exit 1 unless the supplied runner result artifact is valid.
 
 TXT);
         exit(0);
@@ -130,6 +136,16 @@ TXT);
         continue;
     }
 
+    if ($argument === '--require-runner-result-artifact') {
+        $requireRunnerResultArtifact = true;
+        continue;
+    }
+
+    if (str_starts_with($argument, '--runner-result-artifact=')) {
+        $runnerResultArtifact = substr($argument, strlen('--runner-result-artifact='));
+        continue;
+    }
+
     fwrite(STDERR, "Unknown argument: {$argument}\n");
     exit(2);
 }
@@ -147,6 +163,8 @@ if (
             || $requireCurrentPackageFeatureCoverage
             || $requireCurrentPackageFeatureSignature
             || $requireCurrentNativeAstSignature
+            || $requireRunnerResultArtifact
+            || $runnerResultArtifact !== null
         )
         && !$epubDirectoryWasExplicit
     )
@@ -159,7 +177,11 @@ if ($epubDirectory !== '' && !str_starts_with($epubDirectory, DIRECTORY_SEPARATO
 }
 
 $harness = new EpubNativeAstPackageComparisonHarness();
-$report = $harness->run($epubDirectory, ['limit' => $limit]);
+$report = $harness->run($epubDirectory, [
+    'limit' => $limit,
+    'repoRoot' => $repoRoot,
+    'runnerResultArtifact' => $runnerResultArtifact,
+]);
 
 if ($summary) {
     $report = array_intersect_key($report, array_flip([
@@ -260,6 +282,17 @@ if (
     fwrite(
         STDERR,
         "pandoc-epub-native-ast-package: upstream EPUB-to-native runner command-plan evidence is invalid\n"
+    );
+    exit(1);
+}
+
+if (
+    $requireRunnerResultArtifact
+    && !EpubNativeAstPackageComparisonHarness::hasRunnerResultArtifactEvidence($report)
+) {
+    fwrite(
+        STDERR,
+        "pandoc-epub-native-ast-package: upstream EPUB-to-native runner result artifact evidence is invalid\n"
     );
     exit(1);
 }

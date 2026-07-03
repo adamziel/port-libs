@@ -37,6 +37,33 @@ $removeTree = static function (string $path) use (&$removeTree): void {
     @rmdir($path);
 };
 
+$writeFile = static function (string $root, string $relativePath, string $contents): void {
+    $path = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
+    $directory = dirname($path);
+    if (!is_dir($directory) && !mkdir($directory, 0777, true) && !is_dir($directory)) {
+        throw new RuntimeException("Unable to create fixture directory {$directory}");
+    }
+    if (file_put_contents($path, $contents) === false) {
+        throw new RuntimeException("Unable to write fixture file {$path}");
+    }
+};
+
+$writeRunnerTranscripts = static function (string $root, array $paths) use ($writeFile): array {
+    $records = [];
+    foreach ($paths as $path) {
+        $contents = "native/package runner transcript for {$path}\n";
+        $writeFile($root, $path, $contents);
+        $absolutePath = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $path);
+        $records[] = [
+            'path' => $path,
+            'sha256' => hash_file('sha256', $absolutePath),
+            'bytes' => filesize($absolutePath),
+        ];
+    }
+
+    return $records;
+};
+
 $writeEpub = static function (string $path, string $title, string $body): void {
     $escapedTitle = htmlspecialchars($title, ENT_XML1 | ENT_COMPAT, 'UTF-8');
     $escapedBody = htmlspecialchars($body, ENT_XML1 | ENT_COMPAT, 'UTF-8');
@@ -439,6 +466,125 @@ return [
             $t->same(['generated-navigation'], $decoded['packageFeatureCoverage']['fixturesWithCreators']);
             $t->same(1, $decoded['packageFeatureCoverage']['totals']['metadataCreators']);
             $t->same(0, $decoded['packageFeatureCoverage']['totals']['mediaOverlays']);
+        } finally {
+            $removeTree($root);
+        }
+    },
+
+    'validates supplied epub native package runner result artifact' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile, $writeRunnerTranscripts, $fixtureRoot): void {
+        $root = $makeTempDir();
+        try {
+            $harness = new EpubNativeAstPackageComparisonHarness();
+            $baseReport = $harness->run($fixtureRoot());
+            $runnerPlan = $baseReport['runnerEvidence'];
+            $transcripts = $writeRunnerTranscripts($root, $runnerPlan['requiredTranscripts']);
+            $generatedNativeManifest = [];
+            foreach ($baseReport['fixtureIdentity']['files'] as $file) {
+                if (!is_array($file) || !is_string($file['path'] ?? null) || !str_ends_with($file['path'], '.native')) {
+                    continue;
+                }
+                $generatedNativeManifest[] = [
+                    'fixture' => basename($file['path'], '.native'),
+                    'path' => 'test/epub/' . $file['path'],
+                    'sha256' => $file['sha256'],
+                    'bytes' => $file['bytes'],
+                ];
+            }
+            usort(
+                $generatedNativeManifest,
+                static fn (array $left, array $right): int => $left['fixture'] <=> $right['fixture']
+            );
+
+            $payload = [
+                'schemaVersion' => 2,
+                'runner' => 'Cabal-built Pandoc EPUB to native executable',
+                'runnerExecuted' => true,
+                'upstream' => [
+                    'name' => 'jgm/pandoc',
+                    'commit' => EpubNativeAstPackageComparisonHarness::EXPECTED_UPSTREAM_COMMIT,
+                ],
+                'target' => $runnerPlan['target'],
+                'command' => $runnerPlan['futureCommands'][2],
+                'exitCode' => 0,
+                'fixtureCount' => count($runnerPlan['target']['fixtureBasenames']),
+                'generatedNativeCount' => count($generatedNativeManifest),
+                'failedCount' => 0,
+                'fixtureBasenames' => $runnerPlan['target']['fixtureBasenames'],
+                'generatedNativeManifest' => $generatedNativeManifest,
+                'transcriptPaths' => $runnerPlan['requiredTranscripts'],
+                'transcripts' => $transcripts,
+            ];
+            $validPayload = $payload;
+            $writeFile($root, 'result.json', json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+
+            $report = $harness->run($fixtureRoot(), [
+                'repoRoot' => $root,
+                'runnerResultArtifact' => 'result.json',
+            ]);
+            $text = $harness->formatReport($report);
+
+            $t->same('completed', $report['runnerEvidence']['status']);
+            $t->same(true, $report['runnerEvidence']['executed']);
+            $t->same('runner-result-artifact-validated', $report['runnerEvidence']['commandPlanStatus']);
+            $t->same('valid-upstream-epub-native-package-runner-result-artifact', $report['runnerEvidence']['validation']['status']);
+            $t->same([], $report['runnerEvidence']['validation']['issues']);
+            $t->same('upstream-epub-native-package-runner-result-artifact', $report['runnerEvidence']['resultArtifact']['kind']);
+            $t->same(true, $report['runnerEvidence']['resultArtifact']['present']);
+            $t->same('result.json', $report['runnerEvidence']['resultArtifact']['path']);
+            $t->same($runnerPlan['target'], $report['runnerEvidence']['target']);
+            $t->same($runnerPlan['futureCommands'][2], $report['runnerEvidence']['command']);
+            $t->same($runnerPlan['target']['fixtureBasenames'], $report['runnerEvidence']['observed']['fixtureBasenames']);
+            $t->same($generatedNativeManifest, $report['runnerEvidence']['expected']['generatedNativeManifest']);
+            $t->same($generatedNativeManifest, $report['runnerEvidence']['observed']['generatedNativeManifest']);
+            $t->same($transcripts, $report['runnerEvidence']['expected']['transcripts']);
+            $t->same($transcripts, $report['runnerEvidence']['observed']['transcripts']);
+            $t->same('upstream-epub-native-package-runner-transcript', $report['runnerEvidence']['transcripts'][0]['kind']);
+            $t->same(true, $report['runnerEvidence']['transcripts'][0]['present']);
+            $t->same(true, EpubNativeAstPackageComparisonHarness::hasRunnerResultArtifactEvidence($report));
+            $t->same(false, EpubNativeAstPackageComparisonHarness::hasRunnerNotRunEvidence($report));
+            $t->same(false, EpubNativeAstPackageComparisonHarness::hasRunnerPlanEvidence($report));
+            $t->same('covered-by-supplied-runner-result-artifact', $report['orderedRemainingGaps'][2]['status']);
+            $t->contains('runnerEvidence: status=completed plan=runner-result-artifact-validated executed=true', $text);
+
+            $payload = $validPayload;
+            $payload['generatedNativeManifest'][0]['sha256'] = str_repeat('0', 64);
+            $writeFile($root, 'bad-native-result.json', json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+            $badNativeReport = $harness->run($fixtureRoot(), [
+                'repoRoot' => $root,
+                'runnerResultArtifact' => 'bad-native-result.json',
+            ]);
+
+            $t->same('invalid', $badNativeReport['runnerEvidence']['status']);
+            $t->same('invalid-upstream-epub-native-package-runner-result-artifact', $badNativeReport['runnerEvidence']['validation']['status']);
+            $t->true(in_array('runner-result-generated-native-manifest-mismatch', $badNativeReport['runnerEvidence']['validation']['issues'], true));
+            $t->same(false, EpubNativeAstPackageComparisonHarness::hasRunnerResultArtifactEvidence($badNativeReport));
+
+            $payload = $validPayload;
+            $payload['transcripts'][0]['bytes'] = 0;
+            $writeFile($root, 'bad-transcript-result.json', json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+            $badTranscriptReport = $harness->run($fixtureRoot(), [
+                'repoRoot' => $root,
+                'runnerResultArtifact' => 'bad-transcript-result.json',
+            ]);
+
+            $t->same('invalid', $badTranscriptReport['runnerEvidence']['status']);
+            $t->true(in_array('runner-result-transcript-bytes-mismatch', $badTranscriptReport['runnerEvidence']['validation']['issues'], true));
+            $t->same(false, EpubNativeAstPackageComparisonHarness::hasRunnerResultArtifactEvidence($badTranscriptReport));
+
+            $command = escapeshellarg(PHP_BINARY)
+                . ' '
+                . escapeshellarg(dirname(__DIR__, 3) . '/tools/pandoc-epub-native-ast-package.php')
+                . ' --checked-in-fixtures'
+                . ' --json'
+                . ' summary'
+                . ' --runner-result-artifact=' . escapeshellarg($root . '/missing-result.json')
+                . ' --require-runner-result-artifact'
+                . ' 2>/dev/null';
+            $output = [];
+            $exitCode = 0;
+            exec($command, $output, $exitCode);
+
+            $t->same(1, $exitCode);
         } finally {
             $removeTree($root);
         }

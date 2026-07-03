@@ -32,6 +32,9 @@ final class EpubNativeAstPackageComparisonHarness
         '.port-libs/pandoc-runner/artifacts/epub-native-package/result.json',
         '.port-libs/pandoc-runner/artifacts/epub-native-package/generated-native-manifest.json',
     ];
+    private const RUNNER_RESULT_ARTIFACT_KIND = 'upstream-epub-native-package-runner-result-artifact';
+    private const RUNNER_TRANSCRIPT_KIND = 'upstream-epub-native-package-runner-transcript';
+    private const RUNNER_RESULT_ARTIFACT_SCHEMA_VERSION = 2;
 
     /** @var array<string, true> */
     private const IGNORED_ATTRS = [
@@ -1043,13 +1046,22 @@ final class EpubNativeAstPackageComparisonHarness
     ];
 
     /**
-     * @param array{limit?: int, maxExamples?: int} $options
+     * @param array{limit?: int, maxExamples?: int, repoRoot?: string, runnerResultArtifact?: string} $options
      * @return array<string, mixed>
      */
     public function run(string $epubDirectory, array $options = []): array
     {
         $limit = max(0, (int) ($options['limit'] ?? 0));
         $maxExamples = max(0, (int) ($options['maxExamples'] ?? self::DEFAULT_MAX_EXAMPLES));
+        $repoRoot = is_string($options['repoRoot'] ?? null) && $options['repoRoot'] !== ''
+            ? rtrim((string) $options['repoRoot'], DIRECTORY_SEPARATOR)
+            : (getcwd() ?: '');
+        $runnerResultArtifact = is_string($options['runnerResultArtifact'] ?? null)
+            ? (string) $options['runnerResultArtifact']
+            : null;
+        if ($runnerResultArtifact === '') {
+            throw new \InvalidArgumentException('Runner result artifact must not be empty');
+        }
 
         if (!is_dir($epubDirectory)) {
             return $this->skippedReport($epubDirectory, 'upstream-cache-missing');
@@ -1208,6 +1220,10 @@ final class EpubNativeAstPackageComparisonHarness
             $astParseFailureCount,
             $normalizedAstMismatchCount
         );
+        $runnerEvidence = $runnerResultArtifact === null
+            ? self::runnerNotRunEvidence()
+            : $this->runnerResultArtifactEvidence($runnerResultArtifact, $repoRoot);
+        $runnerResultCovered = self::runnerResultArtifactEvidenceIsValid($runnerEvidence);
 
         return [
             'schemaVersion' => 1,
@@ -1223,7 +1239,7 @@ final class EpubNativeAstPackageComparisonHarness
             'packageFeatureCoverage' => $packageFeatureCoverage,
             'packageFeatureSignature' => self::packageFeatureSignature($fixtureIdentity, $packageFeatureCoverage),
             'currentNativeAstSignature' => $currentNativeAstSignature,
-            'runnerEvidence' => self::runnerNotRunEvidence(),
+            'runnerEvidence' => $runnerEvidence,
             'normalizationPolicy' => self::normalizationPolicy(),
             'totalEpubCount' => $totalEpubCount,
             'comparedEpubCount' => $comparedEpubCount,
@@ -1258,7 +1274,8 @@ final class EpubNativeAstPackageComparisonHarness
                 $comparedPairCount,
                 $astParseFailureCount,
                 $normalizedAstMatchCount,
-                $normalizedAstMismatchCount
+                $normalizedAstMismatchCount,
+                $runnerResultCovered
             ),
         ];
     }
@@ -1283,7 +1300,7 @@ final class EpubNativeAstPackageComparisonHarness
                     'runnerEvidence: status=%s plan=%s executed=%s',
                     (string) ($runner['status'] ?? 'unknown'),
                     (string) ($runner['commandPlanStatus'] ?? 'unknown'),
-                    (($runner['executed'] ?? null) === false) ? 'false' : 'unknown'
+                    self::formatBooleanFlag($runner['executed'] ?? null)
                 );
             }
             $lines = self::appendOrderedRemainingGaps($lines, $report);
@@ -1451,7 +1468,7 @@ final class EpubNativeAstPackageComparisonHarness
                 'runnerEvidence: status=%s plan=%s executed=%s',
                 (string) ($runner['status'] ?? 'unknown'),
                 (string) ($runner['commandPlanStatus'] ?? 'unknown'),
-                (($runner['executed'] ?? null) === false) ? 'false' : 'unknown'
+                self::formatBooleanFlag($runner['executed'] ?? null)
             );
         }
 
@@ -1674,6 +1691,48 @@ final class EpubNativeAstPackageComparisonHarness
     }
 
     /**
+     * @param array<string, mixed> $report
+     */
+    public static function hasRunnerResultArtifactEvidence(array $report): bool
+    {
+        $runner = is_array($report['runnerEvidence'] ?? null) ? $report['runnerEvidence'] : [];
+        $artifact = is_array($runner['resultArtifact'] ?? null) ? $runner['resultArtifact'] : [];
+        $binding = is_array($runner['upstreamBinding'] ?? null) ? $runner['upstreamBinding'] : [];
+        $target = is_array($runner['target'] ?? null) ? $runner['target'] : [];
+        $snapshot = is_array($runner['checkedInSnapshot'] ?? null) ? $runner['checkedInSnapshot'] : [];
+        $transcripts = is_array($runner['transcripts'] ?? null) ? $runner['transcripts'] : [];
+
+        return self::runnerResultArtifactEvidenceIsValid($runner)
+            && ($runner['scope'] ?? null) === 'upstream-haskell-runner'
+            && ($runner['runner'] ?? null) === 'Cabal-built Pandoc EPUB to native executable'
+            && is_array($runner['command'] ?? null)
+            && self::canonicalValue($runner['command'] ?? null) === self::canonicalValue(self::runnerFutureCommands()[2])
+            && ($artifact['kind'] ?? null) === self::RUNNER_RESULT_ARTIFACT_KIND
+            && ($artifact['present'] ?? null) === true
+            && is_string($artifact['sha256'] ?? null)
+            && is_int($artifact['bytes'] ?? null)
+            && ($binding['name'] ?? null) === 'jgm/pandoc'
+            && ($binding['expectedCommit'] ?? null) === self::EXPECTED_UPSTREAM_COMMIT
+            && ($binding['observedCommit'] ?? null) === self::EXPECTED_UPSTREAM_COMMIT
+            && ($binding['executableTarget'] ?? null) === self::RUNNER_CABAL_TARGET
+            && ($binding['fixtureDirectory'] ?? null) === self::RUNNER_FIXTURE_DIRECTORY
+            && ($target['cabalTarget'] ?? null) === self::RUNNER_CABAL_TARGET
+            && ($target['inputFormat'] ?? null) === 'epub'
+            && ($target['outputFormat'] ?? null) === self::RUNNER_OUTPUT_FORMAT
+            && ($target['fixtureDirectory'] ?? null) === self::RUNNER_FIXTURE_DIRECTORY
+            && ($target['fixtureBasenames'] ?? null) === self::expectedCheckedInCurrentPairNames()
+            && ($snapshot['fixtureIdentityKind'] ?? null) === 'static-checked-in-current-epub-fixture-identity'
+            && ($snapshot['expectedFileCount'] ?? null) === count(self::CHECKED_IN_CURRENT_FIXTURE_IDENTITIES)
+            && ($snapshot['expectedPairCount'] ?? null) === count(self::expectedCheckedInCurrentPairNames())
+            && ($snapshot['packageFeatureSignature'] ?? null) === self::CHECKED_IN_CURRENT_PACKAGE_FEATURE_SIGNATURE_SHA256
+            && ($snapshot['nativeAstSignature'] ?? null) === self::CHECKED_IN_CURRENT_NATIVE_AST_SIGNATURE_SHA256
+            && ($runner['futureCommands'] ?? null) === self::runnerFutureCommands()
+            && ($runner['requiredTranscripts'] ?? null) === self::RUNNER_REQUIRED_TRANSCRIPTS
+            && ($runner['requiredArtifacts'] ?? null) === self::RUNNER_REQUIRED_ARTIFACTS
+            && count($transcripts) === count(self::RUNNER_REQUIRED_TRANSCRIPTS);
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function skippedReport(string $epubDirectory, string $reason): array
@@ -1719,7 +1778,7 @@ final class EpubNativeAstPackageComparisonHarness
             'astParseFailures' => [],
             'mismatchComparisons' => [],
             'mismatchCategories' => [],
-            'orderedRemainingGaps' => self::orderedRemainingGaps(false, 0, 0, 0, 0, 0, 0, 0),
+            'orderedRemainingGaps' => self::orderedRemainingGaps(false, 0, 0, 0, 0, 0, 0, 0, false),
         ];
     }
 
@@ -1752,6 +1811,448 @@ final class EpubNativeAstPackageComparisonHarness
     /**
      * @return array<string, mixed>
      */
+    private function runnerResultArtifactEvidence(string $runnerResultArtifact, string $repoRoot): array
+    {
+        $path = self::absoluteRunnerResultArtifact($runnerResultArtifact, $repoRoot);
+        $artifact = self::runnerResultArtifactFileEvidence($path, $repoRoot);
+        $transcripts = self::runnerTranscriptFileEvidenceList($repoRoot);
+        $issues = [];
+        $payload = [];
+
+        if (($artifact['present'] ?? false) !== true) {
+            $issues[] = 'missing-runner-result-artifact';
+        } else {
+            try {
+                $decoded = json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
+                if (!is_array($decoded)) {
+                    $issues[] = 'invalid-runner-result-artifact-json';
+                } else {
+                    $payload = $decoded;
+                }
+            } catch (\JsonException) {
+                $issues[] = 'invalid-runner-result-artifact-json';
+            }
+        }
+
+        $upstream = is_array($payload['upstream'] ?? null) ? $payload['upstream'] : [];
+        $target = is_array($payload['target'] ?? null) ? $payload['target'] : [];
+        $command = is_array($payload['command'] ?? null) ? $payload['command'] : null;
+        $expectedCommand = self::runnerFutureCommands()[2];
+        $expectedTarget = self::runnerTarget();
+        $expectedFixtureBasenames = self::expectedCheckedInCurrentPairNames();
+        $expectedGeneratedNativeManifest = self::expectedGeneratedNativeManifest();
+        $observedFixtureBasenames = self::stringList($payload['fixtureBasenames'] ?? ($payload['fixtures'] ?? []));
+        $observedGeneratedNativeManifest = self::runnerGeneratedNativeManifestRecords($payload['generatedNativeManifest'] ?? []);
+        $observedTranscriptPaths = self::orderedStringList($payload['transcriptPaths'] ?? []);
+        $observedTranscriptRecords = self::runnerTranscriptRecords($payload['transcripts'] ?? []);
+        if ($observedTranscriptPaths === [] && $observedTranscriptRecords !== []) {
+            $observedTranscriptPaths = self::runnerTranscriptRecordPaths($observedTranscriptRecords);
+        }
+        $runnerExecuted = ($payload['runnerExecuted'] ?? $payload['executed'] ?? null) === true;
+        $exitCode = is_int($payload['exitCode'] ?? null) ? (int) $payload['exitCode'] : null;
+        $fixtureCount = is_int($payload['fixtureCount'] ?? null) ? (int) $payload['fixtureCount'] : null;
+        $generatedNativeCount = is_int($payload['generatedNativeCount'] ?? null) ? (int) $payload['generatedNativeCount'] : null;
+        $failedCount = is_int($payload['failedCount'] ?? null) ? (int) $payload['failedCount'] : null;
+
+        if ($payload !== []) {
+            if (($payload['schemaVersion'] ?? null) !== self::RUNNER_RESULT_ARTIFACT_SCHEMA_VERSION) {
+                $issues[] = 'runner-result-schema-version-mismatch';
+            }
+            if (($payload['runner'] ?? null) !== 'Cabal-built Pandoc EPUB to native executable') {
+                $issues[] = 'runner-result-runner-name-mismatch';
+            }
+            if (!$runnerExecuted) {
+                $issues[] = 'runner-result-executed-flag-missing-or-false';
+            }
+            if (($upstream['name'] ?? null) !== 'jgm/pandoc' || ($upstream['commit'] ?? null) !== self::EXPECTED_UPSTREAM_COMMIT) {
+                $issues[] = 'runner-result-upstream-commit-mismatch';
+            }
+            if (self::canonicalValue($target) !== self::canonicalValue($expectedTarget)) {
+                $issues[] = 'runner-result-target-mismatch';
+            }
+            if (self::canonicalValue($command) !== self::canonicalValue($expectedCommand)) {
+                $issues[] = 'runner-result-command-mismatch';
+            }
+            if ($exitCode !== 0) {
+                $issues[] = 'runner-result-exit-code-nonzero';
+            }
+            if (
+                $fixtureCount !== count($expectedFixtureBasenames)
+                || $generatedNativeCount !== count($expectedGeneratedNativeManifest)
+                || $failedCount !== 0
+            ) {
+                $issues[] = 'runner-result-counts-mismatch';
+            }
+            if ($observedFixtureBasenames !== $expectedFixtureBasenames) {
+                $issues[] = 'runner-result-fixture-basenames-mismatch';
+            }
+            if ($observedGeneratedNativeManifest !== $expectedGeneratedNativeManifest) {
+                $issues[] = 'runner-result-generated-native-manifest-mismatch';
+            }
+            if ($observedTranscriptPaths !== self::RUNNER_REQUIRED_TRANSCRIPTS) {
+                $issues[] = 'runner-result-transcript-paths-mismatch';
+            }
+            foreach (self::runnerTranscriptValidationIssues($observedTranscriptRecords, $transcripts) as $issue) {
+                $issues[] = $issue;
+            }
+        }
+
+        $issues = array_values(array_unique($issues));
+
+        return [
+            'runner' => 'Cabal-built Pandoc EPUB to native executable',
+            'scope' => 'upstream-haskell-runner',
+            'status' => $issues === [] ? 'completed' : 'invalid',
+            'executed' => $runnerExecuted,
+            'command' => $command,
+            'resultArtifact' => $artifact,
+            'commandPlanStatus' => $issues === [] ? 'runner-result-artifact-validated' : 'runner-result-artifact-invalid',
+            'upstreamBinding' => [
+                'name' => 'jgm/pandoc',
+                'expectedCommit' => self::EXPECTED_UPSTREAM_COMMIT,
+                'observedCommit' => is_string($upstream['commit'] ?? null) ? $upstream['commit'] : null,
+                'executableTarget' => self::RUNNER_CABAL_TARGET,
+                'fixtureDirectory' => self::RUNNER_FIXTURE_DIRECTORY,
+            ],
+            'target' => [
+                'cabalTarget' => is_string($target['cabalTarget'] ?? null) ? $target['cabalTarget'] : null,
+                'inputFormat' => is_string($target['inputFormat'] ?? null) ? $target['inputFormat'] : null,
+                'outputFormat' => is_string($target['outputFormat'] ?? null) ? $target['outputFormat'] : null,
+                'fixtureDirectory' => is_string($target['fixtureDirectory'] ?? null) ? $target['fixtureDirectory'] : null,
+                'fixtureBasenames' => self::stringList($target['fixtureBasenames'] ?? []),
+            ],
+            'checkedInSnapshot' => self::runnerCheckedInSnapshot(),
+            'expected' => [
+                'schemaVersion' => self::RUNNER_RESULT_ARTIFACT_SCHEMA_VERSION,
+                'runner' => 'Cabal-built Pandoc EPUB to native executable',
+                'fixtureCount' => count($expectedFixtureBasenames),
+                'generatedNativeCount' => count($expectedGeneratedNativeManifest),
+                'failedCount' => 0,
+                'fixtureBasenames' => $expectedFixtureBasenames,
+                'generatedNativeManifest' => $expectedGeneratedNativeManifest,
+                'transcriptPaths' => self::RUNNER_REQUIRED_TRANSCRIPTS,
+                'transcripts' => self::runnerTranscriptRecordsFromEvidence($transcripts),
+                'command' => $expectedCommand,
+            ],
+            'observed' => [
+                'schemaVersion' => $payload['schemaVersion'] ?? null,
+                'runner' => $payload['runner'] ?? null,
+                'exitCode' => $exitCode,
+                'fixtureCount' => $fixtureCount,
+                'generatedNativeCount' => $generatedNativeCount,
+                'failedCount' => $failedCount,
+                'fixtureBasenames' => $observedFixtureBasenames,
+                'generatedNativeManifest' => $observedGeneratedNativeManifest,
+                'transcriptPaths' => $observedTranscriptPaths,
+                'transcripts' => $observedTranscriptRecords,
+            ],
+            'futureCommands' => self::runnerFutureCommands(),
+            'requiredTranscripts' => self::RUNNER_REQUIRED_TRANSCRIPTS,
+            'requiredArtifacts' => self::RUNNER_REQUIRED_ARTIFACTS,
+            'transcripts' => $transcripts,
+            'validation' => [
+                'status' => $issues === []
+                    ? 'valid-upstream-epub-native-package-runner-result-artifact'
+                    : 'invalid-upstream-epub-native-package-runner-result-artifact',
+                'issues' => $issues,
+            ],
+            'claim' => $issues === []
+                ? 'A supplied upstream EPUB-to-native runner result artifact matches the pinned executable runner evidence contract.'
+                : 'The supplied upstream EPUB-to-native runner result artifact did not satisfy the pinned executable runner evidence contract.',
+        ];
+    }
+
+    /**
+     * @return array{kind: string, path: string, present: bool, sha256: ?string, bytes: ?int}
+     */
+    private static function runnerResultArtifactFileEvidence(string $path, string $repoRoot): array
+    {
+        $present = is_file($path);
+        $sha256 = $present ? hash_file('sha256', $path) : null;
+        $bytes = $present ? filesize($path) : null;
+
+        return [
+            'kind' => self::RUNNER_RESULT_ARTIFACT_KIND,
+            'path' => self::displayRunnerPath($path, $repoRoot),
+            'present' => $present,
+            'sha256' => is_string($sha256) ? $sha256 : null,
+            'bytes' => is_int($bytes) ? $bytes : null,
+        ];
+    }
+
+    /**
+     * @return list<array{kind: string, path: string, present: bool, sha256: ?string, bytes: ?int}>
+     */
+    private static function runnerTranscriptFileEvidenceList(string $repoRoot): array
+    {
+        $files = [];
+        foreach (self::RUNNER_REQUIRED_TRANSCRIPTS as $path) {
+            $files[] = self::runnerTranscriptFileEvidence($repoRoot, $path);
+        }
+
+        return $files;
+    }
+
+    /**
+     * @return array{kind: string, path: string, present: bool, sha256: ?string, bytes: ?int}
+     */
+    private static function runnerTranscriptFileEvidence(string $repoRoot, string $relativePath): array
+    {
+        $path = self::absoluteRunnerTranscriptPath($repoRoot, $relativePath);
+        $present = is_file($path);
+        $sha256 = $present ? hash_file('sha256', $path) : null;
+        $bytes = $present ? filesize($path) : null;
+
+        return [
+            'kind' => self::RUNNER_TRANSCRIPT_KIND,
+            'path' => self::displayRunnerPath($path, $repoRoot),
+            'present' => $present,
+            'sha256' => is_string($sha256) ? $sha256 : null,
+            'bytes' => is_int($bytes) ? $bytes : null,
+        ];
+    }
+
+    private static function absoluteRunnerResultArtifact(string $path, string $repoRoot): string
+    {
+        if (str_starts_with($path, DIRECTORY_SEPARATOR)) {
+            return $path;
+        }
+        if ($repoRoot === '') {
+            return $path;
+        }
+
+        return $repoRoot . DIRECTORY_SEPARATOR . trim($path, DIRECTORY_SEPARATOR);
+    }
+
+    private static function absoluteRunnerTranscriptPath(string $repoRoot, string $path): string
+    {
+        if (str_starts_with($path, DIRECTORY_SEPARATOR)) {
+            return $path;
+        }
+        if ($repoRoot === '') {
+            return str_replace('/', DIRECTORY_SEPARATOR, $path);
+        }
+
+        return $repoRoot . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $path);
+    }
+
+    private static function displayRunnerPath(string $path, string $repoRoot): string
+    {
+        if ($repoRoot !== '' && str_starts_with($path, $repoRoot . DIRECTORY_SEPARATOR)) {
+            return substr($path, strlen($repoRoot) + 1);
+        }
+
+        return $path;
+    }
+
+    /**
+     * @return list<array{fixture: string, path: string, sha256: ?string, bytes: ?int}>
+     */
+    private static function runnerGeneratedNativeManifestRecords(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $records = [];
+        foreach ($value as $key => $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            $fixture = is_string($item['fixture'] ?? null)
+                ? $item['fixture']
+                : (is_string($key) ? $key : '');
+            $records[] = [
+                'fixture' => $fixture,
+                'path' => is_string($item['path'] ?? null) ? $item['path'] : '',
+                'sha256' => is_string($item['sha256'] ?? null) ? $item['sha256'] : null,
+                'bytes' => is_int($item['bytes'] ?? null) ? $item['bytes'] : null,
+            ];
+        }
+        usort(
+            $records,
+            static fn (array $left, array $right): int => ($left['fixture'] <=> $right['fixture'])
+                ?: ($left['path'] <=> $right['path'])
+        );
+
+        return $records;
+    }
+
+    /**
+     * @return list<array{path: string, sha256: ?string, bytes: ?int}>
+     */
+    private static function runnerTranscriptRecords(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $records = [];
+        foreach ($value as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $records[] = [
+                'path' => is_string($item['path'] ?? null) ? $item['path'] : '',
+                'sha256' => is_string($item['sha256'] ?? null) ? $item['sha256'] : null,
+                'bytes' => is_int($item['bytes'] ?? null) ? $item['bytes'] : null,
+            ];
+        }
+
+        return $records;
+    }
+
+    /**
+     * @param list<array{path: string, sha256: ?string, bytes: ?int}> $records
+     * @return list<string>
+     */
+    private static function runnerTranscriptRecordPaths(array $records): array
+    {
+        return array_map(
+            static fn (array $record): string => $record['path'],
+            $records
+        );
+    }
+
+    /**
+     * @param list<array{kind: string, path: string, present: bool, sha256: ?string, bytes: ?int}> $files
+     * @return list<array{path: string, sha256: ?string, bytes: ?int}>
+     */
+    private static function runnerTranscriptRecordsFromEvidence(array $files): array
+    {
+        $records = [];
+        foreach ($files as $file) {
+            $records[] = [
+                'path' => $file['path'],
+                'sha256' => $file['sha256'],
+                'bytes' => $file['bytes'],
+            ];
+        }
+
+        return $records;
+    }
+
+    /**
+     * @param list<array{path: string, sha256: ?string, bytes: ?int}> $observedRecords
+     * @param list<array{kind: string, path: string, present: bool, sha256: ?string, bytes: ?int}> $files
+     * @return list<string>
+     */
+    private static function runnerTranscriptValidationIssues(array $observedRecords, array $files): array
+    {
+        $issues = [];
+        if ($observedRecords === []) {
+            $issues[] = 'runner-result-transcript-records-missing';
+        }
+        if (self::runnerTranscriptRecordPaths($observedRecords) !== self::RUNNER_REQUIRED_TRANSCRIPTS) {
+            $issues[] = 'runner-result-transcript-record-paths-mismatch';
+        }
+
+        $recordsByPath = [];
+        foreach ($observedRecords as $record) {
+            if (isset($recordsByPath[$record['path']])) {
+                $issues[] = 'runner-result-transcript-record-paths-not-unique';
+                continue;
+            }
+            $recordsByPath[$record['path']] = $record;
+        }
+
+        $filesByPath = [];
+        foreach ($files as $file) {
+            $filesByPath[$file['path']] = $file;
+        }
+
+        foreach (self::RUNNER_REQUIRED_TRANSCRIPTS as $path) {
+            $file = $filesByPath[$path] ?? null;
+            if (!is_array($file) || ($file['present'] ?? null) !== true) {
+                $issues[] = 'runner-result-transcript-file-missing';
+                continue;
+            }
+
+            $record = $recordsByPath[$path] ?? null;
+            if (!is_array($record)) {
+                $issues[] = 'runner-result-transcript-record-missing';
+                continue;
+            }
+            if (($record['sha256'] ?? null) !== $file['sha256']) {
+                $issues[] = 'runner-result-transcript-sha256-mismatch';
+            }
+            if (($record['bytes'] ?? null) !== $file['bytes']) {
+                $issues[] = 'runner-result-transcript-bytes-mismatch';
+            }
+        }
+
+        return array_values(array_unique($issues));
+    }
+
+    /**
+     * @return list<array{fixture: string, path: string, sha256: string, bytes: int}>
+     */
+    private static function expectedGeneratedNativeManifest(): array
+    {
+        $records = [];
+        foreach (self::expectedCheckedInCurrentPairNames() as $fixture) {
+            $path = $fixture . '.native';
+            $identity = self::CHECKED_IN_CURRENT_FIXTURE_IDENTITIES[$path] ?? null;
+            if (!is_array($identity)) {
+                continue;
+            }
+            $records[] = [
+                'fixture' => $fixture,
+                'path' => self::RUNNER_FIXTURE_DIRECTORY . '/' . $path,
+                'sha256' => $identity['sha256'],
+                'bytes' => $identity['bytes'],
+            ];
+        }
+
+        return $records;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function runnerTarget(): array
+    {
+        return [
+            'cabalTarget' => self::RUNNER_CABAL_TARGET,
+            'inputFormat' => 'epub',
+            'outputFormat' => self::RUNNER_OUTPUT_FORMAT,
+            'fixtureDirectory' => self::RUNNER_FIXTURE_DIRECTORY,
+            'fixtureBasenames' => self::expectedCheckedInCurrentPairNames(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function runnerCheckedInSnapshot(): array
+    {
+        return [
+            'fixtureIdentityKind' => 'static-checked-in-current-epub-fixture-identity',
+            'expectedFileCount' => count(self::CHECKED_IN_CURRENT_FIXTURE_IDENTITIES),
+            'expectedPairCount' => count(self::expectedCheckedInCurrentPairNames()),
+            'packageFeatureSignature' => self::CHECKED_IN_CURRENT_PACKAGE_FEATURE_SIGNATURE_SHA256,
+            'nativeAstSignature' => self::CHECKED_IN_CURRENT_NATIVE_AST_SIGNATURE_SHA256,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $runner
+     */
+    private static function runnerResultArtifactEvidenceIsValid(array $runner): bool
+    {
+        $validation = is_array($runner['validation'] ?? null) ? $runner['validation'] : [];
+
+        return ($runner['status'] ?? null) === 'completed'
+            && ($runner['executed'] ?? null) === true
+            && ($runner['commandPlanStatus'] ?? null) === 'runner-result-artifact-validated'
+            && ($validation['status'] ?? null) === 'valid-upstream-epub-native-package-runner-result-artifact'
+            && ($validation['issues'] ?? null) === [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     private static function runnerNotRunEvidence(): array
     {
         return [
@@ -1768,20 +2269,8 @@ final class EpubNativeAstPackageComparisonHarness
                 'executableTarget' => self::RUNNER_CABAL_TARGET,
                 'fixtureDirectory' => self::RUNNER_FIXTURE_DIRECTORY,
             ],
-            'target' => [
-                'cabalTarget' => self::RUNNER_CABAL_TARGET,
-                'inputFormat' => 'epub',
-                'outputFormat' => self::RUNNER_OUTPUT_FORMAT,
-                'fixtureDirectory' => self::RUNNER_FIXTURE_DIRECTORY,
-                'fixtureBasenames' => self::expectedCheckedInCurrentPairNames(),
-            ],
-            'checkedInSnapshot' => [
-                'fixtureIdentityKind' => 'static-checked-in-current-epub-fixture-identity',
-                'expectedFileCount' => count(self::CHECKED_IN_CURRENT_FIXTURE_IDENTITIES),
-                'expectedPairCount' => count(self::expectedCheckedInCurrentPairNames()),
-                'packageFeatureSignature' => self::CHECKED_IN_CURRENT_PACKAGE_FEATURE_SIGNATURE_SHA256,
-                'nativeAstSignature' => self::CHECKED_IN_CURRENT_NATIVE_AST_SIGNATURE_SHA256,
-            ],
+            'target' => self::runnerTarget(),
+            'checkedInSnapshot' => self::runnerCheckedInSnapshot(),
             'blockers' => [
                 'no committed upstream pandoc executable transcript or generated native manifest is present',
                 'this PHP evidence gate intentionally does not invoke Cabal or run the upstream Pandoc executable',
@@ -2789,6 +3278,25 @@ final class EpubNativeAstPackageComparisonHarness
     }
 
     /**
+     * @return list<string>
+     */
+    private static function orderedStringList(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $items = [];
+        foreach ($value as $item) {
+            if (is_string($item) && $item !== '') {
+                $items[] = $item;
+            }
+        }
+
+        return $items;
+    }
+
+    /**
      * @return array<string, int>
      */
     private static function intCountMap(mixed $value): array
@@ -3277,7 +3785,8 @@ final class EpubNativeAstPackageComparisonHarness
         int $comparedPairCount,
         int $astParseFailureCount,
         int $astMatchCount,
-        int $astMismatchCount
+        int $astMismatchCount,
+        bool $runnerResultCovered = false
     ): array {
         if (!$directoryPresent) {
             $packageEvidence = 'EPUB directory absent; package comparison did not run';
@@ -3315,8 +3824,10 @@ final class EpubNativeAstPackageComparisonHarness
             [
                 'rank' => 3,
                 'id' => 'upstream-haskell-epub-reader-runner-results',
-                'status' => 'open',
-                'currentEvidence' => 'Structured planned-not-run Cabal exe:pandoc command evidence is present; this harness does not run the upstream Haskell process itself.',
+                'status' => $runnerResultCovered ? 'covered-by-supplied-runner-result-artifact' : 'open',
+                'currentEvidence' => $runnerResultCovered
+                    ? 'Supplied Cabal exe:pandoc EPUB-to-native runner result artifact validated against the pinned fixture and transcript contract.'
+                    : 'Structured planned-not-run Cabal exe:pandoc command evidence is present; this harness does not run the upstream Haskell process itself.',
                 'evidenceRequired' => 'Record reproducible upstream Tests.Readers.EPUB runner results when a Haskell runner is available.',
             ],
         ];
@@ -3359,6 +3870,18 @@ final class EpubNativeAstPackageComparisonHarness
     private static function formatPercent(mixed $percent): string
     {
         return is_int($percent) || is_float($percent) ? number_format((float) $percent, 2) . '%' : 'n/a';
+    }
+
+    private static function formatBooleanFlag(mixed $value): string
+    {
+        if ($value === true) {
+            return 'true';
+        }
+        if ($value === false) {
+            return 'false';
+        }
+
+        return 'unknown';
     }
 
     private static function shortJson(mixed $value): string
