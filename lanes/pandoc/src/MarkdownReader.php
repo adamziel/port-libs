@@ -12968,8 +12968,18 @@ final class MarkdownReader
                     continue;
                 }
 
+                $lineBreakMode = $this->lineBreakMode();
+                if ($lineBreakMode === 'ignore') {
+                    $offset++;
+                    continue;
+                }
+                if ($lineBreakMode === 'east_asian' && $this->shouldIgnoreEastAsianLineBreak($buffer, $text, $offset)) {
+                    $offset++;
+                    continue;
+                }
+
                 $this->flushText($buffer, $nodes);
-                $nodes[] = new AstNode('softbreak');
+                $nodes[] = new AstNode($lineBreakMode === 'hard' ? 'linebreak' : 'softbreak');
                 $offset++;
                 continue;
             }
@@ -13026,7 +13036,9 @@ final class MarkdownReader
                 }
             }
 
-            $inlineNote = $this->resolveInlineNotes ? $this->tryParseInlineNote($text, $offset) : null;
+            $inlineNote = $this->resolveInlineNotes && $this->inlineNoteExtensionEnabled()
+                ? $this->tryParseInlineNote($text, $offset)
+                : null;
             if ($inlineNote !== null) {
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $inlineNote['node'];
@@ -14162,6 +14174,59 @@ final class MarkdownReader
     private function markdownExtensionOverrides(): array
     {
         return MarkdownFormatProfile::markdownExtensionOverrides($this->markdownFormatWithExtensionOption());
+    }
+
+    private function lineBreakMode(): string
+    {
+        $overrides = $this->markdownExtensionOverrides();
+        if (($overrides['hard_line_breaks'] ?? false) === true) {
+            return 'hard';
+        }
+        if (($overrides['ignore_line_breaks'] ?? false) === true) {
+            return 'ignore';
+        }
+        if (($overrides['east_asian_line_breaks'] ?? false) === true) {
+            return 'east_asian';
+        }
+
+        return 'soft';
+    }
+
+    private function shouldIgnoreEastAsianLineBreak(string $buffer, string $text, int $offset): bool
+    {
+        if ($buffer === '') {
+            return false;
+        }
+
+        $previous = mb_substr($buffer, -1, 1, 'UTF-8');
+        $nextSource = substr($text, $offset + 1);
+        if ($nextSource === '') {
+            return false;
+        }
+
+        $next = mb_substr($nextSource, 0, 1, 'UTF-8');
+
+        return $this->isEastAsianLineBreakCharacter($previous)
+            && $this->isEastAsianLineBreakCharacter($next);
+    }
+
+    private function isEastAsianLineBreakCharacter(string $character): bool
+    {
+        return $character !== ''
+            && preg_match('/[\p{Han}\p{Hiragana}\p{Katakana}\p{Hangul}]/u', $character) === 1;
+    }
+
+    private function inlineNoteExtensionEnabled(): bool
+    {
+        $overrides = $this->markdownExtensionOverrides();
+        if (array_key_exists('inline_notes', $overrides)) {
+            return $overrides['inline_notes'];
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['markdown', 'commonmark_x', 'markdown_phpextra', 'markdown_mmd'], true);
     }
 
     private function markExtensionEnabled(): bool
