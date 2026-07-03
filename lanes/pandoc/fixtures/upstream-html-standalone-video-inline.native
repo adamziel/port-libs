@@ -1,0 +1,2 @@
+[ Para [ RawInline (Format "html") "<video controls=\"\" poster=\"/wp-content/uploads/imported-poster.jpg\">" , RawInline (Format "html") "<source src=\"/wp-content/uploads/imported-tour.mp4\" type=\"video/mp4\">" , RawInline (Format "html") "<track kind=\"captions\" src=\"/wp-content/uploads/imported-tour.vtt\" srclang=\"en\" label=\"English captions\">" , Str "Video" , Space , Str "fallback" , RawInline (Format "html") "</video>" , Space , Str "remains" , Space , Str "visible" , Space , Str "after" , Space , Str "import." ]
+]
