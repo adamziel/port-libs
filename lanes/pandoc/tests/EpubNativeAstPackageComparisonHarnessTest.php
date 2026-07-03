@@ -247,6 +247,7 @@ return [
         $t->same(0, $report['normalizedAstMismatchCount']);
         $t->same(true, EpubNativeAstPackageComparisonHarness::hasRequiredPackageParity($report, 8));
         $t->same(true, EpubNativeAstPackageComparisonHarness::hasRequiredNativeReadiness($report, 8));
+        $t->same(false, EpubNativeAstPackageComparisonHarness::hasRequiredMappedParity($report, 2));
         $t->same(true, EpubNativeAstPackageComparisonHarness::hasRequiredMappedParity($report, 8));
         $t->same(true, EpubNativeAstPackageComparisonHarness::hasRequiredFixtureIdentity($report));
         $t->same('valid-checked-in-current-epub-fixture-identity', $report['fixtureIdentity']['validation']['status']);
@@ -271,7 +272,7 @@ return [
         $command = escapeshellarg(PHP_BINARY)
             . ' '
             . escapeshellarg(dirname(__DIR__, 3) . '/tools/pandoc-epub-native-ast-package.php')
-            . ' --epub-dir=' . escapeshellarg($root)
+            . ' --checked-in-fixtures'
             . ' --json'
             . ' summary'
             . ' --require-fixture-identity'
@@ -284,12 +285,38 @@ return [
         $decoded = json_decode(implode("\n", $output), true, 512, JSON_THROW_ON_ERROR);
 
         $t->same(0, $exitCode);
+        $t->same($root, $decoded['upstreamEpubDirectory']);
         $t->same(8, $decoded['packageParsedCount']);
         $t->same(8, $decoded['readerParsedCount']);
         $t->same(8, $decoded['nativeParsedCount']);
         $t->same(8, $decoded['normalizedAstMatchCount']);
         $t->same(0, $decoded['normalizedAstMismatchCount']);
         $t->same('valid-checked-in-current-epub-fixture-identity', $decoded['fixtureIdentity']['validation']['status']);
+
+        $defaultFixtureIdentityCommand = 'env -u PANDOC_UPSTREAM_EPUB_DIR '
+            . escapeshellarg(PHP_BINARY)
+            . ' '
+            . escapeshellarg(dirname(__DIR__, 3) . '/tools/pandoc-epub-native-ast-package.php')
+            . ' --json'
+            . ' summary'
+            . ' --require-package-parity=8'
+            . ' --require-native-readiness=8'
+            . ' --require-mapped-parity=8'
+            . ' --require-fixture-identity';
+        $defaultFixtureIdentityOutput = [];
+        $defaultFixtureIdentityExitCode = 0;
+        exec($defaultFixtureIdentityCommand, $defaultFixtureIdentityOutput, $defaultFixtureIdentityExitCode);
+        $defaultFixtureIdentityDecoded = json_decode(
+            implode("\n", $defaultFixtureIdentityOutput),
+            true,
+            512,
+            JSON_THROW_ON_ERROR
+        );
+
+        $t->same(0, $defaultFixtureIdentityExitCode);
+        $t->same($root, $defaultFixtureIdentityDecoded['upstreamEpubDirectory']);
+        $t->same(8, $defaultFixtureIdentityDecoded['normalizedAstMatchCount']);
+        $t->same('valid-checked-in-current-epub-fixture-identity', $defaultFixtureIdentityDecoded['fixtureIdentity']['validation']['status']);
     },
 
     'cli gates epub package and native readiness without requiring ast equality' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeEpub): void {

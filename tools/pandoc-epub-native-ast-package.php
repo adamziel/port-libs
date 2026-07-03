@@ -7,7 +7,14 @@ use PortLibs\Pandoc\EpubNativeAstPackageComparisonHarness;
 require __DIR__ . '/bootstrap.php';
 
 $repoRoot = dirname(__DIR__);
-$epubDirectory = getenv('PANDOC_UPSTREAM_EPUB_DIR') ?: $repoRoot . '/.upstream-cache/pandoc-current/test/epub';
+$checkedInEpubDirectory = $repoRoot . '/lanes/pandoc/fixtures/upstream-current-epub-reader/epub';
+$environmentEpubDirectory = getenv('PANDOC_UPSTREAM_EPUB_DIR');
+$epubDirectory = is_string($environmentEpubDirectory) && $environmentEpubDirectory !== ''
+    ? $environmentEpubDirectory
+    : $repoRoot . '/.upstream-cache/pandoc-current/test/epub';
+$epubDirectoryWasExplicit = is_string($environmentEpubDirectory) && $environmentEpubDirectory !== '';
+$epubDirectoryArgumentWasProvided = false;
+$useCheckedInFixtures = false;
 $limit = 0;
 $requiredPackageParity = null;
 $requiredNativeReadiness = null;
@@ -19,12 +26,21 @@ $summary = false;
 foreach (array_slice($argv, 1) as $argument) {
     if ($argument === '--help' || $argument === '-h') {
         fwrite(STDOUT, <<<'TXT'
-Usage: php tools/pandoc-epub-native-ast-package.php [--epub-dir=PATH] [--limit=N] [--json] [summary] [gates]
+Usage: php tools/pandoc-epub-native-ast-package.php [--epub-dir=PATH|--checked-in-fixtures] [--limit=N] [--json] [summary] [gates]
 
 Compares local PHP EPUB package parsing and reader output against upstream EPUB
 fixtures. Same-basename .native fixtures are parsed and compared by normalized
-AST shape. Package coverage/readiness and strict AST equality are gated
-separately so current gaps are visible rather than hidden.
+AST shape. Package coverage/readiness and normalized AST equality are gated
+separately so current gaps are visible rather than hidden. By default the tool
+uses .upstream-cache/pandoc-current/test/epub when available. Use
+--checked-in-fixtures for the checked-in snapshot at
+lanes/pandoc/fixtures/upstream-current-epub-reader/epub. When
+--require-fixture-identity is used without --epub-dir or PANDOC_UPSTREAM_EPUB_DIR,
+the checked-in snapshot is selected automatically.
+
+Source:
+  --epub-dir=PATH                  Read EPUB/.native fixtures from PATH.
+  --checked-in-fixtures            Read the checked-in current EPUB fixture snapshot.
 
 Gates:
   --require-package-parity=N       Require exactly N EPUB packages parsed by package and reader paths.
@@ -48,6 +64,13 @@ TXT);
 
     if (str_starts_with($argument, '--epub-dir=')) {
         $epubDirectory = substr($argument, strlen('--epub-dir='));
+        $epubDirectoryWasExplicit = true;
+        $epubDirectoryArgumentWasProvided = true;
+        continue;
+    }
+
+    if ($argument === '--checked-in-fixtures') {
+        $useCheckedInFixtures = true;
         continue;
     }
 
@@ -78,6 +101,15 @@ TXT);
 
     fwrite(STDERR, "Unknown argument: {$argument}\n");
     exit(2);
+}
+
+if ($useCheckedInFixtures && $epubDirectoryArgumentWasProvided) {
+    fwrite(STDERR, "--checked-in-fixtures cannot be combined with --epub-dir\n");
+    exit(2);
+}
+
+if ($useCheckedInFixtures || ($requireFixtureIdentity && !$epubDirectoryWasExplicit)) {
+    $epubDirectory = $checkedInEpubDirectory;
 }
 
 if ($epubDirectory !== '' && !str_starts_with($epubDirectory, DIRECTORY_SEPARATOR)) {
@@ -131,7 +163,11 @@ if (
     $requireFixtureIdentity
     && !EpubNativeAstPackageComparisonHarness::hasRequiredFixtureIdentity($report)
 ) {
-    fwrite(STDERR, "pandoc-epub-native-ast-package: checked-in current EPUB fixture identity did not match the expected snapshot\n");
+    fwrite(
+        STDERR,
+        "pandoc-epub-native-ast-package: checked-in current EPUB fixture identity did not match the expected snapshot for {$epubDirectory}\n"
+        . "hint: use --checked-in-fixtures or --epub-dir=lanes/pandoc/fixtures/upstream-current-epub-reader/epub to gate the checked-in snapshot\n"
+    );
     exit(1);
 }
 
