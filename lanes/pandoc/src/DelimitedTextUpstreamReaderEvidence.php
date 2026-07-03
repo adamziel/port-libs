@@ -18,7 +18,7 @@ final class DelimitedTextUpstreamReaderEvidence
     public const EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT = 0;
     public const EXPECTED_STATIC_CSV_ADJACENT_RST_FIXTURE_COUNT = 2;
     public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 7;
-    public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 6;
+    public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 7;
 
     private const CHECKED_IN_CURRENT_CSV_FIXTURES = [
         'csv.md' => [
@@ -223,6 +223,20 @@ final class DelimitedTextUpstreamReaderEvidence
             'sha256' => '9657368b59d4181c81246a5a11bd5dba277a29088dfdc392c31e2a44fd615e36',
             'bytes' => 1229,
         ],
+        'blank-row-literal-punctuation.tsv' => [
+            'role' => 'generated-tsv-native-parity-input-fixture',
+            'sample' => 'blank-row-literal-punctuation',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/blank-row-literal-punctuation.tsv',
+            'sha256' => '3971c352574fb88bf49073fab5e73d309c3e50d23c169250aec22e8ed3e0c4d8',
+            'bytes' => 51,
+        ],
+        'blank-row-literal-punctuation.native' => [
+            'role' => 'generated-tsv-native-parity-expected-native-output',
+            'sample' => 'blank-row-literal-punctuation',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/blank-row-literal-punctuation.native',
+            'sha256' => '29623a127b4bc0bf3f17b351bfa9f712a1ecbd2d24741d3c2f6aa0475e250023',
+            'bytes' => 1253,
+        ],
     ];
 
     private const GENERATED_CSV_NATIVE_SAMPLES = [
@@ -289,6 +303,10 @@ final class DelimitedTextUpstreamReaderEvidence
         'bom-leading-whitespace' => [
             'inputPath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/bom-leading-whitespace.tsv',
             'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/bom-leading-whitespace.native',
+        ],
+        'blank-row-literal-punctuation' => [
+            'inputPath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/blank-row-literal-punctuation.tsv',
+            'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/blank-row-literal-punctuation.native',
         ],
     ];
 
@@ -1349,7 +1367,7 @@ final class DelimitedTextUpstreamReaderEvidence
 
     private static function claim(): string
     {
-        return 'Tracks the current upstream direct CSV command-reader fixtures, the adjacent RST csv-table fixture pair with zero direct-reader denominator impact, seven generated CSV-to-native evidence samples, the absence of dedicated TSV command fixtures, and six generated TSV-to-native evidence samples for the delimited text reader.';
+        return 'Tracks the current upstream direct CSV command-reader fixtures, the adjacent RST csv-table fixture pair with zero direct-reader denominator impact, seven generated CSV-to-native evidence samples, the absence of dedicated TSV command fixtures, and seven generated TSV-to-native evidence samples for the delimited text reader.';
     }
 
     /**
@@ -1365,7 +1383,7 @@ final class DelimitedTextUpstreamReaderEvidence
                 'that no dedicated TSV command fixture is available in the pinned direct-reader evidence set',
                 'static checked-in current csv.md and 01.csv fixture identity when staticCurrentEvidence is valid',
                 'seven generated CSV-to-native local samples when generatedCsvNativeParityEvidence is valid',
-                'six generated TSV-to-native local samples when generatedTsvNativeParityEvidence is valid',
+                'seven generated TSV-to-native local samples when generatedTsvNativeParityEvidence is valid',
             ],
             'doesNotAssert' => [
                 'that upstream Haskell/Cabal/Tasty tests were executed',
