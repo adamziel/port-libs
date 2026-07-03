@@ -13409,7 +13409,7 @@ final class MarkdownReader
                 $next = $suffix['next'];
                 $citationText .= $suffix['source'];
                 $attrs['text'] = $citationText;
-                $attrs['suffix'] = $suffix['label'];
+                $attrs['suffix'] = $this->citationAffixValue($suffix['label']);
             }
 
             return [
@@ -13434,7 +13434,7 @@ final class MarkdownReader
             $next = $suffix['next'];
             $citationText .= $suffix['source'];
             $attrs['text'] = $citationText;
-            $attrs['suffix'] = $suffix['label'];
+            $attrs['suffix'] = $this->citationAffixValue($suffix['label']);
         }
 
         return [
@@ -13513,6 +13513,8 @@ final class MarkdownReader
             $separator = $this->findBracketedCitationSeparator($content, $afterId);
             $end = $separator ?? $length;
             $suffix = $this->normalizeBracketedCitationSuffix(substr($content, $afterId, $end - $afterId));
+            $locator = $suffix === '' ? '' : $this->citationAffixValue($suffix);
+            $locatorPlain = $this->citationAffixPlainText($locator);
             $citationText = trim(substr($content, $marker['start'], $end - $marker['start']));
             $attrs = [
                 'id' => $id['id'],
@@ -13520,11 +13522,11 @@ final class MarkdownReader
                 'mode' => $marker['suppress'] ? 'suppress_author' : 'normal',
             ];
             if ($prefix !== '') {
-                $attrs['prefix'] = $prefix;
+                $attrs['prefix'] = $this->citationAffixValue($prefix);
             }
             if ($suffix !== '') {
-                $attrs['locator'] = $suffix;
-                $locatorParts = $this->inferBracketedCitationLocatorParts($suffix);
+                $attrs['locator'] = $locator;
+                $locatorParts = $this->inferBracketedCitationLocatorParts($locatorPlain);
                 $attrs['locatorLabel'] = $locatorParts['label'];
                 $attrs['locatorValue'] = $locatorParts['value'];
             }
@@ -13673,6 +13675,50 @@ final class MarkdownReader
         }
 
         return $suffix;
+    }
+
+    /**
+     * @return string|list<AstNode>
+     */
+    private function citationAffixValue(string $source): string|array
+    {
+        $source = trim($source);
+        if ($source === '') {
+            return '';
+        }
+
+        $inlines = $this->parseInlines($source, true, false);
+        if ($this->citationAffixNeedsInlineAst($source, $inlines)) {
+            return $inlines;
+        }
+
+        return $this->plainTextFromInlines($inlines);
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     */
+    private function citationAffixNeedsInlineAst(string $source, array $inlines): bool
+    {
+        if (count($inlines) !== 1 || $inlines[0]->type !== 'text') {
+            return true;
+        }
+
+        return (string) $inlines[0]->attr('text', '') !== $source;
+    }
+
+    private function citationAffixPlainText(mixed $value): string
+    {
+        if (is_array($value)) {
+            $text = $this->plainTextFromInlines(array_values(array_filter(
+                $value,
+                static fn (mixed $node): bool => $node instanceof AstNode
+            )));
+
+            return trim(preg_replace('/\s+/u', ' ', $text) ?? $text);
+        }
+
+        return trim((string) $value);
     }
 
     private function findBracketedCitationForcedLocatorEnd(string $suffix): ?int
