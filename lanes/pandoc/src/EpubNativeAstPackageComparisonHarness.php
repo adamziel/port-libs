@@ -14,7 +14,7 @@ final class EpubNativeAstPackageComparisonHarness
     private const PACKAGE_FEATURE_SIGNATURE_KIND = 'checked-in-current-epub-package-feature-signature';
     private const PACKAGE_FEATURE_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
     private const PACKAGE_FEATURE_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-24-fixture-snapshot';
-    private const CHECKED_IN_CURRENT_PACKAGE_FEATURE_SIGNATURE_SHA256 = 'f03ef24291a0a0142f9cd35017f43bd1599f20add4ab0537a0fb9055232909a2';
+    private const CHECKED_IN_CURRENT_PACKAGE_FEATURE_SIGNATURE_SHA256 = 'b5e64a992682f267482b0628685f3b196963f88b03c3db3f0b889ebc172b852d';
     private const CURRENT_NATIVE_AST_SIGNATURE_KIND = 'checked-in-current-epub-normalized-native-ast-signature';
     private const CURRENT_NATIVE_AST_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
     private const CURRENT_NATIVE_AST_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-24-fixture-normalized-ast-snapshot';
@@ -255,6 +255,12 @@ final class EpubNativeAstPackageComparisonHarness
      */
     private const CHECKED_IN_CURRENT_PACKAGE_FEATURE_COVERAGE = [
         'fixtureCount' => 24,
+        'opfPartNameCounts' => [
+            '/EPUB/package.opf' => 19,
+            '/EPUB/wasteland.opf' => 1,
+            '/OEBPS/content.opf' => 3,
+            '/OPS/package.opf' => 1,
+        ],
         'metadataLanguageCounts' => [
             'de-DE' => 3,
             'en' => 20,
@@ -1078,6 +1084,9 @@ final class EpubNativeAstPackageComparisonHarness
             $packageLinkRelCounts = is_array($featureCoverage['packageLinkRelCounts'] ?? null)
                 ? $featureCoverage['packageLinkRelCounts']
                 : [];
+            $opfPartNameCounts = is_array($featureCoverage['opfPartNameCounts'] ?? null)
+                ? $featureCoverage['opfPartNameCounts']
+                : [];
             $manifestFallbackItemFixtures = is_array($featureCoverage['fixturesWithManifestFallbackItems'] ?? null)
                 ? $featureCoverage['fixturesWithManifestFallbackItems']
                 : [];
@@ -1097,7 +1106,7 @@ final class EpubNativeAstPackageComparisonHarness
                 ? $featureCoverage['fixturesWithResolvedMediaOverlays']
                 : [];
             $lines[] = sprintf(
-                'packageFeatureCoverage: fixtures=%d nav=%d ncx=%d covers=%d landmarks=%d pageLists=%d auxiliaryNav=%d metadataCreators=%d manifestItems=%d readingOrderItems=%d spineLinear=%s nonLinearSpineFixtures=%d imageAssets=%d stylesheetAssets=%d resourceKinds=%s guideRefTypes=%s packageLinkRels=%s remoteManifest=%d externalManifest=%d missingLocalManifest=%d manifestFallbackItems=%d manifestFallbacks=%d resolvedFallbacks=%d usableFallbacks=%d missingFallbacks=%d mediaOverlayFixtures=%d resolvedMediaOverlayFixtures=%d mediaOverlays=%d resolvedMediaOverlays=%d mediaOverlayTextTargets=%d mediaOverlayAudioTargets=%d mediaOverlayDurations=%d',
+                'packageFeatureCoverage: fixtures=%d nav=%d ncx=%d covers=%d landmarks=%d pageLists=%d auxiliaryNav=%d metadataCreators=%d manifestItems=%d readingOrderItems=%d spineLinear=%s nonLinearSpineFixtures=%d imageAssets=%d stylesheetAssets=%d resourceKinds=%s guideRefTypes=%s packageLinkRels=%s remoteManifest=%d externalManifest=%d missingLocalManifest=%d manifestFallbackItems=%d manifestFallbacks=%d resolvedFallbacks=%d usableFallbacks=%d missingFallbacks=%d mediaOverlayFixtures=%d resolvedMediaOverlayFixtures=%d mediaOverlays=%d resolvedMediaOverlays=%d mediaOverlayTextTargets=%d mediaOverlayAudioTargets=%d mediaOverlayDurations=%d opfParts=%s',
                 (int) ($featureCoverage['fixtureCount'] ?? 0),
                 (int) ($navigationTypeCounts['nav'] ?? 0),
                 (int) ($navigationTypeCounts['ncx'] ?? 0),
@@ -1133,7 +1142,8 @@ final class EpubNativeAstPackageComparisonHarness
                 (int) ($totals['resolvedMediaOverlays'] ?? 0),
                 (int) ($totals['mediaOverlayTextLocalTargets'] ?? 0),
                 (int) ($totals['mediaOverlayAudioLocalTargets'] ?? 0),
-                (int) ($totals['mediaOverlayDurations'] ?? 0)
+                (int) ($totals['mediaOverlayDurations'] ?? 0),
+                self::formatCounts($opfPartNameCounts)
             );
         }
         $featureSignature = is_array($report['packageFeatureSignature'] ?? null) ? $report['packageFeatureSignature'] : [];
@@ -1567,6 +1577,7 @@ final class EpubNativeAstPackageComparisonHarness
         return [
             'kind' => 'epub-package-feature-coverage',
             'fixtureCount' => 0,
+            'opfPartNameCounts' => [],
             'metadataLanguageCounts' => [],
             'fixturesWithCreators' => [],
             'navigationTypeCounts' => [],
@@ -2238,6 +2249,7 @@ final class EpubNativeAstPackageComparisonHarness
     {
         $coverage = self::emptyPackageFeatureCoverage();
         $coverage['fixtureCount'] = count($summaries);
+        $opfPartNameCounts = [];
         $metadataLanguageCounts = [];
         $navigationTypeCounts = [];
         $spineLinearStateCounts = [];
@@ -2251,6 +2263,11 @@ final class EpubNativeAstPackageComparisonHarness
 
         foreach ($summaries as $summary) {
             $fixture = is_string($summary['fixture'] ?? null) ? $summary['fixture'] : '';
+            $opfPart = is_string($summary['opfPart'] ?? null) ? $summary['opfPart'] : '';
+            if ($opfPart !== '') {
+                $opfPartNameCounts[$opfPart] = (int) ($opfPartNameCounts[$opfPart] ?? 0) + 1;
+            }
+
             $language = is_string($summary['metadataLanguage'] ?? null) ? $summary['metadataLanguage'] : '';
             if ($language !== '') {
                 $metadataLanguageCounts[$language] = (int) ($metadataLanguageCounts[$language] ?? 0) + 1;
@@ -2404,10 +2421,12 @@ final class EpubNativeAstPackageComparisonHarness
         }
 
         ksort($metadataLanguageCounts, SORT_STRING);
+        ksort($opfPartNameCounts, SORT_STRING);
         ksort($navigationTypeCounts, SORT_STRING);
         ksort($manifestMediaTypeCounts, SORT_STRING);
         ksort($manifestPropertyCounts, SORT_STRING);
         ksort($manifestResourceKindCounts, SORT_STRING);
+        $coverage['opfPartNameCounts'] = $opfPartNameCounts;
         $coverage['metadataLanguageCounts'] = $metadataLanguageCounts;
         $coverage['navigationTypeCounts'] = $navigationTypeCounts;
         ksort($spineLinearStateCounts, SORT_STRING);

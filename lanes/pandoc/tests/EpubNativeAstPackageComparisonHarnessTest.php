@@ -302,6 +302,7 @@ return [
             $t->same(1, $summary['pageListEntryCount']);
             $t->same(1, $summary['auxiliaryNavigationEntryCount']);
             $t->same(1, $coverage['fixtureCount']);
+            $t->same(['/EPUB/package.opf' => 1], $coverage['opfPartNameCounts']);
             $t->same(['en' => 1], $coverage['metadataLanguageCounts']);
             $t->same(['nav' => 1], $coverage['navigationTypeCounts']);
             $t->same(['linear' => 1], $coverage['spineLinearStateCounts']);
@@ -410,6 +411,7 @@ return [
             $t->same(1, $decoded['nativeParsedCount']);
             $t->same(1, $decoded['normalizedAstMatchCount']);
             $t->same(0, $decoded['normalizedAstMismatchCount']);
+            $t->same(['/EPUB/package.opf' => 1], $decoded['packageFeatureCoverage']['opfPartNameCounts']);
             $t->same(['nav' => 1], $decoded['packageFeatureCoverage']['navigationTypeCounts']);
             $t->same(['linear' => 1], $decoded['packageFeatureCoverage']['spineLinearStateCounts']);
             $t->same(['nav' => 1, 'remote-resources' => 1], $decoded['packageFeatureCoverage']['manifestPropertyCounts']);
@@ -641,6 +643,12 @@ return [
         ];
         $expectedPackageFeatureCoverage = [
             'fixtureCount' => 24,
+            'opfPartNameCounts' => [
+                '/EPUB/package.opf' => 19,
+                '/EPUB/wasteland.opf' => 1,
+                '/OEBPS/content.opf' => 3,
+                '/OPS/package.opf' => 1,
+            ],
             'metadataLanguageCounts' => [
                 'de-DE' => 3,
                 'en' => 20,
@@ -859,7 +867,7 @@ return [
                 'mediaOverlayDurations' => 2,
             ],
         ];
-        $expectedPackageFeatureSignatureSha256 = 'f03ef24291a0a0142f9cd35017f43bd1599f20add4ab0537a0fb9055232909a2';
+        $expectedPackageFeatureSignatureSha256 = 'b5e64a992682f267482b0628685f3b196963f88b03c3db3f0b889ebc172b852d';
         $expectedCurrentNativeAstSignatureSha256 = '7814ec1439b23843170aa562792e9e27020cb1dbfbc8664a7c020b5d2ddc5e38';
         $expectedCurrentNativeAstFixtures = [
             'auxiliary-lot-guide-index',
@@ -1317,6 +1325,7 @@ return [
         $t->contains('packageLinkRels=cc:attributionURL:1,cc:license:2,record:1', $text);
         $t->contains('remoteManifest=1 externalManifest=1 missingLocalManifest=1 manifestFallbackItems=3 manifestFallbacks=1 resolvedFallbacks=1 usableFallbacks=1 missingFallbacks=2', $text);
         $t->contains('mediaOverlayFixtures=1 resolvedMediaOverlayFixtures=1 mediaOverlays=1 resolvedMediaOverlays=1 mediaOverlayTextTargets=1 mediaOverlayAudioTargets=1 mediaOverlayDurations=2', $text);
+        $t->contains('opfParts=/EPUB/package.opf:19,/EPUB/wasteland.opf:1,/OEBPS/content.opf:3,/OPS/package.opf:1', $text);
 
         $command = escapeshellarg(PHP_BINARY)
             . ' '
@@ -1403,6 +1412,7 @@ return [
         $t->same($expectedCurrentNativeAstFixtures, $defaultFixtureIdentityDecoded['currentNativeAstSignature']['observedFixtures']);
         $t->same(true, EpubNativeAstPackageComparisonHarness::hasRunnerPlanEvidence($defaultFixtureIdentityDecoded));
         $t->same('exe:pandoc', $defaultFixtureIdentityDecoded['runnerEvidence']['target']['cabalTarget']);
+        $t->same($expectedPackageFeatureCoverage['opfPartNameCounts'], $defaultFixtureIdentityDecoded['packageFeatureCoverage']['opfPartNameCounts']);
         $t->same(['nav' => 20, 'ncx' => 3], $defaultFixtureIdentityDecoded['packageFeatureCoverage']['navigationTypeCounts']);
         $t->same(['linear' => 34, 'non-linear' => 7], $defaultFixtureIdentityDecoded['packageFeatureCoverage']['spineLinearStateCounts']);
         $t->same($expectedPackageFeatureCoverage['fixturesWithCreators'], $defaultFixtureIdentityDecoded['packageFeatureCoverage']['fixturesWithCreators']);
