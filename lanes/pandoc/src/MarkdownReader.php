@@ -8197,18 +8197,18 @@ final class MarkdownReader
      */
     private function readLeadingTableCaption(array $lines, int $cursor): ?array
     {
-        if (preg_match('/^ {0,3}(Table:)\s*(.*)$/i', $lines[$cursor] ?? '', $m) !== 1) {
+        if (preg_match('/^ {0,3}(Table:|Caption:|:)\s*(.*)$/i', $lines[$cursor] ?? '', $m) !== 1) {
             return null;
         }
 
-        $next = $cursor + 1;
+        [$caption, $next] = $this->readMarkdownTableCaptionContinuation($lines, $cursor + 1, trim($m[2]));
         $count = count($lines);
         while ($next < $count && trim($lines[$next]) === '') {
             $next++;
         }
 
         return [
-            'caption' => trim($m[2]),
+            'caption' => $caption,
             'marker' => $m[1],
             'position' => 'before-table',
             'captionSide' => 'top',
@@ -8225,10 +8225,7 @@ final class MarkdownReader
             return $table;
         }
 
-        $caption = $captionSource['caption'];
-        $attrs = $table->attrs;
-        $attrs['caption'] = $caption;
-        $attrs['captionInlines'] = $this->parseInlines($caption);
+        $attrs = $this->markdownTableCaptionAttrs($table->attrs, $captionSource['caption']);
         $attrs['captionSource'] = $this->markdownTableCaptionSource(
             $captionSource['position'],
             $captionSource['marker'],
@@ -8250,6 +8247,95 @@ final class MarkdownReader
             'captionSide' => $captionSide,
             'captionSideSource' => 'markdown-table-caption',
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     * @return array<string, mixed>
+     */
+    private function markdownTableCaptionAttrs(array $attrs, string $source): array
+    {
+        $caption = $this->parseMarkdownTableCaptionSource($source);
+        $attrs['caption'] = $caption['caption'];
+        if ($caption['caption'] !== '') {
+            $attrs['captionInlines'] = $caption['captionInlines'];
+        }
+        if ($caption['shortCaption'] !== null) {
+            $attrs['shortCaption'] = $caption['shortCaption'];
+            $attrs['shortCaptionInlines'] = $caption['shortCaptionInlines'];
+        }
+        if ($caption['id'] !== null && $caption['id'] !== '') {
+            $attrs['id'] = $caption['id'];
+        }
+        if ($caption['classes'] !== []) {
+            $attrs['classes'] = $caption['classes'];
+        }
+        if ($caption['attributes'] !== []) {
+            $attrs['attributes'] = $caption['attributes'];
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @return array{
+     *     caption:string,
+     *     captionInlines:list<AstNode>,
+     *     shortCaption:string|null,
+     *     shortCaptionInlines:list<AstNode>,
+     *     id:string|null,
+     *     classes:list<string>,
+     *     attributes:array<string, string>
+     * }
+     */
+    private function parseMarkdownTableCaptionSource(string $source): array
+    {
+        [$source, $id, $classes, $attributes] = $this->splitTrailingMarkdownTableCaptionAttributes($source);
+        $source = trim($source);
+        $shortCaption = null;
+        $shortCaptionInlines = [];
+
+        $label = $this->parseBracketedLabel($source, 0);
+        if ($label !== null && $label['text'] !== '' && preg_match('/\G[ \t]+/u', $source, $space, 0, $label['next']) === 1) {
+            $shortCaptionInlines = $this->parseInlines($label['text']);
+            $shortCaption = $this->plainTextFromInlines($shortCaptionInlines);
+            $source = ltrim(substr($source, $label['next'] + strlen($space[0])));
+        }
+
+        return [
+            'caption' => $source,
+            'captionInlines' => $source === '' ? [] : $this->parseInlines($source),
+            'shortCaption' => $shortCaption,
+            'shortCaptionInlines' => $shortCaptionInlines,
+            'id' => $id,
+            'classes' => $classes,
+            'attributes' => $attributes,
+        ];
+    }
+
+    /**
+     * @return array{0:string, 1:string|null, 2:list<string>, 3:array<string, string>}
+     */
+    private function splitTrailingMarkdownTableCaptionAttributes(string $source): array
+    {
+        $trimmed = rtrim($source);
+        $open = strrpos($trimmed, '{');
+        while ($open !== false) {
+            $end = $this->findClosingMarkdownAttributeSpec($trimmed, $open);
+            if ($end === strlen($trimmed) - 1) {
+                [$id, $classes, $attributes] = $this->parseMarkdownAttributeSpec(substr($trimmed, $open + 1, $end - $open - 1));
+                if ($id !== null || $classes !== [] || $attributes !== []) {
+                    return [rtrim(substr($trimmed, 0, $open)), $id, $classes, $attributes];
+                }
+            }
+
+            if ($open === 0) {
+                break;
+            }
+            $open = strrpos(substr($trimmed, 0, $open), '{');
+        }
+
+        return [$trimmed, null, [], []];
     }
 
     /**
@@ -9213,9 +9299,10 @@ final class MarkdownReader
     {
         $cells = [];
         $lineLength = strlen($line);
-        foreach ($columns as $column) {
+        foreach ($columns as $index => $column) {
             $start = $column['start'];
-            $length = $column['length'];
+            $nextStart = $columns[$index + 1]['start'] ?? $lineLength;
+            $length = max(0, $nextStart - $start);
             $cell = $start < $lineLength ? substr($line, $start, $length) : '';
             $cells[] = trim($cell);
         }
@@ -9347,12 +9434,9 @@ final class MarkdownReader
         $children[] = new AstNode('table_body', [], $bodyChildren);
 
         $attrs = [
-            'caption' => $caption,
             'alignments' => $alignments,
         ];
-        if ($caption !== '') {
-            $attrs['captionInlines'] = $this->parseInlines($caption);
-        }
+        $attrs = $this->markdownTableCaptionAttrs($attrs, $caption);
         if ($captionSource !== null) {
             $attrs['captionSource'] = $captionSource;
         }
@@ -9394,12 +9478,9 @@ final class MarkdownReader
         $children[] = new AstNode('table_body', [], $bodyRows);
 
         $attrs = [
-            'caption' => $caption,
             'alignments' => $alignments,
         ];
-        if ($caption !== '') {
-            $attrs['captionInlines'] = $this->parseInlines($caption);
-        }
+        $attrs = $this->markdownTableCaptionAttrs($attrs, $caption);
         if ($captionSource !== null) {
             $attrs['captionSource'] = $captionSource;
         }
@@ -9461,28 +9542,40 @@ final class MarkdownReader
             $captionCursor++;
         }
 
-        if ($captionCursor < $count && preg_match('/^ {0,3}:\s*(.*)$/', $lines[$captionCursor], $m) === 1) {
-            $caption = [trim($m[1])];
-            $next = $captionCursor + 1;
-            while (
-                $next < $count
-                && trim($lines[$next]) !== ''
-                && $this->countIndentColumns($lines[$next]) >= 2
-                && $this->parseSimpleTableDelimiter($lines[$next]) === null
-                && !$this->isSimpleTableBoundary($lines[$next])
-            ) {
-                $caption[] = trim($lines[$next]);
-                $next++;
-            }
+        if ($captionCursor < $count && preg_match('/^ {0,3}(Table:|Caption:|:)\s*(.*)$/i', $lines[$captionCursor], $m) === 1) {
+            [$caption, $next] = $this->readMarkdownTableCaptionContinuation($lines, $captionCursor + 1, trim($m[2]));
 
             return [
-                implode("\n", $caption),
+                $caption,
                 $next,
-                $this->markdownTableCaptionSource('after-table', ':', 'bottom'),
+                $this->markdownTableCaptionSource('after-table', $m[1], 'bottom'),
             ];
         }
 
         return ['', $cursor, null];
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{0:string, 1:int}
+     */
+    private function readMarkdownTableCaptionContinuation(array $lines, int $cursor, string $firstLine): array
+    {
+        $caption = [$firstLine];
+        $next = $cursor;
+        $count = count($lines);
+        while (
+            $next < $count
+            && trim($lines[$next]) !== ''
+            && $this->countIndentColumns($lines[$next]) >= 2
+            && $this->parseSimpleTableDelimiter($lines[$next]) === null
+            && !$this->isSimpleTableBoundary($lines[$next])
+        ) {
+            $caption[] = trim($lines[$next]);
+            $next++;
+        }
+
+        return [implode("\n", $caption), $next];
     }
 
     /**
@@ -9500,7 +9593,7 @@ final class MarkdownReader
         }
 
         $delimiterCells = $this->splitPipeTableRow($lines[$index + 1]);
-        if ($delimiterCells === null || count($delimiterCells) !== count($headerCells)) {
+        if ($delimiterCells === null) {
             return null;
         }
 
@@ -9511,7 +9604,7 @@ final class MarkdownReader
 
         $columnCount = count($delimiter['alignments']);
         $cursor = $index + 2;
-        $bodyRows = [];
+        $bodySourceRows = [];
         $count = count($lines);
         while ($cursor < $count && trim($lines[$cursor]) !== '') {
             $row = $this->splitPipeTableRow($lines[$cursor]);
@@ -9519,11 +9612,17 @@ final class MarkdownReader
                 break;
             }
 
-            $bodyRows[] = $this->normalizePipeTableRow($row, $columnCount);
+            $bodySourceRows[] = $row;
             $cursor++;
         }
 
         [$caption, $cursor, $captionSource] = $this->readTableCaption($lines, $cursor);
+        $repairs = [];
+        $headerCells = $this->normalizePipeTableRowWithRepair($headerCells, $columnCount, 'head', 0, $repairs);
+        $bodyRows = [];
+        foreach ($bodySourceRows as $rowIndex => $row) {
+            $bodyRows[] = $this->normalizePipeTableRowWithRepair($row, $columnCount, 'body', $rowIndex, $repairs);
+        }
 
         $headerIsEmpty = true;
         foreach ($headerCells as $cell) {
@@ -9536,7 +9635,7 @@ final class MarkdownReader
         $children = [];
         if (!$headerIsEmpty) {
             $children[] = new AstNode('table_head', [], [
-                $this->buildTableRow($this->normalizePipeTableRow($headerCells, $columnCount), true),
+                $this->buildTableRow($headerCells, true),
             ]);
         } else {
             $children[] = new AstNode('table_head');
@@ -9549,17 +9648,17 @@ final class MarkdownReader
         $children[] = new AstNode('table_body', [], $bodyChildren);
 
         $attrs = [
-            'caption' => $caption,
             'alignments' => $delimiter['alignments'],
         ];
-        if ($caption !== '') {
-            $attrs['captionInlines'] = $this->parseInlines($caption);
-        }
+        $attrs = $this->markdownTableCaptionAttrs($attrs, $caption);
         if ($captionSource !== null) {
             $attrs['captionSource'] = $captionSource;
         }
         if ($delimiter['widths'] !== null) {
             $attrs['widths'] = $delimiter['widths'];
+        }
+        if ($repairs !== []) {
+            $attrs['pipeTableRowRepairs'] = $repairs;
         }
 
         $index = $cursor - 1;
@@ -9674,6 +9773,27 @@ final class MarkdownReader
         }
 
         return array_map(static fn (string $cell): string => trim($cell), $cells);
+    }
+
+    /**
+     * @param list<string> $cells
+     * @param list<array{section:string, row:int, sourceCells:int, columnCount:int, action:string}> $repairs
+     * @return list<string>
+     */
+    private function normalizePipeTableRowWithRepair(array $cells, int $columnCount, string $section, int $row, array &$repairs): array
+    {
+        $sourceCells = count($cells);
+        if ($sourceCells !== $columnCount) {
+            $repairs[] = [
+                'section' => $section,
+                'row' => $row,
+                'sourceCells' => $sourceCells,
+                'columnCount' => $columnCount,
+                'action' => $sourceCells < $columnCount ? 'pad' : 'truncate',
+            ];
+        }
+
+        return $this->normalizePipeTableRow($cells, $columnCount);
     }
 
     /**
