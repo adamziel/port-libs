@@ -1,0 +1,79 @@
+[ Para
+    [ Str "Pandoc"
+    , Space
+    , Str "recognizes"
+    , Space
+    , Str "an"
+    , Space
+    , Str "abbreviation"
+    , Space
+    , Str "and"
+    , Space
+    , Str "inserts"
+    , Space
+    , Str "a"
+    , Space
+    , Str "nonbreaking"
+    , SoftBreak
+    , Str "space"
+    , Space
+    , Str "(among"
+    , Space
+    , Str "other"
+    , Space
+    , Str "things,"
+    , Space
+    , Str "this"
+    , Space
+    , Str "prevents"
+    , Space
+    , Str "a"
+    , Space
+    , Str "sentence-ending"
+    , SoftBreak
+    , Str "space"
+    , Space
+    , Str "from"
+    , Space
+    , Str "being"
+    , Space
+    , Str "inserted"
+    , Space
+    , Str "in"
+    , Space
+    , Str "LaTeX"
+    , Space
+    , Str "output)."
+    ]
+, CodeBlock
+    ( "" , [] , [] )
+    "% pandoc -t native\nMr. Bob\n^D\n[ Para [ Str \"Mr.\\160Bob\" ] ]"
+, Para
+    [ Str "If"
+    , Space
+    , Str "you"
+    , Space
+    , Str "don\8217t"
+    , Space
+    , Str "want"
+    , Space
+    , Str "this"
+    , Space
+    , Str "to"
+    , Space
+    , Str "happen"
+    , Space
+    , Str "you"
+    , Space
+    , Str "can"
+    , Space
+    , Str "escape"
+    , Space
+    , Str "the"
+    , Space
+    , Str "period:"
+    ]
+, CodeBlock
+    ( "" , [] , [] )
+    "% pandoc -t native\nHi Mr\\. Bob\n^D\n[ Para [ Str \"Hi\" , Space , Str \"Mr.\" , Space , Str \"Bob\" ]\n]"
+]

@@ -1,0 +1,60 @@
+[ Para [ Quoted SingleQuote [ Str "\8230hi" ] ]
+, Para
+    [ Str "D\8217oh!"
+    , Space
+    , Str "A"
+    , Space
+    , Str "l\8217"
+    , Emph [ Str "aide" ]
+    , Str "!"
+    ]
+, Para
+    [ Str "The"
+    , Space
+    , Str "value"
+    , Space
+    , Str "of"
+    , Space
+    , Str "the"
+    , Space
+    , Math InlineMath "x"
+    , Str "\8217s"
+    , Space
+    , Str "and"
+    , Space
+    , Str "the"
+    , Space
+    , Str "systems\8217"
+    , Space
+    , Str "condition."
+    ]
+, Para
+    [ Strong
+        [ Str "this"
+        , Space
+        , Str "should"
+        , Space
+        , Str "\8220be"
+        , Space
+        , Str "bold"
+        ]
+    ]
+, Para
+    [ Quoted
+        SingleQuote
+        [ Str "a"
+        , Note [ Para [ Quoted SingleQuote [ Str "b" ] , Str "." ] ]
+        , Space
+        , Str "c."
+        ]
+    ]
+, Para
+    [ Quoted
+        DoubleQuote
+        [ Str "a"
+        , Note [ Para [ Quoted DoubleQuote [ Str "b" ] , Str "." ] ]
+        , Space
+        , Str "c."
+        ]
+    ]
+]
