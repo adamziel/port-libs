@@ -333,6 +333,28 @@ $tests['imports generated current html table foot rows'] =
         $t->same('After table.', $document->children[1]->attr('text'));
     };
 
+$tests['imports generated current html multiple tbody row header columns'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-multi-tbody-row-header-table.html'));
+        $table = $document->children[0];
+        $head = $table->children[0];
+        $firstBody = $table->children[1];
+        $secondBody = $table->children[2];
+        $geometry = $table->attr('tableGeometry');
+
+        $t->same(['table'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same(['table_head', 'table_body', 'table_body'], array_map(static fn ($node): string => $node->type, $table->children));
+        $t->same(['Region', 'Metric', 'Q1', 'Q2'], array_map(static fn ($cell): string => $cell->attr('text'), $head->children[0]->children));
+        $t->same(2, $firstBody->attr('rowHeadColumns'));
+        $t->same(1, $secondBody->attr('rowHeadColumns'));
+        $t->same(['North', '12', '15'], array_map(static fn ($cell): string => $cell->attr('text'), $firstBody->children[0]->children));
+        $t->same(2, $firstBody->children[0]->children[0]->attr('colspan'));
+        $t->same(['Ops', 'Latency', '4', '3'], array_map(static fn ($cell): string => $cell->attr('text'), $secondBody->children[1]->children));
+        $t->same(2, $geometry['summary']['rowHeadGroupCount'] ?? null);
+        $t->same([2, 1], $geometry['summary']['rowHeadColumnCounts'] ?? null);
+        $t->same(true, $geometry['summary']['hasDifferingRowHeadColumns'] ?? null);
+    };
+
 $tests['imports upstream html block children inside table cells'] =
     static function (TestRunner $t): void {
         $html = '<table><tr><td><ul><li>one</li><li>two</li></ul></td><td><blockquote><p>quote</p></blockquote></td></tr></table>';
