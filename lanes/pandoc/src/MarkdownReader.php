@@ -7,6 +7,8 @@ namespace PortLibs\Pandoc;
 final class MarkdownReader
 {
     private const MARKDOWN_ESCAPABLE_ASCII_PUNCTUATION = "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~";
+    /** Preserves backslash-escaped entity delimiters through the final entity decode pass. */
+    private const ESCAPED_ENTITY_DELIMITER_PREFIX = "\x1FMD_ESCAPED_ENTITY_DELIMITER\x1F";
     /**
      * Mirrored from upstream pandoc data/abbreviations for the bounded
      * markdown abbreviation spacing slice.
@@ -15554,6 +15556,10 @@ final class MarkdownReader
             return null;
         }
 
+        if ($next === '&' || $next === '#' || $next === ';') {
+            return ['text' => self::ESCAPED_ENTITY_DELIMITER_PREFIX . $next, 'next' => $offset + 2];
+        }
+
         return ['text' => $next, 'next' => $offset + 2];
     }
 
@@ -15900,6 +15906,37 @@ final class MarkdownReader
 
     private function decodeHtmlEntities(string $text): string
     {
-        return html_entity_decode($text, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8');
+        $escapedDelimiters = [];
+        if (str_contains($text, self::ESCAPED_ENTITY_DELIMITER_PREFIX)) {
+            $text = preg_replace_callback(
+                '/' . preg_quote(self::ESCAPED_ENTITY_DELIMITER_PREFIX, '/') . '([&#;])/',
+                static function (array $matches) use (&$escapedDelimiters): string {
+                    $token = self::ESCAPED_ENTITY_DELIMITER_PREFIX . 'md' . count($escapedDelimiters) . self::ESCAPED_ENTITY_DELIMITER_PREFIX;
+                    $escapedDelimiters[$token] = (string) $matches[1];
+
+                    return $token;
+                },
+                $text
+            ) ?? $text;
+        }
+
+        $text = preg_replace_callback(
+            '/&#([0-9]{1,7}|[xX][0-9A-Fa-f]{1,6});/',
+            static function (array $matches): string {
+                $raw = (string) $matches[1];
+                $codepoint = str_starts_with($raw, 'x') || str_starts_with($raw, 'X')
+                    ? (int) hexdec(substr($raw, 1))
+                    : (int) $raw;
+
+                return $codepoint === 0 || $codepoint > 0x10ffff || ($codepoint >= 0xd800 && $codepoint <= 0xdfff)
+                    ? "\u{FFFD}"
+                    : (string) $matches[0];
+            },
+            $text
+        ) ?? $text;
+
+        $decoded = html_entity_decode($text, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8');
+
+        return $escapedDelimiters === [] ? $decoded : strtr($decoded, $escapedDelimiters);
     }
 }
