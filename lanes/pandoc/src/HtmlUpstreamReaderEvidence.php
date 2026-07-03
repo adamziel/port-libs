@@ -265,7 +265,8 @@ final class HtmlUpstreamReaderEvidence
         }
 
         $sourceInventory = $this->sourceInventory($root);
-        $validationIssues = $this->validationIssues($sourceInventory, $staticEvidence, $nativeAstEvidence);
+        $upstreamCommit = $this->gitHead($root);
+        $validationIssues = $this->validationIssues($sourceInventory, $staticEvidence, $nativeAstEvidence, $upstreamCommit);
 
         return [
             'schemaVersion' => 1,
@@ -274,7 +275,7 @@ final class HtmlUpstreamReaderEvidence
             'upstream' => [
                 'name' => 'jgm/pandoc',
                 'root' => $this->displayPath($root),
-                'commit' => $this->gitHead($root),
+                'commit' => $upstreamCommit,
                 'expectedCommit' => self::EXPECTED_UPSTREAM_COMMIT,
                 'readerSources' => self::SOURCE_FILES,
             ],
@@ -589,10 +590,13 @@ final class HtmlUpstreamReaderEvidence
      * @param array<string, mixed> $nativeAstEvidence
      * @return list<string>
      */
-    private function validationIssues(array $sourceInventory, array $staticEvidence, array $nativeAstEvidence): array
+    private function validationIssues(array $sourceInventory, array $staticEvidence, array $nativeAstEvidence, ?string $upstreamCommit): array
     {
         $issues = [];
         $staticValidation = is_array($staticEvidence['validation'] ?? null) ? $staticEvidence['validation'] : [];
+        if ($upstreamCommit !== self::EXPECTED_UPSTREAM_COMMIT) {
+            $issues[] = 'upstream-html-reader-commit-mismatch';
+        }
         if (($staticValidation['status'] ?? null) !== 'valid-checked-in-current-html-reader-evidence') {
             $issues[] = 'invalid-checked-in-current-html-reader-evidence';
         }

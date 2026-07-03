@@ -50,6 +50,15 @@ $writeHtmlEvidenceTree = static function (string $upstreamRoot) use ($writeFile)
     $writeFile($upstreamRoot, 'src/Text/Pandoc/Readers/HTML.hs', "module Text.Pandoc.Readers.HTML where\n");
 };
 
+$writeGitHead = static function (string $upstreamRoot, string $commit): void {
+    $gitDirectory = $upstreamRoot . DIRECTORY_SEPARATOR . '.git';
+    if (!is_dir($gitDirectory) && !mkdir($gitDirectory, 0777, true) && !is_dir($gitDirectory)) {
+        throw new RuntimeException("Unable to create git directory {$gitDirectory}");
+    }
+
+    file_put_contents($gitDirectory . DIRECTORY_SEPARATOR . 'HEAD', $commit . "\n");
+};
+
 return [
     'reports skipped html reader evidence when upstream root is absent' => static function (TestRunner $t): void {
         $repoRoot = dirname(__DIR__, 3);
@@ -94,7 +103,7 @@ return [
         $t->true(in_array('that upstream Haskell/Cabal/Tasty tests were executed', $evidence['claimBoundaries']['doesNotAssert'], true));
     },
 
-    'validates hydrated upstream html reader source evidence' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeHtmlEvidenceTree): void {
+    'rejects hydrated upstream html reader source evidence without pinned git head' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeHtmlEvidenceTree): void {
         $repoRoot = dirname(__DIR__, 3);
         $root = $makeTempDir();
         try {
@@ -102,6 +111,31 @@ return [
             $report = (new HtmlUpstreamReaderEvidence($repoRoot, $root))->report();
 
             $t->same(HtmlUpstreamReaderEvidence::STATUS_COMPLETED, $report['status']);
+            $t->same(null, $report['upstream']['commit']);
+            $t->same('invalid-upstream-html-reader-evidence', $report['validation']['status']);
+            $t->same(['upstream-html-reader-commit-mismatch'], $report['validation']['issues']);
+            $t->same(48, $report['denominator']['selectedFixtureCount']);
+            $t->same(2, $report['sourceInventory']['presentFileCount']);
+            $t->same(0, $report['sourceInventory']['missingFileCount']);
+            $t->same(true, HtmlUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($report));
+            $t->same(true, HtmlUpstreamReaderEvidence::hasRequiredNativeMappedParity($report, 3));
+            $t->same(true, HtmlUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
+            $t->same(false, HtmlUpstreamReaderEvidence::hasNoValidationIssues($report));
+        } finally {
+            $removeTree($root);
+        }
+    },
+
+    'validates hydrated upstream html reader source evidence at expected commit' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeHtmlEvidenceTree, $writeGitHead): void {
+        $repoRoot = dirname(__DIR__, 3);
+        $root = $makeTempDir();
+        try {
+            $writeHtmlEvidenceTree($root);
+            $writeGitHead($root, HtmlUpstreamReaderEvidence::EXPECTED_UPSTREAM_COMMIT);
+            $report = (new HtmlUpstreamReaderEvidence($repoRoot, $root))->report();
+
+            $t->same(HtmlUpstreamReaderEvidence::STATUS_COMPLETED, $report['status']);
+            $t->same(HtmlUpstreamReaderEvidence::EXPECTED_UPSTREAM_COMMIT, $report['upstream']['commit']);
             $t->same('valid-upstream-html-reader-evidence', $report['validation']['status']);
             $t->same([], $report['validation']['issues']);
             $t->same(48, $report['denominator']['selectedFixtureCount']);
@@ -147,5 +181,31 @@ return [
         exec($failingCommand, $failingOutput, $failingExitCode);
 
         $t->same(1, $failingExitCode);
+    },
+
+    'cli rejects hydrated html source evidence without expected upstream commit' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeHtmlEvidenceTree): void {
+        $repoRoot = dirname(__DIR__, 3);
+        $root = $makeTempDir();
+        try {
+            $writeHtmlEvidenceTree($root);
+            $command = escapeshellarg(PHP_BINARY)
+                . ' '
+                . escapeshellarg($repoRoot . '/tools/pandoc-html-reader-evidence.php')
+                . ' --repo-root=' . escapeshellarg($repoRoot)
+                . ' --upstream-root=' . escapeshellarg($root)
+                . ' --json'
+                . ' --require-no-validation-issues'
+                . ' 2>/dev/null';
+            $output = [];
+            $exitCode = 0;
+            exec($command, $output, $exitCode);
+            $decoded = json_decode(implode("\n", $output), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same(1, $exitCode);
+            $t->same('invalid-upstream-html-reader-evidence', $decoded['validation']['status']);
+            $t->same(['upstream-html-reader-commit-mismatch'], $decoded['validation']['issues']);
+        } finally {
+            $removeTree($root);
+        }
     },
 ];
