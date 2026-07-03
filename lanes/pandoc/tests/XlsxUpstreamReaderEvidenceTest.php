@@ -70,30 +70,49 @@ HS);
 };
 
 return [
-    'reports skipped xlsx reader evidence when upstream root is absent' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
-        $root = $makeTempDir();
-        try {
-            $report = (new XlsxUpstreamReaderEvidence($root, 'missing'))->report();
-            $text = XlsxUpstreamReaderEvidence::formatTextReport($report);
+    'reports skipped xlsx reader evidence when upstream root is absent' => static function (TestRunner $t): void {
+        $repoRoot = dirname(__DIR__, 3);
+        $report = (new XlsxUpstreamReaderEvidence($repoRoot, 'missing-upstream-root-for-static-xlsx-gate'))->report();
+        $text = XlsxUpstreamReaderEvidence::formatTextReport($report);
 
-            $t->same(1, $report['schemaVersion']);
-            $t->same(XlsxUpstreamReaderEvidence::TOOL_NAME, $report['tool']);
-            $t->same(XlsxUpstreamReaderEvidence::STATUS_SKIPPED_MISSING_SOURCE, $report['status']);
-            $t->same(0, $report['denominator']['readerTestCompareCount']);
-            $t->same(0, $report['denominator']['fixturePairCount']);
-            $t->same('not-evaluated-missing-upstream-root', $report['validation']['status']);
-            $t->same(false, XlsxUpstreamReaderEvidence::hasNoValidationIssues($report));
-            $t->contains('Pandoc XLSX reader evidence', $text);
-        } finally {
-            $removeTree($root);
-        }
+        $t->same(1, $report['schemaVersion']);
+        $t->same(XlsxUpstreamReaderEvidence::TOOL_NAME, $report['tool']);
+        $t->same(XlsxUpstreamReaderEvidence::STATUS_SKIPPED_MISSING_SOURCE, $report['status']);
+        $t->same(0, $report['denominator']['readerTestCompareCount']);
+        $t->same(0, $report['denominator']['fixturePairCount']);
+        $t->same('not-evaluated-missing-upstream-root', $report['validation']['status']);
+        $t->same('valid-checked-in-current-xlsx-reader-evidence', $report['staticCurrentEvidence']['validation']['status']);
+        $t->same(true, XlsxUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($report));
+        $t->same(false, XlsxUpstreamReaderEvidence::hasNoValidationIssues($report));
+        $t->contains('Pandoc XLSX reader evidence', $text);
+        $t->contains('Static current evidence: valid-checked-in-current-xlsx-reader-evidence checkedInFixtures=2', $text);
+    },
+
+    'reports checked-in current xlsx fixture static evidence' => static function (TestRunner $t): void {
+        $repoRoot = dirname(__DIR__, 3);
+        $evidence = XlsxUpstreamReaderEvidence::checkedInCurrentEvidence($repoRoot);
+
+        $t->same('static-checked-in-current-upstream-xlsx-reader-fixture-evidence', $evidence['kind']);
+        $t->same(XlsxUpstreamReaderEvidence::EXPECTED_UPSTREAM_COMMIT, $evidence['upstream']['commit']);
+        $t->same(1, $evidence['readerDenominator']['expectedCompareCount']);
+        $t->same(1, $evidence['readerDenominator']['fixturePairCount']);
+        $t->same(2, $evidence['checkedInFixtureCount']);
+        $t->same('basic.xlsx', $evidence['checkedInFixtures'][0]['name']);
+        $t->same('68f8e01ee5463f3f6596a12745f5d9de982c0140a728e97ddfbac1177b80b2ae', $evidence['checkedInFixtures'][0]['checkedInFile']['sha256']);
+        $t->same(13604, $evidence['checkedInFixtures'][0]['checkedInFile']['bytes']);
+        $t->same('basic.native', $evidence['checkedInFixtures'][1]['name']);
+        $t->same('c170d89ab26fd10b3d9d6d401399c568f2043908c5ab68575029c6394a870247', $evidence['checkedInFixtures'][1]['checkedInFile']['sha256']);
+        $t->same(11298, $evidence['checkedInFixtures'][1]['checkedInFile']['bytes']);
+        $t->same('valid-checked-in-current-xlsx-reader-evidence', $evidence['validation']['status']);
+        $t->same([], $evidence['validation']['issues']);
     },
 
     'parses upstream xlsx reader test denominator and fixture pairs' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeXlsxEvidenceTree): void {
+        $repoRoot = dirname(__DIR__, 3);
         $root = $makeTempDir();
         try {
             $writeXlsxEvidenceTree($root);
-            $report = (new XlsxUpstreamReaderEvidence($root, '.'))->report();
+            $report = (new XlsxUpstreamReaderEvidence($repoRoot, $root))->report();
 
             $t->same(XlsxUpstreamReaderEvidence::STATUS_COMPLETED, $report['status']);
             $t->same('valid-upstream-xlsx-reader-denominator', $report['validation']['status']);
@@ -109,6 +128,7 @@ return [
             $t->same(0, $report['sourceInventory']['missingFileCount']);
             $t->same(true, XlsxUpstreamReaderEvidence::hasRequiredReaderTestCount($report, 1));
             $t->same(true, XlsxUpstreamReaderEvidence::hasRequiredFixturePairCount($report, 1));
+            $t->same(true, XlsxUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($report));
             $t->same(true, XlsxUpstreamReaderEvidence::hasNoValidationIssues($report));
             $t->true(in_array('that upstream Haskell/Cabal/Tasty tests were executed', $report['claimBoundaries']['doesNotAssert'], true));
         } finally {
@@ -117,6 +137,7 @@ return [
     },
 
     'reports invalid xlsx reader evidence for missing and unreferenced fixtures' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile): void {
+        $repoRoot = dirname(__DIR__, 3);
         $root = $makeTempDir();
         try {
             $writeFile($root, 'test/Tests/Readers/Xlsx.hs', <<<'HS'
@@ -128,7 +149,7 @@ HS);
             $writeFile($root, 'test/xlsx-reader/extra2.xlsx', 'extra2 xlsx bytes');
             $writeFile($root, 'test/xlsx-reader/extra2.native', '[Para [Str "extra2"]]');
 
-            $report = (new XlsxUpstreamReaderEvidence($root, '.'))->report();
+            $report = (new XlsxUpstreamReaderEvidence($repoRoot, $root))->report();
 
             $t->same('invalid-upstream-xlsx-reader-denominator', $report['validation']['status']);
             $t->true(in_array('missing-referenced-fixture-files', $report['validation']['issues'], true));
@@ -144,17 +165,19 @@ HS);
     },
 
     'cli gates xlsx reader evidence counts and validation issues' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeXlsxEvidenceTree): void {
+        $repoRoot = dirname(__DIR__, 3);
         $root = $makeTempDir();
         try {
             $writeXlsxEvidenceTree($root);
             $command = escapeshellarg(PHP_BINARY)
                 . ' '
                 . escapeshellarg(dirname(__DIR__, 3) . '/tools/pandoc-xlsx-reader-evidence.php')
-                . ' --repo-root=' . escapeshellarg(dirname($root))
+                . ' --repo-root=' . escapeshellarg($repoRoot)
                 . ' --upstream-root=' . escapeshellarg($root)
                 . ' --json'
                 . ' --require-test-count=1'
                 . ' --require-fixture-pair-count=1'
+                . ' --require-static-current-evidence'
                 . ' --require-no-validation-issues';
             $output = [];
             $exitCode = 0;
@@ -164,6 +187,7 @@ HS);
             $t->same(0, $exitCode);
             $t->same(1, $decoded['denominator']['readerTestCompareCount']);
             $t->same(1, $decoded['denominator']['fixturePairCount']);
+            $t->same('valid-checked-in-current-xlsx-reader-evidence', $decoded['staticCurrentEvidence']['validation']['status']);
             $t->same('valid-upstream-xlsx-reader-denominator', $decoded['validation']['status']);
 
             $failingCommand = str_replace('--require-test-count=1', '--require-test-count=2', $command) . ' 2>/dev/null';
@@ -175,5 +199,25 @@ HS);
         } finally {
             $removeTree($root);
         }
+    },
+
+    'cli gates checked-in current xlsx fixture evidence without hydrated upstream cache' => static function (TestRunner $t): void {
+        $repoRoot = dirname(__DIR__, 3);
+        $command = escapeshellarg(PHP_BINARY)
+            . ' '
+            . escapeshellarg($repoRoot . '/tools/pandoc-xlsx-reader-evidence.php')
+            . ' --repo-root=' . escapeshellarg($repoRoot)
+            . ' --upstream-root=missing-upstream-root-for-static-xlsx-gate'
+            . ' --json'
+            . ' --require-static-current-evidence';
+        $output = [];
+        $exitCode = 0;
+        exec($command, $output, $exitCode);
+        $decoded = json_decode(implode("\n", $output), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same(0, $exitCode);
+        $t->same(XlsxUpstreamReaderEvidence::STATUS_SKIPPED_MISSING_SOURCE, $decoded['status']);
+        $t->same('valid-checked-in-current-xlsx-reader-evidence', $decoded['staticCurrentEvidence']['validation']['status']);
+        $t->same(2, $decoded['staticCurrentEvidence']['checkedInFixtureCount']);
     },
 ];

@@ -18,6 +18,8 @@ Options:
                                   Defaults to .upstream-cache/pandoc-current.
   --require-test-count N          Exit 1 unless Tests.Readers.Xlsx has exactly N comparisons.
   --require-fixture-pair-count N  Exit 1 unless test/xlsx-reader has exactly N XLSX/native pairs.
+  --require-static-current-evidence
+                                  Exit 1 unless checked-in XLSX fixture hashes are valid.
   --require-no-validation-issues  Exit 1 when denominator validation reports any issue.
   --help                          Show this help.
 
@@ -32,6 +34,7 @@ try {
     $json = false;
     $requiredTestCount = null;
     $requiredFixturePairCount = null;
+    $requireStaticCurrentEvidence = false;
     $requireNoValidationIssues = false;
     $args = array_slice($argv, 1);
 
@@ -56,6 +59,10 @@ try {
         }
         if ($arg === '--require-no-validation-issues') {
             $requireNoValidationIssues = true;
+            continue;
+        }
+        if ($arg === '--require-static-current-evidence') {
+            $requireStaticCurrentEvidence = true;
             continue;
         }
         if ($arg === '--repo-root') {
@@ -130,6 +137,11 @@ try {
         && !XlsxUpstreamReaderEvidence::hasRequiredFixturePairCount($report, $requiredFixturePairCount)
     ) {
         fwrite(STDERR, "pandoc-xlsx-reader-evidence: fixture pair count did not match {$requiredFixturePairCount}\n");
+        exit(1);
+    }
+
+    if ($requireStaticCurrentEvidence && !XlsxUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($report)) {
+        fwrite(STDERR, "pandoc-xlsx-reader-evidence: checked-in current XLSX fixture evidence is invalid\n");
         exit(1);
     }
 

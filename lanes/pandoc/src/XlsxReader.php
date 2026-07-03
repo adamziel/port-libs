@@ -299,7 +299,7 @@ final class XlsxReader
                         'test/xlsx-reader/basic.xlsx',
                         'test/xlsx-reader/basic.native',
                     ],
-                    'source' => 'Pandoc 912bfa5e src/Text/Pandoc/Readers/Xlsx.hs and src/Text/Pandoc/Readers/Xlsx/{Parse,Sheets,Cells}.hs',
+                    'source' => 'Pandoc 4f5226df src/Text/Pandoc/Readers/Xlsx.hs and src/Text/Pandoc/Readers/Xlsx/{Parse,Sheets,Cells}.hs',
                 ],
             ],
         ], $blocks);

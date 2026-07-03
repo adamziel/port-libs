@@ -11,6 +11,25 @@ final class XlsxUpstreamReaderEvidence
     public const TOOL_NAME = 'pandoc-xlsx-reader-evidence';
     public const STATUS_COMPLETED = 'completed-upstream-xlsx-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-xlsx-root';
+    public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-xlsx-reader';
+    public const EXPECTED_STATIC_FIXTURE_PAIR_COUNT = 1;
+
+    private const CHECKED_IN_CURRENT_FIXTURES = [
+        'basic.xlsx' => [
+            'role' => 'upstream-xlsx-reader-input-fixture',
+            'upstreamPath' => 'test/xlsx-reader/basic.xlsx',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-current-xlsx-reader/basic.xlsx',
+            'sha256' => '68f8e01ee5463f3f6596a12745f5d9de982c0140a728e97ddfbac1177b80b2ae',
+            'bytes' => 13604,
+        ],
+        'basic.native' => [
+            'role' => 'upstream-xlsx-reader-native-golden',
+            'upstreamPath' => 'test/xlsx-reader/basic.native',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-current-xlsx-reader/basic.native',
+            'sha256' => 'c170d89ab26fd10b3d9d6d401399c568f2043908c5ab68575029c6394a870247',
+            'bytes' => 11298,
+        ],
+    ];
 
     private readonly string $repoRoot;
     private readonly string $upstreamRoot;
@@ -34,6 +53,7 @@ final class XlsxUpstreamReaderEvidence
     public function report(): array
     {
         $root = $this->absoluteUpstreamRoot();
+        $staticEvidence = self::checkedInCurrentEvidence($this->repoRoot);
         if (!is_dir($root)) {
             return [
                 'schemaVersion' => 1,
@@ -47,6 +67,7 @@ final class XlsxUpstreamReaderEvidence
                 ],
                 'denominator' => $this->emptyDenominator(),
                 'sourceInventory' => $this->emptySourceInventory(),
+                'staticCurrentEvidence' => $staticEvidence,
                 'validation' => [
                     'status' => 'not-evaluated-missing-upstream-root',
                     'issues' => ['missing-upstream-root'],
@@ -86,12 +107,91 @@ final class XlsxUpstreamReaderEvidence
                 'unreferencedFixturePairs' => $this->unreferencedFixturePairs($readerCases, $fixturePairs),
             ],
             'sourceInventory' => $this->sourceInventory($root),
+            'staticCurrentEvidence' => $staticEvidence,
             'validation' => [
                 'status' => $validationIssues === [] ? 'valid-upstream-xlsx-reader-denominator' : 'invalid-upstream-xlsx-reader-denominator',
                 'issues' => $validationIssues,
             ],
             'claim' => self::claim(),
             'claimBoundaries' => self::claimBoundaries(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function checkedInCurrentEvidence(string $repoRoot): array
+    {
+        $root = rtrim($repoRoot, DIRECTORY_SEPARATOR);
+        $fixtureDirectory = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, self::CHECKED_IN_CURRENT_FIXTURE_DIRECTORY);
+        $issues = [];
+        if (!is_dir($fixtureDirectory)) {
+            $issues[] = 'missing-checked-in-current-fixture-directory';
+        }
+
+        $fixtures = [];
+        foreach (self::CHECKED_IN_CURRENT_FIXTURES as $name => $snapshot) {
+            $file = self::snapshotFileEvidence(
+                $root,
+                (string) $snapshot['checkedInPath'],
+                (string) $snapshot['sha256'],
+                (int) $snapshot['bytes']
+            );
+            $fixtures[] = [
+                'name' => (string) $name,
+                'role' => (string) $snapshot['role'],
+                'upstreamPath' => (string) $snapshot['upstreamPath'],
+                'checkedInFile' => $file,
+            ];
+
+            if (($file['present'] ?? false) !== true) {
+                $issues[] = 'missing-checked-in-current-xlsx-fixture';
+            } elseif (($file['sha256'] ?? null) !== $snapshot['sha256']) {
+                $issues[] = 'checked-in-current-xlsx-fixture-sha256-mismatch';
+            } elseif ((int) ($file['bytes'] ?? -1) !== (int) $snapshot['bytes']) {
+                $issues[] = 'checked-in-current-xlsx-fixture-byte-count-mismatch';
+            }
+        }
+
+        return [
+            'kind' => 'static-checked-in-current-upstream-xlsx-reader-fixture-evidence',
+            'upstream' => [
+                'name' => 'jgm/pandoc',
+                'commit' => self::EXPECTED_UPSTREAM_COMMIT,
+                'fixtureDirectory' => 'test/xlsx-reader',
+                'readerTestModule' => 'test/Tests/Readers/Xlsx.hs',
+            ],
+            'readerDenominator' => [
+                'expectedCompareCount' => self::EXPECTED_STATIC_FIXTURE_PAIR_COUNT,
+                'fixturePairCount' => self::EXPECTED_STATIC_FIXTURE_PAIR_COUNT,
+                'fixtureScope' => 'checked-in upstream XLSX/native reader golden pair',
+                'expectedReaderCases' => [
+                    [
+                        'name' => 'xlsx',
+                        'xlsx' => 'xlsx-reader/basic.xlsx',
+                        'native' => 'xlsx-reader/basic.native',
+                    ],
+                ],
+            ],
+            'checkedInFixtureDirectory' => self::CHECKED_IN_CURRENT_FIXTURE_DIRECTORY,
+            'checkedInFixtureCount' => count($fixtures),
+            'checkedInFixtures' => $fixtures,
+            'validation' => [
+                'status' => $issues === [] ? 'valid-checked-in-current-xlsx-reader-evidence' : 'invalid-checked-in-current-xlsx-reader-evidence',
+                'issues' => array_values(array_unique($issues)),
+            ],
+            'claim' => 'Static gate binding the checked-in upstream XLSX reader golden pair to SHA-256 and byte-count snapshots.',
+            'claimBoundaries' => [
+                'doesAssert' => [
+                    'the checked-in basic.xlsx and basic.native snapshots match the pinned upstream reader fixture hashes',
+                    'the checked-in upstream XLSX reader fixture corpus has one XLSX/native golden pair',
+                ],
+                'doesNotAssert' => [
+                    'that upstream Haskell/Cabal/Tasty tests were executed',
+                    'that local PHP output matches upstream native output beyond the separate native AST comparator',
+                    'full Excel feature parity beyond Pandoc reader behavior',
+                ],
+            ],
         ];
     }
 
@@ -103,6 +203,8 @@ final class XlsxUpstreamReaderEvidence
         $denominator = is_array($report['denominator'] ?? null) ? $report['denominator'] : [];
         $validation = is_array($report['validation'] ?? null) ? $report['validation'] : [];
         $upstream = is_array($report['upstream'] ?? null) ? $report['upstream'] : [];
+        $staticEvidence = is_array($report['staticCurrentEvidence'] ?? null) ? $report['staticCurrentEvidence'] : [];
+        $staticValidation = is_array($staticEvidence['validation'] ?? null) ? $staticEvidence['validation'] : [];
 
         return implode(PHP_EOL, [
             'Pandoc XLSX reader evidence',
@@ -111,6 +213,8 @@ final class XlsxUpstreamReaderEvidence
                 . ' expected=' . (string) ($upstream['expectedCommit'] ?? self::EXPECTED_UPSTREAM_COMMIT),
             'Reader test comparisons: ' . (int) ($denominator['readerTestCompareCount'] ?? 0),
             'Fixture pairs: ' . (int) ($denominator['fixturePairCount'] ?? 0),
+            'Static current evidence: ' . (string) ($staticValidation['status'] ?? 'unknown')
+                . ' checkedInFixtures=' . (int) ($staticEvidence['checkedInFixtureCount'] ?? 0),
             'Validation: ' . (string) ($validation['status'] ?? 'unknown'),
             'No upstream Haskell/Cabal runner result or full Excel feature parity is asserted.',
         ]) . PHP_EOL;
@@ -145,6 +249,19 @@ final class XlsxUpstreamReaderEvidence
 
         return ($validation['status'] ?? null) === 'valid-upstream-xlsx-reader-denominator'
             && ($validation['issues'] ?? null) === [];
+    }
+
+    /**
+     * @param array<string, mixed> $report
+     */
+    public static function hasRequiredStaticCurrentEvidence(array $report): bool
+    {
+        $staticEvidence = is_array($report['staticCurrentEvidence'] ?? null) ? $report['staticCurrentEvidence'] : [];
+        $validation = is_array($staticEvidence['validation'] ?? null) ? $staticEvidence['validation'] : [];
+
+        return ($validation['status'] ?? null) === 'valid-checked-in-current-xlsx-reader-evidence'
+            && ($validation['issues'] ?? null) === []
+            && (int) ($staticEvidence['checkedInFixtureCount'] ?? -1) === count(self::CHECKED_IN_CURRENT_FIXTURES);
     }
 
     private static function claim(): string
@@ -372,6 +489,26 @@ final class XlsxUpstreamReaderEvidence
             'presentFileCount' => $presentCount,
             'missingFileCount' => count($relativeFiles) - $presentCount,
             'presentLineCount' => $lineCount,
+        ];
+    }
+
+    /**
+     * @return array{path: string, present: bool, sha256: ?string, expectedSha256: string, bytes: ?int, expectedBytes: int}
+     */
+    private static function snapshotFileEvidence(string $root, string $relativePath, string $expectedSha256, int $expectedBytes): array
+    {
+        $path = rtrim($root, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
+        $present = is_file($path);
+        $sha256 = $present ? hash_file('sha256', $path) : false;
+        $bytes = $present ? filesize($path) : false;
+
+        return [
+            'path' => $relativePath,
+            'present' => $present,
+            'sha256' => is_string($sha256) ? $sha256 : null,
+            'expectedSha256' => $expectedSha256,
+            'bytes' => is_int($bytes) ? $bytes : null,
+            'expectedBytes' => $expectedBytes,
         ];
     }
 
