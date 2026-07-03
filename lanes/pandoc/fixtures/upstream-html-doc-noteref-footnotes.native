@@ -1,0 +1,24 @@
+[ Para
+    [ Str "Legacy"
+    , Space
+    , Str "review"
+    , Space
+    , Str "note"
+    , Note
+        [ Para
+            [ Str "Editor"
+            , Space
+            , Str "note"
+            , Space
+            , Str "with"
+            , Space
+            , Strong [ Str "source" , Space , Str "context" ]
+            , Str "."
+            ]
+        ]
+    , Space
+    , Str "stays"
+    , Space
+    , Str "attached."
+    ]
+]

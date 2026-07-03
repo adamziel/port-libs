@@ -597,7 +597,7 @@ final class HtmlNativeAstComparisonHarness
                 'rank' => 3,
                 'id' => 'full-html5-tree-construction-coverage',
                 'status' => 'open',
-                'currentEvidence' => 'The current checked-in gate covers one row-header table fixture.',
+                'currentEvidence' => "The current checked-in gate covers {$comparedPairCount} paired fixture(s).",
                 'evidenceRequired' => 'Broaden fixture coverage across HTML5 parsing, DOM repair, raw HTML boundaries, metadata, tables, and inline semantics.',
             ],
         ];
