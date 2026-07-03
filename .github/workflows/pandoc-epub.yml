@@ -101,6 +101,11 @@ jobs:
             --require-test-count=6 \
             --require-fixture-reference-count=6 \
             --require-expected-media-item-count=10 \
+            --require-referenced-fixture-identity \
+            --require-static-current-signature \
+            --require-native-ast-package-parity \
+            --require-runner-not-run \
+            --require-runner-plan \
             --require-no-validation-issues
 
       - name: Require upstream EPUB media-bag parity
@@ -117,9 +122,14 @@ jobs:
             --epub-dir=.upstream-cache/pandoc-current/test/epub \
             --json \
             summary \
-            --require-package-parity=8 \
-            --require-native-readiness=8 \
-            --require-mapped-parity=8
+            --require-package-parity=31 \
+            --require-native-readiness=31 \
+            --require-mapped-parity=31 \
+            --require-fixture-identity \
+            --require-current-package-feature-coverage \
+            --require-current-package-feature-signature \
+            --require-current-native-ast-signature \
+            --require-runner-plan
 
       - name: Run focused EPUB parity tests
         run: |
