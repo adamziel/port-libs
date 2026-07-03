@@ -109,8 +109,8 @@ return [
         $t->same('b0b4ae0c2f04421f042eef43c3a79ab699e771a3873e28b23e85d15091f03d57', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][1]['checkedInFile']['sha256']);
         $t->same(1894, $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][1]['checkedInFile']['bytes']);
         $t->same('post-delimiter-space.csv', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][2]['name']);
-        $t->same('b45a6d7f8cde2d645ce78e0427ff3a29be527c1507db236403c8ea9c1228f7a7', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][2]['checkedInFile']['sha256']);
-        $t->same(134, $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][2]['checkedInFile']['bytes']);
+        $t->same('109867931d7a1d37a49d565c175d085415b378800e2acd2d4ec8f1c24935601f', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][2]['checkedInFile']['sha256']);
+        $t->same(131, $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][2]['checkedInFile']['bytes']);
         $t->same('post-delimiter-space.native', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][3]['name']);
         $t->same('766278b6bf6c85a71a50a50df5c8ee776c7e774020897f8f39e34d9841a9c8d1', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][3]['checkedInFile']['sha256']);
         $t->same(1684, $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][3]['checkedInFile']['bytes']);

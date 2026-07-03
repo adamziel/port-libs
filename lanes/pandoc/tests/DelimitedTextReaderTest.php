@@ -187,7 +187,7 @@ return [
         $t->same(2, $generatedEvidence['sampleCount'] ?? null);
         $t->same(4, $generatedEvidence['checkedInFixtureCount'] ?? null);
         $t->same('post-delimiter-space.csv', $generatedEvidence['checkedInFixtures'][2]['name'] ?? null);
-        $t->same('b45a6d7f8cde2d645ce78e0427ff3a29be527c1507db236403c8ea9c1228f7a7', $generatedEvidence['checkedInFixtures'][2]['checkedInFile']['sha256'] ?? null);
+        $t->same('109867931d7a1d37a49d565c175d085415b378800e2acd2d4ec8f1c24935601f', $generatedEvidence['checkedInFixtures'][2]['checkedInFile']['sha256'] ?? null);
         $t->same('post-delimiter-space.native', $generatedEvidence['checkedInFixtures'][3]['name'] ?? null);
         $t->same('766278b6bf6c85a71a50a50df5c8ee776c7e774020897f8f39e34d9841a9c8d1', $generatedEvidence['checkedInFixtures'][3]['checkedInFile']['sha256'] ?? null);
         $t->same(['id', 'title', 'note'], $table->attr('columnNames'));

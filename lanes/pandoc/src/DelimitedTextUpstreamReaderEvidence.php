@@ -55,8 +55,8 @@ final class DelimitedTextUpstreamReaderEvidence
             'role' => 'generated-csv-native-parity-input-fixture',
             'sample' => 'post-delimiter-space',
             'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/post-delimiter-space.csv',
-            'sha256' => 'b45a6d7f8cde2d645ce78e0427ff3a29be527c1507db236403c8ea9c1228f7a7',
-            'bytes' => 134,
+            'sha256' => '109867931d7a1d37a49d565c175d085415b378800e2acd2d4ec8f1c24935601f',
+            'bytes' => 131,
         ],
         'post-delimiter-space.native' => [
             'role' => 'generated-csv-native-parity-expected-native-output',
