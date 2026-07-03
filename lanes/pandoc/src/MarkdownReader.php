@@ -8811,6 +8811,11 @@ final class MarkdownReader
             ]);
         }
 
+        $sectioningBlock = $this->tryReadRawTexSectioningBlock($lines, $index);
+        if ($sectioningBlock !== null) {
+            return $sectioningBlock;
+        }
+
         $contextBlock = $this->tryReadContextStartStopBlock($lines, $index);
         if ($contextBlock !== null) {
             return $contextBlock;
@@ -8837,6 +8842,81 @@ final class MarkdownReader
                 ]);
             }
             $cursor++;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function tryReadRawTexSectioningBlock(array $lines, int &$index): ?AstNode
+    {
+        $content = [];
+        $cursor = $index;
+        $count = count($lines);
+
+        while ($cursor < $count) {
+            $line = trim($lines[$cursor]);
+            if ($line === '' || !$this->isRawTexSectioningCommandLine($line)) {
+                break;
+            }
+
+            $content[] = $line;
+            $cursor++;
+        }
+
+        if ($content === []) {
+            return null;
+        }
+
+        $index = $cursor - 1;
+
+        return new AstNode('raw_tex', [
+            'tex' => implode("\n", $content),
+            'command' => 'sectioning',
+        ]);
+    }
+
+    private function isRawTexSectioningCommandLine(string $line): bool
+    {
+        $offset = 0;
+        $length = strlen($line);
+
+        while ($offset < $length) {
+            if (preg_match('/\G[ \t]+/', $line, $space, 0, $offset) === 1) {
+                $offset += strlen($space[0]);
+                continue;
+            }
+
+            $command = $this->tryParseRawTexSectioningCommand($line, $offset);
+            if ($command === null) {
+                return false;
+            }
+
+            $offset = $command['next'];
+        }
+
+        return true;
+    }
+
+    /**
+     * @return array{next:int}|null
+     */
+    private function tryParseRawTexSectioningCommand(string $line, int $offset): ?array
+    {
+        if (preg_match(
+            '/\G\\\\(?:part|chapter|section|subsection|subsubsection|paragraph|subparagraph)\*?[ \t]*(?:\[[^\]\r\n]*\][ \t]*)?\{[^{}\r\n]*\}/',
+            $line,
+            $match,
+            0,
+            $offset
+        ) === 1) {
+            return ['next' => $offset + strlen($match[0])];
+        }
+
+        if (preg_match('/\G\\\\(?:appendix|frontmatter|mainmatter|backmatter|tableofcontents)\b/', $line, $match, 0, $offset) === 1) {
+            return ['next' => $offset + strlen($match[0])];
         }
 
         return null;

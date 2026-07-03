@@ -525,6 +525,34 @@ return [
         $t->contains('Cat    & 1      \\\\ \hline', $table->attr('tex'));
         $t->same('horizontal_rule', $document->children[2]->type);
     },
+    'maps upstream markdown raw tex sectioning command lines as raw blocks' => static function (TestRunner $t): void {
+        $source = implode("\n", [
+            '\section {Intro}',
+            '\subsection[Short]{Long}',
+            '\paragraph*{Run in}',
+            '\appendix',
+            '\tableofcontents',
+            '',
+            'After sectioning.',
+        ]);
+        $document = (new MarkdownReader())->read($source);
+        $disabled = (new MarkdownReader(['format' => 'markdown-raw_tex']))->read($source);
+        $raw = $document->children[0];
+
+        $t->same(['raw_tex', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
+        $t->same('sectioning', $raw->attr('command'));
+        $t->same(
+            '\section {Intro}' . "\n"
+                . '\subsection[Short]{Long}' . "\n"
+                . '\paragraph*{Run in}' . "\n"
+                . '\appendix' . "\n"
+                . '\tableofcontents',
+            $raw->attr('tex')
+        );
+        $t->same('After sectioning.', $document->children[1]->attr('text'));
+        $t->same(['paragraph', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $disabled->children));
+        $t->same('\section {Intro} \subsection[Short]{Long} \paragraph*{Run in} \appendix \tableofcontents', $disabled->children[0]->attr('text'));
+    },
     'maps upstream markdown reader more raw tex environments and macros' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '## Raw ConTeXt environments',
