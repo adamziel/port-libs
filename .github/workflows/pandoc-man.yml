@@ -87,6 +87,8 @@ jobs:
             --upstream-root=.upstream-cache/pandoc-current \
             --json \
             --require-test-count=30 \
+            --require-runner-not-run \
+            --require-runner-plan \
             --require-no-validation-issues
 
       - name: Install pandoc executable

@@ -74,7 +74,10 @@ return [
             $t->same(0, $report['denominator']['readerUnitCaseCount']);
             $t->same('not-evaluated-missing-upstream-root', $report['validation']['status']);
             $t->same(false, ManUpstreamReaderEvidence::hasNoValidationIssues($report));
+            $t->same(true, ManUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
+            $t->same(true, ManUpstreamReaderEvidence::hasRunnerPlanEvidence($report));
             $t->contains('Pandoc man reader evidence', $text);
+            $t->contains('Runner plan: planned-not-run', $text);
         } finally {
             $removeTree($root);
         }
@@ -96,7 +99,12 @@ return [
             $t->same(0, $report['sourceInventory']['missingFileCount']);
             $t->same(true, ManUpstreamReaderEvidence::hasRequiredReaderUnitCaseCount($report, 2));
             $t->same(true, ManUpstreamReaderEvidence::hasNoValidationIssues($report));
+            $t->same(true, ManUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
+            $t->same(true, ManUpstreamReaderEvidence::hasRunnerPlanEvidence($report));
+            $t->same('$2 == "Readers" && $3 == "Man"', $report['runnerEvidence']['target']['tastyPattern']);
+            $t->true(in_array('.port-libs/pandoc-runner/logs/man-targeted-run.txt', $report['runnerEvidence']['requiredTranscripts'], true));
             $t->true(in_array('that upstream Haskell/Cabal/Tasty tests were executed', $report['claimBoundaries']['doesNotAssert'], true));
+            $t->true(in_array('that upstream Haskell runner evidence is explicitly not-run', $report['claimBoundaries']['doesAssert'], true));
         } finally {
             $removeTree($root);
         }
@@ -129,6 +137,8 @@ return [
                 . ' --upstream-root=' . escapeshellarg($root)
                 . ' --json'
                 . ' --require-test-count=2'
+                . ' --require-runner-not-run'
+                . ' --require-runner-plan'
                 . ' --require-no-validation-issues';
             $output = [];
             $exitCode = 0;
@@ -138,6 +148,8 @@ return [
             $t->same(0, $exitCode);
             $t->same(2, $decoded['denominator']['readerUnitCaseCount']);
             $t->same('valid-upstream-man-reader-denominator', $decoded['validation']['status']);
+            $t->same('not-run', $decoded['runnerEvidence']['status']);
+            $t->same('planned-not-run', $decoded['runnerEvidence']['commandPlanStatus']);
 
             $failingCommand = str_replace('--require-test-count=2', '--require-test-count=3', $command) . ' 2>/dev/null';
             $failingOutput = [];

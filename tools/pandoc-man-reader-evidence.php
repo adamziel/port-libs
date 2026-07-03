@@ -17,6 +17,9 @@ Options:
   --upstream-root PATH            Optional upstream Pandoc checkout root.
                                   Defaults to .upstream-cache/pandoc-current.
   --require-test-count N          Exit 1 unless Tests.Readers.Man has exactly N unit cases.
+  --require-runner-not-run        Exit 1 unless upstream runner evidence is structured as not-run.
+  --require-runner-plan           Exit 1 unless upstream runner evidence includes the pinned
+                                  non-executed test:test-pandoc Man command plan.
   --require-no-validation-issues  Exit 1 when denominator validation reports any issue.
   --help                          Show this help.
 
@@ -30,6 +33,8 @@ try {
     $upstreamRoot = ManUpstreamReaderEvidence::DEFAULT_RELATIVE_UPSTREAM_ROOT;
     $json = false;
     $requiredTestCount = null;
+    $requireRunnerNotRun = false;
+    $requireRunnerPlan = false;
     $requireNoValidationIssues = false;
     $args = array_slice($argv, 1);
 
@@ -54,6 +59,14 @@ try {
         }
         if ($arg === '--require-no-validation-issues') {
             $requireNoValidationIssues = true;
+            continue;
+        }
+        if ($arg === '--require-runner-not-run') {
+            $requireRunnerNotRun = true;
+            continue;
+        }
+        if ($arg === '--require-runner-plan') {
+            $requireRunnerPlan = true;
             continue;
         }
         if ($arg === '--repo-root') {
@@ -109,6 +122,16 @@ try {
 
     if ($requireNoValidationIssues && !ManUpstreamReaderEvidence::hasNoValidationIssues($report)) {
         fwrite(STDERR, "pandoc-man-reader-evidence: upstream man reader denominator validation reported issues\n");
+        exit(1);
+    }
+
+    if ($requireRunnerNotRun && !ManUpstreamReaderEvidence::hasRunnerNotRunEvidence($report)) {
+        fwrite(STDERR, "pandoc-man-reader-evidence: runner not-run evidence is invalid\n");
+        exit(1);
+    }
+
+    if ($requireRunnerPlan && !ManUpstreamReaderEvidence::hasRunnerPlanEvidence($report)) {
+        fwrite(STDERR, "pandoc-man-reader-evidence: runner command-plan evidence is invalid\n");
         exit(1);
     }
 

@@ -12,6 +12,20 @@ final class ManUpstreamReaderEvidence
     public const STATUS_COMPLETED = 'completed-upstream-man-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-man-root';
 
+    private const RUNNER_TEST_SUITE = 'test:test-pandoc';
+    private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/man-targeted-run';
+    private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Man'];
+    private const RUNNER_TASTY_PATTERN = '$2 == "Readers" && $3 == "Man"';
+    private const RUNNER_REQUIRED_TRANSCRIPTS = [
+        '.port-libs/pandoc-runner/logs/runner-test-dependencies.txt',
+        '.port-libs/pandoc-runner/logs/man-targeted-list-tests.txt',
+        '.port-libs/pandoc-runner/logs/man-targeted-run.txt',
+    ];
+    private const RUNNER_REQUIRED_ARTIFACTS = [
+        '.port-libs/pandoc-runner/artifacts/man-targeted-run/selected-test-inventory.json',
+        '.port-libs/pandoc-runner/artifacts/man-targeted-run/result.json',
+    ];
+
     private readonly string $repoRoot;
     private readonly string $upstreamRoot;
 
@@ -51,6 +65,7 @@ final class ManUpstreamReaderEvidence
                     'status' => 'not-evaluated-missing-upstream-root',
                     'issues' => ['missing-upstream-root'],
                 ],
+                'runnerEvidence' => self::runnerNotRunEvidence(),
                 'claim' => self::claim(),
                 'claimBoundaries' => self::claimBoundaries(),
             ];
@@ -83,6 +98,7 @@ final class ManUpstreamReaderEvidence
                 'status' => $validationIssues === [] ? 'valid-upstream-man-reader-denominator' : 'invalid-upstream-man-reader-denominator',
                 'issues' => $validationIssues,
             ],
+            'runnerEvidence' => self::runnerNotRunEvidence(),
             'claim' => self::claim(),
             'claimBoundaries' => self::claimBoundaries(),
         ];
@@ -113,6 +129,7 @@ final class ManUpstreamReaderEvidence
         $denominator = is_array($report['denominator'] ?? null) ? $report['denominator'] : [];
         $validation = is_array($report['validation'] ?? null) ? $report['validation'] : [];
         $upstream = is_array($report['upstream'] ?? null) ? $report['upstream'] : [];
+        $runner = is_array($report['runnerEvidence'] ?? null) ? $report['runnerEvidence'] : [];
 
         return implode(PHP_EOL, [
             'Pandoc man reader evidence',
@@ -121,6 +138,8 @@ final class ManUpstreamReaderEvidence
                 . ' expected=' . (string) ($upstream['expectedCommit'] ?? self::EXPECTED_UPSTREAM_COMMIT),
             'Reader unit cases: ' . (int) ($denominator['readerUnitCaseCount'] ?? 0),
             'Validation: ' . (string) ($validation['status'] ?? 'unknown'),
+            'Runner status: ' . (string) ($runner['status'] ?? 'unknown'),
+            'Runner plan: ' . (string) ($runner['commandPlanStatus'] ?? 'unknown'),
             'No upstream Haskell/Cabal runner result, mdoc parity, or full roff parity is asserted.',
         ]) . PHP_EOL;
     }
@@ -146,6 +165,44 @@ final class ManUpstreamReaderEvidence
             && ($validation['issues'] ?? null) === [];
     }
 
+    /**
+     * @param array<string, mixed> $report
+     */
+    public static function hasRunnerNotRunEvidence(array $report): bool
+    {
+        $runner = is_array($report['runnerEvidence'] ?? null) ? $report['runnerEvidence'] : [];
+
+        return ($runner['status'] ?? null) === 'not-run'
+            && ($runner['executed'] ?? null) === false
+            && array_key_exists('command', $runner)
+            && $runner['command'] === null
+            && array_key_exists('resultArtifact', $runner)
+            && $runner['resultArtifact'] === null;
+    }
+
+    /**
+     * @param array<string, mixed> $report
+     */
+    public static function hasRunnerPlanEvidence(array $report): bool
+    {
+        $runner = is_array($report['runnerEvidence'] ?? null) ? $report['runnerEvidence'] : [];
+        $binding = is_array($runner['upstreamBinding'] ?? null) ? $runner['upstreamBinding'] : [];
+        $target = is_array($runner['target'] ?? null) ? $runner['target'] : [];
+
+        return self::hasRunnerNotRunEvidence($report)
+            && ($runner['commandPlanStatus'] ?? null) === 'planned-not-run'
+            && ($binding['name'] ?? null) === 'jgm/pandoc'
+            && ($binding['expectedCommit'] ?? null) === self::EXPECTED_UPSTREAM_COMMIT
+            && ($binding['entryPoint'] ?? null) === 'test/test-pandoc.hs'
+            && ($binding['readerTestModule'] ?? null) === 'test/Tests/Readers/Man.hs'
+            && ($target['testSuite'] ?? null) === self::RUNNER_TEST_SUITE
+            && ($target['tastyGroupPath'] ?? null) === self::RUNNER_TASTY_GROUP_PATH
+            && ($target['tastyPattern'] ?? null) === self::RUNNER_TASTY_PATTERN
+            && ($runner['futureCommands'] ?? null) === self::runnerFutureCommands()
+            && ($runner['requiredTranscripts'] ?? null) === self::RUNNER_REQUIRED_TRANSCRIPTS
+            && ($runner['requiredArtifacts'] ?? null) === self::RUNNER_REQUIRED_ARTIFACTS;
+    }
+
     private static function claim(): string
     {
         return 'Parses the pinned upstream Tests.Readers.Man module to establish the current roff man reader unit-test denominator.';
@@ -160,12 +217,105 @@ final class ManUpstreamReaderEvidence
             'doesAssert' => [
                 'the count and names of upstream roff man reader unit cases in Tests.Readers.Man',
                 'that the upstream Man reader source file is present in the pinned sparse checkout',
+                'that upstream Haskell runner evidence is explicitly not-run',
+                'the future upstream runner command plan targets test:test-pandoc Readers/Man at the pinned upstream commit without execution',
             ],
             'doesNotAssert' => [
                 'that upstream Haskell/Cabal/Tasty tests were executed',
                 'that local PHP output matches upstream output',
                 'mdoc reader parity',
                 'full roff/man feature parity beyond the upstream Man reader unit cases',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function runnerNotRunEvidence(): array
+    {
+        return [
+            'scope' => 'upstream-haskell-runner',
+            'runner' => 'Cabal/Tasty Pandoc man reader suite',
+            'status' => 'not-run',
+            'executed' => false,
+            'command' => null,
+            'resultArtifact' => null,
+            'commandPlanStatus' => 'planned-not-run',
+            'upstreamBinding' => [
+                'name' => 'jgm/pandoc',
+                'expectedCommit' => self::EXPECTED_UPSTREAM_COMMIT,
+                'entryPoint' => 'test/test-pandoc.hs',
+                'readerTestModule' => 'test/Tests/Readers/Man.hs',
+            ],
+            'target' => [
+                'testSuite' => self::RUNNER_TEST_SUITE,
+                'tastyGroupPath' => self::RUNNER_TASTY_GROUP_PATH,
+                'tastyPattern' => self::RUNNER_TASTY_PATTERN,
+            ],
+            'futureCommands' => self::runnerFutureCommands(),
+            'requiredTranscripts' => self::RUNNER_REQUIRED_TRANSCRIPTS,
+            'requiredArtifacts' => self::RUNNER_REQUIRED_ARTIFACTS,
+            'claim' => 'Command-plan evidence only; no Cabal/Tasty command was executed and no upstream runner pass result is recorded.',
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function runnerFutureCommands(): array
+    {
+        return [
+            [
+                'name' => 'dependency-dry-run',
+                'program' => 'cabal',
+                'arguments' => [
+                    'v2-build',
+                    '--offline',
+                    '--project-dir=.',
+                    '--dry-run',
+                    '--only-dependencies',
+                    '--enable-tests',
+                    '--disable-benchmarks',
+                    '--builddir=' . self::RUNNER_BUILD_DIR,
+                    self::RUNNER_TEST_SUITE,
+                ],
+                'workingDirectory' => 'hydrated Pandoc upstream checkout root',
+                'transcriptFile' => self::RUNNER_REQUIRED_TRANSCRIPTS[0],
+            ],
+            [
+                'name' => 'list-targeted-tests',
+                'program' => 'cabal',
+                'arguments' => [
+                    'v2-run',
+                    '--offline',
+                    '--project-dir=.',
+                    '--builddir=' . self::RUNNER_BUILD_DIR,
+                    self::RUNNER_TEST_SUITE,
+                    '--',
+                    '--list-tests',
+                    '--pattern',
+                    self::RUNNER_TASTY_PATTERN,
+                ],
+                'workingDirectory' => 'hydrated Pandoc upstream checkout root',
+                'transcriptFile' => self::RUNNER_REQUIRED_TRANSCRIPTS[1],
+            ],
+            [
+                'name' => 'run-targeted-tests',
+                'program' => 'cabal',
+                'arguments' => [
+                    'v2-run',
+                    '--offline',
+                    '--project-dir=.',
+                    '--builddir=' . self::RUNNER_BUILD_DIR,
+                    self::RUNNER_TEST_SUITE,
+                    '--',
+                    '--pattern',
+                    self::RUNNER_TASTY_PATTERN,
+                ],
+                'workingDirectory' => 'hydrated Pandoc upstream checkout root',
+                'transcriptFile' => self::RUNNER_REQUIRED_TRANSCRIPTS[2],
+                'resultArtifact' => self::RUNNER_REQUIRED_ARTIFACTS[1],
             ],
         ];
     }
