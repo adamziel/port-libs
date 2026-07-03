@@ -1,0 +1,5 @@
+[ Header 2 ( "slide-1" , [] , [] ) [ Str "Visible slide" ]
+, Para [ Str "Visible body" ]
+, Header 2 ( "slide-2" , [] , [] ) [ Str "Hidden slide" ]
+, Para [ Str "Hidden body" ]
+]
