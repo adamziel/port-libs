@@ -78,6 +78,7 @@ if ($summary) {
         'verdict',
         'evidenceKind',
         'upstreamHtmlDirectory',
+        'htmlReaderFixtureOptionOverrides',
         'htmlFixtureCount',
         'nativeFixtureCount',
         'pairedFixtureCount',

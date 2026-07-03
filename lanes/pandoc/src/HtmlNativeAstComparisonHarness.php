@@ -9,6 +9,9 @@ final class HtmlNativeAstComparisonHarness
     private const DEFAULT_MAX_EXAMPLES = 12;
     private const VERDICT = 'normalized-ast-comparison-not-full-html-parity';
     private const CLAIM = 'Compares local PHP HTML reader output with paired .native fixtures by normalized AST shape; reader provenance, table review metadata, and NativeReader constructor provenance are excluded, but no upstream Haskell runner or full HTML5 tree-construction parity is asserted.';
+    private const HTML_READER_OPTIONS_BY_BASENAME = [
+        'upstream-html-raw-disabled-skip' => ['htmlRawHtml' => false],
+    ];
 
     /** @var array<string, true> */
     private const IGNORED_ATTRS = [
@@ -81,7 +84,7 @@ final class HtmlNativeAstComparisonHarness
         $categoryCounts = [];
 
         foreach ($pairNames as $pairName) {
-            $htmlResult = $this->readHtml($htmlFiles[$pairName]);
+            $htmlResult = $this->readHtml($htmlFiles[$pairName], $pairName);
             if ($htmlResult['ok']) {
                 ++$htmlParsedCount;
             }
@@ -145,6 +148,7 @@ final class HtmlNativeAstComparisonHarness
             'evidenceKind' => 'html-native-normalized-ast-comparison',
             'upstreamHtmlDirectory' => $htmlDirectory,
             'normalizationPolicy' => self::normalizationPolicy(),
+            'htmlReaderFixtureOptionOverrides' => self::htmlReaderFixtureOptionOverrides(),
             'htmlFixtureCount' => count($htmlFiles),
             'nativeFixtureCount' => count($nativeFiles),
             'pairedFixtureCount' => $totalPairCount,
@@ -277,6 +281,7 @@ final class HtmlNativeAstComparisonHarness
             'evidenceKind' => 'html-native-normalized-ast-comparison',
             'upstreamHtmlDirectory' => $htmlDirectory,
             'normalizationPolicy' => self::normalizationPolicy(),
+            'htmlReaderFixtureOptionOverrides' => self::htmlReaderFixtureOptionOverrides(),
             'htmlFixtureCount' => 0,
             'nativeFixtureCount' => 0,
             'pairedFixtureCount' => 0,
@@ -357,7 +362,7 @@ final class HtmlNativeAstComparisonHarness
     /**
      * @return array{ok: bool, document: ?AstNode, error: ?string}
      */
-    private function readHtml(string $path): array
+    private function readHtml(string $path, string $fixtureName): array
     {
         try {
             $bytes = file_get_contents($path);
@@ -365,10 +370,27 @@ final class HtmlNativeAstComparisonHarness
                 throw new \RuntimeException("Unable to read HTML fixture '{$path}'.");
             }
 
-            return ['ok' => true, 'document' => (new HtmlReader())->read($bytes), 'error' => null];
+            return [
+                'ok' => true,
+                'document' => (new HtmlReader(self::HTML_READER_OPTIONS_BY_BASENAME[$fixtureName] ?? []))->read($bytes),
+                'error' => null,
+            ];
         } catch (\Throwable $exception) {
             return ['ok' => false, 'document' => null, 'error' => $exception::class . ': ' . $exception->getMessage()];
         }
+    }
+
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    private static function htmlReaderFixtureOptionOverrides(): array
+    {
+        $overrides = [];
+        foreach (self::HTML_READER_OPTIONS_BY_BASENAME as $basename => $options) {
+            $overrides[$basename . '.html'] = $options;
+        }
+
+        return $overrides;
     }
 
     /**

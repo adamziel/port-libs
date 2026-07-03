@@ -1,0 +1,4 @@
+[ Para [ Str "Inline" , Space , Str "style" , Space , Str "and" , Space , Str "script" , Space , Str "text" , Space , Str "remains." ]
+, Plain [ Math DisplayMath "\\alpha + \\omega" ]
+, Para [ Str "After" , Space , Str "raw" , Space , Str "payloads." ]
+]
