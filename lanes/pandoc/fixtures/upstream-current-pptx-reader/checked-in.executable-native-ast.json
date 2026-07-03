@@ -53,7 +53,8 @@
         "--pptx-dir=lanes/pandoc/fixtures/upstream-current-pptx-reader",
         "--pandoc-bin=/opt/homebrew/bin/pandoc",
         "--json",
-        "--require-executable-parity=45"
+        "--require-executable-parity=45",
+        "--require-pandoc-version=pandoc 3.10"
     ],
     "capturedDate": "2026-07-03",
     "fixtureStems": [

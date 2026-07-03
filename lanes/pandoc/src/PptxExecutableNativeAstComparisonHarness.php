@@ -286,6 +286,20 @@ final class PptxExecutableNativeAstComparisonHarness
     }
 
     /**
+     * @param array<string, mixed> $report
+     */
+    public static function hasRequiredPandocVersion(array $report, string $requiredPandocVersion): bool
+    {
+        if ($requiredPandocVersion === '') {
+            throw new \InvalidArgumentException('Required Pandoc version must not be empty');
+        }
+
+        return ($report['skipped'] ?? false) === false
+            && ($report['status'] ?? null) === 'completed'
+            && ($report['pandocVersion'] ?? null) === $requiredPandocVersion;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function skippedReport(string $pptxDirectory, ?string $pandocBin, string $reason): array

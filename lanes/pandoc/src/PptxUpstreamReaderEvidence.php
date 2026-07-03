@@ -16,8 +16,8 @@ final class PptxUpstreamReaderEvidence
     public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 45;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'd820f6e0738e4a42d16444b0e82d3a1b9090e28c027e402a5e17f89e61d0ef20';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 9350;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'a4f6bc5e4f2bdf1cec32b16c2a44c328ebc9f711588b84ae57f1a5f4c57fbd88';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 9398;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -815,6 +815,7 @@ final class PptxUpstreamReaderEvidence
         $snapshotFile = is_array($parity['snapshotFile'] ?? null) ? $parity['snapshotFile'] : [];
 
         return ($parity['hasRequiredExecutableParity'] ?? null) === true
+            && ($parity['hasRequiredPandocVersion'] ?? null) === true
             && ($validation['status'] ?? null) === 'valid-checked-in-current-pptx-executable-native-ast-parity'
             && ($validation['issues'] ?? null) === []
             && ($snapshotFile['present'] ?? null) === true
@@ -833,6 +834,8 @@ final class PptxUpstreamReaderEvidence
             && (int) ($parity['pandocNativeFixtureComparedCount'] ?? -1) === self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT
             && (int) ($parity['pandocNativeFixtureMatchCount'] ?? -1) === self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT
             && (int) ($parity['pandocNativeFixtureMismatchCount'] ?? -1) === 0
+            && ($parity['requiredPandocVersion'] ?? null) === 'pandoc 3.10'
+            && ($parity['pandocVersion'] ?? null) === 'pandoc 3.10'
             && ($parity['astParityStatus'] ?? null) === 'normalized-ast-equality-observed-against-pandoc-executable';
     }
 
@@ -1669,6 +1672,7 @@ final class PptxUpstreamReaderEvidence
                 '--pandoc-bin=/opt/homebrew/bin/pandoc',
                 '--json',
                 '--require-executable-parity=' . self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT,
+                '--require-pandoc-version=pandoc 3.10',
             ]) {
                 $issues[] = 'checked-in-current-pptx-executable-native-ast-source-command-mismatch';
             }
@@ -1686,6 +1690,9 @@ final class PptxUpstreamReaderEvidence
             }
             if (!PptxExecutableNativeAstComparisonHarness::hasRequiredExecutableParity($payload, self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT)) {
                 $issues[] = 'checked-in-current-pptx-executable-native-ast-parity-mismatch';
+            }
+            if (!PptxExecutableNativeAstComparisonHarness::hasRequiredPandocVersion($payload, 'pandoc 3.10')) {
+                $issues[] = 'checked-in-current-pptx-executable-native-ast-version-gate-mismatch';
             }
         }
 
@@ -1775,6 +1782,7 @@ final class PptxUpstreamReaderEvidence
             'pptxDirectory' => (string) ($report['pptxDirectory'] ?? ''),
             'pandocExecutable' => is_string($report['pandocExecutable'] ?? null) ? $report['pandocExecutable'] : null,
             'pandocVersion' => is_string($report['pandocVersion'] ?? null) ? $report['pandocVersion'] : null,
+            'requiredPandocVersion' => 'pandoc 3.10',
             'totalPptxCount' => (int) ($report['totalPptxCount'] ?? 0),
             'comparedPptxCount' => (int) ($report['comparedPptxCount'] ?? 0),
             'localParsedCount' => (int) ($report['localParsedCount'] ?? 0),
@@ -1794,6 +1802,10 @@ final class PptxUpstreamReaderEvidence
             'hasRequiredExecutableParity' => PptxExecutableNativeAstComparisonHarness::hasRequiredExecutableParity(
                 $report,
                 self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT
+            ),
+            'hasRequiredPandocVersion' => PptxExecutableNativeAstComparisonHarness::hasRequiredPandocVersion(
+                $report,
+                'pandoc 3.10'
             ),
             'parseFailures' => is_array($report['parseFailures'] ?? null) ? $report['parseFailures'] : [],
             'mismatchCategories' => is_array($report['mismatchCategories'] ?? null) ? $report['mismatchCategories'] : [],

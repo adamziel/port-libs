@@ -87,7 +87,10 @@ return [
         $t->same(0, $snapshot['pandocNativeFixtureMismatchCount']);
         $t->same('normalized-ast-equality-observed-against-pandoc-executable', $snapshot['astParityStatus']);
         $t->same(true, PptxExecutableNativeAstComparisonHarness::hasRequiredExecutableParity($snapshot, 45));
+        $t->same(true, PptxExecutableNativeAstComparisonHarness::hasRequiredPandocVersion($snapshot, 'pandoc 3.10'));
+        $t->same(false, PptxExecutableNativeAstComparisonHarness::hasRequiredPandocVersion($snapshot, 'pandoc 3.9'));
         $t->contains('--require-executable-parity=45', implode(' ', $snapshot['sourceCommand']));
+        $t->contains('--require-pandoc-version=pandoc 3.10', implode(' ', $snapshot['sourceCommand']));
         $t->true(in_array('that upstream Haskell/Cabal/Tasty Tests.Readers.Pptx was executed', $snapshot['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('that generated body-before-title, break-tab-field, bullets, bunone-wingdings, case-sensitive-placeholder-type, center-title-placeholder, chart-placeholder, comments-ignored, connector-skip, content-part-skip, direct-drawing-paragraphs, dot-slide-target, duplicate-slide-reference, embedded-image, empty-bullet-paragraph, empty-paragraph-textbox, first-text-body, generated-table, grouped-shapes, hex-list-level, hidden-slide, hyperlink-text, ignored-slide-id-attributes, inline-formatting, linked-image-skip, list-continuation, minimal, missing-relationship-skip, multi-paragraph-textbox, multiple-paragraph-properties, nested-list, no-title-fallback, numbered-list, paragraphless-textbox, percent-encoded-target, rich-media-skip, shape-order, signed-bullet-level, slide-placeholders, smartart-hierarchy, speaker-notes, table-span-review, two-slides, and wingdings-typeface-case fixtures are upstream Tests.Readers.Pptx fixtures', $snapshot['claimBoundaries']['doesNotAssert'], true));
         $t->same('covered-by-current-executable-evidence', $snapshot['orderedRemainingGaps'][0]['status']);
@@ -143,6 +146,8 @@ return [
             $t->same('pandoc fake 1.0', $report['pandocVersion']);
             $t->same('normalized-ast-equality-observed-against-pandoc-executable', $report['astParityStatus']);
             $t->same(true, PptxExecutableNativeAstComparisonHarness::hasRequiredExecutableParity($report, 1));
+            $t->same(true, PptxExecutableNativeAstComparisonHarness::hasRequiredPandocVersion($report, 'pandoc fake 1.0'));
+            $t->same(false, PptxExecutableNativeAstComparisonHarness::hasRequiredPandocVersion($report, 'pandoc fake 2.0'));
         } finally {
             $removeTree($root);
         }
@@ -215,7 +220,8 @@ return [
                 . ' --pandoc-bin=' . escapeshellarg($fakePandoc)
                 . ' --json'
                 . ' summary'
-                . ' --require-executable-parity=1';
+                . ' --require-executable-parity=1'
+                . ' --require-pandoc-version=' . escapeshellarg('pandoc fake 1.0');
             $output = [];
             $exitCode = 0;
             exec($command, $output, $exitCode);
@@ -228,6 +234,7 @@ return [
             $t->same(1, $decoded['pandocNativeFixtureMatchCount']);
             $t->same(0, $decoded['pandocNativeFixtureMismatchCount']);
             $t->same(true, PptxExecutableNativeAstComparisonHarness::hasRequiredExecutableParity($decoded, 1));
+            $t->same(true, PptxExecutableNativeAstComparisonHarness::hasRequiredPandocVersion($decoded, 'pandoc fake 1.0'));
 
             $missingCommand = str_replace('--pandoc-bin=' . escapeshellarg($fakePandoc), '--pandoc-bin=' . escapeshellarg($root . '/missing'), $command) . ' 2>/dev/null';
             $missingOutput = [];
@@ -235,6 +242,17 @@ return [
             exec($missingCommand, $missingOutput, $missingExitCode);
 
             $t->same(1, $missingExitCode);
+
+            $versionMismatchCommand = str_replace(
+                '--require-pandoc-version=' . escapeshellarg('pandoc fake 1.0'),
+                '--require-pandoc-version=' . escapeshellarg('pandoc fake 2.0'),
+                $command
+            ) . ' 2>/dev/null';
+            $versionMismatchOutput = [];
+            $versionMismatchExitCode = 0;
+            exec($versionMismatchCommand, $versionMismatchOutput, $versionMismatchExitCode);
+
+            $t->same(1, $versionMismatchExitCode);
         } finally {
             $removeTree($root);
         }

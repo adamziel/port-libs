@@ -14,13 +14,14 @@ $useCheckedInFixtures = false;
 $pandocBin = getenv('PANDOC_BIN') ?: null;
 $limit = 0;
 $requiredExecutableParity = null;
+$requiredPandocVersion = null;
 $json = false;
 $summary = false;
 
 foreach (array_slice($argv, 1) as $argument) {
     if ($argument === '--help' || $argument === '-h') {
         fwrite(STDOUT, <<<'TXT'
-Usage: php tools/pandoc-pptx-executable-native-ast.php [--pptx-dir=PATH|--checked-in-fixtures] [--pandoc-bin=PATH] [--limit=N] [--json] [--require-executable-parity=N] [summary]
+Usage: php tools/pandoc-pptx-executable-native-ast.php [--pptx-dir=PATH|--checked-in-fixtures] [--pandoc-bin=PATH] [--limit=N] [--json] [--require-executable-parity=N] [--require-pandoc-version=VERSION] [summary]
 
 Runs a local pandoc executable as `pandoc -f pptx -t native FILE.pptx`
 and compares that native output with the local PHP PPTX reader by normalized
@@ -71,6 +72,15 @@ TXT);
             exit(2);
         }
         $requiredExecutableParity = (int) $rawCount;
+        continue;
+    }
+
+    if (str_starts_with($argument, '--require-pandoc-version=')) {
+        $requiredPandocVersion = substr($argument, strlen('--require-pandoc-version='));
+        if ($requiredPandocVersion === '') {
+            fwrite(STDERR, "--require-pandoc-version must not be empty\n");
+            exit(2);
+        }
         continue;
     }
 
@@ -142,6 +152,17 @@ if (
     fwrite(
         STDERR,
         "pandoc-pptx-executable-native-ast: executable normalized AST parity did not match {$requiredExecutableParity}/{$requiredExecutableParity} PPTX files\n"
+    );
+    exit(1);
+}
+
+if (
+    $requiredPandocVersion !== null
+    && !PptxExecutableNativeAstComparisonHarness::hasRequiredPandocVersion($report, $requiredPandocVersion)
+) {
+    fwrite(
+        STDERR,
+        "pandoc-pptx-executable-native-ast: pandoc version did not match {$requiredPandocVersion}\n"
     );
     exit(1);
 }
