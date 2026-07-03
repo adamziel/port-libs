@@ -772,6 +772,17 @@ return [
         $t->same('Generated', $generatedInlines[2]['c'][1][0]['c']);
         $t->same('citation_group', $generatedRoundTrip->children[1]->children[0]->type);
         $t->same('image', $generatedRoundTrip->children[1]->children[2]->type);
+
+        $nativeTextDocument = (new NativeReader())->read(implode("\n", [
+            '[ Para [ Cite [ Citation { citationId = "smith1899" , citationPrefix = [] , citationSuffix = [] , citationMode = NormalCitation , citationNoteNum = 1 , citationHash = 0 }',
+            '                , Citation { citationId = "doe1901" , citationPrefix = [ Str "see" ] , citationSuffix = [] , citationMode = SuppressAuthor , citationNoteNum = 1 , citationHash = 0 } ] [  ] ] ]',
+        ]));
+        $nativeTextCluster = $nativeTextDocument->children[0]->children[0] ?? new AstNode('missing');
+
+        $t->same('citation_group', $nativeTextCluster->type);
+        $t->same(['smith1899', 'doe1901'], array_map(static fn (AstNode $node): string => $node->attr('id'), $nativeTextCluster->children));
+        $t->same('see', $nativeTextCluster->children[1]->attr('prefix')[0]->attr('text'));
+        $t->same('suppress_author', $nativeTextCluster->children[1]->attr('mode'));
     },
     'maps core block constructors through pandoc native ast json' => static function (TestRunner $t): void {
         $nativeBlocks = [

@@ -1296,6 +1296,7 @@ final class NativeReader
             return new AstNode('citation', $attrs, $display);
         }
 
+        $attrs = [];
         if ($sourceText !== '') {
             $attrs['text'] = $sourceText;
         }
@@ -1303,7 +1304,7 @@ final class NativeReader
             $attrs['citationSourceInlines'] = $display;
         }
 
-        return new AstNode('citation', $attrs, $display);
+        return new AstNode('citation_group', $attrs, $citations);
     }
 
     private function parseCitationRecord(): AstNode

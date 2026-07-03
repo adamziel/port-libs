@@ -350,7 +350,8 @@ final class MarkdownNativeAstComparisonHarness
                 'reader-derived block cached text metadata, including paragraph/list-item text',
                 'reader-derived Markdown source provenance such as list markers, task-list collection flags, note labels, numbered-example labels, code info strings, emoji source text, raw HTML format/text duplicates, and rendering hints',
                 'source id/classes/key-value attrs on Pandoc inline constructors without native Attr tuples; inline constructor, text, and children remain compared',
-                'NativeReader citation record sidecars and equivalent string-vs-inline citation affix representation',
+                'regular inline whitespace run lengths, because Pandoc native represents source whitespace as Space constructors outside code/raw text',
+                'NativeReader citation record sidecars, citation source-display text, and equivalent string-vs-inline citation affix representation; citation ids, modes, prefixes, and suffixes remain compared',
                 'definition-list looseness metadata not represented by Pandoc native text constructors',
                 'local Markdown implicit-figure image sidecars when Figure attrs, caption blocks, image label, and image target already carry the native-visible structure',
             ],
@@ -459,6 +460,9 @@ final class MarkdownNativeAstComparisonHarness
             if ($key === 'text' && $node->type === 'list_item') {
                 continue;
             }
+            if ($key === 'text' && in_array($node->type, ['citation', 'citation_group'], true)) {
+                continue;
+            }
             if ($key === 'marker' && self::isListShapeMetadataNode($node)) {
                 continue;
             }
@@ -515,16 +519,20 @@ final class MarkdownNativeAstComparisonHarness
                 continue;
             }
 
-            $normalizedValue = $node->type === 'citation' && in_array($key, ['prefix', 'suffix'], true)
-                ? $this->normalizedCitationAffixValue($value)
-                : $this->normalizedValue($value);
+            if ($node->type === 'citation' && in_array($key, ['prefix', 'suffix'], true)) {
+                $normalizedValue = $this->normalizedCitationAffixValue($value);
+            } elseif ($node->type === 'text' && $key === 'text' && is_string($value)) {
+                $normalizedValue = self::normalizedInlineWhitespace($value);
+            } else {
+                $normalizedValue = $this->normalizedValue($value);
+            }
             if ($normalizedValue === [] || $normalizedValue === null || $normalizedValue === '') {
                 continue;
             }
             $attrs[$key] = $normalizedValue;
         }
         ksort($attrs, SORT_STRING);
-        $children = $this->normalizedChildren($node->children, $node->type);
+        $children = $node->type === 'citation' ? [] : $this->normalizedChildren($node->children, $node->type);
         if ($node->type === 'list_item' && $taskChecked !== null) {
             $children = $this->withNormalizedTaskMarker($children, $taskChecked);
         }
@@ -588,12 +596,17 @@ final class MarkdownNativeAstComparisonHarness
         if (is_string($value)) {
             return $value === '' ? [] : [[
                 'type' => 'text',
-                'attrs' => ['text' => $value],
+                'attrs' => ['text' => self::normalizedInlineWhitespace($value)],
                 'children' => [],
             ]];
         }
 
         return $this->normalizedValue($value);
+    }
+
+    private static function normalizedInlineWhitespace(string $text): string
+    {
+        return preg_replace('/[ \t]+/u', ' ', $text) ?? $text;
     }
 
     /**
