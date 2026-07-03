@@ -17,7 +17,7 @@ final class DelimitedTextUpstreamReaderEvidence
     public const EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT = 2;
     public const EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT = 0;
     public const EXPECTED_STATIC_CSV_ADJACENT_RST_FIXTURE_COUNT = 2;
-    public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 13;
+    public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 14;
     public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 9;
 
     private const CHECKED_IN_CURRENT_CSV_FIXTURES = [
@@ -220,6 +220,20 @@ final class DelimitedTextUpstreamReaderEvidence
             'sha256' => '9c05ec1d28eeda63e95a2f99d84cd0ce4bd6413c6b786efb5c973f86dcdb79b6',
             'bytes' => 1646,
         ],
+        'semicolon-delimiter-multiline-cell.csv' => [
+            'role' => 'generated-csv-native-parity-input-fixture',
+            'sample' => 'semicolon-delimiter-multiline-cell',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/semicolon-delimiter-multiline-cell.csv',
+            'sha256' => 'c383ab2b385dcae671a50b2b226051d74d738aaa627dd9c4393af0d39b863336',
+            'bytes' => 112,
+        ],
+        'semicolon-delimiter-multiline-cell.native' => [
+            'role' => 'generated-csv-native-parity-expected-native-output',
+            'sample' => 'semicolon-delimiter-multiline-cell',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/semicolon-delimiter-multiline-cell.native',
+            'sha256' => '32ddacd1d7a77be7516423cc0d67ade520cf024bac92b03607dda08267dfad2f',
+            'bytes' => 2016,
+        ],
     ];
 
     private const CHECKED_IN_GENERATED_TSV_NATIVE_FIXTURES = [
@@ -414,6 +428,13 @@ final class DelimitedTextUpstreamReaderEvidence
             'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/single-quote-dialect.native',
             'options' => [
                 'quote' => '\'',
+            ],
+        ],
+        'semicolon-delimiter-multiline-cell' => [
+            'inputPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/semicolon-delimiter-multiline-cell.csv',
+            'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/semicolon-delimiter-multiline-cell.native',
+            'options' => [
+                'delimiter' => 'semicolon',
             ],
         ],
     ];
@@ -1520,7 +1541,7 @@ final class DelimitedTextUpstreamReaderEvidence
 
     private static function claim(): string
     {
-        return 'Tracks the current upstream direct CSV command-reader fixtures, the adjacent RST csv-table fixture pair with zero direct-reader denominator impact, twelve generated CSV-to-native evidence samples, the absence of dedicated TSV command fixtures, and nine generated TSV-to-native evidence samples for the delimited text reader.';
+        return 'Tracks the current upstream direct CSV command-reader fixtures, the adjacent RST csv-table fixture pair with zero direct-reader denominator impact, fourteen generated CSV-to-native evidence samples, the absence of dedicated TSV command fixtures, and nine generated TSV-to-native evidence samples for the delimited text reader.';
     }
 
     /**
@@ -1535,7 +1556,7 @@ final class DelimitedTextUpstreamReaderEvidence
                 'that the RST csv-table fixture pair is CSV-adjacent evidence and not part of the direct CSV/TSV reader denominator',
                 'that no dedicated TSV command fixture is available in the pinned direct-reader evidence set',
                 'static checked-in current csv.md and 01.csv fixture identity when staticCurrentEvidence is valid',
-                'twelve generated CSV-to-native local samples when generatedCsvNativeParityEvidence is valid',
+                'fourteen generated CSV-to-native local samples when generatedCsvNativeParityEvidence is valid',
                 'nine generated TSV-to-native local samples when generatedTsvNativeParityEvidence is valid',
             ],
             'doesNotAssert' => [
