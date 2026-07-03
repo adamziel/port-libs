@@ -90,6 +90,10 @@ final class ManReader
                     }
                     break;
                 }
+                if ($this->isMacroDefinitionRequest($name)) {
+                    $this->skipMacroDefinition();
+                    continue;
+                }
                 if ($this->isIgnoredRequest($name) || $this->isParagraphBreakMacro($name)) {
                     ++$this->index;
                     continue;
@@ -172,7 +176,9 @@ final class ManReader
 
     private function isCommentLine(string $trimmed): bool
     {
-        return str_starts_with($trimmed, '."') || str_starts_with($trimmed, '.\\"');
+        return str_starts_with($trimmed, '."')
+            || str_starts_with($trimmed, '.\\"')
+            || str_starts_with($trimmed, '\\"');
     }
 
     /**
@@ -225,6 +231,23 @@ final class ManReader
             'ti',
             'tr',
         ], true);
+    }
+
+    private function isMacroDefinitionRequest(string $name): bool
+    {
+        return in_array($name, ['de', 'de1', 'am', 'am1'], true);
+    }
+
+    private function skipMacroDefinition(): void
+    {
+        ++$this->index;
+        while ($this->index < count($this->lines)) {
+            if (trim($this->lines[$this->index]) === '..') {
+                ++$this->index;
+                break;
+            }
+            ++$this->index;
+        }
     }
 
     private function isInlineMacro(string $name): bool
@@ -297,6 +320,7 @@ final class ManReader
      */
     private function parseArgs(string $raw): array
     {
+        $raw = $this->stripInlineComment($raw);
         $args = [];
         $length = strlen($raw);
         $offset = 0;
@@ -402,13 +426,18 @@ final class ManReader
     private function appendRoffTextLine(string &$text, bool &$joinNextLineTightly, string $line): void
     {
         $part = $this->stripInlineComment($line);
+        $this->appendPlainTextPart($text, $joinNextLineTightly, $part);
+
+        $joinNextLineTightly = strpos($line, '\#') !== false;
+    }
+
+    private function appendPlainTextPart(string &$text, bool &$joinNextLineTightly, string $part): void
+    {
         if ($text === '') {
             $text = $part;
         } else {
             $text .= ($joinNextLineTightly ? '' : ' ') . $part;
         }
-
-        $joinNextLineTightly = strpos($line, '\#') !== false;
     }
 
     private function fontStyleEscape(string $source, int &$offset): ?string
@@ -701,10 +730,7 @@ final class ManReader
                 break;
             }
             $macro = $this->macroLine($line);
-            if ($macro !== null && $macro[0] === 'IP') {
-                break;
-            }
-            if ($macro !== null && $macro[0] === 'RE') {
+            if ($macro !== null && in_array($macro[0], ['IP', 'TP', 'SH', 'SS', 'RE'], true)) {
                 break;
             }
             if ($macro !== null && $macro[0] === 'RS') {
@@ -713,13 +739,33 @@ final class ManReader
                 array_push($children, ...$this->parseBlocks('.RE'));
                 continue;
             }
+            if ($macro !== null && $this->isMacroDefinitionRequest($macro[0])) {
+                $flushParagraph();
+                $this->skipMacroDefinition();
+                continue;
+            }
             if ($macro !== null && ($macro[0] === 'nf' || $macro[0] === 'EX')) {
                 $flushParagraph();
                 $children[] = $this->parseCodeBlock($macro[0] === 'EX' ? 'EE' : 'fi');
                 continue;
             }
+            if ($macro !== null && $macro[0] === 'TS') {
+                $flushParagraph();
+                $children[] = $this->parseTable();
+                continue;
+            }
             if ($macro !== null && ($this->isIgnoredRequest($macro[0]) || $this->isParagraphBreakMacro($macro[0]))) {
                 $flushParagraph();
+                ++$this->index;
+                continue;
+            }
+            if ($macro !== null && $this->isInlineMacro($macro[0])) {
+                $this->appendPlainTextPart(
+                    $paragraphText,
+                    $joinNextLineTightly,
+                    $this->plainInlineText($this->inlineMacroInlines($macro[0], $macro[1]))
+                );
+                $joinNextLineTightly = false;
                 ++$this->index;
                 continue;
             }
@@ -771,6 +817,10 @@ final class ManReader
             }
 
             $macro = $this->macroLine($line);
+            if ($macro !== null && $this->isMacroDefinitionRequest($macro[0])) {
+                $this->skipMacroDefinition();
+                continue;
+            }
             if ($macro !== null && ($this->isIgnoredRequest($macro[0]) || $this->isParagraphBreakMacro($macro[0]))) {
                 ++$this->index;
                 continue;
@@ -807,6 +857,10 @@ final class ManReader
             if ($macro !== null) {
                 if (in_array($macro[0], ['TP', 'SH', 'SS', 'RE'], true)) {
                     break;
+                }
+                if ($this->isMacroDefinitionRequest($macro[0])) {
+                    $this->skipMacroDefinition();
+                    continue;
                 }
                 if ($this->isIgnoredRequest($macro[0]) || $this->isParagraphBreakMacro($macro[0])) {
                     ++$this->index;

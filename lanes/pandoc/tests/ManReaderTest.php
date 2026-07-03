@@ -178,6 +178,50 @@ ROFF);
         $t->same("\ntool --flag", $secondDefinition->children[1]->attr('text'));
     },
 
+    'keeps man IP lists from swallowing following sections and inline macro lines' => static function (TestRunner $t) use ($read, $plainText): void {
+        $document = $read(<<<'ROFF'
+.SH OPTIONS
+.IP --flag
+.B bold option
+continues here.
+.SH NEXT
+After list.
+ROFF);
+
+        $list = $document->children[1];
+
+        $t->same(['heading', 'bullet_list', 'heading', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
+        $t->same('OPTIONS', $plainText($document->children[0]));
+        $t->same('bold option continues here.', $plainText($list->children[0]));
+        $t->same('NEXT', $plainText($document->children[2]));
+        $t->same('After list.', $plainText($document->children[3]));
+    },
+
+    'skips generated macro definition bodies and bare roff comments' => static function (TestRunner $t) use ($read, $plainText): void {
+        $document = $read(<<<'ROFF'
+\" generated wrapper comment
+.de EX
+.SH HIDDEN
+.TP
+hidden definition body
+..
+.TH TOOL 1
+.SH NAME
+.B tool \" comment with .SH must stay hidden
+\- visible command
+ROFF);
+
+        $visible = $plainText($document);
+
+        $t->same(['heading', 'paragraph', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
+        $t->same('NAME', $plainText($document->children[0]));
+        $t->same('tool', $plainText($document->children[1]));
+        $t->same('- visible command', $plainText($document->children[2]));
+        $t->true(!str_contains($visible, 'HIDDEN'), 'macro definition body should not become visible text');
+        $t->true(!str_contains($visible, '.TH'), 'TH request should not leak after leading comments');
+        $t->true(!str_contains($visible, '.SH'), 'comments in macro args should stay hidden');
+    },
+
     'reads man through converter and renders shared ast outputs' => static function (TestRunner $t): void {
         $document = PandocConverter::read(".SH Name\n.B tool\n", 'man');
         $native = PandocConverter::write($document, 'native');
