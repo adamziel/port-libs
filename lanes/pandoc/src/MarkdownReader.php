@@ -379,6 +379,14 @@ final class MarkdownReader
                 $blocks[] = $rawTexBlock;
                 continue;
             }
+            $markerLineListBlock = $paragraph === [] && $listStack === []
+                ? $this->tryReadListBlock($lines, $index)
+                : null;
+            if ($markerLineListBlock !== null) {
+                $this->flushListStack($listStack, $blocks);
+                $blocks[] = $markerLineListBlock;
+                continue;
+            }
             $markdownTable = $this->tryReadMarkdownTable($lines, $index, $paragraph === [] && $listStack === []);
             if ($markdownTable !== null) {
                 $this->flushParagraph($paragraph, $blocks);
@@ -10796,6 +10804,9 @@ final class MarkdownReader
             } elseif (($fencedCode = $this->readListItemFencedCodeBlock($lines, $cursor, $baseIndent, $contentIndent, $firstText)) !== null) {
                 $parts[] = $fencedCode['node'];
                 $cursor = $fencedCode['next'];
+            } elseif (($table = $this->readListItemMarkdownTableBlock($lines, $cursor, $baseIndent, $contentIndent, $firstText)) !== null) {
+                $parts[] = $table['node'];
+                $cursor = $table['next'];
             } elseif (($lineBlock = $this->readListItemLineBlock($lines, $cursor, $baseIndent, $contentIndent, $firstText)) !== null) {
                 $parts[] = $lineBlock['node'];
                 $cursor = $lineBlock['next'];
@@ -10922,6 +10933,14 @@ final class MarkdownReader
                     $this->flushListItemParagraph($paragraph, $parts);
                     $parts[] = $rawTex['node'];
                     $cursor = $rawTex['next'];
+                    continue;
+                }
+
+                $table = $this->readListItemMarkdownTableBlock($lines, $cursor, $baseIndent, $contentIndent, $continuation);
+                if ($table !== null) {
+                    $this->flushListItemParagraph($paragraph, $parts);
+                    $parts[] = $table['node'];
+                    $cursor = $table['next'];
                     continue;
                 }
 
@@ -11133,6 +11152,34 @@ final class MarkdownReader
 
         return [
             'node' => $lineBlock,
+            'next' => $cursor + $blockIndex + 1,
+        ];
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{node:AstNode, next:int}|null
+     */
+    private function readListItemMarkdownTableBlock(
+        array $lines,
+        int $cursor,
+        int $baseIndent,
+        int $contentIndent,
+        string $firstLine
+    ): ?array {
+        $blockLines = [$firstLine];
+        $blockLines = array_merge(
+            $blockLines,
+            $this->collectListItemIndentedContinuationLines($lines, $cursor + 1, $baseIndent, $contentIndent)
+        );
+        $blockIndex = 0;
+        $table = $this->tryReadMarkdownTable($blockLines, $blockIndex, false);
+        if ($table === null) {
+            return null;
+        }
+
+        return [
+            'node' => $table,
             'next' => $cursor + $blockIndex + 1,
         ];
     }
