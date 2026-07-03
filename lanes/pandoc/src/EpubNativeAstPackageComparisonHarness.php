@@ -13,6 +13,10 @@ final class EpubNativeAstPackageComparisonHarness
     private const PACKAGE_FEATURE_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
     private const PACKAGE_FEATURE_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-8-fixture-snapshot';
     private const CHECKED_IN_CURRENT_PACKAGE_FEATURE_SIGNATURE_SHA256 = '4bd4dc92125c30c361010936e6a2ca7bc8da3e2efe6ad5096681065deefde3c3';
+    private const CURRENT_NATIVE_AST_SIGNATURE_KIND = 'checked-in-current-epub-normalized-native-ast-signature';
+    private const CURRENT_NATIVE_AST_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
+    private const CURRENT_NATIVE_AST_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-8-fixture-normalized-ast-snapshot';
+    private const CHECKED_IN_CURRENT_NATIVE_AST_SIGNATURE_SHA256 = '30d9b097df1e45a7559eac9e3c370b16ce93d99f6f9683821338596b595a16a9';
 
     /** @var array<string, true> */
     private const IGNORED_ATTRS = [
@@ -408,6 +412,8 @@ final class EpubNativeAstPackageComparisonHarness
         $nativeParseFailures = [];
         $astParseFailures = [];
         $mismatches = [];
+        $nativeAstSignatureFixtures = [];
+        $nativeAstSignaturePayloadFixtures = [];
 
         foreach ($pairNames as $pairName) {
             $epubDocument = $readerDocuments[$pairName] ?? null;
@@ -441,7 +447,23 @@ final class EpubNativeAstPackageComparisonHarness
 
             $epubAst = $this->normalizedNode($epubDocument);
             $nativeAst = $this->normalizedNode($nativeDocument);
-            if ($epubAst === $nativeAst) {
+            $epubAstSha256 = hash('sha256', self::canonicalJson($epubAst));
+            $nativeAstSha256 = hash('sha256', self::canonicalJson($nativeAst));
+            $normalizedAstMatches = $epubAst === $nativeAst;
+            $nativeAstSignatureFixtures[$pairName] = [
+                'fixture' => $pairName,
+                'epubNormalizedAstSha256' => $epubAstSha256,
+                'nativeNormalizedAstSha256' => $nativeAstSha256,
+                'normalizedAstMatches' => $normalizedAstMatches,
+                'epubTopTypes' => $this->topTypeSequence($epubDocument),
+                'nativeTopTypes' => $this->topTypeSequence($nativeDocument),
+            ];
+            $nativeAstSignaturePayloadFixtures[$pairName] = [
+                'fixture' => $pairName,
+                'epubNormalizedAst' => $epubAst,
+                'nativeNormalizedAst' => $nativeAst,
+            ];
+            if ($normalizedAstMatches) {
                 ++$normalizedAstMatchCount;
                 continue;
             }
@@ -471,6 +493,14 @@ final class EpubNativeAstPackageComparisonHarness
         $normalizedAstMismatchCount = $bothParsedCount - $normalizedAstMatchCount;
 
         $packageFeatureCoverage = self::packageFeatureCoverage($packageFeatureSummaries);
+        $currentNativeAstSignature = self::currentNativeAstSignature(
+            $fixtureIdentity,
+            $nativeAstSignatureFixtures,
+            $nativeAstSignaturePayloadFixtures,
+            $comparedPairCount,
+            $astParseFailureCount,
+            $normalizedAstMismatchCount
+        );
 
         return [
             'schemaVersion' => 1,
@@ -485,6 +515,7 @@ final class EpubNativeAstPackageComparisonHarness
             'fixtureIdentity' => $fixtureIdentity,
             'packageFeatureCoverage' => $packageFeatureCoverage,
             'packageFeatureSignature' => self::packageFeatureSignature($fixtureIdentity, $packageFeatureCoverage),
+            'currentNativeAstSignature' => $currentNativeAstSignature,
             'normalizationPolicy' => self::normalizationPolicy(),
             'totalEpubCount' => $totalEpubCount,
             'comparedEpubCount' => $comparedEpubCount,
@@ -637,6 +668,18 @@ final class EpubNativeAstPackageComparisonHarness
                 (string) ($featureSignature['expectedSha256'] ?? '')
             );
         }
+        $nativeAstSignature = is_array($report['currentNativeAstSignature'] ?? null) ? $report['currentNativeAstSignature'] : [];
+        if ($nativeAstSignature !== []) {
+            $signatureValidation = is_array($nativeAstSignature['validation'] ?? null) ? $nativeAstSignature['validation'] : [];
+            $lines[] = sprintf(
+                'currentNativeAstSignature: status=%s matchesExpected=%s fixtures=%d sha256=%s expected=%s',
+                (string) ($signatureValidation['status'] ?? 'unknown'),
+                (($nativeAstSignature['matchesExpected'] ?? false) === true) ? 'true' : 'false',
+                (int) ($nativeAstSignature['fixtureCount'] ?? 0),
+                (string) ($nativeAstSignature['sha256'] ?? ''),
+                (string) ($nativeAstSignature['expectedSha256'] ?? '')
+            );
+        }
 
         $mismatches = $report['mismatchComparisons'] ?? [];
         if (is_array($mismatches) && $mismatches !== []) {
@@ -783,6 +826,36 @@ final class EpubNativeAstPackageComparisonHarness
     }
 
     /**
+     * @param array<string, mixed> $report
+     */
+    public static function hasRequiredCurrentNativeAstSignature(array $report): bool
+    {
+        $signature = is_array($report['currentNativeAstSignature'] ?? null) ? $report['currentNativeAstSignature'] : [];
+        $validation = is_array($signature['validation'] ?? null) ? $signature['validation'] : [];
+        $expectedPairCount = count(self::expectedCheckedInCurrentPairNames());
+
+        return ($report['skipped'] ?? false) === false
+            && ($report['status'] ?? null) === 'completed'
+            && self::hasRequiredFixtureIdentity($report)
+            && (int) ($report['totalPairCount'] ?? -1) === $expectedPairCount
+            && (int) ($report['comparedPairCount'] ?? -1) === $expectedPairCount
+            && (int) ($report['bothParsedCount'] ?? -1) === $expectedPairCount
+            && (int) ($report['astParseFailureCount'] ?? -1) === 0
+            && (int) ($report['nativeParseFailureCount'] ?? -1) === 0
+            && (int) ($report['normalizedAstMatchCount'] ?? -1) === $expectedPairCount
+            && (int) ($report['normalizedAstMismatchCount'] ?? -1) === 0
+            && ($signature['kind'] ?? null) === self::CURRENT_NATIVE_AST_SIGNATURE_KIND
+            && ($signature['algorithm'] ?? null) === self::CURRENT_NATIVE_AST_SIGNATURE_ALGORITHM
+            && ($signature['scope'] ?? null) === self::CURRENT_NATIVE_AST_SIGNATURE_SCOPE
+            && ($signature['sha256'] ?? null) === self::CHECKED_IN_CURRENT_NATIVE_AST_SIGNATURE_SHA256
+            && ($signature['expectedSha256'] ?? null) === self::CHECKED_IN_CURRENT_NATIVE_AST_SIGNATURE_SHA256
+            && ($signature['hashMatchesExpected'] ?? null) === true
+            && ($signature['matchesExpected'] ?? null) === true
+            && ($validation['status'] ?? null) === 'valid-checked-in-current-epub-normalized-native-ast-signature'
+            && ($validation['issues'] ?? null) === [];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function skippedReport(string $epubDirectory, string $reason): array
@@ -800,6 +873,7 @@ final class EpubNativeAstPackageComparisonHarness
             'fixtureIdentity' => self::notEvaluatedFixtureIdentity(),
             'packageFeatureCoverage' => self::emptyPackageFeatureCoverage(),
             'packageFeatureSignature' => self::notEvaluatedPackageFeatureSignature($reason),
+            'currentNativeAstSignature' => self::notEvaluatedCurrentNativeAstSignature($reason),
             'normalizationPolicy' => self::normalizationPolicy(),
             'totalEpubCount' => 0,
             'comparedEpubCount' => 0,
@@ -987,6 +1061,212 @@ final class EpubNativeAstPackageComparisonHarness
                 'packageFeatureCoverageMatchesExpected' => false,
             ],
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $fixtureIdentity
+     * @param array<string, array<string, mixed>> $fixtureSignatures
+     * @param array<string, array<string, mixed>> $payloadFixtures
+     * @return array<string, mixed>
+     */
+    private static function currentNativeAstSignature(
+        array $fixtureIdentity,
+        array $fixtureSignatures,
+        array $payloadFixtures,
+        int $comparedPairCount,
+        int $astParseFailureCount,
+        int $normalizedAstMismatchCount
+    ): array {
+        ksort($fixtureSignatures, SORT_STRING);
+        ksort($payloadFixtures, SORT_STRING);
+        $expectedFixtures = self::expectedCheckedInCurrentPairNames();
+        $observedFixtures = array_keys($fixtureSignatures);
+        sort($observedFixtures, SORT_STRING);
+
+        $payload = self::currentNativeAstSignaturePayload($fixtureIdentity, $payloadFixtures, $expectedFixtures);
+        $sha256 = hash('sha256', self::canonicalJson($payload));
+        $fixtureValidation = is_array($fixtureIdentity['validation'] ?? null) ? $fixtureIdentity['validation'] : [];
+        $fixtureIdentityMatchesExpected = ($fixtureValidation['status'] ?? null) === 'valid-checked-in-current-epub-fixture-identity'
+            && ($fixtureValidation['issues'] ?? null) === [];
+        $fixturesMatchExpected = $observedFixtures === $expectedFixtures;
+        $astComparisonMatchesExpected = $fixturesMatchExpected
+            && $comparedPairCount === count($expectedFixtures)
+            && $astParseFailureCount === 0
+            && $normalizedAstMismatchCount === 0
+            && self::nativeAstFixtureHashesMatch($fixtureSignatures);
+        $hashMatchesExpected = $sha256 === self::CHECKED_IN_CURRENT_NATIVE_AST_SIGNATURE_SHA256;
+        $issues = [];
+        if (!$fixtureIdentityMatchesExpected) {
+            $issues[] = 'fixture-identity-does-not-match-expected-snapshot';
+        }
+        if (!$fixturesMatchExpected) {
+            $issues[] = 'normalized-native-ast-fixtures-do-not-match-expected-snapshot';
+        }
+        if (!$astComparisonMatchesExpected) {
+            $issues[] = 'normalized-native-ast-comparison-does-not-match-expected-snapshot';
+        }
+        if (!$hashMatchesExpected) {
+            $issues[] = 'normalized-native-ast-signature-sha256-mismatch';
+        }
+
+        return [
+            'kind' => self::CURRENT_NATIVE_AST_SIGNATURE_KIND,
+            'algorithm' => self::CURRENT_NATIVE_AST_SIGNATURE_ALGORITHM,
+            'scope' => self::CURRENT_NATIVE_AST_SIGNATURE_SCOPE,
+            'snapshotSchemaVersion' => 1,
+            'fixtureCount' => count($fixtureSignatures),
+            'expectedFixtureCount' => count($expectedFixtures),
+            'expectedFixtures' => $expectedFixtures,
+            'observedFixtures' => $observedFixtures,
+            'fixtureSignatures' => $fixtureSignatures,
+            'sha256' => $sha256,
+            'expectedSha256' => self::CHECKED_IN_CURRENT_NATIVE_AST_SIGNATURE_SHA256,
+            'hashMatchesExpected' => $hashMatchesExpected,
+            'matchesExpected' => $issues === [],
+            'validation' => [
+                'status' => $issues === []
+                    ? 'valid-checked-in-current-epub-normalized-native-ast-signature'
+                    : 'invalid-checked-in-current-epub-normalized-native-ast-signature',
+                'issues' => $issues,
+                'fixtureIdentityStatus' => (string) ($fixtureValidation['status'] ?? 'unknown'),
+                'fixturesMatchExpected' => $fixturesMatchExpected,
+                'normalizedAstComparisonMatchesExpected' => $astComparisonMatchesExpected,
+                'comparedPairCount' => $comparedPairCount,
+                'astParseFailureCount' => $astParseFailureCount,
+                'normalizedAstMismatchCount' => $normalizedAstMismatchCount,
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function notEvaluatedCurrentNativeAstSignature(string $reason): array
+    {
+        return [
+            'kind' => self::CURRENT_NATIVE_AST_SIGNATURE_KIND,
+            'algorithm' => self::CURRENT_NATIVE_AST_SIGNATURE_ALGORITHM,
+            'scope' => self::CURRENT_NATIVE_AST_SIGNATURE_SCOPE,
+            'snapshotSchemaVersion' => 1,
+            'fixtureCount' => 0,
+            'expectedFixtureCount' => count(self::expectedCheckedInCurrentPairNames()),
+            'expectedFixtures' => self::expectedCheckedInCurrentPairNames(),
+            'observedFixtures' => [],
+            'fixtureSignatures' => [],
+            'sha256' => null,
+            'expectedSha256' => self::CHECKED_IN_CURRENT_NATIVE_AST_SIGNATURE_SHA256,
+            'hashMatchesExpected' => false,
+            'matchesExpected' => false,
+            'validation' => [
+                'status' => 'not-evaluated-source-directory-unavailable',
+                'issues' => [$reason],
+                'fixtureIdentityStatus' => 'not-evaluated-source-directory-unavailable',
+                'fixturesMatchExpected' => false,
+                'normalizedAstComparisonMatchesExpected' => false,
+                'comparedPairCount' => 0,
+                'astParseFailureCount' => 0,
+                'normalizedAstMismatchCount' => 0,
+            ],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $fixtureIdentity
+     * @param array<string, array<string, mixed>> $payloadFixtures
+     * @param list<string> $expectedFixtures
+     * @return array<string, mixed>
+     */
+    private static function currentNativeAstSignaturePayload(array $fixtureIdentity, array $payloadFixtures, array $expectedFixtures): array
+    {
+        $files = [];
+        foreach (is_array($fixtureIdentity['files'] ?? null) ? $fixtureIdentity['files'] : [] as $file) {
+            if (!is_array($file)) {
+                continue;
+            }
+            $bytes = $file['bytes'] ?? null;
+            $files[] = [
+                'path' => (string) ($file['path'] ?? ''),
+                'sha256' => is_string($file['sha256'] ?? null) ? $file['sha256'] : null,
+                'bytes' => is_int($bytes) ? $bytes : (is_numeric($bytes) ? (int) $bytes : null),
+            ];
+        }
+        usort(
+            $files,
+            static fn (array $left, array $right): int => (string) ($left['path'] ?? '') <=> (string) ($right['path'] ?? '')
+        );
+
+        $fixtures = [];
+        foreach ($payloadFixtures as $fixture => $payloadFixture) {
+            $fixtures[] = [
+                'fixture' => is_string($payloadFixture['fixture'] ?? null) ? $payloadFixture['fixture'] : (string) $fixture,
+                'epubNormalizedAst' => $payloadFixture['epubNormalizedAst'] ?? null,
+                'nativeNormalizedAst' => $payloadFixture['nativeNormalizedAst'] ?? null,
+            ];
+        }
+        usort(
+            $fixtures,
+            static fn (array $left, array $right): int => (string) ($left['fixture'] ?? '') <=> (string) ($right['fixture'] ?? '')
+        );
+
+        return [
+            'schemaVersion' => 1,
+            'fixtureIdentity' => [
+                'kind' => (string) ($fixtureIdentity['kind'] ?? ''),
+                'expectedFileCount' => (int) ($fixtureIdentity['expectedFileCount'] ?? 0),
+                'observedFileCount' => (int) ($fixtureIdentity['observedFileCount'] ?? 0),
+                'expectedFiles' => self::stringList($fixtureIdentity['expectedFiles'] ?? []),
+                'observedFiles' => self::stringList($fixtureIdentity['observedFiles'] ?? []),
+                'files' => $files,
+            ],
+            'expectedFixtures' => $expectedFixtures,
+            'normalizedNativeAstFixtures' => $fixtures,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $fixtureSignatures
+     */
+    private static function nativeAstFixtureHashesMatch(array $fixtureSignatures): bool
+    {
+        if ($fixtureSignatures === []) {
+            return false;
+        }
+
+        foreach ($fixtureSignatures as $signature) {
+            if (($signature['normalizedAstMatches'] ?? null) !== true) {
+                return false;
+            }
+            if (
+                !is_string($signature['epubNormalizedAstSha256'] ?? null)
+                || !is_string($signature['nativeNormalizedAstSha256'] ?? null)
+                || $signature['epubNormalizedAstSha256'] !== $signature['nativeNormalizedAstSha256']
+            ) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function expectedCheckedInCurrentPairNames(): array
+    {
+        $epubFixtures = [];
+        $nativeFixtures = [];
+        foreach (array_keys(self::CHECKED_IN_CURRENT_FIXTURE_IDENTITIES) as $path) {
+            if (str_ends_with($path, '.epub')) {
+                $epubFixtures[basename($path, '.epub')] = true;
+            } elseif (str_ends_with($path, '.native')) {
+                $nativeFixtures[basename($path, '.native')] = true;
+            }
+        }
+
+        $pairs = array_values(array_intersect(array_keys($epubFixtures), array_keys($nativeFixtures)));
+        sort($pairs, SORT_STRING);
+
+        return $pairs;
     }
 
     /**

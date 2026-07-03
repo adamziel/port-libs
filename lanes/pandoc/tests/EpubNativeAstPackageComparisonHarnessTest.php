@@ -183,6 +183,7 @@ return [
             $t->same([], $report['packageFeatureCoverage']['manifestResourceKindCounts']);
             $t->same([], $report['packageFeatureCoverage']['guideReferenceTypeCounts']);
             $t->same([], $report['packageFeatureCoverage']['fixtureFeatureSignatures']);
+            $t->same('not-evaluated-source-directory-unavailable', $report['currentNativeAstSignature']['validation']['status']);
             $t->same('not-evaluated', $report['orderedRemainingGaps'][0]['status']);
             $t->contains('Pandoc EPUB native/package comparison: skipped', $text);
         } finally {
@@ -584,6 +585,17 @@ return [
             ],
         ];
         $expectedPackageFeatureSignatureSha256 = '4bd4dc92125c30c361010936e6a2ca7bc8da3e2efe6ad5096681065deefde3c3';
+        $expectedCurrentNativeAstSignatureSha256 = '30d9b097df1e45a7559eac9e3c370b16ce93d99f6f9683821338596b595a16a9';
+        $expectedCurrentNativeAstFixtures = [
+            'epub2_cover',
+            'epub2_no_cover',
+            'epub2_picture',
+            'features',
+            'formatting',
+            'img',
+            'img_no_cover',
+            'wasteland',
+        ];
 
         $t->same(8, count($epubFiles), 'Checked-in EPUB fixture count changed');
         $t->same(8, count($nativeFiles), 'Checked-in native fixture count changed');
@@ -639,7 +651,29 @@ return [
         $t->same('valid-checked-in-current-epub-package-feature-signature', $report['packageFeatureSignature']['validation']['status']);
         $t->same([], $report['packageFeatureSignature']['validation']['issues']);
         $t->same(true, $report['packageFeatureSignature']['validation']['packageFeatureCoverageMatchesExpected']);
+        $t->same('checked-in-current-epub-normalized-native-ast-signature', $report['currentNativeAstSignature']['kind']);
+        $t->same('sha256-canonical-json-v1', $report['currentNativeAstSignature']['algorithm']);
+        $t->same('checked-in-current-upstream-epub-reader-8-fixture-normalized-ast-snapshot', $report['currentNativeAstSignature']['scope']);
+        $t->same(8, $report['currentNativeAstSignature']['fixtureCount']);
+        $t->same(8, $report['currentNativeAstSignature']['expectedFixtureCount']);
+        $t->same($expectedCurrentNativeAstFixtures, $report['currentNativeAstSignature']['expectedFixtures']);
+        $t->same($expectedCurrentNativeAstFixtures, $report['currentNativeAstSignature']['observedFixtures']);
+        $t->same($expectedCurrentNativeAstSignatureSha256, $report['currentNativeAstSignature']['sha256']);
+        $t->same($expectedCurrentNativeAstSignatureSha256, $report['currentNativeAstSignature']['expectedSha256']);
+        $t->same(true, $report['currentNativeAstSignature']['hashMatchesExpected']);
+        $t->same(true, $report['currentNativeAstSignature']['matchesExpected']);
+        $t->same('valid-checked-in-current-epub-normalized-native-ast-signature', $report['currentNativeAstSignature']['validation']['status']);
+        $t->same([], $report['currentNativeAstSignature']['validation']['issues']);
+        $t->same(true, $report['currentNativeAstSignature']['validation']['fixturesMatchExpected']);
+        $t->same(true, $report['currentNativeAstSignature']['validation']['normalizedAstComparisonMatchesExpected']);
         $t->same(8, count($report['packageFeatureCoverage']['fixtureFeatureSignatures']));
+        $t->same(8, count($report['currentNativeAstSignature']['fixtureSignatures']));
+        $t->same(
+            $report['currentNativeAstSignature']['fixtureSignatures']['wasteland']['epubNormalizedAstSha256'],
+            $report['currentNativeAstSignature']['fixtureSignatures']['wasteland']['nativeNormalizedAstSha256']
+        );
+        $t->same(true, $report['currentNativeAstSignature']['fixtureSignatures']['wasteland']['normalizedAstMatches']);
+        $t->same(['paragraph', 'paragraph', 'div', 'div', 'div'], $report['currentNativeAstSignature']['fixtureSignatures']['wasteland']['epubTopTypes']);
         $t->same([
             'navigationType' => 'nav',
             'navigationSectionTypes' => ['landmarks', 'toc'],
@@ -672,6 +706,7 @@ return [
         ], $report['packageFeatureCoverage']['fixtureFeatureSignatures']['wasteland']);
         $t->same(true, EpubNativeAstPackageComparisonHarness::hasRequiredCurrentPackageFeatureCoverage($report));
         $t->same(true, EpubNativeAstPackageComparisonHarness::hasRequiredCurrentPackageFeatureSignature($report));
+        $t->same(true, EpubNativeAstPackageComparisonHarness::hasRequiredCurrentNativeAstSignature($report));
         $t->same('covered-by-current-package-evidence', $report['orderedRemainingGaps'][0]['status']);
         $t->same('covered-by-current-normalized-ast-evidence', $report['orderedRemainingGaps'][1]['status']);
         $t->contains('packages: total=8 compared=8 packageParsed=8 readerParsed=8 packageFailures=0 readerFailures=0', $text);
@@ -679,6 +714,7 @@ return [
         $t->contains('fixtureIdentity: status=valid-checked-in-current-epub-fixture-identity expected=16 observed=16', $text);
         $t->contains('packageFeatureCoverage: fixtures=8 nav=5 ncx=3 covers=4 landmarks=5 pageLists=0 auxiliaryNav=0 metadataCreators=28 manifestItems=51', $text);
         $t->contains('packageFeatureSignature: status=valid-checked-in-current-epub-package-feature-signature matchesExpected=true sha256=' . $expectedPackageFeatureSignatureSha256, $text);
+        $t->contains('currentNativeAstSignature: status=valid-checked-in-current-epub-normalized-native-ast-signature matchesExpected=true fixtures=8 sha256=' . $expectedCurrentNativeAstSignatureSha256, $text);
         $t->contains('resourceKinds=cover-image:2,image:9,navigation:9,style:13,xhtml:18', $text);
         $t->contains('guideRefTypes=cover:2,toc:1', $text);
         $t->contains('packageLinkRels=cc:attributionURL:1,cc:license:2', $text);
@@ -693,6 +729,7 @@ return [
             . ' --require-fixture-identity'
             . ' --require-current-package-feature-coverage'
             . ' --require-current-package-feature-signature'
+            . ' --require-current-native-ast-signature'
             . ' --require-package-parity=8'
             . ' --require-native-readiness=8'
             . ' --require-mapped-parity=8';
@@ -716,9 +753,17 @@ return [
         $t->same(true, $decoded['packageFeatureSignature']['matchesExpected']);
         $t->same('valid-checked-in-current-epub-package-feature-signature', $decoded['packageFeatureSignature']['validation']['status']);
         $t->same(true, EpubNativeAstPackageComparisonHarness::hasRequiredCurrentPackageFeatureSignature($decoded));
+        $t->same($expectedCurrentNativeAstSignatureSha256, $decoded['currentNativeAstSignature']['sha256']);
+        $t->same(true, $decoded['currentNativeAstSignature']['matchesExpected']);
+        $t->same('valid-checked-in-current-epub-normalized-native-ast-signature', $decoded['currentNativeAstSignature']['validation']['status']);
+        $t->same(true, EpubNativeAstPackageComparisonHarness::hasRequiredCurrentNativeAstSignature($decoded));
         $t->same(
             $report['packageFeatureCoverage']['fixtureFeatureSignatures'],
             $decoded['packageFeatureCoverage']['fixtureFeatureSignatures']
+        );
+        $t->same(
+            $report['currentNativeAstSignature']['fixtureSignatures'],
+            $decoded['currentNativeAstSignature']['fixtureSignatures']
         );
 
         $defaultFixtureIdentityCommand = 'env -u PANDOC_UPSTREAM_EPUB_DIR '
@@ -732,7 +777,8 @@ return [
             . ' --require-mapped-parity=8'
             . ' --require-fixture-identity'
             . ' --require-current-package-feature-coverage'
-            . ' --require-current-package-feature-signature';
+            . ' --require-current-package-feature-signature'
+            . ' --require-current-native-ast-signature';
         $defaultFixtureIdentityOutput = [];
         $defaultFixtureIdentityExitCode = 0;
         exec($defaultFixtureIdentityCommand, $defaultFixtureIdentityOutput, $defaultFixtureIdentityExitCode);
@@ -749,6 +795,9 @@ return [
         $t->same('valid-checked-in-current-epub-fixture-identity', $defaultFixtureIdentityDecoded['fixtureIdentity']['validation']['status']);
         $t->same($expectedPackageFeatureSignatureSha256, $defaultFixtureIdentityDecoded['packageFeatureSignature']['sha256']);
         $t->same(true, $defaultFixtureIdentityDecoded['packageFeatureSignature']['matchesExpected']);
+        $t->same($expectedCurrentNativeAstSignatureSha256, $defaultFixtureIdentityDecoded['currentNativeAstSignature']['sha256']);
+        $t->same(true, $defaultFixtureIdentityDecoded['currentNativeAstSignature']['matchesExpected']);
+        $t->same($expectedCurrentNativeAstFixtures, $defaultFixtureIdentityDecoded['currentNativeAstSignature']['observedFixtures']);
         $t->same(['nav' => 5, 'ncx' => 3], $defaultFixtureIdentityDecoded['packageFeatureCoverage']['navigationTypeCounts']);
         $t->same($expectedPackageFeatureCoverage['fixturesWithCreators'], $defaultFixtureIdentityDecoded['packageFeatureCoverage']['fixturesWithCreators']);
         $t->same(28, $defaultFixtureIdentityDecoded['packageFeatureCoverage']['totals']['metadataCreators']);
@@ -769,6 +818,10 @@ return [
             $report['packageFeatureCoverage']['fixtureFeatureSignatures']['wasteland'],
             $defaultFixtureIdentityDecoded['packageFeatureCoverage']['fixtureFeatureSignatures']['wasteland']
         );
+        $t->same(
+            $report['currentNativeAstSignature']['fixtureSignatures']['wasteland'],
+            $defaultFixtureIdentityDecoded['currentNativeAstSignature']['fixtureSignatures']['wasteland']
+        );
 
         $failingSignatureCommand = escapeshellarg(PHP_BINARY)
             . ' '
@@ -784,6 +837,21 @@ return [
         exec($failingSignatureCommand, $failingSignatureOutput, $failingSignatureExitCode);
 
         $t->same(1, $failingSignatureExitCode);
+
+        $failingNativeAstSignatureCommand = escapeshellarg(PHP_BINARY)
+            . ' '
+            . escapeshellarg(dirname(__DIR__, 3) . '/tools/pandoc-epub-native-ast-package.php')
+            . ' --checked-in-fixtures'
+            . ' --json'
+            . ' summary'
+            . ' --limit=7'
+            . ' --require-current-native-ast-signature'
+            . ' 2>/dev/null';
+        $failingNativeAstSignatureOutput = [];
+        $failingNativeAstSignatureExitCode = 0;
+        exec($failingNativeAstSignatureCommand, $failingNativeAstSignatureOutput, $failingNativeAstSignatureExitCode);
+
+        $t->same(1, $failingNativeAstSignatureExitCode);
     },
 
     'cli gates epub package and native readiness without requiring ast equality' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeEpub): void {

@@ -22,6 +22,7 @@ $requiredMappedParity = null;
 $requireFixtureIdentity = false;
 $requireCurrentPackageFeatureCoverage = false;
 $requireCurrentPackageFeatureSignature = false;
+$requireCurrentNativeAstSignature = false;
 $json = false;
 $summary = false;
 
@@ -53,6 +54,8 @@ Gates:
                                    Require the checked-in current EPUB package feature coverage snapshot.
   --require-current-package-feature-signature
                                    Require the checked-in current EPUB fixture identity plus exact package feature signature.
+  --require-current-native-ast-signature
+                                   Require the checked-in current EPUB fixture identity plus exact normalized native AST signature.
 
 TXT);
         exit(0);
@@ -115,6 +118,11 @@ TXT);
         continue;
     }
 
+    if ($argument === '--require-current-native-ast-signature') {
+        $requireCurrentNativeAstSignature = true;
+        continue;
+    }
+
     fwrite(STDERR, "Unknown argument: {$argument}\n");
     exit(2);
 }
@@ -131,6 +139,7 @@ if (
             $requireFixtureIdentity
             || $requireCurrentPackageFeatureCoverage
             || $requireCurrentPackageFeatureSignature
+            || $requireCurrentNativeAstSignature
         )
         && !$epubDirectoryWasExplicit
     )
@@ -158,6 +167,7 @@ if ($summary) {
         'fixtureIdentity',
         'packageFeatureCoverage',
         'packageFeatureSignature',
+        'currentNativeAstSignature',
         'totalEpubCount',
         'comparedEpubCount',
         'packageParsedCount',
@@ -218,6 +228,18 @@ if (
     fwrite(
         STDERR,
         "pandoc-epub-native-ast-package: checked-in current EPUB package feature signature did not match the expected snapshot for {$epubDirectory}\n"
+        . "hint: use --checked-in-fixtures or --epub-dir=lanes/pandoc/fixtures/upstream-current-epub-reader/epub to gate the checked-in snapshot\n"
+    );
+    exit(1);
+}
+
+if (
+    $requireCurrentNativeAstSignature
+    && !EpubNativeAstPackageComparisonHarness::hasRequiredCurrentNativeAstSignature($report)
+) {
+    fwrite(
+        STDERR,
+        "pandoc-epub-native-ast-package: checked-in current EPUB normalized native AST signature did not match the expected snapshot for {$epubDirectory}\n"
         . "hint: use --checked-in-fixtures or --epub-dir=lanes/pandoc/fixtures/upstream-current-epub-reader/epub to gate the checked-in snapshot\n"
     );
     exit(1);
