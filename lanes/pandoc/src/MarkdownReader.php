@@ -429,7 +429,7 @@ final class MarkdownReader
                 continue;
             }
             $this->flushListStack($listStack, $blocks);
-            $paragraph[] = trim($line);
+            $paragraph[] = $this->normalizeParagraphLine($line);
         }
         $this->flushParagraph($paragraph, $blocks);
         $this->flushListStack($listStack, $blocks);
@@ -1813,8 +1813,18 @@ final class MarkdownReader
         $content = [];
         $cursor = $index;
         $count = count($lines);
-        while ($cursor < $count && $this->isBlockQuoteLine($lines[$cursor])) {
-            $content[] = $this->stripBlockQuoteMarker($lines[$cursor]);
+        while ($cursor < $count) {
+            if ($this->isBlockQuoteLine($lines[$cursor])) {
+                $content[] = $this->stripBlockQuoteMarker($lines[$cursor]);
+                $cursor++;
+                continue;
+            }
+
+            if (!$this->isLazyBlockQuoteContinuationLine($lines[$cursor], $cursor, $content)) {
+                break;
+            }
+
+            $content[] = $lines[$cursor];
             $cursor++;
         }
 
@@ -1822,6 +1832,29 @@ final class MarkdownReader
         $inner = $this->read(implode("\n", $content));
 
         return new AstNode('blockquote', [], $inner->children);
+    }
+
+    /**
+     * @param list<string> $content
+     */
+    private function isLazyBlockQuoteContinuationLine(string $line, int $lineIndex, array $content): bool
+    {
+        if ($content === [] || trim(end($content)) === '' || trim($line) === '') {
+            return false;
+        }
+        if ($this->tryParseMarkdownHeading($line) !== null) {
+            return false;
+        }
+        if ($this->isHorizontalRule($line) || $this->isIndentedCodeLine($line)) {
+            return false;
+        }
+        if (preg_match('/^( {0,3})(`{3,}|~{3,})/', $line) === 1) {
+            return false;
+        }
+
+        $marker = $this->matchListMarker($line, $lineIndex);
+
+        return $marker === null || $marker['indent'] > 3;
     }
 
     /**
@@ -11601,7 +11634,24 @@ final class MarkdownReader
      */
     private function joinParagraphLines(array $paragraph): string
     {
+        $lastIndex = array_key_last($paragraph);
+        if ($lastIndex !== null) {
+            $paragraph[$lastIndex] = rtrim($paragraph[$lastIndex], " \t");
+        }
+
         return implode("\n", $paragraph);
+    }
+
+    private function normalizeParagraphLine(string $line): string
+    {
+        $line = ltrim($line, " \t");
+
+        return $this->endsWithHardBreakWhitespace($line) ? $line : rtrim($line, " \t");
+    }
+
+    private function endsWithHardBreakWhitespace(string $line): bool
+    {
+        return preg_match('/(?: {2,}|[ \t]*\t[ \t]*)$/', $line) === 1;
     }
 
     /**
@@ -11693,6 +11743,14 @@ final class MarkdownReader
 
         while ($offset < $length) {
             if ($text[$offset] === "\n") {
+                if ($this->endsWithHardBreakWhitespace($buffer)) {
+                    $buffer = rtrim($buffer, " \t");
+                    $this->flushText($buffer, $nodes);
+                    $nodes[] = new AstNode('linebreak');
+                    $offset++;
+                    continue;
+                }
+
                 $this->flushText($buffer, $nodes);
                 $nodes[] = new AstNode('softbreak');
                 $offset++;
