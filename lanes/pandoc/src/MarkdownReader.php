@@ -15007,8 +15007,9 @@ final class MarkdownReader
         $decoded = $this->decodeHtmlEntities($source);
         if ($this->isValidAngleAutolinkUri($decoded)) {
             $next = $close + 1;
+            $url = $this->percentEncodeAsciiControlBytes($decoded);
             [$attrs, $next, $literalAttribute] = $this->readTrailingAutolinkAttributes($text, $next, [
-                'url' => $decoded,
+                'url' => $url,
                 'classes' => ['uri'],
             ]);
 
@@ -15016,7 +15017,7 @@ final class MarkdownReader
                 'node' => new AstNode(
                     'link',
                     $attrs,
-                    [new AstNode('text', ['text' => $decoded])]
+                    [new AstNode('text', ['text' => $url])]
                 ),
                 'next' => $next,
             ];
@@ -15054,7 +15055,8 @@ final class MarkdownReader
 
     private function isValidAngleAutolinkUri(string $value): bool
     {
-        return preg_match('/\A[A-Za-z][A-Za-z0-9.+-]{1,31}:[^\s<>\x00-\x20\x7F]*\z/u', $value) === 1;
+        return preg_match('/\A[A-Za-z][A-Za-z0-9.+-]{1,31}:[^\s<>]*\z/u', $value) === 1
+            && preg_match('/[\x00-\x0D\x1F\x7F]/', $value) !== 1;
     }
 
     private function isValidAutolinkEmailAddress(string $value): bool
@@ -16120,8 +16122,18 @@ final class MarkdownReader
     {
         $destination = $this->decodeHtmlEntities($this->unescapeLinkComponent($destination));
         $destination = trim(preg_replace('/\s+/', ' ', $destination) ?? $destination);
+        $destination = $this->percentEncodeAsciiControlBytes($destination);
 
         return str_replace(' ', '%20', $destination);
+    }
+
+    private function percentEncodeAsciiControlBytes(string $text): string
+    {
+        return preg_replace_callback(
+            '/[\x00-\x1F\x7F]/',
+            static fn (array $match): string => sprintf('%%%02X', ord($match[0])),
+            $text
+        ) ?? $text;
     }
 
     /**
