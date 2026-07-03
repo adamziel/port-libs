@@ -2434,9 +2434,17 @@ final class WordPressBlockWriter
             return $preClasses;
         }
 
+        $sanitized = [];
         foreach ($classes as $class) {
-            $class = $this->sanitizeCodeClass((string) $class);
-            if (in_array($class, ['haskell', 'literate'], true)) {
+            $sanitized[] = $this->sanitizeCodeClass((string) $class);
+        }
+        $preserveLanguageClass = array_intersect(['numberLines', 'lineAnchors'], $sanitized) !== [];
+
+        foreach ($sanitized as $index => $class) {
+            if ($class === '' || $class === 'literate') {
+                continue;
+            }
+            if ($index === 0 && !$preserveLanguageClass) {
                 continue;
             }
             if ($class !== '' && !in_array($class, $preClasses, true)) {
