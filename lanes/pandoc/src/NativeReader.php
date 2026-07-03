@@ -2312,7 +2312,7 @@ final class NativeReader
             };
         }
 
-        return trim(preg_replace('/\s+/u', ' ', $text) ?? $text);
+        return trim(preg_replace('/[ \t\r\n\f\v]+/', ' ', $text) ?? $text);
     }
 
     private function isTypedValue(mixed $value, string $type): bool

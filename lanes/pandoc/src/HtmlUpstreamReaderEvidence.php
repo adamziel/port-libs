@@ -13,7 +13,7 @@ final class HtmlUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-html-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
     public const EXPECTED_SELECTED_FIXTURE_COUNT = 48;
-    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 3;
+    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 4;
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/HTML.hs',

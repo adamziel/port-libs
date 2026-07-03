@@ -30,4 +30,15 @@ NATIVE;
 
         $t->same(chr(7) . chr(8) . chr(12) . chr(11), $document->children[0]->children[0]->attr('text'));
     },
+    'preserves leading nonbreaking spaces in pandoc native inline text summaries' => static function (TestRunner $t): void {
+        $native = <<<'NATIVE'
+[ LineBlock [ [ Str "\160\160keep", Space, Str "indentation" ] ] ]
+NATIVE;
+
+        $document = (new NativeReader())->read($native);
+        $line = $document->children[0]->children[0];
+
+        $t->same("\u{00a0}\u{00a0}keep", $line->children[0]->attr('text'));
+        $t->same("\u{00a0}\u{00a0}keep indentation", $line->attr('text'));
+    },
 ];
