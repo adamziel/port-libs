@@ -6153,7 +6153,7 @@ final class MarkdownWriter
             }
         }
 
-        if (in_array($format, ['latex', 'tex'], true) && $this->rawTexEnabled()) {
+        if (MarkdownFormatProfile::rawFamily($format) === 'tex' && $this->rawTexEnabled()) {
             return $this->indentedLines($text, $indent);
         }
 
@@ -7068,19 +7068,20 @@ final class MarkdownWriter
             return $text;
         }
 
+        $rawFamily = MarkdownFormatProfile::rawFamily($format);
+        if ($rawFamily === 'html' && $this->rawHtmlEnabled()) {
+            return $text;
+        }
+
+        if ($rawFamily === 'tex' && $this->rawTexEnabled()) {
+            return $text;
+        }
+
         if ($this->rawAttributeEnabled()) {
             return $this->renderRawAttributeInline(new AstNode($node->type, [
                 'format' => $format,
                 'text' => $text,
             ]));
-        }
-
-        if ($this->isRawHtmlFormat($format) && $this->rawHtmlEnabled()) {
-            return $text;
-        }
-
-        if (in_array($format, ['latex', 'tex'], true) && $this->rawTexEnabled()) {
-            return $text;
         }
 
         return '';

@@ -186,13 +186,9 @@ final class MarkdownFormatProfile
             return [];
         }
 
-        if (preg_match_all('/([+-])([A-Za-z0-9_-]+)/', $suffix, $matches, PREG_SET_ORDER) === false) {
-            return [];
-        }
-
         $overrides = [];
-        foreach ($matches as $match) {
-            $overrides[self::canonicalExtension(strtolower($match[2]))] = $match[1] === '+';
+        foreach (self::markdownExtensionTokens($suffix) as [$sign, $extension]) {
+            $overrides[self::canonicalExtension($extension)] = $sign === '+';
         }
 
         return $overrides;
@@ -238,6 +234,104 @@ final class MarkdownFormatProfile
     private static function canonicalExtension(string $extension): string
     {
         return self::EXTENSION_ALIASES[$extension] ?? $extension;
+    }
+
+    /**
+     * @return list<array{0:string, 1:string}>
+     */
+    private static function markdownExtensionTokens(string $suffix): array
+    {
+        $tokens = [];
+        $offset = 0;
+        $length = strlen($suffix);
+        $known = self::knownExtensionNames();
+        while ($offset < $length) {
+            $sign = $suffix[$offset];
+            if ($sign !== '+' && $sign !== '-') {
+                $offset++;
+                continue;
+            }
+
+            $offset++;
+            $extension = null;
+            foreach ($known as $candidate) {
+                $candidateLength = strlen($candidate);
+                if ($candidateLength === 0 || substr($suffix, $offset, $candidateLength) !== $candidate) {
+                    continue;
+                }
+
+                $next = $suffix[$offset + $candidateLength] ?? '';
+                if ($next === '' || $next === '+' || $next === '-') {
+                    $extension = $candidate;
+                    $offset += $candidateLength;
+                    break;
+                }
+            }
+
+            if ($extension === null) {
+                $remaining = substr($suffix, $offset);
+                if (preg_match('/^[A-Za-z0-9_]+(?:-[A-Za-z0-9_]+)*/', $remaining, $match) !== 1) {
+                    continue;
+                }
+
+                $extension = strtolower($match[0]);
+                $offset += strlen($match[0]);
+            }
+
+            $tokens[] = [$sign, strtolower($extension)];
+        }
+
+        return $tokens;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function knownExtensionNames(): array
+    {
+        $extensions = array_merge(
+            array_keys(self::EXTENSION_ALIASES),
+            array_values(self::EXTENSION_ALIASES),
+            [
+                'ascii_identifiers',
+                'bare_uri_autolinks',
+                'bracketed_spans',
+                'citations',
+                'emoji',
+                'emoji_shortcodes',
+                'fenced_code_attributes',
+                'fenced_divs',
+                'header_attributes',
+                'implicit_header_references',
+                'inline_attributes',
+                'line_blocks',
+                'mark',
+                'native_divs',
+                'native_spans',
+                'pandoc_title_block',
+                'raw_attribute',
+                'raw_html',
+                'raw_markdown',
+                'raw_tex',
+                'smart',
+                'strikeout',
+                'subscript',
+                'superscript',
+                'task_lists',
+                'tex_math_dollars',
+                'wikilinks',
+                'wikilinks_title_after_pipe',
+                'wikilinks_title_before_pipe',
+                'yaml_metadata_block',
+            ]
+        );
+        $extensions = array_values(array_unique($extensions));
+        usort(
+            $extensions,
+            static fn(string $left, string $right): int => strlen($right) <=> strlen($left) ?: strcmp($left, $right)
+        );
+
+        return $extensions;
     }
 
     /**

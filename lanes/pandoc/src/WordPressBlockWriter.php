@@ -808,6 +808,20 @@ final class WordPressBlockWriter
 
     private function renderRawFormatBlock(AstNode $node): string
     {
+        $format = (string) $node->attr('format', 'raw');
+        $rawFamily = MarkdownFormatProfile::rawFamily($format);
+        if ($rawFamily === 'html') {
+            return '<!-- wp:html -->'
+                . "\n" . (string) $node->attr('text', '')
+                . "\n" . '<!-- /wp:html -->';
+        }
+
+        if ($rawFamily === 'tex') {
+            return '<!-- wp:code -->'
+                . "\n" . $this->renderRawTexBlockHtml($node)
+                . "\n" . '<!-- /wp:code -->';
+        }
+
         return '<!-- wp:code -->'
             . "\n" . $this->renderRawFormatBlockHtml($node)
             . "\n" . '<!-- /wp:code -->';
@@ -2457,7 +2471,7 @@ final class WordPressBlockWriter
     private function renderRawTexBlockHtml(AstNode $node): string
     {
         return '<pre class="wp-block-code"><code class="language-tex">'
-            . $this->esc((string) $node->attr('tex', ''))
+            . $this->esc((string) $node->attr('tex', $node->attr('text', '')))
             . '</code></pre>';
     }
 
@@ -2477,6 +2491,15 @@ final class WordPressBlockWriter
         $format = (string) $node->attr('format', 'raw');
         $text = (string) $node->attr('text', '');
         $formatToken = $this->rawFormatToken($format);
+        $rawFamily = MarkdownFormatProfile::rawFamily($format);
+
+        if ($rawFamily === 'html') {
+            return $text;
+        }
+
+        if ($rawFamily === 'tex') {
+            return '<span class="pandoc-raw-tex">' . $this->esc($text) . '</span>';
+        }
 
         if (strtolower($format) === 'openxml') {
             $bookmark = $this->parseOpenXmlBookmark($text);
@@ -4098,7 +4121,7 @@ final class WordPressBlockWriter
 
         return str_starts_with($name, 'data-')
             || str_starts_with($name, 'aria-')
-            || in_array($name, ['cite', 'class', 'dir', 'id', 'lang', 'title', 'translate', 'xml:lang'], true);
+            || in_array($name, ['cite', 'class', 'dir', 'id', 'lang', 'role', 'style', 'title', 'translate', 'xml:lang'], true);
     }
 
     private function isAllowedBlockHtmlAttr(string $name): bool
