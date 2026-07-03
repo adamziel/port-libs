@@ -14443,10 +14443,10 @@ HTML);
         $t->same(1, $table->children[1]->attr('rowHeadColumns'));
         $t->same(1, count($table->children[1]->attr('headRows')));
         $t->same(2, $table->children[1]->children[0]->children[0]->attr('colspan'));
-        $t->contains('<figure class="wp-block-image wp-review" id="fig-release"><img src="https://example.test/uploads/release.jpg" alt="Release frame" title="Release archive"/><figcaption>Release frame</figcaption></figure>', $blocks);
+        $t->contains('<figure class="wp-block-image wp-review" id="fig-release" data-pandoc-short-caption="review short"><img src="https://example.test/uploads/release.jpg" alt="Release frame" title="Release archive"/><figcaption>Release frame</figcaption></figure>', $blocks);
         $t->contains('<p>Citation packet <span class="pandoc-citation" data-pandoc-citation-count="2"', $blocks);
         $t->contains('>@doe [p. 7; see -@roe ch. 2]</span> stays attached.</p>', $blocks);
-        $t->contains('<figure class="wp-block-table" data-pandoc-short-caption="review table"><table><colgroup>', $blocks);
+        $t->contains('<figure class="wp-block-table" data-pandoc-short-caption="review table"><table id="migration-review-table" class="review-table"><colgroup>', $blocks);
         $t->contains('<td colspan="2" style="text-align:center">All imports</td>', $blocks);
         $t->contains('<li>media captions</li>', $blocks);
     },

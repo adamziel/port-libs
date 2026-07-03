@@ -1278,17 +1278,24 @@ final class NativeReader
 
         $display = $this->parseInlineList();
         $sourceText = $this->plainInlineText($display);
+        $entries = array_map(
+            static fn (AstNode $citation): array => $citation->attrs,
+            $citations
+        );
 
+        $attrs = count($entries) === 1 ? $entries[0] : [];
+        $attrs['citations'] = $entries;
         if (count($citations) === 1) {
-            $attrs = $citations[0]->attrs;
             if ($sourceText !== '') {
                 $attrs['text'] = $sourceText;
+            }
+            if ($display !== []) {
+                $attrs['citationSourceInlines'] = $display;
             }
 
             return new AstNode('citation', $attrs, $display);
         }
 
-        $attrs = [];
         if ($sourceText !== '') {
             $attrs['text'] = $sourceText;
         }
@@ -1296,7 +1303,7 @@ final class NativeReader
             $attrs['citationSourceInlines'] = $display;
         }
 
-        return new AstNode('citation_group', $attrs, $citations);
+        return new AstNode('citation', $attrs, $display);
     }
 
     private function parseCitationRecord(): AstNode

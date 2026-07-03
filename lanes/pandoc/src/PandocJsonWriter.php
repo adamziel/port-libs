@@ -1641,7 +1641,7 @@ final class PandocJsonWriter
                 (string) $node->attr('text', ''),
             ]],
             'raw_html_inline', 'raw_tex', 'raw_tex_inline', 'raw_markdown', 'raw_inline' => ['t' => 'RawInline', 'c' => [$this->rawFormatPayload($node), $this->rawText($node)]],
-            'citation' => $this->writeCiteInline([$node], $this->citationSourceInlines($node), $node->attr('citationRecordsNative')),
+            'citation' => $this->writeCiteInline($this->citationNodes($node), $this->citationSourceInlines($node), $node->attr('citationRecordsNative')),
             'citation_group' => $this->writeCiteInline($this->citationGroupChildren($node), $this->citationSourceInlines($node), $node->attr('citationRecordsNative')),
             'link' => ['t' => 'Link', 'c' => [$this->attrTuple($node), $this->writeInlines($node->children), $this->targetTuple($node)]],
             'image' => ['t' => 'Image', 'c' => [$this->attrTuple($node), $this->writeInlines($this->imageLabelInlines($node)), $this->targetTuple($node)]],
@@ -2383,8 +2383,8 @@ final class PandocJsonWriter
             'citationPrefix' => $this->citationAffixPayload($citation, 'citationPrefixNative', $prefix),
             'citationSuffix' => $this->citationAffixPayload($citation, 'citationSuffixNative', $suffix),
             'citationMode' => $this->enumFromNative($citation, 'citationModeNative', $this->citationModeConstructor((string) $citation->attr('mode', 'normal'))),
-            'citationNoteNum' => (int) $citation->attr('citationNoteNum', 0),
-            'citationHash' => (int) $citation->attr('citationHash', 0),
+            'citationNoteNum' => (int) $citation->attr('citationNoteNum', $citation->attr('noteNum', 0)),
+            'citationHash' => (int) $citation->attr('citationHash', $citation->attr('hash', 0)),
         ];
 
         return $this->reusableCitationNative($citation, $record) ?? $record;
@@ -2526,6 +2526,40 @@ final class PandocJsonWriter
         }
 
         return [];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function citationNodes(AstNode $node): array
+    {
+        $citations = $node->attr('citations', null);
+        if (is_array($citations) && $citations !== []) {
+            $nodes = [];
+            foreach ($citations as $citation) {
+                if ($citation instanceof AstNode && $citation->type === 'citation') {
+                    $nodes[] = $citation;
+                    continue;
+                }
+
+                if (is_array($citation)) {
+                    $nodes[] = new AstNode('citation', [
+                        'id' => (string) ($citation['id'] ?? $citation['citationId'] ?? ''),
+                        'prefix' => $citation['prefix'] ?? $citation['citationPrefix'] ?? [],
+                        'suffix' => $citation['suffix'] ?? $citation['citationSuffix'] ?? [],
+                        'mode' => (string) ($citation['mode'] ?? $citation['citationMode'] ?? 'normal'),
+                        'citationNoteNum' => (int) ($citation['citationNoteNum'] ?? $citation['noteNum'] ?? 0),
+                        'citationHash' => (int) ($citation['citationHash'] ?? $citation['hash'] ?? 0),
+                    ]);
+                }
+            }
+
+            if ($nodes !== []) {
+                return $nodes;
+            }
+        }
+
+        return [$node];
     }
 
     /**

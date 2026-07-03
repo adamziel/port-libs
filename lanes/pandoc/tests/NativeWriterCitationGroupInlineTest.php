@@ -62,11 +62,11 @@ return [
         $t->contains('citationMode = SuppressAuthor', $native);
         $t->contains('[ Str "[see" , Space , Str "@doe2026," , Space , Str "p." , Space , Str "4;" , Space , Str "-@roe2025]" ]', $native);
         $t->same('MetaInlines', $meta['reviewInline']['type']);
-        $t->same('citation_group', $meta['reviewInline']['value'][0]->type);
-        $t->same(['doe2026', 'roe2025'], array_map(static fn (AstNode $node): string => $node->attr('id'), $meta['reviewInline']['value'][0]->children));
-        $t->same('suppress_author', $meta['reviewInline']['value'][0]->children[1]->attr('mode'));
+        $t->same('citation', $meta['reviewInline']['value'][0]->type);
+        $t->same(['doe2026', 'roe2025'], array_map(static fn (array $citation): string => $citation['id'], $meta['reviewInline']['value'][0]->attr('citations')));
+        $t->same('suppress_author', $meta['reviewInline']['value'][0]->attr('citations')[1]['mode']);
         $t->same('paragraph', $paragraph->type);
-        $t->same(['text', 'text', 'citation_group'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
-        $t->same(['doe2026', 'roe2025'], array_map(static fn (AstNode $node): string => $node->attr('id'), $paragraph->children[2]->children));
+        $t->same(['text', 'text', 'citation'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same(['doe2026', 'roe2025'], array_map(static fn (array $citation): string => $citation['id'], $paragraph->children[2]->attr('citations')));
     },
 ];
