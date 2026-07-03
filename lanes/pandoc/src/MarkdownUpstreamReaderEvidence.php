@@ -14,6 +14,7 @@ final class MarkdownUpstreamReaderEvidence
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
     public const EXPECTED_SELECTED_FIXTURE_COUNT = 47;
     public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 47;
+    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = 'af855d743d19b949efc67b711ccfc89d34b14e7d1b313a2701da4d14a898e3c5';
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/Markdown.hs',
@@ -690,6 +691,7 @@ final class MarkdownUpstreamReaderEvidence
         $root = rtrim($repoRoot, DIRECTORY_SEPARATOR);
         $fixtures = [];
         $issues = [];
+        $nativeExpectationEvidence = self::checkedInNativeExpectationEvidence($root);
 
         foreach (self::CHECKED_IN_MARKDOWN_FIXTURES as $name => $snapshot) {
             $file = self::snapshotFileEvidence(
@@ -731,6 +733,21 @@ final class MarkdownUpstreamReaderEvidence
             }
         }
 
+        $nativeExpectationValidation = is_array($nativeExpectationEvidence['validation'] ?? null)
+            ? $nativeExpectationEvidence['validation']
+            : [];
+        $nativeExpectationIssues = is_array($nativeExpectationValidation['issues'] ?? null)
+            ? $nativeExpectationValidation['issues']
+            : [];
+        if (($nativeExpectationValidation['status'] ?? null) !== 'valid-checked-in-current-markdown-native-expectation-evidence') {
+            $issues[] = 'invalid-checked-in-markdown-native-expectation-evidence';
+            foreach ($nativeExpectationIssues as $issue) {
+                if (is_string($issue)) {
+                    $issues[] = $issue;
+                }
+            }
+        }
+
         return [
             'kind' => 'static-checked-in-current-upstream-markdown-reader-fixture-evidence',
             'upstream' => [
@@ -742,14 +759,16 @@ final class MarkdownUpstreamReaderEvidence
             'checkedInFixtureDirectory' => self::CHECKED_IN_FIXTURE_DIRECTORY,
             'checkedInFixtureCount' => count($fixtures),
             'checkedInFixtures' => $fixtures,
+            'nativeExpectationEvidence' => $nativeExpectationEvidence,
             'validation' => [
                 'status' => $issues === [] ? 'valid-checked-in-current-markdown-reader-evidence' : 'invalid-checked-in-current-markdown-reader-evidence',
                 'issues' => array_values(array_unique($issues)),
             ],
-            'claim' => 'Static gate binding selected current upstream-derived Markdown reader fixtures to checked-in SHA-256 and byte-count snapshots.',
+            'claim' => 'Static gate binding selected current upstream-derived Markdown reader fixtures and their native expectations to checked-in SHA-256 and byte-count snapshots.',
             'claimBoundaries' => [
                 'doesAssert' => [
                     'the forty-seven selected checked-in Markdown fixture snapshots match the expected SHA-256 hashes and byte counts',
+                    'the forty-seven selected checked-in Markdown native expectation snapshots match the expected deterministic manifest hash',
                     'each selected fixture has at least one local PHP test reference',
                     'the fixture set covers selected command, raw-attribute, abbreviation, details/summary, GFM, autolink, footnote/citation, footnote recursive-reference and continuation/termination boundary behavior, citation/span boundary, empty-paragraph, definition-list spacing, nested-list body and html-div body, GitHub wiki-link, inline-code list-marker, attribute, and spaced-attribute literal behavior, backslash-escaped link, link-label boundary, unbalanced-bracket literal, link-title entity decoding, plain character-reference decoding, strikeout-with-nested-emphasis, GitHub emoji-shortcode, superscript/subscript escaped-space boundary behavior, smart punctuation quotes/apostrophes/ellipsis behavior, pipe-table alignment with escaped-pipe cell behavior, fenced-div nested container behavior, header-attribute explicit id/class/key behavior, numbered-example labeled cross-reference behavior, mark nested inline behavior, bracketed-span generic Span plus smallcaps behavior, fenced-code attribute tuple behavior, MultiMarkdown short superscript/subscript delimiter boundary behavior, numeric character-reference decoding, escaped-line-break hard break behavior, implicit-header-reference ATX trailing-hash behavior, emph/strong delimiter nesting plus intraword underscore behavior, raw-LaTeX bare environment command literal behavior, implicit-figure latex-placement plus alt boundary behavior, GitHub raw email address strong-boundary behavior, and raw-HTML technically invalid comment preservation behavior',
                 ],
@@ -771,6 +790,8 @@ final class MarkdownUpstreamReaderEvidence
         $staticEvidence = is_array($report['staticCurrentEvidence'] ?? null) ? $report['staticCurrentEvidence'] : [];
         $staticDenominator = is_array($staticEvidence['readerDenominator'] ?? null) ? $staticEvidence['readerDenominator'] : [];
         $staticValidation = is_array($staticEvidence['validation'] ?? null) ? $staticEvidence['validation'] : [];
+        $nativeExpectationEvidence = is_array($staticEvidence['nativeExpectationEvidence'] ?? null) ? $staticEvidence['nativeExpectationEvidence'] : [];
+        $nativeExpectationValidation = is_array($nativeExpectationEvidence['validation'] ?? null) ? $nativeExpectationEvidence['validation'] : [];
         $nativeAstEvidence = is_array($report['nativeAstEvidence'] ?? null) ? $report['nativeAstEvidence'] : [];
         $validation = is_array($report['validation'] ?? null) ? $report['validation'] : [];
         $runner = is_array($report['runnerEvidence'] ?? null) ? $report['runnerEvidence'] : [];
@@ -785,7 +806,9 @@ final class MarkdownUpstreamReaderEvidence
             'Status: ' . (string) ($report['status'] ?? 'unknown'),
             'Selected checked-in fixtures: ' . $selectedFixtureCount,
             'Static current evidence: ' . (string) ($staticValidation['status'] ?? 'unknown')
-                . ' checkedInFixtures=' . (int) ($staticEvidence['checkedInFixtureCount'] ?? 0),
+                . ' checkedInFixtures=' . (int) ($staticEvidence['checkedInFixtureCount'] ?? 0)
+                . ' nativeExpectations=' . (int) ($nativeExpectationEvidence['presentFixtureCount'] ?? 0)
+                . ' nativeManifest=' . (string) ($nativeExpectationValidation['status'] ?? 'unknown'),
             'Native AST mapped parity: ' . (int) ($nativeAstEvidence['normalizedAstMatchCount'] ?? 0)
                 . '/' . (int) ($nativeAstEvidence['totalPairCount'] ?? 0)
                 . ' status=' . (string) ($nativeAstEvidence['astParityStatus'] ?? 'unknown'),
@@ -1058,6 +1081,72 @@ final class MarkdownUpstreamReaderEvidence
     private function nativeAstEvidence(): array
     {
         return (new MarkdownNativeAstComparisonHarness())->run($this->repoRoot . '/lanes/pandoc/fixtures');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function checkedInNativeExpectationEvidence(string $root): array
+    {
+        $names = [];
+        foreach (array_keys(self::CHECKED_IN_MARKDOWN_FIXTURES) as $markdownName) {
+            $names[] = substr((string) $markdownName, 0, -3) . '.native';
+        }
+        sort($names, SORT_STRING);
+
+        $fixtures = [];
+        $manifestLines = [];
+        $issues = [];
+        foreach ($names as $name) {
+            $relativePath = self::CHECKED_IN_FIXTURE_DIRECTORY . '/' . $name;
+            $absolutePath = rtrim($root, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
+            $present = is_file($absolutePath);
+            $sha256 = $present ? hash_file('sha256', $absolutePath) : false;
+            $bytes = $present ? filesize($absolutePath) : false;
+            $sha256Value = is_string($sha256) ? $sha256 : null;
+            $bytesValue = is_int($bytes) ? $bytes : null;
+
+            $fixtures[] = [
+                'name' => $name,
+                'path' => $relativePath,
+                'present' => $present,
+                'sha256' => $sha256Value,
+                'bytes' => $bytesValue,
+            ];
+
+            if (!$present) {
+                $issues[] = 'missing-checked-in-markdown-native-expectation';
+                continue;
+            }
+
+            $manifestLines[] = $name . "\t" . $sha256Value . "\t" . $bytesValue;
+        }
+
+        $presentFixtureCount = count($manifestLines);
+        $manifestPayload = $manifestLines === [] ? '' : implode("\n", $manifestLines) . "\n";
+        $manifestSha256 = hash('sha256', $manifestPayload);
+        if ($presentFixtureCount !== self::EXPECTED_NATIVE_MAPPED_PAIR_COUNT) {
+            $issues[] = 'checked-in-markdown-native-expectation-count-mismatch';
+        }
+        if ($manifestSha256 !== self::EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256) {
+            $issues[] = 'checked-in-markdown-native-expectation-manifest-sha256-mismatch';
+        }
+
+        return [
+            'kind' => 'static-checked-in-current-markdown-native-expectation-evidence',
+            'manifestFormat' => 'native fixture basename, SHA-256, and byte count joined with tabs, sorted by native fixture basename and terminated by newlines',
+            'expectedFixtureCount' => self::EXPECTED_NATIVE_MAPPED_PAIR_COUNT,
+            'fixtureCount' => count($fixtures),
+            'presentFixtureCount' => $presentFixtureCount,
+            'expectedManifestSha256' => self::EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256,
+            'manifestSha256' => $manifestSha256,
+            'checkedInNativeFixtures' => $fixtures,
+            'validation' => [
+                'status' => $issues === [] ? 'valid-checked-in-current-markdown-native-expectation-evidence' : 'invalid-checked-in-current-markdown-native-expectation-evidence',
+                'issues' => array_values(array_unique($issues)),
+            ],
+            'claim' => 'Static gate binding selected checked-in Markdown .native expectation snapshots to a deterministic manifest hash.',
+        ];
     }
 
     /**
