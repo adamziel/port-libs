@@ -19,6 +19,7 @@ final class EpubUpstreamReaderEvidence
     private const CHECKED_IN_CURRENT_STATIC_MEDIA_BAG_TEST_COUNT = 6;
     private const CHECKED_IN_CURRENT_STATIC_FIXTURE_REFERENCE_COUNT = 6;
     private const CHECKED_IN_CURRENT_STATIC_EXPECTED_MEDIA_ITEM_COUNT = 10;
+    private const CHECKED_IN_CURRENT_READER_FIXTURE_ROOT = 'lanes/pandoc/fixtures/upstream-current-epub-reader';
     private const CHECKED_IN_CURRENT_NATIVE_PACKAGE_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-epub-reader/epub';
     private const CHECKED_IN_CURRENT_NATIVE_PACKAGE_EPUB_COUNT = 31;
     private const CHECKED_IN_CURRENT_NATIVE_PACKAGE_PAIR_COUNT = 31;
@@ -147,6 +148,7 @@ final class EpubUpstreamReaderEvidence
             'unreferencedEpubFixtures' => $this->unreferencedEpubFixtures($root, $fixtureRoot, $readerCases),
         ];
         $referencedFixtureIdentity = $this->referencedFixtureIdentity($root, $fixtureRoot, $readerCases);
+        $checkedInCurrentFixtureSnapshot = $this->usesCheckedInCurrentFixtureSnapshot($root, $fixtureRoot);
 
         return [
             'schemaVersion' => 1,
@@ -155,8 +157,10 @@ final class EpubUpstreamReaderEvidence
             'upstream' => [
                 'name' => 'jgm/pandoc',
                 'root' => $this->displayPath($root),
-                'commit' => $this->gitHead($root),
+                'commit' => $checkedInCurrentFixtureSnapshot ? self::EXPECTED_UPSTREAM_COMMIT : $this->gitHead($root),
                 'expectedCommit' => self::EXPECTED_UPSTREAM_COMMIT,
+                'commitSource' => $checkedInCurrentFixtureSnapshot ? 'checked-in-current-fixture-snapshot' : 'git-head',
+                'provenanceMode' => $checkedInCurrentFixtureSnapshot ? 'checked-in-current-fixture-snapshot' : 'hydrated-upstream-checkout',
                 'readerTestModule' => 'test/Tests/Readers/EPUB.hs',
                 'fixtureDirectory' => 'test/epub',
                 'resolvedFixtureBase' => $this->displayPath($fixtureRoot),
@@ -1737,6 +1741,23 @@ final class EpubUpstreamReaderEvidence
     private function fixtureDirectoryDisplayPath(): string
     {
         return $this->hasExplicitFixtureBase() ? 'epub' : 'test/epub';
+    }
+
+    private function usesCheckedInCurrentFixtureSnapshot(string $root, string $fixtureRoot): bool
+    {
+        return $this->hasExplicitFixtureBase()
+            && $this->isCheckedInCurrentFixtureRoot($root)
+            && $this->isCheckedInCurrentFixtureRoot($fixtureRoot);
+    }
+
+    private function isCheckedInCurrentFixtureRoot(string $path): bool
+    {
+        $normalized = str_replace(DIRECTORY_SEPARATOR, '/', rtrim($path, DIRECTORY_SEPARATOR));
+        $repoRelative = self::CHECKED_IN_CURRENT_READER_FIXTURE_ROOT;
+
+        return $this->displayPath($path) === $repoRelative
+            || $normalized === $repoRelative
+            || str_ends_with($normalized, '/' . $repoRelative);
     }
 
     private function displayPath(string $path): string

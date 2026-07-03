@@ -222,6 +222,9 @@ return [
         $nativePackageParity = $report['nativeAstPackageParity'];
 
         $t->same(EpubUpstreamReaderEvidence::STATUS_COMPLETED, $report['status']);
+        $t->same(EpubUpstreamReaderEvidence::EXPECTED_UPSTREAM_COMMIT, $report['upstream']['commit']);
+        $t->same('checked-in-current-fixture-snapshot', $report['upstream']['commitSource']);
+        $t->same('checked-in-current-fixture-snapshot', $report['upstream']['provenanceMode']);
         $t->same('valid-upstream-epub-reader-mediabag-denominator', $report['validation']['status']);
         $t->same([], $report['validation']['issues']);
         $t->same($checkedInFixtureRoot(), $report['upstream']['resolvedFixtureBase']);
@@ -494,6 +497,9 @@ HS);
         $t->same([], $decoded['denominator']['missingReferencedFiles']);
         $t->same('valid-upstream-epub-reader-mediabag-denominator', $decoded['validation']['status']);
         $t->same($checkedInFixtureRoot(), $decoded['upstream']['root']);
+        $t->same(EpubUpstreamReaderEvidence::EXPECTED_UPSTREAM_COMMIT, $decoded['upstream']['commit']);
+        $t->same('checked-in-current-fixture-snapshot', $decoded['upstream']['commitSource']);
+        $t->same('checked-in-current-fixture-snapshot', $decoded['upstream']['provenanceMode']);
         $t->same($checkedInFixtureRoot(), $decoded['upstream']['resolvedFixtureBase']);
         $t->same('epub', $decoded['upstream']['resolvedFixtureDirectory']);
         $t->same(false, $decoded['upstream']['readerSourceRequired']);
