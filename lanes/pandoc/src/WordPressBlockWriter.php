@@ -3005,8 +3005,22 @@ final class WordPressBlockWriter
     private function renderDivBlock(AstNode $node): string
     {
         return '<!-- wp:html -->'
-            . "\n" . '<div' . $this->renderDivAttrs($node) . '>' . $this->renderBlocksAsHtml($node->children, true) . '</div>'
+            . "\n" . '<div' . $this->renderDivAttrs($node) . '>' . $this->renderBlocksAsHtml($node->children, !$this->divContainsOnlyPlainImage($node)) . '</div>'
             . "\n" . '<!-- /wp:html -->';
+    }
+
+    private function divContainsOnlyPlainImage(AstNode $node): bool
+    {
+        if (count($node->children) !== 1) {
+            return false;
+        }
+
+        $child = $node->children[0];
+        if ($child->type !== 'plain' || count($child->children) !== 1) {
+            return false;
+        }
+
+        return $child->children[0]->type === 'image';
     }
 
     private function renderHorizontalRule(): string
@@ -3147,7 +3161,7 @@ final class WordPressBlockWriter
                 continue;
             }
             if ($block->type === 'div') {
-                $html .= '<div' . $this->renderDivAttrs($block) . '>' . $this->renderBlocksAsHtml($block->children, true) . '</div>';
+                $html .= '<div' . $this->renderDivAttrs($block) . '>' . $this->renderBlocksAsHtml($block->children, !$this->divContainsOnlyPlainImage($block)) . '</div>';
             }
         }
 
