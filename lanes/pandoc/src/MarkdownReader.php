@@ -8660,11 +8660,12 @@ final class MarkdownReader
      */
     private function readLeadingTableCaption(array $lines, int $cursor): ?array
     {
-        if (preg_match('/^ {0,3}(Table:|Caption:|:)\s*(.*)$/i', $lines[$cursor] ?? '', $m) !== 1) {
+        $match = $this->matchMarkdownTableCaptionLine($lines[$cursor] ?? '');
+        if ($match === null) {
             return null;
         }
 
-        [$caption, $next] = $this->readMarkdownTableCaptionContinuation($lines, $cursor + 1, trim($m[2]));
+        [$caption, $next] = $this->readMarkdownTableCaptionContinuation($lines, $cursor + 1, $match['caption']);
         $count = count($lines);
         while ($next < $count && trim($lines[$next]) === '') {
             $next++;
@@ -8672,7 +8673,7 @@ final class MarkdownReader
 
         return [
             'caption' => $caption,
-            'marker' => $m[1],
+            'marker' => $match['marker'],
             'position' => 'before-table',
             'captionSide' => 'top',
             'next' => $next,
@@ -10016,17 +10017,34 @@ final class MarkdownReader
             $captionCursor++;
         }
 
-        if ($captionCursor < $count && preg_match('/^ {0,3}(Table:|Caption:|:)\s*(.*)$/i', $lines[$captionCursor], $m) === 1) {
-            [$caption, $next] = $this->readMarkdownTableCaptionContinuation($lines, $captionCursor + 1, trim($m[2]));
+        $match = $captionCursor < $count ? $this->matchMarkdownTableCaptionLine($lines[$captionCursor]) : null;
+        if ($match !== null) {
+            [$caption, $next] = $this->readMarkdownTableCaptionContinuation($lines, $captionCursor + 1, $match['caption']);
 
             return [
                 $caption,
                 $next,
-                $this->markdownTableCaptionSource('after-table', $m[1], 'bottom', $caption),
+                $this->markdownTableCaptionSource('after-table', $match['marker'], 'bottom', $caption),
             ];
         }
 
         return ['', $cursor, null];
+    }
+
+    /**
+     * @return array{marker:string, caption:string}|null
+     */
+    private function matchMarkdownTableCaptionLine(string $line): ?array
+    {
+        $marker = '(?::|(?:Table|Caption):|(?:Table|Caption)\s+[A-Za-z0-9]+[.:]|(?:Tbl\.|Tab\.)\s+[A-Za-z0-9]+[.:])';
+        if (preg_match('/^ {0,3}(' . $marker . ')\s*(.*)$/iu', $line, $m) !== 1) {
+            return null;
+        }
+
+        return [
+            'marker' => $m[1],
+            'caption' => trim($m[2]),
+        ];
     }
 
     /**
