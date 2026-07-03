@@ -1,0 +1,11 @@
+[ Para
+    [ Strikeout [ Str "Remove" , Space , Str "deprecated" , Space , Str "shortcode" ]
+    , Space
+    , Str "and"
+    , Space
+    , Str "keep"
+    , Space
+    , Underline [ Str "replacement" , Space , Str "copy" ]
+    , Str "."
+    ]
+]
