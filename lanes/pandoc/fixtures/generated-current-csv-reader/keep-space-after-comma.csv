@@ -1,0 +1,4 @@
+label, raw,note
+alpha, padded after comma,plain
+ beta,value with trailing ,literal quotes
+gamma, lead and trail ,done
