@@ -175,6 +175,7 @@ return [
         $smartartHierarchyPair = $pairsByStem['smartart-hierarchy'];
         $noTitleFallbackPair = $pairsByStem['no-title-fallback'];
         $paragraphlessTextboxPair = $pairsByStem['paragraphless-textbox'];
+        $percentEncodedTargetPair = $pairsByStem['percent-encoded-target'];
 
         $t->same(PptxUpstreamReaderEvidence::STATUS_SKIPPED_MISSING_SOURCE, $report['status']);
         $t->same('valid-checked-in-current-pptx-reader-evidence', $static['validation']['status']);
@@ -183,7 +184,7 @@ return [
         $t->same('text extraction', $static['readerDenominator']['expectedReaderCases'][0]['name']);
         $t->same('pptx-reader/basic.pptx', $static['readerDenominator']['expectedReaderCases'][0]['pptx']);
         $t->same('pptx-reader/basic.native', $static['readerDenominator']['expectedReaderCases'][0]['native']);
-        $t->same(36, $static['checkedInFixturePairCount']);
+        $t->same(37, $static['checkedInFixturePairCount']);
         $t->same(0, $static['checkedInUnpairedPptxFixtureCount']);
         $t->same(0, $static['checkedInUnpairedNativeFixtureCount']);
         $t->same([], $static['checkedInUnpairedPptxFixtures']);
@@ -439,6 +440,13 @@ return [
         $t->same('bc41c663b7f2711c8d12039d385926db19bae387c07290cd7629e5ab278e2ce9', $smartartHierarchyPair['checkedInNative']['sha256']);
         $t->same(2664, $smartartHierarchyPair['checkedInPptx']['bytes']);
         $t->same(332, $smartartHierarchyPair['checkedInNative']['bytes']);
+        $t->same('percent-encoded-target', $percentEncodedTargetPair['stem']);
+        $t->same('generated literal percent-encoded relationship target parity', $percentEncodedTargetPair['name']);
+        $t->same('pptx-reader/percent-encoded-target.pptx|pptx-reader/percent-encoded-target.native', $percentEncodedTargetPair['pairKey']);
+        $t->same('c43d087016af3aca9afd325e3c630c072e8629722a610bfcba248b18c37eddc3', $percentEncodedTargetPair['checkedInPptx']['sha256']);
+        $t->same('9ceb6189090309ad8b3ea4ec49622cbf6f64d110928046136578c33c8fc48242', $percentEncodedTargetPair['checkedInNative']['sha256']);
+        $t->same(2506, $percentEncodedTargetPair['checkedInPptx']['bytes']);
+        $t->same(117, $percentEncodedTargetPair['checkedInNative']['bytes']);
         $t->same(false, PptxUpstreamReaderEvidence::hasNoValidationIssues($report));
         $t->same(true, PptxUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($report));
         $t->same(true, PptxUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
@@ -475,10 +483,11 @@ return [
         $t->true(in_array('that two-slides.pptx/two-slides.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('that speaker-notes.pptx/speaker-notes.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('that numbered-list.pptx/numbered-list.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
+        $t->true(in_array('that percent-encoded-target.pptx/percent-encoded-target.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('that shape-order.pptx/shape-order.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('that slide-placeholders.pptx/slide-placeholders.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('that smartart-hierarchy.pptx/smartart-hierarchy.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
-        $t->contains('Static current evidence: valid-checked-in-current-pptx-reader-evidence comparisons=1 checkedInPairs=36', $text);
+        $t->contains('Static current evidence: valid-checked-in-current-pptx-reader-evidence comparisons=1 checkedInPairs=37', $text);
         $t->contains('Runner status: not-run', $text);
     },
     'reports invalid pptx reader evidence for missing and unreferenced fixtures' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile): void {
