@@ -6640,38 +6640,47 @@ final class MarkdownWriter
             return $this->renderSpan($this->semanticInlineSpan($node, $kind));
         }
 
-        $previous = $this->escapeInlineSpaces;
-        $this->escapeInlineSpaces = true;
-        try {
-            $content = $this->renderInlines($node->children);
-            if ($content === '') {
-                return '';
-            }
-
-            if ($this->scriptEnabled($kind)) {
-                return $this->delimitInlineContent($delimiter, $delimiter, $content);
-            }
-
-            if ($this->rawHtmlEnabled()) {
-                return '<' . $htmlTag . '>' . $content . '</' . $htmlTag . '>';
-            }
-
-            if (!$this->writerPreferAscii()) {
-                $converted = $this->unicodeScriptInlineNodes($node->children, $kind);
-                if ($converted !== null) {
-                    return $this->renderInlines($converted);
+        if ($this->scriptEnabled($kind)) {
+            $previous = $this->escapeInlineSpaces;
+            $this->escapeInlineSpaces = true;
+            try {
+                $content = $this->renderInlines($node->children);
+                if ($content === '') {
+                    return '';
                 }
-            }
 
-            $unicode = $this->unicodeScriptText($content, 'superscript');
-            if ($unicode !== null) {
-                return $unicode;
+                return $this->delimitInlineContent($delimiter, $delimiter, $content);
+            } finally {
+                $this->escapeInlineSpaces = $previous;
             }
-
-            return ($kind === 'superscript' ? '^' : '_') . '(' . $content . ')';
-        } finally {
-            $this->escapeInlineSpaces = $previous;
         }
+
+        if ($this->bracketedSpansEnabled()) {
+            return $this->renderSpan($this->semanticInlineSpan($node, $kind));
+        }
+
+        $content = $this->renderInlines($node->children);
+        if ($content === '') {
+            return '';
+        }
+
+        if ($this->rawHtmlEnabled()) {
+            return '<' . $htmlTag . '>' . $content . '</' . $htmlTag . '>';
+        }
+
+        if (!$this->writerPreferAscii()) {
+            $converted = $this->unicodeScriptInlineNodes($node->children, $kind);
+            if ($converted !== null) {
+                return $this->renderInlines($converted);
+            }
+        }
+
+        $unicode = $this->unicodeScriptText($content, 'superscript');
+        if ($unicode !== null) {
+            return $unicode;
+        }
+
+        return ($kind === 'superscript' ? '^' : '_') . '(' . $content . ')';
     }
 
     /**
@@ -6796,8 +6805,12 @@ final class MarkdownWriter
             return $this->delimitInlineContent('~~', '~~', $content);
         }
 
+        if ($this->bracketedSpansEnabled()) {
+            return $this->renderSpan($this->semanticInlineSpan($node, 'strikeout'));
+        }
+
         if ($this->rawHtmlEnabled()) {
-            return '<s>' . $content . '</s>';
+            return '<del>' . $content . '</del>';
         }
 
         return $content;
@@ -6811,12 +6824,18 @@ final class MarkdownWriter
 
         $span = $this->semanticInlineSpan($node, 'underline');
 
+        if ($this->underlineExtensionEnabled() && !$this->bracketedSpansEnabled() && !$this->nativeSpansEnabled()) {
+            return '[' . $this->renderInlines($node->children) . ']' . $this->renderAttributesTuple($this->linkAttrTuple($span));
+        }
+
         if ($this->bracketedSpansEnabled() || $this->nativeSpansEnabled()) {
             return $this->renderSpan($span);
         }
 
         if ($this->rawHtmlEnabled()) {
-            return '<u>' . $this->renderInlines($node->children) . '</u>';
+            $content = $this->renderInlines($node->children);
+
+            return $this->renderRawHtmlSpan($this->linkAttrTuple($span), $content);
         }
 
         return $this->delimitInlineContent('*', '*', $this->renderInlines($node->children));
@@ -7240,12 +7259,20 @@ final class MarkdownWriter
         $attrTuple = $this->linkAttrTuple($node);
         $classes = $attrTuple['classes'];
         $attributes = $attrTuple['attributes'];
+        $content = null;
         if (
             $attrTuple['id'] === ''
-            && in_array($classes, [['mark'], ['marked'], ['highlighted']], true)
+            && in_array($classes, [['mark'], ['marked'], ['highlight'], ['highlighted']], true)
             && $attributes === []
         ) {
-            return $this->renderMark($node);
+            $content = $this->renderInlines($node->children);
+            if (
+                $this->markExtensionEnabled()
+                && !$this->inlineNodesContainMarkDelimiter($node->children)
+                && !str_contains($content, '==')
+            ) {
+                return '==' . $content . '==';
+            }
         }
 
         if (
@@ -7271,7 +7298,7 @@ final class MarkdownWriter
         }
 
         $attrs = $this->renderAttributesTuple($attrTuple);
-        $content = $this->renderInlines($node->children);
+        $content ??= $this->renderInlines($node->children);
 
         if ($attrs === '') {
             return $content;
@@ -7286,6 +7313,26 @@ final class MarkdownWriter
         }
 
         return $content;
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function inlineNodesContainMarkDelimiter(array $nodes): bool
+    {
+        foreach ($nodes as $node) {
+            foreach (['text', 'literal', 'content', 'value', 'markdown', 'html', 'tex'] as $name) {
+                $value = $node->attr($name, null);
+                if (is_scalar($value) && str_contains((string) $value, '==')) {
+                    return true;
+                }
+            }
+            if ($this->inlineNodesContainMarkDelimiter($node->children)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -7904,7 +7951,7 @@ final class MarkdownWriter
             }
 
             if (str_starts_with($tail, '==')) {
-                $escaped .= '\\==';
+                $escaped .= '\\=\\=';
                 $i++;
                 continue;
             }
@@ -9295,12 +9342,45 @@ final class MarkdownWriter
 
     private function strikeoutEnabled(): bool
     {
-        return (bool) ($this->options['strikeout'] ?? true);
+        if (array_key_exists('strikeout', $this->options)) {
+            return (bool) $this->options['strikeout'];
+        }
+
+        $override = $this->markdownExtensionOverride('strikeout');
+        if ($override !== null) {
+            return $override;
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['markdown', 'commonmark_x', 'gfm'], true);
     }
 
     private function scriptEnabled(string $kind): bool
     {
-        return (bool) ($this->options[$kind] ?? true);
+        if (array_key_exists($kind, $this->options)) {
+            return (bool) $this->options[$kind];
+        }
+
+        $override = $this->markdownExtensionOverride($kind);
+        if ($override !== null) {
+            return $override;
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['markdown', 'commonmark_x'], true);
+    }
+
+    private function underlineExtensionEnabled(): bool
+    {
+        if (array_key_exists('underline', $this->options)) {
+            return (bool) $this->options['underline'];
+        }
+
+        return $this->markdownExtensionOverride('underline') === true;
     }
 
     private function writerPreferAscii(): bool
@@ -9379,6 +9459,19 @@ final class MarkdownWriter
         return $this->markdownExtensionOverride('emoji_shortcodes') === true;
     }
 
+    private function markExtensionEnabled(): bool
+    {
+        $override = $this->markdownExtensionOverride('mark');
+        if ($override !== null) {
+            return $override;
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['markdown', 'commonmark_x'], true);
+    }
+
     private function markdownExtensionOverride(string $extension): ?bool
     {
         return $this->markdownExtensionOverrides()[$extension] ?? null;
@@ -9430,7 +9523,19 @@ final class MarkdownWriter
 
     private function bracketedSpansEnabled(): bool
     {
-        return (bool) ($this->options['bracketedSpans'] ?? true);
+        if (array_key_exists('bracketedSpans', $this->options)) {
+            return (bool) $this->options['bracketedSpans'];
+        }
+
+        $override = $this->markdownExtensionOverride('bracketed_spans');
+        if ($override !== null) {
+            return $override;
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['markdown', 'commonmark_x', 'markdown_phpextra', 'markdown_mmd'], true);
     }
 
     private function nativeSpansEnabled(): bool
