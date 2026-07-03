@@ -67,6 +67,25 @@ return [
         $t->same('bar3', $secondSecondDefinition->children[0]->attr('text'));
     },
 
+    'maps checked-in upstream markdown nested-list definition-list fixture' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-markdown-definition-list-nested-list.md');
+        $document = (new MarkdownReader(['format' => 'markdown']))->read($source);
+        $list = $document->children[0] ?? new AstNode('missing');
+        $item = $list->children[0] ?? new AstNode('missing');
+        $definition = $item->children[1] ?? new AstNode('missing');
+        $nested = $definition->children[0] ?? new AstNode('missing');
+        $nestedItem = $nested->children[0] ?? new AstNode('missing');
+
+        $t->same('definition_list', $list->type);
+        $t->same(1, count($list->children));
+        $t->same('foo', $item->attr('term'));
+        $t->same('definition', $definition->type);
+        $t->same(false, (bool) $definition->attr('loose'));
+        $t->same('bullet_list', $nested->type);
+        $t->same('-', $nested->attr('marker'));
+        $t->same('bar', $nestedItem->attr('text'));
+    },
+
     'keeps checked-in upstream markdown definition-list fixture behind extension gate' => static function (TestRunner $t): void {
         $source = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-markdown-definition-lists.md');
         $strict = (new MarkdownReader(['format' => 'markdown_strict']))->read($source);
