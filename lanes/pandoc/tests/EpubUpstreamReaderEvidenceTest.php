@@ -218,6 +218,7 @@ return [
             'epub/guide-bibliography-reference.epub',
             'epub/guide-glossary-reference.epub',
             'epub/guide-notes-reference.epub',
+            'epub/guide-preface-reference.epub',
             'epub/manifest-fallback-chain.epub',
             'epub/media-manifest-mix.epub',
             'epub/media-overlay-package.epub',
