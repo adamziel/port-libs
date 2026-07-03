@@ -22,6 +22,7 @@ Options:
   --require-test-count N                  Exit 1 unless Tests.Readers.EPUB has exactly N media-bag tests.
   --require-fixture-reference-count N     Exit 1 unless Tests.Readers.EPUB references exactly N EPUB fixtures.
   --require-expected-media-item-count N   Exit 1 unless expected media-bag tuples total exactly N items.
+  --require-runner-not-run                Exit 1 unless upstream runner evidence is structured as not-run.
   --require-no-validation-issues          Exit 1 when denominator validation reports any issue.
   --help                                  Show this help.
 
@@ -38,6 +39,7 @@ try {
     $requiredTestCount = null;
     $requiredFixtureReferenceCount = null;
     $requiredExpectedMediaItemCount = null;
+    $requireRunnerNotRun = false;
     $requireNoValidationIssues = false;
     $args = array_slice($argv, 1);
 
@@ -62,6 +64,10 @@ try {
         }
         if ($arg === '--require-no-validation-issues') {
             $requireNoValidationIssues = true;
+            continue;
+        }
+        if ($arg === '--require-runner-not-run') {
+            $requireRunnerNotRun = true;
             continue;
         }
         if ($arg === '--repo-root') {
@@ -173,6 +179,11 @@ try {
 
     if ($requireNoValidationIssues && !EpubUpstreamReaderEvidence::hasNoValidationIssues($report)) {
         fwrite(STDERR, "pandoc-epub-reader-evidence: upstream EPUB reader denominator validation reported issues\n");
+        exit(1);
+    }
+
+    if ($requireRunnerNotRun && !EpubUpstreamReaderEvidence::hasRunnerNotRunEvidence($report)) {
+        fwrite(STDERR, "pandoc-epub-reader-evidence: runner not-run evidence is invalid\n");
         exit(1);
     }
 

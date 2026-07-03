@@ -89,7 +89,13 @@ return [
             $t->same(0, $report['denominator']['fixtureReferenceCount']);
             $t->same('not-evaluated-missing-upstream-root', $report['validation']['status']);
             $t->same(false, EpubUpstreamReaderEvidence::hasNoValidationIssues($report));
+            $t->same(true, EpubUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
+            $t->same('not-run', $report['runnerEvidence']['status']);
+            $t->same(false, $report['runnerEvidence']['executed']);
+            $t->same(null, $report['runnerEvidence']['command']);
+            $t->same(null, $report['runnerEvidence']['resultArtifact']);
             $t->contains('Pandoc EPUB reader evidence', $text);
+            $t->contains('Runner status: not-run', $text);
         } finally {
             $removeTree($root);
         }
@@ -121,7 +127,10 @@ return [
             $t->same(true, EpubUpstreamReaderEvidence::hasRequiredFixtureReferenceCount($report, 2));
             $t->same(true, EpubUpstreamReaderEvidence::hasRequiredExpectedMediaItemCount($report, 2));
             $t->same(true, EpubUpstreamReaderEvidence::hasNoValidationIssues($report));
+            $t->same(true, EpubUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
+            $t->same('upstream-haskell-runner', $report['runnerEvidence']['scope']);
             $t->true(in_array('that upstream Haskell/Cabal/Tasty tests were executed', $report['claimBoundaries']['doesNotAssert'], true));
+            $t->true(in_array('that upstream Haskell runner evidence is explicitly not-run', $report['claimBoundaries']['doesAssert'], true));
         } finally {
             $removeTree($root);
         }
@@ -149,6 +158,7 @@ return [
         $t->same(1, $report['sourceInventory']['presentFileCount']);
         $t->same(1, $report['sourceInventory']['missingFileCount']);
         $t->same(true, EpubUpstreamReaderEvidence::hasNoValidationIssues($report));
+        $t->same(true, EpubUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
     },
 
     'reports invalid epub reader evidence for missing fixture and bag definition' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile): void {
@@ -183,6 +193,7 @@ HS);
             . ' --require-test-count=6'
             . ' --require-fixture-reference-count=6'
             . ' --require-expected-media-item-count=10'
+            . ' --require-runner-not-run'
             . ' --require-no-validation-issues';
         $output = [];
         $exitCode = 0;
@@ -197,6 +208,8 @@ HS);
         $t->same('valid-upstream-epub-reader-mediabag-denominator', $decoded['validation']['status']);
         $t->same('epub', $decoded['upstream']['resolvedFixtureDirectory']);
         $t->same(false, $decoded['upstream']['readerSourceRequired']);
+        $t->same(true, EpubUpstreamReaderEvidence::hasRunnerNotRunEvidence($decoded));
+        $t->same('not-run', $decoded['runnerEvidence']['status']);
     },
 
     'cli gates epub reader evidence counts and validation issues' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeEpubEvidenceTree): void {

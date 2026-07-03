@@ -52,6 +52,7 @@ final class EpubUpstreamReaderEvidence
                 ],
                 'denominator' => $this->emptyDenominator(),
                 'sourceInventory' => $this->emptySourceInventory(),
+                'runnerEvidence' => self::runnerNotRunEvidence(),
                 'validation' => [
                     'status' => 'not-evaluated-missing-upstream-root',
                     'issues' => ['missing-upstream-root'],
@@ -94,6 +95,7 @@ final class EpubUpstreamReaderEvidence
                 'unreferencedEpubFixtures' => $this->unreferencedEpubFixtures($root, $fixtureRoot, $readerCases),
             ],
             'sourceInventory' => $this->sourceInventory($root),
+            'runnerEvidence' => self::runnerNotRunEvidence(),
             'validation' => [
                 'status' => $validationIssues === [] ? 'valid-upstream-epub-reader-mediabag-denominator' : 'invalid-upstream-epub-reader-mediabag-denominator',
                 'issues' => $validationIssues,
@@ -139,6 +141,7 @@ final class EpubUpstreamReaderEvidence
         $denominator = is_array($report['denominator'] ?? null) ? $report['denominator'] : [];
         $validation = is_array($report['validation'] ?? null) ? $report['validation'] : [];
         $upstream = is_array($report['upstream'] ?? null) ? $report['upstream'] : [];
+        $runner = is_array($report['runnerEvidence'] ?? null) ? $report['runnerEvidence'] : [];
 
         return implode(PHP_EOL, [
             'Pandoc EPUB reader evidence',
@@ -148,6 +151,7 @@ final class EpubUpstreamReaderEvidence
             'Media bag tests: ' . (int) ($denominator['mediaBagTestCount'] ?? 0),
             'Referenced EPUB fixtures: ' . (int) ($denominator['fixtureReferenceCount'] ?? 0),
             'Expected media items: ' . (int) ($denominator['expectedMediaItemCount'] ?? 0),
+            'Runner status: ' . (string) ($runner['status'] ?? 'unknown'),
             'Validation: ' . (string) ($validation['status'] ?? 'unknown'),
             'No upstream Haskell/Cabal runner result, EPUB writer parity, or full EPUB feature parity is asserted.',
         ]) . PHP_EOL;
@@ -194,6 +198,21 @@ final class EpubUpstreamReaderEvidence
             && ($validation['issues'] ?? null) === [];
     }
 
+    /**
+     * @param array<string, mixed> $report
+     */
+    public static function hasRunnerNotRunEvidence(array $report): bool
+    {
+        $runner = is_array($report['runnerEvidence'] ?? null) ? $report['runnerEvidence'] : [];
+
+        return ($runner['status'] ?? null) === 'not-run'
+            && ($runner['executed'] ?? null) === false
+            && array_key_exists('command', $runner)
+            && $runner['command'] === null
+            && array_key_exists('resultArtifact', $runner)
+            && $runner['resultArtifact'] === null;
+    }
+
     private static function claim(): string
     {
         return 'Parses the pinned upstream Tests.Readers.EPUB module to establish the current EPUB reader media-bag test denominator and expected media directory tuples.';
@@ -210,13 +229,32 @@ final class EpubUpstreamReaderEvidence
                 'the expected media-bag path, MIME type, and byte-size tuples embedded in the upstream test module',
                 'that every referenced EPUB fixture exists in the upstream checkout or explicit checked-in fixture base',
                 'that the upstream EPUB reader source file is present when validating a full upstream checkout without an explicit checked-in fixture base',
+                'that upstream Haskell runner evidence is explicitly not-run',
             ],
             'doesNotAssert' => [
                 'that upstream Haskell/Cabal/Tasty tests were executed',
+                'full upstream Tests.Readers.EPUB runner parity',
                 'that local PHP output matches upstream media-bag output',
                 'EPUB writer parity',
                 'full EPUB feature parity beyond the upstream reader media-bag tests',
             ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function runnerNotRunEvidence(): array
+    {
+        return [
+            'runner' => 'Cabal/Tasty Pandoc EPUB reader suite',
+            'scope' => 'upstream-haskell-runner',
+            'status' => 'not-run',
+            'executed' => false,
+            'command' => null,
+            'resultArtifact' => null,
+            'reason' => 'This PHP evidence packet is generated without executing the upstream Haskell runner.',
+            'claim' => 'No upstream Haskell runner parity is claimed.',
         ];
     }
 
