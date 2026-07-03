@@ -13,7 +13,7 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 43;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 44;
 
     private const STATIC_CURRENT_READER_CASES = [
         [
@@ -287,6 +287,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => '835dfba7de0cdcc016d24d7eba54ff6eee05d0434da2154bd49f51fe25a66bb4',
             'pptxBytes' => 1280,
             'nativeBytes' => 101,
+        ],
+        'duplicate-slide-reference' => [
+            'name' => 'generated duplicate slide reference parity',
+            'pptx' => 'pptx-reader/duplicate-slide-reference.pptx',
+            'native' => 'pptx-reader/duplicate-slide-reference.native',
+            'pairKey' => 'pptx-reader/duplicate-slide-reference.pptx|pptx-reader/duplicate-slide-reference.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/duplicate-slide-reference.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/duplicate-slide-reference.native',
+            'pptxSha256' => 'f598167fa0995e6069126c2a00f9ed92c7732df26210b9952c8c0a54022d30c6',
+            'nativeSha256' => 'a13be46a0ba2e04ae56ee4da86015c4f30401c654f942f574c2d3516a0eb2a3d',
+            'pptxBytes' => 1895,
+            'nativeBytes' => 176,
         ],
         'connector-skip' => [
             'name' => 'generated connector shape skip parity',

@@ -11,18 +11,18 @@
     "pandocExecutable": "/opt/homebrew/bin/pandoc",
     "pandocVersion": "pandoc 3.10",
     "normalizationPolicy": "PortLibs\\Pandoc\\PptxNativeAstComparisonHarness::normalizedDocument",
-    "totalPptxCount": 43,
-    "comparedPptxCount": 43,
-    "localParsedCount": 43,
-    "pandocParsedCount": 43,
-    "nativeFixtureParsedCount": 43,
-    "bothParsedCount": 43,
+    "totalPptxCount": 44,
+    "comparedPptxCount": 44,
+    "localParsedCount": 44,
+    "pandocParsedCount": 44,
+    "nativeFixtureParsedCount": 44,
+    "bothParsedCount": 44,
     "parseFailureCount": 0,
-    "normalizedAstMatchCount": 43,
+    "normalizedAstMatchCount": 44,
     "normalizedAstMismatchCount": 0,
     "normalizedAstMatchPercent": 100,
-    "pandocNativeFixtureComparedCount": 43,
-    "pandocNativeFixtureMatchCount": 43,
+    "pandocNativeFixtureComparedCount": 44,
+    "pandocNativeFixtureMatchCount": 44,
     "pandocNativeFixtureMismatchCount": 0,
     "pandocNativeFixtureMatchPercent": 100,
     "astParityStatus": "normalized-ast-equality-observed-against-pandoc-executable",
@@ -35,7 +35,7 @@
             "rank": 1,
             "id": "pandoc-executable-pptx-native-ast-equality",
             "status": "covered-by-current-executable-evidence",
-            "currentEvidence": "compared pptx=43; parse failures=0; local/executable normalized AST matches=43; local/executable normalized AST mismatches=0; executable/native-fixture matches=43; executable/native-fixture mismatches=0",
+            "currentEvidence": "compared pptx=44; parse failures=0; local/executable normalized AST matches=44; local/executable normalized AST mismatches=0; executable/native-fixture matches=44; executable/native-fixture mismatches=0",
             "evidenceRequired": "Run local PHP PPTX reader, a pandoc executable, and paired checked-in .native fixtures against the same PPTX files, keeping parse failures and normalized AST mismatches at zero."
         },
         {
@@ -53,7 +53,7 @@
         "--pptx-dir=lanes/pandoc/fixtures/upstream-current-pptx-reader",
         "--pandoc-bin=/opt/homebrew/bin/pandoc",
         "--json",
-        "--require-executable-parity=43"
+        "--require-executable-parity=44"
     ],
     "capturedDate": "2026-07-03",
     "fixtureStems": [
@@ -70,6 +70,7 @@
         "content-part-skip",
         "direct-drawing-paragraphs",
         "dot-slide-target",
+        "duplicate-slide-reference",
         "embedded-image",
         "empty-bullet-paragraph",
         "empty-paragraph-textbox",
@@ -103,15 +104,15 @@
     ],
     "claimBoundaries": {
         "doesAssert": [
-            "the checked-in basic.pptx, body-before-title.pptx, break-tab-field.pptx, bullets.pptx, bunone-wingdings.pptx, case-sensitive-placeholder-type.pptx, center-title-placeholder.pptx, chart-placeholder.pptx, comments-ignored.pptx, connector-skip.pptx, content-part-skip.pptx, direct-drawing-paragraphs.pptx, dot-slide-target.pptx, embedded-image.pptx, empty-bullet-paragraph.pptx, empty-paragraph-textbox.pptx, first-text-body.pptx, generated-table.pptx, grouped-shapes.pptx, hex-list-level.pptx, hidden-slide.pptx, hyperlink-text.pptx, ignored-slide-id-attributes.pptx, inline-formatting.pptx, linked-image-skip.pptx, list-continuation.pptx, minimal.pptx, missing-relationship-skip.pptx, multi-paragraph-textbox.pptx, multiple-paragraph-properties.pptx, nested-list.pptx, no-title-fallback.pptx, numbered-list.pptx, paragraphless-textbox.pptx, percent-encoded-target.pptx, rich-media-skip.pptx, shape-order.pptx, slide-placeholders.pptx, smartart-hierarchy.pptx, speaker-notes.pptx, table-span-review.pptx, two-slides.pptx, and wingdings-typeface-case.pptx fixtures parsed through the local PHP PPTX reader",
-            "pandoc 3.10 parsed those forty-three checked-in PPTX fixtures to native output",
-            "local PHP output and pandoc executable output had normalized AST equality for all forty-three checked-in PPTX fixtures",
-            "pandoc executable output and paired checked-in .native fixtures had normalized AST equality for the same forty-three fixtures"
+            "the checked-in basic.pptx, body-before-title.pptx, break-tab-field.pptx, bullets.pptx, bunone-wingdings.pptx, case-sensitive-placeholder-type.pptx, center-title-placeholder.pptx, chart-placeholder.pptx, comments-ignored.pptx, connector-skip.pptx, content-part-skip.pptx, direct-drawing-paragraphs.pptx, dot-slide-target.pptx, duplicate-slide-reference.pptx, embedded-image.pptx, empty-bullet-paragraph.pptx, empty-paragraph-textbox.pptx, first-text-body.pptx, generated-table.pptx, grouped-shapes.pptx, hex-list-level.pptx, hidden-slide.pptx, hyperlink-text.pptx, ignored-slide-id-attributes.pptx, inline-formatting.pptx, linked-image-skip.pptx, list-continuation.pptx, minimal.pptx, missing-relationship-skip.pptx, multi-paragraph-textbox.pptx, multiple-paragraph-properties.pptx, nested-list.pptx, no-title-fallback.pptx, numbered-list.pptx, paragraphless-textbox.pptx, percent-encoded-target.pptx, rich-media-skip.pptx, shape-order.pptx, slide-placeholders.pptx, smartart-hierarchy.pptx, speaker-notes.pptx, table-span-review.pptx, two-slides.pptx, and wingdings-typeface-case.pptx fixtures parsed through the local PHP PPTX reader",
+            "pandoc 3.10 parsed those forty-four checked-in PPTX fixtures to native output",
+            "local PHP output and pandoc executable output had normalized AST equality for all forty-four checked-in PPTX fixtures",
+            "pandoc executable output and paired checked-in .native fixtures had normalized AST equality for the same forty-four fixtures"
         ],
         "doesNotAssert": [
             "that upstream Haskell/Cabal/Tasty Tests.Readers.Pptx was executed",
-            "that generated body-before-title, break-tab-field, bullets, bunone-wingdings, case-sensitive-placeholder-type, center-title-placeholder, chart-placeholder, comments-ignored, connector-skip, content-part-skip, direct-drawing-paragraphs, dot-slide-target, embedded-image, empty-bullet-paragraph, empty-paragraph-textbox, first-text-body, generated-table, grouped-shapes, hex-list-level, hidden-slide, hyperlink-text, ignored-slide-id-attributes, inline-formatting, linked-image-skip, list-continuation, minimal, missing-relationship-skip, multi-paragraph-textbox, multiple-paragraph-properties, nested-list, no-title-fallback, numbered-list, paragraphless-textbox, percent-encoded-target, rich-media-skip, shape-order, slide-placeholders, smartart-hierarchy, speaker-notes, table-span-review, two-slides, and wingdings-typeface-case fixtures are upstream Tests.Readers.Pptx fixtures",
-            "full PowerPoint feature parity beyond the checked-in basic.pptx/basic.native, body-before-title.pptx/body-before-title.native, break-tab-field.pptx/break-tab-field.native, bullets.pptx/bullets.native, bunone-wingdings.pptx/bunone-wingdings.native, case-sensitive-placeholder-type.pptx/case-sensitive-placeholder-type.native, center-title-placeholder.pptx/center-title-placeholder.native, chart-placeholder.pptx/chart-placeholder.native, comments-ignored.pptx/comments-ignored.native, connector-skip.pptx/connector-skip.native, content-part-skip.pptx/content-part-skip.native, direct-drawing-paragraphs.pptx/direct-drawing-paragraphs.native, dot-slide-target.pptx/dot-slide-target.native, embedded-image.pptx/embedded-image.native, empty-bullet-paragraph.pptx/empty-bullet-paragraph.native, empty-paragraph-textbox.pptx/empty-paragraph-textbox.native, first-text-body.pptx/first-text-body.native, generated-table.pptx/generated-table.native, grouped-shapes.pptx/grouped-shapes.native, hex-list-level.pptx/hex-list-level.native, hidden-slide.pptx/hidden-slide.native, hyperlink-text.pptx/hyperlink-text.native, ignored-slide-id-attributes.pptx/ignored-slide-id-attributes.native, inline-formatting.pptx/inline-formatting.native, linked-image-skip.pptx/linked-image-skip.native, list-continuation.pptx/list-continuation.native, minimal.pptx/minimal.native, missing-relationship-skip.pptx/missing-relationship-skip.native, multi-paragraph-textbox.pptx/multi-paragraph-textbox.native, multiple-paragraph-properties.pptx/multiple-paragraph-properties.native, nested-list.pptx/nested-list.native, no-title-fallback.pptx/no-title-fallback.native, numbered-list.pptx/numbered-list.native, paragraphless-textbox.pptx/paragraphless-textbox.native, percent-encoded-target.pptx/percent-encoded-target.native, rich-media-skip.pptx/rich-media-skip.native, shape-order.pptx/shape-order.native, slide-placeholders.pptx/slide-placeholders.native, smartart-hierarchy.pptx/smartart-hierarchy.native, speaker-notes.pptx/speaker-notes.native, table-span-review.pptx/table-span-review.native, two-slides.pptx/two-slides.native, and wingdings-typeface-case.pptx/wingdings-typeface-case.native fixtures",
+            "that generated body-before-title, break-tab-field, bullets, bunone-wingdings, case-sensitive-placeholder-type, center-title-placeholder, chart-placeholder, comments-ignored, connector-skip, content-part-skip, direct-drawing-paragraphs, dot-slide-target, duplicate-slide-reference, embedded-image, empty-bullet-paragraph, empty-paragraph-textbox, first-text-body, generated-table, grouped-shapes, hex-list-level, hidden-slide, hyperlink-text, ignored-slide-id-attributes, inline-formatting, linked-image-skip, list-continuation, minimal, missing-relationship-skip, multi-paragraph-textbox, multiple-paragraph-properties, nested-list, no-title-fallback, numbered-list, paragraphless-textbox, percent-encoded-target, rich-media-skip, shape-order, slide-placeholders, smartart-hierarchy, speaker-notes, table-span-review, two-slides, and wingdings-typeface-case fixtures are upstream Tests.Readers.Pptx fixtures",
+            "full PowerPoint feature parity beyond the checked-in basic.pptx/basic.native, body-before-title.pptx/body-before-title.native, break-tab-field.pptx/break-tab-field.native, bullets.pptx/bullets.native, bunone-wingdings.pptx/bunone-wingdings.native, case-sensitive-placeholder-type.pptx/case-sensitive-placeholder-type.native, center-title-placeholder.pptx/center-title-placeholder.native, chart-placeholder.pptx/chart-placeholder.native, comments-ignored.pptx/comments-ignored.native, connector-skip.pptx/connector-skip.native, content-part-skip.pptx/content-part-skip.native, direct-drawing-paragraphs.pptx/direct-drawing-paragraphs.native, dot-slide-target.pptx/dot-slide-target.native, duplicate-slide-reference.pptx/duplicate-slide-reference.native, embedded-image.pptx/embedded-image.native, empty-bullet-paragraph.pptx/empty-bullet-paragraph.native, empty-paragraph-textbox.pptx/empty-paragraph-textbox.native, first-text-body.pptx/first-text-body.native, generated-table.pptx/generated-table.native, grouped-shapes.pptx/grouped-shapes.native, hex-list-level.pptx/hex-list-level.native, hidden-slide.pptx/hidden-slide.native, hyperlink-text.pptx/hyperlink-text.native, ignored-slide-id-attributes.pptx/ignored-slide-id-attributes.native, inline-formatting.pptx/inline-formatting.native, linked-image-skip.pptx/linked-image-skip.native, list-continuation.pptx/list-continuation.native, minimal.pptx/minimal.native, missing-relationship-skip.pptx/missing-relationship-skip.native, multi-paragraph-textbox.pptx/multi-paragraph-textbox.native, multiple-paragraph-properties.pptx/multiple-paragraph-properties.native, nested-list.pptx/nested-list.native, no-title-fallback.pptx/no-title-fallback.native, numbered-list.pptx/numbered-list.native, paragraphless-textbox.pptx/paragraphless-textbox.native, percent-encoded-target.pptx/percent-encoded-target.native, rich-media-skip.pptx/rich-media-skip.native, shape-order.pptx/shape-order.native, slide-placeholders.pptx/slide-placeholders.native, smartart-hierarchy.pptx/smartart-hierarchy.native, speaker-notes.pptx/speaker-notes.native, table-span-review.pptx/table-span-review.native, two-slides.pptx/two-slides.native, and wingdings-typeface-case.pptx/wingdings-typeface-case.native fixtures",
             "PPTX writer parity"
         ]
     }
