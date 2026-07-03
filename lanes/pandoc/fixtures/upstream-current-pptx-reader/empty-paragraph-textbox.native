@@ -1,0 +1,6 @@
+[ Header
+    2 ( "slide-1" , [] , [] ) [ Str "Empty paragraph deck" ]
+, Para [ Str "Before empty paragraph" ]
+, Para [ Str "" ]
+, Para [ Str "After empty paragraph" ]
+]
