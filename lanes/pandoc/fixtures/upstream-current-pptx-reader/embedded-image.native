@@ -1,0 +1,8 @@
+[ Header 2 ( "slide-1" , [] , [] ) [ Str "Image deck" ]
+, Para
+    [ Image
+        ( "" , [] , [] )
+        [ Str "Embedded alt" ]
+        ( "ppt/media/image1.png" , "Embedded Picture" )
+    ]
+]
