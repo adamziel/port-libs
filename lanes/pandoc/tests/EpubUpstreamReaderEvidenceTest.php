@@ -186,6 +186,7 @@ return [
             'epub/nav-ncx-linear-guide.epub',
             'epub/page-list-navigation.epub',
             'epub/remote-manifest-resource.epub',
+            'epub/scripted-svg-manifest.epub',
         ], $report['denominator']['unreferencedEpubFixtures']);
         $t->same(false, $report['sourceInventory']['readerSourceRequired']);
         $t->same(1, $report['sourceInventory']['presentFileCount']);
