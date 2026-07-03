@@ -7991,23 +7991,16 @@ TPL;
             '![Reviewer caption](/uploads/review.jpg "Legacy title"){#fig-review alt="Reviewer alt"}',
             $write($implicitFigure)
         );
-        $t->same(implode("\n", [
-            '<figure id="review-figure" class="source-figure" data-source="batch-42">',
-            '<p><img src="/uploads/review-frame.jpg" alt="Reviewer frame" /></p>',
-            '<figcaption aria-hidden="true">Reviewer frame</figcaption>',
-            '</figure>',
-        ]), $write($fallbackFigure));
-        $t->same(implode("\n", [
-            ':::: {#review-figure .figure .source-figure data-source="batch-42"}',
-            '![Reviewer frame](/uploads/review-frame.jpg)',
-            '',
-            '::: {.caption}',
-            'Reviewer frame',
-            ':::',
-            '::::',
-        ]), $write($fallbackFigure, ['rawHtml' => false]));
         $t->same(
-            '![Reviewer frame](/uploads/review-frame.jpg)',
+            '![Reviewer frame](/uploads/review-frame.jpg){#review-figure .source-figure data-source="batch-42"}',
+            $write($fallbackFigure)
+        );
+        $t->same(
+            '![Reviewer frame](/uploads/review-frame.jpg){#review-figure .source-figure data-source="batch-42"}',
+            $write($fallbackFigure, ['rawHtml' => false])
+        );
+        $t->same(
+            '![Reviewer frame](/uploads/review-frame.jpg){#review-figure .source-figure data-source="batch-42"}',
             $write($fallbackFigure, [
                 'rawHtml' => false,
                 'fencedDivs' => false,

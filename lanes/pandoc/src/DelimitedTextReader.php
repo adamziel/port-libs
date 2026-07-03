@@ -757,6 +757,13 @@ final class DelimitedTextReader
             throw new \InvalidArgumentException("Malformed {$format} input: text after a closing quote{$location}.");
         }
 
+        $diagnostic = $this->firstParseDiagnostic($parse, 'delimited-text-backslash-quote-preserved');
+        if ($diagnostic !== null) {
+            $row = (int) $diagnostic['row'] + 1;
+            $column = (int) $diagnostic['column'] + 1;
+            throw new \InvalidArgumentException("Malformed {$format} input: backslash before a quote at line {$row}, column {$column}; this dialect only recognizes doubled quote escapes.");
+        }
+
         if ((int) ($metrics['unclosedQuoteCount'] ?? 0) > 0) {
             $diagnostic = $this->firstParseDiagnostic($parse, 'delimited-text-unclosed-quoted-field');
             $row = $diagnostic === null ? null : ((int) $diagnostic['row'] + 1);

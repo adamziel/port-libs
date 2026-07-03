@@ -3364,7 +3364,7 @@ final class MarkdownWriter
             $implicitImage = $this->implicitFigureImage($node, $image);
             if (
                 $implicitImage instanceof AstNode
-                && $this->figureCanRenderImplicitImage($node, $implicitImage)
+                && $this->figureCanRenderImplicitImage($implicitImage)
             ) {
                 return [str_repeat(' ', $indent) . $this->renderImage($implicitImage, [])];
             }
@@ -3383,13 +3383,8 @@ final class MarkdownWriter
         return $body === '' ? [] : $this->prefixLines(explode("\n", $body), $indent);
     }
 
-    private function figureCanRenderImplicitImage(AstNode $figure, AstNode $image): bool
+    private function figureCanRenderImplicitImage(AstNode $image): bool
     {
-        $figureAttrs = $this->linkAttrTuple($figure);
-        if ($figureAttrs['classes'] !== [] || $figureAttrs['attributes'] !== []) {
-            return false;
-        }
-
         return $this->linkAttributesEnabled() || $this->isNullAttrTuple($this->imageAttrTuple($image));
     }
 

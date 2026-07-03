@@ -74,6 +74,7 @@ $inlineVariants = [
     ],
     'raw tex caption label' => [
         'labelTemplate' => 'Review \LaTeX{} %s',
+        'markdownLabelTemplate' => 'Review `\LaTeX{}`{=tex} %s',
         'plainTemplate' => 'Review \LaTeX{} %s',
         'htmlTemplate' => 'Review <span class="pandoc-raw-tex">\LaTeX{}</span> %s',
         'type' => 'raw_tex',
@@ -81,7 +82,7 @@ $inlineVariants = [
     'mark caption label' => [
         'labelTemplate' => 'Review ==caption== %s',
         'plainTemplate' => 'Review caption %s',
-        'htmlTemplate' => 'Review <span class="mark">caption</span> %s',
+        'htmlTemplate' => 'Review <mark>caption</mark> %s',
         'type' => 'span',
     ],
     'math caption label' => [
@@ -134,6 +135,7 @@ foreach ($inlineVariants as $inlineName => $inlineVariant) {
                     str_replace('-', ' ', $targetMode . ' ' . $attributeName)
                 ),
                 'label' => $label,
+                'expectedMarkdownLabel' => sprintf($inlineVariant['markdownLabelTemplate'] ?? $inlineVariant['labelTemplate'], $caseId),
                 'plainCaption' => $plain,
                 'htmlCaption' => sprintf($inlineVariant['htmlTemplate'], $caseId),
                 'expectedType' => $inlineVariant['type'],
@@ -180,7 +182,7 @@ foreach ($cases as $case) {
         $t->same($case['expectedAttributes'], $figure->attr('attributes'), $case['caseId'] . ' figure attributes');
         $t->contains('<figcaption>' . $case['htmlCaption'] . '</figcaption>', $blocks);
         $t->contains($case['expectedFigureHtmlAttribute'], $blocks);
-        $t->contains('![' . $case['label'] . '](' . $source['url'], $markdown);
+        $t->contains('![' . $case['expectedMarkdownLabel'] . '](' . $source['url'], $markdown);
     };
 }
 

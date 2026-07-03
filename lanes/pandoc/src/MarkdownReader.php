@@ -123,6 +123,11 @@ final class MarkdownReader
 
     private bool $htmlResolvedFootnoteReference = false;
 
+    /** @var list<bool> */
+    private array $htmlSourceTableFallbacks = [];
+
+    private int $htmlSourceTableFallbackIndex = 0;
+
     private bool $resolveInlineNotes = true;
 
     private bool $resolveFootnoteReferences = true;
@@ -3594,9 +3599,13 @@ final class MarkdownReader
         $previousHtmlBaseHref = $this->htmlBaseHref;
         $previousHtmlFootnoteDefinitions = $this->htmlFootnoteDefinitions;
         $previousHtmlResolvedFootnoteReference = $this->htmlResolvedFootnoteReference;
+        $previousHtmlSourceTableFallbacks = $this->htmlSourceTableFallbacks;
+        $previousHtmlSourceTableFallbackIndex = $this->htmlSourceTableFallbackIndex;
         $this->htmlBaseHref = $this->htmlDocumentBaseHref($dom);
         $this->htmlFootnoteDefinitions = $this->collectHtmlFootnoteDefinitions($body);
         $this->htmlResolvedFootnoteReference = false;
+        $this->htmlSourceTableFallbacks = $this->htmlSourceTableFallbacks($html);
+        $this->htmlSourceTableFallbackIndex = 0;
         try {
             $attrs = $this->htmlDocumentAttrs($dom);
             $nativeDivs = $this->htmlNativeDivsEnabled();
@@ -3617,6 +3626,8 @@ final class MarkdownReader
             $this->htmlBaseHref = $previousHtmlBaseHref;
             $this->htmlFootnoteDefinitions = $previousHtmlFootnoteDefinitions;
             $this->htmlResolvedFootnoteReference = $previousHtmlResolvedFootnoteReference;
+            $this->htmlSourceTableFallbacks = $previousHtmlSourceTableFallbacks;
+            $this->htmlSourceTableFallbackIndex = $previousHtmlSourceTableFallbackIndex;
         }
     }
 
@@ -4959,7 +4970,7 @@ final class MarkdownReader
                 continue;
             }
 
-            if ($child instanceof \DOMElement && $this->htmlTableShouldFallBackToBlocks($child)) {
+            if ($child instanceof \DOMElement && $this->htmlTableShouldFallBackToBlocksFromDomOrSource($child)) {
                 $this->flushHtmlInlineParagraph($inlines, $blocks);
                 array_push($blocks, ...$this->parseHtmlInvalidTableBlocks($child));
                 continue;
@@ -5004,7 +5015,7 @@ final class MarkdownReader
                 continue;
             }
 
-            if ($child instanceof \DOMElement && $this->htmlTableShouldFallBackToBlocks($child)) {
+            if ($child instanceof \DOMElement && $this->htmlTableShouldFallBackToBlocksFromDomOrSource($child)) {
                 $this->flushHtmlInlineParagraph($inlines, $blocks);
                 array_push($blocks, ...$this->parseHtmlInvalidTableBlocks($child));
                 continue;
@@ -6376,6 +6387,10 @@ final class MarkdownReader
 
     private function parseStructuredHtmlTable(string $html): ?AstNode
     {
+        if ($this->htmlTableSourceShouldFallBackToBlocks($html)) {
+            return null;
+        }
+
         $previous = libxml_use_internal_errors(true);
         $dom = new \DOMDocument('1.0', 'UTF-8');
         $source = preg_match('/^\s*(?:<!doctype\s+html\b|<html\b)/i', $html) === 1
@@ -6431,11 +6446,160 @@ final class MarkdownReader
         }
 
         $table = $this->firstDescendantElement($body, 'table');
-        if (!$table instanceof \DOMElement || !$this->htmlTableShouldFallBackToBlocks($table)) {
+        if (!$table instanceof \DOMElement) {
             return null;
         }
 
+        $sourceFallbacks = $this->htmlSourceTableFallbacks($html);
+        $sourceFallback = in_array(true, $sourceFallbacks, true);
+        if (!$sourceFallback && !$this->htmlTableShouldFallBackToBlocks($table)) {
+            return null;
+        }
+
+        if ($sourceFallback) {
+            return $this->parseHtmlBlockChildrenWithSourceTableFallbacks($body, $sourceFallbacks);
+        }
+
         return $this->parseHtmlBlockChildren($body);
+    }
+
+    /**
+     * @param list<bool> $fallbacks
+     * @return list<AstNode>
+     */
+    private function parseHtmlBlockChildrenWithSourceTableFallbacks(\DOMElement $element, array $fallbacks): array
+    {
+        $previousHtmlSourceTableFallbacks = $this->htmlSourceTableFallbacks;
+        $previousHtmlSourceTableFallbackIndex = $this->htmlSourceTableFallbackIndex;
+        $this->htmlSourceTableFallbacks = $fallbacks;
+        $this->htmlSourceTableFallbackIndex = 0;
+        try {
+            return $this->parseHtmlBlockChildren($element);
+        } finally {
+            $this->htmlSourceTableFallbacks = $previousHtmlSourceTableFallbacks;
+            $this->htmlSourceTableFallbackIndex = $previousHtmlSourceTableFallbackIndex;
+        }
+    }
+
+    private function htmlTableSourceShouldFallBackToBlocks(string $html): bool
+    {
+        foreach ($this->htmlSourceTableFallbacks($html) as $fallback) {
+            if ($fallback) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return list<bool>
+     */
+    private function htmlSourceTableFallbacks(string $html): array
+    {
+        $scan = $this->htmlBodySourceForTableFallbackScan($html);
+        if (preg_match_all('/<\/?(table|thead|tbody|tfoot|tr|td|th)\b[^>]*>/iu', $scan, $matches) !== false) {
+            $tags = $matches[0];
+            $names = $matches[1];
+        } else {
+            $tags = [];
+            $names = [];
+        }
+
+        $fallbacks = [];
+        $stack = [];
+        foreach ($tags as $index => $rawTag) {
+            $name = strtolower($names[$index]);
+            $closing = str_starts_with(ltrim($rawTag), '</');
+            if ($name === 'table') {
+                if ($closing) {
+                    if ($stack !== []) {
+                        $frame = array_pop($stack);
+                        if (($frame['cellOpen'] ?? false) || ($frame['rowOpen'] ?? false)) {
+                            $fallbacks[(int) $frame['index']] = true;
+                        }
+                    }
+                    continue;
+                }
+
+                $fallbacks[] = false;
+                $stack[] = [
+                    'index' => count($fallbacks) - 1,
+                    'rowOpen' => false,
+                    'cellOpen' => false,
+                ];
+                continue;
+            }
+
+            if ($stack === []) {
+                continue;
+            }
+
+            $top = array_key_last($stack);
+            if ($top === null) {
+                continue;
+            }
+
+            if ($closing) {
+                if ($name === 'tr') {
+                    if ($stack[$top]['cellOpen']) {
+                        $fallbacks[(int) $stack[$top]['index']] = true;
+                    }
+                    $stack[$top]['cellOpen'] = false;
+                    $stack[$top]['rowOpen'] = false;
+                    continue;
+                }
+
+                if ($name === 'td' || $name === 'th') {
+                    $stack[$top]['cellOpen'] = false;
+                    continue;
+                }
+
+                if (in_array($name, ['thead', 'tbody', 'tfoot'], true)) {
+                    if ($stack[$top]['cellOpen'] || $stack[$top]['rowOpen']) {
+                        $fallbacks[(int) $stack[$top]['index']] = true;
+                    }
+                    $stack[$top]['cellOpen'] = false;
+                    $stack[$top]['rowOpen'] = false;
+                }
+                continue;
+            }
+
+            if ($name === 'tr') {
+                if ($stack[$top]['cellOpen'] || $stack[$top]['rowOpen']) {
+                    $fallbacks[(int) $stack[$top]['index']] = true;
+                }
+                $stack[$top]['rowOpen'] = true;
+                $stack[$top]['cellOpen'] = false;
+                continue;
+            }
+
+            if ($name === 'td' || $name === 'th') {
+                if ($stack[$top]['cellOpen']) {
+                    $fallbacks[(int) $stack[$top]['index']] = true;
+                }
+                $stack[$top]['rowOpen'] = true;
+                $stack[$top]['cellOpen'] = true;
+            }
+        }
+
+        while ($stack !== []) {
+            $frame = array_pop($stack);
+            if (($frame['cellOpen'] ?? false) || ($frame['rowOpen'] ?? false)) {
+                $fallbacks[(int) $frame['index']] = true;
+            }
+        }
+
+        return $fallbacks;
+    }
+
+    private function htmlBodySourceForTableFallbackScan(string $html): string
+    {
+        if (preg_match('/<body\b[^>]*>(.*)<\/body\s*>/isu', $html, $match) === 1) {
+            return $match[1];
+        }
+
+        return $html;
     }
 
     private function htmlTableContainsNestedTable(\DOMElement $table): bool
@@ -6598,6 +6762,21 @@ final class MarkdownReader
         }
 
         return false;
+    }
+
+    private function htmlTableShouldFallBackToBlocksFromDomOrSource(\DOMElement $element): bool
+    {
+        if (!$this->htmlReaderModeEnabled() || strtolower($element->localName) !== 'table') {
+            return false;
+        }
+
+        $sourceFallback = false;
+        if ($this->htmlSourceTableFallbackIndex < count($this->htmlSourceTableFallbacks)) {
+            $sourceFallback = $this->htmlSourceTableFallbacks[$this->htmlSourceTableFallbackIndex];
+            $this->htmlSourceTableFallbackIndex++;
+        }
+
+        return $sourceFallback || $this->htmlTableShouldFallBackToBlocks($element);
     }
 
     /**

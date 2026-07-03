@@ -3090,6 +3090,7 @@ return [
             ['csv', "a,b\n\n1,2\n", 'blank record'],
             ['csv', "\xEF\xBB\xBF\n a,b\n1,2\n", 'leading blank or whitespace-only records'],
             ['csv', "a,b\n\"x\"tail,2\n", 'text after a closing quote'],
+            ['csv', "a,b\n1,\"x\\\"y\"\n", 'backslash before a quote'],
             ['csv', "a,b\n\"x\n", 'quoted field reaches end of input'],
             ['tsv', "a\tb\n\n1\t2\n", 'blank record'],
         ];

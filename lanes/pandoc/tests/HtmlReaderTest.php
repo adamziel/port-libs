@@ -378,6 +378,29 @@ $tests['preserves upstream html invalid table children as visible blocks'] =
         $assertBlocks((new HtmlReader())->read('<!doctype html><html><body>' . $html . '</body></html>'), 'document');
     };
 
+$tests['preserves upstream html omitted table cell closures as visible blocks'] =
+    static function (TestRunner $t): void {
+        $html = '<table><tbody><tr><td>A<td>B</tbody></table><p>after</p>';
+        $explicit = '<table><tbody><tr><td>A</td><td>B</td></tr></tbody></table>';
+        $assertBlocks = static function ($document, string $label) use ($t): void {
+            $t->same(
+                ['paragraph', 'paragraph', 'paragraph'],
+                array_map(static fn ($node): string => $node->type, $document->children),
+                $label
+            );
+            $t->same(
+                ['A', 'B', 'after'],
+                array_map(static fn ($node): string => $node->attr('text'), $document->children),
+                $label
+            );
+        };
+
+        $assertBlocks((new HtmlReader())->read($html), 'fragment');
+        $assertBlocks((new HtmlReader())->read('<!doctype html><html><body>' . $html . '</body></html>'), 'document');
+        $t->same('table', (new HtmlReader())->read($explicit)->children[0]->type);
+        $t->same('table', (new HtmlReader())->read('<!doctype html><html><body>' . $explicit . '</body></html>')->children[0]->type);
+    };
+
 $tests['imports upstream html transparent block containers as structural children'] =
     static function (TestRunner $t): void {
         $tags = ['address', 'article', 'center', 'dialog', 'dir', 'fieldset', 'footer', 'form', 'hgroup', 'menu', 'nav', 'search', 'summary'];
