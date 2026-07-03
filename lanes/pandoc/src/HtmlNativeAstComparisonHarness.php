@@ -17,8 +17,13 @@ final class HtmlNativeAstComparisonHarness
         'alignmentConstructor' => true,
         'alignmentNative' => true,
         'caption' => true,
+        'captionBlocks' => true,
+        'captionSource' => true,
         'colSpanConstructor' => true,
         'colSpanNative' => true,
+        'columnDiagnostics' => true,
+        'columnSources' => true,
+        'columnSpecs' => true,
         'constructor' => true,
         'header' => true,
         'htmlAttributes' => true,
@@ -276,7 +281,7 @@ final class HtmlNativeAstComparisonHarness
                 'HTML reader document metadata and microdata review attrs',
                 'NativeReader constructor provenance attrs',
                 'table geometry review packets',
-                'default table widths and empty captions/feet',
+                'default table widths, zero rowHeadColumns, and empty captions/feet',
                 'derived table-cell header flags when rowHeadColumns carries the semantic row-header contract',
             ],
             'doesNotAssert' => [
@@ -360,11 +365,17 @@ final class HtmlNativeAstComparisonHarness
             if ($key === 'caption' && $value === '') {
                 continue;
             }
+            if ($key === 'rowHeadColumns' && (int) $value === 0) {
+                continue;
+            }
             if ($key === 'attributes' && $value === []) {
                 continue;
             }
 
             $normalizedValue = $this->normalizedValue($value);
+            if ($key === 'attributes' && is_array($normalizedValue)) {
+                $normalizedValue = $this->normalizedAttributeMap($normalizedValue);
+            }
             if ($normalizedValue === [] || $normalizedValue === null || $normalizedValue === '') {
                 continue;
             }
@@ -469,11 +480,77 @@ final class HtmlNativeAstComparisonHarness
             $normalized[$key] = $this->normalizedValue($child);
         }
         if (array_is_list($normalized)) {
-            return $normalized;
+            return $this->isNormalizedNodeList($normalized) ? $this->coalescedNormalizedNodeList($normalized) : $normalized;
         }
         ksort($normalized, SORT_STRING);
 
         return $normalized;
+    }
+
+    /**
+     * @param array<string, mixed> $attributes
+     * @return array<string, mixed>
+     */
+    private function normalizedAttributeMap(array $attributes): array
+    {
+        if (isset($attributes['style']) && is_string($attributes['style'])) {
+            $attributes['style'] = $this->normalizedStyleAttribute($attributes['style']);
+            if ($attributes['style'] === '') {
+                unset($attributes['style']);
+            }
+        }
+
+        return $attributes;
+    }
+
+    private function normalizedStyleAttribute(string $style): string
+    {
+        $declarations = [];
+        foreach (preg_split('/;/', $style) ?: [] as $declaration) {
+            $declaration = trim($declaration);
+            if ($declaration !== '') {
+                $declarations[] = $declaration;
+            }
+        }
+
+        return implode('; ', $declarations);
+    }
+
+    /**
+     * @param list<mixed> $items
+     */
+    private function isNormalizedNodeList(array $items): bool
+    {
+        if ($items === []) {
+            return false;
+        }
+
+        foreach ($items as $item) {
+            if (
+                !is_array($item)
+                || !is_string($item['type'] ?? null)
+                || !is_array($item['attrs'] ?? null)
+                || !is_array($item['children'] ?? null)
+            ) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @return list<array<string, mixed>>
+     */
+    private function coalescedNormalizedNodeList(array $items): array
+    {
+        $coalesced = [];
+        foreach ($items as $item) {
+            $this->appendNormalizedChild($coalesced, $item);
+        }
+
+        return $coalesced;
     }
 
     /**

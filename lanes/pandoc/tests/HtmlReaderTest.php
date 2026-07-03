@@ -133,6 +133,8 @@ $tests['resolves upstream html doc-noteref notes in table placements and consume
             array_map(static fn ($node): string => $node->type, $document->children)
         );
         $t->same('doc footnote', $firstParagraphNote->children[0]->attr('text'));
+        $t->same(['center'], $table->attr('alignments'));
+        $t->same('width:17%', $table->attr('attributes')['style'] ?? null);
         $t->same(['text', 'note'], array_map(static fn ($node): string => $node->type, $captionInlines));
         $t->same('caption footnote', $captionInlines[1]->children[0]->attr('text'));
         $t->same(['text', 'note'], array_map(static fn ($node): string => $node->type, $headCell->children));

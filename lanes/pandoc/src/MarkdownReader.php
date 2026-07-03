@@ -5570,9 +5570,16 @@ final class MarkdownReader
         $headRows = $this->applyHtmlColumnInheritance($headRows, $columnMetadata);
         $bodyNodes = $this->applyHtmlColumnInheritanceToBodies($bodyNodes, $columnMetadata);
         $footRows = $this->applyHtmlColumnInheritance($footRows, $columnMetadata);
+        $alignments = $this->htmlTableAlignmentsWithCellFallback(
+            $columnMetadata['alignments'] ?? array_fill(0, $maxColumns, 'default'),
+            $headRows,
+            $bodyNodes,
+            $footRows,
+            $maxColumns
+        );
         $attrs = array_merge($this->htmlElementPandocAttrs($table), [
             'caption' => $captionInlines === [] ? '' : trim(preg_replace('/\s+/', ' ', $this->plainTextFromInlines($captionInlines)) ?? ''),
-            'alignments' => $columnMetadata['alignments'] ?? array_fill(0, $maxColumns, 'default'),
+            'alignments' => $alignments,
         ]);
         if ($captionInlines !== []) {
             $attrs['captionInlines'] = $captionInlines;
@@ -5604,6 +5611,73 @@ final class MarkdownReader
         }
 
         return $this->tableWithReviewPacket(new AstNode('table', $attrs, $children));
+    }
+
+    /**
+     * @param list<string> $alignments
+     * @param list<AstNode> $headRows
+     * @param list<AstNode> $bodyNodes
+     * @param list<AstNode> $footRows
+     * @return list<string>
+     */
+    private function htmlTableAlignmentsWithCellFallback(array $alignments, array $headRows, array $bodyNodes, array $footRows, int $maxColumns): array
+    {
+        $columnCount = max($maxColumns, count($alignments));
+        while (count($alignments) < $columnCount) {
+            $alignments[] = 'default';
+        }
+
+        $candidates = array_fill(0, $columnCount, []);
+        $this->collectHtmlTableCellAlignmentCandidates($headRows, $candidates);
+        foreach ($bodyNodes as $body) {
+            $headRows = $body->attr('headRows', []);
+            if (is_array($headRows)) {
+                $this->collectHtmlTableCellAlignmentCandidates($headRows, $candidates);
+            }
+            $this->collectHtmlTableCellAlignmentCandidates($body->children, $candidates);
+        }
+        $this->collectHtmlTableCellAlignmentCandidates($footRows, $candidates);
+
+        foreach ($candidates as $column => $columnCandidates) {
+            if (($alignments[$column] ?? 'default') !== 'default') {
+                continue;
+            }
+            $unique = array_values(array_unique($columnCandidates));
+            if (count($unique) === 1) {
+                $alignments[$column] = $unique[0];
+            }
+        }
+
+        return $alignments;
+    }
+
+    /**
+     * @param list<AstNode> $rows
+     * @param list<list<string>> $candidates
+     */
+    private function collectHtmlTableCellAlignmentCandidates(array $rows, array &$candidates): void
+    {
+        foreach ($rows as $row) {
+            if (!$row instanceof AstNode) {
+                continue;
+            }
+            $column = 0;
+            foreach ($row->children as $cell) {
+                if (!$cell instanceof AstNode || $cell->type !== 'table_cell') {
+                    continue;
+                }
+                $alignment = (string) $cell->attr('align', 'default');
+                $span = max(1, (int) $cell->attr('colspan', 1));
+                if (in_array($alignment, ['left', 'right', 'center'], true)) {
+                    for ($offset = 0; $offset < $span; $offset++) {
+                        if (array_key_exists($column + $offset, $candidates)) {
+                            $candidates[$column + $offset][] = $alignment;
+                        }
+                    }
+                }
+                $column += $span;
+            }
+        }
     }
 
     /**
