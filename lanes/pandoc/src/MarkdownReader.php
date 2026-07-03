@@ -1995,19 +1995,19 @@ final class MarkdownReader
                     break;
                 }
 
-                $body[] = rtrim($this->stripIndentColumns($line, 4));
+                $body[] = $this->normalizeFootnoteBodyLine($line);
                 $insideIndentedBlock = true;
                 $cursor++;
                 continue;
             }
 
             if ($afterBlank && $this->isFootnoteIndentedContinuation($line)) {
-                $body[] = rtrim($this->stripIndentColumns($line, 4));
+                $body[] = $this->normalizeFootnoteBodyLine($line);
                 $cursor++;
                 continue;
             }
 
-            $body[] = rtrim($line);
+            $body[] = $this->normalizeFootnoteBodyLine($line);
             $cursor++;
         }
 
@@ -2016,6 +2016,20 @@ final class MarkdownReader
         }
 
         return [$body, $cursor];
+    }
+
+    private function normalizeFootnoteBodyLine(string $line): string
+    {
+        if (!$this->isFootnoteIndentedContinuation($line)) {
+            return rtrim($line);
+        }
+
+        $dedented = $this->stripIndentColumns($line, 4);
+        if (preg_match('/^>[ \t]?/', $dedented) === 1) {
+            return rtrim($line);
+        }
+
+        return rtrim($dedented);
     }
 
     /**
