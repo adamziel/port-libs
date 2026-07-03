@@ -11,25 +11,22 @@ $fixture = static fn (): string => (string) file_get_contents(
 );
 
 return [
-    'maps selected upstream markdown mark fixture to native mark span' =>
+    'maps selected upstream markdown mark fixture to literal default markdown text' =>
         static function (TestRunner $t) use ($fixture): void {
             $document = (new MarkdownReader(['format' => 'markdown']))->read($fixture());
             $paragraph = $document->children[0] ?? new AstNode('missing');
-            $mark = $paragraph->children[1] ?? new AstNode('missing');
             $native = (new NativeWriter())->write($document);
 
             $t->same(1, count($document->children));
             $t->same('paragraph', $paragraph->type);
-            $t->same('Before flagged claim after.', $paragraph->attr('text'));
-            $t->same(['text', 'span', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
-            $t->same('Before ', $paragraph->children[0]->attr('text'));
-            $t->same(' after.', $paragraph->children[2]->attr('text'));
-            $t->same('span', $mark->type);
-            $t->same(['mark'], $mark->attr('classes'));
-            $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $mark->children));
-            $t->same('flagged ', $mark->children[0]->attr('text'));
-            $t->same('claim', $mark->children[1]->children[0]->attr('text'));
-            $t->contains('Span ( "" , [ "mark" ] , [  ] ) [ Str "flagged" , Space , Strong [ Str "claim" ] ]', $native);
+            $t->same('Before ==flagged claim== after.', $paragraph->attr('text'));
+            $t->same(['text', 'strong', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+            $t->same('Before ==flagged ', $paragraph->children[0]->attr('text'));
+            $t->same('claim', $paragraph->children[1]->children[0]->attr('text'));
+            $t->same('== after.', $paragraph->children[2]->attr('text'));
+            $t->contains('Str "==flagged"', $native);
+            $t->contains('Strong [ Str "claim" ]', $native);
+            $t->contains('Str "=="', $native);
         },
 
     'records selected upstream markdown mark fixture mapped-case count' =>

@@ -300,7 +300,8 @@ $spanCases = [
 ];
 
 $profileCases = [
-    'markdown enables mark syntax' => ['format' => 'markdown', 'markdown' => 'Review ==flag==.', 'type' => 'mark', 'text' => 'flag'],
+    'markdown keeps mark syntax literal' => ['format' => 'markdown', 'markdown' => 'Review ==flag==.', 'absent' => 'mark', 'literal' => 'Review ==flag==.'],
+    'markdown plus mark enables mark syntax' => ['format' => 'markdown+mark', 'markdown' => 'Review ==flag==.', 'type' => 'mark', 'text' => 'flag'],
     'commonmark keeps mark syntax literal' => ['format' => 'commonmark', 'markdown' => 'Review ==flag==.', 'absent' => 'mark', 'literal' => 'Review ==flag==.'],
     'commonmark plus mark enables mark syntax' => ['format' => 'commonmark+mark', 'markdown' => 'Review ==flag==.', 'type' => 'mark', 'text' => 'flag'],
     'gfm enables strikeout syntax' => ['format' => 'gfm', 'markdown' => 'Review ~~gone~~.', 'type' => 'strikeout', 'text' => 'gone'],
@@ -327,7 +328,7 @@ return [
                 $assertNodeAttrs($t, $node, $case, $label);
                 $t->contains($case['text'], $blocks, $label . ' wordpress text');
                 if ($case['type'] === 'mark') {
-                    $t->contains('class="mark', $blocks, $label . ' wordpress mark class');
+                    $t->contains('<mark', $blocks, $label . ' wordpress mark element');
                 }
                 $mapped++;
             }
@@ -348,7 +349,7 @@ return [
                 $assertNodeAttrs($t, $node, $case, $label);
                 $t->contains($case['text'], $blocks, $label . ' wordpress text');
                 if ($case['type'] === 'mark') {
-                    $t->contains('class="mark', $blocks, $label . ' wordpress mark class');
+                    $t->contains('<mark', $blocks, $label . ' wordpress mark element');
                 }
                 $mapped++;
             }
@@ -375,10 +376,10 @@ return [
                 $mapped++;
             }
 
-            $t->same(10, $mapped);
+            $t->same(11, $mapped);
         },
     'records upstream markdown reader extended inline final harvest mapped-case count' =>
         static function (TestRunner $t) use ($elementCases, $spanCases, $profileCases): void {
-            $t->same(75, count($elementCases) + count($spanCases) + count($profileCases));
+            $t->same(76, count($elementCases) + count($spanCases) + count($profileCases));
         },
 ];

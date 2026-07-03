@@ -35,17 +35,17 @@ $findMark = static function (AstNode $node) use (&$findMark): AstNode {
 };
 
 $enabledCases = [
-    'default markdown' => [],
-    'markdown format' => ['format' => 'markdown'],
-    'pandoc alias' => ['format' => 'pandoc'],
-    'commonmark x underscore' => ['format' => 'commonmark_x'],
-    'commonmark x hyphen' => ['format' => 'commonmark-x'],
     'commonmark plus mark' => ['format' => 'commonmark+mark'],
     'gfm extension array' => ['format' => 'gfm', 'extensions' => ['+mark']],
     'strict extension map' => ['format' => 'markdown_strict', 'extensions' => ['mark' => true]],
 ];
 
 $disabledCases = [
+    'default markdown' => [],
+    'markdown format' => ['format' => 'markdown'],
+    'pandoc alias' => ['format' => 'pandoc'],
+    'commonmark x underscore' => ['format' => 'commonmark_x'],
+    'commonmark x hyphen' => ['format' => 'commonmark-x'],
     'commonmark default' => ['format' => 'commonmark'],
     'gfm default' => ['format' => 'gfm'],
     'markdown strict default' => ['format' => 'markdown_strict'],
