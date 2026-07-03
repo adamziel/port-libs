@@ -43,6 +43,22 @@ $tests['imports upstream html sup and sub inline nodes'] =
         $t->same(' stay inline.', $paragraph->children[4]->attr('text'));
     };
 
+$tests['imports upstream html base absolute image without rewriting absolute url'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-base-absolute-image.html'));
+        $meta = $document->attr('meta');
+        $paragraph = $document->children[0];
+        $image = $paragraph->children[0];
+
+        $t->same('HTML Base Absolute Image Import', $meta['title']);
+        $t->same(['paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same(['image'], array_map(static fn ($node): string => $node->type, $paragraph->children));
+        $t->same('http://example.com/stickman.gif', $image->attr('url'));
+        $t->same('Stickman', $image->attr('alt'));
+        $t->same('The title', $image->attr('title'));
+        $t->same('Stickman', $image->children[0]->attr('text'));
+    };
+
 $tests['extracts html reader microdata item metadata with itemref and nested item scopes'] =
     static function (TestRunner $t): void {
         $html = '<!doctype html><html><head><title>Microdata Dispatch</title></head><body>'
