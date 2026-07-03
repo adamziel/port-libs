@@ -12830,7 +12830,7 @@ final class MarkdownReader
         }
 
         $captionWords = 'Figure|Caption|Image|Picture|Photo|Illustration|Plate|Diagram';
-        $marker = '(?::|(?:' . $captionWords . '):|(?:Fig|Figs|Img)\.?:|(?:' . $captionWords . ')\s+[A-Za-z0-9]+[.:]|(?:Fig|Figs|Img)\.\s+[A-Za-z0-9]+[.:])';
+        $marker = '(?::|(?:' . $captionWords . '):|(?:Fig|Figs|Img)\.?:|(?:' . $captionWords . ')\s+[A-Za-z0-9]+[.:]|(?:Fig|Figs|Img)\.?\s+[A-Za-z0-9]+[.:])';
         if (preg_match('/^ {0,3}(' . $marker . ')\s*(.*)$/iu', $first, $m) !== 1) {
             return null;
         }
