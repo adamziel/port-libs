@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\DelimitedTextReader;
+use PortLibs\Pandoc\DelimitedTextUpstreamReaderEvidence;
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\PandocConverter;
@@ -207,6 +208,16 @@ return [
         $t->same(null, $csvEvidence['runnerEvidence']['command'] ?? null);
         $t->same('upstream-haskell-runner', $csvEvidence['notRunEvidence'][0]['scope'] ?? null);
         $t->true(in_array('upstream-runner-not-run', $csvEvidence['openGaps'] ?? [], true));
+        $csvStatic = $csvEvidence['staticCurrentEvidence'] ?? [];
+        $t->same('valid-checked-in-current-delimited-text-reader-evidence', $csvStatic['validation']['status'] ?? null);
+        $t->same([], $csvStatic['validation']['issues'] ?? null);
+        $t->same(2, $csvStatic['readerDenominator']['csvDirectFixtureCount'] ?? null);
+        $t->same(0, $csvStatic['readerDenominator']['tsvDirectFixtureCount'] ?? null);
+        $t->same(2, $csvStatic['checkedInFixtureCount'] ?? null);
+        $t->same('test/command/csv.md', $csvStatic['checkedInFixtures'][0]['upstreamPath'] ?? null);
+        $t->same('42a8bc56612d061388889a10d73b1d34fb870595785ee550ef43c6a065a77ad6', $csvStatic['checkedInFixtures'][0]['checkedInFile']['sha256'] ?? null);
+        $t->same(2719, $csvStatic['checkedInFixtures'][0]['checkedInFile']['bytes'] ?? null);
+        $t->same(true, DelimitedTextUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence(['staticCurrentEvidence' => $csvStatic]));
 
         $t->same('tsv', $tsvEvidence['reader'] ?? null);
         $t->same(0, $tsvEvidence['denominator'] ?? null);
@@ -227,6 +238,7 @@ return [
         $t->same(null, $tsvEvidence['runnerEvidence']['resultArtifact'] ?? null);
         $t->same('upstream-haskell-runner', $tsvEvidence['notRunEvidence'][0]['scope'] ?? null);
         $t->true(in_array('TSV is an upstream input token but the pinned command corpus evidence is CSV-only.', $tsvEvidence['claimBoundaries'] ?? [], true));
+        $t->same($csvEvidence['staticCurrentEvidence'] ?? null, $tsvEvidence['staticCurrentEvidence'] ?? null);
     },
     'maps tsv input into a native table ast and pads ragged rows' => static function (TestRunner $t): void {
         $document = (new DelimitedTextReader())->readTsv(implode("\n", [

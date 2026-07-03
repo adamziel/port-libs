@@ -905,6 +905,7 @@ final class DelimitedTextReader
      *     parserOptionFixtures:list<string>,
      *     integrationFixtureCount:int,
      *     integrationFixtures:list<string>,
+     *     staticCurrentEvidence:array<string, mixed>,
      *     runnerEvidence:array{runner:string, status:string, executed:bool, command:null, resultArtifact:null, reason:string, claim:string},
      *     notRunEvidence:list<array{scope:string, runner:string, status:string, executed:bool, reason:string}>,
      *     closedGaps:list<string>,
@@ -929,6 +930,7 @@ final class DelimitedTextReader
             'keep-space-after-delimiter',
             'semicolon-delimiter-multiline-cell',
         ];
+        $staticCurrentEvidence = DelimitedTextUpstreamReaderEvidence::checkedInCurrentEvidence(dirname(__DIR__, 3));
         $runnerEvidence = [
             'runner' => 'Cabal/Tasty Pandoc reader suite',
             'status' => 'not-run',
@@ -965,6 +967,7 @@ final class DelimitedTextReader
                 'parserOptionFixtures' => [],
                 'integrationFixtureCount' => 0,
                 'integrationFixtures' => [],
+                'staticCurrentEvidence' => $staticCurrentEvidence,
                 'runnerEvidence' => $runnerEvidence,
                 'notRunEvidence' => $notRunEvidence,
                 'closedGaps' => [
@@ -1001,6 +1004,7 @@ final class DelimitedTextReader
             'parserOptionFixtures' => $parserOptionFixtures,
             'integrationFixtureCount' => count($rstCsvFixtures),
             'integrationFixtures' => $rstCsvFixtures,
+            'staticCurrentEvidence' => $staticCurrentEvidence,
             'runnerEvidence' => $runnerEvidence,
             'notRunEvidence' => $notRunEvidence,
             'closedGaps' => [
