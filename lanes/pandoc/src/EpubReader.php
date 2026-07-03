@@ -1151,6 +1151,7 @@ final class EpubReader
         }
 
         [$path, , $fragment] = $this->splitUrlSuffix($url);
+        $path = $this->decodePackagePathPercentEscapes($path);
         $normalized = $this->normalizeZipPath($content_dir . '/' . $path);
 
         return $fragment === null || $fragment === '' ? $normalized : $normalized . '#' . $fragment;
@@ -1216,6 +1217,7 @@ final class EpubReader
             return null;
         }
 
+        $path = $this->decodePackagePathPercentEscapes($path);
         $resource = $this->normalizeZipPath($package_base_path . '/' . $content_dir . '/' . $path);
         if ($include_fragment && $fragment !== null && $fragment !== '') {
             $resource .= '#' . $fragment;
@@ -1371,6 +1373,8 @@ final class EpubReader
             return '';
         }
 
+        $path = $this->decodePackagePathPercentEscapes($path);
+
         return $this->normalizeZipPath($base_path === '' ? $path : $base_path . '/' . $path);
     }
 
@@ -1397,6 +1401,8 @@ final class EpubReader
         if ($path === '') {
             return $url;
         }
+
+        $path = $this->decodePackagePathPercentEscapes($path);
 
         return $this->appendUrlSuffix($this->normalizeZipPath($base_path . '/' . $path), $query, $fragment);
     }
@@ -1576,5 +1582,21 @@ final class EpubReader
         }
 
         return implode('/', $parts);
+    }
+
+    private function decodePackagePathPercentEscapes(string $path): string
+    {
+        return preg_replace_callback(
+            '/%[0-9A-Fa-f]{2}/',
+            static function (array $match): string {
+                $byte = hexdec(substr($match[0], 1));
+                if ($byte === 0x00 || $byte === 0x2f || $byte === 0x5c) {
+                    return $match[0];
+                }
+
+                return chr($byte);
+            },
+            $path
+        ) ?? $path;
     }
 }

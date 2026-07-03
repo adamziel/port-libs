@@ -482,12 +482,27 @@ XML);
       <p:spPr><a:xfrm><a:off x="999" y="1000"/><a:ext cx="1001" cy="1002"/></a:xfrm></p:spPr>
       <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Front layer</a:t></a:r></a:p></p:txBody>
     </p:sp>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="33" name="Formatted text"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+      <p:spPr><a:xfrm><a:off x="1100" y="1200"/><a:ext cx="1300" cy="1400"/></a:xfrm></p:spPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/>
+        <a:p>
+          <a:r><a:t>Styled</a:t></a:r>
+          <a:r><a:rPr b="1"/><a:t>bold</a:t></a:r>
+          <a:r><a:rPr i="1"/><a:t>italic</a:t></a:r>
+          <a:r><a:rPr u="sng"/><a:t>under</a:t></a:r>
+          <a:r><a:rPr strike="sngStrike"/><a:t>gone</a:t></a:r>
+          <a:r><a:rPr><a:hlinkClick r:id="rIdHyperlink" tooltip="Example target"/></a:rPr><a:t>linked</a:t></a:r>
+        </a:p>
+      </p:txBody>
+    </p:sp>
 XML . $slideClose);
     $zip->addFromString('ppt/slides/_rels/slide5.xml.rels', <<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="../comments/comment1.xml"/>
   <Relationship Id="rIdVideo" Type="http://schemas.microsoft.com/office/2007/relationships/media" Target="../media/video1.mp4"/>
+  <Relationship Id="rIdHyperlink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/pptx" TargetMode="External"/>
 </Relationships>
 XML);
     $zip->addFromString('ppt/commentAuthors.xml', <<<'XML'
@@ -14694,6 +14709,7 @@ return [
         $commentDivs = $nodesWithClass($divs, 'pptx-comments');
         $backLayerParagraphs = array_values(array_filter($paragraphs, static fn (AstNode $node): bool => $node->attr('text') === 'Back layer'));
         $frontLayerParagraphs = array_values(array_filter($paragraphs, static fn (AstNode $node): bool => $node->attr('text') === 'Front layer'));
+        $formattedParagraphs = array_values(array_filter($paragraphs, static fn (AstNode $node): bool => $node->attr('text') === 'Styled bold italic under gone linked'));
         $layoutInheritedParagraphs = array_values(array_filter($paragraphs, static fn (AstNode $node): bool => $node->attr('text') === 'Inherited Layout Body'));
         $masterInheritedParagraphs = array_values(array_filter($paragraphs, static fn (AstNode $node): bool => $node->attr('text') === 'Inherited Master Footer'));
 
@@ -15035,6 +15051,10 @@ return [
         $t->same(['x' => 111, 'y' => 222, 'cx' => 333, 'cy' => 444], $backLayerParagraphs[0]->attr('pptxShape')['layout'] ?? null);
         $t->same(1, count($frontLayerParagraphs));
         $t->same(4, $frontLayerParagraphs[0]->attr('pptxShape')['zOrder'] ?? null);
+        $t->same(1, count($formattedParagraphs));
+        $t->same(5, $formattedParagraphs[0]->attr('pptxShape')['zOrder'] ?? null);
+        $t->same(['text'], array_map(static fn (AstNode $node): string => $node->type, $formattedParagraphs[0]->children));
+        $t->same('Styled bold italic under gone linked', $formattedParagraphs[0]->children[0]->attr('text'));
 
         $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "LLMs" ]', $native);
         $t->contains('BulletList', $native);
@@ -15045,12 +15065,17 @@ return [
         $t->contains('Image ( "" , [  ] , [  ] ) [  ] ( "ppt/media/image1.png" , "Picture 6" )', $native);
         $t->contains('Para [ Str "[Graphic:" , Space , Str "other:" , Space , Str "http://schemas.openxmlformats.org/drawingml/2006/chart]" ]', $native);
         $t->contains('Div ( "" , [ "smartart" , "chevron2" ] , [ ( "layout" , "chevron2" ) ] )', $native);
+        $t->contains('Para [ Str "Styled" , Space , Str "bold" , Space , Str "italic" , Space , Str "under" , Space , Str "gone" , Space , Str "linked" ]', $native);
+        $t->true(!str_contains($native, 'https://example.test/pptx'), 'PPTX run hyperlinks should remain out of upstream-compatible native output');
         $t->true(!str_contains($native, 'pptx-rich-media'), 'PPTX rich media should remain out of upstream-compatible native output');
         $t->true(!str_contains($native, 'video1.mp4'), 'PPTX rich media targets should remain review-only');
         $t->contains('<!-- wp:heading {"level":2} -->', $blocks);
         $t->contains('<th>Col1</th>', $blocks);
         $t->contains('[Graphic: other: http://schemas.openxmlformats.org/drawingml/2006/chart]', $blocks);
         $t->contains('ppt/media/image1.png', $blocks);
+        $t->contains('Styled bold italic under gone linked', $blocks);
+        $t->true(!str_contains($blocks, '<strong>bold</strong>'), 'PPTX run bold should remain plain in upstream-compatible WordPress output');
+        $t->true(!str_contains($blocks, 'https://example.test/pptx'), 'PPTX run hyperlinks should remain out of upstream-compatible WordPress output');
         $t->true(!str_contains($blocks, 'colspan="2"'), 'PPTX gridSpan should remain review-only in WordPress output');
         $t->true(!str_contains($blocks, 'rowspan="2"'), 'PPTX rowSpan should remain review-only in WordPress output');
         $t->true(!str_contains($blocks, 'data-pandoc-comment-author="Ada Reviewer"'), 'PPTX comments should not render into visible WordPress comment markup');
@@ -18454,6 +18479,9 @@ XML);
         $t->contains('<h2 id="slide-1">LLMs</h2>', $html);
         $t->contains('<th>Col1</th>', $html);
         $t->contains('<img src="ppt/media/image1.png"', $html);
+        $t->contains('Styled bold italic under gone linked', $html);
+        $t->true(!str_contains($html, '<strong>bold</strong>'), 'PPTX run bold should remain plain in converter HTML output');
+        $t->true(!str_contains($html, 'https://example.test/pptx'), 'PPTX run hyperlinks should remain out of converter HTML output');
     },
 
     'rejects non-zip pptx bytes before package parsing like upstream' => static function (TestRunner $t): void {

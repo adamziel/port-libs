@@ -888,4 +888,74 @@ XML);
         $t->same('EPUB/package.opf', $meta['epubRootfile']);
         $t->same(['EPUB/chapter.xhtml'], $meta['epubReadableResources']);
     },
+    'resolves percent encoded manifest and navigation package paths' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary EPUB package');
+        }
+        $zip->addFromString('META-INF/container.xml', '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf" xmlns:dc="http://purl.org/dc/elements/1.1/" version="3.0">
+  <metadata>
+    <dc:title>Percent Path EPUB</dc:title>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="text/chapter%201.xhtml" media-type="application/xhtml+xml"/>
+    <item id="cover" href="images/cover%20art.png" media-type="image/png"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('OPS/nav.xhtml', <<<'HTML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <ol>
+        <li><a href="text/chapter%201.xhtml#opening">Chapter One</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+HTML);
+        $zip->addFromString('OPS/text/chapter 1.xhtml', <<<'HTML'
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <body>
+    <h1 id="opening">Percent Path EPUB</h1>
+    <p><img src="../images/cover%20art.png" alt="Cover art"/> Body.</p>
+  </body>
+</html>
+HTML);
+        $zip->addFromString('OPS/images/cover art.png', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII='));
+        $zip->close();
+
+        try {
+            $document = (new EpubReader())->readEpubFile($path);
+            $blocks = (new WordPressBlockWriter())->write($document);
+            $meta = $document->attr('meta');
+        } finally {
+            @unlink($path);
+        }
+
+        $t->same('Percent Path EPUB', $meta['title']);
+        $t->same(['OPS/text/chapter 1.xhtml'], $meta['epubReadableResources']);
+        $t->same(['OPS/images/cover art.png'], $meta['epubReferencedResources']);
+        $t->same(['OPS/images/cover art.png'], $meta['epubImageResources']);
+        $t->same(['OPS/nav.xhtml'], $meta['epubTocResources']);
+        $t->same([
+            ['text' => 'Chapter One', 'href' => 'OPS/text/chapter 1.xhtml#opening', 'level' => 1],
+        ], $meta['epubTocEntries']);
+        $t->same('paragraph', $document->children[0]->type);
+        $t->same('heading', $document->children[1]->type);
+        $t->same('Percent Path EPUB', $document->children[1]->attr('text'));
+        $t->contains('src="images/cover art.png"', $blocks);
+    },
 ];

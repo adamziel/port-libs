@@ -163,6 +163,14 @@ $profileCases = [
         'options' => ['format' => 'gfm'],
         'enabled' => ['pipe'],
     ],
+    'multimarkdown enables pipe tables only' => [
+        'options' => ['format' => 'markdown_mmd'],
+        'enabled' => ['pipe'],
+    ],
+    'php extra enables pipe tables only' => [
+        'options' => ['format' => 'markdown_phpextra'],
+        'enabled' => ['pipe'],
+    ],
     'github markdown enables pipe tables only' => [
         'options' => ['format' => 'markdown_github'],
         'enabled' => ['pipe'],
@@ -305,6 +313,14 @@ $multilineProfileCases = [
         'options' => ['format' => 'markdown_strict', 'extensions' => ['+multiline_tables']],
         'enabled' => true,
     ],
+    'multimarkdown disables multiline table syntax' => [
+        'options' => ['format' => 'markdown_mmd'],
+        'enabled' => false,
+    ],
+    'php extra disables multiline table syntax' => [
+        'options' => ['format' => 'markdown_phpextra'],
+        'enabled' => false,
+    ],
     'markdown configured disables multiline table syntax' => [
         'options' => ['extensions' => ['multiline_tables' => false, 'simple_tables' => false]],
         'enabled' => false,
@@ -334,7 +350,7 @@ foreach ($multilineProfileCases as $profileName => $profile) {
 
 $tests['records upstream markdown reader table profile surge mapped-case count'] =
     static function (TestRunner $t) use ($caseCount): void {
-        $t->same(190, $caseCount);
+        $t->same(206, $caseCount);
     };
 
 return $tests;

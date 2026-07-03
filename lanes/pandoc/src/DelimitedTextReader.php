@@ -252,7 +252,16 @@ final class DelimitedTextReader
      */
     private function scoreDelimitedRows(string $text, string $delimiter): array
     {
-        $rows = $this->parseRows($text, $delimiter);
+        try {
+            $rows = $this->parseRows($text, $delimiter);
+        } catch (\InvalidArgumentException) {
+            return [
+                'rows' => 0,
+                'multicolumnRows' => 0,
+                'columnCount' => 0,
+                'fieldCount' => 0,
+            ];
+        }
         $widths = array_map('count', $rows);
 
         return [
@@ -465,6 +474,7 @@ final class DelimitedTextReader
      *         escapedQuoteSequenceCount:int,
      *         quoteInUnquotedFieldCount:int,
      *         textAfterClosingQuoteCount:int,
+     *         closingQuoteTrailingWhitespaceCount:int,
      *         unclosedQuoteCount:int,
      *         quotedLineBreakCount:int,
      *         multilineFieldCount:int,
@@ -489,6 +499,7 @@ final class DelimitedTextReader
             'escapedQuoteSequenceCount' => 0,
             'quoteInUnquotedFieldCount' => 0,
             'textAfterClosingQuoteCount' => 0,
+            'closingQuoteTrailingWhitespaceCount' => 0,
             'unclosedQuoteCount' => 0,
             'quotedLineBreakCount' => 0,
             'multilineFieldCount' => 0,
@@ -502,6 +513,7 @@ final class DelimitedTextReader
         $quotedField = false;
         $inQuotedField = false;
         $afterClosingQuote = false;
+        $afterClosingQuoteWhitespace = false;
         $fieldHadQuotedLineBreak = false;
         $quotedFieldStartRow = 0;
         $quotedFieldStartColumn = 0;
@@ -514,6 +526,7 @@ final class DelimitedTextReader
             &$fieldStarted,
             &$quotedField,
             &$afterClosingQuote,
+            &$afterClosingQuoteWhitespace,
             &$fieldHadQuotedLineBreak,
             &$metrics
         ): void {
@@ -527,6 +540,7 @@ final class DelimitedTextReader
             $fieldStarted = false;
             $quotedField = false;
             $afterClosingQuote = false;
+            $afterClosingQuoteWhitespace = false;
             $fieldHadQuotedLineBreak = false;
         };
 
@@ -541,6 +555,7 @@ final class DelimitedTextReader
             &$fieldStarted,
             &$quotedField,
             &$afterClosingQuote,
+            &$afterClosingQuoteWhitespace,
             $finishField
         ): void {
             $hasPendingField = $fieldStarted || $field !== '' || $row !== [] || $quotedField || $afterClosingQuote;
@@ -559,6 +574,7 @@ final class DelimitedTextReader
             $row = [];
             $rowIndex++;
             $columnIndex = 0;
+            $afterClosingQuoteWhitespace = false;
         };
 
         for ($offset = 0; $offset < $length; $offset++) {
@@ -611,6 +627,7 @@ final class DelimitedTextReader
 
                     $inQuotedField = false;
                     $afterClosingQuote = true;
+                    $afterClosingQuoteWhitespace = false;
                     continue;
                 }
 
@@ -620,6 +637,9 @@ final class DelimitedTextReader
 
             if ($afterClosingQuote) {
                 if ($char === $delimiter) {
+                    if ($afterClosingQuoteWhitespace) {
+                        $metrics['closingQuoteTrailingWhitespaceCount']++;
+                    }
                     $finishField();
                     $this->skipPostDelimiterWhitespace($text, $offset, $delimiter, $keepSpace);
                     continue;
@@ -635,12 +655,14 @@ final class DelimitedTextReader
                 }
 
                 if ($char === ' ' || $char === "\t") {
+                    $afterClosingQuoteWhitespace = true;
                     continue;
                 }
 
                 $field .= $char;
                 $fieldStarted = true;
                 $afterClosingQuote = false;
+                $afterClosingQuoteWhitespace = false;
                 $metrics['textAfterClosingQuoteCount']++;
                 $diagnostics[] = $this->diagnostic(
                     'delimited-text-text-after-closing-quote',
@@ -754,7 +776,11 @@ final class DelimitedTextReader
             $row = $diagnostic === null ? null : ((int) $diagnostic['row'] + 1);
             $column = $diagnostic === null ? null : ((int) $diagnostic['column'] + 1);
             $location = $row === null ? '' : " at line {$row}, column {$column}";
-            throw new \InvalidArgumentException("Malformed {$format} input: text after a closing quote{$location}.");
+            throw new \InvalidArgumentException("Malformed {$format} input: text after a closing quote{$location}; expected delimiter, line break, or end of input.");
+        }
+
+        if ((int) ($metrics['closingQuoteTrailingWhitespaceCount'] ?? 0) > 0) {
+            throw new \InvalidArgumentException("Malformed {$format} input: delimiter must immediately follow the quoted field, not trailing whitespace.");
         }
 
         $diagnostic = $this->firstParseDiagnostic($parse, 'delimited-text-backslash-quote-preserved');
@@ -912,6 +938,7 @@ final class DelimitedTextReader
      *     escapedQuoteSequenceCount:int,
      *     quoteInUnquotedFieldCount:int,
      *     textAfterClosingQuoteCount:int,
+     *     closingQuoteTrailingWhitespaceCount:int,
      *     unclosedQuoteCount:int,
      *     quotedLineBreakCount:int,
      *     multilineFieldCount:int,
@@ -1004,6 +1031,7 @@ final class DelimitedTextReader
             'escapedQuoteSequenceCount' => $parseMetrics['escapedQuoteSequenceCount'],
             'quoteInUnquotedFieldCount' => $parseMetrics['quoteInUnquotedFieldCount'],
             'textAfterClosingQuoteCount' => $parseMetrics['textAfterClosingQuoteCount'],
+            'closingQuoteTrailingWhitespaceCount' => $parseMetrics['closingQuoteTrailingWhitespaceCount'] ?? 0,
             'unclosedQuoteCount' => $parseMetrics['unclosedQuoteCount'],
             'quotedLineBreakCount' => $parseMetrics['quotedLineBreakCount'],
             'multilineFieldCount' => $parseMetrics['multilineFieldCount'],

@@ -749,6 +749,9 @@ final class DelimitedTextUpstreamReaderEvidence
         'text-after-closing-quote' => [
             'inputPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/text-after-closing-quote.csv',
             'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/text-after-closing-quote.native',
+            'options' => [
+                'strictParsing' => false,
+            ],
         ],
         'trailing-empty-fields' => [
             'inputPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/trailing-empty-fields.csv',
@@ -761,6 +764,9 @@ final class DelimitedTextUpstreamReaderEvidence
         'unquoted-space-empty-quoted' => [
             'inputPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/unquoted-space-empty-quoted.csv',
             'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/unquoted-space-empty-quoted.native',
+            'options' => [
+                'strictParsing' => false,
+            ],
         ],
         'comment-looking-data' => [
             'inputPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/comment-looking-data.csv',
@@ -794,6 +800,9 @@ final class DelimitedTextUpstreamReaderEvidence
         'unterminated-quote-eof' => [
             'inputPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/unterminated-quote-eof.csv',
             'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/unterminated-quote-eof.native',
+            'options' => [
+                'strictParsing' => false,
+            ],
         ],
         'duplicate-header-labels' => [
             'inputPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/duplicate-header-labels.csv',

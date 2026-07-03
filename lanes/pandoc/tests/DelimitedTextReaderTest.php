@@ -436,7 +436,7 @@ return [
         $t->same('text-after-closing-quote.native', $generatedEvidence['checkedInFixtures'][13]['name'] ?? null);
         $t->same('8e33c870e16bb77dc144c177673e3313dce9415c80bda3c9b13123466d42442e', $generatedEvidence['checkedInFixtures'][13]['checkedInFile']['sha256'] ?? null);
         $t->same('text-after-closing-quote', $generatedEvidence['samples'][6]['name'] ?? null);
-        $t->same([], $generatedEvidence['samples'][6]['readerOptions'] ?? null);
+        $t->same(['strictParsing' => false], $generatedEvidence['samples'][6]['readerOptions'] ?? null);
         $t->same(['id', 'note', 'status'], $table->attr('columnNames'));
         $t->same(3, $packet['rowCount'] ?? null);
         $t->same(2, $packet['bodyRowCount'] ?? null);
@@ -554,6 +554,7 @@ return [
         $fixture = $generatedCsvNativeFixture('unquoted-space-empty-quoted');
         $document = (new DelimitedTextReader())->readCsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/unquoted-space-empty-quoted.csv',
+            'strictParsing' => false,
         ]);
         $table = $document->children[0];
         $packet = $table->attr('delimitedText');
@@ -574,7 +575,7 @@ return [
         $t->same('unquoted-space-empty-quoted.native', $generatedEvidence['checkedInFixtures'][19]['name'] ?? null);
         $t->same('2460dd7891857c3927c5f229fbd819afe432604a92606a61f3cb5b87d6bcd3d7', $generatedEvidence['checkedInFixtures'][19]['checkedInFile']['sha256'] ?? null);
         $t->same('unquoted-space-empty-quoted', $generatedEvidence['samples'][9]['name'] ?? null);
-        $t->same([], $generatedEvidence['samples'][9]['readerOptions'] ?? null);
+        $t->same(['strictParsing' => false], $generatedEvidence['samples'][9]['readerOptions'] ?? null);
         $t->same(['label', 'raw', 'empty', 'note'], $table->attr('columnNames'));
         $t->same(3, $packet['rowCount'] ?? null);
         $t->same(2, $packet['bodyRowCount'] ?? null);
@@ -867,7 +868,7 @@ return [
         $t->same('unterminated-quote-eof.native', $generatedEvidence['checkedInFixtures'][31]['name'] ?? null);
         $t->same('754ba8a6135cf7f7064b714cb6a33990958865e0a5ee04532710a74cc395e74b', $generatedEvidence['checkedInFixtures'][31]['checkedInFile']['sha256'] ?? null);
         $t->same('unterminated-quote-eof', $generatedEvidence['samples'][15]['name'] ?? null);
-        $t->same([], $generatedEvidence['samples'][15]['readerOptions'] ?? null);
+        $t->same(['strictParsing' => false], $generatedEvidence['samples'][15]['readerOptions'] ?? null);
         $t->same(['id', 'note', 'status'], $table->attr('columnNames'));
         $t->same(2, $packet['rowCount'] ?? null);
         $t->same(1, $packet['bodyRowCount'] ?? null);
@@ -2451,13 +2452,13 @@ return [
         $t->same('bom-leading-whitespace', $csvEvidence['generatedNativeParityEvidence']['samples'][5]['name'] ?? null);
         $t->same([], $csvEvidence['generatedNativeParityEvidence']['samples'][5]['readerOptions'] ?? null);
         $t->same('text-after-closing-quote', $csvEvidence['generatedNativeParityEvidence']['samples'][6]['name'] ?? null);
-        $t->same([], $csvEvidence['generatedNativeParityEvidence']['samples'][6]['readerOptions'] ?? null);
+        $t->same(['strictParsing' => false], $csvEvidence['generatedNativeParityEvidence']['samples'][6]['readerOptions'] ?? null);
         $t->same('trailing-empty-fields', $csvEvidence['generatedNativeParityEvidence']['samples'][7]['name'] ?? null);
         $t->same([], $csvEvidence['generatedNativeParityEvidence']['samples'][7]['readerOptions'] ?? null);
         $t->same('crlf-rows', $csvEvidence['generatedNativeParityEvidence']['samples'][8]['name'] ?? null);
         $t->same([], $csvEvidence['generatedNativeParityEvidence']['samples'][8]['readerOptions'] ?? null);
         $t->same('unquoted-space-empty-quoted', $csvEvidence['generatedNativeParityEvidence']['samples'][9]['name'] ?? null);
-        $t->same([], $csvEvidence['generatedNativeParityEvidence']['samples'][9]['readerOptions'] ?? null);
+        $t->same(['strictParsing' => false], $csvEvidence['generatedNativeParityEvidence']['samples'][9]['readerOptions'] ?? null);
         $t->same('comment-looking-data', $csvEvidence['generatedNativeParityEvidence']['samples'][10]['name'] ?? null);
         $t->same([], $csvEvidence['generatedNativeParityEvidence']['samples'][10]['readerOptions'] ?? null);
         $t->same('no-header-edge-delimiters', $csvEvidence['generatedNativeParityEvidence']['samples'][11]['name'] ?? null);
@@ -2469,7 +2470,7 @@ return [
         $t->same('cr-only-rows', $csvEvidence['generatedNativeParityEvidence']['samples'][14]['name'] ?? null);
         $t->same([], $csvEvidence['generatedNativeParityEvidence']['samples'][14]['readerOptions'] ?? null);
         $t->same('unterminated-quote-eof', $csvEvidence['generatedNativeParityEvidence']['samples'][15]['name'] ?? null);
-        $t->same([], $csvEvidence['generatedNativeParityEvidence']['samples'][15]['readerOptions'] ?? null);
+        $t->same(['strictParsing' => false], $csvEvidence['generatedNativeParityEvidence']['samples'][15]['readerOptions'] ?? null);
         $t->same('duplicate-header-labels', $csvEvidence['generatedNativeParityEvidence']['samples'][16]['name'] ?? null);
         $t->same([], $csvEvidence['generatedNativeParityEvidence']['samples'][16]['readerOptions'] ?? null);
         $t->same('keep-space-after-comma', $csvEvidence['generatedNativeParityEvidence']['samples'][17]['name'] ?? null);
@@ -2923,42 +2924,35 @@ return [
             'delimited-text-control-characters',
         ], $codes);
     },
-    'records csv quote and escape diagnostics while preserving partial records' => static function (TestRunner $t): void {
+    'records csv quote and escape diagnostics in explicit recovery mode' => static function (TestRunner $t): void {
         $document = (new DelimitedTextReader())->readCsv(implode("\n", [
             'id,title,note',
             '1,"Doubled ""quote"" value","Backslash \"quote\" marker"',
             '2,unquoted "literal" quote,ok',
-            '3,"partial quoted field',
+            '',
         ]), ['strictParsing' => false]);
         $table = $document->children[0];
         $packet = $table->attr('delimitedText');
         $codes = array_column($packet['diagnostics'] ?? [], 'code');
 
-        $t->same(4, $packet['rowCount'] ?? null);
-        $t->same(3, $packet['bodyRowCount'] ?? null);
-        $t->same(3, $packet['quotedFieldCount'] ?? null);
+        $t->same(3, $packet['rowCount'] ?? null);
+        $t->same(2, $packet['bodyRowCount'] ?? null);
+        $t->same(2, $packet['quotedFieldCount'] ?? null);
         $t->same(2, $packet['doubledQuoteEscapeCount'] ?? null);
         $t->same(2, $packet['escapedQuoteSequenceCount'] ?? null);
         $t->same(2, $packet['quoteInUnquotedFieldCount'] ?? null);
-        $t->same(1, $packet['unclosedQuoteCount'] ?? null);
-        $t->same(1, $packet['partialRecordCount'] ?? null);
-        $t->same(10, $packet['diagnosticCount'] ?? null);
+        $t->same(0, $packet['unclosedQuoteCount'] ?? null);
+        $t->same(0, $packet['partialRecordCount'] ?? null);
+        $t->same(4, $packet['diagnosticCount'] ?? null);
         $t->same([
-            'delimited-text-unterminated-quote-eof',
-            'delimited-text-partial-final-record',
-            'delimited-text-strict-row-width-mismatch',
-            'delimited-text-row-widths-uneven',
-            'delimited-text-header-width-mismatch',
             'delimited-text-backslash-quote-preserved',
             'delimited-text-backslash-quote-preserved',
             'delimited-text-quote-in-unquoted-field',
             'delimited-text-quote-in-unquoted-field',
-            'delimited-text-unclosed-quoted-field',
         ], $codes);
         $t->same('Doubled "quote" value', $table->children[1]->children[0]->children[1]->attr('text'));
         $t->same('Backslash \"quote\" marker', $table->children[1]->children[0]->children[2]->attr('text'));
         $t->same('unquoted "literal" quote', $table->children[1]->children[1]->children[1]->attr('text'));
-        $t->same('partial quoted field', $table->children[1]->children[2]->children[1]->attr('text'));
     },
     'keeps tsv quotes literal and isolates tab delimiter behavior' => static function (TestRunner $t): void {
         $reader = new DelimitedTextReader();
@@ -2994,8 +2988,8 @@ return [
         $document = (new DelimitedTextReader())->readCsv(implode("\n", [
             'id,note,status,',
             "1,\"two\nline\",ok,",
-            "2,\"open\nlast",
-        ]), ['strictParsing' => false]);
+            '2,open',
+        ]));
         $table = $document->children[0];
         $packet = $table->attr('delimitedText');
         $codes = array_column($packet['diagnostics'] ?? [], 'code');
@@ -3007,31 +3001,71 @@ return [
         $t->same(1, $packet['raggedRowCount'] ?? null);
         $t->same([2], $packet['raggedRows'] ?? null);
         $t->same(false, $packet['finalRecordTerminated'] ?? null);
-        $t->same(2, $packet['multilineQuotedFieldCount'] ?? null);
-        $t->same([1, 2], $packet['multilineQuotedRows'] ?? null);
-        $t->same(2, $packet['quotedFieldNewlineCount'] ?? null);
+        $t->same(1, $packet['multilineQuotedFieldCount'] ?? null);
+        $t->same([1], $packet['multilineQuotedRows'] ?? null);
+        $t->same(1, $packet['quotedFieldNewlineCount'] ?? null);
         $t->same(2, $packet['trailingDelimiterRowCount'] ?? null);
         $t->same([0, 1], $packet['trailingDelimiterRows'] ?? null);
-        $t->same(true, $packet['unterminatedQuoteAtEof'] ?? null);
-        $t->same(2, $packet['unterminatedQuoteRow'] ?? null);
+        $t->same(false, $packet['unterminatedQuoteAtEof'] ?? null);
+        $t->same(null, $packet['unterminatedQuoteRow'] ?? null);
         $t->same(true, $packet['partialFinalRecord'] ?? null);
         $t->same(2, $packet['partialFinalRecordRow'] ?? null);
         $t->same(2, $packet['partialFinalRecordFieldCount'] ?? null);
         $t->same([
             'delimited-text-multiline-quoted-field',
             'delimited-text-trailing-delimiter-empty-field',
-            'delimited-text-unterminated-quote-eof',
             'delimited-text-partial-final-record',
             'delimited-text-trailing-empty-fields-preserved',
             'delimited-text-strict-row-width-mismatch',
             'delimited-text-row-widths-uneven',
             'delimited-text-header-width-mismatch',
-            'delimited-text-unclosed-quoted-field',
         ], $codes);
         $t->same("two\nline", $table->children[1]->children[0]->children[1]->attr('text'));
         $t->same('', $table->children[1]->children[0]->children[3]->attr('text'));
-        $t->same("open\nlast", $table->children[1]->children[1]->children[1]->attr('text'));
+        $t->same('open', $table->children[1]->children[1]->children[1]->attr('text'));
         $t->same('', $table->children[1]->children[1]->children[2]->attr('text'));
+    },
+    'rejects csv quoted-field errors that local pandoc rejects' => static function (TestRunner $t): void {
+        $reader = new DelimitedTextReader();
+        $cases = [
+            [
+                "a,b\n1,\"open\n",
+                'quoted field reaches end of input before a closing quote',
+            ],
+            [
+                "a,b\n1,\"x\"z\n",
+                'expected delimiter, line break, or end of input',
+            ],
+            [
+                "a,b,c\n1,\"x\" ,y\n",
+                'delimiter must immediately follow the quoted field',
+            ],
+        ];
+
+        foreach ($cases as [$source, $expectedMessage]) {
+            $message = '';
+            try {
+                $reader->readCsv($source);
+            } catch (InvalidArgumentException $exception) {
+                $message = $exception->getMessage();
+            }
+            $t->contains($expectedMessage, $message);
+        }
+
+        $validDocument = $reader->readCsv("a,b,c\n1,\"x\",y\n");
+        $validTable = $validDocument->children[0];
+        $t->same('x', $validTable->children[1]->children[0]->children[1]->attr('text'));
+        $t->same('y', $validTable->children[1]->children[0]->children[2]->attr('text'));
+
+        $trailingWhitespaceDocument = $reader->readCsv("a,b\n1,\"x\"  \n");
+        $t->same('x', $trailingWhitespaceDocument->children[0]->children[1]->children[0]->children[1]->attr('text'));
+
+        $tsvDocument = $reader->readTsv("a\tb\n1\t\"x\"z\n");
+        $t->same('"x"z', $tsvDocument->children[0]->children[1]->children[0]->children[1]->attr('text'));
+
+        $autoTsvDocument = $reader->readAuto("\"x\"z\tb\n1\t2\n");
+        $t->same('tsv', $autoTsvDocument->attr('sourceFormat'));
+        $t->same('"x"z', $autoTsvDocument->children[0]->children[0]->children[0]->children[0]->attr('text'));
     },
     'records tsv diagnostics for trailing delimiters and partial literal quote records' => static function (TestRunner $t): void {
         $document = (new DelimitedTextReader())->readTsv(implode("\n", [
