@@ -13,12 +13,12 @@ final class EpubNativeAstPackageComparisonHarness
     private const CLAIM = 'Compares local PHP EPUB package parsing and reader output with a supplied checked-in current EPUB fixture directory and same-basename .native goldens. Package parsing/reader acceptance, fixture identity, package feature coverage, and native AST equality are reported separately; no upstream Haskell runner, writer parity, or full EPUB feature parity is asserted.';
     private const PACKAGE_FEATURE_SIGNATURE_KIND = 'checked-in-current-epub-package-feature-signature';
     private const PACKAGE_FEATURE_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
-    private const PACKAGE_FEATURE_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-28-fixture-snapshot';
-    private const CHECKED_IN_CURRENT_PACKAGE_FEATURE_SIGNATURE_SHA256 = 'c7bab9db803c7ff693de2a2f304d52b3510a889b5b3f2c16fb04107283376f0a';
+    private const PACKAGE_FEATURE_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-29-fixture-snapshot';
+    private const CHECKED_IN_CURRENT_PACKAGE_FEATURE_SIGNATURE_SHA256 = '9cc493cafefc4241df08b3c528628bc0ce5228c3c28115e4df5501b964ef3b22';
     private const CURRENT_NATIVE_AST_SIGNATURE_KIND = 'checked-in-current-epub-normalized-native-ast-signature';
     private const CURRENT_NATIVE_AST_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
-    private const CURRENT_NATIVE_AST_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-28-fixture-normalized-ast-snapshot';
-    private const CHECKED_IN_CURRENT_NATIVE_AST_SIGNATURE_SHA256 = '597ab1d15db1cea92d1fff96c48c2022715118fc6a91af894685db2d133a9779';
+    private const CURRENT_NATIVE_AST_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-29-fixture-normalized-ast-snapshot';
+    private const CHECKED_IN_CURRENT_NATIVE_AST_SIGNATURE_SHA256 = '25aa07b06c02dc720072c25c7c980e1c4c5c4ef4439da4b92bb46c0569f891d3';
     private const RUNNER_CABAL_TARGET = 'exe:pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/epub-native-package-run';
     private const RUNNER_FIXTURE_DIRECTORY = 'test/epub';
@@ -264,6 +264,14 @@ final class EpubNativeAstPackageComparisonHarness
             'sha256' => '0da002a70192ef1d75d04151403344c1f5fce75769ed97bf335b4a316545b85d',
             'bytes' => 177,
         ],
+        'spine-page-spread.epub' => [
+            'sha256' => '47c48d493ff2846023ce78c1cb407d8025865ef7eb986c9f60607de4189bd5e1',
+            'bytes' => 1562,
+        ],
+        'spine-page-spread.native' => [
+            'sha256' => 'ecdae2b7e18be738e3530727e3d04f253fed3a6474091964d0b9c0c16c984dd9',
+            'bytes' => 483,
+        ],
         'video-manifest-resource.epub' => [
             'sha256' => '7db258c0f96c66dc1de9eeaa1fc75ca5e9fddf821b6f0783cd4b74f4f59013b5',
             'bytes' => 1508,
@@ -286,9 +294,9 @@ final class EpubNativeAstPackageComparisonHarness
      * @var array<string, mixed>
      */
     private const CHECKED_IN_CURRENT_PACKAGE_FEATURE_COVERAGE = [
-        'fixtureCount' => 28,
+        'fixtureCount' => 29,
         'opfPartNameCounts' => [
-            '/EPUB/package.opf' => 22,
+            '/EPUB/package.opf' => 23,
             '/EPUB/wasteland.opf' => 1,
             '/OEBPS/content.opf' => 3,
             '/OPS/book/package.opf' => 1,
@@ -296,7 +304,7 @@ final class EpubNativeAstPackageComparisonHarness
         ],
         'metadataLanguageCounts' => [
             'de-DE' => 3,
-            'en' => 24,
+            'en' => 25,
             'en-US' => 1,
         ],
         'fixturesWithCreators' => [
@@ -313,12 +321,16 @@ final class EpubNativeAstPackageComparisonHarness
             'wasteland',
         ],
         'navigationTypeCounts' => [
-            'nav' => 24,
+            'nav' => 25,
             'ncx' => 3,
         ],
         'spineLinearStateCounts' => [
-            'linear' => 38,
+            'linear' => 40,
             'non-linear' => 8,
+        ],
+        'spinePageSpreadPlacementCounts' => [
+            'left' => 1,
+            'right' => 1,
         ],
         'manifestMediaTypeCounts' => [
             'application/javascript' => 1,
@@ -328,7 +340,7 @@ final class EpubNativeAstPackageComparisonHarness
             'application/smil+xml' => 1,
             'application/x-dtbncx+xml' => 5,
             'application/x-fallback-demo' => 1,
-            'application/xhtml+xml' => 64,
+            'application/xhtml+xml' => 67,
             'audio/mpeg' => 1,
             'font/woff2' => 1,
             'image/gif' => 4,
@@ -341,7 +353,7 @@ final class EpubNativeAstPackageComparisonHarness
         'manifestPropertyCounts' => [
             'cover-image' => 2,
             'mathml' => 2,
-            'nav' => 24,
+            'nav' => 25,
             'remote-resources' => 2,
             'rendition:layout-pre-paginated' => 1,
             'scripted' => 2,
@@ -355,12 +367,12 @@ final class EpubNativeAstPackageComparisonHarness
             'font' => 1,
             'image' => 12,
             'media-overlay' => 1,
-            'navigation' => 29,
+            'navigation' => 30,
             'script' => 1,
             'style' => 17,
             'svg' => 1,
             'video' => 1,
-            'xhtml' => 40,
+            'xhtml' => 42,
         ],
         'navigationSectionTypes' => [
             'landmarks',
@@ -379,22 +391,6 @@ final class EpubNativeAstPackageComparisonHarness
             'text' => 2,
             'toc' => 1,
         ],
-        'fixturesWithGuideReferences' => [
-            'auxiliary-lot-guide-index',
-            'epub2_cover',
-            'epub2_no_cover',
-            'epub2_picture',
-            'guide-bibliography-reference',
-            'guide-glossary-reference',
-            'guide-notes-reference',
-            'guide-preface-reference',
-            'nav-ncx-linear-guide',
-            'nested-rootfile-nonlinear-spine',
-        ],
-        'fixturesWithPackageLinks' => [
-            'nav-ncx-linear-guide',
-            'wasteland',
-        ],
         'packageLinkRelCounts' => [
             'cc:attributionURL' => 1,
             'cc:license' => 2,
@@ -403,12 +399,17 @@ final class EpubNativeAstPackageComparisonHarness
         'fixtureFeatureSignatures' => [
             'auxiliary-lot-guide-index' => [
                 'navigationType' => 'nav',
-                'navigationSectionTypes' => ['lot', 'toc'],
+                'navigationSectionTypes' => [
+                    'lot',
+                    'toc',
+                ],
                 'manifestResourceKindCounts' => [
                     'navigation' => 1,
                     'xhtml' => 1,
                 ],
-                'guideReferenceTypeCounts' => ['index' => 1],
+                'guideReferenceTypeCounts' => [
+                    'index' => 1,
+                ],
                 'packageLinkRelCounts' => [],
                 'coverImagePartPresent' => false,
             ],
@@ -424,45 +425,60 @@ final class EpubNativeAstPackageComparisonHarness
             ],
             'epub2_cover' => [
                 'navigationType' => 'ncx',
-                'navigationSectionTypes' => ['toc'],
+                'navigationSectionTypes' => [
+                    'toc',
+                ],
                 'manifestResourceKindCounts' => [
                     'image' => 1,
                     'navigation' => 1,
                     'style' => 1,
                     'xhtml' => 2,
                 ],
-                'guideReferenceTypeCounts' => ['cover' => 1],
+                'guideReferenceTypeCounts' => [
+                    'cover' => 1,
+                ],
                 'packageLinkRelCounts' => [],
                 'coverImagePartPresent' => true,
             ],
             'epub2_no_cover' => [
                 'navigationType' => 'ncx',
-                'navigationSectionTypes' => ['toc'],
+                'navigationSectionTypes' => [
+                    'toc',
+                ],
                 'manifestResourceKindCounts' => [
                     'navigation' => 1,
                     'style' => 1,
                     'xhtml' => 1,
                 ],
-                'guideReferenceTypeCounts' => ['toc' => 1],
+                'guideReferenceTypeCounts' => [
+                    'toc' => 1,
+                ],
                 'packageLinkRelCounts' => [],
                 'coverImagePartPresent' => false,
             ],
             'epub2_picture' => [
                 'navigationType' => 'ncx',
-                'navigationSectionTypes' => ['toc'],
+                'navigationSectionTypes' => [
+                    'toc',
+                ],
                 'manifestResourceKindCounts' => [
                     'image' => 1,
                     'navigation' => 1,
                     'style' => 1,
                     'xhtml' => 2,
                 ],
-                'guideReferenceTypeCounts' => ['cover' => 1],
+                'guideReferenceTypeCounts' => [
+                    'cover' => 1,
+                ],
                 'packageLinkRelCounts' => [],
                 'coverImagePartPresent' => true,
             ],
             'features' => [
                 'navigationType' => 'nav',
-                'navigationSectionTypes' => ['landmarks', 'toc'],
+                'navigationSectionTypes' => [
+                    'landmarks',
+                    'toc',
+                ],
                 'manifestResourceKindCounts' => [
                     'navigation' => 1,
                     'style' => 2,
@@ -474,7 +490,9 @@ final class EpubNativeAstPackageComparisonHarness
             ],
             'font-manifest-resource' => [
                 'navigationType' => 'nav',
-                'navigationSectionTypes' => ['toc'],
+                'navigationSectionTypes' => [
+                    'toc',
+                ],
                 'manifestResourceKindCounts' => [
                     'font' => 1,
                     'navigation' => 1,
@@ -486,7 +504,10 @@ final class EpubNativeAstPackageComparisonHarness
             ],
             'formatting' => [
                 'navigationType' => 'nav',
-                'navigationSectionTypes' => ['landmarks', 'toc'],
+                'navigationSectionTypes' => [
+                    'landmarks',
+                    'toc',
+                ],
                 'manifestResourceKindCounts' => [
                     'image' => 1,
                     'navigation' => 1,
@@ -499,51 +520,70 @@ final class EpubNativeAstPackageComparisonHarness
             ],
             'guide-bibliography-reference' => [
                 'navigationType' => 'nav',
-                'navigationSectionTypes' => ['toc'],
+                'navigationSectionTypes' => [
+                    'toc',
+                ],
                 'manifestResourceKindCounts' => [
                     'navigation' => 1,
                     'xhtml' => 1,
                 ],
-                'guideReferenceTypeCounts' => ['bibliography' => 1],
+                'guideReferenceTypeCounts' => [
+                    'bibliography' => 1,
+                ],
                 'packageLinkRelCounts' => [],
                 'coverImagePartPresent' => false,
             ],
             'guide-glossary-reference' => [
                 'navigationType' => 'nav',
-                'navigationSectionTypes' => ['toc'],
+                'navigationSectionTypes' => [
+                    'toc',
+                ],
                 'manifestResourceKindCounts' => [
                     'navigation' => 1,
                     'xhtml' => 1,
                 ],
-                'guideReferenceTypeCounts' => ['glossary' => 1],
+                'guideReferenceTypeCounts' => [
+                    'glossary' => 1,
+                ],
                 'packageLinkRelCounts' => [],
                 'coverImagePartPresent' => false,
             ],
             'guide-notes-reference' => [
                 'navigationType' => 'nav',
-                'navigationSectionTypes' => ['toc'],
+                'navigationSectionTypes' => [
+                    'toc',
+                ],
                 'manifestResourceKindCounts' => [
                     'navigation' => 1,
                     'xhtml' => 1,
                 ],
-                'guideReferenceTypeCounts' => ['notes' => 1],
+                'guideReferenceTypeCounts' => [
+                    'notes' => 1,
+                ],
                 'packageLinkRelCounts' => [],
                 'coverImagePartPresent' => false,
             ],
             'guide-preface-reference' => [
                 'navigationType' => 'nav',
-                'navigationSectionTypes' => ['toc'],
+                'navigationSectionTypes' => [
+                    'toc',
+                ],
                 'manifestResourceKindCounts' => [
                     'navigation' => 1,
                     'xhtml' => 1,
                 ],
-                'guideReferenceTypeCounts' => ['preface' => 1],
+                'guideReferenceTypeCounts' => [
+                    'preface' => 1,
+                ],
                 'packageLinkRelCounts' => [],
                 'coverImagePartPresent' => false,
             ],
             'img' => [
                 'navigationType' => 'nav',
-                'navigationSectionTypes' => ['landmarks', 'toc'],
+                'navigationSectionTypes' => [
+                    'landmarks',
+                    'toc',
+                ],
                 'manifestResourceKindCounts' => [
                     'cover-image' => 1,
                     'image' => 3,
@@ -557,7 +597,10 @@ final class EpubNativeAstPackageComparisonHarness
             ],
             'img_no_cover' => [
                 'navigationType' => 'nav',
-                'navigationSectionTypes' => ['landmarks', 'toc'],
+                'navigationSectionTypes' => [
+                    'landmarks',
+                    'toc',
+                ],
                 'manifestResourceKindCounts' => [
                     'image' => 3,
                     'navigation' => 1,
@@ -570,7 +613,9 @@ final class EpubNativeAstPackageComparisonHarness
             ],
             'manifest-fallback-chain' => [
                 'navigationType' => 'nav',
-                'navigationSectionTypes' => ['toc'],
+                'navigationSectionTypes' => [
+                    'toc',
+                ],
                 'manifestResourceKindCounts' => [
                     'asset' => 1,
                     'navigation' => 1,
@@ -582,7 +627,9 @@ final class EpubNativeAstPackageComparisonHarness
             ],
             'media-manifest-mix' => [
                 'navigationType' => 'nav',
-                'navigationSectionTypes' => ['toc'],
+                'navigationSectionTypes' => [
+                    'toc',
+                ],
                 'manifestResourceKindCounts' => [
                     'asset' => 2,
                     'navigation' => 1,
@@ -595,7 +642,9 @@ final class EpubNativeAstPackageComparisonHarness
             ],
             'media-overlay-package' => [
                 'navigationType' => 'nav',
-                'navigationSectionTypes' => ['toc'],
+                'navigationSectionTypes' => [
+                    'toc',
+                ],
                 'manifestResourceKindCounts' => [
                     'audio' => 1,
                     'media-overlay' => 1,
@@ -608,7 +657,9 @@ final class EpubNativeAstPackageComparisonHarness
             ],
             'missing-local-manifest-resource' => [
                 'navigationType' => 'nav',
-                'navigationSectionTypes' => ['toc'],
+                'navigationSectionTypes' => [
+                    'toc',
+                ],
                 'manifestResourceKindCounts' => [
                     'navigation' => 1,
                     'style' => 1,
@@ -620,7 +671,9 @@ final class EpubNativeAstPackageComparisonHarness
             ],
             'missing-media-overlay' => [
                 'navigationType' => 'nav',
-                'navigationSectionTypes' => ['toc'],
+                'navigationSectionTypes' => [
+                    'toc',
+                ],
                 'manifestResourceKindCounts' => [
                     'navigation' => 1,
                     'xhtml' => 1,
@@ -631,31 +684,47 @@ final class EpubNativeAstPackageComparisonHarness
             ],
             'nav-ncx-linear-guide' => [
                 'navigationType' => 'nav',
-                'navigationSectionTypes' => ['landmarks', 'toc'],
+                'navigationSectionTypes' => [
+                    'landmarks',
+                    'toc',
+                ],
                 'manifestResourceKindCounts' => [
                     'asset' => 1,
                     'navigation' => 2,
                     'xhtml' => 2,
                 ],
-                'guideReferenceTypeCounts' => ['text' => 1],
-                'packageLinkRelCounts' => ['record' => 1],
+                'guideReferenceTypeCounts' => [
+                    'text' => 1,
+                ],
+                'packageLinkRelCounts' => [
+                    'record' => 1,
+                ],
                 'coverImagePartPresent' => false,
             ],
             'nested-rootfile-nonlinear-spine' => [
                 'navigationType' => 'nav',
-                'navigationSectionTypes' => ['landmarks', 'toc'],
+                'navigationSectionTypes' => [
+                    'landmarks',
+                    'toc',
+                ],
                 'manifestResourceKindCounts' => [
                     'navigation' => 1,
                     'style' => 1,
                     'xhtml' => 2,
                 ],
-                'guideReferenceTypeCounts' => ['text' => 1],
+                'guideReferenceTypeCounts' => [
+                    'text' => 1,
+                ],
                 'packageLinkRelCounts' => [],
                 'coverImagePartPresent' => false,
             ],
             'page-list-navigation' => [
                 'navigationType' => 'nav',
-                'navigationSectionTypes' => ['loi', 'page-list', 'toc'],
+                'navigationSectionTypes' => [
+                    'loi',
+                    'page-list',
+                    'toc',
+                ],
                 'manifestResourceKindCounts' => [
                     'navigation' => 1,
                     'xhtml' => 1,
@@ -666,7 +735,9 @@ final class EpubNativeAstPackageComparisonHarness
             ],
             'remote-manifest-resource' => [
                 'navigationType' => 'nav',
-                'navigationSectionTypes' => ['toc'],
+                'navigationSectionTypes' => [
+                    'toc',
+                ],
                 'manifestResourceKindCounts' => [
                     'navigation' => 1,
                     'style' => 1,
@@ -678,7 +749,9 @@ final class EpubNativeAstPackageComparisonHarness
             ],
             'rendition-layout-property' => [
                 'navigationType' => 'nav',
-                'navigationSectionTypes' => ['toc'],
+                'navigationSectionTypes' => [
+                    'toc',
+                ],
                 'manifestResourceKindCounts' => [
                     'navigation' => 1,
                     'xhtml' => 1,
@@ -689,7 +762,9 @@ final class EpubNativeAstPackageComparisonHarness
             ],
             'scripted-svg-manifest' => [
                 'navigationType' => 'nav',
-                'navigationSectionTypes' => ['toc'],
+                'navigationSectionTypes' => [
+                    'toc',
+                ],
                 'manifestResourceKindCounts' => [
                     'navigation' => 1,
                     'svg' => 1,
@@ -701,7 +776,9 @@ final class EpubNativeAstPackageComparisonHarness
             ],
             'scripted-xhtml-resource' => [
                 'navigationType' => 'nav',
-                'navigationSectionTypes' => ['toc'],
+                'navigationSectionTypes' => [
+                    'toc',
+                ],
                 'manifestResourceKindCounts' => [
                     'navigation' => 1,
                     'script' => 1,
@@ -711,9 +788,24 @@ final class EpubNativeAstPackageComparisonHarness
                 'packageLinkRelCounts' => [],
                 'coverImagePartPresent' => false,
             ],
+            'spine-page-spread' => [
+                'navigationType' => 'nav',
+                'navigationSectionTypes' => [
+                    'toc',
+                ],
+                'manifestResourceKindCounts' => [
+                    'navigation' => 1,
+                    'xhtml' => 2,
+                ],
+                'guideReferenceTypeCounts' => [],
+                'packageLinkRelCounts' => [],
+                'coverImagePartPresent' => false,
+            ],
             'video-manifest-resource' => [
                 'navigationType' => 'nav',
-                'navigationSectionTypes' => ['toc'],
+                'navigationSectionTypes' => [
+                    'toc',
+                ],
                 'manifestResourceKindCounts' => [
                     'navigation' => 1,
                     'video' => 1,
@@ -725,7 +817,10 @@ final class EpubNativeAstPackageComparisonHarness
             ],
             'wasteland' => [
                 'navigationType' => 'nav',
-                'navigationSectionTypes' => ['landmarks', 'toc'],
+                'navigationSectionTypes' => [
+                    'landmarks',
+                    'toc',
+                ],
                 'manifestResourceKindCounts' => [
                     'cover-image' => 1,
                     'navigation' => 2,
@@ -739,6 +834,22 @@ final class EpubNativeAstPackageComparisonHarness
                 ],
                 'coverImagePartPresent' => true,
             ],
+        ],
+        'fixturesWithGuideReferences' => [
+            'auxiliary-lot-guide-index',
+            'epub2_cover',
+            'epub2_no_cover',
+            'epub2_picture',
+            'guide-bibliography-reference',
+            'guide-glossary-reference',
+            'guide-notes-reference',
+            'guide-preface-reference',
+            'nav-ncx-linear-guide',
+            'nested-rootfile-nonlinear-spine',
+        ],
+        'fixturesWithPackageLinks' => [
+            'nav-ncx-linear-guide',
+            'wasteland',
         ],
         'fixturesWithCoverImagePart' => [
             'epub2_cover',
@@ -840,14 +951,18 @@ final class EpubNativeAstPackageComparisonHarness
             'nav-ncx-linear-guide',
             'nested-rootfile-nonlinear-spine',
         ],
+        'fixturesWithSpinePageSpreadItems' => [
+            'spine-page-spread',
+        ],
         'totals' => [
             'metadataCreators' => 31,
-            'manifestItems' => 110,
-            'readingOrderItems' => 46,
-            'xhtmlAssets' => 64,
+            'manifestItems' => 113,
+            'readingOrderItems' => 48,
+            'spinePageSpreadItems' => 2,
+            'xhtmlAssets' => 67,
             'imageAssets' => 15,
             'stylesheetAssets' => 15,
-            'navigationEntries' => 109,
+            'navigationEntries' => 111,
             'landmarkEntries' => 9,
             'pageListEntries' => 1,
             'auxiliaryNavigationEntries' => 2,
@@ -1176,6 +1291,9 @@ final class EpubNativeAstPackageComparisonHarness
             $nonLinearSpineFixtures = is_array($featureCoverage['fixturesWithNonLinearSpineItems'] ?? null)
                 ? $featureCoverage['fixturesWithNonLinearSpineItems']
                 : [];
+            $spinePageSpreadFixtures = is_array($featureCoverage['fixturesWithSpinePageSpreadItems'] ?? null)
+                ? $featureCoverage['fixturesWithSpinePageSpreadItems']
+                : [];
             $guideReferenceTypeCounts = is_array($featureCoverage['guideReferenceTypeCounts'] ?? null)
                 ? $featureCoverage['guideReferenceTypeCounts']
                 : [];
@@ -1204,7 +1322,7 @@ final class EpubNativeAstPackageComparisonHarness
                 ? $featureCoverage['fixturesWithResolvedMediaOverlays']
                 : [];
             $lines[] = sprintf(
-                'packageFeatureCoverage: fixtures=%d nav=%d ncx=%d covers=%d landmarks=%d pageLists=%d auxiliaryNav=%d metadataCreators=%d manifestItems=%d readingOrderItems=%d spineLinear=%s nonLinearSpineFixtures=%d imageAssets=%d stylesheetAssets=%d resourceKinds=%s guideRefTypes=%s packageLinkRels=%s remoteManifest=%d externalManifest=%d missingLocalManifest=%d manifestFallbackItems=%d manifestFallbacks=%d resolvedFallbacks=%d usableFallbacks=%d missingFallbacks=%d mediaOverlayFixtures=%d resolvedMediaOverlayFixtures=%d mediaOverlays=%d resolvedMediaOverlays=%d mediaOverlayTextTargets=%d mediaOverlayAudioTargets=%d mediaOverlayDurations=%d opfParts=%s',
+                'packageFeatureCoverage: fixtures=%d nav=%d ncx=%d covers=%d landmarks=%d pageLists=%d auxiliaryNav=%d metadataCreators=%d manifestItems=%d readingOrderItems=%d spineLinear=%s nonLinearSpineFixtures=%d spinePageSpread=%s pageSpreadFixtures=%d imageAssets=%d stylesheetAssets=%d resourceKinds=%s guideRefTypes=%s packageLinkRels=%s remoteManifest=%d externalManifest=%d missingLocalManifest=%d manifestFallbackItems=%d manifestFallbacks=%d resolvedFallbacks=%d usableFallbacks=%d missingFallbacks=%d mediaOverlayFixtures=%d resolvedMediaOverlayFixtures=%d mediaOverlays=%d resolvedMediaOverlays=%d mediaOverlayTextTargets=%d mediaOverlayAudioTargets=%d mediaOverlayDurations=%d opfParts=%s',
                 (int) ($featureCoverage['fixtureCount'] ?? 0),
                 (int) ($navigationTypeCounts['nav'] ?? 0),
                 (int) ($navigationTypeCounts['ncx'] ?? 0),
@@ -1219,6 +1337,10 @@ final class EpubNativeAstPackageComparisonHarness
                     ? $featureCoverage['spineLinearStateCounts']
                     : []),
                 count($nonLinearSpineFixtures),
+                self::formatCounts(is_array($featureCoverage['spinePageSpreadPlacementCounts'] ?? null)
+                    ? $featureCoverage['spinePageSpreadPlacementCounts']
+                    : []),
+                count($spinePageSpreadFixtures),
                 (int) ($totals['imageAssets'] ?? 0),
                 (int) ($totals['stylesheetAssets'] ?? 0),
                 self::formatCounts(is_array($featureCoverage['manifestResourceKindCounts'] ?? null)
@@ -1680,6 +1802,7 @@ final class EpubNativeAstPackageComparisonHarness
             'fixturesWithCreators' => [],
             'navigationTypeCounts' => [],
             'spineLinearStateCounts' => [],
+            'spinePageSpreadPlacementCounts' => [],
             'manifestMediaTypeCounts' => [],
             'manifestPropertyCounts' => [],
             'manifestResourceKindCounts' => [],
@@ -1708,10 +1831,12 @@ final class EpubNativeAstPackageComparisonHarness
             'fixturesWithMediaOverlayTextTargets' => [],
             'fixturesWithMediaOverlayAudioTargets' => [],
             'fixturesWithNonLinearSpineItems' => [],
+            'fixturesWithSpinePageSpreadItems' => [],
             'totals' => [
                 'metadataCreators' => 0,
                 'manifestItems' => 0,
                 'readingOrderItems' => 0,
+                'spinePageSpreadItems' => 0,
                 'xhtmlAssets' => 0,
                 'imageAssets' => 0,
                 'stylesheetAssets' => 0,
@@ -2259,11 +2384,24 @@ final class EpubNativeAstPackageComparisonHarness
         $resourceKinds = $package->manifestResourceKinds();
         $spineItems = $package->readingOrder();
         $spineLinearStateCounts = [];
+        $spinePageSpreadPlacementCounts = [];
+        $spinePageSpreadItemCount = 0;
         foreach ($spineItems as $spineItem) {
             $state = (($spineItem['linear'] ?? true) === false) ? 'non-linear' : 'linear';
             $spineLinearStateCounts[$state] = (int) ($spineLinearStateCounts[$state] ?? 0) + 1;
+            $pageSpread = is_string($spineItem['pageSpread'] ?? null) ? $spineItem['pageSpread'] : '';
+            $pageSpreadProperties = is_array($spineItem['pageSpreadProperties'] ?? null)
+                ? array_values($spineItem['pageSpreadProperties'])
+                : [];
+            if ($pageSpread !== '' || $pageSpreadProperties !== []) {
+                ++$spinePageSpreadItemCount;
+            }
+            if ($pageSpread !== '') {
+                $spinePageSpreadPlacementCounts[$pageSpread] = (int) ($spinePageSpreadPlacementCounts[$pageSpread] ?? 0) + 1;
+            }
         }
         ksort($spineLinearStateCounts, SORT_STRING);
+        ksort($spinePageSpreadPlacementCounts, SORT_STRING);
         $navigation = $package->navigation();
         $navigationSections = $package->navigationSections();
         $guideReferences = $package->guideReferences();
@@ -2325,6 +2463,8 @@ final class EpubNativeAstPackageComparisonHarness
             'mediaOverlayDurationCount' => (int) ($mediaOverlays['durationCount'] ?? 0),
             'readingOrderCount' => count($spineItems),
             'spineLinearStateCounts' => $spineLinearStateCounts,
+            'spinePageSpreadItemCount' => $spinePageSpreadItemCount,
+            'spinePageSpreadPlacementCounts' => $spinePageSpreadPlacementCounts,
             'xhtmlAssetCount' => count($assets['xhtmlParts']),
             'imageAssetCount' => count($assets['imageParts']),
             'stylesheetAssetCount' => count($assets['stylesheetParts']),
@@ -2351,6 +2491,7 @@ final class EpubNativeAstPackageComparisonHarness
         $metadataLanguageCounts = [];
         $navigationTypeCounts = [];
         $spineLinearStateCounts = [];
+        $spinePageSpreadPlacementCounts = [];
         $manifestMediaTypeCounts = [];
         $manifestPropertyCounts = [];
         $manifestResourceKindCounts = [];
@@ -2379,6 +2520,11 @@ final class EpubNativeAstPackageComparisonHarness
             foreach (is_array($summary['spineLinearStateCounts'] ?? null) ? $summary['spineLinearStateCounts'] : [] as $state => $count) {
                 if (is_string($state) && $state !== '') {
                     $spineLinearStateCounts[$state] = (int) ($spineLinearStateCounts[$state] ?? 0) + (int) $count;
+                }
+            }
+            foreach (is_array($summary['spinePageSpreadPlacementCounts'] ?? null) ? $summary['spinePageSpreadPlacementCounts'] : [] as $placement => $count) {
+                if (is_string($placement) && $placement !== '') {
+                    $spinePageSpreadPlacementCounts[$placement] = (int) ($spinePageSpreadPlacementCounts[$placement] ?? 0) + (int) $count;
                 }
             }
 
@@ -2488,10 +2634,14 @@ final class EpubNativeAstPackageComparisonHarness
             if ($fixture !== '' && (int) ($spineLinearCounts['non-linear'] ?? 0) > 0) {
                 $coverage['fixturesWithNonLinearSpineItems'][] = $fixture;
             }
+            if ($fixture !== '' && (int) ($summary['spinePageSpreadItemCount'] ?? 0) > 0) {
+                $coverage['fixturesWithSpinePageSpreadItems'][] = $fixture;
+            }
 
             $coverage['totals']['metadataCreators'] += (int) ($summary['metadataCreatorCount'] ?? 0);
             $coverage['totals']['manifestItems'] += (int) ($summary['manifestItemCount'] ?? 0);
             $coverage['totals']['readingOrderItems'] += (int) ($summary['readingOrderCount'] ?? 0);
+            $coverage['totals']['spinePageSpreadItems'] += (int) ($summary['spinePageSpreadItemCount'] ?? 0);
             $coverage['totals']['xhtmlAssets'] += (int) ($summary['xhtmlAssetCount'] ?? 0);
             $coverage['totals']['imageAssets'] += (int) ($summary['imageAssetCount'] ?? 0);
             $coverage['totals']['stylesheetAssets'] += (int) ($summary['stylesheetAssetCount'] ?? 0);
@@ -2529,6 +2679,8 @@ final class EpubNativeAstPackageComparisonHarness
         $coverage['navigationTypeCounts'] = $navigationTypeCounts;
         ksort($spineLinearStateCounts, SORT_STRING);
         $coverage['spineLinearStateCounts'] = $spineLinearStateCounts;
+        ksort($spinePageSpreadPlacementCounts, SORT_STRING);
+        $coverage['spinePageSpreadPlacementCounts'] = $spinePageSpreadPlacementCounts;
         $coverage['manifestMediaTypeCounts'] = $manifestMediaTypeCounts;
         $coverage['manifestPropertyCounts'] = $manifestPropertyCounts;
         $coverage['manifestResourceKindCounts'] = $manifestResourceKindCounts;

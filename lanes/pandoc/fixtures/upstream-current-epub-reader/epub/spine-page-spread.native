@@ -1,0 +1,25 @@
+[ Para [ Span ( "left.xhtml" , [] , [] ) [] ]
+, Header
+    1 ( "" , [] , [] ) [ Str "Left" , Space , Str "Spread" ]
+, Para
+    [ Str "Left"
+    , Space
+    , Str "page"
+    , Space
+    , Str "spread"
+    , Space
+    , Str "content."
+    ]
+, Para [ Span ( "right.xhtml" , [] , [] ) [] ]
+, Header
+    1 ( "" , [] , [] ) [ Str "Right" , Space , Str "Spread" ]
+, Para
+    [ Str "Right"
+    , Space
+    , Str "page"
+    , Space
+    , Str "spread"
+    , Space
+    , Str "content."
+    ]
+]
