@@ -10817,7 +10817,8 @@ final class MarkdownReader
                     break;
                 }
 
-                if ($this->isHorizontalRule($lines[$next])) {
+                $nextIndent = $this->countIndentColumns($lines[$next]);
+                if ($this->isHorizontalRule($lines[$next]) && $nextIndent < $contentIndent) {
                     break;
                 }
 
@@ -10826,7 +10827,6 @@ final class MarkdownReader
                     break;
                 }
 
-                $nextIndent = $this->countIndentColumns($lines[$next]);
                 $nextContinuation = $nextIndent >= $contentIndent
                     ? rtrim($this->stripIndentColumns($lines[$next], $contentIndent))
                     : '';
