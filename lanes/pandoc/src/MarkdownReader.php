@@ -185,7 +185,9 @@ final class MarkdownReader
         [$lines, $titleBlock] = $this->titleBlockEnabled() ? $this->extractTitleBlock($lines) : [$lines, null];
         [$lines, $references, $footnotes, $abbreviations] = $this->extractReferenceDefinitions($lines);
         $lines = $this->splitMixedHtmlFlowLines($lines);
-        [$exampleReferences, $exampleNumbersByLine] = $this->collectNumberedExampleReferences($lines);
+        [$exampleReferences, $exampleNumbersByLine] = $this->numberedExampleExtensionEnabled()
+            ? $this->collectNumberedExampleReferences($lines)
+            : [[], []];
         [$markdownHeadingIds, $implicitHeadingReferences] = $this->collectMarkdownHeadingReferences($lines);
         $this->referenceLinks = array_replace($previousReferenceLinks, $implicitHeadingReferences, $references);
         $this->footnoteDefinitions = array_replace($previousFootnoteDefinitions, $footnotes);
@@ -10818,6 +10820,7 @@ final class MarkdownReader
             'text' => $firstText,
             'number' => $marker['start'],
             'taskChecked' => $taskChecked,
+            'exampleLabel' => $marker['exampleLabel'] ?? null,
         ];
     }
 
@@ -11087,6 +11090,7 @@ final class MarkdownReader
             'text' => trim($marker['text']),
             'number' => $marker['start'],
             'taskChecked' => null,
+            'exampleLabel' => $marker['exampleLabel'] ?? null,
         ];
     }
 
@@ -11285,6 +11289,9 @@ final class MarkdownReader
         if ($item['taskChecked'] !== null) {
             $attrs['taskChecked'] = $item['taskChecked'];
         }
+        if (($item['exampleLabel'] ?? null) !== null) {
+            $attrs['exampleLabel'] = (string) $item['exampleLabel'];
+        }
 
         return new AstNode('list_item', $attrs, $children);
     }
@@ -11333,7 +11340,7 @@ final class MarkdownReader
 
         $expanded = $this->expandTabsToSpaces($line);
         $example = $this->matchNumberedExampleMarker($expanded);
-        if ($example !== null) {
+        if ($example !== null && $this->numberedExampleExtensionEnabled()) {
             return [
                 'indent' => $example['indent'],
                 'ordered' => true,
@@ -11344,6 +11351,7 @@ final class MarkdownReader
                 'style' => 'example',
                 'delimiter' => 'two_parens',
                 'marker' => '@',
+                'exampleLabel' => $example['label'],
             ];
         }
 
@@ -12201,7 +12209,7 @@ final class MarkdownReader
                         continue;
                     }
                     $attrs = ['text' => $code];
-                    $attribute = $this->inlineAttributeExtensionEnabled()
+                    $attribute = $this->inlineCodeAttributeExtensionEnabled()
                         ? $this->tryParseInlineAttributeSpec($text, $next)
                         : null;
                     $literalAttribute = null;
@@ -12998,7 +13006,7 @@ final class MarkdownReader
         int $offset
     ): array {
         $attrs = [];
-        $attribute = $this->tryParseInlineAttributeSpec($source, $offset);
+        $attribute = $this->linkAttributeExtensionEnabled() ? $this->tryParseInlineAttributeSpec($source, $offset) : null;
         if ($attribute !== null) {
             $attrs = $attribute['attrs'];
             $offset = $attribute['next'];
@@ -13343,7 +13351,7 @@ final class MarkdownReader
         $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
         $canonical = MarkdownFormatProfile::canonicalFormat($format);
 
-        return in_array($canonical, ['markdown', 'commonmark_x', 'markdown_mmd'], true);
+        return in_array($canonical, ['markdown', 'commonmark_x'], true);
     }
 
     private function rawAttributeEnabled(): bool
@@ -13372,6 +13380,9 @@ final class MarkdownReader
         $overrides = $this->markdownExtensionOverrides();
         if (array_key_exists('fenced_divs', $overrides)) {
             return $overrides['fenced_divs'];
+        }
+        if (array_key_exists('native_divs', $overrides)) {
+            return $overrides['native_divs'];
         }
 
         $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
@@ -13443,11 +13454,68 @@ final class MarkdownReader
         if (array_key_exists('inline_attributes', $overrides)) {
             return $overrides['inline_attributes'];
         }
+        if (array_key_exists('attributes', $overrides)) {
+            return $overrides['attributes'];
+        }
 
         $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
         $canonical = MarkdownFormatProfile::canonicalFormat($format);
 
         return in_array($canonical, ['markdown', 'commonmark_x'], true);
+    }
+
+    private function inlineCodeAttributeExtensionEnabled(): bool
+    {
+        $override = $this->markdownExtensionOverrideAny(['inline_code_attributes', 'inline_attributes', 'attributes']);
+        if ($override !== null) {
+            return $override;
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['markdown', 'commonmark_x'], true);
+    }
+
+    private function linkAttributeExtensionEnabled(): bool
+    {
+        $override = $this->markdownExtensionOverrideAny(['link_attributes', 'inline_attributes', 'attributes']);
+        if ($override !== null) {
+            return $override;
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['markdown', 'commonmark_x', 'markdown_phpextra'], true);
+    }
+
+    private function numberedExampleExtensionEnabled(): bool
+    {
+        $override = $this->markdownExtensionOverrideAny(['numbered_examples']);
+        if ($override !== null) {
+            return $override;
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['markdown', 'commonmark_x'], true);
+    }
+
+    /**
+     * @param list<string> $extensions
+     */
+    private function markdownExtensionOverrideAny(array $extensions): ?bool
+    {
+        $overrides = $this->markdownExtensionOverrides();
+        foreach ($extensions as $extension) {
+            if (array_key_exists($extension, $overrides)) {
+                return $overrides[$extension];
+            }
+        }
+
+        return null;
     }
 
     private function smartQuoteExtensionEnabled(): bool
@@ -13719,7 +13787,7 @@ final class MarkdownReader
             $attrs['title'] = $target['title'];
         }
         $next = $target['next'];
-        $attribute = $this->inlineAttributeExtensionEnabled() ? $this->tryParseInlineAttributeSpec($text, $next) : null;
+        $attribute = $this->linkAttributeExtensionEnabled() ? $this->tryParseInlineAttributeSpec($text, $next) : null;
         if ($attribute !== null) {
             $attrs = array_replace($attrs, $attribute['attrs']);
             $next = $attribute['next'];
@@ -13762,7 +13830,7 @@ final class MarkdownReader
         if ($target['title'] !== '') {
             $attrs['title'] = $target['title'];
         }
-        $attribute = $this->inlineAttributeExtensionEnabled() ? $this->tryParseInlineAttributeSpec($text, $next) : null;
+        $attribute = $this->linkAttributeExtensionEnabled() ? $this->tryParseInlineAttributeSpec($text, $next) : null;
         if ($attribute !== null) {
             $attrs = array_replace($attrs, $attribute['attrs']);
             $next = $attribute['next'];
@@ -14234,6 +14302,10 @@ final class MarkdownReader
      */
     private function readTrailingAutolinkAttributes(string $text, int $offset, array $attrs): array
     {
+        if (!$this->linkAttributeExtensionEnabled()) {
+            return [$attrs, $offset, null];
+        }
+
         $attribute = $this->tryParseInlineAttributeSpec($text, $offset);
         if ($attribute !== null) {
             $merged = array_replace($attrs, $attribute['attrs']);
@@ -14680,6 +14752,10 @@ final class MarkdownReader
      */
     private function tryParseNumberedExampleReference(string $text, int $offset): ?array
     {
+        if (!$this->numberedExampleExtensionEnabled()) {
+            return null;
+        }
+
         if (($text[$offset] ?? '') !== '(' || $this->isEscapedInlinePosition($text, $offset)) {
             return null;
         }
@@ -14797,7 +14873,7 @@ final class MarkdownReader
             return $rawAttribute['next'];
         }
 
-        $attribute = $this->inlineAttributeExtensionEnabled()
+        $attribute = $this->inlineCodeAttributeExtensionEnabled()
             ? $this->tryParseInlineAttributeSpec($text, $next)
             : null;
         if ($attribute !== null) {

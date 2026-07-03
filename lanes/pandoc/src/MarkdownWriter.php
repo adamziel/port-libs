@@ -5265,10 +5265,9 @@ final class MarkdownWriter
             return (bool) $this->options['exampleLists'];
         }
 
-        $format = $this->options['format'] ?? $this->options['variant'] ?? null;
-        $overrides = MarkdownFormatProfile::markdownExtensionOverrides($format);
-        if (array_key_exists('example_lists', $overrides)) {
-            return $overrides['example_lists'];
+        $override = $this->markdownExtensionOverrideAny(['numbered_examples']);
+        if ($override !== null) {
+            return $override;
         }
 
         return $this->writerVariant() === 'markdown';
@@ -6448,7 +6447,7 @@ final class MarkdownWriter
             . $text
             . $spacer
             . $marker
-            . $this->renderAttributesTuple($this->linkAttrTuple($node));
+            . ($this->inlineCodeAttributesEnabled() ? $this->renderAttributesTuple($this->linkAttrTuple($node)) : '');
     }
 
     private function renderLineBreak(): string
@@ -9044,7 +9043,30 @@ final class MarkdownWriter
 
     private function linkAttributesEnabled(): bool
     {
-        return (bool) ($this->options['linkAttributes'] ?? true);
+        if (array_key_exists('linkAttributes', $this->options)) {
+            return (bool) $this->options['linkAttributes'];
+        }
+
+        $override = $this->markdownExtensionOverrideAny(['link_attributes', 'inline_attributes', 'attributes']);
+        if ($override !== null) {
+            return $override;
+        }
+
+        return in_array($this->writerVariant(), ['markdown', 'commonmark-x', 'markdown-phpextra'], true);
+    }
+
+    private function inlineCodeAttributesEnabled(): bool
+    {
+        if (array_key_exists('inlineCodeAttributes', $this->options)) {
+            return (bool) $this->options['inlineCodeAttributes'];
+        }
+
+        $override = $this->markdownExtensionOverrideAny(['inline_code_attributes', 'inline_attributes', 'attributes']);
+        if ($override !== null) {
+            return $override;
+        }
+
+        return in_array($this->writerVariant(), ['markdown', 'commonmark-x'], true);
     }
 
     private function fencedCodeBlocksEnabled(): bool
@@ -9287,6 +9309,21 @@ final class MarkdownWriter
     private function markdownExtensionOverride(string $extension): ?bool
     {
         return $this->markdownExtensionOverrides()[$extension] ?? null;
+    }
+
+    /**
+     * @param list<string> $extensions
+     */
+    private function markdownExtensionOverrideAny(array $extensions): ?bool
+    {
+        $overrides = $this->markdownExtensionOverrides();
+        foreach ($extensions as $extension) {
+            if (array_key_exists($extension, $overrides)) {
+                return $overrides[$extension];
+            }
+        }
+
+        return null;
     }
 
     /**
