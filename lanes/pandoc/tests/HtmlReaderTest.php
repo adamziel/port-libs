@@ -513,6 +513,30 @@ $tests['imports generated current html ruby annotation text'] =
         $t->same('After ruby.', $document->children[1]->attr('text'));
     };
 
+$tests['imports generated current html keyboard sample and variable inline semantics'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-kbd-samp-var-inline.html'));
+        $paragraph = $document->children[0];
+
+        $t->same(
+            ['paragraph', 'paragraph'],
+            array_map(static fn ($node): string => $node->type, $document->children)
+        );
+        $t->same('HTML Kbd Samp Var Import', $document->attr('meta')['title']);
+        $t->same('Press Cmd and inspect stdout with name.', $paragraph->attr('text'));
+        $t->same(
+            ['text', 'span', 'text', 'code', 'text', 'code', 'text'],
+            array_map(static fn ($node): string => $node->type, $paragraph->children)
+        );
+        $t->same(['kbd'], $paragraph->children[1]->attr('classes'));
+        $t->same('Cmd', $paragraph->children[1]->children[0]->attr('text'));
+        $t->same(['sample'], $paragraph->children[3]->attr('classes'));
+        $t->same('stdout', $paragraph->children[3]->attr('text'));
+        $t->same(['variable'], $paragraph->children[5]->attr('classes'));
+        $t->same('name', $paragraph->children[5]->attr('text'));
+        $t->same('After inline semantics.', $document->children[1]->attr('text'));
+    };
+
 $tests['imports generated current html address block as paragraph content'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-address-block.html'));
