@@ -1087,7 +1087,7 @@ return [
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
-        $t->same(28, $generatedEvidence['checkedInFixtureCount'] ?? null);
+        $t->same(30, $generatedEvidence['checkedInFixtureCount'] ?? null);
         $t->same('simple.tsv', $generatedEvidence['checkedInFixtures'][0]['name'] ?? null);
         $t->same('fcee0aed5a2fde11bbd19f2fc4445357a0d7bbd9c9962df6630fed4b6178ff8e', $generatedEvidence['checkedInFixtures'][0]['checkedInFile']['sha256'] ?? null);
         $t->same(['Fruit', 'Price', 'Quantity'], $table->attr('columnNames'));
@@ -1233,7 +1233,7 @@ return [
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
-        $t->same(28, $generatedEvidence['checkedInFixtureCount'] ?? null);
+        $t->same(30, $generatedEvidence['checkedInFixtureCount'] ?? null);
         $t->same('no-header.tsv', $generatedEvidence['checkedInFixtures'][8]['name'] ?? null);
         $t->same('0553e41c6e8a6257ad01d8dfad5c1ffecfb495a58273b38b1115ddb5635449bd', $generatedEvidence['checkedInFixtures'][8]['checkedInFile']['sha256'] ?? null);
         $t->same('no-header.native', $generatedEvidence['checkedInFixtures'][9]['name'] ?? null);
@@ -1277,7 +1277,7 @@ return [
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
-        $t->same(28, $generatedEvidence['checkedInFixtureCount'] ?? null);
+        $t->same(30, $generatedEvidence['checkedInFixtureCount'] ?? null);
         $t->same('bom-leading-whitespace.tsv', $generatedEvidence['checkedInFixtures'][10]['name'] ?? null);
         $t->same('d10a56e1e3d9cdf0abb8c3f800d45a8bace164a4ff015c72dad5b5206b55f451', $generatedEvidence['checkedInFixtures'][10]['checkedInFile']['sha256'] ?? null);
         $t->same('bom-leading-whitespace.native', $generatedEvidence['checkedInFixtures'][11]['name'] ?? null);
@@ -1324,7 +1324,7 @@ return [
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
-        $t->same(28, $generatedEvidence['checkedInFixtureCount'] ?? null);
+        $t->same(30, $generatedEvidence['checkedInFixtureCount'] ?? null);
         $t->same('blank-row-literal-punctuation.tsv', $generatedEvidence['checkedInFixtures'][12]['name'] ?? null);
         $t->same('3971c352574fb88bf49073fab5e73d309c3e50d23c169250aec22e8ed3e0c4d8', $generatedEvidence['checkedInFixtures'][12]['checkedInFile']['sha256'] ?? null);
         $t->same('blank-row-literal-punctuation.native', $generatedEvidence['checkedInFixtures'][13]['name'] ?? null);
@@ -1367,7 +1367,7 @@ return [
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
-        $t->same(28, $generatedEvidence['checkedInFixtureCount'] ?? null);
+        $t->same(30, $generatedEvidence['checkedInFixtureCount'] ?? null);
         $t->same('comment-looking-data.tsv', $generatedEvidence['checkedInFixtures'][14]['name'] ?? null);
         $t->same('a52c8e6587c36a1deb6d86bce90910eb138f9ed983ba66c6336eca055f0e9d04', $generatedEvidence['checkedInFixtures'][14]['checkedInFile']['sha256'] ?? null);
         $t->same('comment-looking-data.native', $generatedEvidence['checkedInFixtures'][15]['name'] ?? null);
@@ -1410,7 +1410,7 @@ return [
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
-        $t->same(28, $generatedEvidence['checkedInFixtureCount'] ?? null);
+        $t->same(30, $generatedEvidence['checkedInFixtureCount'] ?? null);
         $t->same('no-header-edge-delimiters.tsv', $generatedEvidence['checkedInFixtures'][16]['name'] ?? null);
         $t->same('0e90d36fbdce51c4ee0557fa0d1526d849493f30d408675cc445094b7ae79e45', $generatedEvidence['checkedInFixtures'][16]['checkedInFile']['sha256'] ?? null);
         $t->same('no-header-edge-delimiters.native', $generatedEvidence['checkedInFixtures'][17]['name'] ?? null);
@@ -1465,7 +1465,7 @@ return [
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
-        $t->same(28, $generatedEvidence['checkedInFixtureCount'] ?? null);
+        $t->same(30, $generatedEvidence['checkedInFixtureCount'] ?? null);
         $t->same('csv-quoted-literal.tsv', $generatedEvidence['checkedInFixtures'][18]['name'] ?? null);
         $t->same('1c28f3c034a65a005034ae5806e4d035eecd9704c6cf1055b2f0c041e96719be', $generatedEvidence['checkedInFixtures'][18]['checkedInFile']['sha256'] ?? null);
         $t->same('csv-quoted-literal.native', $generatedEvidence['checkedInFixtures'][19]['name'] ?? null);
@@ -1513,7 +1513,7 @@ return [
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
-        $t->same(28, $generatedEvidence['checkedInFixtureCount'] ?? null);
+        $t->same(30, $generatedEvidence['checkedInFixtureCount'] ?? null);
         $t->same('keep-space-after-tab.tsv', $generatedEvidence['checkedInFixtures'][20]['name'] ?? null);
         $t->same('4a015006efd98569714058528747683dd5e3a384a0a9615d7d7ebce3bcd8e603', $generatedEvidence['checkedInFixtures'][20]['checkedInFile']['sha256'] ?? null);
         $t->same('keep-space-after-tab.native', $generatedEvidence['checkedInFixtures'][21]['name'] ?? null);
@@ -1558,7 +1558,7 @@ return [
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
-        $t->same(28, $generatedEvidence['checkedInFixtureCount'] ?? null);
+        $t->same(30, $generatedEvidence['checkedInFixtureCount'] ?? null);
         $t->same('crlf-rows.tsv', $generatedEvidence['checkedInFixtures'][22]['name'] ?? null);
         $t->same('1ee34fc2887a5be7359dd06425faa9e15c47cc7fd65ea5b475119cf159951eb4', $generatedEvidence['checkedInFixtures'][22]['checkedInFile']['sha256'] ?? null);
         $t->same('crlf-rows.native', $generatedEvidence['checkedInFixtures'][23]['name'] ?? null);
@@ -1600,7 +1600,7 @@ return [
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
-        $t->same(28, $generatedEvidence['checkedInFixtureCount'] ?? null);
+        $t->same(30, $generatedEvidence['checkedInFixtureCount'] ?? null);
         $t->same('quoted-tabs-and-newlines.tsv', $generatedEvidence['checkedInFixtures'][24]['name'] ?? null);
         $t->same('063ef586c65fd208bfb670a711edbd004501bb484fe5facbed94c6f898bb6f79', $generatedEvidence['checkedInFixtures'][24]['checkedInFile']['sha256'] ?? null);
         $t->same('quoted-tabs-and-newlines.native', $generatedEvidence['checkedInFixtures'][25]['name'] ?? null);
@@ -1648,7 +1648,7 @@ return [
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
-        $t->same(28, $generatedEvidence['checkedInFixtureCount'] ?? null);
+        $t->same(30, $generatedEvidence['checkedInFixtureCount'] ?? null);
         $t->same('blank-leading-header.tsv', $generatedEvidence['checkedInFixtures'][26]['name'] ?? null);
         $t->same('c2fd8d6c08e7858885d36a4d57a4f79f473418772f1c9f5c6f128b6fbba9858c', $generatedEvidence['checkedInFixtures'][26]['checkedInFile']['sha256'] ?? null);
         $t->same('blank-leading-header.native', $generatedEvidence['checkedInFixtures'][27]['name'] ?? null);
@@ -1671,6 +1671,47 @@ return [
         $t->same('Beta', $table->children[1]->children[1]->children[1]->attr('text'));
         $t->contains('Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) []', $native);
         $t->contains('Plain [ Str "Alpha" ]', $native);
+        $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
+    },
+    'matches generated tsv basic status native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+        $fixture = $generatedTsvNativeFixture('basic-status');
+        $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
+            'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/basic-status.tsv',
+        ]);
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+        $native = PandocConverter::write($document, 'native');
+        $generatedEvidence = $packet['upstreamEvidence']['generatedNativeParityEvidence'] ?? [];
+
+        $t->same('tsv', $packet['format'] ?? null);
+        $t->same('tab', $packet['delimiter'] ?? null);
+        $t->same(0, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
+        $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
+        $t->same(30, $generatedEvidence['checkedInFixtureCount'] ?? null);
+        $t->same('basic-status.tsv', $generatedEvidence['checkedInFixtures'][28]['name'] ?? null);
+        $t->same('d05b3c50b6780930533f48d3e8192cb4a50ee2f15dec69d75984d10f43dba22d', $generatedEvidence['checkedInFixtures'][28]['checkedInFile']['sha256'] ?? null);
+        $t->same('basic-status.native', $generatedEvidence['checkedInFixtures'][29]['name'] ?? null);
+        $t->same('71b49eeb3ed15b82ae55464884fd30a7bf4191dbd04fb2625bea3a862896c4a9', $generatedEvidence['checkedInFixtures'][29]['checkedInFile']['sha256'] ?? null);
+        $t->same('basic-status', $generatedEvidence['samples'][14]['name'] ?? null);
+        $t->same([], $generatedEvidence['samples'][14]['readerOptions'] ?? null);
+        $t->same(['name', 'status', 'note'], $table->attr('columnNames'));
+        $t->same(3, $packet['rowCount'] ?? null);
+        $t->same(2, $packet['bodyRowCount'] ?? null);
+        $t->same(3, $packet['columnCount'] ?? null);
+        $t->same(9, $packet['fieldCount'] ?? null);
+        $t->same(0, $packet['raggedRowCount'] ?? null);
+        $t->same(0, $packet['diagnosticCount'] ?? null);
+        $t->same('Alpha', $table->children[1]->children[0]->children[0]->attr('text'));
+        $t->same('ready', $table->children[1]->children[0]->children[1]->attr('text'));
+        $t->same('plain row', $table->children[1]->children[0]->children[2]->attr('text'));
+        $t->same('Beta', $table->children[1]->children[1]->children[0]->attr('text'));
+        $t->same('done', $table->children[1]->children[1]->children[1]->attr('text'));
+        $t->same('final check', $table->children[1]->children[1]->children[2]->attr('text'));
+        $t->contains('Plain [ Str "plain" , Space , Str "row" ]', $native);
+        $t->contains('Plain [ Str "final" , Space , Str "check" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
     'matches pinned upstream csv parser option fixtures' => static function (TestRunner $t): void {
@@ -1894,6 +1935,8 @@ return [
         $t->same(['quote' => '"'], $tsvEvidence['generatedNativeParityEvidence']['samples'][12]['readerOptions'] ?? null);
         $t->same('blank-leading-header', $tsvEvidence['generatedNativeParityEvidence']['samples'][13]['name'] ?? null);
         $t->same([], $tsvEvidence['generatedNativeParityEvidence']['samples'][13]['readerOptions'] ?? null);
+        $t->same('basic-status', $tsvEvidence['generatedNativeParityEvidence']['samples'][14]['name'] ?? null);
+        $t->same([], $tsvEvidence['generatedNativeParityEvidence']['samples'][14]['readerOptions'] ?? null);
         $t->true(in_array('tsv-tab-delimiter-reader', $tsvEvidence['closedGaps'] ?? [], true));
         $t->true(in_array('generated-tsv-native-parity-sample', $tsvEvidence['closedGaps'] ?? [], true));
         $t->true(in_array('no-dedicated-upstream-tsv-command-fixture-in-pinned-corpus', $tsvEvidence['openGaps'] ?? [], true));
