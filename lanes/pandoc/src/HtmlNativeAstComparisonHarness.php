@@ -313,7 +313,7 @@ final class HtmlNativeAstComparisonHarness
                 'node type after table-cell Plain wrappers are normalized',
                 'non-provenance node attributes',
                 'child order and child count',
-                'visible inline text after adjacent text nodes are coalesced',
+                'visible inline text after adjacent text nodes are coalesced; block-level cached text attrs are excluded',
                 'table head/body/body-row-header structure through rowHeadColumns',
             ],
             'excludes' => [
@@ -322,7 +322,7 @@ final class HtmlNativeAstComparisonHarness
                 'table geometry review packets',
                 'default table widths, zero rowHeadColumns, and empty captions/feet',
                 'derived table-cell header flags when rowHeadColumns carries the semantic row-header contract',
-                'reader-derived list looseness flags and list-item cached text metadata; task-list sidecars are normalized to Pandoc ballot-box text; list item block shape remains compared',
+                'reader-derived block cached text metadata, including paragraph/list-item text; task-list sidecars are normalized to Pandoc ballot-box text; block and inline shape remains compared',
                 'source id/classes/key-value attrs on Pandoc inline constructors without native Attr tuples; inline constructor, text, and children remain compared',
                 'redundant raw HTML format attrs and duplicate raw HTML text attrs; raw HTML payload remains compared',
             ],
@@ -408,7 +408,7 @@ final class HtmlNativeAstComparisonHarness
             if (self::isIgnoredAttrKey($key)) {
                 continue;
             }
-            if ($key === 'text' && in_array($node->type, ['plain', 'table_cell'], true)) {
+            if ($key === 'text' && in_array($node->type, ['paragraph', 'plain', 'table_cell'], true)) {
                 continue;
             }
             if ($key === 'text' && $node->type === 'list_item') {

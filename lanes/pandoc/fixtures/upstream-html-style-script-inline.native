@@ -1,0 +1,29 @@
+[ Para
+    [ Str "Reviewer"
+    , Space
+    , Str "CSS"
+    , Space
+    , RawInline
+        (Format "html")
+        "<style>.legacy-callout { color: #333; }</style>"
+    , Space
+    , Str "stays"
+    , Space
+    , Str "visible."
+    ]
+, Para
+    [ Str "Equation"
+    , Space
+    , Math InlineMath "x^2 + y^2"
+    , Space
+    , Str "and"
+    , Space
+    , Str "display"
+    , Space
+    , Math DisplayMath "\\alpha + \\omega"
+    , Space
+    , Str "stay"
+    , Space
+    , Str "native."
+    ]
+]
