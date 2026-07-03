@@ -1,0 +1,28 @@
+[ Para [ Str "Reviewer" , Space , Str "anchors:" ]
+, BulletList
+    [ [ Plain [ Str "intro" ] ]
+    , [ Plain
+          [ Span
+              ( "source-bar" , [] , [] )
+              [ Str "bar" , Space , Strong [ Str "label" ] ]
+          ]
+      , BulletList [ [ Plain [ Str "subbar" ] ] ]
+      ]
+    , [ Plain [ Str "tail" ] ]
+    ]
+, BulletList
+    [ [ Para [ Str "loose" , Space , Str "intro" ] ]
+    , [ Div
+          ( "loose-source" , [] , [] )
+          [ Para
+              [ Str "loose"
+              , Space
+              , Str "anchored"
+              , Space
+              , Str "paragraph"
+              ]
+          ]
+      ]
+    , [ Para [ Str "loose" , Space , Str "tail" ] ]
+    ]
+]

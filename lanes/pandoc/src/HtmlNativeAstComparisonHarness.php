@@ -322,6 +322,7 @@ final class HtmlNativeAstComparisonHarness
                 'table geometry review packets',
                 'default table widths, zero rowHeadColumns, and empty captions/feet',
                 'derived table-cell header flags when rowHeadColumns carries the semantic row-header contract',
+                'reader-derived list looseness flags and list-item cached text metadata; list item block shape remains compared',
             ],
             'doesNotAssert' => [
                 'upstream Haskell/Cabal runner execution',
@@ -407,6 +408,12 @@ final class HtmlNativeAstComparisonHarness
             if ($key === 'text' && in_array($node->type, ['plain', 'table_cell'], true)) {
                 continue;
             }
+            if ($key === 'text' && $node->type === 'list_item') {
+                continue;
+            }
+            if ($key === 'loose' && self::isListShapeMetadataNode($node)) {
+                continue;
+            }
             if ($key === 'caption' && $value === '') {
                 continue;
             }
@@ -446,6 +453,11 @@ final class HtmlNativeAstComparisonHarness
             || str_ends_with($key, 'Natives')
             || str_ends_with($key, 'Constructor')
             || str_ends_with($key, 'Constructors');
+    }
+
+    private static function isListShapeMetadataNode(AstNode $node): bool
+    {
+        return in_array($node->type, ['bullet_list', 'ordered_list', 'definition_list', 'list_item'], true);
     }
 
     /**
