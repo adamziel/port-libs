@@ -10810,8 +10810,14 @@ final class MarkdownReader
         }
 
         if ($firstText !== '' && $this->isListItemInitialCodeBlock($marker)) {
-            [$codeBlock, $cursor] = $this->readListItemInitialCodeBlock($lines, $cursor + 1, $contentIndent, $firstText);
+            [$codeBlock, $cursor] = $this->readListItemInitialCodeBlock(
+                $lines,
+                $cursor + 1,
+                $this->listItemInitialCodeIndent($marker),
+                str_repeat(' ', max(0, $marker['padding'] - 5)) . $firstText
+            );
             $parts[] = $codeBlock;
+            $contentIndent = $this->listItemFallbackContentIndent($marker);
         } elseif ($firstText !== '') {
             $task = $this->taskListExtensionEnabled() ? $this->stripTaskListMarker($firstText) : null;
             if ($task !== null) {
@@ -11639,6 +11645,22 @@ final class MarkdownReader
     }
 
     /**
+     * @param array{indent:int, contentIndent:int, padding:int} $marker
+     */
+    private function listItemInitialCodeIndent(array $marker): int
+    {
+        return $marker['contentIndent'] - max(0, $marker['padding'] - 5);
+    }
+
+    /**
+     * @param array{contentIndent:int, padding:int} $marker
+     */
+    private function listItemFallbackContentIndent(array $marker): int
+    {
+        return $marker['contentIndent'] - $marker['padding'] + 1;
+    }
+
+    /**
      * @param list<string> $lines
      * @return array{0: AstNode, 1: int}
      */
@@ -11770,6 +11792,18 @@ final class MarkdownReader
 
             $text = $part['text'];
             if ($forceParagraphBlocks || $seenBlockChild) {
+                if (
+                    !$forceParagraphBlocks
+                    && $seenBlockChild
+                    && count($children) === 1
+                    && ($children[0]->type ?? null) === 'code_block'
+                ) {
+                    foreach ($this->parseInlines($text) as $inline) {
+                        $children[] = $inline;
+                    }
+                    continue;
+                }
+
                 $children[] = new AstNode('paragraph', ['text' => $text], $this->parseInlines($text));
                 $seenBlockChild = true;
                 continue;
