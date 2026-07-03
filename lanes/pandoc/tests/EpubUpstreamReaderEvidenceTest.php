@@ -178,6 +178,7 @@ return [
         $t->same([
             'epub/features.epub',
             'epub/formatting.epub',
+            'epub/missing-local-manifest-resource.epub',
             'epub/page-list-navigation.epub',
             'epub/remote-manifest-resource.epub',
         ], $report['denominator']['unreferencedEpubFixtures']);
