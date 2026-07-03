@@ -1,0 +1,5 @@
+[ Header
+    2 ( "slide-1" , [] , [] ) [ Str "Inline formatting deck" ]
+, Para
+    [ Str "Plain  bold  and  italic  and  sup  and  sub ." ]
+]
