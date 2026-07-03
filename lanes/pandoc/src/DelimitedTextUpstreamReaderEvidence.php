@@ -17,7 +17,7 @@ final class DelimitedTextUpstreamReaderEvidence
     public const EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT = 2;
     public const EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT = 0;
     public const EXPECTED_STATIC_CSV_ADJACENT_RST_FIXTURE_COUNT = 2;
-    public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 15;
+    public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 16;
     public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 11;
 
     private const CHECKED_IN_CURRENT_CSV_FIXTURES = [
@@ -247,6 +247,20 @@ final class DelimitedTextUpstreamReaderEvidence
             'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/cr-only-rows.native',
             'sha256' => 'a505f9be0ae0712a85d2ce4f9d035e7299d2b730b327a9d81ddfe10bbc2a8b3f',
             'bytes' => 1227,
+        ],
+        'unterminated-quote-eof.csv' => [
+            'role' => 'generated-csv-native-parity-input-fixture',
+            'sample' => 'unterminated-quote-eof',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/unterminated-quote-eof.csv',
+            'sha256' => '272c4e0c03e402d21e2b808459fc913dd3eacc2e7c9dafdfb6f506c8127eb747',
+            'bytes' => 34,
+        ],
+        'unterminated-quote-eof.native' => [
+            'role' => 'generated-csv-native-parity-expected-native-output',
+            'sample' => 'unterminated-quote-eof',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/unterminated-quote-eof.native',
+            'sha256' => '754ba8a6135cf7f7064b714cb6a33990958865e0a5ee04532710a74cc395e74b',
+            'bytes' => 925,
         ],
     ];
 
@@ -482,6 +496,10 @@ final class DelimitedTextUpstreamReaderEvidence
         'cr-only-rows' => [
             'inputPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/cr-only-rows.csv',
             'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/cr-only-rows.native',
+        ],
+        'unterminated-quote-eof' => [
+            'inputPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/unterminated-quote-eof.csv',
+            'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/unterminated-quote-eof.native',
         ],
     ];
 
