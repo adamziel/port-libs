@@ -8,6 +8,25 @@ use PortLibs\Pandoc\RstReader;
 
 $read = static fn (string $source): AstNode => (new RstReader())->read($source);
 
+$upstreamRstCsvTableFixture = static function (): array {
+    $root = dirname(__DIR__) . '/fixtures/upstream-current-rst-csv-table';
+    $markdownPath = $root . '/3533-rst-csv-tables.md';
+    $csvPath = $root . '/command/3533-rst-csv-tables.csv';
+    $markdown = (string) file_get_contents($markdownPath);
+
+    if (preg_match_all('/% pandoc -f rst -t native\n(?P<rst>.*?)\n\^D/s', $markdown, $matches) !== 3) {
+        throw new RuntimeException('Unable to parse checked-in upstream RST csv-table command fixture');
+    }
+
+    return [
+        'root' => $root,
+        'markdownPath' => $markdownPath,
+        'csvPath' => $csvPath,
+        'markdown' => $markdown,
+        'rst' => $matches['rst'],
+    ];
+};
+
 $plainText = static function (AstNode $node) use (&$plainText): string {
     if ($node->type === 'text' || $node->type === 'code') {
         return (string) $node->attr('text', '');
@@ -157,5 +176,76 @@ RST);
             $t->same('Fresh, green', $plainText($body->children[0]->children[2]));
             $t->same('Orange', $plainText($body->children[1]->children[0]));
             $t->same('Citrus', $plainText($body->children[1]->children[2]));
+        },
+
+    'matches upstream rst csv-table file widths and dialect options' =>
+        static function (TestRunner $t) use ($upstreamRstCsvTableFixture, $plainText): void {
+            $fixture = $upstreamRstCsvTableFixture();
+            $reader = new RstReader(['resourceBasePath' => $fixture['root']]);
+
+            $t->same(6305, filesize($fixture['markdownPath']));
+            $t->same('57ad43778058547f8d1bcf7f1a5d2f87d97aa1f70cc88e0408201233aff78340', hash_file('sha256', $fixture['markdownPath']));
+            $t->same(122, filesize($fixture['csvPath']));
+            $t->same('78734675435efeb84bbc7b182bdb5b454de689b49b8acc67509f9260614b2005', hash_file('sha256', $fixture['csvPath']));
+
+            $fileTable = $reader->read($fixture['rst'][0])->children[0] ?? new AstNode('missing');
+            $fileHead = $fileTable->children[0] ?? new AstNode('missing');
+            $fileBody = $fileTable->children[1] ?? new AstNode('missing');
+            $filePacket = $fileTable->attr('delimitedText');
+            $fileRstPacket = $fileTable->attr('rstCsvTable');
+
+            $t->same('table', $fileTable->type);
+            $t->same('rst-csv-table', $fileTable->attr('sourceFormat'));
+            $t->same('Test', $fileTable->attr('caption'));
+            $t->same(['Flavor', 'Price', 'Slogan'], $fileTable->attr('columnNames'));
+            $t->same([0.4, 0.2, 0.4], $fileTable->attr('widths'));
+            $t->same('Flavor', $plainText($fileHead->children[0]->children[0]));
+            $t->same('Slogan', $plainText($fileHead->children[0]->children[2]));
+            $t->same('Albatross', $plainText($fileBody->children[0]->children[0]));
+            $t->same('On a stick!', $plainText($fileBody->children[0]->children[2]));
+            $t->same('Crunchy Frog', $plainText($fileBody->children[1]->children[0]));
+            $t->same("If we took the bones out, it wouldn't be\ncrunchy, now would it?", $fileBody->children[1]->children[2]->attr('text'));
+            $t->same('softbreak', $fileBody->children[1]->children[2]->children[0]->children[1]->type);
+            $t->same(true, $fileRstPacket['headerOption'] ?? null);
+            $t->same(0, $fileRstPacket['headerRowsOption'] ?? null);
+            $t->same('command/3533-rst-csv-tables.csv', $fileRstPacket['fileOption'] ?? null);
+            $t->same(true, $fileRstPacket['file']['present'] ?? null);
+            $t->same('78734675435efeb84bbc7b182bdb5b454de689b49b8acc67509f9260614b2005', $fileRstPacket['file']['sha256'] ?? null);
+            $t->same(122, $fileRstPacket['file']['bytes'] ?? null);
+            $t->same('csv', $filePacket['format'] ?? null);
+            $t->same('explicit', $filePacket['formatInference']['source'] ?? null);
+            $t->same('command/3533-rst-csv-tables.csv', $filePacket['inputPrefix']['formatContext']['sourcePath'] ?? null);
+            $t->same('csv', $filePacket['inputPrefix']['formatContext']['sourcePathFormat'] ?? null);
+
+            $headerRowsTable = $reader->read($fixture['rst'][1])->children[0] ?? new AstNode('missing');
+            $headerRowsHead = $headerRowsTable->children[0] ?? new AstNode('missing');
+            $headerRowsBody = $headerRowsTable->children[1] ?? new AstNode('missing');
+            $headerRowsPacket = $headerRowsTable->attr('delimitedText');
+            $headerRowsRstPacket = $headerRowsTable->attr('rstCsvTable');
+
+            $t->same(['', 'a', 'b'], $headerRowsTable->attr('columnNames'));
+            $t->same('', $plainText($headerRowsHead->children[0]->children[0]));
+            $t->same('a', $plainText($headerRowsHead->children[0]->children[1]));
+            $t->same("cat's", $plainText($headerRowsBody->children[0]->children[0]));
+            $t->same("dog's", $plainText($headerRowsBody->children[1]->children[0]));
+            $t->same(1, $headerRowsRstPacket['headerRowsOption'] ?? null);
+            $t->same(false, $headerRowsRstPacket['headerOption'] ?? null);
+            $t->same(' ', $headerRowsPacket['delimiter'] ?? null);
+            $t->same("'", $headerRowsPacket['quote'] ?? null);
+            $t->same('first-row', $headerRowsPacket['headerOption'] ?? null);
+
+            $escapeTable = $reader->read($fixture['rst'][2])->children[0] ?? new AstNode('missing');
+            $escapeHead = $escapeTable->children[0] ?? new AstNode('missing');
+            $escapeBody = $escapeTable->children[1] ?? new AstNode('missing');
+            $escapePacket = $escapeTable->attr('delimitedText');
+            $escapeRstPacket = $escapeTable->attr('rstCsvTable');
+
+            $t->same([], $escapeHead->children);
+            $t->same(['column1', 'column2'], $escapeTable->attr('columnNames'));
+            $t->same('1', $plainText($escapeBody->children[0]->children[0]));
+            $t->same('"', $plainText($escapeBody->children[0]->children[1]));
+            $t->same('\\', $escapePacket['escape'] ?? null);
+            $t->same(0, $escapeRstPacket['headerRowsOption'] ?? null);
+            $t->same(null, $escapeRstPacket['fileOption'] ?? null);
         },
 ];

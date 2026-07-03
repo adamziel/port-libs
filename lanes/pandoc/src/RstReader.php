@@ -14,6 +14,13 @@ final class RstReader
     /** @var array<string, int> */
     private array $sectionLevels = [];
 
+    /**
+     * @param array{resourceBasePath?: string, sourceDirectory?: string} $options
+     */
+    public function __construct(private readonly array $options = [])
+    {
+    }
+
     public function read(string $text): AstNode
     {
         $normalized = str_replace(["\r\n", "\r"], "\n", $text);
@@ -281,30 +288,61 @@ final class RstReader
         $options = $this->parseDirectiveOptions();
         $body = $this->collectIndentedBlock($this->nextIndentedLineIndent($this->index) ?? 1);
         $header = trim((string) ($options['header'] ?? ''));
+        $file = trim((string) ($options['file'] ?? ''));
+        $fileEvidence = null;
+        if ($file !== '') {
+            $fileEvidence = $this->csvTableFileEvidence($file);
+            $body = is_string($fileEvidence['contents']) ? $fileEvidence['contents'] : '';
+        }
         $source = $header === '' ? $body : $header . "\n" . $body;
+        $headerRows = $this->csvTableHeaderRows($options['header-rows'] ?? null);
         $readerOptions = [
-            'header' => $header !== '',
+            'cellLineBreak' => 'softbreak',
+            'header' => $header !== '' || $headerRows > 0,
             'strictParsing' => false,
         ];
         if (isset($options['delim']) && $options['delim'] !== '') {
             $readerOptions['delimiter'] = $options['delim'];
         }
+        if (isset($options['quote']) && $options['quote'] !== '') {
+            $readerOptions['quote'] = $options['quote'];
+        }
+        if (isset($options['escape']) && $options['escape'] !== '') {
+            $readerOptions['escape'] = $options['escape'];
+        }
+        if ($file !== '') {
+            $readerOptions['sourcePath'] = $file;
+        }
         $document = (new DelimitedTextReader())->readCsv($source, $readerOptions);
         $table = $document->children[0] ?? new AstNode('table');
         $packet = is_array($table->attr('delimitedText')) ? $table->attr('delimitedText') : [];
-
-        return new AstNode('table', array_replace($table->attrs, [
+        $attrs = array_replace($table->attrs, [
             'sourceFormat' => 'rst-csv-table',
             'caption' => $caption,
             'rstDirective' => 'csv-table',
             'rstCsvTable' => [
                 'caption' => $caption,
                 'headerOption' => $header !== '',
+                'headerRowsOption' => $headerRows,
+                'fileOption' => $file === '' ? null : $file,
+                'file' => $fileEvidence === null ? null : [
+                    'path' => $fileEvidence['path'],
+                    'resolvedPath' => $fileEvidence['resolvedPath'],
+                    'present' => $fileEvidence['present'],
+                    'sha256' => $fileEvidence['sha256'],
+                    'bytes' => $fileEvidence['bytes'],
+                ],
                 'optionNames' => array_keys($options),
-                'bodyLineCount' => $body === '' ? 0 : count(explode("\n", $body)),
+                'bodyLineCount' => $body === '' ? 0 : count(explode("\n", rtrim($body, "\n"))),
                 'delimitedText' => $packet,
             ],
-        ]), $table->children);
+        ]);
+        $widths = $this->csvTableWidths($options['widths'] ?? null, count(is_array($attrs['columnNames'] ?? null) ? $attrs['columnNames'] : []));
+        if ($widths !== null) {
+            $attrs['widths'] = $widths;
+        }
+
+        return new AstNode('table', $attrs, $table->children);
     }
 
     /**
@@ -329,6 +367,95 @@ final class RstReader
         }
 
         return $options;
+    }
+
+    /**
+     * @return array{path: string, resolvedPath: ?string, present: bool, sha256: ?string, bytes: ?int, contents: ?string}
+     */
+    private function csvTableFileEvidence(string $path): array
+    {
+        $resolved = $this->resolveCsvTableFilePath($path);
+        $present = $resolved !== null && is_file($resolved);
+        $contents = $present ? file_get_contents((string) $resolved) : null;
+
+        return [
+            'path' => $path,
+            'resolvedPath' => $resolved,
+            'present' => $present,
+            'sha256' => $present ? hash_file('sha256', (string) $resolved) : null,
+            'bytes' => $present ? filesize((string) $resolved) : null,
+            'contents' => is_string($contents) ? $contents : null,
+        ];
+    }
+
+    private function resolveCsvTableFilePath(string $path): ?string
+    {
+        if ($path === '') {
+            return null;
+        }
+        if (str_starts_with($path, DIRECTORY_SEPARATOR)) {
+            return $path;
+        }
+
+        $base = $this->options['resourceBasePath'] ?? $this->options['sourceDirectory'] ?? null;
+        if (!is_string($base) || $base === '') {
+            return null;
+        }
+
+        return rtrim($base, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $path);
+    }
+
+    private function csvTableHeaderRows(mixed $value): int
+    {
+        if (!is_string($value)) {
+            return 0;
+        }
+
+        $value = trim($value);
+        if ($value === '' || !ctype_digit($value)) {
+            return 0;
+        }
+
+        return max(0, (int) $value);
+    }
+
+    /**
+     * @return list<float>|null
+     */
+    private function csvTableWidths(mixed $value, int $columnCount): ?array
+    {
+        if (!is_string($value)) {
+            return null;
+        }
+
+        $parts = array_values(array_filter(
+            preg_split('/[,\s]+/', trim($value)) ?: [],
+            static fn (string $part): bool => $part !== ''
+        ));
+        if ($parts === []) {
+            return null;
+        }
+
+        $weights = [];
+        foreach ($parts as $part) {
+            if (!is_numeric($part)) {
+                return null;
+            }
+            $weights[] = max(0.0, (float) $part);
+        }
+
+        $sum = array_sum($weights);
+        if ($sum <= 0.0) {
+            return null;
+        }
+        if ($columnCount > 0 && count($weights) !== $columnCount) {
+            return null;
+        }
+
+        return array_map(
+            static fn (float $weight): float => $weight / $sum,
+            $weights
+        );
     }
 
     private function parseIndentedCodeBlock(int $minimumIndent, string $language = ''): AstNode

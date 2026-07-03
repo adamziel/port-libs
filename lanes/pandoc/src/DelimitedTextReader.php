@@ -12,7 +12,7 @@ final class DelimitedTextReader
     private const CONTROL_CHARACTER_SAMPLE_RADIUS = 4;
 
     /**
-     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool, strictParsing?:bool} $options
+     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool, strictParsing?:bool, cellLineBreak?:string} $options
      */
     public function readCsv(string $text, array $options = []): AstNode
     {
@@ -20,7 +20,7 @@ final class DelimitedTextReader
     }
 
     /**
-     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool, strictParsing?:bool} $options
+     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool, strictParsing?:bool, cellLineBreak?:string} $options
      */
     public function readTsv(string $text, array $options = []): AstNode
     {
@@ -28,7 +28,7 @@ final class DelimitedTextReader
     }
 
     /**
-     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool, strictParsing?:bool} $options
+     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool, strictParsing?:bool, cellLineBreak?:string} $options
      */
     public function readAuto(string $text, array $options = []): AstNode
     {
@@ -36,7 +36,7 @@ final class DelimitedTextReader
     }
 
     /**
-     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool, strictParsing?:bool} $options
+     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool, strictParsing?:bool, cellLineBreak?:string} $options
      */
     public function read(string $text, string $format = 'csv', array $options = []): AstNode
     {
@@ -53,6 +53,7 @@ final class DelimitedTextReader
         $formatInference = $formatResolution['formatInference'];
         $inputPrefix['formatContext'] = $this->formatContext($formatResolution, $options);
         $hasHeader = $this->headerOption($options);
+        $cellLineBreak = $this->cellLineBreakOption($options);
 
         $parse = $this->parseRowsWithDiagnostics($sourceText, $dialect);
         if ($strictParsing) {
@@ -78,12 +79,12 @@ final class DelimitedTextReader
         $sourceHeaderFieldMetadata = $hasHeader ? array_shift($fieldMetadataRows) : null;
         $tableRows = [];
         foreach ($rows as $index => $row) {
-            $tableRows[] = $this->tableRow($row, false, $columnCount, $fieldMetadataRows[$index] ?? []);
+            $tableRows[] = $this->tableRow($row, false, $columnCount, $fieldMetadataRows[$index] ?? [], $cellLineBreak);
         }
 
         $headRows = [];
         if ($sourceHeader !== null) {
-            $headRows[] = $this->tableRow($sourceHeader, true, $columnCount, $sourceHeaderFieldMetadata ?? []);
+            $headRows[] = $this->tableRow($sourceHeader, true, $columnCount, $sourceHeaderFieldMetadata ?? [], $cellLineBreak);
         }
 
         $table = TableGeometry::withReviewPacket(new AstNode('table', [
@@ -1014,7 +1015,7 @@ final class DelimitedTextReader
      * @param list<string> $row
      * @param list<array<string, mixed>> $fieldMetadata
      */
-    private function tableRow(array $row, bool $header, int $columnCount, array $fieldMetadata = []): AstNode
+    private function tableRow(array $row, bool $header, int $columnCount, array $fieldMetadata = [], string $cellLineBreak = 'linebreak'): AstNode
     {
         $cells = [];
         $originalColumnCount = count($row);
@@ -1033,7 +1034,7 @@ final class DelimitedTextReader
                 'repairedColumnCount' => $columnCount,
                 'rowRepair' => $rowRepair,
                 ...$this->cellSourceProvenance($metadata, $rowSource, $column),
-            ], $text === '' ? [] : [new AstNode('plain', [], $this->cellInlines($text))]);
+            ], $text === '' ? [] : [new AstNode('plain', [], $this->cellInlines($text, $cellLineBreak))]);
         }
 
         return new AstNode('table_row', ['header' => $header], $cells);
@@ -1107,7 +1108,7 @@ final class DelimitedTextReader
     /**
      * @return list<AstNode>
      */
-    private function cellInlines(string $text): array
+    private function cellInlines(string $text, string $cellLineBreak): array
     {
         if ($text === '') {
             return [];
@@ -1121,7 +1122,7 @@ final class DelimitedTextReader
         $inlines = [];
         foreach ($parts as $index => $part) {
             if ($index > 0) {
-                $inlines[] = new AstNode('linebreak');
+                $inlines[] = new AstNode($cellLineBreak);
             }
             if ($part !== '') {
                 $inlines[] = new AstNode('text', ['text' => $part]);
@@ -1129,6 +1130,24 @@ final class DelimitedTextReader
         }
 
         return $inlines;
+    }
+
+    /**
+     * @param array{cellLineBreak?:string} $options
+     */
+    private function cellLineBreakOption(array $options): string
+    {
+        $value = $options['cellLineBreak'] ?? 'linebreak';
+        if (!is_string($value)) {
+            throw new \InvalidArgumentException('Delimited text cellLineBreak option must be a string');
+        }
+
+        $value = strtolower(trim($value));
+        return match ($value) {
+            '', 'linebreak' => 'linebreak',
+            'softbreak' => 'softbreak',
+            default => throw new \InvalidArgumentException('Delimited text cellLineBreak option must be linebreak or softbreak'),
+        };
     }
 
     /**
