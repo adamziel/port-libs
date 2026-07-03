@@ -335,8 +335,11 @@ return [
         $t->same(['EPUB/text/chapter.xhtml'], $meta['epubReadableResources']);
         $t->same(['EPUB/toc.ncx', 'EPUB/nav.xhtml'], $meta['epubTocResources']);
         $t->same(1, $meta['epubTocEntryCount']);
-        $t->same('heading', $roundTrip->children[0]->type);
-        $t->same('Converter EPUB', $roundTrip->children[0]->attr('text'));
+        $t->same('paragraph', $roundTrip->children[0]->type);
+        $t->same('span', $roundTrip->children[0]->children[0]->type);
+        $t->same('chapter.xhtml', $roundTrip->children[0]->children[0]->attr('id'));
+        $t->same('heading', $roundTrip->children[1]->type);
+        $t->same('Converter EPUB', $roundTrip->children[1]->attr('text'));
     },
     'packages media resources and marks a configured cover image' => static function (TestRunner $t) use ($text): void {
         $coverBytes = "cover image bytes\n";

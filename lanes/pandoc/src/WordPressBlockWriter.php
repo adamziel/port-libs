@@ -6,6 +6,20 @@ namespace PortLibs\Pandoc;
 
 final class WordPressBlockWriter
 {
+    /** @var list<string> */
+    private const SAFE_GLOBAL_HTML_ATTRIBUTES = [
+        'autocapitalize',
+        'autocorrect',
+        'enterkeyhint',
+        'exportparts',
+        'inputmode',
+        'part',
+        'slot',
+        'spellcheck',
+        'virtualkeyboardpolicy',
+        'writingsuggestions',
+    ];
+
     /** @var list<array{number:int, anchor:string, label:string, node:AstNode}> */
     private array $footnotes = [];
 
@@ -1405,8 +1419,8 @@ final class WordPressBlockWriter
      */
     private function storedTableAttrMap(AstNode $node, bool $includeIdentity, array $skip): array
     {
-        $htmlAttributes = $node->attr('htmlAttributes', []);
-        if (!is_array($htmlAttributes) || $htmlAttributes === []) {
+        $htmlAttributes = $this->inlineHtmlAttributes($node);
+        if ($htmlAttributes === []) {
             return [];
         }
 
@@ -1698,6 +1712,7 @@ final class WordPressBlockWriter
             if (in_array($name, ['id', 'class', 'abbr', 'axis', 'char', 'charoff', 'dir', 'headers', 'role', 'title'], true)
                 || str_starts_with($name, 'data-')
                 || str_starts_with($name, 'aria-')
+                || $this->isAllowedSafeGlobalHtmlAttr($name)
             ) {
                 $sanitized[$name] = $value;
             }
@@ -2245,8 +2260,8 @@ final class WordPressBlockWriter
      */
     private function renderStoredHtmlAttrs(AstNode $node, bool $includeIdentity, array $skip): string
     {
-        $htmlAttributes = $node->attr('htmlAttributes', []);
-        if (!is_array($htmlAttributes) || $htmlAttributes === []) {
+        $htmlAttributes = $this->inlineHtmlAttributes($node);
+        if ($htmlAttributes === []) {
             return '';
         }
 
@@ -2309,6 +2324,7 @@ final class WordPressBlockWriter
 
         return str_starts_with($name, 'data-')
             || str_starts_with($name, 'aria-')
+            || $this->isAllowedSafeGlobalHtmlAttr($name)
             || in_array($name, [
                 'abbr',
                 'axis',
@@ -2349,6 +2365,7 @@ final class WordPressBlockWriter
     {
         return str_starts_with($name, 'data-')
             || str_starts_with($name, 'aria-')
+            || $this->isAllowedSafeGlobalHtmlAttr($name)
             || in_array($name, ['id', 'class', 'dir', 'role', 'summary', 'title'], true);
     }
 
@@ -2360,6 +2377,7 @@ final class WordPressBlockWriter
 
         return str_starts_with($name, 'data-')
             || str_starts_with($name, 'aria-')
+            || $this->isAllowedSafeGlobalHtmlAttr($name)
             || in_array($name, ['class', 'dir', 'id', 'lang', 'role', 'style', 'title', 'translate', 'xml:lang'], true);
     }
 
@@ -2371,6 +2389,7 @@ final class WordPressBlockWriter
 
         return str_starts_with($name, 'data-')
             || str_starts_with($name, 'aria-')
+            || $this->isAllowedSafeGlobalHtmlAttr($name)
             || in_array($name, ['align', 'bgcolor', 'char', 'charoff', 'class', 'dir', 'id', 'lang', 'role', 'title', 'translate', 'valign', 'xml:lang'], true);
     }
 
@@ -2801,21 +2820,30 @@ final class WordPressBlockWriter
         }
 
         $sourceAttrs = $this->inlineHtmlAttributes($node);
-        $attrs .= $this->renderImageDimensionAttrs($sourceAttrs);
-        $sourceFormat = $this->unsupportedWordPressImageSourceFormat((string) $node->attr('url', ''));
-        if ($sourceFormat !== '' && !isset($sourceAttrs['data-pandoc-source-format'])) {
-            $attrs .= ' data-pandoc-source-format="' . $this->esc($sourceFormat) . '"';
+        $dimensionAttrs = $sourceAttrs;
+        foreach (['width', 'height'] as $dimension) {
+            if (!isset($dimensionAttrs[$dimension])) {
+                $dimensionValue = trim((string) $node->attr($dimension, ''));
+                if ($dimensionValue !== '') {
+                    $dimensionAttrs[$dimension] = $dimensionValue;
+                }
+            }
         }
+        $sourceFormat = $this->unsupportedWordPressImageSourceFormat((string) $node->attr('url', ''));
         foreach ($sourceAttrs as $name => $value) {
             $name = strtolower((string) $name);
             if (
-                in_array($name, ['src', 'href', 'alt', 'title', 'width', 'height', 'style'], true)
+                in_array($name, ['src', 'href', 'alt', 'title', 'width', 'height', 'style', 'data-pandoc-source-format'], true)
                 || !$this->isAllowedImageHtmlAttr($name)
             ) {
                 continue;
             }
 
             $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+        }
+        $attrs .= $this->renderImageDimensionAttrs($dimensionAttrs);
+        if ($sourceFormat !== '' && !isset($sourceAttrs['data-pandoc-source-format'])) {
+            $attrs .= ' data-pandoc-source-format="' . $this->esc($sourceFormat) . '"';
         }
 
         return '<img' . $attrs . '/>';
@@ -2846,6 +2874,11 @@ final class WordPressBlockWriter
         foreach (['width', 'height'] as $dimension) {
             $value = trim((string) ($sourceAttrs[$dimension] ?? ''));
             if ($value === '') {
+                continue;
+            }
+
+            if (preg_match('/^[1-9][0-9]{0,4}$/', $value) === 1) {
+                $attrs .= ' ' . $dimension . '="' . $this->esc((string) (int) $value) . '"';
                 continue;
             }
 
@@ -4121,7 +4154,8 @@ final class WordPressBlockWriter
 
         return str_starts_with($name, 'data-')
             || str_starts_with($name, 'aria-')
-            || in_array($name, ['cite', 'class', 'dir', 'id', 'lang', 'role', 'style', 'title', 'translate', 'xml:lang'], true);
+            || $this->isAllowedSafeGlobalHtmlAttr($name)
+            || in_array($name, ['cite', 'class', 'dir', 'id', 'lang', 'role', 'title', 'translate', 'xml:lang'], true);
     }
 
     private function isAllowedBlockHtmlAttr(string $name): bool
@@ -4132,6 +4166,7 @@ final class WordPressBlockWriter
 
         return str_starts_with($name, 'data-')
             || str_starts_with($name, 'aria-')
+            || $this->isAllowedSafeGlobalHtmlAttr($name)
             || in_array($name, ['class', 'dir', 'id', 'lang', 'role', 'title', 'translate', 'xml:lang'], true);
     }
 
@@ -4143,7 +4178,13 @@ final class WordPressBlockWriter
 
         return str_starts_with($name, 'data-')
             || str_starts_with($name, 'aria-')
-            || in_array($name, ['class', 'decoding', 'dir', 'fetchpriority', 'id', 'lang', 'loading', 'sizes', 'srcset'], true);
+            || $this->isAllowedSafeGlobalHtmlAttr($name)
+            || in_array($name, ['class', 'decoding', 'dir', 'fetchpriority', 'id', 'lang', 'loading', 'sizes', 'srcset', 'xml:lang'], true);
+    }
+
+    private function isAllowedSafeGlobalHtmlAttr(string $name): bool
+    {
+        return in_array($name, self::SAFE_GLOBAL_HTML_ATTRIBUTES, true);
     }
 
     private function renderMathInline(AstNode $node): string

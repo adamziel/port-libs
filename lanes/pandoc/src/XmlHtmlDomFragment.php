@@ -104,6 +104,7 @@ final class XmlHtmlDomFragment
     public static function parseHtml(string $html): self
     {
         self::assertSafeHtmlSource($html, 'HTML fragment');
+        $html = self::escapeHtmlTextSyntax($html);
         $html = XmlHtmlDom::protectHtmlRcdataElements($html);
 
         $previous = libxml_use_internal_errors(true);
@@ -132,6 +133,144 @@ final class XmlHtmlDomFragment
         $children = self::domChildrenToFragmentNodes($body, true, $diagnostics);
 
         return new self('html', new AstNode('dom_fragment', ['format' => 'html'], $children), $diagnostics);
+    }
+
+    private static function escapeHtmlTextSyntax(string $html): string
+    {
+        $length = strlen($html);
+        $escaped = '';
+        $offset = 0;
+
+        while ($offset < $length) {
+            $char = $html[$offset];
+            if ($char === '<') {
+                if (str_starts_with(substr($html, $offset, 4), '<!--')) {
+                    [$section, $nextOffset] = self::copyHtmlSection($html, $offset, '-->');
+                    $escaped .= $section;
+                    $offset = $nextOffset;
+                    continue;
+                }
+                if (str_starts_with(substr($html, $offset, 9), '<![CDATA[')) {
+                    [$section, $nextOffset] = self::copyHtmlSection($html, $offset, ']]>');
+                    $escaped .= $section;
+                    $offset = $nextOffset;
+                    continue;
+                }
+                if (self::isHtmlDeclarationLikeStartForTextSyntax($html, $offset)) {
+                    [, $nextOffset] = self::copyHtmlTagSource($html, $offset);
+                    $offset = $nextOffset;
+                    continue;
+                }
+                if (self::isHtmlTagStartForTextSyntax($html, $offset)) {
+                    [$tag, $nextOffset] = self::copyHtmlTagSource($html, $offset);
+                    $escaped .= $tag;
+                    $offset = $nextOffset;
+                    continue;
+                }
+
+                $escaped .= '&lt;';
+                ++$offset;
+                continue;
+            }
+
+            if ($char === '&') {
+                $entityLength = self::htmlEntityReferenceLength($html, $offset);
+                if ($entityLength > 0) {
+                    $escaped .= substr($html, $offset, $entityLength);
+                    $offset += $entityLength;
+                    continue;
+                }
+
+                $escaped .= '&amp;';
+                ++$offset;
+                continue;
+            }
+
+            $escaped .= $char;
+            ++$offset;
+        }
+
+        return $escaped;
+    }
+
+    private static function isHtmlDeclarationLikeStartForTextSyntax(string $source, int $offset): bool
+    {
+        $next = $source[$offset + 1] ?? '';
+
+        return $next === '!' || $next === '?';
+    }
+
+    private static function isHtmlTagStartForTextSyntax(string $source, int $offset): bool
+    {
+        $length = strlen($source);
+        $nameOffset = $offset + 1;
+        if ($nameOffset >= $length) {
+            return false;
+        }
+
+        if ($source[$nameOffset] === '/') {
+            ++$nameOffset;
+        }
+
+        return $nameOffset < $length && preg_match('/[A-Za-z]/', $source[$nameOffset]) === 1;
+    }
+
+    /**
+     * @return array{0:string, 1:int}
+     */
+    private static function copyHtmlSection(string $source, int $offset, string $terminator): array
+    {
+        $end = strpos($source, $terminator, $offset + strlen($terminator));
+        if ($end === false) {
+            return [substr($source, $offset), strlen($source)];
+        }
+
+        $nextOffset = $end + strlen($terminator);
+
+        return [substr($source, $offset, $nextOffset - $offset), $nextOffset];
+    }
+
+    /**
+     * @return array{0:string, 1:int}
+     */
+    private static function copyHtmlTagSource(string $source, int $offset): array
+    {
+        $length = strlen($source);
+        $tag = '';
+        $quote = null;
+
+        while ($offset < $length) {
+            $char = $source[$offset];
+            $tag .= $char;
+            ++$offset;
+
+            if ($quote !== null) {
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '>') {
+                break;
+            }
+        }
+
+        return [$tag, $offset];
+    }
+
+    private static function htmlEntityReferenceLength(string $source, int $offset): int
+    {
+        if (preg_match('/^&(?:#[0-9]+|#x[0-9A-Fa-f]+|[A-Za-z][A-Za-z0-9]+);/', substr($source, $offset), $match) !== 1) {
+            return 0;
+        }
+
+        return strlen($match[0]);
     }
 
     public static function parseXml(string $xml): self
