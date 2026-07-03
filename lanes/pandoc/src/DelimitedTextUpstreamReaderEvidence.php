@@ -1424,7 +1424,9 @@ final class DelimitedTextUpstreamReaderEvidence
             }
 
             try {
-                $document = (new DelimitedTextReader())->readCsv($input, $readerOptions);
+                $executionReaderOptions = $readerOptions;
+                $executionReaderOptions['strictParsing'] = false;
+                $document = (new DelimitedTextReader())->readCsv($input, $executionReaderOptions);
                 $generatedNative = PandocConverter::write($document, 'native');
             } catch (\Throwable $throwable) {
                 $failure = [
@@ -1572,7 +1574,9 @@ final class DelimitedTextUpstreamReaderEvidence
             }
 
             try {
-                $document = (new DelimitedTextReader())->readTsv($input, $readerOptions);
+                $executionReaderOptions = $readerOptions;
+                $executionReaderOptions['strictParsing'] = false;
+                $document = (new DelimitedTextReader())->readTsv($input, $executionReaderOptions);
                 $generatedNative = PandocConverter::write($document, 'native');
             } catch (\Throwable $throwable) {
                 $failure = [

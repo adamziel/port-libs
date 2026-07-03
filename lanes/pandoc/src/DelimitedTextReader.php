@@ -12,7 +12,7 @@ final class DelimitedTextReader
     private const CONTROL_CHARACTER_SAMPLE_RADIUS = 4;
 
     /**
-     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool} $options
+     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool, strictParsing?:bool} $options
      */
     public function readCsv(string $text, array $options = []): AstNode
     {
@@ -20,7 +20,7 @@ final class DelimitedTextReader
     }
 
     /**
-     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool} $options
+     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool, strictParsing?:bool} $options
      */
     public function readTsv(string $text, array $options = []): AstNode
     {
@@ -28,7 +28,7 @@ final class DelimitedTextReader
     }
 
     /**
-     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool} $options
+     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool, strictParsing?:bool} $options
      */
     public function readAuto(string $text, array $options = []): AstNode
     {
@@ -36,12 +36,16 @@ final class DelimitedTextReader
     }
 
     /**
-     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool} $options
+     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool, strictParsing?:bool} $options
      */
     public function read(string $text, string $format = 'csv', array $options = []): AstNode
     {
         $inputPrefix = $this->inputPrefixReview($text);
-        $sourceText = $this->pandocSourceText($this->inputTextAfterSupportedPrefix($text, $inputPrefix), $inputPrefix);
+        $strictParsing = $this->strictParsingOption($options);
+        $prefixText = $strictParsing
+            ? $this->inputTextAfterBomPrefix($text, $inputPrefix)
+            : $this->inputTextAfterSupportedPrefix($text, $inputPrefix);
+        $sourceText = $this->pandocSourceText($prefixText, $inputPrefix);
         $formatResolution = $this->formatResolution($format, $sourceText, $options);
         $format = $formatResolution['format'];
         $dialect = $this->dialectProfile($format, $options);
@@ -51,6 +55,9 @@ final class DelimitedTextReader
         $hasHeader = $this->headerOption($options);
 
         $parse = $this->parseRowsWithDiagnostics($sourceText, $dialect);
+        if ($strictParsing) {
+            $this->assertStrictParsing($format, $inputPrefix, $parse);
+        }
         $rows = $parse['rows'];
         $sourceRowIndexes = $parse['sourceRowIndexes'];
         $blankRows = $parse['blankRows'];
@@ -278,6 +285,22 @@ final class DelimitedTextReader
         }
 
         return $options['header'];
+    }
+
+    /**
+     * @param array{strictParsing?:bool} $options
+     */
+    private function strictParsingOption(array $options): bool
+    {
+        if (!array_key_exists('strictParsing', $options)) {
+            return true;
+        }
+
+        if (!is_bool($options['strictParsing'])) {
+            throw new \InvalidArgumentException('Delimited text strictParsing option must be a boolean');
+        }
+
+        return $options['strictParsing'];
     }
 
     /**
@@ -700,6 +723,64 @@ final class DelimitedTextReader
             'diagnostics' => $diagnostics,
             'metrics' => $metrics,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $inputPrefix
+     * @param array{
+     *     rows:list<list<string>>,
+     *     sourceRowIndexes:list<int>,
+     *     blankRows:list<int>,
+     *     diagnostics:list<array{code:string, severity:string, message:string, row:int, column:int, offset:int}>,
+     *     metrics:array<string, int>
+     * } $parse
+     */
+    private function assertStrictParsing(string $format, array $inputPrefix, array $parse): void
+    {
+        if ((int) ($inputPrefix['leadingWhitespaceByteCount'] ?? 0) > 0) {
+            $line = (int) ($inputPrefix['firstContentLine'] ?? 1);
+            throw new \InvalidArgumentException("Malformed {$format} input: leading blank or whitespace-only records before line {$line} are not valid.");
+        }
+
+        $blankRows = is_array($parse['blankRows'] ?? null) ? $parse['blankRows'] : [];
+        if ($blankRows !== []) {
+            $row = (int) $blankRows[0] + 1;
+            throw new \InvalidArgumentException("Malformed {$format} input: blank record at line {$row}.");
+        }
+
+        $metrics = is_array($parse['metrics'] ?? null) ? $parse['metrics'] : [];
+        if ((int) ($metrics['textAfterClosingQuoteCount'] ?? 0) > 0) {
+            $diagnostic = $this->firstParseDiagnostic($parse, 'delimited-text-text-after-closing-quote');
+            $row = $diagnostic === null ? null : ((int) $diagnostic['row'] + 1);
+            $column = $diagnostic === null ? null : ((int) $diagnostic['column'] + 1);
+            $location = $row === null ? '' : " at line {$row}, column {$column}";
+            throw new \InvalidArgumentException("Malformed {$format} input: text after a closing quote{$location}.");
+        }
+
+        if ((int) ($metrics['unclosedQuoteCount'] ?? 0) > 0) {
+            $diagnostic = $this->firstParseDiagnostic($parse, 'delimited-text-unclosed-quoted-field');
+            $row = $diagnostic === null ? null : ((int) $diagnostic['row'] + 1);
+            $column = $diagnostic === null ? null : ((int) $diagnostic['column'] + 1);
+            $location = $row === null ? '' : " starting at line {$row}, column {$column}";
+            throw new \InvalidArgumentException("Malformed {$format} input: quoted field reaches end of input before a closing quote{$location}.");
+        }
+    }
+
+    /**
+     * @param array{
+     *     diagnostics:list<array{code:string, severity:string, message:string, row:int, column:int, offset:int}>
+     * } $parse
+     * @return array{code:string, severity:string, message:string, row:int, column:int, offset:int}|null
+     */
+    private function firstParseDiagnostic(array $parse, string $code): ?array
+    {
+        foreach ($parse['diagnostics'] ?? [] as $diagnostic) {
+            if (($diagnostic['code'] ?? null) === $code) {
+                return $diagnostic;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -1410,6 +1491,19 @@ final class DelimitedTextReader
         }
 
         return substr($text, $firstContentOffset);
+    }
+
+    /**
+     * @param array<string, mixed> $inputPrefix
+     */
+    private function inputTextAfterBomPrefix(string $text, array $inputPrefix): string
+    {
+        $bomByteCount = $inputPrefix['bomByteCount'] ?? 0;
+        if (!is_int($bomByteCount) || $bomByteCount <= 0) {
+            return $text;
+        }
+
+        return substr($text, $bomByteCount);
     }
 
     /**

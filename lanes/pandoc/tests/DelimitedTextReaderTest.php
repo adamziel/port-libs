@@ -364,6 +364,7 @@ return [
         $fixture = $generatedCsvNativeFixture('bom-leading-whitespace');
         $document = (new DelimitedTextReader())->readCsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/bom-leading-whitespace.csv',
+            'strictParsing' => false,
         ]);
         $table = $document->children[0];
         $packet = $table->attr('delimitedText');
@@ -414,6 +415,7 @@ return [
         $fixture = $generatedCsvNativeFixture('text-after-closing-quote');
         $document = (new DelimitedTextReader())->readCsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/text-after-closing-quote.csv',
+            'strictParsing' => false,
         ]);
         $table = $document->children[0];
         $packet = $table->attr('delimitedText');
@@ -842,6 +844,7 @@ return [
         $fixture = $generatedCsvNativeFixture('unterminated-quote-eof');
         $document = (new DelimitedTextReader())->readCsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/unterminated-quote-eof.csv',
+            'strictParsing' => false,
         ]);
         $table = $document->children[0];
         $packet = $table->attr('delimitedText');
@@ -1044,6 +1047,7 @@ return [
         $fixture = $generatedCsvNativeFixture('blank-row-skipped');
         $document = (new DelimitedTextReader())->readCsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/blank-row-skipped.csv',
+            'strictParsing' => false,
         ]);
         $table = $document->children[0];
         $packet = $table->attr('delimitedText');
@@ -1237,6 +1241,7 @@ return [
         $fixture = $generatedCsvNativeFixture('blank-input');
         $document = (new DelimitedTextReader())->readCsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/blank-input.csv',
+            'strictParsing' => false,
         ]);
         $packet = $document->attr('delimitedText');
         $native = PandocConverter::write($document, 'native');
@@ -1589,6 +1594,7 @@ return [
         $fixture = $generatedTsvNativeFixture('bom-leading-whitespace');
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/bom-leading-whitespace.tsv',
+            'strictParsing' => false,
         ]);
         $table = $document->children[0];
         $packet = $table->attr('delimitedText');
@@ -1637,6 +1643,7 @@ return [
         $fixture = $generatedTsvNativeFixture('blank-row-literal-punctuation');
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/blank-row-literal-punctuation.tsv',
+            'strictParsing' => false,
         ]);
         $table = $document->children[0];
         $packet = $table->attr('delimitedText');
@@ -2132,6 +2139,7 @@ return [
         $fixture = $generatedTsvNativeFixture('blank-input');
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/blank-input.tsv',
+            'strictParsing' => false,
         ]);
         $packet = $document->attr('delimitedText');
         $native = PandocConverter::write($document, 'native');
@@ -2815,6 +2823,7 @@ return [
         $document = (new DelimitedTextReader())->readCsv("\xEF\xBB\xBF  \r\nsource_id,title\n42,Post\n", [
             'extension' => '.csv',
             'sourcePath' => 'exports/posts.csv',
+            'strictParsing' => false,
         ]);
         $table = $document->children[0];
         $packet = $table->attr('delimitedText');
@@ -2920,7 +2929,7 @@ return [
             '1,"Doubled ""quote"" value","Backslash \"quote\" marker"',
             '2,unquoted "literal" quote,ok',
             '3,"partial quoted field',
-        ]));
+        ]), ['strictParsing' => false]);
         $table = $document->children[0];
         $packet = $table->attr('delimitedText');
         $codes = array_column($packet['diagnostics'] ?? [], 'code');
@@ -2986,7 +2995,7 @@ return [
             'id,note,status,',
             "1,\"two\nline\",ok,",
             "2,\"open\nlast",
-        ]));
+        ]), ['strictParsing' => false]);
         $table = $document->children[0];
         $packet = $table->attr('delimitedText');
         $codes = array_column($packet['diagnostics'] ?? [], 'code');
@@ -3074,6 +3083,44 @@ return [
         }
 
         $t->contains('header option must be a boolean', $message);
+    },
+    'rejects malformed csv and tsv records by default while preserving explicit recovery mode' => static function (TestRunner $t): void {
+        $reader = new DelimitedTextReader();
+        $cases = [
+            ['csv', "a,b\n\n1,2\n", 'blank record'],
+            ['csv', "\xEF\xBB\xBF\n a,b\n1,2\n", 'leading blank or whitespace-only records'],
+            ['csv', "a,b\n\"x\"tail,2\n", 'text after a closing quote'],
+            ['csv', "a,b\n\"x\n", 'quoted field reaches end of input'],
+            ['tsv', "a\tb\n\n1\t2\n", 'blank record'],
+        ];
+
+        foreach ($cases as [$format, $input, $expectedMessage]) {
+            $message = '';
+            try {
+                $format === 'tsv' ? $reader->readTsv($input) : $reader->readCsv($input);
+            } catch (InvalidArgumentException $exception) {
+                $message = $exception->getMessage();
+            }
+            $t->contains($expectedMessage, $message);
+        }
+
+        $bomDocument = $reader->readCsv("\xEF\xBB\xBFa,b\n1,2\n");
+        $relaxedDocument = $reader->readCsv("a,b\n\n1,2\n", ['strictParsing' => false]);
+        $relaxedPacket = $relaxedDocument->children[0]->attr('delimitedText');
+
+        $t->same(['a', 'b'], $bomDocument->children[0]->attr('columnNames'));
+        $t->same(1, $relaxedPacket['blankRowCount'] ?? null);
+        $t->same(['delimited-text-blank-rows-skipped'], array_column($relaxedPacket['diagnostics'] ?? [], 'code'));
+    },
+    'rejects non-boolean delimited text strict parsing option' => static function (TestRunner $t): void {
+        $message = '';
+        try {
+            (new DelimitedTextReader())->readCsv("a,b\n", ['strictParsing' => 'false']);
+        } catch (InvalidArgumentException $exception) {
+            $message = $exception->getMessage();
+        }
+
+        $t->contains('strictParsing option must be a boolean', $message);
     },
     'infers delimited text format from extension and row profiles' => static function (TestRunner $t): void {
         $reader = new DelimitedTextReader();
@@ -3206,7 +3253,7 @@ return [
             "beta\t20",
             "gamma\t30\t",
             '',
-        ]));
+        ]), ['strictParsing' => false]);
         $table = $document->children[0];
         $packet = $table->attr('delimitedText');
         $widthSummary = $packet['rowWidthSummary'] ?? [];
