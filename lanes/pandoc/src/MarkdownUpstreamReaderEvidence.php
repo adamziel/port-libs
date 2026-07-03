@@ -203,6 +203,7 @@ final class MarkdownUpstreamReaderEvidence
                 (int) $snapshot['bytes']
             );
             $coverageTests = array_values(array_map('strval', $snapshot['coverageTests']));
+            $testReferences = self::localTestReferences($root, (string) $name);
             $fixtures[] = [
                 'name' => (string) $name,
                 'role' => (string) $snapshot['role'],
@@ -210,6 +211,8 @@ final class MarkdownUpstreamReaderEvidence
                 'sourceReference' => (string) $snapshot['sourceReference'],
                 'formatProfile' => (string) $snapshot['formatProfile'],
                 'coverageTests' => $coverageTests,
+                'localTestReferenceCount' => count($testReferences),
+                'localTestReferences' => $testReferences,
                 'checkedInFile' => $file,
             ];
 
@@ -226,6 +229,9 @@ final class MarkdownUpstreamReaderEvidence
                     $issues[] = 'missing-markdown-fixture-coverage-test';
                     break;
                 }
+            }
+            if ($testReferences === []) {
+                $issues[] = 'missing-markdown-fixture-local-test-reference';
             }
         }
 
@@ -248,7 +254,7 @@ final class MarkdownUpstreamReaderEvidence
             'claimBoundaries' => [
                 'doesAssert' => [
                     'the seven selected checked-in Markdown fixture snapshots match the expected SHA-256 hashes and byte counts',
-                    'each selected fixture has at least one focused local reader or round-trip coverage test',
+                    'each selected fixture has at least one local PHP test reference',
                     'the fixture set covers selected command, raw-attribute, abbreviation, details/summary, GFM, autolink, footnote/citation, and citation/span boundary behavior',
                 ],
                 'doesNotAssert' => [
@@ -267,14 +273,20 @@ final class MarkdownUpstreamReaderEvidence
     {
         $denominator = is_array($report['denominator'] ?? null) ? $report['denominator'] : [];
         $staticEvidence = is_array($report['staticCurrentEvidence'] ?? null) ? $report['staticCurrentEvidence'] : [];
+        $staticDenominator = is_array($staticEvidence['readerDenominator'] ?? null) ? $staticEvidence['readerDenominator'] : [];
         $staticValidation = is_array($staticEvidence['validation'] ?? null) ? $staticEvidence['validation'] : [];
         $validation = is_array($report['validation'] ?? null) ? $report['validation'] : [];
         $runner = is_array($report['runnerEvidence'] ?? null) ? $report['runnerEvidence'] : [];
+        $selectedFixtureCount = (int) (
+            ($denominator['selectedFixtureCount'] ?? 0) !== 0
+                ? $denominator['selectedFixtureCount']
+                : ($staticDenominator['selectedFixtureCount'] ?? 0)
+        );
 
         return implode(PHP_EOL, [
             'Pandoc Markdown reader evidence',
             'Status: ' . (string) ($report['status'] ?? 'unknown'),
-            'Selected checked-in fixtures: ' . (int) ($denominator['selectedFixtureCount'] ?? 0),
+            'Selected checked-in fixtures: ' . $selectedFixtureCount,
             'Static current evidence: ' . (string) ($staticValidation['status'] ?? 'unknown')
                 . ' checkedInFixtures=' . (int) ($staticEvidence['checkedInFixtureCount'] ?? 0),
             'Runner status: ' . (string) ($runner['status'] ?? 'unknown'),
@@ -502,6 +514,40 @@ final class MarkdownUpstreamReaderEvidence
             'bytes' => is_int($bytes) ? $bytes : null,
             'expectedBytes' => $expectedBytes,
         ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function localTestReferences(string $root, string $fixtureName): array
+    {
+        $testRoot = rtrim($root, DIRECTORY_SEPARATOR) . '/lanes/pandoc/tests';
+        if (!is_dir($testRoot)) {
+            return [];
+        }
+
+        $references = [];
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($testRoot, \FilesystemIterator::SKIP_DOTS)
+        );
+        foreach ($iterator as $file) {
+            if (!$file instanceof \SplFileInfo || !$file->isFile() || $file->getExtension() !== 'php') {
+                continue;
+            }
+            if ($file->getFilename() === 'MarkdownUpstreamReaderEvidenceTest.php') {
+                continue;
+            }
+
+            $contents = file_get_contents($file->getPathname());
+            if (!is_string($contents) || !str_contains($contents, $fixtureName)) {
+                continue;
+            }
+
+            $references[] = substr($file->getPathname(), strlen(rtrim($root, DIRECTORY_SEPARATOR)) + 1);
+        }
+        sort($references, SORT_STRING);
+
+        return $references;
     }
 
     private function absoluteUpstreamRoot(): string
