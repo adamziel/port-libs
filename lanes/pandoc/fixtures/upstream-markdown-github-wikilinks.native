@@ -1,0 +1,33 @@
+[ Para
+    [ Link
+        ( "" , [ "wikilink" ] , [] )
+        [ Str "https://example.org" ]
+        ( "https://example.org" , "" )
+    ]
+, Para
+    [ Link
+        ( "" , [ "wikilink" ] , [] )
+        [ Str "title" ]
+        ( "https://example.org" , "" )
+    ]
+, Para
+    [ Link
+        ( "" , [ "wikilink" ] , [] )
+        [ Str "title" ]
+        ( "random string" , "" )
+    ]
+, Para
+    [ Link
+        ( "" , [ "wikilink" ] , [] )
+        [ Str "Name" , Space , Str "of" , Space , Str "page" ]
+        ( "Name of page" , "" )
+    ]
+, Para
+    [ Str "[[Name" , Space , Str "of" , Space , Str "]page]]" ]
+, Para
+    [ Link
+        ( "" , [ "wikilink" ] , [] )
+        [ Str "t`i*t_le" ]
+        ( "https://example.org" , "" )
+    ]
+]

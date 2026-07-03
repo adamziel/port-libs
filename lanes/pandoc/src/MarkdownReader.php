@@ -15310,6 +15310,9 @@ final class MarkdownReader
         if ($content === '') {
             return null;
         }
+        if ($this->wikiLinkContentHasUnescapedCloseBracket($content)) {
+            return null;
+        }
 
         [$url, $label] = $this->splitWikiLinkContent($content);
         $url = $this->decodeHtmlEntities($this->unescapeLinkComponent($url));
@@ -15369,6 +15372,23 @@ final class MarkdownReader
         }
 
         return null;
+    }
+
+    private function wikiLinkContentHasUnescapedCloseBracket(string $content): bool
+    {
+        $length = strlen($content);
+        for ($cursor = 0; $cursor < $length; $cursor++) {
+            if ($content[$cursor] === '\\') {
+                $cursor++;
+                continue;
+            }
+
+            if ($content[$cursor] === ']') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
