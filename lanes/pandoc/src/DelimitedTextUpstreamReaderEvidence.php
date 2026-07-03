@@ -17,7 +17,7 @@ final class DelimitedTextUpstreamReaderEvidence
     public const EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT = 2;
     public const EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT = 0;
     public const EXPECTED_STATIC_CSV_ADJACENT_RST_FIXTURE_COUNT = 2;
-    public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 26;
+    public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 27;
     public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 21;
 
     private const CHECKED_IN_CURRENT_CSV_FIXTURES = [
@@ -401,6 +401,20 @@ final class DelimitedTextUpstreamReaderEvidence
             'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/quote-in-unquoted-field.native',
             'sha256' => 'bf2d71e0867ca7b1487c59cff7bf7912d03783dc646003bc3eb0f7a44a3eb9f1',
             'bytes' => 1217,
+        ],
+        'header-only.csv' => [
+            'role' => 'generated-csv-native-parity-input-fixture',
+            'sample' => 'header-only',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/header-only.csv',
+            'sha256' => '8d10b9e38497ef13bc091e1574b71423a614593e489bd5af9943f946a0296dad',
+            'bytes' => 18,
+        ],
+        'header-only.native' => [
+            'role' => 'generated-csv-native-parity-expected-native-output',
+            'sample' => 'header-only',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/header-only.native',
+            'sha256' => '6c1d2eed4478d45205fe2f2fb63b3ba282aad8c27f37b5a01168ba689bee0f00',
+            'bytes' => 610,
         ],
     ];
 
@@ -836,6 +850,10 @@ final class DelimitedTextUpstreamReaderEvidence
         'quote-in-unquoted-field' => [
             'inputPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/quote-in-unquoted-field.csv',
             'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/quote-in-unquoted-field.native',
+        ],
+        'header-only' => [
+            'inputPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/header-only.csv',
+            'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/header-only.native',
         ],
     ];
 
