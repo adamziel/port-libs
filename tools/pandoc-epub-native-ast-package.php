@@ -23,6 +23,7 @@ $requireFixtureIdentity = false;
 $requireCurrentPackageFeatureCoverage = false;
 $requireCurrentPackageFeatureSignature = false;
 $requireCurrentNativeAstSignature = false;
+$requireRunnerPlan = false;
 $json = false;
 $summary = false;
 
@@ -56,6 +57,7 @@ Gates:
                                    Require the checked-in current EPUB fixture identity plus exact package feature signature.
   --require-current-native-ast-signature
                                    Require the checked-in current EPUB fixture identity plus exact normalized native AST signature.
+  --require-runner-plan            Require the non-executed upstream pandoc EPUB-to-native runner plan.
 
 TXT);
         exit(0);
@@ -123,6 +125,11 @@ TXT);
         continue;
     }
 
+    if ($argument === '--require-runner-plan') {
+        $requireRunnerPlan = true;
+        continue;
+    }
+
     fwrite(STDERR, "Unknown argument: {$argument}\n");
     exit(2);
 }
@@ -168,6 +175,7 @@ if ($summary) {
         'packageFeatureCoverage',
         'packageFeatureSignature',
         'currentNativeAstSignature',
+        'runnerEvidence',
         'totalEpubCount',
         'comparedEpubCount',
         'packageParsedCount',
@@ -241,6 +249,17 @@ if (
         STDERR,
         "pandoc-epub-native-ast-package: checked-in current EPUB normalized native AST signature did not match the expected snapshot for {$epubDirectory}\n"
         . "hint: use --checked-in-fixtures or --epub-dir=lanes/pandoc/fixtures/upstream-current-epub-reader/epub to gate the checked-in snapshot\n"
+    );
+    exit(1);
+}
+
+if (
+    $requireRunnerPlan
+    && !EpubNativeAstPackageComparisonHarness::hasRunnerPlanEvidence($report)
+) {
+    fwrite(
+        STDERR,
+        "pandoc-epub-native-ast-package: upstream EPUB-to-native runner command-plan evidence is invalid\n"
     );
     exit(1);
 }

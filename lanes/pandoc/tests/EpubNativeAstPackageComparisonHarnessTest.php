@@ -184,8 +184,17 @@ return [
             $t->same([], $report['packageFeatureCoverage']['guideReferenceTypeCounts']);
             $t->same([], $report['packageFeatureCoverage']['fixtureFeatureSignatures']);
             $t->same('not-evaluated-source-directory-unavailable', $report['currentNativeAstSignature']['validation']['status']);
+            $t->same(true, EpubNativeAstPackageComparisonHarness::hasRunnerNotRunEvidence($report));
+            $t->same(true, EpubNativeAstPackageComparisonHarness::hasRunnerPlanEvidence($report));
+            $t->same('not-run', $report['runnerEvidence']['status']);
+            $t->same(false, $report['runnerEvidence']['executed']);
+            $t->same('planned-not-run', $report['runnerEvidence']['commandPlanStatus']);
+            $t->same(EpubNativeAstPackageComparisonHarness::EXPECTED_UPSTREAM_COMMIT, $report['runnerEvidence']['upstreamBinding']['expectedCommit']);
+            $t->same('exe:pandoc', $report['runnerEvidence']['target']['cabalTarget']);
+            $t->same('native', $report['runnerEvidence']['target']['outputFormat']);
             $t->same('not-evaluated', $report['orderedRemainingGaps'][0]['status']);
             $t->contains('Pandoc EPUB native/package comparison: skipped', $text);
+            $t->contains('runnerEvidence: status=not-run plan=planned-not-run executed=false', $text);
         } finally {
             $removeTree($root);
         }
@@ -707,6 +716,32 @@ return [
         $t->same(true, EpubNativeAstPackageComparisonHarness::hasRequiredCurrentPackageFeatureCoverage($report));
         $t->same(true, EpubNativeAstPackageComparisonHarness::hasRequiredCurrentPackageFeatureSignature($report));
         $t->same(true, EpubNativeAstPackageComparisonHarness::hasRequiredCurrentNativeAstSignature($report));
+        $t->same(true, EpubNativeAstPackageComparisonHarness::hasRunnerNotRunEvidence($report));
+        $t->same(true, EpubNativeAstPackageComparisonHarness::hasRunnerPlanEvidence($report));
+        $t->same('not-run', $report['runnerEvidence']['status']);
+        $t->same(false, $report['runnerEvidence']['executed']);
+        $t->same(null, $report['runnerEvidence']['command']);
+        $t->same(null, $report['runnerEvidence']['resultArtifact']);
+        $t->same('planned-not-run', $report['runnerEvidence']['commandPlanStatus']);
+        $t->same(EpubNativeAstPackageComparisonHarness::EXPECTED_UPSTREAM_COMMIT, $report['runnerEvidence']['upstreamBinding']['expectedCommit']);
+        $t->same('exe:pandoc', $report['runnerEvidence']['upstreamBinding']['executableTarget']);
+        $t->same('test/epub', $report['runnerEvidence']['upstreamBinding']['fixtureDirectory']);
+        $t->same('exe:pandoc', $report['runnerEvidence']['target']['cabalTarget']);
+        $t->same('epub', $report['runnerEvidence']['target']['inputFormat']);
+        $t->same('native', $report['runnerEvidence']['target']['outputFormat']);
+        $t->same('test/epub', $report['runnerEvidence']['target']['fixtureDirectory']);
+        $t->same($expectedCurrentNativeAstFixtures, $report['runnerEvidence']['target']['fixtureBasenames']);
+        $t->same(16, $report['runnerEvidence']['checkedInSnapshot']['expectedFileCount']);
+        $t->same(8, $report['runnerEvidence']['checkedInSnapshot']['expectedPairCount']);
+        $t->same($expectedPackageFeatureSignatureSha256, $report['runnerEvidence']['checkedInSnapshot']['packageFeatureSignature']);
+        $t->same($expectedCurrentNativeAstSignatureSha256, $report['runnerEvidence']['checkedInSnapshot']['nativeAstSignature']);
+        $t->same('exe:pandoc', $report['runnerEvidence']['futureCommands'][2]['arguments'][4]);
+        $t->same('test/epub/{fixture}.epub', $report['runnerEvidence']['futureCommands'][2]['arguments'][10]);
+        $t->true(in_array('.port-libs/pandoc-runner/logs/epub-native-package-native-generation.txt', $report['runnerEvidence']['requiredTranscripts'], true));
+        $t->true(in_array('.port-libs/pandoc-runner/artifacts/epub-native-package/generated-native-manifest.json', $report['runnerEvidence']['requiredArtifacts'], true));
+        $mutatedReport = $report;
+        $mutatedReport['runnerEvidence']['target']['outputFormat'] = 'json';
+        $t->same(false, EpubNativeAstPackageComparisonHarness::hasRunnerPlanEvidence($mutatedReport));
         $t->same('covered-by-current-package-evidence', $report['orderedRemainingGaps'][0]['status']);
         $t->same('covered-by-current-normalized-ast-evidence', $report['orderedRemainingGaps'][1]['status']);
         $t->contains('packages: total=8 compared=8 packageParsed=8 readerParsed=8 packageFailures=0 readerFailures=0', $text);
@@ -715,6 +750,7 @@ return [
         $t->contains('packageFeatureCoverage: fixtures=8 nav=5 ncx=3 covers=4 landmarks=5 pageLists=0 auxiliaryNav=0 metadataCreators=28 manifestItems=51', $text);
         $t->contains('packageFeatureSignature: status=valid-checked-in-current-epub-package-feature-signature matchesExpected=true sha256=' . $expectedPackageFeatureSignatureSha256, $text);
         $t->contains('currentNativeAstSignature: status=valid-checked-in-current-epub-normalized-native-ast-signature matchesExpected=true fixtures=8 sha256=' . $expectedCurrentNativeAstSignatureSha256, $text);
+        $t->contains('runnerEvidence: status=not-run plan=planned-not-run executed=false', $text);
         $t->contains('resourceKinds=cover-image:2,image:9,navigation:9,style:13,xhtml:18', $text);
         $t->contains('guideRefTypes=cover:2,toc:1', $text);
         $t->contains('packageLinkRels=cc:attributionURL:1,cc:license:2', $text);
@@ -730,6 +766,7 @@ return [
             . ' --require-current-package-feature-coverage'
             . ' --require-current-package-feature-signature'
             . ' --require-current-native-ast-signature'
+            . ' --require-runner-plan'
             . ' --require-package-parity=8'
             . ' --require-native-readiness=8'
             . ' --require-mapped-parity=8';
@@ -757,6 +794,9 @@ return [
         $t->same(true, $decoded['currentNativeAstSignature']['matchesExpected']);
         $t->same('valid-checked-in-current-epub-normalized-native-ast-signature', $decoded['currentNativeAstSignature']['validation']['status']);
         $t->same(true, EpubNativeAstPackageComparisonHarness::hasRequiredCurrentNativeAstSignature($decoded));
+        $t->same(true, EpubNativeAstPackageComparisonHarness::hasRunnerPlanEvidence($decoded));
+        $t->same('planned-not-run', $decoded['runnerEvidence']['commandPlanStatus']);
+        $t->same($expectedCurrentNativeAstFixtures, $decoded['runnerEvidence']['target']['fixtureBasenames']);
         $t->same(
             $report['packageFeatureCoverage']['fixtureFeatureSignatures'],
             $decoded['packageFeatureCoverage']['fixtureFeatureSignatures']
@@ -778,7 +818,8 @@ return [
             . ' --require-fixture-identity'
             . ' --require-current-package-feature-coverage'
             . ' --require-current-package-feature-signature'
-            . ' --require-current-native-ast-signature';
+            . ' --require-current-native-ast-signature'
+            . ' --require-runner-plan';
         $defaultFixtureIdentityOutput = [];
         $defaultFixtureIdentityExitCode = 0;
         exec($defaultFixtureIdentityCommand, $defaultFixtureIdentityOutput, $defaultFixtureIdentityExitCode);
@@ -798,6 +839,8 @@ return [
         $t->same($expectedCurrentNativeAstSignatureSha256, $defaultFixtureIdentityDecoded['currentNativeAstSignature']['sha256']);
         $t->same(true, $defaultFixtureIdentityDecoded['currentNativeAstSignature']['matchesExpected']);
         $t->same($expectedCurrentNativeAstFixtures, $defaultFixtureIdentityDecoded['currentNativeAstSignature']['observedFixtures']);
+        $t->same(true, EpubNativeAstPackageComparisonHarness::hasRunnerPlanEvidence($defaultFixtureIdentityDecoded));
+        $t->same('exe:pandoc', $defaultFixtureIdentityDecoded['runnerEvidence']['target']['cabalTarget']);
         $t->same(['nav' => 5, 'ncx' => 3], $defaultFixtureIdentityDecoded['packageFeatureCoverage']['navigationTypeCounts']);
         $t->same($expectedPackageFeatureCoverage['fixturesWithCreators'], $defaultFixtureIdentityDecoded['packageFeatureCoverage']['fixturesWithCreators']);
         $t->same(28, $defaultFixtureIdentityDecoded['packageFeatureCoverage']['totals']['metadataCreators']);

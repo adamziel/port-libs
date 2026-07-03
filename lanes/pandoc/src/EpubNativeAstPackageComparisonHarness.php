@@ -6,6 +6,8 @@ namespace PortLibs\Pandoc;
 
 final class EpubNativeAstPackageComparisonHarness
 {
+    public const EXPECTED_UPSTREAM_COMMIT = '4f5226df4faa0d66dd2c089465b13886360ab3c2';
+
     private const DEFAULT_MAX_EXAMPLES = 12;
     private const VERDICT = 'epub-native-ast-package-comparison-not-full-epub-parity';
     private const CLAIM = 'Compares local PHP EPUB package parsing and reader output with a supplied checked-in current EPUB fixture directory and same-basename .native goldens. Package parsing/reader acceptance, fixture identity, package feature coverage, and native AST equality are reported separately; no upstream Haskell runner, writer parity, or full EPUB feature parity is asserted.';
@@ -17,6 +19,19 @@ final class EpubNativeAstPackageComparisonHarness
     private const CURRENT_NATIVE_AST_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
     private const CURRENT_NATIVE_AST_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-8-fixture-normalized-ast-snapshot';
     private const CHECKED_IN_CURRENT_NATIVE_AST_SIGNATURE_SHA256 = '30d9b097df1e45a7559eac9e3c370b16ce93d99f6f9683821338596b595a16a9';
+    private const RUNNER_CABAL_TARGET = 'exe:pandoc';
+    private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/epub-native-package-run';
+    private const RUNNER_FIXTURE_DIRECTORY = 'test/epub';
+    private const RUNNER_OUTPUT_FORMAT = 'native';
+    private const RUNNER_REQUIRED_TRANSCRIPTS = [
+        '.port-libs/pandoc-runner/logs/epub-native-package-runner-dependencies.txt',
+        '.port-libs/pandoc-runner/logs/epub-native-package-fixture-inventory.txt',
+        '.port-libs/pandoc-runner/logs/epub-native-package-native-generation.txt',
+    ];
+    private const RUNNER_REQUIRED_ARTIFACTS = [
+        '.port-libs/pandoc-runner/artifacts/epub-native-package/result.json',
+        '.port-libs/pandoc-runner/artifacts/epub-native-package/generated-native-manifest.json',
+    ];
 
     /** @var array<string, true> */
     private const IGNORED_ATTRS = [
@@ -516,6 +531,7 @@ final class EpubNativeAstPackageComparisonHarness
             'packageFeatureCoverage' => $packageFeatureCoverage,
             'packageFeatureSignature' => self::packageFeatureSignature($fixtureIdentity, $packageFeatureCoverage),
             'currentNativeAstSignature' => $currentNativeAstSignature,
+            'runnerEvidence' => self::runnerNotRunEvidence(),
             'normalizationPolicy' => self::normalizationPolicy(),
             'totalEpubCount' => $totalEpubCount,
             'comparedEpubCount' => $comparedEpubCount,
@@ -569,6 +585,15 @@ final class EpubNativeAstPackageComparisonHarness
 
         if (($report['skipped'] ?? false) === true) {
             $lines[] = 'reason=' . (string) ($report['reason'] ?? 'unknown');
+            $runner = is_array($report['runnerEvidence'] ?? null) ? $report['runnerEvidence'] : [];
+            if ($runner !== []) {
+                $lines[] = sprintf(
+                    'runnerEvidence: status=%s plan=%s executed=%s',
+                    (string) ($runner['status'] ?? 'unknown'),
+                    (string) ($runner['commandPlanStatus'] ?? 'unknown'),
+                    (($runner['executed'] ?? null) === false) ? 'false' : 'unknown'
+                );
+            }
             $lines = self::appendOrderedRemainingGaps($lines, $report);
 
             return implode(PHP_EOL, $lines) . PHP_EOL;
@@ -678,6 +703,15 @@ final class EpubNativeAstPackageComparisonHarness
                 (int) ($nativeAstSignature['fixtureCount'] ?? 0),
                 (string) ($nativeAstSignature['sha256'] ?? ''),
                 (string) ($nativeAstSignature['expectedSha256'] ?? '')
+            );
+        }
+        $runner = is_array($report['runnerEvidence'] ?? null) ? $report['runnerEvidence'] : [];
+        if ($runner !== []) {
+            $lines[] = sprintf(
+                'runnerEvidence: status=%s plan=%s executed=%s',
+                (string) ($runner['status'] ?? 'unknown'),
+                (string) ($runner['commandPlanStatus'] ?? 'unknown'),
+                (($runner['executed'] ?? null) === false) ? 'false' : 'unknown'
             );
         }
 
@@ -856,6 +890,50 @@ final class EpubNativeAstPackageComparisonHarness
     }
 
     /**
+     * @param array<string, mixed> $report
+     */
+    public static function hasRunnerNotRunEvidence(array $report): bool
+    {
+        $runner = is_array($report['runnerEvidence'] ?? null) ? $report['runnerEvidence'] : [];
+
+        return ($runner['status'] ?? null) === 'not-run'
+            && ($runner['executed'] ?? null) === false
+            && array_key_exists('command', $runner)
+            && $runner['command'] === null
+            && array_key_exists('resultArtifact', $runner)
+            && $runner['resultArtifact'] === null;
+    }
+
+    /**
+     * @param array<string, mixed> $report
+     */
+    public static function hasRunnerPlanEvidence(array $report): bool
+    {
+        $runner = is_array($report['runnerEvidence'] ?? null) ? $report['runnerEvidence'] : [];
+        $binding = is_array($runner['upstreamBinding'] ?? null) ? $runner['upstreamBinding'] : [];
+        $target = is_array($runner['target'] ?? null) ? $runner['target'] : [];
+        $snapshot = is_array($runner['checkedInSnapshot'] ?? null) ? $runner['checkedInSnapshot'] : [];
+
+        return self::hasRunnerNotRunEvidence($report)
+            && ($runner['commandPlanStatus'] ?? null) === 'planned-not-run'
+            && ($binding['name'] ?? null) === 'jgm/pandoc'
+            && ($binding['expectedCommit'] ?? null) === self::EXPECTED_UPSTREAM_COMMIT
+            && ($binding['executableTarget'] ?? null) === self::RUNNER_CABAL_TARGET
+            && ($binding['fixtureDirectory'] ?? null) === self::RUNNER_FIXTURE_DIRECTORY
+            && ($target['cabalTarget'] ?? null) === self::RUNNER_CABAL_TARGET
+            && ($target['inputFormat'] ?? null) === 'epub'
+            && ($target['outputFormat'] ?? null) === self::RUNNER_OUTPUT_FORMAT
+            && ($target['fixtureDirectory'] ?? null) === self::RUNNER_FIXTURE_DIRECTORY
+            && ($target['fixtureBasenames'] ?? null) === self::expectedCheckedInCurrentPairNames()
+            && ($snapshot['fixtureIdentityKind'] ?? null) === 'static-checked-in-current-epub-fixture-identity'
+            && ($snapshot['expectedFileCount'] ?? null) === count(self::CHECKED_IN_CURRENT_FIXTURE_IDENTITIES)
+            && ($snapshot['expectedPairCount'] ?? null) === count(self::expectedCheckedInCurrentPairNames())
+            && ($runner['futureCommands'] ?? null) === self::runnerFutureCommands()
+            && ($runner['requiredTranscripts'] ?? null) === self::RUNNER_REQUIRED_TRANSCRIPTS
+            && ($runner['requiredArtifacts'] ?? null) === self::RUNNER_REQUIRED_ARTIFACTS;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function skippedReport(string $epubDirectory, string $reason): array
@@ -874,6 +952,7 @@ final class EpubNativeAstPackageComparisonHarness
             'packageFeatureCoverage' => self::emptyPackageFeatureCoverage(),
             'packageFeatureSignature' => self::notEvaluatedPackageFeatureSignature($reason),
             'currentNativeAstSignature' => self::notEvaluatedCurrentNativeAstSignature($reason),
+            'runnerEvidence' => self::runnerNotRunEvidence(),
             'normalizationPolicy' => self::normalizationPolicy(),
             'totalEpubCount' => 0,
             'comparedEpubCount' => 0,
@@ -926,6 +1005,102 @@ final class EpubNativeAstPackageComparisonHarness
                 'EPUB writer parity',
                 'byte-level EPUB package equality',
                 'full EPUB feature parity beyond audited package and native fixtures',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function runnerNotRunEvidence(): array
+    {
+        return [
+            'runner' => 'Cabal-built Pandoc EPUB to native executable plan',
+            'scope' => 'upstream-haskell-runner',
+            'status' => 'not-run',
+            'executed' => false,
+            'command' => null,
+            'resultArtifact' => null,
+            'commandPlanStatus' => 'planned-not-run',
+            'upstreamBinding' => [
+                'name' => 'jgm/pandoc',
+                'expectedCommit' => self::EXPECTED_UPSTREAM_COMMIT,
+                'executableTarget' => self::RUNNER_CABAL_TARGET,
+                'fixtureDirectory' => self::RUNNER_FIXTURE_DIRECTORY,
+            ],
+            'target' => [
+                'cabalTarget' => self::RUNNER_CABAL_TARGET,
+                'inputFormat' => 'epub',
+                'outputFormat' => self::RUNNER_OUTPUT_FORMAT,
+                'fixtureDirectory' => self::RUNNER_FIXTURE_DIRECTORY,
+                'fixtureBasenames' => self::expectedCheckedInCurrentPairNames(),
+            ],
+            'checkedInSnapshot' => [
+                'fixtureIdentityKind' => 'static-checked-in-current-epub-fixture-identity',
+                'expectedFileCount' => count(self::CHECKED_IN_CURRENT_FIXTURE_IDENTITIES),
+                'expectedPairCount' => count(self::expectedCheckedInCurrentPairNames()),
+                'packageFeatureSignature' => self::CHECKED_IN_CURRENT_PACKAGE_FEATURE_SIGNATURE_SHA256,
+                'nativeAstSignature' => self::CHECKED_IN_CURRENT_NATIVE_AST_SIGNATURE_SHA256,
+            ],
+            'blockers' => [
+                'no committed upstream pandoc executable transcript or generated native manifest is present',
+                'this PHP evidence gate intentionally does not invoke Cabal or run the upstream Pandoc executable',
+                'a future runner claim must be bound to the pinned upstream commit and checked-in EPUB/native fixture snapshot',
+            ],
+            'futureCommands' => self::runnerFutureCommands(),
+            'requiredTranscripts' => self::RUNNER_REQUIRED_TRANSCRIPTS,
+            'requiredArtifacts' => self::RUNNER_REQUIRED_ARTIFACTS,
+            'reason' => 'This PHP package/native evidence packet is generated without executing the upstream Haskell runner.',
+            'claim' => 'No upstream Haskell runner or executable native generation parity is claimed.',
+        ];
+    }
+
+    /**
+     * @return list<array{purpose: string, program: string, arguments: list<string>}>
+     */
+    private static function runnerFutureCommands(): array
+    {
+        return [
+            [
+                'purpose' => 'prepare the upstream pandoc executable dependencies in an isolated build directory',
+                'program' => 'cabal',
+                'arguments' => [
+                    'v2-build',
+                    '--offline',
+                    '--dry-run',
+                    '--only-dependencies',
+                    '--project-dir=.',
+                    '--builddir=' . self::RUNNER_BUILD_DIR,
+                    self::RUNNER_CABAL_TARGET,
+                ],
+            ],
+            [
+                'purpose' => 'build the upstream pandoc executable for EPUB to native fixture generation',
+                'program' => 'cabal',
+                'arguments' => [
+                    'v2-build',
+                    '--offline',
+                    '--project-dir=.',
+                    '--builddir=' . self::RUNNER_BUILD_DIR,
+                    self::RUNNER_CABAL_TARGET,
+                ],
+            ],
+            [
+                'purpose' => 'generate native AST goldens for the checked-in current EPUB fixture set',
+                'program' => 'cabal',
+                'arguments' => [
+                    'v2-run',
+                    '--offline',
+                    '--project-dir=.',
+                    '--builddir=' . self::RUNNER_BUILD_DIR,
+                    self::RUNNER_CABAL_TARGET,
+                    '--',
+                    '--from',
+                    'epub',
+                    '--to',
+                    self::RUNNER_OUTPUT_FORMAT,
+                    self::RUNNER_FIXTURE_DIRECTORY . '/{fixture}.epub',
+                ],
             ],
         ];
     }
@@ -2265,7 +2440,7 @@ final class EpubNativeAstPackageComparisonHarness
                 'rank' => 3,
                 'id' => 'upstream-haskell-epub-reader-runner-results',
                 'status' => 'open',
-                'currentEvidence' => 'This harness inventories upstream EPUB packages and native goldens, but it does not run the upstream Haskell/Tasty process itself.',
+                'currentEvidence' => 'Structured planned-not-run Cabal exe:pandoc command evidence is present; this harness does not run the upstream Haskell process itself.',
                 'evidenceRequired' => 'Record reproducible upstream Tests.Readers.EPUB runner results when a Haskell runner is available.',
             ],
         ];
