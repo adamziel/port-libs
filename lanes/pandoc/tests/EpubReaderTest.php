@@ -499,6 +499,65 @@ XML);
         $t->same(['OPS/text/chapter.xhtml'], $meta['epubReadableResources']);
         $t->same(['OPS/nav.xhtml'], $meta['epubTocResources']);
     },
+    'skips epub spine items whose linear attribute is not exactly yes' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-linear-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary EPUB package');
+        }
+        $zip->addFromString('META-INF/container.xml', '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="book-id">
+  <metadata>
+    <dc:identifier id="book-id">book-linear-semantics</dc:identifier>
+    <dc:title>Linear Semantics EPUB</dc:title>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="text/chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="appendix-uppercase" href="text/appendix-uppercase.xhtml" media-type="application/xhtml+xml"/>
+    <item id="appendix-invalid" href="text/appendix-invalid.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+    <itemref idref="appendix-uppercase" linear="YES"/>
+    <itemref idref="appendix-invalid" linear="sometimes"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('OPS/text/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Main chapter body.</p></body></html>');
+        $zip->addFromString('OPS/text/appendix-uppercase.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Uppercase appendix should be skipped.</p></body></html>');
+        $zip->addFromString('OPS/text/appendix-invalid.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Invalid appendix should be skipped.</p></body></html>');
+        $zip->close();
+
+        try {
+            $document = (new EpubReader())->readEpubFile($path);
+            $meta = $document->attr('meta');
+            $blocks = (new WordPressBlockWriter())->write($document);
+            $native = PandocConverter::write($document, 'native');
+        } finally {
+            @unlink($path);
+        }
+
+        $t->same(3, $meta['epubSpineItems']);
+        $t->same(true, $meta['epubSpineItemRefs'][0]['linear']);
+        $t->same(false, $meta['epubSpineItemRefs'][1]['linear']);
+        $t->same(false, $meta['epubSpineItemRefs'][2]['linear']);
+        $t->same(['OPS/text/chapter.xhtml'], $meta['epubReadableResources']);
+        $t->contains('Main chapter body.', $blocks);
+        $t->same(false, str_contains($blocks, 'Uppercase appendix should be skipped.'));
+        $t->same(false, str_contains($blocks, 'Invalid appendix should be skipped.'));
+        $t->contains('Str "Main"', $native);
+        $t->same(false, str_contains($native, 'Str "Uppercase"'));
+        $t->same(false, str_contains($native, 'Str "Invalid"'));
+    },
     'separates epub media bag image usage from manifest image inventory' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-media-bag-scope-');
         if ($path === false) {

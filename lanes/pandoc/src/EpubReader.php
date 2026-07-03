@@ -500,7 +500,7 @@ final class EpubReader
             $path = $href === '' ? '' : $this->rewriteRelativeResourceUrl($href, $base_path);
             $media_type = is_array($manifest_item) ? $manifest_item['media-type'] : '';
             $external = $href !== '' && $this->isAbsoluteUrl($href);
-            $linear = strtolower(trim($element->getAttribute('linear'))) !== 'no';
+            $linear = !$element->hasAttribute('linear') || $element->getAttribute('linear') === 'yes';
 
             $items[] = [
                 'index' => count($items),
