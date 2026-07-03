@@ -1302,6 +1302,7 @@ final class DocBookReader
         }
 
         $attrs = $this->nodeAttrs($table);
+        $attrs['sourceFormat'] = 'docbook';
         $caption = $this->firstChildText($table, ['title', 'caption']);
         $attrs['caption'] = $caption;
         $attrs['alignments'] = array_fill(0, $maxColumns, 'default');

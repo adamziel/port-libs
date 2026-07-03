@@ -3392,6 +3392,7 @@ final class MarkdownReader
         }
 
         $attrs = [
+            'sourceFormat' => 'docbook',
             'caption' => '',
             'alignments' => array_fill(0, $maxColumns, 'default'),
         ];

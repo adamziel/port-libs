@@ -1707,10 +1707,11 @@ HTML;
         $t->same(true, is_array($docbookPacket));
         $docbookPacket = is_array($docbookPacket) ? $docbookPacket : [];
         $t->same('top', $docbook->children[1]->children[0]->children[0]->attr('valign'));
+        $t->same('docbook', $docbook->attr('sourceFormat'));
         $t->same(['top'], array_values(array_unique(array_map(static fn (array $coverage): string => (string) ($coverage['verticalAlignment'] ?? ''), $docbookPacket['coverage'] ?? []))));
         $t->same('top', $docbookPacket['sections'][1]['rows'][0]['slots'][0]['verticalAlignment'] ?? null);
-        $t->contains('<td colspan="4" style="text-align:center; vertical-align:top"><strong>Migration Batch 42</strong></td>', $docbookBlocks);
-        $t->contains('<td style="text-align:left; vertical-align:top">Posts</td><td style="text-align:right; vertical-align:top">42</td><td style="text-align:center; vertical-align:top">ready</td><td style="vertical-align:top">editorial</td>', $docbookBlocks);
+        $t->contains('<td colspan="4" style="text-align:center"><strong>Migration Batch 42</strong></td>', $docbookBlocks);
+        $t->contains('<td style="text-align:left">Posts</td><td style="text-align:right">42</td><td style="text-align:center">ready</td><td>editorial</td>', $docbookBlocks);
         json_encode($packet, JSON_THROW_ON_ERROR);
         json_encode($docbookPacket, JSON_THROW_ON_ERROR);
     },

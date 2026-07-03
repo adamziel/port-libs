@@ -1309,6 +1309,7 @@ final class WordPressBlockWriter
         $verticalAlignment = (string) $cell->attr('valign', '');
         if (
             in_array($verticalAlignment, ['baseline', 'top', 'middle', 'bottom'], true)
+            && !($verticalAlignment === 'top' && $table->attr('sourceFormat') === 'docbook')
             && !isset($attrMap['valign'])
             && preg_match('/(?:^|;)\s*vertical-align\s*:/i', $sourceStyle) !== 1
         ) {
