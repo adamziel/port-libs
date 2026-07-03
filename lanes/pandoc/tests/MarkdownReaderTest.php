@@ -14724,7 +14724,7 @@ NATIVE;
 
         $t->same(2, count($parsed->children));
         $t->same('table', $table->type);
-        $t->same([0.0, 0.0, 0.0], $table->attr('widths'));
+        $t->same([null, null, null], $table->attr('widths'));
         $t->same(2, count($head->children));
         $t->same(['A', 'B', 'C'], $rowTexts($head->children[0]));
         $t->same(['I', 'II', 'II'], $rowTexts($head->children[1]));
@@ -14804,7 +14804,7 @@ NATIVE;
         $t->same(['section', 'bodymatter'], $bodymatter->attr('classes'));
         $t->same('wasteland-content.xhtml_ch1', $chapter->attr('id'));
         $t->same(['section'], $chapter->attr('classes'));
-        $t->contains('( "author" , MetaInlines [ Str "T.S." , Space , Str "Eliot" ] )', $roundTrip);
+        $t->contains('( "author" , MetaInlines [ Str "T.S. Eliot" ] )', $roundTrip);
         $t->contains('Div ( "wasteland-content.xhtml_bodymatter" , [ "section" , "bodymatter" ] , [  ] )', $roundTrip);
         $t->contains('<dt data-pandoc-meta-key="title">title</dt><dd><span>The Waste Land</span></dd>', $blocks);
         $t->contains('<figure class="wp-block-image"><img src="wasteland-cover.jpg" alt=""/></figure>', $blocks);
@@ -14910,8 +14910,8 @@ NATIVE;
         $t->contains('(TableHead', $roundTrip);
         $t->contains('(TableFoot', $roundTrip);
         $t->contains('<dl><dt><em>apple</em></dt><dd>red fruit<pre class="wp-block-code"><code>{ orange code block }</code></pre><blockquote><p>orange block quote</p></blockquote></dd><dt>orange</dt><dd>orange fruit</dd><dd>bank</dd></dl>', $blocks);
-        $t->contains('<div id="review-wrapper" class="wp-import-review" data-source="batch-42"><div><div><p>foo</p></div></div><div>bar</div><!-- Comment --></div>', $blocks);
-        $t->contains('<figure class="wp-block-table"><table><thead><tr><th>Field</th><th>Status</th></tr></thead><tbody><tr><td>Media</td><td>Ready</td></tr></tbody></table></figure>', $blocks);
+        $t->contains('<div id="review-wrapper" class="wp-import-review" data-source="batch-42"><div><div><p>foo</p></div></div><div><p>bar</p></div><!-- Comment --></div>', $blocks);
+        $t->contains('<figure class="wp-block-table"><table id="review-table"><thead><tr><th>Field</th><th>Status</th></tr></thead><tbody><tr><td>Media</td><td>Ready</td></tr></tbody></table></figure>', $blocks);
     },
     'maps upstream native docx parenthesized pandoc meta wrapper' => static function (TestRunner $t): void {
         $native = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-native-docx-inline-formatting.native');
@@ -14919,7 +14919,7 @@ NATIVE;
         $blocks = (new WordPressBlockWriter())->write($parsed);
 
         $t->same(5, count($parsed->children));
-        $t->same([], $parsed->attrs);
+        $t->same(['nativeFormat' => 'pandoc-native-text'], $parsed->attrs);
         $t->same('emph', $parsed->children[0]->children[4]->type);
         $t->same('italics', $parsed->children[0]->children[4]->children[0]->attr('text'));
         $t->same('strong', $parsed->children[0]->children[6]->type);

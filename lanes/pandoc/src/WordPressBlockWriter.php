@@ -1099,6 +1099,10 @@ final class WordPressBlockWriter
                 }
             }
 
+            if (count($blocks) === 1 && in_array($blocks[0]->type, ['plain', 'paragraph'], true)) {
+                return $this->renderInlines($blocks[0]);
+            }
+
             return $this->renderBlocksAsHtml($blocks);
         }
 
@@ -2613,8 +2617,13 @@ final class WordPressBlockWriter
             return true;
         }
 
-        if (!$this->firstFigureImage($node) instanceof AstNode || !$this->hasFigureCaptionContent($node)) {
+        $image = $this->firstFigureImage($node);
+        if (!$image instanceof AstNode || !$this->hasFigureCaptionContent($node)) {
             return false;
+        }
+
+        if ((string) $image->attr('alt', '') === '' && $this->figureBodyTextWithoutImages($node) !== '') {
+            return true;
         }
 
         $htmlAttributes = $node->attr('htmlAttributes', []);
