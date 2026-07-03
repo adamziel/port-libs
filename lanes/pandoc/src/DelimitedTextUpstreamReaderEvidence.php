@@ -15,7 +15,7 @@ final class DelimitedTextUpstreamReaderEvidence
     public const CHECKED_IN_GENERATED_TSV_NATIVE_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/generated-current-tsv-reader';
     public const EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT = 2;
     public const EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT = 0;
-    public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 3;
+    public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 4;
 
     private const CHECKED_IN_CURRENT_CSV_FIXTURES = [
         'csv.md' => [
@@ -77,6 +77,20 @@ final class DelimitedTextUpstreamReaderEvidence
             'sha256' => 'e7d3ea0f37e8d3b0613155eaaf480edf042cd5e22aa4291866ae8a0e627fe990',
             'bytes' => 1370,
         ],
+        'ragged-blank-fields.tsv' => [
+            'role' => 'generated-tsv-native-parity-input-fixture',
+            'sample' => 'ragged-blank-fields',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/ragged-blank-fields.tsv',
+            'sha256' => '3eb62cad900b02542011bfcb6ffa891856dbf398aa7e7174785264494258c9d4',
+            'bytes' => 76,
+        ],
+        'ragged-blank-fields.native' => [
+            'role' => 'generated-tsv-native-parity-expected-native-output',
+            'sample' => 'ragged-blank-fields',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/ragged-blank-fields.native',
+            'sha256' => 'a6f8a232c40e26e421c2640f35ff1f1010f24eb7e42341b9b09dfadfb86a2bee',
+            'bytes' => 2159,
+        ],
     ];
 
     private const GENERATED_TSV_NATIVE_SAMPLES = [
@@ -91,6 +105,10 @@ final class DelimitedTextUpstreamReaderEvidence
         'unicode-safe' => [
             'inputPath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/unicode-safe.tsv',
             'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/unicode-safe.native',
+        ],
+        'ragged-blank-fields' => [
+            'inputPath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/ragged-blank-fields.tsv',
+            'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/ragged-blank-fields.native',
         ],
     ];
 
@@ -577,7 +595,7 @@ final class DelimitedTextUpstreamReaderEvidence
 
     private static function claim(): string
     {
-        return 'Tracks the current upstream direct CSV command-reader fixtures, the absence of dedicated TSV command fixtures, and three generated TSV-to-native evidence samples for the delimited text reader.';
+        return 'Tracks the current upstream direct CSV command-reader fixtures, the absence of dedicated TSV command fixtures, and four generated TSV-to-native evidence samples for the delimited text reader.';
     }
 
     /**
@@ -591,7 +609,7 @@ final class DelimitedTextUpstreamReaderEvidence
                 'that the current pinned upstream CSV reader source files are present when an upstream checkout is inspected',
                 'that no dedicated TSV command fixture is available in the pinned direct-reader evidence set',
                 'static checked-in current csv.md and 01.csv fixture identity when staticCurrentEvidence is valid',
-                'three generated TSV-to-native local samples when generatedTsvNativeParityEvidence is valid',
+                'four generated TSV-to-native local samples when generatedTsvNativeParityEvidence is valid',
             ],
             'doesNotAssert' => [
                 'that upstream Haskell/Cabal/Tasty tests were executed',
