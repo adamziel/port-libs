@@ -1,0 +1,7 @@
+foo1
+  :  bar
+
+foo2
+  : bar2
+
+  : bar3
