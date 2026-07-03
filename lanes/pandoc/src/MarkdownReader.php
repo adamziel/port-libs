@@ -10941,6 +10941,14 @@ final class MarkdownReader
                     continue;
                 }
 
+                $divBlock = $this->readListItemDivBlock($lines, $cursor, $baseIndent, $contentIndent, $continuation);
+                if ($divBlock !== null) {
+                    $this->flushListItemParagraph($paragraph, $parts);
+                    $parts[] = $divBlock['node'];
+                    $cursor = $divBlock['next'];
+                    continue;
+                }
+
                 $setextHeading = $paragraph !== []
                     ? $this->tryPromoteParagraphSetextMarkdownHeading($paragraph, $continuation)
                     : null;
@@ -11157,6 +11165,38 @@ final class MarkdownReader
 
         return [
             'node' => $fencedDiv,
+            'next' => $cursor + $blockIndex + 1,
+        ];
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{node:AstNode, next:int}|null
+     */
+    private function readListItemDivBlock(
+        array $lines,
+        int $cursor,
+        int $baseIndent,
+        int $contentIndent,
+        string $firstLine
+    ): ?array {
+        if (preg_match('/^ {0,3}<div(?=\s|>)/i', $this->expandTabsToSpaces($firstLine)) !== 1) {
+            return null;
+        }
+
+        $blockLines = [$firstLine];
+        $blockLines = array_merge(
+            $blockLines,
+            $this->collectListItemIndentedContinuationLines($lines, $cursor + 1, $baseIndent, $contentIndent)
+        );
+        $blockIndex = 0;
+        $divBlock = $this->tryReadDivBlock($blockLines, $blockIndex);
+        if ($divBlock === null) {
+            return null;
+        }
+
+        return [
+            'node' => $divBlock,
             'next' => $cursor + $blockIndex + 1,
         ];
     }
