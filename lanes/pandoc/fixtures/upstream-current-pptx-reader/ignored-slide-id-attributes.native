@@ -1,0 +1,5 @@
+[ Header
+    2 ( "slide-1" , [] , [] ) [ Str "Invalid numeric slide id" ]
+, Header
+    2 ( "slide-2" , [] , [] ) [ Str "Missing numeric slide id" ]
+]

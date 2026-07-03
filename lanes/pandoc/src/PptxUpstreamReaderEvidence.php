@@ -13,7 +13,7 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 42;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 43;
 
     private const STATIC_CURRENT_READER_CASES = [
         [
@@ -383,6 +383,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => 'a543e3ed60ca4d5f187fba970ed855d5f064a911e3ee3224b07929481c62b515',
             'pptxBytes' => 1893,
             'nativeBytes' => 178,
+        ],
+        'ignored-slide-id-attributes' => [
+            'name' => 'generated ignored presentation slide id attributes parity',
+            'pptx' => 'pptx-reader/ignored-slide-id-attributes.pptx',
+            'native' => 'pptx-reader/ignored-slide-id-attributes.native',
+            'pairKey' => 'pptx-reader/ignored-slide-id-attributes.pptx|pptx-reader/ignored-slide-id-attributes.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/ignored-slide-id-attributes.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/ignored-slide-id-attributes.native',
+            'pptxSha256' => '089bf291993684e3a30d1dcd4caa047475bf38ca13b0b730fd97bebaf56092b6',
+            'nativeSha256' => '2be6bf3f3e934918925565417fb8e3fb200eb6ba904ebe16dbbf4ebb2e018372',
+            'pptxBytes' => 1944,
+            'nativeBytes' => 150,
         ],
         'hyperlink-text' => [
             'name' => 'generated text hyperlink invisibility parity',
