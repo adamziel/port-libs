@@ -18,7 +18,7 @@ final class DelimitedTextUpstreamReaderEvidence
     public const EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT = 0;
     public const EXPECTED_STATIC_CSV_ADJACENT_RST_FIXTURE_COUNT = 2;
     public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 24;
-    public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 16;
+    public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 17;
 
     private const CHECKED_IN_CURRENT_CSV_FIXTURES = [
         'csv.md' => [
@@ -601,6 +601,20 @@ final class DelimitedTextUpstreamReaderEvidence
             'sha256' => '6c1d2eed4478d45205fe2f2fb63b3ba282aad8c27f37b5a01168ba689bee0f00',
             'bytes' => 610,
         ],
+        'no-header-internal-trailing-empty.tsv' => [
+            'role' => 'generated-tsv-native-parity-input-fixture',
+            'sample' => 'no-header-internal-trailing-empty',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/no-header-internal-trailing-empty.tsv',
+            'sha256' => '4147bfbde51a4e832fe461334bc8657c055dca86d4b274dee8c3adab32cab9cd',
+            'bytes' => 33,
+        ],
+        'no-header-internal-trailing-empty.native' => [
+            'role' => 'generated-tsv-native-parity-expected-native-output',
+            'sample' => 'no-header-internal-trailing-empty',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/no-header-internal-trailing-empty.native',
+            'sha256' => 'c3fade20df04245e26fd3e54990284f7e1a8750c882c2557ec520c75faab46f5',
+            'bytes' => 1363,
+        ],
     ];
 
     private const GENERATED_CSV_NATIVE_SAMPLES = [
@@ -809,6 +823,13 @@ final class DelimitedTextUpstreamReaderEvidence
         'header-only' => [
             'inputPath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/header-only.tsv',
             'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/header-only.native',
+        ],
+        'no-header-internal-trailing-empty' => [
+            'inputPath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/no-header-internal-trailing-empty.tsv',
+            'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/no-header-internal-trailing-empty.native',
+            'options' => [
+                'header' => false,
+            ],
         ],
     ];
 
