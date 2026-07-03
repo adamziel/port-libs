@@ -59,12 +59,12 @@ final class DelimitedTextReader
             $sourceAnalysis = $this->sourceAnalysis($sourceText, $dialect, []);
             return new AstNode('document', [
                 'sourceFormat' => $format,
-                'delimitedText' => $this->reviewPacket($format, $dialect, [], [], [], $blankRows, $hasHeader, $formatInference, $inputPrefix, $sourceAnalysis, $parse['diagnostics'], $parse['metrics'], $controlCharacters),
+                'delimitedText' => $this->reviewPacket($format, $dialect, [], [], [], $blankRows, $hasHeader, 0, $formatInference, $inputPrefix, $sourceAnalysis, $parse['diagnostics'], $parse['metrics'], $controlCharacters),
             ]);
         }
 
         $widths = array_map('count', $rows);
-        $columnCount = max($widths);
+        $columnCount = $this->repairedColumnCount($widths, $hasHeader);
         $sourceAnalysis = $this->sourceAnalysis($sourceText, $dialect, $widths);
         $sourceHeader = $hasHeader ? array_shift($rows) : null;
         $tableRows = [];
@@ -80,7 +80,7 @@ final class DelimitedTextReader
         $table = TableGeometry::withReviewPacket(new AstNode('table', [
             'sourceFormat' => $format,
             'alignments' => array_fill(0, $columnCount, 'default'),
-            'delimitedText' => $this->reviewPacket($format, $dialect, $sourceHeader === null ? $rows : [$sourceHeader, ...$rows], $widths, $sourceRowIndexes, $blankRows, $hasHeader, $formatInference, $inputPrefix, $sourceAnalysis, $parse['diagnostics'], $parse['metrics'], $controlCharacters),
+            'delimitedText' => $this->reviewPacket($format, $dialect, $sourceHeader === null ? $rows : [$sourceHeader, ...$rows], $widths, $sourceRowIndexes, $blankRows, $hasHeader, $columnCount, $formatInference, $inputPrefix, $sourceAnalysis, $parse['diagnostics'], $parse['metrics'], $controlCharacters),
             'columnNames' => $sourceHeader === null ? $this->generatedColumnLabels($columnCount) : $this->normalizedRow($sourceHeader, $columnCount),
         ], [
             new AstNode('table_head', [], $headRows),
@@ -278,6 +278,26 @@ final class DelimitedTextReader
         }
 
         return $options['header'];
+    }
+
+    /**
+     * @param list<int> $widths
+     */
+    private function repairedColumnCount(array $widths, bool $hasHeader): int
+    {
+        if ($widths === []) {
+            return 0;
+        }
+
+        return $hasHeader ? $widths[0] : max($widths);
+    }
+
+    /**
+     * @param list<int> $widths
+     */
+    private function rowRepairPolicy(bool $hasHeader, array $widths): string
+    {
+        return $hasHeader && $widths !== [] ? 'header-row-width' : 'pad-to-wide-row';
     }
 
     /**
@@ -801,6 +821,7 @@ final class DelimitedTextReader
         array $sourceRowIndexes,
         array $blankRows,
         bool $hasHeader,
+        int $repairedColumnCount,
         array $formatInference,
         array $inputPrefix,
         array $sourceAnalysis,
@@ -810,15 +831,16 @@ final class DelimitedTextReader
     ): array
     {
         $rowCount = count($rows);
-        $columnCount = $widths === [] ? 0 : max($widths);
+        $sourceColumnCount = $widths === [] ? 0 : max($widths);
+        $columnCount = max(0, $repairedColumnCount);
         $raggedRows = [];
         foreach ($widths as $index => $width) {
             if ($width !== $columnCount) {
                 $raggedRows[] = $index;
             }
         }
-        $rowWidthSummary = $this->rowWidthSummary($rows, $widths, $sourceRowIndexes, $blankRows, $hasHeader);
-        $rowRepairSummary = $this->rowRepairSummary($rows, $widths, $sourceRowIndexes, $blankRows, $hasHeader);
+        $rowWidthSummary = $this->rowWidthSummary($rows, $widths, $sourceRowIndexes, $blankRows, $hasHeader, $columnCount);
+        $rowRepairSummary = $this->rowRepairSummary($rows, $widths, $sourceRowIndexes, $blankRows, $hasHeader, $columnCount);
         $controlCharacters = $this->annotateControlCharactersWithRepair($controlCharacters, $rowRepairSummary);
         $diagnostics = $this->reviewDiagnostics($hasHeader, $formatInference, $inputPrefix, $sourceAnalysis, $rowWidthSummary, $controlCharacters);
         foreach ($parseDiagnostics as $diagnostic) {
@@ -848,12 +870,13 @@ final class DelimitedTextReader
             'rowCount' => $rowCount,
             'bodyRowCount' => $hasHeader ? max(0, $rowCount - 1) : $rowCount,
             'columnCount' => $columnCount,
+            'sourceMaxFieldCount' => $sourceColumnCount,
             'columnNames' => $hasHeader && $rows !== []
                 ? $this->normalizedRow($rows[0], $columnCount)
                 : $this->generatedColumnLabels($columnCount),
             'fieldCount' => array_sum($widths),
             'minFieldCount' => $widths === [] ? 0 : min($widths),
-            'maxFieldCount' => $columnCount,
+            'maxFieldCount' => $sourceColumnCount,
             'blankRowCount' => count($blankRows),
             'blankRows' => $blankRows,
             'raggedRowCount' => count($raggedRows),
@@ -1294,11 +1317,14 @@ final class DelimitedTextReader
             $diagnostics[] = [
                 'code' => 'delimited-text-row-widths-uneven',
                 'severity' => 'warning',
-                'message' => 'Delimited text rows have uneven field counts; shorter rows were padded in the native table.',
+                'message' => 'Delimited text rows have uneven field counts; rows were padded or truncated in the native table.',
                 'policy' => $rowWidthSummary['relaxed']['policy'] ?? 'pad-to-wide-row',
                 'columnCount' => $rowWidthSummary['relaxed']['columnCount'] ?? 0,
+                'changedRowCount' => $rowWidthSummary['relaxed']['changedRowCount'] ?? 0,
                 'paddedRowCount' => $rowWidthSummary['relaxed']['paddedRowCount'] ?? 0,
+                'truncatedRowCount' => $rowWidthSummary['relaxed']['truncatedRowCount'] ?? 0,
                 'paddedRows' => $rowWidthSummary['relaxed']['paddedRows'] ?? [],
+                'truncatedRows' => $rowWidthSummary['relaxed']['truncatedRows'] ?? [],
             ];
         }
 
@@ -1306,7 +1332,7 @@ final class DelimitedTextReader
             $diagnostics[] = [
                 'code' => 'delimited-text-header-width-mismatch',
                 'severity' => 'warning',
-                'message' => 'Header and body row field counts differ; column names were normalized to the padded table width.',
+                'message' => 'Header and body row field counts differ; column names were normalized to the reader table width.',
                 'headerColumnCount' => $rowWidthSummary['header']['headerColumnCount'] ?? 0,
                 'dataColumnCounts' => $rowWidthSummary['header']['dataColumnCounts'] ?? [],
                 'mismatchCount' => $rowWidthSummary['header']['mismatchCount'] ?? 0,
@@ -1530,14 +1556,16 @@ final class DelimitedTextReader
      * @param list<int> $blankRows
      * @return array<string, mixed>
      */
-    private function rowWidthSummary(array $rows, array $widths, array $sourceRowIndexes, array $blankRows, bool $hasHeader): array
+    private function rowWidthSummary(array $rows, array $widths, array $sourceRowIndexes, array $blankRows, bool $hasHeader, int $repairedColumnCount): array
     {
         $rowCount = count($rows);
-        $columnCount = $widths === [] ? 0 : max($widths);
+        $sourceColumnCount = $widths === [] ? 0 : max($widths);
+        $columnCount = max(0, $repairedColumnCount);
         $expectedWidth = $widths[0] ?? 0;
         $strictMismatches = [];
         $headerMismatches = [];
         $relaxedPaddedRows = [];
+        $relaxedTruncatedRows = [];
         $trailingEmptyFieldRows = [];
 
         foreach ($widths as $index => $width) {
@@ -1554,6 +1582,9 @@ final class DelimitedTextReader
             if ($width < $columnCount) {
                 $relaxedPaddedRows[] = $this->rowWidthMismatch($index, $sourceRow, $rowRole, $width, $columnCount);
             }
+            if ($width > $columnCount) {
+                $relaxedTruncatedRows[] = $this->rowWidthMismatch($index, $sourceRow, $rowRole, $width, $columnCount);
+            }
 
             $row = $rows[$index] ?? [];
             if ($row !== [] && $row[array_key_last($row)] === '') {
@@ -1568,6 +1599,7 @@ final class DelimitedTextReader
             'blankRows' => $blankRows,
             'trailingEmptyFieldRows' => $trailingEmptyFieldRows,
             'widthCounts' => $this->rowWidthCounts($widths),
+            'sourceMaxFieldCount' => $sourceColumnCount,
             'strict' => [
                 'policy' => $hasHeader && $rowCount > 0 ? 'header-row' : 'first-row',
                 'expectedColumnCount' => $expectedWidth,
@@ -1576,11 +1608,15 @@ final class DelimitedTextReader
                 'mismatches' => $strictMismatches,
             ],
             'relaxed' => [
-                'policy' => 'pad-to-wide-row',
+                'policy' => $this->rowRepairPolicy($hasHeader, $widths),
                 'columnCount' => $columnCount,
-                'consistent' => $widths === [] || min($widths) === $columnCount,
+                'sourceMaxFieldCount' => $sourceColumnCount,
+                'consistent' => $widths === [] || ($relaxedPaddedRows === [] && $relaxedTruncatedRows === []),
+                'changedRowCount' => count($relaxedPaddedRows) + count($relaxedTruncatedRows),
                 'paddedRowCount' => count($relaxedPaddedRows),
+                'truncatedRowCount' => count($relaxedTruncatedRows),
                 'paddedRows' => $relaxedPaddedRows,
+                'truncatedRows' => $relaxedTruncatedRows,
             ],
             'header' => [
                 'enabled' => $hasHeader,
@@ -1600,9 +1636,10 @@ final class DelimitedTextReader
      * @param list<int> $blankRows
      * @return array<string, mixed>
      */
-    private function rowRepairSummary(array $rows, array $widths, array $sourceRowIndexes, array $blankRows, bool $hasHeader): array
+    private function rowRepairSummary(array $rows, array $widths, array $sourceRowIndexes, array $blankRows, bool $hasHeader, int $repairedColumnCount): array
     {
-        $columnCount = $widths === [] ? 0 : max($widths);
+        $sourceColumnCount = $widths === [] ? 0 : max($widths);
+        $columnCount = max(0, $repairedColumnCount);
         $rowsSummary = [];
         $paddedRows = [];
         $truncatedRows = [];
@@ -1634,9 +1671,10 @@ final class DelimitedTextReader
         }
 
         return [
-            'policy' => 'relaxed-pad-to-wide-row',
+            'policy' => $this->rowRepairPolicy($hasHeader, $widths),
             'strictPolicy' => $hasHeader && $widths !== [] ? 'header-row' : 'first-row',
             'originalColumnCounts' => $widths,
+            'sourceMaxFieldCount' => $sourceColumnCount,
             'repairedColumnCount' => $columnCount,
             'sourceRowIndexes' => $sourceRowIndexes,
             'blankRowCount' => count($blankRows),

@@ -125,6 +125,24 @@ return [
         $t->contains('Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) []', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
+    'matches upstream csv header width when body rows are wider or shorter' => static function (TestRunner $t): void {
+        $document = (new DelimitedTextReader())->readCsv("a,b\n1,2,3\n4\n");
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+        $body = $table->children[1];
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same(['a', 'b'], $table->attr('columnNames'));
+        $t->same(2, TableGeometry::columnCount($table));
+        $t->same(2, $packet['columnCount'] ?? null);
+        $t->same(3, $packet['sourceMaxFieldCount'] ?? null);
+        $t->same(['1', '2'], array_map(static fn (AstNode $cell): string => $cell->attr('text'), $body->children[0]->children));
+        $t->same(['4', ''], array_map(static fn (AstNode $cell): string => $cell->attr('text'), $body->children[1]->children));
+        $t->same('header-row-width', $packet['rowRepairSummary']['policy'] ?? null);
+        $t->same(1, $packet['rowRepairSummary']['truncatedRowCount'] ?? null);
+        $t->same(1, $packet['rowRepairSummary']['paddedRowCount'] ?? null);
+        $t->true(!str_contains($native, 'Str "3"'));
+    },
     'matches generated csv quoted multiline native parity fixture without inflating csv denominator' => static function (TestRunner $t) use ($generatedCsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedCsvNativeFixture();
         $document = (new DelimitedTextReader())->readCsv($fixture['input'], [
@@ -1190,27 +1208,26 @@ return [
         $t->same('quote-disabled-literal.csv', $generatedEvidence['checkedInFixtures'][44]['name'] ?? null);
         $t->same('d660c2016f15d2181c677dd6545d768f579d6cffcaed5909292260420cf8efde', $generatedEvidence['checkedInFixtures'][44]['checkedInFile']['sha256'] ?? null);
         $t->same('quote-disabled-literal.native', $generatedEvidence['checkedInFixtures'][45]['name'] ?? null);
-        $t->same('d95c8756e2ebf86d74eb31661712d1500cd3d59622c59f129341464a6b52fa30', $generatedEvidence['checkedInFixtures'][45]['checkedInFile']['sha256'] ?? null);
+        $t->same('0f5b9311d4ace127a447f0ab12474ca032d67db6ea57300ed95cd995d4ff8d5e', $generatedEvidence['checkedInFixtures'][45]['checkedInFile']['sha256'] ?? null);
         $t->same('quote-disabled-literal', $generatedEvidence['samples'][22]['name'] ?? null);
         $t->same(['quote' => false], $generatedEvidence['samples'][22]['readerOptions'] ?? null);
-        $t->same(['id', 'note', 'status', ''], $table->attr('columnNames'));
+        $t->same(['id', 'note', 'status'], $table->attr('columnNames'));
         $t->same(4, $packet['rowCount'] ?? null);
         $t->same(3, $packet['bodyRowCount'] ?? null);
-        $t->same(4, $packet['columnCount'] ?? null);
+        $t->same(3, $packet['columnCount'] ?? null);
+        $t->same(4, $packet['sourceMaxFieldCount'] ?? null);
         $t->same(13, $packet['fieldCount'] ?? null);
         $t->same(0, $packet['quotedFieldCount'] ?? null);
         $t->same(0, $packet['doubledQuoteEscapeCount'] ?? null);
         $t->same(0, $packet['quoteInUnquotedFieldCount'] ?? null);
-        $t->same(3, $packet['raggedRowCount'] ?? null);
-        $t->same([0, 2, 3], $packet['raggedRows'] ?? null);
+        $t->same(1, $packet['raggedRowCount'] ?? null);
+        $t->same([1], $packet['raggedRows'] ?? null);
         $t->same(3, $packet['diagnosticCount'] ?? null);
         $t->same('"literal', $table->children[1]->children[0]->children[1]->attr('text'));
         $t->same('comma"', $table->children[1]->children[0]->children[2]->attr('text'));
-        $t->same('open', $table->children[1]->children[0]->children[3]->attr('text'));
+        $t->same(3, count($table->children[1]->children[0]->children));
         $t->same('"literal ""quote"""', $table->children[1]->children[1]->children[1]->attr('text'));
-        $t->same('', $table->children[1]->children[1]->children[3]->attr('text'));
         $t->same('plain "middle" quote', $table->children[1]->children[2]->children[1]->attr('text'));
-        $t->same('', $table->children[1]->children[2]->children[3]->attr('text'));
         $t->contains('Plain [ Str "\"literal" ]', $native);
         $t->contains('Plain [ Str "comma\"" ]', $native);
         $t->contains('Plain [ Str "\"literal" , Space , Str "\"\"quote\"\"\"" ]', $native);
@@ -1500,25 +1517,28 @@ return [
         $t->same('ragged-blank-fields.tsv', $generatedEvidence['checkedInFixtures'][6]['name'] ?? null);
         $t->same('3eb62cad900b02542011bfcb6ffa891856dbf398aa7e7174785264494258c9d4', $generatedEvidence['checkedInFixtures'][6]['checkedInFile']['sha256'] ?? null);
         $t->same('ragged-blank-fields.native', $generatedEvidence['checkedInFixtures'][7]['name'] ?? null);
-        $t->same('a6f8a232c40e26e421c2640f35ff1f1010f24eb7e42341b9b09dfadfb86a2bee', $generatedEvidence['checkedInFixtures'][7]['checkedInFile']['sha256'] ?? null);
-        $t->same(['name', 'status', 'note', ''], $table->attr('columnNames'));
+        $t->same('3dff8bc1804021464a9c00917917904cef8c259d3933410507bb0a6961899bce', $generatedEvidence['checkedInFixtures'][7]['checkedInFile']['sha256'] ?? null);
+        $t->same(['name', 'status', 'note'], $table->attr('columnNames'));
         $t->same(5, $packet['rowCount'] ?? null);
         $t->same(4, $packet['bodyRowCount'] ?? null);
-        $t->same(4, $packet['columnCount'] ?? null);
+        $t->same(3, $packet['columnCount'] ?? null);
+        $t->same(4, $packet['sourceMaxFieldCount'] ?? null);
         $t->same(14, $packet['fieldCount'] ?? null);
-        $t->same(4, $packet['raggedRowCount'] ?? null);
-        $t->same([0, 1, 2, 3], $packet['raggedRows'] ?? null);
+        $t->same(3, $packet['raggedRowCount'] ?? null);
+        $t->same([2, 3, 4], $packet['raggedRows'] ?? null);
         $t->same([], $packet['trailingDelimiterRows'] ?? null);
         $t->same([3, 3, 2, 2, 4], $packet['rowWidthSummary']['rowWidths'] ?? null);
-        $t->same(4, $packet['rowRepairSummary']['paddedRowCount'] ?? null);
-        $t->same(0, $packet['rowRepairSummary']['truncatedRowCount'] ?? null);
-        $t->same('', $table->children[0]->children[0]->children[3]->attr('text'));
+        $t->same('header-row-width', $packet['rowRepairSummary']['policy'] ?? null);
+        $t->same(2, $packet['rowRepairSummary']['paddedRowCount'] ?? null);
+        $t->same(1, $packet['rowRepairSummary']['truncatedRowCount'] ?? null);
+        $t->same(3, count($table->children[0]->children[0]->children));
         $t->same('', $table->children[1]->children[0]->children[1]->attr('text'));
         $t->same('', $table->children[1]->children[1]->children[2]->attr('text'));
         $t->same('', $table->children[1]->children[2]->children[2]->attr('text'));
-        $t->same('extra', $table->children[1]->children[3]->children[3]->attr('text'));
+        $t->same(3, count($table->children[1]->children[3]->children));
         $t->contains('Plain [ Str "in" , Space , Str "review" ]', $native);
         $t->contains('Plain [ Str "wider" ]', $native);
+        $t->true(!str_contains($native, 'Str "extra"'));
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
     'matches generated tsv no header native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
@@ -2255,31 +2275,33 @@ return [
         $t->same('literal-quote-tab-split.tsv', $generatedEvidence['checkedInFixtures'][40]['name'] ?? null);
         $t->same('00fa66e3f5a260829bf083772aeea977b1bafda332a62dee7a6b54027cd28bdc', $generatedEvidence['checkedInFixtures'][40]['checkedInFile']['sha256'] ?? null);
         $t->same('literal-quote-tab-split.native', $generatedEvidence['checkedInFixtures'][41]['name'] ?? null);
-        $t->same('d861a13c4c8ff35594af78ad80c287e82bfd29303242558f5e3f35088a9ba5a5', $generatedEvidence['checkedInFixtures'][41]['checkedInFile']['sha256'] ?? null);
+        $t->same('2dcb1348c01e9fd601db48b537d48593b033a8d45ed9641619e569e925f1582e', $generatedEvidence['checkedInFixtures'][41]['checkedInFile']['sha256'] ?? null);
         $t->same('literal-quote-tab-split', $generatedEvidence['samples'][20]['name'] ?? null);
         $t->same([], $generatedEvidence['samples'][20]['readerOptions'] ?? null);
-        $t->same(['id', 'payload', 'status', ''], $table->attr('columnNames'));
+        $t->same(['id', 'payload', 'status'], $table->attr('columnNames'));
         $t->same(3, $packet['rowCount'] ?? null);
         $t->same(2, $packet['bodyRowCount'] ?? null);
-        $t->same(4, $packet['columnCount'] ?? null);
+        $t->same(3, $packet['columnCount'] ?? null);
+        $t->same(4, $packet['sourceMaxFieldCount'] ?? null);
         $t->same(10, $packet['fieldCount'] ?? null);
         $t->same(0, $packet['quotedFieldCount'] ?? null);
         $t->same(0, $packet['quoteInUnquotedFieldCount'] ?? null);
-        $t->same(2, $packet['raggedRowCount'] ?? null);
-        $t->same([0, 2], $packet['raggedRows'] ?? null);
+        $t->same(1, $packet['raggedRowCount'] ?? null);
+        $t->same([1], $packet['raggedRows'] ?? null);
         $t->same(3, $packet['diagnosticCount'] ?? null);
         $t->same([
             'delimited-text-strict-row-width-mismatch',
             'delimited-text-row-widths-uneven',
             'delimited-text-header-width-mismatch',
         ], array_column($packet['diagnostics'] ?? [], 'code'));
-        $t->same('', $table->children[0]->children[0]->children[3]->attr('text'));
+        $t->same(3, count($table->children[0]->children[0]->children));
         $t->same('"left', $table->children[1]->children[0]->children[1]->attr('text'));
         $t->same('right"', $table->children[1]->children[0]->children[2]->attr('text'));
-        $t->same('wide', $table->children[1]->children[0]->children[3]->attr('text'));
-        $t->same('', $table->children[1]->children[1]->children[3]->attr('text'));
+        $t->same(3, count($table->children[1]->children[0]->children));
+        $t->same(3, count($table->children[1]->children[1]->children));
         $t->contains('Plain [ Str "\\"left" ]', $native);
         $t->contains('Plain [ Str "right\\"" ]', $native);
+        $t->true(!str_contains($native, 'Str "wide"'));
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
     'matches pinned upstream csv parser option fixtures' => static function (TestRunner $t): void {
@@ -2619,7 +2641,7 @@ return [
         $tsvCodes = array_map(static fn (array $diagnostic): string => $diagnostic['code'], $tsvPacket['diagnostics'] ?? []);
 
         $t->same('csv', $csvPacket['format'] ?? null);
-        $t->same(['id', 'title', 'note', ''], $csvPacket['columnNames'] ?? null);
+        $t->same(['id', 'title', 'note'], $csvPacket['columnNames'] ?? null);
         $t->same([3, 2, 4, 3], $csvWidth['rowWidths'] ?? null);
         $t->same([0, 1, 2, 3], $csvWidth['sourceRowIndexes'] ?? null);
         $t->same(false, $csvWidth['strict']['consistent'] ?? null);
@@ -2627,16 +2649,19 @@ return [
         $t->same('source-row-1', $csvWidth['strict']['mismatches'][0]['rowLabel'] ?? null);
         $t->same(1, $csvWidth['strict']['mismatches'][0]['missingFields'] ?? null);
         $t->same(1, $csvWidth['strict']['mismatches'][1]['extraFields'] ?? null);
-        $t->same(3, $csvWidth['relaxed']['paddedRowCount'] ?? null);
+        $t->same(3, $csvWidth['relaxed']['columnCount'] ?? null);
+        $t->same(1, $csvWidth['relaxed']['paddedRowCount'] ?? null);
+        $t->same(1, $csvWidth['relaxed']['truncatedRowCount'] ?? null);
         $t->same(2, $csvWidth['header']['mismatchCount'] ?? null);
-        $t->same('relaxed-pad-to-wide-row', $csvRepair['policy'] ?? null);
-        $t->same(4, $csvRepair['repairedColumnCount'] ?? null);
-        $t->same(3, $csvRepair['changedRowCount'] ?? null);
+        $t->same('header-row-width', $csvRepair['policy'] ?? null);
+        $t->same(3, $csvRepair['repairedColumnCount'] ?? null);
+        $t->same(2, $csvRepair['changedRowCount'] ?? null);
         $t->same('padded', $csvRepair['rows'][1]['repair'] ?? null);
         $t->same(2, $csvRepair['rows'][1]['originalColumnCount'] ?? null);
-        $t->same(4, $csvRepair['rows'][1]['repairedColumnCount'] ?? null);
-        $t->same(2, $csvRepair['rows'][1]['missingFieldsAdded'] ?? null);
-        $t->same('unchanged', $csvRepair['rows'][2]['repair'] ?? null);
+        $t->same(3, $csvRepair['rows'][1]['repairedColumnCount'] ?? null);
+        $t->same(1, $csvRepair['rows'][1]['missingFieldsAdded'] ?? null);
+        $t->same('truncated', $csvRepair['rows'][2]['repair'] ?? null);
+        $t->same(1, $csvRepair['rows'][2]['extraFieldsDropped'] ?? null);
         $t->same([
             'delimited-text-input-prefix-utf8-bom',
             'delimited-text-input-prefix-null-byte',
@@ -2662,41 +2687,42 @@ return [
         $t->same(1, $csvSamples[0]['positionAfterRepair']['columnIndex'] ?? null);
         $t->same(true, $csvSamples[0]['positionAfterRepair']['columnWithinRepairedWidth'] ?? null);
         $t->same('padded', $csvSamples[0]['rowRepair']['repair'] ?? null);
-        $t->same(2, $csvSamples[0]['rowRepair']['missingFieldsAdded'] ?? null);
+        $t->same(1, $csvSamples[0]['rowRepair']['missingFieldsAdded'] ?? null);
         $t->same(true, $csvSamples[0]['fieldQuoted'] ?? null);
         $t->same('00', $csvSamples[0]['byteHex'] ?? null);
         $t->same('NUL', $csvSamples[0]['name'] ?? null);
         $t->same(2, $csvSamples[1]['positionBeforeRepair']['sourceRow'] ?? null);
         $t->same(1, $csvSamples[1]['positionBeforeRepair']['sourceColumn'] ?? null);
-        $t->same('unchanged', $csvSamples[1]['rowRepair']['repair'] ?? null);
+        $t->same('truncated', $csvSamples[1]['rowRepair']['repair'] ?? null);
         $t->same(false, $csvSamples[1]['fieldQuoted'] ?? null);
         $t->same('1F', $csvSamples[1]['byteHex'] ?? null);
         $t->same('US', $csvSamples[1]['name'] ?? null);
         $t->same('annotate-controls-after-relaxed-row-repair', $csvControlRepair['policy'] ?? null);
         $t->same('imports/control-repair.csv', $csvControlRepair['sourcePath'] ?? null);
         $t->same(1, $csvControlRepair['controlsInPaddedRows'] ?? null);
-        $t->same(1, $csvControlRepair['controlsInChangedRows'] ?? null);
-        $t->same(1, $csvControlRepair['controlsInUnchangedRows'] ?? null);
-        $t->same(['padded' => 1, 'unchanged' => 1, 'truncated' => 0, 'unmapped' => 0], $csvControlRepair['byRepair'] ?? null);
+        $t->same(2, $csvControlRepair['controlsInChangedRows'] ?? null);
+        $t->same(0, $csvControlRepair['controlsInUnchangedRows'] ?? null);
+        $t->same(['padded' => 1, 'unchanged' => 0, 'truncated' => 1, 'unmapped' => 0], $csvControlRepair['byRepair'] ?? null);
         $t->same('padded', $csvControlRepair['sourceRows'][0]['repair'] ?? null);
         $t->same([1], $csvControlRepair['sourceRows'][0]['columns'] ?? null);
         $t->same('quoted' . "\x00" . 'short', $csvTable->children[1]->children[0]->children[1]->attr('text'));
         $t->same('', $csvTable->children[1]->children[0]->children[2]->attr('text'));
-        $t->same('extra', $csvTable->children[1]->children[1]->children[3]->attr('text'));
+        $t->same(3, count($csvTable->children[1]->children[1]->children));
 
         $t->same('tsv', $tsvPacket['format'] ?? null);
         $t->same('tab', $tsvPacket['delimiter'] ?? null);
         $t->same([3, 2, 4, 3], $tsvWidth['rowWidths'] ?? null);
         $t->same([3], $tsvWidth['trailingEmptyFieldRows'] ?? null);
         $t->same(2, $tsvWidth['strict']['mismatchCount'] ?? null);
-        $t->same(3, $tsvWidth['relaxed']['paddedRowCount'] ?? null);
+        $t->same(1, $tsvWidth['relaxed']['paddedRowCount'] ?? null);
+        $t->same(1, $tsvWidth['relaxed']['truncatedRowCount'] ?? null);
         $t->same(2, $tsvWidth['header']['mismatchCount'] ?? null);
-        $t->same('relaxed-pad-to-wide-row', $tsvRepair['policy'] ?? null);
-        $t->same(4, $tsvRepair['repairedColumnCount'] ?? null);
-        $t->same(3, $tsvRepair['changedRowCount'] ?? null);
+        $t->same('header-row-width', $tsvRepair['policy'] ?? null);
+        $t->same(3, $tsvRepair['repairedColumnCount'] ?? null);
+        $t->same(2, $tsvRepair['changedRowCount'] ?? null);
         $t->same('padded', $tsvRepair['rows'][1]['repair'] ?? null);
-        $t->same(2, $tsvRepair['rows'][1]['missingFieldsAdded'] ?? null);
-        $t->same('unchanged', $tsvRepair['rows'][2]['repair'] ?? null);
+        $t->same(1, $tsvRepair['rows'][1]['missingFieldsAdded'] ?? null);
+        $t->same('truncated', $tsvRepair['rows'][2]['repair'] ?? null);
         $t->same([
             'delimited-text-input-prefix-control-character',
             'delimited-text-trailing-delimiter-empty-field',
@@ -2717,20 +2743,20 @@ return [
         $t->same(1, $tsvSamples[0]['positionBeforeRepair']['sourceRow'] ?? null);
         $t->same(1, $tsvSamples[0]['positionBeforeRepair']['sourceColumn'] ?? null);
         $t->same('padded', $tsvSamples[0]['rowRepair']['repair'] ?? null);
-        $t->same(2, $tsvSamples[0]['rowRepair']['missingFieldsAdded'] ?? null);
+        $t->same(1, $tsvSamples[0]['rowRepair']['missingFieldsAdded'] ?? null);
         $t->same(false, $tsvSamples[0]['fieldQuoted'] ?? null);
         $t->same('1B', $tsvSamples[0]['byteHex'] ?? null);
         $t->same('ESC', $tsvSamples[0]['name'] ?? null);
         $t->same(2, $tsvSamples[1]['positionAfterRepair']['row'] ?? null);
         $t->same(1, $tsvSamples[1]['positionAfterRepair']['columnIndex'] ?? null);
-        $t->same('unchanged', $tsvSamples[1]['rowRepair']['repair'] ?? null);
+        $t->same('truncated', $tsvSamples[1]['rowRepair']['repair'] ?? null);
         $t->same(false, $tsvSamples[1]['fieldQuoted'] ?? null);
         $t->same('07', $tsvSamples[1]['byteHex'] ?? null);
         $t->same('BEL', $tsvSamples[1]['name'] ?? null);
         $t->same(1, $tsvControlRepair['controlsInPaddedRows'] ?? null);
-        $t->same(1, $tsvControlRepair['controlsInChangedRows'] ?? null);
-        $t->same(1, $tsvControlRepair['controlsInUnchangedRows'] ?? null);
-        $t->same(['padded' => 1, 'unchanged' => 1, 'truncated' => 0, 'unmapped' => 0], $tsvControlRepair['byRepair'] ?? null);
+        $t->same(2, $tsvControlRepair['controlsInChangedRows'] ?? null);
+        $t->same(0, $tsvControlRepair['controlsInUnchangedRows'] ?? null);
+        $t->same(['padded' => 1, 'unchanged' => 0, 'truncated' => 1, 'unmapped' => 0], $tsvControlRepair['byRepair'] ?? null);
         $t->same('plain' . "\x1B" . 'field', $tsvTable->children[1]->children[0]->children[1]->attr('text'));
         $t->same('', $tsvTable->children[1]->children[0]->children[2]->attr('text'));
         $t->same('"quoted' . "\x07" . 'field"', $tsvTable->children[1]->children[1]->children[1]->attr('text'));
@@ -3088,7 +3114,7 @@ return [
         $t->same('delimited-text-format-inferred', $csvPacket['diagnostics'][0]['code'] ?? null);
         $t->same('10', $csvDocument->children[0]->children[1]->children[0]->children[1]->attr('text'));
     },
-    'records csv relaxed row repair provenance without changing padded table output' => static function (TestRunner $t): void {
+    'records csv header row width repair provenance without widening table output' => static function (TestRunner $t): void {
         $document = (new DelimitedTextReader())->readCsv("\xEF\xBB\xBF" . implode("\n", [
             'id,title,published',
             '42,"Legacy, ""quoted"" title",true',
@@ -3107,12 +3133,13 @@ return [
         }
 
         $t->same('csv', $packet['format'] ?? null);
-        $t->same(['id', 'title', 'published', ''], $packet['columnNames'] ?? null);
+        $t->same(['id', 'title', 'published'], $packet['columnNames'] ?? null);
         $t->same(4, $packet['rowCount'] ?? null);
-        $t->same(4, $packet['columnCount'] ?? null);
+        $t->same(3, $packet['columnCount'] ?? null);
+        $t->same(4, $packet['sourceMaxFieldCount'] ?? null);
         $t->same(12, $packet['fieldCount'] ?? null);
-        $t->same(3, $packet['raggedRowCount'] ?? null);
-        $t->same([0, 1, 3], $packet['raggedRows'] ?? null);
+        $t->same(2, $packet['raggedRowCount'] ?? null);
+        $t->same([2, 3], $packet['raggedRows'] ?? null);
         $t->same([3, 3, 4, 2], $widthSummary['rowWidths'] ?? null);
         $t->same([0, 1, 2, 3], $widthSummary['sourceRowIndexes'] ?? null);
         $t->same([
@@ -3125,21 +3152,23 @@ return [
         $t->same('source-row-2', $widthSummary['strict']['mismatches'][0]['rowLabel'] ?? null);
         $t->same(1, $widthSummary['strict']['mismatches'][0]['extraFields'] ?? null);
         $t->same(1, $widthSummary['strict']['mismatches'][1]['missingFields'] ?? null);
-        $t->same(3, $widthSummary['relaxed']['paddedRowCount'] ?? null);
+        $t->same(3, $widthSummary['relaxed']['columnCount'] ?? null);
+        $t->same(1, $widthSummary['relaxed']['paddedRowCount'] ?? null);
+        $t->same(1, $widthSummary['relaxed']['truncatedRowCount'] ?? null);
         $t->same(2, $widthSummary['header']['mismatchCount'] ?? null);
-        $t->same('relaxed-pad-to-wide-row', $repairSummary['policy'] ?? null);
+        $t->same('header-row-width', $repairSummary['policy'] ?? null);
         $t->same([3, 3, 4, 2], $repairSummary['originalColumnCounts'] ?? null);
-        $t->same(4, $repairSummary['repairedColumnCount'] ?? null);
-        $t->same(3, $repairSummary['changedRowCount'] ?? null);
-        $t->same(3, $repairSummary['paddedRowCount'] ?? null);
-        $t->same(0, $repairSummary['truncatedRowCount'] ?? null);
-        $t->same('padded', $repairSummary['rows'][0]['repair'] ?? null);
+        $t->same(3, $repairSummary['repairedColumnCount'] ?? null);
+        $t->same(2, $repairSummary['changedRowCount'] ?? null);
+        $t->same(1, $repairSummary['paddedRowCount'] ?? null);
+        $t->same(1, $repairSummary['truncatedRowCount'] ?? null);
+        $t->same('unchanged', $repairSummary['rows'][0]['repair'] ?? null);
         $t->same(3, $repairSummary['rows'][0]['originalColumnCount'] ?? null);
-        $t->same(4, $repairSummary['rows'][0]['repairedColumnCount'] ?? null);
-        $t->same(1, $repairSummary['rows'][0]['missingFieldsAdded'] ?? null);
-        $t->same('unchanged', $repairSummary['rows'][2]['repair'] ?? null);
+        $t->same(3, $repairSummary['rows'][0]['repairedColumnCount'] ?? null);
+        $t->same(0, $repairSummary['rows'][0]['missingFieldsAdded'] ?? null);
+        $t->same('truncated', $repairSummary['rows'][2]['repair'] ?? null);
         $t->same('padded', $repairSummary['rows'][3]['repair'] ?? null);
-        $t->same(2, $repairSummary['rows'][3]['missingFieldsAdded'] ?? null);
+        $t->same(1, $repairSummary['rows'][3]['missingFieldsAdded'] ?? null);
         $t->same([
             'delimited-text-input-prefix-utf8-bom',
             'delimited-text-multiline-quoted-field',
@@ -3154,17 +3183,19 @@ return [
         $t->same(3, $strictDiagnostic['expectedColumnCount'] ?? null);
         $t->same(2, $strictDiagnostic['mismatchCount'] ?? null);
         $t->same(['source-row-2', 'source-row-3'], array_column($strictDiagnostic['mismatches'] ?? [], 'rowLabel'));
-        $t->same('pad-to-wide-row', $relaxedDiagnostic['policy'] ?? null);
-        $t->same(4, $relaxedDiagnostic['columnCount'] ?? null);
-        $t->same(3, $relaxedDiagnostic['paddedRowCount'] ?? null);
-        $t->same(['source-row-0', 'source-row-1', 'source-row-3'], array_column($relaxedDiagnostic['paddedRows'] ?? [], 'rowLabel'));
+        $t->same('header-row-width', $relaxedDiagnostic['policy'] ?? null);
+        $t->same(3, $relaxedDiagnostic['columnCount'] ?? null);
+        $t->same(1, $relaxedDiagnostic['paddedRowCount'] ?? null);
+        $t->same(1, $relaxedDiagnostic['truncatedRowCount'] ?? null);
+        $t->same(['source-row-3'], array_column($relaxedDiagnostic['paddedRows'] ?? [], 'rowLabel'));
+        $t->same(['source-row-2'], array_column($relaxedDiagnostic['truncatedRows'] ?? [], 'rowLabel'));
         $t->same(3, $headerDiagnostic['headerColumnCount'] ?? null);
         $t->same([3, 4, 2], $headerDiagnostic['dataColumnCounts'] ?? null);
         $t->same(2, $headerDiagnostic['mismatchCount'] ?? null);
         $t->same(['source-row-2', 'source-row-3'], array_column($headerDiagnostic['mismatches'] ?? [], 'rowLabel'));
-        $t->same('', $table->children[0]->children[0]->children[3]->attr('text'));
+        $t->same(3, count($table->children[0]->children[0]->children));
         $t->same("Two\nline title", $table->children[1]->children[1]->children[1]->attr('text'));
-        $t->same('extra', $table->children[1]->children[1]->children[3]->attr('text'));
+        $t->same(3, count($table->children[1]->children[1]->children));
         $t->same('', $table->children[1]->children[2]->children[2]->attr('text'));
     },
     'records tsv blank rows trailing empty fields and repair summaries' => static function (TestRunner $t): void {
@@ -3204,7 +3235,7 @@ return [
         $t->same(1, $widthSummary['relaxed']['paddedRowCount'] ?? null);
         $t->same('source-row-3', $widthSummary['relaxed']['paddedRows'][0]['rowLabel'] ?? null);
         $t->same(1, $widthSummary['header']['mismatchCount'] ?? null);
-        $t->same('relaxed-pad-to-wide-row', $repairSummary['policy'] ?? null);
+        $t->same('header-row-width', $repairSummary['policy'] ?? null);
         $t->same([3, 3, 2, 3], $repairSummary['originalColumnCounts'] ?? null);
         $t->same(3, $repairSummary['repairedColumnCount'] ?? null);
         $t->same(1, $repairSummary['changedRowCount'] ?? null);
@@ -3234,7 +3265,7 @@ return [
         $t->same(3, $strictDiagnostic['expectedColumnCount'] ?? null);
         $t->same(1, $strictDiagnostic['mismatchCount'] ?? null);
         $t->same(['source-row-3'], array_column($strictDiagnostic['mismatches'] ?? [], 'rowLabel'));
-        $t->same('pad-to-wide-row', $relaxedDiagnostic['policy'] ?? null);
+        $t->same('header-row-width', $relaxedDiagnostic['policy'] ?? null);
         $t->same(3, $relaxedDiagnostic['columnCount'] ?? null);
         $t->same(1, $relaxedDiagnostic['paddedRowCount'] ?? null);
         $t->same(['source-row-3'], array_column($relaxedDiagnostic['paddedRows'] ?? [], 'rowLabel'));
