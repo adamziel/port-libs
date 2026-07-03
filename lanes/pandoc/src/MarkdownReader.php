@@ -17303,13 +17303,6 @@ final class MarkdownReader
             ];
         }
 
-        if (preg_match('/\G\\\\([A-Za-z])\b/', $text, $m, 0, $offset) === 1) {
-            return [
-                'node' => new AstNode('raw_tex', ['tex' => $m[0], 'command' => $m[1]]),
-                'next' => $offset + strlen($m[0]),
-            ];
-        }
-
         // Pandoc leaves bare environment commands such as "\begin" as text.
         if (preg_match('/\G\\\\(?:begin|end)\b/', $text, $m, 0, $offset) === 1) {
             $next = $text[$offset + strlen($m[0])] ?? '';
@@ -17318,15 +17311,20 @@ final class MarkdownReader
             }
         }
 
-        if (
-            preg_match(
-                '/\G\\\\([A-Za-z]+)(?:\[[^\]\r\n]*\])?(?:\{[^{}\r\n]*\})+/',
-                $text,
-                $m,
-                0,
-                $offset
-            ) !== 1
-        ) {
+        if (preg_match(
+            '/\G\\\\([A-Za-z]+)\*?(?:\[[^\]\r\n]*\])?(?:\{[^{}\r\n]*\})+/',
+            $text,
+            $m,
+            0,
+            $offset
+        ) === 1) {
+            return [
+                'node' => new AstNode('raw_tex', ['tex' => $m[0], 'command' => $m[1]]),
+                'next' => $offset + strlen($m[0]),
+            ];
+        }
+
+        if (preg_match('/\G\\\\([A-Za-z]+)\*?(?:\[[^\]\r\n]*\])?[ \t]*/', $text, $m, 0, $offset) !== 1) {
             return null;
         }
 

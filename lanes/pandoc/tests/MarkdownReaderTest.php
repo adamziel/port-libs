@@ -365,6 +365,40 @@ return [
         $t->same('\alpha + \omega \times x^2', $list->children[7]->children[1]->attr('text'));
         $t->same('.', $list->children[7]->children[2]->attr('text'));
     },
+    'maps upstream raw tex inline control words and starred macros' => static function (TestRunner $t): void {
+        $cases = [
+            'A \LaTeX B' => ['\LaTeX ', 'LaTeX', 'B'],
+            'A \TeX B' => ['\TeX ', 'TeX', 'B'],
+            'A \foo,B' => ['\foo', 'foo', ',B'],
+            'A \foo[B]C' => ['\foo[B]', 'foo', 'C'],
+            'A \newpage' => ['\newpage', 'newpage', null],
+            'A \a{b} C' => ['\a{b}', 'a', ' C'],
+            'A \a* B' => ['\a* ', 'a', 'B'],
+            'A \foo*{y} B' => ['\foo*{y}', 'foo', ' B'],
+            'A \foo*[x]{y} B' => ['\foo*[x]{y}', 'foo', ' B'],
+        ];
+
+        foreach ($cases as $source => [$tex, $command, $tail]) {
+            $paragraph = (new MarkdownReader())->read($source)->children[0];
+            $expectedTypes = $tail === null ? ['text', 'raw_tex'] : ['text', 'raw_tex', 'text'];
+
+            $t->same($expectedTypes, array_map(static fn (AstNode $node): string => $node->type, $paragraph->children), $source);
+            $t->same('A ', $paragraph->children[0]->attr('text'), $source);
+            $t->same($tex, $paragraph->children[1]->attr('tex'), $source);
+            $t->same($command, $paragraph->children[1]->attr('command'), $source);
+            if ($tail !== null) {
+                $t->same($tail, $paragraph->children[2]->attr('text'), $source);
+            }
+        }
+
+        $disabled = (new MarkdownReader(['format' => 'markdown-raw_tex']))->read('A \LaTeX B')->children[0];
+        $escaped = (new MarkdownReader())->read('A \% B')->children[0];
+
+        $t->same(['text'], array_map(static fn (AstNode $node): string => $node->type, $disabled->children));
+        $t->same('A \LaTeX B', $disabled->attr('text'));
+        $t->same(['text'], array_map(static fn (AstNode $node): string => $node->type, $escaped->children));
+        $t->same('A % B', $escaped->attr('text'));
+    },
     'keeps upstream testsuite non math dollar examples as text' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '- To get the famous equation, write `$e = mc^2$`.',
