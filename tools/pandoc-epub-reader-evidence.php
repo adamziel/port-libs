@@ -28,6 +28,8 @@ Options:
                                           fixture identity snapshot matches.
   --require-static-current-signature      Exit 1 unless the checked-in current static reader
                                           denominator signature matches the expected snapshot.
+  --require-native-ast-package-parity     Exit 1 unless the checked-in current EPUB package,
+                                          package-feature, and native AST parity snapshots match.
   --require-runner-not-run                Exit 1 unless upstream runner evidence is structured as not-run.
   --require-runner-plan                   Exit 1 unless upstream runner evidence includes the pinned
                                           non-executed test:test-pandoc EPUB command plan.
@@ -35,7 +37,7 @@ Options:
   --help                                  Show this help.
 
 This is a denominator/evidence gate for the upstream EPUB reader media-bag tests.
-It does not run Cabal/Tasty, execute pandoc, compare ASTs, or claim writer parity.
+It does not run Cabal/Tasty, execute pandoc, or claim writer parity.
 TEXT;
 };
 
@@ -53,6 +55,7 @@ try {
     $requiredExpectedMediaItemCount = null;
     $requireReferencedFixtureIdentity = false;
     $requireStaticCurrentSignature = false;
+    $requireNativeAstPackageParity = false;
     $requireRunnerNotRun = false;
     $requireRunnerPlan = false;
     $requireNoValidationIssues = false;
@@ -91,6 +94,10 @@ try {
         }
         if ($arg === '--require-static-current-signature') {
             $requireStaticCurrentSignature = true;
+            continue;
+        }
+        if ($arg === '--require-native-ast-package-parity') {
+            $requireNativeAstPackageParity = true;
             continue;
         }
         if ($arg === '--require-referenced-fixture-identity') {
@@ -243,6 +250,15 @@ try {
             STDERR,
             "pandoc-epub-reader-evidence: checked-in current EPUB reader static signature did not match the expected snapshot\n"
             . "hint: use --checked-in-fixtures to gate the checked-in current reader evidence snapshot\n"
+        );
+        exit(1);
+    }
+
+    if ($requireNativeAstPackageParity && !EpubUpstreamReaderEvidence::hasRequiredNativeAstPackageParity($report)) {
+        fwrite(
+            STDERR,
+            "pandoc-epub-reader-evidence: checked-in current EPUB native/package parity did not match the expected snapshot\n"
+            . "hint: run tools/pandoc-epub-native-ast-package.php --checked-in-fixtures summary --require-package-parity=31 --require-native-readiness=31 --require-mapped-parity=31 --require-fixture-identity --require-current-package-feature-coverage --require-current-package-feature-signature --require-current-native-ast-signature --require-runner-plan\n"
         );
         exit(1);
     }

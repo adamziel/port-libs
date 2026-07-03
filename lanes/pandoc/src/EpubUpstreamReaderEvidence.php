@@ -19,6 +19,9 @@ final class EpubUpstreamReaderEvidence
     private const CHECKED_IN_CURRENT_STATIC_MEDIA_BAG_TEST_COUNT = 6;
     private const CHECKED_IN_CURRENT_STATIC_FIXTURE_REFERENCE_COUNT = 6;
     private const CHECKED_IN_CURRENT_STATIC_EXPECTED_MEDIA_ITEM_COUNT = 10;
+    private const CHECKED_IN_CURRENT_NATIVE_PACKAGE_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-epub-reader/epub';
+    private const CHECKED_IN_CURRENT_NATIVE_PACKAGE_EPUB_COUNT = 31;
+    private const CHECKED_IN_CURRENT_NATIVE_PACKAGE_PAIR_COUNT = 31;
     private const REFERENCED_FIXTURE_IDENTITY_KIND = 'checked-in-current-epub-reader-referenced-fixture-identity';
     private const REFERENCED_FIXTURE_IDENTITY_SCOPE = 'checked-in-current-upstream-epub-reader-6-referenced-epub-fixture-snapshot';
     private const REFERENCED_FIXTURE_IDENTITY_HASH_ALGORITHM = 'sha256';
@@ -103,6 +106,7 @@ final class EpubUpstreamReaderEvidence
                 'sourceInventory' => $this->emptySourceInventory(),
                 'referencedFixtureIdentity' => self::notEvaluatedReferencedFixtureIdentity('missing-upstream-root'),
                 'currentReaderStaticSignature' => self::notEvaluatedCurrentReaderStaticSignature('missing-upstream-root'),
+                'nativeAstPackageParity' => $this->currentNativeAstPackageParity(),
                 'runnerEvidence' => self::runnerNotRunEvidence(),
                 'validation' => [
                     'status' => 'not-evaluated-missing-upstream-root',
@@ -150,6 +154,7 @@ final class EpubUpstreamReaderEvidence
             'sourceInventory' => $this->sourceInventory($root),
             'referencedFixtureIdentity' => $referencedFixtureIdentity,
             'currentReaderStaticSignature' => self::currentReaderStaticSignature($denominator, $validationIssues, $referencedFixtureIdentity),
+            'nativeAstPackageParity' => $this->currentNativeAstPackageParity(),
             'runnerEvidence' => self::runnerNotRunEvidence(),
             'validation' => [
                 'status' => $validationIssues === [] ? 'valid-upstream-epub-reader-mediabag-denominator' : 'invalid-upstream-epub-reader-mediabag-denominator',
@@ -199,6 +204,7 @@ final class EpubUpstreamReaderEvidence
         $runner = is_array($report['runnerEvidence'] ?? null) ? $report['runnerEvidence'] : [];
         $signature = is_array($report['currentReaderStaticSignature'] ?? null) ? $report['currentReaderStaticSignature'] : [];
         $signatureValidation = is_array($signature['validation'] ?? null) ? $signature['validation'] : [];
+        $nativePackage = is_array($report['nativeAstPackageParity'] ?? null) ? $report['nativeAstPackageParity'] : [];
         $identity = is_array($report['referencedFixtureIdentity'] ?? null) ? $report['referencedFixtureIdentity'] : [];
         $identityValidation = is_array($identity['validation'] ?? null) ? $identity['validation'] : [];
 
@@ -212,6 +218,11 @@ final class EpubUpstreamReaderEvidence
             'Expected media items: ' . (int) ($denominator['expectedMediaItemCount'] ?? 0),
             'Referenced fixture identity: ' . (string) ($identityValidation['status'] ?? 'unknown'),
             'Static current signature: ' . (string) ($signatureValidation['status'] ?? 'unknown'),
+            'Native/package parity: package=' . (int) ($nativePackage['packageParsedCount'] ?? 0)
+                . '/' . (int) ($nativePackage['requiredEpubCount'] ?? self::CHECKED_IN_CURRENT_NATIVE_PACKAGE_EPUB_COUNT)
+                . ' nativeAst=' . (int) ($nativePackage['normalizedAstMatchCount'] ?? 0)
+                . '/' . (int) ($nativePackage['requiredPairCount'] ?? self::CHECKED_IN_CURRENT_NATIVE_PACKAGE_PAIR_COUNT)
+                . ' status=' . (string) ($nativePackage['astParityStatus'] ?? 'unknown'),
             'Runner status: ' . (string) ($runner['status'] ?? 'unknown'),
             'Runner plan: ' . (string) ($runner['commandPlanStatus'] ?? 'unknown'),
             'Validation: ' . (string) ($validation['status'] ?? 'unknown'),
@@ -327,6 +338,43 @@ final class EpubUpstreamReaderEvidence
     /**
      * @param array<string, mixed> $report
      */
+    public static function hasRequiredNativeAstPackageParity(array $report): bool
+    {
+        $parity = is_array($report['nativeAstPackageParity'] ?? null) ? $report['nativeAstPackageParity'] : [];
+
+        return ($parity['hasRequiredPackageParity'] ?? null) === true
+            && ($parity['hasRequiredNativeReadiness'] ?? null) === true
+            && ($parity['hasRequiredMappedParity'] ?? null) === true
+            && ($parity['hasRequiredFixtureIdentity'] ?? null) === true
+            && ($parity['hasRequiredCurrentPackageFeatureCoverage'] ?? null) === true
+            && ($parity['hasRequiredCurrentPackageFeatureSignature'] ?? null) === true
+            && ($parity['hasRequiredCurrentNativeAstSignature'] ?? null) === true
+            && ($parity['hasRunnerPlanEvidence'] ?? null) === true
+            && (int) ($parity['requiredEpubCount'] ?? -1) === self::CHECKED_IN_CURRENT_NATIVE_PACKAGE_EPUB_COUNT
+            && (int) ($parity['requiredPairCount'] ?? -1) === self::CHECKED_IN_CURRENT_NATIVE_PACKAGE_PAIR_COUNT
+            && (int) ($parity['totalEpubCount'] ?? -1) === self::CHECKED_IN_CURRENT_NATIVE_PACKAGE_EPUB_COUNT
+            && (int) ($parity['comparedEpubCount'] ?? -1) === self::CHECKED_IN_CURRENT_NATIVE_PACKAGE_EPUB_COUNT
+            && (int) ($parity['packageParsedCount'] ?? -1) === self::CHECKED_IN_CURRENT_NATIVE_PACKAGE_EPUB_COUNT
+            && (int) ($parity['readerParsedCount'] ?? -1) === self::CHECKED_IN_CURRENT_NATIVE_PACKAGE_EPUB_COUNT
+            && (int) ($parity['packageParseFailureCount'] ?? -1) === 0
+            && (int) ($parity['readerParseFailureCount'] ?? -1) === 0
+            && (int) ($parity['totalPairCount'] ?? -1) === self::CHECKED_IN_CURRENT_NATIVE_PACKAGE_PAIR_COUNT
+            && (int) ($parity['comparedPairCount'] ?? -1) === self::CHECKED_IN_CURRENT_NATIVE_PACKAGE_PAIR_COUNT
+            && (int) ($parity['bothParsedCount'] ?? -1) === self::CHECKED_IN_CURRENT_NATIVE_PACKAGE_PAIR_COUNT
+            && (int) ($parity['astParseFailureCount'] ?? -1) === 0
+            && (int) ($parity['nativeParseFailureCount'] ?? -1) === 0
+            && (int) ($parity['normalizedAstMatchCount'] ?? -1) === self::CHECKED_IN_CURRENT_NATIVE_PACKAGE_PAIR_COUNT
+            && (int) ($parity['normalizedAstMismatchCount'] ?? -1) === 0
+            && ($parity['packageAcceptanceStatus'] ?? null) === 'package-and-reader-acceptance-observed-not-full-epub-parity'
+            && ($parity['astParityStatus'] ?? null) === 'normalized-ast-equality-observed-not-runner-parity'
+            && ($parity['fixtureIdentityStatus'] ?? null) === 'valid-checked-in-current-epub-fixture-identity'
+            && ($parity['packageFeatureSignatureStatus'] ?? null) === 'valid-checked-in-current-epub-package-feature-signature'
+            && ($parity['currentNativeAstSignatureStatus'] ?? null) === 'valid-checked-in-current-epub-normalized-native-ast-signature';
+    }
+
+    /**
+     * @param array<string, mixed> $report
+     */
     public static function hasRequiredReferencedFixtureIdentity(array $report): bool
     {
         $identity = is_array($report['referencedFixtureIdentity'] ?? null) ? $report['referencedFixtureIdentity'] : [];
@@ -366,13 +414,14 @@ final class EpubUpstreamReaderEvidence
                 'that the upstream EPUB reader source file is present when validating a full upstream checkout without an explicit checked-in fixture base',
                 'the checked-in current referenced EPUB fixture SHA-256 and byte identity snapshot when explicitly gated',
                 'the checked-in current static EPUB reader denominator and referenced fixture identity signature when explicitly gated',
+                'the checked-in current EPUB package acceptance, package-feature signature, and normalized native AST parity snapshot when explicitly gated',
                 'that upstream Haskell runner evidence is explicitly not-run',
                 'the future upstream runner command plan targets test:test-pandoc Readers/EPUB/EPUB Mediabag at the pinned upstream commit without execution',
             ],
             'doesNotAssert' => [
                 'that upstream Haskell/Cabal/Tasty tests were executed',
                 'full upstream Tests.Readers.EPUB runner parity',
-                'that local PHP output matches upstream media-bag output',
+                'that local PHP output matches upstream output outside the checked-in current native/package snapshot',
                 'EPUB writer parity',
                 'full EPUB feature parity beyond the upstream reader media-bag tests',
             ],
@@ -480,6 +529,110 @@ final class EpubUpstreamReaderEvidence
             'referencedFixtures' => [],
             'missingReferencedFiles' => [],
             'unreferencedEpubFixtures' => [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function currentNativeAstPackageParity(): array
+    {
+        $fixtureDirectory = $this->repoRoot
+            . DIRECTORY_SEPARATOR
+            . str_replace('/', DIRECTORY_SEPARATOR, self::CHECKED_IN_CURRENT_NATIVE_PACKAGE_FIXTURE_DIRECTORY);
+        $report = (new EpubNativeAstPackageComparisonHarness())->run($fixtureDirectory);
+
+        return self::nativeAstPackageParityEvidence($report);
+    }
+
+    /**
+     * @param array<string, mixed> $report
+     * @return array<string, mixed>
+     */
+    private static function nativeAstPackageParityEvidence(array $report): array
+    {
+        $fixtureIdentity = is_array($report['fixtureIdentity'] ?? null) ? $report['fixtureIdentity'] : [];
+        $fixtureValidation = is_array($fixtureIdentity['validation'] ?? null) ? $fixtureIdentity['validation'] : [];
+        $packageFeatureSignature = is_array($report['packageFeatureSignature'] ?? null) ? $report['packageFeatureSignature'] : [];
+        $packageFeatureSignatureValidation = is_array($packageFeatureSignature['validation'] ?? null) ? $packageFeatureSignature['validation'] : [];
+        $nativeAstSignature = is_array($report['currentNativeAstSignature'] ?? null) ? $report['currentNativeAstSignature'] : [];
+        $nativeAstSignatureValidation = is_array($nativeAstSignature['validation'] ?? null) ? $nativeAstSignature['validation'] : [];
+        $packageFeatureCoverage = is_array($report['packageFeatureCoverage'] ?? null) ? $report['packageFeatureCoverage'] : [];
+        $runner = is_array($report['runnerEvidence'] ?? null) ? $report['runnerEvidence'] : [];
+
+        return [
+            'kind' => 'checked-in-current-epub-native-ast-package-parity',
+            'tool' => (string) ($report['tool'] ?? 'pandoc-epub-native-ast-package'),
+            'status' => (string) ($report['status'] ?? 'unknown'),
+            'skipped' => (bool) ($report['skipped'] ?? false),
+            'reason' => $report['reason'] ?? null,
+            'evidenceKind' => (string) ($report['evidenceKind'] ?? 'epub-native-ast-package-comparison'),
+            'requiredEpubCount' => self::CHECKED_IN_CURRENT_NATIVE_PACKAGE_EPUB_COUNT,
+            'requiredPairCount' => self::CHECKED_IN_CURRENT_NATIVE_PACKAGE_PAIR_COUNT,
+            'upstreamEpubDirectory' => (string) ($report['upstreamEpubDirectory'] ?? ''),
+            'totalEpubCount' => (int) ($report['totalEpubCount'] ?? 0),
+            'comparedEpubCount' => (int) ($report['comparedEpubCount'] ?? 0),
+            'packageParsedCount' => (int) ($report['packageParsedCount'] ?? 0),
+            'readerParsedCount' => (int) ($report['readerParsedCount'] ?? 0),
+            'packageParseFailureCount' => (int) ($report['packageParseFailureCount'] ?? 0),
+            'readerParseFailureCount' => (int) ($report['readerParseFailureCount'] ?? 0),
+            'packageAcceptanceStatus' => (string) ($report['packageAcceptanceStatus'] ?? 'unknown'),
+            'totalPairCount' => (int) ($report['totalPairCount'] ?? 0),
+            'comparedPairCount' => (int) ($report['comparedPairCount'] ?? 0),
+            'epubPairParsedCount' => (int) ($report['epubPairParsedCount'] ?? 0),
+            'nativeParsedCount' => (int) ($report['nativeParsedCount'] ?? 0),
+            'bothParsedCount' => (int) ($report['bothParsedCount'] ?? 0),
+            'astParseFailureCount' => (int) ($report['astParseFailureCount'] ?? 0),
+            'nativeParseFailureCount' => (int) ($report['nativeParseFailureCount'] ?? 0),
+            'normalizedAstMatchCount' => (int) ($report['normalizedAstMatchCount'] ?? 0),
+            'normalizedAstMismatchCount' => (int) ($report['normalizedAstMismatchCount'] ?? 0),
+            'normalizedAstMatchPercent' => $report['normalizedAstMatchPercent'] ?? null,
+            'astParityStatus' => (string) ($report['astParityStatus'] ?? 'unknown'),
+            'fixtureIdentityStatus' => (string) ($fixtureValidation['status'] ?? 'unknown'),
+            'fixtureIdentityExpectedFileCount' => (int) ($fixtureIdentity['expectedFileCount'] ?? 0),
+            'fixtureIdentityObservedFileCount' => (int) ($fixtureIdentity['observedFileCount'] ?? 0),
+            'packageFeatureCoverageFixtureCount' => (int) ($packageFeatureCoverage['fixtureCount'] ?? 0),
+            'packageFeatureSignatureStatus' => (string) ($packageFeatureSignatureValidation['status'] ?? 'unknown'),
+            'packageFeatureSignatureSha256' => $packageFeatureSignature['sha256'] ?? null,
+            'packageFeatureSignatureExpectedSha256' => $packageFeatureSignature['expectedSha256'] ?? null,
+            'currentNativeAstSignatureStatus' => (string) ($nativeAstSignatureValidation['status'] ?? 'unknown'),
+            'currentNativeAstSignatureSha256' => $nativeAstSignature['sha256'] ?? null,
+            'currentNativeAstSignatureExpectedSha256' => $nativeAstSignature['expectedSha256'] ?? null,
+            'runnerStatus' => (string) ($runner['status'] ?? 'unknown'),
+            'runnerPlanStatus' => (string) ($runner['commandPlanStatus'] ?? 'unknown'),
+            'hasRequiredPackageParity' => EpubNativeAstPackageComparisonHarness::hasRequiredPackageParity(
+                $report,
+                self::CHECKED_IN_CURRENT_NATIVE_PACKAGE_EPUB_COUNT
+            ),
+            'hasRequiredNativeReadiness' => EpubNativeAstPackageComparisonHarness::hasRequiredNativeReadiness(
+                $report,
+                self::CHECKED_IN_CURRENT_NATIVE_PACKAGE_PAIR_COUNT
+            ),
+            'hasRequiredMappedParity' => EpubNativeAstPackageComparisonHarness::hasRequiredMappedParity(
+                $report,
+                self::CHECKED_IN_CURRENT_NATIVE_PACKAGE_PAIR_COUNT
+            ),
+            'hasRequiredFixtureIdentity' => EpubNativeAstPackageComparisonHarness::hasRequiredFixtureIdentity($report),
+            'hasRequiredCurrentPackageFeatureCoverage' => EpubNativeAstPackageComparisonHarness::hasRequiredCurrentPackageFeatureCoverage($report),
+            'hasRequiredCurrentPackageFeatureSignature' => EpubNativeAstPackageComparisonHarness::hasRequiredCurrentPackageFeatureSignature($report),
+            'hasRequiredCurrentNativeAstSignature' => EpubNativeAstPackageComparisonHarness::hasRequiredCurrentNativeAstSignature($report),
+            'hasRunnerPlanEvidence' => EpubNativeAstPackageComparisonHarness::hasRunnerPlanEvidence($report),
+            'mismatchCategories' => is_array($report['mismatchCategories'] ?? null) ? $report['mismatchCategories'] : [],
+            'orderedRemainingGaps' => is_array($report['orderedRemainingGaps'] ?? null) ? $report['orderedRemainingGaps'] : [],
+            'claim' => (string) ($report['claim'] ?? 'Checked-in current EPUB native/package comparison.'),
+            'claimBoundaries' => [
+                'doesAssert' => [
+                    'checked-in current EPUB packages parse through package and reader paths',
+                    'checked-in current EPUB/native fixtures are equal after documented native AST normalization',
+                    'checked-in current EPUB package feature and normalized native AST signatures match expected snapshots',
+                ],
+                'doesNotAssert' => [
+                    'upstream Haskell/Cabal runner execution',
+                    'EPUB writer parity',
+                    'byte-level EPUB writer package equality',
+                    'full EPUB feature parity',
+                ],
+            ],
         ];
     }
 
