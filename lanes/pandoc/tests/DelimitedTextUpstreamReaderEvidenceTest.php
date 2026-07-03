@@ -76,7 +76,7 @@ return [
         $t->same(false, DelimitedTextUpstreamReaderEvidence::hasNoValidationIssues($report));
         $t->contains('Pandoc delimited text reader evidence', $text);
         $t->contains('Static current evidence: valid-checked-in-current-delimited-text-reader-evidence checkedInFixtures=2', $text);
-        $t->contains('Generated CSV native parity: 10/10 status=generated-csv-native-parity-observed-not-upstream-fixture', $text);
+        $t->contains('Generated CSV native parity: 11/11 status=generated-csv-native-parity-observed-not-upstream-fixture', $text);
         $t->contains('Generated TSV native parity: 7/7 status=generated-tsv-native-parity-observed-not-upstream-fixture', $text);
     },
     'reports checked-in current csv command fixture static evidence' => static function (TestRunner $t): void {
@@ -115,8 +115,8 @@ return [
         $t->same('257c619e19786fddf7685a31a45f6495446a5213083540d09ecba6ce7f1e62cd', $evidence['checkedInFixtures'][1]['checkedInFile']['sha256']);
         $t->same(47, $evidence['checkedInFixtures'][1]['checkedInFile']['bytes']);
         $t->same('static-checked-in-generated-csv-native-parity-fixture-evidence', $evidence['generatedCsvNativeStaticEvidence']['kind']);
-        $t->same(10, $evidence['generatedCsvNativeStaticEvidence']['sampleCount']);
-        $t->same(20, $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtureCount']);
+        $t->same(11, $evidence['generatedCsvNativeStaticEvidence']['sampleCount']);
+        $t->same(22, $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtureCount']);
         $t->same(2, $evidence['generatedCsvNativeStaticEvidence']['csvDirectFixtureDenominator']);
         $t->same([], $evidence['generatedCsvNativeStaticEvidence']['samples'][0]['readerOptions']);
         $t->same('quoted-multiline.csv', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][0]['name']);
@@ -195,6 +195,14 @@ return [
         $t->same(1523, $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][19]['checkedInFile']['bytes']);
         $t->same('unquoted-space-empty-quoted', $evidence['generatedCsvNativeStaticEvidence']['samples'][9]['name']);
         $t->same([], $evidence['generatedCsvNativeStaticEvidence']['samples'][9]['readerOptions']);
+        $t->same('comment-looking-data.csv', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][20]['name']);
+        $t->same('cbfda6df02a13b5ba96fcd6ab171b5083c20ef97af65e858ae110032eb9f51c8', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][20]['checkedInFile']['sha256']);
+        $t->same(96, $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][20]['checkedInFile']['bytes']);
+        $t->same('comment-looking-data.native', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][21]['name']);
+        $t->same('dcb0f03da9d7ec90de5ce244b3e3002b4f41cc18a9f10314189bcb457823bab6', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][21]['checkedInFile']['sha256']);
+        $t->same(1617, $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][21]['checkedInFile']['bytes']);
+        $t->same('comment-looking-data', $evidence['generatedCsvNativeStaticEvidence']['samples'][10]['name']);
+        $t->same([], $evidence['generatedCsvNativeStaticEvidence']['samples'][10]['readerOptions']);
         $t->same('static-checked-in-generated-tsv-native-parity-fixture-evidence', $evidence['generatedTsvNativeStaticEvidence']['kind']);
         $t->same(7, $evidence['generatedTsvNativeStaticEvidence']['sampleCount']);
         $t->same(14, $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtureCount']);
@@ -261,15 +269,15 @@ return [
         $t->same('generated-csv-native-parity', $evidence['evidenceKind']);
         $t->same('csv', $evidence['reader']);
         $t->same(2, $evidence['csvDirectFixtureDenominator']);
-        $t->same(10, $evidence['sampleCount']);
-        $t->same(10, $evidence['comparedSampleCount']);
+        $t->same(11, $evidence['sampleCount']);
+        $t->same(11, $evidence['comparedSampleCount']);
         $t->same(0, $evidence['parseFailureCount']);
-        $t->same(10, $evidence['generatedNativeMatchCount']);
+        $t->same(11, $evidence['generatedNativeMatchCount']);
         $t->same(0, $evidence['generatedNativeMismatchCount']);
         $t->same(100.0, $evidence['generatedNativeMatchPercent']);
-        $t->same(10, $evidence['staticFixtureBindingValidCount']);
+        $t->same(11, $evidence['staticFixtureBindingValidCount']);
         $t->same(0, $evidence['staticFixtureBindingInvalidCount']);
-        $t->same(array_fill(0, 10, 'valid-generated-csv-native-sample-static-binding'), array_column($evidence['samples'], 'staticFixtureBindingStatus'));
+        $t->same(array_fill(0, 11, 'valid-generated-csv-native-sample-static-binding'), array_column($evidence['samples'], 'staticFixtureBindingStatus'));
         $t->same('generated-csv-native-parity-observed-not-upstream-fixture', $evidence['parityStatus']);
         $t->same('matched', $evidence['samples'][0]['status']);
         $t->same('quoted-multiline', $evidence['samples'][0]['name']);
@@ -361,6 +369,18 @@ return [
         $t->same('lanes/pandoc/fixtures/generated-current-csv-reader/unquoted-space-empty-quoted.native', $evidence['samples'][9]['staticFixtureBinding']['expectedNativeFixture']['checkedInPath']);
         $t->same(3, $evidence['samples'][9]['rowCount']);
         $t->same(4, $evidence['samples'][9]['columnCount']);
+        $t->same('matched', $evidence['samples'][10]['status']);
+        $t->same('comment-looking-data', $evidence['samples'][10]['name']);
+        $t->same('lanes/pandoc/fixtures/generated-current-csv-reader/comment-looking-data.csv', $evidence['samples'][10]['inputPath']);
+        $t->same(['sourcePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/comment-looking-data.csv'], $evidence['samples'][10]['readerOptions']);
+        $t->same('generated-csv-native-sample-static-fixture-binding', $evidence['samples'][10]['staticFixtureBinding']['kind']);
+        $t->same('comment-looking-data', $evidence['samples'][10]['staticFixtureBinding']['sample']);
+        $t->same('valid-static-fixture-snapshot', $evidence['samples'][10]['staticFixtureBinding']['inputFixture']['status']);
+        $t->same('valid-static-fixture-snapshot', $evidence['samples'][10]['staticFixtureBinding']['expectedNativeFixture']['status']);
+        $t->same('lanes/pandoc/fixtures/generated-current-csv-reader/comment-looking-data.csv', $evidence['samples'][10]['staticFixtureBinding']['inputFixture']['checkedInPath']);
+        $t->same('lanes/pandoc/fixtures/generated-current-csv-reader/comment-looking-data.native', $evidence['samples'][10]['staticFixtureBinding']['expectedNativeFixture']['checkedInPath']);
+        $t->same(4, $evidence['samples'][10]['rowCount']);
+        $t->same(3, $evidence['samples'][10]['columnCount']);
         $t->same(true, DelimitedTextUpstreamReaderEvidence::hasRequiredGeneratedCsvNativeParity($evidence));
         $t->true(in_array('that the generated CSV samples are upstream command fixtures', $evidence['claimBoundaries']['doesNotAssert'], true));
     },
@@ -458,7 +478,7 @@ return [
             $t->same('42a8bc56612d061388889a10d73b1d34fb870595785ee550ef43c6a065a77ad6', $report['denominator']['upstreamFixtures'][0]['sha256']);
             $t->same(2, $report['sourceInventory']['presentFileCount']);
             $t->same(0, $report['sourceInventory']['missingFileCount']);
-            $t->same(10, $report['generatedCsvNativeParityEvidence']['generatedNativeMatchCount']);
+            $t->same(11, $report['generatedCsvNativeParityEvidence']['generatedNativeMatchCount']);
             $t->same('generated-csv-native-parity-observed-not-upstream-fixture', $report['generatedCsvNativeParityEvidence']['parityStatus']);
             $t->same(7, $report['generatedTsvNativeParityEvidence']['generatedNativeMatchCount']);
             $t->same('generated-tsv-native-parity-observed-not-upstream-fixture', $report['generatedTsvNativeParityEvidence']['parityStatus']);
@@ -488,8 +508,8 @@ return [
         $t->same(0, $exitCode);
         $t->same(0, $decoded['tsv']['denominator']);
         $t->same(0, $decoded['tsv']['tsvDirectFixtureDenominator']);
-        $t->same(10, $decoded['generatedCsvNativeParity']['sampleCount']);
-        $t->same(10, $decoded['generatedCsvNativeParity']['generatedNativeMatchCount']);
+        $t->same(11, $decoded['generatedCsvNativeParity']['sampleCount']);
+        $t->same(11, $decoded['generatedCsvNativeParity']['generatedNativeMatchCount']);
         $t->same('generated-csv-native-parity-observed-not-upstream-fixture', $decoded['generatedCsvNativeParity']['parityStatus']);
         $t->same(2, $decoded['csv']['adjacentFixtureEvidence']['fixtureCount']);
         $t->same(0, $decoded['csv']['adjacentFixtureEvidence']['csvDirectFixtureDenominatorImpact']);
@@ -516,13 +536,13 @@ return [
             $decoded = json_decode(implode("\n", $output), true, 512, JSON_THROW_ON_ERROR);
 
             $t->same(1, $exitCode);
-            $t->same(10, $decoded['generatedCsvNativeParity']['sampleCount']);
+            $t->same(11, $decoded['generatedCsvNativeParity']['sampleCount']);
             $t->same(0, $decoded['generatedCsvNativeParity']['comparedSampleCount']);
-            $t->same(10, $decoded['generatedCsvNativeParity']['parseFailureCount']);
+            $t->same(11, $decoded['generatedCsvNativeParity']['parseFailureCount']);
             $t->same(0, $decoded['generatedCsvNativeParity']['staticFixtureBindingValidCount']);
-            $t->same(10, $decoded['generatedCsvNativeParity']['staticFixtureBindingInvalidCount']);
+            $t->same(11, $decoded['generatedCsvNativeParity']['staticFixtureBindingInvalidCount']);
             $t->same('blocked-by-generated-csv-native-fixture-validation', $decoded['generatedCsvNativeParity']['parityStatus']);
-            $t->same(array_fill(0, 10, 'invalid-generated-csv-native-sample-static-binding'), array_column($decoded['generatedCsvNativeParity']['samples'], 'staticFixtureBindingStatus'));
+            $t->same(array_fill(0, 11, 'invalid-generated-csv-native-sample-static-binding'), array_column($decoded['generatedCsvNativeParity']['samples'], 'staticFixtureBindingStatus'));
             $t->true(in_array('Generated CSV native parity parse failure count must be 0', $decoded['validationIssues'], true));
         } finally {
             $removeTree($missingRoot);
