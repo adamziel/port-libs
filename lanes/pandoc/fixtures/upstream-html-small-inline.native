@@ -1,0 +1,25 @@
+[ Para
+    [ Str "Migration"
+    , Space
+    , Str "summary"
+    , Space
+    , Span
+        ( "" , [ "small" ] , [] )
+        [ Str "source"
+        , Space
+        , Str "fine"
+        , Space
+        , Str "print"
+        , Space
+        , Strong [ Str "needs" , Space , Str "review" ]
+        ]
+    , Space
+    , Str "stays"
+    , Space
+    , Str "visible"
+    , Space
+    , Str "for"
+    , Space
+    , Str "editors."
+    ]
+]

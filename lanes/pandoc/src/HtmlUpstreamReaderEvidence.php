@@ -13,7 +13,7 @@ final class HtmlUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-html-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
     public const EXPECTED_SELECTED_FIXTURE_COUNT = 48;
-    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 8;
+    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 9;
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/HTML.hs',
@@ -355,7 +355,7 @@ final class HtmlUpstreamReaderEvidence
                 'doesAssert' => [
                     'the checked-in HTML reader fixture corpus has 48 pinned fixture snapshots',
                     'each pinned fixture has at least one local test reference',
-                    'the existing HTML/native AST comparator still observes eight same-basename native-pair matches when included in the report',
+                    'the existing HTML/native AST comparator still observes nine same-basename native-pair matches when included in the report',
                 ],
                 'doesNotAssert' => [
                     'that upstream Haskell/Cabal/Tasty tests were executed',
@@ -517,7 +517,7 @@ final class HtmlUpstreamReaderEvidence
             'doesAssert' => [
                 'the identity and count of 48 selected checked-in upstream-derived HTML fixtures',
                 'that each selected fixture is referenced by at least one local focused test',
-                'that the existing native AST gate observes eight checked-in same-basename HTML/native matches',
+                'that the existing native AST gate observes nine checked-in same-basename HTML/native matches',
                 'that upstream Haskell runner evidence is explicitly not-run',
             ],
             'doesNotAssert' => [

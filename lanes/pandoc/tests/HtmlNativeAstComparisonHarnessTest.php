@@ -38,6 +38,8 @@ return [
         $styleRawNative = $root . '/upstream-html-style-raw-block.native';
         $scriptRawHtml = $root . '/upstream-html-script-raw-block.html';
         $scriptRawNative = $root . '/upstream-html-script-raw-block.native';
+        $smallInlineHtml = $root . '/upstream-html-small-inline.html';
+        $smallInlineNative = $root . '/upstream-html-small-inline.native';
 
         $t->true(is_file($anchorImageHtml), 'HTML anchor/image fixture must be checked in');
         $t->true(is_file($anchorImageNative), 'Native anchor/image fixture must be checked in');
@@ -55,26 +57,28 @@ return [
         $t->true(is_file($styleRawNative), 'Native style raw-block fixture must be checked in');
         $t->true(is_file($scriptRawHtml), 'HTML script raw-block fixture must be checked in');
         $t->true(is_file($scriptRawNative), 'Native script raw-block fixture must be checked in');
+        $t->true(is_file($smallInlineHtml), 'HTML small-inline fixture must be checked in');
+        $t->true(is_file($smallInlineNative), 'Native small-inline fixture must be checked in');
 
         $harness = new HtmlNativeAstComparisonHarness();
         $report = $harness->run($root);
         $text = $harness->formatReport($report);
 
         $t->same('completed', $report['status']);
-        $t->same(8, $report['totalPairCount']);
-        $t->same(8, $report['comparedPairCount']);
-        $t->same(8, $report['htmlParsedCount']);
-        $t->same(8, $report['nativeParsedCount']);
-        $t->same(8, $report['bothParsedCount']);
+        $t->same(9, $report['totalPairCount']);
+        $t->same(9, $report['comparedPairCount']);
+        $t->same(9, $report['htmlParsedCount']);
+        $t->same(9, $report['nativeParsedCount']);
+        $t->same(9, $report['bothParsedCount']);
         $t->same(0, $report['parseFailureCount']);
-        $t->same(8, $report['normalizedAstMatchCount']);
+        $t->same(9, $report['normalizedAstMatchCount']);
         $t->same(0, $report['normalizedAstMismatchCount']);
         $t->same('normalized-ast-equality-observed-not-runner-parity', $report['astParityStatus']);
-        $t->same(true, HtmlNativeAstComparisonHarness::hasRequiredMappedParity($report, 8));
+        $t->same(true, HtmlNativeAstComparisonHarness::hasRequiredMappedParity($report, 9));
         $t->same('covered-by-current-normalized-ast-evidence', $report['orderedRemainingGaps'][0]['status']);
-        $t->same('The current checked-in gate covers 8 paired fixture(s).', $report['orderedRemainingGaps'][2]['currentEvidence']);
-        $t->contains('pairs: total=8 compared=8 parsedBoth=8 parseFailures=0', $text);
-        $t->contains('normalizedAst: matches=8 (100.00%) mismatches=0', $text);
+        $t->same('The current checked-in gate covers 9 paired fixture(s).', $report['orderedRemainingGaps'][2]['currentEvidence']);
+        $t->contains('pairs: total=9 compared=9 parsedBoth=9 parseFailures=0', $text);
+        $t->contains('normalizedAst: matches=9 (100.00%) mismatches=0', $text);
 
         $command = escapeshellarg(PHP_BINARY)
             . ' '
@@ -82,14 +86,14 @@ return [
             . ' --html-dir=' . escapeshellarg($root)
             . ' --json'
             . ' summary'
-            . ' --require-mapped-parity=8';
+            . ' --require-mapped-parity=9';
         $output = [];
         $exitCode = 0;
         exec($command, $output, $exitCode);
         $decoded = json_decode(implode("\n", $output), true, 512, JSON_THROW_ON_ERROR);
 
         $t->same(0, $exitCode);
-        $t->same(8, $decoded['normalizedAstMatchCount']);
+        $t->same(9, $decoded['normalizedAstMatchCount']);
         $t->same(0, $decoded['normalizedAstMismatchCount']);
     },
 ];
