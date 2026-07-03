@@ -71,6 +71,15 @@ final class MarkdownFormatProfile
         'task_list' => 'task_lists',
         'task-list' => 'task_lists',
         'tasklist' => 'task_lists',
+        'tables' => 'pipe_tables',
+        'pipe_table' => 'pipe_tables',
+        'pipe-table' => 'pipe_tables',
+        'simple_table' => 'simple_tables',
+        'simple-table' => 'simple_tables',
+        'grid_table' => 'grid_tables',
+        'grid-table' => 'grid_tables',
+        'multiline_table' => 'multiline_tables',
+        'multiline-table' => 'multiline_tables',
         'wikilink_title_after_pipe' => 'wikilinks_title_after_pipe',
         'wikilink_title_before_pipe' => 'wikilinks_title_before_pipe',
         'wikilink' => 'wikilinks',
@@ -80,7 +89,7 @@ final class MarkdownFormatProfile
         'yaml_metadata_blocks' => 'yaml_metadata_block',
     ];
 
-    /** @var array<string, array{yamlMetadata:bool, titleBlock:bool, rawAttribute:bool, rawHtml:bool, rawTex:bool, rawMarkdown:bool}> */
+    /** @var array<string, array{yamlMetadata:bool, titleBlock:bool, rawAttribute:bool, rawHtml:bool, rawTex:bool, rawMarkdown:bool, pipeTables:bool, simpleTables:bool, gridTables:bool, multilineTables:bool}> */
     private const DEFAULTS = [
         'markdown' => [
             'yamlMetadata' => true,
@@ -89,6 +98,10 @@ final class MarkdownFormatProfile
             'rawHtml' => true,
             'rawTex' => true,
             'rawMarkdown' => true,
+            'pipeTables' => true,
+            'simpleTables' => true,
+            'gridTables' => true,
+            'multilineTables' => true,
         ],
         'commonmark' => [
             'yamlMetadata' => false,
@@ -97,6 +110,10 @@ final class MarkdownFormatProfile
             'rawHtml' => true,
             'rawTex' => false,
             'rawMarkdown' => true,
+            'pipeTables' => false,
+            'simpleTables' => false,
+            'gridTables' => false,
+            'multilineTables' => false,
         ],
         'commonmark_x' => [
             'yamlMetadata' => false,
@@ -105,6 +122,10 @@ final class MarkdownFormatProfile
             'rawHtml' => true,
             'rawTex' => true,
             'rawMarkdown' => true,
+            'pipeTables' => true,
+            'simpleTables' => true,
+            'gridTables' => true,
+            'multilineTables' => true,
         ],
         'gfm' => [
             'yamlMetadata' => false,
@@ -113,6 +134,10 @@ final class MarkdownFormatProfile
             'rawHtml' => true,
             'rawTex' => false,
             'rawMarkdown' => true,
+            'pipeTables' => true,
+            'simpleTables' => false,
+            'gridTables' => false,
+            'multilineTables' => false,
         ],
         'markdown_mmd' => [
             'yamlMetadata' => false,
@@ -121,6 +146,10 @@ final class MarkdownFormatProfile
             'rawHtml' => true,
             'rawTex' => false,
             'rawMarkdown' => true,
+            'pipeTables' => true,
+            'simpleTables' => true,
+            'gridTables' => true,
+            'multilineTables' => true,
         ],
         'markdown_phpextra' => [
             'yamlMetadata' => false,
@@ -129,6 +158,10 @@ final class MarkdownFormatProfile
             'rawHtml' => true,
             'rawTex' => false,
             'rawMarkdown' => true,
+            'pipeTables' => true,
+            'simpleTables' => true,
+            'gridTables' => true,
+            'multilineTables' => true,
         ],
         'markdown_strict' => [
             'yamlMetadata' => false,
@@ -137,6 +170,10 @@ final class MarkdownFormatProfile
             'rawHtml' => true,
             'rawTex' => false,
             'rawMarkdown' => true,
+            'pipeTables' => false,
+            'simpleTables' => false,
+            'gridTables' => false,
+            'multilineTables' => false,
         ],
     ];
 
@@ -309,16 +346,20 @@ final class MarkdownFormatProfile
                 'native_divs',
                 'native_spans',
                 'pandoc_title_block',
+                'pipe_tables',
                 'raw_attribute',
                 'raw_html',
                 'raw_markdown',
                 'raw_tex',
+                'simple_tables',
                 'smart',
                 'strikeout',
                 'subscript',
                 'superscript',
                 'task_lists',
                 'tex_math_dollars',
+                'grid_tables',
+                'multiline_tables',
                 'wikilinks',
                 'wikilinks_title_after_pipe',
                 'wikilinks_title_before_pipe',
@@ -426,6 +467,38 @@ final class MarkdownFormatProfile
     public static function rawMarkdownEnabled(array $options, bool $defaultWithoutFormat): bool
     {
         return self::enabled($options, 'rawMarkdown', $defaultWithoutFormat, 'raw_markdown');
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     */
+    public static function pipeTablesEnabled(array $options, bool $defaultWithoutFormat): bool
+    {
+        return self::enabled($options, 'pipeTables', $defaultWithoutFormat, 'pipe_tables');
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     */
+    public static function simpleTablesEnabled(array $options, bool $defaultWithoutFormat): bool
+    {
+        return self::enabled($options, 'simpleTables', $defaultWithoutFormat, 'simple_tables');
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     */
+    public static function gridTablesEnabled(array $options, bool $defaultWithoutFormat): bool
+    {
+        return self::enabled($options, 'gridTables', $defaultWithoutFormat, 'grid_tables');
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     */
+    public static function multilineTablesEnabled(array $options, bool $defaultWithoutFormat): bool
+    {
+        return self::enabled($options, 'multilineTables', $defaultWithoutFormat, 'multiline_tables');
     }
 
     /**
