@@ -17,7 +17,7 @@ final class DelimitedTextUpstreamReaderEvidence
     public const EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT = 2;
     public const EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT = 0;
     public const EXPECTED_STATIC_CSV_ADJACENT_RST_FIXTURE_COUNT = 2;
-    public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 5;
+    public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 6;
     public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 5;
 
     private const CHECKED_IN_CURRENT_CSV_FIXTURES = [
@@ -107,6 +107,20 @@ final class DelimitedTextUpstreamReaderEvidence
             'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/no-header-ragged.native',
             'sha256' => '2e6f817cfdf74fb6876cc386ea863d0b5469e2f5c72da6aac8c521fc9fabc8d0',
             'bytes' => 1480,
+        ],
+        'bom-leading-whitespace.csv' => [
+            'role' => 'generated-csv-native-parity-input-fixture',
+            'sample' => 'bom-leading-whitespace',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/bom-leading-whitespace.csv',
+            'sha256' => '6812293a42d8d68da5c184020b3a3a4a579b6f77125080bf40486b8e433f3aec',
+            'bytes' => 50,
+        ],
+        'bom-leading-whitespace.native' => [
+            'role' => 'generated-csv-native-parity-expected-native-output',
+            'sample' => 'bom-leading-whitespace',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/bom-leading-whitespace.native',
+            'sha256' => '9657368b59d4181c81246a5a11bd5dba277a29088dfdc392c31e2a44fd615e36',
+            'bytes' => 1229,
         ],
     ];
 
@@ -209,6 +223,10 @@ final class DelimitedTextUpstreamReaderEvidence
             'options' => [
                 'header' => false,
             ],
+        ],
+        'bom-leading-whitespace' => [
+            'inputPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/bom-leading-whitespace.csv',
+            'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/bom-leading-whitespace.native',
         ],
     ];
 
