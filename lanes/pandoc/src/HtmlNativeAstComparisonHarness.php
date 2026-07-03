@@ -323,6 +323,7 @@ final class HtmlNativeAstComparisonHarness
                 'default table widths, zero rowHeadColumns, and empty captions/feet',
                 'derived table-cell header flags when rowHeadColumns carries the semantic row-header contract',
                 'reader-derived list looseness flags and list-item cached text metadata; list item block shape remains compared',
+                'source id/classes/key-value attrs on Pandoc inline constructors without native Attr tuples; inline constructor, text, and children remain compared',
             ],
             'doesNotAssert' => [
                 'upstream Haskell/Cabal runner execution',
@@ -414,6 +415,9 @@ final class HtmlNativeAstComparisonHarness
             if ($key === 'loose' && self::isListShapeMetadataNode($node)) {
                 continue;
             }
+            if (self::isNativeAttrlessInlineNode($node) && in_array($key, ['id', 'classes', 'attributes'], true)) {
+                continue;
+            }
             if ($key === 'caption' && $value === '') {
                 continue;
             }
@@ -458,6 +462,19 @@ final class HtmlNativeAstComparisonHarness
     private static function isListShapeMetadataNode(AstNode $node): bool
     {
         return in_array($node->type, ['bullet_list', 'ordered_list', 'definition_list', 'list_item'], true);
+    }
+
+    private static function isNativeAttrlessInlineNode(AstNode $node): bool
+    {
+        return in_array($node->type, [
+            'emph',
+            'small_caps',
+            'strikeout',
+            'strong',
+            'subscript',
+            'superscript',
+            'underline',
+        ], true);
     }
 
     /**
