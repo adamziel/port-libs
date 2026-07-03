@@ -14308,12 +14308,7 @@ final class MarkdownReader
 
         $attribute = $this->tryParseInlineAttributeSpec($text, $offset);
         if ($attribute !== null) {
-            $merged = array_replace($attrs, $attribute['attrs']);
-            if (isset($attrs['classes']) && !array_key_exists('classes', $attribute['attrs'])) {
-                unset($merged['classes']);
-            }
-
-            return [$merged, $attribute['next'], null];
+            return [$this->mergeTrailingAutolinkAttributes($attrs, $attribute['attrs']), $attribute['next'], null];
         }
 
         $literalAttribute = $this->tryParseSpacedInlineAttributeLiteral($text, $offset);
@@ -14662,6 +14657,7 @@ final class MarkdownReader
         if ($candidate === '') {
             return null;
         }
+        [$candidate, $attributeAttrs, $next] = $this->splitBareUriAutolinkCandidateAndAttributes($text, $offset, $candidate);
 
         if (($m['email'] ?? '') !== '') {
             $address = $this->decodeHtmlEntities($this->unescapeLinkComponent($candidate));
@@ -14669,33 +14665,91 @@ final class MarkdownReader
                 return null;
             }
 
+            $attrs = $this->mergeTrailingAutolinkAttributes(
+                [
+                    'url' => 'mailto:' . $address,
+                    'classes' => ['email'],
+                ],
+                $attributeAttrs
+            );
+
             return [
                 'node' => new AstNode(
                     'link',
-                    [
-                        'url' => 'mailto:' . $address,
-                        'classes' => ['email'],
-                    ],
+                    $attrs,
                     [new AstNode('text', ['text' => $address])]
                 ),
-                'next' => $offset + strlen($candidate),
+                'next' => $next,
             ];
         }
 
         $url = $this->normalizeBareUriDestination($candidate);
         $display = $this->decodeHtmlEntities($this->unescapeLinkComponent($candidate));
+        $attrs = $this->mergeTrailingAutolinkAttributes(
+            [
+                'url' => $url,
+                'classes' => ['uri'],
+            ],
+            $attributeAttrs
+        );
 
         return [
             'node' => new AstNode(
                 'link',
-                [
-                    'url' => $url,
-                    'classes' => ['uri'],
-                ],
+                $attrs,
                 [new AstNode('text', ['text' => $display])]
             ),
-            'next' => $offset + strlen($candidate),
+            'next' => $next,
         ];
+    }
+
+    /**
+     * @return array{0:string, 1:array<string, mixed>|null, 2:int}
+     */
+    private function splitBareUriAutolinkCandidateAndAttributes(string $text, int $offset, string $candidate): array
+    {
+        $next = $offset + strlen($candidate);
+        if (!$this->linkAttributeExtensionEnabled()) {
+            return [$candidate, null, $next];
+        }
+
+        $searchOffset = 0;
+        while (($braceOffset = strpos($candidate, '{', $searchOffset)) !== false) {
+            $attribute = $this->tryParseInlineAttributeSpec($text, $offset + $braceOffset);
+            if ($attribute === null) {
+                $searchOffset = $braceOffset + 1;
+                continue;
+            }
+
+            $linkCandidate = $this->trimBareUriAutolinkCandidate(substr($candidate, 0, $braceOffset));
+            if ($linkCandidate === '') {
+                $searchOffset = $braceOffset + 1;
+                continue;
+            }
+
+            return [$linkCandidate, $attribute['attrs'], $attribute['next']];
+        }
+
+        return [$candidate, null, $next];
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     * @param array<string, mixed>|null $attributeAttrs
+     * @return array<string, mixed>
+     */
+    private function mergeTrailingAutolinkAttributes(array $attrs, ?array $attributeAttrs): array
+    {
+        if ($attributeAttrs === null) {
+            return $attrs;
+        }
+
+        $merged = array_replace($attrs, $attributeAttrs);
+        if (isset($attrs['classes']) && !array_key_exists('classes', $attributeAttrs)) {
+            unset($merged['classes']);
+        }
+
+        return $merged;
     }
 
     private function isInsideUnresolvedAngleSpan(string $text, int $offset): bool
@@ -14718,10 +14772,11 @@ final class MarkdownReader
     {
         do {
             $previous = $candidate;
-            $candidate = rtrim($candidate, ".,;:!?");
+            $candidate = $this->trimBareUriUnescapedTrailingPunctuation($candidate);
             foreach ([['(', ')'], ['[', ']'], ['{', '}']] as [$open, $close]) {
                 while (
                     str_ends_with($candidate, $close)
+                    && !$this->lastCharacterIsBackslashEscaped($candidate)
                     && substr_count($candidate, $close) > substr_count($candidate, $open)
                 ) {
                     $candidate = substr($candidate, 0, -1);
@@ -14730,6 +14785,32 @@ final class MarkdownReader
         } while ($candidate !== $previous);
 
         return $candidate;
+    }
+
+    private function trimBareUriUnescapedTrailingPunctuation(string $candidate): string
+    {
+        while ($candidate !== '') {
+            $last = $candidate[strlen($candidate) - 1];
+            if (!str_contains('.,;:!?', $last) || $this->lastCharacterIsBackslashEscaped($candidate)) {
+                break;
+            }
+
+            $candidate = substr($candidate, 0, -1);
+        }
+
+        return $candidate;
+    }
+
+    private function lastCharacterIsBackslashEscaped(string $text): bool
+    {
+        $index = strlen($text) - 2;
+        $backslashes = 0;
+        while ($index >= 0 && $text[$index] === '\\') {
+            ++$backslashes;
+            --$index;
+        }
+
+        return $backslashes % 2 === 1;
     }
 
     private function normalizeBareUriDestination(string $destination): string
