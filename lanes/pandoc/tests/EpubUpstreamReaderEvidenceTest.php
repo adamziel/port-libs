@@ -191,6 +191,7 @@ return [
             'epub/remote-manifest-resource.epub',
             'epub/rendition-layout-property.epub',
             'epub/scripted-svg-manifest.epub',
+            'epub/video-manifest-resource.epub',
         ], $report['denominator']['unreferencedEpubFixtures']);
         $t->same(false, $report['sourceInventory']['readerSourceRequired']);
         $t->same(1, $report['sourceInventory']['presentFileCount']);
