@@ -160,13 +160,25 @@ return [
                 'sha256' => '4af73a135aa632cbf0c00b2889a5fc1d39a59a77fa294fdeff5ede72ff6ffed1',
                 'bytes' => 11794,
             ],
+            'epub2_cover.native' => [
+                'sha256' => '4107c44d7711b63dac21745139f9cfb6dd99288b38ecf0d43e07b5ecd2493618',
+                'bytes' => 1314,
+            ],
             'epub2_no_cover.epub' => [
                 'sha256' => '8369dbe5cf315f1fe00f9dd1bf7c500cc663d7648edbf0d7b6a9b4d785fedf4e',
                 'bytes' => 3584,
             ],
+            'epub2_no_cover.native' => [
+                'sha256' => '48808c2e009669341a887a3c23adf033744aa652b0f69c319f0058396b59c6b8',
+                'bytes' => 1242,
+            ],
             'epub2_picture.epub' => [
                 'sha256' => '6049dde9e1d0ebcd175a8c5b937984f349af996e293310eafbce09e4c7384495',
                 'bytes' => 11742,
+            ],
+            'epub2_picture.native' => [
+                'sha256' => 'fa1cc897a5172b6f66411f2b61156a86669654e0338d137f543e069d4f73fb39',
+                'bytes' => 1314,
             ],
             'features.epub' => [
                 'sha256' => '6bf9a102249d58b32f14b39dfbc966bdecadff68a3fb707cb3ca62334734358a',
@@ -188,9 +200,17 @@ return [
                 'sha256' => 'f2c25e0e0612b7ac33a8d6a1c9719a86e7d2a0290472fc7d8b5068de781a822f',
                 'bytes' => 20478,
             ],
+            'img.native' => [
+                'sha256' => '817c691f8fab94b1ed9092b9cc23a2299771af8df99c8b0a8dded51ce63baf91',
+                'bytes' => 6762,
+            ],
             'img_no_cover.epub' => [
                 'sha256' => '3063f5e9b9610df1ddcc682ce49c293bcf681f1958700a5b6c3eda344383cf2a',
                 'bytes' => 10602,
+            ],
+            'img_no_cover.native' => [
+                'sha256' => '0e0152ba08256f6926bb9e9bba1892b673aa994ddbc8ab369d36f0abeab0b2b2',
+                'bytes' => 6630,
             ],
             'wasteland.epub' => [
                 'sha256' => '151ec5dbca33e39a4e3f6894e92fa5a101290bdeaaa792e0700595971456a278',
@@ -203,7 +223,7 @@ return [
         ];
 
         $t->same(8, count($epubFiles), 'Checked-in EPUB fixture count changed');
-        $t->same(3, count($nativeFiles), 'Checked-in native fixture count changed');
+        $t->same(8, count($nativeFiles), 'Checked-in native fixture count changed');
 
         $harness = new EpubNativeAstPackageComparisonHarness();
         $report = $harness->run($root);
@@ -216,23 +236,23 @@ return [
         $t->same(8, $report['readerParsedCount']);
         $t->same(0, $report['packageParseFailureCount']);
         $t->same(0, $report['readerParseFailureCount']);
-        $t->same(3, $report['totalPairCount']);
-        $t->same(3, $report['comparedPairCount']);
-        $t->same(3, $report['epubPairParsedCount']);
-        $t->same(3, $report['nativeParsedCount']);
-        $t->same(3, $report['bothParsedCount']);
+        $t->same(8, $report['totalPairCount']);
+        $t->same(8, $report['comparedPairCount']);
+        $t->same(8, $report['epubPairParsedCount']);
+        $t->same(8, $report['nativeParsedCount']);
+        $t->same(8, $report['bothParsedCount']);
         $t->same(0, $report['astParseFailureCount']);
         $t->same(0, $report['nativeParseFailureCount']);
-        $t->same(3, $report['normalizedAstMatchCount']);
+        $t->same(8, $report['normalizedAstMatchCount']);
         $t->same(0, $report['normalizedAstMismatchCount']);
         $t->same(true, EpubNativeAstPackageComparisonHarness::hasRequiredPackageParity($report, 8));
-        $t->same(true, EpubNativeAstPackageComparisonHarness::hasRequiredNativeReadiness($report, 3));
-        $t->same(true, EpubNativeAstPackageComparisonHarness::hasRequiredMappedParity($report, 3));
+        $t->same(true, EpubNativeAstPackageComparisonHarness::hasRequiredNativeReadiness($report, 8));
+        $t->same(true, EpubNativeAstPackageComparisonHarness::hasRequiredMappedParity($report, 8));
         $t->same(true, EpubNativeAstPackageComparisonHarness::hasRequiredFixtureIdentity($report));
         $t->same('valid-checked-in-current-epub-fixture-identity', $report['fixtureIdentity']['validation']['status']);
         $t->same([], $report['fixtureIdentity']['validation']['issues']);
-        $t->same(11, $report['fixtureIdentity']['expectedFileCount']);
-        $t->same(11, $report['fixtureIdentity']['observedFileCount']);
+        $t->same(16, $report['fixtureIdentity']['expectedFileCount']);
+        $t->same(16, $report['fixtureIdentity']['observedFileCount']);
         $observedFixtureIdentity = [];
         foreach ($report['fixtureIdentity']['files'] as $file) {
             $observedFixtureIdentity[$file['path']] = [
@@ -245,8 +265,8 @@ return [
         $t->same('covered-by-current-package-evidence', $report['orderedRemainingGaps'][0]['status']);
         $t->same('covered-by-current-normalized-ast-evidence', $report['orderedRemainingGaps'][1]['status']);
         $t->contains('packages: total=8 compared=8 packageParsed=8 readerParsed=8 packageFailures=0 readerFailures=0', $text);
-        $t->contains('normalizedAst: matches=3 (100.00%) mismatches=0', $text);
-        $t->contains('fixtureIdentity: status=valid-checked-in-current-epub-fixture-identity expected=11 observed=11', $text);
+        $t->contains('normalizedAst: matches=8 (100.00%) mismatches=0', $text);
+        $t->contains('fixtureIdentity: status=valid-checked-in-current-epub-fixture-identity expected=16 observed=16', $text);
 
         $command = escapeshellarg(PHP_BINARY)
             . ' '
@@ -256,8 +276,8 @@ return [
             . ' summary'
             . ' --require-fixture-identity'
             . ' --require-package-parity=8'
-            . ' --require-native-readiness=3'
-            . ' --require-mapped-parity=3';
+            . ' --require-native-readiness=8'
+            . ' --require-mapped-parity=8';
         $output = [];
         $exitCode = 0;
         exec($command, $output, $exitCode);
@@ -266,8 +286,8 @@ return [
         $t->same(0, $exitCode);
         $t->same(8, $decoded['packageParsedCount']);
         $t->same(8, $decoded['readerParsedCount']);
-        $t->same(3, $decoded['nativeParsedCount']);
-        $t->same(3, $decoded['normalizedAstMatchCount']);
+        $t->same(8, $decoded['nativeParsedCount']);
+        $t->same(8, $decoded['normalizedAstMatchCount']);
         $t->same(0, $decoded['normalizedAstMismatchCount']);
         $t->same('valid-checked-in-current-epub-fixture-identity', $decoded['fixtureIdentity']['validation']['status']);
     },
