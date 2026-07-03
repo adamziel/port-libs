@@ -363,6 +363,71 @@ XML);
         $t->same(['OPS/text/chapter.xhtml'], $meta['epubReadableResources']);
         $t->same(['OPS/nav.xhtml'], $meta['epubTocResources']);
     },
+    'separates epub media bag image usage from manifest image inventory' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-media-bag-scope-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary EPUB package');
+        }
+        $zip->addFromString('META-INF/container.xml', '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="book-id">
+  <metadata>
+    <dc:identifier id="book-id">book-media-bag-scope</dc:identifier>
+    <dc:title>Media Bag Scope EPUB</dc:title>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="text/chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="used" href="images/used.png" media-type="image/png"/>
+    <item id="linked" href="images/linked.gif" media-type="image/gif"/>
+    <item id="unused" href="images/unused.jpg" media-type="image/jpeg"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('OPS/text/chapter.xhtml', <<<'HTML'
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <body>
+    <p><img src="../images/used.png#display" alt="Used image"/></p>
+    <p><a href="../images/linked.gif">Linked image only</a></p>
+  </body>
+</html>
+HTML);
+        $zip->addFromString('OPS/images/used.png', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII='));
+        $zip->addFromString('OPS/images/linked.gif', base64_decode('R0lGODlhAQABAPAAAP///wAAACH5BAAAAAAALAAAAAABAAEAAAICRAEAOw=='));
+        $zip->addFromString('OPS/images/unused.jpg', "\xFF\xD8\xFF\xD9");
+        $zip->close();
+
+        try {
+            $document = (new EpubReader())->readEpubFile($path);
+            $meta = $document->attr('meta');
+        } finally {
+            @unlink($path);
+        }
+
+        $t->same('Media Bag Scope EPUB', $meta['title']);
+        $t->same(['OPS/text/chapter.xhtml'], $meta['epubReadableResources']);
+        $t->same([
+            'OPS/images/used.png#display',
+            'OPS/images/linked.gif',
+        ], $meta['epubReferencedResources']);
+        $t->same([
+            'OPS/images/used.png',
+            'OPS/images/linked.gif',
+            'OPS/images/unused.jpg',
+        ], $meta['epubImageResources']);
+        $t->same(['OPS/images/used.png'], $meta['epubMediaBagResources']);
+    },
     'reads epub ncx table of contents metadata' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-');
         if ($path === false) {

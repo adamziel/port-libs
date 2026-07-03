@@ -20,6 +20,7 @@ final class EpubNativeAstPackageComparisonHarness
         'epubReadableResources' => true,
         'epubReferencedResources' => true,
         'epubImageResources' => true,
+        'epubMediaBagResources' => true,
         'epubTocResources' => true,
         'epubTocEntryCount' => true,
         'epubTocEntries' => true,

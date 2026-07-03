@@ -76,6 +76,7 @@ final class EpubReader
         $children = [];
         $resources = [];
         $referenced_resources = [];
+        $media_bag_resources = [];
         $image_resources = $this->imageResources($base_path, $manifest);
         $linear_spine_image_hrefs = $this->linearSpineImageHrefs($spine_items, $manifest);
         $spine_filenames = array_map(
@@ -88,6 +89,7 @@ final class EpubReader
 
         $cover = $this->coverImageHref($package, $manifest);
         if ($cover !== null && !in_array($cover, $linear_spine_image_hrefs, true)) {
+            $this->recordMediaBagResource($cover, '', $base_path, $media_bag_resources);
             $children[] = new AstNode('paragraph', ['text' => ''], [
                 new AstNode('image', [
                     'url' => $cover,
@@ -117,6 +119,7 @@ final class EpubReader
                 }
                 $resources[] = $href;
                 $referenced_resources[] = $href;
+                $media_bag_resources[] = $href;
                 $children[] = $this->directImageSpineBlock($item['href']);
                 continue;
             }
@@ -140,7 +143,8 @@ final class EpubReader
                 $item['href'],
                 $base_path,
                 $spine_filenames,
-                $referenced_resources
+                $referenced_resources,
+                $media_bag_resources
             );
             $children[] = $this->spineMarker($this->spineFilename($item['href']));
             array_push($children, ...$document->children);
@@ -160,6 +164,7 @@ final class EpubReader
         $metadata['epubReadableResources'] = $resources;
         $metadata['epubReferencedResources'] = array_values(array_unique($referenced_resources));
         $metadata['epubImageResources'] = $image_resources;
+        $metadata['epubMediaBagResources'] = array_values(array_unique($media_bag_resources));
         $metadata['epubTocResources'] = $toc['resources'];
         $metadata['epubTocEntryCount'] = count($toc['entries']);
         $metadata['epubLandmarkEntryCount'] = count($toc['landmarks']);
@@ -689,23 +694,26 @@ final class EpubReader
     /**
      * @param list<string> $spine_filenames
      * @param list<string> $referenced_resources
+     * @param list<string> $media_bag_resources
      */
     private function fixEpubContentReferences(
         AstNode $document,
         string $content_path,
         string $package_base_path,
         array $spine_filenames,
-        array &$referenced_resources
+        array &$referenced_resources,
+        array &$media_bag_resources
     ): AstNode {
         $filename = $this->spineFilename($content_path);
         $content_dir = $this->dirname($content_path);
 
-        return $this->fixEpubNode($document, $filename, $content_dir, $package_base_path, $spine_filenames, $referenced_resources);
+        return $this->fixEpubNode($document, $filename, $content_dir, $package_base_path, $spine_filenames, $referenced_resources, $media_bag_resources);
     }
 
     /**
      * @param list<string> $spine_filenames
      * @param list<string> $referenced_resources
+     * @param list<string> $media_bag_resources
      */
     private function fixEpubNode(
         AstNode $node,
@@ -713,7 +721,8 @@ final class EpubReader
         string $content_dir,
         string $package_base_path,
         array $spine_filenames,
-        array &$referenced_resources
+        array &$referenced_resources,
+        array &$media_bag_resources
     ): AstNode {
         $attrs = in_array($node->type, ['blockquote', 'definition_list'], true)
             ? []
@@ -731,13 +740,14 @@ final class EpubReader
             $url = (string) ($attrs['url'] ?? '');
             if ($url !== '') {
                 $this->recordReferencedResource($url, $content_dir, $package_base_path, $referenced_resources);
+                $this->recordMediaBagResource($url, $content_dir, $package_base_path, $media_bag_resources);
                 $attrs['url'] = $this->fixEpubImageUrl($url, $content_dir);
             }
         }
 
         $children = [];
         foreach ($node->children as $child) {
-            $children[] = $this->fixEpubNode($child, $filename, $content_dir, $package_base_path, $spine_filenames, $referenced_resources);
+            $children[] = $this->fixEpubNode($child, $filename, $content_dir, $package_base_path, $spine_filenames, $referenced_resources, $media_bag_resources);
         }
         $children = $this->trimTextBeforeInlineImages($children);
 
@@ -888,6 +898,28 @@ final class EpubReader
      */
     private function recordReferencedResource(string $url, string $content_dir, string $package_base_path, array &$referenced_resources): void
     {
+        $this->recordPackageRelativeResource($url, $content_dir, $package_base_path, $referenced_resources, true);
+    }
+
+    /**
+     * @param list<string> $media_bag_resources
+     */
+    private function recordMediaBagResource(string $url, string $content_dir, string $package_base_path, array &$media_bag_resources): void
+    {
+        $this->recordPackageRelativeResource($url, $content_dir, $package_base_path, $media_bag_resources, false);
+    }
+
+    /**
+     * @param list<string> $resources
+     */
+    private function recordPackageRelativeResource(
+        string $url,
+        string $content_dir,
+        string $package_base_path,
+        array &$resources,
+        bool $include_fragment
+    ): void
+    {
         if (!$this->isPackageRelativeResourceUrl($url)) {
             return;
         }
@@ -898,10 +930,10 @@ final class EpubReader
         }
 
         $resource = $this->normalizeZipPath($package_base_path . '/' . $content_dir . '/' . $path);
-        if ($fragment !== '') {
+        if ($include_fragment && $fragment !== '') {
             $resource .= '#' . $fragment;
         }
-        $referenced_resources[] = $resource;
+        $resources[] = $resource;
     }
 
     /**

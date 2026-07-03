@@ -74,6 +74,53 @@ $writeCurrentFixtureTree = static function (string $root) use ($writeFile, $fixt
     }
 };
 
+$writeScopedMediaBagEpub = static function (string $path): array {
+    $usedImage = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=');
+    $unusedImage = base64_decode('R0lGODlhAQABAPAAAP///wAAACH5BAAAAAAALAAAAAABAAEAAAICRAEAOw==');
+    if (!is_string($usedImage) || !is_string($unusedImage)) {
+        throw new RuntimeException('Unable to decode scoped media-bag fixture images');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+        throw new RuntimeException('Unable to create scoped media-bag EPUB package');
+    }
+    $zip->addFromString('META-INF/container.xml', '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+    $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="book-id">
+  <metadata>
+    <dc:identifier id="book-id">book-scoped-media-bag</dc:identifier>
+    <dc:title>Scoped Media Bag</dc:title>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="used" href="images/used.png" media-type="image/png"/>
+    <item id="unused" href="images/unused.gif" media-type="image/gif"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+    $zip->addFromString('OPS/chapter.xhtml', <<<'HTML'
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <body><p><img src="images/used.png" alt="Used"/></p></body>
+</html>
+HTML);
+    $zip->addFromString('OPS/images/used.png', $usedImage);
+    $zip->addFromString('OPS/images/unused.gif', $unusedImage);
+    $zip->close();
+
+    return [
+        'usedImageBytes' => strlen($usedImage),
+        'unusedImageBytes' => strlen($unusedImage),
+    ];
+};
+
 return [
     'skips epub media bag comparison when cache is absent' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $root = $makeTempDir();
@@ -147,6 +194,41 @@ return [
         $t->same(10, $decoded['expectedMediaItemCount']);
         $t->same(10, $decoded['actualMediaItemCount']);
         $t->same(true, EpubMediaBagComparisonHarness::hasRequiredMediaBagParity($decoded, 6));
+    },
+
+    'compares emitted image media bag without counting unused manifest images' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile, $writeScopedMediaBagEpub): void {
+        $root = $makeTempDir();
+        try {
+            $epubPath = $root . '/test/epub/scoped-media-bag.epub';
+            if (!is_dir(dirname($epubPath)) && !mkdir(dirname($epubPath), 0777, true) && !is_dir(dirname($epubPath))) {
+                throw new RuntimeException('Unable to create scoped media-bag fixture tree');
+            }
+            $fixture = $writeScopedMediaBagEpub($epubPath);
+            $writeFile($root, 'test/Tests/Readers/EPUB.hs', sprintf(
+                <<<'HS'
+scopedMediaBag = [("images/used.png","image/png",%d)]
+
+tests = [ testCase "scoped media bag"
+          (testMediaBag "epub/scoped-media-bag.epub" scopedMediaBag) ]
+HS,
+                $fixture['usedImageBytes']
+            ));
+            $writeFile($root, 'src/Text/Pandoc/Readers/EPUB.hs', "module Text.Pandoc.Readers.EPUB where\n");
+
+            $report = (new EpubMediaBagComparisonHarness())->run($root);
+
+            $t->same('completed', $report['status']);
+            $t->same(1, $report['comparedCaseCount']);
+            $t->same(1, $report['epubParsedCount']);
+            $t->same(0, $report['parseFailureCount']);
+            $t->same(1, $report['expectedMediaItemCount']);
+            $t->same(1, $report['actualMediaItemCount']);
+            $t->same(1, $report['mediaBagMatchCount']);
+            $t->same(0, $report['mediaBagMismatchCount']);
+            $t->same('media-bag-equality-observed-not-runner-parity', $report['mediaBagParityStatus']);
+        } finally {
+            $removeTree($root);
+        }
     },
 
     'reports epub media bag mismatches without claiming full parity' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile, $fixtureRoot): void {

@@ -273,7 +273,7 @@ final class EpubMediaBagComparisonHarness
             }
 
             $bag = [];
-            foreach (is_array($meta['epubImageResources'] ?? null) ? $meta['epubImageResources'] : [] as $resource) {
+            foreach (is_array($meta['epubMediaBagResources'] ?? null) ? $meta['epubMediaBagResources'] : [] as $resource) {
                 if (!is_string($resource) || $resource === '') {
                     continue;
                 }
@@ -397,7 +397,7 @@ final class EpubMediaBagComparisonHarness
     {
         return [
             'includes' => [
-                'local EpubReader epubImageResources entries',
+                'local EpubReader epubMediaBagResources entries derived from emitted image nodes',
                 'OPF manifest media-type values',
                 'uncompressed ZIP entry byte sizes',
                 'Pandoc-style paths relative to the OPF root directory',
@@ -405,7 +405,7 @@ final class EpubMediaBagComparisonHarness
             'excludes' => [
                 'Pandoc AST equality',
                 'upstream Haskell runner execution',
-                'non-image EPUB resources outside the upstream media-bag expectations',
+                'manifest image resources not used by the emitted EPUB image AST',
                 'EPUB writer behavior',
             ],
         ];
