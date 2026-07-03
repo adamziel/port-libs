@@ -15,6 +15,17 @@ $fixture = static function (string $name): string {
     return $bytes;
 };
 
+$tests['imports upstream html xml lang metadata from root element'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-xml-lang-metadata.html'));
+        $meta = $document->attr('meta');
+
+        $t->same('es', $meta['lang']);
+        $t->same('html', $meta['sourceFormat']);
+        $t->same(['paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same('hola', $document->children[0]->attr('text'));
+    };
+
 $tests['extracts html reader microdata item metadata with itemref and nested item scopes'] =
     static function (TestRunner $t): void {
         $html = '<!doctype html><html><head><title>Microdata Dispatch</title></head><body>'

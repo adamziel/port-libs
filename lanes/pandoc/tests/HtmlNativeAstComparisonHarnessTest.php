@@ -48,6 +48,8 @@ return [
         $inlineCodeNative = $root . '/upstream-html-inline-code-aliases.native';
         $langMetadataHtml = $root . '/upstream-html-lang-metadata.html';
         $langMetadataNative = $root . '/upstream-html-lang-metadata.native';
+        $xmlLangMetadataHtml = $root . '/upstream-html-xml-lang-metadata.html';
+        $xmlLangMetadataNative = $root . '/upstream-html-xml-lang-metadata.native';
         $listItemIdHtml = $root . '/upstream-html-list-item-id.html';
         $listItemIdNative = $root . '/upstream-html-list-item-id.native';
         $headerNativeDivsHtml = $root . '/upstream-html-header-native-divs.html';
@@ -146,6 +148,8 @@ return [
         $t->true(is_file($inlineCodeNative), 'Native inline-code fixture must be checked in');
         $t->true(is_file($langMetadataHtml), 'HTML lang-metadata fixture must be checked in');
         $t->true(is_file($langMetadataNative), 'Native lang-metadata fixture must be checked in');
+        $t->true(is_file($xmlLangMetadataHtml), 'HTML xml-lang-metadata fixture must be checked in');
+        $t->true(is_file($xmlLangMetadataNative), 'Native xml-lang-metadata fixture must be checked in');
         $t->true(is_file($listItemIdHtml), 'HTML list item id fixture must be checked in');
         $t->true(is_file($listItemIdNative), 'Native list item id fixture must be checked in');
         $t->true(is_file($headerNativeDivsHtml), 'HTML header native-divs fixture must be checked in');
@@ -222,33 +226,33 @@ return [
         $text = $harness->formatReport($report);
 
         $t->same('completed', $report['status']);
-        $t->same(48, $report['htmlFixtureCount']);
-        $t->same(48, $report['nativeFixtureCount']);
-        $t->same(48, $report['pairedFixtureCount']);
+        $t->same(49, $report['htmlFixtureCount']);
+        $t->same(49, $report['nativeFixtureCount']);
+        $t->same(49, $report['pairedFixtureCount']);
         $t->same(0, $report['unpairedHtmlFixtureCount']);
         $t->same(0, $report['unpairedNativeFixtureCount']);
         $t->same($expectedUnpairedHtmlFixtureNames, $report['unpairedHtmlFixtureNames']);
         $t->same([], $report['unpairedNativeFixtureNames']);
         $t->same([], $report['unpairedHtmlFixtureExamples']);
-        $t->same(48, $report['totalPairCount']);
-        $t->same(48, $report['comparedPairCount']);
-        $t->same(48, $report['htmlParsedCount']);
-        $t->same(48, $report['nativeParsedCount']);
-        $t->same(48, $report['bothParsedCount']);
+        $t->same(49, $report['totalPairCount']);
+        $t->same(49, $report['comparedPairCount']);
+        $t->same(49, $report['htmlParsedCount']);
+        $t->same(49, $report['nativeParsedCount']);
+        $t->same(49, $report['bothParsedCount']);
         $t->same(0, $report['parseFailureCount']);
-        $t->same(48, $report['normalizedAstMatchCount']);
+        $t->same(49, $report['normalizedAstMatchCount']);
         $t->same(0, $report['normalizedAstMismatchCount']);
         $t->same('normalized-ast-equality-observed-not-runner-parity', $report['astParityStatus']);
-        $t->same(true, HtmlNativeAstComparisonHarness::hasRequiredMappedParity($report, 48));
+        $t->same(true, HtmlNativeAstComparisonHarness::hasRequiredMappedParity($report, 49));
         $t->same(['htmlRawHtml' => false], $report['htmlReaderFixtureOptionOverrides']['upstream-html-raw-disabled-skip.html'] ?? null);
         $t->same('covered-by-current-normalized-ast-evidence', $report['orderedRemainingGaps'][0]['status']);
         $t->same('checked-in-html-fixtures-without-native-pairs', $report['orderedRemainingGaps'][1]['id']);
         $t->same('covered-by-current-normalized-ast-evidence', $report['orderedRemainingGaps'][1]['status']);
-        $t->same('HTML fixtures=48; native fixtures=48; same-basename pairs=48; HTML fixtures without native pairs=0', $report['orderedRemainingGaps'][1]['currentEvidence']);
-        $t->same('The current checked-in gate covers 48 paired fixture(s) out of 48 HTML fixture(s).', $report['orderedRemainingGaps'][3]['currentEvidence']);
-        $t->contains('fixtureInventory: html=48 native=48 paired=48 unpairedHtml=0 unpairedNative=0', $text);
-        $t->contains('pairs: total=48 compared=48 parsedBoth=48 parseFailures=0', $text);
-        $t->contains('normalizedAst: matches=48 (100.00%) mismatches=0', $text);
+        $t->same('HTML fixtures=49; native fixtures=49; same-basename pairs=49; HTML fixtures without native pairs=0', $report['orderedRemainingGaps'][1]['currentEvidence']);
+        $t->same('The current checked-in gate covers 49 paired fixture(s) out of 49 HTML fixture(s).', $report['orderedRemainingGaps'][3]['currentEvidence']);
+        $t->contains('fixtureInventory: html=49 native=49 paired=49 unpairedHtml=0 unpairedNative=0', $text);
+        $t->contains('pairs: total=49 compared=49 parsedBoth=49 parseFailures=0', $text);
+        $t->contains('normalizedAst: matches=49 (100.00%) mismatches=0', $text);
 
         $command = escapeshellarg(PHP_BINARY)
             . ' '
@@ -256,19 +260,19 @@ return [
             . ' --html-dir=' . escapeshellarg($root)
             . ' --json'
             . ' summary'
-            . ' --require-mapped-parity=48';
+            . ' --require-mapped-parity=49';
         $output = [];
         $exitCode = 0;
         exec($command, $output, $exitCode);
         $decoded = json_decode(implode("\n", $output), true, 512, JSON_THROW_ON_ERROR);
 
         $t->same(0, $exitCode);
-        $t->same(48, $decoded['htmlFixtureCount']);
+        $t->same(49, $decoded['htmlFixtureCount']);
         $t->same(0, $decoded['unpairedHtmlFixtureCount']);
         $t->same($expectedUnpairedHtmlFixtureNames, $decoded['unpairedHtmlFixtureNames']);
         $t->same([], $decoded['unpairedNativeFixtureNames']);
         $t->same(['htmlRawHtml' => false], $decoded['htmlReaderFixtureOptionOverrides']['upstream-html-raw-disabled-skip.html'] ?? null);
-        $t->same(48, $decoded['normalizedAstMatchCount']);
+        $t->same(49, $decoded['normalizedAstMatchCount']);
         $t->same(0, $decoded['normalizedAstMismatchCount']);
     },
 ];
