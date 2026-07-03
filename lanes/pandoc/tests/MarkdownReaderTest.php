@@ -4775,7 +4775,7 @@ TEX;
         $t->contains('<figcaption aria-hidden="true">lalune</figcaption>', $html);
         $t->contains('<div class="line-block">Reviewer <em>stanza</em><br /><br />', $html);
         $t->contains('<hr />', $html);
-        $t->contains('<figure class="wp-block-image review-frame" id="fig-lalune"><img src="lalune.jpg" alt="lalune" title="Voyage dans la Lune"/><figcaption>lalune</figcaption></figure>', $blocks);
+        $t->contains('<figure class="wp-block-image review-frame" id="fig-lalune" data-source="testsuite-images"><img src="lalune.jpg" alt="lalune" title="Voyage dans la Lune"/><figcaption>lalune</figcaption></figure>', $blocks);
         $t->contains('<p>Reviewer <em>stanza</em><br/><br/><a href="/wp-admin/post.php?post=42&amp;action=edit">edit source</a></p>', $blocks);
         $t->contains('<!-- wp:separator -->', $blocks);
     },
@@ -5183,8 +5183,8 @@ TEX;
             '</tfoot>',
             '</table>',
         ]), $html);
-        $t->contains('<figure class="wp-block-table"><table><thead><tr><th style="text-align:left">Field</th><th colspan="2" style="text-align:center">Review status</th></tr></thead>', $blocks);
-        $t->contains('<tbody data-phase="import"><tr><th style="text-align:left">Posts</th><td style="text-align:right">42</td><td rowspan="2"><p>Needs &lt;review&gt;</p></td>', $blocks);
+        $t->contains('<figure class="wp-block-table"><table id="migration-table" class="audit-table" data-source="batch-42"><thead class="source-head"><tr><th style="text-align:left">Field</th><th colspan="2" style="text-align:center">Review status</th></tr></thead>', $blocks);
+        $t->contains('<tbody data-phase="import"><tr class="flagged"><th scope="row" style="text-align:left">Posts</th><td style="text-align:right">42</td><td rowspan="2"><p>Needs &lt;review&gt;</p></td>', $blocks);
         $t->contains('<tfoot><tr><td colspan="3" style="text-align:left">Ready for block import</td></tr></tfoot>', $blocks);
     },
     'maps upstream html writer image alt text and heading attribute filtering' => static function (TestRunner $t): void {
