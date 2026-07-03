@@ -341,6 +341,29 @@ foreach ($markers as $markerName => $marker) {
     }
 }
 
+$tests['maps upstream markdown task-list fixture through default profile'] =
+    static function (TestRunner $t) use ($childTypes, $collectTaskStates, $listItemText): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-markdown-task-list.md');
+        $document = (new MarkdownReader())->read($fixture);
+        $list = $document->children[0] ?? new AstNode('missing');
+        $secondItem = $list->children[1] ?? new AstNode('missing');
+        $nested = $secondItem->children[1] ?? new AstNode('missing');
+
+        $t->same('bullet_list', $list->type);
+        $t->same(true, $list->attr('taskList'));
+        $t->same('-', $list->attr('marker'));
+        $t->same(false, $list->attr('loose'));
+        $t->same(3, count($list->children));
+        $t->same([false, true, false, true], $collectTaskStates($list));
+        $t->same('Review imported media', $listItemText($list->children[0] ?? new AstNode('missing')));
+        $t->same('Confirm source links', $listItemText($secondItem));
+        $t->same(['text', 'bullet_list'], $childTypes($secondItem));
+        $t->same('bullet_list', $nested->type);
+        $t->same(true, $nested->attr('taskList'));
+        $t->same('Attach follow-up', $listItemText($nested->children[0] ?? new AstNode('missing')));
+        $t->same('Mark ready to publish', $listItemText($list->children[2] ?? new AstNode('missing')));
+    };
+
 $tests['records upstream markdown reader task-list profile surge mapped-case count'] =
     static function (TestRunner $t) use ($markers, $variants): void {
         $t->same(90, count($markers) * count($variants));
