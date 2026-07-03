@@ -1,0 +1,4 @@
+[ Header
+    2 ( "slide-1" , [] , [] ) [ Str "Paragraphless text box" ]
+, Para [ Str "After empty text body" ]
+]
