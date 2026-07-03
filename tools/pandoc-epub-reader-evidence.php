@@ -14,6 +14,8 @@ Usage: php tools/pandoc-epub-reader-evidence.php [options]
 Options:
   --json                                  Emit JSON instead of text.
   --repo-root PATH                        Repository root. Defaults to the parent of tools/.
+  --checked-in-fixtures                   Use the checked-in current EPUB reader fixture snapshot
+                                          for both upstream reader tests and EPUB fixtures.
   --upstream-root PATH                    Optional upstream Pandoc checkout root.
                                           Defaults to .upstream-cache/pandoc-current.
   --fixture-base PATH                     Optional checked-in EPUB fixture base.
@@ -33,8 +35,12 @@ TEXT;
 
 try {
     $repoRoot = dirname(__DIR__);
+    $checkedInFixtureRoot = 'lanes/pandoc/fixtures/upstream-current-epub-reader';
     $upstreamRoot = EpubUpstreamReaderEvidence::DEFAULT_RELATIVE_UPSTREAM_ROOT;
     $fixtureBase = null;
+    $useCheckedInFixtures = false;
+    $upstreamRootArgumentWasProvided = false;
+    $fixtureBaseArgumentWasProvided = false;
     $json = false;
     $requiredTestCount = null;
     $requiredFixtureReferenceCount = null;
@@ -70,6 +76,10 @@ try {
             $requireRunnerNotRun = true;
             continue;
         }
+        if ($arg === '--checked-in-fixtures') {
+            $useCheckedInFixtures = true;
+            continue;
+        }
         if ($arg === '--repo-root') {
             $repoRoot = $nextValue('--repo-root');
             continue;
@@ -80,18 +90,22 @@ try {
         }
         if ($arg === '--upstream-root') {
             $upstreamRoot = $nextValue('--upstream-root');
+            $upstreamRootArgumentWasProvided = true;
             continue;
         }
         if (str_starts_with($arg, '--upstream-root=')) {
             $upstreamRoot = substr($arg, strlen('--upstream-root='));
+            $upstreamRootArgumentWasProvided = true;
             continue;
         }
         if ($arg === '--fixture-base') {
             $fixtureBase = $nextValue('--fixture-base');
+            $fixtureBaseArgumentWasProvided = true;
             continue;
         }
         if (str_starts_with($arg, '--fixture-base=')) {
             $fixtureBase = substr($arg, strlen('--fixture-base='));
+            $fixtureBaseArgumentWasProvided = true;
             continue;
         }
         if ($arg === '--require-test-count') {
@@ -144,6 +158,15 @@ try {
         }
 
         throw new InvalidArgumentException("Unknown option: {$arg}");
+    }
+
+    if ($useCheckedInFixtures && ($upstreamRootArgumentWasProvided || $fixtureBaseArgumentWasProvided)) {
+        throw new InvalidArgumentException('--checked-in-fixtures cannot be combined with --upstream-root or --fixture-base');
+    }
+
+    if ($useCheckedInFixtures) {
+        $upstreamRoot = $checkedInFixtureRoot;
+        $fixtureBase = $checkedInFixtureRoot;
     }
 
     $report = (new EpubUpstreamReaderEvidence($repoRoot, $upstreamRoot, $fixtureBase))->report();

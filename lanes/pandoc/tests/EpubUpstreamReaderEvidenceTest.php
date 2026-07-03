@@ -182,13 +182,12 @@ HS);
         }
     },
 
-    'cli gates checked-in current epub reader evidence through fixture base' => static function (TestRunner $t) use ($repoRoot): void {
+    'cli gates checked-in current epub reader evidence through checked-in fixtures mode' => static function (TestRunner $t) use ($repoRoot, $checkedInFixtureRoot): void {
         $command = escapeshellarg(PHP_BINARY)
             . ' '
             . escapeshellarg(dirname(__DIR__, 3) . '/tools/pandoc-epub-reader-evidence.php')
             . ' --repo-root=' . escapeshellarg($repoRoot())
-            . ' --upstream-root=lanes/pandoc/fixtures/upstream-current-epub-reader'
-            . ' --fixture-base=lanes/pandoc/fixtures/upstream-current-epub-reader'
+            . ' --checked-in-fixtures'
             . ' --json'
             . ' --require-test-count=6'
             . ' --require-fixture-reference-count=6'
@@ -206,10 +205,13 @@ HS);
         $t->same(10, $decoded['denominator']['expectedMediaItemCount']);
         $t->same([], $decoded['denominator']['missingReferencedFiles']);
         $t->same('valid-upstream-epub-reader-mediabag-denominator', $decoded['validation']['status']);
+        $t->same($checkedInFixtureRoot(), $decoded['upstream']['root']);
+        $t->same($checkedInFixtureRoot(), $decoded['upstream']['resolvedFixtureBase']);
         $t->same('epub', $decoded['upstream']['resolvedFixtureDirectory']);
         $t->same(false, $decoded['upstream']['readerSourceRequired']);
         $t->same(true, EpubUpstreamReaderEvidence::hasRunnerNotRunEvidence($decoded));
         $t->same('not-run', $decoded['runnerEvidence']['status']);
+        $t->true(in_array('full EPUB feature parity beyond the upstream reader media-bag tests', $decoded['claimBoundaries']['doesNotAssert'], true));
     },
 
     'cli gates epub reader evidence counts and validation issues' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeEpubEvidenceTree): void {
