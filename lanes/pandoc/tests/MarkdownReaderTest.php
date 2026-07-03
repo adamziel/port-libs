@@ -3578,7 +3578,7 @@ TEX;
         ]);
 
         $t->same(implode("\n", [
-            '\\# Heading-looking source \\-- \\... \\::: \\![draft\\] \\~~gone\\~~ a_b \\*stars\\* \\_under\\_ \\`tick\\` \\| \\^ \\~ \\$ \\<tag\\> \\> \\&ouml; \\\\macro [bracket \\[label\\]][1] and [bracket \\[again\\]][1] then [normal] and [normal][2]',
+            '\\# Heading-looking source \\-- \\... \\::: \\![draft\\] \\~\\~gone\\~\\~ a_b \\*stars\\* \\_under\\_ \\`tick\\` \\| \\^ \\~ \\$ \\<tag\\> \\> \\&ouml; \\\\macro [bracket \\[label\\]][1] and [bracket \\[again\\]][1] then [normal] and [normal][2]',
             '',
             '  [1]: /review',
             '  [normal]: /other',
@@ -3691,13 +3691,13 @@ TEX;
         $roundTrip = (new MarkdownReader())->read($markdown);
         $roundTripParagraph = $roundTrip->children[0];
 
-        $t->same('Source asset: [asset](/wp-content/uploads/alpha beta\).jpg "Migration \\"asset\\"") and ![chart](/wp-content/uploads/chart \(final\).png).', $markdown);
+        $t->same('Source asset: [asset](</wp-content/uploads/alpha beta).jpg> "Migration \\"asset\\"") and ![chart](</wp-content/uploads/chart (final).png>).', $markdown);
         $t->same('/wp-content/uploads/alpha%20beta).jpg', $roundTripParagraph->children[1]->attr('url'));
         $t->same('/wp-content/uploads/chart%20(final).png', $roundTripParagraph->children[3]->attr('url'));
         $t->same(implode("\n", [
             '[packet]',
             '',
-            '  [packet]: /wp-content/uploads/review packet\).pdf "PDF source"',
+            '  [packet]: </wp-content/uploads/review packet).pdf> "PDF source"',
         ]), (new MarkdownWriter(['referenceLinks' => true]))->write($referenceDocument));
     },
     'maps upstream markdown writer wikilink title pipe variants' => static function (TestRunner $t): void {
@@ -3734,16 +3734,16 @@ TEX;
             '[[https://example.org]]',
             '[[https://example.org|title]]',
             '[[Home]]',
-            '[[Name%20of%20page|Title]]',
+            '[[Name of page|Title]]',
         ]), (new MarkdownWriter(['variant' => 'markdown+wikilinks_title_after_pipe']))->write($document));
         $t->same(implode("\n\n", [
             '[[https://example.org]]',
             '[[title|https://example.org]]',
             '[[Home]]',
-            '[[Title|Name%20of%20page]]',
+            '[[Title|Name of page]]',
         ]), (new MarkdownWriter(['variant' => 'commonmark_x+wikilinks_title_before_pipe']))->write($document));
         $t->same(
-            'Wiki shortcuts: [[https://example.test/runbook|Migration runbook]] and [[Legacy%20import%20checklist]].',
+            'Wiki shortcuts: [[https://example.test/runbook|Migration runbook]] and [[Legacy import checklist]].',
             (new MarkdownWriter(['wikilinksTitleAfterPipe' => true]))->write($reviewPacket)
         );
         $t->same(
