@@ -9598,6 +9598,10 @@ final class MarkdownWriter
 
     private function yamlMetadataEnabled(): bool
     {
+        if ($this->isPlainTextVariant()) {
+            return false;
+        }
+
         $options = $this->options;
         $options['format'] = $this->markdownFormatWithExtensionOption();
 
@@ -9641,6 +9645,11 @@ final class MarkdownWriter
     private function writerVariant(): string
     {
         $format = $this->options['variant'] ?? $this->options['format'] ?? 'markdown';
+        $normalized = is_scalar($format) ? strtolower(str_replace('_', '-', trim((string) $format))) : 'markdown';
+
+        if (in_array($normalized, ['plain', 'plain-text', 'plaintext'], true)) {
+            return $normalized;
+        }
 
         return strtolower(str_replace('_', '-', MarkdownFormatProfile::canonicalFormat($format)));
     }
