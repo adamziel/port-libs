@@ -2436,6 +2436,9 @@ final class WordPressBlockWriter
 
         foreach ($classes as $class) {
             $class = $this->sanitizeCodeClass((string) $class);
+            if (in_array($class, ['haskell', 'literate'], true)) {
+                continue;
+            }
             if ($class !== '' && !in_array($class, $preClasses, true)) {
                 $preClasses[] = $class;
             }

@@ -129,6 +129,8 @@ final class MarkdownReader
 
     private int $htmlQuoteDepth = 0;
 
+    private int $markdownBlockQuoteDepth = 0;
+
     private string $metadataMarkdownExtensionSuffix = '';
 
     private bool $documentHasYamlMetadata = false;
@@ -213,7 +215,9 @@ final class MarkdownReader
                 $blocks[] = $literateHaskellCodeBlock;
                 continue;
             }
-            $blockQuote = $listStack === [] ? $this->tryReadBlockQuote($lines, $index) : null;
+            $blockQuote = ($paragraph === [] || $this->markdownBlockQuoteDepth > 0) && $listStack === []
+                ? $this->tryReadBlockQuote($lines, $index)
+                : null;
             if ($blockQuote !== null) {
                 $this->flushParagraph($paragraph, $blocks);
                 $blocks[] = $blockQuote;
@@ -2422,7 +2426,12 @@ final class MarkdownReader
         }
 
         $index = $cursor - 1;
-        $inner = $this->read(implode("\n", $content));
+        $this->markdownBlockQuoteDepth++;
+        try {
+            $inner = $this->read(implode("\n", $content));
+        } finally {
+            $this->markdownBlockQuoteDepth--;
+        }
 
         return new AstNode('blockquote', [], $inner->children);
     }
@@ -11992,8 +12001,13 @@ final class MarkdownReader
             && !$this->isHorizontalRule($line)
             && !$this->isBlockQuoteLine($line)
             && !$this->isDefinitionMarker($line)
-            && !$this->lineCanStartSiblingBlockAfterListItem($line)
+            && ($this->isHtmlCommentDelimiterListContinuation($line) || !$this->lineCanStartSiblingBlockAfterListItem($line))
             && preg_match('/^(#{1,6})\s+/', $line) !== 1;
+    }
+
+    private function isHtmlCommentDelimiterListContinuation(string $line): bool
+    {
+        return in_array(trim($line), ['<!--', '-->'], true);
     }
 
     private function lineCanStartSiblingBlockAfterListItem(string $line): bool
@@ -12666,6 +12680,11 @@ final class MarkdownReader
         return $next < count($lines) && $this->isDefinitionMarker($lines[$next]) ? $next : null;
     }
 
+    private function definitionMarkerIndent(string $line): int
+    {
+        return preg_match('/^( {0,3})[:~]/', $line, $m) === 1 ? strlen($m[1]) : 0;
+    }
+
     /**
      * @return array{marker:string, content:string}|null
      */
@@ -12689,6 +12708,7 @@ final class MarkdownReader
     {
         $blankBeforeNextDefinition = false;
         $marker = $this->matchDefinitionMarker($lines[$cursor]);
+        $markerIndent = $this->definitionMarkerIndent($lines[$cursor]);
         $blocks = $marker === null ? [] : $this->parseDefinitionBlocks($marker['content']);
         $cursor++;
         $count = count($lines);
@@ -12723,7 +12743,11 @@ final class MarkdownReader
                 continue;
             }
 
-            if ($this->canStartDefinitionTerm($line) && $this->definitionMarkerAfterTermLine($lines, $cursor) !== null) {
+            if (
+                $markerIndent === 0
+                && $this->canStartDefinitionTerm($line)
+                && $this->definitionMarkerAfterTermLine($lines, $cursor) !== null
+            ) {
                 break;
             }
 
