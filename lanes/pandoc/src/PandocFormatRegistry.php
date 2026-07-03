@@ -293,7 +293,7 @@ final class PandocFormatRegistry
         'csv' => [
             'status' => 'partial',
             'implementation' => DelimitedTextReader::class,
-            'notes' => 'Delimited text reader maps CSV rows into the shared table AST with Pandoc-compatible delimiter, quote, escape, keep-space, multiline-cell, row repair, control-character, and provenance diagnostics. The pinned direct CSV reader and shared CSV parser option fixtures are covered; RST csv-table integration is tracked with the RST reader gap.',
+            'notes' => 'Delimited text reader maps CSV rows into the shared table AST with Pandoc-compatible delimiter, quote, escape, keep-space, multiline-cell, row repair, control-character, and provenance diagnostics. The pinned direct CSV reader and shared CSV parser option fixtures are covered; RST csv-table integration is exercised through the RST reader without changing the direct CSV denominator.',
         ],
         'tsv' => [
             'status' => 'partial',
@@ -433,7 +433,7 @@ final class PandocFormatRegistry
         'rst' => [
             'status' => 'partial',
             'implementation' => RstReader::class,
-            'notes' => 'Bounded reStructuredText reader maps section titles, paragraphs, emphasis/strong/literal/link inlines, bullet and enumerated lists, field and definition lists, block quotes, literal/code blocks, and image directives into the shared AST. Full Pandoc RST directive, role, substitution, table, citation, and option parity remains open.',
+            'notes' => 'Bounded reStructuredText reader maps section titles, paragraphs, emphasis/strong/literal/link inlines, bullet and enumerated lists, field and definition lists, block quotes, literal/code blocks, image directives, and csv-table directives into the shared AST. Full Pandoc RST directive, role, substitution, table, citation, and option parity remains open.',
         ],
         'rtf' => [
             'status' => 'partial',

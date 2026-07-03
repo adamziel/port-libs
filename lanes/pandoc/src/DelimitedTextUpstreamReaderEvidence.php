@@ -1183,7 +1183,6 @@ final class DelimitedTextUpstreamReaderEvidence
                 ],
                 'doesNotAssert' => [
                     'that upstream Haskell/Cabal/Tasty tests were executed',
-                    'that RST csv-table integration is implemented locally',
                     'full CSV/TSV feature parity beyond the direct reader fixtures and local parser-option cases',
                 ],
             ],
@@ -1284,9 +1283,9 @@ final class DelimitedTextUpstreamReaderEvidence
                 'doesAssert' => [
                     'the RST csv-table fixture pair is not counted as direct CSV or TSV reader fixtures',
                     'the adjacent fixture pair has zero direct-reader denominator impact',
+                    'that native PHP exercises RST csv-table directives through the RST reader integration path',
                 ],
                 'doesNotAssert' => [
-                    'that native PHP implements RST csv-table integration',
                     'that upstream Haskell/Cabal/Tasty tests were executed',
                     'that these adjacent fixtures close direct CSV or TSV reader parity',
                 ],
@@ -1708,7 +1707,7 @@ final class DelimitedTextUpstreamReaderEvidence
                 . '/' . (int) ($generatedTsvNative['sampleCount'] ?? 0)
                 . ' status=' . (string) ($generatedTsvNative['parityStatus'] ?? 'unknown'),
             'Validation: ' . (string) ($validation['status'] ?? 'unknown'),
-            'No upstream Haskell/Cabal runner result, RST csv-table integration, or full CSV/TSV feature parity is asserted.',
+            'No upstream Haskell/Cabal runner result or full CSV/TSV feature parity is asserted.',
         ]) . PHP_EOL;
     }
 
@@ -2040,6 +2039,7 @@ final class DelimitedTextUpstreamReaderEvidence
                 'the count and file identities of upstream direct CSV command-reader fixtures tracked locally',
                 'that the current pinned upstream CSV reader source files are present when an upstream checkout is inspected',
                 'that the RST csv-table fixture pair is CSV-adjacent evidence and not part of the direct CSV/TSV reader denominator',
+                'that RST csv-table directives are exercised through the native RST reader integration path',
                 'that no dedicated TSV command fixture is available in the pinned direct-reader evidence set',
                 'static checked-in current csv.md and 01.csv fixture identity when staticCurrentEvidence is valid',
                 'twenty-seven generated CSV-to-native local samples when generatedCsvNativeParityEvidence is valid',
@@ -2050,7 +2050,6 @@ final class DelimitedTextUpstreamReaderEvidence
                 'that local PHP output matches every upstream CSV-adjacent command fixture',
                 'that the generated CSV samples are upstream command fixtures',
                 'that the generated TSV samples are upstream command fixtures',
-                'RST csv-table reader integration',
                 'full CSV/TSV feature parity beyond the direct reader fixture evidence',
             ],
         ];

@@ -35,10 +35,11 @@ final class RstReader
                         'inline emphasis strong literal and links',
                         'bullet and enumerated lists',
                         'definition lists',
+                        'csv-table directives',
                         'literal and code directives',
                         'image directives',
                     ],
-                    'fixtureStatus' => 'Initial native PHP reader slice; full Pandoc RST directive/role/table/substitution parity remains open.',
+                    'fixtureStatus' => 'Initial native PHP reader slice with csv-table bridge coverage; full Pandoc RST directive/role/table/substitution parity remains open.',
                 ],
             ],
         ], $this->parseBlocks());
@@ -74,6 +75,10 @@ final class RstReader
 
             if ($this->isDirective($trimmed, 'image')) {
                 $blocks[] = $this->parseImageDirective($trimmed);
+                continue;
+            }
+            if ($this->isDirective($trimmed, 'csv-table')) {
+                $blocks[] = $this->parseCsvTableDirective($trimmed);
                 continue;
             }
             if ($this->isDirective($trimmed, 'code') || $this->isDirective($trimmed, 'code-block')) {
@@ -154,6 +159,7 @@ final class RstReader
 
         return $this->sectionTitleAt($this->index, $baseIndent) !== null
             || $this->isDirective($trimmed, 'image')
+            || $this->isDirective($trimmed, 'csv-table')
             || $this->isDirective($trimmed, 'code')
             || $this->isDirective($trimmed, 'code-block')
             || $trimmed === '::'
@@ -267,6 +273,40 @@ final class RstReader
         return $this->parseIndentedCodeBlock($this->nextIndentedLineIndent($this->index) ?? 1, $language);
     }
 
+    private function parseCsvTableDirective(string $trimmed): AstNode
+    {
+        preg_match('/^\\.\\.\\s+csv-table::\\s*(.*)$/u', $trimmed, $match);
+        $caption = trim((string) ($match[1] ?? ''));
+        ++$this->index;
+        $options = $this->parseDirectiveOptions();
+        $body = $this->collectIndentedBlock($this->nextIndentedLineIndent($this->index) ?? 1);
+        $header = trim((string) ($options['header'] ?? ''));
+        $source = $header === '' ? $body : $header . "\n" . $body;
+        $readerOptions = [
+            'header' => $header !== '',
+            'strictParsing' => false,
+        ];
+        if (isset($options['delim']) && $options['delim'] !== '') {
+            $readerOptions['delimiter'] = $options['delim'];
+        }
+        $document = (new DelimitedTextReader())->readCsv($source, $readerOptions);
+        $table = $document->children[0] ?? new AstNode('table');
+        $packet = is_array($table->attr('delimitedText')) ? $table->attr('delimitedText') : [];
+
+        return new AstNode('table', array_replace($table->attrs, [
+            'sourceFormat' => 'rst-csv-table',
+            'caption' => $caption,
+            'rstDirective' => 'csv-table',
+            'rstCsvTable' => [
+                'caption' => $caption,
+                'headerOption' => $header !== '',
+                'optionNames' => array_keys($options),
+                'bodyLineCount' => $body === '' ? 0 : count(explode("\n", $body)),
+                'delimitedText' => $packet,
+            ],
+        ]), $table->children);
+    }
+
     /**
      * @return array<string, string>
      */
@@ -321,6 +361,35 @@ final class RstReader
             'text' => implode("\n", $body),
             'classes' => $language === '' ? [] : [$language],
         ]);
+    }
+
+    private function collectIndentedBlock(int $minimumIndent): string
+    {
+        while ($this->index < count($this->lines) && trim($this->lines[$this->index]) === '') {
+            ++$this->index;
+        }
+
+        $body = [];
+        $baseIndent = $this->nextIndentedLineIndent($this->index) ?? $minimumIndent;
+        while ($this->index < count($this->lines)) {
+            $line = rtrim($this->lines[$this->index], "\n");
+            if (trim($line) === '') {
+                $body[] = '';
+                ++$this->index;
+                continue;
+            }
+            if ($this->indentOf($line) < $baseIndent) {
+                break;
+            }
+            $body[] = substr($line, min($baseIndent, strlen($line)));
+            ++$this->index;
+        }
+
+        while ($body !== [] && end($body) === '') {
+            array_pop($body);
+        }
+
+        return implode("\n", $body);
     }
 
     private function isListLine(string $line, int $baseIndent): bool

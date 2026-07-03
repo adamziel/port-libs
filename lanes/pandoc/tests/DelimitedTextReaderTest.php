@@ -2488,7 +2488,7 @@ return [
         $t->same([], $csvEvidence['generatedNativeParityEvidence']['samples'][23]['readerOptions'] ?? null);
         $t->true(in_array('direct-csv-command-reader', $csvEvidence['closedGaps'] ?? [], true));
         $t->true(in_array('generated-csv-native-parity-sample', $csvEvidence['closedGaps'] ?? [], true));
-        $t->true(in_array('rst-csv-table-integration-requires-rst-reader', $csvEvidence['openGaps'] ?? [], true));
+        $t->true(in_array('rst-csv-table-integration-via-rst-reader', $csvEvidence['closedGaps'] ?? [], true));
         $t->same('not-run', $csvEvidence['runnerEvidence']['status'] ?? null);
         $t->same(false, $csvEvidence['runnerEvidence']['executed'] ?? null);
         $t->same(null, $csvEvidence['runnerEvidence']['command'] ?? null);

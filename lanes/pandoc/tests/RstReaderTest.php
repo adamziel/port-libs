@@ -121,4 +121,41 @@ RST;
             $t->contains('<h1>Heading</h1>', $html);
             $t->contains('<a href="https://example.org">Example</a>', $html);
         },
+
+    'maps rst csv table directives through the native delimited text reader' =>
+        static function (TestRunner $t) use ($read, $plainText): void {
+            $document = $read(<<<'RST'
+Inventory
+=========
+
+.. csv-table:: Stock counts
+   :header: "Name", "Qty", "Note"
+
+   "Apple", 2, "Fresh, green"
+   "Orange", 3, "Citrus"
+RST);
+
+            $table = $document->children[1] ?? new AstNode('missing');
+            $head = $table->children[0] ?? new AstNode('missing');
+            $body = $table->children[1] ?? new AstNode('missing');
+            $packet = $table->attr('delimitedText');
+            $rstPacket = $table->attr('rstCsvTable');
+
+            $t->same('table', $table->type);
+            $t->same('rst-csv-table', $table->attr('sourceFormat'));
+            $t->same('Stock counts', $table->attr('caption'));
+            $t->same('csv-table', $table->attr('rstDirective'));
+            $t->same(['Name', 'Qty', 'Note'], $table->attr('columnNames'));
+            $t->same(true, $rstPacket['headerOption'] ?? null);
+            $t->same(2, $rstPacket['bodyLineCount'] ?? null);
+            $t->same('csv', $packet['format'] ?? null);
+            $t->same('first-row', $packet['headerOption'] ?? null);
+            $t->same(3, $packet['columnCount'] ?? null);
+            $t->same('Name', $plainText($head->children[0]->children[0]));
+            $t->same('Note', $plainText($head->children[0]->children[2]));
+            $t->same('Apple', $plainText($body->children[0]->children[0]));
+            $t->same('Fresh, green', $plainText($body->children[0]->children[2]));
+            $t->same('Orange', $plainText($body->children[1]->children[0]));
+            $t->same('Citrus', $plainText($body->children[1]->children[2]));
+        },
 ];

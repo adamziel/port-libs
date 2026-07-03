@@ -1131,7 +1131,7 @@ final class DelimitedTextReader
                     'TSV is an upstream input token but the pinned command corpus evidence is CSV-only.',
                     'TSV parity is covered by native tab-delimited reader semantics, not by a dedicated upstream TSV golden fixture.',
                     'Generated TSV-to-native sample evidence is local executable evidence and is not counted as an upstream TSV fixture.',
-                    'This packet does not claim RST csv-table integration or upstream Haskell runner parity.',
+                    'This packet does not claim upstream Haskell runner parity.',
                 ],
             ];
         }
@@ -1162,16 +1162,16 @@ final class DelimitedTextReader
                 'direct-csv-command-reader',
                 'shared-csv-parser-option-fixtures',
                 'csv-row-repair-and-control-character-provenance',
+                'rst-csv-table-integration-via-rst-reader',
                 'generated-csv-native-parity-sample',
             ],
             'openGaps' => [
-                'rst-csv-table-integration-requires-rst-reader',
                 'upstream-runner-not-run',
             ],
             'claimBoundaries' => [
                 'The direct CSV command reader fixture and parser option behavior are covered locally.',
                 'Generated CSV-to-native sample evidence is local executable evidence and is not counted as an upstream CSV direct fixture.',
-                'The two RST csv-table files are tracked as upstream CSV-adjacent evidence but remain blocked on native RST reader support.',
+                'The two RST csv-table files are tracked as upstream CSV-adjacent evidence and exercised through the RST reader without changing the direct CSV denominator.',
                 'This packet does not claim upstream Haskell runner parity.',
             ],
         ];
