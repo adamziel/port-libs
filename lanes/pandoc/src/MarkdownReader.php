@@ -16016,9 +16016,12 @@ final class MarkdownReader
         if ($char !== '*' && $char !== '_') {
             return null;
         }
+        if ($offset > 0 && $text[$offset - 1] === $char) {
+            return null;
+        }
 
         $runLength = $this->countDelimiterRun($text, $offset, $char);
-        $sizes = $runLength >= 3 ? [3, 1, 2] : ($runLength >= 2 ? [2, 1] : [1]);
+        $sizes = $runLength >= 3 ? [3, 1, 2] : ($runLength >= 2 ? [2] : [1]);
         foreach ($sizes as $size) {
             if ($runLength < $size || !$this->canOpenInlineDelimiter($text, $offset, $char, $size)) {
                 continue;
@@ -16055,25 +16058,40 @@ final class MarkdownReader
 
     private function findClosingInlineDelimiter(string $text, int $offset, string $char, int $size): ?int
     {
-        $needle = str_repeat($char, $size);
-        $position = strpos($text, $needle, $offset);
+        $position = strpos($text, $char, $offset);
         while ($position !== false) {
             $runLength = $this->countDelimiterRun($text, $position, $char);
-            if ($size === 1 && (($text[$position - 1] ?? '') === $char || $runLength > 1)) {
-                $position = strpos($text, $needle, $position + 1);
+            if ($runLength < $size) {
+                $position = strpos($text, $char, $position + $runLength);
                 continue;
             }
 
-            if ($runLength >= $size
-                && $this->canCloseInlineDelimiter($text, $position, $char, $size)
+            $closeOffset = $position + $runLength - $size;
+            if (
+                $this->singleClosingDelimiterWouldStealDoubleDelimiter($text, $position, $char, $size, $runLength)
             ) {
-                return $position;
+                $position = strpos($text, $char, $position + $runLength);
+                continue;
             }
 
-            $position = strpos($text, $needle, $position + 1);
+            if ($this->canCloseInlineDelimiter($text, $closeOffset, $char, $size)) {
+                return $closeOffset;
+            }
+
+            $position = strpos($text, $char, $position + $runLength);
         }
 
         return null;
+    }
+
+    private function singleClosingDelimiterWouldStealDoubleDelimiter(string $text, int $offset, string $char, int $size, int $runLength): bool
+    {
+        if ($size !== 1 || $runLength !== 2) {
+            return false;
+        }
+
+        return $this->canOpenInlineDelimiter($text, $offset, $char, 2)
+            || $this->canCloseInlineDelimiter($text, $offset, $char, 2);
     }
 
     private function canOpenInlineDelimiter(string $text, int $offset, string $char, int $size): bool
