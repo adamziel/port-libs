@@ -507,6 +507,21 @@ foreach ($cases as $name => $case) {
     };
 }
 
+$nonInterruptingOrderedCases = [
+    'ordered marker starting from two' => ["Lead\n2. not a paragraph-interrupting list", 'Lead 2. not a paragraph-interrupting list'],
+    'year-like ordered marker' => ["Lead\n1986. still paragraph text", 'Lead 1986. still paragraph text'],
+];
+
+foreach ($nonInterruptingOrderedCases as $name => [$markdown, $expectedText]) {
+    $tests['keeps upstream markdown reader non-one ordered marker in paragraph ' . $name] =
+        static function (TestRunner $t) use ($markdown, $expectedText, $inlineText): void {
+            $document = (new MarkdownReader())->read($markdown);
+
+            $t->same(['paragraph'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
+            $t->same($expectedText, trim($inlineText($document->children[0])));
+        };
+}
+
 $blockText = static function (AstNode $node) use (&$blockText): string {
     if ($node->type === 'text' || $node->type === 'code') {
         return (string) $node->attr('text', '');
