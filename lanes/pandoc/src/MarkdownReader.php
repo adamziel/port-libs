@@ -10791,6 +10791,9 @@ final class MarkdownReader
             } elseif (($fencedDiv = $this->readListItemFencedDivBlock($lines, $cursor, $baseIndent, $contentIndent, $firstText)) !== null) {
                 $parts[] = $fencedDiv['node'];
                 $cursor = $fencedDiv['next'];
+            } elseif (($rawTex = $this->readListItemRawTexBlock($lines, $cursor, $baseIndent, $contentIndent, $firstText)) !== null) {
+                $parts[] = $rawTex['node'];
+                $cursor = $rawTex['next'];
             } elseif ($this->isBlockQuoteLine($firstText)) {
                 [$quote, $cursor] = $this->readListItemBlockQuote($lines, $cursor, $baseIndent, $contentIndent, $firstText);
                 $parts[] = $quote;
@@ -10900,6 +10903,14 @@ final class MarkdownReader
                     $this->flushListItemParagraph($paragraph, $parts);
                     $parts[] = $definitionList['node'];
                     $cursor = $definitionList['next'];
+                    continue;
+                }
+
+                $rawTex = $this->readListItemRawTexBlock($lines, $cursor, $baseIndent, $contentIndent, $continuation);
+                if ($rawTex !== null) {
+                    $this->flushListItemParagraph($paragraph, $parts);
+                    $parts[] = $rawTex['node'];
+                    $cursor = $rawTex['next'];
                     continue;
                 }
 
@@ -11135,6 +11146,46 @@ final class MarkdownReader
 
         return [
             'node' => $fencedDiv,
+            'next' => $cursor + $blockIndex + 1,
+        ];
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{node:AstNode, next:int}|null
+     */
+    private function readListItemRawTexBlock(
+        array $lines,
+        int $cursor,
+        int $baseIndent,
+        int $contentIndent,
+        string $firstLine
+    ): ?array {
+        if (!$this->rawTexEnabled()) {
+            return null;
+        }
+
+        $expanded = $this->expandTabsToSpaces($firstLine);
+        if (
+            $this->tryReadRawTexMacroDefinition($expanded) === null
+            && preg_match('/^ {0,3}\\\\(?:begin\{[^}\s]+\}|placeformula\s+\\\\startformula|start[A-Za-z@]+)/', $expanded) !== 1
+        ) {
+            return null;
+        }
+
+        $blockLines = [$firstLine];
+        $blockLines = array_merge(
+            $blockLines,
+            $this->collectListItemIndentedContinuationLines($lines, $cursor + 1, $baseIndent, $contentIndent)
+        );
+        $blockIndex = 0;
+        $rawTex = $this->tryReadRawTexBlock($blockLines, $blockIndex);
+        if ($rawTex === null) {
+            return null;
+        }
+
+        return [
+            'node' => $rawTex,
             'next' => $cursor + $blockIndex + 1,
         ];
     }
