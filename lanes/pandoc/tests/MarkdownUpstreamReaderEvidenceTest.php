@@ -62,18 +62,18 @@ return [
         $t->same('not-evaluated-missing-upstream-root', $report['validation']['status']);
         $t->same(['missing-upstream-root'], $report['validation']['issues']);
         $t->same('valid-checked-in-current-markdown-reader-evidence', $report['staticCurrentEvidence']['validation']['status']);
-        $t->same(34, $report['nativeAstEvidence']['totalPairCount']);
-        $t->same(34, $report['nativeAstEvidence']['normalizedAstMatchCount']);
-        $t->same(13, $report['nativeAstEvidence']['unpairedMarkdownFixtureCount']);
+        $t->same(41, $report['nativeAstEvidence']['totalPairCount']);
+        $t->same(41, $report['nativeAstEvidence']['normalizedAstMatchCount']);
+        $t->same(6, $report['nativeAstEvidence']['unpairedMarkdownFixtureCount']);
         $t->same(true, MarkdownUpstreamReaderEvidence::hasRequiredSelectedFixtureCount($report, 47));
         $t->same(true, MarkdownUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($report));
-        $t->same(true, MarkdownUpstreamReaderEvidence::hasRequiredNativeMappedParity($report, 34));
+        $t->same(true, MarkdownUpstreamReaderEvidence::hasRequiredNativeMappedParity($report, 41));
         $t->same(true, MarkdownUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
         $t->same(false, MarkdownUpstreamReaderEvidence::hasNoValidationIssues($report));
         $t->contains('Pandoc Markdown reader evidence', $text);
         $t->contains('Selected checked-in fixtures: 47', $text);
         $t->contains('Static current evidence: valid-checked-in-current-markdown-reader-evidence checkedInFixtures=47', $text);
-        $t->contains('Native AST mapped parity: 34/34 status=normalized-ast-equality-observed-not-runner-parity', $text);
+        $t->contains('Native AST mapped parity: 41/41 status=normalized-ast-equality-observed-not-runner-parity', $text);
     },
 
     'reports checked-in current markdown fixture static evidence' => static function (TestRunner $t): void {
@@ -319,7 +319,7 @@ return [
             $t->same(2, $report['sourceInventory']['presentFileCount']);
             $t->same(0, $report['sourceInventory']['missingFileCount']);
             $t->same(true, MarkdownUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($report));
-            $t->same(true, MarkdownUpstreamReaderEvidence::hasRequiredNativeMappedParity($report, 34));
+            $t->same(true, MarkdownUpstreamReaderEvidence::hasRequiredNativeMappedParity($report, 41));
             $t->same(true, MarkdownUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
             $t->same(true, MarkdownUpstreamReaderEvidence::hasNoValidationIssues($report));
             $t->true(in_array('full upstream Tests.Readers.Markdown runner parity', $report['claimBoundaries']['doesNotAssert'], true));
@@ -339,7 +339,7 @@ return [
             . ' --json'
             . ' --require-selected-fixture-count=47'
             . ' --require-static-current-evidence'
-            . ' --require-native-mapped-parity=34'
+            . ' --require-native-mapped-parity=41'
             . ' --require-runner-not-run';
         $output = [];
         $exitCode = 0;
@@ -350,7 +350,7 @@ return [
         $t->same(MarkdownUpstreamReaderEvidence::STATUS_SKIPPED_MISSING_SOURCE, $decoded['status']);
         $t->same(47, $decoded['staticCurrentEvidence']['readerDenominator']['selectedFixtureCount']);
         $t->same('valid-checked-in-current-markdown-reader-evidence', $decoded['staticCurrentEvidence']['validation']['status']);
-        $t->same(34, $decoded['nativeAstEvidence']['normalizedAstMatchCount']);
+        $t->same(41, $decoded['nativeAstEvidence']['normalizedAstMatchCount']);
         $t->same(0, $decoded['nativeAstEvidence']['normalizedAstMismatchCount']);
         $t->same('not-run', $decoded['runnerEvidence']['status']);
         $t->true(in_array('complete Markdown dialect parity across every Pandoc extension profile', $decoded['claimBoundaries']['doesNotAssert'], true));
@@ -362,7 +362,7 @@ return [
 
         $t->same(1, $failingExitCode);
 
-        $failingNativeCommand = str_replace('--require-native-mapped-parity=34', '--require-native-mapped-parity=35', $command) . ' 2>/dev/null';
+        $failingNativeCommand = str_replace('--require-native-mapped-parity=41', '--require-native-mapped-parity=42', $command) . ' 2>/dev/null';
         $failingNativeOutput = [];
         $failingNativeExitCode = 0;
         exec($failingNativeCommand, $failingNativeOutput, $failingNativeExitCode);

@@ -1,0 +1,6 @@
+[ Para [ Link ( "" , [ "uri" ] , [  ] ) [ Str "web+demo:review-packet" ] ( "web+demo:review-packet" , "" ) ]
+, Para [ Link ( "" , [ "uri" ] , [  ] ) [ Str "urn:source:review:packet" ] ( "urn:source:review:packet" , "" ) ]
+, Para [ Link ( "" , [ "uri" ] , [  ] ) [ Str "mailto:editor@example.test" ] ( "mailto:editor@example.test" , "" ) ]
+, Para [ Link ( "" , [ "email" ] , [  ] ) [ Str "review@example-domain.test" ] ( "mailto:review@example-domain.test" , "" ) ]
+, Para [ Str "<bad" , Space , Str "https://example.test/a>" , Space , Str "and" , Space , Link ( "" , [ "uri" ] , [  ] ) [ Str "www.outside.test" ] ( "http://www.outside.test" , "" ) ]
+]

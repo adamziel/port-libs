@@ -11,6 +11,7 @@ final class MarkdownNativeAstComparisonHarness
     private const CLAIM = 'Compares local PHP Markdown reader output with paired .native fixtures by normalized AST shape; reader provenance and NativeReader constructor provenance are excluded, but no upstream Haskell runner or full Markdown dialect parity is asserted.';
 
     private const MARKDOWN_READER_OPTIONS_BY_BASENAME = [
+        'upstream-command-gfm-details-list' => ['format' => 'gfm'],
         'upstream-markdown-definition-list-html-div' => ['format' => 'markdown+definition_lists+raw_html'],
         'upstream-markdown-definition-list-nested-list' => ['format' => 'markdown+definition_lists'],
         'upstream-markdown-emoji-symbols' => ['format' => 'markdown+emoji'],

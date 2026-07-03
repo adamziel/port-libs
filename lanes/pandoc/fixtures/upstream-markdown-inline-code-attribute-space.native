@@ -1,0 +1,2 @@
+[ Para [ Code ( "" , [  ] , [  ] ) "*" , Space , Str "{.haskell" , Space , Str ".special" , Space , Str "x=\"7\"}" ]
+]
