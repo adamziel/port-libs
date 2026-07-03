@@ -5545,9 +5545,15 @@ final class MarkdownReader
 
             $item = $items[$lastIndex];
             $taskChecked = $item->attr('taskChecked', null);
+            $text = trim(preg_replace(
+                '/\s+/',
+                ' ',
+                (string) $item->attr('text', '') . ' ' . $this->plainTextFromListItemChildren($orphans)
+            ) ?? '');
             $items[$lastIndex] = $this->buildHtmlListItemNode(
                 [...$item->children, ...$orphans],
-                is_bool($taskChecked) ? $taskChecked : null
+                is_bool($taskChecked) ? $taskChecked : null,
+                $text
             );
         }
 
@@ -5572,11 +5578,11 @@ final class MarkdownReader
     /**
      * @param list<AstNode> $children
      */
-    private function buildHtmlListItemNode(array $children, ?bool $taskChecked = null): AstNode
+    private function buildHtmlListItemNode(array $children, ?bool $taskChecked = null, ?string $text = null): AstNode
     {
         $itemLoose = $this->htmlListItemIsLoose($children);
         $attrs = [
-            'text' => $this->plainTextFromListItemChildren($children),
+            'text' => $text ?? $this->plainTextFromListItemChildren($children),
             'loose' => $itemLoose,
         ];
         if ($taskChecked !== null) {
