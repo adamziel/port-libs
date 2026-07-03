@@ -123,6 +123,8 @@ final class MarkdownReader
 
     private bool $resolveFootnoteReferences = true;
 
+    private bool $suppressHtmlInlineFragmentBlock = false;
+
     private int $htmlQuoteDepth = 0;
 
     private string $metadataMarkdownExtensionSuffix = '';
@@ -320,7 +322,9 @@ final class MarkdownReader
                 array_push($blocks, ...$rawHtmlContainer);
                 continue;
             }
-            $htmlInlineFragment = $paragraph === [] && $listStack === [] ? $this->tryReadHtmlInlineFragmentBlock($lines, $index) : null;
+            $htmlInlineFragment = $paragraph === [] && $listStack === [] && !$this->suppressHtmlInlineFragmentBlock
+                ? $this->tryReadHtmlInlineFragmentBlock($lines, $index)
+                : null;
             if ($htmlInlineFragment !== null) {
                 $blocks[] = $htmlInlineFragment;
                 continue;
@@ -12440,7 +12444,7 @@ final class MarkdownReader
         }
 
         return [
-            'node' => new AstNode('note', [], $this->parseFootnoteBlocks(substr($text, $offset + 2, $end - $offset - 2))),
+            'node' => new AstNode('note', [], $this->parseFootnoteBlocks(substr($text, $offset + 2, $end - $offset - 2), true)),
             'next' => $end + 1,
         ];
     }
@@ -12472,19 +12476,22 @@ final class MarkdownReader
     /**
      * @return list<AstNode>
      */
-    private function parseFootnoteBlocks(string $markdown): array
+    private function parseFootnoteBlocks(string $markdown, bool $suppressHtmlInlineFragmentBlock = false): array
     {
         $markdown = trim($markdown, "\r\n");
         if (trim($markdown) === '') {
             return [];
         }
 
-        $previous = $this->resolveFootnoteReferences;
+        $previousResolveFootnoteReferences = $this->resolveFootnoteReferences;
+        $previousSuppressHtmlInlineFragmentBlock = $this->suppressHtmlInlineFragmentBlock;
         $this->resolveFootnoteReferences = false;
+        $this->suppressHtmlInlineFragmentBlock = $suppressHtmlInlineFragmentBlock;
         try {
             return $this->read($markdown)->children;
         } finally {
-            $this->resolveFootnoteReferences = $previous;
+            $this->resolveFootnoteReferences = $previousResolveFootnoteReferences;
+            $this->suppressHtmlInlineFragmentBlock = $previousSuppressHtmlInlineFragmentBlock;
         }
     }
 
@@ -12505,6 +12512,14 @@ final class MarkdownReader
                     $cursor = $end + $tickCount - 1;
                 }
                 continue;
+            }
+
+            if ($text[$cursor] === '<') {
+                $rawHtml = $this->tryParseRawHtmlInline($text, $cursor);
+                if ($rawHtml !== null) {
+                    $cursor = $rawHtml['next'] - 1;
+                    continue;
+                }
             }
 
             if ($text[$cursor] === '[') {
@@ -13632,7 +13647,7 @@ final class MarkdownReader
             }
             if ($node->type === 'raw_html_inline') {
                 $rawHtml = (string) $node->attr('text', $node->attr('html', ''));
-                if (self::isStandaloneClosingRawHtmlTag($rawHtml)) {
+                if (self::isStandaloneRawHtmlTag($rawHtml)) {
                     continue;
                 }
                 $text .= $rawHtml;
@@ -13664,6 +13679,12 @@ final class MarkdownReader
     private static function isStandaloneClosingRawHtmlTag(string $html): bool
     {
         return preg_match('/^\s*<\/[A-Za-z][A-Za-z0-9:-]*\s*>\s*$/', $html) === 1;
+    }
+
+    private static function isStandaloneRawHtmlTag(string $html): bool
+    {
+        return self::isStandaloneClosingRawHtmlTag($html)
+            || preg_match('/^\s*<[A-Za-z][A-Za-z0-9:-]*(?:\s+[A-Za-z_:][A-Za-z0-9_.:-]*(?:\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s"\'=<>`]+))?)*\s*\/?>\s*$/u', $html) === 1;
     }
 
     /**
