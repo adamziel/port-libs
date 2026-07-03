@@ -2023,7 +2023,7 @@ final class DelimitedTextUpstreamReaderEvidence
 
     private static function claim(): string
     {
-        return 'Tracks the current upstream direct CSV command-reader fixtures, the adjacent RST csv-table fixture pair with zero direct-reader denominator impact, twenty-six generated CSV-to-native evidence samples, the absence of dedicated TSV command fixtures, and twenty-one generated TSV-to-native evidence samples for the delimited text reader.';
+        return 'Tracks the current upstream direct CSV command-reader fixtures, the adjacent RST csv-table fixture pair with zero direct-reader denominator impact, twenty-seven generated CSV-to-native evidence samples, the absence of dedicated TSV command fixtures, and twenty-one generated TSV-to-native evidence samples for the delimited text reader.';
     }
 
     /**
@@ -2038,7 +2038,7 @@ final class DelimitedTextUpstreamReaderEvidence
                 'that the RST csv-table fixture pair is CSV-adjacent evidence and not part of the direct CSV/TSV reader denominator',
                 'that no dedicated TSV command fixture is available in the pinned direct-reader evidence set',
                 'static checked-in current csv.md and 01.csv fixture identity when staticCurrentEvidence is valid',
-                'twenty-six generated CSV-to-native local samples when generatedCsvNativeParityEvidence is valid',
+                'twenty-seven generated CSV-to-native local samples when generatedCsvNativeParityEvidence is valid',
                 'twenty-one generated TSV-to-native local samples when generatedTsvNativeParityEvidence is valid',
             ],
             'doesNotAssert' => [
