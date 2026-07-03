@@ -10976,6 +10976,15 @@ final class MarkdownReader
             ];
         }
 
+        $blockIndex = 0;
+        $indentedCode = $this->tryReadIndentedCodeBlock($blockLines, $blockIndex);
+        if ($indentedCode !== null) {
+            return [
+                'node' => $indentedCode,
+                'next' => $cursor + $blockIndex + 1,
+            ];
+        }
+
         return null;
     }
 
