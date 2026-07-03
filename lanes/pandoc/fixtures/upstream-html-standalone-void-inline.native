@@ -1,0 +1,5 @@
+[ Para [ RawInline (Format "html") "<area shape=\"rect\" coords=\"0,0,80,40\" href=\"/wp-admin/upload.php\" alt=\"Media library\">" , Space , Str "keeps" , Space , Str "imported" , Space , Str "hotspots" , Space , Str "visible." ]
+, Para [ RawInline (Format "html") "<source src=\"/wp-content/uploads/imported-tour.mp4\" type=\"video/mp4\">" , Space , Str "keeps" , Space , Str "imported" , Space , Str "media" , Space , Str "source" , Space , Str "visible." ]
+, Para [ RawInline (Format "html") "<track kind=\"captions\" src=\"/wp-content/uploads/imported-tour.vtt\" srclang=\"en\" label=\"English captions\">" , Space , Str "keeps" , Space , Str "imported" , Space , Str "captions" , Space , Str "visible." ]
+, Para [ RawInline (Format "html") "<embed src=\"/wp-content/uploads/imported-map-fallback.swf\" type=\"application/x-shockwave-flash\">" , Space , Str "keeps" , Space , Str "legacy" , Space , Str "fallback" , Space , Str "visible." ]
+]
