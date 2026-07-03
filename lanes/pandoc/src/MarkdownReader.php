@@ -1042,7 +1042,8 @@ final class MarkdownReader
         return $this->markdownFencedDivBoundaryEndIndex($lines, $index)
             ?? $this->markdownCodeFenceBoundaryEndIndex($lines, $index)
             ?? $this->markdownNativeDivBoundaryEndIndex($lines, $index)
-            ?? $this->markdownRawHtmlBoundaryEndIndex($lines, $index);
+            ?? $this->markdownRawHtmlBoundaryEndIndex($lines, $index)
+            ?? $this->markdownRawTexBoundaryEndIndex($lines, $index);
     }
 
     /**
@@ -1109,6 +1110,85 @@ final class MarkdownReader
 
     /**
      * @param list<string> $lines
+     * @return array{lines:list<string>, end:int}|null
+     */
+    private function markdownNativeDivContentLines(array $lines, int $index): ?array
+    {
+        $line = $lines[$index] ?? '';
+        if (preg_match('/^ {0,3}(<div(?=\s|>)(?:\s+[A-Za-z_:][A-Za-z0-9_.:-]*(?:\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s"\'=<>`]+))?)*\s*>)/iu', $line, $m, PREG_OFFSET_CAPTURE) !== 1) {
+            return null;
+        }
+
+        $content = [];
+        $depth = 1;
+        $cursor = $index;
+        $count = count($lines);
+        $firstLineOffset = $m[0][1] + strlen($m[0][0]);
+
+        while ($cursor < $count) {
+            $segment = $cursor === $index ? substr($lines[$cursor], $firstLineOffset) : $lines[$cursor];
+            $lineContent = '';
+            $offset = 0;
+            while (true) {
+                $nextOpen = $this->findHtmlTag($segment, 'div', $offset, false);
+                $nextClose = $this->findHtmlTag($segment, 'div', $offset, true);
+
+                if ($nextOpen === null && $nextClose === null) {
+                    $lineContent .= substr($segment, $offset);
+                    break;
+                }
+
+                if ($nextOpen !== null && ($nextClose === null || $nextOpen['offset'] < $nextClose['offset'])) {
+                    $depth++;
+                    $lineContent .= substr($segment, $offset, $nextOpen['offset'] + $nextOpen['length'] - $offset);
+                    $offset = $nextOpen['offset'] + $nextOpen['length'];
+                    continue;
+                }
+
+                if ($nextClose === null) {
+                    break;
+                }
+
+                $depth--;
+                if ($depth === 0) {
+                    $lineContent .= substr($segment, $offset, $nextClose['offset'] - $offset);
+                    $content[] = $lineContent;
+
+                    return [
+                        'lines' => $this->trimOuterBlankMarkdownLines($content),
+                        'end' => $cursor,
+                    ];
+                }
+
+                $lineContent .= substr($segment, $offset, $nextClose['offset'] + $nextClose['length'] - $offset);
+                $offset = $nextClose['offset'] + $nextClose['length'];
+            }
+
+            $content[] = $lineContent;
+            $cursor++;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return list<string>
+     */
+    private function trimOuterBlankMarkdownLines(array $lines): array
+    {
+        while ($lines !== [] && trim($lines[0]) === '') {
+            array_shift($lines);
+        }
+        while ($lines !== [] && trim($lines[array_key_last($lines)]) === '') {
+            array_pop($lines);
+        }
+
+        return $lines;
+    }
+
+    /**
+     * @param list<string> $lines
      */
     private function markdownRawHtmlBoundaryEndIndex(array $lines, int $index): ?int
     {
@@ -1147,6 +1227,12 @@ final class MarkdownReader
 
         if ($tag !== null && $tag['name'] === 'table') {
             return $this->markdownRawHtmlClosingTagEndIndex($lines, $index, 'table');
+        }
+
+        if ($tag !== null && $this->isMarkdownReferenceHtmlClosingBoundaryTag($tag['name'])) {
+            return $tag['selfClosing']
+                ? $this->markdownRawHtmlBlankLineEndIndex($lines, $index)
+                : $this->markdownRawHtmlClosingTagEndIndex($lines, $index, $tag['name']);
         }
 
         if ($tag !== null && $tag['name'] === 'hr' && preg_match('/^ {0,3}<hr(?:\s+[^>]*)?\/?>[ \t]*$/i', $line) === 1) {
@@ -1210,6 +1296,77 @@ final class MarkdownReader
         for ($cursor = $index + 1; $cursor < $count; $cursor++) {
             if (trim($this->expandTabsToSpaces($lines[$cursor])) === '') {
                 return $cursor - 1;
+            }
+        }
+
+        return max($index, $count - 1);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function markdownRawTexBoundaryEndIndex(array $lines, int $index): ?int
+    {
+        if (!$this->rawTexEnabled()) {
+            return null;
+        }
+
+        $line = $lines[$index] ?? '';
+        if ($this->tryReadRawTexMacroDefinition($line) !== null) {
+            return $index;
+        }
+
+        if (preg_match('/^ {0,3}\\\\placeformula\s+\\\\startformula(?:\s.*)?$/', $line) === 1) {
+            return $index;
+        }
+
+        if (preg_match('/^ {0,3}\\\\begin\{([^}\s]+)\}/', $line, $m) === 1) {
+            return $this->markdownRawTexLatexEndIndex($lines, $index, $m[1]);
+        }
+
+        if (preg_match('/^ {0,3}\\\\start\[([^\]\r\n]+)]\s*$/', $line, $m) === 1) {
+            return $this->markdownRawTexContextEndIndex($lines, $index, $m[1]);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function markdownRawTexLatexEndIndex(array $lines, int $index, string $environment): int
+    {
+        $closingPattern = '/\\\\end\{' . preg_quote($environment, '/') . '\}/';
+        $count = count($lines);
+        for ($cursor = $index; $cursor < $count; $cursor++) {
+            if (preg_match($closingPattern, $lines[$cursor]) === 1) {
+                return $cursor;
+            }
+        }
+
+        return max($index, $count - 1);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function markdownRawTexContextEndIndex(array $lines, int $index, string $environment): int
+    {
+        $depth = 0;
+        $startPattern = '/^ {0,3}\\\\start\[' . preg_quote($environment, '/') . ']\s*$/';
+        $stopPattern = '/^ {0,3}\\\\stop\[' . preg_quote($environment, '/') . ']\s*$/';
+        $count = count($lines);
+
+        for ($cursor = $index; $cursor < $count; $cursor++) {
+            $current = rtrim($lines[$cursor]);
+            if (preg_match($startPattern, $current) === 1) {
+                $depth++;
+            }
+            if (preg_match($stopPattern, $current) === 1) {
+                $depth--;
+                if ($depth === 0) {
+                    return $cursor;
+                }
             }
         }
 
@@ -1310,9 +1467,34 @@ final class MarkdownReader
         $references = [];
         $numbersByLine = [];
         $nextNumber = 1;
+
+        $this->collectNumberedExampleReferencesInto($lines, $references, $numbersByLine, $nextNumber, true);
+
+        return [$references, $numbersByLine];
+    }
+
+    /**
+     * @param list<string> $lines
+     * @param array<string, int> $references
+     * @param array<int, int> $numbersByLine
+     */
+    private function collectNumberedExampleReferencesInto(
+        array $lines,
+        array &$references,
+        array &$numbersByLine,
+        int &$nextNumber,
+        bool $recordLineNumbers
+    ): void {
         $count = count($lines);
 
         for ($index = 0; $index < $count; $index++) {
+            $divContent = $this->markdownNativeDivContentLines($lines, $index);
+            if ($divContent !== null) {
+                $this->collectNumberedExampleReferencesInto($divContent['lines'], $references, $numbersByLine, $nextNumber, false);
+                $index = $divContent['end'];
+                continue;
+            }
+
             $boundaryEnd = $this->markdownReferenceBoundaryEndIndex($lines, $index);
             if ($boundaryEnd !== null) {
                 $index = $boundaryEnd;
@@ -1325,14 +1507,14 @@ final class MarkdownReader
                 continue;
             }
 
-            $numbersByLine[$index] = $nextNumber;
+            if ($recordLineNumbers) {
+                $numbersByLine[$index] = $nextNumber;
+            }
             if ($marker['label'] !== '') {
                 $references[$marker['label']] = $nextNumber;
             }
             $nextNumber++;
         }
-
-        return [$references, $numbersByLine];
     }
 
     /**
@@ -2697,20 +2879,7 @@ final class MarkdownReader
             return $raw;
         }
 
-        if (in_array($name, [
-            'noscript',
-            'figure',
-            'details',
-            'svg',
-            'math',
-            'canvas',
-            'template',
-            'object',
-            'picture',
-            'ruby',
-            'meter',
-            'progress',
-        ], true)) {
+        if ($this->isPandocRawHtmlClosingBlockTag($name)) {
             return $tag['selfClosing']
                 ? $this->readRawHtmlUntilBlankLine($lines, $index)
                 : $this->readRawHtmlUntilClosingTag($lines, $index, $name);
@@ -2725,6 +2894,39 @@ final class MarkdownReader
         }
 
         return null;
+    }
+
+    private function isPandocRawHtmlClosingBlockTag(string $name): bool
+    {
+        return in_array($name, [
+            'noscript',
+            'figure',
+            'details',
+            'svg',
+            'math',
+            'canvas',
+            'template',
+            'object',
+            'picture',
+            'ruby',
+            'meter',
+            'progress',
+            'select',
+            'datalist',
+            'output',
+            'search',
+        ], true);
+    }
+
+    private function isMarkdownReferenceHtmlClosingBoundaryTag(string $name): bool
+    {
+        return $this->isPandocRawHtmlClosingBlockTag($name)
+            || in_array($name, [
+                'audio',
+                'mark',
+                'time',
+                'video',
+            ], true);
     }
 
     private function rawHtmlOpeningTagIsStandaloneLine(string $line, string $name): bool
