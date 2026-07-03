@@ -63,13 +63,20 @@ final class EpubUpstreamReaderEvidence
     private const RUNNER_REQUIRED_ARTIFACTS = [
         '.port-libs/pandoc-runner/artifacts/epub-targeted-run/result.json',
     ];
+    private const RUNNER_RESULT_ARTIFACT_KIND = 'upstream-epub-reader-runner-result-artifact';
+    private const RUNNER_RESULT_ARTIFACT_SCHEMA_VERSION = 1;
 
     private readonly string $repoRoot;
     private readonly string $upstreamRoot;
     private readonly ?string $fixtureBase;
+    private readonly ?string $runnerResultArtifact;
 
-    public function __construct(string $repoRoot, string $upstreamRoot = self::DEFAULT_RELATIVE_UPSTREAM_ROOT, ?string $fixtureBase = null)
-    {
+    public function __construct(
+        string $repoRoot,
+        string $upstreamRoot = self::DEFAULT_RELATIVE_UPSTREAM_ROOT,
+        ?string $fixtureBase = null,
+        ?string $runnerResultArtifact = null
+    ) {
         if ($repoRoot === '') {
             throw new \InvalidArgumentException('Repository root must not be empty');
         }
@@ -79,10 +86,14 @@ final class EpubUpstreamReaderEvidence
         if ($fixtureBase === '') {
             throw new \InvalidArgumentException('Fixture base must not be empty');
         }
+        if ($runnerResultArtifact === '') {
+            throw new \InvalidArgumentException('Runner result artifact must not be empty');
+        }
 
         $this->repoRoot = rtrim($repoRoot, DIRECTORY_SEPARATOR);
         $this->upstreamRoot = $upstreamRoot;
         $this->fixtureBase = $fixtureBase;
+        $this->runnerResultArtifact = $runnerResultArtifact;
     }
 
     /**
@@ -92,6 +103,8 @@ final class EpubUpstreamReaderEvidence
     {
         $root = $this->absoluteUpstreamRoot();
         if (!is_dir($root)) {
+            $denominator = $this->emptyDenominator();
+
             return [
                 'schemaVersion' => 1,
                 'tool' => self::TOOL_NAME,
@@ -102,12 +115,12 @@ final class EpubUpstreamReaderEvidence
                     'commit' => null,
                     'expectedCommit' => self::EXPECTED_UPSTREAM_COMMIT,
                 ],
-                'denominator' => $this->emptyDenominator(),
+                'denominator' => $denominator,
                 'sourceInventory' => $this->emptySourceInventory(),
                 'referencedFixtureIdentity' => self::notEvaluatedReferencedFixtureIdentity('missing-upstream-root'),
                 'currentReaderStaticSignature' => self::notEvaluatedCurrentReaderStaticSignature('missing-upstream-root'),
                 'nativeAstPackageParity' => $this->currentNativeAstPackageParity(),
-                'runnerEvidence' => self::runnerNotRunEvidence(),
+                'runnerEvidence' => $this->runnerEvidence($denominator),
                 'validation' => [
                     'status' => 'not-evaluated-missing-upstream-root',
                     'issues' => ['missing-upstream-root'],
@@ -155,7 +168,7 @@ final class EpubUpstreamReaderEvidence
             'referencedFixtureIdentity' => $referencedFixtureIdentity,
             'currentReaderStaticSignature' => self::currentReaderStaticSignature($denominator, $validationIssues, $referencedFixtureIdentity),
             'nativeAstPackageParity' => $this->currentNativeAstPackageParity(),
-            'runnerEvidence' => self::runnerNotRunEvidence(),
+            'runnerEvidence' => $this->runnerEvidence($denominator),
             'validation' => [
                 'status' => $validationIssues === [] ? 'valid-upstream-epub-reader-mediabag-denominator' : 'invalid-upstream-epub-reader-mediabag-denominator',
                 'issues' => $validationIssues,
@@ -207,6 +220,9 @@ final class EpubUpstreamReaderEvidence
         $nativePackage = is_array($report['nativeAstPackageParity'] ?? null) ? $report['nativeAstPackageParity'] : [];
         $identity = is_array($report['referencedFixtureIdentity'] ?? null) ? $report['referencedFixtureIdentity'] : [];
         $identityValidation = is_array($identity['validation'] ?? null) ? $identity['validation'] : [];
+        $runnerResultLine = self::hasRunnerResultArtifactEvidence($report)
+            ? 'Supplied upstream Haskell/Cabal runner result artifact is validated; EPUB writer parity and full EPUB feature parity are not asserted.'
+            : 'No upstream Haskell/Cabal runner result, EPUB writer parity, or full EPUB feature parity is asserted.';
 
         return implode(PHP_EOL, [
             'Pandoc EPUB reader evidence',
@@ -225,8 +241,9 @@ final class EpubUpstreamReaderEvidence
                 . ' status=' . (string) ($nativePackage['astParityStatus'] ?? 'unknown'),
             'Runner status: ' . (string) ($runner['status'] ?? 'unknown'),
             'Runner plan: ' . (string) ($runner['commandPlanStatus'] ?? 'unknown'),
+            'Runner result artifact: ' . (string) (($runner['validation']['status'] ?? null) ?? 'not-evaluated'),
             'Validation: ' . (string) ($validation['status'] ?? 'unknown'),
-            'No upstream Haskell/Cabal runner result, EPUB writer parity, or full EPUB feature parity is asserted.',
+            $runnerResultLine,
         ]) . PHP_EOL;
     }
 
@@ -312,6 +329,36 @@ final class EpubUpstreamReaderEvidence
     /**
      * @param array<string, mixed> $report
      */
+    public static function hasRunnerResultArtifactEvidence(array $report): bool
+    {
+        $runner = is_array($report['runnerEvidence'] ?? null) ? $report['runnerEvidence'] : [];
+        $artifact = is_array($runner['resultArtifact'] ?? null) ? $runner['resultArtifact'] : [];
+        $validation = is_array($runner['validation'] ?? null) ? $runner['validation'] : [];
+        $binding = is_array($runner['upstreamBinding'] ?? null) ? $runner['upstreamBinding'] : [];
+        $target = is_array($runner['target'] ?? null) ? $runner['target'] : [];
+
+        return ($runner['status'] ?? null) === 'completed'
+            && ($runner['executed'] ?? null) === true
+            && ($runner['commandPlanStatus'] ?? null) === 'runner-result-artifact-validated'
+            && ($runner['scope'] ?? null) === 'upstream-haskell-runner'
+            && ($runner['runner'] ?? null) === 'Cabal/Tasty Pandoc EPUB reader suite'
+            && ($binding['name'] ?? null) === 'jgm/pandoc'
+            && ($binding['expectedCommit'] ?? null) === self::EXPECTED_UPSTREAM_COMMIT
+            && ($binding['observedCommit'] ?? null) === self::EXPECTED_UPSTREAM_COMMIT
+            && ($target['testSuite'] ?? null) === self::RUNNER_TEST_SUITE
+            && ($target['tastyGroupPath'] ?? null) === self::RUNNER_TASTY_GROUP_PATH
+            && ($target['tastyPattern'] ?? null) === self::RUNNER_TASTY_PATTERN
+            && ($artifact['kind'] ?? null) === self::RUNNER_RESULT_ARTIFACT_KIND
+            && ($artifact['present'] ?? null) === true
+            && is_string($artifact['sha256'] ?? null)
+            && is_int($artifact['bytes'] ?? null)
+            && ($validation['status'] ?? null) === 'valid-upstream-epub-reader-runner-result-artifact'
+            && ($validation['issues'] ?? null) === [];
+    }
+
+    /**
+     * @param array<string, mixed> $report
+     */
     public static function hasRequiredStaticCurrentSignature(array $report): bool
     {
         $signature = is_array($report['currentReaderStaticSignature'] ?? null) ? $report['currentReaderStaticSignature'] : [];
@@ -319,7 +366,7 @@ final class EpubUpstreamReaderEvidence
 
         return ($report['status'] ?? null) === self::STATUS_COMPLETED
             && self::hasNoValidationIssues($report)
-            && self::hasRunnerNotRunEvidence($report)
+            && (self::hasRunnerNotRunEvidence($report) || self::hasRunnerResultArtifactEvidence($report))
             && self::hasRequiredReferencedFixtureIdentity($report)
             && (int) ($signature['mediaBagTestCount'] ?? -1) === self::CHECKED_IN_CURRENT_STATIC_MEDIA_BAG_TEST_COUNT
             && (int) ($signature['fixtureReferenceCount'] ?? -1) === self::CHECKED_IN_CURRENT_STATIC_FIXTURE_REFERENCE_COUNT
@@ -417,15 +464,214 @@ final class EpubUpstreamReaderEvidence
                 'the checked-in current EPUB package acceptance, package-feature signature, and normalized native AST parity snapshot when explicitly gated',
                 'that upstream Haskell runner evidence is explicitly not-run',
                 'the future upstream runner command plan targets test:test-pandoc Readers/EPUB/EPUB Mediabag at the pinned upstream commit without execution',
+                'a supplied upstream runner result artifact is validated against the pinned EPUB Tasty target, commit, test names, and pass/fail counts when explicitly provided',
             ],
             'doesNotAssert' => [
-                'that upstream Haskell/Cabal/Tasty tests were executed',
+                'that this PHP evidence command executed upstream Haskell/Cabal/Tasty tests',
                 'full upstream Tests.Readers.EPUB runner parity',
                 'that local PHP output matches upstream output outside the checked-in current native/package snapshot',
                 'EPUB writer parity',
                 'full EPUB feature parity beyond the upstream reader media-bag tests',
             ],
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function runnerEvidence(array $denominator): array
+    {
+        if ($this->runnerResultArtifact === null) {
+            return self::runnerNotRunEvidence();
+        }
+
+        return $this->runnerResultArtifactEvidence($denominator);
+    }
+
+    /**
+     * @param array<string, mixed> $denominator
+     * @return array<string, mixed>
+     */
+    private function runnerResultArtifactEvidence(array $denominator): array
+    {
+        $path = $this->absoluteRunnerResultArtifact();
+        $artifact = $this->runnerResultArtifactFileEvidence($path);
+        $issues = [];
+        $payload = [];
+
+        if (($artifact['present'] ?? false) !== true) {
+            $issues[] = 'missing-runner-result-artifact';
+        } else {
+            try {
+                $decoded = json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
+                if (!is_array($decoded)) {
+                    $issues[] = 'invalid-runner-result-artifact-json';
+                } else {
+                    $payload = $decoded;
+                }
+            } catch (\JsonException) {
+                $issues[] = 'invalid-runner-result-artifact-json';
+            }
+        }
+
+        $upstream = is_array($payload['upstream'] ?? null) ? $payload['upstream'] : [];
+        $target = is_array($payload['target'] ?? null) ? $payload['target'] : [];
+        $command = is_array($payload['command'] ?? null) ? $payload['command'] : null;
+        $expectedCommand = self::runnerFutureCommands()[2];
+        $expectedTestNames = self::readerCaseNames($denominator);
+        $observedTestNames = self::stringList($payload['testNames'] ?? ($payload['listedTests'] ?? []));
+        $observedTranscriptPaths = self::stringList($payload['transcriptPaths'] ?? []);
+        $runnerExecuted = ($payload['runnerExecuted'] ?? $payload['executed'] ?? null) === true;
+        $exitCode = is_int($payload['exitCode'] ?? null) ? (int) $payload['exitCode'] : null;
+        $testCount = is_int($payload['testCount'] ?? null) ? (int) $payload['testCount'] : null;
+        $passedCount = is_int($payload['passedCount'] ?? null) ? (int) $payload['passedCount'] : null;
+        $failedCount = is_int($payload['failedCount'] ?? null) ? (int) $payload['failedCount'] : null;
+        $skippedCount = is_int($payload['skippedCount'] ?? null) ? (int) $payload['skippedCount'] : null;
+
+        if ($payload !== []) {
+            if (($payload['schemaVersion'] ?? null) !== self::RUNNER_RESULT_ARTIFACT_SCHEMA_VERSION) {
+                $issues[] = 'runner-result-schema-version-mismatch';
+            }
+            if (($payload['runner'] ?? null) !== 'Cabal/Tasty Pandoc EPUB reader suite') {
+                $issues[] = 'runner-result-runner-name-mismatch';
+            }
+            if (!$runnerExecuted) {
+                $issues[] = 'runner-result-executed-flag-missing-or-false';
+            }
+            if (($upstream['name'] ?? null) !== 'jgm/pandoc' || ($upstream['commit'] ?? null) !== self::EXPECTED_UPSTREAM_COMMIT) {
+                $issues[] = 'runner-result-upstream-commit-mismatch';
+            }
+            if (
+                ($target['testSuite'] ?? null) !== self::RUNNER_TEST_SUITE
+                || ($target['tastyGroupPath'] ?? null) !== self::RUNNER_TASTY_GROUP_PATH
+                || ($target['tastyPattern'] ?? null) !== self::RUNNER_TASTY_PATTERN
+            ) {
+                $issues[] = 'runner-result-target-mismatch';
+            }
+            if ($command !== $expectedCommand) {
+                $issues[] = 'runner-result-command-mismatch';
+            }
+            if ($exitCode !== 0) {
+                $issues[] = 'runner-result-exit-code-nonzero';
+            }
+            if (
+                $testCount !== count($expectedTestNames)
+                || $passedCount !== count($expectedTestNames)
+                || $failedCount !== 0
+                || $skippedCount !== 0
+            ) {
+                $issues[] = 'runner-result-counts-mismatch';
+            }
+            if ($observedTestNames !== $expectedTestNames) {
+                $issues[] = 'runner-result-test-names-mismatch';
+            }
+            if ($observedTranscriptPaths !== self::RUNNER_REQUIRED_TRANSCRIPTS) {
+                $issues[] = 'runner-result-transcript-paths-mismatch';
+            }
+        }
+
+        $issues = array_values(array_unique($issues));
+
+        return [
+            'runner' => 'Cabal/Tasty Pandoc EPUB reader suite',
+            'scope' => 'upstream-haskell-runner',
+            'status' => $issues === [] ? 'completed' : 'invalid',
+            'executed' => $runnerExecuted,
+            'command' => $command,
+            'resultArtifact' => $artifact,
+            'commandPlanStatus' => $issues === [] ? 'runner-result-artifact-validated' : 'runner-result-artifact-invalid',
+            'upstreamBinding' => [
+                'name' => 'jgm/pandoc',
+                'expectedCommit' => self::EXPECTED_UPSTREAM_COMMIT,
+                'observedCommit' => is_string($upstream['commit'] ?? null) ? $upstream['commit'] : null,
+                'entryPoint' => 'test/test-pandoc.hs',
+                'readerTestModule' => 'test/Tests/Readers/EPUB.hs',
+            ],
+            'target' => [
+                'testSuite' => is_string($target['testSuite'] ?? null) ? $target['testSuite'] : null,
+                'tastyGroupPath' => is_array($target['tastyGroupPath'] ?? null) ? $target['tastyGroupPath'] : null,
+                'tastyPattern' => is_string($target['tastyPattern'] ?? null) ? $target['tastyPattern'] : null,
+            ],
+            'expected' => [
+                'schemaVersion' => self::RUNNER_RESULT_ARTIFACT_SCHEMA_VERSION,
+                'runner' => 'Cabal/Tasty Pandoc EPUB reader suite',
+                'testCount' => count($expectedTestNames),
+                'passedCount' => count($expectedTestNames),
+                'failedCount' => 0,
+                'skippedCount' => 0,
+                'testNames' => $expectedTestNames,
+                'transcriptPaths' => self::RUNNER_REQUIRED_TRANSCRIPTS,
+                'command' => $expectedCommand,
+            ],
+            'observed' => [
+                'schemaVersion' => $payload['schemaVersion'] ?? null,
+                'runner' => $payload['runner'] ?? null,
+                'exitCode' => $exitCode,
+                'testCount' => $testCount,
+                'passedCount' => $passedCount,
+                'failedCount' => $failedCount,
+                'skippedCount' => $skippedCount,
+                'testNames' => $observedTestNames,
+                'transcriptPaths' => $observedTranscriptPaths,
+            ],
+            'futureCommands' => self::runnerFutureCommands(),
+            'requiredTranscripts' => self::RUNNER_REQUIRED_TRANSCRIPTS,
+            'requiredArtifacts' => self::RUNNER_REQUIRED_ARTIFACTS,
+            'validation' => [
+                'status' => $issues === []
+                    ? 'valid-upstream-epub-reader-runner-result-artifact'
+                    : 'invalid-upstream-epub-reader-runner-result-artifact',
+                'issues' => $issues,
+            ],
+            'claim' => $issues === []
+                ? 'A supplied upstream EPUB reader runner result artifact matches the pinned targeted Tasty runner evidence contract.'
+                : 'The supplied upstream EPUB reader runner result artifact did not satisfy the pinned targeted Tasty runner evidence contract.',
+        ];
+    }
+
+    /**
+     * @return array{kind: string, path: string, present: bool, sha256: ?string, bytes: ?int}
+     */
+    private function runnerResultArtifactFileEvidence(string $path): array
+    {
+        $present = is_file($path);
+        $sha256 = $present ? hash_file('sha256', $path) : null;
+        $bytes = $present ? filesize($path) : null;
+
+        return [
+            'kind' => self::RUNNER_RESULT_ARTIFACT_KIND,
+            'path' => $this->displayPath($path),
+            'present' => $present,
+            'sha256' => is_string($sha256) ? $sha256 : null,
+            'bytes' => is_int($bytes) ? $bytes : null,
+        ];
+    }
+
+    private function absoluteRunnerResultArtifact(): string
+    {
+        $path = (string) $this->runnerResultArtifact;
+        if (str_starts_with($path, DIRECTORY_SEPARATOR)) {
+            return $path;
+        }
+
+        return $this->repoRoot . DIRECTORY_SEPARATOR . trim($path, DIRECTORY_SEPARATOR);
+    }
+
+    /**
+     * @param array<string, mixed> $denominator
+     * @return list<string>
+     */
+    private static function readerCaseNames(array $denominator): array
+    {
+        $cases = is_array($denominator['readerCases'] ?? null) ? $denominator['readerCases'] : [];
+        $names = [];
+        foreach ($cases as $case) {
+            if (is_array($case) && is_string($case['name'] ?? null)) {
+                $names[] = $case['name'];
+            }
+        }
+
+        return $names;
     }
 
     /**

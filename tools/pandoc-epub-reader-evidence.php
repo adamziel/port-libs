@@ -33,6 +33,8 @@ Options:
   --require-runner-not-run                Exit 1 unless upstream runner evidence is structured as not-run.
   --require-runner-plan                   Exit 1 unless upstream runner evidence includes the pinned
                                           non-executed test:test-pandoc EPUB command plan.
+  --runner-result-artifact PATH           Validate a captured upstream runner result JSON artifact.
+  --require-runner-result-artifact        Exit 1 unless the supplied runner result artifact is valid.
   --require-no-validation-issues          Exit 1 when denominator validation reports any issue.
   --help                                  Show this help.
 
@@ -58,7 +60,9 @@ try {
     $requireNativeAstPackageParity = false;
     $requireRunnerNotRun = false;
     $requireRunnerPlan = false;
+    $requireRunnerResultArtifact = false;
     $requireNoValidationIssues = false;
+    $runnerResultArtifact = null;
     $args = array_slice($argv, 1);
 
     for ($i = 0, $count = count($args); $i < $count; ++$i) {
@@ -90,6 +94,10 @@ try {
         }
         if ($arg === '--require-runner-plan') {
             $requireRunnerPlan = true;
+            continue;
+        }
+        if ($arg === '--require-runner-result-artifact') {
+            $requireRunnerResultArtifact = true;
             continue;
         }
         if ($arg === '--require-static-current-signature') {
@@ -134,6 +142,14 @@ try {
         if (str_starts_with($arg, '--fixture-base=')) {
             $fixtureBase = substr($arg, strlen('--fixture-base='));
             $fixtureBaseArgumentWasProvided = true;
+            continue;
+        }
+        if ($arg === '--runner-result-artifact') {
+            $runnerResultArtifact = $nextValue('--runner-result-artifact');
+            continue;
+        }
+        if (str_starts_with($arg, '--runner-result-artifact=')) {
+            $runnerResultArtifact = substr($arg, strlen('--runner-result-artifact='));
             continue;
         }
         if ($arg === '--require-test-count') {
@@ -197,7 +213,7 @@ try {
         $fixtureBase = $checkedInFixtureRoot;
     }
 
-    $report = (new EpubUpstreamReaderEvidence($repoRoot, $upstreamRoot, $fixtureBase))->report();
+    $report = (new EpubUpstreamReaderEvidence($repoRoot, $upstreamRoot, $fixtureBase, $runnerResultArtifact))->report();
     if ($json) {
         fwrite(STDOUT, json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR) . PHP_EOL);
     } else {
@@ -270,6 +286,11 @@ try {
 
     if ($requireRunnerPlan && !EpubUpstreamReaderEvidence::hasRunnerPlanEvidence($report)) {
         fwrite(STDERR, "pandoc-epub-reader-evidence: runner command-plan evidence is invalid\n");
+        exit(1);
+    }
+
+    if ($requireRunnerResultArtifact && !EpubUpstreamReaderEvidence::hasRunnerResultArtifactEvidence($report)) {
+        fwrite(STDERR, "pandoc-epub-reader-evidence: runner result artifact evidence is invalid\n");
         exit(1);
     }
 
