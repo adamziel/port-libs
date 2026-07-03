@@ -537,6 +537,26 @@ $tests['imports generated current html keyboard sample and variable inline seman
         $t->same('After inline semantics.', $document->children[1]->attr('text'));
     };
 
+$tests['imports generated current html form control visible text semantics'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-form-controls.html'));
+
+        $t->same(
+            ['paragraph', 'paragraph', 'paragraph'],
+            array_map(static fn ($node): string => $node->type, $document->children)
+        );
+        $t->same('HTML Form Controls Import', $document->attr('meta')['title']);
+        $t->same('Title', $document->children[0]->attr('text'));
+        $t->same('DraftReady', $document->children[1]->attr('text'));
+        $t->same(
+            ['text', 'text'],
+            array_map(static fn ($node): string => $node->type, $document->children[1]->children)
+        );
+        $t->same('Draft', $document->children[1]->children[0]->attr('text'));
+        $t->same('Ready', $document->children[1]->children[1]->attr('text'));
+        $t->same('After form.', $document->children[2]->attr('text'));
+    };
+
 $tests['imports generated current html address block as paragraph content'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-address-block.html'));
