@@ -11,6 +11,8 @@ final class LatexWriter
 
     private int $orderedListLevel = 0;
 
+    private bool $renderingUnsupportedCommandPayload = false;
+
     /**
      * @param array{topLevelDivision?: string, writerTopLevelDivision?: string, highlightMethod?: string|bool, writerHighlightMethod?: string|bool} $options
      */
@@ -99,6 +101,9 @@ final class LatexWriter
     private function renderRawBlock(AstNode $node): array
     {
         $format = $this->rawNodeFormat($node);
+        if (!$this->renderingUnsupportedCommandPayload && MarkdownFormatProfile::rawFamily($format) === 'html') {
+            return [];
+        }
         if ($format !== 'tex' && $format !== 'latex') {
             return $this->renderUnsupportedBlockCommand($node);
         }
@@ -965,6 +970,9 @@ final class LatexWriter
     private function renderRawInline(AstNode $node): string
     {
         $format = $this->rawNodeFormat($node);
+        if (!$this->renderingUnsupportedCommandPayload && MarkdownFormatProfile::rawFamily($format) === 'html') {
+            return '';
+        }
         if ($format !== 'tex' && $format !== 'latex') {
             return $this->renderUnsupportedInlineCommand($node);
         }
@@ -1001,26 +1009,32 @@ final class LatexWriter
      */
     private function unsupportedBlockCommandPayloadLines(AstNode $node): array
     {
+        $previousRenderingUnsupportedCommandPayload = $this->renderingUnsupportedCommandPayload;
+        $this->renderingUnsupportedCommandPayload = true;
         $lines = [];
         $inlineChildren = [];
-        foreach ($node->children as $child) {
-            if ($this->isInlineNode($child)) {
-                $inlineChildren[] = $child;
-                continue;
+        try {
+            foreach ($node->children as $child) {
+                if ($this->isInlineNode($child)) {
+                    $inlineChildren[] = $child;
+                    continue;
+                }
+
+                $this->flushUnsupportedInlinePayload($inlineChildren, $lines);
+                $block = $this->renderBlock($child);
+                if ($block === []) {
+                    continue;
+                }
+                if ($lines !== []) {
+                    $lines[] = '';
+                }
+                array_push($lines, ...$block);
             }
 
             $this->flushUnsupportedInlinePayload($inlineChildren, $lines);
-            $block = $this->renderBlock($child);
-            if ($block === []) {
-                continue;
-            }
-            if ($lines !== []) {
-                $lines[] = '';
-            }
-            array_push($lines, ...$block);
+        } finally {
+            $this->renderingUnsupportedCommandPayload = $previousRenderingUnsupportedCommandPayload;
         }
-
-        $this->flushUnsupportedInlinePayload($inlineChildren, $lines);
 
         return $lines;
     }
