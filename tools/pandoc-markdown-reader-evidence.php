@@ -14,6 +14,8 @@ Usage: php tools/pandoc-markdown-reader-evidence.php [options]
 Options:
   --json                              Emit JSON instead of text.
   --repo-root PATH                    Repository root. Defaults to the parent of tools/.
+  --checked-in-fixtures               Use the checked-in selected Markdown fixture
+                                      snapshots without requiring an upstream checkout.
   --upstream-root PATH                Optional upstream Pandoc checkout root.
                                       Defaults to .upstream-cache/pandoc-current.
   --require-selected-fixture-count N  Exit 1 unless the checked-in selected fixture count is N.
@@ -30,6 +32,8 @@ TEXT;
 try {
     $repoRoot = dirname(__DIR__);
     $upstreamRoot = MarkdownUpstreamReaderEvidence::DEFAULT_RELATIVE_UPSTREAM_ROOT;
+    $useCheckedInFixtures = false;
+    $upstreamRootArgumentWasProvided = false;
     $json = false;
     $requiredSelectedFixtureCount = null;
     $requireStaticCurrentEvidence = false;
@@ -68,6 +72,10 @@ try {
             $requireNoValidationIssues = true;
             continue;
         }
+        if ($arg === '--checked-in-fixtures') {
+            $useCheckedInFixtures = true;
+            continue;
+        }
         if ($arg === '--repo-root') {
             $repoRoot = $nextValue('--repo-root');
             continue;
@@ -78,10 +86,12 @@ try {
         }
         if ($arg === '--upstream-root') {
             $upstreamRoot = $nextValue('--upstream-root');
+            $upstreamRootArgumentWasProvided = true;
             continue;
         }
         if (str_starts_with($arg, '--upstream-root=')) {
             $upstreamRoot = substr($arg, strlen('--upstream-root='));
+            $upstreamRootArgumentWasProvided = true;
             continue;
         }
         if ($arg === '--require-selected-fixture-count') {
@@ -102,6 +112,14 @@ try {
         }
 
         throw new InvalidArgumentException("Unknown option: {$arg}");
+    }
+
+    if ($useCheckedInFixtures && $upstreamRootArgumentWasProvided) {
+        throw new InvalidArgumentException('--checked-in-fixtures cannot be combined with --upstream-root');
+    }
+
+    if ($useCheckedInFixtures) {
+        $upstreamRoot = 'missing-upstream-root-for-static-markdown-gate';
     }
 
     $report = (new MarkdownUpstreamReaderEvidence($repoRoot, $upstreamRoot))->report();

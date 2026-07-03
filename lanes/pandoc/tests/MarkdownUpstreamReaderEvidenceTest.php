@@ -127,13 +127,13 @@ return [
         }
     },
 
-    'cli gates checked-in current markdown fixture evidence without hydrated upstream cache' => static function (TestRunner $t): void {
+    'cli gates checked-in current markdown fixture evidence through checked-in fixtures mode' => static function (TestRunner $t): void {
         $repoRoot = dirname(__DIR__, 3);
         $command = escapeshellarg(PHP_BINARY)
             . ' '
             . escapeshellarg($repoRoot . '/tools/pandoc-markdown-reader-evidence.php')
             . ' --repo-root=' . escapeshellarg($repoRoot)
-            . ' --upstream-root=missing-upstream-root-for-static-markdown-gate'
+            . ' --checked-in-fixtures'
             . ' --json'
             . ' --require-selected-fixture-count=8'
             . ' --require-static-current-evidence'
@@ -148,6 +148,7 @@ return [
         $t->same(8, $decoded['staticCurrentEvidence']['readerDenominator']['selectedFixtureCount']);
         $t->same('valid-checked-in-current-markdown-reader-evidence', $decoded['staticCurrentEvidence']['validation']['status']);
         $t->same('not-run', $decoded['runnerEvidence']['status']);
+        $t->true(in_array('complete Markdown dialect parity across every Pandoc extension profile', $decoded['claimBoundaries']['doesNotAssert'], true));
 
         $failingCommand = str_replace('--require-selected-fixture-count=8', '--require-selected-fixture-count=9', $command) . ' 2>/dev/null';
         $failingOutput = [];
