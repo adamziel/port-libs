@@ -259,6 +259,11 @@ final class MarkdownReader
                 $blocks[] = $nestedHtmlTable;
                 continue;
             }
+            $invalidHtmlTable = $paragraph === [] && $listStack === [] ? $this->tryReadInvalidHtmlTableBlock($lines, $index) : null;
+            if ($invalidHtmlTable !== null) {
+                array_push($blocks, ...$invalidHtmlTable);
+                continue;
+            }
             $htmlTransparentContainer = $paragraph === [] && $listStack === []
                 ? $this->tryReadHtmlTransparentBlockContainer($lines, $index)
                 : null;
@@ -4183,6 +4188,37 @@ final class MarkdownReader
 
     /**
      * @param list<string> $lines
+     * @return list<AstNode>|null
+     */
+    private function tryReadInvalidHtmlTableBlock(array $lines, int &$index): ?array
+    {
+        if (!$this->htmlReaderModeEnabled()) {
+            return null;
+        }
+
+        $line = $lines[$index] ?? '';
+        if (preg_match('/^ {0,3}<table(?:\s+[^>]*)?>/i', $line) !== 1) {
+            return null;
+        }
+
+        $balanced = $this->collectBalancedHtmlTableBlock($lines, $index);
+        if ($balanced === null) {
+            return null;
+        }
+
+        [$html, $endIndex] = $balanced;
+        $blocks = $this->parseInvalidHtmlTableBlockChildren($html);
+        if ($blocks === null) {
+            return null;
+        }
+
+        $index = $endIndex;
+
+        return $blocks;
+    }
+
+    /**
+     * @param list<string> $lines
      */
     private function tryReadEmptyHtmlTableBlock(array $lines, int &$index): bool
     {
@@ -4923,6 +4959,12 @@ final class MarkdownReader
                 continue;
             }
 
+            if ($child instanceof \DOMElement && $this->htmlTableShouldFallBackToBlocks($child)) {
+                $this->flushHtmlInlineParagraph($inlines, $blocks);
+                array_push($blocks, ...$this->parseHtmlInvalidTableBlocks($child));
+                continue;
+            }
+
             if ($child instanceof \DOMElement && $this->isHtmlBlockElement($child)) {
                 $this->flushHtmlInlineParagraph($inlines, $blocks);
                 if ($this->htmlEpubExtensionsEnabled() && strtolower($child->localName) === 'switch') {
@@ -4959,6 +5001,12 @@ final class MarkdownReader
             if ($child instanceof \DOMElement && $this->isHtmlTransparentBlockContainer($child)) {
                 $this->flushHtmlInlineParagraph($inlines, $blocks);
                 array_push($blocks, ...$this->parseHtmlBlockChildren($child));
+                continue;
+            }
+
+            if ($child instanceof \DOMElement && $this->htmlTableShouldFallBackToBlocks($child)) {
+                $this->flushHtmlInlineParagraph($inlines, $blocks);
+                array_push($blocks, ...$this->parseHtmlInvalidTableBlocks($child));
                 continue;
             }
 
@@ -6352,11 +6400,42 @@ final class MarkdownReader
         if (
             !$table instanceof \DOMElement
             || (!$this->htmlTableContainsNestedTable($table) && !$this->htmlTableHasStructuredBoundary($table))
+            || $this->htmlTableShouldFallBackToBlocks($table)
         ) {
             return null;
         }
 
         return $this->parseHtmlTableElement($table);
+    }
+
+    /**
+     * @return list<AstNode>|null
+     */
+    private function parseInvalidHtmlTableBlockChildren(string $html): ?array
+    {
+        $previous = libxml_use_internal_errors(true);
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+        $loaded = $dom->loadHTML(
+            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
+            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
+        );
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+        if (!$loaded) {
+            return null;
+        }
+
+        $body = $dom->getElementsByTagName('body')->item(0);
+        if (!$body instanceof \DOMElement) {
+            return null;
+        }
+
+        $table = $this->firstDescendantElement($body, 'table');
+        if (!$table instanceof \DOMElement || !$this->htmlTableShouldFallBackToBlocks($table)) {
+            return null;
+        }
+
+        return $this->parseHtmlBlockChildren($body);
     }
 
     private function htmlTableContainsNestedTable(\DOMElement $table): bool
@@ -6493,6 +6572,124 @@ final class MarkdownReader
         }
 
         return preg_match('/[*_`~\[\]\\\\$]/', $text) !== 1;
+    }
+
+    private function htmlTableShouldFallBackToBlocks(\DOMElement $element): bool
+    {
+        if (!$this->htmlReaderModeEnabled() || strtolower($element->localName) !== 'table') {
+            return false;
+        }
+
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMText || $child instanceof \DOMCdataSection) {
+                if (trim($child->wholeText) !== '') {
+                    return true;
+                }
+                continue;
+            }
+
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            if (!in_array(strtolower($child->localName), ['caption', 'colgroup', 'thead', 'tbody', 'tfoot', 'tr'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function parseHtmlInvalidTableBlocks(\DOMElement $table): array
+    {
+        $blocks = [];
+        $inlines = [];
+        foreach ($table->childNodes as $child) {
+            if ($child instanceof \DOMText || $child instanceof \DOMCdataSection || $child instanceof \DOMComment) {
+                $this->appendHtmlInlineNodes($inlines, $this->parseHtmlInlineNode($child));
+                $this->flushHtmlInlineParagraph($inlines, $blocks);
+                continue;
+            }
+
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            $this->flushHtmlInlineParagraph($inlines, $blocks);
+            array_push($blocks, ...$this->parseHtmlInvalidTableChildBlocks($child));
+        }
+
+        $this->flushHtmlInlineParagraph($inlines, $blocks);
+
+        return $blocks;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function parseHtmlInvalidTableChildBlocks(\DOMElement $element): array
+    {
+        $name = strtolower($element->localName);
+        if ($name === 'tr') {
+            return $this->parseHtmlInvalidTableRowBlocks($element);
+        }
+        if (in_array($name, ['thead', 'tbody', 'tfoot'], true)) {
+            $blocks = [];
+            $inlines = [];
+            foreach ($element->childNodes as $child) {
+                if ($child instanceof \DOMElement && strtolower($child->localName) === 'tr') {
+                    $this->flushHtmlInlineParagraph($inlines, $blocks);
+                    array_push($blocks, ...$this->parseHtmlInvalidTableRowBlocks($child));
+                    continue;
+                }
+
+                $this->appendHtmlInlineNodes($inlines, $this->parseHtmlInlineNode($child));
+            }
+            $this->flushHtmlInlineParagraph($inlines, $blocks);
+
+            return $blocks;
+        }
+        if ($name === 'colgroup') {
+            return [];
+        }
+        if ($this->isHtmlTransparentBlockContainer($element)) {
+            return $this->parseHtmlBlockChildren($element);
+        }
+        if ($this->isHtmlBlockElement($element)) {
+            $block = $this->parseHtmlBlockElement($element);
+
+            return $block instanceof AstNode ? [$block] : [];
+        }
+
+        $inlines = $this->parseHtmlInlineNode($element);
+        $blocks = [];
+        $this->flushHtmlInlineParagraph($inlines, $blocks);
+
+        return $blocks;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function parseHtmlInvalidTableRowBlocks(\DOMElement $row): array
+    {
+        $blocks = [];
+        $inlines = [];
+        foreach ($row->childNodes as $child) {
+            if ($child instanceof \DOMElement && in_array(strtolower($child->localName), ['td', 'th'], true)) {
+                $this->flushHtmlInlineParagraph($inlines, $blocks);
+                array_push($blocks, ...$this->parseHtmlBlockChildren($child));
+                continue;
+            }
+
+            $this->appendHtmlInlineNodes($inlines, $this->parseHtmlInlineNode($child));
+        }
+        $this->flushHtmlInlineParagraph($inlines, $blocks);
+
+        return $blocks;
     }
 
     private function parseHtmlTableElement(\DOMElement $table): AstNode

@@ -358,6 +358,26 @@ $tests['imports upstream html block children inside table cells'] =
         $assertTable((new HtmlReader())->read($fullDocument));
     };
 
+$tests['preserves upstream html invalid table children as visible blocks'] =
+    static function (TestRunner $t): void {
+        $html = '<table><p>loose</p><tr><td>A</td></tr>tail<tr><td>B</td></tr></table><p>after</p>';
+        $assertBlocks = static function ($document, string $label) use ($t): void {
+            $t->same(
+                ['paragraph', 'paragraph', 'paragraph', 'paragraph', 'paragraph'],
+                array_map(static fn ($node): string => $node->type, $document->children),
+                $label
+            );
+            $t->same(
+                ['loose', 'A', 'tail', 'B', 'after'],
+                array_map(static fn ($node): string => $node->attr('text'), $document->children),
+                $label
+            );
+        };
+
+        $assertBlocks((new HtmlReader())->read($html), 'fragment');
+        $assertBlocks((new HtmlReader())->read('<!doctype html><html><body>' . $html . '</body></html>'), 'document');
+    };
+
 $tests['imports upstream html transparent block containers as structural children'] =
     static function (TestRunner $t): void {
         $tags = ['address', 'article', 'center', 'dialog', 'dir', 'fieldset', 'footer', 'form', 'hgroup', 'menu', 'nav', 'search', 'summary'];
