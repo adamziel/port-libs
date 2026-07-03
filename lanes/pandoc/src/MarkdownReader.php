@@ -1576,10 +1576,24 @@ final class MarkdownReader
 
     private function plainMarkdownHeadingText(string $text): string
     {
+        $escapedPunctuation = [];
+        $text = preg_replace_callback(
+            '/\\\\([' . preg_quote(self::MARKDOWN_ESCAPABLE_ASCII_PUNCTUATION, '/') . '])/',
+            static function (array $matches) use (&$escapedPunctuation): string {
+                $token = "\x1FMDHEADINGPUNCT" . count($escapedPunctuation) . "\x1F";
+                $escapedPunctuation[$token] = (string) $matches[1];
+
+                return $token;
+            },
+            $text
+        ) ?? $text;
         $text = preg_replace('/!\[([^\]]*)\]\([^)]+\)/', '$1', $text) ?? $text;
         $text = preg_replace('/\[([^\]]+)\]\([^)]+\)/', '$1', $text) ?? $text;
         $text = preg_replace('/`+([^`]*)`+/', '$1', $text) ?? $text;
         $text = str_replace(['*', '_', '~', '^'], '', $text);
+        if ($escapedPunctuation !== []) {
+            $text = strtr($text, $escapedPunctuation);
+        }
 
         return $this->decodeHtmlEntities(trim($text));
     }
@@ -13012,7 +13026,37 @@ final class MarkdownReader
      */
     private function parseLinkLabelInlines(string $label): array
     {
+        $label = $this->protectWhitespaceFlankedLinkLabelDelimiters($label);
+
         return $this->parseInlines($label, false);
+    }
+
+    private function protectWhitespaceFlankedLinkLabelDelimiters(string $label): string
+    {
+        $protected = '';
+        $length = strlen($label);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $label[$offset];
+            if (($char !== '*' && $char !== '_') || $this->isEscapedInlinePosition($label, $offset)) {
+                $protected .= $char;
+                continue;
+            }
+
+            $runLength = 1;
+            while (($label[$offset + $runLength] ?? '') === $char) {
+                $runLength++;
+            }
+            $previous = $offset > 0 ? $label[$offset - 1] : '';
+            $next = $label[$offset + $runLength] ?? '';
+            if (($next !== '' && ctype_space($next)) || ($previous !== '' && ctype_space($previous))) {
+                $protected .= str_repeat('\\' . $char, $runLength);
+            } else {
+                $protected .= str_repeat($char, $runLength);
+            }
+            $offset += $runLength - 1;
+        }
+
+        return $protected;
     }
 
     /**
