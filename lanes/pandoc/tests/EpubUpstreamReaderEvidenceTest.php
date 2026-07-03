@@ -179,6 +179,7 @@ return [
             'epub/features.epub',
             'epub/formatting.epub',
             'epub/page-list-navigation.epub',
+            'epub/remote-manifest-resource.epub',
         ], $report['denominator']['unreferencedEpubFixtures']);
         $t->same(false, $report['sourceInventory']['readerSourceRequired']);
         $t->same(1, $report['sourceInventory']['presentFileCount']);
