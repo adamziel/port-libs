@@ -23,6 +23,7 @@ Options:
                                   Exit 1 unless the pinned static Tests.Readers.Pptx
                                   denominator matches the checked-in current
                                   basic.pptx/basic.native fixture snapshot.
+  --require-runner-not-run        Exit 1 unless upstream runner evidence is structured as not-run.
   --help                          Show this help.
 
 This is a denominator/evidence gate for the upstream PPTX reader fixture set.
@@ -38,6 +39,7 @@ try {
     $requiredFixturePairCount = null;
     $requireNoValidationIssues = false;
     $requireStaticCurrentEvidence = false;
+    $requireRunnerNotRun = false;
     $args = array_slice($argv, 1);
 
     for ($i = 0, $count = count($args); $i < $count; ++$i) {
@@ -65,6 +67,10 @@ try {
         }
         if ($arg === '--require-static-current-evidence') {
             $requireStaticCurrentEvidence = true;
+            continue;
+        }
+        if ($arg === '--require-runner-not-run') {
+            $requireRunnerNotRun = true;
             continue;
         }
         if ($arg === '--repo-root') {
@@ -149,6 +155,11 @@ try {
 
     if ($requireStaticCurrentEvidence && !PptxUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($report)) {
         fwrite(STDERR, "pandoc-pptx-reader-evidence: checked-in current PPTX reader fixture evidence did not match the pinned static snapshot\n");
+        exit(1);
+    }
+
+    if ($requireRunnerNotRun && !PptxUpstreamReaderEvidence::hasRunnerNotRunEvidence($report)) {
+        fwrite(STDERR, "pandoc-pptx-reader-evidence: runner not-run evidence is invalid\n");
         exit(1);
     }
 

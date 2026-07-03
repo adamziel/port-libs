@@ -73,6 +73,7 @@ final class PptxUpstreamReaderEvidence
                 'denominator' => $this->emptyDenominator(),
                 'sourceInventory' => $this->emptySourceInventory(),
                 'staticCurrentEvidence' => $this->staticCurrentEvidence(),
+                'runnerEvidence' => self::runnerNotRunEvidence(),
                 'validation' => [
                     'status' => 'not-evaluated-missing-upstream-root',
                     'issues' => ['missing-upstream-root'],
@@ -113,6 +114,7 @@ final class PptxUpstreamReaderEvidence
             ],
             'sourceInventory' => $this->sourceInventory($root),
             'staticCurrentEvidence' => $this->staticCurrentEvidence(),
+            'runnerEvidence' => self::runnerNotRunEvidence(),
             'validation' => [
                 'status' => $validationIssues === [] ? 'valid-upstream-pptx-reader-denominator' : 'invalid-upstream-pptx-reader-denominator',
                 'issues' => $validationIssues,
@@ -133,6 +135,7 @@ final class PptxUpstreamReaderEvidence
         $staticEvidence = is_array($report['staticCurrentEvidence'] ?? null) ? $report['staticCurrentEvidence'] : [];
         $staticValidation = is_array($staticEvidence['validation'] ?? null) ? $staticEvidence['validation'] : [];
         $staticDenominator = is_array($staticEvidence['readerDenominator'] ?? null) ? $staticEvidence['readerDenominator'] : [];
+        $runner = is_array($report['runnerEvidence'] ?? null) ? $report['runnerEvidence'] : [];
 
         return implode(PHP_EOL, [
             'Pandoc PPTX reader evidence',
@@ -144,6 +147,7 @@ final class PptxUpstreamReaderEvidence
             'Static current evidence: ' . (string) ($staticValidation['status'] ?? 'unknown')
                 . ' comparisons=' . (int) ($staticDenominator['expectedCompareCount'] ?? 0)
                 . ' checkedInPairs=' . (int) ($staticEvidence['checkedInFixturePairCount'] ?? 0),
+            'Runner status: ' . (string) ($runner['status'] ?? 'unknown'),
             'Validation: ' . (string) ($validation['status'] ?? 'unknown'),
             'No upstream Haskell/Cabal runner result or full PowerPoint feature parity is asserted.',
         ]) . PHP_EOL;
@@ -195,6 +199,21 @@ final class PptxUpstreamReaderEvidence
             && (int) ($evidence['checkedInFixturePairCount'] ?? -1) === self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT;
     }
 
+    /**
+     * @param array<string, mixed> $report
+     */
+    public static function hasRunnerNotRunEvidence(array $report): bool
+    {
+        $runner = is_array($report['runnerEvidence'] ?? null) ? $report['runnerEvidence'] : [];
+
+        return ($runner['status'] ?? null) === 'not-run'
+            && ($runner['executed'] ?? null) === false
+            && array_key_exists('command', $runner)
+            && $runner['command'] === null
+            && array_key_exists('resultArtifact', $runner)
+            && $runner['resultArtifact'] === null;
+    }
+
     private static function claim(): string
     {
         return 'Parses the pinned upstream Tests.Readers.Pptx test module and test/pptx-reader fixture directory to establish the current PPTX reader golden-test denominator.';
@@ -211,13 +230,86 @@ final class PptxUpstreamReaderEvidence
                 'that every referenced PPTX/native fixture file exists in the pinned sparse upstream checkout',
                 'that root-level test/pptx-reader PPTX/native fixture pairs are accounted for',
                 'static checked-in current upstream basic.pptx/basic.native fixture identity when staticCurrentEvidence is valid',
+                'that upstream Haskell runner evidence is explicitly not-run',
             ],
             'doesNotAssert' => [
                 'that upstream Haskell/Cabal/Tasty tests were executed',
+                'full upstream Tests.Readers.Pptx runner parity',
                 'that local PHP output matches upstream native output',
                 'PPTX writer parity',
                 'full PowerPoint feature parity beyond Pandoc reader behavior',
             ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function runnerNotRunEvidence(): array
+    {
+        return [
+            'runner' => 'Cabal/Tasty Pandoc PPTX reader suite',
+            'scope' => 'upstream-haskell-runner',
+            'status' => 'not-run',
+            'executed' => false,
+            'command' => null,
+            'resultArtifact' => null,
+            'blockers' => [
+                'no committed upstream test:test-pandoc PPTX runner transcript or result artifact is present',
+                'this PHP evidence gate intentionally does not invoke Cabal/Tasty or hydrate Haskell build dependencies',
+                'a future runner claim must be bound to the pinned upstream commit and exact targeted PPTX Tasty pattern',
+            ],
+            'futureCommands' => [
+                [
+                    'purpose' => 'prepare runner dependencies in an isolated build directory',
+                    'program' => 'cabal',
+                    'arguments' => [
+                        'v2-build',
+                        '--offline',
+                        '--dry-run',
+                        '--only-dependencies',
+                        '--project-dir=.',
+                        '--builddir=.port-libs/pandoc-runner/cabal-build/pptx-targeted-run',
+                        'test:test-pandoc',
+                    ],
+                ],
+                [
+                    'purpose' => 'list targeted PPTX reader tests',
+                    'program' => 'cabal',
+                    'arguments' => [
+                        'v2-run',
+                        '--offline',
+                        '--project-dir=.',
+                        '--builddir=.port-libs/pandoc-runner/cabal-build/pptx-targeted-run',
+                        'test:test-pandoc',
+                        '--',
+                        '--list-tests',
+                        '--pattern',
+                        '$2 == "Readers" && $3 == "Pptx"',
+                    ],
+                ],
+                [
+                    'purpose' => 'run targeted PPTX reader tests',
+                    'program' => 'cabal',
+                    'arguments' => [
+                        'v2-run',
+                        '--offline',
+                        '--project-dir=.',
+                        '--builddir=.port-libs/pandoc-runner/cabal-build/pptx-targeted-run',
+                        'test:test-pandoc',
+                        '--',
+                        '--pattern',
+                        '$2 == "Readers" && $3 == "Pptx"',
+                    ],
+                ],
+            ],
+            'requiredArtifacts' => [
+                '.port-libs/pandoc-runner/logs/runner-test-dependencies.txt',
+                '.port-libs/pandoc-runner/logs/pptx-targeted-list-tests.txt',
+                '.port-libs/pandoc-runner/logs/pptx-targeted-run.txt',
+                '.port-libs/pandoc-runner/artifacts/pptx-targeted-run/result.json',
+            ],
+            'claim' => 'No upstream Haskell runner parity is claimed.',
         ];
     }
 

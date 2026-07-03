@@ -84,7 +84,13 @@ return [
             $t->same(0, $report['denominator']['fixturePairCount']);
             $t->same('not-evaluated-missing-upstream-root', $report['validation']['status']);
             $t->same(false, PptxUpstreamReaderEvidence::hasNoValidationIssues($report));
+            $t->same(true, PptxUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
+            $t->same('not-run', $report['runnerEvidence']['status']);
+            $t->same(false, $report['runnerEvidence']['executed']);
+            $t->same(null, $report['runnerEvidence']['command']);
+            $t->same(null, $report['runnerEvidence']['resultArtifact']);
             $t->contains('Pandoc PPTX reader evidence', $text);
+            $t->contains('Runner status: not-run', $text);
         } finally {
             $removeTree($root);
         }
@@ -110,7 +116,12 @@ return [
             $t->same(true, PptxUpstreamReaderEvidence::hasRequiredReaderTestCount($report, 1));
             $t->same(true, PptxUpstreamReaderEvidence::hasRequiredFixturePairCount($report, 1));
             $t->same(true, PptxUpstreamReaderEvidence::hasNoValidationIssues($report));
+            $t->same(true, PptxUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
+            $t->same('upstream-haskell-runner', $report['runnerEvidence']['scope']);
+            $t->same('$2 == "Readers" && $3 == "Pptx"', $report['runnerEvidence']['futureCommands'][1]['arguments'][8]);
+            $t->true(in_array('.port-libs/pandoc-runner/logs/pptx-targeted-run.txt', $report['runnerEvidence']['requiredArtifacts'], true));
             $t->true(in_array('that upstream Haskell/Cabal/Tasty tests were executed', $report['claimBoundaries']['doesNotAssert'], true));
+            $t->true(in_array('that upstream Haskell runner evidence is explicitly not-run', $report['claimBoundaries']['doesAssert'], true));
         } finally {
             $removeTree($root);
         }
@@ -138,8 +149,10 @@ return [
         $t->same(3966, $pair['checkedInNative']['bytes']);
         $t->same(false, PptxUpstreamReaderEvidence::hasNoValidationIssues($report));
         $t->same(true, PptxUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($report));
+        $t->same(true, PptxUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
         $t->true(in_array('that upstream Haskell/Cabal/Tasty tests were executed', $static['claimBoundaries']['doesNotAssert'], true));
         $t->contains('Static current evidence: valid-checked-in-current-pptx-reader-evidence comparisons=1 checkedInPairs=1', $text);
+        $t->contains('Runner status: not-run', $text);
     },
     'reports invalid pptx reader evidence for missing and unreferenced fixtures' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile): void {
         $root = $makeTempDir();
@@ -175,7 +188,8 @@ HS);
             . ' --repo-root=' . escapeshellarg($repoRoot)
             . ' --upstream-root=' . escapeshellarg('missing-upstream-root-for-static-gate')
             . ' --json'
-            . ' --require-static-current-evidence';
+            . ' --require-static-current-evidence'
+            . ' --require-runner-not-run';
         $output = [];
         $exitCode = 0;
         exec($command, $output, $exitCode);
@@ -186,6 +200,8 @@ HS);
         $t->same('not-evaluated-missing-upstream-root', $decoded['validation']['status']);
         $t->same('valid-checked-in-current-pptx-reader-evidence', $decoded['staticCurrentEvidence']['validation']['status']);
         $t->same(true, PptxUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($decoded));
+        $t->same(true, PptxUpstreamReaderEvidence::hasRunnerNotRunEvidence($decoded));
+        $t->same('not-run', $decoded['runnerEvidence']['status']);
         $t->same(false, PptxUpstreamReaderEvidence::hasNoValidationIssues($decoded));
 
         $missingRoot = $makeTempDir();
