@@ -15920,9 +15920,20 @@ final class MarkdownReader
      */
     private function parseLinkDestinationAndTitle(string $content): ?array
     {
+        $originalContent = $content;
         $content = trim($content);
         if ($content === '') {
             return ['url' => '', 'title' => ''];
+        }
+
+        if ($originalContent !== ltrim($originalContent, " \t\r\n")) {
+            $title = $this->parseLinkTitle($content);
+            if ($title !== null) {
+                return ['url' => '', 'title' => $title];
+            }
+            if ($this->startsWithLinkTitleDelimiter($content)) {
+                return null;
+            }
         }
 
         if ($content[0] === '<') {
@@ -15981,11 +15992,20 @@ final class MarkdownReader
             }
 
             $title = ltrim(substr($content, $cursor + 1));
-            if ($title === '' || $this->parseLinkTitle($title) === null) {
+            if ($title === '') {
                 continue;
             }
 
             $destination = rtrim(substr($content, 0, $cursor));
+            $parsedTitle = $this->parseLinkTitle($title);
+            if ($parsedTitle === null) {
+                if ($destination !== '' && $this->startsWithLinkTitleDelimiter($title)) {
+                    return [$destination, $title];
+                }
+
+                continue;
+            }
+
             if ($destination !== '') {
                 return [$destination, $title];
             }
@@ -16125,7 +16145,25 @@ final class MarkdownReader
             return null;
         }
 
-        return $this->decodeHtmlEntities($this->unescapeLinkComponent(substr($text, 1, -1)));
+        $content = substr($text, 1, -1);
+        if ($close === ')' && (
+            $this->findUnescapedCharacter($content, '(', 0) !== null
+            || $this->findUnescapedCharacter($content, ')', 0) !== null
+        )) {
+            return null;
+        }
+        if ($close !== ')' && $this->findUnescapedCharacter($content, $close, 0) !== null) {
+            return null;
+        }
+
+        return $this->decodeHtmlEntities($this->unescapeLinkComponent($content));
+    }
+
+    private function startsWithLinkTitleDelimiter(string $text): bool
+    {
+        $text = ltrim($text);
+
+        return $text !== '' && in_array($text[0], ['"', "'", '('], true);
     }
 
     private function unescapeLinkComponent(string $text): string
