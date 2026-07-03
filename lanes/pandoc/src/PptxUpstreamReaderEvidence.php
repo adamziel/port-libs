@@ -13,7 +13,7 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 11;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 12;
 
     private const STATIC_CURRENT_READER_CASES = [
         [
@@ -155,6 +155,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => 'be9e2f1c3a9f5815ea6cc86debe2ff081a4666931dd2e48c32245cd3de40cd9f',
             'pptxBytes' => 1520,
             'nativeBytes' => 118,
+        ],
+        'shape-order' => [
+            'name' => 'generated plain text shape ordering parity',
+            'pptx' => 'pptx-reader/shape-order.pptx',
+            'native' => 'pptx-reader/shape-order.native',
+            'pairKey' => 'pptx-reader/shape-order.pptx|pptx-reader/shape-order.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/shape-order.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/shape-order.native',
+            'pptxSha256' => '3f92fd142900b957b23cfe2b1afb01d2785d23b77ae62c23429d6bd11fd3c02f',
+            'nativeSha256' => '911f29fe22d020d181e007478bff7c157f6df49d06f7c42798bb3a933d33f427',
+            'pptxBytes' => 1521,
+            'nativeBytes' => 135,
         ],
     ];
 
@@ -359,7 +371,7 @@ final class PptxUpstreamReaderEvidence
                 'the count and file paths of upstream PPTX reader golden comparisons in Tests.Readers.Pptx',
                 'that every referenced PPTX/native fixture file exists in the pinned sparse upstream checkout',
                 'that root-level test/pptx-reader PPTX/native fixture pairs and unpaired files are accounted for',
-                'static checked-in current upstream basic.pptx/basic.native plus generated minimal.pptx/minimal.native, break-tab-field.pptx/break-tab-field.native, bullets.pptx/bullets.native, embedded-image.pptx/embedded-image.native, generated-table.pptx/generated-table.native, hyperlink-text.pptx/hyperlink-text.native, list-continuation.pptx/list-continuation.native, two-slides.pptx/two-slides.native, speaker-notes.pptx/speaker-notes.native, and numbered-list.pptx/numbered-list.native fixture identities when staticCurrentEvidence is valid',
+                'static checked-in current upstream basic.pptx/basic.native plus generated minimal.pptx/minimal.native, break-tab-field.pptx/break-tab-field.native, bullets.pptx/bullets.native, embedded-image.pptx/embedded-image.native, generated-table.pptx/generated-table.native, hyperlink-text.pptx/hyperlink-text.native, list-continuation.pptx/list-continuation.native, two-slides.pptx/two-slides.native, speaker-notes.pptx/speaker-notes.native, numbered-list.pptx/numbered-list.native, and shape-order.pptx/shape-order.native fixture identities when staticCurrentEvidence is valid',
                 'that upstream Haskell runner evidence is explicitly not-run',
             ],
             'doesNotAssert' => [
@@ -542,12 +554,12 @@ final class PptxUpstreamReaderEvidence
                 'status' => $issues === [] ? 'valid-checked-in-current-pptx-reader-evidence' : 'invalid-checked-in-current-pptx-reader-evidence',
                 'issues' => array_values(array_unique($issues)),
             ],
-            'claim' => 'Static gate binding the pinned Tests.Readers.Pptx one-case denominator to the checked-in current upstream basic.pptx/basic.native fixture pair, plus ten generated PPTX/native pairs used only for local normalized-AST parity.',
+            'claim' => 'Static gate binding the pinned Tests.Readers.Pptx one-case denominator to the checked-in current upstream basic.pptx/basic.native fixture pair, plus eleven generated PPTX/native pairs used only for local normalized-AST parity.',
             'claimBoundaries' => [
                 'doesAssert' => [
                     'Tests.Readers.Pptx at the pinned upstream commit has one golden comparison for pptx-reader/basic.pptx and pptx-reader/basic.native',
-                    'the checked-in current PPTX fixture directory contains eleven same-stem PPTX/native pairs and no unpaired PPTX/native files',
-                    'the checked-in basic.pptx/basic.native, minimal.pptx/minimal.native, break-tab-field.pptx/break-tab-field.native, bullets.pptx/bullets.native, embedded-image.pptx/embedded-image.native, generated-table.pptx/generated-table.native, hyperlink-text.pptx/hyperlink-text.native, list-continuation.pptx/list-continuation.native, two-slides.pptx/two-slides.native, speaker-notes.pptx/speaker-notes.native, and numbered-list.pptx/numbered-list.native files match the expected SHA-256 hashes and byte counts for this snapshot',
+                    'the checked-in current PPTX fixture directory contains twelve same-stem PPTX/native pairs and no unpaired PPTX/native files',
+                    'the checked-in basic.pptx/basic.native, minimal.pptx/minimal.native, break-tab-field.pptx/break-tab-field.native, bullets.pptx/bullets.native, embedded-image.pptx/embedded-image.native, generated-table.pptx/generated-table.native, hyperlink-text.pptx/hyperlink-text.native, list-continuation.pptx/list-continuation.native, two-slides.pptx/two-slides.native, speaker-notes.pptx/speaker-notes.native, numbered-list.pptx/numbered-list.native, and shape-order.pptx/shape-order.native files match the expected SHA-256 hashes and byte counts for this snapshot',
                 ],
                 'doesNotAssert' => [
                     'that upstream Haskell/Cabal/Tasty tests were executed',
@@ -562,7 +574,8 @@ final class PptxUpstreamReaderEvidence
                     'that two-slides.pptx/two-slides.native is an upstream Tests.Readers.Pptx fixture',
                     'that speaker-notes.pptx/speaker-notes.native is an upstream Tests.Readers.Pptx fixture',
                     'that numbered-list.pptx/numbered-list.native is an upstream Tests.Readers.Pptx fixture',
-                    'broader PPTX fixture corpus coverage beyond basic.pptx/basic.native, minimal.pptx/minimal.native, break-tab-field.pptx/break-tab-field.native, bullets.pptx/bullets.native, embedded-image.pptx/embedded-image.native, generated-table.pptx/generated-table.native, hyperlink-text.pptx/hyperlink-text.native, list-continuation.pptx/list-continuation.native, two-slides.pptx/two-slides.native, speaker-notes.pptx/speaker-notes.native, and numbered-list.pptx/numbered-list.native',
+                    'that shape-order.pptx/shape-order.native is an upstream Tests.Readers.Pptx fixture',
+                    'broader PPTX fixture corpus coverage beyond basic.pptx/basic.native, minimal.pptx/minimal.native, break-tab-field.pptx/break-tab-field.native, bullets.pptx/bullets.native, embedded-image.pptx/embedded-image.native, generated-table.pptx/generated-table.native, hyperlink-text.pptx/hyperlink-text.native, list-continuation.pptx/list-continuation.native, two-slides.pptx/two-slides.native, speaker-notes.pptx/speaker-notes.native, numbered-list.pptx/numbered-list.native, and shape-order.pptx/shape-order.native',
                     'full PowerPoint feature parity',
                 ],
             ],
