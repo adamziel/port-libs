@@ -164,7 +164,7 @@ final class EpubPackageMetadataReader
 
         $creators = $this->dcValueList($dcValues, 'creator');
         if ($creators !== []) {
-            $meta['author'] = $creators;
+            $meta['author'] = $this->collapseValueList($creators);
             $meta['authorInlines'] = array_map(fn (string $author): array => $this->textInlines($author), $creators);
         }
 
@@ -174,9 +174,13 @@ final class EpubPackageMetadataReader
             $meta['dateInlines'] = $this->textInlines($date);
         }
 
-        $language = $this->firstDcValue($dcValues, 'language');
-        if ($language !== null) {
-            $meta['lang'] = $language;
+        $languages = $this->dcValueList($dcValues, 'language');
+        if ($languages !== []) {
+            $meta['lang'] = $languages[0];
+            $meta['language'] = $languages[0];
+            if (count($languages) > 1) {
+                $meta['languages'] = $languages;
+            }
         }
 
         $identifier = $this->selectedIdentifier($dcValues['identifier'] ?? [], trim($package->getAttribute('unique-identifier')));
@@ -185,15 +189,15 @@ final class EpubPackageMetadataReader
         }
 
         foreach (self::DC_FIELD_KEYS as $dcName => $metaKey) {
-            $value = $this->firstDcValue($dcValues, $dcName);
-            if ($value !== null) {
-                $meta[$metaKey] = $value;
+            $values = $this->dcValueList($dcValues, $dcName);
+            if ($values !== []) {
+                $meta[$metaKey] = $this->collapseValueList($values);
             }
         }
 
         $subjects = $this->dcValueList($dcValues, 'subject');
         if ($subjects !== []) {
-            $meta['subject'] = $subjects;
+            $meta['subject'] = $this->collapseValueList($subjects);
         }
 
         $modified = $this->firstPropertyValue($propertyValues, 'dcterms:modified');
@@ -202,7 +206,8 @@ final class EpubPackageMetadataReader
         }
 
         if ($propertyValues !== []) {
-            $meta['epubProperties'] = $this->collapseValueLists($propertyValues);
+            ksort($propertyValues, SORT_STRING);
+            $meta['epubProperties'] = $propertyValues;
         }
 
         return $meta;
@@ -260,19 +265,12 @@ final class EpubPackageMetadataReader
     }
 
     /**
-     * @param array<string, list<string>> $values
-     * @return array<string, string|list<string>>
+     * @param list<string> $values
+     * @return string|list<string>
      */
-    private function collapseValueLists(array $values): array
+    private function collapseValueList(array $values): string|array
     {
-        $collapsed = [];
-        foreach ($values as $key => $items) {
-            $collapsed[$key] = count($items) === 1 ? $items[0] : $items;
-        }
-
-        ksort($collapsed);
-
-        return $collapsed;
+        return count($values) === 1 ? $values[0] : $values;
     }
 
     private function elementText(\DOMElement $element): string

@@ -21,6 +21,7 @@ return [
     <dc:creator>First Author</dc:creator>
     <dc:creator>Second Author</dc:creator>
     <dc:language>en-US</dc:language>
+    <dc:language>fr-CA</dc:language>
     <dc:date>2026-04-05</dc:date>
     <dc:publisher>Example Press</dc:publisher>
     <dc:subject>migration</dc:subject>
@@ -38,13 +39,17 @@ XML;
         $t->same('EPUB Metadata Title', $meta['title']);
         $t->same(['First Author', 'Second Author'], $meta['author']);
         $t->same('en-US', $meta['lang']);
+        $t->same('en-US', $meta['language']);
+        $t->same(['en-US', 'fr-CA'], $meta['languages']);
         $t->same('2026-04-05', $meta['date']);
         $t->same('urn:uuid:12345678-1234-1234-1234-123456789abc', $meta['identifier']);
         $t->same('Example Press', $meta['publisher']);
         $t->same(['migration', 'package metadata'], $meta['subject']);
         $t->same('2026-04-06T07:08:09Z', $meta['modified']);
+        $t->same(['2026-04-06T07:08:09Z'], $meta['epubProperties']['dcterms:modified']);
         $t->same('MetaInlines', $json['meta']['title']['t']);
         $t->same('MetaList', $json['meta']['author']['t']);
+        $t->same('MetaList', $json['meta']['languages']['t']);
         $t->same('MetaList', $json['meta']['subject']['t']);
     },
     'discovers opf rootfile from an epub zip container' => static function (TestRunner $t): void {
@@ -92,8 +97,9 @@ XML);
         }
 
         $t->same('Packaged EPUB', $meta['title']);
-        $t->same(['Package Author'], $meta['author']);
+        $t->same('Package Author', $meta['author']);
         $t->same('fr', $meta['lang']);
+        $t->same('fr', $meta['language']);
         $t->same('book-001', $meta['identifier']);
         $t->contains('<dt data-pandoc-meta-key="identifier">identifier</dt><dd><span>book-001</span></dd>', $blocks);
         $t->contains('<dt data-pandoc-meta-key="lang">lang</dt><dd><span>fr</span></dd>', $blocks);
@@ -143,7 +149,7 @@ XML);
         }
 
         $t->same('Parameterized Metadata Rootfile', $meta['title']);
-        $t->same(['Package Author'], $meta['author']);
+        $t->same('Package Author', $meta['author']);
         $t->same('book-parameterized-metadata-rootfile', $meta['identifier']);
     },
     'rejects epub containers without an opf rootfile' => static function (TestRunner $t): void {
