@@ -170,7 +170,7 @@ return [
         $t->same('8e33c870e16bb77dc144c177673e3313dce9415c80bda3c9b13123466d42442e', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][13]['checkedInFile']['sha256']);
         $t->same(1246, $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][13]['checkedInFile']['bytes']);
         $t->same('text-after-closing-quote', $evidence['generatedCsvNativeStaticEvidence']['samples'][6]['name']);
-        $t->same([], $evidence['generatedCsvNativeStaticEvidence']['samples'][6]['readerOptions']);
+        $t->same(['strictParsing' => false], $evidence['generatedCsvNativeStaticEvidence']['samples'][6]['readerOptions']);
         $t->same('trailing-empty-fields.csv', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][14]['name']);
         $t->same('2f8e15547906de3b9b95a5d354e039809382171b9d64366d751d8e493b5553d5', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][14]['checkedInFile']['sha256']);
         $t->same(62, $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][14]['checkedInFile']['bytes']);
@@ -194,7 +194,7 @@ return [
         $t->same('2460dd7891857c3927c5f229fbd819afe432604a92606a61f3cb5b87d6bcd3d7', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][19]['checkedInFile']['sha256']);
         $t->same(1523, $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][19]['checkedInFile']['bytes']);
         $t->same('unquoted-space-empty-quoted', $evidence['generatedCsvNativeStaticEvidence']['samples'][9]['name']);
-        $t->same([], $evidence['generatedCsvNativeStaticEvidence']['samples'][9]['readerOptions']);
+        $t->same(['strictParsing' => false], $evidence['generatedCsvNativeStaticEvidence']['samples'][9]['readerOptions']);
         $t->same('comment-looking-data.csv', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][20]['name']);
         $t->same('cbfda6df02a13b5ba96fcd6ab171b5083c20ef97af65e858ae110032eb9f51c8', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][20]['checkedInFile']['sha256']);
         $t->same(96, $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][20]['checkedInFile']['bytes']);
@@ -242,7 +242,7 @@ return [
         $t->same('754ba8a6135cf7f7064b714cb6a33990958865e0a5ee04532710a74cc395e74b', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][31]['checkedInFile']['sha256']);
         $t->same(925, $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][31]['checkedInFile']['bytes']);
         $t->same('unterminated-quote-eof', $evidence['generatedCsvNativeStaticEvidence']['samples'][15]['name']);
-        $t->same([], $evidence['generatedCsvNativeStaticEvidence']['samples'][15]['readerOptions']);
+        $t->same(['strictParsing' => false], $evidence['generatedCsvNativeStaticEvidence']['samples'][15]['readerOptions']);
         $t->same('duplicate-header-labels.csv', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][32]['name']);
         $t->same('d0627dffb43d149d884fba447424eed9544c36f9885516afd3e2a04e807c101f', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][32]['checkedInFile']['sha256']);
         $t->same(42, $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][32]['checkedInFile']['bytes']);
@@ -566,7 +566,7 @@ return [
         $t->same('matched', $evidence['samples'][6]['status']);
         $t->same('text-after-closing-quote', $evidence['samples'][6]['name']);
         $t->same('lanes/pandoc/fixtures/generated-current-csv-reader/text-after-closing-quote.csv', $evidence['samples'][6]['inputPath']);
-        $t->same(['sourcePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/text-after-closing-quote.csv'], $evidence['samples'][6]['readerOptions']);
+        $t->same(['strictParsing' => false, 'sourcePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/text-after-closing-quote.csv'], $evidence['samples'][6]['readerOptions']);
         $t->same('generated-csv-native-sample-static-fixture-binding', $evidence['samples'][6]['staticFixtureBinding']['kind']);
         $t->same('text-after-closing-quote', $evidence['samples'][6]['staticFixtureBinding']['sample']);
         $t->same('valid-static-fixture-snapshot', $evidence['samples'][6]['staticFixtureBinding']['inputFixture']['status']);
@@ -600,7 +600,7 @@ return [
         $t->same('matched', $evidence['samples'][9]['status']);
         $t->same('unquoted-space-empty-quoted', $evidence['samples'][9]['name']);
         $t->same('lanes/pandoc/fixtures/generated-current-csv-reader/unquoted-space-empty-quoted.csv', $evidence['samples'][9]['inputPath']);
-        $t->same(['sourcePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/unquoted-space-empty-quoted.csv'], $evidence['samples'][9]['readerOptions']);
+        $t->same(['strictParsing' => false, 'sourcePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/unquoted-space-empty-quoted.csv'], $evidence['samples'][9]['readerOptions']);
         $t->same('generated-csv-native-sample-static-fixture-binding', $evidence['samples'][9]['staticFixtureBinding']['kind']);
         $t->same('unquoted-space-empty-quoted', $evidence['samples'][9]['staticFixtureBinding']['sample']);
         $t->same('valid-static-fixture-snapshot', $evidence['samples'][9]['staticFixtureBinding']['inputFixture']['status']);
@@ -672,7 +672,7 @@ return [
         $t->same('matched', $evidence['samples'][15]['status']);
         $t->same('unterminated-quote-eof', $evidence['samples'][15]['name']);
         $t->same('lanes/pandoc/fixtures/generated-current-csv-reader/unterminated-quote-eof.csv', $evidence['samples'][15]['inputPath']);
-        $t->same(['sourcePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/unterminated-quote-eof.csv'], $evidence['samples'][15]['readerOptions']);
+        $t->same(['strictParsing' => false, 'sourcePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/unterminated-quote-eof.csv'], $evidence['samples'][15]['readerOptions']);
         $t->same('generated-csv-native-sample-static-fixture-binding', $evidence['samples'][15]['staticFixtureBinding']['kind']);
         $t->same('unterminated-quote-eof', $evidence['samples'][15]['staticFixtureBinding']['sample']);
         $t->same('valid-static-fixture-snapshot', $evidence['samples'][15]['staticFixtureBinding']['inputFixture']['status']);
