@@ -906,6 +906,8 @@ final class DelimitedTextReader
      *     integrationFixtureCount:int,
      *     integrationFixtures:list<string>,
      *     staticCurrentEvidence:array<string, mixed>,
+     *     generatedNativeParitySampleCount:int,
+     *     generatedNativeParityEvidence:array<string, mixed>,
      *     runnerEvidence:array{runner:string, status:string, executed:bool, command:null, resultArtifact:null, reason:string, claim:string},
      *     notRunEvidence:list<array{scope:string, runner:string, status:string, executed:bool, reason:string}>,
      *     closedGaps:list<string>,
@@ -931,6 +933,9 @@ final class DelimitedTextReader
             'semicolon-delimiter-multiline-cell',
         ];
         $staticCurrentEvidence = DelimitedTextUpstreamReaderEvidence::checkedInCurrentEvidence(dirname(__DIR__, 3));
+        $generatedTsvNativeStaticEvidence = is_array($staticCurrentEvidence['generatedTsvNativeStaticEvidence'] ?? null)
+            ? $staticCurrentEvidence['generatedTsvNativeStaticEvidence']
+            : [];
         $runnerEvidence = [
             'runner' => 'Cabal/Tasty Pandoc reader suite',
             'status' => 'not-run',
@@ -968,6 +973,8 @@ final class DelimitedTextReader
                 'integrationFixtureCount' => 0,
                 'integrationFixtures' => [],
                 'staticCurrentEvidence' => $staticCurrentEvidence,
+                'generatedNativeParitySampleCount' => DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT,
+                'generatedNativeParityEvidence' => $generatedTsvNativeStaticEvidence,
                 'runnerEvidence' => $runnerEvidence,
                 'notRunEvidence' => $notRunEvidence,
                 'closedGaps' => [
@@ -975,6 +982,7 @@ final class DelimitedTextReader
                     'tsv-literal-quote-policy',
                     'tsv-trailing-empty-field-preservation',
                     'tsv-row-repair-and-control-character-provenance',
+                    'generated-tsv-native-parity-sample',
                 ],
                 'openGaps' => [
                     'no-dedicated-upstream-tsv-command-fixture-in-pinned-corpus',
@@ -983,6 +991,7 @@ final class DelimitedTextReader
                 'claimBoundaries' => [
                     'TSV is an upstream input token but the pinned command corpus evidence is CSV-only.',
                     'TSV parity is covered by native tab-delimited reader semantics, not by a dedicated upstream TSV golden fixture.',
+                    'Generated TSV-to-native sample evidence is local executable evidence and is not counted as an upstream TSV fixture.',
                     'This packet does not claim RST csv-table integration or upstream Haskell runner parity.',
                 ],
             ];
@@ -1005,6 +1014,8 @@ final class DelimitedTextReader
             'integrationFixtureCount' => count($rstCsvFixtures),
             'integrationFixtures' => $rstCsvFixtures,
             'staticCurrentEvidence' => $staticCurrentEvidence,
+            'generatedNativeParitySampleCount' => 0,
+            'generatedNativeParityEvidence' => [],
             'runnerEvidence' => $runnerEvidence,
             'notRunEvidence' => $notRunEvidence,
             'closedGaps' => [
