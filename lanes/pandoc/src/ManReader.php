@@ -137,23 +137,24 @@ final class ManReader
 
     private function parseParagraph(): AstNode
     {
-        $parts = [];
+        $text = '';
+        $joinNextLineTightly = false;
         while ($this->index < count($this->lines)) {
             $line = $this->lines[$this->index];
             $trimmed = trim($line);
             if ($trimmed === '') {
                 break;
             }
-            if ($parts !== [] && $this->isBlockStart($line)) {
+            if ($text !== '' && $this->isBlockStart($line)) {
                 break;
             }
             if (!$this->isCommentLine($trimmed)) {
-                $parts[] = $this->stripInlineComment($line);
+                $this->appendRoffTextLine($text, $joinNextLineTightly, $line);
             }
             ++$this->index;
         }
 
-        return new AstNode('paragraph', [], $this->parseInlines(implode('', $parts)));
+        return new AstNode('paragraph', [], $this->parseInlines($text));
     }
 
     private function isBlockStart(string $line): bool
@@ -396,6 +397,18 @@ final class ManReader
         }
 
         return rtrim(substr($text, 0, min($positions)));
+    }
+
+    private function appendRoffTextLine(string &$text, bool &$joinNextLineTightly, string $line): void
+    {
+        $part = $this->stripInlineComment($line);
+        if ($text === '') {
+            $text = $part;
+        } else {
+            $text .= ($joinNextLineTightly ? '' : ' ') . $part;
+        }
+
+        $joinNextLineTightly = strpos($line, '\#') !== false;
     }
 
     private function fontStyleEscape(string $source, int &$offset): ?string
@@ -668,10 +681,22 @@ final class ManReader
     private function parseListItem(): AstNode
     {
         $children = [];
+        $paragraphText = '';
+        $joinNextLineTightly = false;
+        $flushParagraph = function () use (&$children, &$paragraphText, &$joinNextLineTightly): void {
+            if ($paragraphText === '') {
+                return;
+            }
+
+            $children[] = new AstNode('paragraph', [], $this->parseInlines($paragraphText));
+            $paragraphText = '';
+            $joinNextLineTightly = false;
+        };
         while ($this->index < count($this->lines)) {
             $line = $this->lines[$this->index];
             $trimmed = trim($line);
             if ($trimmed === '') {
+                $flushParagraph();
                 ++$this->index;
                 break;
             }
@@ -683,25 +708,29 @@ final class ManReader
                 break;
             }
             if ($macro !== null && $macro[0] === 'RS') {
+                $flushParagraph();
                 ++$this->index;
                 array_push($children, ...$this->parseBlocks('.RE'));
                 continue;
             }
             if ($macro !== null && ($macro[0] === 'nf' || $macro[0] === 'EX')) {
+                $flushParagraph();
                 $children[] = $this->parseCodeBlock($macro[0] === 'EX' ? 'EE' : 'fi');
                 continue;
             }
             if ($macro !== null && ($this->isIgnoredRequest($macro[0]) || $this->isParagraphBreakMacro($macro[0]))) {
+                $flushParagraph();
                 ++$this->index;
                 continue;
             }
 
-            array_push($children, ...$this->parseInlines($line));
+            $this->appendRoffTextLine($paragraphText, $joinNextLineTightly, $line);
             ++$this->index;
         }
+        $flushParagraph();
 
         return new AstNode('list_item', [
-            'text' => $this->plainInlineText(array_values(array_filter($children, fn (AstNode $node): bool => $this->isInlineNode($node)))),
+            'text' => $this->plainInlineText($children),
             'loose' => false,
         ], $children);
     }
@@ -832,7 +861,7 @@ final class ManReader
                 continue;
             }
             if ($macro !== null && $this->isParagraphBreakMacro($macro[0])) {
-                if ($lines !== [] && $lines[count($lines) - 1] !== '') {
+                if ($lines === [] || $lines[count($lines) - 1] !== '') {
                     $lines[] = '';
                 }
                 ++$this->index;
@@ -842,9 +871,6 @@ final class ManReader
             ++$this->index;
         }
 
-        while ($lines !== [] && $lines[0] === '') {
-            array_shift($lines);
-        }
         while ($lines !== [] && $lines[count($lines) - 1] === '') {
             array_pop($lines);
         }
@@ -959,36 +985,7 @@ final class ManReader
             };
         }
 
-        return $text;
+        return trim(preg_replace('/[ \t\r\n\f\v]+/', ' ', $text) ?? $text);
     }
 
-    private function isInlineNode(AstNode $node): bool
-    {
-        return in_array($node->type, [
-            'text',
-            'space',
-            'softbreak',
-            'linebreak',
-            'emph',
-            'strong',
-            'strikeout',
-            'superscript',
-            'subscript',
-            'underline',
-            'small_caps',
-            'code',
-            'link',
-            'image',
-            'note',
-            'quoted',
-            'math',
-            'citation',
-            'raw_html_inline',
-            'raw_tex',
-            'raw_tex_inline',
-            'raw_markdown',
-            'raw_inline',
-            'span',
-        ], true);
-    }
 }

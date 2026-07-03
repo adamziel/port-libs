@@ -88,6 +88,7 @@ return [
         $upper = $read(".IP A) a\nfirst\n.IP B) a\nsecond")->children[0];
         $nested = $read(".IP \"\\[bu]\"\nfirst\n.RS\n.IP \"\\[bu]\"\n1a\n.IP \"\\[bu]\"\n1b\n.RE")->children[0];
         $changed = $read(".IP \\[bu]\nfirst\n.IP 1\nsecond")->children;
+        $wrapped = $read(".IP \"\\[bu]\"\nfirst\ncontinued")->children[0];
 
         $t->same('bullet_list', $bullet->type);
         $t->same(2, count($bullet->children));
@@ -104,6 +105,7 @@ return [
         $t->same('1a', $plainText($nested->children[0]->children[1]->children[0]));
         $t->same('1b', $plainText($nested->children[0]->children[1]->children[1]));
         $t->same(['bullet_list', 'ordered_list'], array_map(static fn (AstNode $node): string => $node->type, $changed));
+        $t->same('first continued', $plainText($wrapped->children[0]));
     },
 
     'maps upstream man code block and table unit semantics' => static function (TestRunner $t) use ($read, $plainText): void {
@@ -173,7 +175,7 @@ ROFF);
         $t->same('definition', $secondDefinition->type);
         $t->same('paragraph', $secondDefinition->children[0]->type);
         $t->same('code_block', $secondDefinition->children[1]->type);
-        $t->same('tool --flag', $secondDefinition->children[1]->attr('text'));
+        $t->same("\ntool --flag", $secondDefinition->children[1]->attr('text'));
     },
 
     'reads man through converter and renders shared ast outputs' => static function (TestRunner $t): void {
