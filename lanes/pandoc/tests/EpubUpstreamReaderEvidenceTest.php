@@ -47,7 +47,33 @@ $writeFile = static function (string $root, string $relativePath, string $conten
 
 $repoRoot = static fn (): string => dirname(__DIR__, 3);
 $checkedInFixtureRoot = static fn (): string => 'lanes/pandoc/fixtures/upstream-current-epub-reader';
-$expectedCurrentReaderStaticSignatureSha256 = '46e89aba1475bbfb50869f15bee054d73c6a0588887a91ac991015be1f4fbb64';
+$expectedCurrentReaderStaticSignatureSha256 = 'c3551818c84a8100f79266b00b653f14baa5d4ee4ae1d22db36eb8c19844e22c';
+$expectedReferencedFixtureIdentity = [
+    'epub/epub2_cover.epub' => [
+        'sha256' => '4af73a135aa632cbf0c00b2889a5fc1d39a59a77fa294fdeff5ede72ff6ffed1',
+        'bytes' => 11794,
+    ],
+    'epub/epub2_no_cover.epub' => [
+        'sha256' => '8369dbe5cf315f1fe00f9dd1bf7c500cc663d7648edbf0d7b6a9b4d785fedf4e',
+        'bytes' => 3584,
+    ],
+    'epub/epub2_picture.epub' => [
+        'sha256' => '6049dde9e1d0ebcd175a8c5b937984f349af996e293310eafbce09e4c7384495',
+        'bytes' => 11742,
+    ],
+    'epub/img.epub' => [
+        'sha256' => 'f2c25e0e0612b7ac33a8d6a1c9719a86e7d2a0290472fc7d8b5068de781a822f',
+        'bytes' => 20478,
+    ],
+    'epub/img_no_cover.epub' => [
+        'sha256' => '3063f5e9b9610df1ddcc682ce49c293bcf681f1958700a5b6c3eda344383cf2a',
+        'bytes' => 10602,
+    ],
+    'epub/wasteland.epub' => [
+        'sha256' => '151ec5dbca33e39a4e3f6894e92fa5a101290bdeaaa792e0700595971456a278',
+        'bytes' => 25840,
+    ],
+];
 
 $writeEpubEvidenceTree = static function (string $root) use ($writeFile): void {
     $writeFile($root, 'test/Tests/Readers/EPUB.hs', <<<'HS'
@@ -89,6 +115,8 @@ return [
             $t->same(0, $report['denominator']['mediaBagTestCount']);
             $t->same(0, $report['denominator']['fixtureReferenceCount']);
             $t->same('not-evaluated-missing-upstream-root', $report['validation']['status']);
+            $t->same('not-evaluated-source-directory-unavailable', $report['referencedFixtureIdentity']['validation']['status']);
+            $t->same(false, EpubUpstreamReaderEvidence::hasRequiredReferencedFixtureIdentity($report));
             $t->same('not-evaluated-source-directory-unavailable', $report['currentReaderStaticSignature']['validation']['status']);
             $t->same(false, EpubUpstreamReaderEvidence::hasRequiredStaticCurrentSignature($report));
             $t->same(false, EpubUpstreamReaderEvidence::hasNoValidationIssues($report));
@@ -102,6 +130,7 @@ return [
             $t->same(EpubUpstreamReaderEvidence::EXPECTED_UPSTREAM_COMMIT, $report['runnerEvidence']['upstreamBinding']['expectedCommit']);
             $t->same('$2 == "Readers" && $3 == "EPUB" && $4 == "EPUB Mediabag"', $report['runnerEvidence']['target']['tastyPattern']);
             $t->contains('Pandoc EPUB reader evidence', $text);
+            $t->contains('Referenced fixture identity: not-evaluated-source-directory-unavailable', $text);
             $t->contains('Static current signature: not-evaluated-source-directory-unavailable', $text);
             $t->contains('Runner status: not-run', $text);
             $t->contains('Runner plan: planned-not-run', $text);
@@ -135,8 +164,13 @@ return [
             $t->same(true, EpubUpstreamReaderEvidence::hasRequiredMediaBagTestCount($report, 2));
             $t->same(true, EpubUpstreamReaderEvidence::hasRequiredFixtureReferenceCount($report, 2));
             $t->same(true, EpubUpstreamReaderEvidence::hasRequiredExpectedMediaItemCount($report, 2));
+            $t->same('invalid-checked-in-current-epub-reader-referenced-fixture-identity', $report['referencedFixtureIdentity']['validation']['status']);
+            $t->true(in_array('referenced-fixture-paths-do-not-match-expected-snapshot', $report['referencedFixtureIdentity']['validation']['issues'], true));
+            $t->true(in_array('referenced-fixture-identity-content-does-not-match-expected-snapshot', $report['referencedFixtureIdentity']['validation']['issues'], true));
+            $t->same(false, EpubUpstreamReaderEvidence::hasRequiredReferencedFixtureIdentity($report));
             $t->same('invalid-checked-in-current-epub-reader-static-signature', $report['currentReaderStaticSignature']['validation']['status']);
             $t->true(in_array('reader-static-denominator-counts-do-not-match-expected-snapshot', $report['currentReaderStaticSignature']['validation']['issues'], true));
+            $t->true(in_array('reader-static-referenced-fixture-identity-does-not-match-expected-snapshot', $report['currentReaderStaticSignature']['validation']['issues'], true));
             $t->same(false, EpubUpstreamReaderEvidence::hasRequiredStaticCurrentSignature($report));
             $t->same(true, EpubUpstreamReaderEvidence::hasNoValidationIssues($report));
             $t->same(true, EpubUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
@@ -158,7 +192,7 @@ return [
         }
     },
 
-    'validates checked-in current epub reader evidence through fixture base' => static function (TestRunner $t) use ($repoRoot, $checkedInFixtureRoot, $expectedCurrentReaderStaticSignatureSha256): void {
+    'validates checked-in current epub reader evidence through fixture base' => static function (TestRunner $t) use ($repoRoot, $checkedInFixtureRoot, $expectedCurrentReaderStaticSignatureSha256, $expectedReferencedFixtureIdentity): void {
         $report = (new EpubUpstreamReaderEvidence(
             $repoRoot(),
             'lanes/pandoc/fixtures/upstream-current-epub-reader',
@@ -198,15 +232,43 @@ return [
         $t->same(false, $report['sourceInventory']['readerSourceRequired']);
         $t->same(1, $report['sourceInventory']['presentFileCount']);
         $t->same(1, $report['sourceInventory']['missingFileCount']);
+        $t->same('checked-in-current-epub-reader-referenced-fixture-identity', $report['referencedFixtureIdentity']['kind']);
+        $t->same('checked-in-current-upstream-epub-reader-6-referenced-epub-fixture-snapshot', $report['referencedFixtureIdentity']['scope']);
+        $t->same('sha256', $report['referencedFixtureIdentity']['hashAlgorithm']);
+        $t->same(6, $report['referencedFixtureIdentity']['expectedFileCount']);
+        $t->same(6, $report['referencedFixtureIdentity']['observedFileCount']);
+        $t->same(6, $report['referencedFixtureIdentity']['presentFileCount']);
+        $t->same(0, $report['referencedFixtureIdentity']['missingFileCount']);
+        $t->same(array_keys($expectedReferencedFixtureIdentity), $report['referencedFixtureIdentity']['expectedPaths']);
+        $t->same(array_keys($expectedReferencedFixtureIdentity), $report['referencedFixtureIdentity']['observedPaths']);
+        $t->same([], $report['referencedFixtureIdentity']['missingExpectedPaths']);
+        $t->same([], $report['referencedFixtureIdentity']['unexpectedObservedPaths']);
+        $t->same(84040, $report['referencedFixtureIdentity']['totalBytes']);
+        $t->same(84040, $report['referencedFixtureIdentity']['expectedTotalBytes']);
+        $observedReferencedFixtureIdentity = [];
+        foreach ($report['referencedFixtureIdentity']['files'] as $file) {
+            $observedReferencedFixtureIdentity[$file['path']] = [
+                'sha256' => $file['sha256'],
+                'bytes' => $file['bytes'],
+            ];
+            $t->same(true, $file['present']);
+            $t->same(true, $file['matchesExpected']);
+        }
+        $t->same($expectedReferencedFixtureIdentity, $observedReferencedFixtureIdentity);
+        $t->same(true, $report['referencedFixtureIdentity']['matchesExpected']);
+        $t->same('valid-checked-in-current-epub-reader-referenced-fixture-identity', $report['referencedFixtureIdentity']['validation']['status']);
+        $t->same([], $report['referencedFixtureIdentity']['validation']['issues']);
+        $t->same(true, EpubUpstreamReaderEvidence::hasRequiredReferencedFixtureIdentity($report));
         $t->same('checked-in-current-epub-reader-static-signature', $report['currentReaderStaticSignature']['kind']);
         $t->same('sha256-canonical-json-v1', $report['currentReaderStaticSignature']['algorithm']);
-        $t->same('checked-in-current-upstream-epub-reader-static-6-case-media-expectation-snapshot', $report['currentReaderStaticSignature']['scope']);
+        $t->same('checked-in-current-upstream-epub-reader-static-6-case-media-expectation-and-fixture-identity-snapshot', $report['currentReaderStaticSignature']['scope']);
         $t->same($expectedCurrentReaderStaticSignatureSha256, $report['currentReaderStaticSignature']['sha256']);
         $t->same($expectedCurrentReaderStaticSignatureSha256, $report['currentReaderStaticSignature']['expectedSha256']);
         $t->same(true, $report['currentReaderStaticSignature']['hashMatchesExpected']);
         $t->same(true, $report['currentReaderStaticSignature']['matchesExpected']);
         $t->same('valid-checked-in-current-epub-reader-static-signature', $report['currentReaderStaticSignature']['validation']['status']);
         $t->same([], $report['currentReaderStaticSignature']['validation']['issues']);
+        $t->same(true, $report['currentReaderStaticSignature']['validation']['referencedFixtureIdentityMatchesExpected']);
         $t->same(true, EpubUpstreamReaderEvidence::hasRequiredStaticCurrentSignature($report));
         $t->same(true, EpubUpstreamReaderEvidence::hasNoValidationIssues($report));
         $t->same(true, EpubUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
@@ -234,7 +296,7 @@ HS);
         }
     },
 
-    'cli gates checked-in current epub reader evidence through checked-in fixtures mode' => static function (TestRunner $t) use ($repoRoot, $checkedInFixtureRoot, $expectedCurrentReaderStaticSignatureSha256): void {
+    'cli gates checked-in current epub reader evidence through checked-in fixtures mode' => static function (TestRunner $t) use ($repoRoot, $checkedInFixtureRoot, $expectedCurrentReaderStaticSignatureSha256, $expectedReferencedFixtureIdentity): void {
         $command = escapeshellarg(PHP_BINARY)
             . ' '
             . escapeshellarg(dirname(__DIR__, 3) . '/tools/pandoc-epub-reader-evidence.php')
@@ -244,6 +306,7 @@ HS);
             . ' --require-test-count=6'
             . ' --require-fixture-reference-count=6'
             . ' --require-expected-media-item-count=10'
+            . ' --require-referenced-fixture-identity'
             . ' --require-static-current-signature'
             . ' --require-runner-not-run'
             . ' --require-runner-plan'
@@ -263,6 +326,18 @@ HS);
         $t->same($checkedInFixtureRoot(), $decoded['upstream']['resolvedFixtureBase']);
         $t->same('epub', $decoded['upstream']['resolvedFixtureDirectory']);
         $t->same(false, $decoded['upstream']['readerSourceRequired']);
+        $t->same('valid-checked-in-current-epub-reader-referenced-fixture-identity', $decoded['referencedFixtureIdentity']['validation']['status']);
+        $t->same(true, $decoded['referencedFixtureIdentity']['matchesExpected']);
+        $t->same(84040, $decoded['referencedFixtureIdentity']['totalBytes']);
+        $decodedReferencedFixtureIdentity = [];
+        foreach ($decoded['referencedFixtureIdentity']['files'] as $file) {
+            $decodedReferencedFixtureIdentity[$file['path']] = [
+                'sha256' => $file['sha256'],
+                'bytes' => $file['bytes'],
+            ];
+        }
+        $t->same($expectedReferencedFixtureIdentity, $decodedReferencedFixtureIdentity);
+        $t->same(true, EpubUpstreamReaderEvidence::hasRequiredReferencedFixtureIdentity($decoded));
         $t->same($expectedCurrentReaderStaticSignatureSha256, $decoded['currentReaderStaticSignature']['sha256']);
         $t->same(true, $decoded['currentReaderStaticSignature']['hashMatchesExpected']);
         $t->same(true, $decoded['currentReaderStaticSignature']['matchesExpected']);
@@ -316,6 +391,13 @@ HS);
             exec($signatureFailingCommand, $signatureFailingOutput, $signatureFailingExitCode);
 
             $t->same(1, $signatureFailingExitCode);
+
+            $identityFailingCommand = $command . ' --require-referenced-fixture-identity 2>/dev/null';
+            $identityFailingOutput = [];
+            $identityFailingExitCode = 0;
+            exec($identityFailingCommand, $identityFailingOutput, $identityFailingExitCode);
+
+            $t->same(1, $identityFailingExitCode);
         } finally {
             $removeTree($root);
         }

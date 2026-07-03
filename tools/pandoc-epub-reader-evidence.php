@@ -24,6 +24,8 @@ Options:
   --require-test-count N                  Exit 1 unless Tests.Readers.EPUB has exactly N media-bag tests.
   --require-fixture-reference-count N     Exit 1 unless Tests.Readers.EPUB references exactly N EPUB fixtures.
   --require-expected-media-item-count N   Exit 1 unless expected media-bag tuples total exactly N items.
+  --require-referenced-fixture-identity   Exit 1 unless the checked-in current referenced EPUB
+                                          fixture identity snapshot matches.
   --require-static-current-signature      Exit 1 unless the checked-in current static reader
                                           denominator signature matches the expected snapshot.
   --require-runner-not-run                Exit 1 unless upstream runner evidence is structured as not-run.
@@ -49,6 +51,7 @@ try {
     $requiredTestCount = null;
     $requiredFixtureReferenceCount = null;
     $requiredExpectedMediaItemCount = null;
+    $requireReferencedFixtureIdentity = false;
     $requireStaticCurrentSignature = false;
     $requireRunnerNotRun = false;
     $requireRunnerPlan = false;
@@ -88,6 +91,10 @@ try {
         }
         if ($arg === '--require-static-current-signature') {
             $requireStaticCurrentSignature = true;
+            continue;
+        }
+        if ($arg === '--require-referenced-fixture-identity') {
+            $requireReferencedFixtureIdentity = true;
             continue;
         }
         if ($arg === '--checked-in-fixtures') {
@@ -216,6 +223,18 @@ try {
 
     if ($requireNoValidationIssues && !EpubUpstreamReaderEvidence::hasNoValidationIssues($report)) {
         fwrite(STDERR, "pandoc-epub-reader-evidence: upstream EPUB reader denominator validation reported issues\n");
+        exit(1);
+    }
+
+    if (
+        $requireReferencedFixtureIdentity
+        && !EpubUpstreamReaderEvidence::hasRequiredReferencedFixtureIdentity($report)
+    ) {
+        fwrite(
+            STDERR,
+            "pandoc-epub-reader-evidence: checked-in current EPUB reader referenced fixture identity did not match the expected snapshot\n"
+            . "hint: use --checked-in-fixtures to gate the checked-in current reader evidence snapshot\n"
+        );
         exit(1);
     }
 
