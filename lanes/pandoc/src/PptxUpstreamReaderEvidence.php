@@ -13,7 +13,7 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 40;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 41;
 
     private const STATIC_CURRENT_READER_CASES = [
         [
@@ -143,6 +143,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => '9a1dd6f8ddf28f555cd1f128f5e24864284f1a721d2ae3c1e4598ebdcbe9b21b',
             'pptxBytes' => 1519,
             'nativeBytes' => 169,
+        ],
+        'first-text-body' => [
+            'name' => 'generated first text body child parity',
+            'pptx' => 'pptx-reader/first-text-body.pptx',
+            'native' => 'pptx-reader/first-text-body.native',
+            'pairKey' => 'pptx-reader/first-text-body.pptx|pptx-reader/first-text-body.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/first-text-body.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/first-text-body.native',
+            'pptxSha256' => '9632d9605fcc1ee78db83843121f12c297eafeab15d6098932e8738d6dd74624',
+            'nativeSha256' => '98aabf841a37c3c677ef20c7ac0a3987ec55bcc38bde09efcaac83bfc39619e7',
+            'pptxBytes' => 1552,
+            'nativeBytes' => 63,
         ],
         'break-tab-field' => [
             'name' => 'generated break, tab, and field text boundary parity',
@@ -698,6 +710,44 @@ final class PptxUpstreamReaderEvidence
     }
 
     /**
+     * @return list<string>
+     */
+    private static function checkedInStaticFixturePairNames(): array
+    {
+        return array_map(
+            static fn (string $stem): string => $stem . '.pptx/' . $stem . '.native',
+            array_keys(self::CHECKED_IN_CURRENT_FIXTURE_SNAPSHOT)
+        );
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function generatedStaticFixturePairNames(): array
+    {
+        return array_values(array_filter(
+            self::checkedInStaticFixturePairNames(),
+            static fn (string $pair): bool => $pair !== 'basic.pptx/basic.native'
+        ));
+    }
+
+    /**
+     * @param list<string> $pairs
+     */
+    private static function fixturePairNameList(array $pairs): string
+    {
+        $count = count($pairs);
+        if ($count === 0) {
+            return '';
+        }
+        if ($count === 1) {
+            return $pairs[0];
+        }
+
+        return implode(', ', array_slice($pairs, 0, -1)) . ', and ' . $pairs[$count - 1];
+    }
+
+    /**
      * @return array<string, list<string>>
      */
     private static function claimBoundaries(): array
@@ -707,7 +757,7 @@ final class PptxUpstreamReaderEvidence
                 'the count and file paths of upstream PPTX reader golden comparisons in Tests.Readers.Pptx',
                 'that every referenced PPTX/native fixture file exists in the pinned sparse upstream checkout',
                 'that root-level test/pptx-reader PPTX/native fixture pairs and unpaired files are accounted for',
-                'static checked-in current upstream basic.pptx/basic.native plus generated body-before-title.pptx/body-before-title.native, minimal.pptx/minimal.native, missing-relationship-skip.pptx/missing-relationship-skip.native, multi-paragraph-textbox.pptx/multi-paragraph-textbox.native, multiple-paragraph-properties.pptx/multiple-paragraph-properties.native, nested-list.pptx/nested-list.native, no-title-fallback.pptx/no-title-fallback.native, paragraphless-textbox.pptx/paragraphless-textbox.native, empty-paragraph-textbox.pptx/empty-paragraph-textbox.native, break-tab-field.pptx/break-tab-field.native, bullets.pptx/bullets.native, bunone-wingdings.pptx/bunone-wingdings.native, case-sensitive-placeholder-type.pptx/case-sensitive-placeholder-type.native, wingdings-typeface-case.pptx/wingdings-typeface-case.native, center-title-placeholder.pptx/center-title-placeholder.native, chart-placeholder.pptx/chart-placeholder.native, comments-ignored.pptx/comments-ignored.native, content-part-skip.pptx/content-part-skip.native, direct-drawing-paragraphs.pptx/direct-drawing-paragraphs.native, dot-slide-target.pptx/dot-slide-target.native, connector-skip.pptx/connector-skip.native, embedded-image.pptx/embedded-image.native, generated-table.pptx/generated-table.native, table-span-review.pptx/table-span-review.native, grouped-shapes.pptx/grouped-shapes.native, hex-list-level.pptx/hex-list-level.native, hidden-slide.pptx/hidden-slide.native, hyperlink-text.pptx/hyperlink-text.native, inline-formatting.pptx/inline-formatting.native, list-continuation.pptx/list-continuation.native, linked-image-skip.pptx/linked-image-skip.native, two-slides.pptx/two-slides.native, speaker-notes.pptx/speaker-notes.native, numbered-list.pptx/numbered-list.native, percent-encoded-target.pptx/percent-encoded-target.native, rich-media-skip.pptx/rich-media-skip.native, shape-order.pptx/shape-order.native, slide-placeholders.pptx/slide-placeholders.native, and smartart-hierarchy.pptx/smartart-hierarchy.native fixture identities when staticCurrentEvidence is valid',
+                'static checked-in current upstream basic.pptx/basic.native plus generated ' . self::fixturePairNameList(self::generatedStaticFixturePairNames()) . ' fixture identities when staticCurrentEvidence is valid',
                 'that upstream Haskell runner evidence is explicitly not-run',
             ],
             'doesNotAssert' => [
@@ -890,56 +940,21 @@ final class PptxUpstreamReaderEvidence
                 'status' => $issues === [] ? 'valid-checked-in-current-pptx-reader-evidence' : 'invalid-checked-in-current-pptx-reader-evidence',
                 'issues' => array_values(array_unique($issues)),
             ],
-            'claim' => 'Static gate binding the pinned Tests.Readers.Pptx one-case denominator to the checked-in current upstream basic.pptx/basic.native fixture pair, plus thirty-nine generated PPTX/native pairs used only for local normalized-AST parity.',
+            'claim' => 'Static gate binding the pinned Tests.Readers.Pptx one-case denominator to the checked-in current upstream basic.pptx/basic.native fixture pair, plus ' . count(self::generatedStaticFixturePairNames()) . ' generated PPTX/native pairs used only for local normalized-AST parity.',
             'claimBoundaries' => [
                 'doesAssert' => [
                     'Tests.Readers.Pptx at the pinned upstream commit has one golden comparison for pptx-reader/basic.pptx and pptx-reader/basic.native',
-                    'the checked-in current PPTX fixture directory contains forty same-stem PPTX/native pairs and no unpaired PPTX/native files',
-                    'the checked-in basic.pptx/basic.native, body-before-title.pptx/body-before-title.native, minimal.pptx/minimal.native, missing-relationship-skip.pptx/missing-relationship-skip.native, multi-paragraph-textbox.pptx/multi-paragraph-textbox.native, multiple-paragraph-properties.pptx/multiple-paragraph-properties.native, nested-list.pptx/nested-list.native, no-title-fallback.pptx/no-title-fallback.native, paragraphless-textbox.pptx/paragraphless-textbox.native, empty-paragraph-textbox.pptx/empty-paragraph-textbox.native, break-tab-field.pptx/break-tab-field.native, bullets.pptx/bullets.native, bunone-wingdings.pptx/bunone-wingdings.native, case-sensitive-placeholder-type.pptx/case-sensitive-placeholder-type.native, wingdings-typeface-case.pptx/wingdings-typeface-case.native, center-title-placeholder.pptx/center-title-placeholder.native, chart-placeholder.pptx/chart-placeholder.native, comments-ignored.pptx/comments-ignored.native, content-part-skip.pptx/content-part-skip.native, direct-drawing-paragraphs.pptx/direct-drawing-paragraphs.native, dot-slide-target.pptx/dot-slide-target.native, connector-skip.pptx/connector-skip.native, embedded-image.pptx/embedded-image.native, generated-table.pptx/generated-table.native, table-span-review.pptx/table-span-review.native, grouped-shapes.pptx/grouped-shapes.native, hex-list-level.pptx/hex-list-level.native, hidden-slide.pptx/hidden-slide.native, hyperlink-text.pptx/hyperlink-text.native, inline-formatting.pptx/inline-formatting.native, list-continuation.pptx/list-continuation.native, linked-image-skip.pptx/linked-image-skip.native, two-slides.pptx/two-slides.native, speaker-notes.pptx/speaker-notes.native, numbered-list.pptx/numbered-list.native, percent-encoded-target.pptx/percent-encoded-target.native, rich-media-skip.pptx/rich-media-skip.native, shape-order.pptx/shape-order.native, slide-placeholders.pptx/slide-placeholders.native, and smartart-hierarchy.pptx/smartart-hierarchy.native files match the expected SHA-256 hashes and byte counts for this snapshot',
+                    'the checked-in current PPTX fixture directory contains ' . count(self::checkedInStaticFixturePairNames()) . ' same-stem PPTX/native pairs and no unpaired PPTX/native files',
+                    'the checked-in ' . self::fixturePairNameList(self::checkedInStaticFixturePairNames()) . ' files match the expected SHA-256 hashes and byte counts for this snapshot',
                 ],
                 'doesNotAssert' => [
                     'that upstream Haskell/Cabal/Tasty tests were executed',
                     'that a fresh upstream checkout was inspected during this PHP gate',
-                    'that body-before-title.pptx/body-before-title.native is an upstream Tests.Readers.Pptx fixture',
-                    'that minimal.pptx/minimal.native is an upstream Tests.Readers.Pptx fixture',
-                    'that missing-relationship-skip.pptx/missing-relationship-skip.native is an upstream Tests.Readers.Pptx fixture',
-                    'that multi-paragraph-textbox.pptx/multi-paragraph-textbox.native is an upstream Tests.Readers.Pptx fixture',
-                    'that multiple-paragraph-properties.pptx/multiple-paragraph-properties.native is an upstream Tests.Readers.Pptx fixture',
-                    'that nested-list.pptx/nested-list.native is an upstream Tests.Readers.Pptx fixture',
-                    'that no-title-fallback.pptx/no-title-fallback.native is an upstream Tests.Readers.Pptx fixture',
-                    'that paragraphless-textbox.pptx/paragraphless-textbox.native is an upstream Tests.Readers.Pptx fixture',
-                    'that empty-paragraph-textbox.pptx/empty-paragraph-textbox.native is an upstream Tests.Readers.Pptx fixture',
-                    'that break-tab-field.pptx/break-tab-field.native is an upstream Tests.Readers.Pptx fixture',
-                    'that bullets.pptx/bullets.native is an upstream Tests.Readers.Pptx fixture',
-                    'that bunone-wingdings.pptx/bunone-wingdings.native is an upstream Tests.Readers.Pptx fixture',
-                    'that case-sensitive-placeholder-type.pptx/case-sensitive-placeholder-type.native is an upstream Tests.Readers.Pptx fixture',
-                    'that wingdings-typeface-case.pptx/wingdings-typeface-case.native is an upstream Tests.Readers.Pptx fixture',
-                    'that center-title-placeholder.pptx/center-title-placeholder.native is an upstream Tests.Readers.Pptx fixture',
-                    'that chart-placeholder.pptx/chart-placeholder.native is an upstream Tests.Readers.Pptx fixture',
-                    'that comments-ignored.pptx/comments-ignored.native is an upstream Tests.Readers.Pptx fixture',
-                    'that content-part-skip.pptx/content-part-skip.native is an upstream Tests.Readers.Pptx fixture',
-                    'that direct-drawing-paragraphs.pptx/direct-drawing-paragraphs.native is an upstream Tests.Readers.Pptx fixture',
-                    'that dot-slide-target.pptx/dot-slide-target.native is an upstream Tests.Readers.Pptx fixture',
-                    'that connector-skip.pptx/connector-skip.native is an upstream Tests.Readers.Pptx fixture',
-                    'that embedded-image.pptx/embedded-image.native is an upstream Tests.Readers.Pptx fixture',
-                    'that generated-table.pptx/generated-table.native is an upstream Tests.Readers.Pptx fixture',
-                    'that table-span-review.pptx/table-span-review.native is an upstream Tests.Readers.Pptx fixture',
-                    'that grouped-shapes.pptx/grouped-shapes.native is an upstream Tests.Readers.Pptx fixture',
-                    'that hex-list-level.pptx/hex-list-level.native is an upstream Tests.Readers.Pptx fixture',
-                    'that hidden-slide.pptx/hidden-slide.native is an upstream Tests.Readers.Pptx fixture',
-                    'that hyperlink-text.pptx/hyperlink-text.native is an upstream Tests.Readers.Pptx fixture',
-                    'that inline-formatting.pptx/inline-formatting.native is an upstream Tests.Readers.Pptx fixture',
-                    'that list-continuation.pptx/list-continuation.native is an upstream Tests.Readers.Pptx fixture',
-                    'that linked-image-skip.pptx/linked-image-skip.native is an upstream Tests.Readers.Pptx fixture',
-                    'that two-slides.pptx/two-slides.native is an upstream Tests.Readers.Pptx fixture',
-                    'that speaker-notes.pptx/speaker-notes.native is an upstream Tests.Readers.Pptx fixture',
-                    'that numbered-list.pptx/numbered-list.native is an upstream Tests.Readers.Pptx fixture',
-                    'that percent-encoded-target.pptx/percent-encoded-target.native is an upstream Tests.Readers.Pptx fixture',
-                    'that rich-media-skip.pptx/rich-media-skip.native is an upstream Tests.Readers.Pptx fixture',
-                    'that shape-order.pptx/shape-order.native is an upstream Tests.Readers.Pptx fixture',
-                    'that slide-placeholders.pptx/slide-placeholders.native is an upstream Tests.Readers.Pptx fixture',
-                    'that smartart-hierarchy.pptx/smartart-hierarchy.native is an upstream Tests.Readers.Pptx fixture',
-                    'broader PPTX fixture corpus coverage beyond basic.pptx/basic.native, body-before-title.pptx/body-before-title.native, minimal.pptx/minimal.native, missing-relationship-skip.pptx/missing-relationship-skip.native, multi-paragraph-textbox.pptx/multi-paragraph-textbox.native, multiple-paragraph-properties.pptx/multiple-paragraph-properties.native, nested-list.pptx/nested-list.native, no-title-fallback.pptx/no-title-fallback.native, paragraphless-textbox.pptx/paragraphless-textbox.native, empty-paragraph-textbox.pptx/empty-paragraph-textbox.native, break-tab-field.pptx/break-tab-field.native, bullets.pptx/bullets.native, bunone-wingdings.pptx/bunone-wingdings.native, case-sensitive-placeholder-type.pptx/case-sensitive-placeholder-type.native, wingdings-typeface-case.pptx/wingdings-typeface-case.native, center-title-placeholder.pptx/center-title-placeholder.native, chart-placeholder.pptx/chart-placeholder.native, comments-ignored.pptx/comments-ignored.native, content-part-skip.pptx/content-part-skip.native, direct-drawing-paragraphs.pptx/direct-drawing-paragraphs.native, dot-slide-target.pptx/dot-slide-target.native, connector-skip.pptx/connector-skip.native, embedded-image.pptx/embedded-image.native, generated-table.pptx/generated-table.native, table-span-review.pptx/table-span-review.native, grouped-shapes.pptx/grouped-shapes.native, hex-list-level.pptx/hex-list-level.native, hidden-slide.pptx/hidden-slide.native, hyperlink-text.pptx/hyperlink-text.native, inline-formatting.pptx/inline-formatting.native, list-continuation.pptx/list-continuation.native, linked-image-skip.pptx/linked-image-skip.native, two-slides.pptx/two-slides.native, speaker-notes.pptx/speaker-notes.native, numbered-list.pptx/numbered-list.native, percent-encoded-target.pptx/percent-encoded-target.native, rich-media-skip.pptx/rich-media-skip.native, shape-order.pptx/shape-order.native, slide-placeholders.pptx/slide-placeholders.native, and smartart-hierarchy.pptx/smartart-hierarchy.native',
+                    ...array_map(
+                        static fn (string $pair): string => 'that ' . $pair . ' is an upstream Tests.Readers.Pptx fixture',
+                        self::generatedStaticFixturePairNames()
+                    ),
+                    'broader PPTX fixture corpus coverage beyond ' . self::fixturePairNameList(self::checkedInStaticFixturePairNames()),
                     'full PowerPoint feature parity',
                 ],
             ],
