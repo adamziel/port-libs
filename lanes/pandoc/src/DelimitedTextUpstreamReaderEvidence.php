@@ -17,7 +17,7 @@ final class DelimitedTextUpstreamReaderEvidence
     public const EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT = 2;
     public const EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT = 0;
     public const EXPECTED_STATIC_CSV_ADJACENT_RST_FIXTURE_COUNT = 2;
-    public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 11;
+    public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 12;
     public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 8;
 
     private const CHECKED_IN_CURRENT_CSV_FIXTURES = [
@@ -192,6 +192,20 @@ final class DelimitedTextUpstreamReaderEvidence
             'sha256' => 'dcb0f03da9d7ec90de5ce244b3e3002b4f41cc18a9f10314189bcb457823bab6',
             'bytes' => 1617,
         ],
+        'no-header-edge-delimiters.csv' => [
+            'role' => 'generated-csv-native-parity-input-fixture',
+            'sample' => 'no-header-edge-delimiters',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/no-header-edge-delimiters.csv',
+            'sha256' => 'fecf7f0f3ba6bd37411f4c8ebcd36ffedf3a9c8f1e52213fdd044ae4decc0fb1',
+            'bytes' => 49,
+        ],
+        'no-header-edge-delimiters.native' => [
+            'role' => 'generated-csv-native-parity-expected-native-output',
+            'sample' => 'no-header-edge-delimiters',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/no-header-edge-delimiters.native',
+            'sha256' => '43066e049b19a9f9f6a210b3e25981d07a01915ba784dd86d8427fbf109408c9',
+            'bytes' => 1395,
+        ],
     ];
 
     private const CHECKED_IN_GENERATED_TSV_NATIVE_FIXTURES = [
@@ -359,6 +373,13 @@ final class DelimitedTextUpstreamReaderEvidence
         'comment-looking-data' => [
             'inputPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/comment-looking-data.csv',
             'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/comment-looking-data.native',
+        ],
+        'no-header-edge-delimiters' => [
+            'inputPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/no-header-edge-delimiters.csv',
+            'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/no-header-edge-delimiters.native',
+            'options' => [
+                'header' => false,
+            ],
         ],
     ];
 
@@ -1457,7 +1478,7 @@ final class DelimitedTextUpstreamReaderEvidence
 
     private static function claim(): string
     {
-        return 'Tracks the current upstream direct CSV command-reader fixtures, the adjacent RST csv-table fixture pair with zero direct-reader denominator impact, eleven generated CSV-to-native evidence samples, the absence of dedicated TSV command fixtures, and eight generated TSV-to-native evidence samples for the delimited text reader.';
+        return 'Tracks the current upstream direct CSV command-reader fixtures, the adjacent RST csv-table fixture pair with zero direct-reader denominator impact, twelve generated CSV-to-native evidence samples, the absence of dedicated TSV command fixtures, and eight generated TSV-to-native evidence samples for the delimited text reader.';
     }
 
     /**
@@ -1472,7 +1493,7 @@ final class DelimitedTextUpstreamReaderEvidence
                 'that the RST csv-table fixture pair is CSV-adjacent evidence and not part of the direct CSV/TSV reader denominator',
                 'that no dedicated TSV command fixture is available in the pinned direct-reader evidence set',
                 'static checked-in current csv.md and 01.csv fixture identity when staticCurrentEvidence is valid',
-                'eleven generated CSV-to-native local samples when generatedCsvNativeParityEvidence is valid',
+                'twelve generated CSV-to-native local samples when generatedCsvNativeParityEvidence is valid',
                 'eight generated TSV-to-native local samples when generatedTsvNativeParityEvidence is valid',
             ],
             'doesNotAssert' => [
