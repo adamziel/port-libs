@@ -2894,6 +2894,10 @@ final class WordPressBlockWriter
             }
         }
         $sourceFormat = $this->unsupportedWordPressImageSourceFormat((string) $node->attr('url', ''));
+        $attrs .= $this->renderImageDimensionAttrs($dimensionAttrs);
+        if ($sourceFormat !== '' && !isset($sourceAttrs['data-pandoc-source-format'])) {
+            $attrs .= ' data-pandoc-source-format="' . $this->esc($sourceFormat) . '"';
+        }
         foreach ($sourceAttrs as $name => $value) {
             $name = strtolower((string) $name);
             if (
@@ -2904,10 +2908,6 @@ final class WordPressBlockWriter
             }
 
             $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
-        }
-        $attrs .= $this->renderImageDimensionAttrs($dimensionAttrs);
-        if ($sourceFormat !== '' && !isset($sourceAttrs['data-pandoc-source-format'])) {
-            $attrs .= ' data-pandoc-source-format="' . $this->esc($sourceFormat) . '"';
         }
 
         return '<img' . $attrs . '/>';
