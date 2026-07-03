@@ -168,11 +168,24 @@ final class EpubReader
         $metadata['epubTocResources'] = $toc['resources'];
         $metadata['epubTocEntryCount'] = count($toc['entries']);
         $metadata['epubLandmarkEntryCount'] = count($toc['landmarks']);
+        $metadata['epubPageListEntryCount'] = count($toc['pageList']);
+        $metadata['epubAuxiliaryNavigationEntryCount'] = count($toc['auxiliary']);
+        $metadata['epubNavigationSectionCount'] = count($toc['sections']);
+        $metadata['epubNavigationSectionTypes'] = $toc['sectionTypes'];
         if ($toc['entries'] !== []) {
             $metadata['epubTocEntries'] = $toc['entries'];
         }
         if ($toc['landmarks'] !== []) {
             $metadata['epubLandmarkEntries'] = $toc['landmarks'];
+        }
+        if ($toc['pageList'] !== []) {
+            $metadata['epubPageListEntries'] = $toc['pageList'];
+        }
+        if ($toc['auxiliary'] !== []) {
+            $metadata['epubAuxiliaryNavigationEntries'] = $toc['auxiliary'];
+        }
+        if ($toc['sections'] !== []) {
+            $metadata['epubNavigationSections'] = $toc['sections'];
         }
 
         return new AstNode('document', ['meta' => $metadata], $children);
@@ -388,7 +401,7 @@ final class EpubReader
 
     /**
      * @param array<string, array{href: string, media-type: string, properties: list<string>}> $manifest
-     * @return array{resources: list<string>, entries: list<array{text: string, href: string, level: int}>, landmarks: list<array{text: string, href: string, level: int, epubTypes: list<string>}>}
+     * @return array{resources: list<string>, entries: list<array{text: string, href: string, level: int}>, landmarks: list<array{text: string, href: string, level: int, epubTypes: list<string>}>, pageList: list<array{text: string, href: string, level: int}>, auxiliary: list<array{text: string, href: string, level: int, sectionType: string}>, sections: list<array{type: string, types: list<string>, label: string, resource: string, entryCount: int, entries: list<array<string, mixed>>}>, sectionTypes: list<string>}
      */
     private function toc(\ZipArchive $zip, string $base_path, array $manifest, string $spine_toc_id): array
     {
@@ -396,6 +409,10 @@ final class EpubReader
         $nav_entries = [];
         $ncx_entries = [];
         $landmark_entries = [];
+        $page_list_entries = [];
+        $auxiliary_entries = [];
+        $navigation_sections = [];
+        $section_types = [];
         foreach ($manifest as $id => $item) {
             $href = $this->normalizeZipPath($base_path . '/' . $item['href']);
             $media_type = strtolower($item['media-type']);
@@ -413,8 +430,17 @@ final class EpubReader
             $resources[] = $href;
             try {
                 if ($is_nav) {
-                    array_push($nav_entries, ...$this->xhtmlTocEntries($xml, $this->dirname($href)));
-                    array_push($landmark_entries, ...$this->xhtmlLandmarkEntries($xml, $this->dirname($href)));
+                    $sections = $this->xhtmlNavigationSections($xml, $this->dirname($href), $href);
+                    array_push($navigation_sections, ...$sections);
+                    foreach ($sections as $section) {
+                        foreach ($section['types'] as $type) {
+                            $section_types[$type] = true;
+                        }
+                    }
+                    array_push($nav_entries, ...$this->tocEntriesFromNavigationSections($sections));
+                    array_push($landmark_entries, ...$this->navigationSectionEntriesByType($sections, 'landmarks'));
+                    array_push($page_list_entries, ...$this->navigationSectionEntriesByType($sections, 'page-list'));
+                    array_push($auxiliary_entries, ...$this->auxiliaryNavigationSectionEntries($sections));
                 }
                 if ($is_ncx) {
                     array_push($ncx_entries, ...$this->ncxTocEntries($xml, $this->dirname($href)));
@@ -423,63 +449,143 @@ final class EpubReader
                 continue;
             }
         }
+        $section_types = array_keys($section_types);
+        sort($section_types, SORT_STRING);
 
         return [
             'resources' => array_values(array_unique($resources)),
             'entries' => $nav_entries !== [] ? $nav_entries : $ncx_entries,
             'landmarks' => $landmark_entries,
+            'pageList' => $page_list_entries,
+            'auxiliary' => $auxiliary_entries,
+            'sections' => $navigation_sections,
+            'sectionTypes' => $section_types,
         ];
     }
 
     /**
-     * @return list<array{text: string, href: string, level: int}>
+     * @return list<array{type: string, types: list<string>, label: string, resource: string, entryCount: int, entries: list<array<string, mixed>>}>
      */
-    private function xhtmlTocEntries(string $xml, string $base_path): array
+    private function xhtmlNavigationSections(string $xml, string $base_path, string $resource): array
     {
         $dom = $this->loadXml($xml, 'EPUB nav document');
-        $navs = [];
+        $sections = [];
         foreach ($dom->getElementsByTagName('*') as $element) {
             if (!$element instanceof \DOMElement || $element->localName !== 'nav') {
                 continue;
             }
-            $type = strtolower($this->epubTypeAttribute($element));
-            if (preg_match('/(?:^|\s)toc(?:\s|$)/', $type) === 1) {
-                $navs = [$element];
-                break;
-            }
-            $navs[] = $element;
+
+            $types = $this->tokenList($this->epubTypeAttribute($element));
+            $type = $this->navigationSectionPrimaryType($types);
+            $entries = $type === 'landmarks'
+                ? $this->xhtmlLandmarkListEntries($element, $base_path, 1)
+                : $this->xhtmlNavListEntries($element, $base_path, 1);
+            $sections[] = [
+                'type' => $type,
+                'types' => $types,
+                'label' => $this->xhtmlNavigationSectionLabel($element),
+                'resource' => $resource,
+                'entryCount' => count($entries),
+                'entries' => $entries,
+            ];
         }
 
+        return $sections;
+    }
+
+    /**
+     * @param list<array{type: string, types: list<string>, label: string, resource: string, entryCount: int, entries: list<array<string, mixed>>}> $sections
+     * @return list<array{text: string, href: string, level: int}>
+     */
+    private function tocEntriesFromNavigationSections(array $sections): array
+    {
+        $tocSections = array_values(array_filter(
+            $sections,
+            static fn (array $section): bool => in_array('toc', $section['types'], true)
+        ));
+        $source = $tocSections !== [] ? $tocSections : $sections;
         $entries = [];
-        foreach ($navs as $nav) {
-            array_push($entries, ...$this->xhtmlNavListEntries($nav, $base_path, 1));
+        foreach ($source as $section) {
+            foreach ($section['entries'] as $entry) {
+                $entries[] = [
+                    'text' => (string) ($entry['text'] ?? ''),
+                    'href' => (string) ($entry['href'] ?? ''),
+                    'level' => (int) ($entry['level'] ?? 1),
+                ];
+            }
         }
 
         return $entries;
     }
 
     /**
-     * @return list<array{text: string, href: string, level: int, epubTypes: list<string>}>
+     * @param list<array{type: string, types: list<string>, label: string, resource: string, entryCount: int, entries: list<array<string, mixed>>}> $sections
+     * @return list<array<string, mixed>>
      */
-    private function xhtmlLandmarkEntries(string $xml, string $base_path): array
+    private function navigationSectionEntriesByType(array $sections, string $type): array
     {
-        $dom = $this->loadXml($xml, 'EPUB nav document');
-        $navs = [];
-        foreach ($dom->getElementsByTagName('*') as $element) {
-            if (!$element instanceof \DOMElement || $element->localName !== 'nav') {
+        $entries = [];
+        foreach ($sections as $section) {
+            if (!in_array($type, $section['types'], true)) {
                 continue;
             }
-            if ($this->hasToken($this->epubTypeAttribute($element), 'landmarks')) {
-                $navs[] = $element;
-            }
-        }
-
-        $entries = [];
-        foreach ($navs as $nav) {
-            array_push($entries, ...$this->xhtmlLandmarkListEntries($nav, $base_path, 1));
+            array_push($entries, ...$section['entries']);
         }
 
         return $entries;
+    }
+
+    /**
+     * @param list<array{type: string, types: list<string>, label: string, resource: string, entryCount: int, entries: list<array<string, mixed>>}> $sections
+     * @return list<array{text: string, href: string, level: int, sectionType: string}>
+     */
+    private function auxiliaryNavigationSectionEntries(array $sections): array
+    {
+        $entries = [];
+        foreach ($sections as $section) {
+            foreach ($section['types'] as $type) {
+                if (in_array($type, ['toc', 'landmarks', 'page-list'], true)) {
+                    continue;
+                }
+                foreach ($section['entries'] as $entry) {
+                    $entries[] = [
+                        'text' => (string) ($entry['text'] ?? ''),
+                        'href' => (string) ($entry['href'] ?? ''),
+                        'level' => (int) ($entry['level'] ?? 1),
+                        'sectionType' => $type,
+                    ];
+                }
+            }
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param list<string> $types
+     */
+    private function navigationSectionPrimaryType(array $types): string
+    {
+        foreach (['toc', 'landmarks', 'page-list'] as $primary) {
+            if (in_array($primary, $types, true)) {
+                return $primary;
+            }
+        }
+
+        return $types[0] ?? '';
+    }
+
+    private function xhtmlNavigationSectionLabel(\DOMElement $nav): string
+    {
+        foreach ($nav->childNodes as $child) {
+            if (!$child instanceof \DOMElement || !preg_match('/^h[1-6]$/i', $child->localName)) {
+                continue;
+            }
+
+            return trim(preg_replace('/\s+/u', ' ', $child->textContent) ?? $child->textContent);
+        }
+
+        return '';
     }
 
     /**

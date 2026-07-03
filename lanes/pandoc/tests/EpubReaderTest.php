@@ -218,6 +218,46 @@ HTML);
         ], $meta['epubLandmarkEntries']);
         $t->same([], $meta['epubReferencedResources']);
     },
+    'surfaces upstream epub page-list and auxiliary navigation sections as reader metadata' => static function (TestRunner $t): void {
+        $fixtureDir = __DIR__ . '/../fixtures/upstream-current-epub-reader/epub/';
+        $pageListMeta = (new EpubReader())->readEpubFile($fixtureDir . 'page-list-navigation.epub')->attr('meta');
+
+        $t->same(['loi', 'page-list', 'toc'], $pageListMeta['epubNavigationSectionTypes']);
+        $t->same(3, $pageListMeta['epubNavigationSectionCount']);
+        $t->same(1, $pageListMeta['epubPageListEntryCount']);
+        $t->same([
+            ['text' => '1', 'href' => 'EPUB/chapter.xhtml#page-1', 'level' => 1],
+        ], $pageListMeta['epubPageListEntries']);
+        $t->same(1, $pageListMeta['epubAuxiliaryNavigationEntryCount']);
+        $t->same([
+            ['text' => 'Figure 1', 'href' => 'EPUB/chapter.xhtml', 'level' => 1, 'sectionType' => 'loi'],
+        ], $pageListMeta['epubAuxiliaryNavigationEntries']);
+
+        $cases = [
+            'audio-navigation' => [
+                'types' => ['loa', 'toc'],
+                'entry' => ['text' => 'Sample Audio', 'href' => 'EPUB/audio/sample.mp3', 'level' => 1, 'sectionType' => 'loa'],
+            ],
+            'video-navigation' => [
+                'types' => ['lov', 'toc'],
+                'entry' => ['text' => 'Sample Video', 'href' => 'EPUB/video/sample.mp4', 'level' => 1, 'sectionType' => 'lov'],
+            ],
+            'auxiliary-lot-guide-index' => [
+                'types' => ['lot', 'toc'],
+                'entry' => ['text' => 'Index Table', 'href' => 'EPUB/chapter.xhtml#index', 'level' => 1, 'sectionType' => 'lot'],
+            ],
+        ];
+
+        foreach ($cases as $fixture => $expected) {
+            $meta = (new EpubReader())->readEpubFile($fixtureDir . $fixture . '.epub')->attr('meta');
+
+            $t->same($expected['types'], $meta['epubNavigationSectionTypes']);
+            $t->same(2, $meta['epubNavigationSectionCount']);
+            $t->same(0, $meta['epubPageListEntryCount']);
+            $t->same(1, $meta['epubAuxiliaryNavigationEntryCount']);
+            $t->same([$expected['entry']], $meta['epubAuxiliaryNavigationEntries']);
+        }
+    },
     'preserves epub manifest and spine metadata without fetching remote targets' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-');
         if ($path === false) {
