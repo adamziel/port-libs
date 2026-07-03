@@ -19,18 +19,22 @@ $requiredMediaBagParity = null;
 $requiredMediaBagItemCount = null;
 $requireCurrentMediaBagSignatures = false;
 $requireRunnerPlan = false;
+$runnerResultArtifact = null;
+$requireRunnerResultArtifact = false;
 $json = false;
 $summary = false;
 
 foreach (array_slice($argv, 1) as $argument) {
     if ($argument === '--help' || $argument === '-h') {
         fwrite(STDOUT, <<<'TXT'
-Usage: php tools/pandoc-epub-media-bag.php [--upstream-root=PATH|--checked-in-fixtures] [--fixture-base=PATH] [--limit=N] [--json] [--require-media-bag-parity=N] [--require-media-bag-item-count=N] [--require-current-media-bag-signatures] [--require-runner-plan] [summary]
+Usage: php tools/pandoc-epub-media-bag.php [--repo-root=PATH] [--upstream-root=PATH|--checked-in-fixtures] [--fixture-base=PATH] [--limit=N] [--json] [--require-media-bag-parity=N] [--require-media-bag-item-count=N] [--require-current-media-bag-signatures] [--require-runner-plan] [--runner-result-artifact=PATH] [--require-runner-result-artifact] [summary]
 
 Compares local PHP EPUB reader media-bag output with upstream Tests.Readers.EPUB
 expectations by normalized path, MIME type, and byte size when the upstream cache
 is present. Missing cache is reported as skipped with exit 0 unless required
 parity is requested.
+Use --repo-root=PATH to resolve relative fixture, runner artifact, and transcript
+paths. It defaults to the parent of tools/.
 Use --checked-in-fixtures for the checked-in current EPUB reader fixture snapshot
 at lanes/pandoc/fixtures/upstream-current-epub-reader.
 With --require-media-bag-parity=N, exits 1 unless exactly N EPUB fixtures are
@@ -41,6 +45,10 @@ With --require-current-media-bag-signatures, exits 1 unless the checked-in
 current fixture snapshot has the exact per-fixture media-bag signatures.
 With --require-runner-plan, exits 1 unless structured not-run upstream
 Tests.Readers.EPUB media-bag runner command-plan evidence is present.
+With --runner-result-artifact=PATH, validates a captured upstream runner result
+JSON artifact against the pinned Tests.Readers.EPUB media-bag target.
+With --require-runner-result-artifact, exits 1 unless the supplied runner result
+artifact is valid.
 
 TXT);
         exit(0);
@@ -64,6 +72,11 @@ TXT);
     if (str_starts_with($argument, '--upstream-root=')) {
         $upstreamRoot = substr($argument, strlen('--upstream-root='));
         $upstreamRootArgumentWasProvided = true;
+        continue;
+    }
+
+    if (str_starts_with($argument, '--repo-root=')) {
+        $repoRoot = rtrim(substr($argument, strlen('--repo-root=')), DIRECTORY_SEPARATOR);
         continue;
     }
 
@@ -108,7 +121,26 @@ TXT);
         continue;
     }
 
+    if ($argument === '--require-runner-result-artifact') {
+        $requireRunnerResultArtifact = true;
+        continue;
+    }
+
+    if (str_starts_with($argument, '--runner-result-artifact=')) {
+        $runnerResultArtifact = substr($argument, strlen('--runner-result-artifact='));
+        continue;
+    }
+
     fwrite(STDERR, "Unknown argument: {$argument}\n");
+    exit(2);
+}
+
+if ($runnerResultArtifact === '') {
+    fwrite(STDERR, "--runner-result-artifact must not be empty\n");
+    exit(2);
+}
+if ($repoRoot === '') {
+    fwrite(STDERR, "--repo-root must not be empty\n");
     exit(2);
 }
 
@@ -136,6 +168,10 @@ $harness = new EpubMediaBagComparisonHarness();
 $options = ['limit' => $limit];
 if (is_string($fixtureBase) && $fixtureBase !== '') {
     $options['fixtureBase'] = $fixtureBase;
+}
+if (is_string($runnerResultArtifact)) {
+    $options['repoRoot'] = $repoRoot;
+    $options['runnerResultArtifact'] = $runnerResultArtifact;
 }
 $report = $harness->run($upstreamRoot, $options);
 
@@ -213,6 +249,17 @@ if (
     fwrite(
         STDERR,
         "pandoc-epub-media-bag: upstream EPUB media-bag runner command-plan evidence is invalid\n"
+    );
+    exit(1);
+}
+
+if (
+    $requireRunnerResultArtifact
+    && !EpubMediaBagComparisonHarness::hasRunnerResultArtifactEvidence($report)
+) {
+    fwrite(
+        STDERR,
+        "pandoc-epub-media-bag: upstream EPUB media-bag runner result artifact evidence is invalid\n"
     );
     exit(1);
 }

@@ -10,13 +10,16 @@ final class EpubMediaBagComparisonHarness
 
     private const DEFAULT_MAX_EXAMPLES = 12;
     private const VERDICT = 'media-bag-comparison-not-full-epub-parity';
-    private const CLAIM = 'Compares local PHP EPUB reader media-bag directory output with upstream Tests.Readers.EPUB media-bag expectations by normalized media path, MIME type, and byte size; no upstream Haskell runner, AST parity, writer parity, or full EPUB feature parity is asserted.';
+    private const CLAIM = 'Compares local PHP EPUB reader media-bag directory output with upstream Tests.Readers.EPUB media-bag expectations by normalized media path, MIME type, and byte size; this harness does not execute upstream Haskell runners, and no AST parity, writer parity, or full EPUB feature parity is asserted.';
     private const CURRENT_MEDIA_BAG_SIGNATURE_KIND = 'checked-in-current-epub-media-bag-signature';
     private const CURRENT_MEDIA_BAG_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
     private const CURRENT_MEDIA_BAG_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-6-case-media-bag-snapshot';
     private const CHECKED_IN_CURRENT_MEDIA_BAG_SIGNATURE_SHA256 = '48e9d4d6c7478aa213f3d75fc4cd1a2be58e2617d468d30d9027728d0258ce9d';
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/epub-targeted-run';
+    private const RUNNER_RESULT_ARTIFACT_KIND = 'upstream-epub-media-bag-runner-result-artifact';
+    private const RUNNER_TRANSCRIPT_KIND = 'upstream-epub-media-bag-runner-transcript';
+    private const RUNNER_RESULT_ARTIFACT_SCHEMA_VERSION = 2;
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'EPUB', 'EPUB Mediabag'];
     private const RUNNER_TASTY_PATTERN = '$2 == "Readers" && $3 == "EPUB" && $4 == "EPUB Mediabag"';
     private const RUNNER_REQUIRED_TRANSCRIPTS = [
@@ -115,13 +118,22 @@ final class EpubMediaBagComparisonHarness
     ];
 
     /**
-     * @param array{limit?: int, maxExamples?: int, readerCases?: list<array<string, mixed>>, fixtureBase?: string} $options
+     * @param array{limit?: int, maxExamples?: int, readerCases?: list<array<string, mixed>>, fixtureBase?: string, repoRoot?: string, runnerResultArtifact?: string} $options
      * @return array<string, mixed>
      */
     public function run(string $upstreamRoot, array $options = []): array
     {
         $limit = max(0, (int) ($options['limit'] ?? 0));
         $maxExamples = max(0, (int) ($options['maxExamples'] ?? self::DEFAULT_MAX_EXAMPLES));
+        $repoRoot = is_string($options['repoRoot'] ?? null) && $options['repoRoot'] !== ''
+            ? rtrim((string) $options['repoRoot'], DIRECTORY_SEPARATOR)
+            : (getcwd() ?: '');
+        $runnerResultArtifact = is_string($options['runnerResultArtifact'] ?? null)
+            ? (string) $options['runnerResultArtifact']
+            : null;
+        if ($runnerResultArtifact === '') {
+            throw new \InvalidArgumentException('Runner result artifact must not be empty');
+        }
 
         if (!is_dir($upstreamRoot)) {
             return $this->skippedReport($upstreamRoot, 'upstream-cache-missing');
@@ -192,6 +204,10 @@ final class EpubMediaBagComparisonHarness
         $comparedCaseCount = count($readerCases);
         $mismatchCount = $epubParsedCount - $matchCount;
         $parseFailureCount = count($parseFailures);
+        $runnerEvidence = $runnerResultArtifact === null
+            ? self::runnerNotRunEvidence()
+            : $this->runnerResultArtifactEvidence($runnerResultArtifact, $repoRoot, $readerCases);
+        $runnerResultCovered = self::runnerResultArtifactEvidenceIsValid($runnerEvidence);
 
         $currentMediaBagSignature = self::currentMediaBagSignature(
             $signatures,
@@ -216,7 +232,7 @@ final class EpubMediaBagComparisonHarness
             'evidenceKind' => 'epub-upstream-mediabag-comparison',
             'upstreamRoot' => $upstreamRoot,
             'fixtureBase' => $fixtureBase,
-            'runnerEvidence' => self::runnerNotRunEvidence(),
+            'runnerEvidence' => $runnerEvidence,
             'normalizationPolicy' => self::normalizationPolicy(),
             'totalCaseCount' => $totalCaseCount,
             'comparedCaseCount' => $comparedCaseCount,
@@ -237,7 +253,8 @@ final class EpubMediaBagComparisonHarness
                 $comparedCaseCount,
                 $parseFailureCount,
                 $matchCount,
-                $mismatchCount
+                $mismatchCount,
+                $runnerResultCovered
             ),
         ];
     }
@@ -262,7 +279,7 @@ final class EpubMediaBagComparisonHarness
                     'runnerEvidence: status=%s plan=%s executed=%s',
                     (string) ($runner['status'] ?? 'unknown'),
                     (string) ($runner['commandPlanStatus'] ?? 'unknown'),
-                    (($runner['executed'] ?? null) === false) ? 'false' : 'unknown'
+                    self::formatRunnerExecuted($runner['executed'] ?? null)
                 );
             }
             $lines = self::appendOrderedRemainingGaps($lines, $report);
@@ -292,7 +309,7 @@ final class EpubMediaBagComparisonHarness
                 'runnerEvidence: status=%s plan=%s executed=%s',
                 (string) ($runner['status'] ?? 'unknown'),
                 (string) ($runner['commandPlanStatus'] ?? 'unknown'),
-                (($runner['executed'] ?? null) === false) ? 'false' : 'unknown'
+                self::formatRunnerExecuted($runner['executed'] ?? null)
             );
         }
         $signature = is_array($report['currentMediaBagSignature'] ?? null) ? $report['currentMediaBagSignature'] : [];
@@ -440,6 +457,30 @@ final class EpubMediaBagComparisonHarness
     }
 
     /**
+     * @param array<string, mixed> $report
+     */
+    public static function hasRunnerResultArtifactEvidence(array $report): bool
+    {
+        $runner = is_array($report['runnerEvidence'] ?? null) ? $report['runnerEvidence'] : [];
+        $artifact = is_array($runner['resultArtifact'] ?? null) ? $runner['resultArtifact'] : [];
+        $validation = is_array($runner['validation'] ?? null) ? $runner['validation'] : [];
+        $transcripts = is_array($runner['transcripts'] ?? null) ? $runner['transcripts'] : [];
+
+        return self::runnerResultArtifactEvidenceIsValid($runner)
+            && ($runner['scope'] ?? null) === 'upstream-haskell-runner'
+            && ($runner['runner'] ?? null) === 'Cabal/Tasty Pandoc EPUB reader media-bag suite'
+            && is_array($runner['command'] ?? null)
+            && self::canonicalValue($runner['command'] ?? null) === self::canonicalValue(self::runnerFutureCommands()[2])
+            && ($artifact['kind'] ?? null) === self::RUNNER_RESULT_ARTIFACT_KIND
+            && ($artifact['present'] ?? null) === true
+            && is_string($artifact['sha256'] ?? null)
+            && is_int($artifact['bytes'] ?? null)
+            && ($validation['status'] ?? null) === 'valid-upstream-epub-media-bag-runner-result-artifact'
+            && ($validation['issues'] ?? null) === []
+            && self::hasValidRunnerTranscriptEvidence($transcripts);
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function skippedReport(string $upstreamRoot, string $reason): array
@@ -471,7 +512,7 @@ final class EpubMediaBagComparisonHarness
             'mismatchComparisons' => [],
             'currentMediaBagSignature' => self::notEvaluatedCurrentMediaBagSignature($reason),
             'mediaBagSignatures' => [],
-            'orderedRemainingGaps' => self::orderedRemainingGaps(false, 0, 0, 0, 0),
+            'orderedRemainingGaps' => self::orderedRemainingGaps(false, 0, 0, 0, 0, false),
         ];
     }
 
@@ -801,6 +842,159 @@ final class EpubMediaBagComparisonHarness
     }
 
     /**
+     * @param list<array<string, mixed>> $readerCases
+     * @return array<string, mixed>
+     */
+    private function runnerResultArtifactEvidence(string $runnerResultArtifact, string $repoRoot, array $readerCases): array
+    {
+        $path = self::absoluteRunnerResultArtifact($runnerResultArtifact, $repoRoot);
+        $artifact = self::runnerResultArtifactFileEvidence($path, $repoRoot);
+        $transcripts = self::runnerTranscriptFileEvidenceList($repoRoot);
+        $issues = [];
+        $payload = [];
+
+        if (($artifact['present'] ?? false) !== true) {
+            $issues[] = 'missing-runner-result-artifact';
+        } else {
+            try {
+                $decoded = json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
+                if (!is_array($decoded)) {
+                    $issues[] = 'invalid-runner-result-artifact-json';
+                } else {
+                    $payload = $decoded;
+                }
+            } catch (\JsonException) {
+                $issues[] = 'invalid-runner-result-artifact-json';
+            }
+        }
+
+        $upstream = is_array($payload['upstream'] ?? null) ? $payload['upstream'] : [];
+        $target = is_array($payload['target'] ?? null) ? $payload['target'] : [];
+        $command = is_array($payload['command'] ?? null) ? $payload['command'] : null;
+        $expectedCommand = self::runnerFutureCommands()[2];
+        $expectedTestNames = self::runnerExpectedTestNames($readerCases);
+        $observedTestNames = self::stringList($payload['testNames'] ?? ($payload['listedTests'] ?? []));
+        $observedTranscriptPaths = self::stringList($payload['transcriptPaths'] ?? []);
+        $observedTranscriptRecords = self::runnerTranscriptRecords($payload['transcripts'] ?? []);
+        if ($observedTranscriptPaths === [] && $observedTranscriptRecords !== []) {
+            $observedTranscriptPaths = self::runnerTranscriptRecordPaths($observedTranscriptRecords);
+        }
+        $runnerExecuted = ($payload['runnerExecuted'] ?? $payload['executed'] ?? null) === true;
+        $exitCode = is_int($payload['exitCode'] ?? null) ? (int) $payload['exitCode'] : null;
+        $testCount = is_int($payload['testCount'] ?? null) ? (int) $payload['testCount'] : null;
+        $passedCount = is_int($payload['passedCount'] ?? null) ? (int) $payload['passedCount'] : null;
+        $failedCount = is_int($payload['failedCount'] ?? null) ? (int) $payload['failedCount'] : null;
+        $skippedCount = is_int($payload['skippedCount'] ?? null) ? (int) $payload['skippedCount'] : null;
+
+        if ($payload !== []) {
+            if (($payload['schemaVersion'] ?? null) !== self::RUNNER_RESULT_ARTIFACT_SCHEMA_VERSION) {
+                $issues[] = 'runner-result-schema-version-mismatch';
+            }
+            if (($payload['runner'] ?? null) !== 'Cabal/Tasty Pandoc EPUB reader media-bag suite') {
+                $issues[] = 'runner-result-runner-name-mismatch';
+            }
+            if (!$runnerExecuted) {
+                $issues[] = 'runner-result-executed-flag-missing-or-false';
+            }
+            if (($upstream['name'] ?? null) !== 'jgm/pandoc' || ($upstream['commit'] ?? null) !== self::EXPECTED_UPSTREAM_COMMIT) {
+                $issues[] = 'runner-result-upstream-commit-mismatch';
+            }
+            if (
+                ($target['testSuite'] ?? null) !== self::RUNNER_TEST_SUITE
+                || ($target['tastyGroupPath'] ?? null) !== self::RUNNER_TASTY_GROUP_PATH
+                || ($target['tastyPattern'] ?? null) !== self::RUNNER_TASTY_PATTERN
+            ) {
+                $issues[] = 'runner-result-target-mismatch';
+            }
+            if (self::canonicalValue($command) !== self::canonicalValue($expectedCommand)) {
+                $issues[] = 'runner-result-command-mismatch';
+            }
+            if ($exitCode !== 0) {
+                $issues[] = 'runner-result-exit-code-nonzero';
+            }
+            if (
+                $testCount !== count($expectedTestNames)
+                || $passedCount !== count($expectedTestNames)
+                || $failedCount !== 0
+                || $skippedCount !== 0
+            ) {
+                $issues[] = 'runner-result-counts-mismatch';
+            }
+            if ($observedTestNames !== $expectedTestNames) {
+                $issues[] = 'runner-result-test-names-mismatch';
+            }
+            if ($observedTranscriptPaths !== self::RUNNER_REQUIRED_TRANSCRIPTS) {
+                $issues[] = 'runner-result-transcript-paths-mismatch';
+            }
+            foreach (self::runnerTranscriptValidationIssues($observedTranscriptRecords, $transcripts) as $issue) {
+                $issues[] = $issue;
+            }
+        }
+
+        $issues = array_values(array_unique($issues));
+
+        return [
+            'runner' => 'Cabal/Tasty Pandoc EPUB reader media-bag suite',
+            'scope' => 'upstream-haskell-runner',
+            'status' => $issues === [] ? 'completed' : 'invalid',
+            'executed' => $runnerExecuted,
+            'command' => $command,
+            'result' => null,
+            'resultArtifact' => $artifact,
+            'commandPlanStatus' => $issues === [] ? 'runner-result-artifact-validated' : 'runner-result-artifact-invalid',
+            'upstreamBinding' => [
+                'name' => 'jgm/pandoc',
+                'expectedCommit' => self::EXPECTED_UPSTREAM_COMMIT,
+                'observedCommit' => is_string($upstream['commit'] ?? null) ? $upstream['commit'] : null,
+                'entryPoint' => 'test/test-pandoc.hs',
+                'readerTestModule' => 'test/Tests/Readers/EPUB.hs',
+            ],
+            'target' => [
+                'testSuite' => is_string($target['testSuite'] ?? null) ? $target['testSuite'] : null,
+                'tastyGroupPath' => is_array($target['tastyGroupPath'] ?? null) ? $target['tastyGroupPath'] : null,
+                'tastyPattern' => is_string($target['tastyPattern'] ?? null) ? $target['tastyPattern'] : null,
+            ],
+            'expected' => [
+                'schemaVersion' => self::RUNNER_RESULT_ARTIFACT_SCHEMA_VERSION,
+                'runner' => 'Cabal/Tasty Pandoc EPUB reader media-bag suite',
+                'testCount' => count($expectedTestNames),
+                'passedCount' => count($expectedTestNames),
+                'failedCount' => 0,
+                'skippedCount' => 0,
+                'testNames' => $expectedTestNames,
+                'transcriptPaths' => self::RUNNER_REQUIRED_TRANSCRIPTS,
+                'transcripts' => self::runnerTranscriptRecordsFromEvidence($transcripts),
+                'command' => $expectedCommand,
+            ],
+            'observed' => [
+                'schemaVersion' => $payload['schemaVersion'] ?? null,
+                'runner' => $payload['runner'] ?? null,
+                'exitCode' => $exitCode,
+                'testCount' => $testCount,
+                'passedCount' => $passedCount,
+                'failedCount' => $failedCount,
+                'skippedCount' => $skippedCount,
+                'testNames' => $observedTestNames,
+                'transcriptPaths' => $observedTranscriptPaths,
+                'transcripts' => $observedTranscriptRecords,
+            ],
+            'futureCommands' => self::runnerFutureCommands(),
+            'requiredTranscripts' => self::RUNNER_REQUIRED_TRANSCRIPTS,
+            'requiredArtifacts' => self::RUNNER_REQUIRED_ARTIFACTS,
+            'transcripts' => $transcripts,
+            'validation' => [
+                'status' => $issues === []
+                    ? 'valid-upstream-epub-media-bag-runner-result-artifact'
+                    : 'invalid-upstream-epub-media-bag-runner-result-artifact',
+                'issues' => $issues,
+            ],
+            'claim' => $issues === []
+                ? 'A supplied upstream EPUB media-bag runner result artifact matches the pinned targeted Tasty runner evidence contract.'
+                : 'The supplied upstream EPUB media-bag runner result artifact did not satisfy the pinned targeted Tasty runner evidence contract.',
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private static function runnerNotRunEvidence(): array
@@ -889,6 +1083,268 @@ final class EpubMediaBagComparisonHarness
         ];
     }
 
+    /**
+     * @return array{kind: string, path: string, present: bool, sha256: ?string, bytes: ?int}
+     */
+    private static function runnerResultArtifactFileEvidence(string $path, string $repoRoot): array
+    {
+        $present = is_file($path);
+        $sha256 = $present ? hash_file('sha256', $path) : null;
+        $bytes = $present ? filesize($path) : null;
+
+        return [
+            'kind' => self::RUNNER_RESULT_ARTIFACT_KIND,
+            'path' => self::displayRunnerPath($path, $repoRoot),
+            'present' => $present,
+            'sha256' => is_string($sha256) ? $sha256 : null,
+            'bytes' => is_int($bytes) ? $bytes : null,
+        ];
+    }
+
+    /**
+     * @return list<array{kind: string, path: string, present: bool, sha256: ?string, bytes: ?int}>
+     */
+    private static function runnerTranscriptFileEvidenceList(string $repoRoot): array
+    {
+        $files = [];
+        foreach (self::RUNNER_REQUIRED_TRANSCRIPTS as $path) {
+            $files[] = self::runnerTranscriptFileEvidence($repoRoot, $path);
+        }
+
+        return $files;
+    }
+
+    /**
+     * @return array{kind: string, path: string, present: bool, sha256: ?string, bytes: ?int}
+     */
+    private static function runnerTranscriptFileEvidence(string $repoRoot, string $relativePath): array
+    {
+        $path = self::absoluteRunnerTranscriptPath($repoRoot, $relativePath);
+        $present = is_file($path);
+        $sha256 = $present ? hash_file('sha256', $path) : null;
+        $bytes = $present ? filesize($path) : null;
+
+        return [
+            'kind' => self::RUNNER_TRANSCRIPT_KIND,
+            'path' => self::displayRunnerPath($path, $repoRoot),
+            'present' => $present,
+            'sha256' => is_string($sha256) ? $sha256 : null,
+            'bytes' => is_int($bytes) ? $bytes : null,
+        ];
+    }
+
+    private static function absoluteRunnerTranscriptPath(string $repoRoot, string $path): string
+    {
+        if (str_starts_with($path, DIRECTORY_SEPARATOR)) {
+            return $path;
+        }
+
+        return rtrim($repoRoot, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $path);
+    }
+
+    private static function absoluteRunnerResultArtifact(string $path, string $repoRoot): string
+    {
+        if (str_starts_with($path, DIRECTORY_SEPARATOR)) {
+            return $path;
+        }
+
+        return rtrim($repoRoot, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . trim($path, DIRECTORY_SEPARATOR);
+    }
+
+    private static function displayRunnerPath(string $path, string $repoRoot): string
+    {
+        $root = rtrim($repoRoot, DIRECTORY_SEPARATOR);
+        if ($root !== '' && str_starts_with($path, $root . DIRECTORY_SEPARATOR)) {
+            return substr($path, strlen($root) + 1);
+        }
+
+        return $path;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $readerCases
+     * @return list<string>
+     */
+    private static function runnerExpectedTestNames(array $readerCases): array
+    {
+        $names = [];
+        foreach ($readerCases as $case) {
+            if (is_string($case['name'] ?? null)) {
+                $names[] = $case['name'];
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function stringList(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $strings = [];
+        foreach ($value as $item) {
+            if (is_string($item)) {
+                $strings[] = $item;
+            }
+        }
+
+        return $strings;
+    }
+
+    /**
+     * @return list<array{path: string, sha256: ?string, bytes: ?int}>
+     */
+    private static function runnerTranscriptRecords(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $records = [];
+        foreach ($value as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $records[] = [
+                'path' => is_string($item['path'] ?? null) ? $item['path'] : '',
+                'sha256' => is_string($item['sha256'] ?? null) ? $item['sha256'] : null,
+                'bytes' => is_int($item['bytes'] ?? null) ? $item['bytes'] : null,
+            ];
+        }
+
+        return $records;
+    }
+
+    /**
+     * @param list<array{path: string, sha256: ?string, bytes: ?int}> $records
+     * @return list<string>
+     */
+    private static function runnerTranscriptRecordPaths(array $records): array
+    {
+        return array_map(
+            static fn (array $record): string => $record['path'],
+            $records
+        );
+    }
+
+    /**
+     * @param list<array{kind: string, path: string, present: bool, sha256: ?string, bytes: ?int}> $files
+     * @return list<array{path: string, sha256: ?string, bytes: ?int}>
+     */
+    private static function runnerTranscriptRecordsFromEvidence(array $files): array
+    {
+        $records = [];
+        foreach ($files as $file) {
+            $records[] = [
+                'path' => $file['path'],
+                'sha256' => $file['sha256'],
+                'bytes' => $file['bytes'],
+            ];
+        }
+
+        return $records;
+    }
+
+    /**
+     * @param list<array{path: string, sha256: ?string, bytes: ?int}> $observedRecords
+     * @param list<array{kind: string, path: string, present: bool, sha256: ?string, bytes: ?int}> $files
+     * @return list<string>
+     */
+    private static function runnerTranscriptValidationIssues(array $observedRecords, array $files): array
+    {
+        $issues = [];
+        if ($observedRecords === []) {
+            $issues[] = 'runner-result-transcript-records-missing';
+        }
+        if (self::runnerTranscriptRecordPaths($observedRecords) !== self::RUNNER_REQUIRED_TRANSCRIPTS) {
+            $issues[] = 'runner-result-transcript-record-paths-mismatch';
+        }
+
+        $recordsByPath = [];
+        foreach ($observedRecords as $record) {
+            if (isset($recordsByPath[$record['path']])) {
+                $issues[] = 'runner-result-transcript-record-paths-not-unique';
+                continue;
+            }
+            $recordsByPath[$record['path']] = $record;
+        }
+
+        $filesByPath = [];
+        foreach ($files as $file) {
+            $filesByPath[$file['path']] = $file;
+        }
+
+        foreach (self::RUNNER_REQUIRED_TRANSCRIPTS as $path) {
+            $file = $filesByPath[$path] ?? null;
+            if (!is_array($file) || ($file['present'] ?? null) !== true) {
+                $issues[] = 'runner-result-transcript-file-missing';
+                continue;
+            }
+
+            $record = $recordsByPath[$path] ?? null;
+            if (!is_array($record)) {
+                $issues[] = 'runner-result-transcript-record-missing';
+                continue;
+            }
+            if (($record['sha256'] ?? null) !== $file['sha256']) {
+                $issues[] = 'runner-result-transcript-sha256-mismatch';
+            }
+            if (($record['bytes'] ?? null) !== $file['bytes']) {
+                $issues[] = 'runner-result-transcript-bytes-mismatch';
+            }
+        }
+
+        return array_values(array_unique($issues));
+    }
+
+    /**
+     * @param list<mixed> $transcripts
+     */
+    private static function hasValidRunnerTranscriptEvidence(array $transcripts): bool
+    {
+        if (count($transcripts) !== count(self::RUNNER_REQUIRED_TRANSCRIPTS)) {
+            return false;
+        }
+
+        foreach (self::RUNNER_REQUIRED_TRANSCRIPTS as $index => $path) {
+            $transcript = $transcripts[$index] ?? null;
+            if (!is_array($transcript)) {
+                return false;
+            }
+            if (($transcript['kind'] ?? null) !== self::RUNNER_TRANSCRIPT_KIND) {
+                return false;
+            }
+            if (($transcript['path'] ?? null) !== $path) {
+                return false;
+            }
+            if (($transcript['present'] ?? null) !== true) {
+                return false;
+            }
+            if (!is_string($transcript['sha256'] ?? null) || !is_int($transcript['bytes'] ?? null)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static function runnerResultArtifactEvidenceIsValid(array $runner): bool
+    {
+        $validation = is_array($runner['validation'] ?? null) ? $runner['validation'] : [];
+
+        return ($runner['status'] ?? null) === 'completed'
+            && ($runner['executed'] ?? null) === true
+            && ($runner['commandPlanStatus'] ?? null) === 'runner-result-artifact-validated'
+            && ($validation['status'] ?? null) === 'valid-upstream-epub-media-bag-runner-result-artifact'
+            && ($validation['issues'] ?? null) === [];
+    }
+
     private static function mediaBagParityStatus(int $parseFailureCount, int $mismatchCount, int $comparedCaseCount): string
     {
         if ($comparedCaseCount === 0) {
@@ -907,7 +1363,14 @@ final class EpubMediaBagComparisonHarness
     /**
      * @return list<array{id: string, status: string, summary: string}>
      */
-    private static function orderedRemainingGaps(bool $evaluated, int $comparedCount, int $parseFailureCount, int $matchCount, int $mismatchCount): array
+    private static function orderedRemainingGaps(
+        bool $evaluated,
+        int $comparedCount,
+        int $parseFailureCount,
+        int $matchCount,
+        int $mismatchCount,
+        bool $runnerResultCovered = false
+    ): array
     {
         $equalityStatus = 'not-evaluated';
         if ($evaluated) {
@@ -924,7 +1387,7 @@ final class EpubMediaBagComparisonHarness
             ],
             [
                 'id' => 'upstream-epub-reader-runner-results',
-                'status' => 'open',
+                'status' => $runnerResultCovered ? 'covered-by-validated-runner-result-artifact' : 'open',
                 'summary' => 'Run the upstream Haskell/Tasty EPUB reader tests directly and archive the runner result.',
             ],
             [
@@ -962,6 +1425,18 @@ final class EpubMediaBagComparisonHarness
         }
 
         return $lines;
+    }
+
+    private static function formatRunnerExecuted(mixed $executed): string
+    {
+        if ($executed === true) {
+            return 'true';
+        }
+        if ($executed === false) {
+            return 'false';
+        }
+
+        return 'unknown';
     }
 
     private static function percent(int $numerator, int $denominator): ?float
