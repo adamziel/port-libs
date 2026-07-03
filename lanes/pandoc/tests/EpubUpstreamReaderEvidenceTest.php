@@ -221,6 +221,7 @@ return [
             'epub/manifest-fallback-chain.epub',
             'epub/media-overlay-package.epub',
             'epub/missing-local-manifest-resource.epub',
+            'epub/missing-media-overlay.epub',
             'epub/nav-ncx-linear-guide.epub',
             'epub/page-list-navigation.epub',
             'epub/remote-manifest-resource.epub',
