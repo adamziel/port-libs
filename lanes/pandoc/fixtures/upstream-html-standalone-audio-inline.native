@@ -1,0 +1,2 @@
+[ Para [ RawInline (Format "html") "<audio controls=\"\" src=\"/wp-content/uploads/imported-sermon.mp3\">" , RawInline (Format "html") "<source src=\"/wp-content/uploads/imported-sermon.ogg\" type=\"audio/ogg\">" , RawInline (Format "html") "<track kind=\"captions\" src=\"/wp-content/uploads/imported-sermon.vtt\" srclang=\"en\" label=\"English captions\">" , Str "Audio" , Space , Str "fallback" , RawInline (Format "html") "</audio>" , Space , Str "remains" , Space , Str "playable" , Space , Str "after" , Space , Str "import." ]
+]
