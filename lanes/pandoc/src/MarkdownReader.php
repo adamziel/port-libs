@@ -197,8 +197,9 @@ final class MarkdownReader
                 $blocks[] = $literateHaskellCodeBlock;
                 continue;
             }
-            $blockQuote = $paragraph === [] && $listStack === [] ? $this->tryReadBlockQuote($lines, $index) : null;
+            $blockQuote = $listStack === [] ? $this->tryReadBlockQuote($lines, $index) : null;
             if ($blockQuote !== null) {
+                $this->flushParagraph($paragraph, $blocks);
                 $blocks[] = $blockQuote;
                 continue;
             }
