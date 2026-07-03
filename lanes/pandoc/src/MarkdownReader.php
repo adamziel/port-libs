@@ -13106,6 +13106,14 @@ final class MarkdownReader
                 continue;
             }
 
+            $span = $this->bracketedSpanExtensionEnabled() ? $this->tryParseBracketedSpan($text, $offset) : null;
+            if ($span !== null) {
+                $this->flushText($buffer, $nodes);
+                $nodes[] = $span['node'];
+                $offset = $span['next'];
+                continue;
+            }
+
             $citation = $allowLinks && $this->citationExtensionEnabled()
                 ? $this->tryParseCitation($text, $offset, $allowBareCitations)
                 : null;
@@ -13137,14 +13145,6 @@ final class MarkdownReader
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $inlineLink['node'];
                 $offset = $inlineLink['next'];
-                continue;
-            }
-
-            $span = $this->bracketedSpanExtensionEnabled() ? $this->tryParseBracketedSpan($text, $offset) : null;
-            if ($span !== null) {
-                $this->flushText($buffer, $nodes);
-                $nodes[] = $span['node'];
-                $offset = $span['next'];
                 continue;
             }
 
