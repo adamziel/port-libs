@@ -293,6 +293,7 @@ return [
             $t->same(1, $summary['externalManifestItemCount']);
             $t->same(0, $summary['missingLocalManifestItemCount']);
             $t->same(1, $summary['readingOrderCount']);
+            $t->same(['linear' => 1], $summary['spineLinearStateCounts']);
             $t->same('nav', $summary['navigationType']);
             $t->same(1, $summary['navigationEntryCount']);
             $t->same(4, $summary['navigationSectionCount']);
@@ -303,6 +304,7 @@ return [
             $t->same(1, $coverage['fixtureCount']);
             $t->same(['en' => 1], $coverage['metadataLanguageCounts']);
             $t->same(['nav' => 1], $coverage['navigationTypeCounts']);
+            $t->same(['linear' => 1], $coverage['spineLinearStateCounts']);
             $t->same([
                 'application/json' => 1,
                 'application/xhtml+xml' => 2,
@@ -349,6 +351,7 @@ return [
             $t->same(['generated-navigation'], $coverage['fixturesWithExternalManifestItems']);
             $t->same([], $coverage['fixturesWithMissingLocalManifestItems']);
             $t->same([], $coverage['fixturesWithManifestFallbacks']);
+            $t->same([], $coverage['fixturesWithNonLinearSpineItems']);
             $t->same([
                 'metadataCreators' => 1,
                 'manifestItems' => 4,
@@ -393,6 +396,7 @@ return [
             $t->same(1, $decoded['normalizedAstMatchCount']);
             $t->same(0, $decoded['normalizedAstMismatchCount']);
             $t->same(['nav' => 1], $decoded['packageFeatureCoverage']['navigationTypeCounts']);
+            $t->same(['linear' => 1], $decoded['packageFeatureCoverage']['spineLinearStateCounts']);
             $t->same(['nav' => 1, 'remote-resources' => 1], $decoded['packageFeatureCoverage']['manifestPropertyCounts']);
             $t->same([
                 'asset' => 1,
@@ -632,6 +636,10 @@ return [
                 'nav' => 20,
                 'ncx' => 3,
             ],
+            'spineLinearStateCounts' => [
+                'linear' => 34,
+                'non-linear' => 7,
+            ],
             'manifestMediaTypeCounts' => [
                 'application/javascript' => 1,
                 'application/json' => 1,
@@ -761,6 +769,15 @@ return [
             'fixturesWithManifestFallbacks' => [
                 'manifest-fallback-chain',
             ],
+            'fixturesWithNonLinearSpineItems' => [
+                'epub2_cover',
+                'epub2_picture',
+                'features',
+                'formatting',
+                'img',
+                'img_no_cover',
+                'nav-ncx-linear-guide',
+            ],
             'totals' => [
                 'metadataCreators' => 28,
                 'manifestItems' => 97,
@@ -784,7 +801,7 @@ return [
                 'missingManifestFallbacks' => 2,
             ],
         ];
-        $expectedPackageFeatureSignatureSha256 = 'd3d2b16313c2acd5614b3c2e85cdfc5c9e084ce4d92250a068f70d068c92afaa';
+        $expectedPackageFeatureSignatureSha256 = '4983df89c3b99a3a49ac596cefed2c012e4d037857757ad75eeac2026a6d20e2';
         $expectedCurrentNativeAstSignatureSha256 = '7814ec1439b23843170aa562792e9e27020cb1dbfbc8664a7c020b5d2ddc5e38';
         $expectedCurrentNativeAstFixtures = [
             'auxiliary-lot-guide-index',
@@ -1233,6 +1250,7 @@ return [
         $t->contains('normalizedAst: matches=24 (100.00%) mismatches=0', $text);
         $t->contains('fixtureIdentity: status=valid-checked-in-current-epub-fixture-identity expected=48 observed=48', $text);
         $t->contains('packageFeatureCoverage: fixtures=24 nav=20 ncx=3 covers=4 landmarks=6 pageLists=1 auxiliaryNav=2 metadataCreators=28 manifestItems=97', $text);
+        $t->contains('spineLinear=linear:34,non-linear:7 nonLinearSpineFixtures=7', $text);
         $t->contains('packageFeatureSignature: status=valid-checked-in-current-epub-package-feature-signature matchesExpected=true sha256=' . $expectedPackageFeatureSignatureSha256, $text);
         $t->contains('currentNativeAstSignature: status=valid-checked-in-current-epub-normalized-native-ast-signature matchesExpected=true fixtures=24 sha256=' . $expectedCurrentNativeAstSignatureSha256, $text);
         $t->contains('runnerEvidence: status=not-run plan=planned-not-run executed=false', $text);
@@ -1327,6 +1345,7 @@ return [
         $t->same(true, EpubNativeAstPackageComparisonHarness::hasRunnerPlanEvidence($defaultFixtureIdentityDecoded));
         $t->same('exe:pandoc', $defaultFixtureIdentityDecoded['runnerEvidence']['target']['cabalTarget']);
         $t->same(['nav' => 20, 'ncx' => 3], $defaultFixtureIdentityDecoded['packageFeatureCoverage']['navigationTypeCounts']);
+        $t->same(['linear' => 34, 'non-linear' => 7], $defaultFixtureIdentityDecoded['packageFeatureCoverage']['spineLinearStateCounts']);
         $t->same($expectedPackageFeatureCoverage['fixturesWithCreators'], $defaultFixtureIdentityDecoded['packageFeatureCoverage']['fixturesWithCreators']);
         $t->same(28, $defaultFixtureIdentityDecoded['packageFeatureCoverage']['totals']['metadataCreators']);
         $t->same(['cover-image' => 2, 'mathml' => 2, 'nav' => 20, 'remote-resources' => 1, 'rendition:layout-pre-paginated' => 1, 'scripted' => 2, 'svg' => 2, 'switch' => 1], $defaultFixtureIdentityDecoded['packageFeatureCoverage']['manifestPropertyCounts']);

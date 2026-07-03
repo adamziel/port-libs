@@ -14,7 +14,7 @@ final class EpubNativeAstPackageComparisonHarness
     private const PACKAGE_FEATURE_SIGNATURE_KIND = 'checked-in-current-epub-package-feature-signature';
     private const PACKAGE_FEATURE_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
     private const PACKAGE_FEATURE_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-24-fixture-snapshot';
-    private const CHECKED_IN_CURRENT_PACKAGE_FEATURE_SIGNATURE_SHA256 = 'd3d2b16313c2acd5614b3c2e85cdfc5c9e084ce4d92250a068f70d068c92afaa';
+    private const CHECKED_IN_CURRENT_PACKAGE_FEATURE_SIGNATURE_SHA256 = '4983df89c3b99a3a49ac596cefed2c012e4d037857757ad75eeac2026a6d20e2';
     private const CURRENT_NATIVE_AST_SIGNATURE_KIND = 'checked-in-current-epub-normalized-native-ast-signature';
     private const CURRENT_NATIVE_AST_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
     private const CURRENT_NATIVE_AST_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-24-fixture-normalized-ast-snapshot';
@@ -273,6 +273,10 @@ final class EpubNativeAstPackageComparisonHarness
         'navigationTypeCounts' => [
             'nav' => 20,
             'ncx' => 3,
+        ],
+        'spineLinearStateCounts' => [
+            'linear' => 34,
+            'non-linear' => 7,
         ],
         'manifestMediaTypeCounts' => [
             'application/javascript' => 1,
@@ -696,6 +700,15 @@ final class EpubNativeAstPackageComparisonHarness
         'fixturesWithManifestFallbacks' => [
             'manifest-fallback-chain',
         ],
+        'fixturesWithNonLinearSpineItems' => [
+            'epub2_cover',
+            'epub2_picture',
+            'features',
+            'formatting',
+            'img',
+            'img_no_cover',
+            'nav-ncx-linear-guide',
+        ],
         'totals' => [
             'metadataCreators' => 28,
             'manifestItems' => 97,
@@ -1022,6 +1035,9 @@ final class EpubNativeAstPackageComparisonHarness
             $auxiliaryNavigationFixtures = is_array($featureCoverage['fixturesWithAuxiliaryNavigation'] ?? null)
                 ? $featureCoverage['fixturesWithAuxiliaryNavigation']
                 : [];
+            $nonLinearSpineFixtures = is_array($featureCoverage['fixturesWithNonLinearSpineItems'] ?? null)
+                ? $featureCoverage['fixturesWithNonLinearSpineItems']
+                : [];
             $guideReferenceTypeCounts = is_array($featureCoverage['guideReferenceTypeCounts'] ?? null)
                 ? $featureCoverage['guideReferenceTypeCounts']
                 : [];
@@ -1029,7 +1045,7 @@ final class EpubNativeAstPackageComparisonHarness
                 ? $featureCoverage['packageLinkRelCounts']
                 : [];
             $lines[] = sprintf(
-                'packageFeatureCoverage: fixtures=%d nav=%d ncx=%d covers=%d landmarks=%d pageLists=%d auxiliaryNav=%d metadataCreators=%d manifestItems=%d readingOrderItems=%d imageAssets=%d stylesheetAssets=%d resourceKinds=%s guideRefTypes=%s packageLinkRels=%s remoteManifest=%d externalManifest=%d missingLocalManifest=%d manifestFallbacks=%d',
+                'packageFeatureCoverage: fixtures=%d nav=%d ncx=%d covers=%d landmarks=%d pageLists=%d auxiliaryNav=%d metadataCreators=%d manifestItems=%d readingOrderItems=%d spineLinear=%s nonLinearSpineFixtures=%d imageAssets=%d stylesheetAssets=%d resourceKinds=%s guideRefTypes=%s packageLinkRels=%s remoteManifest=%d externalManifest=%d missingLocalManifest=%d manifestFallbacks=%d',
                 (int) ($featureCoverage['fixtureCount'] ?? 0),
                 (int) ($navigationTypeCounts['nav'] ?? 0),
                 (int) ($navigationTypeCounts['ncx'] ?? 0),
@@ -1040,6 +1056,10 @@ final class EpubNativeAstPackageComparisonHarness
                 (int) ($totals['metadataCreators'] ?? 0),
                 (int) ($totals['manifestItems'] ?? 0),
                 (int) ($totals['readingOrderItems'] ?? 0),
+                self::formatCounts(is_array($featureCoverage['spineLinearStateCounts'] ?? null)
+                    ? $featureCoverage['spineLinearStateCounts']
+                    : []),
+                count($nonLinearSpineFixtures),
                 (int) ($totals['imageAssets'] ?? 0),
                 (int) ($totals['stylesheetAssets'] ?? 0),
                 self::formatCounts(is_array($featureCoverage['manifestResourceKindCounts'] ?? null)
@@ -1487,6 +1507,7 @@ final class EpubNativeAstPackageComparisonHarness
             'metadataLanguageCounts' => [],
             'fixturesWithCreators' => [],
             'navigationTypeCounts' => [],
+            'spineLinearStateCounts' => [],
             'manifestMediaTypeCounts' => [],
             'manifestPropertyCounts' => [],
             'manifestResourceKindCounts' => [],
@@ -1506,6 +1527,7 @@ final class EpubNativeAstPackageComparisonHarness
             'fixturesWithExternalManifestItems' => [],
             'fixturesWithMissingLocalManifestItems' => [],
             'fixturesWithManifestFallbacks' => [],
+            'fixturesWithNonLinearSpineItems' => [],
             'totals' => [
                 'metadataCreators' => 0,
                 'manifestItems' => 0,
@@ -2048,6 +2070,13 @@ final class EpubNativeAstPackageComparisonHarness
         $manifestItems = $package->manifestItems();
         $manifestCoverage = self::manifestItemCoverageSummary($manifestItems);
         $resourceKinds = $package->manifestResourceKinds();
+        $spineItems = $package->readingOrder();
+        $spineLinearStateCounts = [];
+        foreach ($spineItems as $spineItem) {
+            $state = (($spineItem['linear'] ?? true) === false) ? 'non-linear' : 'linear';
+            $spineLinearStateCounts[$state] = (int) ($spineLinearStateCounts[$state] ?? 0) + 1;
+        }
+        ksort($spineLinearStateCounts, SORT_STRING);
         $navigation = $package->navigation();
         $navigationSections = $package->navigationSections();
         $guideReferences = $package->guideReferences();
@@ -2099,7 +2128,8 @@ final class EpubNativeAstPackageComparisonHarness
             'resolvedManifestFallbackCount' => (int) ($manifestFallbacks['resolvedFallbackCount'] ?? 0),
             'usableManifestFallbackCount' => (int) ($manifestFallbacks['usableFallbackCount'] ?? 0),
             'missingManifestFallbackCount' => (int) ($manifestFallbacks['missingFallbackCount'] ?? 0),
-            'readingOrderCount' => count($package->readingOrder()),
+            'readingOrderCount' => count($spineItems),
+            'spineLinearStateCounts' => $spineLinearStateCounts,
             'xhtmlAssetCount' => count($assets['xhtmlParts']),
             'imageAssetCount' => count($assets['imageParts']),
             'stylesheetAssetCount' => count($assets['stylesheetParts']),
@@ -2124,6 +2154,7 @@ final class EpubNativeAstPackageComparisonHarness
         $coverage['fixtureCount'] = count($summaries);
         $metadataLanguageCounts = [];
         $navigationTypeCounts = [];
+        $spineLinearStateCounts = [];
         $manifestMediaTypeCounts = [];
         $manifestPropertyCounts = [];
         $manifestResourceKindCounts = [];
@@ -2142,6 +2173,12 @@ final class EpubNativeAstPackageComparisonHarness
             $navigationType = is_string($summary['navigationType'] ?? null) ? $summary['navigationType'] : '';
             if ($navigationType !== '') {
                 $navigationTypeCounts[$navigationType] = (int) ($navigationTypeCounts[$navigationType] ?? 0) + 1;
+            }
+
+            foreach (is_array($summary['spineLinearStateCounts'] ?? null) ? $summary['spineLinearStateCounts'] : [] as $state => $count) {
+                if (is_string($state) && $state !== '') {
+                    $spineLinearStateCounts[$state] = (int) ($spineLinearStateCounts[$state] ?? 0) + (int) $count;
+                }
             }
 
             foreach (is_array($summary['manifestMediaTypeCounts'] ?? null) ? $summary['manifestMediaTypeCounts'] : [] as $mediaType => $count) {
@@ -2222,6 +2259,10 @@ final class EpubNativeAstPackageComparisonHarness
             if ($fixture !== '' && (int) ($summary['manifestFallbackCount'] ?? 0) > 0) {
                 $coverage['fixturesWithManifestFallbacks'][] = $fixture;
             }
+            $spineLinearCounts = is_array($summary['spineLinearStateCounts'] ?? null) ? $summary['spineLinearStateCounts'] : [];
+            if ($fixture !== '' && (int) ($spineLinearCounts['non-linear'] ?? 0) > 0) {
+                $coverage['fixturesWithNonLinearSpineItems'][] = $fixture;
+            }
 
             $coverage['totals']['metadataCreators'] += (int) ($summary['metadataCreatorCount'] ?? 0);
             $coverage['totals']['manifestItems'] += (int) ($summary['manifestItemCount'] ?? 0);
@@ -2252,6 +2293,8 @@ final class EpubNativeAstPackageComparisonHarness
         ksort($manifestResourceKindCounts, SORT_STRING);
         $coverage['metadataLanguageCounts'] = $metadataLanguageCounts;
         $coverage['navigationTypeCounts'] = $navigationTypeCounts;
+        ksort($spineLinearStateCounts, SORT_STRING);
+        $coverage['spineLinearStateCounts'] = $spineLinearStateCounts;
         $coverage['manifestMediaTypeCounts'] = $manifestMediaTypeCounts;
         $coverage['manifestPropertyCounts'] = $manifestPropertyCounts;
         $coverage['manifestResourceKindCounts'] = $manifestResourceKindCounts;

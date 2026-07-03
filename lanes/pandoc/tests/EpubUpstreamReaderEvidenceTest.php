@@ -181,6 +181,7 @@ return [
             'epub/features.epub',
             'epub/font-manifest-resource.epub',
             'epub/formatting.epub',
+            'epub/guide-bibliography-reference.epub',
             'epub/guide-glossary-reference.epub',
             'epub/guide-notes-reference.epub',
             'epub/manifest-fallback-chain.epub',
@@ -191,6 +192,7 @@ return [
             'epub/remote-manifest-resource.epub',
             'epub/rendition-layout-property.epub',
             'epub/scripted-svg-manifest.epub',
+            'epub/scripted-xhtml-resource.epub',
             'epub/video-manifest-resource.epub',
         ], $report['denominator']['unreferencedEpubFixtures']);
         $t->same(false, $report['sourceInventory']['readerSourceRequired']);
