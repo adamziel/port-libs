@@ -1,0 +1,5 @@
+[ Para [ Str "Reviewer" , Space , Str "legacy" , Space , Str "code" , Space , Str "export:" ]
+, CodeBlock ( "legacy-shortcode" , [ "php" ] , [ ( "source" , "classic-editor" ) ] ) "do_shortcode('[gallery]');\necho esc_html($title);"
+, Para [ Str "Bare" , Space , Str "pre" , Space , Str "export:" ]
+, CodeBlock ( "raw-pre-export" , [  ] , [ ( "review" , "keep" ) ] ) "First imported line\nSecond imported line"
+]
