@@ -197,11 +197,11 @@ $assertAbsent = static function (TestRunner $t, ?string $format, string $feature
 };
 
 $allFeatureFormats = [
-    'default' => null,
-    'markdown' => 'markdown',
-    'pandoc' => 'pandoc',
-    'commonmark_x' => 'commonmark_x',
-    'commonmark-x' => 'commonmark-x',
+    'default' => ['format' => null, 'disabled' => []],
+    'markdown' => ['format' => 'markdown', 'disabled' => []],
+    'pandoc' => ['format' => 'pandoc', 'disabled' => []],
+    'commonmark_x' => ['format' => 'commonmark_x', 'disabled' => ['raw tex']],
+    'commonmark-x' => ['format' => 'commonmark-x', 'disabled' => ['raw tex']],
 ];
 
 $strictFormats = ['markdown_strict', 'markdown-strict', 'markdown+strict', 'commonmark'];
@@ -215,21 +215,21 @@ $mmdFormats = ['markdown_mmd', 'markdown-mmd', 'markdown+mmd', 'markdown+multima
 $mmdEnabled = ['citation', 'dollar math', 'bracketed span'];
 $mmdDisabled = array_values(array_diff(array_keys($featureProbes), $mmdEnabled));
 $rawTexAliasCases = [
-    'commonmark raw_latex suffix enables raw tex' => [
+    'commonmark raw_latex suffix leaves raw tex literal' => [
         'options' => ['format' => 'commonmark+raw_latex'],
-        'expected' => true,
+        'expected' => false,
     ],
-    'commonmark latex_macros suffix enables raw tex' => [
+    'commonmark latex_macros suffix leaves raw tex literal' => [
         'options' => ['format' => 'commonmark+latex_macros'],
-        'expected' => true,
+        'expected' => false,
     ],
-    'commonmark raw_latex extension list enables raw tex' => [
+    'commonmark raw_latex extension list leaves raw tex literal' => [
         'options' => ['format' => 'commonmark', 'extensions' => ['+raw_latex']],
-        'expected' => true,
+        'expected' => false,
     ],
-    'commonmark latex_macros extension list enables raw tex' => [
+    'commonmark latex_macros extension list leaves raw tex literal' => [
         'options' => ['format' => 'commonmark', 'extensions' => ['+latex_macros']],
-        'expected' => true,
+        'expected' => false,
     ],
     'markdown raw_latex suffix disables raw tex' => [
         'options' => ['format' => 'markdown-raw_latex'],
@@ -243,11 +243,16 @@ $rawTexAliasCases = [
 
 return [
     'maps upstream pandoc markdown flavor profile default extension set' =>
-        static function (TestRunner $t) use ($allFeatureFormats, $featureProbes, $assertPresent): void {
+        static function (TestRunner $t) use ($allFeatureFormats, $featureProbes, $assertAbsent, $assertPresent): void {
             $mapped = 0;
-            foreach ($allFeatureFormats as $format) {
+            foreach ($allFeatureFormats as $profile) {
+                $format = $profile['format'];
                 foreach (array_keys($featureProbes) as $feature) {
-                    $assertPresent($t, $format, $feature);
+                    if (in_array($feature, $profile['disabled'], true)) {
+                        $assertAbsent($t, $format, $feature);
+                    } else {
+                        $assertPresent($t, $format, $feature);
+                    }
                     $mapped++;
                 }
             }
@@ -315,7 +320,11 @@ return [
             $mapped = 0;
 
             foreach (array_keys($featureProbes) as $feature) {
-                $assertPresent($t, $enabledFormat, $feature);
+                if ($feature === 'raw tex') {
+                    $assertAbsent($t, $enabledFormat, $feature);
+                } else {
+                    $assertPresent($t, $enabledFormat, $feature);
+                }
                 $mapped++;
             }
 

@@ -134,6 +134,9 @@ $rawProfileCases = [
 
 $profileFormats = ['markdown', 'commonmark', 'gfm'];
 
+$rawTexExtensionUnsupported = static fn (string $format, string $name): bool => in_array($format, ['commonmark', 'gfm'], true)
+    && in_array($name, ['raw tex inline', 'raw tex block', 'raw attribute fenced tex'], true);
+
 $assertRawEnabled = static function (
     TestRunner $t,
     AstNode $document,
@@ -224,6 +227,7 @@ return [
             $assertRawDisabled,
             $assertRawEnabled,
             $profileFormats,
+            $rawTexExtensionUnsupported,
             $rawProfileCases,
             $read
         ): void {
@@ -232,7 +236,11 @@ return [
             foreach ($profileFormats as $format) {
                 foreach ($rawProfileCases as $name => $case) {
                     $enabled = $read($format, ['extensions' => $case['enabledExtensions']], $case['markdown']);
-                    $assertRawEnabled($t, $enabled, $case['match'], "{$format} extensions enable {$name}");
+                    if ($rawTexExtensionUnsupported($format, $name)) {
+                        $assertRawDisabled($t, $enabled, $case['match'], "{$format} extensions leave unsupported {$name} literal");
+                    } else {
+                        $assertRawEnabled($t, $enabled, $case['match'], "{$format} extensions enable {$name}");
+                    }
                     $mapped++;
 
                     $disabled = $read($format, ['extensions' => $case['disabledExtensions']], $case['markdown']);

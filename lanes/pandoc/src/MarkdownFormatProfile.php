@@ -154,7 +154,7 @@ final class MarkdownFormatProfile
             'titleBlock' => false,
             'rawAttribute' => true,
             'rawHtml' => true,
-            'rawTex' => true,
+            'rawTex' => false,
             'rawMarkdown' => true,
             'definitionLists' => true,
             'footnotes' => true,
@@ -662,6 +662,15 @@ final class MarkdownFormatProfile
 
     private static function extensionFlag(mixed $format, string $extension, bool $default): bool
     {
+        if ($extension === 'raw_tex' && self::formatDisallowsRawTexExtension($format)) {
+            return $default;
+        }
+
         return self::markdownExtensionOverrides($format)[$extension] ?? $default;
+    }
+
+    private static function formatDisallowsRawTexExtension(mixed $format): bool
+    {
+        return in_array(self::canonicalFormat($format), ['commonmark', 'commonmark_x', 'gfm'], true);
     }
 }

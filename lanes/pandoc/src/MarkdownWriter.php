@@ -10028,7 +10028,7 @@ final class MarkdownWriter
 
         $format = $this->markdownFormatWithExtensionOption();
         $canonical = MarkdownFormatProfile::canonicalFormat($format);
-        if (in_array($canonical, ['markdown_mmd', 'markdown_phpextra', 'markdown_strict'], true)) {
+        if (in_array($canonical, ['commonmark_x', 'markdown_mmd', 'markdown_phpextra', 'markdown_strict'], true)) {
             return true;
         }
 

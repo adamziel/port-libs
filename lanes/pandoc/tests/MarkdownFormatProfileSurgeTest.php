@@ -14,8 +14,8 @@ $profileCases = [
     ['format' => 'markdown', 'canonical' => 'markdown', 'yamlMetadata' => true, 'titleBlock' => true, 'rawAttribute' => true, 'rawTex' => true],
     ['format' => 'pandoc', 'canonical' => 'markdown', 'yamlMetadata' => true, 'titleBlock' => true, 'rawAttribute' => true, 'rawTex' => true],
     ['format' => 'commonmark', 'canonical' => 'commonmark', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false],
-    ['format' => 'commonmark_x', 'canonical' => 'commonmark_x', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => true, 'rawTex' => true, 'writerRawTex' => true],
-    ['format' => 'commonmark-x', 'canonical' => 'commonmark_x', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => true, 'rawTex' => true, 'writerRawTex' => true],
+    ['format' => 'commonmark_x', 'canonical' => 'commonmark_x', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => true, 'rawTex' => false, 'writerRawTex' => true],
+    ['format' => 'commonmark-x', 'canonical' => 'commonmark_x', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => true, 'rawTex' => false, 'writerRawTex' => true],
     ['format' => 'gfm', 'canonical' => 'gfm', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false],
     ['format' => 'markdown_github', 'canonical' => 'gfm', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false],
     ['format' => 'markdown-github', 'canonical' => 'gfm', 'yamlMetadata' => false, 'titleBlock' => false, 'rawAttribute' => false, 'rawTex' => false],
@@ -215,10 +215,12 @@ foreach ($profileCases as $case) {
 
 $overrideCases = [
     [
-        'name' => 'commonmark raw tex extension enables inline raw tex',
+        'name' => 'commonmark raw tex extension leaves inline raw tex literal',
         'assert' => static function (TestRunner $t, callable $inlineTypes): void {
             $document = (new MarkdownReader(['format' => 'commonmark+raw_tex']))->read('Before \\textbf{raw} after.');
-            $t->same(true, in_array('raw_tex', $inlineTypes($document), true));
+            $types = $inlineTypes($document);
+            $t->same(false, in_array('raw_tex', $types, true));
+            $t->same(['text'], $types);
         },
     ],
     [
