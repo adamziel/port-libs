@@ -6,9 +6,23 @@ namespace PortLibs\Pandoc;
 
 final class EpubMediaBagComparisonHarness
 {
+    public const EXPECTED_UPSTREAM_COMMIT = '4f5226df4faa0d66dd2c089465b13886360ab3c2';
+
     private const DEFAULT_MAX_EXAMPLES = 12;
     private const VERDICT = 'media-bag-comparison-not-full-epub-parity';
     private const CLAIM = 'Compares local PHP EPUB reader image-resource output with upstream Tests.Readers.EPUB media-bag expectations by normalized media path, MIME type, and byte size; no upstream Haskell runner, AST parity, writer parity, or full EPUB feature parity is asserted.';
+    private const RUNNER_TEST_SUITE = 'test:test-pandoc';
+    private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/epub-targeted-run';
+    private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'EPUB', 'EPUB Mediabag'];
+    private const RUNNER_TASTY_PATTERN = '$2 == "Readers" && $3 == "EPUB" && $4 == "EPUB Mediabag"';
+    private const RUNNER_REQUIRED_TRANSCRIPTS = [
+        '.port-libs/pandoc-runner/logs/runner-test-dependencies.txt',
+        '.port-libs/pandoc-runner/logs/epub-targeted-list-tests.txt',
+        '.port-libs/pandoc-runner/logs/epub-targeted-run.txt',
+    ];
+    private const RUNNER_REQUIRED_ARTIFACTS = [
+        '.port-libs/pandoc-runner/artifacts/epub-targeted-run/result.json',
+    ];
     private const CHECKED_IN_CURRENT_MEDIA_BAG_SIGNATURES = [
         [
             'case' => 'features bag',
@@ -186,6 +200,7 @@ final class EpubMediaBagComparisonHarness
             'evidenceKind' => 'epub-upstream-mediabag-comparison',
             'upstreamRoot' => $upstreamRoot,
             'fixtureBase' => $fixtureBase,
+            'runnerEvidence' => self::runnerNotRunEvidence(),
             'normalizationPolicy' => self::normalizationPolicy(),
             'totalCaseCount' => $totalCaseCount,
             'comparedCaseCount' => $comparedCaseCount,
@@ -224,6 +239,15 @@ final class EpubMediaBagComparisonHarness
 
         if (($report['skipped'] ?? false) === true) {
             $lines[] = 'reason=' . (string) ($report['reason'] ?? 'unknown');
+            $runner = is_array($report['runnerEvidence'] ?? null) ? $report['runnerEvidence'] : [];
+            if ($runner !== []) {
+                $lines[] = sprintf(
+                    'runnerEvidence: status=%s plan=%s executed=%s',
+                    (string) ($runner['status'] ?? 'unknown'),
+                    (string) ($runner['commandPlanStatus'] ?? 'unknown'),
+                    (($runner['executed'] ?? null) === false) ? 'false' : 'unknown'
+                );
+            }
             $lines = self::appendOrderedRemainingGaps($lines, $report);
 
             return implode(PHP_EOL, $lines) . PHP_EOL;
@@ -245,6 +269,15 @@ final class EpubMediaBagComparisonHarness
             (int) ($report['actualMediaItemCount'] ?? 0),
             (string) ($report['mediaBagParityStatus'] ?? 'unknown'),
         );
+        $runner = is_array($report['runnerEvidence'] ?? null) ? $report['runnerEvidence'] : [];
+        if ($runner !== []) {
+            $lines[] = sprintf(
+                'runnerEvidence: status=%s plan=%s executed=%s',
+                (string) ($runner['status'] ?? 'unknown'),
+                (string) ($runner['commandPlanStatus'] ?? 'unknown'),
+                (($runner['executed'] ?? null) === false) ? 'false' : 'unknown'
+            );
+        }
 
         $mismatches = $report['mismatchComparisons'] ?? [];
         if (is_array($mismatches) && $mismatches !== []) {
@@ -309,6 +342,46 @@ final class EpubMediaBagComparisonHarness
     }
 
     /**
+     * @param array<string, mixed> $report
+     */
+    public static function hasRunnerNotRunEvidence(array $report): bool
+    {
+        $runner = is_array($report['runnerEvidence'] ?? null) ? $report['runnerEvidence'] : [];
+
+        return ($runner['status'] ?? null) === 'not-run'
+            && ($runner['executed'] ?? null) === false
+            && array_key_exists('command', $runner)
+            && $runner['command'] === null
+            && array_key_exists('result', $runner)
+            && $runner['result'] === null
+            && array_key_exists('resultArtifact', $runner)
+            && $runner['resultArtifact'] === null;
+    }
+
+    /**
+     * @param array<string, mixed> $report
+     */
+    public static function hasRunnerPlanEvidence(array $report): bool
+    {
+        $runner = is_array($report['runnerEvidence'] ?? null) ? $report['runnerEvidence'] : [];
+        $binding = is_array($runner['upstreamBinding'] ?? null) ? $runner['upstreamBinding'] : [];
+        $target = is_array($runner['target'] ?? null) ? $runner['target'] : [];
+
+        return self::hasRunnerNotRunEvidence($report)
+            && ($runner['commandPlanStatus'] ?? null) === 'planned-not-run'
+            && ($binding['name'] ?? null) === 'jgm/pandoc'
+            && ($binding['expectedCommit'] ?? null) === self::EXPECTED_UPSTREAM_COMMIT
+            && ($binding['entryPoint'] ?? null) === 'test/test-pandoc.hs'
+            && ($binding['readerTestModule'] ?? null) === 'test/Tests/Readers/EPUB.hs'
+            && ($target['testSuite'] ?? null) === self::RUNNER_TEST_SUITE
+            && ($target['tastyGroupPath'] ?? null) === self::RUNNER_TASTY_GROUP_PATH
+            && ($target['tastyPattern'] ?? null) === self::RUNNER_TASTY_PATTERN
+            && ($runner['futureCommands'] ?? null) === self::runnerFutureCommands()
+            && ($runner['requiredTranscripts'] ?? null) === self::RUNNER_REQUIRED_TRANSCRIPTS
+            && ($runner['requiredArtifacts'] ?? null) === self::RUNNER_REQUIRED_ARTIFACTS;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function skippedReport(string $upstreamRoot, string $reason): array
@@ -324,6 +397,7 @@ final class EpubMediaBagComparisonHarness
             'evidenceKind' => 'epub-upstream-mediabag-comparison',
             'upstreamRoot' => $upstreamRoot,
             'fixtureBase' => null,
+            'runnerEvidence' => self::runnerNotRunEvidence(),
             'normalizationPolicy' => self::normalizationPolicy(),
             'totalCaseCount' => 0,
             'comparedCaseCount' => 0,
@@ -542,6 +616,95 @@ final class EpubMediaBagComparisonHarness
                 'upstream Haskell runner execution',
                 'manifest image resources not used by the emitted EPUB image AST',
                 'EPUB writer behavior',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function runnerNotRunEvidence(): array
+    {
+        return [
+            'runner' => 'Cabal/Tasty Pandoc EPUB reader media-bag suite',
+            'scope' => 'upstream-haskell-runner',
+            'status' => 'not-run',
+            'executed' => false,
+            'command' => null,
+            'result' => null,
+            'resultArtifact' => null,
+            'commandPlanStatus' => 'planned-not-run',
+            'upstreamBinding' => [
+                'name' => 'jgm/pandoc',
+                'expectedCommit' => self::EXPECTED_UPSTREAM_COMMIT,
+                'entryPoint' => 'test/test-pandoc.hs',
+                'readerTestModule' => 'test/Tests/Readers/EPUB.hs',
+            ],
+            'target' => [
+                'testSuite' => self::RUNNER_TEST_SUITE,
+                'tastyGroupPath' => self::RUNNER_TASTY_GROUP_PATH,
+                'tastyPattern' => self::RUNNER_TASTY_PATTERN,
+            ],
+            'blockers' => [
+                'no committed upstream test:test-pandoc EPUB media-bag runner transcript or result artifact is present',
+                'this PHP media-bag comparison gate intentionally does not invoke Cabal/Tasty or hydrate Haskell build dependencies',
+                'a future runner claim must be bound to the pinned upstream commit and exact targeted EPUB media-bag Tasty pattern',
+            ],
+            'futureCommands' => self::runnerFutureCommands(),
+            'requiredTranscripts' => self::RUNNER_REQUIRED_TRANSCRIPTS,
+            'requiredArtifacts' => self::RUNNER_REQUIRED_ARTIFACTS,
+            'reason' => 'This PHP media-bag comparison evidence packet is generated without executing the upstream Haskell runner.',
+            'claim' => 'No upstream Haskell runner parity is claimed.',
+        ];
+    }
+
+    /**
+     * @return list<array{purpose: string, program: string, arguments: list<string>}>
+     */
+    private static function runnerFutureCommands(): array
+    {
+        return [
+            [
+                'purpose' => 'prepare runner dependencies in an isolated build directory',
+                'program' => 'cabal',
+                'arguments' => [
+                    'v2-build',
+                    '--offline',
+                    '--dry-run',
+                    '--only-dependencies',
+                    '--project-dir=.',
+                    '--builddir=' . self::RUNNER_BUILD_DIR,
+                    self::RUNNER_TEST_SUITE,
+                ],
+            ],
+            [
+                'purpose' => 'list targeted EPUB reader media-bag tests',
+                'program' => 'cabal',
+                'arguments' => [
+                    'v2-run',
+                    '--offline',
+                    '--project-dir=.',
+                    '--builddir=' . self::RUNNER_BUILD_DIR,
+                    self::RUNNER_TEST_SUITE,
+                    '--',
+                    '--list-tests',
+                    '--pattern',
+                    self::RUNNER_TASTY_PATTERN,
+                ],
+            ],
+            [
+                'purpose' => 'run targeted EPUB reader media-bag tests',
+                'program' => 'cabal',
+                'arguments' => [
+                    'v2-run',
+                    '--offline',
+                    '--project-dir=.',
+                    '--builddir=' . self::RUNNER_BUILD_DIR,
+                    self::RUNNER_TEST_SUITE,
+                    '--',
+                    '--pattern',
+                    self::RUNNER_TASTY_PATTERN,
+                ],
             ],
         ];
     }

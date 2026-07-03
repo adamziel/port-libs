@@ -18,13 +18,14 @@ $limit = 0;
 $requiredMediaBagParity = null;
 $requiredMediaBagItemCount = null;
 $requireCurrentMediaBagSignatures = false;
+$requireRunnerPlan = false;
 $json = false;
 $summary = false;
 
 foreach (array_slice($argv, 1) as $argument) {
     if ($argument === '--help' || $argument === '-h') {
         fwrite(STDOUT, <<<'TXT'
-Usage: php tools/pandoc-epub-media-bag.php [--upstream-root=PATH|--checked-in-fixtures] [--fixture-base=PATH] [--limit=N] [--json] [--require-media-bag-parity=N] [--require-media-bag-item-count=N] [--require-current-media-bag-signatures] [summary]
+Usage: php tools/pandoc-epub-media-bag.php [--upstream-root=PATH|--checked-in-fixtures] [--fixture-base=PATH] [--limit=N] [--json] [--require-media-bag-parity=N] [--require-media-bag-item-count=N] [--require-current-media-bag-signatures] [--require-runner-plan] [summary]
 
 Compares local PHP EPUB reader media-bag output with upstream Tests.Readers.EPUB
 expectations by normalized path, MIME type, and byte size when the upstream cache
@@ -38,6 +39,8 @@ With --require-media-bag-item-count=N, exits 1 unless both upstream expectations
 and local extraction report exactly N media-bag items.
 With --require-current-media-bag-signatures, exits 1 unless the checked-in
 current fixture snapshot has the exact per-fixture media-bag signatures.
+With --require-runner-plan, exits 1 unless structured not-run upstream
+Tests.Readers.EPUB media-bag runner command-plan evidence is present.
 
 TXT);
         exit(0);
@@ -100,6 +103,11 @@ TXT);
         continue;
     }
 
+    if ($argument === '--require-runner-plan') {
+        $requireRunnerPlan = true;
+        continue;
+    }
+
     fwrite(STDERR, "Unknown argument: {$argument}\n");
     exit(2);
 }
@@ -142,6 +150,7 @@ if ($summary) {
         'evidenceKind',
         'upstreamRoot',
         'fixtureBase',
+        'runnerEvidence',
         'totalCaseCount',
         'comparedCaseCount',
         'epubParsedCount',
@@ -192,6 +201,17 @@ if (
     fwrite(
         STDERR,
         "pandoc-epub-media-bag: checked-in current EPUB media-bag signatures did not match the expected snapshot\n"
+    );
+    exit(1);
+}
+
+if (
+    $requireRunnerPlan
+    && !EpubMediaBagComparisonHarness::hasRunnerPlanEvidence($report)
+) {
+    fwrite(
+        STDERR,
+        "pandoc-epub-media-bag: upstream EPUB media-bag runner command-plan evidence is invalid\n"
     );
     exit(1);
 }

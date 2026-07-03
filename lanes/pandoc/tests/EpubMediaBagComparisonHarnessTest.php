@@ -228,9 +228,20 @@ return [
             $t->same(0, $report['mediaBagMatchCount']);
             $t->same('not-evaluated-source-directory-unavailable', $report['mediaBagParityStatus']);
             $t->same([], $report['mediaBagSignatures']);
+            $t->same(true, EpubMediaBagComparisonHarness::hasRunnerNotRunEvidence($report));
+            $t->same(true, EpubMediaBagComparisonHarness::hasRunnerPlanEvidence($report));
+            $t->same('not-run', $report['runnerEvidence']['status']);
+            $t->same(false, $report['runnerEvidence']['executed']);
+            $t->same(null, $report['runnerEvidence']['command']);
+            $t->same(null, $report['runnerEvidence']['result']);
+            $t->same(null, $report['runnerEvidence']['resultArtifact']);
+            $t->same('planned-not-run', $report['runnerEvidence']['commandPlanStatus']);
+            $t->same(EpubMediaBagComparisonHarness::EXPECTED_UPSTREAM_COMMIT, $report['runnerEvidence']['upstreamBinding']['expectedCommit']);
+            $t->same(['Readers', 'EPUB', 'EPUB Mediabag'], $report['runnerEvidence']['target']['tastyGroupPath']);
             $t->same('upstream-epub-mediabag-equality', $report['orderedRemainingGaps'][0]['id']);
             $t->same('not-evaluated', $report['orderedRemainingGaps'][0]['status']);
             $t->contains('Pandoc EPUB media-bag comparison: skipped', $text);
+            $t->contains('runnerEvidence: status=not-run plan=planned-not-run executed=false', $text);
             $t->contains('orderedRemainingGaps:', $text);
         } finally {
             $removeTree($root);
@@ -257,6 +268,10 @@ return [
         $t->same(100.0, $report['mediaBagMatchPercent']);
         $t->same('media-bag-equality-observed-not-runner-parity', $report['mediaBagParityStatus']);
         $t->same($currentMediaBagSignatures(), $report['mediaBagSignatures']);
+        $t->same(true, EpubMediaBagComparisonHarness::hasRunnerNotRunEvidence($report));
+        $t->same(true, EpubMediaBagComparisonHarness::hasRunnerPlanEvidence($report));
+        $t->same('test:test-pandoc', $report['runnerEvidence']['target']['testSuite']);
+        $t->same('$2 == "Readers" && $3 == "EPUB" && $4 == "EPUB Mediabag"', $report['runnerEvidence']['target']['tastyPattern']);
         $t->same('covered-by-current-media-bag-evidence', $report['orderedRemainingGaps'][0]['status']);
         $t->same(true, EpubMediaBagComparisonHarness::hasRequiredMediaBagParity($report, 6));
         $t->same(true, EpubMediaBagComparisonHarness::hasRequiredMediaBagItemCount($report, 10));
@@ -273,7 +288,8 @@ return [
             . ' summary'
             . ' --require-media-bag-parity=6'
             . ' --require-media-bag-item-count=10'
-            . ' --require-current-media-bag-signatures';
+            . ' --require-current-media-bag-signatures'
+            . ' --require-runner-plan';
         $output = [];
         $exitCode = 0;
         exec($command, $output, $exitCode);
@@ -291,6 +307,11 @@ return [
         $t->same(10, $decoded['actualMediaItemCount']);
         $t->same('media-bag-equality-observed-not-runner-parity', $decoded['mediaBagParityStatus']);
         $t->same($currentMediaBagSignatures(), $decoded['mediaBagSignatures']);
+        $t->same(true, EpubMediaBagComparisonHarness::hasRunnerNotRunEvidence($decoded));
+        $t->same(true, EpubMediaBagComparisonHarness::hasRunnerPlanEvidence($decoded));
+        $t->same(null, $decoded['runnerEvidence']['command']);
+        $t->same(null, $decoded['runnerEvidence']['result']);
+        $t->same(null, $decoded['runnerEvidence']['resultArtifact']);
         $t->same('open', $decoded['orderedRemainingGaps'][1]['status']);
         $t->same('open', $decoded['orderedRemainingGaps'][2]['status']);
         $t->same(true, EpubMediaBagComparisonHarness::hasRequiredMediaBagParity($decoded, 6));
@@ -423,7 +444,8 @@ HS);
                 . ' --upstream-root=' . escapeshellarg($root)
                 . ' --json'
                 . ' summary'
-                . ' --require-media-bag-parity=6';
+                . ' --require-media-bag-parity=6'
+                . ' --require-runner-plan';
             $output = [];
             $exitCode = 0;
             exec($command, $output, $exitCode);
@@ -435,6 +457,7 @@ HS);
             $t->same(0, $decoded['mediaBagMismatchCount']);
             $t->same(true, EpubMediaBagComparisonHarness::hasRequiredMediaBagParity($decoded, 6));
             $t->same(true, EpubMediaBagComparisonHarness::hasRequiredMediaBagItemCount($decoded, 10));
+            $t->same(true, EpubMediaBagComparisonHarness::hasRunnerPlanEvidence($decoded));
 
             $failingCommand = str_replace('--require-media-bag-parity=6', '--require-media-bag-parity=7', $command) . ' 2>/dev/null';
             $failingOutput = [];
