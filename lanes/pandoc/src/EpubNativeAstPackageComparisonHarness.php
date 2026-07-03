@@ -156,6 +156,8 @@ final class EpubNativeAstPackageComparisonHarness
             'img_no_cover',
             'wasteland',
         ],
+        'fixturesWithPageLists' => [],
+        'fixturesWithAuxiliaryNavigation' => [],
         'totals' => [
             'manifestItems' => 51,
             'readingOrderItems' => 22,
@@ -164,6 +166,8 @@ final class EpubNativeAstPackageComparisonHarness
             'stylesheetAssets' => 13,
             'navigationEntries' => 90,
             'landmarkEntries' => 7,
+            'pageListEntries' => 0,
+            'auxiliaryNavigationEntries' => 0,
             'packageLinks' => 3,
             'guideReferences' => 3,
         ],
@@ -425,13 +429,21 @@ final class EpubNativeAstPackageComparisonHarness
             $landmarkFixtures = is_array($featureCoverage['fixturesWithLandmarks'] ?? null)
                 ? $featureCoverage['fixturesWithLandmarks']
                 : [];
+            $pageListFixtures = is_array($featureCoverage['fixturesWithPageLists'] ?? null)
+                ? $featureCoverage['fixturesWithPageLists']
+                : [];
+            $auxiliaryNavigationFixtures = is_array($featureCoverage['fixturesWithAuxiliaryNavigation'] ?? null)
+                ? $featureCoverage['fixturesWithAuxiliaryNavigation']
+                : [];
             $lines[] = sprintf(
-                'packageFeatureCoverage: fixtures=%d nav=%d ncx=%d covers=%d landmarks=%d manifestItems=%d readingOrderItems=%d imageAssets=%d stylesheetAssets=%d',
+                'packageFeatureCoverage: fixtures=%d nav=%d ncx=%d covers=%d landmarks=%d pageLists=%d auxiliaryNav=%d manifestItems=%d readingOrderItems=%d imageAssets=%d stylesheetAssets=%d',
                 (int) ($featureCoverage['fixtureCount'] ?? 0),
                 (int) ($navigationTypeCounts['nav'] ?? 0),
                 (int) ($navigationTypeCounts['ncx'] ?? 0),
                 count($coverFixtures),
                 count($landmarkFixtures),
+                count($pageListFixtures),
+                count($auxiliaryNavigationFixtures),
                 (int) ($totals['manifestItems'] ?? 0),
                 (int) ($totals['readingOrderItems'] ?? 0),
                 (int) ($totals['imageAssets'] ?? 0),
@@ -656,6 +668,8 @@ final class EpubNativeAstPackageComparisonHarness
             'fixturesWithImages' => [],
             'fixturesWithStylesheets' => [],
             'fixturesWithLandmarks' => [],
+            'fixturesWithPageLists' => [],
+            'fixturesWithAuxiliaryNavigation' => [],
             'totals' => [
                 'manifestItems' => 0,
                 'readingOrderItems' => 0,
@@ -664,6 +678,8 @@ final class EpubNativeAstPackageComparisonHarness
                 'stylesheetAssets' => 0,
                 'navigationEntries' => 0,
                 'landmarkEntries' => 0,
+                'pageListEntries' => 0,
+                'auxiliaryNavigationEntries' => 0,
                 'packageLinks' => 0,
                 'guideReferences' => 0,
             ],
@@ -907,6 +923,12 @@ final class EpubNativeAstPackageComparisonHarness
             if ($fixture !== '' && (int) ($summary['landmarkEntryCount'] ?? 0) > 0) {
                 $coverage['fixturesWithLandmarks'][] = $fixture;
             }
+            if ($fixture !== '' && (int) ($summary['pageListEntryCount'] ?? 0) > 0) {
+                $coverage['fixturesWithPageLists'][] = $fixture;
+            }
+            if ($fixture !== '' && (int) ($summary['auxiliaryNavigationEntryCount'] ?? 0) > 0) {
+                $coverage['fixturesWithAuxiliaryNavigation'][] = $fixture;
+            }
 
             $coverage['totals']['manifestItems'] += (int) ($summary['manifestItemCount'] ?? 0);
             $coverage['totals']['readingOrderItems'] += (int) ($summary['readingOrderCount'] ?? 0);
@@ -915,6 +937,8 @@ final class EpubNativeAstPackageComparisonHarness
             $coverage['totals']['stylesheetAssets'] += (int) ($summary['stylesheetAssetCount'] ?? 0);
             $coverage['totals']['navigationEntries'] += (int) ($summary['navigationEntryCount'] ?? 0);
             $coverage['totals']['landmarkEntries'] += (int) ($summary['landmarkEntryCount'] ?? 0);
+            $coverage['totals']['pageListEntries'] += (int) ($summary['pageListEntryCount'] ?? 0);
+            $coverage['totals']['auxiliaryNavigationEntries'] += (int) ($summary['auxiliaryNavigationEntryCount'] ?? 0);
             $coverage['totals']['packageLinks'] += (int) ($summary['packageLinkCount'] ?? 0);
             $coverage['totals']['guideReferences'] += (int) ($summary['guideReferenceCount'] ?? 0);
         }

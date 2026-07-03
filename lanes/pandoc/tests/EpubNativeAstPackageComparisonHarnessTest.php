@@ -276,6 +276,8 @@ return [
             $t->same([], $coverage['fixturesWithImages']);
             $t->same([], $coverage['fixturesWithStylesheets']);
             $t->same(['generated-navigation'], $coverage['fixturesWithLandmarks']);
+            $t->same(['generated-navigation'], $coverage['fixturesWithPageLists']);
+            $t->same(['generated-navigation'], $coverage['fixturesWithAuxiliaryNavigation']);
             $t->same([
                 'manifestItems' => 3,
                 'readingOrderItems' => 1,
@@ -284,6 +286,8 @@ return [
                 'stylesheetAssets' => 0,
                 'navigationEntries' => 1,
                 'landmarkEntries' => 1,
+                'pageListEntries' => 1,
+                'auxiliaryNavigationEntries' => 1,
                 'packageLinks' => 1,
                 'guideReferences' => 1,
             ], $coverage['totals']);
@@ -438,6 +442,8 @@ return [
                 'img_no_cover',
                 'wasteland',
             ],
+            'fixturesWithPageLists' => [],
+            'fixturesWithAuxiliaryNavigation' => [],
             'totals' => [
                 'manifestItems' => 51,
                 'readingOrderItems' => 22,
@@ -446,6 +452,8 @@ return [
                 'stylesheetAssets' => 13,
                 'navigationEntries' => 90,
                 'landmarkEntries' => 7,
+                'pageListEntries' => 0,
+                'auxiliaryNavigationEntries' => 0,
                 'packageLinks' => 3,
                 'guideReferences' => 3,
             ],
@@ -501,7 +509,7 @@ return [
         $t->contains('packages: total=8 compared=8 packageParsed=8 readerParsed=8 packageFailures=0 readerFailures=0', $text);
         $t->contains('normalizedAst: matches=8 (100.00%) mismatches=0', $text);
         $t->contains('fixtureIdentity: status=valid-checked-in-current-epub-fixture-identity expected=16 observed=16', $text);
-        $t->contains('packageFeatureCoverage: fixtures=8 nav=5 ncx=3 covers=4 landmarks=5 manifestItems=51', $text);
+        $t->contains('packageFeatureCoverage: fixtures=8 nav=5 ncx=3 covers=4 landmarks=5 pageLists=0 auxiliaryNav=0 manifestItems=51', $text);
 
         $command = escapeshellarg(PHP_BINARY)
             . ' '
