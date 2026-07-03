@@ -682,6 +682,7 @@ final class PptxUpstreamReaderEvidence
         $staticEvidence = is_array($report['staticCurrentEvidence'] ?? null) ? $report['staticCurrentEvidence'] : [];
         $staticValidation = is_array($staticEvidence['validation'] ?? null) ? $staticEvidence['validation'] : [];
         $staticDenominator = is_array($staticEvidence['readerDenominator'] ?? null) ? $staticEvidence['readerDenominator'] : [];
+        $staticNativeParity = is_array($staticEvidence['nativeAstMappedParity'] ?? null) ? $staticEvidence['nativeAstMappedParity'] : [];
         $runner = is_array($report['runnerEvidence'] ?? null) ? $report['runnerEvidence'] : [];
 
         return implode(PHP_EOL, [
@@ -698,6 +699,10 @@ final class PptxUpstreamReaderEvidence
                 . ' checkedInPairs=' . (int) ($staticEvidence['checkedInFixturePairCount'] ?? 0)
                 . ' checkedInUnpairedPptx=' . (int) ($staticEvidence['checkedInUnpairedPptxFixtureCount'] ?? 0)
                 . ' checkedInUnpairedNative=' . (int) ($staticEvidence['checkedInUnpairedNativeFixtureCount'] ?? 0),
+            'Static native AST mapped parity: ' . (string) ($staticNativeParity['astParityStatus'] ?? 'unknown')
+                . ' matches=' . (int) ($staticNativeParity['normalizedAstMatchCount'] ?? 0)
+                . ' mismatches=' . (int) ($staticNativeParity['normalizedAstMismatchCount'] ?? 0)
+                . ' required=' . (int) ($staticNativeParity['requiredPairCount'] ?? self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT),
             'Runner status: ' . (string) ($runner['status'] ?? 'unknown'),
             'Runner plan: ' . (string) ($runner['commandPlanStatus'] ?? 'unknown'),
             'Validation: ' . (string) ($validation['status'] ?? 'unknown'),
@@ -748,7 +753,27 @@ final class PptxUpstreamReaderEvidence
         return ($validation['status'] ?? null) === 'valid-checked-in-current-pptx-reader-evidence'
             && ($validation['issues'] ?? null) === []
             && (int) ($denominator['expectedCompareCount'] ?? -1) === self::EXPECTED_STATIC_READER_TEST_COMPARE_COUNT
-            && (int) ($evidence['checkedInFixturePairCount'] ?? -1) === self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT;
+            && (int) ($evidence['checkedInFixturePairCount'] ?? -1) === self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT
+            && self::hasRequiredStaticNativeMappedParity($report);
+    }
+
+    /**
+     * @param array<string, mixed> $report
+     */
+    public static function hasRequiredStaticNativeMappedParity(array $report): bool
+    {
+        $evidence = is_array($report['staticCurrentEvidence'] ?? null) ? $report['staticCurrentEvidence'] : [];
+        $parity = is_array($evidence['nativeAstMappedParity'] ?? null) ? $evidence['nativeAstMappedParity'] : [];
+
+        return ($parity['hasRequiredMappedParity'] ?? null) === true
+            && (int) ($parity['requiredPairCount'] ?? -1) === self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT
+            && (int) ($parity['totalPairCount'] ?? -1) === self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT
+            && (int) ($parity['comparedPairCount'] ?? -1) === self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT
+            && (int) ($parity['bothParsedCount'] ?? -1) === self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT
+            && (int) ($parity['parseFailureCount'] ?? -1) === 0
+            && (int) ($parity['normalizedAstMatchCount'] ?? -1) === self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT
+            && (int) ($parity['normalizedAstMismatchCount'] ?? -1) === 0
+            && ($parity['astParityStatus'] ?? null) === 'normalized-ast-equality-observed-not-runner-parity';
     }
 
     /**
@@ -843,13 +868,14 @@ final class PptxUpstreamReaderEvidence
                 'that every referenced PPTX/native fixture file exists in the pinned sparse upstream checkout',
                 'that root-level test/pptx-reader PPTX/native fixture pairs and unpaired files are accounted for',
                 'static checked-in current upstream basic.pptx/basic.native plus generated ' . self::fixturePairNameList(self::generatedStaticFixturePairNames()) . ' fixture identities when staticCurrentEvidence is valid',
+                'that local PHP PPTX reader output matches all checked-in current PPTX/native pairs by normalized AST shape when staticCurrentEvidence is valid',
                 'that upstream Haskell runner evidence is explicitly not-run',
                 'the future upstream runner command plan targets test:test-pandoc Readers/Pptx at the pinned upstream commit without execution',
             ],
             'doesNotAssert' => [
                 'that upstream Haskell/Cabal/Tasty tests were executed',
                 'full upstream Tests.Readers.Pptx runner parity',
-                'that local PHP output matches upstream native output',
+                'that local PHP output matches upstream native output outside the checked-in current normalized-AST snapshot',
                 'PPTX writer parity',
                 'full PowerPoint feature parity beyond Pandoc reader behavior',
             ],
@@ -956,6 +982,8 @@ final class PptxUpstreamReaderEvidence
         foreach ($checkedInFixturePairs as $pair) {
             $checkedInPairKeys[(string) $pair['pairKey']] = true;
         }
+        $nativeAstReport = (new PptxNativeAstComparisonHarness())->run($fixtureDirectory);
+        $nativeAstMappedParity = self::nativeAstMappedParityEvidence($nativeAstReport);
 
         $issues = [];
         if (!is_dir($fixtureDirectory)) {
@@ -974,6 +1002,9 @@ final class PptxUpstreamReaderEvidence
         }
         if ($checkedInUnpairedFixtures['native'] !== []) {
             $issues[] = 'checked-in-current-unpaired-native-fixtures';
+        }
+        if (($nativeAstMappedParity['hasRequiredMappedParity'] ?? false) !== true) {
+            $issues[] = 'checked-in-current-native-ast-mapped-parity-mismatch';
         }
 
         $snapshotPairs = [];
@@ -1039,16 +1070,18 @@ final class PptxUpstreamReaderEvidence
             'checkedInUnpairedNativeFixtureCount' => count($checkedInUnpairedFixtures['native']),
             'checkedInUnpairedPptxFixtures' => $checkedInUnpairedFixtures['pptx'],
             'checkedInUnpairedNativeFixtures' => $checkedInUnpairedFixtures['native'],
+            'nativeAstMappedParity' => $nativeAstMappedParity,
             'validation' => [
                 'status' => $issues === [] ? 'valid-checked-in-current-pptx-reader-evidence' : 'invalid-checked-in-current-pptx-reader-evidence',
                 'issues' => array_values(array_unique($issues)),
             ],
-            'claim' => 'Static gate binding the pinned Tests.Readers.Pptx one-case denominator to the checked-in current upstream basic.pptx/basic.native fixture pair, plus ' . count(self::generatedStaticFixturePairNames()) . ' generated PPTX/native pairs used only for local normalized-AST parity.',
+            'claim' => 'Static gate binding the pinned Tests.Readers.Pptx one-case denominator to the checked-in current upstream basic.pptx/basic.native fixture pair, plus ' . count(self::generatedStaticFixturePairNames()) . ' generated PPTX/native pairs with local normalized-AST parity.',
             'claimBoundaries' => [
                 'doesAssert' => [
                     'Tests.Readers.Pptx at the pinned upstream commit has one golden comparison for pptx-reader/basic.pptx and pptx-reader/basic.native',
                     'the checked-in current PPTX fixture directory contains ' . count(self::checkedInStaticFixturePairNames()) . ' same-stem PPTX/native pairs and no unpaired PPTX/native files',
                     'the checked-in ' . self::fixturePairNameList(self::checkedInStaticFixturePairNames()) . ' files match the expected SHA-256 hashes and byte counts for this snapshot',
+                    'local PHP PPTX reader output matches all ' . self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT . ' checked-in current PPTX/native pairs by normalized AST shape',
                 ],
                 'doesNotAssert' => [
                     'that upstream Haskell/Cabal/Tasty tests were executed',
@@ -1058,6 +1091,55 @@ final class PptxUpstreamReaderEvidence
                         self::generatedStaticFixturePairNames()
                     ),
                     'broader PPTX fixture corpus coverage beyond ' . self::fixturePairNameList(self::checkedInStaticFixturePairNames()),
+                    'full PowerPoint feature parity',
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $report
+     * @return array<string, mixed>
+     */
+    private static function nativeAstMappedParityEvidence(array $report): array
+    {
+        return [
+            'kind' => 'checked-in-current-pptx-native-normalized-ast-parity',
+            'tool' => (string) ($report['tool'] ?? 'pandoc-pptx-native-ast'),
+            'status' => (string) ($report['status'] ?? 'unknown'),
+            'skipped' => (bool) ($report['skipped'] ?? false),
+            'reason' => $report['reason'] ?? null,
+            'evidenceKind' => (string) ($report['evidenceKind'] ?? 'pptx-native-normalized-ast-comparison'),
+            'requiredPairCount' => self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT,
+            'upstreamPptxDirectory' => (string) ($report['upstreamPptxDirectory'] ?? ''),
+            'totalPairCount' => (int) ($report['totalPairCount'] ?? 0),
+            'comparedPairCount' => (int) ($report['comparedPairCount'] ?? 0),
+            'pptxParsedCount' => (int) ($report['pptxParsedCount'] ?? 0),
+            'nativeParsedCount' => (int) ($report['nativeParsedCount'] ?? 0),
+            'bothParsedCount' => (int) ($report['bothParsedCount'] ?? 0),
+            'parseFailureCount' => (int) ($report['parseFailureCount'] ?? 0),
+            'normalizedAstMatchCount' => (int) ($report['normalizedAstMatchCount'] ?? 0),
+            'normalizedAstMismatchCount' => (int) ($report['normalizedAstMismatchCount'] ?? 0),
+            'normalizedAstMatchPercent' => $report['normalizedAstMatchPercent'] ?? null,
+            'astParityStatus' => (string) ($report['astParityStatus'] ?? 'unknown'),
+            'hasRequiredMappedParity' => PptxNativeAstComparisonHarness::hasRequiredMappedParity(
+                $report,
+                self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT
+            ),
+            'normalizationPolicy' => is_array($report['normalizationPolicy'] ?? null) ? $report['normalizationPolicy'] : [],
+            'parseFailures' => is_array($report['parseFailures'] ?? null) ? $report['parseFailures'] : [],
+            'mismatchCategories' => is_array($report['mismatchCategories'] ?? null) ? $report['mismatchCategories'] : [],
+            'mismatchComparisons' => is_array($report['mismatchComparisons'] ?? null) ? $report['mismatchComparisons'] : [],
+            'orderedRemainingGaps' => is_array($report['orderedRemainingGaps'] ?? null) ? $report['orderedRemainingGaps'] : [],
+            'claim' => (string) ($report['claim'] ?? 'Checked-in current PPTX/native normalized AST comparison.'),
+            'claimBoundaries' => [
+                'doesAssert' => [
+                    'local PHP PPTX reader output and checked-in current native fixtures are equal after documented normalization',
+                ],
+                'doesNotAssert' => [
+                    'upstream Haskell/Cabal runner execution',
+                    'PPTX writer golden package parity',
+                    'byte-level PPTX package equality',
                     'full PowerPoint feature parity',
                 ],
             ],

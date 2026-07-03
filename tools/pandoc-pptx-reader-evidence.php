@@ -23,6 +23,9 @@ Options:
                                   Exit 1 unless the pinned static Tests.Readers.Pptx
                                   denominator matches the checked-in current
                                   PPTX/native fixture snapshot.
+  --require-static-native-mapped-parity
+                                  Exit 1 unless the checked-in current PPTX/native
+                                  snapshot matches by normalized AST shape.
   --require-runner-not-run        Exit 1 unless upstream runner evidence is structured as not-run.
   --require-runner-plan           Exit 1 unless upstream runner evidence includes the pinned
                                   planned-not-run command plan.
@@ -41,6 +44,7 @@ try {
     $requiredFixturePairCount = null;
     $requireNoValidationIssues = false;
     $requireStaticCurrentEvidence = false;
+    $requireStaticNativeMappedParity = false;
     $requireRunnerNotRun = false;
     $requireRunnerPlan = false;
     $args = array_slice($argv, 1);
@@ -70,6 +74,10 @@ try {
         }
         if ($arg === '--require-static-current-evidence') {
             $requireStaticCurrentEvidence = true;
+            continue;
+        }
+        if ($arg === '--require-static-native-mapped-parity') {
+            $requireStaticNativeMappedParity = true;
             continue;
         }
         if ($arg === '--require-runner-not-run') {
@@ -162,6 +170,11 @@ try {
 
     if ($requireStaticCurrentEvidence && !PptxUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($report)) {
         fwrite(STDERR, "pandoc-pptx-reader-evidence: checked-in current PPTX reader fixture evidence did not match the pinned static snapshot\n");
+        exit(1);
+    }
+
+    if ($requireStaticNativeMappedParity && !PptxUpstreamReaderEvidence::hasRequiredStaticNativeMappedParity($report)) {
+        fwrite(STDERR, "pandoc-pptx-reader-evidence: checked-in current PPTX/native mapped AST parity did not match the pinned static snapshot\n");
         exit(1);
     }
 

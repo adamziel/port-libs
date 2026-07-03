@@ -152,6 +152,7 @@ return [
         $report = (new PptxUpstreamReaderEvidence($repoRoot, 'missing-upstream-root-for-static-gate'))->report();
         $text = PptxUpstreamReaderEvidence::formatTextReport($report);
         $static = $report['staticCurrentEvidence'];
+        $nativeParity = $static['nativeAstMappedParity'];
         $pairsByStem = [];
         foreach ($static['checkedInFixturePairs'] as $fixturePair) {
             $pairsByStem[$fixturePair['stem']] = $fixturePair;
@@ -214,6 +215,20 @@ return [
         $t->same(0, $static['checkedInUnpairedNativeFixtureCount']);
         $t->same([], $static['checkedInUnpairedPptxFixtures']);
         $t->same([], $static['checkedInUnpairedNativeFixtures']);
+        $t->same('checked-in-current-pptx-native-normalized-ast-parity', $nativeParity['kind']);
+        $t->same('completed', $nativeParity['status']);
+        $t->same(false, $nativeParity['skipped']);
+        $t->same(45, $nativeParity['requiredPairCount']);
+        $t->same(45, $nativeParity['totalPairCount']);
+        $t->same(45, $nativeParity['comparedPairCount']);
+        $t->same(45, $nativeParity['pptxParsedCount']);
+        $t->same(45, $nativeParity['nativeParsedCount']);
+        $t->same(45, $nativeParity['bothParsedCount']);
+        $t->same(0, $nativeParity['parseFailureCount']);
+        $t->same(45, $nativeParity['normalizedAstMatchCount']);
+        $t->same(0, $nativeParity['normalizedAstMismatchCount']);
+        $t->same('normalized-ast-equality-observed-not-runner-parity', $nativeParity['astParityStatus']);
+        $t->same(true, $nativeParity['hasRequiredMappedParity']);
         $t->same('basic', $pair['stem']);
         $t->same('pptx-reader/basic.pptx|pptx-reader/basic.native', $pair['pairKey']);
         $t->same('e48fd9c2f8369d1792197e301d5fea676bf6e51097a24af7d85831a6f96dc2dc', $pair['checkedInPptx']['sha256']);
@@ -530,6 +545,7 @@ return [
         $t->same(122, $richMediaSkipPair['checkedInNative']['bytes']);
         $t->same(false, PptxUpstreamReaderEvidence::hasNoValidationIssues($report));
         $t->same(true, PptxUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($report));
+        $t->same(true, PptxUpstreamReaderEvidence::hasRequiredStaticNativeMappedParity($report));
         $t->same(true, PptxUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
         $t->same(true, PptxUpstreamReaderEvidence::hasRunnerPlanEvidence($report));
         $t->same('planned-not-run', $report['runnerEvidence']['commandPlanStatus']);
@@ -540,6 +556,7 @@ return [
         $t->true(in_array('.port-libs/pandoc-runner/logs/pptx-targeted-list-tests.txt', $report['runnerEvidence']['requiredTranscripts'], true));
         $t->true(in_array('.port-libs/pandoc-runner/artifacts/pptx-targeted-run/result.json', $report['runnerEvidence']['requiredArtifacts'], true));
         $t->true(in_array('that upstream Haskell/Cabal/Tasty tests were executed', $static['claimBoundaries']['doesNotAssert'], true));
+        $t->true(in_array('local PHP PPTX reader output matches all 45 checked-in current PPTX/native pairs by normalized AST shape', $static['claimBoundaries']['doesAssert'], true));
         $t->true(in_array('that body-before-title.pptx/body-before-title.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('that minimal.pptx/minimal.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('that missing-relationship-skip.pptx/missing-relationship-skip.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
@@ -585,6 +602,7 @@ return [
         $t->true(in_array('that slide-placeholders.pptx/slide-placeholders.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('that smartart-hierarchy.pptx/smartart-hierarchy.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
         $t->contains('Static current evidence: valid-checked-in-current-pptx-reader-evidence comparisons=1 checkedInPairs=45', $text);
+        $t->contains('Static native AST mapped parity: normalized-ast-equality-observed-not-runner-parity matches=45 mismatches=0 required=45', $text);
         $t->contains('Runner status: not-run', $text);
         $t->contains('Runner plan: planned-not-run', $text);
     },
@@ -630,6 +648,7 @@ HS);
             . ' --upstream-root=' . escapeshellarg('missing-upstream-root-for-static-gate')
             . ' --json'
             . ' --require-static-current-evidence'
+            . ' --require-static-native-mapped-parity'
             . ' --require-runner-not-run'
             . ' --require-runner-plan';
         $output = [];
@@ -642,6 +661,7 @@ HS);
         $t->same('not-evaluated-missing-upstream-root', $decoded['validation']['status']);
         $t->same('valid-checked-in-current-pptx-reader-evidence', $decoded['staticCurrentEvidence']['validation']['status']);
         $t->same(true, PptxUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($decoded));
+        $t->same(true, PptxUpstreamReaderEvidence::hasRequiredStaticNativeMappedParity($decoded));
         $t->same(true, PptxUpstreamReaderEvidence::hasRunnerNotRunEvidence($decoded));
         $t->same(true, PptxUpstreamReaderEvidence::hasRunnerPlanEvidence($decoded));
         $t->same('not-run', $decoded['runnerEvidence']['status']);
