@@ -175,7 +175,11 @@ return [
         $t->same(6, $report['denominator']['fixtureReferenceCount']);
         $t->same(10, $report['denominator']['expectedMediaItemCount']);
         $t->same([], $report['denominator']['missingReferencedFiles']);
-        $t->same(['epub/features.epub', 'epub/formatting.epub'], $report['denominator']['unreferencedEpubFixtures']);
+        $t->same([
+            'epub/features.epub',
+            'epub/formatting.epub',
+            'epub/page-list-navigation.epub',
+        ], $report['denominator']['unreferencedEpubFixtures']);
         $t->same(false, $report['sourceInventory']['readerSourceRequired']);
         $t->same(1, $report['sourceInventory']['presentFileCount']);
         $t->same(1, $report['sourceInventory']['missingFileCount']);
