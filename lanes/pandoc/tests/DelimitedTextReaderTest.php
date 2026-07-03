@@ -3226,13 +3226,14 @@ return [
         $t->same('10', $csvDocument->children[0]->children[1]->children[0]->children[1]->attr('text'));
     },
     'records csv header row width repair provenance without widening table output' => static function (TestRunner $t): void {
-        $document = (new DelimitedTextReader())->readCsv("\xEF\xBB\xBF" . implode("\n", [
+        $sourceText = implode("\n", [
             'id,title,published',
             '42,"Legacy, ""quoted"" title",true',
             "43,\"Two\nline title\",false,extra",
             '44,Needs review',
             '',
-        ]));
+        ]);
+        $document = (new DelimitedTextReader())->readCsv("\xEF\xBB\xBF" . $sourceText);
         $table = $document->children[0];
         $packet = $table->attr('delimitedText');
         $widthSummary = $packet['rowWidthSummary'] ?? [];
@@ -3308,6 +3309,44 @@ return [
         $t->same("Two\nline title", $table->children[1]->children[1]->children[1]->attr('text'));
         $t->same(3, count($table->children[1]->children[1]->children));
         $t->same('', $table->children[1]->children[2]->children[2]->attr('text'));
+
+        $headerTitle = $table->children[0]->children[0]->children[1];
+        $quotedTitle = $table->children[1]->children[0]->children[1];
+        $multilineTitle = $table->children[1]->children[1]->children[1];
+        $paddedPublished = $table->children[1]->children[2]->children[2];
+        $sourceSlice = static fn (AstNode $cell): string => substr(
+            $sourceText,
+            (int) $cell->attr('sourceStartOffset'),
+            (int) $cell->attr('sourceEndOffset') - (int) $cell->attr('sourceStartOffset')
+        );
+
+        $t->same('retained', $headerTitle->attr('sourceFieldStatus'));
+        $t->same(0, $headerTitle->attr('sourceRow'));
+        $t->same(1, $headerTitle->attr('sourceField'));
+        $t->same(false, $headerTitle->attr('sourceQuoted'));
+        $t->same('title', $sourceSlice($headerTitle));
+        $t->same('retained', $quotedTitle->attr('sourceFieldStatus'));
+        $t->same(1, $quotedTitle->attr('sourceRow'));
+        $t->same(2, $quotedTitle->attr('sourceRowNumber'));
+        $t->same(1, $quotedTitle->attr('sourceField'));
+        $t->same(2, $quotedTitle->attr('sourceFieldNumber'));
+        $t->same(true, $quotedTitle->attr('sourceQuoted'));
+        $t->same(false, $quotedTitle->attr('sourceMultiline'));
+        $t->same('"Legacy, ""quoted"" title"', $sourceSlice($quotedTitle));
+        $t->same('truncated', $multilineTitle->attr('rowRepair'));
+        $t->same('retained', $multilineTitle->attr('sourceFieldStatus'));
+        $t->same(2, $multilineTitle->attr('sourceRow'));
+        $t->same(3, $multilineTitle->attr('sourceRowNumber'));
+        $t->same(1, $multilineTitle->attr('sourceField'));
+        $t->same(true, $multilineTitle->attr('sourceQuoted'));
+        $t->same(true, $multilineTitle->attr('sourceMultiline'));
+        $t->same('"Two' . "\n" . 'line title"', $sourceSlice($multilineTitle));
+        $t->same('padded', $paddedPublished->attr('rowRepair'));
+        $t->same('padded', $paddedPublished->attr('sourceFieldStatus'));
+        $t->same(3, $paddedPublished->attr('sourceRow'));
+        $t->same(4, $paddedPublished->attr('sourceRowNumber'));
+        $t->same(null, $paddedPublished->attr('sourceField'));
+        $t->same(null, $paddedPublished->attr('sourceStartOffset'));
     },
     'records tsv blank rows trailing empty fields and repair summaries' => static function (TestRunner $t): void {
         $document = (new DelimitedTextReader())->readTsv(implode("\n", [

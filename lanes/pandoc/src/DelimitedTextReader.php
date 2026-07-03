@@ -59,6 +59,7 @@ final class DelimitedTextReader
             $this->assertStrictParsing($format, $inputPrefix, $parse);
         }
         $rows = $parse['rows'];
+        $fieldMetadataRows = $parse['fieldMetadataRows'];
         $sourceRowIndexes = $parse['sourceRowIndexes'];
         $blankRows = $parse['blankRows'];
         $controlCharacters = $this->controlCharacterSummary($sourceText, $dialect, $options);
@@ -74,14 +75,15 @@ final class DelimitedTextReader
         $columnCount = $this->repairedColumnCount($widths, $hasHeader);
         $sourceAnalysis = $this->sourceAnalysis($sourceText, $dialect, $widths);
         $sourceHeader = $hasHeader ? array_shift($rows) : null;
+        $sourceHeaderFieldMetadata = $hasHeader ? array_shift($fieldMetadataRows) : null;
         $tableRows = [];
-        foreach ($rows as $row) {
-            $tableRows[] = $this->tableRow($row, false, $columnCount);
+        foreach ($rows as $index => $row) {
+            $tableRows[] = $this->tableRow($row, false, $columnCount, $fieldMetadataRows[$index] ?? []);
         }
 
         $headRows = [];
         if ($sourceHeader !== null) {
-            $headRows[] = $this->tableRow($sourceHeader, true, $columnCount);
+            $headRows[] = $this->tableRow($sourceHeader, true, $columnCount, $sourceHeaderFieldMetadata ?? []);
         }
 
         $table = TableGeometry::withReviewPacket(new AstNode('table', [
@@ -465,6 +467,7 @@ final class DelimitedTextReader
      * @param array{delimiter:string, delimiterName:string, quote:string|null, escape:string|null, keepSpace:bool} $dialect
      * @return array{
      *     rows:list<list<string>>,
+     *     fieldMetadataRows:list<list<array<string, mixed>>>,
      *     sourceRowIndexes:list<int>,
      *     blankRows:list<int>,
      *     diagnostics:list<array{code:string, severity:string, message:string, row:int, column:int, offset:int}>,
@@ -490,6 +493,7 @@ final class DelimitedTextReader
         $keepSpace = $dialect['keepSpace'];
         $length = strlen($text);
         $rows = [];
+        $fieldMetadataRows = [];
         $sourceRowIndexes = [];
         $blankRows = [];
         $diagnostics = [];
@@ -506,9 +510,11 @@ final class DelimitedTextReader
             'partialRecordCount' => 0,
         ];
         $row = [];
+        $rowFieldMetadata = [];
         $field = '';
         $rowIndex = 0;
         $columnIndex = 0;
+        $fieldStartOffset = 0;
         $fieldStarted = false;
         $quotedField = false;
         $inQuotedField = false;
@@ -519,10 +525,13 @@ final class DelimitedTextReader
         $quotedFieldStartColumn = 0;
         $quotedFieldStartOffset = 0;
 
-        $finishField = static function () use (
+        $finishField = static function (int $sourceEndOffset) use (
             &$row,
+            &$rowFieldMetadata,
             &$field,
             &$columnIndex,
+            &$fieldStartOffset,
+            &$rowIndex,
             &$fieldStarted,
             &$quotedField,
             &$afterClosingQuote,
@@ -530,13 +539,27 @@ final class DelimitedTextReader
             &$fieldHadQuotedLineBreak,
             &$metrics
         ): void {
+            $sourceEndOffset = max($fieldStartOffset, $sourceEndOffset);
             $row[] = $field;
+            $rowFieldMetadata[] = [
+                'sourceRow' => $rowIndex,
+                'sourceRowNumber' => $rowIndex + 1,
+                'sourceField' => $columnIndex,
+                'sourceFieldNumber' => $columnIndex + 1,
+                'sourceStartOffset' => $fieldStartOffset,
+                'sourceEndOffset' => $sourceEndOffset,
+                'sourceByteRange' => [$fieldStartOffset, $sourceEndOffset],
+                'sourceByteLength' => $sourceEndOffset - $fieldStartOffset,
+                'sourceQuoted' => $quotedField,
+                'sourceMultiline' => $fieldHadQuotedLineBreak,
+            ];
             if ($quotedField && $fieldHadQuotedLineBreak) {
                 $metrics['multilineFieldCount']++;
             }
 
             $field = '';
             $columnIndex++;
+            $fieldStartOffset = $sourceEndOffset + 1;
             $fieldStarted = false;
             $quotedField = false;
             $afterClosingQuote = false;
@@ -544,14 +567,17 @@ final class DelimitedTextReader
             $fieldHadQuotedLineBreak = false;
         };
 
-        $finishRow = static function () use (
+        $finishRow = static function (int $sourceEndOffset, int $nextRowStartOffset) use (
             &$rows,
+            &$fieldMetadataRows,
             &$row,
+            &$rowFieldMetadata,
             &$sourceRowIndexes,
             &$blankRows,
             &$field,
             &$rowIndex,
             &$columnIndex,
+            &$fieldStartOffset,
             &$fieldStarted,
             &$quotedField,
             &$afterClosingQuote,
@@ -560,9 +586,10 @@ final class DelimitedTextReader
         ): void {
             $hasPendingField = $fieldStarted || $field !== '' || $row !== [] || $quotedField || $afterClosingQuote;
             if ($hasPendingField) {
-                $finishField();
+                $finishField($sourceEndOffset);
                 if (!(count($row) === 1 && $row[0] === '')) {
                     $rows[] = $row;
+                    $fieldMetadataRows[] = $rowFieldMetadata;
                     $sourceRowIndexes[] = $rowIndex;
                 } else {
                     $blankRows[] = $rowIndex;
@@ -572,8 +599,10 @@ final class DelimitedTextReader
             }
 
             $row = [];
+            $rowFieldMetadata = [];
             $rowIndex++;
             $columnIndex = 0;
+            $fieldStartOffset = $nextRowStartOffset;
             $afterClosingQuoteWhitespace = false;
         };
 
@@ -640,13 +669,13 @@ final class DelimitedTextReader
                     if ($afterClosingQuoteWhitespace) {
                         $metrics['closingQuoteTrailingWhitespaceCount']++;
                     }
-                    $finishField();
+                    $finishField($offset);
                     $this->skipPostDelimiterWhitespace($text, $offset, $delimiter, $keepSpace);
                     continue;
                 }
 
                 if ($this->isLineBreak($char)) {
-                    $finishRow();
+                    $finishRow($offset, $char === "\r" && $next === "\n" ? $offset + 2 : $offset + 1);
                     if ($char === "\r" && $next === "\n") {
                         $offset++;
                     }
@@ -676,13 +705,13 @@ final class DelimitedTextReader
             }
 
             if ($char === $delimiter) {
-                $finishField();
+                $finishField($offset);
                 $this->skipPostDelimiterWhitespace($text, $offset, $delimiter, $keepSpace);
                 continue;
             }
 
             if ($this->isLineBreak($char)) {
-                $finishRow();
+                $finishRow($offset, $char === "\r" && $next === "\n" ? $offset + 2 : $offset + 1);
                 if ($char === "\r" && $next === "\n") {
                     $offset++;
                 }
@@ -692,6 +721,7 @@ final class DelimitedTextReader
 
             if ($quote !== null && $char === $quote) {
                 if (!$fieldStarted && $field === '') {
+                    $fieldStartOffset = $offset;
                     $fieldStarted = true;
                     $quotedField = true;
                     $inQuotedField = true;
@@ -716,6 +746,9 @@ final class DelimitedTextReader
                 continue;
             }
 
+            if (!$fieldStarted && $field === '') {
+                $fieldStartOffset = $offset;
+            }
             $field .= $char;
             $fieldStarted = true;
         }
@@ -735,11 +768,12 @@ final class DelimitedTextReader
 
         $hasPendingRow = $fieldStarted || $field !== '' || $row !== [] || $quotedField || $afterClosingQuote;
         if ($hasPendingRow) {
-            $finishRow();
+            $finishRow($length, $length);
         }
 
         return [
             'rows' => $rows,
+            'fieldMetadataRows' => $fieldMetadataRows,
             'sourceRowIndexes' => $sourceRowIndexes,
             'blankRows' => $blankRows,
             'diagnostics' => $diagnostics,
@@ -871,20 +905,86 @@ final class DelimitedTextReader
 
     /**
      * @param list<string> $row
+     * @param list<array<string, mixed>> $fieldMetadata
      */
-    private function tableRow(array $row, bool $header, int $columnCount): AstNode
+    private function tableRow(array $row, bool $header, int $columnCount, array $fieldMetadata = []): AstNode
     {
         $cells = [];
+        $originalColumnCount = count($row);
+        $rowRepair = $originalColumnCount < $columnCount
+            ? 'padded'
+            : ($originalColumnCount > $columnCount ? 'truncated' : 'unchanged');
+        $rowSource = $this->rowSourceFromFieldMetadata($fieldMetadata);
         for ($column = 0; $column < $columnCount; $column++) {
             $text = $row[$column] ?? '';
+            $metadata = is_array($fieldMetadata[$column] ?? null) ? $fieldMetadata[$column] : null;
             $cells[] = new AstNode('table_cell', [
                 'header' => $header,
                 'text' => $text,
                 'sourceColumn' => $column,
+                'originalColumnCount' => $originalColumnCount,
+                'repairedColumnCount' => $columnCount,
+                'rowRepair' => $rowRepair,
+                ...$this->cellSourceProvenance($metadata, $rowSource, $column),
             ], $text === '' ? [] : [new AstNode('plain', [], $this->cellInlines($text))]);
         }
 
         return new AstNode('table_row', ['header' => $header], $cells);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $fieldMetadata
+     * @return array{sourceRow:int|null, sourceRowNumber:int|null}
+     */
+    private function rowSourceFromFieldMetadata(array $fieldMetadata): array
+    {
+        foreach ($fieldMetadata as $metadata) {
+            if (is_int($metadata['sourceRow'] ?? null) && is_int($metadata['sourceRowNumber'] ?? null)) {
+                return [
+                    'sourceRow' => $metadata['sourceRow'],
+                    'sourceRowNumber' => $metadata['sourceRowNumber'],
+                ];
+            }
+        }
+
+        return ['sourceRow' => null, 'sourceRowNumber' => null];
+    }
+
+    /**
+     * @param array<string, mixed>|null $metadata
+     * @param array{sourceRow:int|null, sourceRowNumber:int|null} $rowSource
+     * @return array<string, mixed>
+     */
+    private function cellSourceProvenance(?array $metadata, array $rowSource, int $column): array
+    {
+        if ($metadata === null) {
+            $provenance = [
+                'sourceFieldStatus' => 'padded',
+                'sourceColumn' => $column,
+            ];
+            if ($rowSource['sourceRow'] !== null) {
+                $provenance['sourceRow'] = $rowSource['sourceRow'];
+                $provenance['sourceRowNumber'] = $rowSource['sourceRowNumber'];
+            }
+
+            return $provenance;
+        }
+
+        return [
+            'sourceFieldStatus' => 'retained',
+            'sourceRow' => (int) ($metadata['sourceRow'] ?? 0),
+            'sourceRowNumber' => (int) ($metadata['sourceRowNumber'] ?? 1),
+            'sourceField' => (int) ($metadata['sourceField'] ?? $column),
+            'sourceFieldNumber' => (int) ($metadata['sourceFieldNumber'] ?? $column + 1),
+            'sourceStartOffset' => (int) ($metadata['sourceStartOffset'] ?? 0),
+            'sourceEndOffset' => (int) ($metadata['sourceEndOffset'] ?? 0),
+            'sourceByteRange' => is_array($metadata['sourceByteRange'] ?? null)
+                ? array_values($metadata['sourceByteRange'])
+                : [0, 0],
+            'sourceByteLength' => (int) ($metadata['sourceByteLength'] ?? 0),
+            'sourceQuoted' => (bool) ($metadata['sourceQuoted'] ?? false),
+            'sourceMultiline' => (bool) ($metadata['sourceMultiline'] ?? false),
+        ];
     }
 
     /**
