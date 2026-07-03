@@ -102,6 +102,9 @@ final class MarkdownReader
     /** @var array<string, string> */
     private array $footnoteDefinitions = [];
 
+    /** @var array<string, string> */
+    private array $abbreviationDefinitions = [];
+
     /** @var array<string, int> */
     private array $exampleReferences = [];
 
@@ -154,6 +157,7 @@ final class MarkdownReader
         $lines = preg_split('/\R/u', rtrim($markdown, "\r\n")) ?: [];
         $previousReferenceLinks = $this->referenceLinks;
         $previousFootnoteDefinitions = $this->footnoteDefinitions;
+        $previousAbbreviationDefinitions = $this->abbreviationDefinitions;
         $previousExampleReferences = $this->exampleReferences;
         $previousExampleNumbersByLine = $this->exampleNumbersByLine;
         $previousRawTexMacros = $this->rawTexMacros;
@@ -171,12 +175,13 @@ final class MarkdownReader
             }
         }
         [$lines, $titleBlock] = $this->titleBlockEnabled() ? $this->extractTitleBlock($lines) : [$lines, null];
-        [$lines, $references, $footnotes] = $this->extractReferenceDefinitions($lines);
+        [$lines, $references, $footnotes, $abbreviations] = $this->extractReferenceDefinitions($lines);
         $lines = $this->splitMixedHtmlFlowLines($lines);
         [$exampleReferences, $exampleNumbersByLine] = $this->collectNumberedExampleReferences($lines);
         [$markdownHeadingIds, $implicitHeadingReferences] = $this->collectMarkdownHeadingReferences($lines);
         $this->referenceLinks = array_replace($previousReferenceLinks, $implicitHeadingReferences, $references);
         $this->footnoteDefinitions = array_replace($previousFootnoteDefinitions, $footnotes);
+        $this->abbreviationDefinitions = array_replace($previousAbbreviationDefinitions, $abbreviations);
         $this->exampleReferences = array_replace($previousExampleReferences, $exampleReferences);
         $this->exampleNumbersByLine = $exampleNumbersByLine;
         if ($titleBlock !== null) {
@@ -441,6 +446,7 @@ final class MarkdownReader
         $document = new AstNode('document', $documentAttrs, $blocks);
         $this->referenceLinks = $previousReferenceLinks;
         $this->footnoteDefinitions = $previousFootnoteDefinitions;
+        $this->abbreviationDefinitions = $previousAbbreviationDefinitions;
         $this->exampleReferences = $previousExampleReferences;
         $this->exampleNumbersByLine = $previousExampleNumbersByLine;
         $this->rawTexMacros = $previousRawTexMacros;
@@ -889,35 +895,27 @@ final class MarkdownReader
 
     /**
      * @param list<string> $lines
-     * @return array{0:list<string>, 1:array<string, array{url:string, title:string}>, 2:array<string, string>}
+     * @return array{0:list<string>, 1:array<string, array{url:string, title:string}>, 2:array<string, string>, 3:array<string, string>}
      */
     private function extractReferenceDefinitions(array $lines): array
     {
         $content = [];
         $references = [];
         $footnotes = [];
-        $fenceChar = null;
-        $fenceLength = 0;
+        $abbreviations = [];
         $count = count($lines);
 
         for ($index = 0; $index < $count; $index++) {
-            $line = $lines[$index];
-            if ($fenceChar !== null) {
-                $content[] = $line;
-                if ($this->isClosingCodeFence($line, $fenceChar, $fenceLength)) {
-                    $fenceChar = null;
-                    $fenceLength = 0;
+            $boundaryEnd = $this->markdownReferenceBoundaryEndIndex($lines, $index);
+            if ($boundaryEnd !== null) {
+                for ($cursor = $index; $cursor <= $boundaryEnd; $cursor++) {
+                    $content[] = $lines[$cursor];
                 }
+                $index = $boundaryEnd;
                 continue;
             }
 
-            if (preg_match('/^ {0,3}(`{3,}|~{3,})/', $line, $fence) === 1) {
-                $fenceChar = $fence[1][0];
-                $fenceLength = strlen($fence[1]);
-                $content[] = $line;
-                continue;
-            }
-
+            $line = $lines[$index];
             $expanded = $this->expandTabsToSpaces($line);
             $footnote = $this->tryParseFootnoteDefinitionStart($expanded);
             if ($footnote !== null) {
@@ -942,10 +940,198 @@ final class MarkdownReader
                 }
             }
 
+            $abbreviation = $this->tryParseAbbreviationDefinitionStart($expanded);
+            if ($abbreviation !== null) {
+                $abbreviations[$abbreviation['term']] ??= $abbreviation['title'];
+                continue;
+            }
+
             $content[] = $line;
         }
 
-        return [$content, $references, $footnotes];
+        return [$content, $references, $footnotes, $abbreviations];
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function markdownReferenceBoundaryEndIndex(array $lines, int $index): ?int
+    {
+        return $this->markdownFencedDivBoundaryEndIndex($lines, $index)
+            ?? $this->markdownCodeFenceBoundaryEndIndex($lines, $index)
+            ?? $this->markdownNativeDivBoundaryEndIndex($lines, $index)
+            ?? $this->markdownRawHtmlBoundaryEndIndex($lines, $index);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function markdownCodeFenceBoundaryEndIndex(array $lines, int $index): ?int
+    {
+        if (preg_match('/^ {0,3}(`{3,}|~{3,})/', $lines[$index] ?? '', $fence) !== 1) {
+            return null;
+        }
+
+        $fenceChar = $fence[1][0];
+        $fenceLength = strlen($fence[1]);
+        $count = count($lines);
+        for ($cursor = $index + 1; $cursor < $count; $cursor++) {
+            if ($this->isClosingCodeFence($lines[$cursor], $fenceChar, $fenceLength)) {
+                return $cursor;
+            }
+        }
+
+        return $count - 1;
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function markdownFencedDivBoundaryEndIndex(array $lines, int $index): ?int
+    {
+        if (!$this->fencedDivExtensionEnabled()) {
+            return null;
+        }
+
+        if (preg_match('/^ {0,3}(:{3,})[ \t]*(?:\{[^{}]*\}|[^\r\n]*)$/', $lines[$index] ?? '', $fence) !== 1) {
+            return null;
+        }
+
+        $fenceLength = strlen($fence[1]);
+        $count = count($lines);
+        for ($cursor = $index + 1; $cursor < $count; $cursor++) {
+            if ($this->isClosingFencedDiv($lines[$cursor], $fenceLength)) {
+                return $cursor;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function markdownNativeDivBoundaryEndIndex(array $lines, int $index): ?int
+    {
+        if (preg_match('/^ {0,3}<div(?=\s|>)(?:\s+[A-Za-z_:][A-Za-z0-9_.:-]*(?:\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s"\'=<>`]+))?)*\s*>/iu', $lines[$index] ?? '') !== 1) {
+            return null;
+        }
+
+        $collected = $this->collectBalancedHtmlElementBlock($lines, $index, 'div');
+        if ($collected === null) {
+            return null;
+        }
+
+        return $collected[1];
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function markdownRawHtmlBoundaryEndIndex(array $lines, int $index): ?int
+    {
+        if (!$this->htmlRawHtmlEnabled()) {
+            return null;
+        }
+
+        $line = $lines[$index] ?? '';
+        if (preg_match('/^ {0,3}<!--/', $line) === 1) {
+            return $this->markdownRawHtmlMarkerEndIndex($lines, $index, '-->');
+        }
+
+        if (preg_match('/^ {0,3}<\?/', $line) === 1) {
+            return $this->markdownRawHtmlMarkerEndIndex($lines, $index, '?>');
+        }
+
+        if (preg_match('/^ {0,3}<!\[CDATA\[/', $line) === 1) {
+            return $this->markdownRawHtmlMarkerEndIndex($lines, $index, ']]>');
+        }
+
+        if (preg_match('/^ {0,3}<![A-Za-z]/', $line) === 1) {
+            return $this->markdownRawHtmlMarkerEndIndex($lines, $index, '>');
+        }
+
+        if ($this->isAngleAutolinkOnlyLine($line)) {
+            return null;
+        }
+
+        $tag = $this->tryParseRawHtmlOpeningTag($line);
+        if (
+            $tag !== null
+            && in_array($tag['name'], ['script', 'style', 'pre', 'textarea', 'noscript', 'xmp'], true)
+        ) {
+            return $this->markdownRawHtmlClosingTagEndIndex($lines, $index, $tag['name']);
+        }
+
+        if ($tag !== null && $tag['name'] === 'table') {
+            return $this->markdownRawHtmlClosingTagEndIndex($lines, $index, 'table');
+        }
+
+        if ($tag !== null && $tag['name'] === 'hr' && preg_match('/^ {0,3}<hr(?:\s+[^>]*)?\/?>[ \t]*$/i', $line) === 1) {
+            return $index;
+        }
+
+        if ($this->tryParseRawHtmlClosingTag($line) !== null) {
+            return $this->markdownRawHtmlBlankLineEndIndex($lines, $index);
+        }
+
+        if (
+            $tag !== null
+            && (
+                $this->isCommonMarkBlankTerminatedRawHtmlTag($tag['name'])
+                || $this->isRawHtmlCustomTagName($tag['name'])
+            )
+        ) {
+            return $this->markdownRawHtmlBlankLineEndIndex($lines, $index);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function markdownRawHtmlMarkerEndIndex(array $lines, int $index, string $marker): int
+    {
+        $count = count($lines);
+        for ($cursor = $index; $cursor < $count; $cursor++) {
+            if (str_contains($lines[$cursor], $marker)) {
+                return $cursor;
+            }
+        }
+
+        return max($index, $count - 1);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function markdownRawHtmlClosingTagEndIndex(array $lines, int $index, string $tag): int
+    {
+        $closingPattern = '/<\/' . preg_quote($tag, '/') . '\s*>/i';
+        $count = count($lines);
+        for ($cursor = $index; $cursor < $count; $cursor++) {
+            if (preg_match($closingPattern, $lines[$cursor]) === 1) {
+                return $cursor;
+            }
+        }
+
+        return max($index, $count - 1);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function markdownRawHtmlBlankLineEndIndex(array $lines, int $index): int
+    {
+        $count = count($lines);
+        for ($cursor = $index + 1; $cursor < $count; $cursor++) {
+            if (trim($this->expandTabsToSpaces($lines[$cursor])) === '') {
+                return $cursor - 1;
+            }
+        }
+
+        return max($index, $count - 1);
     }
 
     /**
@@ -1037,24 +1223,16 @@ final class MarkdownReader
         $references = [];
         $numbersByLine = [];
         $nextNumber = 1;
-        $fenceChar = null;
-        $fenceLength = 0;
+        $count = count($lines);
 
-        foreach ($lines as $index => $line) {
-            if ($fenceChar !== null) {
-                if ($this->isClosingCodeFence($line, $fenceChar, $fenceLength)) {
-                    $fenceChar = null;
-                    $fenceLength = 0;
-                }
+        for ($index = 0; $index < $count; $index++) {
+            $boundaryEnd = $this->markdownReferenceBoundaryEndIndex($lines, $index);
+            if ($boundaryEnd !== null) {
+                $index = $boundaryEnd;
                 continue;
             }
 
-            if (preg_match('/^ {0,3}(`{3,}|~{3,})/', $line, $fence) === 1) {
-                $fenceChar = $fence[1][0];
-                $fenceLength = strlen($fence[1]);
-                continue;
-            }
-
+            $line = $lines[$index];
             $marker = $this->matchNumberedExampleMarker($line);
             if ($marker === null || $marker['indent'] > 3) {
                 continue;
@@ -1081,6 +1259,12 @@ final class MarkdownReader
         $usedIds = [];
 
         for ($index = 0, $count = count($lines); $index < $count; $index++) {
+            $boundaryEnd = $this->markdownReferenceBoundaryEndIndex($lines, $index);
+            if ($boundaryEnd !== null) {
+                $index = $boundaryEnd;
+                continue;
+            }
+
             $line = $lines[$index];
             $heading = $this->tryParseMarkdownHeading($line);
             $setext = false;
@@ -1442,6 +1626,37 @@ final class MarkdownReader
         return [
             'label' => $label['text'],
             'content' => rtrim(ltrim(substr($line, $label['next'] + 1), " \t")),
+        ];
+    }
+
+    /**
+     * @return array{term:string, title:string}|null
+     */
+    private function tryParseAbbreviationDefinitionStart(string $line): ?array
+    {
+        if (preg_match('/^ {0,3}/', $line, $indent) !== 1) {
+            return null;
+        }
+
+        $offset = strlen($indent[0]);
+        if (($line[$offset] ?? '') !== '*' || ($line[$offset + 1] ?? '') !== '[') {
+            return null;
+        }
+
+        $label = $this->parseBracketedLabel($line, $offset + 1);
+        if ($label === null || ($line[$label['next']] ?? '') !== ':') {
+            return null;
+        }
+
+        $term = $this->decodeHtmlEntities($this->unescapeLinkComponent($label['text']));
+        $title = $this->decodeHtmlEntities($this->unescapeLinkComponent(trim(substr($line, $label['next'] + 1))));
+        if ($term === '' || $title === '') {
+            return null;
+        }
+
+        return [
+            'term' => $term,
+            'title' => $title,
         ];
     }
 
@@ -11923,6 +12138,14 @@ final class MarkdownReader
                 continue;
             }
 
+            $abbreviation = $this->tryParseAbbreviationInline($text, $offset);
+            if ($abbreviation !== null) {
+                $this->flushText($buffer, $nodes);
+                $nodes[] = $abbreviation['node'];
+                $offset = $abbreviation['next'];
+                continue;
+            }
+
             $mark = $this->markExtensionEnabled() ? $this->tryParseMark($text, $offset) : null;
             if ($mark !== null) {
                 $this->flushText($buffer, $nodes);
@@ -15071,6 +15294,67 @@ final class MarkdownReader
         }
 
         return null;
+    }
+
+    /**
+     * @return array{node:AstNode, next:int}|null
+     */
+    private function tryParseAbbreviationInline(string $text, int $offset): ?array
+    {
+        if ($this->abbreviationDefinitions === []) {
+            return null;
+        }
+
+        $definitions = $this->abbreviationDefinitions;
+        uksort(
+            $definitions,
+            static fn (string $a, string $b): int => strlen($b) <=> strlen($a)
+        );
+
+        foreach ($definitions as $term => $title) {
+            $length = strlen($term);
+            if ($length === 0 || substr($text, $offset, $length) !== $term) {
+                continue;
+            }
+
+            if (!$this->isAbbreviationBoundaryBefore($text, $offset) || !$this->isAbbreviationBoundaryAfter($text, $offset + $length)) {
+                continue;
+            }
+
+            return [
+                'node' => new AstNode('span', [
+                    'classes' => ['abbr'],
+                    'attributes' => ['title' => $title],
+                    'htmlAttributes' => [
+                        'class' => 'abbr',
+                        'title' => $title,
+                    ],
+                ], [
+                    new AstNode('text', ['text' => $term]),
+                ]),
+                'next' => $offset + $length,
+            ];
+        }
+
+        return null;
+    }
+
+    private function isAbbreviationBoundaryBefore(string $text, int $offset): bool
+    {
+        if ($offset <= 0) {
+            return true;
+        }
+
+        return preg_match('/[\pL\pN]\z/u', substr($text, 0, $offset)) !== 1;
+    }
+
+    private function isAbbreviationBoundaryAfter(string $text, int $offset): bool
+    {
+        if ($offset >= strlen($text)) {
+            return true;
+        }
+
+        return preg_match('/\A[\pL\pN]/u', substr($text, $offset)) !== 1;
     }
 
     /**

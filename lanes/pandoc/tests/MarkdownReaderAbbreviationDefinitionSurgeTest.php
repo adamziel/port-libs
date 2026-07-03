@@ -133,8 +133,8 @@ $tests['writes wordpress abbreviation escaped definition attributes'] =
         $document = (new MarkdownReader())->read("Import C++ and label]term.\n\n*[C\\+\\+]: C\\+\\+ Language\n*[label\\]term]: Label \\] Term");
         $blocks = (new WordPressBlockWriter())->write($document);
 
-        $t->contains('<span class="abbr" title="C++ Language">C++</span>', $blocks);
-        $t->contains('<span class="abbr" title="Label ] Term">label]term</span>', $blocks);
+        $t->contains('<abbr title="C++ Language">C++</abbr>', $blocks);
+        $t->contains('<abbr title="Label ] Term">label]term</abbr>', $blocks);
     };
 
 $tests['records pandoc markdown abbreviation definition surge mapped-case count'] =
