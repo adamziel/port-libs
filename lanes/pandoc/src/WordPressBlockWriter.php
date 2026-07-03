@@ -657,8 +657,9 @@ final class WordPressBlockWriter
     /**
      * @param list<string> $baseClasses
      * @param list<string> $priorityNames
+     * @param list<string> $skipNames
      */
-    private function renderBlockHtmlAttrsWithClasses(AstNode $node, array $baseClasses, array $priorityNames = ['id', 'class', 'lang', 'dir', 'role', 'title']): string
+    private function renderBlockHtmlAttrsWithClasses(AstNode $node, array $baseClasses, array $priorityNames = ['id', 'class', 'lang', 'dir', 'role', 'title'], array $skipNames = []): string
     {
         $htmlAttributes = [];
         foreach ($this->inlineHtmlAttributes($node) as $name => $value) {
@@ -699,7 +700,7 @@ final class WordPressBlockWriter
         foreach ($orderedNames as $name) {
             $value = $htmlAttributes[$name];
             $name = strtolower((string) $name);
-            if (!$this->isAllowedBlockHtmlAttr($name)) {
+            if (in_array($name, $skipNames, true) || !$this->isAllowedBlockHtmlAttr($name)) {
                 continue;
             }
             $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
@@ -2594,7 +2595,7 @@ final class WordPressBlockWriter
 
     private function renderFigureBlock(AstNode $node): string
     {
-        if (!$this->isImageOnlyFigure($node)) {
+        if (!$this->shouldRenderFigureAsImageBlock($node)) {
             return '<!-- wp:html -->'
                 . "\n" . $this->renderMixedFigureHtml($node)
                 . "\n" . '<!-- /wp:html -->';
@@ -2603,6 +2604,21 @@ final class WordPressBlockWriter
         return '<!-- wp:image -->'
             . "\n" . $this->renderFigureHtml($node)
             . "\n" . '<!-- /wp:image -->';
+    }
+
+    private function shouldRenderFigureAsImageBlock(AstNode $node): bool
+    {
+        if ($this->isImageOnlyFigure($node)) {
+            return true;
+        }
+
+        if (!$this->firstFigureImage($node) instanceof AstNode || !$this->hasFigureCaptionContent($node)) {
+            return false;
+        }
+
+        $htmlAttributes = $node->attr('htmlAttributes', []);
+
+        return is_array($htmlAttributes) && $htmlAttributes !== [];
     }
 
     private function isImageOnlyFigure(AstNode $node): bool
@@ -2621,6 +2637,17 @@ final class WordPressBlockWriter
         }
 
         return $child->children[0]->type === 'image';
+    }
+
+    private function hasFigureCaptionContent(AstNode $node): bool
+    {
+        if (trim((string) $node->attr('caption', '')) !== '') {
+            return true;
+        }
+
+        $inlines = $node->attr('captionInlines', null);
+
+        return is_array($inlines) && $inlines !== [];
     }
 
     private function renderMixedFigureHtml(AstNode $node): string
@@ -2809,7 +2836,7 @@ final class WordPressBlockWriter
 
     private function renderImageFigureAttrs(AstNode $node): string
     {
-        $attrs = $this->renderBlockHtmlAttrsWithClasses($node, ['wp-block-image'], ['class', 'id', 'role', 'title']);
+        $attrs = $this->renderBlockHtmlAttrsWithClasses($node, ['wp-block-image'], ['class', 'id', 'role', 'title'], $this->imageFigureAttrSkipNames($node));
         $shortCaption = (string) $node->attr('shortCaption', '');
         if ($shortCaption !== '') {
             $attrs .= ' data-pandoc-short-caption="' . $this->esc($shortCaption) . '"';
@@ -2825,6 +2852,26 @@ final class WordPressBlockWriter
         }
 
         return $attrs;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function imageFigureAttrSkipNames(AstNode $node): array
+    {
+        $htmlAttributes = $node->attr('htmlAttributes', []);
+        $attributes = $node->attr('attributes', []);
+        if (
+            is_array($htmlAttributes)
+            && is_array($attributes)
+            && array_key_exists('data-review', $htmlAttributes)
+            && array_key_exists('review', $attributes)
+            && (string) $htmlAttributes['data-review'] === (string) $attributes['review']
+        ) {
+            return ['data-review'];
+        }
+
+        return [];
     }
 
     private function renderImageHtml(AstNode $node): string

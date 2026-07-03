@@ -2909,7 +2909,6 @@ final class MarkdownReader
     {
         return in_array($name, [
             'noscript',
-            'figure',
             'details',
             'svg',
             'math',
@@ -4607,8 +4606,31 @@ final class MarkdownReader
         if (!$figure instanceof \DOMElement) {
             return null;
         }
+        if (!$this->htmlFigureHasSemanticMediaOrCaption($figure)) {
+            return null;
+        }
 
         return $this->buildHtmlFigureNode($figure);
+    }
+
+    private function htmlFigureHasSemanticMediaOrCaption(\DOMElement $figure): bool
+    {
+        foreach ($figure->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            $name = strtolower($child->localName);
+            if ($name === 'figcaption' || $name === 'img') {
+                return true;
+            }
+
+            if (in_array($name, ['p', 'div', 'span', 'picture', 'a'], true) && $child->getElementsByTagName('img')->length > 0) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function parseHtmlListBlock(string $html, string $tag): ?AstNode
