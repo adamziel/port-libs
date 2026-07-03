@@ -9,7 +9,7 @@ use PortLibs\Pandoc\PptxUpstreamReaderEvidence;
 
 $usage = static function (): string {
     return <<<'TEXT'
-Usage: php tools/pandoc-pptx-reader-evidence.php [options]
+Usage: php tools/pandoc-pptx-reader-evidence.php [options] [summary]
 
 Options:
   --json                          Emit JSON instead of text.
@@ -36,6 +36,56 @@ It does not run Cabal/Tasty, execute pandoc, or claim writer parity.
 TEXT;
 };
 
+$summaryReport = static function (array $report): array {
+    $denominator = is_array($report['denominator'] ?? null) ? $report['denominator'] : [];
+    $staticEvidence = is_array($report['staticCurrentEvidence'] ?? null) ? $report['staticCurrentEvidence'] : [];
+    $staticDenominator = is_array($staticEvidence['readerDenominator'] ?? null) ? $staticEvidence['readerDenominator'] : [];
+    $staticNativeParity = is_array($staticEvidence['nativeAstMappedParity'] ?? null) ? $staticEvidence['nativeAstMappedParity'] : [];
+
+    return [
+        'schemaVersion' => $report['schemaVersion'] ?? null,
+        'tool' => $report['tool'] ?? null,
+        'status' => $report['status'] ?? null,
+        'upstream' => $report['upstream'] ?? [],
+        'denominator' => [
+            'readerTestCompareCount' => $denominator['readerTestCompareCount'] ?? 0,
+            'fixturePairCount' => $denominator['fixturePairCount'] ?? 0,
+            'referencedPairCount' => $denominator['referencedPairCount'] ?? 0,
+            'unpairedPptxFixtureCount' => $denominator['unpairedPptxFixtureCount'] ?? 0,
+            'unpairedNativeFixtureCount' => $denominator['unpairedNativeFixtureCount'] ?? 0,
+            'missingReferencedFileCount' => count(is_array($denominator['missingReferencedFiles'] ?? null) ? $denominator['missingReferencedFiles'] : []),
+            'unreferencedFixturePairCount' => count(is_array($denominator['unreferencedFixturePairs'] ?? null) ? $denominator['unreferencedFixturePairs'] : []),
+        ],
+        'staticCurrentEvidence' => [
+            'kind' => $staticEvidence['kind'] ?? null,
+            'readerDenominator' => [
+                'expectedCompareCount' => $staticDenominator['expectedCompareCount'] ?? 0,
+            ],
+            'checkedInFixturePairCount' => $staticEvidence['checkedInFixturePairCount'] ?? 0,
+            'checkedInUnpairedPptxFixtureCount' => $staticEvidence['checkedInUnpairedPptxFixtureCount'] ?? 0,
+            'checkedInUnpairedNativeFixtureCount' => $staticEvidence['checkedInUnpairedNativeFixtureCount'] ?? 0,
+            'nativeAstMappedParity' => [
+                'kind' => $staticNativeParity['kind'] ?? null,
+                'status' => $staticNativeParity['status'] ?? null,
+                'skipped' => $staticNativeParity['skipped'] ?? null,
+                'requiredPairCount' => $staticNativeParity['requiredPairCount'] ?? 0,
+                'totalPairCount' => $staticNativeParity['totalPairCount'] ?? 0,
+                'comparedPairCount' => $staticNativeParity['comparedPairCount'] ?? 0,
+                'bothParsedCount' => $staticNativeParity['bothParsedCount'] ?? 0,
+                'parseFailureCount' => $staticNativeParity['parseFailureCount'] ?? 0,
+                'normalizedAstMatchCount' => $staticNativeParity['normalizedAstMatchCount'] ?? 0,
+                'normalizedAstMismatchCount' => $staticNativeParity['normalizedAstMismatchCount'] ?? 0,
+                'normalizedAstMatchPercent' => $staticNativeParity['normalizedAstMatchPercent'] ?? null,
+                'astParityStatus' => $staticNativeParity['astParityStatus'] ?? null,
+                'hasRequiredMappedParity' => $staticNativeParity['hasRequiredMappedParity'] ?? false,
+            ],
+            'validation' => $staticEvidence['validation'] ?? [],
+        ],
+        'runnerEvidence' => $report['runnerEvidence'] ?? [],
+        'validation' => $report['validation'] ?? [],
+    ];
+};
+
 try {
     $repoRoot = dirname(__DIR__);
     $upstreamRoot = PptxUpstreamReaderEvidence::DEFAULT_RELATIVE_UPSTREAM_ROOT;
@@ -47,6 +97,7 @@ try {
     $requireStaticNativeMappedParity = false;
     $requireRunnerNotRun = false;
     $requireRunnerPlan = false;
+    $summary = false;
     $args = array_slice($argv, 1);
 
     for ($i = 0, $count = count($args); $i < $count; ++$i) {
@@ -66,6 +117,10 @@ try {
         }
         if ($arg === '--json') {
             $json = true;
+            continue;
+        }
+        if ($arg === 'summary') {
+            $summary = true;
             continue;
         }
         if ($arg === '--require-no-validation-issues') {
@@ -141,6 +196,9 @@ try {
     }
 
     $report = (new PptxUpstreamReaderEvidence($repoRoot, $upstreamRoot))->report();
+    if ($summary) {
+        $report = $summaryReport($report);
+    }
     if ($json) {
         fwrite(STDOUT, json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR) . PHP_EOL);
     } else {

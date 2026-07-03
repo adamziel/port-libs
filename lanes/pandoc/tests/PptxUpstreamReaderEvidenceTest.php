@@ -668,6 +668,24 @@ HS);
         $t->same('$2 == "Readers" && $3 == "Pptx"', $decoded['runnerEvidence']['target']['tastyPattern']);
         $t->same(false, PptxUpstreamReaderEvidence::hasNoValidationIssues($decoded));
 
+        $summaryCommand = $command . ' summary';
+        $summaryOutput = [];
+        $summaryExitCode = 0;
+        exec($summaryCommand, $summaryOutput, $summaryExitCode);
+        $summary = json_decode(implode("\n", $summaryOutput), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same(0, $summaryExitCode);
+        $t->same(PptxUpstreamReaderEvidence::STATUS_SKIPPED_MISSING_SOURCE, $summary['status']);
+        $t->same(0, $summary['denominator']['readerTestCompareCount']);
+        $t->same(45, $summary['staticCurrentEvidence']['checkedInFixturePairCount']);
+        $t->same(45, $summary['staticCurrentEvidence']['nativeAstMappedParity']['normalizedAstMatchCount']);
+        $t->same(0, $summary['staticCurrentEvidence']['nativeAstMappedParity']['normalizedAstMismatchCount']);
+        $t->same(true, PptxUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($summary));
+        $t->same(true, PptxUpstreamReaderEvidence::hasRequiredStaticNativeMappedParity($summary));
+        $t->same(true, PptxUpstreamReaderEvidence::hasRunnerNotRunEvidence($summary));
+        $t->same(true, PptxUpstreamReaderEvidence::hasRunnerPlanEvidence($summary));
+        $t->true(!isset($summary['staticCurrentEvidence']['checkedInFixturePairs']), 'Reader evidence summary should omit bulky checked-in fixture rows');
+
         $missingRoot = $makeTempDir();
         try {
             $failingCommand = escapeshellarg(PHP_BINARY)
