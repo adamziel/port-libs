@@ -10782,6 +10782,9 @@ final class MarkdownReader
             if ($lineBlock !== null) {
                 $parts[] = $lineBlock['node'];
                 $cursor = $lineBlock['next'];
+            } elseif (($fencedDiv = $this->readListItemFencedDivBlock($lines, $cursor, $baseIndent, $contentIndent, $firstText)) !== null) {
+                $parts[] = $fencedDiv['node'];
+                $cursor = $fencedDiv['next'];
             } elseif ($this->isBlockQuoteLine($firstText)) {
                 [$quote, $cursor] = $this->readListItemBlockQuote($lines, $cursor, $baseIndent, $contentIndent, $firstText);
                 $parts[] = $quote;
@@ -10867,6 +10870,14 @@ final class MarkdownReader
                     $this->flushListItemParagraph($paragraph, $parts);
                     $parts[] = $lineBlock['node'];
                     $cursor = $lineBlock['next'];
+                    continue;
+                }
+
+                $fencedDiv = $this->readListItemFencedDivBlock($lines, $cursor, $baseIndent, $contentIndent, $continuation);
+                if ($fencedDiv !== null) {
+                    $this->flushListItemParagraph($paragraph, $parts);
+                    $parts[] = $fencedDiv['node'];
+                    $cursor = $fencedDiv['next'];
                     continue;
                 }
 
@@ -10980,6 +10991,38 @@ final class MarkdownReader
 
         return [
             'node' => $lineBlock,
+            'next' => $cursor + $blockIndex + 1,
+        ];
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{node:AstNode, next:int}|null
+     */
+    private function readListItemFencedDivBlock(
+        array $lines,
+        int $cursor,
+        int $baseIndent,
+        int $contentIndent,
+        string $firstLine
+    ): ?array {
+        if (!$this->fencedDivExtensionEnabled() || preg_match('/^ {0,3}:{3,}/', $this->expandTabsToSpaces($firstLine)) !== 1) {
+            return null;
+        }
+
+        $blockLines = [$firstLine];
+        $blockLines = array_merge(
+            $blockLines,
+            $this->collectListItemIndentedContinuationLines($lines, $cursor + 1, $baseIndent, $contentIndent)
+        );
+        $blockIndex = 0;
+        $fencedDiv = $this->tryReadFencedDivBlock($blockLines, $blockIndex);
+        if ($fencedDiv === null) {
+            return null;
+        }
+
+        return [
+            'node' => $fencedDiv,
             'next' => $cursor + $blockIndex + 1,
         ];
     }
