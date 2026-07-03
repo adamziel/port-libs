@@ -355,6 +355,10 @@ return [
             $t->same([], $coverage['fixturesWithResolvedManifestFallbacks']);
             $t->same([], $coverage['fixturesWithUsableManifestFallbacks']);
             $t->same(['generated-navigation'], $coverage['fixturesWithMissingManifestFallbacks']);
+            $t->same([], $coverage['fixturesWithMediaOverlays']);
+            $t->same([], $coverage['fixturesWithResolvedMediaOverlays']);
+            $t->same([], $coverage['fixturesWithMediaOverlayTextTargets']);
+            $t->same([], $coverage['fixturesWithMediaOverlayAudioTargets']);
             $t->same([], $coverage['fixturesWithNonLinearSpineItems']);
             $t->same([
                 'metadataCreators' => 1,
@@ -377,6 +381,13 @@ return [
                 'resolvedManifestFallbacks' => 0,
                 'usableManifestFallbacks' => 0,
                 'missingManifestFallbacks' => 1,
+                'mediaOverlays' => 0,
+                'resolvedMediaOverlays' => 0,
+                'missingMediaOverlays' => 0,
+                'mediaOverlayReferencedContentItems' => 0,
+                'mediaOverlayTextLocalTargets' => 0,
+                'mediaOverlayAudioLocalTargets' => 0,
+                'mediaOverlayDurations' => 0,
             ], $coverage['totals']);
 
             $command = escapeshellarg(PHP_BINARY)
@@ -414,12 +425,17 @@ return [
             $t->same([], $decoded['packageFeatureCoverage']['fixturesWithResolvedManifestFallbacks']);
             $t->same([], $decoded['packageFeatureCoverage']['fixturesWithUsableManifestFallbacks']);
             $t->same(['generated-navigation'], $decoded['packageFeatureCoverage']['fixturesWithMissingManifestFallbacks']);
+            $t->same([], $decoded['packageFeatureCoverage']['fixturesWithMediaOverlays']);
+            $t->same([], $decoded['packageFeatureCoverage']['fixturesWithResolvedMediaOverlays']);
+            $t->same([], $decoded['packageFeatureCoverage']['fixturesWithMediaOverlayTextTargets']);
+            $t->same([], $decoded['packageFeatureCoverage']['fixturesWithMediaOverlayAudioTargets']);
             $t->same(
                 $coverage['fixtureFeatureSignatures'],
                 $decoded['packageFeatureCoverage']['fixtureFeatureSignatures']
             );
             $t->same(['generated-navigation'], $decoded['packageFeatureCoverage']['fixturesWithCreators']);
             $t->same(1, $decoded['packageFeatureCoverage']['totals']['metadataCreators']);
+            $t->same(0, $decoded['packageFeatureCoverage']['totals']['mediaOverlays']);
         } finally {
             $removeTree($root);
         }
@@ -792,6 +808,18 @@ return [
                 'nav-ncx-linear-guide',
                 'video-manifest-resource',
             ],
+            'fixturesWithMediaOverlays' => [
+                'media-overlay-package',
+            ],
+            'fixturesWithResolvedMediaOverlays' => [
+                'media-overlay-package',
+            ],
+            'fixturesWithMediaOverlayTextTargets' => [
+                'media-overlay-package',
+            ],
+            'fixturesWithMediaOverlayAudioTargets' => [
+                'media-overlay-package',
+            ],
             'fixturesWithNonLinearSpineItems' => [
                 'epub2_cover',
                 'epub2_picture',
@@ -822,9 +850,16 @@ return [
                 'resolvedManifestFallbacks' => 1,
                 'usableManifestFallbacks' => 1,
                 'missingManifestFallbacks' => 2,
+                'mediaOverlays' => 1,
+                'resolvedMediaOverlays' => 1,
+                'missingMediaOverlays' => 0,
+                'mediaOverlayReferencedContentItems' => 1,
+                'mediaOverlayTextLocalTargets' => 1,
+                'mediaOverlayAudioLocalTargets' => 1,
+                'mediaOverlayDurations' => 2,
             ],
         ];
-        $expectedPackageFeatureSignatureSha256 = '8fef8a5de786ba46af53e378b9bb3fce8680e8d596a882fd2b00e7b772894edf';
+        $expectedPackageFeatureSignatureSha256 = 'f03ef24291a0a0142f9cd35017f43bd1599f20add4ab0537a0fb9055232909a2';
         $expectedCurrentNativeAstSignatureSha256 = '7814ec1439b23843170aa562792e9e27020cb1dbfbc8664a7c020b5d2ddc5e38';
         $expectedCurrentNativeAstFixtures = [
             'auxiliary-lot-guide-index',
@@ -1281,6 +1316,7 @@ return [
         $t->contains('guideRefTypes=bibliography:1,cover:2,glossary:1,index:1,notes:1,text:1,toc:1', $text);
         $t->contains('packageLinkRels=cc:attributionURL:1,cc:license:2,record:1', $text);
         $t->contains('remoteManifest=1 externalManifest=1 missingLocalManifest=1 manifestFallbackItems=3 manifestFallbacks=1 resolvedFallbacks=1 usableFallbacks=1 missingFallbacks=2', $text);
+        $t->contains('mediaOverlayFixtures=1 resolvedMediaOverlayFixtures=1 mediaOverlays=1 resolvedMediaOverlays=1 mediaOverlayTextTargets=1 mediaOverlayAudioTargets=1 mediaOverlayDurations=2', $text);
 
         $command = escapeshellarg(PHP_BINARY)
             . ' '

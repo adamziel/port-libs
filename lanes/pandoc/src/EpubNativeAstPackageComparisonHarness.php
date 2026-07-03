@@ -14,7 +14,7 @@ final class EpubNativeAstPackageComparisonHarness
     private const PACKAGE_FEATURE_SIGNATURE_KIND = 'checked-in-current-epub-package-feature-signature';
     private const PACKAGE_FEATURE_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
     private const PACKAGE_FEATURE_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-24-fixture-snapshot';
-    private const CHECKED_IN_CURRENT_PACKAGE_FEATURE_SIGNATURE_SHA256 = '8fef8a5de786ba46af53e378b9bb3fce8680e8d596a882fd2b00e7b772894edf';
+    private const CHECKED_IN_CURRENT_PACKAGE_FEATURE_SIGNATURE_SHA256 = 'f03ef24291a0a0142f9cd35017f43bd1599f20add4ab0537a0fb9055232909a2';
     private const CURRENT_NATIVE_AST_SIGNATURE_KIND = 'checked-in-current-epub-normalized-native-ast-signature';
     private const CURRENT_NATIVE_AST_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
     private const CURRENT_NATIVE_AST_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-24-fixture-normalized-ast-snapshot';
@@ -715,6 +715,18 @@ final class EpubNativeAstPackageComparisonHarness
             'nav-ncx-linear-guide',
             'video-manifest-resource',
         ],
+        'fixturesWithMediaOverlays' => [
+            'media-overlay-package',
+        ],
+        'fixturesWithResolvedMediaOverlays' => [
+            'media-overlay-package',
+        ],
+        'fixturesWithMediaOverlayTextTargets' => [
+            'media-overlay-package',
+        ],
+        'fixturesWithMediaOverlayAudioTargets' => [
+            'media-overlay-package',
+        ],
         'fixturesWithNonLinearSpineItems' => [
             'epub2_cover',
             'epub2_picture',
@@ -745,6 +757,13 @@ final class EpubNativeAstPackageComparisonHarness
             'resolvedManifestFallbacks' => 1,
             'usableManifestFallbacks' => 1,
             'missingManifestFallbacks' => 2,
+            'mediaOverlays' => 1,
+            'resolvedMediaOverlays' => 1,
+            'missingMediaOverlays' => 0,
+            'mediaOverlayReferencedContentItems' => 1,
+            'mediaOverlayTextLocalTargets' => 1,
+            'mediaOverlayAudioLocalTargets' => 1,
+            'mediaOverlayDurations' => 2,
         ],
     ];
 
@@ -1071,8 +1090,14 @@ final class EpubNativeAstPackageComparisonHarness
             $missingManifestFallbackFixtures = is_array($featureCoverage['fixturesWithMissingManifestFallbacks'] ?? null)
                 ? $featureCoverage['fixturesWithMissingManifestFallbacks']
                 : [];
+            $mediaOverlayFixtures = is_array($featureCoverage['fixturesWithMediaOverlays'] ?? null)
+                ? $featureCoverage['fixturesWithMediaOverlays']
+                : [];
+            $resolvedMediaOverlayFixtures = is_array($featureCoverage['fixturesWithResolvedMediaOverlays'] ?? null)
+                ? $featureCoverage['fixturesWithResolvedMediaOverlays']
+                : [];
             $lines[] = sprintf(
-                'packageFeatureCoverage: fixtures=%d nav=%d ncx=%d covers=%d landmarks=%d pageLists=%d auxiliaryNav=%d metadataCreators=%d manifestItems=%d readingOrderItems=%d spineLinear=%s nonLinearSpineFixtures=%d imageAssets=%d stylesheetAssets=%d resourceKinds=%s guideRefTypes=%s packageLinkRels=%s remoteManifest=%d externalManifest=%d missingLocalManifest=%d manifestFallbackItems=%d manifestFallbacks=%d resolvedFallbacks=%d usableFallbacks=%d missingFallbacks=%d',
+                'packageFeatureCoverage: fixtures=%d nav=%d ncx=%d covers=%d landmarks=%d pageLists=%d auxiliaryNav=%d metadataCreators=%d manifestItems=%d readingOrderItems=%d spineLinear=%s nonLinearSpineFixtures=%d imageAssets=%d stylesheetAssets=%d resourceKinds=%s guideRefTypes=%s packageLinkRels=%s remoteManifest=%d externalManifest=%d missingLocalManifest=%d manifestFallbackItems=%d manifestFallbacks=%d resolvedFallbacks=%d usableFallbacks=%d missingFallbacks=%d mediaOverlayFixtures=%d resolvedMediaOverlayFixtures=%d mediaOverlays=%d resolvedMediaOverlays=%d mediaOverlayTextTargets=%d mediaOverlayAudioTargets=%d mediaOverlayDurations=%d',
                 (int) ($featureCoverage['fixtureCount'] ?? 0),
                 (int) ($navigationTypeCounts['nav'] ?? 0),
                 (int) ($navigationTypeCounts['ncx'] ?? 0),
@@ -1101,7 +1126,14 @@ final class EpubNativeAstPackageComparisonHarness
                 (int) ($totals['manifestFallbacks'] ?? 0),
                 count($resolvedManifestFallbackFixtures),
                 count($usableManifestFallbackFixtures),
-                count($missingManifestFallbackFixtures)
+                count($missingManifestFallbackFixtures),
+                count($mediaOverlayFixtures),
+                count($resolvedMediaOverlayFixtures),
+                (int) ($totals['mediaOverlays'] ?? 0),
+                (int) ($totals['resolvedMediaOverlays'] ?? 0),
+                (int) ($totals['mediaOverlayTextLocalTargets'] ?? 0),
+                (int) ($totals['mediaOverlayAudioLocalTargets'] ?? 0),
+                (int) ($totals['mediaOverlayDurations'] ?? 0)
             );
         }
         $featureSignature = is_array($report['packageFeatureSignature'] ?? null) ? $report['packageFeatureSignature'] : [];
@@ -1562,6 +1594,10 @@ final class EpubNativeAstPackageComparisonHarness
             'fixturesWithResolvedManifestFallbacks' => [],
             'fixturesWithUsableManifestFallbacks' => [],
             'fixturesWithMissingManifestFallbacks' => [],
+            'fixturesWithMediaOverlays' => [],
+            'fixturesWithResolvedMediaOverlays' => [],
+            'fixturesWithMediaOverlayTextTargets' => [],
+            'fixturesWithMediaOverlayAudioTargets' => [],
             'fixturesWithNonLinearSpineItems' => [],
             'totals' => [
                 'metadataCreators' => 0,
@@ -1584,6 +1620,13 @@ final class EpubNativeAstPackageComparisonHarness
                 'resolvedManifestFallbacks' => 0,
                 'usableManifestFallbacks' => 0,
                 'missingManifestFallbacks' => 0,
+                'mediaOverlays' => 0,
+                'resolvedMediaOverlays' => 0,
+                'missingMediaOverlays' => 0,
+                'mediaOverlayReferencedContentItems' => 0,
+                'mediaOverlayTextLocalTargets' => 0,
+                'mediaOverlayAudioLocalTargets' => 0,
+                'mediaOverlayDurations' => 0,
             ],
         ];
     }
@@ -2116,6 +2159,7 @@ final class EpubNativeAstPackageComparisonHarness
         $navigationSections = $package->navigationSections();
         $guideReferences = $package->guideReferences();
         $manifestFallbacks = $package->manifestFallbacks();
+        $mediaOverlays = $package->mediaOverlays();
         $navigationSectionTypes = [];
         $landmarkEntryCount = 0;
         $pageListEntryCount = 0;
@@ -2163,6 +2207,13 @@ final class EpubNativeAstPackageComparisonHarness
             'resolvedManifestFallbackCount' => (int) ($manifestFallbacks['resolvedFallbackCount'] ?? 0),
             'usableManifestFallbackCount' => (int) ($manifestFallbacks['usableFallbackCount'] ?? 0),
             'missingManifestFallbackCount' => (int) ($manifestFallbacks['missingFallbackCount'] ?? 0),
+            'mediaOverlayCount' => (int) ($mediaOverlays['overlayCount'] ?? 0),
+            'resolvedMediaOverlayCount' => (int) ($mediaOverlays['resolvedOverlayCount'] ?? 0),
+            'missingMediaOverlayCount' => (int) ($mediaOverlays['missingOverlayCount'] ?? 0),
+            'mediaOverlayReferencedContentItemCount' => (int) ($mediaOverlays['referencedContentItemCount'] ?? 0),
+            'mediaOverlayTextLocalTargetCount' => (int) ($mediaOverlays['textLocalTargetCount'] ?? 0),
+            'mediaOverlayAudioLocalTargetCount' => (int) ($mediaOverlays['audioLocalTargetCount'] ?? 0),
+            'mediaOverlayDurationCount' => (int) ($mediaOverlays['durationCount'] ?? 0),
             'readingOrderCount' => count($spineItems),
             'spineLinearStateCounts' => $spineLinearStateCounts,
             'xhtmlAssetCount' => count($assets['xhtmlParts']),
@@ -2306,6 +2357,18 @@ final class EpubNativeAstPackageComparisonHarness
             if ($fixture !== '' && (int) ($summary['missingManifestFallbackCount'] ?? 0) > 0) {
                 $coverage['fixturesWithMissingManifestFallbacks'][] = $fixture;
             }
+            if ($fixture !== '' && (int) ($summary['mediaOverlayCount'] ?? 0) > 0) {
+                $coverage['fixturesWithMediaOverlays'][] = $fixture;
+            }
+            if ($fixture !== '' && (int) ($summary['resolvedMediaOverlayCount'] ?? 0) > 0) {
+                $coverage['fixturesWithResolvedMediaOverlays'][] = $fixture;
+            }
+            if ($fixture !== '' && (int) ($summary['mediaOverlayTextLocalTargetCount'] ?? 0) > 0) {
+                $coverage['fixturesWithMediaOverlayTextTargets'][] = $fixture;
+            }
+            if ($fixture !== '' && (int) ($summary['mediaOverlayAudioLocalTargetCount'] ?? 0) > 0) {
+                $coverage['fixturesWithMediaOverlayAudioTargets'][] = $fixture;
+            }
             $spineLinearCounts = is_array($summary['spineLinearStateCounts'] ?? null) ? $summary['spineLinearStateCounts'] : [];
             if ($fixture !== '' && (int) ($spineLinearCounts['non-linear'] ?? 0) > 0) {
                 $coverage['fixturesWithNonLinearSpineItems'][] = $fixture;
@@ -2331,6 +2394,13 @@ final class EpubNativeAstPackageComparisonHarness
             $coverage['totals']['resolvedManifestFallbacks'] += (int) ($summary['resolvedManifestFallbackCount'] ?? 0);
             $coverage['totals']['usableManifestFallbacks'] += (int) ($summary['usableManifestFallbackCount'] ?? 0);
             $coverage['totals']['missingManifestFallbacks'] += (int) ($summary['missingManifestFallbackCount'] ?? 0);
+            $coverage['totals']['mediaOverlays'] += (int) ($summary['mediaOverlayCount'] ?? 0);
+            $coverage['totals']['resolvedMediaOverlays'] += (int) ($summary['resolvedMediaOverlayCount'] ?? 0);
+            $coverage['totals']['missingMediaOverlays'] += (int) ($summary['missingMediaOverlayCount'] ?? 0);
+            $coverage['totals']['mediaOverlayReferencedContentItems'] += (int) ($summary['mediaOverlayReferencedContentItemCount'] ?? 0);
+            $coverage['totals']['mediaOverlayTextLocalTargets'] += (int) ($summary['mediaOverlayTextLocalTargetCount'] ?? 0);
+            $coverage['totals']['mediaOverlayAudioLocalTargets'] += (int) ($summary['mediaOverlayAudioLocalTargetCount'] ?? 0);
+            $coverage['totals']['mediaOverlayDurations'] += (int) ($summary['mediaOverlayDurationCount'] ?? 0);
         }
 
         ksort($metadataLanguageCounts, SORT_STRING);
