@@ -259,6 +259,7 @@ return [
             $t->same('en', $summary['metadataLanguage']);
             $t->same(1, $summary['metadataCreatorCount']);
             $t->same(1, $summary['packageLinkCount']);
+            $t->same(['record' => 1], $summary['packageLinkRelCounts']);
             $t->same(1, $summary['guideReferenceCount']);
             $t->same(['text' => 1], $summary['guideReferenceTypeCounts']);
             $t->same(4, $summary['manifestItemCount']);
@@ -308,6 +309,7 @@ return [
             ], $coverage['manifestResourceKindCounts']);
             $t->same(['landmarks', 'loi', 'page-list', 'toc'], $coverage['navigationSectionTypes']);
             $t->same(['text' => 1], $coverage['guideReferenceTypeCounts']);
+            $t->same(['record' => 1], $coverage['packageLinkRelCounts']);
             $t->same(['generated-navigation'], $coverage['fixturesWithGuideReferences']);
             $t->same(['generated-navigation'], $coverage['fixturesWithPackageLinks']);
             $t->same(['generated-navigation'], $coverage['fixturesWithCreators']);
@@ -367,6 +369,7 @@ return [
                 'xhtml' => 1,
             ], $decoded['packageFeatureCoverage']['manifestResourceKindCounts']);
             $t->same(['text' => 1], $decoded['packageFeatureCoverage']['guideReferenceTypeCounts']);
+            $t->same(['record' => 1], $decoded['packageFeatureCoverage']['packageLinkRelCounts']);
             $t->same(['generated-navigation'], $decoded['packageFeatureCoverage']['fixturesWithCreators']);
             $t->same(1, $decoded['packageFeatureCoverage']['totals']['metadataCreators']);
         } finally {
@@ -502,6 +505,10 @@ return [
             'fixturesWithPackageLinks' => [
                 'wasteland',
             ],
+            'packageLinkRelCounts' => [
+                'cc:attributionURL' => 1,
+                'cc:license' => 2,
+            ],
             'fixturesWithCoverImagePart' => [
                 'epub2_cover',
                 'epub2_picture',
@@ -610,6 +617,7 @@ return [
         $t->contains('packageFeatureCoverage: fixtures=8 nav=5 ncx=3 covers=4 landmarks=5 pageLists=0 auxiliaryNav=0 metadataCreators=28 manifestItems=51', $text);
         $t->contains('resourceKinds=cover-image:2,image:9,navigation:9,style:13,xhtml:18', $text);
         $t->contains('guideRefTypes=cover:2,toc:1', $text);
+        $t->contains('packageLinkRels=cc:attributionURL:1,cc:license:2', $text);
         $t->contains('remoteManifest=0 externalManifest=0 missingLocalManifest=0', $text);
 
         $command = escapeshellarg(PHP_BINARY)
@@ -677,6 +685,10 @@ return [
             'xhtml' => 18,
         ], $defaultFixtureIdentityDecoded['packageFeatureCoverage']['manifestResourceKindCounts']);
         $t->same(['cover' => 2, 'toc' => 1], $defaultFixtureIdentityDecoded['packageFeatureCoverage']['guideReferenceTypeCounts']);
+        $t->same([
+            'cc:attributionURL' => 1,
+            'cc:license' => 2,
+        ], $defaultFixtureIdentityDecoded['packageFeatureCoverage']['packageLinkRelCounts']);
     },
 
     'cli gates epub package and native readiness without requiring ast equality' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeEpub): void {
