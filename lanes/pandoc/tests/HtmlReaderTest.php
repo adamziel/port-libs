@@ -433,6 +433,46 @@ $tests['imports generated current html thematic break as horizontal rule'] =
         $t->same('After rule.', $document->children[2]->attr('text'));
     };
 
+$tests['imports html fragment hr variants as horizontal rules'] =
+    static function (TestRunner $t): void {
+        foreach (['<hr>', '<hr />', '<hr class="x" id="y">'] as $html) {
+            $document = (new HtmlReader())->read($html);
+
+            $t->same(['horizontal_rule'], array_map(static fn ($node): string => $node->type, $document->children), $html);
+            $t->same([], $document->children[0]->attrs, $html);
+        }
+    };
+
+$tests['imports html fragment headings with omitted end tags'] =
+    static function (TestRunner $t): void {
+        $document = (new HtmlReader())->read(<<<'HTML'
+<h1>Title
+<h2>Next <em>heading</em></h2>
+<p>Body.</p>
+HTML);
+
+        $t->same(['heading', 'heading', 'paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same(1, $document->children[0]->attr('level'));
+        $t->same('Title', $document->children[0]->attr('text'));
+        $t->same(2, $document->children[1]->attr('level'));
+        $t->same('Next heading', $document->children[1]->attr('text'));
+        $t->same(['text', 'emph'], array_map(static fn ($node): string => $node->type, $document->children[1]->children));
+        $t->same('Body.', $document->children[2]->attr('text'));
+    };
+
+$tests['imports html ordered lists with signed start values'] =
+    static function (TestRunner $t): void {
+        foreach ([['0', 0], ['-2', -2], ['+3', 3]] as [$rawStart, $expectedStart]) {
+            $document = (new HtmlReader())->read('<ol type="1" start="' . $rawStart . '"><li>Item</li></ol>');
+            $list = $document->children[0];
+
+            $t->same('ordered_list', $list->type, $rawStart);
+            $t->same($expectedStart, $list->attr('start'), $rawStart);
+            $t->same('decimal', $list->attr('style'), $rawStart);
+            $t->same('Item', $list->children[0]->attr('text'), $rawStart);
+        }
+    };
+
 $tests['imports generated current html ruby annotation text'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-ruby-annotation.html'));

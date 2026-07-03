@@ -11920,9 +11920,10 @@ HTML;
         $t->same('<!-- foo -->', $document->children[4]->attr('html'));
         $t->same('code_block', $document->children[5]->type);
         $t->same('<hr />', $document->children[5]->attr('text'));
-        $t->same('raw_html', $document->children[6]->type);
-        $t->same('<hr>', $document->children[6]->attr('html'));
-        $t->same('<hr class="foo" id="bar" />', $document->children[7]->attr('html'));
+        $t->same('horizontal_rule', $document->children[6]->type);
+        $t->same([], $document->children[6]->attrs);
+        $t->same('horizontal_rule', $document->children[7]->type);
+        $t->same([], $document->children[7]->attrs);
     },
     'maps upstream tables simple syntax with and without captions' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
@@ -12637,7 +12638,7 @@ XML;
 
         $t->contains('<dt>Source glossary</dt><dd><p>Preserve alternate marker notes from older Pandoc exports.</p></dd><dd><p>Verify nested review tasks</p><ol><li>Confirm block conversion</li><li>Attach media IDs</li></ol></dd>', $blocks);
     },
-    'writes wordpress raw html blocks for imported tables comments and custom dividers' => static function (TestRunner $t): void {
+    'writes wordpress raw html blocks and semantic dividers for imported fixtures' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
         $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
 
@@ -12648,7 +12649,8 @@ XML;
         $t->contains('<p>Markdown raw HTML boundary audit:</p>', $blocks);
         $t->contains('<p><del>Legacy raw deletion boundary</del></p>', $blocks);
         $t->contains('<!-- Preserve migration audit marker -->', $blocks);
-        $t->contains('<hr class="legacy-import-divider" />', $blocks);
+        $t->contains('<!-- wp:separator -->', $blocks);
+        $t->contains('<hr class="wp-block-separator has-alpha-channel-opacity"/>', $blocks);
     },
     'writes wordpress headerless html reader table blocks for plain import grids' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');

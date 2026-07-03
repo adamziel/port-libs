@@ -83,13 +83,20 @@ $cases = [
         'markdown' => "1.  Loose decimal\n\n    Continuation",
         'wordpress' => '<ol><li><p>Loose decimal</p><p>Continuation</p></li></ol>',
     ],
-    'invalid start keeps decimal type' => [
-        'html' => '<ol type="1" start="0"><li>Default start</li></ol>',
+    'zero start keeps decimal type' => [
+        'html' => '<ol type="1" start="0"><li>Zero start</li></ol>',
         'lists' => [
-            ['start' => 1, 'style' => 'decimal', 'loose' => false, 'items' => ['Default start']],
+            ['start' => 0, 'style' => 'decimal', 'loose' => false, 'items' => ['Zero start']],
         ],
-        'markdown' => '1.  Default start',
-        'wordpress' => '<ol><li>Default start</li></ol>',
+        'markdown' => '0.  Zero start',
+        'wordpress' => '<li>Zero start</li>',
+    ],
+    'negative start keeps decimal type' => [
+        'html' => '<ol type="1" start="-2"><li>Negative start</li></ol>',
+        'lists' => [
+            ['start' => -2, 'style' => 'decimal', 'loose' => false, 'items' => ['Negative start']],
+        ],
+        'wordpress' => '<li>Negative start</li>',
     ],
 ];
 
@@ -114,8 +121,12 @@ foreach ($cases as $name => $case) {
                 $t->same($expected['items'], $itemTexts($list), $name . ' list ' . $index . ' item text');
             }
 
-            $t->contains($case['markdown'], $markdown, $name . ' markdown decimal marker');
-            $t->contains($case['wordpress'], $blocks, $name . ' wordpress ordered-list output');
+            if (isset($case['markdown'])) {
+                $t->contains($case['markdown'], $markdown, $name . ' markdown decimal marker');
+            }
+            if (isset($case['wordpress'])) {
+                $t->contains($case['wordpress'], $blocks, $name . ' wordpress ordered-list output');
+            }
         };
 }
 

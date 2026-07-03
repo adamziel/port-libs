@@ -4502,7 +4502,7 @@ final class MarkdownReader
     private function tryReadHtmlHorizontalRuleBlock(array $lines, int &$index): ?AstNode
     {
         $line = $this->normalizeRawHtmlLine($lines[$index] ?? '');
-        if (preg_match('/^ {0,3}<hr\s*\/>[ \t]*$/i', $line) !== 1) {
+        if (preg_match('/^ {0,3}<hr\b(?:\s+[^>]*)?\s*\/?>[ \t]*$/i', $line) !== 1) {
             return null;
         }
 
@@ -4627,7 +4627,10 @@ final class MarkdownReader
         $level = (int) $m[1];
         $collected = $this->collectHtmlBlockUntilClosingTag($lines, $index, 'h' . $level);
         if ($collected === null) {
-            return null;
+            $collected = $this->collectHtmlHeadingBlockWithImpliedClose($lines, $index, $level);
+            if ($collected === null) {
+                return null;
+            }
         }
 
         [$html, $endIndex] = $collected;
@@ -4639,6 +4642,44 @@ final class MarkdownReader
         $index = $endIndex;
 
         return $heading;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{0:string, 1:int}|null
+     */
+    private function collectHtmlHeadingBlockWithImpliedClose(array $lines, int $index, int $level): ?array
+    {
+        $content = [];
+        $count = count($lines);
+        $tag = 'h' . $level;
+
+        for ($cursor = $index; $cursor < $count; $cursor++) {
+            $line = $this->normalizeRawHtmlLine($lines[$cursor]);
+            if ($cursor > $index && $this->htmlLineStartsImplicitHeadingClose($line)) {
+                break;
+            }
+
+            $content[] = $line;
+        }
+
+        if ($content === []) {
+            return null;
+        }
+
+        return [implode("\n", $content) . '</' . $tag . '>', $index + count($content) - 1];
+    }
+
+    private function htmlLineStartsImplicitHeadingClose(string $line): bool
+    {
+        if (trim($line) === '') {
+            return true;
+        }
+
+        return preg_match(
+            '/^ {0,3}<(?:p|h[1-6]|ul|ol|dl|blockquote|pre|table|div|figure|hr)\b/i',
+            $line
+        ) === 1;
     }
 
     private function parseHtmlHeadingElement(string $html, int $level): ?AstNode
@@ -6179,7 +6220,7 @@ final class MarkdownReader
     {
         $start = 1;
         $rawStart = trim($list->getAttribute('start'));
-        if (preg_match('/^\d+$/', $rawStart) === 1 && (int) $rawStart > 0) {
+        if (preg_match('/^[+-]?\d+$/', $rawStart) === 1) {
             $start = (int) $rawStart;
         }
 
