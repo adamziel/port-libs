@@ -64,6 +64,8 @@ final class HtmlNativeAstComparisonHarness
         sort($pairNames, SORT_STRING);
         $unpairedHtmlNames = array_values(array_diff($htmlFixtureNames, $pairNames));
         $unpairedNativeNames = array_values(array_diff($nativeFixtureNames, $pairNames));
+        $unpairedHtmlFixtureNames = self::fixtureNamesWithExtension($unpairedHtmlNames, 'html', count($unpairedHtmlNames));
+        $unpairedNativeFixtureNames = self::fixtureNamesWithExtension($unpairedNativeNames, 'native', count($unpairedNativeNames));
 
         $totalPairCount = count($pairNames);
         if ($limit > 0) {
@@ -148,6 +150,8 @@ final class HtmlNativeAstComparisonHarness
             'pairedFixtureCount' => $totalPairCount,
             'unpairedHtmlFixtureCount' => count($unpairedHtmlNames),
             'unpairedNativeFixtureCount' => count($unpairedNativeNames),
+            'unpairedHtmlFixtureNames' => $unpairedHtmlFixtureNames,
+            'unpairedNativeFixtureNames' => $unpairedNativeFixtureNames,
             'unpairedHtmlFixtureExamples' => self::fixtureNamesWithExtension($unpairedHtmlNames, 'html', $maxExamples),
             'unpairedNativeFixtureExamples' => self::fixtureNamesWithExtension($unpairedNativeNames, 'native', $maxExamples),
             'totalPairCount' => $totalPairCount,
@@ -278,6 +282,8 @@ final class HtmlNativeAstComparisonHarness
             'pairedFixtureCount' => 0,
             'unpairedHtmlFixtureCount' => 0,
             'unpairedNativeFixtureCount' => 0,
+            'unpairedHtmlFixtureNames' => [],
+            'unpairedNativeFixtureNames' => [],
             'unpairedHtmlFixtureExamples' => [],
             'unpairedNativeFixtureExamples' => [],
             'totalPairCount' => 0,

@@ -64,6 +64,35 @@ return [
         $smallInlineNative = $root . '/upstream-html-small-inline.native';
         $standaloneLinebreakHtml = $root . '/upstream-html-standalone-linebreak.html';
         $standaloneLinebreakNative = $root . '/upstream-html-standalone-linebreak.native';
+        $expectedUnpairedHtmlFixtureNames = [
+            'upstream-html-checkbox-list.html',
+            'upstream-html-cite-wbr-raw-inline.html',
+            'upstream-html-figure-caption.html',
+            'upstream-html-generic-raw-inline.html',
+            'upstream-html-list-item-id.html',
+            'upstream-html-math-renderer-spans.html',
+            'upstream-html-mathml-annotation.html',
+            'upstream-html-orphan-list-blocks.html',
+            'upstream-html-raw-disabled-skip.html',
+            'upstream-html-smallcaps-class.html',
+            'upstream-html-standalone-applet-inline.html',
+            'upstream-html-standalone-audio-inline.html',
+            'upstream-html-standalone-button-inline.html',
+            'upstream-html-standalone-del-inline.html',
+            'upstream-html-standalone-inline-flow.html',
+            'upstream-html-standalone-ins-inline.html',
+            'upstream-html-standalone-map-inline.html',
+            'upstream-html-standalone-noscript-inline.html',
+            'upstream-html-standalone-object-embed-inline.html',
+            'upstream-html-standalone-progress-inline.html',
+            'upstream-html-standalone-svg-inline.html',
+            'upstream-html-standalone-video-inline.html',
+            'upstream-html-standalone-void-inline.html',
+            'upstream-html-style-script-inline.html',
+            'upstream-html-svg-disabled-raw-html.html',
+            'upstream-html-svg-raw-html.html',
+            'upstream-html-textarea-raw-block.html',
+        ];
 
         $t->true(is_file($anchorImageHtml), 'HTML anchor/image fixture must be checked in');
         $t->true(is_file($anchorImageNative), 'Native anchor/image fixture must be checked in');
@@ -118,6 +147,8 @@ return [
         $t->same(21, $report['pairedFixtureCount']);
         $t->same(27, $report['unpairedHtmlFixtureCount']);
         $t->same(0, $report['unpairedNativeFixtureCount']);
+        $t->same($expectedUnpairedHtmlFixtureNames, $report['unpairedHtmlFixtureNames']);
+        $t->same([], $report['unpairedNativeFixtureNames']);
         $t->same('upstream-html-checkbox-list.html', $report['unpairedHtmlFixtureExamples'][0]);
         $t->same(21, $report['totalPairCount']);
         $t->same(21, $report['comparedPairCount']);
@@ -153,6 +184,8 @@ return [
         $t->same(0, $exitCode);
         $t->same(48, $decoded['htmlFixtureCount']);
         $t->same(27, $decoded['unpairedHtmlFixtureCount']);
+        $t->same($expectedUnpairedHtmlFixtureNames, $decoded['unpairedHtmlFixtureNames']);
+        $t->same([], $decoded['unpairedNativeFixtureNames']);
         $t->same(21, $decoded['normalizedAstMatchCount']);
         $t->same(0, $decoded['normalizedAstMismatchCount']);
     },
