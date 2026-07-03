@@ -641,7 +641,8 @@ return [
         $t->same('title', $document->children[1]->children[0]->attr('title'));
         $t->same('title preceded by two spaces', $document->children[2]->children[0]->attr('title'));
         $t->same('title preceded by a tab', $document->children[3]->children[0]->attr('title'));
-        $t->same('title with "quotes" in it', $document->children[4]->children[0]->attr('title'));
+        $t->same(['text', 'quoted', 'text'], array_map(static fn (AstNode $node): string => $node->type, $document->children[4]->children));
+        $t->same('[URL and title](/url/ ', $document->children[4]->children[0]->attr('text'));
         $t->same('title with single quotes', $document->children[5]->children[0]->attr('title'));
         $t->same('with_underscore', $document->children[6]->children[0]->children[0]->attr('text'));
         $t->same('/url/with_underscore', $document->children[6]->children[0]->attr('url'));
@@ -694,8 +695,9 @@ return [
         $t->same('This should [not][] be a link.', $document->children[6]->children[0]->attr('text'));
         $t->same('code_block', $document->children[7]->type);
         $t->same('[not]: /url', $document->children[7]->attr('text'));
-        $t->same('Title with "quotes" inside', $document->children[8]->children[1]->attr('title'));
-        $t->same('Title with "quote" inside', $document->children[9]->children[1]->attr('title'));
+        $t->same('Foo [bar][].', $document->children[8]->children[0]->attr('text'));
+        $t->same(['text', 'quoted', 'text'], array_map(static fn (AstNode $node): string => $node->type, $document->children[9]->children));
+        $t->same('Foo [biz](/url/ ', $document->children[9]->children[0]->attr('text'));
     },
     'maps upstream markdown reader unbalanced brackets and backslash escaped links' => static function (TestRunner $t): void {
         $reader = new MarkdownReader();
