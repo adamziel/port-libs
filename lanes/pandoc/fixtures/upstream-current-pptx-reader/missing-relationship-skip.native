@@ -1,0 +1,6 @@
+[ Header
+    2
+    ( "slide-1" , [] , [] )
+    [ Str "Missing relationship skip" ]
+, Para [ Str "Visible text after malformed relationship" ]
+]
