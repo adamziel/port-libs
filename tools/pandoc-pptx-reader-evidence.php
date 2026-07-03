@@ -29,6 +29,9 @@ Options:
   --require-runner-not-run        Exit 1 unless upstream runner evidence is structured as not-run.
   --require-runner-plan           Exit 1 unless upstream runner evidence includes the pinned
                                   planned-not-run command plan.
+  --runner-result-artifact PATH   Validate a captured upstream runner result JSON artifact.
+  --require-runner-result-artifact
+                                  Exit 1 unless the supplied runner result artifact is valid.
   --help                          Show this help.
 
 This is a denominator/evidence gate for the upstream PPTX reader fixture set.
@@ -97,6 +100,8 @@ try {
     $requireStaticNativeMappedParity = false;
     $requireRunnerNotRun = false;
     $requireRunnerPlan = false;
+    $requireRunnerResultArtifact = false;
+    $runnerResultArtifact = null;
     $summary = false;
     $args = array_slice($argv, 1);
 
@@ -143,6 +148,10 @@ try {
             $requireRunnerPlan = true;
             continue;
         }
+        if ($arg === '--require-runner-result-artifact') {
+            $requireRunnerResultArtifact = true;
+            continue;
+        }
         if ($arg === '--repo-root') {
             $repoRoot = $nextValue('--repo-root');
             continue;
@@ -157,6 +166,14 @@ try {
         }
         if (str_starts_with($arg, '--upstream-root=')) {
             $upstreamRoot = substr($arg, strlen('--upstream-root='));
+            continue;
+        }
+        if ($arg === '--runner-result-artifact') {
+            $runnerResultArtifact = $nextValue('--runner-result-artifact');
+            continue;
+        }
+        if (str_starts_with($arg, '--runner-result-artifact=')) {
+            $runnerResultArtifact = substr($arg, strlen('--runner-result-artifact='));
             continue;
         }
         if ($arg === '--require-test-count') {
@@ -195,7 +212,7 @@ try {
         throw new InvalidArgumentException("Unknown option: {$arg}");
     }
 
-    $report = (new PptxUpstreamReaderEvidence($repoRoot, $upstreamRoot))->report();
+    $report = (new PptxUpstreamReaderEvidence($repoRoot, $upstreamRoot, $runnerResultArtifact))->report();
     if ($summary) {
         $report = $summaryReport($report);
     }
@@ -243,6 +260,11 @@ try {
 
     if ($requireRunnerPlan && !PptxUpstreamReaderEvidence::hasRunnerPlanEvidence($report)) {
         fwrite(STDERR, "pandoc-pptx-reader-evidence: runner command-plan evidence is invalid\n");
+        exit(1);
+    }
+
+    if ($requireRunnerResultArtifact && !PptxUpstreamReaderEvidence::hasRunnerResultArtifactEvidence($report)) {
+        fwrite(STDERR, "pandoc-pptx-reader-evidence: runner result artifact evidence is invalid\n");
         exit(1);
     }
 
