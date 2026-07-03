@@ -1,0 +1,4 @@
+id,note,status
+1,"literal, comma",open
+2,"literal ""quote""",closed
+3,plain "middle" quote,done

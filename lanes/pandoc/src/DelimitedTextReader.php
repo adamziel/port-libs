@@ -935,6 +935,7 @@ final class DelimitedTextReader
             'keep-space-after-delimiter',
             'semicolon-delimiter-multiline-cell',
             'pipe-delimiter-quoted-field',
+            'quote-disabled-literal',
         ];
         $staticCurrentEvidence = DelimitedTextUpstreamReaderEvidence::checkedInCurrentEvidence(dirname(__DIR__, 3));
         $generatedCsvNativeStaticEvidence = is_array($staticCurrentEvidence['generatedCsvNativeStaticEvidence'] ?? null)
