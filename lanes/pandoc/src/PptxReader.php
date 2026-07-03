@@ -3172,6 +3172,16 @@ final class PptxReader
             $plot['varyColors'] = $this->xmlBooleanValue($varyColors->getAttribute('val'));
         }
 
+        foreach ([
+            'gapWidth' => 'gapWidth',
+            'overlap' => 'overlap',
+        ] as $source => $target) {
+            $value = $this->chartIntChildValue($chartTypeElement, $source);
+            if ($value !== null) {
+                $plot[$target] = $value;
+            }
+        }
+
         $dataLabels = $this->chartDataLabels($chartTypeElement);
         if ($dataLabels !== []) {
             $plot['dataLabels'] = $dataLabels;

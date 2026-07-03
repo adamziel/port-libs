@@ -236,7 +236,7 @@ final class EpubReader
             if ($fallback === '') {
                 $fallback = $path;
             }
-            if (trim($rootfile->getAttribute('media-type')) === self::OPF_MEDIA_TYPE) {
+            if ($this->mediaTypeBase($rootfile->getAttribute('media-type')) === self::OPF_MEDIA_TYPE) {
                 return $this->normalizeZipPath($path);
             }
         }

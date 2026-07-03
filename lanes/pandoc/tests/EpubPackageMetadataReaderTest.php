@@ -98,6 +98,54 @@ XML);
         $t->contains('<dt data-pandoc-meta-key="identifier">identifier</dt><dd><span>book-001</span></dd>', $blocks);
         $t->contains('<dt data-pandoc-meta-key="lang">lang</dt><dd><span>fr</span></dd>', $blocks);
     },
+    'discovers parameterized opf rootfile after non-opf rootfile' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-metadata-rootfile-media-type-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $zip = new ZipArchive();
+        $opened = $zip->open($path, ZipArchive::OVERWRITE);
+        if ($opened !== true) {
+            throw new RuntimeException('Unable to create temporary EPUB package');
+        }
+
+        $zip->addFromString('META-INF/container.xml', <<<'XML'
+<?xml version="1.0"?>
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="OPS/preview.xhtml" media-type="application/xhtml+xml"/>
+    <rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml; profile=&quot;primary&quot;"/>
+  </rootfiles>
+</container>
+XML);
+        $zip->addFromString('OPS/preview.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Preview only.</p></body></html>');
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="book-id">
+  <metadata>
+    <dc:identifier id="book-id">book-parameterized-metadata-rootfile</dc:identifier>
+    <dc:title>Parameterized Metadata Rootfile</dc:title>
+    <dc:creator>Package Author</dc:creator>
+    <dc:language>en</dc:language>
+  </metadata>
+</package>
+XML);
+        $zip->close();
+
+        try {
+            $meta = (new EpubPackageMetadataReader())->readEpubFile($path)->attr('meta');
+        } finally {
+            @unlink($path);
+        }
+
+        $t->same('Parameterized Metadata Rootfile', $meta['title']);
+        $t->same(['Package Author'], $meta['author']);
+        $t->same('book-parameterized-metadata-rootfile', $meta['identifier']);
+    },
     'rejects epub containers without an opf rootfile' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-');
         if ($path === false) {

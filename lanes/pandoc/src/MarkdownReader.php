@@ -15724,8 +15724,11 @@ final class MarkdownReader
 
         $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
         $canonical = MarkdownFormatProfile::canonicalFormat($format);
+        $normalizedFormat = is_scalar($format) ? strtolower(trim((string) $format)) : '';
+        $deprecatedGithubMarkdownAlias = preg_match('/^markdown[_-]github(?:[+-]|$)/', $normalizedFormat) === 1;
 
-        return in_array($canonical, ['markdown', 'commonmark_x', 'markdown_mmd'], true);
+        return in_array($canonical, ['markdown', 'commonmark_x', 'markdown_mmd'], true)
+            || ($canonical === 'gfm' && !$deprecatedGithubMarkdownAlias);
     }
 
     private function singleBackslashMathExtensionEnabled(): bool

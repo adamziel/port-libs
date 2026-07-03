@@ -352,6 +352,8 @@ XML);
           <c:showBubbleSize val="0"/>
           <c:showLeaderLines val="1"/>
         </c:dLbls>
+        <c:gapWidth val="175"/>
+        <c:overlap val="-20"/>
         <c:axId val="10"/><c:axId val="20"/>
       </c:barChart>
       <c:lineChart>
@@ -14959,6 +14961,8 @@ return [
         $t->same(['bar', 'line'], $chartParagraphs[0]->attr('pptxChart')['chartTypes'] ?? null);
         $t->same(2, $chartParagraphs[0]->attr('pptxChart')['chartTypeCount'] ?? null);
         $t->same('col', $chartParagraphs[0]->attr('pptxChart')['plots'][0]['barDirection'] ?? null);
+        $t->same(175, $chartParagraphs[0]->attr('pptxChart')['plots'][0]['gapWidth'] ?? null);
+        $t->same(-20, $chartParagraphs[0]->attr('pptxChart')['plots'][0]['overlap'] ?? null);
         $t->same(['10', '20'], $chartParagraphs[0]->attr('pptxChart')['plots'][0]['axisIds'] ?? null);
         $t->same('line', $chartParagraphs[0]->attr('pptxChart')['plots'][1]['type'] ?? null);
         $t->same('standard', $chartParagraphs[0]->attr('pptxChart')['plots'][1]['grouping'] ?? null);

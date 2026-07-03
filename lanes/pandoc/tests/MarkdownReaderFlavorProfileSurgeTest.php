@@ -205,9 +205,12 @@ $allFeatureFormats = [
 ];
 
 $strictFormats = ['markdown_strict', 'markdown-strict', 'markdown+strict', 'commonmark'];
-$gfmFormats = ['gfm', 'markdown_github', 'markdown-github', 'markdown+github'];
-$gfmEnabled = ['strikeout', 'emoji', 'bare uri'];
+$gfmFormats = ['gfm', 'markdown+github'];
+$githubMarkdownFormats = ['markdown_github', 'markdown-github'];
+$gfmEnabled = ['strikeout', 'emoji', 'dollar math', 'bare uri'];
 $gfmDisabled = array_values(array_diff(array_keys($featureProbes), $gfmEnabled));
+$githubMarkdownEnabled = ['strikeout', 'emoji', 'bare uri'];
+$githubMarkdownDisabled = array_values(array_diff(array_keys($featureProbes), $githubMarkdownEnabled));
 $phpExtraFormats = ['markdown_phpextra', 'markdown-php-extra', 'markdown+php_extra', 'markdown+php-extra', 'markdown+phpextra'];
 $phpExtraEnabled = ['bracketed span'];
 $phpExtraDisabled = array_values(array_diff(array_keys($featureProbes), $phpExtraEnabled));
@@ -272,7 +275,18 @@ return [
             $t->same(52, $mapped);
         },
     'maps upstream gfm and github markdown flavor profile extension split' =>
-        static function (TestRunner $t) use ($gfmFormats, $gfmEnabled, $gfmDisabled, $assertPresent, $assertAbsent): void {
+        static function (
+            TestRunner $t
+        ) use (
+            $gfmFormats,
+            $gfmEnabled,
+            $gfmDisabled,
+            $githubMarkdownFormats,
+            $githubMarkdownEnabled,
+            $githubMarkdownDisabled,
+            $assertPresent,
+            $assertAbsent
+        ): void {
             $mapped = 0;
             foreach ($gfmFormats as $format) {
                 foreach ($gfmEnabled as $feature) {
@@ -280,6 +294,16 @@ return [
                     $mapped++;
                 }
                 foreach ($gfmDisabled as $feature) {
+                    $assertAbsent($t, $format, $feature);
+                    $mapped++;
+                }
+            }
+            foreach ($githubMarkdownFormats as $format) {
+                foreach ($githubMarkdownEnabled as $feature) {
+                    $assertPresent($t, $format, $feature);
+                    $mapped++;
+                }
+                foreach ($githubMarkdownDisabled as $feature) {
                     $assertAbsent($t, $format, $feature);
                     $mapped++;
                 }

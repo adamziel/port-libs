@@ -82,7 +82,7 @@ final class EpubPackageMetadataReader
                 continue;
             }
 
-            if (trim($rootfile->getAttribute('media-type')) === self::OPF_MEDIA_TYPE) {
+            if ($this->mediaTypeBase($rootfile->getAttribute('media-type')) === self::OPF_MEDIA_TYPE) {
                 return $this->normalizeZipPath($path);
             }
 
@@ -94,6 +94,11 @@ final class EpubPackageMetadataReader
         }
 
         throw new \InvalidArgumentException('EPUB container does not declare an OPF rootfile');
+    }
+
+    private function mediaTypeBase(string $mediaType): string
+    {
+        return strtolower(trim(explode(';', $mediaType, 2)[0]));
     }
 
     /**

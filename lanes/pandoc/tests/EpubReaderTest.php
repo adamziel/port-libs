@@ -673,4 +673,57 @@ HTML);
             ['text' => 'Section A', 'href' => 'OPS/chapter.xhtml#section-a', 'level' => 2],
         ], $meta['epubTocEntries']);
     },
+    'selects parameterized opf rootfile over earlier non-opf rootfile' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-rootfile-media-type-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary EPUB package');
+        }
+        $zip->addFromString('META-INF/container.xml', <<<'XML'
+<?xml version="1.0"?>
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/preview.xhtml" media-type="application/xhtml+xml"/>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml; profile=&quot;primary&quot;"/>
+  </rootfiles>
+</container>
+XML);
+        $zip->addFromString('EPUB/preview.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Not an OPF package.</p></body></html>');
+        $zip->addFromString('EPUB/package.opf', <<<'XML'
+<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="book-id">
+  <metadata>
+    <dc:identifier id="book-id">book-parameterized-rootfile</dc:identifier>
+    <dc:title>Parameterized Rootfile EPUB</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('EPUB/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Parameterized Rootfile EPUB</h1><p>Body.</p></body></html>');
+        $zip->close();
+
+        try {
+            $document = (new EpubReader())->readEpubFile($path);
+            $meta = $document->attr('meta');
+        } finally {
+            @unlink($path);
+        }
+
+        $t->same('Parameterized Rootfile EPUB', $meta['title']);
+        $t->same('EPUB/package.opf', $meta['epubRootfile']);
+        $t->same(['EPUB/chapter.xhtml'], $meta['epubReadableResources']);
+    },
 ];
