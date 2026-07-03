@@ -24,6 +24,8 @@ Options:
                                   denominator matches the checked-in current
                                   PPTX/native fixture snapshot.
   --require-runner-not-run        Exit 1 unless upstream runner evidence is structured as not-run.
+  --require-runner-plan           Exit 1 unless upstream runner evidence includes the pinned
+                                  planned-not-run command plan.
   --help                          Show this help.
 
 This is a denominator/evidence gate for the upstream PPTX reader fixture set.
@@ -40,6 +42,7 @@ try {
     $requireNoValidationIssues = false;
     $requireStaticCurrentEvidence = false;
     $requireRunnerNotRun = false;
+    $requireRunnerPlan = false;
     $args = array_slice($argv, 1);
 
     for ($i = 0, $count = count($args); $i < $count; ++$i) {
@@ -71,6 +74,10 @@ try {
         }
         if ($arg === '--require-runner-not-run') {
             $requireRunnerNotRun = true;
+            continue;
+        }
+        if ($arg === '--require-runner-plan') {
+            $requireRunnerPlan = true;
             continue;
         }
         if ($arg === '--repo-root') {
@@ -160,6 +167,11 @@ try {
 
     if ($requireRunnerNotRun && !PptxUpstreamReaderEvidence::hasRunnerNotRunEvidence($report)) {
         fwrite(STDERR, "pandoc-pptx-reader-evidence: runner not-run evidence is invalid\n");
+        exit(1);
+    }
+
+    if ($requireRunnerPlan && !PptxUpstreamReaderEvidence::hasRunnerPlanEvidence($report)) {
+        fwrite(STDERR, "pandoc-pptx-reader-evidence: runner command-plan evidence is invalid\n");
         exit(1);
     }
 

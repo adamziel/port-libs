@@ -15,6 +15,19 @@ final class PptxUpstreamReaderEvidence
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
     public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 45;
 
+    private const RUNNER_TEST_SUITE = 'test:test-pandoc';
+    private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
+    private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
+    private const RUNNER_TASTY_PATTERN = '$2 == "Readers" && $3 == "Pptx"';
+    private const RUNNER_REQUIRED_TRANSCRIPTS = [
+        '.port-libs/pandoc-runner/logs/runner-test-dependencies.txt',
+        '.port-libs/pandoc-runner/logs/pptx-targeted-list-tests.txt',
+        '.port-libs/pandoc-runner/logs/pptx-targeted-run.txt',
+    ];
+    private const RUNNER_REQUIRED_ARTIFACTS = [
+        '.port-libs/pandoc-runner/artifacts/pptx-targeted-run/result.json',
+    ];
+
     private const STATIC_CURRENT_READER_CASES = [
         [
             'name' => 'text extraction',
@@ -686,6 +699,7 @@ final class PptxUpstreamReaderEvidence
                 . ' checkedInUnpairedPptx=' . (int) ($staticEvidence['checkedInUnpairedPptxFixtureCount'] ?? 0)
                 . ' checkedInUnpairedNative=' . (int) ($staticEvidence['checkedInUnpairedNativeFixtureCount'] ?? 0),
             'Runner status: ' . (string) ($runner['status'] ?? 'unknown'),
+            'Runner plan: ' . (string) ($runner['commandPlanStatus'] ?? 'unknown'),
             'Validation: ' . (string) ($validation['status'] ?? 'unknown'),
             'No upstream Haskell/Cabal runner result or full PowerPoint feature parity is asserted.',
         ]) . PHP_EOL;
@@ -752,6 +766,29 @@ final class PptxUpstreamReaderEvidence
             && $runner['resultArtifact'] === null;
     }
 
+    /**
+     * @param array<string, mixed> $report
+     */
+    public static function hasRunnerPlanEvidence(array $report): bool
+    {
+        $runner = is_array($report['runnerEvidence'] ?? null) ? $report['runnerEvidence'] : [];
+        $binding = is_array($runner['upstreamBinding'] ?? null) ? $runner['upstreamBinding'] : [];
+        $target = is_array($runner['target'] ?? null) ? $runner['target'] : [];
+
+        return self::hasRunnerNotRunEvidence($report)
+            && ($runner['commandPlanStatus'] ?? null) === 'planned-not-run'
+            && ($binding['name'] ?? null) === 'jgm/pandoc'
+            && ($binding['expectedCommit'] ?? null) === self::EXPECTED_UPSTREAM_COMMIT
+            && ($binding['entryPoint'] ?? null) === 'test/test-pandoc.hs'
+            && ($binding['readerTestModule'] ?? null) === 'test/Tests/Readers/Pptx.hs'
+            && ($target['testSuite'] ?? null) === self::RUNNER_TEST_SUITE
+            && ($target['tastyGroupPath'] ?? null) === self::RUNNER_TASTY_GROUP_PATH
+            && ($target['tastyPattern'] ?? null) === self::RUNNER_TASTY_PATTERN
+            && ($runner['futureCommands'] ?? null) === self::runnerFutureCommands()
+            && ($runner['requiredTranscripts'] ?? null) === self::RUNNER_REQUIRED_TRANSCRIPTS
+            && ($runner['requiredArtifacts'] ?? null) === self::RUNNER_REQUIRED_ARTIFACTS;
+    }
+
     private static function claim(): string
     {
         return 'Parses the pinned upstream Tests.Readers.Pptx test module and test/pptx-reader fixture directory to establish the current PPTX reader golden-test denominator.';
@@ -807,6 +844,7 @@ final class PptxUpstreamReaderEvidence
                 'that root-level test/pptx-reader PPTX/native fixture pairs and unpaired files are accounted for',
                 'static checked-in current upstream basic.pptx/basic.native plus generated ' . self::fixturePairNameList(self::generatedStaticFixturePairNames()) . ' fixture identities when staticCurrentEvidence is valid',
                 'that upstream Haskell runner evidence is explicitly not-run',
+                'the future upstream runner command plan targets test:test-pandoc Readers/Pptx at the pinned upstream commit without execution',
             ],
             'doesNotAssert' => [
                 'that upstream Haskell/Cabal/Tasty tests were executed',
@@ -830,62 +868,79 @@ final class PptxUpstreamReaderEvidence
             'executed' => false,
             'command' => null,
             'resultArtifact' => null,
+            'commandPlanStatus' => 'planned-not-run',
+            'upstreamBinding' => [
+                'name' => 'jgm/pandoc',
+                'expectedCommit' => self::EXPECTED_UPSTREAM_COMMIT,
+                'entryPoint' => 'test/test-pandoc.hs',
+                'readerTestModule' => 'test/Tests/Readers/Pptx.hs',
+            ],
+            'target' => [
+                'testSuite' => self::RUNNER_TEST_SUITE,
+                'tastyGroupPath' => self::RUNNER_TASTY_GROUP_PATH,
+                'tastyPattern' => self::RUNNER_TASTY_PATTERN,
+            ],
             'blockers' => [
                 'no committed upstream test:test-pandoc PPTX runner transcript or result artifact is present',
                 'this PHP evidence gate intentionally does not invoke Cabal/Tasty or hydrate Haskell build dependencies',
                 'a future runner claim must be bound to the pinned upstream commit and exact targeted PPTX Tasty pattern',
             ],
-            'futureCommands' => [
-                [
-                    'purpose' => 'prepare runner dependencies in an isolated build directory',
-                    'program' => 'cabal',
-                    'arguments' => [
-                        'v2-build',
-                        '--offline',
-                        '--dry-run',
-                        '--only-dependencies',
-                        '--project-dir=.',
-                        '--builddir=.port-libs/pandoc-runner/cabal-build/pptx-targeted-run',
-                        'test:test-pandoc',
-                    ],
-                ],
-                [
-                    'purpose' => 'list targeted PPTX reader tests',
-                    'program' => 'cabal',
-                    'arguments' => [
-                        'v2-run',
-                        '--offline',
-                        '--project-dir=.',
-                        '--builddir=.port-libs/pandoc-runner/cabal-build/pptx-targeted-run',
-                        'test:test-pandoc',
-                        '--',
-                        '--list-tests',
-                        '--pattern',
-                        '$2 == "Readers" && $3 == "Pptx"',
-                    ],
-                ],
-                [
-                    'purpose' => 'run targeted PPTX reader tests',
-                    'program' => 'cabal',
-                    'arguments' => [
-                        'v2-run',
-                        '--offline',
-                        '--project-dir=.',
-                        '--builddir=.port-libs/pandoc-runner/cabal-build/pptx-targeted-run',
-                        'test:test-pandoc',
-                        '--',
-                        '--pattern',
-                        '$2 == "Readers" && $3 == "Pptx"',
-                    ],
-                ],
-            ],
-            'requiredArtifacts' => [
-                '.port-libs/pandoc-runner/logs/runner-test-dependencies.txt',
-                '.port-libs/pandoc-runner/logs/pptx-targeted-list-tests.txt',
-                '.port-libs/pandoc-runner/logs/pptx-targeted-run.txt',
-                '.port-libs/pandoc-runner/artifacts/pptx-targeted-run/result.json',
-            ],
+            'futureCommands' => self::runnerFutureCommands(),
+            'requiredTranscripts' => self::RUNNER_REQUIRED_TRANSCRIPTS,
+            'requiredArtifacts' => self::RUNNER_REQUIRED_ARTIFACTS,
+            'reason' => 'This PHP evidence packet is generated without executing the upstream Haskell runner.',
             'claim' => 'No upstream Haskell runner parity is claimed.',
+        ];
+    }
+
+    /**
+     * @return list<array{purpose: string, program: string, arguments: list<string>}>
+     */
+    private static function runnerFutureCommands(): array
+    {
+        return [
+            [
+                'purpose' => 'prepare runner dependencies in an isolated build directory',
+                'program' => 'cabal',
+                'arguments' => [
+                    'v2-build',
+                    '--offline',
+                    '--dry-run',
+                    '--only-dependencies',
+                    '--project-dir=.',
+                    '--builddir=' . self::RUNNER_BUILD_DIR,
+                    self::RUNNER_TEST_SUITE,
+                ],
+            ],
+            [
+                'purpose' => 'list targeted PPTX reader tests',
+                'program' => 'cabal',
+                'arguments' => [
+                    'v2-run',
+                    '--offline',
+                    '--project-dir=.',
+                    '--builddir=' . self::RUNNER_BUILD_DIR,
+                    self::RUNNER_TEST_SUITE,
+                    '--',
+                    '--list-tests',
+                    '--pattern',
+                    self::RUNNER_TASTY_PATTERN,
+                ],
+            ],
+            [
+                'purpose' => 'run targeted PPTX reader tests',
+                'program' => 'cabal',
+                'arguments' => [
+                    'v2-run',
+                    '--offline',
+                    '--project-dir=.',
+                    '--builddir=' . self::RUNNER_BUILD_DIR,
+                    self::RUNNER_TEST_SUITE,
+                    '--',
+                    '--pattern',
+                    self::RUNNER_TASTY_PATTERN,
+                ],
+            ],
         ];
     }
 

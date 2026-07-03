@@ -85,12 +85,17 @@ return [
             $t->same('not-evaluated-missing-upstream-root', $report['validation']['status']);
             $t->same(false, PptxUpstreamReaderEvidence::hasNoValidationIssues($report));
             $t->same(true, PptxUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
+            $t->same(true, PptxUpstreamReaderEvidence::hasRunnerPlanEvidence($report));
             $t->same('not-run', $report['runnerEvidence']['status']);
             $t->same(false, $report['runnerEvidence']['executed']);
             $t->same(null, $report['runnerEvidence']['command']);
             $t->same(null, $report['runnerEvidence']['resultArtifact']);
+            $t->same('planned-not-run', $report['runnerEvidence']['commandPlanStatus']);
+            $t->same(PptxUpstreamReaderEvidence::EXPECTED_UPSTREAM_COMMIT, $report['runnerEvidence']['upstreamBinding']['expectedCommit']);
+            $t->same('$2 == "Readers" && $3 == "Pptx"', $report['runnerEvidence']['target']['tastyPattern']);
             $t->contains('Pandoc PPTX reader evidence', $text);
             $t->contains('Runner status: not-run', $text);
+            $t->contains('Runner plan: planned-not-run', $text);
         } finally {
             $removeTree($root);
         }
@@ -121,11 +126,23 @@ return [
             $t->same(true, PptxUpstreamReaderEvidence::hasRequiredFixturePairCount($report, 1));
             $t->same(true, PptxUpstreamReaderEvidence::hasNoValidationIssues($report));
             $t->same(true, PptxUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
+            $t->same(true, PptxUpstreamReaderEvidence::hasRunnerPlanEvidence($report));
             $t->same('upstream-haskell-runner', $report['runnerEvidence']['scope']);
+            $t->same('planned-not-run', $report['runnerEvidence']['commandPlanStatus']);
+            $t->same(PptxUpstreamReaderEvidence::EXPECTED_UPSTREAM_COMMIT, $report['runnerEvidence']['upstreamBinding']['expectedCommit']);
+            $t->same('test:test-pandoc', $report['runnerEvidence']['target']['testSuite']);
+            $t->same(['Readers', 'Pptx'], $report['runnerEvidence']['target']['tastyGroupPath']);
+            $t->same('$2 == "Readers" && $3 == "Pptx"', $report['runnerEvidence']['target']['tastyPattern']);
             $t->same('$2 == "Readers" && $3 == "Pptx"', $report['runnerEvidence']['futureCommands'][1]['arguments'][8]);
-            $t->true(in_array('.port-libs/pandoc-runner/logs/pptx-targeted-run.txt', $report['runnerEvidence']['requiredArtifacts'], true));
+            $t->same('$2 == "Readers" && $3 == "Pptx"', $report['runnerEvidence']['futureCommands'][2]['arguments'][7]);
+            $t->true(in_array('.port-libs/pandoc-runner/logs/pptx-targeted-run.txt', $report['runnerEvidence']['requiredTranscripts'], true));
+            $t->true(in_array('.port-libs/pandoc-runner/artifacts/pptx-targeted-run/result.json', $report['runnerEvidence']['requiredArtifacts'], true));
+            $mutatedReport = $report;
+            $mutatedReport['runnerEvidence']['target']['tastyPattern'] = '$2 == "Readers" && $3 == "HTML"';
+            $t->same(false, PptxUpstreamReaderEvidence::hasRunnerPlanEvidence($mutatedReport));
             $t->true(in_array('that upstream Haskell/Cabal/Tasty tests were executed', $report['claimBoundaries']['doesNotAssert'], true));
             $t->true(in_array('that upstream Haskell runner evidence is explicitly not-run', $report['claimBoundaries']['doesAssert'], true));
+            $t->true(in_array('the future upstream runner command plan targets test:test-pandoc Readers/Pptx at the pinned upstream commit without execution', $report['claimBoundaries']['doesAssert'], true));
         } finally {
             $removeTree($root);
         }
@@ -514,6 +531,14 @@ return [
         $t->same(false, PptxUpstreamReaderEvidence::hasNoValidationIssues($report));
         $t->same(true, PptxUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($report));
         $t->same(true, PptxUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
+        $t->same(true, PptxUpstreamReaderEvidence::hasRunnerPlanEvidence($report));
+        $t->same('planned-not-run', $report['runnerEvidence']['commandPlanStatus']);
+        $t->same(PptxUpstreamReaderEvidence::EXPECTED_UPSTREAM_COMMIT, $report['runnerEvidence']['upstreamBinding']['expectedCommit']);
+        $t->same('test:test-pandoc', $report['runnerEvidence']['target']['testSuite']);
+        $t->same(['Readers', 'Pptx'], $report['runnerEvidence']['target']['tastyGroupPath']);
+        $t->same('$2 == "Readers" && $3 == "Pptx"', $report['runnerEvidence']['target']['tastyPattern']);
+        $t->true(in_array('.port-libs/pandoc-runner/logs/pptx-targeted-list-tests.txt', $report['runnerEvidence']['requiredTranscripts'], true));
+        $t->true(in_array('.port-libs/pandoc-runner/artifacts/pptx-targeted-run/result.json', $report['runnerEvidence']['requiredArtifacts'], true));
         $t->true(in_array('that upstream Haskell/Cabal/Tasty tests were executed', $static['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('that body-before-title.pptx/body-before-title.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('that minimal.pptx/minimal.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
@@ -561,6 +586,7 @@ return [
         $t->true(in_array('that smartart-hierarchy.pptx/smartart-hierarchy.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
         $t->contains('Static current evidence: valid-checked-in-current-pptx-reader-evidence comparisons=1 checkedInPairs=45', $text);
         $t->contains('Runner status: not-run', $text);
+        $t->contains('Runner plan: planned-not-run', $text);
     },
     'reports invalid pptx reader evidence for missing and unreferenced fixtures' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile): void {
         $root = $makeTempDir();
@@ -604,7 +630,8 @@ HS);
             . ' --upstream-root=' . escapeshellarg('missing-upstream-root-for-static-gate')
             . ' --json'
             . ' --require-static-current-evidence'
-            . ' --require-runner-not-run';
+            . ' --require-runner-not-run'
+            . ' --require-runner-plan';
         $output = [];
         $exitCode = 0;
         exec($command, $output, $exitCode);
@@ -616,7 +643,9 @@ HS);
         $t->same('valid-checked-in-current-pptx-reader-evidence', $decoded['staticCurrentEvidence']['validation']['status']);
         $t->same(true, PptxUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($decoded));
         $t->same(true, PptxUpstreamReaderEvidence::hasRunnerNotRunEvidence($decoded));
+        $t->same(true, PptxUpstreamReaderEvidence::hasRunnerPlanEvidence($decoded));
         $t->same('not-run', $decoded['runnerEvidence']['status']);
+        $t->same('$2 == "Readers" && $3 == "Pptx"', $decoded['runnerEvidence']['target']['tastyPattern']);
         $t->same(false, PptxUpstreamReaderEvidence::hasNoValidationIssues($decoded));
 
         $missingRoot = $makeTempDir();
@@ -650,7 +679,9 @@ HS);
                 . ' --json'
                 . ' --require-test-count=1'
                 . ' --require-fixture-pair-count=1'
-                . ' --require-no-validation-issues';
+                . ' --require-no-validation-issues'
+                . ' --require-runner-not-run'
+                . ' --require-runner-plan';
             $output = [];
             $exitCode = 0;
             exec($command, $output, $exitCode);
@@ -660,6 +691,7 @@ HS);
             $t->same(1, $decoded['denominator']['readerTestCompareCount']);
             $t->same(1, $decoded['denominator']['fixturePairCount']);
             $t->same('valid-upstream-pptx-reader-denominator', $decoded['validation']['status']);
+            $t->same(true, PptxUpstreamReaderEvidence::hasRunnerPlanEvidence($decoded));
 
             $failingCommand = str_replace('--require-test-count=1', '--require-test-count=2', $command) . ' 2>/dev/null';
             $failingOutput = [];
