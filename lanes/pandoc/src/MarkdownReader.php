@@ -2871,6 +2871,10 @@ final class MarkdownReader
         }
 
         $name = $tag['name'];
+        if ($this->shouldPreferHtmlInlineFragmentBlock($lines[$index] ?? '', $name)) {
+            return null;
+        }
+
         if ($name === 'pre') {
             if (preg_match('/^ {0,3}<pre\s*>[ \t]*$/i', $lines[$index] ?? '') !== 1) {
                 return null;
@@ -2903,6 +2907,15 @@ final class MarkdownReader
         }
 
         return null;
+    }
+
+    private function shouldPreferHtmlInlineFragmentBlock(string $line, string $name): bool
+    {
+        if (!in_array($name, ['noscript', 'object', 'progress', 'svg'], true)) {
+            return false;
+        }
+
+        return preg_match('/^ {0,3}<' . preg_quote($name, '/') . '\b[\s\S]*<\/' . preg_quote($name, '/') . '\s*>/i', $line) === 1;
     }
 
     private function isPandocRawHtmlClosingBlockTag(string $name): bool
@@ -7182,7 +7195,10 @@ final class MarkdownReader
         if ($name === 'bdo') {
             return $this->parseHtmlBdoInline($node, $children);
         }
-        if (in_array($name, ['u', 'ins'], true)) {
+        if ($name === 'ins') {
+            return $this->wrapHtmlInlineWithBoundaryWhitespace('underline', $this->htmlElementPandocAttrs($node, ['cite', 'datetime']), $children);
+        }
+        if ($name === 'u') {
             return $this->wrapHtmlInlineWithBoundaryWhitespace('underline', $this->htmlElementPandocAttrs($node), $children);
         }
         if (in_array($name, ['s', 'strike', 'del'], true)) {
