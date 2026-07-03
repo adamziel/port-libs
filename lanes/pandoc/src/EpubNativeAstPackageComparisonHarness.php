@@ -113,6 +113,20 @@ final class EpubNativeAstPackageComparisonHarness
             'nav' => 5,
             'ncx' => 3,
         ],
+        'manifestMediaTypeCounts' => [
+            'application/x-dtbncx+xml' => 4,
+            'application/xhtml+xml' => 23,
+            'image/gif' => 3,
+            'image/jpeg' => 5,
+            'image/png' => 3,
+            'text/css' => 13,
+        ],
+        'manifestPropertyCounts' => [
+            'cover-image' => 2,
+            'mathml' => 2,
+            'nav' => 5,
+            'switch' => 1,
+        ],
         'navigationSectionTypes' => [
             'landmarks',
             'toc',
@@ -158,6 +172,9 @@ final class EpubNativeAstPackageComparisonHarness
         ],
         'fixturesWithPageLists' => [],
         'fixturesWithAuxiliaryNavigation' => [],
+        'fixturesWithRemoteManifestResources' => [],
+        'fixturesWithExternalManifestItems' => [],
+        'fixturesWithMissingLocalManifestItems' => [],
         'totals' => [
             'manifestItems' => 51,
             'readingOrderItems' => 22,
@@ -170,6 +187,9 @@ final class EpubNativeAstPackageComparisonHarness
             'auxiliaryNavigationEntries' => 0,
             'packageLinks' => 3,
             'guideReferences' => 3,
+            'remoteResourceManifestItems' => 0,
+            'externalManifestItems' => 0,
+            'missingLocalManifestItems' => 0,
         ],
     ];
 
@@ -436,7 +456,7 @@ final class EpubNativeAstPackageComparisonHarness
                 ? $featureCoverage['fixturesWithAuxiliaryNavigation']
                 : [];
             $lines[] = sprintf(
-                'packageFeatureCoverage: fixtures=%d nav=%d ncx=%d covers=%d landmarks=%d pageLists=%d auxiliaryNav=%d manifestItems=%d readingOrderItems=%d imageAssets=%d stylesheetAssets=%d',
+                'packageFeatureCoverage: fixtures=%d nav=%d ncx=%d covers=%d landmarks=%d pageLists=%d auxiliaryNav=%d manifestItems=%d readingOrderItems=%d imageAssets=%d stylesheetAssets=%d remoteManifest=%d externalManifest=%d missingLocalManifest=%d',
                 (int) ($featureCoverage['fixtureCount'] ?? 0),
                 (int) ($navigationTypeCounts['nav'] ?? 0),
                 (int) ($navigationTypeCounts['ncx'] ?? 0),
@@ -447,7 +467,10 @@ final class EpubNativeAstPackageComparisonHarness
                 (int) ($totals['manifestItems'] ?? 0),
                 (int) ($totals['readingOrderItems'] ?? 0),
                 (int) ($totals['imageAssets'] ?? 0),
-                (int) ($totals['stylesheetAssets'] ?? 0)
+                (int) ($totals['stylesheetAssets'] ?? 0),
+                (int) ($totals['remoteResourceManifestItems'] ?? 0),
+                (int) ($totals['externalManifestItems'] ?? 0),
+                (int) ($totals['missingLocalManifestItems'] ?? 0)
             );
         }
 
@@ -661,6 +684,8 @@ final class EpubNativeAstPackageComparisonHarness
             'fixtureCount' => 0,
             'metadataLanguageCounts' => [],
             'navigationTypeCounts' => [],
+            'manifestMediaTypeCounts' => [],
+            'manifestPropertyCounts' => [],
             'navigationSectionTypes' => [],
             'fixturesWithGuideReferences' => [],
             'fixturesWithPackageLinks' => [],
@@ -670,6 +695,9 @@ final class EpubNativeAstPackageComparisonHarness
             'fixturesWithLandmarks' => [],
             'fixturesWithPageLists' => [],
             'fixturesWithAuxiliaryNavigation' => [],
+            'fixturesWithRemoteManifestResources' => [],
+            'fixturesWithExternalManifestItems' => [],
+            'fixturesWithMissingLocalManifestItems' => [],
             'totals' => [
                 'manifestItems' => 0,
                 'readingOrderItems' => 0,
@@ -682,6 +710,9 @@ final class EpubNativeAstPackageComparisonHarness
                 'auxiliaryNavigationEntries' => 0,
                 'packageLinks' => 0,
                 'guideReferences' => 0,
+                'remoteResourceManifestItems' => 0,
+                'externalManifestItems' => 0,
+                'missingLocalManifestItems' => 0,
             ],
         ];
     }
@@ -824,6 +855,8 @@ final class EpubNativeAstPackageComparisonHarness
     {
         $assets = $package->assetSummary();
         $metadata = $package->metadata();
+        $manifestItems = $package->manifestItems();
+        $manifestCoverage = self::manifestItemCoverageSummary($manifestItems);
         $navigation = $package->navigation();
         $navigationSections = $package->navigationSections();
         $navigationSectionTypes = [];
@@ -859,7 +892,12 @@ final class EpubNativeAstPackageComparisonHarness
             'metadataCreatorCount' => is_array($metadata['creators'] ?? null) ? count($metadata['creators']) : 0,
             'packageLinkCount' => count($package->packageLinks()),
             'guideReferenceCount' => count($package->guideReferences()),
-            'manifestItemCount' => count($package->manifestItems()),
+            'manifestItemCount' => count($manifestItems),
+            'manifestMediaTypeCounts' => $manifestCoverage['mediaTypeCounts'],
+            'manifestPropertyCounts' => $manifestCoverage['propertyCounts'],
+            'remoteResourceManifestItemCount' => $manifestCoverage['remoteResourceItemCount'],
+            'externalManifestItemCount' => $manifestCoverage['externalItemCount'],
+            'missingLocalManifestItemCount' => $manifestCoverage['missingLocalItemCount'],
             'readingOrderCount' => count($package->readingOrder()),
             'xhtmlAssetCount' => count($assets['xhtmlParts']),
             'imageAssetCount' => count($assets['imageParts']),
@@ -885,6 +923,8 @@ final class EpubNativeAstPackageComparisonHarness
         $coverage['fixtureCount'] = count($summaries);
         $metadataLanguageCounts = [];
         $navigationTypeCounts = [];
+        $manifestMediaTypeCounts = [];
+        $manifestPropertyCounts = [];
         $navigationSectionTypes = [];
 
         foreach ($summaries as $summary) {
@@ -897,6 +937,18 @@ final class EpubNativeAstPackageComparisonHarness
             $navigationType = is_string($summary['navigationType'] ?? null) ? $summary['navigationType'] : '';
             if ($navigationType !== '') {
                 $navigationTypeCounts[$navigationType] = (int) ($navigationTypeCounts[$navigationType] ?? 0) + 1;
+            }
+
+            foreach (is_array($summary['manifestMediaTypeCounts'] ?? null) ? $summary['manifestMediaTypeCounts'] : [] as $mediaType => $count) {
+                if (is_string($mediaType) && $mediaType !== '') {
+                    $manifestMediaTypeCounts[$mediaType] = (int) ($manifestMediaTypeCounts[$mediaType] ?? 0) + (int) $count;
+                }
+            }
+
+            foreach (is_array($summary['manifestPropertyCounts'] ?? null) ? $summary['manifestPropertyCounts'] : [] as $property => $count) {
+                if (is_string($property) && $property !== '') {
+                    $manifestPropertyCounts[$property] = (int) ($manifestPropertyCounts[$property] ?? 0) + (int) $count;
+                }
             }
 
             foreach (is_array($summary['navigationSectionTypes'] ?? null) ? $summary['navigationSectionTypes'] : [] as $type) {
@@ -929,6 +981,15 @@ final class EpubNativeAstPackageComparisonHarness
             if ($fixture !== '' && (int) ($summary['auxiliaryNavigationEntryCount'] ?? 0) > 0) {
                 $coverage['fixturesWithAuxiliaryNavigation'][] = $fixture;
             }
+            if ($fixture !== '' && (int) ($summary['remoteResourceManifestItemCount'] ?? 0) > 0) {
+                $coverage['fixturesWithRemoteManifestResources'][] = $fixture;
+            }
+            if ($fixture !== '' && (int) ($summary['externalManifestItemCount'] ?? 0) > 0) {
+                $coverage['fixturesWithExternalManifestItems'][] = $fixture;
+            }
+            if ($fixture !== '' && (int) ($summary['missingLocalManifestItemCount'] ?? 0) > 0) {
+                $coverage['fixturesWithMissingLocalManifestItems'][] = $fixture;
+            }
 
             $coverage['totals']['manifestItems'] += (int) ($summary['manifestItemCount'] ?? 0);
             $coverage['totals']['readingOrderItems'] += (int) ($summary['readingOrderCount'] ?? 0);
@@ -941,16 +1002,85 @@ final class EpubNativeAstPackageComparisonHarness
             $coverage['totals']['auxiliaryNavigationEntries'] += (int) ($summary['auxiliaryNavigationEntryCount'] ?? 0);
             $coverage['totals']['packageLinks'] += (int) ($summary['packageLinkCount'] ?? 0);
             $coverage['totals']['guideReferences'] += (int) ($summary['guideReferenceCount'] ?? 0);
+            $coverage['totals']['remoteResourceManifestItems'] += (int) ($summary['remoteResourceManifestItemCount'] ?? 0);
+            $coverage['totals']['externalManifestItems'] += (int) ($summary['externalManifestItemCount'] ?? 0);
+            $coverage['totals']['missingLocalManifestItems'] += (int) ($summary['missingLocalManifestItemCount'] ?? 0);
         }
 
         ksort($metadataLanguageCounts, SORT_STRING);
         ksort($navigationTypeCounts, SORT_STRING);
+        ksort($manifestMediaTypeCounts, SORT_STRING);
+        ksort($manifestPropertyCounts, SORT_STRING);
         $coverage['metadataLanguageCounts'] = $metadataLanguageCounts;
         $coverage['navigationTypeCounts'] = $navigationTypeCounts;
+        $coverage['manifestMediaTypeCounts'] = $manifestMediaTypeCounts;
+        $coverage['manifestPropertyCounts'] = $manifestPropertyCounts;
         $coverage['navigationSectionTypes'] = array_keys($navigationSectionTypes);
         sort($coverage['navigationSectionTypes'], SORT_STRING);
 
         return $coverage;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @return array{mediaTypeCounts: array<string, int>, propertyCounts: array<string, int>, remoteResourceItemCount: int, externalItemCount: int, missingLocalItemCount: int}
+     */
+    private static function manifestItemCoverageSummary(array $items): array
+    {
+        $mediaTypeCounts = [];
+        $propertyCounts = [];
+        $remoteResourceItemCount = 0;
+        $externalItemCount = 0;
+        $missingLocalItemCount = 0;
+
+        foreach ($items as $item) {
+            $mediaType = self::manifestItemMediaType($item);
+            if ($mediaType !== '') {
+                $mediaTypeCounts[$mediaType] = (int) ($mediaTypeCounts[$mediaType] ?? 0) + 1;
+            }
+
+            foreach (is_array($item['properties'] ?? null) ? $item['properties'] : [] as $property) {
+                if (!is_string($property) || $property === '') {
+                    continue;
+                }
+                $property = strtolower($property);
+                $propertyCounts[$property] = (int) ($propertyCounts[$property] ?? 0) + 1;
+                if ($property === 'remote-resources') {
+                    ++$remoteResourceItemCount;
+                }
+            }
+
+            $external = ($item['external'] ?? false) === true;
+            if ($external) {
+                ++$externalItemCount;
+            }
+            if (!$external && ($item['exists'] ?? true) !== true) {
+                ++$missingLocalItemCount;
+            }
+        }
+
+        ksort($mediaTypeCounts, SORT_STRING);
+        ksort($propertyCounts, SORT_STRING);
+
+        return [
+            'mediaTypeCounts' => $mediaTypeCounts,
+            'propertyCounts' => $propertyCounts,
+            'remoteResourceItemCount' => $remoteResourceItemCount,
+            'externalItemCount' => $externalItemCount,
+            'missingLocalItemCount' => $missingLocalItemCount,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private static function manifestItemMediaType(array $item): string
+    {
+        $mediaType = is_string($item['mediaTypeBase'] ?? null)
+            ? $item['mediaTypeBase']
+            : (is_string($item['mediaType'] ?? null) ? $item['mediaType'] : '');
+
+        return strtolower(trim(explode(';', $mediaType, 2)[0]));
     }
 
     /**

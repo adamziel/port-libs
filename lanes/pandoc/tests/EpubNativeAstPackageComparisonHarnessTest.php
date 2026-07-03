@@ -112,6 +112,7 @@ XML],
     <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
     <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
     <item id="review" href="review.json" media-type="application/json"/>
+    <item id="remote-style" href="https://example.invalid/reader-package.css" media-type="text/css" properties="remote-resources"/>
   </manifest>
   <spine>
     <itemref idref="chapter"/>
@@ -257,7 +258,19 @@ return [
             $t->same(1, $summary['metadataCreatorCount']);
             $t->same(1, $summary['packageLinkCount']);
             $t->same(1, $summary['guideReferenceCount']);
-            $t->same(3, $summary['manifestItemCount']);
+            $t->same(4, $summary['manifestItemCount']);
+            $t->same([
+                'application/json' => 1,
+                'application/xhtml+xml' => 2,
+                'text/css' => 1,
+            ], $summary['manifestMediaTypeCounts']);
+            $t->same([
+                'nav' => 1,
+                'remote-resources' => 1,
+            ], $summary['manifestPropertyCounts']);
+            $t->same(1, $summary['remoteResourceManifestItemCount']);
+            $t->same(1, $summary['externalManifestItemCount']);
+            $t->same(0, $summary['missingLocalManifestItemCount']);
             $t->same(1, $summary['readingOrderCount']);
             $t->same('nav', $summary['navigationType']);
             $t->same(1, $summary['navigationEntryCount']);
@@ -269,6 +282,15 @@ return [
             $t->same(1, $coverage['fixtureCount']);
             $t->same(['en' => 1], $coverage['metadataLanguageCounts']);
             $t->same(['nav' => 1], $coverage['navigationTypeCounts']);
+            $t->same([
+                'application/json' => 1,
+                'application/xhtml+xml' => 2,
+                'text/css' => 1,
+            ], $coverage['manifestMediaTypeCounts']);
+            $t->same([
+                'nav' => 1,
+                'remote-resources' => 1,
+            ], $coverage['manifestPropertyCounts']);
             $t->same(['landmarks', 'loi', 'page-list', 'toc'], $coverage['navigationSectionTypes']);
             $t->same(['generated-navigation'], $coverage['fixturesWithGuideReferences']);
             $t->same(['generated-navigation'], $coverage['fixturesWithPackageLinks']);
@@ -278,8 +300,11 @@ return [
             $t->same(['generated-navigation'], $coverage['fixturesWithLandmarks']);
             $t->same(['generated-navigation'], $coverage['fixturesWithPageLists']);
             $t->same(['generated-navigation'], $coverage['fixturesWithAuxiliaryNavigation']);
+            $t->same(['generated-navigation'], $coverage['fixturesWithRemoteManifestResources']);
+            $t->same(['generated-navigation'], $coverage['fixturesWithExternalManifestItems']);
+            $t->same([], $coverage['fixturesWithMissingLocalManifestItems']);
             $t->same([
-                'manifestItems' => 3,
+                'manifestItems' => 4,
                 'readingOrderItems' => 1,
                 'xhtmlAssets' => 2,
                 'imageAssets' => 0,
@@ -290,6 +315,9 @@ return [
                 'auxiliaryNavigationEntries' => 1,
                 'packageLinks' => 1,
                 'guideReferences' => 1,
+                'remoteResourceManifestItems' => 1,
+                'externalManifestItems' => 1,
+                'missingLocalManifestItems' => 0,
             ], $coverage['totals']);
 
             $command = escapeshellarg(PHP_BINARY)
@@ -313,6 +341,7 @@ return [
             $t->same(1, $decoded['normalizedAstMatchCount']);
             $t->same(0, $decoded['normalizedAstMismatchCount']);
             $t->same(['nav' => 1], $decoded['packageFeatureCoverage']['navigationTypeCounts']);
+            $t->same(['nav' => 1, 'remote-resources' => 1], $decoded['packageFeatureCoverage']['manifestPropertyCounts']);
         } finally {
             $removeTree($root);
         }
@@ -399,6 +428,20 @@ return [
                 'nav' => 5,
                 'ncx' => 3,
             ],
+            'manifestMediaTypeCounts' => [
+                'application/x-dtbncx+xml' => 4,
+                'application/xhtml+xml' => 23,
+                'image/gif' => 3,
+                'image/jpeg' => 5,
+                'image/png' => 3,
+                'text/css' => 13,
+            ],
+            'manifestPropertyCounts' => [
+                'cover-image' => 2,
+                'mathml' => 2,
+                'nav' => 5,
+                'switch' => 1,
+            ],
             'navigationSectionTypes' => [
                 'landmarks',
                 'toc',
@@ -444,6 +487,9 @@ return [
             ],
             'fixturesWithPageLists' => [],
             'fixturesWithAuxiliaryNavigation' => [],
+            'fixturesWithRemoteManifestResources' => [],
+            'fixturesWithExternalManifestItems' => [],
+            'fixturesWithMissingLocalManifestItems' => [],
             'totals' => [
                 'manifestItems' => 51,
                 'readingOrderItems' => 22,
@@ -456,6 +502,9 @@ return [
                 'auxiliaryNavigationEntries' => 0,
                 'packageLinks' => 3,
                 'guideReferences' => 3,
+                'remoteResourceManifestItems' => 0,
+                'externalManifestItems' => 0,
+                'missingLocalManifestItems' => 0,
             ],
         ];
 
@@ -510,6 +559,7 @@ return [
         $t->contains('normalizedAst: matches=8 (100.00%) mismatches=0', $text);
         $t->contains('fixtureIdentity: status=valid-checked-in-current-epub-fixture-identity expected=16 observed=16', $text);
         $t->contains('packageFeatureCoverage: fixtures=8 nav=5 ncx=3 covers=4 landmarks=5 pageLists=0 auxiliaryNav=0 manifestItems=51', $text);
+        $t->contains('remoteManifest=0 externalManifest=0 missingLocalManifest=0', $text);
 
         $command = escapeshellarg(PHP_BINARY)
             . ' '
@@ -565,6 +615,7 @@ return [
         $t->same(8, $defaultFixtureIdentityDecoded['normalizedAstMatchCount']);
         $t->same('valid-checked-in-current-epub-fixture-identity', $defaultFixtureIdentityDecoded['fixtureIdentity']['validation']['status']);
         $t->same(['nav' => 5, 'ncx' => 3], $defaultFixtureIdentityDecoded['packageFeatureCoverage']['navigationTypeCounts']);
+        $t->same(['cover-image' => 2, 'mathml' => 2, 'nav' => 5, 'switch' => 1], $defaultFixtureIdentityDecoded['packageFeatureCoverage']['manifestPropertyCounts']);
     },
 
     'cli gates epub package and native readiness without requiring ast equality' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeEpub): void {
