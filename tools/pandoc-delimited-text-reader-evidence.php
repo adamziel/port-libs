@@ -27,11 +27,14 @@ Options:
                                   structured as not-run for CSV and TSV.
   --require-runner-plan           Exit 1 unless upstream runner evidence includes
                                   the pinned non-executed Command:/csv.md/#1 plan.
+  --runner-result-artifact PATH   Validate a captured upstream runner result JSON artifact.
+  --require-runner-result-artifact
+                                  Exit 1 unless the supplied runner result artifact is valid.
   --require-no-validation-issues  Exit 1 when any validation issue is reported.
   --help                          Show this help.
 
 This is a focused evidence gate for the native CSV/TSV reader packet.
-It does not run Cabal/Tasty, execute pandoc, or claim upstream runner parity.
+It does not run Cabal/Tasty or execute pandoc.
 TEXT;
 };
 
@@ -211,6 +214,8 @@ $formatTextReport = static function (array $report): string {
     $tsv = $report['tsv'];
     $generatedCsvNative = $report['generatedCsvNativeParity'];
     $generatedTsvNative = $report['generatedTsvNativeParity'];
+    $runnerResultArtifact = is_array($report['runnerResultArtifactEvidence'] ?? null) ? $report['runnerResultArtifactEvidence'] : [];
+    $runnerResultArtifactValidation = is_array($runnerResultArtifact['validation'] ?? null) ? $runnerResultArtifact['validation'] : [];
     $lines = [
         'Delimited text reader evidence',
         'CSV direct denominator: ' . $csv['denominator'] . ' (' . $csv['denominatorScope'] . ')',
@@ -235,6 +240,7 @@ $formatTextReport = static function (array $report): string {
         'TSV runner status: ' . $tsv['runnerEvidence']['status'] . ' (executed: ' . ($tsv['runnerEvidence']['executed'] ? 'yes' : 'no') . ')',
         'TSV runner plan: ' . ($tsv['runnerEvidence']['commandPlanStatus'] ?? 'unknown'),
         'TSV runner boundary: ' . ($tsv['runnerEvidence']['executionBoundary']['status'] ?? 'unknown'),
+        'Runner result artifact: ' . (string) (($runnerResultArtifactValidation['status'] ?? null) ?? 'not-supplied'),
     ];
 
     if ($report['validationIssues'] === []) {
@@ -259,6 +265,8 @@ try {
     $requiredGeneratedTsvNativeParityCount = null;
     $requireRunnerNotRun = false;
     $requireRunnerPlan = false;
+    $runnerResultArtifact = null;
+    $requireRunnerResultArtifact = false;
     $requireNoValidationIssues = false;
     $args = array_slice($argv, 1);
 
@@ -324,8 +332,20 @@ try {
             $requireRunnerPlan = true;
             continue;
         }
+        if ($arg === '--require-runner-result-artifact') {
+            $requireRunnerResultArtifact = true;
+            continue;
+        }
         if ($arg === '--require-no-validation-issues') {
             $requireNoValidationIssues = true;
+            continue;
+        }
+        if ($arg === '--runner-result-artifact') {
+            $runnerResultArtifact = $nextValue('--runner-result-artifact');
+            continue;
+        }
+        if (str_starts_with($arg, '--runner-result-artifact=')) {
+            $runnerResultArtifact = substr($arg, strlen('--runner-result-artifact='));
             continue;
         }
         if ($arg === '--repo-root') {
@@ -342,6 +362,9 @@ try {
     if ($repoRoot === '') {
         throw new InvalidArgumentException('Repository root must not be empty');
     }
+    if ($runnerResultArtifact === '') {
+        throw new InvalidArgumentException('Runner result artifact must not be empty');
+    }
 
     $reader = new DelimitedTextReader();
     $csvPacket = $reader->readCsv("Fruit,Price\nApple,25 cents\n")->children[0]->attr('delimitedText');
@@ -355,21 +378,50 @@ try {
     $generatedTsvNativeParity = DelimitedTextUpstreamReaderEvidence::generatedTsvNativeParityEvidence($repoRoot);
     $generatedTsvNativeIssues = $validateGeneratedTsvNativeParity($generatedTsvNativeParity, $requiredGeneratedTsvNativeParityCount);
     $runnerPlanIssues = $validateRunnerPlan($csvEvidence, $tsvEvidence);
+    $runnerResultArtifactEvidence = null;
+    $runnerResultArtifactIssues = [];
+    if ($runnerResultArtifact !== null) {
+        $artifactReport = (new DelimitedTextUpstreamReaderEvidence(
+            $repoRoot,
+            DelimitedTextUpstreamReaderEvidence::DEFAULT_RELATIVE_UPSTREAM_ROOT,
+            $runnerResultArtifact
+        ))->report();
+        $runnerResultArtifactEvidence = is_array($artifactReport['runnerEvidence'] ?? null)
+            ? $artifactReport['runnerEvidence']
+            : [];
+        if (!DelimitedTextUpstreamReaderEvidence::hasRunnerResultArtifactEvidence($artifactReport)) {
+            $runnerResultArtifactIssues[] = 'Runner result artifact evidence must be valid';
+        }
+    } elseif ($requireRunnerResultArtifact) {
+        $runnerResultArtifactIssues[] = 'Runner result artifact evidence must be supplied';
+    }
+
     $report = [
         'tool' => 'pandoc-delimited-text-reader-evidence',
-        'claim' => 'Native CSV/TSV reader evidence only; upstream Haskell runner is not executed.',
+        'claim' => $runnerResultArtifact === null
+            ? 'Native CSV/TSV reader evidence only; upstream Haskell runner is not executed.'
+            : 'Native CSV/TSV reader evidence plus a separately validated upstream Haskell runner result artifact.',
         'csv' => $csvEvidence,
         'tsv' => $tsvEvidence,
         'generatedCsvNativeParity' => $generatedCsvNativeParity,
         'generatedTsvNativeParity' => $generatedTsvNativeParity,
+        'runnerResultArtifactEvidence' => $runnerResultArtifactEvidence,
         'validation' => [
             'honestDenominators' => $denominatorIssues === [],
             'generatedCsvNativeParity' => $generatedCsvNativeIssues === [],
             'generatedTsvNativeParity' => $generatedTsvNativeIssues === [],
             'runnerNotRun' => $runnerIssues === [],
             'runnerPlan' => $runnerPlanIssues === [],
+            'runnerResultArtifact' => $runnerResultArtifact === null && !$requireRunnerResultArtifact ? null : $runnerResultArtifactIssues === [],
         ],
-        'validationIssues' => [...$denominatorIssues, ...$generatedCsvNativeIssues, ...$generatedTsvNativeIssues, ...$runnerIssues, ...$runnerPlanIssues],
+        'validationIssues' => [
+            ...$denominatorIssues,
+            ...$generatedCsvNativeIssues,
+            ...$generatedTsvNativeIssues,
+            ...$runnerIssues,
+            ...$runnerPlanIssues,
+            ...$runnerResultArtifactIssues,
+        ],
     ];
 
     if ($json) {
@@ -396,6 +448,10 @@ try {
     }
     if ($requireRunnerPlan && $runnerPlanIssues !== []) {
         fwrite(STDERR, "pandoc-delimited-text-reader-evidence: runner command-plan validation reported issues\n");
+        exit(1);
+    }
+    if ($requireRunnerResultArtifact && $runnerResultArtifactIssues !== []) {
+        fwrite(STDERR, "pandoc-delimited-text-reader-evidence: runner result artifact evidence is invalid\n");
         exit(1);
     }
     if ($requireNoValidationIssues && $report['validationIssues'] !== []) {

@@ -60,6 +60,22 @@ $writeDelimitedTextEvidenceTree = static function (string $upstreamRoot, string 
     $writeFile($upstreamRoot, 'src/Text/Pandoc/Readers/CSV.hs', "module Text.Pandoc.Readers.CSV where\n");
 };
 
+$writeRunnerTranscripts = static function (string $root, array $paths) use ($writeFile): array {
+    $records = [];
+    foreach (array_values($paths) as $index => $path) {
+        $contents = 'delimited text runner transcript ' . (string) ($index + 1) . "\n" . $path . "\n";
+        $writeFile($root, $path, $contents);
+        $absolutePath = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $path);
+        $records[] = [
+            'path' => $path,
+            'sha256' => hash_file('sha256', $absolutePath),
+            'bytes' => filesize($absolutePath),
+        ];
+    }
+
+    return $records;
+};
+
 return [
     'reports skipped delimited text reader evidence when upstream root is absent' => static function (TestRunner $t): void {
         $repoRoot = dirname(__DIR__, 3);
@@ -1112,6 +1128,89 @@ return [
             $removeTree($root);
         }
     },
+    'validates supplied delimited text reader upstream runner result artifact' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile, $writeDelimitedTextEvidenceTree, $writeRunnerTranscripts): void {
+        $repoRoot = dirname(__DIR__, 3);
+        $root = $makeTempDir();
+        try {
+            $writeDelimitedTextEvidenceTree($root, $repoRoot);
+            $baseReport = (new DelimitedTextUpstreamReaderEvidence($root, '.'))->report();
+            $runnerPlan = $baseReport['runnerEvidence'];
+            $transcripts = $writeRunnerTranscripts($root, $runnerPlan['requiredTranscripts']);
+            $testNames = ['Command: csv.md #1'];
+            $payload = [
+                'schemaVersion' => 2,
+                'runner' => 'Cabal/Tasty Pandoc command reader suite',
+                'runnerExecuted' => true,
+                'upstream' => [
+                    'name' => 'jgm/pandoc',
+                    'commit' => DelimitedTextUpstreamReaderEvidence::EXPECTED_UPSTREAM_COMMIT,
+                ],
+                'target' => $runnerPlan['target'],
+                'command' => $runnerPlan['futureCommands'][2],
+                'exitCode' => 0,
+                'testCount' => count($testNames),
+                'passedCount' => count($testNames),
+                'failedCount' => 0,
+                'skippedCount' => 0,
+                'testNames' => $testNames,
+                'transcriptPaths' => $runnerPlan['requiredTranscripts'],
+                'transcripts' => $transcripts,
+            ];
+            $validPayload = $payload;
+            $writeFile($root, 'result.json', json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+            $artifactPath = $root . '/result.json';
+            $report = (new DelimitedTextUpstreamReaderEvidence($root, '.', $artifactPath))->report();
+            $text = DelimitedTextUpstreamReaderEvidence::formatTextReport($report);
+
+            $t->same('completed', $report['runnerEvidence']['status']);
+            $t->same(true, $report['runnerEvidence']['executed']);
+            $t->same('runner-result-artifact-validated', $report['runnerEvidence']['commandPlanStatus']);
+            $t->same('valid-upstream-delimited-text-reader-runner-result-artifact', $report['runnerEvidence']['validation']['status']);
+            $t->same([], $report['runnerEvidence']['validation']['issues']);
+            $t->same('upstream-delimited-text-reader-runner-result-artifact', $report['runnerEvidence']['resultArtifact']['kind']);
+            $t->same(true, $report['runnerEvidence']['resultArtifact']['present']);
+            $t->same(hash_file('sha256', $artifactPath), $report['runnerEvidence']['resultArtifact']['sha256']);
+            $t->same(filesize($artifactPath), $report['runnerEvidence']['resultArtifact']['bytes']);
+            $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_UPSTREAM_COMMIT, $report['runnerEvidence']['upstreamBinding']['observedCommit']);
+            $t->same($runnerPlan['target'], $report['runnerEvidence']['target']);
+            $t->same($runnerPlan['futureCommands'][2], $report['runnerEvidence']['command']);
+            $t->same($testNames, $report['runnerEvidence']['observed']['testNames']);
+            $t->same($runnerPlan['requiredTranscripts'], $report['runnerEvidence']['observed']['transcriptPaths']);
+            $t->same($transcripts, $report['runnerEvidence']['observed']['transcripts']);
+            $t->same($transcripts, $report['runnerEvidence']['expected']['transcripts']);
+            $t->same('upstream-delimited-text-reader-runner-transcript', $report['runnerEvidence']['transcripts'][0]['kind']);
+            $t->same(true, $report['runnerEvidence']['transcripts'][0]['present']);
+            $t->same(true, DelimitedTextUpstreamReaderEvidence::hasRunnerResultArtifactEvidence($report));
+            $t->same(false, DelimitedTextUpstreamReaderEvidence::hasRunnerPlanEvidence($report));
+            $t->contains('Runner status: completed', $text);
+            $t->contains('Runner plan: runner-result-artifact-validated', $text);
+            $t->contains('Runner result artifact: valid-upstream-delimited-text-reader-runner-result-artifact', $text);
+            $t->contains('Supplied upstream Haskell/Cabal runner result artifact is validated', $text);
+
+            $payload = $validPayload;
+            $payload['failedCount'] = 1;
+            $payload['exitCode'] = 1;
+            $writeFile($root, 'bad-result.json', json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+            $badReport = (new DelimitedTextUpstreamReaderEvidence($root, '.', $root . '/bad-result.json'))->report();
+
+            $t->same('invalid', $badReport['runnerEvidence']['status']);
+            $t->same('invalid-upstream-delimited-text-reader-runner-result-artifact', $badReport['runnerEvidence']['validation']['status']);
+            $t->true(in_array('runner-result-exit-code-nonzero', $badReport['runnerEvidence']['validation']['issues'], true));
+            $t->true(in_array('runner-result-counts-mismatch', $badReport['runnerEvidence']['validation']['issues'], true));
+            $t->same(false, DelimitedTextUpstreamReaderEvidence::hasRunnerResultArtifactEvidence($badReport));
+
+            $badTranscriptPayload = $validPayload;
+            $badTranscriptPayload['transcripts'][0]['bytes'] = 0;
+            $writeFile($root, 'bad-transcript-result.json', json_encode($badTranscriptPayload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+            $badTranscriptReport = (new DelimitedTextUpstreamReaderEvidence($root, '.', $root . '/bad-transcript-result.json'))->report();
+
+            $t->same('invalid', $badTranscriptReport['runnerEvidence']['status']);
+            $t->true(in_array('runner-result-transcript-bytes-mismatch', $badTranscriptReport['runnerEvidence']['validation']['issues'], true));
+            $t->same(false, DelimitedTextUpstreamReaderEvidence::hasRunnerResultArtifactEvidence($badTranscriptReport));
+        } finally {
+            $removeTree($root);
+        }
+    },
     'cli reports generated tsv native parity without changing tsv denominator' => static function (TestRunner $t): void {
         $repoRoot = dirname(__DIR__, 3);
         $command = escapeshellarg(PHP_BINARY)
@@ -1158,6 +1257,67 @@ return [
         $t->same(false, $decoded['tsv']['runnerEvidence']['target']['tsvDirectFixtureAvailable']);
         $t->same('plan-only-not-run', $decoded['tsv']['runnerEvidence']['executionBoundary']['status']);
         $t->same([], $decoded['validationIssues']);
+    },
+    'cli gates supplied delimited text reader upstream runner result artifact' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile, $writeDelimitedTextEvidenceTree, $writeRunnerTranscripts): void {
+        $repoRoot = dirname(__DIR__, 3);
+        $root = $makeTempDir();
+        try {
+            $writeDelimitedTextEvidenceTree($root, $repoRoot);
+            $baseReport = (new DelimitedTextUpstreamReaderEvidence($root, '.'))->report();
+            $runnerPlan = $baseReport['runnerEvidence'];
+            $transcripts = $writeRunnerTranscripts($root, $runnerPlan['requiredTranscripts']);
+            $testNames = ['Command: csv.md #1'];
+            $payload = [
+                'schemaVersion' => 2,
+                'runner' => 'Cabal/Tasty Pandoc command reader suite',
+                'runnerExecuted' => true,
+                'upstream' => [
+                    'name' => 'jgm/pandoc',
+                    'commit' => DelimitedTextUpstreamReaderEvidence::EXPECTED_UPSTREAM_COMMIT,
+                ],
+                'target' => $runnerPlan['target'],
+                'command' => $runnerPlan['futureCommands'][2],
+                'exitCode' => 0,
+                'testCount' => count($testNames),
+                'passedCount' => count($testNames),
+                'failedCount' => 0,
+                'skippedCount' => 0,
+                'testNames' => $testNames,
+                'transcriptPaths' => $runnerPlan['requiredTranscripts'],
+                'transcripts' => $transcripts,
+            ];
+            $validPayload = $payload;
+            $writeFile($root, 'result.json', json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+            $command = escapeshellarg(PHP_BINARY)
+                . ' '
+                . escapeshellarg($repoRoot . '/tools/pandoc-delimited-text-reader-evidence.php')
+                . ' --repo-root=' . escapeshellarg($root)
+                . ' --runner-result-artifact=' . escapeshellarg($root . '/result.json')
+                . ' --json'
+                . ' --require-runner-result-artifact';
+            $output = [];
+            $exitCode = 0;
+            exec($command, $output, $exitCode);
+            $decoded = json_decode(implode("\n", $output), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same(0, $exitCode);
+            $t->same(true, $decoded['validation']['runnerResultArtifact']);
+            $t->same('completed', $decoded['runnerResultArtifactEvidence']['status']);
+            $t->same('valid-upstream-delimited-text-reader-runner-result-artifact', $decoded['runnerResultArtifactEvidence']['validation']['status']);
+            $t->same(true, DelimitedTextUpstreamReaderEvidence::hasRunnerResultArtifactEvidence($decoded['runnerResultArtifactEvidence']));
+
+            $payload = $validPayload;
+            $payload['target']['tastyPattern'] = '$2 == "Readers" && $3 == "Markdown"';
+            $writeFile($root, 'bad-result.json', json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+            $failingCommand = str_replace('result.json', 'bad-result.json', $command) . ' 2>/dev/null';
+            $failingOutput = [];
+            $failingExitCode = 0;
+            exec($failingCommand, $failingOutput, $failingExitCode);
+
+            $t->same(1, $failingExitCode);
+        } finally {
+            $removeTree($root);
+        }
     },
     'cli gates generated csv native parity against explicit repo root' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $repoRoot = dirname(__DIR__, 3);
