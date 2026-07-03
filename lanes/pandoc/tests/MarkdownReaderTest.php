@@ -3271,7 +3271,7 @@ TEX;
             '```',
         ]), (new MarkdownWriter())->write($languageOnly));
         $t->same(implode("\n", [
-            '```` {#review-snippet .php .numberLines startFrom="42" data-source="batch-42" title="Review \"snippet\""}',
+            '````{#review-snippet .php .numberLines startFrom="42" data-source="batch-42" title="Review \"snippet\""}',
             'echo "source";',
             '```',
             'return true;',
@@ -3913,7 +3913,7 @@ TEX;
         ]);
 
         $t->same(
-            'Highlight ==source *flag*== and direct ==review note== plus literal \\==not mark\\== and [tagged]{#review .mark}.',
+            'Highlight ==source *flag*== and direct ==review note== plus literal \\=\\=not mark\\=\\= and [tagged]{#review .mark}.',
             (new MarkdownWriter())->write($document)
         );
     },
