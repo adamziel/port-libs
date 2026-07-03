@@ -386,6 +386,20 @@ final class MarkdownReader
                 $blocks[] = $markdownTable;
                 continue;
             }
+            $paragraphSetextHeading = $paragraph !== [] && $listStack === []
+                ? $this->tryPromoteParagraphSetextMarkdownHeading($paragraph, $line)
+                : null;
+            if ($paragraphSetextHeading !== null) {
+                $startIndex = max(0, $index - count($paragraph));
+                $text = $paragraphSetextHeading['text'];
+                $blocks[] = new AstNode(
+                    'heading',
+                    $this->markdownHeadingAstAttrs($paragraphSetextHeading, $markdownHeadingIds[$startIndex] ?? $paragraphSetextHeading['id'] ?? ''),
+                    $this->parseInlines($text)
+                );
+                $paragraph = [];
+                continue;
+            }
             if ($this->isHorizontalRule($line)) {
                 $this->flushParagraph($paragraph, $blocks);
                 $this->flushListStack($listStack, $blocks);
@@ -1279,10 +1293,13 @@ final class MarkdownReader
 
             $line = $lines[$index];
             $heading = $this->tryParseMarkdownHeading($line);
-            $setext = false;
+            $setextEnd = null;
             if ($heading === null) {
-                $heading = $this->tryParseSetextMarkdownHeading($lines, $index);
-                $setext = $heading !== null;
+                $setextRun = $this->tryReadSetextMarkdownHeadingRun($lines, $index);
+                if ($setextRun !== null) {
+                    $heading = $setextRun['heading'];
+                    $setextEnd = $setextRun['end'];
+                }
             }
             if ($heading === null) {
                 continue;
@@ -1297,8 +1314,8 @@ final class MarkdownReader
                     $usedIds
                 );
             } else {
-                if ($setext) {
-                    $index++;
+                if ($setextEnd !== null) {
+                    $index = $setextEnd;
                 }
                 continue;
             }
@@ -1309,8 +1326,8 @@ final class MarkdownReader
                 $references[$label] = ['url' => '#' . $id, 'title' => ''];
             }
 
-            if ($setext) {
-                $index++;
+            if ($setextEnd !== null) {
+                $index = $setextEnd;
             }
         }
 
@@ -1343,34 +1360,95 @@ final class MarkdownReader
      */
     private function tryParseSetextMarkdownHeading(array $lines, int $index): ?array
     {
-        if (!isset($lines[$index + 1])) {
+        $setext = $this->tryReadSetextMarkdownHeadingRun($lines, $index);
+        if ($setext === null || $setext['end'] !== $index + 1) {
             return null;
         }
 
-        $line = $this->expandTabsToSpaces($lines[$index]);
-        if ($this->countIndentColumns($line) > 3) {
+        return $setext['heading'];
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{
+     *     heading: array{level:int, text:string, id?:string, classes:list<string>, attributes:array<string, string>},
+     *     end:int
+     * }|null
+     */
+    private function tryReadSetextMarkdownHeadingRun(array $lines, int $index): ?array
+    {
+        $content = [];
+        $count = count($lines);
+
+        for ($cursor = $index; $cursor < $count; $cursor++) {
+            $line = $this->expandTabsToSpaces($lines[$cursor]);
+            if (!$this->isSetextMarkdownHeadingContentLine($line)) {
+                return null;
+            }
+
+            $content[] = $this->normalizeParagraphLine($line);
+            $marker = $this->tryParseSetextMarkdownHeadingMarker($lines[$cursor + 1] ?? '');
+            if ($marker !== null) {
+                return [
+                    'heading' => $this->buildMarkdownHeading($marker, $this->normalizeSetextMarkdownHeadingText($content)),
+                    'end' => $cursor + 1,
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $paragraph
+     * @return array{level:int, text:string, id?:string, classes:list<string>, attributes:array<string, string>}|null
+     */
+    private function tryPromoteParagraphSetextMarkdownHeading(array $paragraph, string $markerLine): ?array
+    {
+        $marker = $this->tryParseSetextMarkdownHeadingMarker($markerLine);
+        if ($marker === null) {
             return null;
         }
 
-        $text = trim($line);
-        if ($text === '' || $this->tryParseMarkdownHeading($line) !== null) {
-            return null;
-        }
-        if ($this->matchListMarker($line) !== null) {
-            return null;
-        }
+        return $this->buildMarkdownHeading($marker, $this->normalizeSetextMarkdownHeadingText($paragraph));
+    }
 
-        $marker = $this->expandTabsToSpaces($lines[$index + 1]);
+    private function tryParseSetextMarkdownHeadingMarker(string $line): ?int
+    {
+        $marker = $this->expandTabsToSpaces($line);
         if (preg_match('/^ {0,3}(=+|-+)[ \t]*$/', $marker, $m) !== 1) {
             return null;
         }
 
-        return $this->buildMarkdownHeading($m[1][0] === '=' ? 1 : 2, $text);
+        return $m[1][0] === '=' ? 1 : 2;
+    }
+
+    private function isSetextMarkdownHeadingContentLine(string $line): bool
+    {
+        $line = $this->expandTabsToSpaces($line);
+        if (trim($line) === '' || $this->countIndentColumns($line) > 3) {
+            return false;
+        }
+        if ($this->tryParseMarkdownHeading($line) !== null) {
+            return false;
+        }
+
+        return $this->matchListMarker($line) === null;
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function normalizeSetextMarkdownHeadingText(array $lines): string
+    {
+        $text = $this->joinParagraphLines($lines);
+
+        return trim(preg_replace('/[ \t]*\n[ \t]*/', ' ', $text) ?? $text);
     }
 
     private function stripClosingAtxHeadingFence(string $text): string
     {
-        return rtrim(preg_replace('/[ \t]+#+[ \t]*$/', '', $text) ?? $text);
+        return rtrim(preg_replace('/(?:^|[ \t]+)#+[ \t]*$/', '', $text) ?? $text);
     }
 
     /**
