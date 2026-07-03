@@ -13,7 +13,7 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 1;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 2;
 
     private const STATIC_CURRENT_READER_CASES = [
         [
@@ -25,6 +25,7 @@ final class PptxUpstreamReaderEvidence
     ];
     private const CHECKED_IN_CURRENT_FIXTURE_SNAPSHOT = [
         'basic' => [
+            'name' => 'text extraction',
             'pptx' => 'pptx-reader/basic.pptx',
             'native' => 'pptx-reader/basic.native',
             'pairKey' => 'pptx-reader/basic.pptx|pptx-reader/basic.native',
@@ -34,6 +35,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => '42804b9b1954094a4b0ff0be20084e2e6d9bc0a84272f34f7f219f82505da6b4',
             'pptxBytes' => 111674,
             'nativeBytes' => 3966,
+        ],
+        'minimal' => [
+            'name' => 'generated minimal text extraction parity',
+            'pptx' => 'pptx-reader/minimal.pptx',
+            'native' => 'pptx-reader/minimal.native',
+            'pairKey' => 'pptx-reader/minimal.pptx|pptx-reader/minimal.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/minimal.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/minimal.native',
+            'pptxSha256' => 'f4852d7b0455ae99a8ef2b3d419cb2aa9ab2f8b5c4167e3770a38483ab36f202',
+            'nativeSha256' => '6ec8b821c9a28c12ca65c771d7dcb6df0ec7f9f91b139e318d4cdbbd4fde4c76',
+            'pptxBytes' => 1502,
+            'nativeBytes' => 119,
         ],
     ];
 
@@ -238,7 +251,7 @@ final class PptxUpstreamReaderEvidence
                 'the count and file paths of upstream PPTX reader golden comparisons in Tests.Readers.Pptx',
                 'that every referenced PPTX/native fixture file exists in the pinned sparse upstream checkout',
                 'that root-level test/pptx-reader PPTX/native fixture pairs and unpaired files are accounted for',
-                'static checked-in current upstream basic.pptx/basic.native fixture identity when staticCurrentEvidence is valid',
+                'static checked-in current upstream basic.pptx/basic.native and generated minimal.pptx/minimal.native fixture identities when staticCurrentEvidence is valid',
                 'that upstream Haskell runner evidence is explicitly not-run',
             ],
             'doesNotAssert' => [
@@ -345,7 +358,7 @@ final class PptxUpstreamReaderEvidence
         }
 
         if (count($checkedInFixturePairs) !== self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT) {
-            $issues[] = 'checked-in-fixture-pair-count-does-not-match-static-reader-denominator';
+            $issues[] = 'checked-in-fixture-pair-count-does-not-match-static-snapshot';
         }
         if ($checkedInUnpairedFixtures['pptx'] !== []) {
             $issues[] = 'checked-in-current-unpaired-pptx-fixtures';
@@ -369,7 +382,7 @@ final class PptxUpstreamReaderEvidence
             $pairKey = (string) $snapshot['pairKey'];
             $snapshotPairs[] = [
                 'stem' => (string) $stem,
-                'name' => self::STATIC_CURRENT_READER_CASES[0]['name'],
+                'name' => (string) ($snapshot['name'] ?? self::STATIC_CURRENT_READER_CASES[0]['name']),
                 'pptx' => (string) $snapshot['pptx'],
                 'native' => (string) $snapshot['native'],
                 'pairKey' => $pairKey,
@@ -399,7 +412,7 @@ final class PptxUpstreamReaderEvidence
         }
 
         return [
-            'kind' => 'static-checked-in-current-upstream-pptx-reader-fixture-evidence',
+            'kind' => 'static-checked-in-current-pptx-reader-fixture-evidence',
             'upstream' => [
                 'name' => 'jgm/pandoc',
                 'commit' => self::EXPECTED_UPSTREAM_COMMIT,
@@ -421,17 +434,18 @@ final class PptxUpstreamReaderEvidence
                 'status' => $issues === [] ? 'valid-checked-in-current-pptx-reader-evidence' : 'invalid-checked-in-current-pptx-reader-evidence',
                 'issues' => array_values(array_unique($issues)),
             ],
-            'claim' => 'Static gate binding the pinned Tests.Readers.Pptx one-case denominator to the checked-in current upstream basic.pptx/basic.native fixture pair.',
+            'claim' => 'Static gate binding the pinned Tests.Readers.Pptx one-case denominator to the checked-in current upstream basic.pptx/basic.native fixture pair, plus one generated minimal PPTX/native pair used only for local normalized-AST parity.',
             'claimBoundaries' => [
                 'doesAssert' => [
                     'Tests.Readers.Pptx at the pinned upstream commit has one golden comparison for pptx-reader/basic.pptx and pptx-reader/basic.native',
-                    'the checked-in current upstream PPTX fixture directory contains one same-stem PPTX/native pair and no unpaired PPTX/native files',
-                    'the checked-in basic.pptx/basic.native files match the expected SHA-256 hashes and byte counts for this snapshot',
+                    'the checked-in current PPTX fixture directory contains two same-stem PPTX/native pairs and no unpaired PPTX/native files',
+                    'the checked-in basic.pptx/basic.native and minimal.pptx/minimal.native files match the expected SHA-256 hashes and byte counts for this snapshot',
                 ],
                 'doesNotAssert' => [
                     'that upstream Haskell/Cabal/Tasty tests were executed',
                     'that a fresh upstream checkout was inspected during this PHP gate',
-                    'broader PPTX fixture corpus coverage beyond basic.pptx/basic.native',
+                    'that minimal.pptx/minimal.native is an upstream Tests.Readers.Pptx fixture',
+                    'broader PPTX fixture corpus coverage beyond basic.pptx/basic.native and minimal.pptx/minimal.native',
                     'full PowerPoint feature parity',
                 ],
             ],

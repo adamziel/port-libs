@@ -22,7 +22,7 @@ Options:
   --require-static-current-evidence
                                   Exit 1 unless the pinned static Tests.Readers.Pptx
                                   denominator matches the checked-in current
-                                  basic.pptx/basic.native fixture snapshot.
+                                  PPTX/native fixture snapshot.
   --require-runner-not-run        Exit 1 unless upstream runner evidence is structured as not-run.
   --help                          Show this help.
 
