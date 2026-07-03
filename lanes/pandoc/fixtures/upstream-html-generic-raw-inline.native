@@ -1,0 +1,2 @@
+[ Para [ Str "Action" , Space , RawInline (Format "html") "<button class=\"wp-action\" data-source=\"batch-42\">" , Strong [ Str "Publish" ] , RawInline (Format "html") "</button>" , Space , Str "note" , RawInline (Format "html") "<!--source:classic-->" , RawInline (Format "html") "<time datetime=\"2026-05-24\">" , Str "today" , RawInline (Format "html") "</time>" , Str "." ]
+]
