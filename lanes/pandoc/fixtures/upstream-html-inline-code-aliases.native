@@ -1,0 +1,20 @@
+[ Para
+    [ Str "Reviewer"
+    , Space
+    , Str "diagnostics:"
+    , Space
+    , Code ( "" , [] , [] ) "core/image"
+    , Str ","
+    , Space
+    , Code ( "" , [] , [] ) "[gallery ids=\"4,5\"]"
+    , Str ","
+    , Space
+    , Code ( "" , [ "sample" ] , [] ) "Missing alt text"
+    , Str ","
+    , Space
+    , Str "and"
+    , Space
+    , Code ( "" , [ "variable" ] , [] ) "post_title"
+    , Str "."
+    ]
+]
