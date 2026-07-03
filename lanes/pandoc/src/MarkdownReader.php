@@ -121,6 +121,8 @@ final class MarkdownReader
     /** @var array<string, list<AstNode>> */
     private array $htmlFootnoteDefinitions = [];
 
+    private bool $htmlResolvedFootnoteReference = false;
+
     private bool $resolveInlineNotes = true;
 
     private bool $resolveFootnoteReferences = true;
@@ -3499,21 +3501,30 @@ final class MarkdownReader
 
         $previousHtmlBaseHref = $this->htmlBaseHref;
         $previousHtmlFootnoteDefinitions = $this->htmlFootnoteDefinitions;
+        $previousHtmlResolvedFootnoteReference = $this->htmlResolvedFootnoteReference;
         $this->htmlBaseHref = $this->htmlDocumentBaseHref($dom);
         $this->htmlFootnoteDefinitions = $this->collectHtmlFootnoteDefinitions($body);
+        $this->htmlResolvedFootnoteReference = false;
         try {
             $attrs = $this->htmlDocumentAttrs($dom);
-            if ($this->htmlNativeDivsEnabled()) {
+            $nativeDivs = $this->htmlNativeDivsEnabled();
+            if ($nativeDivs) {
                 $main = $this->firstHtmlMainElement($body);
                 if ($main instanceof \DOMElement) {
                     return new AstNode('document', $attrs, $this->htmlNativeDivsMainBlocks($main));
                 }
             }
 
-            return new AstNode('document', $attrs, $this->parseHtmlBlockChildren($body));
+            $children = $this->parseHtmlBlockChildren($body);
+            if (!$nativeDivs && $this->htmlResolvedFootnoteReference) {
+                $children = $this->stripConsumedHtmlFootnoteContainers($children);
+            }
+
+            return new AstNode('document', $attrs, $children);
         } finally {
             $this->htmlBaseHref = $previousHtmlBaseHref;
             $this->htmlFootnoteDefinitions = $previousHtmlFootnoteDefinitions;
+            $this->htmlResolvedFootnoteReference = $previousHtmlResolvedFootnoteReference;
         }
     }
 
@@ -3573,6 +3584,69 @@ final class MarkdownReader
         }
 
         return in_array($this->htmlSemanticType($element), ['footnotes', 'rearnotes'], true);
+    }
+
+    /**
+     * @param list<AstNode> $children
+     * @return list<AstNode>
+     */
+    private function stripConsumedHtmlFootnoteContainers(array $children): array
+    {
+        $stripped = [];
+        foreach ($children as $child) {
+            if ($this->isConsumedHtmlFootnoteContainerNode($child)) {
+                continue;
+            }
+
+            $nestedChildren = $this->stripConsumedHtmlFootnoteContainers($child->children);
+            if ($nestedChildren !== $child->children) {
+                $child = new AstNode($child->type, $child->attrs, $nestedChildren);
+            }
+
+            $stripped[] = $child;
+        }
+
+        return $stripped;
+    }
+
+    private function isConsumedHtmlFootnoteContainerNode(AstNode $node): bool
+    {
+        if ($node->type !== 'div') {
+            return false;
+        }
+
+        if ($this->htmlNodeAttributeValue($node, 'role') === 'doc-endnotes') {
+            return true;
+        }
+
+        return in_array($this->htmlNodeSemanticType($node), ['footnotes', 'rearnotes'], true);
+    }
+
+    private function htmlNodeSemanticType(AstNode $node): string
+    {
+        $type = $this->htmlNodeAttributeValue($node, 'type');
+        if ($type !== '') {
+            return $type;
+        }
+
+        return $this->htmlNodeAttributeValue($node, 'epub:type');
+    }
+
+    private function htmlNodeAttributeValue(AstNode $node, string $name): string
+    {
+        foreach (['htmlAttributes', 'attributes'] as $attributeSet) {
+            $attributes = $node->attr($attributeSet, []);
+            if (!is_array($attributes) || !array_key_exists($name, $attributes)) {
+                continue;
+            }
+
+            $value = $attributes[$name];
+            if (is_scalar($value)) {
+                return strtolower(trim((string) $value));
+            }
+        }
+
+        return '';
     }
 
     private function isHtmlFootnoteItemElement(\DOMElement $element): bool
@@ -7420,6 +7494,8 @@ final class MarkdownReader
         if ($id === '') {
             return null;
         }
+
+        $this->htmlResolvedFootnoteReference = true;
 
         return new AstNode('note', [], $this->htmlFootnoteDefinitions[$id] ?? []);
     }
