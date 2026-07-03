@@ -10208,7 +10208,7 @@ final class MarkdownReader
 
     /**
      * @param list<string> $lines
-     * @param array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, padding:int, style:string|null, delimiter:string|null} $firstMarker
+     * @param array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, padding:int, style:string|null, delimiter:string|null, marker:string|null} $firstMarker
      * @return array{node: AstNode, next: int}|null
      */
     private function parseList(array $lines, int $cursor, array $firstMarker): ?array
@@ -10221,6 +10221,7 @@ final class MarkdownReader
         $ordered = $firstMarker['ordered'];
         $style = $firstMarker['style'];
         $delimiter = $firstMarker['delimiter'];
+        $listMarker = $firstMarker['marker'];
 
         while ($cursor < $count) {
             $marker = $this->matchListMarker($lines[$cursor], $cursor);
@@ -10263,8 +10264,11 @@ final class MarkdownReader
             $attrs['start'] = $start ?? 1;
             $attrs['style'] = $style ?? 'decimal';
             $attrs['delimiter'] = $delimiter ?? 'period';
-        } elseif ($this->allListItemsAreTasks($children)) {
-            $attrs['taskList'] = true;
+        } else {
+            $attrs['marker'] = $listMarker;
+            if ($this->allListItemsAreTasks($children)) {
+                $attrs['taskList'] = true;
+            }
         }
 
         return [
@@ -10275,7 +10279,7 @@ final class MarkdownReader
 
     /**
      * @param list<string> $lines
-     * @param array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, padding:int, style:string|null, delimiter:string|null} $marker
+     * @param array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, padding:int, style:string|null, delimiter:string|null, marker:string|null} $marker
      * @return array{parts:list<array{type:string, text:string}|AstNode>, next:int, loose:bool, text:string, number:int|null, taskChecked:bool|null}
      */
     private function parseListItem(
@@ -10303,10 +10307,30 @@ final class MarkdownReader
             [$codeBlock, $cursor] = $this->readListItemInitialCodeBlock($lines, $cursor + 1, $contentIndent, $firstText);
             $parts[] = $codeBlock;
         } elseif ($firstText !== '') {
-            $task = $this->stripTaskListMarker($firstText);
+            $task = $this->taskListExtensionEnabled() ? $this->stripTaskListMarker($firstText) : null;
             if ($task !== null) {
                 $taskChecked = $task['checked'];
                 $firstText = $task['text'];
+                if ($this->isBlockQuoteLine($firstText)) {
+                    $quoteIndex = 0;
+                    $quote = $this->tryReadBlockQuote([$firstText], $quoteIndex);
+                    if ($quote !== null) {
+                        $parts[] = $quote;
+                        $cursor++;
+                    } else {
+                        $paragraph[] = $firstText;
+                        $cursor++;
+                    }
+
+                    return [
+                        'parts' => $parts,
+                        'next' => $cursor,
+                        'loose' => $loose,
+                        'text' => $firstText,
+                        'number' => $marker['start'],
+                        'taskChecked' => $taskChecked,
+                    ];
+                }
             }
             $paragraph[] = $firstText;
             $cursor++;
@@ -10419,7 +10443,7 @@ final class MarkdownReader
 
     /**
      * @param list<array{type:string, text:string}|AstNode> $parts
-     * @param array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, padding:int, style:string|null, delimiter:string|null}|null $nextMarker
+     * @param array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, padding:int, style:string|null, delimiter:string|null, marker:string|null}|null $nextMarker
      */
     private function listItemBlankBoundaryKeepsGfmDetailsTight(
         array $parts,
@@ -10553,7 +10577,7 @@ final class MarkdownReader
 
     /**
      * @param list<string> $lines
-     * @param array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, padding:int, style:string|null, delimiter:string|null} $marker
+     * @param array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, padding:int, style:string|null, delimiter:string|null, marker:string|null} $marker
      * @return array{parts:list<array{type:string, text:string}|AstNode>, next:int, loose:bool, text:string, number:int|null, taskChecked:bool|null}
      */
     private function parseBlockHtmlListItem(array $lines, int $cursor, array $marker): array
@@ -10821,7 +10845,7 @@ final class MarkdownReader
     }
 
     /**
-     * @return array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, padding:int, style:string|null, delimiter:string|null}|null
+     * @return array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, padding:int, style:string|null, delimiter:string|null, marker:string|null}|null
      */
     private function matchListMarker(string $line, ?int $lineIndex = null): ?array
     {
@@ -10841,6 +10865,7 @@ final class MarkdownReader
                 'padding' => $example['padding'],
                 'style' => 'example',
                 'delimiter' => 'two_parens',
+                'marker' => '@',
             ];
         }
 
@@ -10854,6 +10879,7 @@ final class MarkdownReader
                 'padding' => strlen($m[3]),
                 'style' => null,
                 'delimiter' => null,
+                'marker' => $m[2],
             ];
         }
 
@@ -10867,6 +10893,7 @@ final class MarkdownReader
                 'padding' => strlen($m[3]),
                 'style' => 'default',
                 'delimiter' => 'default',
+                'marker' => '#',
             ];
         }
 
@@ -10885,6 +10912,7 @@ final class MarkdownReader
                 'padding' => strlen($m[3]),
                 'style' => $ordinal['style'],
                 'delimiter' => 'two_parens',
+                'marker' => '(' . $m[2] . ')',
             ];
         }
 
@@ -10898,6 +10926,7 @@ final class MarkdownReader
                 'padding' => strlen($m[4]),
                 'style' => 'decimal',
                 'delimiter' => $m[3] === ')' ? 'one_paren' : 'period',
+                'marker' => $m[2] . $m[3],
             ];
         }
 
@@ -10917,6 +10946,7 @@ final class MarkdownReader
                 'padding' => strlen($m[4]),
                 'style' => $ordinal['style'],
                 'delimiter' => $delimiter,
+                'marker' => $m[2] . $m[3],
             ];
         }
 
@@ -13253,6 +13283,14 @@ final class MarkdownReader
         $options['format'] = $this->markdownFormatWithExtensionOption();
 
         return MarkdownFormatProfile::rawMarkdownEnabled($options, true);
+    }
+
+    private function taskListExtensionEnabled(): bool
+    {
+        $options = $this->options;
+        $options['format'] = $this->markdownFormatWithExtensionOption();
+
+        return MarkdownFormatProfile::taskListsEnabled($options, true);
     }
 
     private function pipeTableExtensionEnabled(): bool

@@ -55,12 +55,17 @@ final class MarkdownFormatProfile
         'auto_id' => 'auto_identifiers',
         'auto_ids' => 'auto_identifiers',
         'emoji_shortcode' => 'emoji_shortcodes',
+        'example_list' => 'numbered_examples',
+        'example_lists' => 'numbered_examples',
+        'fancy_list' => 'fancy_lists',
         'header_attrs' => 'header_attributes',
         'header_attribute' => 'header_attributes',
         'inline_attribute' => 'inline_attributes',
         'markdown_attribute' => 'inline_attributes',
         'native_span' => 'native_spans',
         'native_div' => 'native_divs',
+        'numbered_example_list' => 'numbered_examples',
+        'numbered_example_lists' => 'numbered_examples',
         'pandoc_title' => 'pandoc_title_block',
         'title_block' => 'pandoc_title_block',
         'line_block' => 'line_blocks',
@@ -89,7 +94,7 @@ final class MarkdownFormatProfile
         'yaml_metadata_blocks' => 'yaml_metadata_block',
     ];
 
-    /** @var array<string, array{yamlMetadata:bool, titleBlock:bool, rawAttribute:bool, rawHtml:bool, rawTex:bool, rawMarkdown:bool, pipeTables:bool, simpleTables:bool, gridTables:bool, multilineTables:bool}> */
+    /** @var array<string, array{yamlMetadata:bool, titleBlock:bool, rawAttribute:bool, rawHtml:bool, rawTex:bool, rawMarkdown:bool, taskLists:bool, pipeTables:bool, simpleTables:bool, gridTables:bool, multilineTables:bool}> */
     private const DEFAULTS = [
         'markdown' => [
             'yamlMetadata' => true,
@@ -98,6 +103,7 @@ final class MarkdownFormatProfile
             'rawHtml' => true,
             'rawTex' => true,
             'rawMarkdown' => true,
+            'taskLists' => true,
             'pipeTables' => true,
             'simpleTables' => true,
             'gridTables' => true,
@@ -110,6 +116,7 @@ final class MarkdownFormatProfile
             'rawHtml' => true,
             'rawTex' => false,
             'rawMarkdown' => true,
+            'taskLists' => false,
             'pipeTables' => false,
             'simpleTables' => false,
             'gridTables' => false,
@@ -122,6 +129,7 @@ final class MarkdownFormatProfile
             'rawHtml' => true,
             'rawTex' => true,
             'rawMarkdown' => true,
+            'taskLists' => true,
             'pipeTables' => true,
             'simpleTables' => true,
             'gridTables' => true,
@@ -134,6 +142,7 @@ final class MarkdownFormatProfile
             'rawHtml' => true,
             'rawTex' => false,
             'rawMarkdown' => true,
+            'taskLists' => true,
             'pipeTables' => true,
             'simpleTables' => false,
             'gridTables' => false,
@@ -146,6 +155,7 @@ final class MarkdownFormatProfile
             'rawHtml' => true,
             'rawTex' => false,
             'rawMarkdown' => true,
+            'taskLists' => false,
             'pipeTables' => true,
             'simpleTables' => true,
             'gridTables' => true,
@@ -158,6 +168,7 @@ final class MarkdownFormatProfile
             'rawHtml' => true,
             'rawTex' => false,
             'rawMarkdown' => true,
+            'taskLists' => false,
             'pipeTables' => true,
             'simpleTables' => true,
             'gridTables' => true,
@@ -170,6 +181,7 @@ final class MarkdownFormatProfile
             'rawHtml' => true,
             'rawTex' => false,
             'rawMarkdown' => true,
+            'taskLists' => false,
             'pipeTables' => false,
             'simpleTables' => false,
             'gridTables' => false,
@@ -338,6 +350,7 @@ final class MarkdownFormatProfile
                 'emoji_shortcodes',
                 'fenced_code_attributes',
                 'fenced_divs',
+                'fancy_lists',
                 'header_attributes',
                 'implicit_header_references',
                 'inline_attributes',
@@ -345,6 +358,7 @@ final class MarkdownFormatProfile
                 'mark',
                 'native_divs',
                 'native_spans',
+                'numbered_examples',
                 'pandoc_title_block',
                 'pipe_tables',
                 'raw_attribute',
@@ -467,6 +481,14 @@ final class MarkdownFormatProfile
     public static function rawMarkdownEnabled(array $options, bool $defaultWithoutFormat): bool
     {
         return self::enabled($options, 'rawMarkdown', $defaultWithoutFormat, 'raw_markdown');
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     */
+    public static function taskListsEnabled(array $options, bool $defaultWithoutFormat): bool
+    {
+        return self::enabled($options, 'taskLists', $defaultWithoutFormat, 'task_lists');
     }
 
     /**
