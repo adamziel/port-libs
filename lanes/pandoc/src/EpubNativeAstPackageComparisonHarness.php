@@ -13,12 +13,12 @@ final class EpubNativeAstPackageComparisonHarness
     private const CLAIM = 'Compares local PHP EPUB package parsing and reader output with a supplied checked-in current EPUB fixture directory and same-basename .native goldens. Package parsing/reader acceptance, fixture identity, package feature coverage, and native AST equality are reported separately; no upstream Haskell runner, writer parity, or full EPUB feature parity is asserted.';
     private const PACKAGE_FEATURE_SIGNATURE_KIND = 'checked-in-current-epub-package-feature-signature';
     private const PACKAGE_FEATURE_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
-    private const PACKAGE_FEATURE_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-17-fixture-snapshot';
-    private const CHECKED_IN_CURRENT_PACKAGE_FEATURE_SIGNATURE_SHA256 = 'e6bad5d7de14a564b35f787d87b162ba1cb1c19f7c8437460d5949a00d3f2286';
+    private const PACKAGE_FEATURE_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-18-fixture-snapshot';
+    private const CHECKED_IN_CURRENT_PACKAGE_FEATURE_SIGNATURE_SHA256 = 'a1aa4179909c270b18290f64a9f80a6e8d9e6cae756e7a66e278b7682a92be95';
     private const CURRENT_NATIVE_AST_SIGNATURE_KIND = 'checked-in-current-epub-normalized-native-ast-signature';
     private const CURRENT_NATIVE_AST_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
-    private const CURRENT_NATIVE_AST_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-17-fixture-normalized-ast-snapshot';
-    private const CHECKED_IN_CURRENT_NATIVE_AST_SIGNATURE_SHA256 = 'f5e221e55a82ff31e3b7fa23b1004631d9a0e2b3dbff5a6f54c8b4de9f4c27ed';
+    private const CURRENT_NATIVE_AST_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-18-fixture-normalized-ast-snapshot';
+    private const CHECKED_IN_CURRENT_NATIVE_AST_SIGNATURE_SHA256 = 'ac08cdb9b41941281c9fa39b18fe2869ae9f73144c93b55bc81614e290f78cf2';
     private const RUNNER_CABAL_TARGET = 'exe:pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/epub-native-package-run';
     private const RUNNER_FIXTURE_DIRECTORY = 'test/epub';
@@ -95,6 +95,14 @@ final class EpubNativeAstPackageComparisonHarness
         'features.native' => [
             'sha256' => 'c384a314081ecc860bb0f8a9ffb5273976ed56341e4f16e05dd448126e85c41f',
             'bytes' => 48453,
+        ],
+        'font-manifest-resource.epub' => [
+            'sha256' => 'ab561d6de4579fbe572ae1e99e56c3dcba464f1d9c2906310f1324d1a1243d0e',
+            'bytes' => 1512,
+        ],
+        'font-manifest-resource.native' => [
+            'sha256' => 'f1f123f4ab0d1a612523707a09504a1e3e9b61194f6cbe1338dcb5d920c089d1',
+            'bytes' => 177,
         ],
         'formatting.epub' => [
             'sha256' => '491fc57ec384449a23c4f2abdcfe91be9ab2a07f50f466fb8d80775b89bf3965',
@@ -198,10 +206,10 @@ final class EpubNativeAstPackageComparisonHarness
      * @var array<string, mixed>
      */
     private const CHECKED_IN_CURRENT_PACKAGE_FEATURE_COVERAGE = [
-        'fixtureCount' => 17,
+        'fixtureCount' => 18,
         'metadataLanguageCounts' => [
             'de-DE' => 3,
-            'en' => 13,
+            'en' => 14,
             'en-US' => 1,
         ],
         'fixturesWithCreators' => [
@@ -215,7 +223,7 @@ final class EpubNativeAstPackageComparisonHarness
             'wasteland',
         ],
         'navigationTypeCounts' => [
-            'nav' => 13,
+            'nav' => 14,
             'ncx' => 3,
         ],
         'manifestMediaTypeCounts' => [
@@ -223,8 +231,9 @@ final class EpubNativeAstPackageComparisonHarness
             'application/smil+xml' => 1,
             'application/x-dtbncx+xml' => 5,
             'application/x-fallback-demo' => 1,
-            'application/xhtml+xml' => 41,
+            'application/xhtml+xml' => 43,
             'audio/mpeg' => 1,
+            'font/woff2' => 1,
             'image/gif' => 4,
             'image/jpeg' => 6,
             'image/png' => 4,
@@ -234,7 +243,7 @@ final class EpubNativeAstPackageComparisonHarness
         'manifestPropertyCounts' => [
             'cover-image' => 2,
             'mathml' => 2,
-            'nav' => 13,
+            'nav' => 14,
             'remote-resources' => 1,
             'scripted' => 1,
             'svg' => 2,
@@ -244,12 +253,13 @@ final class EpubNativeAstPackageComparisonHarness
             'asset' => 2,
             'audio' => 1,
             'cover-image' => 2,
+            'font' => 1,
             'image' => 12,
             'media-overlay' => 1,
-            'navigation' => 18,
+            'navigation' => 19,
             'style' => 15,
             'svg' => 1,
-            'xhtml' => 28,
+            'xhtml' => 29,
         ],
         'navigationSectionTypes' => [
             'landmarks',
@@ -335,6 +345,18 @@ final class EpubNativeAstPackageComparisonHarness
                     'navigation' => 1,
                     'style' => 2,
                     'xhtml' => 3,
+                ],
+                'guideReferenceTypeCounts' => [],
+                'packageLinkRelCounts' => [],
+                'coverImagePartPresent' => false,
+            ],
+            'font-manifest-resource' => [
+                'navigationType' => 'nav',
+                'navigationSectionTypes' => ['toc'],
+                'manifestResourceKindCounts' => [
+                    'font' => 1,
+                    'navigation' => 1,
+                    'xhtml' => 1,
                 ],
                 'guideReferenceTypeCounts' => [],
                 'packageLinkRelCounts' => [],
@@ -547,12 +569,12 @@ final class EpubNativeAstPackageComparisonHarness
         ],
         'totals' => [
             'metadataCreators' => 28,
-            'manifestItems' => 80,
-            'readingOrderItems' => 34,
-            'xhtmlAssets' => 41,
+            'manifestItems' => 83,
+            'readingOrderItems' => 35,
+            'xhtmlAssets' => 43,
             'imageAssets' => 15,
             'stylesheetAssets' => 14,
-            'navigationEntries' => 98,
+            'navigationEntries' => 99,
             'landmarkEntries' => 8,
             'pageListEntries' => 1,
             'auxiliaryNavigationEntries' => 1,

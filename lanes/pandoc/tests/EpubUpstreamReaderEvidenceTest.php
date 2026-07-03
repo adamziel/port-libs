@@ -178,6 +178,7 @@ return [
         $t->same([
             'epub/direct-image-spine.epub',
             'epub/features.epub',
+            'epub/font-manifest-resource.epub',
             'epub/formatting.epub',
             'epub/guide-glossary-reference.epub',
             'epub/manifest-fallback-chain.epub',
