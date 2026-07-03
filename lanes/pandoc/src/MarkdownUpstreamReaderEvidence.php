@@ -13,6 +13,7 @@ final class MarkdownUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-markdown-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
     public const EXPECTED_SELECTED_FIXTURE_COUNT = 47;
+    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 4;
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/Markdown.hs',
@@ -615,6 +616,7 @@ final class MarkdownUpstreamReaderEvidence
     {
         $root = $this->absoluteUpstreamRoot();
         $staticEvidence = self::checkedInCurrentEvidence($this->repoRoot);
+        $nativeAstEvidence = $this->nativeAstEvidence();
         if (!is_dir($root)) {
             return [
                 'schemaVersion' => 1,
@@ -629,6 +631,7 @@ final class MarkdownUpstreamReaderEvidence
                 'denominator' => $this->emptyDenominator(),
                 'sourceInventory' => $this->emptySourceInventory(),
                 'staticCurrentEvidence' => $staticEvidence,
+                'nativeAstEvidence' => $nativeAstEvidence,
                 'runnerEvidence' => self::runnerNotRunEvidence(),
                 'validation' => [
                     'status' => 'not-evaluated-missing-upstream-root',
@@ -656,6 +659,7 @@ final class MarkdownUpstreamReaderEvidence
             'denominator' => self::selectedFixtureDenominator(),
             'sourceInventory' => $sourceInventory,
             'staticCurrentEvidence' => $staticEvidence,
+            'nativeAstEvidence' => $nativeAstEvidence,
             'runnerEvidence' => self::runnerNotRunEvidence(),
             'validation' => [
                 'status' => $validationIssues === [] ? 'valid-upstream-markdown-reader-evidence' : 'invalid-upstream-markdown-reader-evidence',
@@ -755,6 +759,7 @@ final class MarkdownUpstreamReaderEvidence
         $staticEvidence = is_array($report['staticCurrentEvidence'] ?? null) ? $report['staticCurrentEvidence'] : [];
         $staticDenominator = is_array($staticEvidence['readerDenominator'] ?? null) ? $staticEvidence['readerDenominator'] : [];
         $staticValidation = is_array($staticEvidence['validation'] ?? null) ? $staticEvidence['validation'] : [];
+        $nativeAstEvidence = is_array($report['nativeAstEvidence'] ?? null) ? $report['nativeAstEvidence'] : [];
         $validation = is_array($report['validation'] ?? null) ? $report['validation'] : [];
         $runner = is_array($report['runnerEvidence'] ?? null) ? $report['runnerEvidence'] : [];
         $selectedFixtureCount = (int) (
@@ -769,6 +774,9 @@ final class MarkdownUpstreamReaderEvidence
             'Selected checked-in fixtures: ' . $selectedFixtureCount,
             'Static current evidence: ' . (string) ($staticValidation['status'] ?? 'unknown')
                 . ' checkedInFixtures=' . (int) ($staticEvidence['checkedInFixtureCount'] ?? 0),
+            'Native AST mapped parity: ' . (int) ($nativeAstEvidence['normalizedAstMatchCount'] ?? 0)
+                . '/' . (int) ($nativeAstEvidence['totalPairCount'] ?? 0)
+                . ' status=' . (string) ($nativeAstEvidence['astParityStatus'] ?? 'unknown'),
             'Runner status: ' . (string) ($runner['status'] ?? 'unknown'),
             'Validation: ' . (string) ($validation['status'] ?? 'unknown'),
             'No upstream Haskell/Cabal runner result or full Markdown dialect parity is asserted.',
@@ -798,6 +806,16 @@ final class MarkdownUpstreamReaderEvidence
         return ($validation['status'] ?? null) === 'valid-checked-in-current-markdown-reader-evidence'
             && ($validation['issues'] ?? null) === []
             && self::hasRequiredSelectedFixtureCount($report, self::EXPECTED_SELECTED_FIXTURE_COUNT);
+    }
+
+    /**
+     * @param array<string, mixed> $report
+     */
+    public static function hasRequiredNativeMappedParity(array $report, int $requiredPairCount): bool
+    {
+        $nativeAstEvidence = is_array($report['nativeAstEvidence'] ?? null) ? $report['nativeAstEvidence'] : [];
+
+        return MarkdownNativeAstComparisonHarness::hasRequiredMappedParity($nativeAstEvidence, $requiredPairCount);
     }
 
     /**
@@ -890,11 +908,13 @@ final class MarkdownUpstreamReaderEvidence
             'doesAssert' => [
                 'the identity and count of forty-seven selected checked-in upstream-derived Markdown fixtures',
                 'that focused local tests cover those selected fixture files',
+                'that four checked-in Markdown/native fixture pairs have normalized AST equality through the local PHP reader harness',
                 'that the upstream Markdown reader source inventory is present when a hydrated upstream checkout is inspected',
                 'that upstream Haskell runner evidence is explicitly not-run',
             ],
             'doesNotAssert' => [
                 'full upstream Tests.Readers.Markdown runner parity',
+                'native AST parity for selected Markdown fixtures without same-basename .native expectations',
                 'complete Markdown dialect parity across every Pandoc extension profile',
                 'writer parity beyond the local tests that happen to round-trip selected fixtures',
             ],
@@ -926,6 +946,14 @@ final class MarkdownUpstreamReaderEvidence
             'missingFileCount' => 0,
             'presentLineCount' => 0,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function nativeAstEvidence(): array
+    {
+        return (new MarkdownNativeAstComparisonHarness())->run($this->repoRoot . '/lanes/pandoc/fixtures');
     }
 
     /**

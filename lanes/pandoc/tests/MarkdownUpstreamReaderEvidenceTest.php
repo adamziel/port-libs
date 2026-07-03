@@ -62,13 +62,18 @@ return [
         $t->same('not-evaluated-missing-upstream-root', $report['validation']['status']);
         $t->same(['missing-upstream-root'], $report['validation']['issues']);
         $t->same('valid-checked-in-current-markdown-reader-evidence', $report['staticCurrentEvidence']['validation']['status']);
+        $t->same(4, $report['nativeAstEvidence']['totalPairCount']);
+        $t->same(4, $report['nativeAstEvidence']['normalizedAstMatchCount']);
+        $t->same(43, $report['nativeAstEvidence']['unpairedMarkdownFixtureCount']);
         $t->same(true, MarkdownUpstreamReaderEvidence::hasRequiredSelectedFixtureCount($report, 47));
         $t->same(true, MarkdownUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($report));
+        $t->same(true, MarkdownUpstreamReaderEvidence::hasRequiredNativeMappedParity($report, 4));
         $t->same(true, MarkdownUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
         $t->same(false, MarkdownUpstreamReaderEvidence::hasNoValidationIssues($report));
         $t->contains('Pandoc Markdown reader evidence', $text);
         $t->contains('Selected checked-in fixtures: 47', $text);
         $t->contains('Static current evidence: valid-checked-in-current-markdown-reader-evidence checkedInFixtures=47', $text);
+        $t->contains('Native AST mapped parity: 4/4 status=normalized-ast-equality-observed-not-runner-parity', $text);
     },
 
     'reports checked-in current markdown fixture static evidence' => static function (TestRunner $t): void {
@@ -314,9 +319,11 @@ return [
             $t->same(2, $report['sourceInventory']['presentFileCount']);
             $t->same(0, $report['sourceInventory']['missingFileCount']);
             $t->same(true, MarkdownUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($report));
+            $t->same(true, MarkdownUpstreamReaderEvidence::hasRequiredNativeMappedParity($report, 4));
             $t->same(true, MarkdownUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
             $t->same(true, MarkdownUpstreamReaderEvidence::hasNoValidationIssues($report));
             $t->true(in_array('full upstream Tests.Readers.Markdown runner parity', $report['claimBoundaries']['doesNotAssert'], true));
+            $t->true(in_array('native AST parity for selected Markdown fixtures without same-basename .native expectations', $report['claimBoundaries']['doesNotAssert'], true));
         } finally {
             $removeTree($root);
         }
@@ -332,6 +339,7 @@ return [
             . ' --json'
             . ' --require-selected-fixture-count=47'
             . ' --require-static-current-evidence'
+            . ' --require-native-mapped-parity=4'
             . ' --require-runner-not-run';
         $output = [];
         $exitCode = 0;
@@ -342,6 +350,8 @@ return [
         $t->same(MarkdownUpstreamReaderEvidence::STATUS_SKIPPED_MISSING_SOURCE, $decoded['status']);
         $t->same(47, $decoded['staticCurrentEvidence']['readerDenominator']['selectedFixtureCount']);
         $t->same('valid-checked-in-current-markdown-reader-evidence', $decoded['staticCurrentEvidence']['validation']['status']);
+        $t->same(4, $decoded['nativeAstEvidence']['normalizedAstMatchCount']);
+        $t->same(0, $decoded['nativeAstEvidence']['normalizedAstMismatchCount']);
         $t->same('not-run', $decoded['runnerEvidence']['status']);
         $t->true(in_array('complete Markdown dialect parity across every Pandoc extension profile', $decoded['claimBoundaries']['doesNotAssert'], true));
 
@@ -351,5 +361,12 @@ return [
         exec($failingCommand, $failingOutput, $failingExitCode);
 
         $t->same(1, $failingExitCode);
+
+        $failingNativeCommand = str_replace('--require-native-mapped-parity=4', '--require-native-mapped-parity=5', $command) . ' 2>/dev/null';
+        $failingNativeOutput = [];
+        $failingNativeExitCode = 0;
+        exec($failingNativeCommand, $failingNativeOutput, $failingNativeExitCode);
+
+        $t->same(1, $failingNativeExitCode);
     },
 ];

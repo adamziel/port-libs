@@ -20,6 +20,7 @@ Options:
                                       Defaults to .upstream-cache/pandoc-current.
   --require-selected-fixture-count N  Exit 1 unless the checked-in selected fixture count is N.
   --require-static-current-evidence   Exit 1 unless checked-in fixture hashes and coverage tests are valid.
+  --require-native-mapped-parity N    Exit 1 unless the Markdown/native AST gate observes N mapped pairs.
   --require-runner-not-run            Exit 1 unless upstream runner evidence is structured as not-run.
   --require-no-validation-issues      Exit 1 when hydrated-upstream validation reports any issue.
   --help                              Show this help.
@@ -36,6 +37,7 @@ try {
     $upstreamRootArgumentWasProvided = false;
     $json = false;
     $requiredSelectedFixtureCount = null;
+    $requiredNativeMappedParity = null;
     $requireStaticCurrentEvidence = false;
     $requireRunnerNotRun = false;
     $requireNoValidationIssues = false;
@@ -102,12 +104,28 @@ try {
             $requiredSelectedFixtureCount = (int) $raw;
             continue;
         }
+        if ($arg === '--require-native-mapped-parity') {
+            $raw = $nextValue('--require-native-mapped-parity');
+            if (!ctype_digit($raw)) {
+                throw new InvalidArgumentException('--require-native-mapped-parity must be a non-negative integer');
+            }
+            $requiredNativeMappedParity = (int) $raw;
+            continue;
+        }
         if (str_starts_with($arg, '--require-selected-fixture-count=')) {
             $raw = substr($arg, strlen('--require-selected-fixture-count='));
             if (!ctype_digit($raw)) {
                 throw new InvalidArgumentException('--require-selected-fixture-count must be a non-negative integer');
             }
             $requiredSelectedFixtureCount = (int) $raw;
+            continue;
+        }
+        if (str_starts_with($arg, '--require-native-mapped-parity=')) {
+            $raw = substr($arg, strlen('--require-native-mapped-parity='));
+            if (!ctype_digit($raw)) {
+                throw new InvalidArgumentException('--require-native-mapped-parity must be a non-negative integer');
+            }
+            $requiredNativeMappedParity = (int) $raw;
             continue;
         }
 
@@ -138,6 +156,13 @@ try {
     }
     if ($requireStaticCurrentEvidence && !MarkdownUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($report)) {
         fwrite(STDERR, "pandoc-markdown-reader-evidence: checked-in current Markdown fixture evidence is invalid\n");
+        exit(1);
+    }
+    if (
+        $requiredNativeMappedParity !== null
+        && !MarkdownUpstreamReaderEvidence::hasRequiredNativeMappedParity($report, $requiredNativeMappedParity)
+    ) {
+        fwrite(STDERR, "pandoc-markdown-reader-evidence: native mapped parity did not match {$requiredNativeMappedParity}\n");
         exit(1);
     }
     if ($requireRunnerNotRun && !MarkdownUpstreamReaderEvidence::hasRunnerNotRunEvidence($report)) {
