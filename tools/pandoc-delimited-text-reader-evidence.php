@@ -17,10 +17,10 @@ Options:
   --repo-root PATH                Repository root. Defaults to the parent of tools/.
   --require-honest-denominators   Exit 1 unless CSV/TSV direct fixture
                                   denominators are split honestly.
-  --require-generated-tsv-native-parity
+  --require-generated-tsv-native-parity[=N]
                                   Exit 1 unless the generated TSV-to-native
                                   samples match their native fixtures.
-  --require-generated-csv-native-parity
+  --require-generated-csv-native-parity[=N]
                                   Exit 1 unless the generated CSV-to-native
                                   samples match their native fixtures.
   --require-runner-not-run        Exit 1 unless upstream runner evidence is
@@ -81,14 +81,14 @@ $validateHonestDenominators = static function (array $csv, array $tsv): array {
     return $issues;
 };
 
-$validateGeneratedTsvNativeParity = static function (array $evidence): array {
+$validateGeneratedTsvNativeParity = static function (array $evidence, ?int $requiredSampleCount = null): array {
     $issues = [];
     $expect = static function (bool $condition, string $message) use (&$issues): void {
         if (!$condition) {
             $issues[] = $message;
         }
     };
-    $expectedSampleCount = DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT;
+    $expectedSampleCount = $requiredSampleCount ?? DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT;
     $expectedBindingStatus = 'valid-generated-tsv-native-sample-static-binding';
     $samples = is_array($evidence['samples'] ?? null) ? $evidence['samples'] : [];
 
@@ -104,21 +104,21 @@ $validateGeneratedTsvNativeParity = static function (array $evidence): array {
     $expect(($evidence['staticFixtureBindingInvalidCount'] ?? null) === 0, 'Generated TSV native parity static fixture binding invalid count must be 0');
     $expect(array_column($samples, 'staticFixtureBindingStatus') === array_fill(0, $expectedSampleCount, $expectedBindingStatus), 'Generated TSV native parity sample static fixture bindings must be valid');
     $expect(
-        DelimitedTextUpstreamReaderEvidence::hasRequiredGeneratedTsvNativeParity($evidence),
+        DelimitedTextUpstreamReaderEvidence::hasRequiredGeneratedTsvNativeParity($evidence, $expectedSampleCount),
         'Generated TSV native parity helper must recognize required evidence'
     );
 
     return $issues;
 };
 
-$validateGeneratedCsvNativeParity = static function (array $evidence): array {
+$validateGeneratedCsvNativeParity = static function (array $evidence, ?int $requiredSampleCount = null): array {
     $issues = [];
     $expect = static function (bool $condition, string $message) use (&$issues): void {
         if (!$condition) {
             $issues[] = $message;
         }
     };
-    $expectedSampleCount = DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT;
+    $expectedSampleCount = $requiredSampleCount ?? DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT;
     $expectedBindingStatus = 'valid-generated-csv-native-sample-static-binding';
     $samples = is_array($evidence['samples'] ?? null) ? $evidence['samples'] : [];
 
@@ -134,7 +134,7 @@ $validateGeneratedCsvNativeParity = static function (array $evidence): array {
     $expect(($evidence['staticFixtureBindingInvalidCount'] ?? null) === 0, 'Generated CSV native parity static fixture binding invalid count must be 0');
     $expect(array_column($samples, 'staticFixtureBindingStatus') === array_fill(0, $expectedSampleCount, $expectedBindingStatus), 'Generated CSV native parity sample static fixture bindings must be valid');
     $expect(
-        DelimitedTextUpstreamReaderEvidence::hasRequiredGeneratedCsvNativeParity($evidence),
+        DelimitedTextUpstreamReaderEvidence::hasRequiredGeneratedCsvNativeParity($evidence, $expectedSampleCount),
         'Generated CSV native parity helper must recognize required evidence'
     );
 
@@ -210,6 +210,8 @@ try {
     $requireHonestDenominators = false;
     $requireGeneratedCsvNativeParity = false;
     $requireGeneratedTsvNativeParity = false;
+    $requiredGeneratedCsvNativeParityCount = null;
+    $requiredGeneratedTsvNativeParityCount = null;
     $requireRunnerNotRun = false;
     $requireNoValidationIssues = false;
     $args = array_slice($argv, 1);
@@ -223,6 +225,13 @@ try {
             ++$i;
 
             return $args[$i];
+        };
+        $parseNonNegativeInt = static function (string $name, string $value): int {
+            if ($value === '' || preg_match('/^\d+$/', $value) !== 1) {
+                throw new InvalidArgumentException("{$name} must be a non-negative integer");
+            }
+
+            return (int) $value;
         };
 
         if ($arg === '--help' || $arg === '-h') {
@@ -241,8 +250,24 @@ try {
             $requireGeneratedTsvNativeParity = true;
             continue;
         }
+        if (str_starts_with($arg, '--require-generated-tsv-native-parity=')) {
+            $requireGeneratedTsvNativeParity = true;
+            $requiredGeneratedTsvNativeParityCount = $parseNonNegativeInt(
+                '--require-generated-tsv-native-parity',
+                substr($arg, strlen('--require-generated-tsv-native-parity='))
+            );
+            continue;
+        }
         if ($arg === '--require-generated-csv-native-parity') {
             $requireGeneratedCsvNativeParity = true;
+            continue;
+        }
+        if (str_starts_with($arg, '--require-generated-csv-native-parity=')) {
+            $requireGeneratedCsvNativeParity = true;
+            $requiredGeneratedCsvNativeParityCount = $parseNonNegativeInt(
+                '--require-generated-csv-native-parity',
+                substr($arg, strlen('--require-generated-csv-native-parity='))
+            );
             continue;
         }
         if ($arg === '--require-runner-not-run') {
@@ -276,9 +301,9 @@ try {
     $denominatorIssues = $validateHonestDenominators($csvEvidence, $tsvEvidence);
     $runnerIssues = $validateRunnerNotRun($csvEvidence, $tsvEvidence);
     $generatedCsvNativeParity = DelimitedTextUpstreamReaderEvidence::generatedCsvNativeParityEvidence($repoRoot);
-    $generatedCsvNativeIssues = $validateGeneratedCsvNativeParity($generatedCsvNativeParity);
+    $generatedCsvNativeIssues = $validateGeneratedCsvNativeParity($generatedCsvNativeParity, $requiredGeneratedCsvNativeParityCount);
     $generatedTsvNativeParity = DelimitedTextUpstreamReaderEvidence::generatedTsvNativeParityEvidence($repoRoot);
-    $generatedTsvNativeIssues = $validateGeneratedTsvNativeParity($generatedTsvNativeParity);
+    $generatedTsvNativeIssues = $validateGeneratedTsvNativeParity($generatedTsvNativeParity, $requiredGeneratedTsvNativeParityCount);
     $report = [
         'tool' => 'pandoc-delimited-text-reader-evidence',
         'claim' => 'Native CSV/TSV reader evidence only; upstream Haskell runner is not executed.',

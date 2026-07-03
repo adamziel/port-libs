@@ -17,7 +17,7 @@ final class DelimitedTextUpstreamReaderEvidence
     public const EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT = 2;
     public const EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT = 0;
     public const EXPECTED_STATIC_CSV_ADJACENT_RST_FIXTURE_COUNT = 2;
-    public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 16;
+    public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 17;
     public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 12;
 
     private const CHECKED_IN_CURRENT_CSV_FIXTURES = [
@@ -261,6 +261,20 @@ final class DelimitedTextUpstreamReaderEvidence
             'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/unterminated-quote-eof.native',
             'sha256' => '754ba8a6135cf7f7064b714cb6a33990958865e0a5ee04532710a74cc395e74b',
             'bytes' => 925,
+        ],
+        'duplicate-header-labels.csv' => [
+            'role' => 'generated-csv-native-parity-input-fixture',
+            'sample' => 'duplicate-header-labels',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/duplicate-header-labels.csv',
+            'sha256' => 'd0627dffb43d149d884fba447424eed9544c36f9885516afd3e2a04e807c101f',
+            'bytes' => 42,
+        ],
+        'duplicate-header-labels.native' => [
+            'role' => 'generated-csv-native-parity-expected-native-output',
+            'sample' => 'duplicate-header-labels',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/duplicate-header-labels.native',
+            'sha256' => '7e2b213a1c5fa209f5c3f41187012455d9bd701b2da6ff379b15519707ff938e',
+            'bytes' => 1211,
         ],
     ];
 
@@ -514,6 +528,10 @@ final class DelimitedTextUpstreamReaderEvidence
         'unterminated-quote-eof' => [
             'inputPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/unterminated-quote-eof.csv',
             'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/unterminated-quote-eof.native',
+        ],
+        'duplicate-header-labels' => [
+            'inputPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/duplicate-header-labels.csv',
+            'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/duplicate-header-labels.native',
         ],
     ];
 
