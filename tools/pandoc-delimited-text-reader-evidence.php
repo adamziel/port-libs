@@ -20,6 +20,9 @@ Options:
   --require-generated-tsv-native-parity
                                   Exit 1 unless the generated TSV-to-native
                                   samples match their native fixtures.
+  --require-generated-csv-native-parity
+                                  Exit 1 unless the generated CSV-to-native
+                                  sample matches its native fixture.
   --require-runner-not-run        Exit 1 unless upstream runner evidence is
                                   structured as not-run for CSV and TSV.
   --require-no-validation-issues  Exit 1 when any validation issue is reported.
@@ -87,6 +90,29 @@ $validateGeneratedTsvNativeParity = static function (array $evidence): array {
     return $issues;
 };
 
+$validateGeneratedCsvNativeParity = static function (array $evidence): array {
+    $issues = [];
+    $expect = static function (bool $condition, string $message) use (&$issues): void {
+        if (!$condition) {
+            $issues[] = $message;
+        }
+    };
+
+    $expect(($evidence['reader'] ?? null) === 'csv', 'Generated CSV native parity evidence reader must be csv');
+    $expect(($evidence['csvDirectFixtureDenominator'] ?? null) === DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, 'Generated CSV native parity must keep CSV direct denominator at 2');
+    $expect(($evidence['sampleCount'] ?? null) === DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, 'Generated CSV native parity sample count must match expected generated sample count');
+    $expect(($evidence['comparedSampleCount'] ?? null) === DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, 'Generated CSV native parity compared sample count must match expected generated sample count');
+    $expect(($evidence['parseFailureCount'] ?? null) === 0, 'Generated CSV native parity parse failure count must be 0');
+    $expect(($evidence['generatedNativeMatchCount'] ?? null) === DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, 'Generated CSV native parity match count must match expected generated sample count');
+    $expect(($evidence['generatedNativeMismatchCount'] ?? null) === 0, 'Generated CSV native parity mismatch count must be 0');
+    $expect(
+        DelimitedTextUpstreamReaderEvidence::hasRequiredGeneratedCsvNativeParity($evidence),
+        'Generated CSV native parity helper must recognize required evidence'
+    );
+
+    return $issues;
+};
+
 $validateRunnerNotRun = static function (array $csv, array $tsv): array {
     $issues = [];
     $expect = static function (bool $condition, string $message) use (&$issues): void {
@@ -114,6 +140,7 @@ $validateRunnerNotRun = static function (array $csv, array $tsv): array {
 $formatTextReport = static function (array $report): string {
     $csv = $report['csv'];
     $tsv = $report['tsv'];
+    $generatedCsvNative = $report['generatedCsvNativeParity'];
     $generatedTsvNative = $report['generatedTsvNativeParity'];
     $lines = [
         'Delimited text reader evidence',
@@ -122,6 +149,9 @@ $formatTextReport = static function (array $report): string {
         'CSV adjacent RST integration fixtures: ' . $csv['integrationFixtureCount'],
         'TSV direct denominator: ' . $tsv['denominator'] . ' (' . $tsv['denominatorScope'] . ')',
         'TSV direct fixtures: ' . (($tsv['fixtures'] ?? []) === [] ? 'none' : implode(', ', $tsv['fixtures'])),
+        'Generated CSV native parity: ' . $generatedCsvNative['generatedNativeMatchCount']
+            . '/' . $generatedCsvNative['sampleCount']
+            . ' (' . $generatedCsvNative['parityStatus'] . ')',
         'Generated TSV native parity: ' . $generatedTsvNative['generatedNativeMatchCount']
             . '/' . $generatedTsvNative['sampleCount']
             . ' (' . $generatedTsvNative['parityStatus'] . ')',
@@ -145,6 +175,7 @@ try {
     $repoRoot = dirname(__DIR__);
     $json = false;
     $requireHonestDenominators = false;
+    $requireGeneratedCsvNativeParity = false;
     $requireGeneratedTsvNativeParity = false;
     $requireRunnerNotRun = false;
     $requireNoValidationIssues = false;
@@ -177,6 +208,10 @@ try {
             $requireGeneratedTsvNativeParity = true;
             continue;
         }
+        if ($arg === '--require-generated-csv-native-parity') {
+            $requireGeneratedCsvNativeParity = true;
+            continue;
+        }
         if ($arg === '--require-runner-not-run') {
             $requireRunnerNotRun = true;
             continue;
@@ -207,6 +242,8 @@ try {
     $tsvEvidence = $tsvPacket['upstreamEvidence'] ?? [];
     $denominatorIssues = $validateHonestDenominators($csvEvidence, $tsvEvidence);
     $runnerIssues = $validateRunnerNotRun($csvEvidence, $tsvEvidence);
+    $generatedCsvNativeParity = DelimitedTextUpstreamReaderEvidence::generatedCsvNativeParityEvidence($repoRoot);
+    $generatedCsvNativeIssues = $validateGeneratedCsvNativeParity($generatedCsvNativeParity);
     $generatedTsvNativeParity = DelimitedTextUpstreamReaderEvidence::generatedTsvNativeParityEvidence($repoRoot);
     $generatedTsvNativeIssues = $validateGeneratedTsvNativeParity($generatedTsvNativeParity);
     $report = [
@@ -214,13 +251,15 @@ try {
         'claim' => 'Native CSV/TSV reader evidence only; upstream Haskell runner is not executed.',
         'csv' => $csvEvidence,
         'tsv' => $tsvEvidence,
+        'generatedCsvNativeParity' => $generatedCsvNativeParity,
         'generatedTsvNativeParity' => $generatedTsvNativeParity,
         'validation' => [
             'honestDenominators' => $denominatorIssues === [],
+            'generatedCsvNativeParity' => $generatedCsvNativeIssues === [],
             'generatedTsvNativeParity' => $generatedTsvNativeIssues === [],
             'runnerNotRun' => $runnerIssues === [],
         ],
-        'validationIssues' => [...$denominatorIssues, ...$generatedTsvNativeIssues, ...$runnerIssues],
+        'validationIssues' => [...$denominatorIssues, ...$generatedCsvNativeIssues, ...$generatedTsvNativeIssues, ...$runnerIssues],
     ];
 
     if ($json) {
@@ -231,6 +270,10 @@ try {
 
     if ($requireHonestDenominators && $denominatorIssues !== []) {
         fwrite(STDERR, "pandoc-delimited-text-reader-evidence: honest denominator validation reported issues\n");
+        exit(1);
+    }
+    if ($requireGeneratedCsvNativeParity && $generatedCsvNativeIssues !== []) {
+        fwrite(STDERR, "pandoc-delimited-text-reader-evidence: generated CSV native parity validation reported issues\n");
         exit(1);
     }
     if ($requireGeneratedTsvNativeParity && $generatedTsvNativeIssues !== []) {

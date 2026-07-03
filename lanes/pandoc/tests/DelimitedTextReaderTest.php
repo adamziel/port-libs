@@ -32,6 +32,15 @@ $generatedTsvNativeFixture = static function (string $name = 'simple'): array {
     ];
 };
 
+$generatedCsvNativeFixture = static function (string $name = 'quoted-multiline'): array {
+    $root = dirname(__DIR__) . '/fixtures/generated-current-csv-reader';
+
+    return [
+        'input' => (string) file_get_contents($root . '/' . $name . '.csv'),
+        'native' => (string) file_get_contents($root . '/' . $name . '.native'),
+    ];
+};
+
 $nativeTokenStream = static function (string $native): string {
     $native = (string) preg_replace('/\[\s*\]/', '[]', $native);
     $native = (string) preg_replace('/\(\s*""\s*,\s*\[\]\s*,\s*\[\]\s*\)/', '("",[],[])', $native);
@@ -114,6 +123,49 @@ return [
         $t->same('45', $table->children[1]->children[2]->children[2]->attr('text'));
         $t->contains('Plain [ Str "\"Navel\"" , Space , Str "Orange" ]', $native);
         $t->contains('Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) []', $native);
+        $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
+    },
+    'matches generated csv quoted multiline native parity fixture without inflating csv denominator' => static function (TestRunner $t) use ($generatedCsvNativeFixture, $nativeTokenStream): void {
+        $fixture = $generatedCsvNativeFixture();
+        $document = (new DelimitedTextReader())->readCsv($fixture['input'], [
+            'sourcePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/quoted-multiline.csv',
+        ]);
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+        $native = PandocConverter::write($document, 'native');
+        $generatedEvidence = $packet['upstreamEvidence']['staticCurrentEvidence']['generatedCsvNativeStaticEvidence'] ?? [];
+
+        $t->same('csv', $packet['format'] ?? null);
+        $t->same(',', $packet['delimiter'] ?? null);
+        $t->same(2, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(2, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
+        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
+        $t->same(1, $generatedEvidence['sampleCount'] ?? null);
+        $t->same(2, $generatedEvidence['checkedInFixtureCount'] ?? null);
+        $t->same(2, $generatedEvidence['csvDirectFixtureDenominator'] ?? null);
+        $t->same('quoted-multiline.csv', $generatedEvidence['checkedInFixtures'][0]['name'] ?? null);
+        $t->same('a038fe6edd54cf98e2b3afaf14dd4e5cbdbbdb86ab2b62d9bd60cd783ce3324e', $generatedEvidence['checkedInFixtures'][0]['checkedInFile']['sha256'] ?? null);
+        $t->same(['id', 'title', 'note', 'flag'], $table->attr('columnNames'));
+        $t->same(4, $packet['rowCount'] ?? null);
+        $t->same(3, $packet['bodyRowCount'] ?? null);
+        $t->same(4, $packet['columnCount'] ?? null);
+        $t->same(14, $packet['fieldCount'] ?? null);
+        $t->same(2, $packet['quotedFieldCount'] ?? null);
+        $t->same(2, $packet['doubledQuoteEscapeCount'] ?? null);
+        $t->same(1, $packet['quotedLineBreakCount'] ?? null);
+        $t->same(1, $packet['multilineFieldCount'] ?? null);
+        $t->same([1], $packet['multilineQuotedRows'] ?? null);
+        $t->same([2], $packet['trailingDelimiterRows'] ?? null);
+        $t->same(1, $packet['raggedRowCount'] ?? null);
+        $t->same([3], $packet['raggedRows'] ?? null);
+        $t->same('Legacy, "quoted" title', $table->children[1]->children[0]->children[1]->attr('text'));
+        $t->same("two\nline", $table->children[1]->children[0]->children[2]->attr('text'));
+        $t->same('', $table->children[1]->children[1]->children[2]->attr('text'));
+        $t->same('', $table->children[1]->children[2]->children[2]->attr('text'));
+        $t->same('', $table->children[1]->children[2]->children[3]->attr('text'));
+        $t->contains('Plain [ Str "Legacy," , Space , Str "\"quoted\"" , Space , Str "title" ]', $native);
+        $t->contains('Plain [ Str "two" , LineBreak , Str "line" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
     'matches generated tsv native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
