@@ -10778,8 +10778,14 @@ final class MarkdownReader
                 $taskChecked = $task['checked'];
                 $firstText = $task['text'];
             }
-            $lineBlock = $this->readListItemLineBlock($lines, $cursor, $baseIndent, $contentIndent, $firstText);
-            if ($lineBlock !== null) {
+            $heading = $this->tryParseMarkdownHeading($firstText);
+            if ($heading !== null) {
+                $parts[] = $this->buildListItemMarkdownHeadingNode($heading);
+                $cursor++;
+            } elseif (($fencedCode = $this->readListItemFencedCodeBlock($lines, $cursor, $baseIndent, $contentIndent, $firstText)) !== null) {
+                $parts[] = $fencedCode['node'];
+                $cursor = $fencedCode['next'];
+            } elseif (($lineBlock = $this->readListItemLineBlock($lines, $cursor, $baseIndent, $contentIndent, $firstText)) !== null) {
                 $parts[] = $lineBlock['node'];
                 $cursor = $lineBlock['next'];
             } elseif (($fencedDiv = $this->readListItemFencedDivBlock($lines, $cursor, $baseIndent, $contentIndent, $firstText)) !== null) {
@@ -10961,6 +10967,38 @@ final class MarkdownReader
         $quote = $this->tryReadBlockQuote($quoteLines, $quoteIndex);
 
         return [$quote ?? new AstNode('blockquote'), $cursor + $quoteIndex + 1];
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{node:AstNode, next:int}|null
+     */
+    private function readListItemFencedCodeBlock(
+        array $lines,
+        int $cursor,
+        int $baseIndent,
+        int $contentIndent,
+        string $firstLine
+    ): ?array {
+        if (preg_match('/^ {0,3}(`{3,}|~{3,})/', $this->expandTabsToSpaces($firstLine)) !== 1) {
+            return null;
+        }
+
+        $blockLines = [$firstLine];
+        $blockLines = array_merge(
+            $blockLines,
+            $this->collectListItemIndentedContinuationLines($lines, $cursor + 1, $baseIndent, $contentIndent)
+        );
+        $blockIndex = 0;
+        $fencedCode = $this->tryReadFencedCodeBlock($blockLines, $blockIndex);
+        if ($fencedCode === null) {
+            return null;
+        }
+
+        return [
+            'node' => $fencedCode,
+            'next' => $cursor + $blockIndex + 1,
+        ];
     }
 
     /**
