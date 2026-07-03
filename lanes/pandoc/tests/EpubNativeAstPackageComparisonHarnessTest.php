@@ -177,6 +177,8 @@ return [
             $t->same(0, $report['comparedPairCount']);
             $t->same('not-evaluated-source-directory-unavailable', $report['packageAcceptanceStatus']);
             $t->same('not-evaluated-source-directory-unavailable', $report['astParityStatus']);
+            $t->same(0, $report['packageFeatureCoverage']['fixtureCount']);
+            $t->same([], $report['packageFeatureCoverage']['navigationTypeCounts']);
             $t->same('not-evaluated', $report['orderedRemainingGaps'][0]['status']);
             $t->contains('Pandoc EPUB native/package comparison: skipped', $text);
         } finally {
@@ -236,6 +238,7 @@ return [
             $harness = new EpubNativeAstPackageComparisonHarness();
             $report = $harness->run($root);
             $summary = $report['packageSummaries'][0];
+            $coverage = $report['packageFeatureCoverage'];
 
             $t->same('completed', $report['status']);
             $t->same(1, $report['totalEpubCount']);
@@ -263,6 +266,27 @@ return [
             $t->same(1, $summary['landmarkEntryCount']);
             $t->same(1, $summary['pageListEntryCount']);
             $t->same(1, $summary['auxiliaryNavigationEntryCount']);
+            $t->same(1, $coverage['fixtureCount']);
+            $t->same(['en' => 1], $coverage['metadataLanguageCounts']);
+            $t->same(['nav' => 1], $coverage['navigationTypeCounts']);
+            $t->same(['landmarks', 'loi', 'page-list', 'toc'], $coverage['navigationSectionTypes']);
+            $t->same(['generated-navigation'], $coverage['fixturesWithGuideReferences']);
+            $t->same(['generated-navigation'], $coverage['fixturesWithPackageLinks']);
+            $t->same([], $coverage['fixturesWithCoverImagePart']);
+            $t->same([], $coverage['fixturesWithImages']);
+            $t->same([], $coverage['fixturesWithStylesheets']);
+            $t->same(['generated-navigation'], $coverage['fixturesWithLandmarks']);
+            $t->same([
+                'manifestItems' => 3,
+                'readingOrderItems' => 1,
+                'xhtmlAssets' => 2,
+                'imageAssets' => 0,
+                'stylesheetAssets' => 0,
+                'navigationEntries' => 1,
+                'landmarkEntries' => 1,
+                'packageLinks' => 1,
+                'guideReferences' => 1,
+            ], $coverage['totals']);
 
             $command = escapeshellarg(PHP_BINARY)
                 . ' '
@@ -284,6 +308,7 @@ return [
             $t->same(1, $decoded['nativeParsedCount']);
             $t->same(1, $decoded['normalizedAstMatchCount']);
             $t->same(0, $decoded['normalizedAstMismatchCount']);
+            $t->same(['nav' => 1], $decoded['packageFeatureCoverage']['navigationTypeCounts']);
         } finally {
             $removeTree($root);
         }
@@ -359,6 +384,72 @@ return [
                 'bytes' => 150477,
             ],
         ];
+        $expectedPackageFeatureCoverage = [
+            'fixtureCount' => 8,
+            'metadataLanguageCounts' => [
+                'de-DE' => 3,
+                'en' => 4,
+                'en-US' => 1,
+            ],
+            'navigationTypeCounts' => [
+                'nav' => 5,
+                'ncx' => 3,
+            ],
+            'navigationSectionTypes' => [
+                'landmarks',
+                'toc',
+            ],
+            'fixturesWithGuideReferences' => [
+                'epub2_cover',
+                'epub2_no_cover',
+                'epub2_picture',
+            ],
+            'fixturesWithPackageLinks' => [
+                'wasteland',
+            ],
+            'fixturesWithCoverImagePart' => [
+                'epub2_cover',
+                'epub2_picture',
+                'img',
+                'wasteland',
+            ],
+            'fixturesWithImages' => [
+                'epub2_cover',
+                'epub2_picture',
+                'formatting',
+                'img',
+                'img_no_cover',
+                'wasteland',
+            ],
+            'fixturesWithStylesheets' => [
+                'epub2_cover',
+                'epub2_no_cover',
+                'epub2_picture',
+                'features',
+                'formatting',
+                'img',
+                'img_no_cover',
+                'wasteland',
+            ],
+            'fixturesWithLandmarks' => [
+                'features',
+                'formatting',
+                'img',
+                'img_no_cover',
+                'wasteland',
+            ],
+            'totals' => [
+                'manifestItems' => 51,
+                'readingOrderItems' => 22,
+                'xhtmlAssets' => 23,
+                'imageAssets' => 11,
+                'stylesheetAssets' => 13,
+                'navigationEntries' => 90,
+                'landmarkEntries' => 7,
+                'packageLinks' => 3,
+                'guideReferences' => 3,
+            ],
+        ];
 
         $t->same(8, count($epubFiles), 'Checked-in EPUB fixture count changed');
         $t->same(8, count($nativeFiles), 'Checked-in native fixture count changed');
@@ -401,11 +492,16 @@ return [
             $t->same(true, $file['matchesExpected']);
         }
         $t->same($expectedFixtureIdentity, $observedFixtureIdentity);
+        foreach ($expectedPackageFeatureCoverage as $key => $expected) {
+            $t->same($expected, $report['packageFeatureCoverage'][$key]);
+        }
+        $t->same(true, EpubNativeAstPackageComparisonHarness::hasRequiredCurrentPackageFeatureCoverage($report));
         $t->same('covered-by-current-package-evidence', $report['orderedRemainingGaps'][0]['status']);
         $t->same('covered-by-current-normalized-ast-evidence', $report['orderedRemainingGaps'][1]['status']);
         $t->contains('packages: total=8 compared=8 packageParsed=8 readerParsed=8 packageFailures=0 readerFailures=0', $text);
         $t->contains('normalizedAst: matches=8 (100.00%) mismatches=0', $text);
         $t->contains('fixtureIdentity: status=valid-checked-in-current-epub-fixture-identity expected=16 observed=16', $text);
+        $t->contains('packageFeatureCoverage: fixtures=8 nav=5 ncx=3 covers=4 landmarks=5 manifestItems=51', $text);
 
         $command = escapeshellarg(PHP_BINARY)
             . ' '
@@ -414,6 +510,7 @@ return [
             . ' --json'
             . ' summary'
             . ' --require-fixture-identity'
+            . ' --require-current-package-feature-coverage'
             . ' --require-package-parity=8'
             . ' --require-native-readiness=8'
             . ' --require-mapped-parity=8';
@@ -430,6 +527,9 @@ return [
         $t->same(8, $decoded['normalizedAstMatchCount']);
         $t->same(0, $decoded['normalizedAstMismatchCount']);
         $t->same('valid-checked-in-current-epub-fixture-identity', $decoded['fixtureIdentity']['validation']['status']);
+        foreach ($expectedPackageFeatureCoverage as $key => $expected) {
+            $t->same($expected, $decoded['packageFeatureCoverage'][$key]);
+        }
 
         $defaultFixtureIdentityCommand = 'env -u PANDOC_UPSTREAM_EPUB_DIR '
             . escapeshellarg(PHP_BINARY)
@@ -440,7 +540,8 @@ return [
             . ' --require-package-parity=8'
             . ' --require-native-readiness=8'
             . ' --require-mapped-parity=8'
-            . ' --require-fixture-identity';
+            . ' --require-fixture-identity'
+            . ' --require-current-package-feature-coverage';
         $defaultFixtureIdentityOutput = [];
         $defaultFixtureIdentityExitCode = 0;
         exec($defaultFixtureIdentityCommand, $defaultFixtureIdentityOutput, $defaultFixtureIdentityExitCode);
@@ -455,6 +556,7 @@ return [
         $t->same($root, $defaultFixtureIdentityDecoded['upstreamEpubDirectory']);
         $t->same(8, $defaultFixtureIdentityDecoded['normalizedAstMatchCount']);
         $t->same('valid-checked-in-current-epub-fixture-identity', $defaultFixtureIdentityDecoded['fixtureIdentity']['validation']['status']);
+        $t->same(['nav' => 5, 'ncx' => 3], $defaultFixtureIdentityDecoded['packageFeatureCoverage']['navigationTypeCounts']);
     },
 
     'cli gates epub package and native readiness without requiring ast equality' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeEpub): void {
