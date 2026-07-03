@@ -5151,7 +5151,7 @@ final class MarkdownWriter
             }
             $marker = $ordered
                 ? $this->orderedListMarker($node, $item, $start + $index, $itemIndex)
-                : $this->bulletListMarker();
+                : $this->bulletListMarker($node);
             array_push($lines, ...$this->renderListItem($item, $marker, $indent));
             if (
                 $itemIndex < $renderedItemCount - 1
@@ -5202,8 +5202,18 @@ final class MarkdownWriter
         return $this->renderBlock(new AstNode('div', $attrs, $item->children), $indent);
     }
 
-    private function bulletListMarker(): string
+    private function bulletListMarker(AstNode $node): string
     {
+        if (!array_key_exists('bulletListMarker', $this->options)) {
+            $sourceMarker = $node->attr('marker', null);
+            if (is_string($sourceMarker)) {
+                $sourceMarker = trim($sourceMarker);
+                if ($sourceMarker === '+' || $sourceMarker === '*') {
+                    return $sourceMarker . ' ';
+                }
+            }
+        }
+
         $marker = strtolower(str_replace(['_', '-'], '', (string) ($this->options['bulletListMarker'] ?? 'dash')));
 
         return match ($marker) {

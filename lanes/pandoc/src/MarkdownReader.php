@@ -11849,7 +11849,7 @@ final class MarkdownReader
                 'style' => 'example',
                 'delimiter' => 'two_parens',
                 'marker' => '@',
-                'exampleLabel' => $example['label'],
+                'exampleLabel' => $example['label'] !== '' ? $example['label'] : null,
             ];
         }
 
