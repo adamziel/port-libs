@@ -77,6 +77,7 @@ final class EpubReader
         $resources = [];
         $referenced_resources = [];
         $image_resources = $this->imageResources($base_path, $manifest);
+        $linear_spine_image_hrefs = $this->linearSpineImageHrefs($spine_items, $manifest);
         $spine_filenames = array_map(
             fn (array $spine_item): string => $this->spineFilename((string) ($spine_item['href'] ?? '')),
             array_values(array_filter(
@@ -86,7 +87,7 @@ final class EpubReader
         );
 
         $cover = $this->coverImageHref($package, $manifest);
-        if ($cover !== null) {
+        if ($cover !== null && !in_array($cover, $linear_spine_image_hrefs, true)) {
             $children[] = new AstNode('paragraph', ['text' => ''], [
                 new AstNode('image', [
                     'url' => $cover,
@@ -106,8 +107,20 @@ final class EpubReader
             }
             $item = $manifest[$idref];
             $href = $this->normalizeZipPath($base_path . '/' . $item['href']);
-            $media_type = strtolower($item['media-type']);
-            if (!$this->isReadablePackageXhtml($href, $media_type) || $this->isAbsoluteUrl($item['href'])) {
+            $media_type = $this->mediaTypeBase($item['media-type']);
+            if ($this->isAbsoluteUrl($item['href'])) {
+                continue;
+            }
+            if ($this->isDirectSpineImageMediaType($media_type)) {
+                if (!$this->zipEntryExists($zip, $href)) {
+                    continue;
+                }
+                $resources[] = $href;
+                $referenced_resources[] = $href;
+                $children[] = $this->directImageSpineBlock($item['href']);
+                continue;
+            }
+            if (!$this->isReadablePackageXhtml($href, $media_type)) {
                 continue;
             }
             $xhtml = $zip->getFromName($href);
@@ -304,7 +317,7 @@ final class EpubReader
                 'mediaType' => $item['media-type'],
                 'properties' => $properties,
                 'external' => $this->isAbsoluteUrl($href),
-                'readable' => !$this->isAbsoluteUrl($href) && $this->isReadablePackageXhtml($path, $media_type),
+                'readable' => !$this->isAbsoluteUrl($href) && $this->isReadableSpineItem($path, $media_type),
                 'navigation' => in_array('nav', $lower_properties, true),
                 'ncx' => str_contains($media_type, 'x-dtbncx') || str_ends_with(strtolower($path), '.ncx'),
                 'coverImage' => in_array('cover-image', $lower_properties, true),
@@ -348,7 +361,7 @@ final class EpubReader
                 'manifestProperties' => is_array($manifest_item) ? $manifest_item['properties'] : [],
                 'missingManifestItem' => !is_array($manifest_item),
                 'external' => $external,
-                'readable' => is_array($manifest_item) && !$external && $this->isReadablePackageXhtml($path, strtolower($media_type)),
+                'readable' => is_array($manifest_item) && !$external && $this->isReadableSpineItem($path, $media_type),
             ];
         }
 
@@ -859,6 +872,17 @@ final class EpubReader
         return $fragment === '' ? $normalized : $normalized . '#' . $fragment;
     }
 
+    private function directImageSpineBlock(string $href): AstNode
+    {
+        return new AstNode('paragraph', ['text' => ''], [
+            new AstNode('image', [
+                'url' => $this->normalizeZipPath($href),
+                'title' => '',
+                'alt' => '',
+            ]),
+        ]);
+    }
+
     /**
      * @param list<string> $referenced_resources
      */
@@ -925,11 +949,58 @@ final class EpubReader
     private function isReadablePackageXhtml(string $path, string $media_type): bool
     {
         $path = strtolower($path);
-        $media_type = strtolower($media_type);
+        $media_type = $this->mediaTypeBase($media_type);
 
         return str_contains($media_type, 'html')
             || str_ends_with($path, '.xhtml')
             || str_ends_with($path, '.html');
+    }
+
+    private function isReadableSpineItem(string $path, string $media_type): bool
+    {
+        return $this->isReadablePackageXhtml($path, $media_type)
+            || $this->isDirectSpineImageMediaType($media_type);
+    }
+
+    private function isDirectSpineImageMediaType(string $media_type): bool
+    {
+        return in_array($this->mediaTypeBase($media_type), ['image/gif', 'image/jpeg', 'image/png'], true);
+    }
+
+    private function mediaTypeBase(string $media_type): string
+    {
+        return strtolower(trim(explode(';', $media_type, 2)[0]));
+    }
+
+    private function zipEntryExists(\ZipArchive $zip, string $path): bool
+    {
+        return $zip->statName($path) !== false;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $spine_items
+     * @param array<string, array{href: string, media-type: string, properties: list<string>}> $manifest
+     * @return list<string>
+     */
+    private function linearSpineImageHrefs(array $spine_items, array $manifest): array
+    {
+        $hrefs = [];
+        foreach ($spine_items as $spine_item) {
+            if (($spine_item['linear'] ?? true) !== true) {
+                continue;
+            }
+            $idref = is_string($spine_item['idref'] ?? null) ? $spine_item['idref'] : '';
+            $item = $manifest[$idref] ?? null;
+            if (!is_array($item)) {
+                continue;
+            }
+            $href = $item['href'];
+            if (!$this->isAbsoluteUrl($href) && $this->isDirectSpineImageMediaType($item['media-type'])) {
+                $hrefs[] = $href;
+            }
+        }
+
+        return array_values(array_unique($hrefs));
     }
 
     private function isAbsoluteUrl(string $url): bool

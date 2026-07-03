@@ -131,6 +131,12 @@ final class EpubPackageReader
                 continue;
             }
 
+            $mediaType = (string) ($spineItem['contentMediaType'] ?? $spineItem['mediaTypeBase'] ?? $spineItem['mediaType'] ?? '');
+            if ($this->isDirectSpineImageMediaType($mediaType)) {
+                array_push($children, ...$this->readDirectImageSpineItem($path));
+                continue;
+            }
+
             array_push($children, ...$this->readXhtmlDocument($root, $path));
         }
 
@@ -715,7 +721,10 @@ final class EpubPackageReader
                     : '';
                 $external = is_array($item) && ($item['external'] ?? false) === true;
                 $exists = is_array($item) && ($item['exists'] ?? false) === true;
-                $readable = $linear && $mediaTypeBase === 'application/xhtml+xml' && !$external && $exists;
+                $readable = $linear
+                    && ($mediaTypeBase === 'application/xhtml+xml' || $this->isDirectSpineImageMediaType($mediaTypeBase))
+                    && !$external
+                    && $exists;
                 $diagnostics = $linearReport['diagnostics'];
                 if (!is_array($item)) {
                     $diagnostics[] = [
@@ -7839,6 +7848,22 @@ final class EpubPackageReader
     /**
      * @return list<AstNode>
      */
+    private function readDirectImageSpineItem(string $path): array
+    {
+        return [
+            new AstNode('paragraph', ['text' => ''], [
+                new AstNode('image', [
+                    'url' => $path,
+                    'alt' => '',
+                    'title' => '',
+                ]),
+            ]),
+        ];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
     private function blockNodesFromChildren(\DOMNode $parent, string $baseDir): array
     {
         $blocks = [];
@@ -9068,6 +9093,11 @@ final class EpubPackageReader
     private function mediaTypeBase(string $mediaType): string
     {
         return strtolower(trim(explode(';', $mediaType, 2)[0]));
+    }
+
+    private function isDirectSpineImageMediaType(string $mediaType): bool
+    {
+        return in_array($this->mediaTypeBase($mediaType), ['image/gif', 'image/jpeg', 'image/png'], true);
     }
 
     /**
