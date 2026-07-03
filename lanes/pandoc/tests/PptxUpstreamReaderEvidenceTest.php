@@ -145,6 +145,7 @@ return [
         $bulletsPair = $pairsByStem['bullets'];
         $embeddedImagePair = $pairsByStem['embedded-image'];
         $hyperlinkTextPair = $pairsByStem['hyperlink-text'];
+        $listContinuationPair = $pairsByStem['list-continuation'];
         $twoSlidesPair = $pairsByStem['two-slides'];
         $speakerNotesPair = $pairsByStem['speaker-notes'];
         $numberedListPair = $pairsByStem['numbered-list'];
@@ -156,7 +157,7 @@ return [
         $t->same('text extraction', $static['readerDenominator']['expectedReaderCases'][0]['name']);
         $t->same('pptx-reader/basic.pptx', $static['readerDenominator']['expectedReaderCases'][0]['pptx']);
         $t->same('pptx-reader/basic.native', $static['readerDenominator']['expectedReaderCases'][0]['native']);
-        $t->same(9, $static['checkedInFixturePairCount']);
+        $t->same(10, $static['checkedInFixturePairCount']);
         $t->same(0, $static['checkedInUnpairedPptxFixtureCount']);
         $t->same(0, $static['checkedInUnpairedNativeFixtureCount']);
         $t->same([], $static['checkedInUnpairedPptxFixtures']);
@@ -202,6 +203,13 @@ return [
         $t->same('f4334af63e88a238caf0dcb2a4bf37fa1745d54bb2d703ec287fb3cc0474bcd7', $hyperlinkTextPair['checkedInNative']['sha256']);
         $t->same(2004, $hyperlinkTextPair['checkedInPptx']['bytes']);
         $t->same(100, $hyperlinkTextPair['checkedInNative']['bytes']);
+        $t->same('list-continuation', $listContinuationPair['stem']);
+        $t->same('generated buNone list-continuation boundary parity', $listContinuationPair['name']);
+        $t->same('pptx-reader/list-continuation.pptx|pptx-reader/list-continuation.native', $listContinuationPair['pairKey']);
+        $t->same('2b7ae7359fde4edb717371d518ef80c8bbda374fa72def88c3dcd744c91fdf5f', $listContinuationPair['checkedInPptx']['sha256']);
+        $t->same('d5dd188d56624d8aa5a8a848a40d2e4568e3f522f034573dc8b539842ae702de', $listContinuationPair['checkedInNative']['sha256']);
+        $t->same(1713, $listContinuationPair['checkedInPptx']['bytes']);
+        $t->same(294, $listContinuationPair['checkedInNative']['bytes']);
         $t->same('two-slides', $twoSlidesPair['stem']);
         $t->same('generated two-slide ordering parity', $twoSlidesPair['name']);
         $t->same('pptx-reader/two-slides.pptx|pptx-reader/two-slides.native', $twoSlidesPair['pairKey']);
@@ -232,10 +240,11 @@ return [
         $t->true(in_array('that bullets.pptx/bullets.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('that embedded-image.pptx/embedded-image.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('that hyperlink-text.pptx/hyperlink-text.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
+        $t->true(in_array('that list-continuation.pptx/list-continuation.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('that two-slides.pptx/two-slides.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('that speaker-notes.pptx/speaker-notes.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('that numbered-list.pptx/numbered-list.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
-        $t->contains('Static current evidence: valid-checked-in-current-pptx-reader-evidence comparisons=1 checkedInPairs=9', $text);
+        $t->contains('Static current evidence: valid-checked-in-current-pptx-reader-evidence comparisons=1 checkedInPairs=10', $text);
         $t->contains('Runner status: not-run', $text);
     },
     'reports invalid pptx reader evidence for missing and unreferenced fixtures' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile): void {

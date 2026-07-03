@@ -1,0 +1,8 @@
+[ Header
+    2 ( "slide-1" , [] , [] ) [ Str "Continuation slide" ]
+, BulletList [ [ Plain [ Str "Top-level" ] ] ]
+, Para [ Str "With continuation" ]
+, BulletList [ [ Plain [ Str "Nested bullet" ] ] ]
+, Para [ Str "Nested continuation" ]
+, BulletList [ [ Plain [ Str "Second top-level" ] ] ]
+]
