@@ -19,6 +19,18 @@ final class EpubUpstreamReaderEvidence
     private const CHECKED_IN_CURRENT_STATIC_MEDIA_BAG_TEST_COUNT = 6;
     private const CHECKED_IN_CURRENT_STATIC_FIXTURE_REFERENCE_COUNT = 6;
     private const CHECKED_IN_CURRENT_STATIC_EXPECTED_MEDIA_ITEM_COUNT = 10;
+    private const RUNNER_TEST_SUITE = 'test:test-pandoc';
+    private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/epub-targeted-run';
+    private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'EPUB', 'EPUB Mediabag'];
+    private const RUNNER_TASTY_PATTERN = '$2 == "Readers" && $3 == "EPUB" && $4 == "EPUB Mediabag"';
+    private const RUNNER_REQUIRED_TRANSCRIPTS = [
+        '.port-libs/pandoc-runner/logs/runner-test-dependencies.txt',
+        '.port-libs/pandoc-runner/logs/epub-targeted-list-tests.txt',
+        '.port-libs/pandoc-runner/logs/epub-targeted-run.txt',
+    ];
+    private const RUNNER_REQUIRED_ARTIFACTS = [
+        '.port-libs/pandoc-runner/artifacts/epub-targeted-run/result.json',
+    ];
 
     private readonly string $repoRoot;
     private readonly string $upstreamRoot;
@@ -166,6 +178,7 @@ final class EpubUpstreamReaderEvidence
             'Expected media items: ' . (int) ($denominator['expectedMediaItemCount'] ?? 0),
             'Static current signature: ' . (string) ($signatureValidation['status'] ?? 'unknown'),
             'Runner status: ' . (string) ($runner['status'] ?? 'unknown'),
+            'Runner plan: ' . (string) ($runner['commandPlanStatus'] ?? 'unknown'),
             'Validation: ' . (string) ($validation['status'] ?? 'unknown'),
             'No upstream Haskell/Cabal runner result, EPUB writer parity, or full EPUB feature parity is asserted.',
         ]) . PHP_EOL;
@@ -230,6 +243,29 @@ final class EpubUpstreamReaderEvidence
     /**
      * @param array<string, mixed> $report
      */
+    public static function hasRunnerPlanEvidence(array $report): bool
+    {
+        $runner = is_array($report['runnerEvidence'] ?? null) ? $report['runnerEvidence'] : [];
+        $binding = is_array($runner['upstreamBinding'] ?? null) ? $runner['upstreamBinding'] : [];
+        $target = is_array($runner['target'] ?? null) ? $runner['target'] : [];
+
+        return self::hasRunnerNotRunEvidence($report)
+            && ($runner['commandPlanStatus'] ?? null) === 'planned-not-run'
+            && ($binding['name'] ?? null) === 'jgm/pandoc'
+            && ($binding['expectedCommit'] ?? null) === self::EXPECTED_UPSTREAM_COMMIT
+            && ($binding['entryPoint'] ?? null) === 'test/test-pandoc.hs'
+            && ($binding['readerTestModule'] ?? null) === 'test/Tests/Readers/EPUB.hs'
+            && ($target['testSuite'] ?? null) === self::RUNNER_TEST_SUITE
+            && ($target['tastyGroupPath'] ?? null) === self::RUNNER_TASTY_GROUP_PATH
+            && ($target['tastyPattern'] ?? null) === self::RUNNER_TASTY_PATTERN
+            && ($runner['futureCommands'] ?? null) === self::runnerFutureCommands()
+            && ($runner['requiredTranscripts'] ?? null) === self::RUNNER_REQUIRED_TRANSCRIPTS
+            && ($runner['requiredArtifacts'] ?? null) === self::RUNNER_REQUIRED_ARTIFACTS;
+    }
+
+    /**
+     * @param array<string, mixed> $report
+     */
     public static function hasRequiredStaticCurrentSignature(array $report): bool
     {
         $signature = is_array($report['currentReaderStaticSignature'] ?? null) ? $report['currentReaderStaticSignature'] : [];
@@ -270,6 +306,7 @@ final class EpubUpstreamReaderEvidence
                 'that the upstream EPUB reader source file is present when validating a full upstream checkout without an explicit checked-in fixture base',
                 'the checked-in current static EPUB reader denominator signature when explicitly gated',
                 'that upstream Haskell runner evidence is explicitly not-run',
+                'the future upstream runner command plan targets test:test-pandoc Readers/EPUB/EPUB Mediabag at the pinned upstream commit without execution',
             ],
             'doesNotAssert' => [
                 'that upstream Haskell/Cabal/Tasty tests were executed',
@@ -293,8 +330,79 @@ final class EpubUpstreamReaderEvidence
             'executed' => false,
             'command' => null,
             'resultArtifact' => null,
+            'commandPlanStatus' => 'planned-not-run',
+            'upstreamBinding' => [
+                'name' => 'jgm/pandoc',
+                'expectedCommit' => self::EXPECTED_UPSTREAM_COMMIT,
+                'entryPoint' => 'test/test-pandoc.hs',
+                'readerTestModule' => 'test/Tests/Readers/EPUB.hs',
+            ],
+            'target' => [
+                'testSuite' => self::RUNNER_TEST_SUITE,
+                'tastyGroupPath' => self::RUNNER_TASTY_GROUP_PATH,
+                'tastyPattern' => self::RUNNER_TASTY_PATTERN,
+            ],
+            'blockers' => [
+                'no committed upstream test:test-pandoc EPUB runner transcript or result artifact is present',
+                'this PHP evidence gate intentionally does not invoke Cabal/Tasty or hydrate Haskell build dependencies',
+                'a future runner claim must be bound to the pinned upstream commit and exact targeted EPUB Tasty pattern',
+            ],
+            'futureCommands' => self::runnerFutureCommands(),
+            'requiredTranscripts' => self::RUNNER_REQUIRED_TRANSCRIPTS,
+            'requiredArtifacts' => self::RUNNER_REQUIRED_ARTIFACTS,
             'reason' => 'This PHP evidence packet is generated without executing the upstream Haskell runner.',
             'claim' => 'No upstream Haskell runner parity is claimed.',
+        ];
+    }
+
+    /**
+     * @return list<array{purpose: string, program: string, arguments: list<string>}>
+     */
+    private static function runnerFutureCommands(): array
+    {
+        return [
+            [
+                'purpose' => 'prepare runner dependencies in an isolated build directory',
+                'program' => 'cabal',
+                'arguments' => [
+                    'v2-build',
+                    '--offline',
+                    '--dry-run',
+                    '--only-dependencies',
+                    '--project-dir=.',
+                    '--builddir=' . self::RUNNER_BUILD_DIR,
+                    self::RUNNER_TEST_SUITE,
+                ],
+            ],
+            [
+                'purpose' => 'list targeted EPUB reader media-bag tests',
+                'program' => 'cabal',
+                'arguments' => [
+                    'v2-run',
+                    '--offline',
+                    '--project-dir=.',
+                    '--builddir=' . self::RUNNER_BUILD_DIR,
+                    self::RUNNER_TEST_SUITE,
+                    '--',
+                    '--list-tests',
+                    '--pattern',
+                    self::RUNNER_TASTY_PATTERN,
+                ],
+            ],
+            [
+                'purpose' => 'run targeted EPUB reader media-bag tests',
+                'program' => 'cabal',
+                'arguments' => [
+                    'v2-run',
+                    '--offline',
+                    '--project-dir=.',
+                    '--builddir=' . self::RUNNER_BUILD_DIR,
+                    self::RUNNER_TEST_SUITE,
+                    '--',
+                    '--pattern',
+                    self::RUNNER_TASTY_PATTERN,
+                ],
+            ],
         ];
     }
 

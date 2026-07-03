@@ -27,6 +27,8 @@ Options:
   --require-static-current-signature      Exit 1 unless the checked-in current static reader
                                           denominator signature matches the expected snapshot.
   --require-runner-not-run                Exit 1 unless upstream runner evidence is structured as not-run.
+  --require-runner-plan                   Exit 1 unless upstream runner evidence includes the pinned
+                                          non-executed test:test-pandoc EPUB command plan.
   --require-no-validation-issues          Exit 1 when denominator validation reports any issue.
   --help                                  Show this help.
 
@@ -49,6 +51,7 @@ try {
     $requiredExpectedMediaItemCount = null;
     $requireStaticCurrentSignature = false;
     $requireRunnerNotRun = false;
+    $requireRunnerPlan = false;
     $requireNoValidationIssues = false;
     $args = array_slice($argv, 1);
 
@@ -77,6 +80,10 @@ try {
         }
         if ($arg === '--require-runner-not-run') {
             $requireRunnerNotRun = true;
+            continue;
+        }
+        if ($arg === '--require-runner-plan') {
+            $requireRunnerPlan = true;
             continue;
         }
         if ($arg === '--require-static-current-signature') {
@@ -223,6 +230,11 @@ try {
 
     if ($requireRunnerNotRun && !EpubUpstreamReaderEvidence::hasRunnerNotRunEvidence($report)) {
         fwrite(STDERR, "pandoc-epub-reader-evidence: runner not-run evidence is invalid\n");
+        exit(1);
+    }
+
+    if ($requireRunnerPlan && !EpubUpstreamReaderEvidence::hasRunnerPlanEvidence($report)) {
+        fwrite(STDERR, "pandoc-epub-reader-evidence: runner command-plan evidence is invalid\n");
         exit(1);
     }
 

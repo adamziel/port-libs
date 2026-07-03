@@ -93,13 +93,18 @@ return [
             $t->same(false, EpubUpstreamReaderEvidence::hasRequiredStaticCurrentSignature($report));
             $t->same(false, EpubUpstreamReaderEvidence::hasNoValidationIssues($report));
             $t->same(true, EpubUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
+            $t->same(true, EpubUpstreamReaderEvidence::hasRunnerPlanEvidence($report));
             $t->same('not-run', $report['runnerEvidence']['status']);
             $t->same(false, $report['runnerEvidence']['executed']);
             $t->same(null, $report['runnerEvidence']['command']);
             $t->same(null, $report['runnerEvidence']['resultArtifact']);
+            $t->same('planned-not-run', $report['runnerEvidence']['commandPlanStatus']);
+            $t->same(EpubUpstreamReaderEvidence::EXPECTED_UPSTREAM_COMMIT, $report['runnerEvidence']['upstreamBinding']['expectedCommit']);
+            $t->same('$2 == "Readers" && $3 == "EPUB" && $4 == "EPUB Mediabag"', $report['runnerEvidence']['target']['tastyPattern']);
             $t->contains('Pandoc EPUB reader evidence', $text);
             $t->contains('Static current signature: not-evaluated-source-directory-unavailable', $text);
             $t->contains('Runner status: not-run', $text);
+            $t->contains('Runner plan: planned-not-run', $text);
         } finally {
             $removeTree($root);
         }
@@ -135,9 +140,19 @@ return [
             $t->same(false, EpubUpstreamReaderEvidence::hasRequiredStaticCurrentSignature($report));
             $t->same(true, EpubUpstreamReaderEvidence::hasNoValidationIssues($report));
             $t->same(true, EpubUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
+            $t->same(true, EpubUpstreamReaderEvidence::hasRunnerPlanEvidence($report));
             $t->same('upstream-haskell-runner', $report['runnerEvidence']['scope']);
+            $t->same(['Readers', 'EPUB', 'EPUB Mediabag'], $report['runnerEvidence']['target']['tastyGroupPath']);
+            $t->same('$2 == "Readers" && $3 == "EPUB" && $4 == "EPUB Mediabag"', $report['runnerEvidence']['futureCommands'][1]['arguments'][8]);
+            $t->same('$2 == "Readers" && $3 == "EPUB" && $4 == "EPUB Mediabag"', $report['runnerEvidence']['futureCommands'][2]['arguments'][7]);
+            $t->true(in_array('.port-libs/pandoc-runner/logs/epub-targeted-run.txt', $report['runnerEvidence']['requiredTranscripts'], true));
+            $t->true(in_array('.port-libs/pandoc-runner/artifacts/epub-targeted-run/result.json', $report['runnerEvidence']['requiredArtifacts'], true));
+            $mutatedReport = $report;
+            $mutatedReport['runnerEvidence']['target']['tastyPattern'] = '$2 == "Readers" && $3 == "HTML"';
+            $t->same(false, EpubUpstreamReaderEvidence::hasRunnerPlanEvidence($mutatedReport));
             $t->true(in_array('that upstream Haskell/Cabal/Tasty tests were executed', $report['claimBoundaries']['doesNotAssert'], true));
             $t->true(in_array('that upstream Haskell runner evidence is explicitly not-run', $report['claimBoundaries']['doesAssert'], true));
+            $t->true(in_array('the future upstream runner command plan targets test:test-pandoc Readers/EPUB/EPUB Mediabag at the pinned upstream commit without execution', $report['claimBoundaries']['doesAssert'], true));
         } finally {
             $removeTree($root);
         }
@@ -176,6 +191,7 @@ return [
         $t->same(true, EpubUpstreamReaderEvidence::hasRequiredStaticCurrentSignature($report));
         $t->same(true, EpubUpstreamReaderEvidence::hasNoValidationIssues($report));
         $t->same(true, EpubUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
+        $t->same(true, EpubUpstreamReaderEvidence::hasRunnerPlanEvidence($report));
     },
 
     'reports invalid epub reader evidence for missing fixture and bag definition' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile): void {
@@ -211,6 +227,7 @@ HS);
             . ' --require-expected-media-item-count=10'
             . ' --require-static-current-signature'
             . ' --require-runner-not-run'
+            . ' --require-runner-plan'
             . ' --require-no-validation-issues';
         $output = [];
         $exitCode = 0;
@@ -233,7 +250,10 @@ HS);
         $t->same('valid-checked-in-current-epub-reader-static-signature', $decoded['currentReaderStaticSignature']['validation']['status']);
         $t->same(true, EpubUpstreamReaderEvidence::hasRequiredStaticCurrentSignature($decoded));
         $t->same(true, EpubUpstreamReaderEvidence::hasRunnerNotRunEvidence($decoded));
+        $t->same(true, EpubUpstreamReaderEvidence::hasRunnerPlanEvidence($decoded));
         $t->same('not-run', $decoded['runnerEvidence']['status']);
+        $t->same('$2 == "Readers" && $3 == "EPUB" && $4 == "EPUB Mediabag"', $decoded['runnerEvidence']['target']['tastyPattern']);
+        $t->true(in_array('.port-libs/pandoc-runner/logs/epub-targeted-list-tests.txt', $decoded['runnerEvidence']['requiredTranscripts'], true));
         $t->true(in_array('full EPUB feature parity beyond the upstream reader media-bag tests', $decoded['claimBoundaries']['doesNotAssert'], true));
     },
 
@@ -250,6 +270,7 @@ HS);
                 . ' --require-test-count=2'
                 . ' --require-fixture-reference-count=2'
                 . ' --require-expected-media-item-count=2'
+                . ' --require-runner-plan'
                 . ' --require-no-validation-issues';
             $output = [];
             $exitCode = 0;
@@ -261,6 +282,7 @@ HS);
             $t->same(2, $decoded['denominator']['fixtureReferenceCount']);
             $t->same(2, $decoded['denominator']['expectedMediaItemCount']);
             $t->same('valid-upstream-epub-reader-mediabag-denominator', $decoded['validation']['status']);
+            $t->same(true, EpubUpstreamReaderEvidence::hasRunnerPlanEvidence($decoded));
 
             $failingCommand = str_replace('--require-test-count=2', '--require-test-count=3', $command) . ' 2>/dev/null';
             $failingOutput = [];
