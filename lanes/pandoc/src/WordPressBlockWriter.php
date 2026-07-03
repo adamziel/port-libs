@@ -432,7 +432,7 @@ final class WordPressBlockWriter
             $items[] = $this->renderListItem($item);
         }
 
-        if ($items !== []) {
+        if ($items !== [] || $node->children === []) {
             $blocks[] = $comment
                 . "\n" . '<' . $tag . $tagAttrs . '>' . implode('', $items) . '</' . $tag . '>'
                 . "\n" . '<!-- /wp:list -->';
@@ -457,7 +457,7 @@ final class WordPressBlockWriter
             }
             $items[] = $this->renderListItem($item);
         }
-        if ($items !== []) {
+        if ($items !== [] || $node->children === []) {
             $blocks[] = '<' . $tag . $tagAttrs . '>' . implode('', $items) . '</' . $tag . '>';
         }
 
