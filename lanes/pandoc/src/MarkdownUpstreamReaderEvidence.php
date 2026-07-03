@@ -19,6 +19,18 @@ final class MarkdownUpstreamReaderEvidence
         'test/Tests/Readers/Markdown.hs',
         'src/Text/Pandoc/Readers/Markdown.hs',
     ];
+    private const RUNNER_TEST_SUITE = 'test:test-pandoc';
+    private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/markdown-targeted-run';
+    private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Markdown'];
+    private const RUNNER_TASTY_PATTERN = '$2 == "Readers" && $3 == "Markdown"';
+    private const RUNNER_REQUIRED_TRANSCRIPTS = [
+        '.port-libs/pandoc-runner/logs/runner-test-dependencies.txt',
+        '.port-libs/pandoc-runner/logs/markdown-targeted-list-tests.txt',
+        '.port-libs/pandoc-runner/logs/markdown-targeted-run.txt',
+    ];
+    private const RUNNER_REQUIRED_ARTIFACTS = [
+        '.port-libs/pandoc-runner/artifacts/markdown-targeted-run/result.json',
+    ];
 
     private const CHECKED_IN_MARKDOWN_FIXTURES = [
         'upstream-command-parse-raw.md' => [
@@ -778,6 +790,7 @@ final class MarkdownUpstreamReaderEvidence
                 . '/' . (int) ($nativeAstEvidence['totalPairCount'] ?? 0)
                 . ' status=' . (string) ($nativeAstEvidence['astParityStatus'] ?? 'unknown'),
             'Runner status: ' . (string) ($runner['status'] ?? 'unknown'),
+            'Runner plan: ' . (string) ($runner['commandPlanStatus'] ?? 'unknown'),
             'Validation: ' . (string) ($validation['status'] ?? 'unknown'),
             'No upstream Haskell/Cabal runner result or full Markdown dialect parity is asserted.',
         ]) . PHP_EOL;
@@ -836,6 +849,29 @@ final class MarkdownUpstreamReaderEvidence
     /**
      * @param array<string, mixed> $report
      */
+    public static function hasRunnerPlanEvidence(array $report): bool
+    {
+        $runner = is_array($report['runnerEvidence'] ?? null) ? $report['runnerEvidence'] : [];
+        $binding = is_array($runner['upstreamBinding'] ?? null) ? $runner['upstreamBinding'] : [];
+        $target = is_array($runner['target'] ?? null) ? $runner['target'] : [];
+
+        return self::hasRunnerNotRunEvidence($report)
+            && ($runner['commandPlanStatus'] ?? null) === 'planned-not-run'
+            && ($binding['name'] ?? null) === 'jgm/pandoc'
+            && ($binding['expectedCommit'] ?? null) === self::EXPECTED_UPSTREAM_COMMIT
+            && ($binding['entryPoint'] ?? null) === 'test/test-pandoc.hs'
+            && ($binding['readerTestModule'] ?? null) === 'test/Tests/Readers/Markdown.hs'
+            && ($target['testSuite'] ?? null) === self::RUNNER_TEST_SUITE
+            && ($target['tastyGroupPath'] ?? null) === self::RUNNER_TASTY_GROUP_PATH
+            && ($target['tastyPattern'] ?? null) === self::RUNNER_TASTY_PATTERN
+            && ($runner['futureCommands'] ?? null) === self::runnerFutureCommands()
+            && ($runner['requiredTranscripts'] ?? null) === self::RUNNER_REQUIRED_TRANSCRIPTS
+            && ($runner['requiredArtifacts'] ?? null) === self::RUNNER_REQUIRED_ARTIFACTS;
+    }
+
+    /**
+     * @param array<string, mixed> $report
+     */
     public static function hasNoValidationIssues(array $report): bool
     {
         $validation = is_array($report['validation'] ?? null) ? $report['validation'] : [];
@@ -885,12 +921,79 @@ final class MarkdownUpstreamReaderEvidence
     {
         return [
             'runner' => 'Cabal/Tasty Pandoc Markdown reader suite',
+            'scope' => 'upstream-haskell-runner',
             'status' => 'not-run',
             'executed' => false,
             'command' => null,
             'resultArtifact' => null,
+            'commandPlanStatus' => 'planned-not-run',
+            'upstreamBinding' => [
+                'name' => 'jgm/pandoc',
+                'expectedCommit' => self::EXPECTED_UPSTREAM_COMMIT,
+                'entryPoint' => 'test/test-pandoc.hs',
+                'readerTestModule' => 'test/Tests/Readers/Markdown.hs',
+            ],
+            'target' => [
+                'testSuite' => self::RUNNER_TEST_SUITE,
+                'tastyGroupPath' => self::RUNNER_TASTY_GROUP_PATH,
+                'tastyPattern' => self::RUNNER_TASTY_PATTERN,
+            ],
+            'futureCommands' => self::runnerFutureCommands(),
+            'requiredTranscripts' => self::RUNNER_REQUIRED_TRANSCRIPTS,
+            'requiredArtifacts' => self::RUNNER_REQUIRED_ARTIFACTS,
             'reason' => 'This native PHP evidence packet is generated without executing the upstream Haskell runner.',
             'claim' => 'No upstream Haskell runner parity is claimed.',
+        ];
+    }
+
+    /**
+     * @return list<array{purpose: string, program: string, arguments: list<string>}>
+     */
+    private static function runnerFutureCommands(): array
+    {
+        return [
+            [
+                'purpose' => 'prepare runner dependencies in an isolated build directory',
+                'program' => 'cabal',
+                'arguments' => [
+                    'v2-build',
+                    '--offline',
+                    '--dry-run',
+                    '--only-dependencies',
+                    '--project-dir=.',
+                    '--builddir=' . self::RUNNER_BUILD_DIR,
+                    self::RUNNER_TEST_SUITE,
+                ],
+            ],
+            [
+                'purpose' => 'list targeted Markdown reader tests',
+                'program' => 'cabal',
+                'arguments' => [
+                    'v2-run',
+                    '--offline',
+                    '--project-dir=.',
+                    '--builddir=' . self::RUNNER_BUILD_DIR,
+                    self::RUNNER_TEST_SUITE,
+                    '--',
+                    '--list-tests',
+                    '--pattern',
+                    self::RUNNER_TASTY_PATTERN,
+                ],
+            ],
+            [
+                'purpose' => 'run targeted Markdown reader tests',
+                'program' => 'cabal',
+                'arguments' => [
+                    'v2-run',
+                    '--offline',
+                    '--project-dir=.',
+                    '--builddir=' . self::RUNNER_BUILD_DIR,
+                    self::RUNNER_TEST_SUITE,
+                    '--',
+                    '--pattern',
+                    self::RUNNER_TASTY_PATTERN,
+                ],
+            ],
         ];
     }
 
@@ -908,9 +1011,10 @@ final class MarkdownUpstreamReaderEvidence
             'doesAssert' => [
                 'the identity and count of forty-seven selected checked-in upstream-derived Markdown fixtures',
                 'that focused local tests cover those selected fixture files',
-                'that thirty-four checked-in Markdown/native fixture pairs have normalized AST equality through the local PHP reader harness',
+                'that forty-seven checked-in Markdown/native fixture pairs have normalized AST equality through the local PHP reader harness',
                 'that the upstream Markdown reader source inventory is present when a hydrated upstream checkout is inspected',
                 'that upstream Haskell runner evidence is explicitly not-run',
+                'the future upstream runner command plan targets test:test-pandoc Readers/Markdown at the pinned upstream commit without execution',
             ],
             'doesNotAssert' => [
                 'full upstream Tests.Readers.Markdown runner parity',

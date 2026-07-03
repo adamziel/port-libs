@@ -69,11 +69,18 @@ return [
         $t->same(true, MarkdownUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($report));
         $t->same(true, MarkdownUpstreamReaderEvidence::hasRequiredNativeMappedParity($report, 47));
         $t->same(true, MarkdownUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
+        $t->same(true, MarkdownUpstreamReaderEvidence::hasRunnerPlanEvidence($report));
         $t->same(false, MarkdownUpstreamReaderEvidence::hasNoValidationIssues($report));
+        $t->same('planned-not-run', $report['runnerEvidence']['commandPlanStatus']);
+        $t->same(['Readers', 'Markdown'], $report['runnerEvidence']['target']['tastyGroupPath']);
+        $t->same('$2 == "Readers" && $3 == "Markdown"', $report['runnerEvidence']['target']['tastyPattern']);
+        $t->true(in_array('.port-libs/pandoc-runner/logs/markdown-targeted-run.txt', $report['runnerEvidence']['requiredTranscripts'], true));
+        $t->true(in_array('.port-libs/pandoc-runner/artifacts/markdown-targeted-run/result.json', $report['runnerEvidence']['requiredArtifacts'], true));
         $t->contains('Pandoc Markdown reader evidence', $text);
         $t->contains('Selected checked-in fixtures: 47', $text);
         $t->contains('Static current evidence: valid-checked-in-current-markdown-reader-evidence checkedInFixtures=47', $text);
         $t->contains('Native AST mapped parity: 47/47 status=normalized-ast-equality-observed-not-runner-parity', $text);
+        $t->contains('Runner plan: planned-not-run', $text);
     },
 
     'reports checked-in current markdown fixture static evidence' => static function (TestRunner $t): void {
@@ -321,7 +328,9 @@ return [
             $t->same(true, MarkdownUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($report));
             $t->same(true, MarkdownUpstreamReaderEvidence::hasRequiredNativeMappedParity($report, 47));
             $t->same(true, MarkdownUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
+            $t->same(true, MarkdownUpstreamReaderEvidence::hasRunnerPlanEvidence($report));
             $t->same(true, MarkdownUpstreamReaderEvidence::hasNoValidationIssues($report));
+            $t->true(in_array('the future upstream runner command plan targets test:test-pandoc Readers/Markdown at the pinned upstream commit without execution', $report['claimBoundaries']['doesAssert'], true));
             $t->true(in_array('full upstream Tests.Readers.Markdown runner parity', $report['claimBoundaries']['doesNotAssert'], true));
             $t->true(in_array('native AST parity for selected Markdown fixtures without same-basename .native expectations', $report['claimBoundaries']['doesNotAssert'], true));
         } finally {
@@ -340,7 +349,8 @@ return [
             . ' --require-selected-fixture-count=47'
             . ' --require-static-current-evidence'
             . ' --require-native-mapped-parity=47'
-            . ' --require-runner-not-run';
+            . ' --require-runner-not-run'
+            . ' --require-runner-plan';
         $output = [];
         $exitCode = 0;
         exec($command, $output, $exitCode);
@@ -353,6 +363,9 @@ return [
         $t->same(47, $decoded['nativeAstEvidence']['normalizedAstMatchCount']);
         $t->same(0, $decoded['nativeAstEvidence']['normalizedAstMismatchCount']);
         $t->same('not-run', $decoded['runnerEvidence']['status']);
+        $t->same('planned-not-run', $decoded['runnerEvidence']['commandPlanStatus']);
+        $t->same('test:test-pandoc', $decoded['runnerEvidence']['target']['testSuite']);
+        $t->same(['Readers', 'Markdown'], $decoded['runnerEvidence']['target']['tastyGroupPath']);
         $t->true(in_array('complete Markdown dialect parity across every Pandoc extension profile', $decoded['claimBoundaries']['doesNotAssert'], true));
 
         $failingCommand = str_replace('--require-selected-fixture-count=47', '--require-selected-fixture-count=46', $command) . ' 2>/dev/null';
