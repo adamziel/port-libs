@@ -223,6 +223,7 @@ return [
             'epub/missing-local-manifest-resource.epub',
             'epub/missing-media-overlay.epub',
             'epub/nav-ncx-linear-guide.epub',
+            'epub/nested-rootfile-nonlinear-spine.epub',
             'epub/page-list-navigation.epub',
             'epub/remote-manifest-resource.epub',
             'epub/rendition-layout-property.epub',
