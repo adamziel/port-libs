@@ -17,7 +17,7 @@ final class DelimitedTextUpstreamReaderEvidence
     public const EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT = 2;
     public const EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT = 0;
     public const EXPECTED_STATIC_CSV_ADJACENT_RST_FIXTURE_COUNT = 2;
-    public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 18;
+    public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 19;
     public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 13;
 
     private const CHECKED_IN_CURRENT_CSV_FIXTURES = [
@@ -289,6 +289,20 @@ final class DelimitedTextUpstreamReaderEvidence
             'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/keep-space-after-comma.native',
             'sha256' => '5a110b2e35a46a8a3e98961b0a68baf210d015a374c99fdd04c60dfee641c721',
             'bytes' => 1731,
+        ],
+        'space-delimiter-single-quote.csv' => [
+            'role' => 'generated-csv-native-parity-input-fixture',
+            'sample' => 'space-delimiter-single-quote',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/space-delimiter-single-quote.csv',
+            'sha256' => '577165de4a8e2beaee7ef748dc7686c9a283f71e730f8d2e21be94e16cde65f4',
+            'bytes' => 79,
+        ],
+        'space-delimiter-single-quote.native' => [
+            'role' => 'generated-csv-native-parity-expected-native-output',
+            'sample' => 'space-delimiter-single-quote',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/space-delimiter-single-quote.native',
+            'sha256' => '594390fc80d43bada7903e66a771be44bbef23b24a7f11a2e9ac87e96bc542dd',
+            'bytes' => 1579,
         ],
     ];
 
@@ -566,6 +580,14 @@ final class DelimitedTextUpstreamReaderEvidence
             'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/keep-space-after-comma.native',
             'options' => [
                 'keepSpace' => true,
+            ],
+        ],
+        'space-delimiter-single-quote' => [
+            'inputPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/space-delimiter-single-quote.csv',
+            'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/space-delimiter-single-quote.native',
+            'options' => [
+                'delimiter' => 'space',
+                'quote' => '\'',
             ],
         ],
     ];
@@ -1694,7 +1716,7 @@ final class DelimitedTextUpstreamReaderEvidence
 
     private static function claim(): string
     {
-        return 'Tracks the current upstream direct CSV command-reader fixtures, the adjacent RST csv-table fixture pair with zero direct-reader denominator impact, eighteen generated CSV-to-native evidence samples, the absence of dedicated TSV command fixtures, and thirteen generated TSV-to-native evidence samples for the delimited text reader.';
+        return 'Tracks the current upstream direct CSV command-reader fixtures, the adjacent RST csv-table fixture pair with zero direct-reader denominator impact, nineteen generated CSV-to-native evidence samples, the absence of dedicated TSV command fixtures, and thirteen generated TSV-to-native evidence samples for the delimited text reader.';
     }
 
     /**
@@ -1709,7 +1731,7 @@ final class DelimitedTextUpstreamReaderEvidence
                 'that the RST csv-table fixture pair is CSV-adjacent evidence and not part of the direct CSV/TSV reader denominator',
                 'that no dedicated TSV command fixture is available in the pinned direct-reader evidence set',
                 'static checked-in current csv.md and 01.csv fixture identity when staticCurrentEvidence is valid',
-                'eighteen generated CSV-to-native local samples when generatedCsvNativeParityEvidence is valid',
+                'nineteen generated CSV-to-native local samples when generatedCsvNativeParityEvidence is valid',
                 'thirteen generated TSV-to-native local samples when generatedTsvNativeParityEvidence is valid',
             ],
             'doesNotAssert' => [
