@@ -553,6 +553,32 @@ return [
         $t->same(['paragraph', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $disabled->children));
         $t->same('\section {Intro} \subsection[Short]{Long} \paragraph*{Run in} \appendix \tableofcontents', $disabled->children[0]->attr('text'));
     },
+    'maps upstream markdown raw tex sectioning commands that interrupt paragraphs' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read('A \section{Intro} B \subsection[Short]{Long} C');
+        $continued = (new MarkdownReader())->read("A \section{Intro} B\nC");
+        $code = (new MarkdownReader())->read('A `\section{Intro}` B');
+        $escaped = (new MarkdownReader())->read('A \\\\section{Intro} B');
+        $macro = (new MarkdownReader())->read('A \newcommand{\x}{y} B');
+
+        $t->same(['plain', 'raw_tex', 'plain', 'raw_tex', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
+        $t->same('A', $document->children[0]->attr('text'));
+        $t->same('\section{Intro}', $document->children[1]->attr('tex'));
+        $t->same('B', $document->children[2]->attr('text'));
+        $t->same('\subsection[Short]{Long}', $document->children[3]->attr('tex'));
+        $t->same('C', $document->children[4]->attr('text'));
+
+        $t->same(['plain', 'raw_tex', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $continued->children));
+        $t->same('A', $continued->children[0]->attr('text'));
+        $t->same('B C', $continued->children[2]->attr('text'));
+        $t->same(['text', 'softbreak', 'text'], array_map(static fn (AstNode $node): string => $node->type, $continued->children[2]->children));
+
+        $t->same(['paragraph'], array_map(static fn (AstNode $node): string => $node->type, $code->children));
+        $t->same(['text', 'code', 'text'], array_map(static fn (AstNode $node): string => $node->type, $code->children[0]->children));
+        $t->same(['paragraph'], array_map(static fn (AstNode $node): string => $node->type, $escaped->children));
+        $t->same('A \section{Intro} B', $escaped->children[0]->attr('text'));
+        $t->same(['paragraph'], array_map(static fn (AstNode $node): string => $node->type, $macro->children));
+        $t->same(['text', 'raw_tex', 'text'], array_map(static fn (AstNode $node): string => $node->type, $macro->children[0]->children));
+    },
     'maps upstream markdown reader more raw tex environments and macros' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '## Raw ConTeXt environments',

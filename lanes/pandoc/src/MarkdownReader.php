@@ -13300,6 +13300,13 @@ final class MarkdownReader
         }
         $text = $this->joinParagraphLines($paragraph);
         $children = $this->parseInlines($text);
+        $sectioningBlocks = $this->rawTexSectioningParagraphBlocks($children);
+        if ($sectioningBlocks !== null) {
+            array_push($blocks, ...$sectioningBlocks);
+            $paragraph = [];
+            return;
+        }
+
         $plainText = $this->paragraphTextFromInlines($children);
         if (count($children) === 1 && $children[0]->type === 'image') {
             $figureAttrs = $children[0]->attr('figureAttributes', []);
@@ -13334,6 +13341,132 @@ final class MarkdownReader
 
         $blocks[] = new AstNode('paragraph', $attrs, $children);
         $paragraph = [];
+    }
+
+    /**
+     * @param list<AstNode> $children
+     * @return list<AstNode>|null
+     */
+    private function rawTexSectioningParagraphBlocks(array $children): ?array
+    {
+        $blocks = [];
+        $segment = [];
+        $found = false;
+
+        foreach ($children as $child) {
+            if ($this->isRawTexSectioningInlineNode($child)) {
+                $this->appendRawTexSectioningSegmentBlock($blocks, $segment, 'plain');
+                $segment = [];
+                $found = true;
+                $blocks[] = new AstNode('raw_tex', [
+                    'tex' => (string) $child->attr('tex', $child->attr('text', '')),
+                    'command' => (string) $child->attr('command', 'sectioning'),
+                ]);
+                continue;
+            }
+
+            $segment[] = $child;
+        }
+
+        if (!$found) {
+            return null;
+        }
+
+        $this->appendRawTexSectioningSegmentBlock($blocks, $segment, 'paragraph');
+
+        return $blocks;
+    }
+
+    private function isRawTexSectioningInlineNode(AstNode $node): bool
+    {
+        if ($node->type !== 'raw_tex' && $node->type !== 'raw_tex_inline') {
+            return false;
+        }
+
+        return in_array((string) $node->attr('command', ''), [
+            'appendix',
+            'backmatter',
+            'chapter',
+            'frontmatter',
+            'mainmatter',
+            'paragraph',
+            'part',
+            'section',
+            'subparagraph',
+            'subsection',
+            'subsubsection',
+            'tableofcontents',
+        ], true);
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @param list<AstNode> $segment
+     */
+    private function appendRawTexSectioningSegmentBlock(array &$blocks, array $segment, string $type): void
+    {
+        $segment = $this->trimInlineSegmentEdges($segment);
+        if ($segment === []) {
+            return;
+        }
+
+        $blocks[] = new AstNode($type, ['text' => $this->paragraphTextFromInlines($segment)], $segment);
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @return list<AstNode>
+     */
+    private function trimInlineSegmentEdges(array $nodes): array
+    {
+        while ($nodes !== []) {
+            $first = $nodes[0];
+            if ($first->type === 'softbreak' || $first->type === 'linebreak') {
+                array_shift($nodes);
+                continue;
+            }
+
+            if ($first->type !== 'text') {
+                break;
+            }
+
+            $text = ltrim((string) $first->attr('text', ''));
+            if ($text === '') {
+                array_shift($nodes);
+                continue;
+            }
+
+            if ($text !== $first->attr('text', '')) {
+                $nodes[0] = new AstNode('text', array_merge($first->attrs, ['text' => $text]), $first->children);
+            }
+            break;
+        }
+
+        while ($nodes !== []) {
+            $lastIndex = count($nodes) - 1;
+            $last = $nodes[$lastIndex];
+            if ($last->type === 'softbreak' || $last->type === 'linebreak') {
+                array_pop($nodes);
+                continue;
+            }
+
+            if ($last->type !== 'text') {
+                break;
+            }
+
+            $text = rtrim((string) $last->attr('text', ''));
+            if ($text === '') {
+                array_pop($nodes);
+                continue;
+            }
+
+            if ($text !== $last->attr('text', '')) {
+                $nodes[$lastIndex] = new AstNode('text', array_merge($last->attrs, ['text' => $text]), $last->children);
+            }
+            break;
+        }
+
+        return array_values($nodes);
     }
 
     /**
