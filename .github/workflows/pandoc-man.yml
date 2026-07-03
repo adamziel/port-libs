@@ -105,6 +105,7 @@ jobs:
         run: |
           php tools/pandoc-man-corpus-audit.php \
             --man-root=lanes/pandoc/fixtures/man-corpus-smoke \
+            --max-pandoc-native-output-bytes=1048576 \
             --json \
             summary \
             --require-target-files-min=2 \
@@ -112,7 +113,7 @@ jobs:
             --require-no-local-parse-failures \
             --require-no-control-leaks \
             --require-pandoc-parse-min=2 \
-            --require-normalized-match-min=1
+            --require-normalized-match-min=2
 
       - name: Run focused man parity tests
         run: |

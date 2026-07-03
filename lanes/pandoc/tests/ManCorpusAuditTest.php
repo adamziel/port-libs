@@ -45,6 +45,11 @@ if [ "$1" = "--version" ]; then
 fi
 input="$(cat)"
 case "$input" in
+  *OVERSIZE*)
+    printf '[ Para [ Str "'
+    printf '%2048s' '' | tr ' ' a
+    printf '" ] ]\n'
+    ;;
   *MDOCTOOL*)
     cat <<'NATIVE'
 [ Header 1 ( "" , [] , [] ) [ Str "NAME" ]
@@ -174,6 +179,35 @@ return [
             $t->same('covered-by-current-mdoc-audit-lane', $report['orderedRemainingGaps'][2]['status']);
             $t->contains('mdoc-dialect-support [covered-by-current-mdoc-audit-lane]', $text);
         } finally {
+            $removeTree($temp);
+        }
+    },
+
+    'classifies oversized pandoc native output without parsing it' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFakePandoc): void {
+        $root = $makeTempDir();
+        $temp = $makeTempDir();
+        try {
+            mkdir($root . '/man1');
+            file_put_contents($root . '/man1/oversize.1', ".TH OVERSIZE 1\n.SH NAME\noversize \\- native output guard\n");
+            $fakePandoc = $temp . '/pandoc';
+            $writeFakePandoc($fakePandoc);
+
+            $report = (new ManCorpusAudit())->run([$root], [
+                'pandocBin' => $fakePandoc,
+                'maxPandocNativeOutputBytes' => 64,
+            ]);
+
+            $t->same('completed', $report['status']);
+            $t->same(64, $report['maxPandocNativeOutputBytes']);
+            $t->same(1, $report['targetFileCount']);
+            $t->same(1, $report['localParsedCount']);
+            $t->same(0, $report['pandocParsedCount']);
+            $t->same(1, $report['pandocParseFailureCount']);
+            $t->contains('pandoc native output too large', $report['pandocParseFailures'][0]['error']);
+            $t->same('pandoc-parse-failure', $report['mismatchCategories'][0]['category']);
+            $t->same('local-parse-accepted-pandoc-parse-failures-observed', $report['corpusStatus']);
+        } finally {
+            $removeTree($root);
             $removeTree($temp);
         }
     },

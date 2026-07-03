@@ -9,6 +9,7 @@ require __DIR__ . '/bootstrap.php';
 $repoRoot = dirname(__DIR__);
 $roots = [];
 $limit = 0;
+$maxPandocNativeOutputBytes = null;
 $pandocBin = getenv('PANDOC_BIN') ?: null;
 $comparePandoc = true;
 $targetDialects = [];
@@ -29,6 +30,8 @@ Usage: php tools/pandoc-man-corpus-audit.php [options] [summary]
 Options:
   --man-root=PATH                    Manpage file or directory to audit. Repeatable. Defaults to /usr/share/man when present.
   --limit=N                          Audit at most N candidate files after sorting. 0 means no limit.
+  --max-pandoc-native-output-bytes=N  Skip NativeReader parsing for a pandoc native transcript above N bytes.
+                                      0 disables the guard. Defaults to the audit's safe bound.
   --pandoc-bin=PATH                  Pandoc executable to use for optional native comparison.
   --no-pandoc                        Skip pandoc executable comparison.
   --target-dialect=FORMAT            Target dialect to audit. Repeatable. Defaults to man. Supports man and mdoc.
@@ -80,6 +83,11 @@ TXT);
 
     if (str_starts_with($argument, '--limit=')) {
         $limit = max(0, (int) substr($argument, strlen('--limit=')));
+        continue;
+    }
+
+    if (str_starts_with($argument, '--max-pandoc-native-output-bytes=')) {
+        $maxPandocNativeOutputBytes = parseNonNegativeInt($argument, '--max-pandoc-native-output-bytes=');
         continue;
     }
 
@@ -140,6 +148,7 @@ $report = $audit->run($roots, [
     'pandocBin' => $pandocBin,
     'comparePandoc' => $comparePandoc,
     'targetDialects' => $targetDialects,
+    ...($maxPandocNativeOutputBytes === null ? [] : ['maxPandocNativeOutputBytes' => $maxPandocNativeOutputBytes]),
 ]);
 
 if ($summary) {
@@ -155,6 +164,7 @@ if ($summary) {
         'rootInventory',
         'targetDialects',
         'limit',
+        'maxPandocNativeOutputBytes',
         'totalCandidateFileCount',
         'auditedFileCount',
         'dialectCounts',

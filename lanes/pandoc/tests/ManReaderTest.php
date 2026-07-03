@@ -276,6 +276,39 @@ ROFF);
         $t->true(!str_contains($visible, '.SH'), 'comments in macro args should stay hidden');
     },
 
+    'keeps indented pod man control requests out of visible text' => static function (TestRunner $t) use ($read, $plainText): void {
+        $document = $read(<<<'ROFF'
+.de Vb \" Begin verbatim text
+.ft CW
+.nf
+..
+.ie n \{\
+.    ds -- \(*W-
+.    if (\n(.H=4u)&(1m=24u) .ds -- hidden
+.    ds L" ""
+'br\}
+.el\{\
+.    ds -- \|\(em\|
+.    ds R" ''
+'br\}
+.\}
+.TH POD 1
+.SH NAME
+pod \- no preamble leak
+ROFF);
+
+        $visible = $plainText($document);
+
+        $t->contains('NAME', $visible);
+        $t->contains('pod - no preamble leak', $visible);
+        $t->true(!str_contains($visible, '.ds'), 'indented string-definition request leaked into visible text');
+        $t->true(!str_contains($visible, '.if'), 'indented conditional request leaked into visible text');
+        $t->true(!str_contains($visible, 'hidden'), 'conditional setup payload leaked into visible text');
+        $t->true(!str_contains($visible, '*W'), 'translation setup payload leaked into visible text');
+        $t->true(!str_contains($visible, "'br"), 'apostrophe control request leaked into visible text');
+        $t->true(!str_contains($visible, '..'), 'macro-definition terminator leaked into visible text');
+    },
+
     'maps upstream man title metadata and delimited link macros' => static function (TestRunner $t) use ($read, $plainText): void {
         $document = $read(<<<'ROFF'
 .TH "TOOL" "1" "July 2026" "tool 1.0" "User Commands"

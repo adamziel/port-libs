@@ -9,6 +9,7 @@ final class ManCorpusAudit
     public const TOOL_NAME = 'pandoc-man-corpus-audit';
 
     private const DEFAULT_MAX_EXAMPLES = 12;
+    private const DEFAULT_MAX_PANDOC_NATIVE_OUTPUT_BYTES = 1048576;
     private const VERDICT = 'man-corpus-confidence-not-full-manpage-parity';
     private const CLAIM = 'Audits real or fixture manpage sources by dialect, local PHP man/mdoc reader acceptance, optional pandoc executable native parsing, and normalized AST drift categories; this is corpus confidence evidence and does not assert full roff, man, or mdoc parity.';
 
@@ -26,13 +27,17 @@ final class ManCorpusAudit
 
     /**
      * @param list<string> $roots
-     * @param array{limit?: int, maxExamples?: int, pandocBin?: ?string, comparePandoc?: bool, targetDialects?: list<string>} $options
+     * @param array{limit?: int, maxExamples?: int, maxPandocNativeOutputBytes?: int, pandocBin?: ?string, comparePandoc?: bool, targetDialects?: list<string>} $options
      * @return array<string, mixed>
      */
     public function run(array $roots, array $options = []): array
     {
         $limit = max(0, (int) ($options['limit'] ?? 0));
         $maxExamples = max(0, (int) ($options['maxExamples'] ?? self::DEFAULT_MAX_EXAMPLES));
+        $maxPandocNativeOutputBytes = max(
+            0,
+            (int) ($options['maxPandocNativeOutputBytes'] ?? self::DEFAULT_MAX_PANDOC_NATIVE_OUTPUT_BYTES)
+        );
         $comparePandoc = (bool) ($options['comparePandoc'] ?? true);
         $targetDialects = $options['targetDialects'] ?? ['man'];
         $targetDialects = $targetDialects === [] ? ['man'] : array_values(array_unique(array_map('strval', $targetDialects)));
@@ -113,7 +118,7 @@ final class ManCorpusAudit
 
             $pandocResult = ['ok' => false, 'document' => null, 'error' => 'pandoc comparison skipped'];
             if ($pandoc !== null) {
-                $pandocResult = $this->readPandocNative($pandoc, $source, $dialect);
+                $pandocResult = $this->readPandocNative($pandoc, $source, $dialect, $maxPandocNativeOutputBytes);
                 if ($pandocResult['ok']) {
                     ++$pandocParsedCount;
                 } else {
@@ -182,6 +187,7 @@ final class ManCorpusAudit
             'rootInventory' => $rootInventory,
             'targetDialects' => $targetDialects,
             'limit' => $limit,
+            'maxPandocNativeOutputBytes' => $maxPandocNativeOutputBytes,
             'totalCandidateFileCount' => $totalCandidateFileCount,
             'auditedFileCount' => count($files),
             'dialectCounts' => $dialectCounts,
@@ -484,7 +490,7 @@ final class ManCorpusAudit
     /**
      * @return array{ok: bool, document: ?AstNode, error: ?string}
      */
-    private function readPandocNative(string $pandoc, string $source, string $dialect): array
+    private function readPandocNative(string $pandoc, string $source, string $dialect, int $maxOutputBytes): array
     {
         $format = in_array($dialect, ['man', 'mdoc'], true) ? $dialect : 'man';
         $result = $this->runProcess(escapeshellarg($pandoc) . ' -f ' . escapeshellarg($format) . ' -t native', $source);
@@ -493,6 +499,14 @@ final class ManCorpusAudit
                 'ok' => false,
                 'document' => null,
                 'error' => 'pandoc exited ' . $result['exitCode'] . ': ' . trim($result['stderr']),
+            ];
+        }
+        $stdoutBytes = strlen($result['stdout']);
+        if ($maxOutputBytes > 0 && $stdoutBytes > $maxOutputBytes) {
+            return [
+                'ok' => false,
+                'document' => null,
+                'error' => "pandoc native output too large: {$stdoutBytes} bytes exceeds {$maxOutputBytes} byte limit",
             ];
         }
 

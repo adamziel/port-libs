@@ -228,7 +228,14 @@ final class ManReader
     {
         return str_starts_with($trimmed, '."')
             || str_starts_with($trimmed, '.\\"')
-            || str_starts_with($trimmed, '\\"');
+            || str_starts_with($trimmed, '\\"')
+            || $this->isControlBraceLine($trimmed);
+    }
+
+    private function isControlBraceLine(string $trimmed): bool
+    {
+        return $trimmed === '..'
+            || preg_match('/^[.\']\s*\\\\?[{}]\s*$/', $trimmed) === 1;
     }
 
     /**
@@ -236,11 +243,11 @@ final class ManReader
      */
     private function macroLine(string $line): ?array
     {
-        if (preg_match('/^\\.([A-Za-z][A-Za-z0-9]*)(?:\\s+(.*))?$/', $line, $match) !== 1) {
+        if (preg_match('/^[.\']\s*([A-Za-z][A-Za-z0-9]*)(.*)$/', $line, $match) !== 1) {
             return null;
         }
 
-        return [(string) $match[1], (string) ($match[2] ?? '')];
+        return [(string) $match[1], ltrim((string) ($match[2] ?? ''))];
     }
 
     private function isParagraphBreakMacro(string $name): bool
