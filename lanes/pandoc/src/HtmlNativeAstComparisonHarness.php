@@ -327,6 +327,7 @@ final class HtmlNativeAstComparisonHarness
                 'table geometry review packets',
                 'default table widths, zero rowHeadColumns, and empty captions/feet',
                 'derived table-cell header flags when rowHeadColumns carries the semantic row-header contract',
+                'default false HTML definition-list looseness sidecars when native text carries no equivalent flag',
                 'reader-derived block cached text metadata, including paragraph/list-item text; task-list sidecars are normalized to Pandoc ballot-box text; block and inline shape remains compared',
                 'source id/classes/key-value attrs on Pandoc inline constructors without native Attr tuples; inline constructor, text, and children remain compared',
                 'redundant raw HTML format attrs and duplicate raw HTML text attrs; raw HTML payload remains compared',
@@ -437,6 +438,9 @@ final class HtmlNativeAstComparisonHarness
                 continue;
             }
             if ($key === 'loose' && self::isListShapeMetadataNode($node)) {
+                continue;
+            }
+            if ($key === 'loose' && $node->type === 'definition' && $value === false) {
                 continue;
             }
             if ($key === 'taskChecked' && $node->type === 'list_item' && is_bool($value)) {

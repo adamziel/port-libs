@@ -12,8 +12,8 @@ final class HtmlUpstreamReaderEvidence
     public const STATUS_COMPLETED = 'completed-upstream-html-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-html-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
-    public const EXPECTED_SELECTED_FIXTURE_COUNT = 53;
-    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 53;
+    public const EXPECTED_SELECTED_FIXTURE_COUNT = 54;
+    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 54;
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/HTML.hs',
@@ -49,6 +49,11 @@ final class HtmlUpstreamReaderEvidence
         'upstream-html-cite-wbr-raw-inline.html' => [
             'sha256' => 'ce0511c08b23c0e77b8487471c6d276804e3a525932732f543a7447a4ccd7ec9',
             'bytes' => 292,
+        ],
+        'upstream-html-definition-list.html' => [
+            'sha256' => 'b90033d358361a2fbb664565e8a16ba7b7b474b54ce6c694ce7866bbcf805fcf',
+            'bytes' => 248,
+            'sourceKind' => 'generated-current-html-reader-fixture',
         ],
         'upstream-html-doc-noteref-footnotes.html' => [
             'sha256' => 'c6842790e7750ca06998c0f7e0e91c17f44c59e7698cc1f05c1fa2172f266f2f',
@@ -375,9 +380,9 @@ final class HtmlUpstreamReaderEvidence
             'claim' => 'Static gate binding the checked-in upstream-derived and generated-current HTML reader fixture corpus to SHA-256 and byte-count snapshots.',
             'claimBoundaries' => [
                 'doesAssert' => [
-                    'the checked-in HTML reader fixture corpus has 53 pinned fixture snapshots',
+                    'the checked-in HTML reader fixture corpus has 54 pinned fixture snapshots',
                     'each pinned fixture has at least one local test reference',
-                    'the existing HTML/native AST comparator still observes 53 same-basename native-pair matches when included in the report',
+                    'the existing HTML/native AST comparator still observes 54 same-basename native-pair matches when included in the report',
                 ],
                 'doesNotAssert' => [
                     'that upstream Haskell/Cabal/Tasty tests were executed',
@@ -542,9 +547,9 @@ final class HtmlUpstreamReaderEvidence
     {
         return [
             'doesAssert' => [
-                'the identity and count of 53 selected checked-in upstream-derived and generated-current HTML fixtures',
+                'the identity and count of 54 selected checked-in upstream-derived and generated-current HTML fixtures',
                 'that each selected fixture is referenced by at least one local focused test',
-                'that the existing native AST gate observes 53 checked-in same-basename HTML/native matches',
+                'that the existing native AST gate observes 54 checked-in same-basename HTML/native matches',
                 'that upstream Haskell runner evidence is explicitly not-run',
             ],
             'doesNotAssert' => [

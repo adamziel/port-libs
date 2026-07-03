@@ -108,6 +108,32 @@ $tests['imports generated current html blockquote fixture as native blockquote']
         $t->same('After quote.', $after->attr('text'));
     };
 
+$tests['imports generated current html definition list fixture as native definition list'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-definition-list.html'));
+        $meta = $document->attr('meta');
+        $list = $document->children[0];
+        $item = $list->children[0];
+        $term = $item->children[0];
+        $primary = $item->children[1]->children[0];
+        $secondary = $item->children[2]->children[0];
+
+        $t->same('HTML Definition List Import', $meta['title']);
+        $t->same(['definition_list', 'paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same('definition_item', $item->type);
+        $t->same('Packet source', $item->attr('term'));
+        $t->same('term', $term->type);
+        $t->same('Packet source', $term->attr('text'));
+        $t->same(['definition', 'definition'], [$item->children[1]->type, $item->children[2]->type]);
+        $t->same('Definition primary.', $primary->attr('text'));
+        $t->same(['text', 'strong', 'text'], array_map(static fn ($node): string => $node->type, $primary->children));
+        $t->same('primary', $primary->children[1]->children[0]->attr('text'));
+        $t->same('Secondary note.', $secondary->attr('text'));
+        $t->same(['text', 'emph', 'text'], array_map(static fn ($node): string => $node->type, $secondary->children));
+        $t->same('note', $secondary->children[1]->children[0]->attr('text'));
+        $t->same('After glossary.', $document->children[1]->attr('text'));
+    };
+
 $tests['extracts html reader microdata item metadata with itemref and nested item scopes'] =
     static function (TestRunner $t): void {
         $html = '<!doctype html><html><head><title>Microdata Dispatch</title></head><body>'

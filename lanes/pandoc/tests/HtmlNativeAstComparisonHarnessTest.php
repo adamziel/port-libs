@@ -118,6 +118,8 @@ return [
         $styleScriptInlineNative = $root . '/upstream-html-style-script-inline.native';
         $citeWbrRawInlineHtml = $root . '/upstream-html-cite-wbr-raw-inline.html';
         $citeWbrRawInlineNative = $root . '/upstream-html-cite-wbr-raw-inline.native';
+        $definitionListHtml = $root . '/upstream-html-definition-list.html';
+        $definitionListNative = $root . '/upstream-html-definition-list.native';
         $genericRawInlineHtml = $root . '/upstream-html-generic-raw-inline.html';
         $genericRawInlineNative = $root . '/upstream-html-generic-raw-inline.native';
         $standaloneObjectEmbedHtml = $root . '/upstream-html-standalone-object-embed-inline.html';
@@ -226,6 +228,8 @@ return [
         $t->true(is_file($styleScriptInlineNative), 'Native style/script inline fixture must be checked in');
         $t->true(is_file($citeWbrRawInlineHtml), 'HTML cite/wbr raw inline fixture must be checked in');
         $t->true(is_file($citeWbrRawInlineNative), 'Native cite/wbr raw inline fixture must be checked in');
+        $t->true(is_file($definitionListHtml), 'HTML definition-list fixture must be checked in');
+        $t->true(is_file($definitionListNative), 'Native definition-list fixture must be checked in');
         $t->true(is_file($genericRawInlineHtml), 'HTML generic raw inline fixture must be checked in');
         $t->true(is_file($genericRawInlineNative), 'Native generic raw inline fixture must be checked in');
         $t->true(is_file($standaloneObjectEmbedHtml), 'HTML standalone object/embed fixture must be checked in');
@@ -242,33 +246,33 @@ return [
         $text = $harness->formatReport($report);
 
         $t->same('completed', $report['status']);
-        $t->same(53, $report['htmlFixtureCount']);
-        $t->same(53, $report['nativeFixtureCount']);
-        $t->same(53, $report['pairedFixtureCount']);
+        $t->same(54, $report['htmlFixtureCount']);
+        $t->same(54, $report['nativeFixtureCount']);
+        $t->same(54, $report['pairedFixtureCount']);
         $t->same(0, $report['unpairedHtmlFixtureCount']);
         $t->same(0, $report['unpairedNativeFixtureCount']);
         $t->same($expectedUnpairedHtmlFixtureNames, $report['unpairedHtmlFixtureNames']);
         $t->same([], $report['unpairedNativeFixtureNames']);
         $t->same([], $report['unpairedHtmlFixtureExamples']);
-        $t->same(53, $report['totalPairCount']);
-        $t->same(53, $report['comparedPairCount']);
-        $t->same(53, $report['htmlParsedCount']);
-        $t->same(53, $report['nativeParsedCount']);
-        $t->same(53, $report['bothParsedCount']);
+        $t->same(54, $report['totalPairCount']);
+        $t->same(54, $report['comparedPairCount']);
+        $t->same(54, $report['htmlParsedCount']);
+        $t->same(54, $report['nativeParsedCount']);
+        $t->same(54, $report['bothParsedCount']);
         $t->same(0, $report['parseFailureCount']);
-        $t->same(53, $report['normalizedAstMatchCount']);
+        $t->same(54, $report['normalizedAstMatchCount']);
         $t->same(0, $report['normalizedAstMismatchCount']);
         $t->same('normalized-ast-equality-observed-not-runner-parity', $report['astParityStatus']);
-        $t->same(true, HtmlNativeAstComparisonHarness::hasRequiredMappedParity($report, 53));
+        $t->same(true, HtmlNativeAstComparisonHarness::hasRequiredMappedParity($report, 54));
         $t->same(['htmlRawHtml' => false], $report['htmlReaderFixtureOptionOverrides']['upstream-html-raw-disabled-skip.html'] ?? null);
         $t->same('covered-by-current-normalized-ast-evidence', $report['orderedRemainingGaps'][0]['status']);
         $t->same('checked-in-html-fixtures-without-native-pairs', $report['orderedRemainingGaps'][1]['id']);
         $t->same('covered-by-current-normalized-ast-evidence', $report['orderedRemainingGaps'][1]['status']);
-        $t->same('HTML fixtures=53; native fixtures=53; same-basename pairs=53; HTML fixtures without native pairs=0', $report['orderedRemainingGaps'][1]['currentEvidence']);
-        $t->same('The current checked-in gate covers 53 paired fixture(s) out of 53 HTML fixture(s).', $report['orderedRemainingGaps'][3]['currentEvidence']);
-        $t->contains('fixtureInventory: html=53 native=53 paired=53 unpairedHtml=0 unpairedNative=0', $text);
-        $t->contains('pairs: total=53 compared=53 parsedBoth=53 parseFailures=0', $text);
-        $t->contains('normalizedAst: matches=53 (100.00%) mismatches=0', $text);
+        $t->same('HTML fixtures=54; native fixtures=54; same-basename pairs=54; HTML fixtures without native pairs=0', $report['orderedRemainingGaps'][1]['currentEvidence']);
+        $t->same('The current checked-in gate covers 54 paired fixture(s) out of 54 HTML fixture(s).', $report['orderedRemainingGaps'][3]['currentEvidence']);
+        $t->contains('fixtureInventory: html=54 native=54 paired=54 unpairedHtml=0 unpairedNative=0', $text);
+        $t->contains('pairs: total=54 compared=54 parsedBoth=54 parseFailures=0', $text);
+        $t->contains('normalizedAst: matches=54 (100.00%) mismatches=0', $text);
 
         $command = escapeshellarg(PHP_BINARY)
             . ' '
@@ -276,19 +280,19 @@ return [
             . ' --html-dir=' . escapeshellarg($root)
             . ' --json'
             . ' summary'
-            . ' --require-mapped-parity=53';
+            . ' --require-mapped-parity=54';
         $output = [];
         $exitCode = 0;
         exec($command, $output, $exitCode);
         $decoded = json_decode(implode("\n", $output), true, 512, JSON_THROW_ON_ERROR);
 
         $t->same(0, $exitCode);
-        $t->same(53, $decoded['htmlFixtureCount']);
+        $t->same(54, $decoded['htmlFixtureCount']);
         $t->same(0, $decoded['unpairedHtmlFixtureCount']);
         $t->same($expectedUnpairedHtmlFixtureNames, $decoded['unpairedHtmlFixtureNames']);
         $t->same([], $decoded['unpairedNativeFixtureNames']);
         $t->same(['htmlRawHtml' => false], $decoded['htmlReaderFixtureOptionOverrides']['upstream-html-raw-disabled-skip.html'] ?? null);
-        $t->same(53, $decoded['normalizedAstMatchCount']);
+        $t->same(54, $decoded['normalizedAstMatchCount']);
         $t->same(0, $decoded['normalizedAstMismatchCount']);
     },
 ];
