@@ -49,6 +49,7 @@ final class PptxReader
 
         $blocks = [];
         $slideReviews = [];
+        $mediaBagSources = [];
         foreach ($slides as $slide) {
             $relationship = $presentationRelationships->byId($slide['relationshipId']);
             if (!$relationship instanceof OpcRelationship) {
@@ -66,6 +67,9 @@ final class PptxReader
             $shapeIssues = [];
             $richMedia = [];
             $slideBlocks = $this->slideToBlocks($package, $slide['index'], $slideDocument, $slideRelationships, $slideContext, $slideComments, $slideSpeakerNotes, $tableStyles, $imageIssues, $shapeIssues, $richMedia);
+            $this->recordPptxAstMediaBagSources($slideBlocks, $mediaBagSources, $slide['index']);
+            $this->recordPptxBackgroundMediaBagSources($slideBackgrounds, $mediaBagSources, $slide['index']);
+            $this->recordPptxRichMediaBagSources($richMedia, $mediaBagSources, $slide['index']);
             foreach ($slideBlocks as $block) {
                 $blocks[] = $block;
             }
@@ -96,6 +100,7 @@ final class PptxReader
                 'charts' => $charts,
             ];
         }
+        $mediaBag = $this->readPptxMediaBag($package, $mediaBagSources);
 
         return new AstNode('document', [
             'sourceFormat' => 'pptx',
@@ -112,6 +117,12 @@ final class PptxReader
                 'documentProperties' => $documentProperties,
                 'commentAuthors' => $commentAuthors,
                 'tableStyles' => $tableStyles,
+                'mediaBag' => [
+                    'policy' => 'reader-media-bag-from-internal-pptx-media-parts',
+                    'itemCount' => count($mediaBag['directory']),
+                    'directory' => $mediaBag['directory'],
+                    'diagnostics' => $mediaBag['diagnostics'],
+                ],
                 'payloadExposurePolicy' => 'xml-text-and-media-reference-only',
                 'upstreamEvidence' => [
                     'denominator' => 1,
@@ -125,6 +136,198 @@ final class PptxReader
                 ],
             ],
         ], $blocks);
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @param array<string, list<array<string, mixed>>> $mediaBagSources
+     */
+    private function recordPptxAstMediaBagSources(array $nodes, array &$mediaBagSources, int $slideIndex): void
+    {
+        foreach ($nodes as $node) {
+            if (!$node instanceof AstNode) {
+                continue;
+            }
+
+            if ($node->type === 'image') {
+                $partName = ltrim((string) $node->attr('url', $node->attr('src', '')), '/');
+                if ($this->isPptxMediaPart($partName)) {
+                    $this->recordPptxMediaBagSource($mediaBagSources, $partName, [
+                        'role' => 'image',
+                        'slideIndex' => $slideIndex,
+                        'relationshipId' => (string) $node->attr('relationshipId', ''),
+                        'relationshipAttribute' => (string) $node->attr('relationshipAttribute', ''),
+                    ]);
+                }
+            }
+
+            if ($node->children !== []) {
+                $this->recordPptxAstMediaBagSources($node->children, $mediaBagSources, $slideIndex);
+            }
+        }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $backgrounds
+     * @param array<string, list<array<string, mixed>>> $mediaBagSources
+     */
+    private function recordPptxBackgroundMediaBagSources(array $backgrounds, array &$mediaBagSources, int $slideIndex): void
+    {
+        foreach ($backgrounds as $index => $background) {
+            if (($background['exists'] ?? false) !== true) {
+                continue;
+            }
+
+            $partName = ltrim((string) ($background['partName'] ?? ''), '/');
+            if (!$this->isPptxMediaPart($partName)) {
+                continue;
+            }
+
+            $this->recordPptxMediaBagSource($mediaBagSources, $partName, [
+                'role' => 'background',
+                'slideIndex' => $slideIndex,
+                'backgroundIndex' => $index,
+                'relationshipId' => (string) ($background['relationshipId'] ?? ''),
+                'relationshipAttribute' => (string) ($background['relationshipAttribute'] ?? ''),
+                'relationshipType' => (string) ($background['relationshipType'] ?? ''),
+                'target' => (string) ($background['target'] ?? ''),
+            ]);
+        }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $richMedia
+     * @param array<string, list<array<string, mixed>>> $mediaBagSources
+     */
+    private function recordPptxRichMediaBagSources(array $richMedia, array &$mediaBagSources, int $slideIndex): void
+    {
+        foreach ($richMedia as $index => $media) {
+            if (($media['external'] ?? false) === true) {
+                continue;
+            }
+
+            $partName = ltrim((string) ($media['partName'] ?? ''), '/');
+            if (!$this->isPptxMediaPart($partName)) {
+                continue;
+            }
+
+            $shape = is_array($media['shape'] ?? null) ? $media['shape'] : [];
+            $this->recordPptxMediaBagSource($mediaBagSources, $partName, [
+                'role' => 'rich-media',
+                'kind' => (string) ($media['kind'] ?? ''),
+                'slideIndex' => $slideIndex,
+                'richMediaIndex' => $index,
+                'relationshipId' => (string) ($media['relationshipId'] ?? ''),
+                'relationshipType' => (string) ($media['relationshipType'] ?? ''),
+                'target' => (string) ($media['target'] ?? ''),
+                'shapeName' => (string) ($shape['name'] ?? ''),
+                'shapeElement' => (string) ($shape['element'] ?? ''),
+                'shapeZOrder' => isset($shape['zOrder']) ? (int) $shape['zOrder'] : null,
+            ]);
+        }
+    }
+
+    /**
+     * @param array<string, list<array<string, mixed>>> $mediaBagSources
+     * @param array<string, mixed> $source
+     */
+    private function recordPptxMediaBagSource(array &$mediaBagSources, string $partName, array $source): void
+    {
+        $partName = ltrim($partName, '/');
+        if (!$this->isPptxMediaPart($partName)) {
+            return;
+        }
+
+        $source['partName'] = $partName;
+        foreach ($source as $key => $value) {
+            if ($value === '' || $value === null) {
+                unset($source[$key]);
+            }
+        }
+
+        foreach ($mediaBagSources[$partName] ?? [] as $existing) {
+            if ($existing === $source) {
+                return;
+            }
+        }
+
+        $mediaBagSources[$partName][] = $source;
+    }
+
+    private function isPptxMediaPart(string $partName): bool
+    {
+        $partName = ltrim($partName, '/');
+
+        return str_starts_with($partName, 'ppt/media/') && $partName !== 'ppt/media/';
+    }
+
+    /**
+     * @param array<string, list<array<string, mixed>>> $mediaBagSources
+     * @return array{directory: list<array<string, mixed>>, diagnostics: list<string>}
+     */
+    private function readPptxMediaBag(ZipPackage $package, array $mediaBagSources): array
+    {
+        $bag = new MediaBag();
+        $diagnostics = [];
+
+        foreach (array_keys($mediaBagSources) as $partName) {
+            if (!$package->has($partName)) {
+                $diagnostics[] = 'pptx-media-resource-missing:' . $partName;
+                continue;
+            }
+
+            $bag->insertMedia($partName, null, $package->read($partName));
+            $diagnostics[] = 'pptx-media-resource-loaded:' . $partName;
+        }
+
+        return [
+            'directory' => $this->pptxMediaResourceDirectory($bag->directory(), $mediaBagSources),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $directory
+     * @param array<string, list<array<string, mixed>>> $mediaBagSources
+     * @return list<array<string, mixed>>
+     */
+    private function pptxMediaResourceDirectory(array $directory, array $mediaBagSources): array
+    {
+        $entries = [];
+        foreach ($directory as $entry) {
+            $partName = ltrim((string) ($entry['source'] ?? $entry['path'] ?? ''), '/');
+            $sources = $mediaBagSources[$partName] ?? [];
+            $entry['partName'] = $partName;
+            $entry['zipEntry'] = $partName;
+            $entry['sourceRoles'] = $this->uniquePptxMediaSourceValues($sources, 'role');
+            $entry['slideIndexes'] = array_map('intval', $this->uniquePptxMediaSourceValues($sources, 'slideIndex'));
+            $entry['relationshipIds'] = $this->uniquePptxMediaSourceValues($sources, 'relationshipId');
+            $entry['sources'] = $sources;
+            $entries[] = $entry;
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $sources
+     * @return list<string|int>
+     */
+    private function uniquePptxMediaSourceValues(array $sources, string $key): array
+    {
+        $values = [];
+        foreach ($sources as $source) {
+            if (!array_key_exists($key, $source)) {
+                continue;
+            }
+            $value = $source[$key];
+            if ($value === '' || $value === null || in_array($value, $values, true)) {
+                continue;
+            }
+            $values[] = $value;
+        }
+
+        return $values;
     }
 
     private function presentationRelationship(ZipPackage $package): OpcRelationship

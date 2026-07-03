@@ -14731,6 +14731,40 @@ return [
         $t->same('Review this clip', $review['slides'][4]['comments'][0]['text'] ?? null);
         $t->same(1, $review['slides'][4]['richMediaCount'] ?? null);
         $t->same('ppt/media/video1.mp4', $review['slides'][4]['richMedia'][0]['partName'] ?? null);
+        $t->same('reader-media-bag-from-internal-pptx-media-parts', $review['mediaBag']['policy'] ?? null);
+        $t->same(2, $review['mediaBag']['itemCount'] ?? null);
+        $t->same([
+            'ppt/media/image1.png',
+            'ppt/media/video1.mp4',
+        ], array_map(static fn (array $entry): string => (string) ($entry['path'] ?? ''), $review['mediaBag']['directory'] ?? []));
+        $t->same([
+            'image/png',
+            'video/mp4',
+        ], array_map(static fn (array $entry): string => (string) ($entry['mimeType'] ?? ''), $review['mediaBag']['directory'] ?? []));
+        $t->same([
+            strlen('fake-png-bytes'),
+            strlen('fake-video-bytes'),
+        ], array_map(static fn (array $entry): int => (int) ($entry['byteLength'] ?? 0), $review['mediaBag']['directory'] ?? []));
+        $t->same([
+            sha1('fake-png-bytes'),
+            sha1('fake-video-bytes'),
+        ], array_map(static fn (array $entry): string => (string) ($entry['sha1'] ?? ''), $review['mediaBag']['directory'] ?? []));
+        $t->same([
+            ['image'],
+            ['rich-media'],
+        ], array_map(static fn (array $entry): array => $entry['sourceRoles'] ?? [], $review['mediaBag']['directory'] ?? []));
+        $t->same([
+            [3],
+            [5],
+        ], array_map(static fn (array $entry): array => $entry['slideIndexes'] ?? [], $review['mediaBag']['directory'] ?? []));
+        $t->same([
+            ['rId2'],
+            ['rIdVideo'],
+        ], array_map(static fn (array $entry): array => $entry['relationshipIds'] ?? [], $review['mediaBag']['directory'] ?? []));
+        $t->same([
+            'pptx-media-resource-loaded:ppt/media/image1.png',
+            'pptx-media-resource-loaded:ppt/media/video1.mp4',
+        ], $review['mediaBag']['diagnostics'] ?? []);
         $t->same('ppt/slideLayouts/slideLayout1.xml', $review['slides'][1]['context']['layoutPart'] ?? null);
         $t->same('ppt/slideMasters/slideMaster1.xml', $review['slides'][1]['context']['masterPart'] ?? null);
         $t->same('ppt/theme/theme1.xml', $review['slides'][1]['context']['themePart'] ?? null);
@@ -15040,6 +15074,15 @@ return [
         $t->same('ppt/media/background.png', $review['slides'][0]['backgrounds'][0]['partName'] ?? null);
         $t->same(true, $review['slides'][0]['backgrounds'][0]['exists'] ?? null);
         $t->same([], $review['slides'][0]['backgrounds'][0]['issues'] ?? null);
+        $t->same(1, $review['mediaBag']['itemCount'] ?? null);
+        $t->same('ppt/media/background.png', $review['mediaBag']['directory'][0]['path'] ?? null);
+        $t->same('image/png', $review['mediaBag']['directory'][0]['mimeType'] ?? null);
+        $t->same(strlen('background-image-bytes'), $review['mediaBag']['directory'][0]['byteLength'] ?? null);
+        $t->same(sha1('background-image-bytes'), $review['mediaBag']['directory'][0]['sha1'] ?? null);
+        $t->same(['background'], $review['mediaBag']['directory'][0]['sourceRoles'] ?? null);
+        $t->same([1], $review['mediaBag']['directory'][0]['slideIndexes'] ?? null);
+        $t->same(['rIdBackground'], $review['mediaBag']['directory'][0]['relationshipIds'] ?? null);
+        $t->same('pptx-media-resource-loaded:ppt/media/background.png', $review['mediaBag']['diagnostics'][0] ?? null);
         $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Background" , Space , Str "image" ]', $native);
         $t->true(!str_contains($native, 'background.png'), 'PPTX slide background images should remain review-only');
     },
@@ -18392,6 +18435,10 @@ XML);
         $t->same(['video', 'audio'], array_map(static fn (array $item): string => (string) ($item['kind'] ?? ''), $media));
         $t->same(['rIdVideo', 'rIdAudio'], array_map(static fn (array $item): string => (string) ($item['relationshipId'] ?? ''), $media));
         $t->same(['Video Placeholder', 'Audio Shape'], array_map(static fn (array $item): string => (string) ($item['shape']['name'] ?? ''), $media));
+        $t->same(2, $review['mediaBag']['itemCount'] ?? null);
+        $t->same(['ppt/media/narration.wav', 'ppt/media/training.mp4'], array_map(static fn (array $entry): string => (string) ($entry['path'] ?? ''), $review['mediaBag']['directory'] ?? []));
+        $t->same(['audio/wav', 'video/mp4'], array_map(static fn (array $entry): string => (string) ($entry['mimeType'] ?? ''), $review['mediaBag']['directory'] ?? []));
+        $t->same([['rich-media'], ['rich-media']], array_map(static fn (array $entry): array => $entry['sourceRoles'] ?? [], $review['mediaBag']['directory'] ?? []));
         $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Rich" , Space , Str "media" , Space , Str "skip" , Space , Str "deck" ]', $native);
         $t->contains('Para [ Str "Visible" , Space , Str "after" , Space , Str "media" , Space , Str "placeholders" ]', $native);
         $t->true(!str_contains($native, 'Video Placeholder'), 'Video placeholder metadata should stay out of visible native output');
