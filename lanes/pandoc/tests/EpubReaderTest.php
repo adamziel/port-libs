@@ -118,6 +118,102 @@ HTML);
         $t->contains('alt="Cover art"', $blocks);
         $t->contains('<!-- wp:list -->', $converterBlocks);
     },
+    'maps epub opf core metadata with selected identifier and modified timestamp' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary EPUB package');
+        }
+        $zip->addFromString('META-INF/container.xml', '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="pub-id">
+  <metadata>
+    <dc:identifier id="isbn">urn:isbn:9780000000000</dc:identifier>
+    <dc:identifier id="pub-id">urn:uuid:12345678-1234-1234-1234-123456789abc</dc:identifier>
+    <dc:title>EPUB Metadata Reader</dc:title>
+    <dc:creator>First Author</dc:creator>
+    <dc:creator>Second Author</dc:creator>
+    <dc:language>en-US</dc:language>
+    <dc:date>2026-04-05</dc:date>
+    <dc:publisher>Example Press</dc:publisher>
+    <dc:subject>migration</dc:subject>
+    <dc:subject>package metadata</dc:subject>
+    <dc:description>Reader metadata parity.</dc:description>
+    <dc:rights>Example rights statement.</dc:rights>
+    <dc:source>source-record</dc:source>
+    <dc:relation>related-record</dc:relation>
+    <dc:coverage>global</dc:coverage>
+    <dc:type>Text</dc:type>
+    <dc:format>application/epub+zip</dc:format>
+    <meta property="dcterms:modified">2026-04-06T07:08:09Z</meta>
+    <meta property="rendition:layout">pre-paginated</meta>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('OPS/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>EPUB Metadata Reader</h1><p>Body.</p></body></html>');
+        $zip->close();
+
+        try {
+            $document = (new EpubReader())->readEpubFile($path);
+            $meta = $document->attr('meta');
+        } finally {
+            @unlink($path);
+        }
+
+        $t->same('EPUB Metadata Reader', $meta['title']);
+        $t->same('EPUB Metadata Reader', $meta['titleInlines'][0]->attr('text'));
+        $t->same(['First Author', 'Second Author'], $meta['author']);
+        $t->same('First Author', $meta['authorInlines'][0][0]->attr('text'));
+        $t->same('Second Author', $meta['authorInlines'][1][0]->attr('text'));
+        $t->same('en-US', $meta['lang']);
+        $t->same('en-US', $meta['language']);
+        $t->same('2026-04-05', $meta['date']);
+        $t->same('2026-04-05', $meta['dateInlines'][0]->attr('text'));
+        $t->same('urn:uuid:12345678-1234-1234-1234-123456789abc', $meta['identifier']);
+        $t->same('Example Press', $meta['publisher']);
+        $t->same(['migration', 'package metadata'], $meta['subject']);
+        $t->same('Reader metadata parity.', $meta['description']);
+        $t->same('Example rights statement.', $meta['rights']);
+        $t->same('source-record', $meta['source']);
+        $t->same('related-record', $meta['relation']);
+        $t->same('global', $meta['coverage']);
+        $t->same('Text', $meta['type']);
+        $t->same('application/epub+zip', $meta['format']);
+        $t->same('2026-04-06T07:08:09Z', $meta['modified']);
+        $t->same(['2026-04-06T07:08:09Z'], $meta['epubProperties']['dcterms:modified']);
+        $t->same(['pre-paginated'], $meta['epubProperties']['rendition:layout']);
+    },
+    'matches upstream wasteland epub core metadata surface' => static function (TestRunner $t): void {
+        $fixture = __DIR__ . '/../fixtures/upstream-current-epub-reader/epub/wasteland.epub';
+        $meta = (new EpubReader())->readEpubFile($fixture)->attr('meta');
+
+        $t->same('The Waste Land', $meta['title']);
+        $t->same('T.S. Eliot', $meta['author']);
+        $t->same('2011-09-01', $meta['date']);
+        $t->same('code.google.com.epub-samples.wasteland-basic', $meta['identifier']);
+        $t->same('en-US', $meta['lang']);
+        $t->same('en-US', $meta['language']);
+        $t->same('2012-01-18T12:47:00Z', $meta['modified']);
+        $t->same(
+            'This work is shared with the public using the Attribution-ShareAlike 3.0 Unported (CC BY-SA 3.0) license.',
+            $meta['rights']
+        );
+        $t->same(['2012-01-18T12:47:00Z'], $meta['epubProperties']['dcterms:modified']);
+    },
     'reads epub bytes through the converter input path' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-');
         if ($path === false) {

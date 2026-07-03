@@ -8,6 +8,19 @@ final class EpubReader
 {
     private const OPF_MEDIA_TYPE = 'application/oebps-package+xml';
     private const DC_NAMESPACE = 'http://purl.org/dc/elements/1.1/';
+    /**
+     * @var array<string, string>
+     */
+    private const DC_METADATA_FIELD_KEYS = [
+        'description' => 'description',
+        'publisher' => 'publisher',
+        'rights' => 'rights',
+        'source' => 'source',
+        'relation' => 'relation',
+        'coverage' => 'coverage',
+        'type' => 'type',
+        'format' => 'format',
+    ];
 
     public function __construct(private readonly array $options = [])
     {
@@ -229,43 +242,165 @@ final class EpubReader
      */
     private function metadata(\DOMElement $package): array
     {
-        $meta = [];
+        $metadata = null;
         foreach ($package->childNodes as $child) {
-            if (!$child instanceof \DOMElement || $child->localName !== 'metadata') {
+            if ($child instanceof \DOMElement && $child->localName === 'metadata') {
+                $metadata = $child;
+                break;
+            }
+        }
+        if (!$metadata instanceof \DOMElement) {
+            return [];
+        }
+
+        $dc_values = [];
+        $property_values = [];
+        foreach ($metadata->childNodes as $entry) {
+            if (!$entry instanceof \DOMElement) {
                 continue;
             }
-            foreach ($child->childNodes as $entry) {
-                if (!$entry instanceof \DOMElement) {
-                    continue;
-                }
-                $name = $entry->localName;
-                $text = trim(preg_replace('/\s+/', ' ', $entry->textContent) ?? $entry->textContent);
+
+            $text = $this->metadataElementText($entry);
+            if ($this->isDublinCoreMetadataElement($entry)) {
                 if ($text === '') {
                     continue;
                 }
-                if ($entry->namespaceURI === self::DC_NAMESPACE || in_array($name, ['title', 'creator', 'date', 'language', 'identifier', 'subject', 'description'], true)) {
-                    $key = match ($name) {
-                        'creator' => 'author',
-                        'language' => 'lang',
-                        default => $name,
-                    };
-                    if (isset($meta[$key])) {
-                        $meta[$key] = is_array($meta[$key]) ? array_merge($meta[$key], [$text]) : [$meta[$key], $text];
-                    } else {
-                        $meta[$key] = $text;
-                    }
-                    if ($key === 'title') {
-                        $meta['titleInlines'] = [new AstNode('text', ['text' => $text])];
-                    }
-                    continue;
-                }
-                if ($name === 'meta' && trim($entry->getAttribute('property')) !== '') {
-                    $meta['epubProperties'][trim($entry->getAttribute('property'))][] = $text;
-                }
+                $dc_values[$entry->localName][] = [
+                    'value' => $text,
+                    'id' => trim($entry->getAttribute('id')),
+                ];
+                continue;
+            }
+
+            if ($entry->localName !== 'meta' || $text === '') {
+                continue;
+            }
+
+            $property = trim($entry->getAttribute('property'));
+            if ($property !== '') {
+                $property_values[$property][] = $text;
             }
         }
 
+        $meta = [];
+        $title = $this->firstMetadataValue($dc_values, 'title');
+        if ($title !== null) {
+            $meta['title'] = $title;
+            $meta['titleInlines'] = $this->metadataTextInlines($title);
+        }
+
+        $creators = $this->metadataValueList($dc_values, 'creator');
+        if ($creators !== []) {
+            $meta['author'] = $this->collapseMetadataValueList($creators);
+            $meta['authorInlines'] = array_map(fn (string $author): array => $this->metadataTextInlines($author), $creators);
+        }
+
+        $date = $this->firstMetadataValue($dc_values, 'date');
+        if ($date !== null) {
+            $meta['date'] = $date;
+            $meta['dateInlines'] = $this->metadataTextInlines($date);
+        }
+
+        $languages = $this->metadataValueList($dc_values, 'language');
+        if ($languages !== []) {
+            $meta['lang'] = $languages[0];
+            $meta['language'] = $languages[0];
+            if (count($languages) > 1) {
+                $meta['languages'] = $languages;
+            }
+        }
+
+        $identifier = $this->selectedMetadataIdentifier($dc_values['identifier'] ?? [], trim($package->getAttribute('unique-identifier')));
+        if ($identifier !== null) {
+            $meta['identifier'] = $identifier;
+        }
+
+        foreach (self::DC_METADATA_FIELD_KEYS as $dc_name => $meta_key) {
+            $values = $this->metadataValueList($dc_values, $dc_name);
+            if ($values !== []) {
+                $meta[$meta_key] = $this->collapseMetadataValueList($values);
+            }
+        }
+
+        $subjects = $this->metadataValueList($dc_values, 'subject');
+        if ($subjects !== []) {
+            $meta['subject'] = $this->collapseMetadataValueList($subjects);
+        }
+
+        if (isset($property_values['dcterms:modified'][0])) {
+            $meta['modified'] = $property_values['dcterms:modified'][0];
+        }
+        if ($property_values !== []) {
+            ksort($property_values, SORT_STRING);
+            $meta['epubProperties'] = $property_values;
+        }
+
         return $meta;
+    }
+
+    private function isDublinCoreMetadataElement(\DOMElement $element): bool
+    {
+        return $element->namespaceURI === self::DC_NAMESPACE
+            || array_key_exists($element->localName, self::DC_METADATA_FIELD_KEYS)
+            || in_array($element->localName, ['title', 'creator', 'date', 'language', 'identifier', 'subject'], true);
+    }
+
+    /**
+     * @param array<string, list<array{value: string, id: string}>> $values
+     */
+    private function firstMetadataValue(array $values, string $name): ?string
+    {
+        return $values[$name][0]['value'] ?? null;
+    }
+
+    /**
+     * @param array<string, list<array{value: string, id: string}>> $values
+     * @return list<string>
+     */
+    private function metadataValueList(array $values, string $name): array
+    {
+        $items = [];
+        foreach ($values[$name] ?? [] as $item) {
+            $items[] = $item['value'];
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param list<string> $values
+     * @return string|list<string>
+     */
+    private function collapseMetadataValueList(array $values): string|array
+    {
+        return count($values) === 1 ? $values[0] : $values;
+    }
+
+    /**
+     * @param list<array{value: string, id: string}> $identifiers
+     */
+    private function selectedMetadataIdentifier(array $identifiers, string $unique_identifier_id): ?string
+    {
+        foreach ($identifiers as $identifier) {
+            if ($unique_identifier_id !== '' && $identifier['id'] === $unique_identifier_id) {
+                return $identifier['value'];
+            }
+        }
+
+        return $identifiers[0]['value'] ?? null;
+    }
+
+    private function metadataElementText(\DOMElement $element): string
+    {
+        return trim(preg_replace('/\s+/u', ' ', $element->textContent) ?? $element->textContent);
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function metadataTextInlines(string $text): array
+    {
+        return $text === '' ? [] : [new AstNode('text', ['text' => $text])];
     }
 
     /**
