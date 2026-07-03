@@ -314,6 +314,24 @@ $tests['imports generated current html thematic break as horizontal rule'] =
         $t->same('After rule.', $document->children[2]->attr('text'));
     };
 
+$tests['imports generated current html ruby annotation text'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-ruby-annotation.html'));
+        $paragraph = $document->children[0];
+
+        $t->same(
+            ['paragraph', 'paragraph'],
+            array_map(static fn ($node): string => $node->type, $document->children)
+        );
+        $t->same('HTML Ruby Annotation Import', $document->attr('meta')['title']);
+        $t->same('Japanese ' . "\u{6F22}" . '(kan) annotation.', $paragraph->attr('text'));
+        $t->same(
+            ['Japanese ', "\u{6F22}", '(', 'kan', ')', ' annotation.'],
+            array_map(static fn ($node): string => $node->attr('text'), $paragraph->children)
+        );
+        $t->same('After ruby.', $document->children[1]->attr('text'));
+    };
+
 $tests['preserves html doc-endnotes container when no noteref was resolved'] =
     static function (TestRunner $t): void {
         $document = (new HtmlReader())->read(
