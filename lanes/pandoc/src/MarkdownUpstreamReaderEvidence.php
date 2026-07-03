@@ -12,7 +12,7 @@ final class MarkdownUpstreamReaderEvidence
     public const STATUS_COMPLETED = 'completed-upstream-markdown-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-markdown-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
-    public const EXPECTED_SELECTED_FIXTURE_COUNT = 8;
+    public const EXPECTED_SELECTED_FIXTURE_COUNT = 9;
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/Markdown.hs',
@@ -109,6 +109,18 @@ final class MarkdownUpstreamReaderEvidence
             ],
             'sha256' => '4a9c744c4eef5597fcd1c178fd756b18ee78e70e57230689c564d2f695bef6d1',
             'bytes' => 84,
+        ],
+        'upstream-markdown-line-blocks.md' => [
+            'role' => 'markdown-line-block-reader-fixture',
+            'sourceKind' => 'selected-upstream-markdown-reader-case',
+            'sourceReference' => 'Tests.Readers.Markdown selected line block extension coverage',
+            'formatProfile' => 'markdown line_blocks/commonmark_x/gfm profile',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-markdown-line-blocks.md',
+            'coverageTests' => [
+                'lanes/pandoc/tests/MarkdownReaderLineBlockProfileSurgeTest.php',
+            ],
+            'sha256' => '7a175df8a9934d4e50567ba25b1736df404f704740dc8671ea455e8910d4681c',
+            'bytes' => 38,
         ],
         'upstream-command-empty-paragraphs.md' => [
             'role' => 'command-empty-paragraphs-fixture',
@@ -420,7 +432,7 @@ final class MarkdownUpstreamReaderEvidence
     {
         return [
             'doesAssert' => [
-                'the identity and count of eight selected checked-in upstream-derived Markdown fixtures',
+                'the identity and count of nine selected checked-in upstream-derived Markdown fixtures',
                 'that focused local tests cover those selected fixture files',
                 'that the upstream Markdown reader source inventory is present when a hydrated upstream checkout is inspected',
                 'that upstream Haskell runner evidence is explicitly not-run',

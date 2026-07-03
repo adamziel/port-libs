@@ -175,6 +175,22 @@ foreach ($enabledProfiles as $profile) {
     }
 }
 
+$tests['maps upstream markdown line block fixture through pandoc profile'] =
+    static function (TestRunner $t) use ($collectTypes, $firstNodeOfType, $plainText): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-markdown-line-blocks.md');
+        $pandocDocument = (new MarkdownReader(['format' => 'pandoc']))->read($fixture);
+        $lineBlock = $firstNodeOfType($pandocDocument, 'line_block');
+        $gfmDocument = (new MarkdownReader(['format' => 'gfm']))->read($fixture);
+
+        $t->same('line_block', $lineBlock->type);
+        $t->same(['Alpha wrapped continuation', 'Beta'], array_map(
+            static fn (AstNode $line): string => (string) $line->attr('text', ''),
+            $lineBlock->children
+        ));
+        $t->same(false, in_array('line_block', $collectTypes($gfmDocument), true));
+        $t->contains('| Alpha', $plainText($gfmDocument));
+    };
+
 $tests['records upstream markdown reader line block profile surge mapped-case count'] =
     static function (TestRunner $t) use ($disabledProfiles, $disabledCases, $enabledProfiles, $enabledCases): void {
         $disabledCount = count($disabledProfiles) * count($disabledCases);
