@@ -141,6 +141,29 @@ $currentMediaBagSignatures = static fn (): array => [
     ],
 ];
 
+$currentMediaBagSignatureSha256 = static fn (): string => '48e9d4d6c7478aa213f3d75fc4cd1a2be58e2617d468d30d9027728d0258ce9d';
+
+$assertCurrentMediaBagSignature = static function (TestRunner $t, array $signature) use ($currentMediaBagSignatureSha256): void {
+    $t->same('checked-in-current-epub-media-bag-signature', $signature['kind']);
+    $t->same('sha256-canonical-json-v1', $signature['algorithm']);
+    $t->same('checked-in-current-upstream-epub-reader-6-case-media-bag-snapshot', $signature['scope']);
+    $t->same(1, $signature['snapshotSchemaVersion']);
+    $t->same(6, $signature['caseCount']);
+    $t->same(6, $signature['expectedCaseCount']);
+    $t->same(10, $signature['expectedMediaItemCount']);
+    $t->same(10, $signature['actualMediaItemCount']);
+    $t->same(6, $signature['mediaBagMatchCount']);
+    $t->same(0, $signature['mediaBagMismatchCount']);
+    $t->same($currentMediaBagSignatureSha256(), $signature['sha256']);
+    $t->same($currentMediaBagSignatureSha256(), $signature['expectedSha256']);
+    $t->same(true, $signature['hashMatchesExpected']);
+    $t->same(true, $signature['matchesExpected']);
+    $t->same('valid-checked-in-current-epub-media-bag-signature', $signature['validation']['status']);
+    $t->same([], $signature['validation']['issues']);
+    $t->same(true, $signature['validation']['caseSignaturesMatchExpected']);
+    $t->same(true, $signature['validation']['countsMatchExpected']);
+};
+
 $writeCurrentFixtureTree = static function (string $root) use ($writeFile, $fixtureRoot, $currentEpubReaderSource): void {
     $writeFile($root, 'test/Tests/Readers/EPUB.hs', $currentEpubReaderSource());
     $writeFile($root, 'src/Text/Pandoc/Readers/EPUB.hs', "module Text.Pandoc.Readers.EPUB where\n");
@@ -228,6 +251,9 @@ return [
             $t->same(0, $report['mediaBagMatchCount']);
             $t->same('not-evaluated-source-directory-unavailable', $report['mediaBagParityStatus']);
             $t->same([], $report['mediaBagSignatures']);
+            $t->same('not-evaluated-source-directory-unavailable', $report['currentMediaBagSignature']['validation']['status']);
+            $t->same(null, $report['currentMediaBagSignature']['sha256']);
+            $t->same(false, EpubMediaBagComparisonHarness::hasRequiredCurrentMediaBagSignature($report));
             $t->same(true, EpubMediaBagComparisonHarness::hasRunnerNotRunEvidence($report));
             $t->same(true, EpubMediaBagComparisonHarness::hasRunnerPlanEvidence($report));
             $t->same('not-run', $report['runnerEvidence']['status']);
@@ -248,7 +274,7 @@ return [
         }
     },
 
-    'matches checked-in current upstream epub media bag fixtures' => static function (TestRunner $t) use ($fixtureRoot, $currentMediaBagSignatures): void {
+    'matches checked-in current upstream epub media bag fixtures' => static function (TestRunner $t) use ($fixtureRoot, $currentMediaBagSignatures, $assertCurrentMediaBagSignature): void {
         $report = (new EpubMediaBagComparisonHarness())->run($fixtureRoot(), [
             'fixtureBase' => $fixtureRoot(),
         ]);
@@ -268,6 +294,7 @@ return [
         $t->same(100.0, $report['mediaBagMatchPercent']);
         $t->same('media-bag-equality-observed-not-runner-parity', $report['mediaBagParityStatus']);
         $t->same($currentMediaBagSignatures(), $report['mediaBagSignatures']);
+        $assertCurrentMediaBagSignature($t, $report['currentMediaBagSignature']);
         $t->same(true, EpubMediaBagComparisonHarness::hasRunnerNotRunEvidence($report));
         $t->same(true, EpubMediaBagComparisonHarness::hasRunnerPlanEvidence($report));
         $t->same('test:test-pandoc', $report['runnerEvidence']['target']['testSuite']);
@@ -276,10 +303,11 @@ return [
         $t->same(true, EpubMediaBagComparisonHarness::hasRequiredMediaBagParity($report, 6));
         $t->same(true, EpubMediaBagComparisonHarness::hasRequiredMediaBagItemCount($report, 10));
         $t->same(false, EpubMediaBagComparisonHarness::hasRequiredMediaBagItemCount($report, 9));
+        $t->same(true, EpubMediaBagComparisonHarness::hasRequiredCurrentMediaBagSignature($report));
         $t->same(true, EpubMediaBagComparisonHarness::hasRequiredCurrentMediaBagSignatures($report));
     },
 
-    'cli gates checked-in current epub media bag fixtures through checked-in selector' => static function (TestRunner $t) use ($fixtureRoot, $currentMediaBagSignatures): void {
+    'cli gates checked-in current epub media bag fixtures through checked-in selector' => static function (TestRunner $t) use ($fixtureRoot, $currentMediaBagSignatures, $assertCurrentMediaBagSignature): void {
         $command = escapeshellarg(PHP_BINARY)
             . ' '
             . escapeshellarg(dirname(__DIR__, 3) . '/tools/pandoc-epub-media-bag.php')
@@ -307,6 +335,7 @@ return [
         $t->same(10, $decoded['actualMediaItemCount']);
         $t->same('media-bag-equality-observed-not-runner-parity', $decoded['mediaBagParityStatus']);
         $t->same($currentMediaBagSignatures(), $decoded['mediaBagSignatures']);
+        $assertCurrentMediaBagSignature($t, $decoded['currentMediaBagSignature']);
         $t->same(true, EpubMediaBagComparisonHarness::hasRunnerNotRunEvidence($decoded));
         $t->same(true, EpubMediaBagComparisonHarness::hasRunnerPlanEvidence($decoded));
         $t->same(null, $decoded['runnerEvidence']['command']);
@@ -316,6 +345,7 @@ return [
         $t->same('open', $decoded['orderedRemainingGaps'][2]['status']);
         $t->same(true, EpubMediaBagComparisonHarness::hasRequiredMediaBagParity($decoded, 6));
         $t->same(true, EpubMediaBagComparisonHarness::hasRequiredMediaBagItemCount($decoded, 10));
+        $t->same(true, EpubMediaBagComparisonHarness::hasRequiredCurrentMediaBagSignature($decoded));
         $t->same(true, EpubMediaBagComparisonHarness::hasRequiredCurrentMediaBagSignatures($decoded));
 
         $defaultSignatureCommand = escapeshellarg(PHP_BINARY)
@@ -333,6 +363,7 @@ return [
         $t->same($fixtureRoot(), $defaultSignatureDecoded['upstreamRoot']);
         $t->same($fixtureRoot(), $defaultSignatureDecoded['fixtureBase']);
         $t->same($currentMediaBagSignatures(), $defaultSignatureDecoded['mediaBagSignatures']);
+        $assertCurrentMediaBagSignature($t, $defaultSignatureDecoded['currentMediaBagSignature']);
 
         $failingParityCommand = str_replace('--require-media-bag-parity=6', '--require-media-bag-parity=7', $command) . ' 2>/dev/null';
         $failingParityOutput = [];
@@ -428,6 +459,7 @@ HS);
             $t->same('open', $report['orderedRemainingGaps'][0]['status']);
             $t->contains('mediaBag: matches=0 (0.00%) mismatches=1', $text);
             $t->same(false, EpubMediaBagComparisonHarness::hasRequiredMediaBagParity($report, 1));
+            $t->same(false, EpubMediaBagComparisonHarness::hasRequiredCurrentMediaBagSignature($report));
             $t->same(false, EpubMediaBagComparisonHarness::hasRequiredCurrentMediaBagSignatures($report));
         } finally {
             $removeTree($root);

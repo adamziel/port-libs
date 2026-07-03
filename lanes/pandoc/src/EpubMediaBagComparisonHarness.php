@@ -11,6 +11,10 @@ final class EpubMediaBagComparisonHarness
     private const DEFAULT_MAX_EXAMPLES = 12;
     private const VERDICT = 'media-bag-comparison-not-full-epub-parity';
     private const CLAIM = 'Compares local PHP EPUB reader image-resource output with upstream Tests.Readers.EPUB media-bag expectations by normalized media path, MIME type, and byte size; no upstream Haskell runner, AST parity, writer parity, or full EPUB feature parity is asserted.';
+    private const CURRENT_MEDIA_BAG_SIGNATURE_KIND = 'checked-in-current-epub-media-bag-signature';
+    private const CURRENT_MEDIA_BAG_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
+    private const CURRENT_MEDIA_BAG_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-6-case-media-bag-snapshot';
+    private const CHECKED_IN_CURRENT_MEDIA_BAG_SIGNATURE_SHA256 = '48e9d4d6c7478aa213f3d75fc4cd1a2be58e2617d468d30d9027728d0258ce9d';
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/epub-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'EPUB', 'EPUB Mediabag'];
@@ -189,6 +193,18 @@ final class EpubMediaBagComparisonHarness
         $mismatchCount = $epubParsedCount - $matchCount;
         $parseFailureCount = count($parseFailures);
 
+        $currentMediaBagSignature = self::currentMediaBagSignature(
+            $signatures,
+            $totalCaseCount,
+            $comparedCaseCount,
+            $epubParsedCount,
+            $parseFailureCount,
+            $expectedItemCount,
+            $actualItemCount,
+            $matchCount,
+            $mismatchCount
+        );
+
         return [
             'schemaVersion' => 1,
             'tool' => 'pandoc-epub-media-bag',
@@ -214,6 +230,7 @@ final class EpubMediaBagComparisonHarness
             'mediaBagParityStatus' => self::mediaBagParityStatus($parseFailureCount, $mismatchCount, $comparedCaseCount),
             'parseFailures' => array_slice($parseFailures, 0, $maxExamples),
             'mismatchComparisons' => $mismatches,
+            'currentMediaBagSignature' => $currentMediaBagSignature,
             'mediaBagSignatures' => $signatures,
             'orderedRemainingGaps' => self::orderedRemainingGaps(
                 true,
@@ -278,6 +295,17 @@ final class EpubMediaBagComparisonHarness
                 (($runner['executed'] ?? null) === false) ? 'false' : 'unknown'
             );
         }
+        $signature = is_array($report['currentMediaBagSignature'] ?? null) ? $report['currentMediaBagSignature'] : [];
+        if ($signature !== []) {
+            $signatureValidation = is_array($signature['validation'] ?? null) ? $signature['validation'] : [];
+            $lines[] = sprintf(
+                'currentMediaBagSignature: status=%s matchesExpected=%s sha256=%s expected=%s',
+                (string) ($signatureValidation['status'] ?? 'unknown'),
+                (($signature['matchesExpected'] ?? false) === true) ? 'true' : 'false',
+                (string) ($signature['sha256'] ?? ''),
+                (string) ($signature['expectedSha256'] ?? '')
+            );
+        }
 
         $mismatches = $report['mismatchComparisons'] ?? [];
         if (is_array($mismatches) && $mismatches !== []) {
@@ -338,7 +366,37 @@ final class EpubMediaBagComparisonHarness
     {
         return ($report['skipped'] ?? false) === false
             && ($report['status'] ?? null) === 'completed'
-            && ($report['mediaBagSignatures'] ?? null) === self::CHECKED_IN_CURRENT_MEDIA_BAG_SIGNATURES;
+            && ($report['mediaBagSignatures'] ?? null) === self::CHECKED_IN_CURRENT_MEDIA_BAG_SIGNATURES
+            && self::hasRequiredCurrentMediaBagSignature($report);
+    }
+
+    /**
+     * @param array<string, mixed> $report
+     */
+    public static function hasRequiredCurrentMediaBagSignature(array $report): bool
+    {
+        $signature = is_array($report['currentMediaBagSignature'] ?? null) ? $report['currentMediaBagSignature'] : [];
+        $validation = is_array($signature['validation'] ?? null) ? $signature['validation'] : [];
+
+        return ($report['skipped'] ?? false) === false
+            && ($report['status'] ?? null) === 'completed'
+            && ($signature['kind'] ?? null) === self::CURRENT_MEDIA_BAG_SIGNATURE_KIND
+            && ($signature['algorithm'] ?? null) === self::CURRENT_MEDIA_BAG_SIGNATURE_ALGORITHM
+            && ($signature['scope'] ?? null) === self::CURRENT_MEDIA_BAG_SIGNATURE_SCOPE
+            && (int) ($signature['caseCount'] ?? -1) === count(self::CHECKED_IN_CURRENT_MEDIA_BAG_SIGNATURES)
+            && (int) ($signature['expectedCaseCount'] ?? -1) === count(self::CHECKED_IN_CURRENT_MEDIA_BAG_SIGNATURES)
+            && (int) ($signature['expectedMediaItemCount'] ?? -1) === self::expectedCurrentMediaBagItemCount()
+            && (int) ($signature['actualMediaItemCount'] ?? -1) === self::expectedCurrentMediaBagItemCount()
+            && (int) ($signature['mediaBagMatchCount'] ?? -1) === count(self::CHECKED_IN_CURRENT_MEDIA_BAG_SIGNATURES)
+            && (int) ($signature['mediaBagMismatchCount'] ?? -1) === 0
+            && ($signature['sha256'] ?? null) === self::CHECKED_IN_CURRENT_MEDIA_BAG_SIGNATURE_SHA256
+            && ($signature['expectedSha256'] ?? null) === self::CHECKED_IN_CURRENT_MEDIA_BAG_SIGNATURE_SHA256
+            && ($signature['hashMatchesExpected'] ?? null) === true
+            && ($signature['matchesExpected'] ?? null) === true
+            && ($validation['status'] ?? null) === 'valid-checked-in-current-epub-media-bag-signature'
+            && ($validation['issues'] ?? null) === []
+            && ($validation['caseSignaturesMatchExpected'] ?? null) === true
+            && ($validation['countsMatchExpected'] ?? null) === true;
     }
 
     /**
@@ -411,6 +469,7 @@ final class EpubMediaBagComparisonHarness
             'mediaBagParityStatus' => 'not-evaluated-source-directory-unavailable',
             'parseFailures' => [],
             'mismatchComparisons' => [],
+            'currentMediaBagSignature' => self::notEvaluatedCurrentMediaBagSignature($reason),
             'mediaBagSignatures' => [],
             'orderedRemainingGaps' => self::orderedRemainingGaps(false, 0, 0, 0, 0),
         ];
@@ -432,6 +491,182 @@ final class EpubMediaBagComparisonHarness
             'expectedBag' => $expectedBag,
             'actualBag' => $actualBag,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $signatures
+     * @return array<string, mixed>
+     */
+    private static function currentMediaBagSignature(
+        array $signatures,
+        int $totalCaseCount,
+        int $comparedCaseCount,
+        int $epubParsedCount,
+        int $parseFailureCount,
+        int $expectedItemCount,
+        int $actualItemCount,
+        int $matchCount,
+        int $mismatchCount
+    ): array {
+        $payload = self::currentMediaBagSignaturePayload(
+            $signatures,
+            $totalCaseCount,
+            $comparedCaseCount,
+            $epubParsedCount,
+            $parseFailureCount,
+            $expectedItemCount,
+            $actualItemCount,
+            $matchCount,
+            $mismatchCount
+        );
+        $sha256 = hash('sha256', self::canonicalJson($payload));
+        $caseSignaturesMatchExpected = $signatures === self::CHECKED_IN_CURRENT_MEDIA_BAG_SIGNATURES;
+        $countsMatchExpected = $totalCaseCount === count(self::CHECKED_IN_CURRENT_MEDIA_BAG_SIGNATURES)
+            && $comparedCaseCount === count(self::CHECKED_IN_CURRENT_MEDIA_BAG_SIGNATURES)
+            && $epubParsedCount === count(self::CHECKED_IN_CURRENT_MEDIA_BAG_SIGNATURES)
+            && $parseFailureCount === 0
+            && $expectedItemCount === self::expectedCurrentMediaBagItemCount()
+            && $actualItemCount === self::expectedCurrentMediaBagItemCount()
+            && $matchCount === count(self::CHECKED_IN_CURRENT_MEDIA_BAG_SIGNATURES)
+            && $mismatchCount === 0;
+        $hashMatchesExpected = $sha256 === self::CHECKED_IN_CURRENT_MEDIA_BAG_SIGNATURE_SHA256;
+        $issues = [];
+        if (!$caseSignaturesMatchExpected) {
+            $issues[] = 'media-bag-case-signatures-do-not-match-expected-snapshot';
+        }
+        if (!$countsMatchExpected) {
+            $issues[] = 'media-bag-counters-do-not-match-expected-snapshot';
+        }
+        if (!$hashMatchesExpected) {
+            $issues[] = 'media-bag-signature-sha256-mismatch';
+        }
+
+        return [
+            'kind' => self::CURRENT_MEDIA_BAG_SIGNATURE_KIND,
+            'algorithm' => self::CURRENT_MEDIA_BAG_SIGNATURE_ALGORITHM,
+            'scope' => self::CURRENT_MEDIA_BAG_SIGNATURE_SCOPE,
+            'snapshotSchemaVersion' => 1,
+            'caseCount' => $comparedCaseCount,
+            'expectedCaseCount' => count(self::CHECKED_IN_CURRENT_MEDIA_BAG_SIGNATURES),
+            'expectedMediaItemCount' => $expectedItemCount,
+            'actualMediaItemCount' => $actualItemCount,
+            'mediaBagMatchCount' => $matchCount,
+            'mediaBagMismatchCount' => $mismatchCount,
+            'sha256' => $sha256,
+            'expectedSha256' => self::CHECKED_IN_CURRENT_MEDIA_BAG_SIGNATURE_SHA256,
+            'hashMatchesExpected' => $hashMatchesExpected,
+            'matchesExpected' => $issues === [],
+            'validation' => [
+                'status' => $issues === []
+                    ? 'valid-checked-in-current-epub-media-bag-signature'
+                    : 'invalid-checked-in-current-epub-media-bag-signature',
+                'issues' => $issues,
+                'caseSignaturesMatchExpected' => $caseSignaturesMatchExpected,
+                'countsMatchExpected' => $countsMatchExpected,
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function notEvaluatedCurrentMediaBagSignature(string $reason): array
+    {
+        return [
+            'kind' => self::CURRENT_MEDIA_BAG_SIGNATURE_KIND,
+            'algorithm' => self::CURRENT_MEDIA_BAG_SIGNATURE_ALGORITHM,
+            'scope' => self::CURRENT_MEDIA_BAG_SIGNATURE_SCOPE,
+            'snapshotSchemaVersion' => 1,
+            'caseCount' => 0,
+            'expectedCaseCount' => count(self::CHECKED_IN_CURRENT_MEDIA_BAG_SIGNATURES),
+            'expectedMediaItemCount' => 0,
+            'actualMediaItemCount' => 0,
+            'mediaBagMatchCount' => 0,
+            'mediaBagMismatchCount' => 0,
+            'sha256' => null,
+            'expectedSha256' => self::CHECKED_IN_CURRENT_MEDIA_BAG_SIGNATURE_SHA256,
+            'hashMatchesExpected' => false,
+            'matchesExpected' => false,
+            'validation' => [
+                'status' => 'not-evaluated-source-directory-unavailable',
+                'issues' => [$reason],
+                'caseSignaturesMatchExpected' => false,
+                'countsMatchExpected' => false,
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $signatures
+     * @return array<string, mixed>
+     */
+    private static function currentMediaBagSignaturePayload(
+        array $signatures,
+        int $totalCaseCount,
+        int $comparedCaseCount,
+        int $epubParsedCount,
+        int $parseFailureCount,
+        int $expectedItemCount,
+        int $actualItemCount,
+        int $matchCount,
+        int $mismatchCount
+    ): array {
+        return [
+            'schemaVersion' => 1,
+            'mediaBagComparison' => [
+                'totalCaseCount' => $totalCaseCount,
+                'comparedCaseCount' => $comparedCaseCount,
+                'epubParsedCount' => $epubParsedCount,
+                'parseFailureCount' => $parseFailureCount,
+                'expectedMediaItemCount' => $expectedItemCount,
+                'actualMediaItemCount' => $actualItemCount,
+                'mediaBagMatchCount' => $matchCount,
+                'mediaBagMismatchCount' => $mismatchCount,
+                'mediaBagSignatures' => $signatures,
+            ],
+        ];
+    }
+
+    private static function expectedCurrentMediaBagItemCount(): int
+    {
+        $count = 0;
+        foreach (self::CHECKED_IN_CURRENT_MEDIA_BAG_SIGNATURES as $signature) {
+            $count += (int) ($signature['expectedItemCount'] ?? 0);
+        }
+
+        return $count;
+    }
+
+    private static function canonicalJson(mixed $value): string
+    {
+        $json = json_encode(
+            self::canonicalValue($value),
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION
+        );
+        if (!is_string($json)) {
+            throw new \RuntimeException('Unable to encode media-bag signature payload.');
+        }
+
+        return $json;
+    }
+
+    private static function canonicalValue(mixed $value): mixed
+    {
+        if (!is_array($value)) {
+            return $value;
+        }
+        if (array_is_list($value)) {
+            return array_map(static fn (mixed $item): mixed => self::canonicalValue($item), $value);
+        }
+
+        $normalized = [];
+        $keys = array_keys($value);
+        sort($keys, SORT_STRING);
+        foreach ($keys as $key) {
+            $normalized[(string) $key] = self::canonicalValue($value[$key]);
+        }
+
+        return $normalized;
     }
 
     /**

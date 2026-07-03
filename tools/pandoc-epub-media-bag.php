@@ -161,6 +161,7 @@ if ($summary) {
         'mediaBagMismatchCount',
         'mediaBagMatchPercent',
         'mediaBagParityStatus',
+        'currentMediaBagSignature',
         'mediaBagSignatures',
         'orderedRemainingGaps',
     ]));
