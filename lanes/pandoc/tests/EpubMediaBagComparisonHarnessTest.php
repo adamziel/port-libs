@@ -384,6 +384,36 @@ return [
             $t->same('covered-by-validated-runner-result-artifact', $report['orderedRemainingGaps'][1]['status']);
             $t->contains('runnerEvidence: status=completed plan=runner-result-artifact-validated executed=true', $text);
 
+            $limitedReport = (new EpubMediaBagComparisonHarness())->run($root, [
+                'fixtureBase' => $root,
+                'repoRoot' => $root,
+                'runnerResultArtifact' => $artifactPath,
+                'limit' => 1,
+            ]);
+
+            $t->same(1, $limitedReport['comparedCaseCount']);
+            $t->same(count($testNames), $limitedReport['runnerEvidence']['expected']['testCount']);
+            $t->same($testNames, $limitedReport['runnerEvidence']['expected']['testNames']);
+            $t->same($testNames, $limitedReport['runnerEvidence']['observed']['testNames']);
+            $t->same(true, EpubMediaBagComparisonHarness::hasRunnerResultArtifactEvidence($limitedReport));
+
+            $limitedPayload = $validPayload;
+            $limitedPayload['testCount'] = 1;
+            $limitedPayload['passedCount'] = 1;
+            $limitedPayload['testNames'] = array_slice($testNames, 0, 1);
+            $writeFile($root, 'limited-result.json', json_encode($limitedPayload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+            $limitedBadReport = (new EpubMediaBagComparisonHarness())->run($root, [
+                'fixtureBase' => $root,
+                'repoRoot' => $root,
+                'runnerResultArtifact' => $root . '/limited-result.json',
+                'limit' => 1,
+            ]);
+
+            $t->same('invalid', $limitedBadReport['runnerEvidence']['status']);
+            $t->true(in_array('runner-result-counts-mismatch', $limitedBadReport['runnerEvidence']['validation']['issues'], true));
+            $t->true(in_array('runner-result-test-names-mismatch', $limitedBadReport['runnerEvidence']['validation']['issues'], true));
+            $t->same(false, EpubMediaBagComparisonHarness::hasRunnerResultArtifactEvidence($limitedBadReport));
+
             $payload = $validPayload;
             $payload['failedCount'] = 1;
             $payload['exitCode'] = 1;
@@ -555,6 +585,30 @@ return [
             $t->same('valid-upstream-epub-media-bag-runner-result-artifact', $decoded['runnerEvidence']['validation']['status']);
             $t->same(true, EpubMediaBagComparisonHarness::hasRunnerResultArtifactEvidence($decoded));
             $t->same('covered-by-validated-runner-result-artifact', $decoded['orderedRemainingGaps'][1]['status']);
+
+            $limitedCommand = str_replace(' --json', ' --limit=1 --json', $command);
+            $limitedOutput = [];
+            $limitedExitCode = 0;
+            exec($limitedCommand, $limitedOutput, $limitedExitCode);
+            $limitedDecoded = json_decode(implode("\n", $limitedOutput), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same(0, $limitedExitCode);
+            $t->same(1, $limitedDecoded['comparedCaseCount']);
+            $t->same(count($testNames), $limitedDecoded['runnerEvidence']['expected']['testCount']);
+            $t->same($testNames, $limitedDecoded['runnerEvidence']['observed']['testNames']);
+            $t->same(true, EpubMediaBagComparisonHarness::hasRunnerResultArtifactEvidence($limitedDecoded));
+
+            $limitedPayload = $validPayload;
+            $limitedPayload['testCount'] = 1;
+            $limitedPayload['passedCount'] = 1;
+            $limitedPayload['testNames'] = array_slice($testNames, 0, 1);
+            $writeFile($root, 'limited-result.json', json_encode($limitedPayload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+            $failingLimitedCommand = str_replace('result.json', 'limited-result.json', $limitedCommand) . ' 2>/dev/null';
+            $failingLimitedOutput = [];
+            $failingLimitedExitCode = 0;
+            exec($failingLimitedCommand, $failingLimitedOutput, $failingLimitedExitCode);
+
+            $t->same(1, $failingLimitedExitCode);
 
             $payload = $validPayload;
             $payload['target']['tastyPattern'] = '$2 == "Readers" && $3 == "Markdown"';

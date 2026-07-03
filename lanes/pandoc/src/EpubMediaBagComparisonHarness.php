@@ -150,7 +150,8 @@ final class EpubMediaBagComparisonHarness
             return $this->skippedReport($upstreamRoot, 'upstream-reader-test-missing-or-empty');
         }
 
-        $totalCaseCount = count($readerCases);
+        $runnerReaderCases = $readerCases;
+        $totalCaseCount = count($runnerReaderCases);
         if ($limit > 0) {
             $readerCases = array_slice($readerCases, 0, $limit);
         }
@@ -206,7 +207,7 @@ final class EpubMediaBagComparisonHarness
         $parseFailureCount = count($parseFailures);
         $runnerEvidence = $runnerResultArtifact === null
             ? self::runnerNotRunEvidence()
-            : $this->runnerResultArtifactEvidence($runnerResultArtifact, $repoRoot, $readerCases);
+            : $this->runnerResultArtifactEvidence($runnerResultArtifact, $repoRoot, $runnerReaderCases);
         $runnerResultCovered = self::runnerResultArtifactEvidenceIsValid($runnerEvidence);
 
         $currentMediaBagSignature = self::currentMediaBagSignature(
