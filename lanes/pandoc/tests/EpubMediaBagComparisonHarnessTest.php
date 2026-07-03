@@ -54,6 +54,93 @@ $currentEpubReaderSource = static fn (): string => (string) file_get_contents(
 
 $currentReaderCases = static fn (): array => EpubUpstreamReaderEvidence::parseReaderCasesFromSource($currentEpubReaderSource());
 
+$currentMediaBagSignatures = static fn (): array => [
+    [
+        'case' => 'features bag',
+        'fixture' => 'epub/img.epub',
+        'expectedItemCount' => 4,
+        'actualItemCount' => 4,
+        'matchesExpected' => true,
+        'expectedBag' => [
+            ['path' => 'img/check.gif', 'mime' => 'image/gif', 'size' => 1340],
+            ['path' => 'img/check.jpg', 'mime' => 'image/jpeg', 'size' => 2661],
+            ['path' => 'img/check.png', 'mime' => 'image/png', 'size' => 2815],
+            ['path' => 'img/multiscripts_and_greek_alphabet.png', 'mime' => 'image/png', 'size' => 10060],
+        ],
+        'actualBag' => [
+            ['path' => 'img/check.gif', 'mime' => 'image/gif', 'size' => 1340],
+            ['path' => 'img/check.jpg', 'mime' => 'image/jpeg', 'size' => 2661],
+            ['path' => 'img/check.png', 'mime' => 'image/png', 'size' => 2815],
+            ['path' => 'img/multiscripts_and_greek_alphabet.png', 'mime' => 'image/png', 'size' => 10060],
+        ],
+    ],
+    [
+        'case' => 'EPUB3 cover bag',
+        'fixture' => 'epub/wasteland.epub',
+        'expectedItemCount' => 1,
+        'actualItemCount' => 1,
+        'matchesExpected' => true,
+        'expectedBag' => [
+            ['path' => 'wasteland-cover.jpg', 'mime' => 'image/jpeg', 'size' => 16586],
+        ],
+        'actualBag' => [
+            ['path' => 'wasteland-cover.jpg', 'mime' => 'image/jpeg', 'size' => 16586],
+        ],
+    ],
+    [
+        'case' => 'EPUB3 no cover bag',
+        'fixture' => 'epub/img_no_cover.epub',
+        'expectedItemCount' => 3,
+        'actualItemCount' => 3,
+        'matchesExpected' => true,
+        'expectedBag' => [
+            ['path' => 'img/check.gif', 'mime' => 'image/gif', 'size' => 1340],
+            ['path' => 'img/check.jpg', 'mime' => 'image/jpeg', 'size' => 2661],
+            ['path' => 'img/check.png', 'mime' => 'image/png', 'size' => 2815],
+        ],
+        'actualBag' => [
+            ['path' => 'img/check.gif', 'mime' => 'image/gif', 'size' => 1340],
+            ['path' => 'img/check.jpg', 'mime' => 'image/jpeg', 'size' => 2661],
+            ['path' => 'img/check.png', 'mime' => 'image/png', 'size' => 2815],
+        ],
+    ],
+    [
+        'case' => 'EPUB2 picture bag',
+        'fixture' => 'epub/epub2_picture.epub',
+        'expectedItemCount' => 1,
+        'actualItemCount' => 1,
+        'matchesExpected' => true,
+        'expectedBag' => [
+            ['path' => 'image/image.jpg', 'mime' => 'image/jpeg', 'size' => 9713],
+        ],
+        'actualBag' => [
+            ['path' => 'image/image.jpg', 'mime' => 'image/jpeg', 'size' => 9713],
+        ],
+    ],
+    [
+        'case' => 'EPUB2 cover bag',
+        'fixture' => 'epub/epub2_cover.epub',
+        'expectedItemCount' => 1,
+        'actualItemCount' => 1,
+        'matchesExpected' => true,
+        'expectedBag' => [
+            ['path' => 'image/cover.jpg', 'mime' => 'image/jpeg', 'size' => 9713],
+        ],
+        'actualBag' => [
+            ['path' => 'image/cover.jpg', 'mime' => 'image/jpeg', 'size' => 9713],
+        ],
+    ],
+    [
+        'case' => 'EPUB2 no cover bag',
+        'fixture' => 'epub/epub2_no_cover.epub',
+        'expectedItemCount' => 0,
+        'actualItemCount' => 0,
+        'matchesExpected' => true,
+        'expectedBag' => [],
+        'actualBag' => [],
+    ],
+];
+
 $writeCurrentFixtureTree = static function (string $root) use ($writeFile, $fixtureRoot, $currentEpubReaderSource): void {
     $writeFile($root, 'test/Tests/Readers/EPUB.hs', $currentEpubReaderSource());
     $writeFile($root, 'src/Text/Pandoc/Readers/EPUB.hs', "module Text.Pandoc.Readers.EPUB where\n");
@@ -140,6 +227,7 @@ return [
             $t->same(0, $report['comparedCaseCount']);
             $t->same(0, $report['mediaBagMatchCount']);
             $t->same('not-evaluated-source-directory-unavailable', $report['mediaBagParityStatus']);
+            $t->same([], $report['mediaBagSignatures']);
             $t->same('upstream-epub-mediabag-equality', $report['orderedRemainingGaps'][0]['id']);
             $t->same('not-evaluated', $report['orderedRemainingGaps'][0]['status']);
             $t->contains('Pandoc EPUB media-bag comparison: skipped', $text);
@@ -149,7 +237,7 @@ return [
         }
     },
 
-    'matches checked-in current upstream epub media bag fixtures' => static function (TestRunner $t) use ($fixtureRoot): void {
+    'matches checked-in current upstream epub media bag fixtures' => static function (TestRunner $t) use ($fixtureRoot, $currentMediaBagSignatures): void {
         $report = (new EpubMediaBagComparisonHarness())->run($fixtureRoot(), [
             'fixtureBase' => $fixtureRoot(),
         ]);
@@ -168,13 +256,15 @@ return [
         $t->same(0, $report['mediaBagMismatchCount']);
         $t->same(100.0, $report['mediaBagMatchPercent']);
         $t->same('media-bag-equality-observed-not-runner-parity', $report['mediaBagParityStatus']);
+        $t->same($currentMediaBagSignatures(), $report['mediaBagSignatures']);
         $t->same('covered-by-current-media-bag-evidence', $report['orderedRemainingGaps'][0]['status']);
         $t->same(true, EpubMediaBagComparisonHarness::hasRequiredMediaBagParity($report, 6));
         $t->same(true, EpubMediaBagComparisonHarness::hasRequiredMediaBagItemCount($report, 10));
         $t->same(false, EpubMediaBagComparisonHarness::hasRequiredMediaBagItemCount($report, 9));
+        $t->same(true, EpubMediaBagComparisonHarness::hasRequiredCurrentMediaBagSignatures($report));
     },
 
-    'cli gates checked-in current epub media bag fixtures through checked-in selector' => static function (TestRunner $t) use ($fixtureRoot): void {
+    'cli gates checked-in current epub media bag fixtures through checked-in selector' => static function (TestRunner $t) use ($fixtureRoot, $currentMediaBagSignatures): void {
         $command = escapeshellarg(PHP_BINARY)
             . ' '
             . escapeshellarg(dirname(__DIR__, 3) . '/tools/pandoc-epub-media-bag.php')
@@ -182,7 +272,8 @@ return [
             . ' --json'
             . ' summary'
             . ' --require-media-bag-parity=6'
-            . ' --require-media-bag-item-count=10';
+            . ' --require-media-bag-item-count=10'
+            . ' --require-current-media-bag-signatures';
         $output = [];
         $exitCode = 0;
         exec($command, $output, $exitCode);
@@ -199,10 +290,28 @@ return [
         $t->same(10, $decoded['expectedMediaItemCount']);
         $t->same(10, $decoded['actualMediaItemCount']);
         $t->same('media-bag-equality-observed-not-runner-parity', $decoded['mediaBagParityStatus']);
+        $t->same($currentMediaBagSignatures(), $decoded['mediaBagSignatures']);
         $t->same('open', $decoded['orderedRemainingGaps'][1]['status']);
         $t->same('open', $decoded['orderedRemainingGaps'][2]['status']);
         $t->same(true, EpubMediaBagComparisonHarness::hasRequiredMediaBagParity($decoded, 6));
         $t->same(true, EpubMediaBagComparisonHarness::hasRequiredMediaBagItemCount($decoded, 10));
+        $t->same(true, EpubMediaBagComparisonHarness::hasRequiredCurrentMediaBagSignatures($decoded));
+
+        $defaultSignatureCommand = escapeshellarg(PHP_BINARY)
+            . ' '
+            . escapeshellarg(dirname(__DIR__, 3) . '/tools/pandoc-epub-media-bag.php')
+            . ' --json'
+            . ' summary'
+            . ' --require-current-media-bag-signatures';
+        $defaultSignatureOutput = [];
+        $defaultSignatureExitCode = 0;
+        exec($defaultSignatureCommand, $defaultSignatureOutput, $defaultSignatureExitCode);
+        $defaultSignatureDecoded = json_decode(implode("\n", $defaultSignatureOutput), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same(0, $defaultSignatureExitCode);
+        $t->same($fixtureRoot(), $defaultSignatureDecoded['upstreamRoot']);
+        $t->same($fixtureRoot(), $defaultSignatureDecoded['fixtureBase']);
+        $t->same($currentMediaBagSignatures(), $defaultSignatureDecoded['mediaBagSignatures']);
 
         $failingParityCommand = str_replace('--require-media-bag-parity=6', '--require-media-bag-parity=7', $command) . ' 2>/dev/null';
         $failingParityOutput = [];
@@ -214,8 +323,22 @@ return [
         $failingItemCountExitCode = 0;
         exec($failingItemCountCommand, $failingItemCountOutput, $failingItemCountExitCode);
 
+        $failingSignatureCommand = escapeshellarg(PHP_BINARY)
+            . ' '
+            . escapeshellarg(dirname(__DIR__, 3) . '/tools/pandoc-epub-media-bag.php')
+            . ' --checked-in-fixtures'
+            . ' --json'
+            . ' summary'
+            . ' --limit=5'
+            . ' --require-current-media-bag-signatures'
+            . ' 2>/dev/null';
+        $failingSignatureOutput = [];
+        $failingSignatureExitCode = 0;
+        exec($failingSignatureCommand, $failingSignatureOutput, $failingSignatureExitCode);
+
         $t->same(1, $failingParityExitCode);
         $t->same(1, $failingItemCountExitCode);
+        $t->same(1, $failingSignatureExitCode);
     },
 
     'compares emitted image media bag without counting unused manifest images' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile, $writeScopedMediaBagEpub): void {
@@ -284,6 +407,7 @@ HS);
             $t->same('open', $report['orderedRemainingGaps'][0]['status']);
             $t->contains('mediaBag: matches=0 (0.00%) mismatches=1', $text);
             $t->same(false, EpubMediaBagComparisonHarness::hasRequiredMediaBagParity($report, 1));
+            $t->same(false, EpubMediaBagComparisonHarness::hasRequiredCurrentMediaBagSignatures($report));
         } finally {
             $removeTree($root);
         }

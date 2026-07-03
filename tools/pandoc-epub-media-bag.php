@@ -17,13 +17,14 @@ $fixtureBaseArgumentWasProvided = false;
 $limit = 0;
 $requiredMediaBagParity = null;
 $requiredMediaBagItemCount = null;
+$requireCurrentMediaBagSignatures = false;
 $json = false;
 $summary = false;
 
 foreach (array_slice($argv, 1) as $argument) {
     if ($argument === '--help' || $argument === '-h') {
         fwrite(STDOUT, <<<'TXT'
-Usage: php tools/pandoc-epub-media-bag.php [--upstream-root=PATH|--checked-in-fixtures] [--fixture-base=PATH] [--limit=N] [--json] [--require-media-bag-parity=N] [--require-media-bag-item-count=N] [summary]
+Usage: php tools/pandoc-epub-media-bag.php [--upstream-root=PATH|--checked-in-fixtures] [--fixture-base=PATH] [--limit=N] [--json] [--require-media-bag-parity=N] [--require-media-bag-item-count=N] [--require-current-media-bag-signatures] [summary]
 
 Compares local PHP EPUB reader media-bag output with upstream Tests.Readers.EPUB
 expectations by normalized path, MIME type, and byte size when the upstream cache
@@ -35,6 +36,8 @@ With --require-media-bag-parity=N, exits 1 unless exactly N EPUB fixtures are
 compared, parsed, and matched by normalized media-bag tuples.
 With --require-media-bag-item-count=N, exits 1 unless both upstream expectations
 and local extraction report exactly N media-bag items.
+With --require-current-media-bag-signatures, exits 1 unless the checked-in
+current fixture snapshot has the exact per-fixture media-bag signatures.
 
 TXT);
         exit(0);
@@ -92,6 +95,11 @@ TXT);
         continue;
     }
 
+    if ($argument === '--require-current-media-bag-signatures') {
+        $requireCurrentMediaBagSignatures = true;
+        continue;
+    }
+
     fwrite(STDERR, "Unknown argument: {$argument}\n");
     exit(2);
 }
@@ -101,7 +109,10 @@ if ($useCheckedInFixtures && ($upstreamRootArgumentWasProvided || $fixtureBaseAr
     exit(2);
 }
 
-if ($useCheckedInFixtures) {
+if (
+    $useCheckedInFixtures
+    || ($requireCurrentMediaBagSignatures && !$upstreamRootArgumentWasProvided && !$fixtureBaseArgumentWasProvided)
+) {
     $upstreamRoot = $checkedInFixtureRoot;
     $fixtureBase = $checkedInFixtureRoot;
 }
@@ -141,6 +152,7 @@ if ($summary) {
         'mediaBagMismatchCount',
         'mediaBagMatchPercent',
         'mediaBagParityStatus',
+        'mediaBagSignatures',
         'orderedRemainingGaps',
     ]));
 }
@@ -169,6 +181,17 @@ if (
     fwrite(
         STDERR,
         "pandoc-epub-media-bag: expected/actual media-bag item count did not match {$requiredMediaBagItemCount}\n"
+    );
+    exit(1);
+}
+
+if (
+    $requireCurrentMediaBagSignatures
+    && !EpubMediaBagComparisonHarness::hasRequiredCurrentMediaBagSignatures($report)
+) {
+    fwrite(
+        STDERR,
+        "pandoc-epub-media-bag: checked-in current EPUB media-bag signatures did not match the expected snapshot\n"
     );
     exit(1);
 }
