@@ -17,7 +17,7 @@ final class DelimitedTextUpstreamReaderEvidence
     public const EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT = 2;
     public const EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT = 0;
     public const EXPECTED_STATIC_CSV_ADJACENT_RST_FIXTURE_COUNT = 2;
-    public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 12;
+    public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 13;
     public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 9;
 
     private const CHECKED_IN_CURRENT_CSV_FIXTURES = [
@@ -206,6 +206,20 @@ final class DelimitedTextUpstreamReaderEvidence
             'sha256' => '43066e049b19a9f9f6a210b3e25981d07a01915ba784dd86d8427fbf109408c9',
             'bytes' => 1395,
         ],
+        'single-quote-dialect.csv' => [
+            'role' => 'generated-csv-native-parity-input-fixture',
+            'sample' => 'single-quote-dialect',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/single-quote-dialect.csv',
+            'sha256' => 'd59a5e83a298313470b808ba0381a51e3eacb0d50f317719717999e3009c1c2d',
+            'bytes' => 104,
+        ],
+        'single-quote-dialect.native' => [
+            'role' => 'generated-csv-native-parity-expected-native-output',
+            'sample' => 'single-quote-dialect',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/single-quote-dialect.native',
+            'sha256' => '9c05ec1d28eeda63e95a2f99d84cd0ce4bd6413c6b786efb5c973f86dcdb79b6',
+            'bytes' => 1646,
+        ],
     ];
 
     private const CHECKED_IN_GENERATED_TSV_NATIVE_FIXTURES = [
@@ -393,6 +407,13 @@ final class DelimitedTextUpstreamReaderEvidence
             'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/no-header-edge-delimiters.native',
             'options' => [
                 'header' => false,
+            ],
+        ],
+        'single-quote-dialect' => [
+            'inputPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/single-quote-dialect.csv',
+            'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/single-quote-dialect.native',
+            'options' => [
+                'quote' => '\'',
             ],
         ],
     ];
