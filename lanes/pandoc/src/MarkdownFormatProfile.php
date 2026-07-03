@@ -51,11 +51,18 @@ final class MarkdownFormatProfile
     /** @var array<string, string> */
     private const EXTENSION_ALIASES = [
         'bracketed_span' => 'bracketed_spans',
+        'auto_identifier' => 'auto_identifiers',
+        'auto_id' => 'auto_identifiers',
+        'auto_ids' => 'auto_identifiers',
         'emoji_shortcode' => 'emoji_shortcodes',
         'header_attrs' => 'header_attributes',
         'header_attribute' => 'header_attributes',
         'inline_attribute' => 'inline_attributes',
         'markdown_attribute' => 'inline_attributes',
+        'native_span' => 'native_spans',
+        'native_div' => 'native_divs',
+        'pandoc_title' => 'pandoc_title_block',
+        'title_block' => 'pandoc_title_block',
         'line_block' => 'line_blocks',
         'raw_latex' => 'raw_tex',
         'latex_macros' => 'raw_tex',
@@ -69,6 +76,8 @@ final class MarkdownFormatProfile
         'wikilink' => 'wikilinks',
         'wiki_link' => 'wikilinks',
         'wiki_links' => 'wikilinks',
+        'yaml_metadata' => 'yaml_metadata_block',
+        'yaml_metadata_blocks' => 'yaml_metadata_block',
     ];
 
     /** @var array<string, array{yamlMetadata:bool, titleBlock:bool, rawAttribute:bool, rawHtml:bool, rawTex:bool, rawMarkdown:bool}> */
@@ -177,7 +186,7 @@ final class MarkdownFormatProfile
             return [];
         }
 
-        if (preg_match_all('/([+-])([A-Za-z0-9_]+)/', $suffix, $matches, PREG_SET_ORDER) === false) {
+        if (preg_match_all('/([+-])([A-Za-z0-9_-]+)/', $suffix, $matches, PREG_SET_ORDER) === false) {
             return [];
         }
 

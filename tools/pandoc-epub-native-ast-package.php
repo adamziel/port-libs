@@ -12,6 +12,7 @@ $limit = 0;
 $requiredPackageParity = null;
 $requiredNativeReadiness = null;
 $requiredMappedParity = null;
+$requireFixtureIdentity = false;
 $json = false;
 $summary = false;
 
@@ -29,6 +30,7 @@ Gates:
   --require-package-parity=N       Require exactly N EPUB packages parsed by package and reader paths.
   --require-native-readiness=N     Require exactly N EPUB/native pairs parsed by both readers.
   --require-mapped-parity=N        Require exactly N EPUB/native pairs with normalized AST equality.
+  --require-fixture-identity       Require the checked-in current EPUB fixture snapshot hashes and byte counts.
 
 TXT);
         exit(0);
@@ -69,6 +71,11 @@ TXT);
         continue;
     }
 
+    if ($argument === '--require-fixture-identity') {
+        $requireFixtureIdentity = true;
+        continue;
+    }
+
     fwrite(STDERR, "Unknown argument: {$argument}\n");
     exit(2);
 }
@@ -90,6 +97,7 @@ if ($summary) {
         'verdict',
         'evidenceKind',
         'upstreamEpubDirectory',
+        'fixtureIdentity',
         'totalEpubCount',
         'comparedEpubCount',
         'packageParsedCount',
@@ -117,6 +125,14 @@ if ($json) {
     fwrite(STDOUT, json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n");
 } else {
     fwrite(STDOUT, $harness->formatReport($report));
+}
+
+if (
+    $requireFixtureIdentity
+    && !EpubNativeAstPackageComparisonHarness::hasRequiredFixtureIdentity($report)
+) {
+    fwrite(STDERR, "pandoc-epub-native-ast-package: checked-in current EPUB fixture identity did not match the expected snapshot\n");
+    exit(1);
 }
 
 if (

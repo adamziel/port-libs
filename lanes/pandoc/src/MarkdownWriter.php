@@ -75,6 +75,10 @@ final class MarkdownWriter
         }
 
         $blocks = [];
+        $yamlMetadata = $this->renderYamlMetadataBlock($document);
+        if ($yamlMetadata !== '') {
+            $this->appendBlockEntry($blocks, $yamlMetadata);
+        }
         $titleBlock = $this->renderPlainTemplateTitleBlock($document);
         if ($titleBlock !== '') {
             $this->appendBlockEntry($blocks, $titleBlock);
@@ -241,6 +245,81 @@ final class MarkdownWriter
             implode('; ', $authors),
             $date,
         ]);
+    }
+
+    private function renderYamlMetadataBlock(AstNode $document): string
+    {
+        if (!$this->yamlMetadataEnabled()) {
+            return '';
+        }
+
+        $meta = $document->attr('meta', []);
+        if (!is_array($meta) || $meta === []) {
+            return '';
+        }
+
+        $lines = [];
+        foreach ($meta as $key => $value) {
+            if (in_array((string) $key, ['titleInlines', 'authorInlines', 'dateInlines', 'authors'], true)) {
+                continue;
+            }
+            array_push($lines, ...$this->renderYamlMetadataEntry((string) $key, $value, 0));
+        }
+
+        return $lines === [] ? '' : "---\n" . implode("\n", $lines) . "\n...";
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderYamlMetadataEntry(string $key, mixed $value, int $indent): array
+    {
+        $prefix = str_repeat(' ', $indent) . $key . ':';
+        if (is_array($value) && !array_is_list($value)) {
+            if ($value === []) {
+                return [$prefix . ' {}'];
+            }
+            $lines = [$prefix];
+            foreach ($value as $childKey => $childValue) {
+                array_push($lines, ...$this->renderYamlMetadataEntry((string) $childKey, $childValue, $indent + 2));
+            }
+
+            return $lines;
+        }
+
+        if (is_array($value) && array_is_list($value)) {
+            if ($value === []) {
+                return [$prefix . ' []'];
+            }
+            $lines = [$prefix];
+            foreach ($value as $item) {
+                $lines[] = str_repeat(' ', $indent + 2) . '- ' . $this->yamlMetadataScalar($item);
+            }
+
+            return $lines;
+        }
+
+        return [$prefix . ' ' . $this->yamlMetadataScalar($value)];
+    }
+
+    private function yamlMetadataScalar(mixed $value): string
+    {
+        if (is_bool($value)) {
+            return $value ? 'true' : 'false';
+        }
+        if (is_int($value) || is_float($value)) {
+            return (string) $value;
+        }
+        if ($value === null) {
+            return '""';
+        }
+
+        $text = (string) $value;
+        if ($text === '' || preg_match('/[\s:#\[\]{},&*?|<>=!%@`"\']/u', $text) === 1 || str_starts_with($text, '-')) {
+            return '"' . str_replace(['\\', '"'], ['\\\\', '\"'], $text) . '"';
+        }
+
+        return $text;
     }
 
     private function renderPlainTemplateBodyOverride(AstNode $document): ?string
@@ -9013,7 +9092,33 @@ final class MarkdownWriter
 
     private function rawTexEnabled(): bool
     {
-        return MarkdownFormatProfile::rawTexEnabled($this->options, true);
+        if (array_key_exists('rawTex', $this->options)) {
+            return MarkdownFormatProfile::rawTexEnabled($this->options, true);
+        }
+
+        $override = $this->markdownExtensionOverride('raw_tex');
+        if ($override !== null) {
+            return $override;
+        }
+
+        $format = $this->markdownFormatWithExtensionOption();
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+        if (in_array($canonical, ['markdown_mmd', 'markdown_phpextra', 'markdown_strict'], true)) {
+            return true;
+        }
+
+        $options = $this->options;
+        $options['format'] = $format;
+
+        return MarkdownFormatProfile::rawTexEnabled($options, true);
+    }
+
+    private function yamlMetadataEnabled(): bool
+    {
+        $options = $this->options;
+        $options['format'] = $this->markdownFormatWithExtensionOption();
+
+        return MarkdownFormatProfile::yamlMetadataEnabled($options, true);
     }
 
     private function opmlNoteMarkdownEnabled(): bool

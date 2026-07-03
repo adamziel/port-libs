@@ -49,12 +49,10 @@ return [
         $t->same(1, $packet['multilineFieldCount'] ?? null);
         $t->same(0, $packet['partialRecordCount'] ?? null);
         $t->same(1, $packet['diagnosticCount'] ?? null);
-        $t->same(4, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(2, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same([
             'test/command/csv.md',
             'test/command/01.csv',
-            'test/command/3533-rst-csv-tables.csv',
-            'test/command/3533-rst-csv-tables.md',
         ], $packet['upstreamEvidence']['fixtures'] ?? null);
         $t->same('Legacy, "quoted" title', $table->children[1]->children[0]->children[1]->attr('text'));
         $t->same("Two\nline title", $table->children[1]->children[1]->children[1]->attr('text'));
@@ -78,7 +76,7 @@ return [
         $packet = $table->attr('delimitedText');
         $native = PandocConverter::write($document, 'native');
 
-        $t->same(4, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(2, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(['Fruit', 'Price', 'Quantity'], $table->attr('columnNames'));
         $t->same('Apple', $table->children[1]->children[0]->children[0]->attr('text'));
         $t->same('25 cents', $table->children[1]->children[0]->children[1]->attr('text'));
@@ -168,6 +166,67 @@ return [
         $t->same('Data1', $semicolonTable->children[1]->children[0]->children[0]->attr('text'));
         $t->same("- data1\n\n- data2", $semicolonCell->attr('text'));
         $t->same(['text', 'linebreak', 'linebreak', 'text'], array_map(static fn (AstNode $node): string => $node->type, $semicolonCell->children[0]->children));
+    },
+    'records csv and tsv upstream evidence boundaries separately' => static function (TestRunner $t): void {
+        $reader = new DelimitedTextReader();
+        $csvPacket = $reader->readCsv("Fruit,Price\nApple,25 cents\n")->children[0]->attr('delimitedText');
+        $tsvPacket = $reader->readTsv("Fruit\tPrice\nApple\t25 cents\n")->children[0]->attr('delimitedText');
+        $csvEvidence = $csvPacket['upstreamEvidence'] ?? [];
+        $tsvEvidence = $tsvPacket['upstreamEvidence'] ?? [];
+
+        $t->same('csv', $csvEvidence['reader'] ?? null);
+        $t->same(2, $csvEvidence['denominator'] ?? null);
+        $t->same('direct-reader-fixtures', $csvEvidence['denominatorScope'] ?? null);
+        $t->same('csv', $csvEvidence['selectedDirectFixtureFormat'] ?? null);
+        $t->same(2, $csvEvidence['directFixtureDenominator'] ?? null);
+        $t->same(2, $csvEvidence['directFixtureCount'] ?? null);
+        $t->same([
+            'test/command/csv.md',
+            'test/command/01.csv',
+        ], $csvEvidence['directFixtures'] ?? null);
+        $t->same($csvEvidence['directFixtures'] ?? null, $csvEvidence['fixtures'] ?? null);
+        $t->same(2, $csvEvidence['csvDirectFixtureDenominator'] ?? null);
+        $t->same(0, $csvEvidence['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(5, $csvEvidence['parserOptionFixtureCount'] ?? null);
+        $t->same([
+            'comma-delimiter-no-header',
+            'space-delimiter-single-quote',
+            'backslash-escaped-quote',
+            'keep-space-after-delimiter',
+            'semicolon-delimiter-multiline-cell',
+        ], $csvEvidence['parserOptionFixtures'] ?? null);
+        $t->same(2, $csvEvidence['integrationFixtureCount'] ?? null);
+        $t->same([
+            'test/command/3533-rst-csv-tables.csv',
+            'test/command/3533-rst-csv-tables.md',
+        ], $csvEvidence['integrationFixtures'] ?? null);
+        $t->true(in_array('direct-csv-command-reader', $csvEvidence['closedGaps'] ?? [], true));
+        $t->true(in_array('rst-csv-table-integration-requires-rst-reader', $csvEvidence['openGaps'] ?? [], true));
+        $t->same('not-run', $csvEvidence['runnerEvidence']['status'] ?? null);
+        $t->same(false, $csvEvidence['runnerEvidence']['executed'] ?? null);
+        $t->same(null, $csvEvidence['runnerEvidence']['command'] ?? null);
+        $t->same('upstream-haskell-runner', $csvEvidence['notRunEvidence'][0]['scope'] ?? null);
+        $t->true(in_array('upstream-runner-not-run', $csvEvidence['openGaps'] ?? [], true));
+
+        $t->same('tsv', $tsvEvidence['reader'] ?? null);
+        $t->same(0, $tsvEvidence['denominator'] ?? null);
+        $t->same('direct-reader-fixtures', $tsvEvidence['denominatorScope'] ?? null);
+        $t->same([], $tsvEvidence['fixtures'] ?? null);
+        $t->same('tsv', $tsvEvidence['selectedDirectFixtureFormat'] ?? null);
+        $t->same(0, $tsvEvidence['directFixtureDenominator'] ?? null);
+        $t->same(0, $tsvEvidence['directFixtureCount'] ?? null);
+        $t->same([], $tsvEvidence['directFixtures'] ?? null);
+        $t->same(2, $tsvEvidence['csvDirectFixtureDenominator'] ?? null);
+        $t->same(0, $tsvEvidence['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(0, $tsvEvidence['parserOptionFixtureCount'] ?? null);
+        $t->true(in_array('tsv-tab-delimiter-reader', $tsvEvidence['closedGaps'] ?? [], true));
+        $t->true(in_array('no-dedicated-upstream-tsv-command-fixture-in-pinned-corpus', $tsvEvidence['openGaps'] ?? [], true));
+        $t->true(in_array('upstream-runner-not-run', $tsvEvidence['openGaps'] ?? [], true));
+        $t->same('not-run', $tsvEvidence['runnerEvidence']['status'] ?? null);
+        $t->same(false, $tsvEvidence['runnerEvidence']['executed'] ?? null);
+        $t->same(null, $tsvEvidence['runnerEvidence']['resultArtifact'] ?? null);
+        $t->same('upstream-haskell-runner', $tsvEvidence['notRunEvidence'][0]['scope'] ?? null);
+        $t->true(in_array('TSV is an upstream input token but the pinned command corpus evidence is CSV-only.', $tsvEvidence['claimBoundaries'] ?? [], true));
     },
     'maps tsv input into a native table ast and pads ragged rows' => static function (TestRunner $t): void {
         $document = (new DelimitedTextReader())->readTsv(implode("\n", [

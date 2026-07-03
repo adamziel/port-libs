@@ -115,6 +115,32 @@ return [
             $removeTree($root);
         }
     },
+    'reports checked-in current upstream pptx static evidence gate' => static function (TestRunner $t): void {
+        $repoRoot = dirname(__DIR__, 3);
+        $report = (new PptxUpstreamReaderEvidence($repoRoot, 'missing-upstream-root-for-static-gate'))->report();
+        $text = PptxUpstreamReaderEvidence::formatTextReport($report);
+        $static = $report['staticCurrentEvidence'];
+        $pair = $static['checkedInFixturePairs'][0];
+
+        $t->same(PptxUpstreamReaderEvidence::STATUS_SKIPPED_MISSING_SOURCE, $report['status']);
+        $t->same('valid-checked-in-current-pptx-reader-evidence', $static['validation']['status']);
+        $t->same([], $static['validation']['issues']);
+        $t->same(1, $static['readerDenominator']['expectedCompareCount']);
+        $t->same('text extraction', $static['readerDenominator']['expectedReaderCases'][0]['name']);
+        $t->same('pptx-reader/basic.pptx', $static['readerDenominator']['expectedReaderCases'][0]['pptx']);
+        $t->same('pptx-reader/basic.native', $static['readerDenominator']['expectedReaderCases'][0]['native']);
+        $t->same(1, $static['checkedInFixturePairCount']);
+        $t->same('basic', $pair['stem']);
+        $t->same('pptx-reader/basic.pptx|pptx-reader/basic.native', $pair['pairKey']);
+        $t->same('e48fd9c2f8369d1792197e301d5fea676bf6e51097a24af7d85831a6f96dc2dc', $pair['checkedInPptx']['sha256']);
+        $t->same('42804b9b1954094a4b0ff0be20084e2e6d9bc0a84272f34f7f219f82505da6b4', $pair['checkedInNative']['sha256']);
+        $t->same(111674, $pair['checkedInPptx']['bytes']);
+        $t->same(3966, $pair['checkedInNative']['bytes']);
+        $t->same(false, PptxUpstreamReaderEvidence::hasNoValidationIssues($report));
+        $t->same(true, PptxUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($report));
+        $t->true(in_array('that upstream Haskell/Cabal/Tasty tests were executed', $static['claimBoundaries']['doesNotAssert'], true));
+        $t->contains('Static current evidence: valid-checked-in-current-pptx-reader-evidence comparisons=1 checkedInPairs=1', $text);
+    },
     'reports invalid pptx reader evidence for missing and unreferenced fixtures' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile): void {
         $root = $makeTempDir();
         try {
@@ -139,6 +165,46 @@ HS);
             $t->same(false, PptxUpstreamReaderEvidence::hasNoValidationIssues($report));
         } finally {
             $removeTree($root);
+        }
+    },
+    'cli gates checked-in current pptx static evidence without upstream runner claim' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $repoRoot = dirname(__DIR__, 3);
+        $command = escapeshellarg(PHP_BINARY)
+            . ' '
+            . escapeshellarg($repoRoot . '/tools/pandoc-pptx-reader-evidence.php')
+            . ' --repo-root=' . escapeshellarg($repoRoot)
+            . ' --upstream-root=' . escapeshellarg('missing-upstream-root-for-static-gate')
+            . ' --json'
+            . ' --require-static-current-evidence';
+        $output = [];
+        $exitCode = 0;
+        exec($command, $output, $exitCode);
+        $decoded = json_decode(implode("\n", $output), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same(0, $exitCode);
+        $t->same(PptxUpstreamReaderEvidence::STATUS_SKIPPED_MISSING_SOURCE, $decoded['status']);
+        $t->same('not-evaluated-missing-upstream-root', $decoded['validation']['status']);
+        $t->same('valid-checked-in-current-pptx-reader-evidence', $decoded['staticCurrentEvidence']['validation']['status']);
+        $t->same(true, PptxUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($decoded));
+        $t->same(false, PptxUpstreamReaderEvidence::hasNoValidationIssues($decoded));
+
+        $missingRoot = $makeTempDir();
+        try {
+            $failingCommand = escapeshellarg(PHP_BINARY)
+                . ' '
+                . escapeshellarg($repoRoot . '/tools/pandoc-pptx-reader-evidence.php')
+                . ' --repo-root=' . escapeshellarg($missingRoot)
+                . ' --upstream-root=' . escapeshellarg('missing-upstream-root-for-static-gate')
+                . ' --json'
+                . ' --require-static-current-evidence'
+                . ' 2>/dev/null';
+            $failingOutput = [];
+            $failingExitCode = 0;
+            exec($failingCommand, $failingOutput, $failingExitCode);
+
+            $t->same(1, $failingExitCode);
+        } finally {
+            $removeTree($missingRoot);
         }
     },
     'cli gates pptx reader evidence counts and validation issues' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writePptxEvidenceTree): void {

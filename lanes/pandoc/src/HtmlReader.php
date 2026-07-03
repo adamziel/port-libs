@@ -23,6 +23,9 @@ final class HtmlReader
     public function read(string $bytes): AstNode
     {
         $document = $this->reader->read($bytes);
+        [$children, $consumedFootnoteContainerCount] = self::containsAstNodeType($document->children, 'note')
+            ? self::stripConsumedHtmlFootnoteContainers($document->children)
+            : [$document->children, 0];
         $attrs = $document->attrs;
         $meta = $attrs['meta'] ?? [];
         if (!is_array($meta)) {
@@ -39,9 +42,128 @@ final class HtmlReader
             'sourceBytes' => strlen($bytes),
             'sourceSha256' => hash('sha256', $bytes),
             'payloadExposurePolicy' => 'html-dom-text-and-structural-metadata-only',
+            'htmlFootnoteContainerPolicy' => 'doc-endnotes-containers-consumed-after-note-resolution',
+            'htmlConsumedFootnoteContainerCount' => $consumedFootnoteContainerCount,
         ], $this->microdataMetadata($bytes));
 
-        return new AstNode('document', $attrs, $document->children);
+        return new AstNode('document', $attrs, $children);
+    }
+
+    /**
+     * @param list<AstNode> $children
+     */
+    private static function containsAstNodeType(array $children, string $type): bool
+    {
+        foreach ($children as $child) {
+            if ($child->type === $type || self::containsAstNodeType($child->children, $type)) {
+                return true;
+            }
+
+            foreach ($child->attrs as $value) {
+                if (self::attributeValueContainsAstNodeType($value, $type)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static function attributeValueContainsAstNodeType(mixed $value, string $type): bool
+    {
+        if ($value instanceof AstNode) {
+            return $value->type === $type
+                || self::containsAstNodeType($value->children, $type)
+                || self::attributeValueContainsAstNodeType($value->attrs, $type);
+        }
+
+        if (!is_array($value)) {
+            return false;
+        }
+
+        foreach ($value as $child) {
+            if (self::attributeValueContainsAstNodeType($child, $type)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<AstNode> $children
+     * @return array{0: list<AstNode>, 1: int}
+     */
+    private static function stripConsumedHtmlFootnoteContainers(array $children): array
+    {
+        $removed = 0;
+
+        return [self::stripConsumedHtmlFootnoteContainerChildren($children, $removed), $removed];
+    }
+
+    /**
+     * @param list<AstNode> $children
+     * @return list<AstNode>
+     */
+    private static function stripConsumedHtmlFootnoteContainerChildren(array $children, int &$removed): array
+    {
+        $stripped = [];
+        foreach ($children as $child) {
+            if (self::isConsumedHtmlFootnoteContainerNode($child)) {
+                $removed++;
+                continue;
+            }
+
+            $nestedRemovedBefore = $removed;
+            $nestedChildren = self::stripConsumedHtmlFootnoteContainerChildren($child->children, $removed);
+            if ($removed !== $nestedRemovedBefore) {
+                $child = new AstNode($child->type, $child->attrs, $nestedChildren);
+            }
+
+            $stripped[] = $child;
+        }
+
+        return $stripped;
+    }
+
+    private static function isConsumedHtmlFootnoteContainerNode(AstNode $node): bool
+    {
+        if ($node->type !== 'div') {
+            return false;
+        }
+
+        if (self::htmlNodeAttributeValue($node, 'role') === 'doc-endnotes') {
+            return true;
+        }
+
+        return in_array(self::htmlNodeSemanticType($node), ['footnotes', 'rearnotes'], true);
+    }
+
+    private static function htmlNodeSemanticType(AstNode $node): string
+    {
+        $type = self::htmlNodeAttributeValue($node, 'type');
+        if ($type !== '') {
+            return $type;
+        }
+
+        return self::htmlNodeAttributeValue($node, 'epub:type');
+    }
+
+    private static function htmlNodeAttributeValue(AstNode $node, string $name): string
+    {
+        foreach (['htmlAttributes', 'attributes'] as $attributeSet) {
+            $attributes = $node->attrs[$attributeSet] ?? [];
+            if (!is_array($attributes) || !array_key_exists($name, $attributes)) {
+                continue;
+            }
+
+            $value = $attributes[$name];
+            if (is_scalar($value)) {
+                return strtolower(trim((string) $value));
+            }
+        }
+
+        return '';
     }
 
     /**

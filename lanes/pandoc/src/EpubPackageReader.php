@@ -9629,9 +9629,27 @@ final class EpubPackageReader
     private function packagePathExists(string $root, string $relative): bool
     {
         $normalized = $this->normalizeRelativePath($relative);
-        $absolute = realpath($root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $normalized));
+        $directory = $root;
+        $segments = explode('/', $normalized);
+        $last = count($segments) - 1;
 
-        return $absolute !== false && str_starts_with($absolute, $root . DIRECTORY_SEPARATOR) && is_file($absolute);
+        foreach ($segments as $index => $segment) {
+            if ($segment === '' || !is_dir($directory)) {
+                return false;
+            }
+
+            $entries = scandir($directory);
+            if ($entries === false || !in_array($segment, $entries, true)) {
+                return false;
+            }
+
+            $directory .= DIRECTORY_SEPARATOR . $segment;
+            if ($index < $last && !is_dir($directory)) {
+                return false;
+            }
+        }
+
+        return is_file($directory);
     }
 
     private function caseInsensitivePackagePathMatch(string $root, string $relative): ?string

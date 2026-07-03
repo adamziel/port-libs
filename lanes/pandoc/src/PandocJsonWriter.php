@@ -71,6 +71,8 @@ final class PandocJsonWriter
         'targetNative',
     ];
 
+    private ?string $currentDocumentNativeFormat = null;
+
     public function write(AstNode $document): string
     {
         $packet = $this->toArray($document);
@@ -94,14 +96,22 @@ final class PandocJsonWriter
             throw new \InvalidArgumentException('Pandoc JSON writer expects a document node');
         }
 
-        $meta = $this->meta($document);
-        $metaProvenance = $this->metaConstructorProvenance($document);
+        $previousNativeFormat = $this->currentDocumentNativeFormat;
+        $nativeFormat = $document->attr('nativeFormat', null);
+        $this->currentDocumentNativeFormat = is_string($nativeFormat) ? $nativeFormat : null;
 
-        return [
-            'pandoc-api-version' => $this->apiVersion($document),
-            'meta' => $this->writeMetaMap($meta, $this->metaNativeValues($document), $metaProvenance),
-            'blocks' => $this->writeBlocks($document->children),
-        ];
+        try {
+            $meta = $this->meta($document);
+            $metaProvenance = $this->metaConstructorProvenance($document);
+
+            return [
+                'pandoc-api-version' => $this->apiVersion($document),
+                'meta' => $this->writeMetaMap($meta, $this->metaNativeValues($document), $metaProvenance),
+                'blocks' => $this->writeBlocks($document->children),
+            ];
+        } finally {
+            $this->currentDocumentNativeFormat = $previousNativeFormat;
+        }
     }
 
     /**
@@ -637,7 +647,11 @@ final class PandocJsonWriter
         $encoded = [];
         foreach ($blocks as $block) {
             $native = $this->nativePayload($block);
-            if ($native !== null && ($block->type === 'native_block' || $this->canReuseCurrentNativeBlockPayload($block, $native))) {
+            if (
+                $native !== null
+                && !$this->shouldRegenerateNativeTextRawPayload($native)
+                && ($block->type === 'native_block' || $this->canReuseCurrentNativeBlockPayload($block, $native))
+            ) {
                 $encoded[] = $native;
                 continue;
             }
@@ -1566,7 +1580,11 @@ final class PandocJsonWriter
             }
 
             $native = $this->nativePayload($node);
-            if ($native !== null && ($node->type === 'native_inline' || $this->canReuseCurrentNativeInlinePayload($node, $native))) {
+            if (
+                $native !== null
+                && !$this->shouldRegenerateNativeTextRawPayload($native)
+                && ($node->type === 'native_inline' || $this->canReuseCurrentNativeInlinePayload($node, $native))
+            ) {
                 $inlines[] = $native;
                 continue;
             }
@@ -1669,6 +1687,33 @@ final class PandocJsonWriter
         }
 
         return $native;
+    }
+
+    /**
+     * @param array<string, mixed> $native
+     */
+    private function shouldRegenerateNativeTextRawPayload(array $native): bool
+    {
+        return $this->currentDocumentNativeFormat === 'pandoc-native-text'
+            && $this->nativePayloadContainsRawConstructor($native);
+    }
+
+    /**
+     * @param array<string, mixed>|list<mixed> $native
+     */
+    private function nativePayloadContainsRawConstructor(array $native): bool
+    {
+        if (in_array($native['t'] ?? null, ['RawBlock', 'RawInline'], true)) {
+            return true;
+        }
+
+        foreach ($native as $value) {
+            if (is_array($value) && $this->nativePayloadContainsRawConstructor($value)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -2840,6 +2885,10 @@ final class PandocJsonWriter
     private function rawFormatPayload(AstNode $node): mixed
     {
         $format = $this->rawFormat($node);
+        if ($this->currentDocumentNativeFormat === 'pandoc-native-text') {
+            return $format;
+        }
+
         $native = $this->taggedNative($node->attr('formatNative'), 'Format');
         if ($native === null) {
             return $format;

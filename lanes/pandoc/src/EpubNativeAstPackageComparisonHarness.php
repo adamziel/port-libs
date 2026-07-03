@@ -8,7 +8,7 @@ final class EpubNativeAstPackageComparisonHarness
 {
     private const DEFAULT_MAX_EXAMPLES = 12;
     private const VERDICT = 'epub-native-ast-package-comparison-not-full-epub-parity';
-    private const CLAIM = 'Compares local PHP EPUB package parsing and reader output with upstream EPUB fixtures and same-basename .native goldens. Package parsing/reader acceptance and native AST equality are reported separately; no upstream Haskell runner, writer parity, or full EPUB feature parity is asserted.';
+    private const CLAIM = 'Compares local PHP EPUB package parsing and reader output with a supplied checked-in current EPUB fixture directory and same-basename .native goldens. Package parsing/reader acceptance, fixture identity, and native AST equality are reported separately; no upstream Haskell runner, writer parity, or full EPUB feature parity is asserted.';
 
     /** @var array<string, true> */
     private const IGNORED_ATTRS = [
@@ -29,6 +29,56 @@ final class EpubNativeAstPackageComparisonHarness
     ];
 
     /**
+     * @var array<string, array{sha256: string, bytes: int}>
+     */
+    private const CHECKED_IN_CURRENT_FIXTURE_IDENTITIES = [
+        'epub2_cover.epub' => [
+            'sha256' => '4af73a135aa632cbf0c00b2889a5fc1d39a59a77fa294fdeff5ede72ff6ffed1',
+            'bytes' => 11794,
+        ],
+        'epub2_no_cover.epub' => [
+            'sha256' => '8369dbe5cf315f1fe00f9dd1bf7c500cc663d7648edbf0d7b6a9b4d785fedf4e',
+            'bytes' => 3584,
+        ],
+        'epub2_picture.epub' => [
+            'sha256' => '6049dde9e1d0ebcd175a8c5b937984f349af996e293310eafbce09e4c7384495',
+            'bytes' => 11742,
+        ],
+        'features.epub' => [
+            'sha256' => '6bf9a102249d58b32f14b39dfbc966bdecadff68a3fb707cb3ca62334734358a',
+            'bytes' => 8970,
+        ],
+        'features.native' => [
+            'sha256' => 'c384a314081ecc860bb0f8a9ffb5273976ed56341e4f16e05dd448126e85c41f',
+            'bytes' => 48453,
+        ],
+        'formatting.epub' => [
+            'sha256' => '491fc57ec384449a23c4f2abdcfe91be9ab2a07f50f466fb8d80775b89bf3965',
+            'bytes' => 14022,
+        ],
+        'formatting.native' => [
+            'sha256' => '9041b6aa23827579a4db45074bd9b26077337defc26ec62ab3b57f676f4eeb21',
+            'bytes' => 172999,
+        ],
+        'img.epub' => [
+            'sha256' => 'f2c25e0e0612b7ac33a8d6a1c9719a86e7d2a0290472fc7d8b5068de781a822f',
+            'bytes' => 20478,
+        ],
+        'img_no_cover.epub' => [
+            'sha256' => '3063f5e9b9610df1ddcc682ce49c293bcf681f1958700a5b6c3eda344383cf2a',
+            'bytes' => 10602,
+        ],
+        'wasteland.epub' => [
+            'sha256' => '151ec5dbca33e39a4e3f6894e92fa5a101290bdeaaa792e0700595971456a278',
+            'bytes' => 25840,
+        ],
+        'wasteland.native' => [
+            'sha256' => '0a268af28518f063604659adb2ff27b123c771f8312b60fb40445bb2c551bbac',
+            'bytes' => 150477,
+        ],
+    ];
+
+    /**
      * @param array{limit?: int, maxExamples?: int} $options
      * @return array<string, mixed>
      */
@@ -41,6 +91,7 @@ final class EpubNativeAstPackageComparisonHarness
             return $this->skippedReport($epubDirectory, 'upstream-cache-missing');
         }
 
+        $fixtureIdentity = $this->fixtureIdentity($epubDirectory);
         $epubFiles = $this->filesByBasename($epubDirectory, 'epub');
         $nativeFiles = $this->filesByBasename($epubDirectory, 'native');
         $epubNames = array_keys($epubFiles);
@@ -173,6 +224,7 @@ final class EpubNativeAstPackageComparisonHarness
             'claim' => self::CLAIM,
             'evidenceKind' => 'epub-native-ast-package-comparison',
             'upstreamEpubDirectory' => $epubDirectory,
+            'fixtureIdentity' => $fixtureIdentity,
             'normalizationPolicy' => self::normalizationPolicy(),
             'totalEpubCount' => $totalEpubCount,
             'comparedEpubCount' => $comparedEpubCount,
@@ -256,6 +308,16 @@ final class EpubNativeAstPackageComparisonHarness
             (int) ($report['normalizedAstMismatchCount'] ?? 0),
             (string) ($report['astParityStatus'] ?? 'unknown')
         );
+        $fixtureIdentity = is_array($report['fixtureIdentity'] ?? null) ? $report['fixtureIdentity'] : [];
+        $fixtureValidation = is_array($fixtureIdentity['validation'] ?? null) ? $fixtureIdentity['validation'] : [];
+        if ($fixtureIdentity !== []) {
+            $lines[] = sprintf(
+                'fixtureIdentity: status=%s expected=%d observed=%d',
+                (string) ($fixtureValidation['status'] ?? 'unknown'),
+                (int) ($fixtureIdentity['expectedFileCount'] ?? 0),
+                (int) ($fixtureIdentity['observedFileCount'] ?? 0)
+            );
+        }
 
         $mismatches = $report['mismatchComparisons'] ?? [];
         if (is_array($mismatches) && $mismatches !== []) {
@@ -350,6 +412,22 @@ final class EpubNativeAstPackageComparisonHarness
     }
 
     /**
+     * @param array<string, mixed> $report
+     */
+    public static function hasRequiredFixtureIdentity(array $report): bool
+    {
+        $identity = is_array($report['fixtureIdentity'] ?? null) ? $report['fixtureIdentity'] : [];
+        $validation = is_array($identity['validation'] ?? null) ? $identity['validation'] : [];
+
+        return ($report['skipped'] ?? false) === false
+            && ($report['status'] ?? null) === 'completed'
+            && (int) ($identity['expectedFileCount'] ?? -1) === count(self::CHECKED_IN_CURRENT_FIXTURE_IDENTITIES)
+            && (int) ($identity['observedFileCount'] ?? -1) === count(self::CHECKED_IN_CURRENT_FIXTURE_IDENTITIES)
+            && ($validation['status'] ?? null) === 'valid-checked-in-current-epub-fixture-identity'
+            && ($validation['issues'] ?? null) === [];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function skippedReport(string $epubDirectory, string $reason): array
@@ -364,6 +442,7 @@ final class EpubNativeAstPackageComparisonHarness
             'claim' => self::CLAIM,
             'evidenceKind' => 'epub-native-ast-package-comparison',
             'upstreamEpubDirectory' => $epubDirectory,
+            'fixtureIdentity' => self::notEvaluatedFixtureIdentity(),
             'normalizationPolicy' => self::normalizationPolicy(),
             'totalEpubCount' => 0,
             'comparedEpubCount' => 0,
@@ -432,6 +511,106 @@ final class EpubNativeAstPackageComparisonHarness
         ksort($files, SORT_STRING);
 
         return $files;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function fixtureIdentity(string $directory): array
+    {
+        $observedFiles = [];
+        foreach (['epub', 'native'] as $extension) {
+            foreach (glob(rtrim($directory, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . '*.' . $extension) ?: [] as $path) {
+                $observedFiles[basename($path)] = $path;
+            }
+        }
+        ksort($observedFiles, SORT_STRING);
+
+        $files = [];
+        $missingFiles = [];
+        $changedFiles = [];
+        foreach (self::CHECKED_IN_CURRENT_FIXTURE_IDENTITIES as $relativePath => $expected) {
+            $path = rtrim($directory, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $relativePath;
+            $present = is_file($path);
+            $actualSha256 = $present ? hash_file('sha256', $path) : false;
+            $size = $present ? filesize($path) : false;
+            $actualBytes = is_int($size) ? $size : null;
+            $sha256 = is_string($actualSha256) ? $actualSha256 : null;
+            $matches = $present
+                && $sha256 === $expected['sha256']
+                && $actualBytes === $expected['bytes'];
+
+            if (!$present) {
+                $missingFiles[] = $relativePath;
+            } elseif (!$matches) {
+                $changedFiles[] = $relativePath;
+            }
+
+            $files[] = [
+                'path' => $relativePath,
+                'present' => $present,
+                'sha256' => $sha256,
+                'expectedSha256' => $expected['sha256'],
+                'bytes' => $actualBytes,
+                'expectedBytes' => $expected['bytes'],
+                'matchesExpected' => $matches,
+            ];
+        }
+
+        $unexpectedFiles = array_values(array_diff(array_keys($observedFiles), array_keys(self::CHECKED_IN_CURRENT_FIXTURE_IDENTITIES)));
+        sort($unexpectedFiles, SORT_STRING);
+
+        $issues = [];
+        if (count($observedFiles) !== count(self::CHECKED_IN_CURRENT_FIXTURE_IDENTITIES)) {
+            $issues[] = 'fixture-file-count-does-not-match-expected-snapshot';
+        }
+        if ($missingFiles !== []) {
+            $issues[] = 'missing-expected-fixture-files';
+        }
+        if ($unexpectedFiles !== []) {
+            $issues[] = 'unexpected-fixture-files';
+        }
+        if ($changedFiles !== []) {
+            $issues[] = 'fixture-hash-or-byte-count-mismatch';
+        }
+
+        return [
+            'kind' => 'static-checked-in-current-epub-fixture-identity',
+            'expectedFileCount' => count(self::CHECKED_IN_CURRENT_FIXTURE_IDENTITIES),
+            'observedFileCount' => count($observedFiles),
+            'expectedFiles' => array_keys(self::CHECKED_IN_CURRENT_FIXTURE_IDENTITIES),
+            'observedFiles' => array_keys($observedFiles),
+            'files' => $files,
+            'validation' => [
+                'status' => $issues === [] ? 'valid-checked-in-current-epub-fixture-identity' : 'invalid-checked-in-current-epub-fixture-identity',
+                'issues' => $issues,
+                'missingFiles' => $missingFiles,
+                'unexpectedFiles' => $unexpectedFiles,
+                'changedFiles' => $changedFiles,
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function notEvaluatedFixtureIdentity(): array
+    {
+        return [
+            'kind' => 'static-checked-in-current-epub-fixture-identity',
+            'expectedFileCount' => count(self::CHECKED_IN_CURRENT_FIXTURE_IDENTITIES),
+            'observedFileCount' => 0,
+            'expectedFiles' => array_keys(self::CHECKED_IN_CURRENT_FIXTURE_IDENTITIES),
+            'observedFiles' => [],
+            'files' => [],
+            'validation' => [
+                'status' => 'not-evaluated-source-directory-unavailable',
+                'issues' => ['source-directory-unavailable'],
+                'missingFiles' => [],
+                'unexpectedFiles' => [],
+                'changedFiles' => [],
+            ],
+        ];
     }
 
     /**

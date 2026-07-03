@@ -3677,7 +3677,7 @@ final class WordPressBlockWriter
         }
         foreach ($classes as $class) {
             if ($this->isHtmlSpanLikeElement($class)) {
-                $wrappers[] = ['tag' => $class, 'classes' => []];
+                $wrappers[] = ['tag' => $class, 'classes' => $class === 'mark' ? ['mark'] : []];
             }
         }
 
@@ -4098,7 +4098,7 @@ final class WordPressBlockWriter
 
         return str_starts_with($name, 'data-')
             || str_starts_with($name, 'aria-')
-            || in_array($name, ['cite', 'class', 'dir', 'id', 'lang', 'title'], true);
+            || in_array($name, ['cite', 'class', 'dir', 'id', 'lang', 'title', 'translate', 'xml:lang'], true);
     }
 
     private function isAllowedBlockHtmlAttr(string $name): bool
@@ -4109,7 +4109,7 @@ final class WordPressBlockWriter
 
         return str_starts_with($name, 'data-')
             || str_starts_with($name, 'aria-')
-            || in_array($name, ['class', 'dir', 'id', 'lang', 'role', 'title'], true);
+            || in_array($name, ['class', 'dir', 'id', 'lang', 'role', 'title', 'translate', 'xml:lang'], true);
     }
 
     private function isAllowedImageHtmlAttr(string $name): bool

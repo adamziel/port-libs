@@ -6,6 +6,15 @@ use PortLibs\Pandoc\HtmlReader;
 
 $tests = [];
 
+$fixture = static function (string $name): string {
+    $bytes = file_get_contents(__DIR__ . '/../fixtures/' . $name);
+    if ($bytes === false) {
+        throw new RuntimeException("Unable to read fixture {$name}");
+    }
+
+    return $bytes;
+};
+
 $tests['extracts html reader microdata item metadata with itemref and nested item scopes'] =
     static function (TestRunner $t): void {
         $html = '<!doctype html><html><head><title>Microdata Dispatch</title></head><body>'
@@ -89,6 +98,65 @@ $tests['extracts html reader microdata item metadata with itemref and nested ite
         $t->same('Nested unrelated', $commentItem['properties'][0]['value']);
     };
 
+$tests['consumes upstream html doc-endnotes container after resolving doc-noteref note'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-doc-noteref-footnotes.html'));
+        $meta = $document->attr('meta');
+        $paragraph = $document->children[0];
+        $note = $paragraph->children[1];
+        $noteParagraph = $note->children[0];
+
+        $t->same('doc-endnotes-containers-consumed-after-note-resolution', $meta['htmlFootnoteContainerPolicy']);
+        $t->same(1, $meta['htmlConsumedFootnoteContainerCount']);
+        $t->same(['paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same(['text', 'note', 'text'], array_map(static fn ($node): string => $node->type, $paragraph->children));
+        $t->same(['paragraph'], array_map(static fn ($node): string => $node->type, $note->children));
+        $t->same('Editor note with source context.', $noteParagraph->attr('text'));
+        $t->same(['text', 'strong', 'text'], array_map(static fn ($node): string => $node->type, $noteParagraph->children));
+        $t->same('source context', $noteParagraph->children[1]->children[0]->attr('text'));
+    };
+
+$tests['resolves upstream html doc-noteref notes in table placements and consumes endnotes'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-doc-noteref-table-placement.html'));
+        $meta = $document->attr('meta');
+        $firstParagraphNote = $document->children[1]->children[1];
+        $table = $document->children[2];
+        $captionInlines = $table->attr('captionInlines');
+        $headCell = $table->children[0]->children[0]->children[0];
+        $bodyCell = $table->children[1]->children[0]->children[0];
+        $lastParagraphNote = $document->children[4]->children[1];
+
+        $t->same(1, $meta['htmlConsumedFootnoteContainerCount']);
+        $t->same(
+            ['heading', 'paragraph', 'table', 'heading', 'paragraph'],
+            array_map(static fn ($node): string => $node->type, $document->children)
+        );
+        $t->same('doc footnote', $firstParagraphNote->children[0]->attr('text'));
+        $t->same(['text', 'note'], array_map(static fn ($node): string => $node->type, $captionInlines));
+        $t->same('caption footnote', $captionInlines[1]->children[0]->attr('text'));
+        $t->same(['text', 'note'], array_map(static fn ($node): string => $node->type, $headCell->children));
+        $t->same('header footnote', $headCell->children[1]->children[0]->attr('text'));
+        $t->same(['text', 'note'], array_map(static fn ($node): string => $node->type, $bodyCell->children));
+        $t->same('table cell footnote', $bodyCell->children[1]->children[0]->attr('text'));
+        $t->same('doc footnote', $lastParagraphNote->children[0]->attr('text'));
+    };
+
+$tests['preserves html doc-endnotes container when no noteref was resolved'] =
+    static function (TestRunner $t): void {
+        $document = (new HtmlReader())->read(
+            '<section role="doc-endnotes"><ol><li id="fn1"><p>Loose footnote body.</p></li></ol></section>'
+        );
+        $meta = $document->attr('meta');
+        $container = $document->children[0];
+
+        $t->same(0, $meta['htmlConsumedFootnoteContainerCount']);
+        $t->same(['div'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same('doc-endnotes', $container->attr('htmlAttributes')['role'] ?? null);
+        $t->same('ordered_list', $container->children[0]->type);
+        $t->same('Loose footnote body.', $container->children[0]->children[0]->attr('text'));
+    };
+
 $valueSourceCases = [
     'data value attribute' => [
         '<data itemprop="ratingValue" value="4.5">four and half</data>',
@@ -160,7 +228,7 @@ $tests['keeps html reader imports alive when microdata dom parse is unavailable'
 
 $tests['records html reader microdata metadata mapped-case count'] =
     static function (TestRunner $t) use ($valueSourceCases): void {
-        $t->same(7, 1 + count($valueSourceCases) + 1);
+        $t->same(10, 1 + 3 + count($valueSourceCases) + 1);
     };
 
 return $tests;

@@ -11,6 +11,31 @@ final class PptxUpstreamReaderEvidence
     public const TOOL_NAME = 'pandoc-pptx-reader-evidence';
     public const STATUS_COMPLETED = 'completed-upstream-pptx-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
+    public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
+    public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 1;
+
+    private const STATIC_CURRENT_READER_CASES = [
+        [
+            'name' => 'text extraction',
+            'pptx' => 'pptx-reader/basic.pptx',
+            'native' => 'pptx-reader/basic.native',
+            'pairKey' => 'pptx-reader/basic.pptx|pptx-reader/basic.native',
+        ],
+    ];
+    private const CHECKED_IN_CURRENT_FIXTURE_SNAPSHOT = [
+        'basic' => [
+            'pptx' => 'pptx-reader/basic.pptx',
+            'native' => 'pptx-reader/basic.native',
+            'pairKey' => 'pptx-reader/basic.pptx|pptx-reader/basic.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/basic.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/basic.native',
+            'pptxSha256' => 'e48fd9c2f8369d1792197e301d5fea676bf6e51097a24af7d85831a6f96dc2dc',
+            'nativeSha256' => '42804b9b1954094a4b0ff0be20084e2e6d9bc0a84272f34f7f219f82505da6b4',
+            'pptxBytes' => 111674,
+            'nativeBytes' => 3966,
+        ],
+    ];
 
     private readonly string $repoRoot;
     private readonly string $upstreamRoot;
@@ -47,6 +72,7 @@ final class PptxUpstreamReaderEvidence
                 ],
                 'denominator' => $this->emptyDenominator(),
                 'sourceInventory' => $this->emptySourceInventory(),
+                'staticCurrentEvidence' => $this->staticCurrentEvidence(),
                 'validation' => [
                     'status' => 'not-evaluated-missing-upstream-root',
                     'issues' => ['missing-upstream-root'],
@@ -86,6 +112,7 @@ final class PptxUpstreamReaderEvidence
                 'unreferencedFixturePairs' => $this->unreferencedFixturePairs($readerCases, $fixturePairs),
             ],
             'sourceInventory' => $this->sourceInventory($root),
+            'staticCurrentEvidence' => $this->staticCurrentEvidence(),
             'validation' => [
                 'status' => $validationIssues === [] ? 'valid-upstream-pptx-reader-denominator' : 'invalid-upstream-pptx-reader-denominator',
                 'issues' => $validationIssues,
@@ -103,6 +130,9 @@ final class PptxUpstreamReaderEvidence
         $denominator = is_array($report['denominator'] ?? null) ? $report['denominator'] : [];
         $validation = is_array($report['validation'] ?? null) ? $report['validation'] : [];
         $upstream = is_array($report['upstream'] ?? null) ? $report['upstream'] : [];
+        $staticEvidence = is_array($report['staticCurrentEvidence'] ?? null) ? $report['staticCurrentEvidence'] : [];
+        $staticValidation = is_array($staticEvidence['validation'] ?? null) ? $staticEvidence['validation'] : [];
+        $staticDenominator = is_array($staticEvidence['readerDenominator'] ?? null) ? $staticEvidence['readerDenominator'] : [];
 
         return implode(PHP_EOL, [
             'Pandoc PPTX reader evidence',
@@ -111,6 +141,9 @@ final class PptxUpstreamReaderEvidence
                 . ' expected=' . (string) ($upstream['expectedCommit'] ?? self::EXPECTED_UPSTREAM_COMMIT),
             'Reader test comparisons: ' . (int) ($denominator['readerTestCompareCount'] ?? 0),
             'Fixture pairs: ' . (int) ($denominator['fixturePairCount'] ?? 0),
+            'Static current evidence: ' . (string) ($staticValidation['status'] ?? 'unknown')
+                . ' comparisons=' . (int) ($staticDenominator['expectedCompareCount'] ?? 0)
+                . ' checkedInPairs=' . (int) ($staticEvidence['checkedInFixturePairCount'] ?? 0),
             'Validation: ' . (string) ($validation['status'] ?? 'unknown'),
             'No upstream Haskell/Cabal runner result or full PowerPoint feature parity is asserted.',
         ]) . PHP_EOL;
@@ -147,6 +180,21 @@ final class PptxUpstreamReaderEvidence
             && ($validation['issues'] ?? null) === [];
     }
 
+    /**
+     * @param array<string, mixed> $report
+     */
+    public static function hasRequiredStaticCurrentEvidence(array $report): bool
+    {
+        $evidence = is_array($report['staticCurrentEvidence'] ?? null) ? $report['staticCurrentEvidence'] : [];
+        $validation = is_array($evidence['validation'] ?? null) ? $evidence['validation'] : [];
+        $denominator = is_array($evidence['readerDenominator'] ?? null) ? $evidence['readerDenominator'] : [];
+
+        return ($validation['status'] ?? null) === 'valid-checked-in-current-pptx-reader-evidence'
+            && ($validation['issues'] ?? null) === []
+            && (int) ($denominator['expectedCompareCount'] ?? -1) === self::EXPECTED_STATIC_READER_TEST_COMPARE_COUNT
+            && (int) ($evidence['checkedInFixturePairCount'] ?? -1) === self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT;
+    }
+
     private static function claim(): string
     {
         return 'Parses the pinned upstream Tests.Readers.Pptx test module and test/pptx-reader fixture directory to establish the current PPTX reader golden-test denominator.';
@@ -162,6 +210,7 @@ final class PptxUpstreamReaderEvidence
                 'the count and file paths of upstream PPTX reader golden comparisons in Tests.Readers.Pptx',
                 'that every referenced PPTX/native fixture file exists in the pinned sparse upstream checkout',
                 'that root-level test/pptx-reader PPTX/native fixture pairs are accounted for',
+                'static checked-in current upstream basic.pptx/basic.native fixture identity when staticCurrentEvidence is valid',
             ],
             'doesNotAssert' => [
                 'that upstream Haskell/Cabal/Tasty tests were executed',
@@ -169,6 +218,131 @@ final class PptxUpstreamReaderEvidence
                 'PPTX writer parity',
                 'full PowerPoint feature parity beyond Pandoc reader behavior',
             ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function staticCurrentEvidence(): array
+    {
+        $fixtureDirectory = $this->repoRoot . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, self::CHECKED_IN_CURRENT_FIXTURE_DIRECTORY);
+        $checkedInFixturePairs = array_values($this->fixturePairs($fixtureDirectory));
+        $checkedInPairKeys = [];
+        foreach ($checkedInFixturePairs as $pair) {
+            $checkedInPairKeys[(string) $pair['pairKey']] = true;
+        }
+
+        $issues = [];
+        if (!is_dir($fixtureDirectory)) {
+            $issues[] = 'missing-checked-in-current-fixture-directory';
+        }
+
+        if (count(self::STATIC_CURRENT_READER_CASES) !== self::EXPECTED_STATIC_READER_TEST_COMPARE_COUNT) {
+            $issues[] = 'static-reader-test-count-does-not-match-expected-snapshot';
+        }
+
+        if (count($checkedInFixturePairs) !== self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT) {
+            $issues[] = 'checked-in-fixture-pair-count-does-not-match-static-reader-denominator';
+        }
+
+        $snapshotPairs = [];
+        foreach (self::CHECKED_IN_CURRENT_FIXTURE_SNAPSHOT as $stem => $snapshot) {
+            $pptx = $this->snapshotFileEvidence(
+                (string) $snapshot['pptxPath'],
+                (string) $snapshot['pptxSha256'],
+                (int) $snapshot['pptxBytes']
+            );
+            $native = $this->snapshotFileEvidence(
+                (string) $snapshot['nativePath'],
+                (string) $snapshot['nativeSha256'],
+                (int) $snapshot['nativeBytes']
+            );
+            $pairKey = (string) $snapshot['pairKey'];
+            $snapshotPairs[] = [
+                'stem' => (string) $stem,
+                'name' => self::STATIC_CURRENT_READER_CASES[0]['name'],
+                'pptx' => (string) $snapshot['pptx'],
+                'native' => (string) $snapshot['native'],
+                'pairKey' => $pairKey,
+                'checkedInPptx' => $pptx,
+                'checkedInNative' => $native,
+            ];
+
+            if (($pptx['present'] ?? false) !== true) {
+                $issues[] = 'missing-checked-in-current-pptx-fixture';
+            } elseif (($pptx['sha256'] ?? null) !== $snapshot['pptxSha256']) {
+                $issues[] = 'checked-in-current-pptx-sha256-mismatch';
+            } elseif ((int) ($pptx['bytes'] ?? -1) !== (int) $snapshot['pptxBytes']) {
+                $issues[] = 'checked-in-current-pptx-byte-count-mismatch';
+            }
+
+            if (($native['present'] ?? false) !== true) {
+                $issues[] = 'missing-checked-in-current-native-fixture';
+            } elseif (($native['sha256'] ?? null) !== $snapshot['nativeSha256']) {
+                $issues[] = 'checked-in-current-native-sha256-mismatch';
+            } elseif ((int) ($native['bytes'] ?? -1) !== (int) $snapshot['nativeBytes']) {
+                $issues[] = 'checked-in-current-native-byte-count-mismatch';
+            }
+
+            if (!isset($checkedInPairKeys[$pairKey])) {
+                $issues[] = 'checked-in-current-fixture-pair-key-mismatch';
+            }
+        }
+
+        return [
+            'kind' => 'static-checked-in-current-upstream-pptx-reader-fixture-evidence',
+            'upstream' => [
+                'name' => 'jgm/pandoc',
+                'commit' => self::EXPECTED_UPSTREAM_COMMIT,
+                'readerTestModule' => 'test/Tests/Readers/Pptx.hs',
+                'fixtureDirectory' => 'test/pptx-reader',
+            ],
+            'readerDenominator' => [
+                'expectedCompareCount' => count(self::STATIC_CURRENT_READER_CASES),
+                'expectedReaderCases' => self::STATIC_CURRENT_READER_CASES,
+            ],
+            'checkedInFixtureDirectory' => self::CHECKED_IN_CURRENT_FIXTURE_DIRECTORY,
+            'checkedInFixturePairCount' => count($checkedInFixturePairs),
+            'checkedInFixturePairs' => $snapshotPairs,
+            'validation' => [
+                'status' => $issues === [] ? 'valid-checked-in-current-pptx-reader-evidence' : 'invalid-checked-in-current-pptx-reader-evidence',
+                'issues' => array_values(array_unique($issues)),
+            ],
+            'claim' => 'Static gate binding the pinned Tests.Readers.Pptx one-case denominator to the checked-in current upstream basic.pptx/basic.native fixture pair.',
+            'claimBoundaries' => [
+                'doesAssert' => [
+                    'Tests.Readers.Pptx at the pinned upstream commit has one golden comparison for pptx-reader/basic.pptx and pptx-reader/basic.native',
+                    'the checked-in current upstream PPTX fixture directory contains one same-stem PPTX/native pair',
+                    'the checked-in basic.pptx/basic.native files match the expected SHA-256 hashes and byte counts for this snapshot',
+                ],
+                'doesNotAssert' => [
+                    'that upstream Haskell/Cabal/Tasty tests were executed',
+                    'that a fresh upstream checkout was inspected during this PHP gate',
+                    'broader PPTX fixture corpus coverage beyond basic.pptx/basic.native',
+                    'full PowerPoint feature parity',
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * @return array{path: string, present: bool, sha256: ?string, expectedSha256: string, bytes: ?int, expectedBytes: int}
+     */
+    private function snapshotFileEvidence(string $relativePath, string $expectedSha256, int $expectedBytes): array
+    {
+        $path = $this->repoRoot . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
+        $present = is_file($path);
+        $sha256 = $present ? hash_file('sha256', $path) : false;
+        $bytes = $present ? filesize($path) : false;
+
+        return [
+            'path' => $relativePath,
+            'present' => $present,
+            'sha256' => is_string($sha256) ? $sha256 : null,
+            'expectedSha256' => $expectedSha256,
+            'bytes' => is_int($bytes) ? $bytes : null,
+            'expectedBytes' => $expectedBytes,
         ];
     }
 

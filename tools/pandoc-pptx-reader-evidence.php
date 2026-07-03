@@ -19,6 +19,10 @@ Options:
   --require-test-count N          Exit 1 unless Tests.Readers.Pptx has exactly N comparisons.
   --require-fixture-pair-count N  Exit 1 unless test/pptx-reader has exactly N PPTX/native pairs.
   --require-no-validation-issues  Exit 1 when denominator validation reports any issue.
+  --require-static-current-evidence
+                                  Exit 1 unless the pinned static Tests.Readers.Pptx
+                                  denominator matches the checked-in current
+                                  basic.pptx/basic.native fixture snapshot.
   --help                          Show this help.
 
 This is a denominator/evidence gate for the upstream PPTX reader fixture set.
@@ -33,6 +37,7 @@ try {
     $requiredTestCount = null;
     $requiredFixturePairCount = null;
     $requireNoValidationIssues = false;
+    $requireStaticCurrentEvidence = false;
     $args = array_slice($argv, 1);
 
     for ($i = 0, $count = count($args); $i < $count; ++$i) {
@@ -56,6 +61,10 @@ try {
         }
         if ($arg === '--require-no-validation-issues') {
             $requireNoValidationIssues = true;
+            continue;
+        }
+        if ($arg === '--require-static-current-evidence') {
+            $requireStaticCurrentEvidence = true;
             continue;
         }
         if ($arg === '--repo-root') {
@@ -135,6 +144,11 @@ try {
 
     if ($requireNoValidationIssues && !PptxUpstreamReaderEvidence::hasNoValidationIssues($report)) {
         fwrite(STDERR, "pandoc-pptx-reader-evidence: upstream PPTX reader denominator validation reported issues\n");
+        exit(1);
+    }
+
+    if ($requireStaticCurrentEvidence && !PptxUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($report)) {
+        fwrite(STDERR, "pandoc-pptx-reader-evidence: checked-in current PPTX reader fixture evidence did not match the pinned static snapshot\n");
         exit(1);
     }
 

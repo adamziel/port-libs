@@ -247,9 +247,12 @@ return [
                 $document = (new MarkdownReader($case['options']))->read(
                     'Before `' . $case['text'] . '`{=' . $case['rawFormat'] . '} after.'
                 );
-                $raw = $findFirst($document, 'raw_inline');
+                $expectedType = in_array($case['rawFormat'], ['html', 'html4', 'html5', 'xhtml'], true)
+                    ? 'raw_html_inline'
+                    : 'raw_inline';
+                $raw = $findFirst($document, $expectedType);
 
-                $t->same($case['enabled'] ? 'raw_inline' : 'missing', $raw->type, $name);
+                $t->same($case['enabled'] ? $expectedType : 'missing', $raw->type, $name);
                 if ($case['enabled']) {
                     $t->same($case['rawFormat'], $raw->attr('format'), $name);
                     $t->same($case['text'], $raw->attr('text'), $name);

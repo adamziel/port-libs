@@ -884,15 +884,138 @@ final class DelimitedTextReader
             'controlRepairSummary' => $controlCharacters['repairSummary'],
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
-            'upstreamEvidence' => [
-                'denominator' => 4,
-                'fixtures' => [
-                    'test/command/csv.md',
-                    'test/command/01.csv',
-                    'test/command/3533-rst-csv-tables.csv',
-                    'test/command/3533-rst-csv-tables.md',
-                ],
+            'upstreamEvidence' => $this->upstreamEvidencePacket($format),
+        ];
+    }
+
+    /**
+     * @return array{
+     *     denominator:int,
+     *     denominatorScope:string,
+     *     fixtures:list<string>,
+     *     source:string,
+     *     reader:string,
+     *     selectedDirectFixtureFormat:string,
+     *     directFixtureDenominator:int,
+     *     directFixtureCount:int,
+     *     directFixtures:list<string>,
+     *     csvDirectFixtureDenominator:int,
+     *     tsvDirectFixtureDenominator:int,
+     *     parserOptionFixtureCount:int,
+     *     parserOptionFixtures:list<string>,
+     *     integrationFixtureCount:int,
+     *     integrationFixtures:list<string>,
+     *     runnerEvidence:array{runner:string, status:string, executed:bool, command:null, resultArtifact:null, reason:string, claim:string},
+     *     notRunEvidence:list<array{scope:string, runner:string, status:string, executed:bool, reason:string}>,
+     *     closedGaps:list<string>,
+     *     openGaps:list<string>,
+     *     claimBoundaries:list<string>
+     * }
+     */
+    private function upstreamEvidencePacket(string $format): array
+    {
+        $csvCommandFixtures = [
+            'test/command/csv.md',
+            'test/command/01.csv',
+        ];
+        $rstCsvFixtures = [
+            'test/command/3533-rst-csv-tables.csv',
+            'test/command/3533-rst-csv-tables.md',
+        ];
+        $parserOptionFixtures = [
+            'comma-delimiter-no-header',
+            'space-delimiter-single-quote',
+            'backslash-escaped-quote',
+            'keep-space-after-delimiter',
+            'semicolon-delimiter-multiline-cell',
+        ];
+        $runnerEvidence = [
+            'runner' => 'Cabal/Tasty Pandoc reader suite',
+            'status' => 'not-run',
+            'executed' => false,
+            'command' => null,
+            'resultArtifact' => null,
+            'reason' => 'This native PHP evidence packet is generated without executing the upstream Haskell runner.',
+            'claim' => 'No upstream Haskell runner parity is claimed.',
+        ];
+        $notRunEvidence = [
+            [
+                'scope' => 'upstream-haskell-runner',
+                'runner' => $runnerEvidence['runner'],
+                'status' => $runnerEvidence['status'],
+                'executed' => $runnerEvidence['executed'],
+                'reason' => $runnerEvidence['reason'],
+            ],
+        ];
+
+        if ($format === 'tsv') {
+            return [
+                'denominator' => 0,
+                'denominatorScope' => 'direct-reader-fixtures',
+                'fixtures' => [],
                 'source' => 'Pandoc 912bfa5e src/Text/Pandoc/CSV.hs and src/Text/Pandoc/Readers/CSV.hs',
+                'reader' => 'tsv',
+                'selectedDirectFixtureFormat' => 'tsv',
+                'directFixtureDenominator' => 0,
+                'directFixtureCount' => 0,
+                'directFixtures' => [],
+                'csvDirectFixtureDenominator' => count($csvCommandFixtures),
+                'tsvDirectFixtureDenominator' => 0,
+                'parserOptionFixtureCount' => 0,
+                'parserOptionFixtures' => [],
+                'integrationFixtureCount' => 0,
+                'integrationFixtures' => [],
+                'runnerEvidence' => $runnerEvidence,
+                'notRunEvidence' => $notRunEvidence,
+                'closedGaps' => [
+                    'tsv-tab-delimiter-reader',
+                    'tsv-literal-quote-policy',
+                    'tsv-trailing-empty-field-preservation',
+                    'tsv-row-repair-and-control-character-provenance',
+                ],
+                'openGaps' => [
+                    'no-dedicated-upstream-tsv-command-fixture-in-pinned-corpus',
+                    'upstream-runner-not-run',
+                ],
+                'claimBoundaries' => [
+                    'TSV is an upstream input token but the pinned command corpus evidence is CSV-only.',
+                    'TSV parity is covered by native tab-delimited reader semantics, not by a dedicated upstream TSV golden fixture.',
+                    'This packet does not claim RST csv-table integration or upstream Haskell runner parity.',
+                ],
+            ];
+        }
+
+        return [
+            'denominator' => count($csvCommandFixtures),
+            'denominatorScope' => 'direct-reader-fixtures',
+            'fixtures' => $csvCommandFixtures,
+            'source' => 'Pandoc 912bfa5e src/Text/Pandoc/CSV.hs and src/Text/Pandoc/Readers/CSV.hs',
+            'reader' => 'csv',
+            'selectedDirectFixtureFormat' => 'csv',
+            'directFixtureDenominator' => count($csvCommandFixtures),
+            'directFixtureCount' => count($csvCommandFixtures),
+            'directFixtures' => $csvCommandFixtures,
+            'csvDirectFixtureDenominator' => count($csvCommandFixtures),
+            'tsvDirectFixtureDenominator' => 0,
+            'parserOptionFixtureCount' => count($parserOptionFixtures),
+            'parserOptionFixtures' => $parserOptionFixtures,
+            'integrationFixtureCount' => count($rstCsvFixtures),
+            'integrationFixtures' => $rstCsvFixtures,
+            'runnerEvidence' => $runnerEvidence,
+            'notRunEvidence' => $notRunEvidence,
+            'closedGaps' => [
+                'direct-csv-command-reader',
+                'shared-csv-parser-option-fixtures',
+                'csv-row-repair-and-control-character-provenance',
+            ],
+            'openGaps' => [
+                'rst-csv-table-integration-requires-rst-reader',
+                'upstream-runner-not-run',
+            ],
+            'claimBoundaries' => [
+                'The direct CSV command reader fixture and parser option behavior are covered locally.',
+                'The two RST csv-table files are tracked as upstream CSV-adjacent evidence but remain blocked on native RST reader support.',
+                'This packet does not claim upstream Haskell runner parity.',
             ],
         ];
     }
