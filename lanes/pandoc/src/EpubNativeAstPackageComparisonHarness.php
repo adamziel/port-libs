@@ -109,6 +109,16 @@ final class EpubNativeAstPackageComparisonHarness
             'en' => 4,
             'en-US' => 1,
         ],
+        'fixturesWithCreators' => [
+            'epub2_cover',
+            'epub2_no_cover',
+            'epub2_picture',
+            'features',
+            'formatting',
+            'img',
+            'img_no_cover',
+            'wasteland',
+        ],
         'navigationTypeCounts' => [
             'nav' => 5,
             'ncx' => 3,
@@ -187,6 +197,7 @@ final class EpubNativeAstPackageComparisonHarness
         'fixturesWithExternalManifestItems' => [],
         'fixturesWithMissingLocalManifestItems' => [],
         'totals' => [
+            'metadataCreators' => 28,
             'manifestItems' => 51,
             'readingOrderItems' => 22,
             'xhtmlAssets' => 23,
@@ -470,7 +481,7 @@ final class EpubNativeAstPackageComparisonHarness
                 ? $featureCoverage['guideReferenceTypeCounts']
                 : [];
             $lines[] = sprintf(
-                'packageFeatureCoverage: fixtures=%d nav=%d ncx=%d covers=%d landmarks=%d pageLists=%d auxiliaryNav=%d manifestItems=%d readingOrderItems=%d imageAssets=%d stylesheetAssets=%d resourceKinds=%s guideRefTypes=%s remoteManifest=%d externalManifest=%d missingLocalManifest=%d',
+                'packageFeatureCoverage: fixtures=%d nav=%d ncx=%d covers=%d landmarks=%d pageLists=%d auxiliaryNav=%d metadataCreators=%d manifestItems=%d readingOrderItems=%d imageAssets=%d stylesheetAssets=%d resourceKinds=%s guideRefTypes=%s remoteManifest=%d externalManifest=%d missingLocalManifest=%d',
                 (int) ($featureCoverage['fixtureCount'] ?? 0),
                 (int) ($navigationTypeCounts['nav'] ?? 0),
                 (int) ($navigationTypeCounts['ncx'] ?? 0),
@@ -478,6 +489,7 @@ final class EpubNativeAstPackageComparisonHarness
                 count($landmarkFixtures),
                 count($pageListFixtures),
                 count($auxiliaryNavigationFixtures),
+                (int) ($totals['metadataCreators'] ?? 0),
                 (int) ($totals['manifestItems'] ?? 0),
                 (int) ($totals['readingOrderItems'] ?? 0),
                 (int) ($totals['imageAssets'] ?? 0),
@@ -701,6 +713,7 @@ final class EpubNativeAstPackageComparisonHarness
             'kind' => 'epub-package-feature-coverage',
             'fixtureCount' => 0,
             'metadataLanguageCounts' => [],
+            'fixturesWithCreators' => [],
             'navigationTypeCounts' => [],
             'manifestMediaTypeCounts' => [],
             'manifestPropertyCounts' => [],
@@ -719,6 +732,7 @@ final class EpubNativeAstPackageComparisonHarness
             'fixturesWithExternalManifestItems' => [],
             'fixturesWithMissingLocalManifestItems' => [],
             'totals' => [
+                'metadataCreators' => 0,
                 'manifestItems' => 0,
                 'readingOrderItems' => 0,
                 'xhtmlAssets' => 0,
@@ -1001,6 +1015,9 @@ final class EpubNativeAstPackageComparisonHarness
             if ($fixture !== '' && (int) ($summary['packageLinkCount'] ?? 0) > 0) {
                 $coverage['fixturesWithPackageLinks'][] = $fixture;
             }
+            if ($fixture !== '' && (int) ($summary['metadataCreatorCount'] ?? 0) > 0) {
+                $coverage['fixturesWithCreators'][] = $fixture;
+            }
             if ($fixture !== '' && is_string($summary['coverImagePart'] ?? null) && (string) $summary['coverImagePart'] !== '') {
                 $coverage['fixturesWithCoverImagePart'][] = $fixture;
             }
@@ -1029,6 +1046,7 @@ final class EpubNativeAstPackageComparisonHarness
                 $coverage['fixturesWithMissingLocalManifestItems'][] = $fixture;
             }
 
+            $coverage['totals']['metadataCreators'] += (int) ($summary['metadataCreatorCount'] ?? 0);
             $coverage['totals']['manifestItems'] += (int) ($summary['manifestItemCount'] ?? 0);
             $coverage['totals']['readingOrderItems'] += (int) ($summary['readingOrderCount'] ?? 0);
             $coverage['totals']['xhtmlAssets'] += (int) ($summary['xhtmlAssetCount'] ?? 0);

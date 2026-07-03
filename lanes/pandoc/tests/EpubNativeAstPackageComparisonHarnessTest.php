@@ -310,6 +310,7 @@ return [
             $t->same(['text' => 1], $coverage['guideReferenceTypeCounts']);
             $t->same(['generated-navigation'], $coverage['fixturesWithGuideReferences']);
             $t->same(['generated-navigation'], $coverage['fixturesWithPackageLinks']);
+            $t->same(['generated-navigation'], $coverage['fixturesWithCreators']);
             $t->same([], $coverage['fixturesWithCoverImagePart']);
             $t->same([], $coverage['fixturesWithImages']);
             $t->same([], $coverage['fixturesWithStylesheets']);
@@ -320,6 +321,7 @@ return [
             $t->same(['generated-navigation'], $coverage['fixturesWithExternalManifestItems']);
             $t->same([], $coverage['fixturesWithMissingLocalManifestItems']);
             $t->same([
+                'metadataCreators' => 1,
                 'manifestItems' => 4,
                 'readingOrderItems' => 1,
                 'xhtmlAssets' => 2,
@@ -365,6 +367,8 @@ return [
                 'xhtml' => 1,
             ], $decoded['packageFeatureCoverage']['manifestResourceKindCounts']);
             $t->same(['text' => 1], $decoded['packageFeatureCoverage']['guideReferenceTypeCounts']);
+            $t->same(['generated-navigation'], $decoded['packageFeatureCoverage']['fixturesWithCreators']);
+            $t->same(1, $decoded['packageFeatureCoverage']['totals']['metadataCreators']);
         } finally {
             $removeTree($root);
         }
@@ -447,6 +451,16 @@ return [
                 'en' => 4,
                 'en-US' => 1,
             ],
+            'fixturesWithCreators' => [
+                'epub2_cover',
+                'epub2_no_cover',
+                'epub2_picture',
+                'features',
+                'formatting',
+                'img',
+                'img_no_cover',
+                'wasteland',
+            ],
             'navigationTypeCounts' => [
                 'nav' => 5,
                 'ncx' => 3,
@@ -525,6 +539,7 @@ return [
             'fixturesWithExternalManifestItems' => [],
             'fixturesWithMissingLocalManifestItems' => [],
             'totals' => [
+                'metadataCreators' => 28,
                 'manifestItems' => 51,
                 'readingOrderItems' => 22,
                 'xhtmlAssets' => 23,
@@ -592,7 +607,7 @@ return [
         $t->contains('packages: total=8 compared=8 packageParsed=8 readerParsed=8 packageFailures=0 readerFailures=0', $text);
         $t->contains('normalizedAst: matches=8 (100.00%) mismatches=0', $text);
         $t->contains('fixtureIdentity: status=valid-checked-in-current-epub-fixture-identity expected=16 observed=16', $text);
-        $t->contains('packageFeatureCoverage: fixtures=8 nav=5 ncx=3 covers=4 landmarks=5 pageLists=0 auxiliaryNav=0 manifestItems=51', $text);
+        $t->contains('packageFeatureCoverage: fixtures=8 nav=5 ncx=3 covers=4 landmarks=5 pageLists=0 auxiliaryNav=0 metadataCreators=28 manifestItems=51', $text);
         $t->contains('resourceKinds=cover-image:2,image:9,navigation:9,style:13,xhtml:18', $text);
         $t->contains('guideRefTypes=cover:2,toc:1', $text);
         $t->contains('remoteManifest=0 externalManifest=0 missingLocalManifest=0', $text);
@@ -651,6 +666,8 @@ return [
         $t->same(8, $defaultFixtureIdentityDecoded['normalizedAstMatchCount']);
         $t->same('valid-checked-in-current-epub-fixture-identity', $defaultFixtureIdentityDecoded['fixtureIdentity']['validation']['status']);
         $t->same(['nav' => 5, 'ncx' => 3], $defaultFixtureIdentityDecoded['packageFeatureCoverage']['navigationTypeCounts']);
+        $t->same($expectedPackageFeatureCoverage['fixturesWithCreators'], $defaultFixtureIdentityDecoded['packageFeatureCoverage']['fixturesWithCreators']);
+        $t->same(28, $defaultFixtureIdentityDecoded['packageFeatureCoverage']['totals']['metadataCreators']);
         $t->same(['cover-image' => 2, 'mathml' => 2, 'nav' => 5, 'switch' => 1], $defaultFixtureIdentityDecoded['packageFeatureCoverage']['manifestPropertyCounts']);
         $t->same([
             'cover-image' => 2,
