@@ -129,6 +129,8 @@ final class MarkdownReader
 
     private bool $documentHasYamlMetadata = false;
 
+    private bool $forceLinkLabelSingleBackslashMath = false;
+
     /**
      * @param array{
      *     literateHaskell?: bool,
@@ -12903,7 +12905,7 @@ final class MarkdownReader
             return null;
         }
 
-        $label = $this->parseBracketedLabel($text, $offset + 1);
+        $label = $this->parseBracketedLabel($text, $offset + 1, true);
         if ($label === null) {
             return null;
         }
@@ -13028,7 +13030,59 @@ final class MarkdownReader
     {
         $label = $this->protectWhitespaceFlankedLinkLabelDelimiters($label);
 
+        if (
+            $this->linkLabelSingleBackslashMathCompatibilityEnabled()
+            && $this->linkLabelContainsSingleBackslashMathBracketPayload($label)
+        ) {
+            return $this->parseLinkLabelInlinesWithSingleBackslashMath($label);
+        }
+
         return $this->parseInlines($label, false);
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function parseLinkLabelInlinesWithSingleBackslashMath(string $label): array
+    {
+        $previous = $this->forceLinkLabelSingleBackslashMath;
+        $this->forceLinkLabelSingleBackslashMath = true;
+        try {
+            return $this->parseInlines($label, false);
+        } finally {
+            $this->forceLinkLabelSingleBackslashMath = $previous;
+        }
+    }
+
+    private function linkLabelContainsSingleBackslashMathBracketPayload(string $label): bool
+    {
+        $length = strlen($label);
+        for ($cursor = 0; $cursor < $length; $cursor++) {
+            if ($label[$cursor] === '`') {
+                $next = $this->skipLinkLabelCodeSpan($label, $cursor);
+                if ($next !== null) {
+                    $cursor = $next - 1;
+                    continue;
+                }
+            }
+
+            if ($label[$cursor] !== '\\') {
+                continue;
+            }
+
+            $math = $this->tryParseLinkLabelSingleBackslashMath($label, $cursor);
+            if ($math !== null) {
+                if ($this->astNodeAttributeValueContainsLinkLabelBracket($math['node']->attrs)) {
+                    return true;
+                }
+                $cursor = $math['next'] - 1;
+                continue;
+            }
+
+            $cursor++;
+        }
+
+        return false;
     }
 
     private function protectWhitespaceFlankedLinkLabelDelimiters(string $label): string
@@ -13387,11 +13441,28 @@ final class MarkdownReader
 
     private function singleBackslashMathExtensionEnabled(): bool
     {
+        if ($this->forceLinkLabelSingleBackslashMath) {
+            return true;
+        }
+
         if (array_key_exists('texMathSingleBackslash', $this->options)) {
             return $this->booleanOptionValue($this->options['texMathSingleBackslash'], false);
         }
 
         return $this->markdownExtensionOverrides()['tex_math_single_backslash'] ?? false;
+    }
+
+    private function linkLabelSingleBackslashMathCompatibilityEnabled(): bool
+    {
+        if ($this->singleBackslashMathExtensionEnabled()) {
+            return false;
+        }
+
+        if (array_key_exists('texMathSingleBackslash', $this->options)) {
+            return false;
+        }
+
+        return !array_key_exists('tex_math_single_backslash', $this->markdownExtensionOverrides());
     }
 
     private function doubleBackslashMathExtensionEnabled(): bool
@@ -13570,7 +13641,7 @@ final class MarkdownReader
      */
     private function tryParseInlineLink(string $text, int $offset): ?array
     {
-        $label = $this->parseBracketedLabel($text, $offset);
+        $label = $this->parseBracketedLabel($text, $offset, true);
         if ($label === null || ($text[$label['next']] ?? '') !== '(') {
             return null;
         }
@@ -13602,7 +13673,7 @@ final class MarkdownReader
      */
     private function tryParseReferenceLink(string $text, int $offset): ?array
     {
-        $label = $this->parseBracketedLabel($text, $offset);
+        $label = $this->parseBracketedLabel($text, $offset, true);
         if ($label === null) {
             return null;
         }
@@ -13645,7 +13716,7 @@ final class MarkdownReader
      */
     private function tryParseBracketedSpan(string $text, int $offset): ?array
     {
-        $label = $this->parseBracketedLabel($text, $offset);
+        $label = $this->parseBracketedLabel($text, $offset, true);
         if ($label === null || ($text[$label['next']] ?? '') !== '{') {
             return null;
         }
@@ -14568,7 +14639,7 @@ final class MarkdownReader
     /**
      * @return array{text:string, next:int}|null
      */
-    private function parseBracketedLabel(string $text, int $offset): ?array
+    private function parseBracketedLabel(string $text, int $offset, bool $parseInlineSpans = false): ?array
     {
         if (($text[$offset] ?? '') !== '[') {
             return null;
@@ -14578,6 +14649,41 @@ final class MarkdownReader
         $depth = 0;
         $length = strlen($text);
         for ($cursor = $start; $cursor < $length; $cursor++) {
+            if ($parseInlineSpans && $text[$cursor] === '`') {
+                $next = $this->skipLinkLabelCodeSpan($text, $cursor);
+                if ($next !== null) {
+                    $cursor = $next - 1;
+                    continue;
+                }
+            }
+
+            if ($parseInlineSpans && ($text[$cursor] === '$' || $text[$cursor] === '\\')) {
+                $math = $this->mathExtensionEnabled() ? $this->tryParseMath($text, $cursor) : null;
+                if (
+                    $math === null
+                    && $text[$cursor] === '\\'
+                    && $this->linkLabelSingleBackslashMathCompatibilityEnabled()
+                ) {
+                    $math = $this->tryParseLinkLabelSingleBackslashMath($text, $cursor);
+                    if (
+                        $math !== null
+                        && !$this->astNodeAttributeValueContainsLinkLabelBracket($math['node']->attrs)
+                    ) {
+                        $math = null;
+                    }
+                }
+                if ($math !== null) {
+                    $cursor = $math['next'] - 1;
+                    continue;
+                }
+
+                $rawTex = $this->rawTexEnabled() ? $this->tryParseRawTexInline($text, $cursor) : null;
+                if ($rawTex !== null) {
+                    $cursor = $rawTex['next'] - 1;
+                    continue;
+                }
+            }
+
             if ($text[$cursor] === '\\') {
                 $cursor++;
                 continue;
@@ -14604,6 +14710,67 @@ final class MarkdownReader
         }
 
         return null;
+    }
+
+    private function skipLinkLabelCodeSpan(string $text, int $offset): ?int
+    {
+        $tickCount = $this->countBackticks($text, $offset);
+        $end = $this->findMatchingBacktickRun($text, $offset + $tickCount, $tickCount);
+        if ($end === null || $end <= $offset + $tickCount) {
+            return null;
+        }
+
+        $next = $end + $tickCount;
+        $rawAttribute = $this->rawAttributeEnabled() ? $this->tryParseRawAttributeSpec($text, $next) : null;
+        if ($rawAttribute !== null && $this->rawAttributeFormatEnabled($rawAttribute['format'])) {
+            return $rawAttribute['next'];
+        }
+
+        $attribute = $this->inlineAttributeExtensionEnabled()
+            ? $this->tryParseInlineAttributeSpec($text, $next)
+            : null;
+        if ($attribute !== null) {
+            return $attribute['next'];
+        }
+
+        $literalAttribute = $this->tryParseSpacedInlineAttributeLiteral($text, $next);
+        if ($literalAttribute !== null) {
+            return $literalAttribute['next'];
+        }
+
+        return $next;
+    }
+
+    /**
+     * @return array{node: AstNode, next: int}|null
+     */
+    private function tryParseLinkLabelSingleBackslashMath(string $text, int $offset): ?array
+    {
+        if (($text[$offset] ?? '') !== '\\' || $this->isEscapedInlinePosition($text, $offset)) {
+            return null;
+        }
+
+        return $this->tryParseDelimitedMath($text, $offset, '\\(', '\\)', false)
+            ?? $this->tryParseDelimitedMath($text, $offset, '\\[', '\\]', true);
+    }
+
+    private function astNodeAttributeValueContainsLinkLabelBracket(mixed $value): bool
+    {
+        if (is_string($value)) {
+            return str_contains($value, '[') || str_contains($value, ']');
+        }
+
+        if (!is_array($value)) {
+            return false;
+        }
+
+        foreach ($value as $child) {
+            if ($this->astNodeAttributeValueContainsLinkLabelBracket($child)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
