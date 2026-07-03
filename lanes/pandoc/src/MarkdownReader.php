@@ -12991,7 +12991,7 @@ final class MarkdownReader
                 if ($end !== null && $end > $offset + $tickCount) {
                     $code = substr($text, $offset + $tickCount, $end - $offset - $tickCount);
                     $code = str_replace(["\r\n", "\r", "\n"], ' ', $code);
-                    if (strlen($code) >= 2 && $code[0] === ' ' && $code[strlen($code) - 1] === ' ' && trim($code) !== '') {
+                    if (strlen($code) >= 2 && $code[0] === ' ' && $code[strlen($code) - 1] === ' ' && strspn($code, ' ') !== strlen($code)) {
                         $code = substr($code, 1, -1);
                     }
                     $next = $end + $tickCount;
