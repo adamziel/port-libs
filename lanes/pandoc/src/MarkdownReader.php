@@ -10824,6 +10824,20 @@ final class MarkdownReader
                 }
 
                 $nextIndent = $this->countIndentColumns($lines[$next]);
+                $nextContinuation = $nextIndent >= $contentIndent
+                    ? rtrim($this->stripIndentColumns($lines[$next], $contentIndent))
+                    : '';
+                $definitionList = $paragraph !== []
+                    ? $this->readListItemDefinitionListBlock($lines, $next, $baseIndent, $contentIndent, $nextContinuation, $paragraph)
+                    : null;
+                if ($definitionList !== null) {
+                    $parts[] = $definitionList['node'];
+                    $paragraph = [];
+                    $loose = true;
+                    $cursor = $definitionList['next'];
+                    continue;
+                }
+
                 if ($this->isNestedListMarker($nextMarker, $baseIndent, $contentIndent) || $nextIndent >= $contentIndent) {
                     $this->flushListItemParagraph($paragraph, $parts);
                     if (!$this->listItemBlankBoundaryKeepsGfmDetailsTight($parts, $lines[$next], $nextMarker, $baseIndent, $contentIndent)) {
@@ -10868,6 +10882,24 @@ final class MarkdownReader
                     $this->flushListItemParagraph($paragraph, $parts);
                     [$quote, $cursor] = $this->readListItemBlockQuote($lines, $cursor, $baseIndent, $contentIndent, $continuation);
                     $parts[] = $quote;
+                    continue;
+                }
+
+                $definitionList = $paragraph !== []
+                    ? $this->readListItemDefinitionListBlock($lines, $cursor, $baseIndent, $contentIndent, $continuation, $paragraph)
+                    : null;
+                if ($definitionList !== null) {
+                    $parts[] = $definitionList['node'];
+                    $paragraph = [];
+                    $cursor = $definitionList['next'];
+                    continue;
+                }
+
+                $definitionList = $this->readListItemDefinitionListBlock($lines, $cursor, $baseIndent, $contentIndent, $continuation);
+                if ($definitionList !== null) {
+                    $this->flushListItemParagraph($paragraph, $parts);
+                    $parts[] = $definitionList['node'];
+                    $cursor = $definitionList['next'];
                     continue;
                 }
 
@@ -10967,6 +10999,48 @@ final class MarkdownReader
         $quote = $this->tryReadBlockQuote($quoteLines, $quoteIndex);
 
         return [$quote ?? new AstNode('blockquote'), $cursor + $quoteIndex + 1];
+    }
+
+    /**
+     * @param list<string> $lines
+     * @param list<string> $prefixLines
+     * @return array{node:AstNode, next:int}|null
+     */
+    private function readListItemDefinitionListBlock(
+        array $lines,
+        int $cursor,
+        int $baseIndent,
+        int $contentIndent,
+        string $firstLine,
+        array $prefixLines = []
+    ): ?array {
+        if (!$this->definitionListExtensionEnabled()) {
+            return null;
+        }
+        if ($prefixLines === []) {
+            if (!$this->canStartDefinitionTerm($firstLine)) {
+                return null;
+            }
+        } elseif (!$this->isDefinitionMarker($firstLine)) {
+            return null;
+        }
+
+        $blockLines = array_values($prefixLines);
+        $blockLines[] = $firstLine;
+        $blockLines = array_merge(
+            $blockLines,
+            $this->collectListItemIndentedContinuationLines($lines, $cursor + 1, $baseIndent, $contentIndent)
+        );
+        $blockIndex = 0;
+        $definitionList = $this->tryReadDefinitionList($blockLines, $blockIndex);
+        if ($definitionList === null) {
+            return null;
+        }
+
+        return [
+            'node' => $definitionList,
+            'next' => $cursor + $blockIndex - count($prefixLines) + 1,
+        ];
     }
 
     /**
