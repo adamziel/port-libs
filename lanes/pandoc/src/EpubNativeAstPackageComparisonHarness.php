@@ -127,6 +127,13 @@ final class EpubNativeAstPackageComparisonHarness
             'nav' => 5,
             'switch' => 1,
         ],
+        'manifestResourceKindCounts' => [
+            'cover-image' => 2,
+            'image' => 9,
+            'navigation' => 9,
+            'style' => 13,
+            'xhtml' => 18,
+        ],
         'navigationSectionTypes' => [
             'landmarks',
             'toc',
@@ -456,7 +463,7 @@ final class EpubNativeAstPackageComparisonHarness
                 ? $featureCoverage['fixturesWithAuxiliaryNavigation']
                 : [];
             $lines[] = sprintf(
-                'packageFeatureCoverage: fixtures=%d nav=%d ncx=%d covers=%d landmarks=%d pageLists=%d auxiliaryNav=%d manifestItems=%d readingOrderItems=%d imageAssets=%d stylesheetAssets=%d remoteManifest=%d externalManifest=%d missingLocalManifest=%d',
+                'packageFeatureCoverage: fixtures=%d nav=%d ncx=%d covers=%d landmarks=%d pageLists=%d auxiliaryNav=%d manifestItems=%d readingOrderItems=%d imageAssets=%d stylesheetAssets=%d resourceKinds=%s remoteManifest=%d externalManifest=%d missingLocalManifest=%d',
                 (int) ($featureCoverage['fixtureCount'] ?? 0),
                 (int) ($navigationTypeCounts['nav'] ?? 0),
                 (int) ($navigationTypeCounts['ncx'] ?? 0),
@@ -468,6 +475,9 @@ final class EpubNativeAstPackageComparisonHarness
                 (int) ($totals['readingOrderItems'] ?? 0),
                 (int) ($totals['imageAssets'] ?? 0),
                 (int) ($totals['stylesheetAssets'] ?? 0),
+                self::formatCounts(is_array($featureCoverage['manifestResourceKindCounts'] ?? null)
+                    ? $featureCoverage['manifestResourceKindCounts']
+                    : []),
                 (int) ($totals['remoteResourceManifestItems'] ?? 0),
                 (int) ($totals['externalManifestItems'] ?? 0),
                 (int) ($totals['missingLocalManifestItems'] ?? 0)
@@ -686,6 +696,7 @@ final class EpubNativeAstPackageComparisonHarness
             'navigationTypeCounts' => [],
             'manifestMediaTypeCounts' => [],
             'manifestPropertyCounts' => [],
+            'manifestResourceKindCounts' => [],
             'navigationSectionTypes' => [],
             'fixturesWithGuideReferences' => [],
             'fixturesWithPackageLinks' => [],
@@ -857,6 +868,7 @@ final class EpubNativeAstPackageComparisonHarness
         $metadata = $package->metadata();
         $manifestItems = $package->manifestItems();
         $manifestCoverage = self::manifestItemCoverageSummary($manifestItems);
+        $resourceKinds = $package->manifestResourceKinds();
         $navigation = $package->navigation();
         $navigationSections = $package->navigationSections();
         $navigationSectionTypes = [];
@@ -895,6 +907,7 @@ final class EpubNativeAstPackageComparisonHarness
             'manifestItemCount' => count($manifestItems),
             'manifestMediaTypeCounts' => $manifestCoverage['mediaTypeCounts'],
             'manifestPropertyCounts' => $manifestCoverage['propertyCounts'],
+            'manifestResourceKindCounts' => is_array($resourceKinds['kindCounts'] ?? null) ? $resourceKinds['kindCounts'] : [],
             'remoteResourceManifestItemCount' => $manifestCoverage['remoteResourceItemCount'],
             'externalManifestItemCount' => $manifestCoverage['externalItemCount'],
             'missingLocalManifestItemCount' => $manifestCoverage['missingLocalItemCount'],
@@ -925,6 +938,7 @@ final class EpubNativeAstPackageComparisonHarness
         $navigationTypeCounts = [];
         $manifestMediaTypeCounts = [];
         $manifestPropertyCounts = [];
+        $manifestResourceKindCounts = [];
         $navigationSectionTypes = [];
 
         foreach ($summaries as $summary) {
@@ -948,6 +962,12 @@ final class EpubNativeAstPackageComparisonHarness
             foreach (is_array($summary['manifestPropertyCounts'] ?? null) ? $summary['manifestPropertyCounts'] : [] as $property => $count) {
                 if (is_string($property) && $property !== '') {
                     $manifestPropertyCounts[$property] = (int) ($manifestPropertyCounts[$property] ?? 0) + (int) $count;
+                }
+            }
+
+            foreach (is_array($summary['manifestResourceKindCounts'] ?? null) ? $summary['manifestResourceKindCounts'] : [] as $kind => $count) {
+                if (is_string($kind) && $kind !== '') {
+                    $manifestResourceKindCounts[$kind] = (int) ($manifestResourceKindCounts[$kind] ?? 0) + (int) $count;
                 }
             }
 
@@ -1011,14 +1031,36 @@ final class EpubNativeAstPackageComparisonHarness
         ksort($navigationTypeCounts, SORT_STRING);
         ksort($manifestMediaTypeCounts, SORT_STRING);
         ksort($manifestPropertyCounts, SORT_STRING);
+        ksort($manifestResourceKindCounts, SORT_STRING);
         $coverage['metadataLanguageCounts'] = $metadataLanguageCounts;
         $coverage['navigationTypeCounts'] = $navigationTypeCounts;
         $coverage['manifestMediaTypeCounts'] = $manifestMediaTypeCounts;
         $coverage['manifestPropertyCounts'] = $manifestPropertyCounts;
+        $coverage['manifestResourceKindCounts'] = $manifestResourceKindCounts;
         $coverage['navigationSectionTypes'] = array_keys($navigationSectionTypes);
         sort($coverage['navigationSectionTypes'], SORT_STRING);
 
         return $coverage;
+    }
+
+    /**
+     * @param array<string, mixed> $counts
+     */
+    private static function formatCounts(array $counts): string
+    {
+        if ($counts === []) {
+            return 'none';
+        }
+
+        ksort($counts, SORT_STRING);
+        $parts = [];
+        foreach ($counts as $key => $count) {
+            if (is_string($key) && $key !== '') {
+                $parts[] = $key . ':' . (int) $count;
+            }
+        }
+
+        return $parts === [] ? 'none' : implode(',', $parts);
     }
 
     /**

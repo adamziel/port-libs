@@ -180,6 +180,7 @@ return [
             $t->same('not-evaluated-source-directory-unavailable', $report['astParityStatus']);
             $t->same(0, $report['packageFeatureCoverage']['fixtureCount']);
             $t->same([], $report['packageFeatureCoverage']['navigationTypeCounts']);
+            $t->same([], $report['packageFeatureCoverage']['manifestResourceKindCounts']);
             $t->same('not-evaluated', $report['orderedRemainingGaps'][0]['status']);
             $t->contains('Pandoc EPUB native/package comparison: skipped', $text);
         } finally {
@@ -268,6 +269,12 @@ return [
                 'nav' => 1,
                 'remote-resources' => 1,
             ], $summary['manifestPropertyCounts']);
+            $t->same([
+                'asset' => 1,
+                'navigation' => 1,
+                'style' => 1,
+                'xhtml' => 1,
+            ], $summary['manifestResourceKindCounts']);
             $t->same(1, $summary['remoteResourceManifestItemCount']);
             $t->same(1, $summary['externalManifestItemCount']);
             $t->same(0, $summary['missingLocalManifestItemCount']);
@@ -291,6 +298,12 @@ return [
                 'nav' => 1,
                 'remote-resources' => 1,
             ], $coverage['manifestPropertyCounts']);
+            $t->same([
+                'asset' => 1,
+                'navigation' => 1,
+                'style' => 1,
+                'xhtml' => 1,
+            ], $coverage['manifestResourceKindCounts']);
             $t->same(['landmarks', 'loi', 'page-list', 'toc'], $coverage['navigationSectionTypes']);
             $t->same(['generated-navigation'], $coverage['fixturesWithGuideReferences']);
             $t->same(['generated-navigation'], $coverage['fixturesWithPackageLinks']);
@@ -342,6 +355,12 @@ return [
             $t->same(0, $decoded['normalizedAstMismatchCount']);
             $t->same(['nav' => 1], $decoded['packageFeatureCoverage']['navigationTypeCounts']);
             $t->same(['nav' => 1, 'remote-resources' => 1], $decoded['packageFeatureCoverage']['manifestPropertyCounts']);
+            $t->same([
+                'asset' => 1,
+                'navigation' => 1,
+                'style' => 1,
+                'xhtml' => 1,
+            ], $decoded['packageFeatureCoverage']['manifestResourceKindCounts']);
         } finally {
             $removeTree($root);
         }
@@ -441,6 +460,13 @@ return [
                 'mathml' => 2,
                 'nav' => 5,
                 'switch' => 1,
+            ],
+            'manifestResourceKindCounts' => [
+                'cover-image' => 2,
+                'image' => 9,
+                'navigation' => 9,
+                'style' => 13,
+                'xhtml' => 18,
             ],
             'navigationSectionTypes' => [
                 'landmarks',
@@ -559,6 +585,7 @@ return [
         $t->contains('normalizedAst: matches=8 (100.00%) mismatches=0', $text);
         $t->contains('fixtureIdentity: status=valid-checked-in-current-epub-fixture-identity expected=16 observed=16', $text);
         $t->contains('packageFeatureCoverage: fixtures=8 nav=5 ncx=3 covers=4 landmarks=5 pageLists=0 auxiliaryNav=0 manifestItems=51', $text);
+        $t->contains('resourceKinds=cover-image:2,image:9,navigation:9,style:13,xhtml:18', $text);
         $t->contains('remoteManifest=0 externalManifest=0 missingLocalManifest=0', $text);
 
         $command = escapeshellarg(PHP_BINARY)
@@ -616,6 +643,13 @@ return [
         $t->same('valid-checked-in-current-epub-fixture-identity', $defaultFixtureIdentityDecoded['fixtureIdentity']['validation']['status']);
         $t->same(['nav' => 5, 'ncx' => 3], $defaultFixtureIdentityDecoded['packageFeatureCoverage']['navigationTypeCounts']);
         $t->same(['cover-image' => 2, 'mathml' => 2, 'nav' => 5, 'switch' => 1], $defaultFixtureIdentityDecoded['packageFeatureCoverage']['manifestPropertyCounts']);
+        $t->same([
+            'cover-image' => 2,
+            'image' => 9,
+            'navigation' => 9,
+            'style' => 13,
+            'xhtml' => 18,
+        ], $defaultFixtureIdentityDecoded['packageFeatureCoverage']['manifestResourceKindCounts']);
     },
 
     'cli gates epub package and native readiness without requiring ast equality' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeEpub): void {
