@@ -1,0 +1,3 @@
+[ RawBlock (Format "html") "<details class=\"migration-review\" data-source=\"classic\">\n<summary>Show imported source notes</summary>\n<p>Details body keeps <em>emphasis</em> inside the raw disclosure.</p>\n<p>Second note keeps <strong>strong</strong> context.</p>\n</details>"
+, Para [ Str "After" , Space , Str "disclosure." ]
+]

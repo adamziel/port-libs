@@ -134,6 +134,25 @@ $tests['imports generated current html definition list fixture as native definit
         $t->same('After glossary.', $document->children[1]->attr('text'));
     };
 
+$tests['imports generated current html details summary fixture as raw block boundary'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-details-summary-raw-block.html'));
+        $raw = $document->children[0];
+        $after = $document->children[1];
+
+        $t->same('html', $document->attr('sourceFormat'));
+        $t->same(['raw_html', 'paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same(
+            "<details class=\"migration-review\" data-source=\"classic\">\n"
+                . "<summary>Show imported source notes</summary>\n"
+                . "<p>Details body keeps <em>emphasis</em> inside the raw disclosure.</p>\n"
+                . "<p>Second note keeps <strong>strong</strong> context.</p>\n"
+                . '</details>',
+            $raw->attr('html')
+        );
+        $t->same('After disclosure.', $after->attr('text'));
+    };
+
 $tests['extracts html reader microdata item metadata with itemref and nested item scopes'] =
     static function (TestRunner $t): void {
         $html = '<!doctype html><html><head><title>Microdata Dispatch</title></head><body>'
