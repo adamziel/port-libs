@@ -182,6 +182,7 @@ return [
             'epub/font-manifest-resource.epub',
             'epub/formatting.epub',
             'epub/guide-glossary-reference.epub',
+            'epub/guide-notes-reference.epub',
             'epub/manifest-fallback-chain.epub',
             'epub/media-overlay-package.epub',
             'epub/missing-local-manifest-resource.epub',
