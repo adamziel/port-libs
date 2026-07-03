@@ -17262,8 +17262,32 @@ final class MarkdownReader
             return;
         }
 
-        $nodes[] = new AstNode('text', ['text' => $this->decodeHtmlEntities($buffer)]);
+        $nodes[] = new AstNode('text', ['text' => $this->decodeHtmlEntities($this->expandTextTabs($buffer))]);
         $buffer = '';
+    }
+
+    private function expandTextTabs(string $text): string
+    {
+        if (!str_contains($text, "\t")) {
+            return $text;
+        }
+
+        $expanded = '';
+        $column = 0;
+        $length = strlen($text);
+        for ($offset = 0; $offset < $length; $offset++) {
+            if ($text[$offset] === "\t") {
+                $spaces = 4 - ($column % 4);
+                $expanded .= str_repeat(' ', $spaces);
+                $column += $spaces;
+                continue;
+            }
+
+            $expanded .= $text[$offset];
+            $column++;
+        }
+
+        return $expanded;
     }
 
     private function decodeHtmlEntities(string $text): string
