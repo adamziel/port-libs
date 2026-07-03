@@ -13,12 +13,12 @@ final class EpubNativeAstPackageComparisonHarness
     private const CLAIM = 'Compares local PHP EPUB package parsing and reader output with a supplied checked-in current EPUB fixture directory and same-basename .native goldens. Package parsing/reader acceptance, fixture identity, package feature coverage, and native AST equality are reported separately; no upstream Haskell runner, writer parity, or full EPUB feature parity is asserted.';
     private const PACKAGE_FEATURE_SIGNATURE_KIND = 'checked-in-current-epub-package-feature-signature';
     private const PACKAGE_FEATURE_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
-    private const PACKAGE_FEATURE_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-14-fixture-snapshot';
-    private const CHECKED_IN_CURRENT_PACKAGE_FEATURE_SIGNATURE_SHA256 = 'fdd6a3b2aa964ad10f665a05b57153738c4e0383184224bb069a2c47814278e3';
+    private const PACKAGE_FEATURE_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-15-fixture-snapshot';
+    private const CHECKED_IN_CURRENT_PACKAGE_FEATURE_SIGNATURE_SHA256 = 'b078b16b8336301554cc6238a28a6400dd0d97605026a567aab34411c3b72566';
     private const CURRENT_NATIVE_AST_SIGNATURE_KIND = 'checked-in-current-epub-normalized-native-ast-signature';
     private const CURRENT_NATIVE_AST_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
-    private const CURRENT_NATIVE_AST_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-14-fixture-normalized-ast-snapshot';
-    private const CHECKED_IN_CURRENT_NATIVE_AST_SIGNATURE_SHA256 = '2378279b47ebe4512b881053fdb0948ba9c8bbeb83a1a51f76003783d1c57d94';
+    private const CURRENT_NATIVE_AST_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-15-fixture-normalized-ast-snapshot';
+    private const CHECKED_IN_CURRENT_NATIVE_AST_SIGNATURE_SHA256 = '3b72a5b4a9c5ab34f0af70277937297c658301d5eccffe2d9e24e079712bade8';
     private const RUNNER_CABAL_TARGET = 'exe:pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/epub-native-package-run';
     private const RUNNER_FIXTURE_DIRECTORY = 'test/epub';
@@ -120,6 +120,14 @@ final class EpubNativeAstPackageComparisonHarness
             'sha256' => '0e0152ba08256f6926bb9e9bba1892b673aa994ddbc8ab369d36f0abeab0b2b2',
             'bytes' => 6630,
         ],
+        'manifest-fallback-chain.epub' => [
+            'sha256' => 'af579a53102ff39e74bf2f79df687384ba1897c961aba9be197ba575079e18a4',
+            'bytes' => 1735,
+        ],
+        'manifest-fallback-chain.native' => [
+            'sha256' => '54fe7e8b655152d47863121ec647bddd468e69bfab601a05af54fc00f07893d3',
+            'bytes' => 180,
+        ],
         'media-overlay-package.epub' => [
             'sha256' => '6af50dc4bf618cd964af7274a688aebcbd16da6804581325c00195b1721ed972',
             'bytes' => 1894,
@@ -174,10 +182,10 @@ final class EpubNativeAstPackageComparisonHarness
      * @var array<string, mixed>
      */
     private const CHECKED_IN_CURRENT_PACKAGE_FEATURE_COVERAGE = [
-        'fixtureCount' => 14,
+        'fixtureCount' => 15,
         'metadataLanguageCounts' => [
             'de-DE' => 3,
-            'en' => 10,
+            'en' => 11,
             'en-US' => 1,
         ],
         'fixturesWithCreators' => [
@@ -191,14 +199,15 @@ final class EpubNativeAstPackageComparisonHarness
             'wasteland',
         ],
         'navigationTypeCounts' => [
-            'nav' => 11,
+            'nav' => 12,
             'ncx' => 3,
         ],
         'manifestMediaTypeCounts' => [
             'application/json' => 1,
             'application/smil+xml' => 1,
             'application/x-dtbncx+xml' => 5,
-            'application/xhtml+xml' => 36,
+            'application/x-fallback-demo' => 1,
+            'application/xhtml+xml' => 39,
             'audio/mpeg' => 1,
             'image/gif' => 3,
             'image/jpeg' => 5,
@@ -208,19 +217,19 @@ final class EpubNativeAstPackageComparisonHarness
         'manifestPropertyCounts' => [
             'cover-image' => 2,
             'mathml' => 2,
-            'nav' => 11,
+            'nav' => 12,
             'remote-resources' => 1,
             'switch' => 1,
         ],
         'manifestResourceKindCounts' => [
-            'asset' => 1,
+            'asset' => 2,
             'audio' => 1,
             'cover-image' => 2,
             'image' => 9,
             'media-overlay' => 1,
-            'navigation' => 16,
+            'navigation' => 17,
             'style' => 15,
-            'xhtml' => 25,
+            'xhtml' => 27,
         ],
         'navigationSectionTypes' => [
             'landmarks',
@@ -352,6 +361,18 @@ final class EpubNativeAstPackageComparisonHarness
                 'packageLinkRelCounts' => [],
                 'coverImagePartPresent' => false,
             ],
+            'manifest-fallback-chain' => [
+                'navigationType' => 'nav',
+                'navigationSectionTypes' => ['toc'],
+                'manifestResourceKindCounts' => [
+                    'asset' => 1,
+                    'navigation' => 1,
+                    'xhtml' => 2,
+                ],
+                'guideReferenceTypeCounts' => [],
+                'packageLinkRelCounts' => [],
+                'coverImagePartPresent' => false,
+            ],
             'media-overlay-package' => [
                 'navigationType' => 'nav',
                 'navigationSectionTypes' => ['toc'],
@@ -477,14 +498,17 @@ final class EpubNativeAstPackageComparisonHarness
         'fixturesWithMissingLocalManifestItems' => [
             'missing-local-manifest-resource',
         ],
+        'fixturesWithManifestFallbacks' => [
+            'manifest-fallback-chain',
+        ],
         'totals' => [
             'metadataCreators' => 28,
-            'manifestItems' => 70,
-            'readingOrderItems' => 29,
-            'xhtmlAssets' => 36,
+            'manifestItems' => 74,
+            'readingOrderItems' => 30,
+            'xhtmlAssets' => 39,
             'imageAssets' => 11,
             'stylesheetAssets' => 14,
-            'navigationEntries' => 96,
+            'navigationEntries' => 97,
             'landmarkEntries' => 8,
             'pageListEntries' => 1,
             'auxiliaryNavigationEntries' => 1,
@@ -493,6 +517,11 @@ final class EpubNativeAstPackageComparisonHarness
             'remoteResourceManifestItems' => 1,
             'externalManifestItems' => 1,
             'missingLocalManifestItems' => 1,
+            'manifestFallbackItems' => 2,
+            'manifestFallbacks' => 1,
+            'resolvedManifestFallbacks' => 1,
+            'usableManifestFallbacks' => 1,
+            'missingManifestFallbacks' => 1,
         ],
     ];
 
@@ -805,7 +834,7 @@ final class EpubNativeAstPackageComparisonHarness
                 ? $featureCoverage['packageLinkRelCounts']
                 : [];
             $lines[] = sprintf(
-                'packageFeatureCoverage: fixtures=%d nav=%d ncx=%d covers=%d landmarks=%d pageLists=%d auxiliaryNav=%d metadataCreators=%d manifestItems=%d readingOrderItems=%d imageAssets=%d stylesheetAssets=%d resourceKinds=%s guideRefTypes=%s packageLinkRels=%s remoteManifest=%d externalManifest=%d missingLocalManifest=%d',
+                'packageFeatureCoverage: fixtures=%d nav=%d ncx=%d covers=%d landmarks=%d pageLists=%d auxiliaryNav=%d metadataCreators=%d manifestItems=%d readingOrderItems=%d imageAssets=%d stylesheetAssets=%d resourceKinds=%s guideRefTypes=%s packageLinkRels=%s remoteManifest=%d externalManifest=%d missingLocalManifest=%d manifestFallbacks=%d',
                 (int) ($featureCoverage['fixtureCount'] ?? 0),
                 (int) ($navigationTypeCounts['nav'] ?? 0),
                 (int) ($navigationTypeCounts['ncx'] ?? 0),
@@ -825,7 +854,8 @@ final class EpubNativeAstPackageComparisonHarness
                 self::formatCounts($packageLinkRelCounts),
                 (int) ($totals['remoteResourceManifestItems'] ?? 0),
                 (int) ($totals['externalManifestItems'] ?? 0),
-                (int) ($totals['missingLocalManifestItems'] ?? 0)
+                (int) ($totals['missingLocalManifestItems'] ?? 0),
+                (int) ($totals['manifestFallbacks'] ?? 0)
             );
         }
         $featureSignature = is_array($report['packageFeatureSignature'] ?? null) ? $report['packageFeatureSignature'] : [];
@@ -1280,6 +1310,7 @@ final class EpubNativeAstPackageComparisonHarness
             'fixturesWithRemoteManifestResources' => [],
             'fixturesWithExternalManifestItems' => [],
             'fixturesWithMissingLocalManifestItems' => [],
+            'fixturesWithManifestFallbacks' => [],
             'totals' => [
                 'metadataCreators' => 0,
                 'manifestItems' => 0,
@@ -1296,6 +1327,11 @@ final class EpubNativeAstPackageComparisonHarness
                 'remoteResourceManifestItems' => 0,
                 'externalManifestItems' => 0,
                 'missingLocalManifestItems' => 0,
+                'manifestFallbackItems' => 0,
+                'manifestFallbacks' => 0,
+                'resolvedManifestFallbacks' => 0,
+                'usableManifestFallbacks' => 0,
+                'missingManifestFallbacks' => 0,
             ],
         ];
     }
@@ -1820,6 +1856,7 @@ final class EpubNativeAstPackageComparisonHarness
         $navigation = $package->navigation();
         $navigationSections = $package->navigationSections();
         $guideReferences = $package->guideReferences();
+        $manifestFallbacks = $package->manifestFallbacks();
         $navigationSectionTypes = [];
         $landmarkEntryCount = 0;
         $pageListEntryCount = 0;
@@ -1862,6 +1899,11 @@ final class EpubNativeAstPackageComparisonHarness
             'remoteResourceManifestItemCount' => $manifestCoverage['remoteResourceItemCount'],
             'externalManifestItemCount' => $manifestCoverage['externalItemCount'],
             'missingLocalManifestItemCount' => $manifestCoverage['missingLocalItemCount'],
+            'manifestFallbackItemCount' => (int) ($manifestFallbacks['itemCount'] ?? 0),
+            'manifestFallbackCount' => (int) ($manifestFallbacks['fallbackCount'] ?? 0),
+            'resolvedManifestFallbackCount' => (int) ($manifestFallbacks['resolvedFallbackCount'] ?? 0),
+            'usableManifestFallbackCount' => (int) ($manifestFallbacks['usableFallbackCount'] ?? 0),
+            'missingManifestFallbackCount' => (int) ($manifestFallbacks['missingFallbackCount'] ?? 0),
             'readingOrderCount' => count($package->readingOrder()),
             'xhtmlAssetCount' => count($assets['xhtmlParts']),
             'imageAssetCount' => count($assets['imageParts']),
@@ -1982,6 +2024,9 @@ final class EpubNativeAstPackageComparisonHarness
             if ($fixture !== '' && (int) ($summary['missingLocalManifestItemCount'] ?? 0) > 0) {
                 $coverage['fixturesWithMissingLocalManifestItems'][] = $fixture;
             }
+            if ($fixture !== '' && (int) ($summary['manifestFallbackCount'] ?? 0) > 0) {
+                $coverage['fixturesWithManifestFallbacks'][] = $fixture;
+            }
 
             $coverage['totals']['metadataCreators'] += (int) ($summary['metadataCreatorCount'] ?? 0);
             $coverage['totals']['manifestItems'] += (int) ($summary['manifestItemCount'] ?? 0);
@@ -1998,6 +2043,11 @@ final class EpubNativeAstPackageComparisonHarness
             $coverage['totals']['remoteResourceManifestItems'] += (int) ($summary['remoteResourceManifestItemCount'] ?? 0);
             $coverage['totals']['externalManifestItems'] += (int) ($summary['externalManifestItemCount'] ?? 0);
             $coverage['totals']['missingLocalManifestItems'] += (int) ($summary['missingLocalManifestItemCount'] ?? 0);
+            $coverage['totals']['manifestFallbackItems'] += (int) ($summary['manifestFallbackItemCount'] ?? 0);
+            $coverage['totals']['manifestFallbacks'] += (int) ($summary['manifestFallbackCount'] ?? 0);
+            $coverage['totals']['resolvedManifestFallbacks'] += (int) ($summary['resolvedManifestFallbackCount'] ?? 0);
+            $coverage['totals']['usableManifestFallbacks'] += (int) ($summary['usableManifestFallbackCount'] ?? 0);
+            $coverage['totals']['missingManifestFallbacks'] += (int) ($summary['missingManifestFallbackCount'] ?? 0);
         }
 
         ksort($metadataLanguageCounts, SORT_STRING);

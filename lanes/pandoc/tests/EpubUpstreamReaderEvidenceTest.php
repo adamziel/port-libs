@@ -179,6 +179,7 @@ return [
             'epub/features.epub',
             'epub/formatting.epub',
             'epub/guide-glossary-reference.epub',
+            'epub/manifest-fallback-chain.epub',
             'epub/media-overlay-package.epub',
             'epub/missing-local-manifest-resource.epub',
             'epub/nav-ncx-linear-guide.epub',
