@@ -1,0 +1,12 @@
+[ Table ( "" , [  ] , [  ] ) (Caption Nothing []) [ ( AlignDefault , ColWidthDefault ) , ( AlignDefault , ColWidthDefault ) , ( AlignDefault , ColWidthDefault ) , ( AlignDefault , ColWidthDefault ) ] (TableHead ( "" , [  ] , [  ] ) [ Row ( "" , [  ] , [  ] ) [ Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [ Plain [ Str "label" ]
+  ] , Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [ Plain [ Str "raw" ]
+  ] , Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [ Plain [ Str "empty" ]
+  ] , Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [ Plain [ Str "note" ]
+  ] ] ]) [ TableBody ( "" , [  ] , [  ] ) (RowHeadColumns 0) [  ] [ Row ( "" , [  ] , [  ] ) [ Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [ Plain [ Space , Str "alpha" ]
+  ] , Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [ Plain [ Str "trailing" , Space , Str "space" , Space ]
+  ] , Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [] , Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [ Plain [ Str "done" ]
+  ] ] , Row ( "" , [  ] , [  ] ) [ Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [ Plain [ Str "beta" ]
+  ] , Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [ Plain [ Str "plain" ]
+  ] , Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [] , Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [ Plain [ Str "kept" ]
+  ] ] ] ] (TableFoot ( "" , [  ] , [  ] ) [  ])
+]
