@@ -15508,7 +15508,7 @@ final class MarkdownReader
         $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
         $canonical = MarkdownFormatProfile::canonicalFormat($format);
 
-        return in_array($canonical, ['commonmark_x', 'gfm'], true);
+        return in_array($canonical, ['markdown', 'commonmark_x', 'gfm'], true);
     }
 
     private function strikeoutExtensionEnabled(): bool
@@ -15534,7 +15534,8 @@ final class MarkdownReader
         $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
         $canonical = MarkdownFormatProfile::canonicalFormat($format);
 
-        return $canonical === 'gfm' && !$this->deprecatedGithubMarkdownAlias($format);
+        return in_array($canonical, ['markdown', 'commonmark_x'], true)
+            || ($canonical === 'gfm' && !$this->deprecatedGithubMarkdownAlias($format));
     }
 
     private function scriptExtensionEnabled(string $delimiter): bool

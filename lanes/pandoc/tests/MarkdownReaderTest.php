@@ -11814,7 +11814,7 @@ HTML;
         $t->contains('<p>Dr.' . $nbsp . 'Rivera and e.g.' . $nbsp . 'examples.</p>', $blocks);
     },
     'maps upstream markdown github wiki link extension cases' => static function (TestRunner $t): void {
-        $document = (new MarkdownReader())->read(implode("\n\n", [
+        $document = (new MarkdownReader(['format' => 'markdown_github+wikilinks_title_before_pipe']))->read(implode("\n\n", [
             '[[https://example.org]]',
             '[[title|https://example.org]]',
             '[[title|random string]]',
@@ -12495,7 +12495,7 @@ XML;
     },
     'writes wordpress reference link titles and autolinks from import notes' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
-        $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
+        $blocks = (new WordPressBlockWriter())->write((new MarkdownReader(['format' => 'markdown+wikilinks_title_before_pipe']))->read($fixture));
 
         $t->contains('<a href="/wp-admin/post.php?post=42&amp;action=edit" title="Edit imported post">migration checklist</a>', $blocks);
         $t->contains('<a href="https://example.test/uploads/legacy%20media%20file.jpg" title="Legacy media file">legacy media file</a>', $blocks);

@@ -120,7 +120,6 @@ $aliasExpectations = [
         'citation' => false,
         'inline footnote' => false,
         'raw tex' => false,
-        'bare uri' => false,
     ]),
 ];
 

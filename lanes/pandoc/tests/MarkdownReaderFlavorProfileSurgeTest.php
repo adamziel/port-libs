@@ -197,11 +197,11 @@ $assertAbsent = static function (TestRunner $t, ?string $format, string $feature
 };
 
 $allFeatureFormats = [
-    'default' => ['format' => null, 'disabled' => ['mark', 'emoji', 'wikilink', 'bare uri']],
-    'markdown' => ['format' => 'markdown', 'disabled' => ['mark', 'emoji', 'wikilink', 'bare uri']],
-    'pandoc' => ['format' => 'pandoc', 'disabled' => ['mark', 'emoji', 'wikilink', 'bare uri']],
-    'commonmark_x' => ['format' => 'commonmark_x', 'disabled' => ['mark', 'citation', 'wikilink', 'raw tex', 'bare uri']],
-    'commonmark-x' => ['format' => 'commonmark-x', 'disabled' => ['mark', 'citation', 'wikilink', 'raw tex', 'bare uri']],
+    'default' => ['format' => null, 'disabled' => ['mark', 'wikilink']],
+    'markdown' => ['format' => 'markdown', 'disabled' => ['mark', 'wikilink']],
+    'pandoc' => ['format' => 'pandoc', 'disabled' => ['mark', 'wikilink']],
+    'commonmark_x' => ['format' => 'commonmark_x', 'disabled' => ['mark', 'citation', 'wikilink', 'raw tex']],
+    'commonmark-x' => ['format' => 'commonmark-x', 'disabled' => ['mark', 'citation', 'wikilink', 'raw tex']],
 ];
 
 $strictFormats = ['markdown_strict', 'markdown-strict', 'markdown+strict', 'commonmark'];
