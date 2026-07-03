@@ -11869,7 +11869,9 @@ final class MarkdownReader
             ];
         }
 
-        if (preg_match('/^( *)#([.)])(?:( +)(.*)|)$/', $expanded, $m) === 1) {
+        $fancyLists = $this->fancyListExtensionEnabled();
+
+        if ($fancyLists && preg_match('/^( *)#([.)])(?:( +)(.*)|)$/', $expanded, $m) === 1) {
             $padding = isset($m[3]) ? strlen($m[3]) : 1;
 
             return [
@@ -11885,7 +11887,7 @@ final class MarkdownReader
             ];
         }
 
-        if (preg_match('/^( *)\(([0-9]{1,9}|[A-Za-z]+)\)(?:( +)(.*)|)$/', $expanded, $m) === 1) {
+        if ($fancyLists && preg_match('/^( *)\(([0-9]{1,9}|[A-Za-z]+)\)(?:( +)(.*)|)$/', $expanded, $m) === 1) {
             $padding = isset($m[3]) ? strlen($m[3]) : 1;
             $ordinal = $this->parseOrderedMarkerOrdinal($m[2], 'two_parens', $padding, strlen($m[1]));
             if ($ordinal === null) {
@@ -11921,7 +11923,7 @@ final class MarkdownReader
             ];
         }
 
-        if (preg_match('/^( *)([A-Za-z]+)([.)])(?:( +)(.*)|)$/', $expanded, $m) === 1) {
+        if ($fancyLists && preg_match('/^( *)([A-Za-z]+)([.)])(?:( +)(.*)|)$/', $expanded, $m) === 1) {
             $delimiter = $m[3] === ')' ? 'one_paren' : 'period';
             $padding = isset($m[4]) ? strlen($m[4]) : 1;
             $ordinal = $this->parseOrderedMarkerOrdinal($m[2], $delimiter, $padding, strlen($m[1]));
@@ -14189,6 +14191,19 @@ final class MarkdownReader
     private function numberedExampleExtensionEnabled(): bool
     {
         $override = $this->markdownExtensionOverrideAny(['numbered_examples']);
+        if ($override !== null) {
+            return $override;
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['markdown', 'commonmark_x'], true);
+    }
+
+    private function fancyListExtensionEnabled(): bool
+    {
+        $override = $this->markdownExtensionOverrideAny(['fancy_lists']);
         if ($override !== null) {
             return $override;
         }
