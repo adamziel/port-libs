@@ -1952,6 +1952,7 @@ final class PptxReader
     private function shapeToBlocks(ZipPackage $package, \DOMElement $shapeElement, OpcRelationships $slideRelationships, array $slideContext, array $tableStyles, ?string $presentationNamespace, ?string $relationshipNamespace, ?string $drawingNamespace, int $zOrder, array &$imageIssues, array &$shapeIssues, array &$richMedia): array
     {
         if ($shapeElement->localName === 'sp') {
+            $this->appendRichMediaReviews($richMedia, $shapeElement, $slideRelationships, $zOrder);
             $textBody = $this->firstChildElementForOuterPrefix($shapeElement, 'p', 'txBody', $presentationNamespace);
             if (!$textBody instanceof \DOMElement) {
                 return [];

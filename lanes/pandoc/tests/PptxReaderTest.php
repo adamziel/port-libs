@@ -18367,6 +18367,33 @@ XML);
         $t->true(!str_contains($native, 'Ask about migration risks'), 'PPTX notesSlide text should stay out of visible native output');
     },
 
+    'keeps checked-in pptx rich media placeholders out of visible output with diagnostics' => static function (TestRunner $t) use ($nodesOfType): void {
+        $path = dirname(__DIR__) . '/fixtures/upstream-current-pptx-reader/rich-media-skip.pptx';
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException("Unable to read {$path}");
+        }
+
+        $document = (new PptxReader())->read($bytes);
+        $review = $document->attr('pptx');
+        $native = PandocConverter::write($document, 'native');
+        $paragraphTexts = array_map(static fn (AstNode $paragraph): string => (string) $paragraph->attr('text'), $nodesOfType($document, 'paragraph'));
+        $media = $review['slides'][0]['richMedia'] ?? [];
+
+        $t->same('Rich media skip deck', $document->children[0]->attr('text'));
+        $t->same(['Visible after media placeholders'], $paragraphTexts);
+        $t->same(2, $review['slides'][0]['blockCount'] ?? null);
+        $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
+        $t->same(2, $review['slides'][0]['richMediaCount'] ?? null);
+        $t->same(['video', 'audio'], array_map(static fn (array $item): string => (string) ($item['kind'] ?? ''), $media));
+        $t->same(['rIdVideo', 'rIdAudio'], array_map(static fn (array $item): string => (string) ($item['relationshipId'] ?? ''), $media));
+        $t->same(['Video Placeholder', 'Audio Shape'], array_map(static fn (array $item): string => (string) ($item['shape']['name'] ?? ''), $media));
+        $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Rich" , Space , Str "media" , Space , Str "skip" , Space , Str "deck" ]', $native);
+        $t->contains('Para [ Str "Visible" , Space , Str "after" , Space , Str "media" , Space , Str "placeholders" ]', $native);
+        $t->true(!str_contains($native, 'Video Placeholder'), 'Video placeholder metadata should stay out of visible native output');
+        $t->true(!str_contains($native, 'Audio Shape'), 'Audio placeholder metadata should stay out of visible native output');
+    },
+
     'reads pptx bytes through the converter input path' => static function (TestRunner $t) use ($buildPptxPackage): void {
         $document = PandocConverter::read($buildPptxPackage(), 'pptx');
         $html = PandocConverter::write($document, 'html');
