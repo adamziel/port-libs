@@ -16,6 +16,7 @@ final class DelimitedTextUpstreamReaderEvidence
     public const CHECKED_IN_GENERATED_TSV_NATIVE_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/generated-current-tsv-reader';
     public const EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT = 2;
     public const EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT = 0;
+    public const EXPECTED_STATIC_CSV_ADJACENT_RST_FIXTURE_COUNT = 2;
     public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 4;
     public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 4;
 
@@ -200,6 +201,23 @@ final class DelimitedTextUpstreamReaderEvidence
         'src/Text/Pandoc/Readers/CSV.hs',
     ];
 
+    private const CSV_ADJACENT_RST_FIXTURES = [
+        [
+            'path' => 'test/command/3533-rst-csv-tables.csv',
+            'role' => 'rst-csv-table-included-csv-data',
+            'reader' => 'rst',
+            'directDelimitedTextReaderFixture' => false,
+            'reason' => 'CSV data referenced by an RST csv-table directive; it is exercised through the RST reader integration path, not as direct CSV reader input.',
+        ],
+        [
+            'path' => 'test/command/3533-rst-csv-tables.md',
+            'role' => 'rst-csv-table-command-output-fixture',
+            'reader' => 'rst',
+            'directDelimitedTextReaderFixture' => false,
+            'reason' => 'Command fixture for RST csv-table output; the reader under test is RST, not the direct CSV or TSV reader.',
+        ],
+    ];
+
     private readonly string $repoRoot;
     private readonly string $upstreamRoot;
 
@@ -274,6 +292,10 @@ final class DelimitedTextUpstreamReaderEvidence
                     self::CHECKED_IN_CURRENT_CSV_FIXTURES
                 )),
                 'tsvDirectFixtures' => [],
+                'csvAdjacentRstFixtureCount' => self::EXPECTED_STATIC_CSV_ADJACENT_RST_FIXTURE_COUNT,
+                'csvAdjacentRstFixtures' => self::csvAdjacentRstFixturePaths(),
+                'adjacentFixtureDenominatorImpact' => 0,
+                'adjacentFixtureEvidence' => self::csvAdjacentRstFixtureEvidence(),
                 'upstreamFixtures' => $upstreamFixtures,
                 'parserOptionFixtureCount' => 5,
                 'parserOptionFixtures' => [
@@ -306,6 +328,7 @@ final class DelimitedTextUpstreamReaderEvidence
         $fixtureDirectory = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, self::CHECKED_IN_CURRENT_FIXTURE_DIRECTORY);
         $generatedCsvNativeStaticEvidence = self::checkedInGeneratedCsvNativeEvidence($root);
         $generatedTsvNativeStaticEvidence = self::checkedInGeneratedTsvNativeEvidence($root);
+        $adjacentFixtureEvidence = self::csvAdjacentRstFixtureEvidence();
         $issues = [];
         if (!is_dir($fixtureDirectory)) {
             $issues[] = 'missing-checked-in-current-fixture-directory';
@@ -343,6 +366,10 @@ final class DelimitedTextUpstreamReaderEvidence
             $issues[] = 'invalid-checked-in-generated-tsv-native-fixture-evidence';
         }
 
+        if (!self::hasRequiredCsvAdjacentRstFixtureEvidence($adjacentFixtureEvidence)) {
+            $issues[] = 'invalid-csv-adjacent-rst-fixture-evidence';
+        }
+
         return [
             'kind' => 'static-checked-in-current-upstream-delimited-text-reader-fixture-evidence',
             'upstream' => [
@@ -360,10 +387,14 @@ final class DelimitedTextUpstreamReaderEvidence
                     self::CHECKED_IN_CURRENT_CSV_FIXTURES
                 )),
                 'tsvDirectFixtures' => [],
+                'csvAdjacentRstFixtureCount' => self::EXPECTED_STATIC_CSV_ADJACENT_RST_FIXTURE_COUNT,
+                'csvAdjacentRstFixtures' => self::csvAdjacentRstFixturePaths(),
+                'adjacentFixtureDenominatorImpact' => 0,
             ],
             'checkedInFixtureDirectory' => self::CHECKED_IN_CURRENT_FIXTURE_DIRECTORY,
             'checkedInFixtureCount' => count($fixtures),
             'checkedInFixtures' => $fixtures,
+            'adjacentFixtureEvidence' => $adjacentFixtureEvidence,
             'generatedCsvNativeStaticEvidence' => $generatedCsvNativeStaticEvidence,
             'generatedTsvNativeStaticEvidence' => $generatedTsvNativeStaticEvidence,
             'validation' => [
@@ -375,6 +406,7 @@ final class DelimitedTextUpstreamReaderEvidence
                 'doesAssert' => [
                     'the checked-in csv.md and 01.csv snapshots match the pinned upstream command fixture hashes',
                     'the upstream command corpus has two CSV direct-reader fixtures tracked by this PHP reader',
+                    'the RST csv-table fixture pair is tracked as CSV-adjacent evidence with zero direct-reader denominator impact',
                     'the generated CSV-to-native parity fixture pairs are present as local evidence and are not counted as extra upstream CSV direct fixtures',
                     'there is no dedicated upstream TSV command fixture in this pinned corpus',
                     'the generated TSV-to-native parity fixture pairs are present as local evidence and are not counted as upstream TSV direct fixtures',
@@ -460,6 +492,47 @@ final class DelimitedTextUpstreamReaderEvidence
                 ],
             ],
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function csvAdjacentRstFixtureEvidence(): array
+    {
+        return [
+            'kind' => 'csv-adjacent-rst-csv-table-fixture-evidence',
+            'relationship' => 'adjacent-rst-reader-fixtures-not-direct-delimited-text',
+            'fixtureScope' => 'RST reader csv-table integration fixture pair in test/command',
+            'reader' => 'rst',
+            'directive' => 'csv-table',
+            'fixtureCount' => count(self::CSV_ADJACENT_RST_FIXTURES),
+            'fixtures' => self::CSV_ADJACENT_RST_FIXTURES,
+            'csvDirectFixtureDenominatorImpact' => 0,
+            'tsvDirectFixtureDenominatorImpact' => 0,
+            'claim' => 'Tracks the RST csv-table fixture pair as adjacent context only; these files do not increase the direct CSV or TSV reader denominator.',
+            'claimBoundaries' => [
+                'doesAssert' => [
+                    'the RST csv-table fixture pair is not counted as direct CSV or TSV reader fixtures',
+                    'the adjacent fixture pair has zero direct-reader denominator impact',
+                ],
+                'doesNotAssert' => [
+                    'that native PHP implements RST csv-table integration',
+                    'that upstream Haskell/Cabal/Tasty tests were executed',
+                    'that these adjacent fixtures close direct CSV or TSV reader parity',
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function csvAdjacentRstFixturePaths(): array
+    {
+        return array_values(array_map(
+            static fn (array $fixture): string => (string) $fixture['path'],
+            self::CSV_ADJACENT_RST_FIXTURES
+        ));
     }
 
     /**
@@ -853,6 +926,9 @@ final class DelimitedTextUpstreamReaderEvidence
             )
             && self::hasRequiredGeneratedTsvNativeStaticEvidence(
                 is_array($evidence['generatedTsvNativeStaticEvidence'] ?? null) ? $evidence['generatedTsvNativeStaticEvidence'] : []
+            )
+            && self::hasRequiredCsvAdjacentRstFixtureEvidence(
+                is_array($evidence['adjacentFixtureEvidence'] ?? null) ? $evidence['adjacentFixtureEvidence'] : []
             );
     }
 
@@ -893,6 +969,24 @@ final class DelimitedTextUpstreamReaderEvidence
             && (int) ($evidence['sampleCount'] ?? -1) === self::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT
             && (int) ($evidence['checkedInFixtureCount'] ?? -1) === count(self::CHECKED_IN_GENERATED_TSV_NATIVE_FIXTURES)
             && (int) ($evidence['tsvDirectFixtureDenominator'] ?? -1) === self::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT;
+    }
+
+    /**
+     * @param array<string, mixed> $evidence
+     */
+    public static function hasRequiredCsvAdjacentRstFixtureEvidence(array $evidence): bool
+    {
+        $fixtures = is_array($evidence['fixtures'] ?? null) ? $evidence['fixtures'] : [];
+
+        return ($evidence['kind'] ?? null) === 'csv-adjacent-rst-csv-table-fixture-evidence'
+            && ($evidence['relationship'] ?? null) === 'adjacent-rst-reader-fixtures-not-direct-delimited-text'
+            && ($evidence['reader'] ?? null) === 'rst'
+            && ($evidence['directive'] ?? null) === 'csv-table'
+            && (int) ($evidence['fixtureCount'] ?? -1) === self::EXPECTED_STATIC_CSV_ADJACENT_RST_FIXTURE_COUNT
+            && array_column($fixtures, 'path') === self::csvAdjacentRstFixturePaths()
+            && array_column($fixtures, 'directDelimitedTextReaderFixture') === [false, false]
+            && (int) ($evidence['csvDirectFixtureDenominatorImpact'] ?? -1) === 0
+            && (int) ($evidence['tsvDirectFixtureDenominatorImpact'] ?? -1) === 0;
     }
 
     /**
@@ -941,7 +1035,7 @@ final class DelimitedTextUpstreamReaderEvidence
 
     private static function claim(): string
     {
-        return 'Tracks the current upstream direct CSV command-reader fixtures, four generated CSV-to-native evidence samples, the absence of dedicated TSV command fixtures, and four generated TSV-to-native evidence samples for the delimited text reader.';
+        return 'Tracks the current upstream direct CSV command-reader fixtures, the adjacent RST csv-table fixture pair with zero direct-reader denominator impact, four generated CSV-to-native evidence samples, the absence of dedicated TSV command fixtures, and four generated TSV-to-native evidence samples for the delimited text reader.';
     }
 
     /**
@@ -953,6 +1047,7 @@ final class DelimitedTextUpstreamReaderEvidence
             'doesAssert' => [
                 'the count and file identities of upstream direct CSV command-reader fixtures tracked locally',
                 'that the current pinned upstream CSV reader source files are present when an upstream checkout is inspected',
+                'that the RST csv-table fixture pair is CSV-adjacent evidence and not part of the direct CSV/TSV reader denominator',
                 'that no dedicated TSV command fixture is available in the pinned direct-reader evidence set',
                 'static checked-in current csv.md and 01.csv fixture identity when staticCurrentEvidence is valid',
                 'four generated CSV-to-native local samples when generatedCsvNativeParityEvidence is valid',

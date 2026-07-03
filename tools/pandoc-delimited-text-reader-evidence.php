@@ -51,6 +51,19 @@ $validateHonestDenominators = static function (array $csv, array $tsv): array {
     $expect(($csv['csvDirectFixtureDenominator'] ?? null) === 2, 'CSV direct fixture split denominator must be 2');
     $expect(($csv['tsvDirectFixtureDenominator'] ?? null) === 0, 'TSV direct fixture split denominator must be 0');
     $expect(($csv['integrationFixtureCount'] ?? null) === 2, 'CSV-adjacent RST integration fixture count must stay separate at 2');
+    $adjacent = is_array($csv['adjacentFixtureEvidence'] ?? null) ? $csv['adjacentFixtureEvidence'] : [];
+    $adjacentFixtures = is_array($adjacent['fixtures'] ?? null) ? $adjacent['fixtures'] : [];
+    $expect(($adjacent['relationship'] ?? null) === 'adjacent-rst-reader-fixtures-not-direct-delimited-text', 'CSV-adjacent RST relationship must identify non-direct delimited-text evidence');
+    $expect(($adjacent['reader'] ?? null) === 'rst', 'CSV-adjacent fixture reader must be rst');
+    $expect(($adjacent['directive'] ?? null) === 'csv-table', 'CSV-adjacent fixture directive must be csv-table');
+    $expect(($adjacent['fixtureCount'] ?? null) === DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_ADJACENT_RST_FIXTURE_COUNT, 'CSV-adjacent RST fixture count must be 2');
+    $expect(($adjacent['csvDirectFixtureDenominatorImpact'] ?? null) === 0, 'CSV-adjacent RST fixtures must not change the CSV direct denominator');
+    $expect(($adjacent['tsvDirectFixtureDenominatorImpact'] ?? null) === 0, 'CSV-adjacent RST fixtures must not change the TSV direct denominator');
+    $expect(array_column($adjacentFixtures, 'path') === [
+        'test/command/3533-rst-csv-tables.csv',
+        'test/command/3533-rst-csv-tables.md',
+    ], 'CSV-adjacent RST fixture paths must be explicit');
+    $expect(array_column($adjacentFixtures, 'directDelimitedTextReaderFixture') === [false, false], 'CSV-adjacent RST fixtures must be marked non-direct delimited text reader fixtures');
 
     $expect(($tsv['reader'] ?? null) === 'tsv', 'TSV evidence reader must be tsv');
     $expect(str_contains((string) ($tsv['source'] ?? ''), DelimitedTextUpstreamReaderEvidence::EXPECTED_UPSTREAM_COMMIT), 'TSV evidence source must identify the pinned current upstream commit');
@@ -63,6 +76,7 @@ $validateHonestDenominators = static function (array $csv, array $tsv): array {
     $expect(($tsv['csvDirectFixtureDenominator'] ?? null) === 2, 'CSV direct fixture split denominator must remain visible from TSV evidence');
     $expect(($tsv['tsvDirectFixtureDenominator'] ?? null) === 0, 'TSV direct fixture split denominator must be 0');
     $expect(($tsv['integrationFixtureCount'] ?? null) === 0, 'TSV integration fixture count must be 0');
+    $expect(($tsv['adjacentFixtureEvidence'] ?? null) === [], 'TSV adjacent fixture evidence must be empty');
 
     return $issues;
 };
@@ -147,6 +161,11 @@ $formatTextReport = static function (array $report): string {
         'CSV direct denominator: ' . $csv['denominator'] . ' (' . $csv['denominatorScope'] . ')',
         'CSV direct fixtures: ' . implode(', ', $csv['fixtures']),
         'CSV adjacent RST integration fixtures: ' . $csv['integrationFixtureCount'],
+        'CSV adjacent RST denominator impact: '
+            . (int) (($csv['adjacentFixtureEvidence']['csvDirectFixtureDenominatorImpact'] ?? -1))
+            . ' CSV, '
+            . (int) (($csv['adjacentFixtureEvidence']['tsvDirectFixtureDenominatorImpact'] ?? -1))
+            . ' TSV',
         'TSV direct denominator: ' . $tsv['denominator'] . ' (' . $tsv['denominatorScope'] . ')',
         'TSV direct fixtures: ' . (($tsv['fixtures'] ?? []) === [] ? 'none' : implode(', ', $tsv['fixtures'])),
         'Generated CSV native parity: ' . $generatedCsvNative['generatedNativeMatchCount']

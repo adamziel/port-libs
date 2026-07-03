@@ -87,10 +87,26 @@ return [
         $t->same('4f5226df4faa0d66dd2c089465b13886360ab3c2', $evidence['upstream']['commit']);
         $t->same(2, $evidence['readerDenominator']['csvDirectFixtureCount']);
         $t->same(0, $evidence['readerDenominator']['tsvDirectFixtureCount']);
+        $t->same(2, $evidence['readerDenominator']['csvAdjacentRstFixtureCount']);
+        $t->same(0, $evidence['readerDenominator']['adjacentFixtureDenominatorImpact']);
         $t->same([
             'test/command/csv.md',
             'test/command/01.csv',
         ], $evidence['readerDenominator']['csvDirectFixtures']);
+        $t->same([
+            'test/command/3533-rst-csv-tables.csv',
+            'test/command/3533-rst-csv-tables.md',
+        ], $evidence['readerDenominator']['csvAdjacentRstFixtures']);
+        $adjacent = $evidence['adjacentFixtureEvidence'] ?? [];
+        $t->same('csv-adjacent-rst-csv-table-fixture-evidence', $adjacent['kind'] ?? null);
+        $t->same('adjacent-rst-reader-fixtures-not-direct-delimited-text', $adjacent['relationship'] ?? null);
+        $t->same('rst', $adjacent['reader'] ?? null);
+        $t->same('csv-table', $adjacent['directive'] ?? null);
+        $t->same(2, $adjacent['fixtureCount'] ?? null);
+        $t->same(0, $adjacent['csvDirectFixtureDenominatorImpact'] ?? null);
+        $t->same(0, $adjacent['tsvDirectFixtureDenominatorImpact'] ?? null);
+        $t->same([false, false], array_column($adjacent['fixtures'] ?? [], 'directDelimitedTextReaderFixture'));
+        $t->same(true, DelimitedTextUpstreamReaderEvidence::hasRequiredCsvAdjacentRstFixtureEvidence($adjacent));
         $t->same(2, $evidence['checkedInFixtureCount']);
         $t->same('csv.md', $evidence['checkedInFixtures'][0]['name']);
         $t->same('42a8bc56612d061388889a10d73b1d34fb870595785ee550ef43c6a065a77ad6', $evidence['checkedInFixtures'][0]['checkedInFile']['sha256']);
@@ -253,6 +269,9 @@ return [
             $t->same([], $report['validation']['issues']);
             $t->same(2, $report['denominator']['csvDirectFixtureCount']);
             $t->same(0, $report['denominator']['tsvDirectFixtureCount']);
+            $t->same(2, $report['denominator']['csvAdjacentRstFixtureCount']);
+            $t->same(0, $report['denominator']['adjacentFixtureDenominatorImpact']);
+            $t->same('adjacent-rst-reader-fixtures-not-direct-delimited-text', $report['denominator']['adjacentFixtureEvidence']['relationship'] ?? null);
             $t->same('test/command/csv.md', $report['denominator']['upstreamFixtures'][0]['path']);
             $t->same('42a8bc56612d061388889a10d73b1d34fb870595785ee550ef43c6a065a77ad6', $report['denominator']['upstreamFixtures'][0]['sha256']);
             $t->same(2, $report['sourceInventory']['presentFileCount']);
@@ -290,6 +309,9 @@ return [
         $t->same(4, $decoded['generatedCsvNativeParity']['sampleCount']);
         $t->same(4, $decoded['generatedCsvNativeParity']['generatedNativeMatchCount']);
         $t->same('generated-csv-native-parity-observed-not-upstream-fixture', $decoded['generatedCsvNativeParity']['parityStatus']);
+        $t->same(2, $decoded['csv']['adjacentFixtureEvidence']['fixtureCount']);
+        $t->same(0, $decoded['csv']['adjacentFixtureEvidence']['csvDirectFixtureDenominatorImpact']);
+        $t->same('rst', $decoded['csv']['adjacentFixtureEvidence']['reader']);
         $t->same(4, $decoded['tsv']['generatedNativeParitySampleCount']);
         $t->same(4, $decoded['generatedTsvNativeParity']['generatedNativeMatchCount']);
         $t->same('generated-tsv-native-parity-observed-not-upstream-fixture', $decoded['generatedTsvNativeParity']['parityStatus']);

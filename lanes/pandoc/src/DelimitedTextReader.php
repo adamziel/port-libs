@@ -905,6 +905,7 @@ final class DelimitedTextReader
      *     parserOptionFixtures:list<string>,
      *     integrationFixtureCount:int,
      *     integrationFixtures:list<string>,
+     *     adjacentFixtureEvidence:array<string, mixed>,
      *     staticCurrentEvidence:array<string, mixed>,
      *     generatedNativeParitySampleCount:int,
      *     generatedNativeParityEvidence:array<string, mixed>,
@@ -921,10 +922,11 @@ final class DelimitedTextReader
             'test/command/csv.md',
             'test/command/01.csv',
         ];
-        $rstCsvFixtures = [
-            'test/command/3533-rst-csv-tables.csv',
-            'test/command/3533-rst-csv-tables.md',
-        ];
+        $rstCsvAdjacentEvidence = DelimitedTextUpstreamReaderEvidence::csvAdjacentRstFixtureEvidence();
+        $rstCsvFixtures = array_values(array_map(
+            static fn (array $fixture): string => (string) $fixture['path'],
+            is_array($rstCsvAdjacentEvidence['fixtures'] ?? null) ? $rstCsvAdjacentEvidence['fixtures'] : []
+        ));
         $parserOptionFixtures = [
             'comma-delimiter-no-header',
             'space-delimiter-single-quote',
@@ -975,6 +977,7 @@ final class DelimitedTextReader
                 'parserOptionFixtures' => [],
                 'integrationFixtureCount' => 0,
                 'integrationFixtures' => [],
+                'adjacentFixtureEvidence' => [],
                 'staticCurrentEvidence' => $staticCurrentEvidence,
                 'generatedNativeParitySampleCount' => DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT,
                 'generatedNativeParityEvidence' => $generatedTsvNativeStaticEvidence,
@@ -1016,6 +1019,7 @@ final class DelimitedTextReader
             'parserOptionFixtures' => $parserOptionFixtures,
             'integrationFixtureCount' => count($rstCsvFixtures),
             'integrationFixtures' => $rstCsvFixtures,
+            'adjacentFixtureEvidence' => $rstCsvAdjacentEvidence,
             'staticCurrentEvidence' => $staticCurrentEvidence,
             'generatedNativeParitySampleCount' => DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT,
             'generatedNativeParityEvidence' => $generatedCsvNativeStaticEvidence,

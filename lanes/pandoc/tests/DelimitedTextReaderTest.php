@@ -550,6 +550,20 @@ return [
             'test/command/3533-rst-csv-tables.csv',
             'test/command/3533-rst-csv-tables.md',
         ], $csvEvidence['integrationFixtures'] ?? null);
+        $adjacent = $csvEvidence['adjacentFixtureEvidence'] ?? [];
+        $t->same('csv-adjacent-rst-csv-table-fixture-evidence', $adjacent['kind'] ?? null);
+        $t->same('adjacent-rst-reader-fixtures-not-direct-delimited-text', $adjacent['relationship'] ?? null);
+        $t->same('rst', $adjacent['reader'] ?? null);
+        $t->same('csv-table', $adjacent['directive'] ?? null);
+        $t->same(2, $adjacent['fixtureCount'] ?? null);
+        $t->same(0, $adjacent['csvDirectFixtureDenominatorImpact'] ?? null);
+        $t->same(0, $adjacent['tsvDirectFixtureDenominatorImpact'] ?? null);
+        $t->same([
+            'test/command/3533-rst-csv-tables.csv',
+            'test/command/3533-rst-csv-tables.md',
+        ], array_column($adjacent['fixtures'] ?? [], 'path'));
+        $t->same([false, false], array_column($adjacent['fixtures'] ?? [], 'directDelimitedTextReaderFixture'));
+        $t->contains('RST csv-table fixture pair is not counted as direct CSV or TSV reader fixtures', implode(' ', $adjacent['claimBoundaries']['doesAssert'] ?? []));
         $t->same(4, $csvEvidence['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-csv-native-parity-evidence', $csvEvidence['generatedNativeParityEvidence']['validation']['status'] ?? null);
         $t->same('quoted-multiline', $csvEvidence['generatedNativeParityEvidence']['samples'][0]['name'] ?? null);
@@ -590,6 +604,7 @@ return [
         $t->same(2, $tsvEvidence['csvDirectFixtureDenominator'] ?? null);
         $t->same(0, $tsvEvidence['tsvDirectFixtureDenominator'] ?? null);
         $t->same(0, $tsvEvidence['parserOptionFixtureCount'] ?? null);
+        $t->same([], $tsvEvidence['adjacentFixtureEvidence'] ?? null);
         $t->same(4, $tsvEvidence['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $tsvEvidence['generatedNativeParityEvidence']['validation']['status'] ?? null);
         $t->same('simple', $tsvEvidence['generatedNativeParityEvidence']['samples'][0]['name'] ?? null);
