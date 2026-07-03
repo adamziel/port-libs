@@ -176,6 +176,7 @@ return [
         $t->same(10, $report['denominator']['expectedMediaItemCount']);
         $t->same([], $report['denominator']['missingReferencedFiles']);
         $t->same([
+            'epub/direct-image-spine.epub',
             'epub/features.epub',
             'epub/formatting.epub',
             'epub/guide-glossary-reference.epub',
