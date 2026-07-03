@@ -59,6 +59,35 @@ $tests['imports upstream html base absolute image without rewriting absolute url
         $t->same('Stickman', $image->children[0]->attr('text'));
     };
 
+$tests['imports generated current html inline quote cites resolved against base'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-inline-quote-cite-base.html'));
+        $meta = $document->attr('meta');
+        $paragraph = $document->children[0];
+        $outerQuote = $paragraph->children[1];
+        $outerSpan = $outerQuote->children[0];
+        $innerQuote = $outerSpan->children[1];
+        $innerSpan = $innerQuote->children[0];
+
+        $t->same('HTML Inline Quote Cite Base Import', $meta['title']);
+        $t->same(['paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same(['text', 'quoted', 'text'], array_map(static fn ($node): string => $node->type, $paragraph->children));
+        $t->same('double', $outerQuote->attr('kind'));
+        $t->same('single', $innerQuote->attr('kind'));
+        $t->same(
+            'https://source.example.test/import/posts/quotes/source.html#frag',
+            $outerSpan->attr('attributes')['cite'] ?? null
+        );
+        $t->same(
+            'https://source.example.test/import/shared/context.html',
+            $innerSpan->attr('attributes')['cite'] ?? null
+        );
+        $t->same(['text', 'quoted'], array_map(static fn ($node): string => $node->type, $outerSpan->children));
+        $t->same('outer ', $outerSpan->children[0]->attr('text'));
+        $t->same('inner source', $innerSpan->children[0]->attr('text'));
+        $t->same(' stays linked.', $paragraph->children[2]->attr('text'));
+    };
+
 $tests['imports generated current html blockquote fixture as native blockquote'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-blockquote.html'));
