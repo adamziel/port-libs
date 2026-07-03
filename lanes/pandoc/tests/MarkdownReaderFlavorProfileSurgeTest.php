@@ -197,11 +197,11 @@ $assertAbsent = static function (TestRunner $t, ?string $format, string $feature
 };
 
 $allFeatureFormats = [
-    'default' => ['format' => null, 'disabled' => []],
-    'markdown' => ['format' => 'markdown', 'disabled' => []],
-    'pandoc' => ['format' => 'pandoc', 'disabled' => []],
-    'commonmark_x' => ['format' => 'commonmark_x', 'disabled' => ['raw tex']],
-    'commonmark-x' => ['format' => 'commonmark-x', 'disabled' => ['raw tex']],
+    'default' => ['format' => null, 'disabled' => ['mark', 'emoji', 'wikilink', 'bare uri']],
+    'markdown' => ['format' => 'markdown', 'disabled' => ['mark', 'emoji', 'wikilink', 'bare uri']],
+    'pandoc' => ['format' => 'pandoc', 'disabled' => ['mark', 'emoji', 'wikilink', 'bare uri']],
+    'commonmark_x' => ['format' => 'commonmark_x', 'disabled' => ['mark', 'citation', 'wikilink', 'raw tex', 'bare uri']],
+    'commonmark-x' => ['format' => 'commonmark-x', 'disabled' => ['mark', 'citation', 'wikilink', 'raw tex', 'bare uri']],
 ];
 
 $strictFormats = ['markdown_strict', 'markdown-strict', 'markdown+strict', 'commonmark'];
@@ -209,13 +209,13 @@ $gfmFormats = ['gfm', 'markdown+github'];
 $githubMarkdownFormats = ['markdown_github', 'markdown-github'];
 $gfmEnabled = ['strikeout', 'emoji', 'dollar math', 'bare uri'];
 $gfmDisabled = array_values(array_diff(array_keys($featureProbes), $gfmEnabled));
-$githubMarkdownEnabled = ['strikeout', 'emoji', 'bare uri'];
+$githubMarkdownEnabled = ['strikeout', 'emoji'];
 $githubMarkdownDisabled = array_values(array_diff(array_keys($featureProbes), $githubMarkdownEnabled));
 $phpExtraFormats = ['markdown_phpextra', 'markdown-php-extra', 'markdown+php_extra', 'markdown+php-extra', 'markdown+phpextra'];
-$phpExtraEnabled = ['bracketed span'];
+$phpExtraEnabled = [];
 $phpExtraDisabled = array_values(array_diff(array_keys($featureProbes), $phpExtraEnabled));
 $mmdFormats = ['markdown_mmd', 'markdown-mmd', 'markdown+mmd', 'markdown+multimarkdown'];
-$mmdEnabled = ['citation', 'dollar math', 'bracketed span'];
+$mmdEnabled = ['superscript', 'subscript', 'dollar math', 'raw inline attribute'];
 $mmdDisabled = array_values(array_diff(array_keys($featureProbes), $mmdEnabled));
 $rawTexAliasCases = [
     'commonmark raw_latex suffix leaves raw tex literal' => [

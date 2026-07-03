@@ -109,20 +109,18 @@ $aliasExpectations = [
     'markdown-github' => array_replace($disabledFeatures, [
         'strikeout' => true,
         'emoji' => true,
-        'bare uri' => true,
     ]),
-    'markdown-php-extra' => array_replace($disabledFeatures, [
-        'bracketed span' => true,
-    ]),
+    'markdown-php-extra' => $disabledFeatures,
     'markdown-strict' => $disabledFeatures,
     'markdown-mmd' => array_replace($disabledFeatures, [
-        'citation' => true,
         'dollar math' => true,
-        'bracketed span' => true,
     ]),
     'commonmark-x' => array_replace($allFeatures, [
+        'mark' => false,
+        'citation' => false,
         'inline footnote' => false,
         'raw tex' => false,
+        'bare uri' => false,
     ]),
 ];
 

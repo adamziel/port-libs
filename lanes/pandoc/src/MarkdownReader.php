@@ -15452,10 +15452,7 @@ final class MarkdownReader
             return $overrides['mark'];
         }
 
-        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
-        $canonical = MarkdownFormatProfile::canonicalFormat($format);
-
-        return in_array($canonical, ['markdown', 'commonmark_x'], true);
+        return false;
     }
 
     private function emojiExtensionEnabled(): bool
@@ -15470,7 +15467,7 @@ final class MarkdownReader
         $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
         $canonical = MarkdownFormatProfile::canonicalFormat($format);
 
-        return in_array($canonical, ['markdown', 'commonmark_x', 'gfm'], true);
+        return in_array($canonical, ['commonmark_x', 'gfm'], true);
     }
 
     private function strikeoutExtensionEnabled(): bool
@@ -15496,7 +15493,7 @@ final class MarkdownReader
         $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
         $canonical = MarkdownFormatProfile::canonicalFormat($format);
 
-        return in_array($canonical, ['markdown', 'commonmark_x', 'gfm'], true);
+        return $canonical === 'gfm' && !$this->deprecatedGithubMarkdownAlias($format);
     }
 
     private function scriptExtensionEnabled(string $delimiter): bool
@@ -15523,7 +15520,7 @@ final class MarkdownReader
         $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
         $canonical = MarkdownFormatProfile::canonicalFormat($format);
 
-        return in_array($canonical, ['markdown', 'commonmark_x'], true);
+        return in_array($canonical, ['markdown', 'commonmark_x', 'markdown_mmd'], true);
     }
 
     private function shortScriptExtensionEnabled(string $delimiter): bool
@@ -15758,7 +15755,7 @@ final class MarkdownReader
         $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
         $canonical = MarkdownFormatProfile::canonicalFormat($format);
 
-        return in_array($canonical, ['markdown', 'commonmark_x', 'markdown_mmd'], true);
+        return $canonical === 'markdown';
     }
 
     private function mathExtensionEnabled(): bool
@@ -15840,10 +15837,7 @@ final class MarkdownReader
             return true;
         }
 
-        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
-        $canonical = MarkdownFormatProfile::canonicalFormat($format);
-
-        return in_array($canonical, ['markdown', 'commonmark_x'], true);
+        return false;
     }
 
     private function bracketedSpanExtensionEnabled(): bool
@@ -15856,7 +15850,7 @@ final class MarkdownReader
         $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
         $canonical = MarkdownFormatProfile::canonicalFormat($format);
 
-        return in_array($canonical, ['markdown', 'commonmark_x', 'markdown_phpextra', 'markdown_mmd'], true);
+        return in_array($canonical, ['markdown', 'commonmark_x'], true);
     }
 
     private function nativeSpanExtensionEnabled(): bool
