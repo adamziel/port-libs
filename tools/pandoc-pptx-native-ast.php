@@ -8,7 +8,10 @@ require __DIR__ . '/bootstrap.php';
 
 $repoRoot = dirname(__DIR__);
 $defaultPptxDirectory = $repoRoot . '/.upstream-cache/pandoc-current/test/pptx-reader';
+$checkedInPptxDirectory = $repoRoot . '/lanes/pandoc/fixtures/upstream-current-pptx-reader';
 $pptxDirectory = getenv('PANDOC_UPSTREAM_PPTX_DIR') ?: getenv('PANDOC_PPTX_NATIVE_AST_DIR') ?: $defaultPptxDirectory;
+$pptxDirectoryArgumentWasProvided = false;
+$useCheckedInFixtures = false;
 $limit = 0;
 $requiredMappedParity = null;
 $json = false;
@@ -17,12 +20,14 @@ $summary = false;
 foreach (array_slice($argv, 1) as $argument) {
     if ($argument === '--help' || $argument === '-h') {
         fwrite(STDOUT, <<<'TXT'
-Usage: php tools/pandoc-pptx-native-ast.php [--upstream-pptx-dir=PATH] [--limit=N] [--json] [--require-mapped-parity=N] [summary]
+Usage: php tools/pandoc-pptx-native-ast.php [--upstream-pptx-dir=PATH|--checked-in-fixtures] [--limit=N] [--json] [--require-mapped-parity=N] [summary]
 
 Compares local PHP PPTX reader output with same-basename upstream .native
 expectations by normalized AST shape when the upstream cache is present.
 Missing cache is reported as skipped with exit 0 unless required parity is
 requested.
+Use --checked-in-fixtures for the checked-in current PPTX fixture snapshot at
+lanes/pandoc/fixtures/upstream-current-pptx-reader.
 With --require-mapped-parity=N, exits 1 unless exactly N paired fixtures are
 compared, parsed by both readers, and matched by normalized AST shape.
 
@@ -42,6 +47,12 @@ TXT);
 
     if (str_starts_with($argument, '--upstream-pptx-dir=')) {
         $pptxDirectory = substr($argument, strlen('--upstream-pptx-dir='));
+        $pptxDirectoryArgumentWasProvided = true;
+        continue;
+    }
+
+    if ($argument === '--checked-in-fixtures') {
+        $useCheckedInFixtures = true;
         continue;
     }
 
@@ -62,6 +73,15 @@ TXT);
 
     fwrite(STDERR, "Unknown argument: {$argument}\n");
     exit(2);
+}
+
+if ($useCheckedInFixtures && $pptxDirectoryArgumentWasProvided) {
+    fwrite(STDERR, "--checked-in-fixtures cannot be combined with --upstream-pptx-dir\n");
+    exit(2);
+}
+
+if ($useCheckedInFixtures) {
+    $pptxDirectory = $checkedInPptxDirectory;
 }
 
 if ($pptxDirectory !== '' && !str_starts_with($pptxDirectory, DIRECTORY_SEPARATOR)) {

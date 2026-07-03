@@ -189,13 +189,11 @@ return [
         $t->same(0, $report['normalizedAstMismatchCount']);
         $t->same(true, PptxNativeAstComparisonHarness::hasRequiredMappedParity($report, 1));
     },
-    'cli gates required mapped pptx parity from checked-in fixture' => static function (TestRunner $t): void {
-        $fixtureDir = dirname(__DIR__) . '/fixtures/upstream-current-pptx-reader';
+    'cli gates required mapped pptx parity from checked-in fixture selector' => static function (TestRunner $t): void {
         $command = escapeshellarg(PHP_BINARY)
             . ' '
             . escapeshellarg(dirname(__DIR__, 3) . '/tools/pandoc-pptx-native-ast.php')
-            . ' --upstream-pptx-dir='
-            . escapeshellarg($fixtureDir)
+            . ' --checked-in-fixtures'
             . ' --json'
             . ' summary'
             . ' --require-mapped-parity=1';
@@ -206,6 +204,7 @@ return [
 
         $t->same(0, $exitCode);
         $t->same('completed', $decoded['status']);
+        $t->same(dirname(__DIR__, 3) . '/lanes/pandoc/fixtures/upstream-current-pptx-reader', $decoded['upstreamPptxDirectory']);
         $t->same(1, $decoded['normalizedAstMatchCount']);
         $t->same(0, $decoded['normalizedAstMismatchCount']);
         $t->same(true, PptxNativeAstComparisonHarness::hasRequiredMappedParity($decoded, 1));
