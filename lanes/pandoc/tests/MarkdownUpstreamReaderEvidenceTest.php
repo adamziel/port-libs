@@ -62,13 +62,13 @@ return [
         $t->same('not-evaluated-missing-upstream-root', $report['validation']['status']);
         $t->same(['missing-upstream-root'], $report['validation']['issues']);
         $t->same('valid-checked-in-current-markdown-reader-evidence', $report['staticCurrentEvidence']['validation']['status']);
-        $t->same(true, MarkdownUpstreamReaderEvidence::hasRequiredSelectedFixtureCount($report, 42));
+        $t->same(true, MarkdownUpstreamReaderEvidence::hasRequiredSelectedFixtureCount($report, 43));
         $t->same(true, MarkdownUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($report));
         $t->same(true, MarkdownUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
         $t->same(false, MarkdownUpstreamReaderEvidence::hasNoValidationIssues($report));
         $t->contains('Pandoc Markdown reader evidence', $text);
-        $t->contains('Selected checked-in fixtures: 42', $text);
-        $t->contains('Static current evidence: valid-checked-in-current-markdown-reader-evidence checkedInFixtures=42', $text);
+        $t->contains('Selected checked-in fixtures: 43', $text);
+        $t->contains('Static current evidence: valid-checked-in-current-markdown-reader-evidence checkedInFixtures=43', $text);
     },
 
     'reports checked-in current markdown fixture static evidence' => static function (TestRunner $t): void {
@@ -77,10 +77,10 @@ return [
 
         $t->same('static-checked-in-current-upstream-markdown-reader-fixture-evidence', $evidence['kind']);
         $t->same(MarkdownUpstreamReaderEvidence::EXPECTED_UPSTREAM_COMMIT, $evidence['upstream']['commit']);
-        $t->same(42, $evidence['readerDenominator']['selectedFixtureCount']);
+        $t->same(43, $evidence['readerDenominator']['selectedFixtureCount']);
         $t->same('selected checked-in upstream-derived Markdown reader fixtures', $evidence['readerDenominator']['fixtureScope']);
         $t->same(['selected-upstream-markdown-reader-case', 'upstream-command-fixture'], $evidence['readerDenominator']['sourceKinds']);
-        $t->same(42, $evidence['checkedInFixtureCount']);
+        $t->same(43, $evidence['checkedInFixtureCount']);
         $t->same('upstream-command-parse-raw.md', $evidence['checkedInFixtures'][0]['name']);
         $t->same('command-parse-raw-reader-fixture', $evidence['checkedInFixtures'][0]['role']);
         $t->same('e3b50f56f86883e3e323cf97d52cd07a3c3797fb7d5f89bbb422392e8008f72b', $evidence['checkedInFixtures'][0]['checkedInFile']['sha256']);
@@ -264,11 +264,16 @@ return [
         $t->same(84, $evidence['checkedInFixtures'][40]['checkedInFile']['bytes']);
         $t->true(in_array('lanes/pandoc/tests/MarkdownReaderEmphStrongBoundaryFixtureCompletionTest.php', $evidence['checkedInFixtures'][40]['coverageTests'], true));
         $t->true(in_array('lanes/pandoc/tests/MarkdownReaderEmphStrongBoundaryFixtureCompletionTest.php', $evidence['checkedInFixtures'][40]['localTestReferences'], true));
-        $t->same('upstream-markdown-figure-latex-placement.md', $evidence['checkedInFixtures'][41]['name']);
-        $t->same('3840aacf3395bbee84846e39c378749f32b386d09dc3bfd02348c524577dcb56', $evidence['checkedInFixtures'][41]['checkedInFile']['sha256']);
-        $t->same(59, $evidence['checkedInFixtures'][41]['checkedInFile']['bytes']);
-        $t->true(in_array('lanes/pandoc/tests/MarkdownReaderFigureLatexPlacementFixtureCompletionTest.php', $evidence['checkedInFixtures'][41]['coverageTests'], true));
-        $t->true(in_array('lanes/pandoc/tests/MarkdownReaderFigureLatexPlacementFixtureCompletionTest.php', $evidence['checkedInFixtures'][41]['localTestReferences'], true));
+        $t->same('upstream-markdown-raw-latex-bare-begin.md', $evidence['checkedInFixtures'][41]['name']);
+        $t->same('f4aa0601ed6885d2a2bd06e9502564322ba0ee4e687501995fa00c1481f98d8a', $evidence['checkedInFixtures'][41]['checkedInFile']['sha256']);
+        $t->same(7, $evidence['checkedInFixtures'][41]['checkedInFile']['bytes']);
+        $t->true(in_array('lanes/pandoc/tests/MarkdownReaderRawLatexBareBeginFixtureCompletionTest.php', $evidence['checkedInFixtures'][41]['coverageTests'], true));
+        $t->true(in_array('lanes/pandoc/tests/MarkdownReaderRawLatexBareBeginFixtureCompletionTest.php', $evidence['checkedInFixtures'][41]['localTestReferences'], true));
+        $t->same('upstream-markdown-figure-latex-placement.md', $evidence['checkedInFixtures'][42]['name']);
+        $t->same('3840aacf3395bbee84846e39c378749f32b386d09dc3bfd02348c524577dcb56', $evidence['checkedInFixtures'][42]['checkedInFile']['sha256']);
+        $t->same(59, $evidence['checkedInFixtures'][42]['checkedInFile']['bytes']);
+        $t->true(in_array('lanes/pandoc/tests/MarkdownReaderFigureLatexPlacementFixtureCompletionTest.php', $evidence['checkedInFixtures'][42]['coverageTests'], true));
+        $t->true(in_array('lanes/pandoc/tests/MarkdownReaderFigureLatexPlacementFixtureCompletionTest.php', $evidence['checkedInFixtures'][42]['localTestReferences'], true));
         $t->same('valid-checked-in-current-markdown-reader-evidence', $evidence['validation']['status']);
         $t->same([], $evidence['validation']['issues']);
         $t->true(in_array('each selected fixture has at least one local PHP test reference', $evidence['claimBoundaries']['doesAssert'], true));
@@ -285,7 +290,7 @@ return [
             $t->same(MarkdownUpstreamReaderEvidence::STATUS_COMPLETED, $report['status']);
             $t->same('valid-upstream-markdown-reader-evidence', $report['validation']['status']);
             $t->same([], $report['validation']['issues']);
-            $t->same(42, $report['denominator']['selectedFixtureCount']);
+            $t->same(43, $report['denominator']['selectedFixtureCount']);
             $t->same(2, $report['sourceInventory']['presentFileCount']);
             $t->same(0, $report['sourceInventory']['missingFileCount']);
             $t->same(true, MarkdownUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($report));
@@ -305,7 +310,7 @@ return [
             . ' --repo-root=' . escapeshellarg($repoRoot)
             . ' --checked-in-fixtures'
             . ' --json'
-            . ' --require-selected-fixture-count=42'
+            . ' --require-selected-fixture-count=43'
             . ' --require-static-current-evidence'
             . ' --require-runner-not-run';
         $output = [];
@@ -315,12 +320,12 @@ return [
 
         $t->same(0, $exitCode);
         $t->same(MarkdownUpstreamReaderEvidence::STATUS_SKIPPED_MISSING_SOURCE, $decoded['status']);
-        $t->same(42, $decoded['staticCurrentEvidence']['readerDenominator']['selectedFixtureCount']);
+        $t->same(43, $decoded['staticCurrentEvidence']['readerDenominator']['selectedFixtureCount']);
         $t->same('valid-checked-in-current-markdown-reader-evidence', $decoded['staticCurrentEvidence']['validation']['status']);
         $t->same('not-run', $decoded['runnerEvidence']['status']);
         $t->true(in_array('complete Markdown dialect parity across every Pandoc extension profile', $decoded['claimBoundaries']['doesNotAssert'], true));
 
-        $failingCommand = str_replace('--require-selected-fixture-count=42', '--require-selected-fixture-count=41', $command) . ' 2>/dev/null';
+        $failingCommand = str_replace('--require-selected-fixture-count=43', '--require-selected-fixture-count=42', $command) . ' 2>/dev/null';
         $failingOutput = [];
         $failingExitCode = 0;
         exec($failingCommand, $failingOutput, $failingExitCode);
