@@ -45,7 +45,18 @@ $writeFile = static function (string $root, string $relativePath, string $conten
     file_put_contents($path, $contents);
 };
 
-$writePptxEvidenceTree = static function (string $root) use ($writeFile): void {
+$writeGitHead = static function (string $root, string $commit): void {
+    $gitDir = $root . DIRECTORY_SEPARATOR . '.git';
+    $refDir = $gitDir . DIRECTORY_SEPARATOR . 'refs' . DIRECTORY_SEPARATOR . 'heads';
+    if (!is_dir($refDir) && !mkdir($refDir, 0777, true) && !is_dir($refDir)) {
+        throw new RuntimeException("Unable to create fixture git directory {$refDir}");
+    }
+    file_put_contents($gitDir . DIRECTORY_SEPARATOR . 'HEAD', "ref: refs/heads/main\n");
+    file_put_contents($refDir . DIRECTORY_SEPARATOR . 'main', $commit . "\n");
+};
+
+$writePptxEvidenceTree = static function (string $root) use ($writeFile, $writeGitHead): void {
+    $writeGitHead($root, PptxUpstreamReaderEvidence::EXPECTED_UPSTREAM_COMMIT);
     $writeFile($root, 'test/Tests/Readers/Pptx.hs', <<<'HS'
 module Tests.Readers.Pptx (tests) where
 
@@ -163,6 +174,37 @@ return [
             $removeTree($root);
         }
     },
+    'requires pinned upstream git head for pptx reader denominator evidence' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writePptxEvidenceTree, $writeGitHead): void {
+        $missingHeadRoot = $makeTempDir();
+        try {
+            $writePptxEvidenceTree($missingHeadRoot);
+            $removeTree($missingHeadRoot . '/.git');
+            $missingHeadReport = (new PptxUpstreamReaderEvidence($missingHeadRoot, '.'))->report();
+
+            $t->same(PptxUpstreamReaderEvidence::STATUS_COMPLETED, $missingHeadReport['status']);
+            $t->same(null, $missingHeadReport['upstream']['commit']);
+            $t->same('invalid-upstream-pptx-reader-denominator', $missingHeadReport['validation']['status']);
+            $t->true(in_array('upstream-git-head-unavailable', $missingHeadReport['validation']['issues'], true));
+            $t->same(false, PptxUpstreamReaderEvidence::hasNoValidationIssues($missingHeadReport));
+        } finally {
+            $removeTree($missingHeadRoot);
+        }
+
+        $mismatchRoot = $makeTempDir();
+        try {
+            $writePptxEvidenceTree($mismatchRoot);
+            $wrongCommit = str_repeat('1', 40);
+            $writeGitHead($mismatchRoot, $wrongCommit);
+            $mismatchReport = (new PptxUpstreamReaderEvidence($mismatchRoot, '.'))->report();
+
+            $t->same($wrongCommit, $mismatchReport['upstream']['commit']);
+            $t->same('invalid-upstream-pptx-reader-denominator', $mismatchReport['validation']['status']);
+            $t->true(in_array('upstream-commit-mismatch', $mismatchReport['validation']['issues'], true));
+            $t->same(false, PptxUpstreamReaderEvidence::hasNoValidationIssues($mismatchReport));
+        } finally {
+            $removeTree($mismatchRoot);
+        }
+    },
     'validates supplied pptx reader upstream runner result artifact' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile, $writePptxEvidenceTree, $writeRunnerTranscripts): void {
         $root = $makeTempDir();
         try {
@@ -245,6 +287,48 @@ return [
             $t->same('invalid', $badTranscriptReport['runnerEvidence']['status']);
             $t->true(in_array('runner-result-transcript-sha256-mismatch', $badTranscriptReport['runnerEvidence']['validation']['issues'], true));
             $t->same(false, PptxUpstreamReaderEvidence::hasRunnerResultArtifactEvidence($badTranscriptReport));
+        } finally {
+            $removeTree($root);
+        }
+    },
+    'rejects pptx runner result artifact when upstream denominator is missing' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile, $writeRunnerTranscripts): void {
+        $root = $makeTempDir();
+        try {
+            $baseReport = (new PptxUpstreamReaderEvidence($root, 'missing-upstream'))->report();
+            $runnerPlan = $baseReport['runnerEvidence'];
+            $transcripts = $writeRunnerTranscripts($root, $runnerPlan['requiredTranscripts']);
+            $payload = [
+                'schemaVersion' => 2,
+                'runner' => 'Cabal/Tasty Pandoc PPTX reader suite',
+                'runnerExecuted' => true,
+                'upstream' => [
+                    'name' => 'jgm/pandoc',
+                    'commit' => PptxUpstreamReaderEvidence::EXPECTED_UPSTREAM_COMMIT,
+                ],
+                'target' => $runnerPlan['target'],
+                'command' => $runnerPlan['futureCommands'][2],
+                'exitCode' => 0,
+                'testCount' => 0,
+                'passedCount' => 0,
+                'failedCount' => 0,
+                'skippedCount' => 0,
+                'testNames' => [],
+                'transcriptPaths' => $runnerPlan['requiredTranscripts'],
+                'transcripts' => $transcripts,
+            ];
+            $writeFile($root, 'result.json', json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+
+            $report = (new PptxUpstreamReaderEvidence($root, 'missing-upstream', $root . '/result.json'))->report();
+            $issues = $report['runnerEvidence']['validation']['issues'];
+
+            $t->same(PptxUpstreamReaderEvidence::STATUS_SKIPPED_MISSING_SOURCE, $report['status']);
+            $t->same('not-evaluated-missing-upstream-root', $report['validation']['status']);
+            $t->same('invalid', $report['runnerEvidence']['status']);
+            $t->same('runner-result-artifact-invalid', $report['runnerEvidence']['commandPlanStatus']);
+            $t->same('invalid-upstream-pptx-reader-runner-result-artifact', $report['runnerEvidence']['validation']['status']);
+            $t->true(in_array('runner-result-denominator-invalid', $issues, true));
+            $t->true(in_array('runner-result-denominator-empty', $issues, true));
+            $t->same(false, PptxUpstreamReaderEvidence::hasRunnerResultArtifactEvidence($report));
         } finally {
             $removeTree($root);
         }

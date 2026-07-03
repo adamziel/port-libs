@@ -631,7 +631,7 @@ final class PptxUpstreamReaderEvidence
                 'denominator' => $denominator,
                 'sourceInventory' => $this->emptySourceInventory(),
                 'staticCurrentEvidence' => $this->staticCurrentEvidence(),
-                'runnerEvidence' => $this->runnerEvidence($denominator),
+                'runnerEvidence' => $this->runnerEvidence($denominator, false),
                 'validation' => [
                     'status' => 'not-evaluated-missing-upstream-root',
                     'issues' => ['missing-upstream-root'],
@@ -648,7 +648,8 @@ final class PptxUpstreamReaderEvidence
             : [];
         $fixturePairs = $this->fixturePairs($fixtureDirectory);
         $unpairedFixtures = $this->unpairedFixtureFiles($fixtureDirectory);
-        $validationIssues = $this->validationIssues($root, $readerCases, $fixturePairs, $unpairedFixtures);
+        $observedCommit = $this->gitHead($root);
+        $validationIssues = $this->validationIssues($root, $observedCommit, $readerCases, $fixturePairs, $unpairedFixtures);
         $denominator = [
             'readerTestCompareCount' => count($readerCases),
             'fixturePairCount' => count($fixturePairs),
@@ -670,7 +671,7 @@ final class PptxUpstreamReaderEvidence
             'upstream' => [
                 'name' => 'jgm/pandoc',
                 'root' => $this->displayPath($root),
-                'commit' => $this->gitHead($root),
+                'commit' => $observedCommit,
                 'expectedCommit' => self::EXPECTED_UPSTREAM_COMMIT,
                 'readerTestModule' => 'test/Tests/Readers/Pptx.hs',
                 'fixtureDirectory' => 'test/pptx-reader',
@@ -678,7 +679,7 @@ final class PptxUpstreamReaderEvidence
             'denominator' => $denominator,
             'sourceInventory' => $this->sourceInventory($root),
             'staticCurrentEvidence' => $this->staticCurrentEvidence(),
-            'runnerEvidence' => $this->runnerEvidence($denominator),
+            'runnerEvidence' => $this->runnerEvidence($denominator, $validationIssues === []),
             'validation' => [
                 'status' => $validationIssues === [] ? 'valid-upstream-pptx-reader-denominator' : 'invalid-upstream-pptx-reader-denominator',
                 'issues' => $validationIssues,
@@ -1008,20 +1009,20 @@ final class PptxUpstreamReaderEvidence
     /**
      * @return array<string, mixed>
      */
-    private function runnerEvidence(array $denominator): array
+    private function runnerEvidence(array $denominator, bool $denominatorIsValid): array
     {
         if ($this->runnerResultArtifact === null) {
             return self::runnerNotRunEvidence();
         }
 
-        return $this->runnerResultArtifactEvidence($denominator);
+        return $this->runnerResultArtifactEvidence($denominator, $denominatorIsValid);
     }
 
     /**
      * @param array<string, mixed> $denominator
      * @return array<string, mixed>
      */
-    private function runnerResultArtifactEvidence(array $denominator): array
+    private function runnerResultArtifactEvidence(array $denominator, bool $denominatorIsValid): array
     {
         $path = $this->absoluteRunnerResultArtifact();
         $artifact = $this->runnerResultArtifactFileEvidence($path);
@@ -1063,6 +1064,12 @@ final class PptxUpstreamReaderEvidence
         $skippedCount = is_int($payload['skippedCount'] ?? null) ? (int) $payload['skippedCount'] : null;
 
         if ($payload !== []) {
+            if (!$denominatorIsValid) {
+                $issues[] = 'runner-result-denominator-invalid';
+            }
+            if ($expectedTestNames === []) {
+                $issues[] = 'runner-result-denominator-empty';
+            }
             if (($payload['schemaVersion'] ?? null) !== self::RUNNER_RESULT_ARTIFACT_SCHEMA_VERSION) {
                 $issues[] = 'runner-result-schema-version-mismatch';
             }
@@ -2003,9 +2010,20 @@ final class PptxUpstreamReaderEvidence
      * @param array{pptx:list<string>, native:list<string>} $unpairedFixtures
      * @return list<string>
      */
-    private function validationIssues(string $root, array $readerCases, array $fixturePairs, array $unpairedFixtures): array
+    private function validationIssues(
+        string $root,
+        ?string $observedCommit,
+        array $readerCases,
+        array $fixturePairs,
+        array $unpairedFixtures
+    ): array
     {
         $issues = [];
+        if ($observedCommit === null) {
+            $issues[] = 'upstream-git-head-unavailable';
+        } elseif ($observedCommit !== self::EXPECTED_UPSTREAM_COMMIT) {
+            $issues[] = 'upstream-commit-mismatch';
+        }
         if (!is_file($root . '/test/Tests/Readers/Pptx.hs')) {
             $issues[] = 'missing-reader-test-module';
         }
@@ -2097,7 +2115,8 @@ final class PptxUpstreamReaderEvidence
 
     private function gitHead(string $root): ?string
     {
-        if (!is_dir($root . '/.git')) {
+        $gitDir = $root . '/.git';
+        if (!is_dir($gitDir)) {
             return null;
         }
 
@@ -2105,10 +2124,43 @@ final class PptxUpstreamReaderEvidence
         $exitCode = 0;
         exec('git -C ' . escapeshellarg($root) . ' rev-parse HEAD 2>/dev/null', $output, $exitCode);
         if ($exitCode !== 0 || !is_string($output[0] ?? null)) {
+            return self::gitHeadFromFiles($gitDir);
+        }
+
+        $head = strtolower(trim($output[0]));
+
+        return preg_match('/^[0-9a-f]{40}$/', $head) === 1 ? $head : null;
+    }
+
+    private static function gitHeadFromFiles(string $gitDir): ?string
+    {
+        $headPath = $gitDir . '/HEAD';
+        if (!is_file($headPath)) {
             return null;
         }
 
-        return trim($output[0]);
+        $head = trim((string) file_get_contents($headPath));
+        if (preg_match('/^[0-9a-f]{40}$/i', $head) === 1) {
+            return strtolower($head);
+        }
+
+        if (!str_starts_with($head, 'ref:')) {
+            return null;
+        }
+
+        $ref = trim(substr($head, 4));
+        if ($ref === '' || str_starts_with($ref, '/') || str_contains($ref, '..')) {
+            return null;
+        }
+
+        $refPath = $gitDir . '/' . str_replace('/', DIRECTORY_SEPARATOR, $ref);
+        if (!is_file($refPath)) {
+            return null;
+        }
+
+        $hash = trim((string) file_get_contents($refPath));
+
+        return preg_match('/^[0-9a-f]{40}$/i', $hash) === 1 ? strtolower($hash) : null;
     }
 
     private static function pairKey(string $pptx, string $native): string
