@@ -234,6 +234,7 @@ return [
             'epub/scripted-xhtml-resource.epub',
             'epub/spine-page-spread.epub',
             'epub/video-manifest-resource.epub',
+            'epub/video-navigation.epub',
         ], $report['denominator']['unreferencedEpubFixtures']);
         $t->same(false, $report['sourceInventory']['readerSourceRequired']);
         $t->same(1, $report['sourceInventory']['presentFileCount']);
