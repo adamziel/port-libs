@@ -8684,7 +8684,8 @@ final class MarkdownReader
         $attrs['captionSource'] = $this->markdownTableCaptionSource(
             $captionSource['position'],
             $captionSource['marker'],
-            $captionSource['captionSide']
+            $captionSource['captionSide'],
+            $captionSource['caption']
         );
 
         return $this->tableWithReviewPacket(new AstNode('table', $attrs, $table->children));
@@ -8693,15 +8694,25 @@ final class MarkdownReader
     /**
      * @return array{element:string, position:string, marker:string, captionSide:string, captionSideSource:string}
      */
-    private function markdownTableCaptionSource(string $position, string $marker, string $captionSide): array
+    private function markdownTableCaptionSource(string $position, string $marker, string $captionSide, ?string $source = null): array
     {
-        return [
+        $captionSource = [
             'element' => 'markdown-table-caption',
             'position' => $position,
             'marker' => $marker,
             'captionSide' => $captionSide,
             'captionSideSource' => 'markdown-table-caption',
         ];
+
+        if ($source !== null) {
+            $caption = $this->parseMarkdownTableCaptionSource($source);
+            $sourceAttributes = $this->markdownAttributeAstAttrs($caption['id'], $caption['classes'], $caption['attributes']);
+            if ($sourceAttributes !== []) {
+                $captionSource['sourceAttributes'] = $sourceAttributes;
+            }
+        }
+
+        return $captionSource;
     }
 
     /**
@@ -8719,14 +8730,14 @@ final class MarkdownReader
             $attrs['shortCaption'] = $caption['shortCaption'];
             $attrs['shortCaptionInlines'] = $caption['shortCaptionInlines'];
         }
-        if ($caption['id'] !== null && $caption['id'] !== '') {
-            $attrs['id'] = $caption['id'];
-        }
-        if ($caption['classes'] !== []) {
-            $attrs['classes'] = $caption['classes'];
-        }
-        if ($caption['attributes'] !== []) {
-            $attrs['attributes'] = $caption['attributes'];
+        $captionAttrs = $this->markdownAttributeAstAttrs($caption['id'], $caption['classes'], $caption['attributes']);
+        foreach ($captionAttrs as $name => $value) {
+            if ($name === 'htmlAttributes' && is_array($value) && is_array($attrs['htmlAttributes'] ?? null)) {
+                $attrs['htmlAttributes'] = array_replace($attrs['htmlAttributes'], $value);
+                continue;
+            }
+
+            $attrs[$name] = $value;
         }
 
         return $attrs;
@@ -10003,7 +10014,7 @@ final class MarkdownReader
             return [
                 $caption,
                 $next,
-                $this->markdownTableCaptionSource('after-table', $m[1], 'bottom'),
+                $this->markdownTableCaptionSource('after-table', $m[1], 'bottom', $caption),
             ];
         }
 

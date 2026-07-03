@@ -4589,6 +4589,8 @@ final class MarkdownWriter
         $bracketDepth = 0;
         $parenDepth = 0;
         $braceDepth = 0;
+        $attributeQuote = null;
+        $attributeQuoteEscaped = false;
 
         foreach ($chars as $char) {
             if ($backtickRun > 0) {
@@ -4605,6 +4607,24 @@ final class MarkdownWriter
                 continue;
             }
 
+            if ($attributeQuote !== null) {
+                $current .= $char;
+                if ($attributeQuoteEscaped) {
+                    $attributeQuoteEscaped = false;
+                    continue;
+                }
+
+                if ($char === '\\') {
+                    $attributeQuoteEscaped = true;
+                    continue;
+                }
+
+                if ($char === $attributeQuote) {
+                    $attributeQuote = null;
+                }
+                continue;
+            }
+
             if (preg_match('/\s/u', $char) === 1 && $bracketDepth === 0 && $parenDepth === 0 && $braceDepth === 0) {
                 if ($current !== '') {
                     $tokens[] = $current;
@@ -4614,7 +4634,9 @@ final class MarkdownWriter
             }
 
             $current .= $char;
-            if ($char === '[') {
+            if (($char === '"' || $char === "'") && $braceDepth > 0) {
+                $attributeQuote = $char;
+            } elseif ($char === '[') {
                 $bracketDepth++;
             } elseif ($char === ']') {
                 $bracketDepth = max(0, $bracketDepth - 1);
@@ -4644,14 +4666,51 @@ final class MarkdownWriter
     private function renderTableCaptionMarkdown(AstNode $table): string
     {
         $inlines = $this->tableCaptionInlines($table);
-        if ($inlines === []) {
+        $shortCaption = $this->renderTableShortCaptionMarkdown($table);
+        if ($inlines === [] && $shortCaption === '') {
             return '';
         }
 
         $caption = $this->renderBlockInlines($inlines);
+        if ($shortCaption !== '') {
+            $caption = '[' . $shortCaption . ']' . ($caption === '' ? '' : ' ' . $caption);
+        }
         $attrs = $this->renderAttributesTuple($this->linkAttrTuple($table));
 
         return $caption . ($attrs === '' ? '' : ' ' . $attrs);
+    }
+
+    private function renderTableShortCaptionMarkdown(AstNode $table): string
+    {
+        $shortCaptionInlines = $table->attr('shortCaptionInlines', []);
+        if (is_array($shortCaptionInlines)) {
+            $nodes = [];
+            foreach ($shortCaptionInlines as $inline) {
+                if ($inline instanceof AstNode) {
+                    $nodes[] = $inline;
+                }
+            }
+            if ($nodes !== []) {
+                return $this->renderBlockInlines($nodes);
+            }
+        }
+
+        $shortCaptionBlocks = $table->attr('shortCaptionBlocks', []);
+        if (is_array($shortCaptionBlocks)) {
+            $blocks = [];
+            foreach ($shortCaptionBlocks as $block) {
+                if ($block instanceof AstNode) {
+                    $blocks[] = $block;
+                }
+            }
+            if ($blocks !== []) {
+                return str_replace("\n", '<br />', $this->renderBlockCollection($blocks));
+            }
+        }
+
+        $shortCaption = (string) $table->attr('shortCaption', '');
+
+        return $shortCaption === '' ? '' : $this->renderBlockInlines([new AstNode('text', ['text' => $shortCaption])]);
     }
 
     /**
