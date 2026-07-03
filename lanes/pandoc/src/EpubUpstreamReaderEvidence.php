@@ -12,6 +12,14 @@ final class EpubUpstreamReaderEvidence
     public const STATUS_COMPLETED = 'completed-upstream-epub-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-epub-root';
 
+    private const CURRENT_READER_STATIC_SIGNATURE_KIND = 'checked-in-current-epub-reader-static-signature';
+    private const CURRENT_READER_STATIC_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
+    private const CURRENT_READER_STATIC_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-static-6-case-media-expectation-snapshot';
+    private const CHECKED_IN_CURRENT_STATIC_SIGNATURE_SHA256 = '46e89aba1475bbfb50869f15bee054d73c6a0588887a91ac991015be1f4fbb64';
+    private const CHECKED_IN_CURRENT_STATIC_MEDIA_BAG_TEST_COUNT = 6;
+    private const CHECKED_IN_CURRENT_STATIC_FIXTURE_REFERENCE_COUNT = 6;
+    private const CHECKED_IN_CURRENT_STATIC_EXPECTED_MEDIA_ITEM_COUNT = 10;
+
     private readonly string $repoRoot;
     private readonly string $upstreamRoot;
     private readonly ?string $fixtureBase;
@@ -52,6 +60,7 @@ final class EpubUpstreamReaderEvidence
                 ],
                 'denominator' => $this->emptyDenominator(),
                 'sourceInventory' => $this->emptySourceInventory(),
+                'currentReaderStaticSignature' => self::notEvaluatedCurrentReaderStaticSignature('missing-upstream-root'),
                 'runnerEvidence' => self::runnerNotRunEvidence(),
                 'validation' => [
                     'status' => 'not-evaluated-missing-upstream-root',
@@ -68,6 +77,15 @@ final class EpubUpstreamReaderEvidence
             ? self::parseReaderCasesFromSource((string) file_get_contents($readerTestPath))
             : [];
         $validationIssues = $this->validationIssues($root, $fixtureRoot, $readerCases);
+        $denominator = [
+            'mediaBagTestCount' => count($readerCases),
+            'fixtureReferenceCount' => count($this->fixtureReferences($readerCases)),
+            'expectedMediaItemCount' => $this->expectedMediaItemCount($readerCases),
+            'readerCases' => $readerCases,
+            'referencedFixtures' => $this->fixtureReferences($readerCases),
+            'missingReferencedFiles' => $this->missingReferencedFiles($root, $fixtureRoot, $readerCases),
+            'unreferencedEpubFixtures' => $this->unreferencedEpubFixtures($root, $fixtureRoot, $readerCases),
+        ];
 
         return [
             'schemaVersion' => 1,
@@ -85,16 +103,9 @@ final class EpubUpstreamReaderEvidence
                 'readerSource' => 'src/Text/Pandoc/Readers/EPUB.hs',
                 'readerSourceRequired' => !$this->hasExplicitFixtureBase(),
             ],
-            'denominator' => [
-                'mediaBagTestCount' => count($readerCases),
-                'fixtureReferenceCount' => count($this->fixtureReferences($readerCases)),
-                'expectedMediaItemCount' => $this->expectedMediaItemCount($readerCases),
-                'readerCases' => $readerCases,
-                'referencedFixtures' => $this->fixtureReferences($readerCases),
-                'missingReferencedFiles' => $this->missingReferencedFiles($root, $fixtureRoot, $readerCases),
-                'unreferencedEpubFixtures' => $this->unreferencedEpubFixtures($root, $fixtureRoot, $readerCases),
-            ],
+            'denominator' => $denominator,
             'sourceInventory' => $this->sourceInventory($root),
+            'currentReaderStaticSignature' => self::currentReaderStaticSignature($denominator, $validationIssues),
             'runnerEvidence' => self::runnerNotRunEvidence(),
             'validation' => [
                 'status' => $validationIssues === [] ? 'valid-upstream-epub-reader-mediabag-denominator' : 'invalid-upstream-epub-reader-mediabag-denominator',
@@ -142,6 +153,8 @@ final class EpubUpstreamReaderEvidence
         $validation = is_array($report['validation'] ?? null) ? $report['validation'] : [];
         $upstream = is_array($report['upstream'] ?? null) ? $report['upstream'] : [];
         $runner = is_array($report['runnerEvidence'] ?? null) ? $report['runnerEvidence'] : [];
+        $signature = is_array($report['currentReaderStaticSignature'] ?? null) ? $report['currentReaderStaticSignature'] : [];
+        $signatureValidation = is_array($signature['validation'] ?? null) ? $signature['validation'] : [];
 
         return implode(PHP_EOL, [
             'Pandoc EPUB reader evidence',
@@ -151,6 +164,7 @@ final class EpubUpstreamReaderEvidence
             'Media bag tests: ' . (int) ($denominator['mediaBagTestCount'] ?? 0),
             'Referenced EPUB fixtures: ' . (int) ($denominator['fixtureReferenceCount'] ?? 0),
             'Expected media items: ' . (int) ($denominator['expectedMediaItemCount'] ?? 0),
+            'Static current signature: ' . (string) ($signatureValidation['status'] ?? 'unknown'),
             'Runner status: ' . (string) ($runner['status'] ?? 'unknown'),
             'Validation: ' . (string) ($validation['status'] ?? 'unknown'),
             'No upstream Haskell/Cabal runner result, EPUB writer parity, or full EPUB feature parity is asserted.',
@@ -213,6 +227,31 @@ final class EpubUpstreamReaderEvidence
             && $runner['resultArtifact'] === null;
     }
 
+    /**
+     * @param array<string, mixed> $report
+     */
+    public static function hasRequiredStaticCurrentSignature(array $report): bool
+    {
+        $signature = is_array($report['currentReaderStaticSignature'] ?? null) ? $report['currentReaderStaticSignature'] : [];
+        $validation = is_array($signature['validation'] ?? null) ? $signature['validation'] : [];
+
+        return ($report['status'] ?? null) === self::STATUS_COMPLETED
+            && self::hasNoValidationIssues($report)
+            && self::hasRunnerNotRunEvidence($report)
+            && (int) ($signature['mediaBagTestCount'] ?? -1) === self::CHECKED_IN_CURRENT_STATIC_MEDIA_BAG_TEST_COUNT
+            && (int) ($signature['fixtureReferenceCount'] ?? -1) === self::CHECKED_IN_CURRENT_STATIC_FIXTURE_REFERENCE_COUNT
+            && (int) ($signature['expectedMediaItemCount'] ?? -1) === self::CHECKED_IN_CURRENT_STATIC_EXPECTED_MEDIA_ITEM_COUNT
+            && ($signature['kind'] ?? null) === self::CURRENT_READER_STATIC_SIGNATURE_KIND
+            && ($signature['algorithm'] ?? null) === self::CURRENT_READER_STATIC_SIGNATURE_ALGORITHM
+            && ($signature['scope'] ?? null) === self::CURRENT_READER_STATIC_SIGNATURE_SCOPE
+            && ($signature['sha256'] ?? null) === self::CHECKED_IN_CURRENT_STATIC_SIGNATURE_SHA256
+            && ($signature['expectedSha256'] ?? null) === self::CHECKED_IN_CURRENT_STATIC_SIGNATURE_SHA256
+            && ($signature['hashMatchesExpected'] ?? null) === true
+            && ($signature['matchesExpected'] ?? null) === true
+            && ($validation['status'] ?? null) === 'valid-checked-in-current-epub-reader-static-signature'
+            && ($validation['issues'] ?? null) === [];
+    }
+
     private static function claim(): string
     {
         return 'Parses the pinned upstream Tests.Readers.EPUB module to establish the current EPUB reader media-bag test denominator and expected media directory tuples.';
@@ -229,6 +268,7 @@ final class EpubUpstreamReaderEvidence
                 'the expected media-bag path, MIME type, and byte-size tuples embedded in the upstream test module',
                 'that every referenced EPUB fixture exists in the upstream checkout or explicit checked-in fixture base',
                 'that the upstream EPUB reader source file is present when validating a full upstream checkout without an explicit checked-in fixture base',
+                'the checked-in current static EPUB reader denominator signature when explicitly gated',
                 'that upstream Haskell runner evidence is explicitly not-run',
             ],
             'doesNotAssert' => [
@@ -272,6 +312,238 @@ final class EpubUpstreamReaderEvidence
             'missingReferencedFiles' => [],
             'unreferencedEpubFixtures' => [],
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $denominator
+     * @param list<string> $validationIssues
+     * @return array<string, mixed>
+     */
+    private static function currentReaderStaticSignature(array $denominator, array $validationIssues): array
+    {
+        $payload = self::currentReaderStaticSignaturePayload($denominator);
+        $sha256 = hash('sha256', self::canonicalJson($payload));
+        $countsMatchExpected = (int) ($denominator['mediaBagTestCount'] ?? -1) === self::CHECKED_IN_CURRENT_STATIC_MEDIA_BAG_TEST_COUNT
+            && (int) ($denominator['fixtureReferenceCount'] ?? -1) === self::CHECKED_IN_CURRENT_STATIC_FIXTURE_REFERENCE_COUNT
+            && (int) ($denominator['expectedMediaItemCount'] ?? -1) === self::CHECKED_IN_CURRENT_STATIC_EXPECTED_MEDIA_ITEM_COUNT;
+        $denominatorValidationMatchesExpected = $validationIssues === [];
+        $hashMatchesExpected = $sha256 === self::CHECKED_IN_CURRENT_STATIC_SIGNATURE_SHA256;
+        $issues = [];
+        if (!$countsMatchExpected) {
+            $issues[] = 'reader-static-denominator-counts-do-not-match-expected-snapshot';
+        }
+        if (!$denominatorValidationMatchesExpected) {
+            $issues[] = 'reader-static-denominator-validation-issues';
+        }
+        if (!$hashMatchesExpected) {
+            $issues[] = 'reader-static-signature-sha256-mismatch';
+        }
+
+        return [
+            'kind' => self::CURRENT_READER_STATIC_SIGNATURE_KIND,
+            'algorithm' => self::CURRENT_READER_STATIC_SIGNATURE_ALGORITHM,
+            'scope' => self::CURRENT_READER_STATIC_SIGNATURE_SCOPE,
+            'snapshotSchemaVersion' => 1,
+            'payloadIncludes' => [
+                'Tests.Readers.EPUB media-bag test case names',
+                'testMediaBag EPUB fixture references',
+                'expected media-bag path, MIME type, and byte-size tuples',
+                'missing referenced fixture file list',
+            ],
+            'mediaBagTestCount' => (int) ($denominator['mediaBagTestCount'] ?? 0),
+            'expectedMediaBagTestCount' => self::CHECKED_IN_CURRENT_STATIC_MEDIA_BAG_TEST_COUNT,
+            'fixtureReferenceCount' => (int) ($denominator['fixtureReferenceCount'] ?? 0),
+            'expectedFixtureReferenceCount' => self::CHECKED_IN_CURRENT_STATIC_FIXTURE_REFERENCE_COUNT,
+            'expectedMediaItemCount' => (int) ($denominator['expectedMediaItemCount'] ?? 0),
+            'expectedExpectedMediaItemCount' => self::CHECKED_IN_CURRENT_STATIC_EXPECTED_MEDIA_ITEM_COUNT,
+            'sha256' => $sha256,
+            'expectedSha256' => self::CHECKED_IN_CURRENT_STATIC_SIGNATURE_SHA256,
+            'hashMatchesExpected' => $hashMatchesExpected,
+            'matchesExpected' => $issues === [],
+            'validation' => [
+                'status' => $issues === []
+                    ? 'valid-checked-in-current-epub-reader-static-signature'
+                    : 'invalid-checked-in-current-epub-reader-static-signature',
+                'issues' => $issues,
+                'countsMatchExpected' => $countsMatchExpected,
+                'denominatorValidationMatchesExpected' => $denominatorValidationMatchesExpected,
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function notEvaluatedCurrentReaderStaticSignature(string $reason): array
+    {
+        return [
+            'kind' => self::CURRENT_READER_STATIC_SIGNATURE_KIND,
+            'algorithm' => self::CURRENT_READER_STATIC_SIGNATURE_ALGORITHM,
+            'scope' => self::CURRENT_READER_STATIC_SIGNATURE_SCOPE,
+            'snapshotSchemaVersion' => 1,
+            'payloadIncludes' => [
+                'Tests.Readers.EPUB media-bag test case names',
+                'testMediaBag EPUB fixture references',
+                'expected media-bag path, MIME type, and byte-size tuples',
+                'missing referenced fixture file list',
+            ],
+            'mediaBagTestCount' => 0,
+            'expectedMediaBagTestCount' => self::CHECKED_IN_CURRENT_STATIC_MEDIA_BAG_TEST_COUNT,
+            'fixtureReferenceCount' => 0,
+            'expectedFixtureReferenceCount' => self::CHECKED_IN_CURRENT_STATIC_FIXTURE_REFERENCE_COUNT,
+            'expectedMediaItemCount' => 0,
+            'expectedExpectedMediaItemCount' => self::CHECKED_IN_CURRENT_STATIC_EXPECTED_MEDIA_ITEM_COUNT,
+            'sha256' => null,
+            'expectedSha256' => self::CHECKED_IN_CURRENT_STATIC_SIGNATURE_SHA256,
+            'hashMatchesExpected' => false,
+            'matchesExpected' => false,
+            'validation' => [
+                'status' => 'not-evaluated-source-directory-unavailable',
+                'issues' => [$reason],
+                'countsMatchExpected' => false,
+                'denominatorValidationMatchesExpected' => false,
+            ],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $denominator
+     * @return array<string, mixed>
+     */
+    private static function currentReaderStaticSignaturePayload(array $denominator): array
+    {
+        $readerCases = is_array($denominator['readerCases'] ?? null) ? $denominator['readerCases'] : [];
+
+        return [
+            'kind' => self::CURRENT_READER_STATIC_SIGNATURE_KIND,
+            'snapshotSchemaVersion' => 1,
+            'expectedUpstreamCommit' => self::EXPECTED_UPSTREAM_COMMIT,
+            'readerTestModule' => 'test/Tests/Readers/EPUB.hs',
+            'fixtureDirectory' => 'test/epub',
+            'counts' => [
+                'mediaBagTestCount' => (int) ($denominator['mediaBagTestCount'] ?? 0),
+                'fixtureReferenceCount' => (int) ($denominator['fixtureReferenceCount'] ?? 0),
+                'expectedMediaItemCount' => (int) ($denominator['expectedMediaItemCount'] ?? 0),
+            ],
+            'readerCases' => self::readerCaseSignatureSnapshot($readerCases),
+            'referencedFixtures' => self::stringList($denominator['referencedFixtures'] ?? []),
+            'missingReferencedFiles' => self::pathList($denominator['missingReferencedFiles'] ?? []),
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $readerCases
+     * @return list<array<string, mixed>>
+     */
+    private static function readerCaseSignatureSnapshot(array $readerCases): array
+    {
+        $snapshot = [];
+        foreach ($readerCases as $case) {
+            $expectedBag = is_array($case['expectedBag'] ?? null) ? $case['expectedBag'] : [];
+            $snapshot[] = [
+                'name' => (string) ($case['name'] ?? ''),
+                'epub' => (string) ($case['epub'] ?? ''),
+                'bagName' => (string) ($case['bagName'] ?? ''),
+                'expectedBagItemCount' => (int) ($case['expectedBagItemCount'] ?? 0),
+                'expectedBagMissing' => ($case['expectedBagMissing'] ?? null) === true,
+                'expectedBag' => self::expectedBagSignatureSnapshot($expectedBag),
+            ];
+        }
+
+        return $snapshot;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $expectedBag
+     * @return list<array{path: string, mime: string, size: int}>
+     */
+    private static function expectedBagSignatureSnapshot(array $expectedBag): array
+    {
+        $snapshot = [];
+        foreach ($expectedBag as $item) {
+            $snapshot[] = [
+                'path' => (string) ($item['path'] ?? ''),
+                'mime' => strtolower((string) ($item['mime'] ?? '')),
+                'size' => (int) ($item['size'] ?? 0),
+            ];
+        }
+
+        usort(
+            $snapshot,
+            static fn (array $left, array $right): int => [$left['path'], $left['mime'], $left['size']] <=> [$right['path'], $right['mime'], $right['size']]
+        );
+
+        return $snapshot;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function stringList(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $strings = [];
+        foreach ($value as $item) {
+            if (is_string($item)) {
+                $strings[] = $item;
+            }
+        }
+
+        return $strings;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function pathList(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $paths = [];
+        foreach ($value as $item) {
+            if (is_array($item) && is_string($item['path'] ?? null)) {
+                $paths[] = $item['path'];
+            }
+        }
+
+        return $paths;
+    }
+
+    private static function canonicalJson(mixed $value): string
+    {
+        $json = json_encode(
+            self::canonicalValue($value),
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION
+        );
+        if (!is_string($json)) {
+            throw new \RuntimeException('Unable to encode EPUB reader static signature payload.');
+        }
+
+        return $json;
+    }
+
+    private static function canonicalValue(mixed $value): mixed
+    {
+        if (!is_array($value)) {
+            return $value;
+        }
+        if (array_is_list($value)) {
+            return array_map(static fn (mixed $item): mixed => self::canonicalValue($item), $value);
+        }
+
+        $normalized = [];
+        $keys = array_keys($value);
+        sort($keys, SORT_STRING);
+        foreach ($keys as $key) {
+            $normalized[(string) $key] = self::canonicalValue($value[$key]);
+        }
+
+        return $normalized;
     }
 
     /**

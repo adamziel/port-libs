@@ -24,6 +24,8 @@ Options:
   --require-test-count N                  Exit 1 unless Tests.Readers.EPUB has exactly N media-bag tests.
   --require-fixture-reference-count N     Exit 1 unless Tests.Readers.EPUB references exactly N EPUB fixtures.
   --require-expected-media-item-count N   Exit 1 unless expected media-bag tuples total exactly N items.
+  --require-static-current-signature      Exit 1 unless the checked-in current static reader
+                                          denominator signature matches the expected snapshot.
   --require-runner-not-run                Exit 1 unless upstream runner evidence is structured as not-run.
   --require-no-validation-issues          Exit 1 when denominator validation reports any issue.
   --help                                  Show this help.
@@ -45,6 +47,7 @@ try {
     $requiredTestCount = null;
     $requiredFixtureReferenceCount = null;
     $requiredExpectedMediaItemCount = null;
+    $requireStaticCurrentSignature = false;
     $requireRunnerNotRun = false;
     $requireNoValidationIssues = false;
     $args = array_slice($argv, 1);
@@ -74,6 +77,10 @@ try {
         }
         if ($arg === '--require-runner-not-run') {
             $requireRunnerNotRun = true;
+            continue;
+        }
+        if ($arg === '--require-static-current-signature') {
+            $requireStaticCurrentSignature = true;
             continue;
         }
         if ($arg === '--checked-in-fixtures') {
@@ -202,6 +209,15 @@ try {
 
     if ($requireNoValidationIssues && !EpubUpstreamReaderEvidence::hasNoValidationIssues($report)) {
         fwrite(STDERR, "pandoc-epub-reader-evidence: upstream EPUB reader denominator validation reported issues\n");
+        exit(1);
+    }
+
+    if ($requireStaticCurrentSignature && !EpubUpstreamReaderEvidence::hasRequiredStaticCurrentSignature($report)) {
+        fwrite(
+            STDERR,
+            "pandoc-epub-reader-evidence: checked-in current EPUB reader static signature did not match the expected snapshot\n"
+            . "hint: use --checked-in-fixtures to gate the checked-in current reader evidence snapshot\n"
+        );
         exit(1);
     }
 

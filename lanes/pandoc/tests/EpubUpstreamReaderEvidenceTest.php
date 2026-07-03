@@ -47,6 +47,7 @@ $writeFile = static function (string $root, string $relativePath, string $conten
 
 $repoRoot = static fn (): string => dirname(__DIR__, 3);
 $checkedInFixtureRoot = static fn (): string => 'lanes/pandoc/fixtures/upstream-current-epub-reader';
+$expectedCurrentReaderStaticSignatureSha256 = '46e89aba1475bbfb50869f15bee054d73c6a0588887a91ac991015be1f4fbb64';
 
 $writeEpubEvidenceTree = static function (string $root) use ($writeFile): void {
     $writeFile($root, 'test/Tests/Readers/EPUB.hs', <<<'HS'
@@ -88,6 +89,8 @@ return [
             $t->same(0, $report['denominator']['mediaBagTestCount']);
             $t->same(0, $report['denominator']['fixtureReferenceCount']);
             $t->same('not-evaluated-missing-upstream-root', $report['validation']['status']);
+            $t->same('not-evaluated-source-directory-unavailable', $report['currentReaderStaticSignature']['validation']['status']);
+            $t->same(false, EpubUpstreamReaderEvidence::hasRequiredStaticCurrentSignature($report));
             $t->same(false, EpubUpstreamReaderEvidence::hasNoValidationIssues($report));
             $t->same(true, EpubUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
             $t->same('not-run', $report['runnerEvidence']['status']);
@@ -95,6 +98,7 @@ return [
             $t->same(null, $report['runnerEvidence']['command']);
             $t->same(null, $report['runnerEvidence']['resultArtifact']);
             $t->contains('Pandoc EPUB reader evidence', $text);
+            $t->contains('Static current signature: not-evaluated-source-directory-unavailable', $text);
             $t->contains('Runner status: not-run', $text);
         } finally {
             $removeTree($root);
@@ -126,6 +130,9 @@ return [
             $t->same(true, EpubUpstreamReaderEvidence::hasRequiredMediaBagTestCount($report, 2));
             $t->same(true, EpubUpstreamReaderEvidence::hasRequiredFixtureReferenceCount($report, 2));
             $t->same(true, EpubUpstreamReaderEvidence::hasRequiredExpectedMediaItemCount($report, 2));
+            $t->same('invalid-checked-in-current-epub-reader-static-signature', $report['currentReaderStaticSignature']['validation']['status']);
+            $t->true(in_array('reader-static-denominator-counts-do-not-match-expected-snapshot', $report['currentReaderStaticSignature']['validation']['issues'], true));
+            $t->same(false, EpubUpstreamReaderEvidence::hasRequiredStaticCurrentSignature($report));
             $t->same(true, EpubUpstreamReaderEvidence::hasNoValidationIssues($report));
             $t->same(true, EpubUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
             $t->same('upstream-haskell-runner', $report['runnerEvidence']['scope']);
@@ -136,7 +143,7 @@ return [
         }
     },
 
-    'validates checked-in current epub reader evidence through fixture base' => static function (TestRunner $t) use ($repoRoot, $checkedInFixtureRoot): void {
+    'validates checked-in current epub reader evidence through fixture base' => static function (TestRunner $t) use ($repoRoot, $checkedInFixtureRoot, $expectedCurrentReaderStaticSignatureSha256): void {
         $report = (new EpubUpstreamReaderEvidence(
             $repoRoot(),
             'lanes/pandoc/fixtures/upstream-current-epub-reader',
@@ -157,6 +164,16 @@ return [
         $t->same(false, $report['sourceInventory']['readerSourceRequired']);
         $t->same(1, $report['sourceInventory']['presentFileCount']);
         $t->same(1, $report['sourceInventory']['missingFileCount']);
+        $t->same('checked-in-current-epub-reader-static-signature', $report['currentReaderStaticSignature']['kind']);
+        $t->same('sha256-canonical-json-v1', $report['currentReaderStaticSignature']['algorithm']);
+        $t->same('checked-in-current-upstream-epub-reader-static-6-case-media-expectation-snapshot', $report['currentReaderStaticSignature']['scope']);
+        $t->same($expectedCurrentReaderStaticSignatureSha256, $report['currentReaderStaticSignature']['sha256']);
+        $t->same($expectedCurrentReaderStaticSignatureSha256, $report['currentReaderStaticSignature']['expectedSha256']);
+        $t->same(true, $report['currentReaderStaticSignature']['hashMatchesExpected']);
+        $t->same(true, $report['currentReaderStaticSignature']['matchesExpected']);
+        $t->same('valid-checked-in-current-epub-reader-static-signature', $report['currentReaderStaticSignature']['validation']['status']);
+        $t->same([], $report['currentReaderStaticSignature']['validation']['issues']);
+        $t->same(true, EpubUpstreamReaderEvidence::hasRequiredStaticCurrentSignature($report));
         $t->same(true, EpubUpstreamReaderEvidence::hasNoValidationIssues($report));
         $t->same(true, EpubUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
     },
@@ -182,7 +199,7 @@ HS);
         }
     },
 
-    'cli gates checked-in current epub reader evidence through checked-in fixtures mode' => static function (TestRunner $t) use ($repoRoot, $checkedInFixtureRoot): void {
+    'cli gates checked-in current epub reader evidence through checked-in fixtures mode' => static function (TestRunner $t) use ($repoRoot, $checkedInFixtureRoot, $expectedCurrentReaderStaticSignatureSha256): void {
         $command = escapeshellarg(PHP_BINARY)
             . ' '
             . escapeshellarg(dirname(__DIR__, 3) . '/tools/pandoc-epub-reader-evidence.php')
@@ -192,6 +209,7 @@ HS);
             . ' --require-test-count=6'
             . ' --require-fixture-reference-count=6'
             . ' --require-expected-media-item-count=10'
+            . ' --require-static-current-signature'
             . ' --require-runner-not-run'
             . ' --require-no-validation-issues';
         $output = [];
@@ -209,6 +227,11 @@ HS);
         $t->same($checkedInFixtureRoot(), $decoded['upstream']['resolvedFixtureBase']);
         $t->same('epub', $decoded['upstream']['resolvedFixtureDirectory']);
         $t->same(false, $decoded['upstream']['readerSourceRequired']);
+        $t->same($expectedCurrentReaderStaticSignatureSha256, $decoded['currentReaderStaticSignature']['sha256']);
+        $t->same(true, $decoded['currentReaderStaticSignature']['hashMatchesExpected']);
+        $t->same(true, $decoded['currentReaderStaticSignature']['matchesExpected']);
+        $t->same('valid-checked-in-current-epub-reader-static-signature', $decoded['currentReaderStaticSignature']['validation']['status']);
+        $t->same(true, EpubUpstreamReaderEvidence::hasRequiredStaticCurrentSignature($decoded));
         $t->same(true, EpubUpstreamReaderEvidence::hasRunnerNotRunEvidence($decoded));
         $t->same('not-run', $decoded['runnerEvidence']['status']);
         $t->true(in_array('full EPUB feature parity beyond the upstream reader media-bag tests', $decoded['claimBoundaries']['doesNotAssert'], true));
@@ -245,6 +268,13 @@ HS);
             exec($failingCommand, $failingOutput, $failingExitCode);
 
             $t->same(1, $failingExitCode);
+
+            $signatureFailingCommand = $command . ' --require-static-current-signature 2>/dev/null';
+            $signatureFailingOutput = [];
+            $signatureFailingExitCode = 0;
+            exec($signatureFailingCommand, $signatureFailingOutput, $signatureFailingExitCode);
+
+            $t->same(1, $signatureFailingExitCode);
         } finally {
             $removeTree($root);
         }
