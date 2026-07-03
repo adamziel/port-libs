@@ -13395,6 +13395,33 @@ final class MarkdownReader
             return null;
         }
 
+        if (($text[$offset + 1] ?? '') === '{') {
+            $id = $this->readBracketedCitationId($text, $offset);
+            if ($id === null) {
+                return null;
+            }
+
+            $next = $id['next'];
+            $citationText = substr($text, $offset, $next - $offset);
+            $attrs = ['id' => $id['id'], 'text' => $citationText, 'mode' => 'author_in_text'];
+            $suffix = $this->tryParseBareCitationSuffix($text, $next);
+            if ($suffix !== null) {
+                $next = $suffix['next'];
+                $citationText .= $suffix['source'];
+                $attrs['text'] = $citationText;
+                $attrs['suffix'] = $suffix['label'];
+            }
+
+            return [
+                'node' => new AstNode(
+                    'citation',
+                    $attrs,
+                    [new AstNode('text', ['text' => $citationText])]
+                ),
+                'next' => $next,
+            ];
+        }
+
         if (preg_match('/\G@([A-Za-z0-9_:.#\/$%&+?<>~|-]*[A-Za-z0-9_#\/$%&+?<>~|-])/u', $text, $m, 0, $offset) !== 1) {
             return null;
         }
@@ -13534,7 +13561,7 @@ final class MarkdownReader
                     continue;
                 }
 
-                $id = substr($content, $at + 2, $cursor - $at - 2);
+                $id = $this->unescapeBracedCitationId(substr($content, $at + 2, $cursor - $at - 2));
                 return $id === '' ? null : ['id' => $id, 'next' => $cursor + 1];
             }
 
@@ -13546,6 +13573,23 @@ final class MarkdownReader
         }
 
         return ['id' => $match[1], 'next' => $at + strlen($match[0])];
+    }
+
+    private function unescapeBracedCitationId(string $id): string
+    {
+        $unescaped = '';
+        $length = strlen($id);
+        for ($offset = 0; $offset < $length; $offset++) {
+            if ($id[$offset] === '\\' && $offset + 1 < $length) {
+                $unescaped .= $id[$offset + 1];
+                $offset++;
+                continue;
+            }
+
+            $unescaped .= $id[$offset];
+        }
+
+        return $unescaped;
     }
 
     /**
