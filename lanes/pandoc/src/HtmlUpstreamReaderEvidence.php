@@ -354,6 +354,7 @@ final class HtmlUpstreamReaderEvidence
         $fixtures = [];
         $issues = [];
         $categoryCounts = [];
+        $nativePairCount = 0;
 
         foreach (self::CHECKED_IN_HTML_FIXTURES as $name => $snapshot) {
             $category = self::categoryForFixture($name);
@@ -364,11 +365,16 @@ final class HtmlUpstreamReaderEvidence
                 (string) $snapshot['sha256'],
                 (int) $snapshot['bytes']
             );
+            $nativePairFile = self::currentFileEvidence(
+                $root,
+                self::CHECKED_IN_FIXTURE_DIRECTORY . '/' . self::nativePairFixtureName($name)
+            );
             $testReferences = self::localTestReferences($root, $name);
             $fixtures[] = [
                 'name' => $name,
                 'category' => $category,
                 'checkedInFile' => $file,
+                'checkedInNativePairFile' => $nativePairFile,
                 'localTestReferenceCount' => count($testReferences),
                 'localTestReferences' => $testReferences,
             ];
@@ -383,6 +389,11 @@ final class HtmlUpstreamReaderEvidence
             if ($testReferences === []) {
                 $issues[] = 'missing-html-fixture-local-test-reference';
             }
+            if (($nativePairFile['present'] ?? false) !== true) {
+                $issues[] = 'missing-checked-in-native-pair-fixture';
+            } else {
+                ++$nativePairCount;
+            }
         }
         ksort($categoryCounts, SORT_STRING);
 
@@ -396,6 +407,7 @@ final class HtmlUpstreamReaderEvidence
             'readerDenominator' => self::selectedFixtureDenominator(),
             'checkedInFixtureDirectory' => self::CHECKED_IN_FIXTURE_DIRECTORY,
             'checkedInFixtureCount' => count($fixtures),
+            'checkedInNativePairCount' => $nativePairCount,
             'checkedInCategoryCounts' => $categoryCounts,
             'checkedInFixtures' => $fixtures,
             'validation' => [
@@ -406,6 +418,7 @@ final class HtmlUpstreamReaderEvidence
             'claimBoundaries' => [
                 'doesAssert' => [
                     'the checked-in HTML reader fixture corpus has 59 pinned fixture snapshots',
+                    'each pinned HTML fixture has a same-basename checked-in native expectation file',
                     'each pinned fixture has at least one local test reference',
                     'the existing HTML/native AST comparator still observes 59 same-basename native-pair matches when included in the report',
                 ],
@@ -441,7 +454,8 @@ final class HtmlUpstreamReaderEvidence
             'Status: ' . (string) ($report['status'] ?? 'unknown'),
             'Selected checked-in fixtures: ' . $selectedFixtureCount,
             'Static current evidence: ' . (string) ($staticValidation['status'] ?? 'unknown')
-                . ' checkedInFixtures=' . (int) ($staticEvidence['checkedInFixtureCount'] ?? 0),
+                . ' checkedInFixtures=' . (int) ($staticEvidence['checkedInFixtureCount'] ?? 0)
+                . ' nativePairs=' . (int) ($staticEvidence['checkedInNativePairCount'] ?? 0),
             'Native AST mapped parity: ' . (int) ($native['normalizedAstMatchCount'] ?? 0)
                 . '/' . (int) ($native['comparedPairCount'] ?? 0)
                 . ' status=' . (string) ($native['astParityStatus'] ?? 'unknown'),
@@ -478,6 +492,7 @@ final class HtmlUpstreamReaderEvidence
 
         return ($validation['status'] ?? null) === 'valid-checked-in-current-html-reader-evidence'
             && ($validation['issues'] ?? null) === []
+            && (int) ($staticEvidence['checkedInNativePairCount'] ?? -1) === self::EXPECTED_NATIVE_MAPPED_PAIR_COUNT
             && self::hasRequiredSelectedFixtureCount($report, self::EXPECTED_SELECTED_FIXTURE_COUNT);
     }
 
@@ -573,6 +588,7 @@ final class HtmlUpstreamReaderEvidence
         return [
             'doesAssert' => [
                 'the identity and count of 59 selected checked-in upstream-derived and generated-current HTML fixtures',
+                'that each selected fixture has a same-basename checked-in native expectation file',
                 'that each selected fixture is referenced by at least one local focused test',
                 'that the existing native AST gate observes 59 checked-in same-basename HTML/native matches',
                 'that upstream Haskell runner evidence is explicitly not-run',
@@ -692,6 +708,33 @@ final class HtmlUpstreamReaderEvidence
             'expectedSha256' => $expectedSha256,
             'bytes' => is_int($bytes) ? $bytes : null,
             'expectedBytes' => $expectedBytes,
+        ];
+    }
+
+    private static function nativePairFixtureName(string $htmlFixtureName): string
+    {
+        $nativeFixtureName = preg_replace('/\.html$/', '.native', $htmlFixtureName);
+
+        return is_string($nativeFixtureName) && $nativeFixtureName !== $htmlFixtureName
+            ? $nativeFixtureName
+            : $htmlFixtureName . '.native';
+    }
+
+    /**
+     * @return array{path: string, present: bool, sha256: ?string, bytes: ?int}
+     */
+    private static function currentFileEvidence(string $root, string $relativePath): array
+    {
+        $path = rtrim($root, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
+        $present = is_file($path);
+        $sha256 = $present ? hash_file('sha256', $path) : false;
+        $bytes = $present ? filesize($path) : false;
+
+        return [
+            'path' => $relativePath,
+            'present' => $present,
+            'sha256' => is_string($sha256) ? $sha256 : null,
+            'bytes' => is_int($bytes) ? $bytes : null,
         ];
     }
 

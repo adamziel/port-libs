@@ -77,7 +77,7 @@ return [
         $t->same(true, HtmlUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
         $t->same(false, HtmlUpstreamReaderEvidence::hasNoValidationIssues($report));
         $t->contains('Pandoc HTML reader evidence', $text);
-        $t->contains('Static current evidence: valid-checked-in-current-html-reader-evidence checkedInFixtures=59', $text);
+        $t->contains('Static current evidence: valid-checked-in-current-html-reader-evidence checkedInFixtures=59 nativePairs=59', $text);
         $t->contains('Native AST mapped parity: 59/59', $text);
         $t->contains('Native AST fixture inventory: html=59 native=59 paired=59 unpairedHtml=0 unpairedNative=0', $text);
     },
@@ -92,13 +92,21 @@ return [
         $t->same('selected checked-in upstream-derived and generated-current HTML reader fixtures', $evidence['readerDenominator']['fixtureScope']);
         $t->same(59, $evidence['readerDenominator']['nativeMappedPairCount']);
         $t->same(59, $evidence['checkedInFixtureCount']);
+        $t->same(59, $evidence['checkedInNativePairCount']);
         $t->same('upstream-html-anchor-image-attrs.html', $evidence['checkedInFixtures'][0]['name']);
         $t->same('27073f93fc90c5a85361723faad6fa6e1e44a891b344680476c41f9a4df3be74', $evidence['checkedInFixtures'][0]['checkedInFile']['sha256']);
         $t->same(363, $evidence['checkedInFixtures'][0]['checkedInFile']['bytes']);
+        $t->same('lanes/pandoc/fixtures/upstream-html-anchor-image-attrs.native', $evidence['checkedInFixtures'][0]['checkedInNativePairFile']['path']);
+        $t->same(true, $evidence['checkedInFixtures'][0]['checkedInNativePairFile']['present']);
+        $t->same('7436ab45de8ec3a0738919f71e675412964bdf2dcf6aa60e56fc1fe4d5fffc6a', $evidence['checkedInFixtures'][0]['checkedInNativePairFile']['sha256']);
+        $t->same(533, $evidence['checkedInFixtures'][0]['checkedInNativePairFile']['bytes']);
         $t->true($evidence['checkedInFixtures'][0]['localTestReferenceCount'] >= 1);
         $t->same('upstream-html-base-absolute-image.html', $evidence['checkedInFixtures'][1]['name']);
         $t->same('f1ddb1f06c2b15d5667621c3c16b173d9afef19a7d5146bc017db44eba454e95', $evidence['checkedInFixtures'][1]['checkedInFile']['sha256']);
         $t->same(239, $evidence['checkedInFixtures'][1]['checkedInFile']['bytes']);
+        $t->same('lanes/pandoc/fixtures/upstream-html-base-absolute-image.native', $evidence['checkedInFixtures'][1]['checkedInNativePairFile']['path']);
+        $t->same('d4b2b819e8f822057a0a5f864d1113bb086ed55c1545726809e4b0243a68855f', $evidence['checkedInFixtures'][1]['checkedInNativePairFile']['sha256']);
+        $t->same(139, $evidence['checkedInFixtures'][1]['checkedInNativePairFile']['bytes']);
         $t->true($evidence['checkedInFixtures'][1]['localTestReferenceCount'] >= 1);
         $t->same('upstream-html-blockquote.html', $evidence['checkedInFixtures'][4]['name']);
         $t->same('7c1e8ba1dcde81e031bed35a0d75fad7dba0bf13ddbeef6188d38ae5cae82678', $evidence['checkedInFixtures'][4]['checkedInFile']['sha256']);
@@ -153,6 +161,7 @@ return [
         $t->same(288, $evidence['checkedInFixtures'][58]['checkedInFile']['bytes']);
         $t->same('valid-checked-in-current-html-reader-evidence', $evidence['validation']['status']);
         $t->same([], $evidence['validation']['issues']);
+        $t->true(in_array('each pinned HTML fixture has a same-basename checked-in native expectation file', $evidence['claimBoundaries']['doesAssert'], true));
         $t->true(in_array('that upstream Haskell/Cabal/Tasty tests were executed', $evidence['claimBoundaries']['doesNotAssert'], true));
     },
 
@@ -225,6 +234,7 @@ return [
         $t->same(HtmlUpstreamReaderEvidence::STATUS_SKIPPED_MISSING_SOURCE, $decoded['status']);
         $t->same(59, $decoded['staticCurrentEvidence']['readerDenominator']['selectedFixtureCount']);
         $t->same('valid-checked-in-current-html-reader-evidence', $decoded['staticCurrentEvidence']['validation']['status']);
+        $t->same(59, $decoded['staticCurrentEvidence']['checkedInNativePairCount']);
         $t->same(59, $decoded['nativeAstEvidence']['normalizedAstMatchCount']);
         $t->same('not-run', $decoded['runnerEvidence']['status']);
 
