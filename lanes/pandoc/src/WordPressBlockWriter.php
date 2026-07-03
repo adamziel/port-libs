@@ -656,8 +656,9 @@ final class WordPressBlockWriter
 
     /**
      * @param list<string> $baseClasses
+     * @param list<string> $priorityNames
      */
-    private function renderBlockHtmlAttrsWithClasses(AstNode $node, array $baseClasses): string
+    private function renderBlockHtmlAttrsWithClasses(AstNode $node, array $baseClasses, array $priorityNames = ['id', 'class', 'lang', 'dir', 'role', 'title']): string
     {
         $htmlAttributes = [];
         foreach ($this->inlineHtmlAttributes($node) as $name => $value) {
@@ -682,7 +683,7 @@ final class WordPressBlockWriter
         }
 
         $orderedNames = [];
-        foreach (['id', 'class', 'lang', 'dir', 'role', 'title'] as $name) {
+        foreach ($priorityNames as $name) {
             if (array_key_exists($name, $htmlAttributes)) {
                 $orderedNames[] = $name;
             }
@@ -2797,7 +2798,7 @@ final class WordPressBlockWriter
 
     private function renderImageFigureAttrs(AstNode $node): string
     {
-        $attrs = $this->renderBlockHtmlAttrsWithClasses($node, ['wp-block-image']);
+        $attrs = $this->renderBlockHtmlAttrsWithClasses($node, ['wp-block-image'], ['class', 'id', 'lang', 'dir', 'role']);
         $attributes = $node->attr('attributes', []);
         if (
             is_array($attributes)

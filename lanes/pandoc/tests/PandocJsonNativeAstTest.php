@@ -5500,9 +5500,9 @@ return [
             $t->same($packet['blocks'], $nativePacket['blocks'], "{$source} native writer round-trips raw aliases");
             $t->contains($xhtml, $markdown);
             $t->contains($html5, $markdown);
-            $t->true(!str_contains($markdown, '<outline'), "{$source} markdown keeps unsupported raw disabled");
+            $t->contains('`<outline text="disabled"/>`{=opml}', $markdown, "{$source} markdown keeps unsupported raw round-trippable through raw attributes");
             $t->contains('<!-- wp:html -->' . "\n" . $xhtml . "\n" . '<!-- /wp:html -->', $blocks);
-            $t->contains('<p>Before ' . $html5 . ' after</p>', $blocks);
+            $t->contains('<p>Before ' . $html5 . ' <span class="pandoc-raw-opml" data-pandoc-raw-format="opml">&lt;outline text=&quot;disabled&quot;/&gt;</span>after</p>', $blocks);
             $t->true(!str_contains($blocks, '<outline'), "{$source} wordpress keeps unsupported raw disabled");
         }
     },
@@ -10775,7 +10775,7 @@ return [
             $blocks
         );
         $t->contains('<img src="media/review.png" alt="Review image" title="Figure image" class="review-image" data-image="source"/>', $blocks);
-        $t->contains('<figcaption>Reviewer figure</figcaption>', $blocks);
+        $t->contains('<figcaption>Reviewer <em>figure</em></figcaption>', $blocks);
         $t->true(!str_contains($blocks, 'onclick'), 'Unsafe event handlers must not render on Pandoc Figure output');
         $t->true(!str_contains($blocks, 'style="display:none"'), 'Unsafe style attributes must not render on Pandoc Figure output');
     },
@@ -10877,7 +10877,7 @@ return [
         $t->same('Alt', $encoded['blocks'][0]['c'][2][0]['c'][0]['c'][1][0]['c']);
         $t->same('figure', $roundTrip->children[0]->type);
         $t->same('Alt text', $roundTrip->children[0]->children[0]->attr('alt'));
-        $t->contains('<figure class="wp-block-image wp-import" id="json-figure" data-source="json-filter"><img src="media/hero.png" alt="Alt text" title="Hero title" class="hero-image" data-source="media-bag"/><figcaption>Long caption source</figcaption></figure>', $blocks);
+        $t->contains('<figure class="wp-block-image wp-import" id="json-figure" data-source="json-filter"><img src="media/hero.png" alt="Alt text" title="Hero title" class="hero-image" data-source="media-bag"/><figcaption>Long <em>caption</em> source</figcaption></figure>', $blocks);
         $t->same('Figure', $generated['blocks'][0]['t']);
         $t->same('Caption', $generated['blocks'][0]['c'][1]['t']);
         $t->same('Just', $generated['blocks'][0]['c'][1]['c'][0]['t']);

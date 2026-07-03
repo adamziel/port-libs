@@ -7843,6 +7843,10 @@ final class CitationCslProcessor
         }
 
         $prefix = $this->citationPrefix($citation);
+        if ($prefix !== '' && preg_match('/^' . preg_quote($prefix, '/') . '(?:\s+|$)/u', $entry) === 1) {
+            return $entry;
+        }
+
         return $prefix === '' ? $entry : $prefix . ' ' . $entry;
     }
 
