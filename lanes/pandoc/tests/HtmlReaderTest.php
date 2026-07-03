@@ -358,6 +358,25 @@ $tests['imports upstream html block children inside table cells'] =
         $assertTable((new HtmlReader())->read($fullDocument));
     };
 
+$tests['imports upstream html transparent block containers as structural children'] =
+    static function (TestRunner $t): void {
+        $tags = ['address', 'article', 'center', 'dialog', 'dir', 'fieldset', 'footer', 'form', 'hgroup', 'menu', 'nav', 'search', 'summary'];
+        $assertBlocks = static function ($document, string $label) use ($t): void {
+            $t->same(['heading', 'paragraph', 'paragraph'], array_map(static fn ($node): string => $node->type, $document->children), $label);
+            $t->same('Title', $document->children[0]->attr('text'), $label);
+            $t->same('Body text.', $document->children[1]->attr('text'), $label);
+            $t->same(['text', 'emph', 'text'], array_map(static fn ($node): string => $node->type, $document->children[1]->children), $label);
+            $t->same('text', $document->children[1]->children[1]->children[0]->attr('text'), $label);
+            $t->same('After', $document->children[2]->attr('text'), $label);
+        };
+
+        foreach ($tags as $tag) {
+            $html = '<' . $tag . ' id="wrapper"><h1>Title</h1><p>Body <em>text</em>.</p></' . $tag . '><p>After</p>';
+            $assertBlocks((new HtmlReader())->read($html), $tag . ' fragment');
+            $assertBlocks((new HtmlReader())->read('<!doctype html><html><body>' . $html . '</body></html>'), $tag . ' document');
+        }
+    };
+
 $tests['imports generated current html thematic break as horizontal rule'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-thematic-break.html'));

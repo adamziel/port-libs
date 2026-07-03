@@ -259,6 +259,13 @@ final class MarkdownReader
                 $blocks[] = $nestedHtmlTable;
                 continue;
             }
+            $htmlTransparentContainer = $paragraph === [] && $listStack === []
+                ? $this->tryReadHtmlTransparentBlockContainer($lines, $index)
+                : null;
+            if ($htmlTransparentContainer !== null) {
+                array_push($blocks, ...$htmlTransparentContainer);
+                continue;
+            }
             $rawHtmlDetails = $paragraph === [] && $listStack === [] ? $this->tryReadRawHtmlDetailsBlock($lines, $index) : null;
             if ($rawHtmlDetails !== null) {
                 array_push($blocks, ...$rawHtmlDetails);
@@ -3008,6 +3015,67 @@ final class MarkdownReader
      * @param list<string> $lines
      * @return list<AstNode>|null
      */
+    private function tryReadHtmlTransparentBlockContainer(array $lines, int &$index): ?array
+    {
+        if (!$this->htmlReaderModeEnabled()) {
+            return null;
+        }
+
+        $line = $lines[$index] ?? '';
+        if (preg_match('/^ {0,3}<([A-Za-z][A-Za-z0-9:-]*)\b/i', $line, $match) !== 1) {
+            return null;
+        }
+
+        $tag = strtolower($match[1]);
+        if (!$this->isHtmlTransparentBlockContainerTag($tag)) {
+            return null;
+        }
+
+        $collected = $this->collectBalancedHtmlElementBlock($lines, $index, $tag);
+        if ($collected === null) {
+            return null;
+        }
+
+        [$html, $endIndex] = $collected;
+        $blocks = $this->parseHtmlTransparentBlockContainerFragment($html);
+        if ($blocks === []) {
+            return null;
+        }
+
+        $index = $endIndex;
+
+        return $blocks;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function parseHtmlTransparentBlockContainerFragment(string $html): array
+    {
+        $previous = libxml_use_internal_errors(true);
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+        $loaded = $dom->loadHTML(
+            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
+            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
+        );
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+        if (!$loaded) {
+            return [];
+        }
+
+        $body = $dom->getElementsByTagName('body')->item(0);
+        if (!$body instanceof \DOMElement) {
+            return [];
+        }
+
+        return $this->parseHtmlBlockChildren($body);
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return list<AstNode>|null
+     */
     private function tryReadRawHtmlDetailsBlock(array $lines, int &$index): ?array
     {
         $line = $lines[$index] ?? '';
@@ -3723,6 +3791,23 @@ final class MarkdownReader
         }
 
         return (bool) ($this->options['htmlNativeDivs'] ?? $this->options['nativeDivs'] ?? false);
+    }
+
+    private function htmlReaderModeEnabled(): bool
+    {
+        if (($this->options['htmlReader'] ?? false) === true) {
+            return true;
+        }
+
+        if (
+            ($this->options['htmlNativeDivs'] ?? false) === true
+            || ($this->options['nativeDivs'] ?? false) === true
+            || $this->htmlEpubExtensionsEnabled()
+        ) {
+            return true;
+        }
+
+        return false;
     }
 
     private function htmlEpubExtensionsEnabled(): bool
@@ -4832,6 +4917,12 @@ final class MarkdownReader
                 continue;
             }
 
+            if ($child instanceof \DOMElement && $this->isHtmlTransparentBlockContainer($child)) {
+                $this->flushHtmlInlineParagraph($inlines, $blocks);
+                array_push($blocks, ...$this->parseHtmlBlockChildren($child));
+                continue;
+            }
+
             if ($child instanceof \DOMElement && $this->isHtmlBlockElement($child)) {
                 $this->flushHtmlInlineParagraph($inlines, $blocks);
                 if ($this->htmlEpubExtensionsEnabled() && strtolower($child->localName) === 'switch') {
@@ -4862,6 +4953,12 @@ final class MarkdownReader
         $inlines = [];
         foreach ($element->childNodes as $child) {
             if ($child instanceof \DOMElement && $this->isHtmlFootnoteItemElement($child)) {
+                continue;
+            }
+
+            if ($child instanceof \DOMElement && $this->isHtmlTransparentBlockContainer($child)) {
+                $this->flushHtmlInlineParagraph($inlines, $blocks);
+                array_push($blocks, ...$this->parseHtmlBlockChildren($child));
                 continue;
             }
 
@@ -4911,6 +5008,31 @@ final class MarkdownReader
             'table',
             'textarea',
             'ul',
+        ], true);
+    }
+
+    private function isHtmlTransparentBlockContainer(\DOMElement $element): bool
+    {
+        return $this->htmlReaderModeEnabled()
+            && $this->isHtmlTransparentBlockContainerTag(strtolower($element->localName));
+    }
+
+    private function isHtmlTransparentBlockContainerTag(string $tag): bool
+    {
+        return in_array($tag, [
+            'address',
+            'article',
+            'center',
+            'dialog',
+            'dir',
+            'fieldset',
+            'footer',
+            'form',
+            'hgroup',
+            'menu',
+            'nav',
+            'search',
+            'summary',
         ], true);
     }
 
@@ -5167,6 +5289,12 @@ final class MarkdownReader
                 continue;
             }
 
+            if ($child instanceof \DOMElement && $this->isHtmlTransparentBlockContainer($child)) {
+                $this->flushHtmlFigureInlines($inlines, $bodyBlocks);
+                array_push($bodyBlocks, ...$this->parseHtmlBlockChildren($child));
+                continue;
+            }
+
             if ($child instanceof \DOMElement && $this->isHtmlBlockElement($child)) {
                 $this->flushHtmlFigureInlines($inlines, $bodyBlocks);
                 $block = $this->parseHtmlBlockElement($child);
@@ -5297,6 +5425,12 @@ final class MarkdownReader
         $blocks = [];
         $inlines = [];
         foreach ($caption->childNodes as $child) {
+            if ($child instanceof \DOMElement && $this->isHtmlTransparentBlockContainer($child)) {
+                $this->flushHtmlFigureInlines($inlines, $blocks);
+                array_push($blocks, ...$this->parseHtmlBlockChildren($child));
+                continue;
+            }
+
             if ($child instanceof \DOMElement && $this->isHtmlBlockElement($child)) {
                 $this->flushHtmlFigureInlines($inlines, $blocks);
                 $block = $this->parseHtmlBlockElement($child);
@@ -5641,6 +5775,10 @@ final class MarkdownReader
             return [];
         }
 
+        if ($child instanceof \DOMElement && $this->isHtmlTransparentBlockContainer($child)) {
+            return $this->parseHtmlBlockChildren($child);
+        }
+
         if ($child instanceof \DOMElement && $this->isHtmlBlockElement($child)) {
             $block = $this->parseHtmlBlockElement($child);
             return $block instanceof AstNode ? [$block] : [];
@@ -5765,6 +5903,12 @@ final class MarkdownReader
         $children = [];
         $inlines = [];
         foreach ($item->childNodes as $child) {
+            if ($child instanceof \DOMElement && $this->isHtmlTransparentBlockContainer($child)) {
+                $this->flushHtmlListItemInlines($inlines, $children);
+                array_push($children, ...$this->parseHtmlBlockChildren($child));
+                continue;
+            }
+
             if ($child instanceof \DOMElement && $this->isHtmlBlockElement($child)) {
                 $this->flushHtmlListItemInlines($inlines, $children);
                 $block = $this->parseHtmlBlockElement($child);
@@ -6253,7 +6397,10 @@ final class MarkdownReader
                         continue;
                     }
 
-                    if ($this->isHtmlBlockElement($descendant)) {
+                    if (
+                        $this->isHtmlBlockElement($descendant)
+                        || $this->isHtmlTransparentBlockContainer($descendant)
+                    ) {
                         return true;
                     }
                 }
@@ -7198,6 +7345,11 @@ final class MarkdownReader
     {
         $children = [];
         foreach ($cell->childNodes as $child) {
+            if ($child instanceof \DOMElement && $this->isHtmlTransparentBlockContainer($child)) {
+                array_push($children, ...$this->parseHtmlBlockChildren($child));
+                continue;
+            }
+
             if ($child instanceof \DOMElement && $this->isHtmlBlockElement($child)) {
                 $block = $this->parseHtmlBlockElement($child);
                 if ($block instanceof AstNode) {

@@ -17,7 +17,7 @@ final class HtmlReader
      */
     public function __construct(private readonly array $options = [])
     {
-        $this->reader = new MarkdownReader(array_replace(['htmlNativeDivs' => true], $options));
+        $this->reader = new MarkdownReader(array_replace(['htmlNativeDivs' => true, 'htmlReader' => true], $options));
     }
 
     public function read(string $bytes): AstNode
