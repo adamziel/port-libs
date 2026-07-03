@@ -1,0 +1,13 @@
+[ Header 2 ( "slide-1" , [] , [] ) [ Str "SmartArt deck" ]
+, Div
+    ( ""
+    , [ "smartart" , "basicBlockList" ]
+    , [ ( "layout" , "basicBlockList" ) ]
+    )
+    [ Para [ Strong [ Str "Planning phase" ] ]
+    , BulletList
+        [ [ Plain [ Str "Gather inputs" ] ]
+        , [ Plain [ Str "Confirm scope" ] ]
+        ]
+    ]
+]

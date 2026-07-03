@@ -163,6 +163,7 @@ return [
         $numberedListPair = $pairsByStem['numbered-list'];
         $shapeOrderPair = $pairsByStem['shape-order'];
         $slidePlaceholdersPair = $pairsByStem['slide-placeholders'];
+        $smartartHierarchyPair = $pairsByStem['smartart-hierarchy'];
 
         $t->same(PptxUpstreamReaderEvidence::STATUS_SKIPPED_MISSING_SOURCE, $report['status']);
         $t->same('valid-checked-in-current-pptx-reader-evidence', $static['validation']['status']);
@@ -171,7 +172,7 @@ return [
         $t->same('text extraction', $static['readerDenominator']['expectedReaderCases'][0]['name']);
         $t->same('pptx-reader/basic.pptx', $static['readerDenominator']['expectedReaderCases'][0]['pptx']);
         $t->same('pptx-reader/basic.native', $static['readerDenominator']['expectedReaderCases'][0]['native']);
-        $t->same(24, $static['checkedInFixturePairCount']);
+        $t->same(25, $static['checkedInFixturePairCount']);
         $t->same(0, $static['checkedInUnpairedPptxFixtureCount']);
         $t->same(0, $static['checkedInUnpairedNativeFixtureCount']);
         $t->same([], $static['checkedInUnpairedPptxFixtures']);
@@ -343,6 +344,13 @@ return [
         $t->same('f76963e6f7aa7b051bddb6ad4fa62016af8f580963f75fee42ecb840c7a64cc6', $slidePlaceholdersPair['checkedInNative']['sha256']);
         $t->same(1598, $slidePlaceholdersPair['checkedInPptx']['bytes']);
         $t->same(203, $slidePlaceholdersPair['checkedInNative']['bytes']);
+        $t->same('smartart-hierarchy', $smartartHierarchyPair['stem']);
+        $t->same('generated SmartArt hierarchy native parity', $smartartHierarchyPair['name']);
+        $t->same('pptx-reader/smartart-hierarchy.pptx|pptx-reader/smartart-hierarchy.native', $smartartHierarchyPair['pairKey']);
+        $t->same('186195196185f1c5b95a0e7e2c327dc551371edbd09de4d2f94e418ff10420eb', $smartartHierarchyPair['checkedInPptx']['sha256']);
+        $t->same('bc41c663b7f2711c8d12039d385926db19bae387c07290cd7629e5ab278e2ce9', $smartartHierarchyPair['checkedInNative']['sha256']);
+        $t->same(2664, $smartartHierarchyPair['checkedInPptx']['bytes']);
+        $t->same(332, $smartartHierarchyPair['checkedInNative']['bytes']);
         $t->same(false, PptxUpstreamReaderEvidence::hasNoValidationIssues($report));
         $t->same(true, PptxUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($report));
         $t->same(true, PptxUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
@@ -370,7 +378,8 @@ return [
         $t->true(in_array('that numbered-list.pptx/numbered-list.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('that shape-order.pptx/shape-order.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('that slide-placeholders.pptx/slide-placeholders.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
-        $t->contains('Static current evidence: valid-checked-in-current-pptx-reader-evidence comparisons=1 checkedInPairs=24', $text);
+        $t->true(in_array('that smartart-hierarchy.pptx/smartart-hierarchy.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
+        $t->contains('Static current evidence: valid-checked-in-current-pptx-reader-evidence comparisons=1 checkedInPairs=25', $text);
         $t->contains('Runner status: not-run', $text);
     },
     'reports invalid pptx reader evidence for missing and unreferenced fixtures' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile): void {
