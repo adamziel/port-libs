@@ -1,0 +1,22 @@
+[ Para
+    [ Str "Before"
+    , Space
+    , Str "the"
+    , Space
+    , Str "legacy"
+    , Space
+    , Str "packet."
+    ]
+, RawBlock
+    (Format "html")
+    "<textarea id=\"legacy-packet\" class=\"source-payload\" data-source=\"batch-42\">\nLegacy shortcode [gallery ids=\"10,11\"] and review notes stay literal.\n</textarea>"
+, Para
+    [ Str "After"
+    , Space
+    , Str "the"
+    , Space
+    , Str "legacy"
+    , Space
+    , Str "packet."
+    ]
+]
