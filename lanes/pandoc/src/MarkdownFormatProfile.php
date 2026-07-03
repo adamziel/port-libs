@@ -54,6 +54,7 @@ final class MarkdownFormatProfile
         'auto_identifier' => 'auto_identifiers',
         'auto_id' => 'auto_identifiers',
         'auto_ids' => 'auto_identifiers',
+        'definition_list' => 'definition_lists',
         'emoji_shortcode' => 'emoji_shortcodes',
         'example_list' => 'numbered_examples',
         'example_lists' => 'numbered_examples',
@@ -112,7 +113,7 @@ final class MarkdownFormatProfile
         'yaml_metadata_blocks' => 'yaml_metadata_block',
     ];
 
-    /** @var array<string, array{yamlMetadata:bool, titleBlock:bool, rawAttribute:bool, rawHtml:bool, rawTex:bool, rawMarkdown:bool, taskLists:bool, pipeTables:bool, simpleTables:bool, gridTables:bool, multilineTables:bool}> */
+    /** @var array<string, array{yamlMetadata:bool, titleBlock:bool, rawAttribute:bool, rawHtml:bool, rawTex:bool, rawMarkdown:bool, definitionLists:bool, taskLists:bool, pipeTables:bool, simpleTables:bool, gridTables:bool, multilineTables:bool}> */
     private const DEFAULTS = [
         'markdown' => [
             'yamlMetadata' => true,
@@ -121,6 +122,7 @@ final class MarkdownFormatProfile
             'rawHtml' => true,
             'rawTex' => true,
             'rawMarkdown' => true,
+            'definitionLists' => true,
             'taskLists' => true,
             'pipeTables' => true,
             'simpleTables' => true,
@@ -134,6 +136,7 @@ final class MarkdownFormatProfile
             'rawHtml' => true,
             'rawTex' => false,
             'rawMarkdown' => true,
+            'definitionLists' => false,
             'taskLists' => false,
             'pipeTables' => false,
             'simpleTables' => false,
@@ -147,6 +150,7 @@ final class MarkdownFormatProfile
             'rawHtml' => true,
             'rawTex' => true,
             'rawMarkdown' => true,
+            'definitionLists' => true,
             'taskLists' => true,
             'pipeTables' => true,
             'simpleTables' => true,
@@ -160,6 +164,7 @@ final class MarkdownFormatProfile
             'rawHtml' => true,
             'rawTex' => false,
             'rawMarkdown' => true,
+            'definitionLists' => false,
             'taskLists' => true,
             'pipeTables' => true,
             'simpleTables' => false,
@@ -173,6 +178,7 @@ final class MarkdownFormatProfile
             'rawHtml' => true,
             'rawTex' => false,
             'rawMarkdown' => true,
+            'definitionLists' => true,
             'taskLists' => false,
             'pipeTables' => true,
             'simpleTables' => true,
@@ -186,6 +192,7 @@ final class MarkdownFormatProfile
             'rawHtml' => true,
             'rawTex' => false,
             'rawMarkdown' => true,
+            'definitionLists' => true,
             'taskLists' => false,
             'pipeTables' => true,
             'simpleTables' => true,
@@ -199,6 +206,7 @@ final class MarkdownFormatProfile
             'rawHtml' => true,
             'rawTex' => false,
             'rawMarkdown' => true,
+            'definitionLists' => false,
             'taskLists' => false,
             'pipeTables' => false,
             'simpleTables' => false,
@@ -507,6 +515,14 @@ final class MarkdownFormatProfile
     public static function rawMarkdownEnabled(array $options, bool $defaultWithoutFormat): bool
     {
         return self::enabled($options, 'rawMarkdown', $defaultWithoutFormat, 'raw_markdown');
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     */
+    public static function definitionListsEnabled(array $options, bool $defaultWithoutFormat): bool
+    {
+        return self::enabled($options, 'definitionLists', $defaultWithoutFormat, 'definition_lists');
     }
 
     /**

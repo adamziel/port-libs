@@ -5890,7 +5890,9 @@ final class MarkdownWriter
 
     private function normalizeDefinitionTermLine(string $text): string
     {
-        return trim(preg_replace('/[ \t]*\R[ \t]*/u', ' ', $text) ?? $text);
+        $text = trim(preg_replace('/[ \t]*\R[ \t]*/u', ' ', $text) ?? $text);
+
+        return $this->escapeDefinitionBoundaryLineStart($text);
     }
 
     /**
@@ -5951,6 +5953,7 @@ final class MarkdownWriter
             );
         }
 
+        $bodyLines[0] = $this->escapeDefinitionBoundaryLineStart($bodyLines[0]);
         $first = array_shift($bodyLines);
         $lines = [$marker . (string) $first];
         $continuation = str_repeat(' ', $leadingChars);
@@ -5961,12 +5964,33 @@ final class MarkdownWriter
         return $lines;
     }
 
+    private function escapeDefinitionBoundaryLineStart(string $line): string
+    {
+        if (preg_match('/^([:#~])(?=$|\s)/u', $line, $match) === 1) {
+            return '\\' . $match[1] . substr($line, strlen($match[1]));
+        }
+
+        if (preg_match('/^([-+*])(?=$|\s)/u', $line, $match) === 1) {
+            return '\\' . $match[1] . substr($line, strlen($match[1]));
+        }
+
+        if (preg_match('/^(\d{1,9})([.)])(?=$|\s)/u', $line, $match) === 1) {
+            return $match[1] . '\\' . $match[2] . substr($line, strlen($match[0]));
+        }
+
+        return $line;
+    }
+
     private function definitionBodyNeedsDetachedMarker(AstNode $definition): bool
     {
         $first = $definition->children[0] ?? null;
 
         return $first instanceof AstNode
-            && in_array($first->type, ['div', 'raw_html', 'raw_tex', 'raw_block', 'raw_markdown'], true);
+            && in_array(
+                $first->type,
+                ['bullet_list', 'ordered_list', 'definition_list', 'code_block', 'heading', 'line_block', 'div', 'raw_html', 'raw_tex', 'raw_block', 'raw_markdown'],
+                true
+            );
     }
 
     /**
@@ -5974,12 +5998,33 @@ final class MarkdownWriter
      */
     private function renderDefinitionBodyLines(AstNode $definition): array
     {
+        if ($this->definitionBodyShouldUseHtmlBlocks($definition)) {
+            $html = $this->renderBlocksAsHtmlFragments($definition->children);
+
+            return $html === '' ? [] : explode("\n", $html);
+        }
+
         $body = $this->renderBlockCollection($definition->children);
         if ($body === '') {
             return [];
         }
 
         return explode("\n", $body);
+    }
+
+    private function definitionBodyShouldUseHtmlBlocks(AstNode $definition): bool
+    {
+        if ($this->writerVariant() === 'markdown') {
+            return false;
+        }
+
+        foreach ($definition->children as $child) {
+            if ($child->type === 'div') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -9288,6 +9333,10 @@ final class MarkdownWriter
             return $this->renderHtmlListBlock($node, $node->type === 'ordered_list');
         }
 
+        if ($node->type === 'definition_list') {
+            return $this->renderHtmlDefinitionListBlock($node);
+        }
+
         if ($node->type === 'div') {
             $contents = $this->renderBlocksAsHtmlFragments($node->children);
 
@@ -9319,11 +9368,86 @@ final class MarkdownWriter
             }
 
             $items .= '<li' . $this->renderNodeHtmlAttributes($item) . '>'
-                . $this->renderBlocksAsHtmlFragments($item->children)
+                . $this->renderListItemAsHtmlFragment($item)
                 . '</li>';
         }
 
         return '<' . $tag . $this->renderHtmlAttributes($attributes) . '>' . $items . '</' . $tag . '>';
+    }
+
+    private function renderListItemAsHtmlFragment(AstNode $item): string
+    {
+        if ($this->childrenAreInlineOnly($item->children)) {
+            return $this->renderHtmlInlines($item->children);
+        }
+
+        return $this->renderBlocksAsHtmlFragments($item->children);
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function childrenAreInlineOnly(array $nodes): bool
+    {
+        if ($nodes === []) {
+            return false;
+        }
+
+        foreach ($nodes as $node) {
+            if ($this->nodeIsBlock($node)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function nodeIsBlock(AstNode $node): bool
+    {
+        return in_array(
+            $node->type,
+            [
+                'paragraph',
+                'plain',
+                'heading',
+                'figure',
+                'bullet_list',
+                'ordered_list',
+                'definition_list',
+                'line_block',
+                'blockquote',
+                'code_block',
+                'horizontal_rule',
+                'table',
+                'raw_html',
+                'raw_tex',
+                'raw_block',
+                'raw_markdown',
+                'div',
+            ],
+            true
+        );
+    }
+
+    private function renderHtmlDefinitionListBlock(AstNode $node): string
+    {
+        $html = '<dl' . $this->renderNodeHtmlAttributes($node) . '>';
+        foreach ($node->children as $item) {
+            if ($item->type !== 'definition_item') {
+                continue;
+            }
+
+            $term = $item->children[0] ?? null;
+            $termInlines = $term instanceof AstNode && $term->children !== []
+                ? $term->children
+                : [new AstNode('text', ['text' => (string) $item->attr('term', $term instanceof AstNode ? $term->attr('text', '') : '')])];
+            $html .= '<dt>' . $this->renderHtmlInlines($termInlines) . '</dt>';
+            foreach ($this->definitionItemDefinitions($item) as $definition) {
+                $html .= '<dd>' . $this->renderBlocksAsHtmlFragments($definition->children) . '</dd>';
+            }
+        }
+
+        return $html . '</dl>';
     }
 
     /**
@@ -9617,7 +9741,10 @@ final class MarkdownWriter
 
     private function definitionListsEnabled(): bool
     {
-        return (bool) ($this->options['definitionLists'] ?? true);
+        $options = $this->options;
+        $options['format'] = $this->markdownFormatWithExtensionOption();
+
+        return MarkdownFormatProfile::definitionListsEnabled($options, true);
     }
 
     private function lineBlocksEnabled(): bool
