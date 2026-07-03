@@ -121,6 +121,8 @@ final class MarkdownReader
     /** @var array<string, list<AstNode>> */
     private array $htmlFootnoteDefinitions = [];
 
+    private bool $resolveInlineNotes = true;
+
     private bool $resolveFootnoteReferences = true;
 
     private bool $suppressHtmlInlineFragmentBlock = false;
@@ -2080,6 +2082,13 @@ final class MarkdownReader
     private function isLazyBlockQuoteContinuationLine(string $line, int $lineIndex, array $content): bool
     {
         if ($content === [] || trim(end($content)) === '' || trim($line) === '') {
+            return false;
+        }
+        $previous = $this->expandTabsToSpaces((string) end($content));
+        if (
+            $this->tryParseFootnoteDefinitionStart($previous) !== null
+            || $this->tryParseReferenceDefinitionStart($previous) !== null
+        ) {
             return false;
         }
         if ($this->tryParseMarkdownHeading($line) !== null) {
@@ -12215,7 +12224,7 @@ final class MarkdownReader
                 }
             }
 
-            $inlineNote = $this->resolveFootnoteReferences ? $this->tryParseInlineNote($text, $offset) : null;
+            $inlineNote = $this->resolveInlineNotes ? $this->tryParseInlineNote($text, $offset) : null;
             if ($inlineNote !== null) {
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $inlineNote['node'];
@@ -12483,13 +12492,16 @@ final class MarkdownReader
             return [];
         }
 
+        $previousResolveInlineNotes = $this->resolveInlineNotes;
         $previousResolveFootnoteReferences = $this->resolveFootnoteReferences;
         $previousSuppressHtmlInlineFragmentBlock = $this->suppressHtmlInlineFragmentBlock;
+        $this->resolveInlineNotes = true;
         $this->resolveFootnoteReferences = false;
         $this->suppressHtmlInlineFragmentBlock = $suppressHtmlInlineFragmentBlock;
         try {
             return $this->read($markdown)->children;
         } finally {
+            $this->resolveInlineNotes = $previousResolveInlineNotes;
             $this->resolveFootnoteReferences = $previousResolveFootnoteReferences;
             $this->suppressHtmlInlineFragmentBlock = $previousSuppressHtmlInlineFragmentBlock;
         }
