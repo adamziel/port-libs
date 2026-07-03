@@ -11166,7 +11166,13 @@ final class MarkdownReader
      */
     private function canListMarkerInterruptParagraph(array $marker): bool
     {
-        return !$marker['ordered'] || $marker['start'] === 1;
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+        if (in_array($canonical, ['commonmark', 'commonmark_x', 'gfm'], true)) {
+            return !$marker['ordered'] || $marker['start'] === 1;
+        }
+
+        return $this->listsWithoutPrecedingBlanklineExtensionEnabled();
     }
 
     /**
@@ -15691,6 +15697,14 @@ final class MarkdownReader
         $options['format'] = $this->markdownFormatWithExtensionOption();
 
         return MarkdownFormatProfile::multilineTablesEnabled($options, true);
+    }
+
+    private function listsWithoutPrecedingBlanklineExtensionEnabled(): bool
+    {
+        $options = $this->options;
+        $options['format'] = $this->markdownFormatWithExtensionOption();
+
+        return MarkdownFormatProfile::listsWithoutPrecedingBlanklineEnabled($options, false);
     }
 
     private function rawAttributeFormatEnabled(string $format): bool

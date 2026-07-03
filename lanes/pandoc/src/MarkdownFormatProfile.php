@@ -113,7 +113,7 @@ final class MarkdownFormatProfile
         'yaml_metadata_blocks' => 'yaml_metadata_block',
     ];
 
-    /** @var array<string, array{yamlMetadata:bool, titleBlock:bool, rawAttribute:bool, rawHtml:bool, rawTex:bool, rawMarkdown:bool, definitionLists:bool, footnotes:bool, citations:bool, taskLists:bool, pipeTables:bool, simpleTables:bool, gridTables:bool, multilineTables:bool}> */
+    /** @var array<string, array{yamlMetadata:bool, titleBlock:bool, rawAttribute:bool, rawHtml:bool, rawTex:bool, rawMarkdown:bool, definitionLists:bool, footnotes:bool, citations:bool, taskLists:bool, pipeTables:bool, simpleTables:bool, gridTables:bool, multilineTables:bool, listsWithoutPrecedingBlankline:bool}> */
     private const DEFAULTS = [
         'markdown' => [
             'yamlMetadata' => true,
@@ -130,6 +130,7 @@ final class MarkdownFormatProfile
             'simpleTables' => true,
             'gridTables' => true,
             'multilineTables' => true,
+            'listsWithoutPrecedingBlankline' => false,
         ],
         'commonmark' => [
             'yamlMetadata' => false,
@@ -146,6 +147,7 @@ final class MarkdownFormatProfile
             'simpleTables' => false,
             'gridTables' => false,
             'multilineTables' => false,
+            'listsWithoutPrecedingBlankline' => true,
         ],
         'commonmark_x' => [
             'yamlMetadata' => false,
@@ -162,6 +164,7 @@ final class MarkdownFormatProfile
             'simpleTables' => true,
             'gridTables' => true,
             'multilineTables' => true,
+            'listsWithoutPrecedingBlankline' => true,
         ],
         'gfm' => [
             'yamlMetadata' => false,
@@ -178,6 +181,7 @@ final class MarkdownFormatProfile
             'simpleTables' => false,
             'gridTables' => false,
             'multilineTables' => false,
+            'listsWithoutPrecedingBlankline' => true,
         ],
         'markdown_mmd' => [
             'yamlMetadata' => false,
@@ -194,6 +198,7 @@ final class MarkdownFormatProfile
             'simpleTables' => true,
             'gridTables' => true,
             'multilineTables' => true,
+            'listsWithoutPrecedingBlankline' => false,
         ],
         'markdown_phpextra' => [
             'yamlMetadata' => false,
@@ -210,6 +215,7 @@ final class MarkdownFormatProfile
             'simpleTables' => true,
             'gridTables' => true,
             'multilineTables' => true,
+            'listsWithoutPrecedingBlankline' => false,
         ],
         'markdown_strict' => [
             'yamlMetadata' => false,
@@ -226,6 +232,7 @@ final class MarkdownFormatProfile
             'simpleTables' => false,
             'gridTables' => false,
             'multilineTables' => false,
+            'listsWithoutPrecedingBlankline' => false,
         ],
     ];
 
@@ -402,6 +409,7 @@ final class MarkdownFormatProfile
                 'inline_attributes',
                 'inline_code_attributes',
                 'line_blocks',
+                'lists_without_preceding_blankline',
                 'link_attributes',
                 'mark',
                 'native_divs',
@@ -594,6 +602,14 @@ final class MarkdownFormatProfile
     public static function multilineTablesEnabled(array $options, bool $defaultWithoutFormat): bool
     {
         return self::enabled($options, 'multilineTables', $defaultWithoutFormat, 'multiline_tables');
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     */
+    public static function listsWithoutPrecedingBlanklineEnabled(array $options, bool $defaultWithoutFormat): bool
+    {
+        return self::enabled($options, 'listsWithoutPrecedingBlankline', $defaultWithoutFormat, 'lists_without_preceding_blankline');
     }
 
     /**

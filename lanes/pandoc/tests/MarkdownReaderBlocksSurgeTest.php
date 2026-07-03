@@ -442,7 +442,7 @@ $tests = [];
 
 foreach ($cases as $name => $case) {
     $tests['maps upstream markdown reader block/list paragraph interruption surge ' . $name] = static function (TestRunner $t) use ($case, $listItemText): void {
-        $document = (new MarkdownReader())->read($case['markdown']);
+        $document = (new MarkdownReader(['format' => 'markdown+lists_without_preceding_blankline']))->read($case['markdown']);
         $blockTypes = array_map(static fn (AstNode $node): string => $node->type, $document->children);
         $expectedBlockTypes = $case['blocks'] ?? ['paragraph', $case['listType']];
 
@@ -570,12 +570,14 @@ $continuationCases = [
         'taskList' => true,
     ],
     '04 plus blockquote nested bullet continuation' => [
+        'format' => 'markdown+lists_without_preceding_blankline',
         'markdown' => "+ item\n  > quote\n  > - nested",
         'childTypes' => ['text', 'blockquote'],
         'blockType' => 'blockquote',
         'blockText' => 'quotenested',
     ],
     '05 ordered paren blockquote nested ordered continuation' => [
+        'format' => 'markdown+lists_without_preceding_blankline',
         'markdown' => "1) item\n   > quote\n   > 1. nested",
         'listType' => 'ordered_list',
         'childTypes' => ['text', 'blockquote'],
@@ -902,7 +904,8 @@ $continuationCases = [
 foreach ($continuationCases as $name => $case) {
     $tests['maps upstream markdown reader block/list continuation completion surge ' . $name] =
         static function (TestRunner $t) use ($case, $blockText, $name): void {
-            $document = (new MarkdownReader())->read($case['markdown']);
+            $options = isset($case['format']) ? ['format' => $case['format']] : [];
+            $document = (new MarkdownReader($options))->read($case['markdown']);
             $list = $document->children[0] ?? new AstNode('missing');
             $item = $list->children[0] ?? new AstNode('missing');
             $block = null;
