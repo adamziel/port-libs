@@ -1,0 +1,25 @@
+[ Para
+    [ Str "Review"
+    , Space
+    , Str "title"
+    , Space
+    , Span
+        ( "" , [] , [ ( "dir" , "rtl" ) ] )
+        [ Str "source" , Space , Strong [ Str "slug" ] ]
+    , Space
+    , Str "before"
+    , Space
+    , Str "publish."
+    ]
+, Para
+    [ Str "Neutral"
+    , Space
+    , Str "plain"
+    , Space
+    , Str "order"
+    , Space
+    , Str "stays"
+    , Space
+    , Str "plain."
+    ]
+]
