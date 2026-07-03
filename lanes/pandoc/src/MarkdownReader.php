@@ -7243,7 +7243,10 @@ final class MarkdownReader
             return $this->parseHtmlInlineChildren($node);
         }
 
-        $children = $this->parseHtmlInlineChildren($node);
+        $children = $this->parseHtmlInlineChildren(
+            $node,
+            !$this->htmlInlineWrapperMovesBoundaryWhitespace($name)
+        );
 
         if (in_array($name, ['strong', 'b'], true)) {
             return $this->wrapHtmlInlineWithBoundaryWhitespace('strong', $this->htmlElementPandocAttrs($node), $children);
@@ -7508,7 +7511,7 @@ final class MarkdownReader
         $kind = $this->htmlQuoteDepth % 2 === 0 ? 'double' : 'single';
         $this->htmlQuoteDepth++;
         try {
-            $children = $this->parseHtmlInlineChildren($node);
+            $children = $this->parseHtmlInlineChildren($node, false);
         } finally {
             $this->htmlQuoteDepth--;
         }
@@ -7849,6 +7852,11 @@ final class MarkdownReader
     private function isHtmlSpanLikeElement(string $name): bool
     {
         return in_array($name, ['kbd', 'mark', 'dfn', 'abbr'], true);
+    }
+
+    private function htmlInlineWrapperMovesBoundaryWhitespace(string $name): bool
+    {
+        return in_array($name, ['strong', 'b', 'em', 'i', 'sup', 'sub', 'small', 'ins', 'u', 's', 'strike', 'del'], true);
     }
 
     /**
@@ -8281,14 +8289,14 @@ final class MarkdownReader
     /**
      * @return list<AstNode>
      */
-    private function parseHtmlInlineChildren(\DOMElement $element): array
+    private function parseHtmlInlineChildren(\DOMElement $element, bool $trimBoundaryWhitespace = true): array
     {
         $children = [];
         foreach ($element->childNodes as $child) {
             $this->appendHtmlInlineNodes($children, $this->parseHtmlInlineNode($child));
         }
 
-        return $this->trimHtmlBoundarySoftBreaks($children);
+        return $trimBoundaryWhitespace ? $this->trimHtmlBoundarySoftBreaks($children) : $children;
     }
 
     /**
