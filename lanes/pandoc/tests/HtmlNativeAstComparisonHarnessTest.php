@@ -90,6 +90,8 @@ return [
         $standaloneAppletNative = $root . '/upstream-html-standalone-applet-inline.native';
         $standaloneAudioHtml = $root . '/upstream-html-standalone-audio-inline.html';
         $standaloneAudioNative = $root . '/upstream-html-standalone-audio-inline.native';
+        $standaloneSvgHtml = $root . '/upstream-html-standalone-svg-inline.html';
+        $standaloneSvgNative = $root . '/upstream-html-standalone-svg-inline.native';
         $smallcapsClassHtml = $root . '/upstream-html-smallcaps-class.html';
         $smallcapsClassNative = $root . '/upstream-html-smallcaps-class.native';
         $checkboxListHtml = $root . '/upstream-html-checkbox-list.html';
@@ -103,7 +105,6 @@ return [
             'upstream-html-orphan-list-blocks.html',
             'upstream-html-raw-disabled-skip.html',
             'upstream-html-standalone-object-embed-inline.html',
-            'upstream-html-standalone-svg-inline.html',
             'upstream-html-standalone-video-inline.html',
             'upstream-html-standalone-void-inline.html',
             'upstream-html-svg-disabled-raw-html.html',
@@ -179,6 +180,8 @@ return [
         $t->true(is_file($standaloneAppletNative), 'Native standalone applet fixture must be checked in');
         $t->true(is_file($standaloneAudioHtml), 'HTML standalone audio fixture must be checked in');
         $t->true(is_file($standaloneAudioNative), 'Native standalone audio fixture must be checked in');
+        $t->true(is_file($standaloneSvgHtml), 'HTML standalone svg fixture must be checked in');
+        $t->true(is_file($standaloneSvgNative), 'Native standalone svg fixture must be checked in');
         $t->true(is_file($smallcapsClassHtml), 'HTML smallcaps class fixture must be checked in');
         $t->true(is_file($smallcapsClassNative), 'Native smallcaps class fixture must be checked in');
         $t->true(is_file($checkboxListHtml), 'HTML checkbox-list fixture must be checked in');
@@ -194,31 +197,31 @@ return [
 
         $t->same('completed', $report['status']);
         $t->same(48, $report['htmlFixtureCount']);
-        $t->same(38, $report['nativeFixtureCount']);
-        $t->same(38, $report['pairedFixtureCount']);
-        $t->same(10, $report['unpairedHtmlFixtureCount']);
+        $t->same(39, $report['nativeFixtureCount']);
+        $t->same(39, $report['pairedFixtureCount']);
+        $t->same(9, $report['unpairedHtmlFixtureCount']);
         $t->same(0, $report['unpairedNativeFixtureCount']);
         $t->same($expectedUnpairedHtmlFixtureNames, $report['unpairedHtmlFixtureNames']);
         $t->same([], $report['unpairedNativeFixtureNames']);
         $t->same('upstream-html-generic-raw-inline.html', $report['unpairedHtmlFixtureExamples'][0]);
-        $t->same(38, $report['totalPairCount']);
-        $t->same(38, $report['comparedPairCount']);
-        $t->same(38, $report['htmlParsedCount']);
-        $t->same(38, $report['nativeParsedCount']);
-        $t->same(38, $report['bothParsedCount']);
+        $t->same(39, $report['totalPairCount']);
+        $t->same(39, $report['comparedPairCount']);
+        $t->same(39, $report['htmlParsedCount']);
+        $t->same(39, $report['nativeParsedCount']);
+        $t->same(39, $report['bothParsedCount']);
         $t->same(0, $report['parseFailureCount']);
-        $t->same(38, $report['normalizedAstMatchCount']);
+        $t->same(39, $report['normalizedAstMatchCount']);
         $t->same(0, $report['normalizedAstMismatchCount']);
         $t->same('normalized-ast-equality-observed-not-runner-parity', $report['astParityStatus']);
-        $t->same(true, HtmlNativeAstComparisonHarness::hasRequiredMappedParity($report, 38));
+        $t->same(true, HtmlNativeAstComparisonHarness::hasRequiredMappedParity($report, 39));
         $t->same('covered-by-current-normalized-ast-evidence', $report['orderedRemainingGaps'][0]['status']);
         $t->same('checked-in-html-fixtures-without-native-pairs', $report['orderedRemainingGaps'][1]['id']);
         $t->same('open', $report['orderedRemainingGaps'][1]['status']);
-        $t->same('HTML fixtures=48; native fixtures=38; same-basename pairs=38; HTML fixtures without native pairs=10', $report['orderedRemainingGaps'][1]['currentEvidence']);
-        $t->same('The current checked-in gate covers 38 paired fixture(s) out of 48 HTML fixture(s).', $report['orderedRemainingGaps'][3]['currentEvidence']);
-        $t->contains('fixtureInventory: html=48 native=38 paired=38 unpairedHtml=10 unpairedNative=0', $text);
-        $t->contains('pairs: total=38 compared=38 parsedBoth=38 parseFailures=0', $text);
-        $t->contains('normalizedAst: matches=38 (100.00%) mismatches=0', $text);
+        $t->same('HTML fixtures=48; native fixtures=39; same-basename pairs=39; HTML fixtures without native pairs=9', $report['orderedRemainingGaps'][1]['currentEvidence']);
+        $t->same('The current checked-in gate covers 39 paired fixture(s) out of 48 HTML fixture(s).', $report['orderedRemainingGaps'][3]['currentEvidence']);
+        $t->contains('fixtureInventory: html=48 native=39 paired=39 unpairedHtml=9 unpairedNative=0', $text);
+        $t->contains('pairs: total=39 compared=39 parsedBoth=39 parseFailures=0', $text);
+        $t->contains('normalizedAst: matches=39 (100.00%) mismatches=0', $text);
 
         $command = escapeshellarg(PHP_BINARY)
             . ' '
@@ -226,7 +229,7 @@ return [
             . ' --html-dir=' . escapeshellarg($root)
             . ' --json'
             . ' summary'
-            . ' --require-mapped-parity=38';
+            . ' --require-mapped-parity=39';
         $output = [];
         $exitCode = 0;
         exec($command, $output, $exitCode);
@@ -234,10 +237,10 @@ return [
 
         $t->same(0, $exitCode);
         $t->same(48, $decoded['htmlFixtureCount']);
-        $t->same(10, $decoded['unpairedHtmlFixtureCount']);
+        $t->same(9, $decoded['unpairedHtmlFixtureCount']);
         $t->same($expectedUnpairedHtmlFixtureNames, $decoded['unpairedHtmlFixtureNames']);
         $t->same([], $decoded['unpairedNativeFixtureNames']);
-        $t->same(38, $decoded['normalizedAstMatchCount']);
+        $t->same(39, $decoded['normalizedAstMatchCount']);
         $t->same(0, $decoded['normalizedAstMismatchCount']);
     },
 ];
