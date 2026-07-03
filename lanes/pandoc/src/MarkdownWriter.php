@@ -8714,17 +8714,31 @@ final class MarkdownWriter
         $attrs = $image->attrs;
         $classes = $figure->attr('classes', []);
         $figureAttributes = $figure->attr('attributes', []);
-        if (
-            (is_array($classes) && $classes !== [])
-            || (is_array($figureAttributes) && $figureAttributes !== [])
-            || (string) $image->attr('id', '') !== ''
-        ) {
-            return null;
-        }
 
         $figureId = (string) $figure->attr('id', '');
         if ($figureId !== '') {
+            $imageId = (string) $image->attr('id', '');
+            if ($imageId !== '' && $imageId !== $figureId) {
+                return null;
+            }
             $attrs['id'] = $figureId;
+        }
+        if (is_array($classes) && $classes !== []) {
+            $imageClasses = $attrs['classes'] ?? [];
+            if (!is_array($imageClasses)) {
+                $imageClasses = preg_split('/\s+/u', (string) $imageClasses, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            }
+            $attrs['classes'] = array_values(array_unique(array_filter(array_map(
+                static fn (mixed $class): string => trim((string) $class),
+                array_merge($imageClasses, $classes)
+            ), static fn (string $class): bool => $class !== '')));
+        }
+        if (is_array($figureAttributes) && $figureAttributes !== []) {
+            $imageAttributes = $attrs['attributes'] ?? [];
+            if (!is_array($imageAttributes)) {
+                $imageAttributes = [];
+            }
+            $attrs['attributes'] = array_replace($figureAttributes, $imageAttributes);
         }
 
         $title = (string) ($attrs['title'] ?? '');

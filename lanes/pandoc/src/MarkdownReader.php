@@ -455,7 +455,9 @@ final class MarkdownReader
                 $blocks[] = $indentedCodeBlock;
                 continue;
             }
-            $definitionList = $this->tryReadDefinitionList($lines, $index);
+            $definitionList = $this->isSingleImageFollowedByFigureCaption($lines, $index)
+                ? null
+                : $this->tryReadDefinitionList($lines, $index);
             if ($definitionList !== null) {
                 $this->flushParagraph($paragraph, $blocks);
                 $this->flushListStack($listStack, $blocks);
@@ -472,6 +474,7 @@ final class MarkdownReader
         }
         $this->flushParagraph($paragraph, $blocks);
         $this->flushListStack($listStack, $blocks);
+        $blocks = $this->applyMarkdownFigureCaptions($blocks);
 
         if ($this->sectionDivsEnabled()) {
             $blocks = $this->sectionizeBlocks($blocks);
@@ -12542,6 +12545,17 @@ final class MarkdownReader
                 $figureAttrs = [];
             }
             $figureAttrs['caption'] = (string) $children[0]->attr('caption', $children[0]->attr('alt', ''));
+            if ($children[0]->children !== []) {
+                $figureAttrs['captionInlines'] = $children[0]->children;
+                $figureAttrs['renderCaptionInlines'] = true;
+            }
+            if (!isset($figureAttrs['captionSource']) || !is_array($figureAttrs['captionSource'])) {
+                $figureAttrs['captionSource'] = [
+                    'element' => 'markdown-implicit-figure',
+                    'position' => 'image-label',
+                    'marker' => 'standalone-image',
+                ];
+            }
             $blocks[] = new AstNode(
                 'figure',
                 $figureAttrs,
@@ -12551,8 +12565,177 @@ final class MarkdownReader
             return;
         }
 
-        $blocks[] = new AstNode('paragraph', ['text' => $plainText], $children);
+        $attrs = ['text' => $plainText];
+        if ($this->matchMarkdownFigureCaptionSource($text) !== null) {
+            $attrs['markdownSource'] = $text;
+        }
+
+        $blocks[] = new AstNode('paragraph', $attrs, $children);
         $paragraph = [];
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @return list<AstNode>
+     */
+    private function applyMarkdownFigureCaptions(array $blocks): array
+    {
+        $result = [];
+        $count = count($blocks);
+        for ($index = 0; $index < $count; $index++) {
+            $block = $blocks[$index];
+            $next = $blocks[$index + 1] ?? null;
+            if ($block->type === 'paragraph' && $next instanceof AstNode && $this->isSingleImageFigure($next)) {
+                $caption = $this->matchMarkdownFigureCaptionSource((string) $block->attr('markdownSource', ''));
+                if ($caption !== null) {
+                    $result[] = $this->applyMarkdownFigureCaption($next, $caption, 'before-figure', 'top');
+                    $index++;
+                    continue;
+                }
+            }
+
+            if ($this->isSingleImageFigure($block) && $next instanceof AstNode && $next->type === 'paragraph') {
+                $caption = $this->matchMarkdownFigureCaptionSource((string) $next->attr('markdownSource', ''));
+                if ($caption !== null) {
+                    $result[] = $this->applyMarkdownFigureCaption($block, $caption, 'after-figure', 'bottom');
+                    $index++;
+                    continue;
+                }
+            }
+
+            $result[] = $block;
+        }
+
+        return $result;
+    }
+
+    private function isSingleImageFigure(AstNode $node): bool
+    {
+        return $node->type === 'figure'
+            && count($node->children) === 1
+            && ($node->children[0] ?? null) instanceof AstNode
+            && $node->children[0]->type === 'image';
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function isSingleImageFollowedByFigureCaption(array $lines, int $index): bool
+    {
+        $markerIndex = $this->definitionMarkerAfterTermLine($lines, $index);
+        if ($markerIndex === null || $this->matchMarkdownFigureCaptionSource($lines[$markerIndex]) === null) {
+            return false;
+        }
+
+        $source = trim($lines[$index]);
+        $image = $this->tryParseImage($source, 0);
+
+        return $image !== null && $image['next'] === strlen($source);
+    }
+
+    /**
+     * @param array{marker:string, caption:string} $captionSource
+     */
+    private function applyMarkdownFigureCaption(AstNode $figure, array $captionSource, string $position, string $captionSide): AstNode
+    {
+        $attrs = $this->markdownFigureCaptionAttrs($figure->attrs, $captionSource['caption']);
+        $attrs['captionSource'] = $this->markdownFigureCaptionSource(
+            $position,
+            $captionSource['marker'],
+            $captionSide,
+            $captionSource['caption']
+        );
+        $attrs['renderCaptionInlines'] = true;
+        if ((string) ($attrs['shortCaption'] ?? '') !== '') {
+            $attrs['renderShortCaptionAttribute'] = true;
+        }
+
+        return new AstNode('figure', $attrs, $figure->children);
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     * @return array<string, mixed>
+     */
+    private function markdownFigureCaptionAttrs(array $attrs, string $source): array
+    {
+        $caption = $this->parseMarkdownTableCaptionSource($source);
+        $attrs['caption'] = $this->plainTextFromInlines($caption['captionInlines']);
+        if ($caption['captionInlines'] !== []) {
+            $attrs['captionInlines'] = $caption['captionInlines'];
+        } else {
+            unset($attrs['captionInlines']);
+        }
+        if ($caption['shortCaption'] !== null) {
+            $attrs['shortCaption'] = $caption['shortCaption'];
+            $attrs['shortCaptionInlines'] = $caption['shortCaptionInlines'];
+        }
+
+        $captionAttrs = $this->markdownAttributeAstAttrs($caption['id'], $caption['classes'], $caption['attributes']);
+        foreach ($captionAttrs as $name => $value) {
+            if ($name === 'htmlAttributes' && is_array($value) && is_array($attrs['htmlAttributes'] ?? null)) {
+                $attrs['htmlAttributes'] = array_replace($attrs['htmlAttributes'], $value);
+                continue;
+            }
+
+            $attrs[$name] = $value;
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function markdownFigureCaptionSource(string $position, string $marker, string $captionSide, string $source): array
+    {
+        $captionSource = [
+            'element' => 'markdown-figure-caption',
+            'position' => $position,
+            'marker' => $marker,
+            'captionSide' => $captionSide,
+            'captionSideSource' => 'markdown-figure-caption-position',
+        ];
+
+        $caption = $this->parseMarkdownTableCaptionSource($source);
+        $sourceAttributes = $this->markdownAttributeAstAttrs($caption['id'], $caption['classes'], $caption['attributes']);
+        if ($sourceAttributes !== []) {
+            $captionSource['sourceAttributes'] = $sourceAttributes;
+        }
+
+        return $captionSource;
+    }
+
+    /**
+     * @return array{marker:string, caption:string}|null
+     */
+    private function matchMarkdownFigureCaptionSource(string $source): ?array
+    {
+        if ($source === '') {
+            return null;
+        }
+
+        $lines = preg_split('/\R/u', $source) ?: [$source];
+        $first = array_shift($lines);
+        if (!is_string($first)) {
+            return null;
+        }
+
+        $captionWords = 'Figure|Caption|Image|Picture|Photo|Illustration|Plate|Diagram';
+        $marker = '(?::|(?:' . $captionWords . '):|(?:Fig|Figs|Img)\.?:|(?:' . $captionWords . ')\s+[A-Za-z0-9]+[.:]|(?:Fig|Figs|Img)\.\s+[A-Za-z0-9]+[.:])';
+        if (preg_match('/^ {0,3}(' . $marker . ')\s*(.*)$/iu', $first, $m) !== 1) {
+            return null;
+        }
+
+        $caption = [trim($m[2])];
+        foreach ($lines as $line) {
+            $caption[] = trim($line);
+        }
+
+        return [
+            'marker' => $m[1],
+            'caption' => implode("\n", $caption),
+        ];
     }
 
     /**

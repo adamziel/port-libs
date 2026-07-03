@@ -2798,7 +2798,12 @@ final class WordPressBlockWriter
 
     private function renderImageFigureAttrs(AstNode $node): string
     {
-        $attrs = $this->renderBlockHtmlAttrsWithClasses($node, ['wp-block-image'], ['class', 'id', 'lang', 'dir', 'role']);
+        $attrs = $this->renderBlockHtmlAttrsWithClasses($node, ['wp-block-image'], ['class', 'id', 'role', 'title']);
+        $shortCaption = (string) $node->attr('shortCaption', '');
+        if ($shortCaption !== '') {
+            $attrs .= ' data-pandoc-short-caption="' . $this->esc($shortCaption) . '"';
+        }
+
         $attributes = $node->attr('attributes', []);
         if (
             is_array($attributes)
@@ -3185,7 +3190,7 @@ final class WordPressBlockWriter
             'emph' => '<em>' . $this->renderInlines($node) . '</em>',
             'strong' => '<strong>' . $this->renderInlines($node) . '</strong>',
             'small_caps' => '<span style="font-variant:small-caps">' . $this->renderInlines($node) . '</span>',
-            'underline' => '<u>' . $this->renderInlines($node) . '</u>',
+            'underline' => '<u' . $this->renderInlineSpanAttrs($node) . '>' . $this->renderInlines($node) . '</u>',
             'strikeout' => '<del>' . $this->renderInlines($node) . '</del>',
             'superscript' => '<sup>' . $this->renderInlines($node) . '</sup>',
             'subscript' => '<sub>' . $this->renderInlines($node) . '</sub>',
@@ -3734,7 +3739,9 @@ final class WordPressBlockWriter
         }
         foreach ($classes as $class) {
             if ($this->isHtmlSpanLikeElement($class)) {
-                $wrappers[] = ['tag' => $class, 'classes' => $class === 'mark' ? ['mark'] : []];
+                $wrappers[] = $class === 'mark'
+                    ? ['tag' => 'span', 'classes' => ['mark']]
+                    : ['tag' => $class, 'classes' => []];
             }
         }
 
