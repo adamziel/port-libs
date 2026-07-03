@@ -1,0 +1,49 @@
+[ Figure
+    ( "release-figure"
+    , [ "important" , "source-media" ]
+    , [ ( "review" , "keep" ) ]
+    )
+    (Caption
+       Nothing
+       [ Plain
+           [ Strong [ Str "Release" ]
+           , Space
+           , Str "frame"
+           , Space
+           , Link
+               ( "" , [] , [] )
+               [ Str "source" ]
+               ( "/wp-admin/post.php?post=42&action=edit"
+               , "Edit source"
+               )
+           ]
+       ])
+    [ Plain
+        [ Image
+            ( "" , [] , [] )
+            [ Str "Release"
+            , Space
+            , Str "archive"
+            , Space
+            , Str "frame"
+            ]
+            ( "https://example.test/wp-content/uploads/imports/batch-42/release-frame.jpg"
+            , "Release frame title"
+            )
+        ]
+    , BulletList
+        [ [ Plain
+              [ Str "Original"
+              , Space
+              , Str "caption"
+              , Space
+              , Str "carried"
+              , Space
+              , Str "review"
+              , Space
+              , Str "context."
+              ]
+          ]
+        ]
+    ]
+]
