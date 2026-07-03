@@ -178,6 +178,7 @@ return [
         $t->same([
             'epub/features.epub',
             'epub/formatting.epub',
+            'epub/guide-glossary-reference.epub',
             'epub/missing-local-manifest-resource.epub',
             'epub/nav-ncx-linear-guide.epub',
             'epub/page-list-navigation.epub',
