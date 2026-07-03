@@ -181,6 +181,7 @@ return [
             $t->same(0, $report['packageFeatureCoverage']['fixtureCount']);
             $t->same([], $report['packageFeatureCoverage']['navigationTypeCounts']);
             $t->same([], $report['packageFeatureCoverage']['manifestResourceKindCounts']);
+            $t->same([], $report['packageFeatureCoverage']['guideReferenceTypeCounts']);
             $t->same('not-evaluated', $report['orderedRemainingGaps'][0]['status']);
             $t->contains('Pandoc EPUB native/package comparison: skipped', $text);
         } finally {
@@ -259,6 +260,7 @@ return [
             $t->same(1, $summary['metadataCreatorCount']);
             $t->same(1, $summary['packageLinkCount']);
             $t->same(1, $summary['guideReferenceCount']);
+            $t->same(['text' => 1], $summary['guideReferenceTypeCounts']);
             $t->same(4, $summary['manifestItemCount']);
             $t->same([
                 'application/json' => 1,
@@ -305,6 +307,7 @@ return [
                 'xhtml' => 1,
             ], $coverage['manifestResourceKindCounts']);
             $t->same(['landmarks', 'loi', 'page-list', 'toc'], $coverage['navigationSectionTypes']);
+            $t->same(['text' => 1], $coverage['guideReferenceTypeCounts']);
             $t->same(['generated-navigation'], $coverage['fixturesWithGuideReferences']);
             $t->same(['generated-navigation'], $coverage['fixturesWithPackageLinks']);
             $t->same([], $coverage['fixturesWithCoverImagePart']);
@@ -361,6 +364,7 @@ return [
                 'style' => 1,
                 'xhtml' => 1,
             ], $decoded['packageFeatureCoverage']['manifestResourceKindCounts']);
+            $t->same(['text' => 1], $decoded['packageFeatureCoverage']['guideReferenceTypeCounts']);
         } finally {
             $removeTree($root);
         }
@@ -471,6 +475,10 @@ return [
             'navigationSectionTypes' => [
                 'landmarks',
                 'toc',
+            ],
+            'guideReferenceTypeCounts' => [
+                'cover' => 2,
+                'toc' => 1,
             ],
             'fixturesWithGuideReferences' => [
                 'epub2_cover',
@@ -586,6 +594,7 @@ return [
         $t->contains('fixtureIdentity: status=valid-checked-in-current-epub-fixture-identity expected=16 observed=16', $text);
         $t->contains('packageFeatureCoverage: fixtures=8 nav=5 ncx=3 covers=4 landmarks=5 pageLists=0 auxiliaryNav=0 manifestItems=51', $text);
         $t->contains('resourceKinds=cover-image:2,image:9,navigation:9,style:13,xhtml:18', $text);
+        $t->contains('guideRefTypes=cover:2,toc:1', $text);
         $t->contains('remoteManifest=0 externalManifest=0 missingLocalManifest=0', $text);
 
         $command = escapeshellarg(PHP_BINARY)
@@ -650,6 +659,7 @@ return [
             'style' => 13,
             'xhtml' => 18,
         ], $defaultFixtureIdentityDecoded['packageFeatureCoverage']['manifestResourceKindCounts']);
+        $t->same(['cover' => 2, 'toc' => 1], $defaultFixtureIdentityDecoded['packageFeatureCoverage']['guideReferenceTypeCounts']);
     },
 
     'cli gates epub package and native readiness without requiring ast equality' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeEpub): void {
