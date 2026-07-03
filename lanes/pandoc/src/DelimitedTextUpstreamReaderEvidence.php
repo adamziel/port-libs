@@ -17,7 +17,7 @@ final class DelimitedTextUpstreamReaderEvidence
     public const EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT = 2;
     public const EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT = 0;
     public const EXPECTED_STATIC_CSV_ADJACENT_RST_FIXTURE_COUNT = 2;
-    public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 21;
+    public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 22;
     public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 15;
 
     private const CHECKED_IN_CURRENT_CSV_FIXTURES = [
@@ -331,6 +331,20 @@ final class DelimitedTextUpstreamReaderEvidence
             'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/backslash-escaped-nonquote.native',
             'sha256' => '155fe9867cd9cca831158d85716c5ef1368c60fddd8edad116b8e067ab465eb9',
             'bytes' => 1601,
+        ],
+        'pipe-delimiter-quoted-field.csv' => [
+            'role' => 'generated-csv-native-parity-input-fixture',
+            'sample' => 'pipe-delimiter-quoted-field',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/pipe-delimiter-quoted-field.csv',
+            'sha256' => '260877bbb70ff332d8bcff85e829231f71de1dc6d3584fca014e1b3861aab6f8',
+            'bytes' => 118,
+        ],
+        'pipe-delimiter-quoted-field.native' => [
+            'role' => 'generated-csv-native-parity-expected-native-output',
+            'sample' => 'pipe-delimiter-quoted-field',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/pipe-delimiter-quoted-field.native',
+            'sha256' => '2df2bf05bc29b8b1484e85435e332eff22e71e81aab2c46c2ce3c8caf75d939b',
+            'bytes' => 1697,
         ],
     ];
 
@@ -657,6 +671,13 @@ final class DelimitedTextUpstreamReaderEvidence
                 'escape' => '\\',
             ],
         ],
+        'pipe-delimiter-quoted-field' => [
+            'inputPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/pipe-delimiter-quoted-field.csv',
+            'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/pipe-delimiter-quoted-field.native',
+            'options' => [
+                'delimiter' => 'pipe',
+            ],
+        ],
     ];
 
     private const GENERATED_TSV_NATIVE_SAMPLES = [
@@ -835,7 +856,7 @@ final class DelimitedTextUpstreamReaderEvidence
                 'adjacentFixtureDenominatorImpact' => 0,
                 'adjacentFixtureEvidence' => self::csvAdjacentRstFixtureEvidence(),
                 'upstreamFixtures' => $upstreamFixtures,
-                'parserOptionFixtureCount' => 6,
+                'parserOptionFixtureCount' => 7,
                 'parserOptionFixtures' => [
                     'comma-delimiter-no-header',
                     'space-delimiter-single-quote',
@@ -843,6 +864,7 @@ final class DelimitedTextUpstreamReaderEvidence
                     'backslash-escaped-nonquote',
                     'keep-space-after-delimiter',
                     'semicolon-delimiter-multiline-cell',
+                    'pipe-delimiter-quoted-field',
                 ],
             ],
             'sourceInventory' => $sourceInventory,
