@@ -10858,6 +10858,16 @@ final class MarkdownReader
                     continue;
                 }
 
+                $setextHeading = $paragraph !== []
+                    ? $this->tryPromoteParagraphSetextMarkdownHeading($paragraph, $continuation)
+                    : null;
+                if ($setextHeading !== null) {
+                    $parts[] = $this->buildListItemMarkdownHeadingNode($setextHeading);
+                    $paragraph = [];
+                    $cursor++;
+                    continue;
+                }
+
                 $continuationBlock = $this->tryReadListItemIndentedBlock($lines, $cursor, $baseIndent, $contentIndent, $continuation);
                 if ($continuationBlock !== null) {
                     $this->flushListItemParagraph($paragraph, $parts);
@@ -10944,11 +10954,7 @@ final class MarkdownReader
         $heading = $this->tryParseMarkdownHeading($firstLine);
         if ($heading !== null) {
             return [
-                'node' => new AstNode(
-                    'heading',
-                    $this->markdownHeadingAstAttrs($heading, $heading['id'] ?? ''),
-                    $this->parseInlines($heading['text'])
-                ),
+                'node' => $this->buildListItemMarkdownHeadingNode($heading),
                 'next' => $cursor + 1,
             ];
         }
@@ -10971,6 +10977,33 @@ final class MarkdownReader
         }
 
         return null;
+    }
+
+    /**
+     * @param array{level:int, text:string, id?:string, classes:list<string>, attributes:array<string, string>} $heading
+     */
+    private function buildListItemMarkdownHeadingNode(array $heading): AstNode
+    {
+        return new AstNode(
+            'heading',
+            $this->markdownHeadingAstAttrs($heading, $this->resolvedNestedMarkdownHeadingId($heading)),
+            $this->parseInlines($heading['text'])
+        );
+    }
+
+    /**
+     * @param array{level:int, text:string, id?:string, classes:list<string>, attributes:array<string, string>} $heading
+     */
+    private function resolvedNestedMarkdownHeadingId(array $heading): string
+    {
+        if (isset($heading['id'])) {
+            return $heading['id'];
+        }
+        if (!$this->autoIdentifierExtensionEnabled()) {
+            return '';
+        }
+
+        return $this->slugifyMarkdownHeading($heading['text']);
     }
 
     /**
@@ -11349,15 +11382,18 @@ final class MarkdownReader
 
         $forceParagraphBlocks = $loose || $paragraphCount > 1;
         $children = [];
+        $seenBlockChild = false;
         foreach ($item['parts'] as $part) {
             if ($part instanceof AstNode) {
                 $children[] = $part;
+                $seenBlockChild = true;
                 continue;
             }
 
             $text = $part['text'];
-            if ($forceParagraphBlocks) {
+            if ($forceParagraphBlocks || $seenBlockChild) {
                 $children[] = new AstNode('paragraph', ['text' => $text], $this->parseInlines($text));
+                $seenBlockChild = true;
                 continue;
             }
 
