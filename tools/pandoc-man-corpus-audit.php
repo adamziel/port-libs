@@ -11,6 +11,7 @@ $roots = [];
 $limit = 0;
 $pandocBin = getenv('PANDOC_BIN') ?: null;
 $comparePandoc = true;
+$targetDialects = [];
 $json = false;
 $summary = false;
 $requireTargetFilesMin = null;
@@ -30,6 +31,7 @@ Options:
   --limit=N                          Audit at most N candidate files after sorting. 0 means no limit.
   --pandoc-bin=PATH                  Pandoc executable to use for optional native comparison.
   --no-pandoc                        Skip pandoc executable comparison.
+  --target-dialect=FORMAT            Target dialect to audit. Repeatable. Defaults to man. Supports man and mdoc.
   --json                             Emit JSON instead of text.
   --require-target-files-min=N       Exit 1 unless at least N target man-dialect files are audited.
   --require-local-parse-min=N        Exit 1 unless at least N target files parse locally.
@@ -38,9 +40,9 @@ Options:
   --require-pandoc-parse-min=N       Exit 1 unless pandoc parses at least N target files.
   --require-normalized-match-min=N   Exit 1 unless local and pandoc normalized ASTs match at least N target files.
 
-This is a real-world/fixture corpus confidence audit for the man dialect. It
-reports mdoc files as out-of-scope by default and does not claim full roff or
-mdoc parity.
+This is a real-world/fixture corpus confidence audit for manpage dialects. It
+targets the man dialect by default and does not claim full roff, man, or mdoc
+parity.
 
 TXT);
         exit(0);
@@ -58,6 +60,16 @@ TXT);
 
     if ($argument === '--no-pandoc') {
         $comparePandoc = false;
+        continue;
+    }
+
+    if (str_starts_with($argument, '--target-dialect=')) {
+        $targetDialect = substr($argument, strlen('--target-dialect='));
+        if (!in_array($targetDialect, ['man', 'mdoc'], true)) {
+            fwrite(STDERR, "--target-dialect supports only man or mdoc\n");
+            exit(2);
+        }
+        $targetDialects[] = $targetDialect;
         continue;
     }
 
@@ -127,6 +139,7 @@ $report = $audit->run($roots, [
     'limit' => $limit,
     'pandocBin' => $pandocBin,
     'comparePandoc' => $comparePandoc,
+    'targetDialects' => $targetDialects,
 ]);
 
 if ($summary) {
@@ -175,12 +188,12 @@ if ($json) {
 }
 
 if ($requireTargetFilesMin !== null && !ManCorpusAudit::hasRequiredTargetFiles($report, $requireTargetFilesMin)) {
-    fwrite(STDERR, "pandoc-man-corpus-audit: target man file count is below {$requireTargetFilesMin}\n");
+    fwrite(STDERR, "pandoc-man-corpus-audit: target manual file count is below {$requireTargetFilesMin}\n");
     exit(1);
 }
 
 if ($requireLocalParseMin !== null && !ManCorpusAudit::hasRequiredLocalParse($report, $requireLocalParseMin)) {
-    fwrite(STDERR, "pandoc-man-corpus-audit: local parsed man file count is below {$requireLocalParseMin}\n");
+    fwrite(STDERR, "pandoc-man-corpus-audit: local parsed manual file count is below {$requireLocalParseMin}\n");
     exit(1);
 }
 
@@ -195,7 +208,7 @@ if ($requireNoControlLeaks && !ManCorpusAudit::hasNoControlLeaks($report)) {
 }
 
 if ($requirePandocParseMin !== null && !ManCorpusAudit::hasRequiredPandocParse($report, $requirePandocParseMin)) {
-    fwrite(STDERR, "pandoc-man-corpus-audit: pandoc parsed man file count is below {$requirePandocParseMin}\n");
+    fwrite(STDERR, "pandoc-man-corpus-audit: pandoc parsed manual file count is below {$requirePandocParseMin}\n");
     exit(1);
 }
 

@@ -10,7 +10,7 @@ final class ManCorpusAudit
 
     private const DEFAULT_MAX_EXAMPLES = 12;
     private const VERDICT = 'man-corpus-confidence-not-full-manpage-parity';
-    private const CLAIM = 'Audits real or fixture manpage sources by dialect, local PHP man reader acceptance, optional pandoc executable native parsing, and normalized AST drift categories; this is corpus confidence evidence and does not assert full roff or mdoc parity.';
+    private const CLAIM = 'Audits real or fixture manpage sources by dialect, local PHP man/mdoc reader acceptance, optional pandoc executable native parsing, and normalized AST drift categories; this is corpus confidence evidence and does not assert full roff, man, or mdoc parity.';
 
     /** @var array<string, true> */
     private const IGNORED_ATTRS = [
@@ -18,6 +18,7 @@ final class ManCorpusAudit
         'attrNative' => true,
         'constructor' => true,
         'man' => true,
+        'mdoc' => true,
         'meta' => true,
         'sourceFormat' => true,
         'id' => true,
@@ -88,7 +89,7 @@ final class ManCorpusAudit
             }
 
             ++$targetFileCount;
-            $localResult = $this->readLocalMan($source);
+            $localResult = $this->readLocalManual($source, $dialect);
             if ($localResult['ok']) {
                 ++$localParsedCount;
                 /** @var AstNode $localDocument */
@@ -112,7 +113,7 @@ final class ManCorpusAudit
 
             $pandocResult = ['ok' => false, 'document' => null, 'error' => 'pandoc comparison skipped'];
             if ($pandoc !== null) {
-                $pandocResult = $this->readPandocNative($pandoc, $source);
+                $pandocResult = $this->readPandocNative($pandoc, $source, $dialect);
                 if ($pandocResult['ok']) {
                     ++$pandocParsedCount;
                 } else {
@@ -223,7 +224,8 @@ final class ManCorpusAudit
                 $pandocParseFailureCount,
                 $normalizedMatchCount,
                 $normalizedMismatchCount,
-                $dialectCounts
+                $dialectCounts,
+                $targetDialects
             ),
         ];
     }
@@ -468,10 +470,12 @@ final class ManCorpusAudit
     /**
      * @return array{ok: bool, document: ?AstNode, error: ?string}
      */
-    private function readLocalMan(string $source): array
+    private function readLocalManual(string $source, string $dialect): array
     {
         try {
-            return ['ok' => true, 'document' => (new ManReader())->read($source), 'error' => null];
+            $reader = $dialect === 'mdoc' ? new MdocReader() : new ManReader();
+
+            return ['ok' => true, 'document' => $reader->read($source), 'error' => null];
         } catch (\Throwable $exception) {
             return ['ok' => false, 'document' => null, 'error' => $exception::class . ': ' . $exception->getMessage()];
         }
@@ -480,9 +484,10 @@ final class ManCorpusAudit
     /**
      * @return array{ok: bool, document: ?AstNode, error: ?string}
      */
-    private function readPandocNative(string $pandoc, string $source): array
+    private function readPandocNative(string $pandoc, string $source, string $dialect): array
     {
-        $result = $this->runProcess(escapeshellarg($pandoc) . ' -f man -t native', $source);
+        $format = in_array($dialect, ['man', 'mdoc'], true) ? $dialect : 'man';
+        $result = $this->runProcess(escapeshellarg($pandoc) . ' -f ' . escapeshellarg($format) . ' -t native', $source);
         if ($result['exitCode'] !== 0) {
             return [
                 'ok' => false,
@@ -610,6 +615,9 @@ final class ManCorpusAudit
             if ($this->isEmptyPandocTableScaffold($node)) {
                 continue;
             }
+            if ($this->isEmptyTextNode($node)) {
+                continue;
+            }
             $this->appendNormalizedChild($normalized, $node);
         }
 
@@ -672,6 +680,22 @@ final class ManCorpusAudit
         }
 
         return trim((string) $node['attrs']['text']) === '';
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     */
+    private function isEmptyTextNode(array $node): bool
+    {
+        if (($node['type'] ?? null) !== 'text' || ($node['children'] ?? null) !== []) {
+            return false;
+        }
+        $attrs = $node['attrs'] ?? null;
+        if ($attrs === []) {
+            return true;
+        }
+
+        return is_array($attrs) && ($attrs['text'] ?? null) === '';
     }
 
     /**
@@ -740,7 +764,7 @@ final class ManCorpusAudit
     private function firstControlLeak(AstNode $document): ?string
     {
         $text = $this->visibleText($document);
-        if (preg_match('/(?:^|\\s)(\\.(?:TH|SH|SS|TP|PP|LP|IP|RS|RE|B|I|SM|SB|BI|BR|IB|IR|RB|RI|nf|fi|EX|EE|TS|TE|br|sp|nh|ad|if|ie|el|ds|nr|PD|so))(?:\\s|$)/', $text, $match) !== 1) {
+        if (preg_match('/(?:^|\\s)(\\.(?:TH|SH|SS|TP|PP|LP|IP|RS|RE|B|I|SM|SB|BI|BR|IB|IR|RB|RI|nf|fi|EX|EE|TS|TE|br|sp|nh|ad|if|ie|el|ds|nr|PD|so|Dd|Dt|Os|Sh|Ss|Nm|Nd|Bl|It|El|Fl|Ar|Cm|Pa|Xr))(?:\\s|$)/', $text, $match) !== 1) {
             return null;
         }
 
@@ -892,9 +916,21 @@ final class ManCorpusAudit
         int $pandocParseFailureCount,
         int $normalizedMatchCount,
         int $normalizedMismatchCount,
-        array $dialectCounts
+        array $dialectCounts,
+        array $targetDialects
     ): array {
         $mdocCount = $dialectCounts['mdoc'] ?? 0;
+        $mdocTargeted = in_array('mdoc', $targetDialects, true);
+        $mdocStatus = 'not-evaluated';
+        if ($mdocCount > 0) {
+            $mdocStatus = $mdocTargeted
+                && $targetFileCount > 0
+                && $localParseFailureCount === 0
+                && $controlLeakCount === 0
+                && ($pandocSkipped || ($pandocParseFailureCount === 0 && $normalizedMismatchCount === 0 && $normalizedMatchCount > 0))
+                ? 'covered-by-current-mdoc-audit-lane'
+                : 'open';
+        }
 
         return [
             [
@@ -903,12 +939,12 @@ final class ManCorpusAudit
                 'status' => $targetFileCount > 0 && $localParseFailureCount === 0 && $controlLeakCount === 0
                     ? 'covered-by-current-corpus-audit'
                     : 'open',
-                'currentEvidence' => "target man files={$targetFileCount}; local parse failures={$localParseFailureCount}; visible control leaks={$controlLeakCount}",
-                'evidenceRequired' => 'Keep local PHP man reader parse failures and visible roff control-request leaks at zero for the audited man corpus.',
+                'currentEvidence' => "target manual files={$targetFileCount}; local parse failures={$localParseFailureCount}; visible control leaks={$controlLeakCount}",
+                'evidenceRequired' => 'Keep local PHP manual reader parse failures and visible roff control-request leaks at zero for the audited corpus.',
             ],
             [
                 'rank' => 2,
-                'id' => 'pandoc-executable-man-native-comparison',
+                'id' => 'pandoc-executable-manual-native-comparison',
                 'status' => $pandocSkipped
                     ? 'not-evaluated'
                     : ($pandocParseFailureCount === 0 && $normalizedMismatchCount === 0 && $normalizedMatchCount > 0
@@ -917,14 +953,14 @@ final class ManCorpusAudit
                 'currentEvidence' => $pandocSkipped
                     ? 'pandoc executable comparison skipped'
                     : "pandoc parse failures={$pandocParseFailureCount}; normalized matches={$normalizedMatchCount}; normalized mismatches={$normalizedMismatchCount}",
-                'evidenceRequired' => 'Run local PHP man reader and pandoc -f man -t native against the same corpus and reduce normalized AST drift to zero for target fixtures before claiming executable parity.',
+                'evidenceRequired' => 'Run local PHP manual-family readers and pandoc native output for the same target dialect against the same corpus, then reduce normalized AST drift to zero for target fixtures before claiming executable parity.',
             ],
             [
                 'rank' => 3,
                 'id' => 'mdoc-dialect-support',
-                'status' => $mdocCount > 0 ? 'open' : 'not-evaluated',
-                'currentEvidence' => "detected mdoc files={$mdocCount}; this audit targets the man dialect by default",
-                'evidenceRequired' => 'Add an mdoc reader or an mdoc-specific audit lane before claiming broad manpage support across BSD-style manuals.',
+                'status' => $mdocStatus,
+                'currentEvidence' => 'detected mdoc files=' . $mdocCount . '; target dialects=' . implode(',', $targetDialects),
+                'evidenceRequired' => 'Keep an mdoc-specific audit lane green before claiming broad manpage support across BSD-style manuals.',
             ],
         ];
     }

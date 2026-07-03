@@ -45,6 +45,44 @@ if [ "$1" = "--version" ]; then
 fi
 input="$(cat)"
 case "$input" in
+  *MDOCTOOL*)
+    cat <<'NATIVE'
+[ Header 1 ( "" , [] , [] ) [ Str "NAME" ]
+, Para
+    [ Code ( "" , [] , [] ) "mdoctool"
+    , Str ""
+    , Space
+    , Str "\8212"
+    , Space
+    , Str "synthetic"
+    , Space
+    , Str "mdoc"
+    , Space
+    , Str "fixture"
+    ]
+, Header 1 ( "" , [] , [] ) [ Str "DESCRIPTION" ]
+, Para
+    [ Str "This"
+    , Space
+    , Str "file"
+    , Space
+    , Str "is"
+    , Space
+    , Str "intentionally"
+    , Space
+    , Str "outside"
+    , Space
+    , Str "the"
+    , Space
+    , Str "man-dialect"
+    , Space
+    , Str "audit"
+    , Space
+    , Str "target."
+    ]
+]
+NATIVE
+    ;;
   *SIMPLE*)
     cat <<'NATIVE'
 [ Header 1 ("",[],[]) [ Str "NAME" ]
@@ -107,6 +145,39 @@ return [
         }
     },
 
+    'audits mdoc target dialect with mdoc reader and pandoc format' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFakePandoc): void {
+        $root = dirname(__DIR__) . '/fixtures/man-corpus-smoke';
+        $temp = $makeTempDir();
+        try {
+            $fakePandoc = $temp . '/pandoc';
+            $writeFakePandoc($fakePandoc);
+
+            $report = (new ManCorpusAudit())->run([$root], [
+                'pandocBin' => $fakePandoc,
+                'targetDialects' => ['mdoc'],
+            ]);
+            $text = (new ManCorpusAudit())->formatReport($report);
+
+            $t->same(['mdoc'], $report['targetDialects']);
+            $t->same(['man' => 2, 'mdoc' => 1], $report['dialectCounts']);
+            $t->same(1, $report['targetFileCount']);
+            $t->same(2, $report['nonTargetFileCount']);
+            $t->same(1, $report['localParsedCount']);
+            $t->same(0, $report['localParseFailureCount']);
+            $t->same(0, $report['localControlLeakCount']);
+            $t->same(1, $report['pandocParsedCount']);
+            $t->same(1, $report['bothParsedCount']);
+            $t->same(1, $report['normalizedAstMatchCount']);
+            $t->same(0, $report['normalizedAstMismatchCount']);
+            $t->same(1, $report['visibleTextMatchCount']);
+            $t->same('local-and-pandoc-normalized-ast-equality-observed', $report['corpusStatus']);
+            $t->same('covered-by-current-mdoc-audit-lane', $report['orderedRemainingGaps'][2]['status']);
+            $t->contains('mdoc-dialect-support [covered-by-current-mdoc-audit-lane]', $text);
+        } finally {
+            $removeTree($temp);
+        }
+    },
+
     'reads gzip manpage sources and skips pandoc when disabled' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $root = $makeTempDir();
         try {
@@ -158,5 +229,29 @@ return [
         exec($failingCommand, $failingOutput, $failingExitCode);
 
         $t->same(1, $failingExitCode);
+    },
+
+    'cli can target checked-in mdoc fixtures' => static function (TestRunner $t): void {
+        $command = escapeshellarg(PHP_BINARY)
+            . ' '
+            . escapeshellarg(dirname(__DIR__, 3) . '/tools/pandoc-man-corpus-audit.php')
+            . ' --man-root=lanes/pandoc/fixtures/man-corpus-smoke'
+            . ' --target-dialect=mdoc'
+            . ' --no-pandoc'
+            . ' --json'
+            . ' summary'
+            . ' --require-target-files-min=1'
+            . ' --require-local-parse-min=1'
+            . ' --require-no-local-parse-failures'
+            . ' --require-no-control-leaks';
+        $output = [];
+        $exitCode = 0;
+        exec($command, $output, $exitCode);
+        $decoded = json_decode(implode("\n", $output), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same(0, $exitCode);
+        $t->same(['mdoc'], $decoded['targetDialects']);
+        $t->same(1, $decoded['targetFileCount']);
+        $t->same(1, $decoded['localParsedCount']);
     },
 ];

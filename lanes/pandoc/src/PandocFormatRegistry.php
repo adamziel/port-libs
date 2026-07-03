@@ -363,7 +363,7 @@ final class PandocFormatRegistry
         'man' => [
             'status' => 'partial',
             'implementation' => ManReader::class,
-            'notes' => 'Bounded roff man reader maps the pinned upstream Tests.Readers.Man macro, escape, list, code block, and table unit semantics into the shared AST. Full roff/man parity and mdoc remain open.',
+            'notes' => 'Bounded roff man reader maps the pinned upstream Tests.Readers.Man macro, escape, list, code block, and table unit semantics into the shared AST. Full roff/man parity remains open.',
         ],
         'markdown' => [
             'status' => 'partial',
@@ -391,9 +391,9 @@ final class PandocFormatRegistry
             'notes' => 'Strict Markdown uses the shared reader without a complete extension disabling matrix.',
         ],
         'mdoc' => [
-            'status' => 'unsupported',
-            'implementation' => '',
-            'notes' => 'Roff manual registry evidence tracks upstream mdoc as a manual-family input; no native PHP mdoc reader is registered yet.',
+            'status' => 'partial',
+            'implementation' => MdocReader::class,
+            'notes' => 'Bounded mdoc reader maps BSD manual metadata, section, name/description, callable inline macro, synopsis, and list semantics into the shared AST with an executable mdoc corpus lane. Full mdoc parity remains open.',
         ],
         'native' => [
             'status' => 'partial',

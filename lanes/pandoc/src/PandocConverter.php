@@ -190,6 +190,7 @@ final class PandocConverter
             MarkdownReader::class => new MarkdownReader(self::markdownReaderOptions($format, $options)),
             JsonReader::class => new JsonReader(),
             NativeReader::class => new NativeReader(),
+            MdocReader::class => new MdocReader(),
             OdtReader::class => new OdtReader(),
             OpmlReader::class => new OpmlReader($options),
             PdfReader::class => new PdfReader($options),

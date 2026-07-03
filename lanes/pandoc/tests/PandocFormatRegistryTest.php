@@ -21,6 +21,7 @@ use PortLibs\Pandoc\LegacyDocReader;
 use PortLibs\Pandoc\ManReader;
 use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\MarkdownWriter;
+use PortLibs\Pandoc\MdocReader;
 use PortLibs\Pandoc\NativeReader;
 use PortLibs\Pandoc\NativeWriter;
 use PortLibs\Pandoc\OdtReader;
@@ -164,6 +165,8 @@ return [
         $t->same(JiraReader::class, $support['jira']['implementation']);
         $t->same('partial', $support['man']['status']);
         $t->same(ManReader::class, $support['man']['implementation']);
+        $t->same('partial', $support['mdoc']['status']);
+        $t->same(MdocReader::class, $support['mdoc']['implementation']);
         $t->same('partial', $support['csv']['status']);
         $t->same(DelimitedTextReader::class, $support['csv']['implementation']);
         $t->same('partial', $support['tsv']['status']);
@@ -184,7 +187,7 @@ return [
         $t->same(RtfReader::class, $support['rtf']['implementation']);
         $t->same('partial', $support['xlsx']['status']);
         $t->same(XlsxReader::class, $support['xlsx']['implementation']);
-        $t->same(17, count(PandocFormatRegistry::unsupportedInputFormats()));
+        $t->same(16, count(PandocFormatRegistry::unsupportedInputFormats()));
     },
     'maps current php output support against every upstream output token' => static function (TestRunner $t): void {
         $support = PandocFormatRegistry::phpOutputSupport();
@@ -301,16 +304,16 @@ return [
         $t->same('partial', $inputSupport['man']['status']);
         $t->same(ManReader::class, $inputSupport['man']['implementation']);
         $t->contains('Bounded roff man reader', $inputSupport['man']['notes']);
-        $t->same('unsupported', $inputSupport['mdoc']['status']);
-        $t->same('', $inputSupport['mdoc']['implementation']);
-        $t->contains('manual-family input', $inputSupport['mdoc']['notes']);
+        $t->same('partial', $inputSupport['mdoc']['status']);
+        $t->same(MdocReader::class, $inputSupport['mdoc']['implementation']);
+        $t->contains('Bounded mdoc reader', $inputSupport['mdoc']['notes']);
         $t->same('unsupported', $outputSupport['man']['status']);
         $t->same('', $outputSupport['man']['implementation']);
         $t->contains('upstream man writer source semantics', $outputSupport['man']['notes']);
         $t->same('unsupported', $outputSupport['ms']['status']);
         $t->same('', $outputSupport['ms']['implementation']);
         $t->contains('.ms/.roff extension inference', $outputSupport['ms']['notes']);
-        $t->same(17, count(PandocFormatRegistry::unsupportedInputFormats()));
+        $t->same(16, count(PandocFormatRegistry::unsupportedInputFormats()));
         $t->same(56, count(PandocFormatRegistry::unsupportedOutputFormats()));
     },
     'tracks roff manual direction buckets without direct parity claims' => static function (TestRunner $t): void {
@@ -331,8 +334,8 @@ return [
         $t->same(['man'], $summary['directionBuckets']['input-output']);
         $t->same(['mdoc'], $summary['directionBuckets']['input-only']);
         $t->same(['ms'], $summary['directionBuckets']['output-only']);
-        $t->same(['man'], $summary['inputStatusBuckets']['partial']);
-        $t->same(['mdoc'], $summary['inputStatusBuckets']['unsupported']);
+        $t->same(['man', 'mdoc'], $summary['inputStatusBuckets']['partial']);
+        $t->same([], $summary['inputStatusBuckets']['unsupported'] ?? []);
         $t->same(['man', 'ms'], $summary['outputStatusBuckets']['unsupported']);
         $t->same(['.[1-9]', '.[1-9][a-z]+'], $registry['man']['extensionInferences']);
         $t->same([], $registry['mdoc']['extensionInferences']);
@@ -341,8 +344,8 @@ return [
         $t->same('partial', $registry['man']['input']['status']);
         $t->same(ManReader::class, $registry['man']['input']['implementation']);
         $t->same(false, $registry['man']['directReaderParityClaimed']);
-        $t->same('unsupported', $registry['mdoc']['input']['status']);
-        $t->same('', $registry['mdoc']['input']['implementation']);
+        $t->same('partial', $registry['mdoc']['input']['status']);
+        $t->same(MdocReader::class, $registry['mdoc']['input']['implementation']);
         $t->same(false, $registry['mdoc']['directReaderParityClaimed']);
         foreach (['man', 'ms'] as $format) {
             $t->same('unsupported', $registry[$format]['output']['status']);
@@ -454,7 +457,7 @@ return [
         ], $packet['directionBuckets']);
         $t->same(['ms', 'man'], $packet['extensionInferredFormats']);
         $t->same(['mdoc'], $packet['nonExtensionInferredFormats']);
-        $t->same(['mdoc'], $packet['unsupportedInputFormats']);
+        $t->same([], $packet['unsupportedInputFormats']);
         $t->same(['man', 'ms'], $packet['unsupportedOutputFormats']);
         $t->same($summary, $packet['unsupportedFormatSummary']);
         $t->same($parity, $packet['paritySummary']);
@@ -471,6 +474,7 @@ return [
             'outputImplementation' => '',
         ], $packet['formats']['man']);
         $t->same(false, $packet['formats']['mdoc']['extensionInferred']);
+        $t->same(MdocReader::class, $packet['formats']['mdoc']['inputImplementation']);
         $t->same(['.ms', '.roff'], $packet['formats']['ms']['extensions']);
 
         $t->same([
@@ -498,23 +502,23 @@ return [
         $t->same(null, PandocFormatRegistry::roffManualUnsupportedFormatForExtension('.mdoc'));
         $t->same(null, PandocFormatRegistry::roffManualUnsupportedFormatForExtension('.10ssl'));
         $t->same([
-            'anyUnsupported' => ['man', 'mdoc', 'ms'],
+            'anyUnsupported' => ['man', 'ms'],
             'unsupportedBoth' => [],
-            'unsupportedInputOnly' => ['mdoc'],
+            'unsupportedInputOnly' => [],
             'unsupportedOutputOnly' => ['ms'],
-            'noNativeReader' => ['mdoc'],
+            'noNativeReader' => [],
             'noNativeWriter' => ['man', 'ms'],
         ], $summary);
         $t->same(3, $parity['uniqueFormatCount']);
-        $t->same(['partial' => 1, 'unsupported' => 1], $parity['inputSupportStatusCounts']);
+        $t->same(['partial' => 2], $parity['inputSupportStatusCounts']);
         $t->same(['unsupported' => 2], $parity['outputSupportStatusCounts']);
         $t->same(4, $parity['extensionInferenceMappings']);
         $t->same(2, $parity['manualSectionExtensionMappings']);
         $t->same(2, $parity['literalExtensionMappings']);
         $t->same(4, $parity['unsupportedExtensionSurfaceMappings']);
-        $t->same(1, $parity['registeredInputImplementations']);
+        $t->same(2, $parity['registeredInputImplementations']);
         $t->same(0, $parity['registeredOutputImplementations']);
-        $t->same(false, $parity['directReaderParitySupported']);
+        $t->same(true, $parity['directReaderParitySupported']);
         $t->same(false, $parity['directWriterParitySupported']);
         $t->same(false, $parity['directParityClaimed']);
         $t->same('unsupported', $parity['directParityStatus']);
