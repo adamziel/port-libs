@@ -931,6 +931,7 @@ final class DelimitedTextReader
             'comma-delimiter-no-header',
             'space-delimiter-single-quote',
             'backslash-escaped-quote',
+            'backslash-escaped-nonquote',
             'keep-space-after-delimiter',
             'semicolon-delimiter-multiline-cell',
         ];
