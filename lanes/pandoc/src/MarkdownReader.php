@@ -6908,7 +6908,13 @@ final class MarkdownReader
 
     private function buildHtmlRawBlockNode(\DOMElement $element): AstNode
     {
-        return new AstNode('raw_html', ['html' => (string) $this->buildHtmlRawInlineNode($element)->attr('html', '')]);
+        $html = (string) $this->buildHtmlRawInlineNode($element)->attr('html', '');
+
+        return new AstNode('raw_html', [
+            'format' => 'html',
+            'html' => $html,
+            'text' => $html,
+        ]);
     }
 
     private function buildHtmlScriptMathNode(\DOMElement $script): ?AstNode
