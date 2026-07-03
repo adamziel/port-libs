@@ -125,7 +125,44 @@ final class NativeWriter
 
         return is_array($document->attr('documentNative'))
             || $this->hasJsonNativeProvenance($document)
-            || $this->hasJsonNativeSidecar($document);
+            || $this->hasJsonNativeSidecar($document)
+            || $this->hasMetadataRawFamily($document);
+    }
+
+    private function hasMetadataRawFamily(AstNode $document): bool
+    {
+        $meta = $document->attr('meta', []);
+        if (!is_array($meta) || $meta === []) {
+            return false;
+        }
+
+        return $this->hasRawFamilyNode($document);
+    }
+
+    private function hasRawFamilyNode(AstNode $node): bool
+    {
+        if ($this->rawFamilyForJsonMode($node) !== null) {
+            return true;
+        }
+
+        foreach ($node->children as $child) {
+            if ($this->hasRawFamilyNode($child)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function rawFamilyForJsonMode(AstNode $node): ?string
+    {
+        return match ($node->type) {
+            'raw_html', 'raw_html_inline' => MarkdownFormatProfile::rawFamily($this->rawFormat($node, 'html')),
+            'raw_tex', 'raw_tex_inline' => MarkdownFormatProfile::rawFamily($this->rawFormat($node, 'tex')),
+            'raw_markdown' => MarkdownFormatProfile::rawFamily($this->rawFormat($node, 'markdown')),
+            'raw_block', 'raw_inline' => MarkdownFormatProfile::rawFamily($this->rawFormat($node, '')),
+            default => null,
+        };
     }
 
     private function hasJsonNativeSidecar(AstNode $node): bool

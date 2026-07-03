@@ -11371,7 +11371,7 @@ final class MarkdownReader
                 continue;
             }
 
-            $math = $this->dollarMathExtensionEnabled() ? $this->tryParseMath($text, $offset) : null;
+            $math = $this->mathExtensionEnabled() ? $this->tryParseMath($text, $offset) : null;
             if ($math !== null) {
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $math['node'];
@@ -12481,6 +12481,13 @@ final class MarkdownReader
         return in_array($canonical, ['markdown', 'commonmark_x', 'markdown_mmd'], true);
     }
 
+    private function mathExtensionEnabled(): bool
+    {
+        return $this->dollarMathExtensionEnabled()
+            || $this->singleBackslashMathExtensionEnabled()
+            || $this->doubleBackslashMathExtensionEnabled();
+    }
+
     private function dollarMathExtensionEnabled(): bool
     {
         $overrides = $this->markdownExtensionOverrides();
@@ -12492,6 +12499,24 @@ final class MarkdownReader
         $canonical = MarkdownFormatProfile::canonicalFormat($format);
 
         return in_array($canonical, ['markdown', 'commonmark_x', 'markdown_mmd'], true);
+    }
+
+    private function singleBackslashMathExtensionEnabled(): bool
+    {
+        if (array_key_exists('texMathSingleBackslash', $this->options)) {
+            return $this->booleanOptionValue($this->options['texMathSingleBackslash'], false);
+        }
+
+        return $this->markdownExtensionOverrides()['tex_math_single_backslash'] ?? false;
+    }
+
+    private function doubleBackslashMathExtensionEnabled(): bool
+    {
+        if (array_key_exists('texMathDoubleBackslash', $this->options)) {
+            return $this->booleanOptionValue($this->options['texMathDoubleBackslash'], false);
+        }
+
+        return $this->markdownExtensionOverrides()['tex_math_double_backslash'] ?? false;
     }
 
     private function wikilinkExtensionEnabled(): bool
@@ -12937,10 +12962,7 @@ final class MarkdownReader
 
     private function rawInlineNode(string $format, string $text): AstNode
     {
-        if (
-            $this->isRawAttributeHtmlFormat($format)
-            && ($this->documentHasYamlMetadata || ($this->markdownExtensionOverrides()['raw_attribute'] ?? null) === true)
-        ) {
+        if ($this->isRawAttributeHtmlFormat($format)) {
             return new AstNode('raw_html_inline', [
                 'format' => $format,
                 'html' => $text,
@@ -13985,7 +14007,32 @@ final class MarkdownReader
      */
     private function tryParseMath(string $text, int $offset): ?array
     {
-        if (($text[$offset] ?? '') !== '$' || $this->isEscapedInlinePosition($text, $offset)) {
+        if (($text[$offset] ?? '') === '\\' && !$this->isEscapedInlinePosition($text, $offset)) {
+            if ($this->singleBackslashMathExtensionEnabled()) {
+                $inline = $this->tryParseDelimitedMath($text, $offset, '\\(', '\\)', false);
+                if ($inline !== null) {
+                    return $inline;
+                }
+
+                $display = $this->tryParseDelimitedMath($text, $offset, '\\[', '\\]', true);
+                if ($display !== null) {
+                    return $display;
+                }
+            }
+
+            if ($this->doubleBackslashMathExtensionEnabled()) {
+                $inline = $this->tryParseDelimitedMath($text, $offset, '\\\\(', '\\\\)', false);
+                if ($inline !== null) {
+                    return $inline;
+                }
+
+                return $this->tryParseDelimitedMath($text, $offset, '\\\\[', '\\\\]', true);
+            }
+
+            return null;
+        }
+
+        if (!$this->dollarMathExtensionEnabled() || ($text[$offset] ?? '') !== '$' || $this->isEscapedInlinePosition($text, $offset)) {
             return null;
         }
 
@@ -14024,6 +14071,43 @@ final class MarkdownReader
         $attrs = [
             'text' => $this->expandRawTexMathMacros(trim(substr($text, $offset + 1, $end - $offset - 1))),
             'display' => false,
+        ];
+        $attribute = $this->inlineAttributeExtensionEnabled() ? $this->tryParseInlineAttributeSpec($text, $next) : null;
+        if ($attribute !== null) {
+            $attrs = array_replace($attrs, $attribute['attrs']);
+            $next = $attribute['next'];
+        }
+
+        return [
+            'node' => new AstNode('math', $attrs),
+            'next' => $next,
+        ];
+    }
+
+    /**
+     * @return array{node: AstNode, next: int}|null
+     */
+    private function tryParseDelimitedMath(
+        string $text,
+        int $offset,
+        string $open,
+        string $close,
+        bool $display
+    ): ?array {
+        if (substr($text, $offset, strlen($open)) !== $open) {
+            return null;
+        }
+
+        $start = $offset + strlen($open);
+        $end = strpos($text, $close, $start);
+        if ($end === false || $end === $start) {
+            return null;
+        }
+
+        $next = $end + strlen($close);
+        $attrs = [
+            'text' => $this->expandRawTexMathMacros(trim(substr($text, $start, $end - $start))),
+            'display' => $display,
         ];
         $attribute = $this->inlineAttributeExtensionEnabled() ? $this->tryParseInlineAttributeSpec($text, $next) : null;
         if ($attribute !== null) {

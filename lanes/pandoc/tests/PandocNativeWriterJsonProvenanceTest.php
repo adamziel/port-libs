@@ -93,6 +93,34 @@ return [
         $t->same('alias-note', $notes[1]['noteLabel'] ?? null);
         $t->same(false, array_key_exists('noteLabel', $notes[2]));
     },
+    'writes pandoc json for metadata raw family documents without changing raw-only text mode' => static function (TestRunner $t): void {
+        $rawOnly = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('raw_html_inline', [
+                    'format' => 'html5',
+                    'text' => '<span data-review="raw">ok</span>',
+                    'html' => '<span data-review="raw">ok</span>',
+                ]),
+            ]),
+        ]);
+        $withMeta = new AstNode('document', [
+            'meta' => [
+                'review' => [
+                    'format' => 'html5',
+                    'family' => 'html',
+                ],
+            ],
+        ], $rawOnly->children);
+
+        $nativeText = (new NativeWriter())->write($rawOnly);
+        $decoded = json_decode((new NativeWriter())->write($withMeta), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->contains('RawInline (Format "html5") "<span data-review=\\"raw\\">ok</span>"', $nativeText);
+        $t->throws(JsonException::class, static fn (): mixed => json_decode($nativeText, true, 512, JSON_THROW_ON_ERROR));
+        $t->same([1, 23, 1], $decoded['pandoc-api-version']);
+        $t->same(['t' => 'RawInline', 'c' => ['html5', '<span data-review="raw">ok</span>']], $decoded['blocks'][0]['c'][0]);
+        $t->same('MetaMap', $decoded['meta']['review']['t']);
+    },
     'keeps plain sidecar-free documents on textual native output' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('paragraph', [], [

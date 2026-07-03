@@ -60,7 +60,7 @@ $tests['round trips upstream markdown reader parse raw fixture through native ma
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $t->contains('*Hi `\foo{there}`{=latex}*', $fixture());
-        $t->contains('*Hi `<blink>`{=html}there`</blink>`{=html}*', $markdown);
+        $t->contains('*Hi <blink>there</blink>*', $markdown);
         $t->contains('`<outline text="Legacy"/>`{=opml}', $markdown);
         $t->contains('RawInline (Format "latex") "\\\\foo{there}"', $native);
         $t->contains('RawInline (Format "html") "<blink>"', $native);

@@ -101,7 +101,7 @@ foreach ($profileCases as $case) {
             );
             $types = $inlineTypes($document);
 
-            $t->same($case['rawAttribute'], in_array('raw_inline', $types, true));
+            $t->same($case['rawAttribute'], in_array('raw_html_inline', $types, true));
             if ($case['rawAttribute']) {
                 $rawInline = ($document->children[0] ?? new AstNode('missing'))->children[1] ?? new AstNode('missing');
                 $t->same('html', $rawInline->attr('format'));

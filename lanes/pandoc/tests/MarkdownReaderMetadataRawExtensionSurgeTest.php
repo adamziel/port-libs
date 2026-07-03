@@ -71,7 +71,7 @@ $rawSurgeBlockPayload = static function (array $case) use ($rawSurgeSlug): strin
 $rawSurgeExpectedNodeType = static function (array $case, string $kind): string {
     return match ($case['family']) {
         'html' => $kind === 'inline' ? 'raw_html_inline' : 'raw_html',
-        'tex' => 'raw_tex',
+        'tex' => $kind === 'inline' ? 'raw_tex_inline' : 'raw_tex',
         default => 'raw_markdown',
     };
 };
