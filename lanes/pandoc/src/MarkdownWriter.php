@@ -7970,7 +7970,7 @@ final class MarkdownWriter
             }
 
             if (str_starts_with($tail, '~~')) {
-                $escaped .= '\\~~';
+                $escaped .= '\\~\\~';
                 $i++;
                 continue;
             }

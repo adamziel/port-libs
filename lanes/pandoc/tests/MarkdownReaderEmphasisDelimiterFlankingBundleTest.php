@@ -92,6 +92,8 @@ $positiveCases = [
     'nested underscore emphasis inside strong' => ['__foo _bar_ baz__', ['strong(text:foo |emph(text:bar)|text: baz)']],
     'triple asterisk strong emphasis' => ['***foo***', ['strong(emph(text:foo))']],
     'triple underscore strong emphasis' => ['___foo___', ['strong(emph(text:foo))']],
+    'asterisk emphasis skips delimiter in code span' => ['*foo `*` bar*', ['emph(text:foo |code|text: bar)']],
+    'asterisk strong skips delimiter in code span' => ['**foo `**` bar**', ['strong(text:foo |code|text: bar)']],
 ];
 
 $tests = [];
@@ -133,7 +135,7 @@ $tests['maps commonmark emphasis delimiter surge through wordpress handoff'] =
 
 $tests['records commonmark emphasis delimiter bundle mapped-case count'] =
     static function (TestRunner $t) use ($literalCases, $positiveCases): void {
-        $t->same(58, count($literalCases) + count($positiveCases));
+        $t->same(60, count($literalCases) + count($positiveCases));
     };
 
 return $tests;

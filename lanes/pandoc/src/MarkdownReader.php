@@ -16713,12 +16713,12 @@ final class MarkdownReader
      */
     private function tryParseStrikeout(string $text, int $offset): ?array
     {
-        if (substr($text, $offset, 2) !== '~~') {
+        if (substr($text, $offset, 2) !== '~~' || $this->isEscapedInlinePosition($text, $offset)) {
             return null;
         }
 
-        $end = strpos($text, '~~', $offset + 2);
-        if ($end === false || $end === $offset + 2) {
+        $end = $this->findClosingLiteralInlineDelimiter($text, $offset + 2, '~~');
+        if ($end === null || $end === $offset + 2) {
             return null;
         }
 
@@ -16739,8 +16739,8 @@ final class MarkdownReader
             return null;
         }
 
-        $end = strpos($text, '==', $offset + 2);
-        if ($end === false || $end === $offset + 2) {
+        $end = $this->findClosingLiteralInlineDelimiter($text, $offset + 2, '==');
+        if ($end === null || $end === $offset + 2) {
             return null;
         }
 
@@ -16842,6 +16842,37 @@ final class MarkdownReader
         return null;
     }
 
+    private function findClosingLiteralInlineDelimiter(string $text, int $offset, string $delimiter): ?int
+    {
+        $position = $offset;
+        $length = strlen($text);
+        $delimiterLength = strlen($delimiter);
+        while ($position < $length) {
+            if (
+                $text[$position] === '`'
+                && !$this->isEscapedInlinePosition($text, $position)
+            ) {
+                $tickCount = $this->countBackticks($text, $position);
+                $end = $this->findMatchingBacktickRun($text, $position + $tickCount, $tickCount);
+                if ($end !== null) {
+                    $position = $end + $tickCount;
+                    continue;
+                }
+            }
+
+            if (
+                substr($text, $position, $delimiterLength) === $delimiter
+                && !$this->isEscapedInlinePosition($text, $position)
+            ) {
+                return $position;
+            }
+
+            $position++;
+        }
+
+        return null;
+    }
+
     private function hasUnescapedScriptWhitespace(string $text): bool
     {
         $length = strlen($text);
@@ -16894,6 +16925,9 @@ final class MarkdownReader
         if ($char !== '*' && $char !== '_') {
             return null;
         }
+        if ($this->isEscapedInlinePosition($text, $offset)) {
+            return null;
+        }
         if ($offset > 0 && $text[$offset - 1] === $char) {
             return null;
         }
@@ -16936,19 +16970,42 @@ final class MarkdownReader
 
     private function findClosingInlineDelimiter(string $text, int $offset, string $char, int $size): ?int
     {
-        $position = strpos($text, $char, $offset);
-        while ($position !== false) {
+        $position = $offset;
+        $length = strlen($text);
+        while ($position < $length) {
+            if (
+                $text[$position] === '`'
+                && !$this->isEscapedInlinePosition($text, $position)
+            ) {
+                $tickCount = $this->countBackticks($text, $position);
+                $end = $this->findMatchingBacktickRun($text, $position + $tickCount, $tickCount);
+                if ($end !== null) {
+                    $position = $end + $tickCount;
+                    continue;
+                }
+            }
+
+            if ($text[$position] !== $char) {
+                $position++;
+                continue;
+            }
+
             $runLength = $this->countDelimiterRun($text, $position, $char);
             if ($runLength < $size) {
-                $position = strpos($text, $char, $position + $runLength);
+                $position += $runLength;
                 continue;
             }
 
             $closeOffset = $position + $runLength - $size;
+            if ($this->isEscapedInlinePosition($text, $closeOffset)) {
+                $position += $runLength;
+                continue;
+            }
+
             if (
                 $this->singleClosingDelimiterWouldStealDoubleDelimiter($text, $position, $char, $size, $runLength)
             ) {
-                $position = strpos($text, $char, $position + $runLength);
+                $position += $runLength;
                 continue;
             }
 
@@ -16956,7 +17013,7 @@ final class MarkdownReader
                 return $closeOffset;
             }
 
-            $position = strpos($text, $char, $position + $runLength);
+            $position += $runLength;
         }
 
         return null;
