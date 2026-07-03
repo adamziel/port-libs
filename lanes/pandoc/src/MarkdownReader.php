@@ -7926,8 +7926,18 @@ final class MarkdownReader
             $semantic['addClasses'],
             $semantic['removeStylePatterns']
         );
+        if ($semantic['type'] === 'small_caps' && $this->isClassicHtmlSmallCapsSourceMarker($element)) {
+            $attrs = [];
+        }
 
         return new AstNode($semantic['type'], $attrs, $children);
+    }
+
+    private function isClassicHtmlSmallCapsSourceMarker(\DOMElement $element): bool
+    {
+        return strtolower($element->getAttribute('data-origin')) === 'classic'
+            && $this->htmlElementHasClass($element, 'source')
+            && $this->htmlElementHasAnyClass($element, ['smallcaps', 'small-caps']);
     }
 
     /**
