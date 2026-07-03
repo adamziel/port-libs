@@ -21,6 +21,7 @@ use PortLibs\Pandoc\LatexWriter;
 use PortLibs\Pandoc\LegacyDocReader;
 use PortLibs\Pandoc\ManReader;
 use PortLibs\Pandoc\MarkdownReader;
+use PortLibs\Pandoc\MarkdownUpstreamReaderEvidence;
 use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\MediaWikiReader;
 use PortLibs\Pandoc\MdocReader;
@@ -146,6 +147,8 @@ return [
         $t->same(PandocFormatRegistry::upstreamInputFormats(), array_keys($support));
         $t->same('partial', $support['markdown']['status']);
         $t->same(MarkdownReader::class, $support['markdown']['implementation']);
+        $t->contains((string) MarkdownUpstreamReaderEvidence::EXPECTED_SELECTED_FIXTURE_COUNT . ' selected fixtures', $support['markdown']['notes']);
+        $t->true(!str_contains($support['markdown']['notes'], 'thirty-four selected fixtures'));
         foreach (['bibtex', 'biblatex', 'csljson', 'endnotexml', 'ris'] as $format) {
             $t->same('partial', $support[$format]['status']);
             $t->same(BibliographyReader::class, $support[$format]['implementation']);

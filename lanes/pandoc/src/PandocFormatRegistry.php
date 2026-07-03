@@ -373,7 +373,7 @@ final class PandocFormatRegistry
         'markdown' => [
             'status' => 'partial',
             'implementation' => MarkdownReader::class,
-            'notes' => 'Primary native PHP reader with broad Pandoc Markdown behavior slices and a bounded checked-in Markdown/native AST equality gate for thirty-four selected fixtures. Full dialect parity remains open.',
+            'notes' => 'Primary native PHP reader with broad Pandoc Markdown behavior slices and a bounded checked-in Markdown/native AST equality gate for 48 selected fixtures. Full dialect parity remains open.',
         ],
         'markdown_github' => [
             'status' => 'partial',
