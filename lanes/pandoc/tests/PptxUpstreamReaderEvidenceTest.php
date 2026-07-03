@@ -845,6 +845,32 @@ HS);
             $removeTree($missingRoot);
         }
     },
+    'workflow gates checked-in pptx native and executable parity corpora' => static function (TestRunner $t): void {
+        $workflow = (string) file_get_contents(dirname(__DIR__, 3) . '/.github/workflows/pandoc-pptx.yml');
+        $nativeCorpusGate = <<<'YAML'
+      - name: Require checked-in PPTX native AST parity corpus
+        run: |
+          php tools/pandoc-pptx-native-ast.php \
+            --checked-in-fixtures \
+            --json \
+            summary \
+            --require-mapped-parity=45
+YAML;
+        $executableCorpusGate = <<<'YAML'
+      - name: Require checked-in pandoc executable PPTX comparison corpus
+        run: |
+          php tools/pandoc-pptx-executable-native-ast.php \
+            --checked-in-fixtures \
+            --json \
+            summary \
+            --require-executable-parity=45
+YAML;
+
+        $t->contains('Require upstream PPTX native AST parity fixture smoke', $workflow);
+        $t->contains($nativeCorpusGate, $workflow);
+        $t->contains('Require upstream pandoc executable PPTX comparison smoke', $workflow);
+        $t->contains($executableCorpusGate, $workflow);
+    },
     'cli gates supplied pptx reader upstream runner result artifact' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile, $writePptxEvidenceTree, $writeRunnerTranscripts): void {
         $root = $makeTempDir();
         try {

@@ -107,13 +107,21 @@ jobs:
             --require-runner-not-run \
             --require-runner-plan
 
-      - name: Require upstream PPTX native AST parity fixture
+      - name: Require upstream PPTX native AST parity fixture smoke
         run: |
           php tools/pandoc-pptx-native-ast.php \
             --upstream-pptx-dir=.upstream-cache/pandoc-current/test/pptx-reader \
             --json \
             summary \
             --require-mapped-parity=1
+
+      - name: Require checked-in PPTX native AST parity corpus
+        run: |
+          php tools/pandoc-pptx-native-ast.php \
+            --checked-in-fixtures \
+            --json \
+            summary \
+            --require-mapped-parity=45
 
       - name: Install pandoc executable
         run: |
@@ -127,13 +135,21 @@ jobs:
           sudo install -m 0755 "/tmp/pandoc-${PANDOC_EXECUTABLE_VERSION}/bin/pandoc" /usr/local/bin/pandoc
           pandoc --version | head -n 1
 
-      - name: Require pandoc executable PPTX comparison
+      - name: Require upstream pandoc executable PPTX comparison smoke
         run: |
           php tools/pandoc-pptx-executable-native-ast.php \
             --pptx-dir=.upstream-cache/pandoc-current/test/pptx-reader \
             --json \
             summary \
             --require-executable-parity=1
+
+      - name: Require checked-in pandoc executable PPTX comparison corpus
+        run: |
+          php tools/pandoc-pptx-executable-native-ast.php \
+            --checked-in-fixtures \
+            --json \
+            summary \
+            --require-executable-parity=45
 
       - name: Run focused PPTX parity tests
         run: |
