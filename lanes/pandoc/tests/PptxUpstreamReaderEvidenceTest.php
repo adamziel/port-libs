@@ -140,6 +140,7 @@ return [
             $pairsByStem[$fixturePair['stem']] = $fixturePair;
         }
         $pair = $pairsByStem['basic'];
+        $bodyBeforeTitlePair = $pairsByStem['body-before-title'];
         $minimalPair = $pairsByStem['minimal'];
         $multiParagraphTextboxPair = $pairsByStem['multi-paragraph-textbox'];
         $emptyParagraphTextboxPair = $pairsByStem['empty-paragraph-textbox'];
@@ -161,7 +162,7 @@ return [
         $t->same('text extraction', $static['readerDenominator']['expectedReaderCases'][0]['name']);
         $t->same('pptx-reader/basic.pptx', $static['readerDenominator']['expectedReaderCases'][0]['pptx']);
         $t->same('pptx-reader/basic.native', $static['readerDenominator']['expectedReaderCases'][0]['native']);
-        $t->same(14, $static['checkedInFixturePairCount']);
+        $t->same(15, $static['checkedInFixturePairCount']);
         $t->same(0, $static['checkedInUnpairedPptxFixtureCount']);
         $t->same(0, $static['checkedInUnpairedNativeFixtureCount']);
         $t->same([], $static['checkedInUnpairedPptxFixtures']);
@@ -172,6 +173,13 @@ return [
         $t->same('42804b9b1954094a4b0ff0be20084e2e6d9bc0a84272f34f7f219f82505da6b4', $pair['checkedInNative']['sha256']);
         $t->same(111674, $pair['checkedInPptx']['bytes']);
         $t->same(3966, $pair['checkedInNative']['bytes']);
+        $t->same('body-before-title', $bodyBeforeTitlePair['stem']);
+        $t->same('generated body-before-title placeholder ordering parity', $bodyBeforeTitlePair['name']);
+        $t->same('pptx-reader/body-before-title.pptx|pptx-reader/body-before-title.native', $bodyBeforeTitlePair['pairKey']);
+        $t->same('0211c524f44cac1d910cb51f9540bf2fa6dd6b497d3c018ff4f06517be6564c1', $bodyBeforeTitlePair['checkedInPptx']['sha256']);
+        $t->same('e0b1dacb8bd85677d2556009e0a79e4443680cf98e45e26c4a3a0747800d7453', $bodyBeforeTitlePair['checkedInNative']['sha256']);
+        $t->same(1519, $bodyBeforeTitlePair['checkedInPptx']['bytes']);
+        $t->same(132, $bodyBeforeTitlePair['checkedInNative']['bytes']);
         $t->same('minimal', $minimalPair['stem']);
         $t->same('generated minimal text extraction parity', $minimalPair['name']);
         $t->same('pptx-reader/minimal.pptx|pptx-reader/minimal.native', $minimalPair['pairKey']);
@@ -267,6 +275,7 @@ return [
         $t->same(true, PptxUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($report));
         $t->same(true, PptxUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
         $t->true(in_array('that upstream Haskell/Cabal/Tasty tests were executed', $static['claimBoundaries']['doesNotAssert'], true));
+        $t->true(in_array('that body-before-title.pptx/body-before-title.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('that minimal.pptx/minimal.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('that multi-paragraph-textbox.pptx/multi-paragraph-textbox.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('that empty-paragraph-textbox.pptx/empty-paragraph-textbox.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
@@ -280,7 +289,7 @@ return [
         $t->true(in_array('that speaker-notes.pptx/speaker-notes.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('that numbered-list.pptx/numbered-list.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('that shape-order.pptx/shape-order.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
-        $t->contains('Static current evidence: valid-checked-in-current-pptx-reader-evidence comparisons=1 checkedInPairs=14', $text);
+        $t->contains('Static current evidence: valid-checked-in-current-pptx-reader-evidence comparisons=1 checkedInPairs=15', $text);
         $t->contains('Runner status: not-run', $text);
     },
     'reports invalid pptx reader evidence for missing and unreferenced fixtures' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile): void {
