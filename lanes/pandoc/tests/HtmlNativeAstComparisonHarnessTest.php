@@ -108,9 +108,10 @@ return [
         $citeWbrRawInlineNative = $root . '/upstream-html-cite-wbr-raw-inline.native';
         $genericRawInlineHtml = $root . '/upstream-html-generic-raw-inline.html';
         $genericRawInlineNative = $root . '/upstream-html-generic-raw-inline.native';
+        $standaloneObjectEmbedHtml = $root . '/upstream-html-standalone-object-embed-inline.html';
+        $standaloneObjectEmbedNative = $root . '/upstream-html-standalone-object-embed-inline.native';
         $expectedUnpairedHtmlFixtureNames = [
             'upstream-html-raw-disabled-skip.html',
-            'upstream-html-standalone-object-embed-inline.html',
             'upstream-html-svg-disabled-raw-html.html',
             'upstream-html-svg-raw-html.html',
             'upstream-html-textarea-raw-block.html',
@@ -202,6 +203,8 @@ return [
         $t->true(is_file($citeWbrRawInlineNative), 'Native cite/wbr raw inline fixture must be checked in');
         $t->true(is_file($genericRawInlineHtml), 'HTML generic raw inline fixture must be checked in');
         $t->true(is_file($genericRawInlineNative), 'Native generic raw inline fixture must be checked in');
+        $t->true(is_file($standaloneObjectEmbedHtml), 'HTML standalone object/embed fixture must be checked in');
+        $t->true(is_file($standaloneObjectEmbedNative), 'Native standalone object/embed fixture must be checked in');
 
         $harness = new HtmlNativeAstComparisonHarness();
         $report = $harness->run($root);
@@ -209,31 +212,31 @@ return [
 
         $t->same('completed', $report['status']);
         $t->same(48, $report['htmlFixtureCount']);
-        $t->same(43, $report['nativeFixtureCount']);
-        $t->same(43, $report['pairedFixtureCount']);
-        $t->same(5, $report['unpairedHtmlFixtureCount']);
+        $t->same(44, $report['nativeFixtureCount']);
+        $t->same(44, $report['pairedFixtureCount']);
+        $t->same(4, $report['unpairedHtmlFixtureCount']);
         $t->same(0, $report['unpairedNativeFixtureCount']);
         $t->same($expectedUnpairedHtmlFixtureNames, $report['unpairedHtmlFixtureNames']);
         $t->same([], $report['unpairedNativeFixtureNames']);
         $t->same('upstream-html-raw-disabled-skip.html', $report['unpairedHtmlFixtureExamples'][0]);
-        $t->same(43, $report['totalPairCount']);
-        $t->same(43, $report['comparedPairCount']);
-        $t->same(43, $report['htmlParsedCount']);
-        $t->same(43, $report['nativeParsedCount']);
-        $t->same(43, $report['bothParsedCount']);
+        $t->same(44, $report['totalPairCount']);
+        $t->same(44, $report['comparedPairCount']);
+        $t->same(44, $report['htmlParsedCount']);
+        $t->same(44, $report['nativeParsedCount']);
+        $t->same(44, $report['bothParsedCount']);
         $t->same(0, $report['parseFailureCount']);
-        $t->same(43, $report['normalizedAstMatchCount']);
+        $t->same(44, $report['normalizedAstMatchCount']);
         $t->same(0, $report['normalizedAstMismatchCount']);
         $t->same('normalized-ast-equality-observed-not-runner-parity', $report['astParityStatus']);
-        $t->same(true, HtmlNativeAstComparisonHarness::hasRequiredMappedParity($report, 43));
+        $t->same(true, HtmlNativeAstComparisonHarness::hasRequiredMappedParity($report, 44));
         $t->same('covered-by-current-normalized-ast-evidence', $report['orderedRemainingGaps'][0]['status']);
         $t->same('checked-in-html-fixtures-without-native-pairs', $report['orderedRemainingGaps'][1]['id']);
         $t->same('open', $report['orderedRemainingGaps'][1]['status']);
-        $t->same('HTML fixtures=48; native fixtures=43; same-basename pairs=43; HTML fixtures without native pairs=5', $report['orderedRemainingGaps'][1]['currentEvidence']);
-        $t->same('The current checked-in gate covers 43 paired fixture(s) out of 48 HTML fixture(s).', $report['orderedRemainingGaps'][3]['currentEvidence']);
-        $t->contains('fixtureInventory: html=48 native=43 paired=43 unpairedHtml=5 unpairedNative=0', $text);
-        $t->contains('pairs: total=43 compared=43 parsedBoth=43 parseFailures=0', $text);
-        $t->contains('normalizedAst: matches=43 (100.00%) mismatches=0', $text);
+        $t->same('HTML fixtures=48; native fixtures=44; same-basename pairs=44; HTML fixtures without native pairs=4', $report['orderedRemainingGaps'][1]['currentEvidence']);
+        $t->same('The current checked-in gate covers 44 paired fixture(s) out of 48 HTML fixture(s).', $report['orderedRemainingGaps'][3]['currentEvidence']);
+        $t->contains('fixtureInventory: html=48 native=44 paired=44 unpairedHtml=4 unpairedNative=0', $text);
+        $t->contains('pairs: total=44 compared=44 parsedBoth=44 parseFailures=0', $text);
+        $t->contains('normalizedAst: matches=44 (100.00%) mismatches=0', $text);
 
         $command = escapeshellarg(PHP_BINARY)
             . ' '
@@ -241,7 +244,7 @@ return [
             . ' --html-dir=' . escapeshellarg($root)
             . ' --json'
             . ' summary'
-            . ' --require-mapped-parity=43';
+            . ' --require-mapped-parity=44';
         $output = [];
         $exitCode = 0;
         exec($command, $output, $exitCode);
@@ -249,10 +252,10 @@ return [
 
         $t->same(0, $exitCode);
         $t->same(48, $decoded['htmlFixtureCount']);
-        $t->same(5, $decoded['unpairedHtmlFixtureCount']);
+        $t->same(4, $decoded['unpairedHtmlFixtureCount']);
         $t->same($expectedUnpairedHtmlFixtureNames, $decoded['unpairedHtmlFixtureNames']);
         $t->same([], $decoded['unpairedNativeFixtureNames']);
-        $t->same(43, $decoded['normalizedAstMatchCount']);
+        $t->same(44, $decoded['normalizedAstMatchCount']);
         $t->same(0, $decoded['normalizedAstMismatchCount']);
     },
 ];
