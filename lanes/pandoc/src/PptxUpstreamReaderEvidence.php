@@ -13,7 +13,7 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 3;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 4;
 
     private const STATIC_CURRENT_READER_CASES = [
         [
@@ -59,6 +59,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => 'f53f49de194917ae945eaaff66720120bf8a0df95c6075b31a08ea41f633507c',
             'pptxBytes' => 1543,
             'nativeBytes' => 157,
+        ],
+        'two-slides' => [
+            'name' => 'generated two-slide ordering parity',
+            'pptx' => 'pptx-reader/two-slides.pptx',
+            'native' => 'pptx-reader/two-slides.native',
+            'pairKey' => 'pptx-reader/two-slides.pptx|pptx-reader/two-slides.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/two-slides.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/two-slides.native',
+            'pptxSha256' => '58e37ebe22ba5f7e5b9f7c3fe886ae5ff085876371178e63cc115a8f6d4e052c',
+            'nativeSha256' => '269e2c8b638af9834b52a0ff23c795578f9b21404e27c60d846cf81b3520596a',
+            'pptxBytes' => 1897,
+            'nativeBytes' => 177,
         ],
     ];
 
@@ -263,7 +275,7 @@ final class PptxUpstreamReaderEvidence
                 'the count and file paths of upstream PPTX reader golden comparisons in Tests.Readers.Pptx',
                 'that every referenced PPTX/native fixture file exists in the pinned sparse upstream checkout',
                 'that root-level test/pptx-reader PPTX/native fixture pairs and unpaired files are accounted for',
-                'static checked-in current upstream basic.pptx/basic.native plus generated minimal.pptx/minimal.native and bullets.pptx/bullets.native fixture identities when staticCurrentEvidence is valid',
+                'static checked-in current upstream basic.pptx/basic.native plus generated minimal.pptx/minimal.native, bullets.pptx/bullets.native, and two-slides.pptx/two-slides.native fixture identities when staticCurrentEvidence is valid',
                 'that upstream Haskell runner evidence is explicitly not-run',
             ],
             'doesNotAssert' => [
@@ -446,19 +458,20 @@ final class PptxUpstreamReaderEvidence
                 'status' => $issues === [] ? 'valid-checked-in-current-pptx-reader-evidence' : 'invalid-checked-in-current-pptx-reader-evidence',
                 'issues' => array_values(array_unique($issues)),
             ],
-            'claim' => 'Static gate binding the pinned Tests.Readers.Pptx one-case denominator to the checked-in current upstream basic.pptx/basic.native fixture pair, plus two generated minimal PPTX/native pairs used only for local normalized-AST parity.',
+            'claim' => 'Static gate binding the pinned Tests.Readers.Pptx one-case denominator to the checked-in current upstream basic.pptx/basic.native fixture pair, plus three generated PPTX/native pairs used only for local normalized-AST parity.',
             'claimBoundaries' => [
                 'doesAssert' => [
                     'Tests.Readers.Pptx at the pinned upstream commit has one golden comparison for pptx-reader/basic.pptx and pptx-reader/basic.native',
-                    'the checked-in current PPTX fixture directory contains three same-stem PPTX/native pairs and no unpaired PPTX/native files',
-                    'the checked-in basic.pptx/basic.native, minimal.pptx/minimal.native, and bullets.pptx/bullets.native files match the expected SHA-256 hashes and byte counts for this snapshot',
+                    'the checked-in current PPTX fixture directory contains four same-stem PPTX/native pairs and no unpaired PPTX/native files',
+                    'the checked-in basic.pptx/basic.native, minimal.pptx/minimal.native, bullets.pptx/bullets.native, and two-slides.pptx/two-slides.native files match the expected SHA-256 hashes and byte counts for this snapshot',
                 ],
                 'doesNotAssert' => [
                     'that upstream Haskell/Cabal/Tasty tests were executed',
                     'that a fresh upstream checkout was inspected during this PHP gate',
                     'that minimal.pptx/minimal.native is an upstream Tests.Readers.Pptx fixture',
                     'that bullets.pptx/bullets.native is an upstream Tests.Readers.Pptx fixture',
-                    'broader PPTX fixture corpus coverage beyond basic.pptx/basic.native, minimal.pptx/minimal.native, and bullets.pptx/bullets.native',
+                    'that two-slides.pptx/two-slides.native is an upstream Tests.Readers.Pptx fixture',
+                    'broader PPTX fixture corpus coverage beyond basic.pptx/basic.native, minimal.pptx/minimal.native, bullets.pptx/bullets.native, and two-slides.pptx/two-slides.native',
                     'full PowerPoint feature parity',
                 ],
             ],

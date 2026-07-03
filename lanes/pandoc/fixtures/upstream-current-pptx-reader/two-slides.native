@@ -1,0 +1,5 @@
+[ Header 2 ( "slide-1" , [] , [] ) [ Str "First slide" ]
+, Para [ Str "Opening body" ]
+, Header 2 ( "slide-2" , [] , [] ) [ Str "Second slide" ]
+, Para [ Str "Closing body" ]
+]
