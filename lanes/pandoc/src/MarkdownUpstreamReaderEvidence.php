@@ -12,7 +12,7 @@ final class MarkdownUpstreamReaderEvidence
     public const STATUS_COMPLETED = 'completed-upstream-markdown-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-markdown-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
-    public const EXPECTED_SELECTED_FIXTURE_COUNT = 20;
+    public const EXPECTED_SELECTED_FIXTURE_COUNT = 21;
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/Markdown.hs',
@@ -266,6 +266,18 @@ final class MarkdownUpstreamReaderEvidence
             'sha256' => 'ad87edba0a8dc59fc7fb9f90885cd2203e1e4fae65e6a2feaa20cdb059d3ce5c',
             'bytes' => 15,
         ],
+        'upstream-markdown-link-title-entities.md' => [
+            'role' => 'markdown-link-title-entity-reader-fixture',
+            'sourceKind' => 'selected-upstream-markdown-reader-case',
+            'sourceReference' => 'Tests.Readers.Markdown entities/in link title',
+            'formatProfile' => 'markdown link title entity decoding',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-markdown-link-title-entities.md',
+            'coverageTests' => [
+                'lanes/pandoc/tests/MarkdownReaderLinkTitleEntityFixtureTest.php',
+            ],
+            'sha256' => 'c9dc6a34cf99ca078667ee8f6c860a3fd0fc533cc6bef09982871ff7c52dc186',
+            'bytes' => 41,
+        ],
     ];
 
     private readonly string $repoRoot;
@@ -409,9 +421,9 @@ final class MarkdownUpstreamReaderEvidence
             'claim' => 'Static gate binding selected current upstream-derived Markdown reader fixtures to checked-in SHA-256 and byte-count snapshots.',
             'claimBoundaries' => [
                 'doesAssert' => [
-                    'the twenty selected checked-in Markdown fixture snapshots match the expected SHA-256 hashes and byte counts',
+                    'the twenty-one selected checked-in Markdown fixture snapshots match the expected SHA-256 hashes and byte counts',
                     'each selected fixture has at least one local PHP test reference',
-                    'the fixture set covers selected command, raw-attribute, abbreviation, details/summary, GFM, autolink, footnote/citation, citation/span boundary, empty-paragraph, definition-list spacing, nested-list body and html-div body, GitHub wiki-link, inline-code list-marker, backslash-escaped link, link-label boundary, and unbalanced-bracket literal behavior',
+                    'the fixture set covers selected command, raw-attribute, abbreviation, details/summary, GFM, autolink, footnote/citation, citation/span boundary, empty-paragraph, definition-list spacing, nested-list body and html-div body, GitHub wiki-link, inline-code list-marker, backslash-escaped link, link-label boundary, unbalanced-bracket literal, and link-title entity decoding behavior',
                 ],
                 'doesNotAssert' => [
                     'that upstream Haskell/Cabal/Tasty tests were executed',
@@ -564,7 +576,7 @@ final class MarkdownUpstreamReaderEvidence
     {
         return [
             'doesAssert' => [
-                'the identity and count of twenty selected checked-in upstream-derived Markdown fixtures',
+                'the identity and count of twenty-one selected checked-in upstream-derived Markdown fixtures',
                 'that focused local tests cover those selected fixture files',
                 'that the upstream Markdown reader source inventory is present when a hydrated upstream checkout is inspected',
                 'that upstream Haskell runner evidence is explicitly not-run',
