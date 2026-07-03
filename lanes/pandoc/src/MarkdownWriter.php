@@ -6474,13 +6474,20 @@ final class MarkdownWriter
         }
 
         if ($this->isCommonMarkVariant()) {
-            if ($this->isRawMarkdownFormat($format)) {
+            if ($this->rawMarkdownTextEnabledForWriter($format)) {
                 return $this->indentedLines($text, $indent);
             }
 
             if ($this->isRawHtmlFormat($format)) {
                 return $this->indentedLines($this->removeBlankLinesInRawHtml($text), $indent);
             }
+        }
+
+        if ($this->isCommonMarkVariant() && $this->rawAttributeEnabled()) {
+            return $this->indentedLines(
+                '```{=' . $format . "}\n" . rtrim($text, "\n") . "\n```",
+                $indent
+            );
         }
 
         if (!$this->isCommonMarkVariant() && ($format === '' || $this->isRawMarkdownFormat($format))) {
@@ -6927,25 +6934,15 @@ final class MarkdownWriter
         }
 
         if ($this->scriptEnabled($kind)) {
-            $previous = $this->escapeInlineSpaces;
-            $this->escapeInlineSpaces = true;
-            try {
-                $content = $this->renderInlines($node->children);
-                if ($content === '') {
-                    return '';
-                }
-
-                return $this->delimitInlineContent($delimiter, $delimiter, $content);
-            } finally {
-                $this->escapeInlineSpaces = $previous;
+            $content = $this->renderScriptContent($node);
+            if ($content === '') {
+                return '';
             }
+
+            return $this->delimitInlineContent($delimiter, $delimiter, $content);
         }
 
-        if ($this->bracketedSpansEnabled()) {
-            return $this->renderSpan($this->semanticInlineSpan($node, $kind));
-        }
-
-        $content = $this->renderInlines($node->children);
+        $content = $this->renderScriptContent($node);
         if ($content === '') {
             return '';
         }
@@ -6967,6 +6964,17 @@ final class MarkdownWriter
         }
 
         return ($kind === 'superscript' ? '^' : '_') . '(' . $content . ')';
+    }
+
+    private function renderScriptContent(AstNode $node): string
+    {
+        $previous = $this->escapeInlineSpaces;
+        $this->escapeInlineSpaces = true;
+        try {
+            return $this->renderInlines($node->children);
+        } finally {
+            $this->escapeInlineSpaces = $previous;
+        }
     }
 
     /**
@@ -7091,12 +7099,8 @@ final class MarkdownWriter
             return $this->delimitInlineContent('~~', '~~', $content);
         }
 
-        if ($this->bracketedSpansEnabled()) {
-            return $this->renderSpan($this->semanticInlineSpan($node, 'strikeout'));
-        }
-
         if ($this->rawHtmlEnabled()) {
-            return '<del>' . $content . '</del>';
+            return '<s>' . $content . '</s>';
         }
 
         return $content;
@@ -7121,7 +7125,7 @@ final class MarkdownWriter
         if ($this->rawHtmlEnabled()) {
             $content = $this->renderInlines($node->children);
 
-            return $this->renderRawHtmlSpan($this->linkAttrTuple($span), $content);
+            return '<u>' . $content . '</u>';
         }
 
         return $this->delimitInlineContent('*', '*', $this->renderInlines($node->children));
@@ -7423,12 +7427,15 @@ final class MarkdownWriter
             return $text;
         }
 
-        if ($this->isCommonMarkVariant()) {
-            if ($this->isRawMarkdownFormat($format)) {
-                return $text;
-            }
-        } elseif ($this->isRawMarkdownFormat($format)) {
+        if ($this->rawMarkdownTextEnabledForWriter($format)) {
             return $text;
+        }
+
+        if ($this->rawAttributeEnabled()) {
+            return $this->renderRawAttributeInline(new AstNode($node->type, [
+                'format' => $format,
+                'text' => $text,
+            ]));
         }
 
         $rawFamily = MarkdownFormatProfile::rawFamily($format);
@@ -7438,13 +7445,6 @@ final class MarkdownWriter
 
         if ($rawFamily === 'tex' && $this->rawTexEnabled()) {
             return $text;
-        }
-
-        if ($this->rawAttributeEnabled()) {
-            return $this->renderRawAttributeInline(new AstNode($node->type, [
-                'format' => $format,
-                'text' => $text,
-            ]));
         }
 
         return '';
@@ -7533,6 +7533,23 @@ final class MarkdownWriter
     private function isRawMarkdownFormat(string $format): bool
     {
         return MarkdownFormatProfile::canonicalMarkdownFormat($format) !== null;
+    }
+
+    private function rawMarkdownTextEnabledForWriter(string $format): bool
+    {
+        if (!$this->isRawMarkdownFormat($format)) {
+            return false;
+        }
+
+        if (!$this->isCommonMarkVariant()) {
+            return true;
+        }
+
+        $base = strtolower(trim($format));
+        $base = explode('+', $base, 2)[0];
+        $base = str_replace('-', '_', $base);
+
+        return in_array($base, ['markdown', 'pandoc', 'md', 'commonmark', 'commonmark_x', 'gfm'], true);
     }
 
     private function renderMark(AstNode $node): string
@@ -9560,7 +9577,10 @@ final class MarkdownWriter
 
     private function rawHtmlEnabled(): bool
     {
-        return MarkdownFormatProfile::rawHtmlEnabled($this->options, true);
+        $options = $this->options;
+        $options['format'] = $this->markdownFormatWithExtensionOption();
+
+        return MarkdownFormatProfile::rawHtmlEnabled($options, true);
     }
 
     private function htmlTableAutoFallbackEnabled(): bool
@@ -9570,7 +9590,10 @@ final class MarkdownWriter
 
     private function rawAttributeEnabled(): bool
     {
-        return MarkdownFormatProfile::rawAttributeEnabled($this->options, true);
+        $options = $this->options;
+        $options['format'] = $this->markdownFormatWithExtensionOption();
+
+        return MarkdownFormatProfile::rawAttributeEnabled($options, true);
     }
 
     private function rawTexEnabled(): bool
