@@ -1,2 +1,2 @@
-[ RawBlock (Format "html") "<noscript><a href=\"/wp-content/uploads/import-log.txt\">Import log fallback</a></noscript> remains visible when scripts are unavailable."
+[ Para [ RawInline (Format "html") "<noscript>" , Link ( "" , [  ] , [  ] ) [ Str "Import" , Space , Str "log" , Space , Str "fallback" ] ( "/wp-content/uploads/import-log.txt" , "" ) , RawInline (Format "html") "</noscript>" , Space , Str "remains" , Space , Str "visible" , Space , Str "when" , Space , Str "scripts" , Space , Str "are" , Space , Str "unavailable." ]
 ]

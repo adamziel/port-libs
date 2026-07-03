@@ -3043,11 +3043,15 @@ final class MarkdownReader
         $rawHtmlEnabled = $this->htmlRawHtmlEnabled();
         $inner = (string) $match[2];
         $blocks = [];
+        [$summary, $body] = $this->extractRawHtmlDetailsSummary($inner);
+        if ($rawHtmlEnabled && $this->rawHtmlDetailsShouldStayRaw($body)) {
+            return [new AstNode('raw_html', ['html' => trim($html)])];
+        }
+
         if ($rawHtmlEnabled) {
             $blocks[] = new AstNode('raw_html', ['html' => trim($match[1])]);
         }
 
-        [$summary, $body] = $this->extractRawHtmlDetailsSummary($inner);
         if ($summary !== '') {
             if ($rawHtmlEnabled) {
                 $blocks[] = new AstNode('raw_html', ['html' => trim($summary)]);
@@ -3071,6 +3075,20 @@ final class MarkdownReader
         }
 
         return $blocks;
+    }
+
+    private function rawHtmlDetailsShouldStayRaw(string $body): bool
+    {
+        $trimmed = trim($body);
+        if ($trimmed === '') {
+            return true;
+        }
+
+        if (preg_match('/^\s*<\/?(address|article|aside|blockquote|div|dl|fieldset|figure|footer|form|h[1-6]|header|hr|main|nav|ol|p|pre|section|table|ul)\b/iu', $trimmed) === 1) {
+            return true;
+        }
+
+        return preg_match('/\R[ \t]*\R/u', $trimmed) !== 1;
     }
 
     /**
