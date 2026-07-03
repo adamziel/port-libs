@@ -558,6 +558,56 @@ XML);
         $t->same(false, str_contains($native, 'Str "Uppercase"'));
         $t->same(false, str_contains($native, 'Str "Invalid"'));
     },
+    'preserves epub basename marker for unreadable linear spine items' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-unreadable-spine-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary EPUB package');
+        }
+        $zip->addFromString('META-INF/container.xml', '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="book-id">
+  <metadata>
+    <dc:identifier id="book-id">book-unreadable-spine-marker</dc:identifier>
+    <dc:title>Unreadable Spine Marker EPUB</dc:title>
+  </metadata>
+  <manifest>
+    <item id="notes" href="text/source-notes.txt" media-type="text/plain"/>
+  </manifest>
+  <spine>
+    <itemref idref="notes"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('OPS/text/source-notes.txt', 'Source notes are not XHTML.');
+        $zip->close();
+
+        try {
+            $document = (new EpubReader())->readEpubFile($path);
+            $meta = $document->attr('meta');
+            $native = PandocConverter::write($document, 'native');
+        } finally {
+            @unlink($path);
+        }
+
+        $marker = $document->children[0];
+        $t->same(1, count($document->children));
+        $t->same('paragraph', $marker->type);
+        $t->same('span', $marker->children[0]->type);
+        $t->same('source-notes.txt', $marker->children[0]->attr('id'));
+        $t->same(false, $meta['epubSpineItemRefs'][0]['readable']);
+        $t->same([], $meta['epubReadableResources']);
+        $t->same(false, str_contains($native, 'No readable EPUB spine content was found.'));
+        $t->contains('Span ( "source-notes.txt"', $native);
+    },
     'separates epub media bag image usage from manifest image inventory' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-media-bag-scope-');
         if ($path === false) {

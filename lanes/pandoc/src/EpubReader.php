@@ -142,6 +142,7 @@ final class EpubReader
                 continue;
             }
             if (!$this->isReadablePackageXhtml($href, $media_type)) {
+                $children[] = $this->spineMarker($this->spineFilename($item['href']));
                 continue;
             }
             $xhtml = $zip->getFromName($href);
