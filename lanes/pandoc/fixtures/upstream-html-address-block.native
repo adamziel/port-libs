@@ -1,0 +1,10 @@
+[ Para
+    [ Strong [ Str "Migration" , Space , Str "Desk" ]
+    , LineBreak
+    , Link
+        ( "" , [] , [] )
+        [ Str "migration@example.test" ]
+        ( "mailto:migration@example.test" , "" )
+    ]
+, Para [ Str "After" , Space , Str "contact." ]
+]

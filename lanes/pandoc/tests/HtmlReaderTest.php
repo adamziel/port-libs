@@ -332,6 +332,28 @@ $tests['imports generated current html ruby annotation text'] =
         $t->same('After ruby.', $document->children[1]->attr('text'));
     };
 
+$tests['imports generated current html address block as paragraph content'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-address-block.html'));
+        $contact = $document->children[0];
+        $link = $contact->children[2];
+
+        $t->same(
+            ['paragraph', 'paragraph'],
+            array_map(static fn ($node): string => $node->type, $document->children)
+        );
+        $t->same('HTML Address Block Import', $document->attr('meta')['title']);
+        $t->same('Migration Desk migration@example.test', $contact->attr('text'));
+        $t->same(
+            ['strong', 'linebreak', 'link'],
+            array_map(static fn ($node): string => $node->type, $contact->children)
+        );
+        $t->same('Migration Desk', $contact->children[0]->children[0]->attr('text'));
+        $t->same('mailto:migration@example.test', $link->attr('url'));
+        $t->same('migration@example.test', $link->children[0]->attr('text'));
+        $t->same('After contact.', $document->children[1]->attr('text'));
+    };
+
 $tests['preserves html doc-endnotes container when no noteref was resolved'] =
     static function (TestRunner $t): void {
         $document = (new HtmlReader())->read(
