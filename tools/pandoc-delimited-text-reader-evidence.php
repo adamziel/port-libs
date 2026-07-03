@@ -88,14 +88,21 @@ $validateGeneratedTsvNativeParity = static function (array $evidence): array {
             $issues[] = $message;
         }
     };
+    $expectedSampleCount = DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT;
+    $expectedBindingStatus = 'valid-generated-tsv-native-sample-static-binding';
+    $samples = is_array($evidence['samples'] ?? null) ? $evidence['samples'] : [];
 
     $expect(($evidence['reader'] ?? null) === 'tsv', 'Generated TSV native parity evidence reader must be tsv');
     $expect(($evidence['tsvDirectFixtureDenominator'] ?? null) === 0, 'Generated TSV native parity must keep TSV direct denominator at 0');
-    $expect(($evidence['sampleCount'] ?? null) === DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, 'Generated TSV native parity sample count must match expected generated sample count');
-    $expect(($evidence['comparedSampleCount'] ?? null) === DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, 'Generated TSV native parity compared sample count must match expected generated sample count');
+    $expect(($evidence['sampleCount'] ?? null) === $expectedSampleCount, 'Generated TSV native parity sample count must match expected generated sample count');
+    $expect(count($samples) === $expectedSampleCount, 'Generated TSV native parity sample result count must match expected generated sample count');
+    $expect(($evidence['comparedSampleCount'] ?? null) === $expectedSampleCount, 'Generated TSV native parity compared sample count must match expected generated sample count');
     $expect(($evidence['parseFailureCount'] ?? null) === 0, 'Generated TSV native parity parse failure count must be 0');
-    $expect(($evidence['generatedNativeMatchCount'] ?? null) === DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, 'Generated TSV native parity match count must match expected generated sample count');
+    $expect(($evidence['generatedNativeMatchCount'] ?? null) === $expectedSampleCount, 'Generated TSV native parity match count must match expected generated sample count');
     $expect(($evidence['generatedNativeMismatchCount'] ?? null) === 0, 'Generated TSV native parity mismatch count must be 0');
+    $expect(($evidence['staticFixtureBindingValidCount'] ?? null) === $expectedSampleCount, 'Generated TSV native parity static fixture binding valid count must match expected generated sample count');
+    $expect(($evidence['staticFixtureBindingInvalidCount'] ?? null) === 0, 'Generated TSV native parity static fixture binding invalid count must be 0');
+    $expect(array_column($samples, 'staticFixtureBindingStatus') === array_fill(0, $expectedSampleCount, $expectedBindingStatus), 'Generated TSV native parity sample static fixture bindings must be valid');
     $expect(
         DelimitedTextUpstreamReaderEvidence::hasRequiredGeneratedTsvNativeParity($evidence),
         'Generated TSV native parity helper must recognize required evidence'
@@ -111,14 +118,21 @@ $validateGeneratedCsvNativeParity = static function (array $evidence): array {
             $issues[] = $message;
         }
     };
+    $expectedSampleCount = DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT;
+    $expectedBindingStatus = 'valid-generated-csv-native-sample-static-binding';
+    $samples = is_array($evidence['samples'] ?? null) ? $evidence['samples'] : [];
 
     $expect(($evidence['reader'] ?? null) === 'csv', 'Generated CSV native parity evidence reader must be csv');
     $expect(($evidence['csvDirectFixtureDenominator'] ?? null) === DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, 'Generated CSV native parity must keep CSV direct denominator at 2');
-    $expect(($evidence['sampleCount'] ?? null) === DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, 'Generated CSV native parity sample count must match expected generated sample count');
-    $expect(($evidence['comparedSampleCount'] ?? null) === DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, 'Generated CSV native parity compared sample count must match expected generated sample count');
+    $expect(($evidence['sampleCount'] ?? null) === $expectedSampleCount, 'Generated CSV native parity sample count must match expected generated sample count');
+    $expect(count($samples) === $expectedSampleCount, 'Generated CSV native parity sample result count must match expected generated sample count');
+    $expect(($evidence['comparedSampleCount'] ?? null) === $expectedSampleCount, 'Generated CSV native parity compared sample count must match expected generated sample count');
     $expect(($evidence['parseFailureCount'] ?? null) === 0, 'Generated CSV native parity parse failure count must be 0');
-    $expect(($evidence['generatedNativeMatchCount'] ?? null) === DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, 'Generated CSV native parity match count must match expected generated sample count');
+    $expect(($evidence['generatedNativeMatchCount'] ?? null) === $expectedSampleCount, 'Generated CSV native parity match count must match expected generated sample count');
     $expect(($evidence['generatedNativeMismatchCount'] ?? null) === 0, 'Generated CSV native parity mismatch count must be 0');
+    $expect(($evidence['staticFixtureBindingValidCount'] ?? null) === $expectedSampleCount, 'Generated CSV native parity static fixture binding valid count must match expected generated sample count');
+    $expect(($evidence['staticFixtureBindingInvalidCount'] ?? null) === 0, 'Generated CSV native parity static fixture binding invalid count must be 0');
+    $expect(array_column($samples, 'staticFixtureBindingStatus') === array_fill(0, $expectedSampleCount, $expectedBindingStatus), 'Generated CSV native parity sample static fixture bindings must be valid');
     $expect(
         DelimitedTextUpstreamReaderEvidence::hasRequiredGeneratedCsvNativeParity($evidence),
         'Generated CSV native parity helper must recognize required evidence'

@@ -669,6 +669,7 @@ final class DelimitedTextUpstreamReaderEvidence
             $expectedNativePath = (string) $sample['expectedNativePath'];
             $readerOptions = is_array($sample['options'] ?? null) ? $sample['options'] : [];
             $readerOptions['sourcePath'] = $inputPath;
+            $staticFixtureBinding = self::generatedNativeSampleStaticBinding($staticEvidence, 'csv', (string) $name);
             $absoluteInputPath = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $inputPath);
             $absoluteExpectedNativePath = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $expectedNativePath);
             $input = is_file($absoluteInputPath) ? file_get_contents($absoluteInputPath) : false;
@@ -687,6 +688,8 @@ final class DelimitedTextUpstreamReaderEvidence
                 $sampleResults[] = [
                     'name' => (string) $name,
                     'status' => 'parse-failed',
+                    'staticFixtureBindingStatus' => $staticFixtureBinding['status'],
+                    'staticFixtureBinding' => $staticFixtureBinding,
                     ...$failure,
                 ];
                 continue;
@@ -708,6 +711,8 @@ final class DelimitedTextUpstreamReaderEvidence
                 $sampleResults[] = [
                     'name' => (string) $name,
                     'status' => 'parse-failed',
+                    'staticFixtureBindingStatus' => $staticFixtureBinding['status'],
+                    'staticFixtureBinding' => $staticFixtureBinding,
                     ...$failure,
                 ];
                 continue;
@@ -736,6 +741,8 @@ final class DelimitedTextUpstreamReaderEvidence
                 'inputPath' => $inputPath,
                 'expectedNativePath' => $expectedNativePath,
                 'readerOptions' => $readerOptions,
+                'staticFixtureBindingStatus' => $staticFixtureBinding['status'],
+                'staticFixtureBinding' => $staticFixtureBinding,
                 'reader' => 'csv',
                 'expectedNativeSha256' => hash('sha256', $expectedNative),
                 'generatedNativeSha256' => hash('sha256', $generatedNative),
@@ -750,6 +757,8 @@ final class DelimitedTextUpstreamReaderEvidence
         $sampleCount = count(self::GENERATED_CSV_NATIVE_SAMPLES);
         $mismatchCount = $comparedCount - $matchCount;
         $staticEvidenceValid = self::hasRequiredGeneratedCsvNativeStaticEvidence($staticEvidence);
+        $validStaticFixtureBindingCount = self::validGeneratedNativeSampleStaticBindingCount($sampleResults, 'csv');
+        $invalidStaticFixtureBindingCount = $sampleCount - $validStaticFixtureBindingCount;
 
         return [
             'schemaVersion' => 1,
@@ -767,7 +776,9 @@ final class DelimitedTextUpstreamReaderEvidence
             'generatedNativeMatchCount' => $matchCount,
             'generatedNativeMismatchCount' => $mismatchCount,
             'generatedNativeMatchPercent' => self::percent($matchCount, $sampleCount),
-            'parityStatus' => self::generatedCsvNativeParityStatus($staticEvidenceValid, count($parseFailures), $mismatchCount, $comparedCount, $sampleCount),
+            'staticFixtureBindingValidCount' => $validStaticFixtureBindingCount,
+            'staticFixtureBindingInvalidCount' => $invalidStaticFixtureBindingCount,
+            'parityStatus' => self::generatedCsvNativeParityStatus($staticEvidenceValid && $invalidStaticFixtureBindingCount === 0, count($parseFailures), $mismatchCount, $comparedCount, $sampleCount),
             'staticFixtureEvidence' => $staticEvidence,
             'samples' => $sampleResults,
             'parseFailures' => $parseFailures,
@@ -776,6 +787,7 @@ final class DelimitedTextUpstreamReaderEvidence
                 'doesAssert' => [
                     'the local CSV reader can read the checked-in generated CSV samples',
                     'the generated native output matches the checked-in expected native fixtures by normalized native token stream',
+                    'each executable generated CSV sample is bound to valid checked-in input and native snapshot evidence',
                     'the upstream CSV direct fixture denominator remains two',
                 ],
                 'doesNotAssert' => [
@@ -805,6 +817,7 @@ final class DelimitedTextUpstreamReaderEvidence
             $expectedNativePath = (string) $sample['expectedNativePath'];
             $readerOptions = is_array($sample['options'] ?? null) ? $sample['options'] : [];
             $readerOptions['sourcePath'] = $inputPath;
+            $staticFixtureBinding = self::generatedNativeSampleStaticBinding($staticEvidence, 'tsv', (string) $name);
             $absoluteInputPath = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $inputPath);
             $absoluteExpectedNativePath = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $expectedNativePath);
             $input = is_file($absoluteInputPath) ? file_get_contents($absoluteInputPath) : false;
@@ -823,6 +836,8 @@ final class DelimitedTextUpstreamReaderEvidence
                 $sampleResults[] = [
                     'name' => (string) $name,
                     'status' => 'parse-failed',
+                    'staticFixtureBindingStatus' => $staticFixtureBinding['status'],
+                    'staticFixtureBinding' => $staticFixtureBinding,
                     ...$failure,
                 ];
                 continue;
@@ -844,6 +859,8 @@ final class DelimitedTextUpstreamReaderEvidence
                 $sampleResults[] = [
                     'name' => (string) $name,
                     'status' => 'parse-failed',
+                    'staticFixtureBindingStatus' => $staticFixtureBinding['status'],
+                    'staticFixtureBinding' => $staticFixtureBinding,
                     ...$failure,
                 ];
                 continue;
@@ -872,6 +889,8 @@ final class DelimitedTextUpstreamReaderEvidence
                 'inputPath' => $inputPath,
                 'expectedNativePath' => $expectedNativePath,
                 'readerOptions' => $readerOptions,
+                'staticFixtureBindingStatus' => $staticFixtureBinding['status'],
+                'staticFixtureBinding' => $staticFixtureBinding,
                 'reader' => 'tsv',
                 'expectedNativeSha256' => hash('sha256', $expectedNative),
                 'generatedNativeSha256' => hash('sha256', $generatedNative),
@@ -886,6 +905,8 @@ final class DelimitedTextUpstreamReaderEvidence
         $sampleCount = count(self::GENERATED_TSV_NATIVE_SAMPLES);
         $mismatchCount = $comparedCount - $matchCount;
         $staticEvidenceValid = self::hasRequiredGeneratedTsvNativeStaticEvidence($staticEvidence);
+        $validStaticFixtureBindingCount = self::validGeneratedNativeSampleStaticBindingCount($sampleResults, 'tsv');
+        $invalidStaticFixtureBindingCount = $sampleCount - $validStaticFixtureBindingCount;
 
         return [
             'schemaVersion' => 1,
@@ -903,7 +924,9 @@ final class DelimitedTextUpstreamReaderEvidence
             'generatedNativeMatchCount' => $matchCount,
             'generatedNativeMismatchCount' => $mismatchCount,
             'generatedNativeMatchPercent' => self::percent($matchCount, $sampleCount),
-            'parityStatus' => self::generatedTsvNativeParityStatus($staticEvidenceValid, count($parseFailures), $mismatchCount, $comparedCount, $sampleCount),
+            'staticFixtureBindingValidCount' => $validStaticFixtureBindingCount,
+            'staticFixtureBindingInvalidCount' => $invalidStaticFixtureBindingCount,
+            'parityStatus' => self::generatedTsvNativeParityStatus($staticEvidenceValid && $invalidStaticFixtureBindingCount === 0, count($parseFailures), $mismatchCount, $comparedCount, $sampleCount),
             'staticFixtureEvidence' => $staticEvidence,
             'samples' => $sampleResults,
             'parseFailures' => $parseFailures,
@@ -912,6 +935,7 @@ final class DelimitedTextUpstreamReaderEvidence
                 'doesAssert' => [
                     'the local TSV reader can read the checked-in generated TSV samples',
                     'the generated native output matches the checked-in expected native fixtures by normalized native token stream',
+                    'each executable generated TSV sample is bound to valid checked-in input and native snapshot evidence',
                     'the upstream TSV direct fixture denominator remains zero',
                 ],
                 'doesNotAssert' => [
@@ -1002,7 +1026,8 @@ final class DelimitedTextUpstreamReaderEvidence
             && ($validation['issues'] ?? null) === []
             && (int) ($evidence['sampleCount'] ?? -1) === self::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT
             && (int) ($evidence['checkedInFixtureCount'] ?? -1) === count(self::CHECKED_IN_GENERATED_CSV_NATIVE_FIXTURES)
-            && (int) ($evidence['csvDirectFixtureDenominator'] ?? -1) === self::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT;
+            && (int) ($evidence['csvDirectFixtureDenominator'] ?? -1) === self::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT
+            && self::hasRequiredGeneratedNativeStaticFixtureBindings($evidence, 'csv', array_keys(self::GENERATED_CSV_NATIVE_SAMPLES));
     }
 
     /**
@@ -1016,7 +1041,8 @@ final class DelimitedTextUpstreamReaderEvidence
             && ($validation['issues'] ?? null) === []
             && (int) ($evidence['sampleCount'] ?? -1) === self::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT
             && (int) ($evidence['checkedInFixtureCount'] ?? -1) === count(self::CHECKED_IN_GENERATED_TSV_NATIVE_FIXTURES)
-            && (int) ($evidence['tsvDirectFixtureDenominator'] ?? -1) === self::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT;
+            && (int) ($evidence['tsvDirectFixtureDenominator'] ?? -1) === self::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT
+            && self::hasRequiredGeneratedNativeStaticFixtureBindings($evidence, 'tsv', array_keys(self::GENERATED_TSV_NATIVE_SAMPLES));
     }
 
     /**
@@ -1055,8 +1081,11 @@ final class DelimitedTextUpstreamReaderEvidence
             && (int) ($evidence['parseFailureCount'] ?? -1) === 0
             && (int) ($evidence['generatedNativeMatchCount'] ?? -1) === $requiredSampleCount
             && (int) ($evidence['generatedNativeMismatchCount'] ?? -1) === 0
+            && (int) ($evidence['staticFixtureBindingValidCount'] ?? -1) === $requiredSampleCount
+            && (int) ($evidence['staticFixtureBindingInvalidCount'] ?? -1) === 0
             && ($evidence['parityStatus'] ?? null) === 'generated-csv-native-parity-observed-not-upstream-fixture'
-            && self::hasRequiredGeneratedCsvNativeStaticEvidence($staticEvidence);
+            && self::hasRequiredGeneratedCsvNativeStaticEvidence($staticEvidence)
+            && self::hasRequiredGeneratedNativeSampleStaticBindings($evidence, 'csv', $requiredSampleCount);
     }
 
     /**
@@ -1077,8 +1106,191 @@ final class DelimitedTextUpstreamReaderEvidence
             && (int) ($evidence['parseFailureCount'] ?? -1) === 0
             && (int) ($evidence['generatedNativeMatchCount'] ?? -1) === $requiredSampleCount
             && (int) ($evidence['generatedNativeMismatchCount'] ?? -1) === 0
+            && (int) ($evidence['staticFixtureBindingValidCount'] ?? -1) === $requiredSampleCount
+            && (int) ($evidence['staticFixtureBindingInvalidCount'] ?? -1) === 0
             && ($evidence['parityStatus'] ?? null) === 'generated-tsv-native-parity-observed-not-upstream-fixture'
-            && self::hasRequiredGeneratedTsvNativeStaticEvidence($staticEvidence);
+            && self::hasRequiredGeneratedTsvNativeStaticEvidence($staticEvidence)
+            && self::hasRequiredGeneratedNativeSampleStaticBindings($evidence, 'tsv', $requiredSampleCount);
+    }
+
+    /**
+     * @param array<string, mixed> $staticEvidence
+     * @param list<string> $sampleNames
+     */
+    private static function hasRequiredGeneratedNativeStaticFixtureBindings(array $staticEvidence, string $reader, array $sampleNames): bool
+    {
+        foreach ($sampleNames as $sampleName) {
+            $binding = self::generatedNativeSampleStaticBinding($staticEvidence, $reader, $sampleName);
+            if (($binding['status'] ?? null) !== self::validGeneratedNativeSampleStaticBindingStatus($reader)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array<string, mixed> $evidence
+     */
+    private static function hasRequiredGeneratedNativeSampleStaticBindings(array $evidence, string $reader, int $requiredSampleCount): bool
+    {
+        $samples = is_array($evidence['samples'] ?? null) ? $evidence['samples'] : [];
+        if (count($samples) !== $requiredSampleCount) {
+            return false;
+        }
+
+        $validStatus = self::validGeneratedNativeSampleStaticBindingStatus($reader);
+        foreach ($samples as $sample) {
+            if (!is_array($sample)) {
+                return false;
+            }
+            $binding = is_array($sample['staticFixtureBinding'] ?? null) ? $sample['staticFixtureBinding'] : [];
+            if (($sample['staticFixtureBindingStatus'] ?? null) !== $validStatus) {
+                return false;
+            }
+            if (($binding['status'] ?? null) !== $validStatus) {
+                return false;
+            }
+            if (($binding['reader'] ?? null) !== $reader) {
+                return false;
+            }
+            if (($binding['sample'] ?? null) !== ($sample['name'] ?? null)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array<int, mixed> $samples
+     */
+    private static function validGeneratedNativeSampleStaticBindingCount(array $samples, string $reader): int
+    {
+        $validStatus = self::validGeneratedNativeSampleStaticBindingStatus($reader);
+        $count = 0;
+        foreach ($samples as $sample) {
+            if (!is_array($sample)) {
+                continue;
+            }
+            $binding = is_array($sample['staticFixtureBinding'] ?? null) ? $sample['staticFixtureBinding'] : [];
+            if (($sample['staticFixtureBindingStatus'] ?? null) !== $validStatus) {
+                continue;
+            }
+            if (($binding['status'] ?? null) !== $validStatus) {
+                continue;
+            }
+            if (($binding['reader'] ?? null) !== $reader) {
+                continue;
+            }
+            if (($binding['sample'] ?? null) !== ($sample['name'] ?? null)) {
+                continue;
+            }
+
+            ++$count;
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param array<string, mixed> $staticEvidence
+     * @return array<string, mixed>
+     */
+    private static function generatedNativeSampleStaticBinding(array $staticEvidence, string $reader, string $sampleName): array
+    {
+        if ($reader !== 'csv' && $reader !== 'tsv') {
+            throw new \InvalidArgumentException("Unsupported generated native sample reader: {$reader}");
+        }
+
+        $fixtures = is_array($staticEvidence['checkedInFixtures'] ?? null) ? $staticEvidence['checkedInFixtures'] : [];
+        $inputRole = "generated-{$reader}-native-parity-input-fixture";
+        $expectedNativeRole = "generated-{$reader}-native-parity-expected-native-output";
+        $inputFixture = null;
+        $expectedNativeFixture = null;
+        foreach ($fixtures as $fixture) {
+            if (!is_array($fixture) || (string) ($fixture['sample'] ?? '') !== $sampleName) {
+                continue;
+            }
+            if (($fixture['role'] ?? null) === $inputRole) {
+                $inputFixture = $fixture;
+                continue;
+            }
+            if (($fixture['role'] ?? null) === $expectedNativeRole) {
+                $expectedNativeFixture = $fixture;
+            }
+        }
+
+        $inputSnapshot = self::generatedNativeStaticFixtureSnapshotSummary($inputFixture, $inputRole);
+        $expectedNativeSnapshot = self::generatedNativeStaticFixtureSnapshotSummary($expectedNativeFixture, $expectedNativeRole);
+        $bindingIsValid = ($inputSnapshot['snapshotMatches'] ?? false) === true
+            && ($expectedNativeSnapshot['snapshotMatches'] ?? false) === true;
+
+        return [
+            'kind' => "generated-{$reader}-native-sample-static-fixture-binding",
+            'reader' => $reader,
+            'sample' => $sampleName,
+            'status' => $bindingIsValid
+                ? self::validGeneratedNativeSampleStaticBindingStatus($reader)
+                : self::invalidGeneratedNativeSampleStaticBindingStatus($reader),
+            'inputFixture' => $inputSnapshot,
+            'expectedNativeFixture' => $expectedNativeSnapshot,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed>|null $fixture
+     * @return array<string, mixed>
+     */
+    private static function generatedNativeStaticFixtureSnapshotSummary(?array $fixture, string $expectedRole): array
+    {
+        if ($fixture === null) {
+            return [
+                'name' => null,
+                'role' => $expectedRole,
+                'checkedInPath' => null,
+                'present' => false,
+                'sha256MatchesSnapshot' => false,
+                'byteCountMatchesSnapshot' => false,
+                'snapshotMatches' => false,
+                'status' => 'missing-static-fixture-snapshot',
+            ];
+        }
+
+        $file = is_array($fixture['checkedInFile'] ?? null) ? $fixture['checkedInFile'] : [];
+        $present = ($file['present'] ?? false) === true;
+        $sha256 = is_string($file['sha256'] ?? null) ? $file['sha256'] : null;
+        $expectedSha256 = is_string($file['expectedSha256'] ?? null) ? $file['expectedSha256'] : null;
+        $bytes = is_int($file['bytes'] ?? null) ? $file['bytes'] : null;
+        $expectedBytes = is_int($file['expectedBytes'] ?? null) ? $file['expectedBytes'] : null;
+        $sha256MatchesSnapshot = $sha256 !== null && $expectedSha256 !== null && $sha256 === $expectedSha256;
+        $byteCountMatchesSnapshot = $bytes !== null && $expectedBytes !== null && $bytes === $expectedBytes;
+        $snapshotMatches = $present && $sha256MatchesSnapshot && $byteCountMatchesSnapshot;
+
+        return [
+            'name' => (string) ($fixture['name'] ?? ''),
+            'role' => (string) ($fixture['role'] ?? $expectedRole),
+            'checkedInPath' => (string) ($file['path'] ?? ''),
+            'present' => $present,
+            'sha256' => $sha256,
+            'expectedSha256' => $expectedSha256,
+            'sha256MatchesSnapshot' => $sha256MatchesSnapshot,
+            'bytes' => $bytes,
+            'expectedBytes' => $expectedBytes,
+            'byteCountMatchesSnapshot' => $byteCountMatchesSnapshot,
+            'snapshotMatches' => $snapshotMatches,
+            'status' => $snapshotMatches ? 'valid-static-fixture-snapshot' : 'invalid-static-fixture-snapshot',
+        ];
+    }
+
+    private static function validGeneratedNativeSampleStaticBindingStatus(string $reader): string
+    {
+        return "valid-generated-{$reader}-native-sample-static-binding";
+    }
+
+    private static function invalidGeneratedNativeSampleStaticBindingStatus(string $reader): string
+    {
+        return "invalid-generated-{$reader}-native-sample-static-binding";
     }
 
     private static function claim(): string
