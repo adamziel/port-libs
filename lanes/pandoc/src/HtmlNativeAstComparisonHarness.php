@@ -53,9 +53,17 @@ final class HtmlNativeAstComparisonHarness
         }
 
         $htmlFiles = $this->filesByBasename($htmlDirectory, 'html');
-        $nativeFiles = $this->filesByBasename($htmlDirectory, 'native');
-        $pairNames = array_values(array_intersect(array_keys($htmlFiles), array_keys($nativeFiles)));
+        $nativeFiles = array_filter(
+            $this->filesByBasename($htmlDirectory, 'native'),
+            static fn (string $basename): bool => isset($htmlFiles[$basename]) || self::isHtmlReaderFixtureBasename($basename),
+            ARRAY_FILTER_USE_KEY
+        );
+        $htmlFixtureNames = array_keys($htmlFiles);
+        $nativeFixtureNames = array_keys($nativeFiles);
+        $pairNames = array_values(array_intersect($htmlFixtureNames, $nativeFixtureNames));
         sort($pairNames, SORT_STRING);
+        $unpairedHtmlNames = array_values(array_diff($htmlFixtureNames, $pairNames));
+        $unpairedNativeNames = array_values(array_diff($nativeFixtureNames, $pairNames));
 
         $totalPairCount = count($pairNames);
         if ($limit > 0) {
@@ -135,6 +143,13 @@ final class HtmlNativeAstComparisonHarness
             'evidenceKind' => 'html-native-normalized-ast-comparison',
             'upstreamHtmlDirectory' => $htmlDirectory,
             'normalizationPolicy' => self::normalizationPolicy(),
+            'htmlFixtureCount' => count($htmlFiles),
+            'nativeFixtureCount' => count($nativeFiles),
+            'pairedFixtureCount' => $totalPairCount,
+            'unpairedHtmlFixtureCount' => count($unpairedHtmlNames),
+            'unpairedNativeFixtureCount' => count($unpairedNativeNames),
+            'unpairedHtmlFixtureExamples' => self::fixtureNamesWithExtension($unpairedHtmlNames, 'html', $maxExamples),
+            'unpairedNativeFixtureExamples' => self::fixtureNamesWithExtension($unpairedNativeNames, 'native', $maxExamples),
             'totalPairCount' => $totalPairCount,
             'comparedPairCount' => $comparedPairCount,
             'htmlParsedCount' => $htmlParsedCount,
@@ -150,10 +165,13 @@ final class HtmlNativeAstComparisonHarness
             'mismatchCategories' => array_values($categoryCounts),
             'orderedRemainingGaps' => self::orderedRemainingGaps(
                 true,
+                count($htmlFiles),
+                count($nativeFiles),
                 $comparedPairCount,
                 count($parseFailures),
                 $matchCount,
-                $mismatchCount
+                $mismatchCount,
+                count($unpairedHtmlNames)
             ),
         ];
     }
@@ -177,6 +195,14 @@ final class HtmlNativeAstComparisonHarness
             return implode(PHP_EOL, $lines) . PHP_EOL;
         }
 
+        $lines[] = sprintf(
+            'fixtureInventory: html=%d native=%d paired=%d unpairedHtml=%d unpairedNative=%d',
+            (int) ($report['htmlFixtureCount'] ?? 0),
+            (int) ($report['nativeFixtureCount'] ?? 0),
+            (int) ($report['pairedFixtureCount'] ?? $report['totalPairCount'] ?? 0),
+            (int) ($report['unpairedHtmlFixtureCount'] ?? 0),
+            (int) ($report['unpairedNativeFixtureCount'] ?? 0)
+        );
         $lines[] = sprintf(
             'pairs: total=%d compared=%d parsedBoth=%d parseFailures=%d',
             (int) ($report['totalPairCount'] ?? 0),
@@ -247,6 +273,13 @@ final class HtmlNativeAstComparisonHarness
             'evidenceKind' => 'html-native-normalized-ast-comparison',
             'upstreamHtmlDirectory' => $htmlDirectory,
             'normalizationPolicy' => self::normalizationPolicy(),
+            'htmlFixtureCount' => 0,
+            'nativeFixtureCount' => 0,
+            'pairedFixtureCount' => 0,
+            'unpairedHtmlFixtureCount' => 0,
+            'unpairedNativeFixtureCount' => 0,
+            'unpairedHtmlFixtureExamples' => [],
+            'unpairedNativeFixtureExamples' => [],
             'totalPairCount' => 0,
             'comparedPairCount' => 0,
             'htmlParsedCount' => 0,
@@ -260,7 +293,7 @@ final class HtmlNativeAstComparisonHarness
             'parseFailures' => [],
             'mismatchComparisons' => [],
             'mismatchCategories' => [],
-            'orderedRemainingGaps' => self::orderedRemainingGaps(false, 0, 0, 0, 0),
+            'orderedRemainingGaps' => self::orderedRemainingGaps(false, 0, 0, 0, 0, 0, 0, 0),
         ];
     }
 
@@ -304,6 +337,12 @@ final class HtmlNativeAstComparisonHarness
         ksort($files, SORT_STRING);
 
         return $files;
+    }
+
+    private static function isHtmlReaderFixtureBasename(string $basename): bool
+    {
+        return str_starts_with($basename, 'upstream-html-')
+            || str_starts_with($basename, 'upstream-native-html-');
     }
 
     /**
@@ -641,10 +680,13 @@ final class HtmlNativeAstComparisonHarness
      */
     private static function orderedRemainingGaps(
         bool $directoryPresent,
+        int $htmlFixtureCount,
+        int $nativeFixtureCount,
         int $comparedPairCount,
         int $parseFailureCount,
         int $matchCount,
-        int $mismatchCount
+        int $mismatchCount,
+        int $unpairedHtmlFixtureCount
     ): array {
         $astEvidence = $directoryPresent
             ? "native pairs={$comparedPairCount}; parse failures={$parseFailureCount}; normalized matches={$matchCount}; normalized mismatches={$mismatchCount}"
@@ -665,16 +707,27 @@ final class HtmlNativeAstComparisonHarness
             ],
             [
                 'rank' => 2,
+                'id' => 'checked-in-html-fixtures-without-native-pairs',
+                'status' => !$directoryPresent ? 'not-evaluated' : ($unpairedHtmlFixtureCount === 0 ? 'covered-by-current-normalized-ast-evidence' : 'open'),
+                'currentEvidence' => $directoryPresent
+                    ? "HTML fixtures={$htmlFixtureCount}; native fixtures={$nativeFixtureCount}; same-basename pairs={$comparedPairCount}; HTML fixtures without native pairs={$unpairedHtmlFixtureCount}"
+                    : 'HTML/native fixture directory absent; unpaired fixture inventory did not run',
+                'evidenceRequired' => 'Add same-basename checked-in .native expectations only when normalized AST parity has been demonstrated, and keep unpaired fixtures scoped as corpus-only evidence until then.',
+            ],
+            [
+                'rank' => 3,
                 'id' => 'upstream-html-reader-runner-results',
                 'status' => 'open',
                 'currentEvidence' => 'This harness compares checked-in HTML/native fixtures but does not run upstream Haskell/Tasty HTML reader tests.',
                 'evidenceRequired' => 'Record reproducible upstream Tests.Readers.HTML runner results when a Haskell runner is available.',
             ],
             [
-                'rank' => 3,
+                'rank' => 4,
                 'id' => 'full-html5-tree-construction-coverage',
                 'status' => 'open',
-                'currentEvidence' => "The current checked-in gate covers {$comparedPairCount} paired fixture(s).",
+                'currentEvidence' => $directoryPresent
+                    ? "The current checked-in gate covers {$comparedPairCount} paired fixture(s) out of {$htmlFixtureCount} HTML fixture(s)."
+                    : 'HTML/native fixture directory absent; fixture coverage did not run.',
                 'evidenceRequired' => 'Broaden fixture coverage across HTML5 parsing, DOM repair, raw HTML boundaries, metadata, tables, and inline semantics.',
             ],
         ];
@@ -717,5 +770,17 @@ final class HtmlNativeAstComparisonHarness
     private static function formatPercent(mixed $percent): string
     {
         return is_float($percent) || is_int($percent) ? number_format((float) $percent, 2) . '%' : 'n/a';
+    }
+
+    /**
+     * @param list<string> $basenames
+     * @return list<string>
+     */
+    private static function fixtureNamesWithExtension(array $basenames, string $extension, int $maxExamples): array
+    {
+        return array_map(
+            static fn (string $basename): string => $basename . '.' . $extension,
+            array_slice($basenames, 0, $maxExamples)
+        );
     }
 }

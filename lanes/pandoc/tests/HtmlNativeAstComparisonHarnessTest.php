@@ -113,6 +113,12 @@ return [
         $text = $harness->formatReport($report);
 
         $t->same('completed', $report['status']);
+        $t->same(48, $report['htmlFixtureCount']);
+        $t->same(21, $report['nativeFixtureCount']);
+        $t->same(21, $report['pairedFixtureCount']);
+        $t->same(27, $report['unpairedHtmlFixtureCount']);
+        $t->same(0, $report['unpairedNativeFixtureCount']);
+        $t->same('upstream-html-checkbox-list.html', $report['unpairedHtmlFixtureExamples'][0]);
         $t->same(21, $report['totalPairCount']);
         $t->same(21, $report['comparedPairCount']);
         $t->same(21, $report['htmlParsedCount']);
@@ -124,7 +130,11 @@ return [
         $t->same('normalized-ast-equality-observed-not-runner-parity', $report['astParityStatus']);
         $t->same(true, HtmlNativeAstComparisonHarness::hasRequiredMappedParity($report, 21));
         $t->same('covered-by-current-normalized-ast-evidence', $report['orderedRemainingGaps'][0]['status']);
-        $t->same('The current checked-in gate covers 21 paired fixture(s).', $report['orderedRemainingGaps'][2]['currentEvidence']);
+        $t->same('checked-in-html-fixtures-without-native-pairs', $report['orderedRemainingGaps'][1]['id']);
+        $t->same('open', $report['orderedRemainingGaps'][1]['status']);
+        $t->same('HTML fixtures=48; native fixtures=21; same-basename pairs=21; HTML fixtures without native pairs=27', $report['orderedRemainingGaps'][1]['currentEvidence']);
+        $t->same('The current checked-in gate covers 21 paired fixture(s) out of 48 HTML fixture(s).', $report['orderedRemainingGaps'][3]['currentEvidence']);
+        $t->contains('fixtureInventory: html=48 native=21 paired=21 unpairedHtml=27 unpairedNative=0', $text);
         $t->contains('pairs: total=21 compared=21 parsedBoth=21 parseFailures=0', $text);
         $t->contains('normalizedAst: matches=21 (100.00%) mismatches=0', $text);
 
@@ -141,6 +151,8 @@ return [
         $decoded = json_decode(implode("\n", $output), true, 512, JSON_THROW_ON_ERROR);
 
         $t->same(0, $exitCode);
+        $t->same(48, $decoded['htmlFixtureCount']);
+        $t->same(27, $decoded['unpairedHtmlFixtureCount']);
         $t->same(21, $decoded['normalizedAstMatchCount']);
         $t->same(0, $decoded['normalizedAstMismatchCount']);
     },

@@ -79,6 +79,7 @@ return [
         $t->contains('Pandoc HTML reader evidence', $text);
         $t->contains('Static current evidence: valid-checked-in-current-html-reader-evidence checkedInFixtures=48', $text);
         $t->contains('Native AST mapped parity: 21/21', $text);
+        $t->contains('Native AST fixture inventory: html=48 native=21 paired=21 unpairedHtml=27 unpairedNative=0', $text);
     },
 
     'reports checked-in current html fixture static evidence' => static function (TestRunner $t): void {

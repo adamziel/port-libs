@@ -393,6 +393,11 @@ final class HtmlUpstreamReaderEvidence
             'Native AST mapped parity: ' . (int) ($native['normalizedAstMatchCount'] ?? 0)
                 . '/' . (int) ($native['comparedPairCount'] ?? 0)
                 . ' status=' . (string) ($native['astParityStatus'] ?? 'unknown'),
+            'Native AST fixture inventory: html=' . (int) ($native['htmlFixtureCount'] ?? 0)
+                . ' native=' . (int) ($native['nativeFixtureCount'] ?? 0)
+                . ' paired=' . (int) ($native['pairedFixtureCount'] ?? $native['totalPairCount'] ?? 0)
+                . ' unpairedHtml=' . (int) ($native['unpairedHtmlFixtureCount'] ?? 0)
+                . ' unpairedNative=' . (int) ($native['unpairedNativeFixtureCount'] ?? 0),
             'Runner status: ' . (string) ($runner['status'] ?? 'unknown'),
             'Validation: ' . (string) ($validation['status'] ?? 'unknown'),
             'No upstream Haskell/Cabal runner result or full HTML reader parity is asserted.',
