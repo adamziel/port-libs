@@ -64,7 +64,8 @@ final class EpubUpstreamReaderEvidence
         '.port-libs/pandoc-runner/artifacts/epub-targeted-run/result.json',
     ];
     private const RUNNER_RESULT_ARTIFACT_KIND = 'upstream-epub-reader-runner-result-artifact';
-    private const RUNNER_RESULT_ARTIFACT_SCHEMA_VERSION = 1;
+    private const RUNNER_TRANSCRIPT_KIND = 'upstream-epub-reader-runner-transcript';
+    private const RUNNER_RESULT_ARTIFACT_SCHEMA_VERSION = 2;
 
     private readonly string $repoRoot;
     private readonly string $upstreamRoot;
@@ -336,6 +337,7 @@ final class EpubUpstreamReaderEvidence
         $validation = is_array($runner['validation'] ?? null) ? $runner['validation'] : [];
         $binding = is_array($runner['upstreamBinding'] ?? null) ? $runner['upstreamBinding'] : [];
         $target = is_array($runner['target'] ?? null) ? $runner['target'] : [];
+        $transcripts = is_array($runner['transcripts'] ?? null) ? $runner['transcripts'] : [];
 
         return ($runner['status'] ?? null) === 'completed'
             && ($runner['executed'] ?? null) === true
@@ -353,7 +355,39 @@ final class EpubUpstreamReaderEvidence
             && is_string($artifact['sha256'] ?? null)
             && is_int($artifact['bytes'] ?? null)
             && ($validation['status'] ?? null) === 'valid-upstream-epub-reader-runner-result-artifact'
-            && ($validation['issues'] ?? null) === [];
+            && ($validation['issues'] ?? null) === []
+            && self::hasValidRunnerTranscriptEvidence($transcripts);
+    }
+
+    /**
+     * @param list<mixed> $transcripts
+     */
+    private static function hasValidRunnerTranscriptEvidence(array $transcripts): bool
+    {
+        if (count($transcripts) !== count(self::RUNNER_REQUIRED_TRANSCRIPTS)) {
+            return false;
+        }
+
+        foreach (self::RUNNER_REQUIRED_TRANSCRIPTS as $index => $path) {
+            $transcript = $transcripts[$index] ?? null;
+            if (!is_array($transcript)) {
+                return false;
+            }
+            if (($transcript['kind'] ?? null) !== self::RUNNER_TRANSCRIPT_KIND) {
+                return false;
+            }
+            if (($transcript['path'] ?? null) !== $path) {
+                return false;
+            }
+            if (($transcript['present'] ?? null) !== true) {
+                return false;
+            }
+            if (!is_string($transcript['sha256'] ?? null) || !is_int($transcript['bytes'] ?? null)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -464,7 +498,7 @@ final class EpubUpstreamReaderEvidence
                 'the checked-in current EPUB package acceptance, package-feature signature, and normalized native AST parity snapshot when explicitly gated',
                 'that upstream Haskell runner evidence is explicitly not-run',
                 'the future upstream runner command plan targets test:test-pandoc Readers/EPUB/EPUB Mediabag at the pinned upstream commit without execution',
-                'a supplied upstream runner result artifact is validated against the pinned EPUB Tasty target, commit, test names, and pass/fail counts when explicitly provided',
+                'a supplied upstream runner result artifact is validated against the pinned EPUB Tasty target, commit, test names, pass/fail counts, and transcript file identities when explicitly provided',
             ],
             'doesNotAssert' => [
                 'that this PHP evidence command executed upstream Haskell/Cabal/Tasty tests',
@@ -496,6 +530,7 @@ final class EpubUpstreamReaderEvidence
     {
         $path = $this->absoluteRunnerResultArtifact();
         $artifact = $this->runnerResultArtifactFileEvidence($path);
+        $transcripts = $this->runnerTranscriptFileEvidenceList();
         $issues = [];
         $payload = [];
 
@@ -521,6 +556,10 @@ final class EpubUpstreamReaderEvidence
         $expectedTestNames = self::readerCaseNames($denominator);
         $observedTestNames = self::stringList($payload['testNames'] ?? ($payload['listedTests'] ?? []));
         $observedTranscriptPaths = self::stringList($payload['transcriptPaths'] ?? []);
+        $observedTranscriptRecords = self::runnerTranscriptRecords($payload['transcripts'] ?? []);
+        if ($observedTranscriptPaths === [] && $observedTranscriptRecords !== []) {
+            $observedTranscriptPaths = self::runnerTranscriptRecordPaths($observedTranscriptRecords);
+        }
         $runnerExecuted = ($payload['runnerExecuted'] ?? $payload['executed'] ?? null) === true;
         $exitCode = is_int($payload['exitCode'] ?? null) ? (int) $payload['exitCode'] : null;
         $testCount = is_int($payload['testCount'] ?? null) ? (int) $payload['testCount'] : null;
@@ -568,6 +607,9 @@ final class EpubUpstreamReaderEvidence
             if ($observedTranscriptPaths !== self::RUNNER_REQUIRED_TRANSCRIPTS) {
                 $issues[] = 'runner-result-transcript-paths-mismatch';
             }
+            foreach (self::runnerTranscriptValidationIssues($observedTranscriptRecords, $transcripts) as $issue) {
+                $issues[] = $issue;
+            }
         }
 
         $issues = array_values(array_unique($issues));
@@ -601,6 +643,7 @@ final class EpubUpstreamReaderEvidence
                 'skippedCount' => 0,
                 'testNames' => $expectedTestNames,
                 'transcriptPaths' => self::RUNNER_REQUIRED_TRANSCRIPTS,
+                'transcripts' => self::runnerTranscriptRecordsFromEvidence($transcripts),
                 'command' => $expectedCommand,
             ],
             'observed' => [
@@ -613,10 +656,12 @@ final class EpubUpstreamReaderEvidence
                 'skippedCount' => $skippedCount,
                 'testNames' => $observedTestNames,
                 'transcriptPaths' => $observedTranscriptPaths,
+                'transcripts' => $observedTranscriptRecords,
             ],
             'futureCommands' => self::runnerFutureCommands(),
             'requiredTranscripts' => self::RUNNER_REQUIRED_TRANSCRIPTS,
             'requiredArtifacts' => self::RUNNER_REQUIRED_ARTIFACTS,
+            'transcripts' => $transcripts,
             'validation' => [
                 'status' => $issues === []
                     ? 'valid-upstream-epub-reader-runner-result-artifact'
@@ -645,6 +690,154 @@ final class EpubUpstreamReaderEvidence
             'sha256' => is_string($sha256) ? $sha256 : null,
             'bytes' => is_int($bytes) ? $bytes : null,
         ];
+    }
+
+    /**
+     * @return list<array{kind: string, path: string, present: bool, sha256: ?string, bytes: ?int}>
+     */
+    private function runnerTranscriptFileEvidenceList(): array
+    {
+        $files = [];
+        foreach (self::RUNNER_REQUIRED_TRANSCRIPTS as $path) {
+            $files[] = $this->runnerTranscriptFileEvidence($path);
+        }
+
+        return $files;
+    }
+
+    /**
+     * @return array{kind: string, path: string, present: bool, sha256: ?string, bytes: ?int}
+     */
+    private function runnerTranscriptFileEvidence(string $relativePath): array
+    {
+        $path = $this->absoluteRunnerTranscriptPath($relativePath);
+        $present = is_file($path);
+        $sha256 = $present ? hash_file('sha256', $path) : null;
+        $bytes = $present ? filesize($path) : null;
+
+        return [
+            'kind' => self::RUNNER_TRANSCRIPT_KIND,
+            'path' => $this->displayPath($path),
+            'present' => $present,
+            'sha256' => is_string($sha256) ? $sha256 : null,
+            'bytes' => is_int($bytes) ? $bytes : null,
+        ];
+    }
+
+    private function absoluteRunnerTranscriptPath(string $path): string
+    {
+        if (str_starts_with($path, DIRECTORY_SEPARATOR)) {
+            return $path;
+        }
+
+        return $this->repoRoot . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $path);
+    }
+
+    /**
+     * @return list<array{path: string, sha256: ?string, bytes: ?int}>
+     */
+    private static function runnerTranscriptRecords(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $records = [];
+        foreach ($value as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $records[] = [
+                'path' => is_string($item['path'] ?? null) ? $item['path'] : '',
+                'sha256' => is_string($item['sha256'] ?? null) ? $item['sha256'] : null,
+                'bytes' => is_int($item['bytes'] ?? null) ? $item['bytes'] : null,
+            ];
+        }
+
+        return $records;
+    }
+
+    /**
+     * @param list<array{path: string, sha256: ?string, bytes: ?int}> $records
+     * @return list<string>
+     */
+    private static function runnerTranscriptRecordPaths(array $records): array
+    {
+        return array_map(
+            static fn (array $record): string => $record['path'],
+            $records
+        );
+    }
+
+    /**
+     * @param list<array{kind: string, path: string, present: bool, sha256: ?string, bytes: ?int}> $files
+     * @return list<array{path: string, sha256: ?string, bytes: ?int}>
+     */
+    private static function runnerTranscriptRecordsFromEvidence(array $files): array
+    {
+        $records = [];
+        foreach ($files as $file) {
+            $records[] = [
+                'path' => $file['path'],
+                'sha256' => $file['sha256'],
+                'bytes' => $file['bytes'],
+            ];
+        }
+
+        return $records;
+    }
+
+    /**
+     * @param list<array{path: string, sha256: ?string, bytes: ?int}> $observedRecords
+     * @param list<array{kind: string, path: string, present: bool, sha256: ?string, bytes: ?int}> $files
+     * @return list<string>
+     */
+    private static function runnerTranscriptValidationIssues(array $observedRecords, array $files): array
+    {
+        $issues = [];
+        if ($observedRecords === []) {
+            $issues[] = 'runner-result-transcript-records-missing';
+        }
+        if (self::runnerTranscriptRecordPaths($observedRecords) !== self::RUNNER_REQUIRED_TRANSCRIPTS) {
+            $issues[] = 'runner-result-transcript-record-paths-mismatch';
+        }
+
+        $recordsByPath = [];
+        foreach ($observedRecords as $record) {
+            if (isset($recordsByPath[$record['path']])) {
+                $issues[] = 'runner-result-transcript-record-paths-not-unique';
+                continue;
+            }
+            $recordsByPath[$record['path']] = $record;
+        }
+
+        $filesByPath = [];
+        foreach ($files as $file) {
+            $filesByPath[$file['path']] = $file;
+        }
+
+        foreach (self::RUNNER_REQUIRED_TRANSCRIPTS as $path) {
+            $file = $filesByPath[$path] ?? null;
+            if (!is_array($file) || ($file['present'] ?? null) !== true) {
+                $issues[] = 'runner-result-transcript-file-missing';
+                continue;
+            }
+
+            $record = $recordsByPath[$path] ?? null;
+            if (!is_array($record)) {
+                $issues[] = 'runner-result-transcript-record-missing';
+                continue;
+            }
+            if (($record['sha256'] ?? null) !== $file['sha256']) {
+                $issues[] = 'runner-result-transcript-sha256-mismatch';
+            }
+            if (($record['bytes'] ?? null) !== $file['bytes']) {
+                $issues[] = 'runner-result-transcript-bytes-mismatch';
+            }
+        }
+
+        return array_values(array_unique($issues));
     }
 
     private function absoluteRunnerResultArtifact(): string

@@ -33,7 +33,8 @@ Options:
   --require-runner-not-run                Exit 1 unless upstream runner evidence is structured as not-run.
   --require-runner-plan                   Exit 1 unless upstream runner evidence includes the pinned
                                           non-executed test:test-pandoc EPUB command plan.
-  --runner-result-artifact PATH           Validate a captured upstream runner result JSON artifact.
+  --runner-result-artifact PATH           Validate a captured upstream runner result JSON artifact
+                                          and its transcript file identities.
   --require-runner-result-artifact        Exit 1 unless the supplied runner result artifact is valid.
   --require-no-validation-issues          Exit 1 when denominator validation reports any issue.
   --help                                  Show this help.

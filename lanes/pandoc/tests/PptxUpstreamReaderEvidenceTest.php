@@ -70,6 +70,22 @@ HS);
     }
 };
 
+$writeRunnerTranscripts = static function (string $root, array $paths, string $label = 'pptx') use ($writeFile): array {
+    $records = [];
+    foreach (array_values($paths) as $index => $path) {
+        $contents = $label . " runner transcript " . (string) ($index + 1) . "\n" . $path . "\n";
+        $writeFile($root, $path, $contents);
+        $absolutePath = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $path);
+        $records[] = [
+            'path' => $path,
+            'sha256' => hash_file('sha256', $absolutePath),
+            'bytes' => filesize($absolutePath),
+        ];
+    }
+
+    return $records;
+};
+
 return [
     'reports skipped pptx reader evidence when upstream root is absent' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $root = $makeTempDir();
@@ -147,18 +163,19 @@ return [
             $removeTree($root);
         }
     },
-    'validates supplied pptx reader upstream runner result artifact' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile, $writePptxEvidenceTree): void {
+    'validates supplied pptx reader upstream runner result artifact' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile, $writePptxEvidenceTree, $writeRunnerTranscripts): void {
         $root = $makeTempDir();
         try {
             $writePptxEvidenceTree($root);
             $baseReport = (new PptxUpstreamReaderEvidence($root, '.'))->report();
             $runnerPlan = $baseReport['runnerEvidence'];
+            $transcripts = $writeRunnerTranscripts($root, $runnerPlan['requiredTranscripts']);
             $testNames = array_map(
                 static fn (array $case): string => $case['name'],
                 $baseReport['denominator']['readerCases']
             );
             $payload = [
-                'schemaVersion' => 1,
+                'schemaVersion' => 2,
                 'runner' => 'Cabal/Tasty Pandoc PPTX reader suite',
                 'runnerExecuted' => true,
                 'upstream' => [
@@ -174,7 +191,9 @@ return [
                 'skippedCount' => 0,
                 'testNames' => $testNames,
                 'transcriptPaths' => $runnerPlan['requiredTranscripts'],
+                'transcripts' => $transcripts,
             ];
+            $validPayload = $payload;
             $writeFile($root, 'result.json', json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
             $artifactPath = $root . '/result.json';
             $report = (new PptxUpstreamReaderEvidence($root, '.', $artifactPath))->report();
@@ -194,6 +213,10 @@ return [
             $t->same($runnerPlan['futureCommands'][2], $report['runnerEvidence']['command']);
             $t->same($testNames, $report['runnerEvidence']['observed']['testNames']);
             $t->same($runnerPlan['requiredTranscripts'], $report['runnerEvidence']['observed']['transcriptPaths']);
+            $t->same($transcripts, $report['runnerEvidence']['observed']['transcripts']);
+            $t->same($transcripts, $report['runnerEvidence']['expected']['transcripts']);
+            $t->same('upstream-pptx-reader-runner-transcript', $report['runnerEvidence']['transcripts'][0]['kind']);
+            $t->same(true, $report['runnerEvidence']['transcripts'][0]['present']);
             $t->same(true, PptxUpstreamReaderEvidence::hasRunnerResultArtifactEvidence($report));
             $t->same(false, PptxUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
             $t->same(false, PptxUpstreamReaderEvidence::hasRunnerPlanEvidence($report));
@@ -202,6 +225,7 @@ return [
             $t->contains('Runner result artifact: valid-upstream-pptx-reader-runner-result-artifact', $text);
             $t->contains('Supplied upstream Haskell/Cabal runner result artifact is validated', $text);
 
+            $payload = $validPayload;
             $payload['target']['tastyPattern'] = '$2 == "Readers" && $3 == "EPUB"';
             $payload['testNames'] = ['wrong test'];
             $writeFile($root, 'bad-result.json', json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
@@ -212,6 +236,15 @@ return [
             $t->true(in_array('runner-result-target-mismatch', $badReport['runnerEvidence']['validation']['issues'], true));
             $t->true(in_array('runner-result-test-names-mismatch', $badReport['runnerEvidence']['validation']['issues'], true));
             $t->same(false, PptxUpstreamReaderEvidence::hasRunnerResultArtifactEvidence($badReport));
+
+            $badTranscriptPayload = $validPayload;
+            $badTranscriptPayload['transcripts'][0]['sha256'] = str_repeat('0', 64);
+            $writeFile($root, 'bad-transcript-result.json', json_encode($badTranscriptPayload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+            $badTranscriptReport = (new PptxUpstreamReaderEvidence($root, '.', $root . '/bad-transcript-result.json'))->report();
+
+            $t->same('invalid', $badTranscriptReport['runnerEvidence']['status']);
+            $t->true(in_array('runner-result-transcript-sha256-mismatch', $badTranscriptReport['runnerEvidence']['validation']['issues'], true));
+            $t->same(false, PptxUpstreamReaderEvidence::hasRunnerResultArtifactEvidence($badTranscriptReport));
         } finally {
             $removeTree($root);
         }
@@ -774,18 +807,19 @@ HS);
             $removeTree($missingRoot);
         }
     },
-    'cli gates supplied pptx reader upstream runner result artifact' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile, $writePptxEvidenceTree): void {
+    'cli gates supplied pptx reader upstream runner result artifact' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile, $writePptxEvidenceTree, $writeRunnerTranscripts): void {
         $root = $makeTempDir();
         try {
             $writePptxEvidenceTree($root);
             $baseReport = (new PptxUpstreamReaderEvidence($root, '.'))->report();
             $runnerPlan = $baseReport['runnerEvidence'];
+            $transcripts = $writeRunnerTranscripts($root, $runnerPlan['requiredTranscripts']);
             $testNames = array_map(
                 static fn (array $case): string => $case['name'],
                 $baseReport['denominator']['readerCases']
             );
             $payload = [
-                'schemaVersion' => 1,
+                'schemaVersion' => 2,
                 'runner' => 'Cabal/Tasty Pandoc PPTX reader suite',
                 'runnerExecuted' => true,
                 'upstream' => [
@@ -801,12 +835,14 @@ HS);
                 'skippedCount' => 0,
                 'testNames' => $testNames,
                 'transcriptPaths' => $runnerPlan['requiredTranscripts'],
+                'transcripts' => $transcripts,
             ];
+            $validPayload = $payload;
             $writeFile($root, 'result.json', json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
             $command = escapeshellarg(PHP_BINARY)
                 . ' '
                 . escapeshellarg(dirname(__DIR__, 3) . '/tools/pandoc-pptx-reader-evidence.php')
-                . ' --repo-root=' . escapeshellarg(dirname($root))
+                . ' --repo-root=' . escapeshellarg($root)
                 . ' --upstream-root=' . escapeshellarg($root)
                 . ' --runner-result-artifact=' . escapeshellarg($root . '/result.json')
                 . ' --json'
@@ -824,6 +860,7 @@ HS);
             $t->same('valid-upstream-pptx-reader-runner-result-artifact', $decoded['runnerEvidence']['validation']['status']);
             $t->same(true, PptxUpstreamReaderEvidence::hasRunnerResultArtifactEvidence($decoded));
 
+            $payload = $validPayload;
             $payload['failedCount'] = 1;
             $payload['exitCode'] = 1;
             $writeFile($root, 'bad-result.json', json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));

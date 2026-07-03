@@ -102,6 +102,22 @@ HS);
     $writeFile($root, 'src/Text/Pandoc/Readers/EPUB.hs', "module Text.Pandoc.Readers.EPUB where\n");
 };
 
+$writeRunnerTranscripts = static function (string $root, array $paths, string $label = 'epub') use ($writeFile): array {
+    $records = [];
+    foreach (array_values($paths) as $index => $path) {
+        $contents = $label . " runner transcript " . (string) ($index + 1) . "\n" . $path . "\n";
+        $writeFile($root, $path, $contents);
+        $absolutePath = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $path);
+        $records[] = [
+            'path' => $path,
+            'sha256' => hash_file('sha256', $absolutePath),
+            'bytes' => filesize($absolutePath),
+        ];
+    }
+
+    return $records;
+};
+
 return [
     'reports skipped epub reader evidence when upstream root is absent' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $root = $makeTempDir();
@@ -321,21 +337,23 @@ return [
         $t->same(true, EpubUpstreamReaderEvidence::hasRunnerPlanEvidence($report));
     },
 
-    'validates supplied epub reader upstream runner result artifact' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile, $repoRoot): void {
+    'validates supplied epub reader upstream runner result artifact' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile, $writeRunnerTranscripts, $repoRoot): void {
         $root = $makeTempDir();
         try {
+            $fixtureRoot = $repoRoot() . '/lanes/pandoc/fixtures/upstream-current-epub-reader';
             $baseReport = (new EpubUpstreamReaderEvidence(
-                $repoRoot(),
-                'lanes/pandoc/fixtures/upstream-current-epub-reader',
-                'lanes/pandoc/fixtures/upstream-current-epub-reader'
+                $root,
+                $fixtureRoot,
+                $fixtureRoot
             ))->report();
             $runnerPlan = $baseReport['runnerEvidence'];
+            $transcripts = $writeRunnerTranscripts($root, $runnerPlan['requiredTranscripts']);
             $testNames = array_map(
                 static fn (array $case): string => $case['name'],
                 $baseReport['denominator']['readerCases']
             );
             $payload = [
-                'schemaVersion' => 1,
+                'schemaVersion' => 2,
                 'runner' => 'Cabal/Tasty Pandoc EPUB reader suite',
                 'runnerExecuted' => true,
                 'upstream' => [
@@ -351,13 +369,15 @@ return [
                 'skippedCount' => 0,
                 'testNames' => $testNames,
                 'transcriptPaths' => $runnerPlan['requiredTranscripts'],
+                'transcripts' => $transcripts,
             ];
+            $validPayload = $payload;
             $writeFile($root, 'result.json', json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
             $artifactPath = $root . '/result.json';
             $report = (new EpubUpstreamReaderEvidence(
-                $repoRoot(),
-                'lanes/pandoc/fixtures/upstream-current-epub-reader',
-                'lanes/pandoc/fixtures/upstream-current-epub-reader',
+                $root,
+                $fixtureRoot,
+                $fixtureRoot,
                 $artifactPath
             ))->report();
             $text = EpubUpstreamReaderEvidence::formatTextReport($report);
@@ -376,6 +396,10 @@ return [
             $t->same($runnerPlan['futureCommands'][2], $report['runnerEvidence']['command']);
             $t->same($testNames, $report['runnerEvidence']['observed']['testNames']);
             $t->same($runnerPlan['requiredTranscripts'], $report['runnerEvidence']['observed']['transcriptPaths']);
+            $t->same($transcripts, $report['runnerEvidence']['observed']['transcripts']);
+            $t->same($transcripts, $report['runnerEvidence']['expected']['transcripts']);
+            $t->same('upstream-epub-reader-runner-transcript', $report['runnerEvidence']['transcripts'][0]['kind']);
+            $t->same(true, $report['runnerEvidence']['transcripts'][0]['present']);
             $t->same(true, EpubUpstreamReaderEvidence::hasRunnerResultArtifactEvidence($report));
             $t->same(false, EpubUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
             $t->same(false, EpubUpstreamReaderEvidence::hasRunnerPlanEvidence($report));
@@ -386,13 +410,14 @@ return [
             $t->contains('Runner result artifact: valid-upstream-epub-reader-runner-result-artifact', $text);
             $t->contains('Supplied upstream Haskell/Cabal runner result artifact is validated', $text);
 
+            $payload = $validPayload;
             $payload['failedCount'] = 1;
             $payload['exitCode'] = 1;
             $writeFile($root, 'bad-result.json', json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
             $badReport = (new EpubUpstreamReaderEvidence(
-                $repoRoot(),
-                'lanes/pandoc/fixtures/upstream-current-epub-reader',
-                'lanes/pandoc/fixtures/upstream-current-epub-reader',
+                $root,
+                $fixtureRoot,
+                $fixtureRoot,
                 $root . '/bad-result.json'
             ))->report();
 
@@ -401,6 +426,20 @@ return [
             $t->true(in_array('runner-result-exit-code-nonzero', $badReport['runnerEvidence']['validation']['issues'], true));
             $t->true(in_array('runner-result-counts-mismatch', $badReport['runnerEvidence']['validation']['issues'], true));
             $t->same(false, EpubUpstreamReaderEvidence::hasRunnerResultArtifactEvidence($badReport));
+
+            $badTranscriptPayload = $validPayload;
+            $badTranscriptPayload['transcripts'][0]['bytes'] = 0;
+            $writeFile($root, 'bad-transcript-result.json', json_encode($badTranscriptPayload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+            $badTranscriptReport = (new EpubUpstreamReaderEvidence(
+                $root,
+                $fixtureRoot,
+                $fixtureRoot,
+                $root . '/bad-transcript-result.json'
+            ))->report();
+
+            $t->same('invalid', $badTranscriptReport['runnerEvidence']['status']);
+            $t->true(in_array('runner-result-transcript-bytes-mismatch', $badTranscriptReport['runnerEvidence']['validation']['issues'], true));
+            $t->same(false, EpubUpstreamReaderEvidence::hasRunnerResultArtifactEvidence($badTranscriptReport));
         } finally {
             $removeTree($root);
         }
@@ -486,21 +525,23 @@ HS);
         $t->true(in_array('full EPUB feature parity beyond the upstream reader media-bag tests', $decoded['claimBoundaries']['doesNotAssert'], true));
     },
 
-    'cli gates supplied epub reader upstream runner result artifact' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile, $repoRoot): void {
+    'cli gates supplied epub reader upstream runner result artifact' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile, $writeRunnerTranscripts, $repoRoot): void {
         $root = $makeTempDir();
         try {
+            $fixtureRoot = $repoRoot() . '/lanes/pandoc/fixtures/upstream-current-epub-reader';
             $baseReport = (new EpubUpstreamReaderEvidence(
-                $repoRoot(),
-                'lanes/pandoc/fixtures/upstream-current-epub-reader',
-                'lanes/pandoc/fixtures/upstream-current-epub-reader'
+                $root,
+                $fixtureRoot,
+                $fixtureRoot
             ))->report();
             $runnerPlan = $baseReport['runnerEvidence'];
+            $transcripts = $writeRunnerTranscripts($root, $runnerPlan['requiredTranscripts']);
             $testNames = array_map(
                 static fn (array $case): string => $case['name'],
                 $baseReport['denominator']['readerCases']
             );
             $payload = [
-                'schemaVersion' => 1,
+                'schemaVersion' => 2,
                 'runner' => 'Cabal/Tasty Pandoc EPUB reader suite',
                 'runnerExecuted' => true,
                 'upstream' => [
@@ -516,13 +557,16 @@ HS);
                 'skippedCount' => 0,
                 'testNames' => $testNames,
                 'transcriptPaths' => $runnerPlan['requiredTranscripts'],
+                'transcripts' => $transcripts,
             ];
+            $validPayload = $payload;
             $writeFile($root, 'result.json', json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
             $command = escapeshellarg(PHP_BINARY)
                 . ' '
                 . escapeshellarg(dirname(__DIR__, 3) . '/tools/pandoc-epub-reader-evidence.php')
-                . ' --repo-root=' . escapeshellarg($repoRoot())
-                . ' --checked-in-fixtures'
+                . ' --repo-root=' . escapeshellarg($root)
+                . ' --upstream-root=' . escapeshellarg($fixtureRoot)
+                . ' --fixture-base=' . escapeshellarg($fixtureRoot)
                 . ' --runner-result-artifact=' . escapeshellarg($root . '/result.json')
                 . ' --json'
                 . ' --require-test-count=6'
@@ -541,6 +585,7 @@ HS);
             $t->same(true, EpubUpstreamReaderEvidence::hasRunnerResultArtifactEvidence($decoded));
             $t->same(true, EpubUpstreamReaderEvidence::hasRequiredStaticCurrentSignature($decoded));
 
+            $payload = $validPayload;
             $payload['target']['tastyPattern'] = '$2 == "Readers" && $3 == "HTML"';
             $writeFile($root, 'bad-result.json', json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
             $failingCommand = str_replace('result.json', 'bad-result.json', $command) . ' 2>/dev/null';

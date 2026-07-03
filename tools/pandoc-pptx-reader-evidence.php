@@ -29,7 +29,8 @@ Options:
   --require-runner-not-run        Exit 1 unless upstream runner evidence is structured as not-run.
   --require-runner-plan           Exit 1 unless upstream runner evidence includes the pinned
                                   planned-not-run command plan.
-  --runner-result-artifact PATH   Validate a captured upstream runner result JSON artifact.
+  --runner-result-artifact PATH   Validate a captured upstream runner result JSON artifact
+                                  and its transcript file identities.
   --require-runner-result-artifact
                                   Exit 1 unless the supplied runner result artifact is valid.
   --help                          Show this help.
