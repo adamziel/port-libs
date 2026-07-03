@@ -75,11 +75,21 @@ return [
         $t->same(true, HtmlUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($report));
         $t->same(true, HtmlUpstreamReaderEvidence::hasRequiredNativeMappedParity($report, 60));
         $t->same(true, HtmlUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
+        $t->same(true, HtmlUpstreamReaderEvidence::hasRunnerPlanEvidence($report));
         $t->same(false, HtmlUpstreamReaderEvidence::hasNoValidationIssues($report));
+        $t->same('planned-not-run', $report['runnerEvidence']['commandPlanStatus']);
+        $t->same('test:test-pandoc', $report['runnerEvidence']['target']['testSuite']);
+        $t->same(['Readers', 'HTML'], $report['runnerEvidence']['target']['tastyGroupPath']);
+        $t->same('$2 == "Readers" && $3 == "HTML"', $report['runnerEvidence']['target']['tastyPattern']);
+        $t->same('$2 == "Readers" && $3 == "HTML"', $report['runnerEvidence']['futureCommands'][1]['arguments'][8]);
+        $t->same('$2 == "Readers" && $3 == "HTML"', $report['runnerEvidence']['futureCommands'][2]['arguments'][7]);
+        $t->true(in_array('.port-libs/pandoc-runner/logs/html-targeted-run.txt', $report['runnerEvidence']['requiredTranscripts'], true));
+        $t->true(in_array('.port-libs/pandoc-runner/artifacts/html-targeted-run/result.json', $report['runnerEvidence']['requiredArtifacts'], true));
         $t->contains('Pandoc HTML reader evidence', $text);
         $t->contains('Static current evidence: valid-checked-in-current-html-reader-evidence checkedInFixtures=60 nativePairs=60', $text);
         $t->contains('Native AST mapped parity: 60/60', $text);
         $t->contains('Native AST fixture inventory: html=60 native=60 paired=60 unpairedHtml=0 unpairedNative=0', $text);
+        $t->contains('Runner plan: planned-not-run', $text);
     },
 
     'reports checked-in current html fixture static evidence' => static function (TestRunner $t): void {
@@ -191,6 +201,7 @@ return [
             $t->same(true, HtmlUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($report));
             $t->same(true, HtmlUpstreamReaderEvidence::hasRequiredNativeMappedParity($report, 60));
             $t->same(true, HtmlUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
+            $t->same(true, HtmlUpstreamReaderEvidence::hasRunnerPlanEvidence($report));
             $t->same(false, HtmlUpstreamReaderEvidence::hasNoValidationIssues($report));
         } finally {
             $removeTree($root);
@@ -215,8 +226,10 @@ return [
             $t->same(true, HtmlUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($report));
             $t->same(true, HtmlUpstreamReaderEvidence::hasRequiredNativeMappedParity($report, 60));
             $t->same(true, HtmlUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
+            $t->same(true, HtmlUpstreamReaderEvidence::hasRunnerPlanEvidence($report));
             $t->same(true, HtmlUpstreamReaderEvidence::hasNoValidationIssues($report));
             $t->true(in_array('full upstream Tests.Readers.HTML runner parity', $report['claimBoundaries']['doesNotAssert'], true));
+            $t->true(in_array('the future upstream runner command plan targets test:test-pandoc Readers/HTML at the pinned upstream commit without execution', $report['claimBoundaries']['doesAssert'], true));
         } finally {
             $removeTree($root);
         }
@@ -233,7 +246,8 @@ return [
             . ' --require-selected-fixture-count=60'
             . ' --require-static-current-evidence'
             . ' --require-native-mapped-parity=60'
-            . ' --require-runner-not-run';
+            . ' --require-runner-not-run'
+            . ' --require-runner-plan';
         $output = [];
         $exitCode = 0;
         exec($command, $output, $exitCode);
@@ -246,6 +260,8 @@ return [
         $t->same(60, $decoded['staticCurrentEvidence']['checkedInNativePairCount']);
         $t->same(60, $decoded['nativeAstEvidence']['normalizedAstMatchCount']);
         $t->same('not-run', $decoded['runnerEvidence']['status']);
+        $t->same('planned-not-run', $decoded['runnerEvidence']['commandPlanStatus']);
+        $t->same('$2 == "Readers" && $3 == "HTML"', $decoded['runnerEvidence']['target']['tastyPattern']);
 
         $failingCommand = str_replace('--require-selected-fixture-count=60', '--require-selected-fixture-count=61', $command) . ' 2>/dev/null';
         $failingOutput = [];

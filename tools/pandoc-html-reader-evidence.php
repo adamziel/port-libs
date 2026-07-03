@@ -20,6 +20,8 @@ Options:
   --require-static-current-evidence   Exit 1 unless checked-in fixture hashes and local test references are valid.
   --require-native-mapped-parity N    Exit 1 unless the HTML/native AST gate observes N mapped pairs.
   --require-runner-not-run            Exit 1 unless upstream runner evidence is structured as not-run.
+  --require-runner-plan               Exit 1 unless upstream runner evidence includes the pinned
+                                      non-executed test:test-pandoc HTML command plan.
   --require-no-validation-issues      Exit 1 when hydrated-upstream validation reports any issue.
   --help                              Show this help.
 
@@ -36,6 +38,7 @@ try {
     $requiredNativeMappedParity = null;
     $requireStaticCurrentEvidence = false;
     $requireRunnerNotRun = false;
+    $requireRunnerPlan = false;
     $requireNoValidationIssues = false;
     $args = array_slice($argv, 1);
 
@@ -64,6 +67,10 @@ try {
         }
         if ($arg === '--require-runner-not-run') {
             $requireRunnerNotRun = true;
+            continue;
+        }
+        if ($arg === '--require-runner-plan') {
+            $requireRunnerPlan = true;
             continue;
         }
         if ($arg === '--require-no-validation-issues') {
@@ -149,6 +156,10 @@ try {
     }
     if ($requireRunnerNotRun && !HtmlUpstreamReaderEvidence::hasRunnerNotRunEvidence($report)) {
         fwrite(STDERR, "pandoc-html-reader-evidence: runner not-run evidence is invalid\n");
+        exit(1);
+    }
+    if ($requireRunnerPlan && !HtmlUpstreamReaderEvidence::hasRunnerPlanEvidence($report)) {
+        fwrite(STDERR, "pandoc-html-reader-evidence: runner command-plan evidence is invalid\n");
         exit(1);
     }
     if ($requireNoValidationIssues && !HtmlUpstreamReaderEvidence::hasNoValidationIssues($report)) {
