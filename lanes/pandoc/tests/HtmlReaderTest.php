@@ -43,6 +43,19 @@ $tests['imports upstream html sup and sub inline nodes'] =
         $t->same(' stay inline.', $paragraph->children[4]->attr('text'));
     };
 
+$tests['imports upstream html self closing anchor without href as span'] =
+    static function (TestRunner $t): void {
+        $document = (new HtmlReader())->read('<a name="anchor"/>');
+        $paragraph = $document->children[0];
+        $anchor = $paragraph->children[0];
+
+        $t->same('html', $document->attr('sourceFormat'));
+        $t->same(['paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same(['span'], array_map(static fn ($node): string => $node->type, $paragraph->children));
+        $t->same('anchor', $anchor->attr('id'));
+        $t->same([], $anchor->children);
+    };
+
 $tests['imports upstream html base absolute image without rewriting absolute url'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-base-absolute-image.html'));

@@ -14355,6 +14355,19 @@ final class MarkdownReader
             ];
         }
 
+        if (
+            preg_match('~\G<a(?=\s|/>)(?:\s+[A-Za-z_:][A-Za-z0-9_.:-]*(?:\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s"\'=<>`]+))?)*\s*/>~iu', $text, $selfClosingAnchor, 0, $offset) === 1
+            && preg_match('~\s+href\s*=~iu', $selfClosingAnchor[0]) !== 1
+        ) {
+            $nodes = $this->parseHtmlInlineFragmentNodes($selfClosingAnchor[0]);
+            if (count($nodes) === 1 && $nodes[0]->type === 'span') {
+                return [
+                    'node' => $nodes[0],
+                    'next' => $offset + strlen($selfClosingAnchor[0]),
+                ];
+            }
+        }
+
         if (preg_match('~\G<a(?=\s|>)(?:\s+(?:"[^"]*"|\'[^\']*\'|[^\'"<>])*)?>~iu', $text, $open, 0, $offset) === 1) {
             $afterOpen = $offset + strlen($open[0]);
             if (preg_match('~\G</a\s*>~iu', $text, $close, 0, $afterOpen) === 1) {
