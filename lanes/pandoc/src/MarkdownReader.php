@@ -1322,11 +1322,17 @@ final class MarkdownReader
      */
     private function tryParseMarkdownHeading(string $line): ?array
     {
-        if (preg_match('/^ {0,3}(#{1,6})[ \t]+(.+)$/', $line, $m) !== 1) {
+        if (preg_match('/^ {0,3}(#{1,6})(?:([ \t]+)(.*)|(.*))$/', $line, $m) !== 1) {
             return null;
         }
 
-        $text = $this->stripClosingAtxHeadingFence(trim($m[2]));
+        $spacer = $m[2] ?? '';
+        $text = $spacer !== '' ? (string) ($m[3] ?? '') : (string) ($m[4] ?? '');
+        if ($spacer === '' && $text !== '' && $this->spaceInAtxHeaderExtensionEnabled()) {
+            return null;
+        }
+
+        $text = $this->stripClosingAtxHeadingFence(trim($text));
 
         return $this->buildMarkdownHeading(strlen($m[1]), $text);
     }
@@ -13402,6 +13408,16 @@ final class MarkdownReader
         $canonical = MarkdownFormatProfile::canonicalFormat($format);
 
         return in_array($canonical, ['markdown', 'commonmark_x', 'markdown_phpextra', 'markdown_mmd'], true);
+    }
+
+    private function spaceInAtxHeaderExtensionEnabled(): bool
+    {
+        $overrides = $this->markdownExtensionOverrides();
+        if (array_key_exists('space_in_atx_header', $overrides)) {
+            return $overrides['space_in_atx_header'];
+        }
+
+        return true;
     }
 
     private function lineBlockExtensionEnabled(): bool

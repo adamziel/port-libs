@@ -376,6 +376,7 @@ final class MarkdownFormatProfile
                 'raw_tex',
                 'simple_tables',
                 'smart',
+                'space_in_atx_header',
                 'strikeout',
                 'subscript',
                 'superscript',
