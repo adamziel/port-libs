@@ -16,7 +16,7 @@ final class DelimitedTextUpstreamReaderEvidence
     public const CHECKED_IN_GENERATED_TSV_NATIVE_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/generated-current-tsv-reader';
     public const EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT = 2;
     public const EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT = 0;
-    public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 3;
+    public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 4;
     public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 4;
 
     private const CHECKED_IN_CURRENT_CSV_FIXTURES = [
@@ -78,6 +78,20 @@ final class DelimitedTextUpstreamReaderEvidence
             'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/backslash-escaped-quote.native',
             'sha256' => '0a512d33990f2629025b2eaae15e34d070fe5e985926e6d2d06d2937ac8ef1b5',
             'bytes' => 932,
+        ],
+        'quoted-linebreak.csv' => [
+            'role' => 'generated-csv-native-parity-input-fixture',
+            'sample' => 'quoted-linebreak',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/quoted-linebreak.csv',
+            'sha256' => 'b017e1cc1434c3422538e1b16fb240ae2c35b0bda12041f568cf5da7921b0476',
+            'bytes' => 48,
+        ],
+        'quoted-linebreak.native' => [
+            'role' => 'generated-csv-native-parity-expected-native-output',
+            'sample' => 'quoted-linebreak',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/quoted-linebreak.native',
+            'sha256' => '84472dfb9a0d40daf8c8c38cd50892cd2e13e8118e133ebfcac3720a16ae54f8',
+            'bytes' => 2136,
         ],
     ];
 
@@ -155,6 +169,10 @@ final class DelimitedTextUpstreamReaderEvidence
             'options' => [
                 'escape' => '\\',
             ],
+        ],
+        'quoted-linebreak' => [
+            'inputPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/quoted-linebreak.csv',
+            'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/quoted-linebreak.native',
         ],
     ];
 
@@ -923,7 +941,7 @@ final class DelimitedTextUpstreamReaderEvidence
 
     private static function claim(): string
     {
-        return 'Tracks the current upstream direct CSV command-reader fixtures, three generated CSV-to-native evidence samples, the absence of dedicated TSV command fixtures, and four generated TSV-to-native evidence samples for the delimited text reader.';
+        return 'Tracks the current upstream direct CSV command-reader fixtures, four generated CSV-to-native evidence samples, the absence of dedicated TSV command fixtures, and four generated TSV-to-native evidence samples for the delimited text reader.';
     }
 
     /**
@@ -937,7 +955,7 @@ final class DelimitedTextUpstreamReaderEvidence
                 'that the current pinned upstream CSV reader source files are present when an upstream checkout is inspected',
                 'that no dedicated TSV command fixture is available in the pinned direct-reader evidence set',
                 'static checked-in current csv.md and 01.csv fixture identity when staticCurrentEvidence is valid',
-                'three generated CSV-to-native local samples when generatedCsvNativeParityEvidence is valid',
+                'four generated CSV-to-native local samples when generatedCsvNativeParityEvidence is valid',
                 'four generated TSV-to-native local samples when generatedTsvNativeParityEvidence is valid',
             ],
             'doesNotAssert' => [
