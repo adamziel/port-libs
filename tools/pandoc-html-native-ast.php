@@ -79,6 +79,7 @@ if ($summary) {
         'evidenceKind',
         'upstreamHtmlDirectory',
         'htmlReaderFixtureOptionOverrides',
+        'checkedInFixtureInventorySignature',
         'htmlFixtureCount',
         'nativeFixtureCount',
         'pairedFixtureCount',

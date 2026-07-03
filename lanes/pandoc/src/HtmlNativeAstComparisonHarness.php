@@ -9,6 +9,8 @@ final class HtmlNativeAstComparisonHarness
     private const DEFAULT_MAX_EXAMPLES = 12;
     private const VERDICT = 'normalized-ast-comparison-not-full-html-parity';
     private const CLAIM = 'Compares local PHP HTML reader output with paired .native fixtures by normalized AST shape; reader provenance, table review metadata, and NativeReader constructor provenance are excluded, but no upstream Haskell runner or full HTML5 tree-construction parity is asserted.';
+    private const FIXTURE_INVENTORY_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
+    private const CHECKED_IN_FIXTURE_INVENTORY_SIGNATURE_SHA256 = '906d1522a9ea8c42a9342161bb4be597bad9a9991efae9842f335b18018137ac';
     private const HTML_READER_OPTIONS_BY_BASENAME = [
         'upstream-html-raw-disabled-skip' => ['htmlRawHtml' => false],
     ];
@@ -71,6 +73,13 @@ final class HtmlNativeAstComparisonHarness
         $unpairedNativeFixtureNames = self::fixtureNamesWithExtension($unpairedNativeNames, 'native', count($unpairedNativeNames));
 
         $totalPairCount = count($pairNames);
+        $fixtureInventorySignature = self::checkedInFixtureInventorySignature(
+            $htmlFiles,
+            $nativeFiles,
+            $pairNames,
+            $unpairedHtmlNames,
+            $unpairedNativeNames
+        );
         if ($limit > 0) {
             $pairNames = array_slice($pairNames, 0, $limit);
         }
@@ -149,6 +158,7 @@ final class HtmlNativeAstComparisonHarness
             'upstreamHtmlDirectory' => $htmlDirectory,
             'normalizationPolicy' => self::normalizationPolicy(),
             'htmlReaderFixtureOptionOverrides' => self::htmlReaderFixtureOptionOverrides(),
+            'checkedInFixtureInventorySignature' => $fixtureInventorySignature,
             'htmlFixtureCount' => count($htmlFiles),
             'nativeFixtureCount' => count($nativeFiles),
             'pairedFixtureCount' => $totalPairCount,
@@ -211,6 +221,16 @@ final class HtmlNativeAstComparisonHarness
             (int) ($report['unpairedHtmlFixtureCount'] ?? 0),
             (int) ($report['unpairedNativeFixtureCount'] ?? 0)
         );
+        $signature = is_array($report['checkedInFixtureInventorySignature'] ?? null)
+            ? $report['checkedInFixtureInventorySignature']
+            : [];
+        $lines[] = sprintf(
+            'fixtureInventorySignature: status=%s matchesExpected=%s sha256=%s expected=%s',
+            (string) ($signature['status'] ?? 'unknown'),
+            ($signature['matchesExpected'] ?? false) === true ? 'yes' : 'no',
+            (string) ($signature['sha256'] ?? ''),
+            (string) ($signature['expectedSha256'] ?? '')
+        );
         $lines[] = sprintf(
             'pairs: total=%d compared=%d parsedBoth=%d parseFailures=%d',
             (int) ($report['totalPairCount'] ?? 0),
@@ -254,6 +274,7 @@ final class HtmlNativeAstComparisonHarness
 
         return ($report['skipped'] ?? false) === false
             && ($report['status'] ?? null) === 'completed'
+            && self::hasValidCheckedInFixtureInventorySignature($report)
             && (int) ($report['totalPairCount'] ?? -1) === $requiredPairCount
             && (int) ($report['comparedPairCount'] ?? -1) === $requiredPairCount
             && (int) ($report['htmlParsedCount'] ?? -1) === $requiredPairCount
@@ -263,6 +284,20 @@ final class HtmlNativeAstComparisonHarness
             && (int) ($report['normalizedAstMatchCount'] ?? -1) === $requiredPairCount
             && (int) ($report['normalizedAstMismatchCount'] ?? -1) === 0
             && ($report['astParityStatus'] ?? null) === 'normalized-ast-equality-observed-not-runner-parity';
+    }
+
+    /**
+     * @param array<string, mixed> $report
+     */
+    public static function hasValidCheckedInFixtureInventorySignature(array $report): bool
+    {
+        $signature = $report['checkedInFixtureInventorySignature'] ?? null;
+
+        return is_array($signature)
+            && ($signature['status'] ?? null) === 'valid-checked-in-html-fixture-inventory'
+            && ($signature['matchesExpected'] ?? null) === true
+            && ($signature['algorithm'] ?? null) === self::FIXTURE_INVENTORY_SIGNATURE_ALGORITHM
+            && ($signature['sha256'] ?? null) === self::CHECKED_IN_FIXTURE_INVENTORY_SIGNATURE_SHA256;
     }
 
     /**
@@ -282,6 +317,7 @@ final class HtmlNativeAstComparisonHarness
             'upstreamHtmlDirectory' => $htmlDirectory,
             'normalizationPolicy' => self::normalizationPolicy(),
             'htmlReaderFixtureOptionOverrides' => self::htmlReaderFixtureOptionOverrides(),
+            'checkedInFixtureInventorySignature' => self::notEvaluatedFixtureInventorySignature(),
             'htmlFixtureCount' => 0,
             'nativeFixtureCount' => 0,
             'pairedFixtureCount' => 0,
@@ -392,6 +428,120 @@ final class HtmlNativeAstComparisonHarness
         }
 
         return $overrides;
+    }
+
+    /**
+     * @param array<string, string> $htmlFiles
+     * @param array<string, string> $nativeFiles
+     * @param list<string> $pairNames
+     * @param list<string> $unpairedHtmlNames
+     * @param list<string> $unpairedNativeNames
+     * @return array<string, mixed>
+     */
+    private static function checkedInFixtureInventorySignature(
+        array $htmlFiles,
+        array $nativeFiles,
+        array $pairNames,
+        array $unpairedHtmlNames,
+        array $unpairedNativeNames
+    ): array {
+        $records = [];
+        foreach ($htmlFiles as $basename => $path) {
+            $records[] = self::fixtureFileEvidence('html', $basename . '.html', $path);
+        }
+        foreach ($nativeFiles as $basename => $path) {
+            $records[] = self::fixtureFileEvidence('native', $basename . '.native', $path);
+        }
+
+        usort(
+            $records,
+            static fn (array $left, array $right): int => strcmp(
+                (string) ($left['fixture'] ?? ''),
+                (string) ($right['fixture'] ?? '')
+            ) ?: strcmp((string) ($left['kind'] ?? ''), (string) ($right['kind'] ?? ''))
+        );
+
+        $payload = [
+            'htmlFixtureCount' => count($htmlFiles),
+            'nativeFixtureCount' => count($nativeFiles),
+            'pairedFixtureCount' => count($pairNames),
+            'pairNames' => $pairNames,
+            'unpairedHtmlFixtureNames' => self::fixtureNamesWithExtension($unpairedHtmlNames, 'html', count($unpairedHtmlNames)),
+            'unpairedNativeFixtureNames' => self::fixtureNamesWithExtension($unpairedNativeNames, 'native', count($unpairedNativeNames)),
+            'htmlReaderFixtureOptionOverrides' => self::htmlReaderFixtureOptionOverrides(),
+            'records' => $records,
+        ];
+        $sha256 = hash('sha256', self::canonicalJson($payload));
+        $matchesExpected = $sha256 === self::CHECKED_IN_FIXTURE_INVENTORY_SIGNATURE_SHA256;
+
+        return [
+            'algorithm' => self::FIXTURE_INVENTORY_SIGNATURE_ALGORITHM,
+            'status' => $matchesExpected
+                ? 'valid-checked-in-html-fixture-inventory'
+                : 'checked-in-html-fixture-inventory-signature-mismatch',
+            'matchesExpected' => $matchesExpected,
+            'sha256' => $sha256,
+            'expectedSha256' => self::CHECKED_IN_FIXTURE_INVENTORY_SIGNATURE_SHA256,
+            'htmlFixtureCount' => count($htmlFiles),
+            'nativeFixtureCount' => count($nativeFiles),
+            'pairedFixtureCount' => count($pairNames),
+            'recordCount' => count($records),
+            'sampleRecords' => array_slice($records, 0, self::DEFAULT_MAX_EXAMPLES),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function notEvaluatedFixtureInventorySignature(): array
+    {
+        return [
+            'algorithm' => self::FIXTURE_INVENTORY_SIGNATURE_ALGORITHM,
+            'status' => 'not-evaluated',
+            'matchesExpected' => false,
+            'sha256' => null,
+            'expectedSha256' => self::CHECKED_IN_FIXTURE_INVENTORY_SIGNATURE_SHA256,
+            'htmlFixtureCount' => 0,
+            'nativeFixtureCount' => 0,
+            'pairedFixtureCount' => 0,
+            'recordCount' => 0,
+            'sampleRecords' => [],
+        ];
+    }
+
+    /**
+     * @return array{kind: string, fixture: string, sha256: string, bytes: int}
+     */
+    private static function fixtureFileEvidence(string $kind, string $fixture, string $path): array
+    {
+        return [
+            'kind' => $kind,
+            'fixture' => $fixture,
+            'sha256' => hash_file('sha256', $path),
+            'bytes' => (int) filesize($path),
+        ];
+    }
+
+    private static function canonicalJson(mixed $value): string
+    {
+        return json_encode(self::canonicalValue($value), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+    }
+
+    private static function canonicalValue(mixed $value): mixed
+    {
+        if (!is_array($value)) {
+            return $value;
+        }
+        if (array_is_list($value)) {
+            return array_map(self::canonicalValue(...), $value);
+        }
+
+        ksort($value, SORT_STRING);
+        foreach ($value as $key => $child) {
+            $value[$key] = self::canonicalValue($child);
+        }
+
+        return $value;
     }
 
     /**
