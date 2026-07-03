@@ -18,7 +18,7 @@ Options:
                                   denominators are split honestly.
   --require-generated-tsv-native-parity
                                   Exit 1 unless the generated TSV-to-native
-                                  sample matches its native fixture.
+                                  samples match their native fixtures.
   --require-runner-not-run        Exit 1 unless upstream runner evidence is
                                   structured as not-run for CSV and TSV.
   --require-no-validation-issues  Exit 1 when any validation issue is reported.
@@ -73,10 +73,10 @@ $validateGeneratedTsvNativeParity = static function (array $evidence): array {
 
     $expect(($evidence['reader'] ?? null) === 'tsv', 'Generated TSV native parity evidence reader must be tsv');
     $expect(($evidence['tsvDirectFixtureDenominator'] ?? null) === 0, 'Generated TSV native parity must keep TSV direct denominator at 0');
-    $expect(($evidence['sampleCount'] ?? null) === 1, 'Generated TSV native parity sample count must be 1');
-    $expect(($evidence['comparedSampleCount'] ?? null) === 1, 'Generated TSV native parity compared sample count must be 1');
+    $expect(($evidence['sampleCount'] ?? null) === DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, 'Generated TSV native parity sample count must match expected generated sample count');
+    $expect(($evidence['comparedSampleCount'] ?? null) === DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, 'Generated TSV native parity compared sample count must match expected generated sample count');
     $expect(($evidence['parseFailureCount'] ?? null) === 0, 'Generated TSV native parity parse failure count must be 0');
-    $expect(($evidence['generatedNativeMatchCount'] ?? null) === 1, 'Generated TSV native parity match count must be 1');
+    $expect(($evidence['generatedNativeMatchCount'] ?? null) === DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, 'Generated TSV native parity match count must match expected generated sample count');
     $expect(($evidence['generatedNativeMismatchCount'] ?? null) === 0, 'Generated TSV native parity mismatch count must be 0');
     $expect(
         DelimitedTextUpstreamReaderEvidence::hasRequiredGeneratedTsvNativeParity($evidence),

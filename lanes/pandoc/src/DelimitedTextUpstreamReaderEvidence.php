@@ -15,7 +15,7 @@ final class DelimitedTextUpstreamReaderEvidence
     public const CHECKED_IN_GENERATED_TSV_NATIVE_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/generated-current-tsv-reader';
     public const EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT = 2;
     public const EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT = 0;
-    public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 1;
+    public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 2;
 
     private const CHECKED_IN_CURRENT_CSV_FIXTURES = [
         'csv.md' => [
@@ -49,12 +49,30 @@ final class DelimitedTextUpstreamReaderEvidence
             'sha256' => 'f4c930c9d309c4dd6ec1c50eda9e45ff3614566e6c26e4b5254ce3e9c62abb2a',
             'bytes' => 1540,
         ],
+        'quote-trailing.tsv' => [
+            'role' => 'generated-tsv-native-parity-input-fixture',
+            'sample' => 'quote-trailing',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/quote-trailing.tsv',
+            'sha256' => 'c5694bc5e74a5920c4752369bd967be614f3d7f8fde6395bcd05c9b5f22d85dd',
+            'bytes' => 102,
+        ],
+        'quote-trailing.native' => [
+            'role' => 'generated-tsv-native-parity-expected-native-output',
+            'sample' => 'quote-trailing',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/quote-trailing.native',
+            'sha256' => '51b8ce6dc3164f654f50f7fc1597e2788b04a2b634a32a3f52d51951b68260b6',
+            'bytes' => 1975,
+        ],
     ];
 
     private const GENERATED_TSV_NATIVE_SAMPLES = [
         'simple' => [
             'inputPath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/simple.tsv',
             'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/simple.native',
+        ],
+        'quote-trailing' => [
+            'inputPath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/quote-trailing.tsv',
+            'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/quote-trailing.native',
         ],
     ];
 
@@ -299,16 +317,16 @@ final class DelimitedTextUpstreamReaderEvidence
                 'status' => $issues === [] ? 'valid-checked-in-generated-tsv-native-parity-evidence' : 'invalid-checked-in-generated-tsv-native-parity-evidence',
                 'issues' => array_values(array_unique($issues)),
             ],
-            'claim' => 'Static local TSV-to-native fixture evidence; this fixture pair is generated evidence and is not an upstream TSV direct-reader fixture.',
+            'claim' => 'Static local TSV-to-native fixture evidence; these fixture pairs are generated evidence and are not upstream TSV direct-reader fixtures.',
             'claimBoundaries' => [
                 'doesAssert' => [
                     'the generated TSV input and expected native output fixture files match checked-in SHA-256 and byte-count snapshots',
                     'the generated TSV native sample count is separate from the upstream TSV direct fixture denominator',
                 ],
                 'doesNotAssert' => [
-                    'that upstream provides a dedicated TSV command fixture',
+                    'that upstream provides dedicated TSV command fixtures',
                     'that upstream Haskell/Cabal/Tasty tests were executed',
-                    'full CSV/TSV feature parity beyond this generated TSV-to-native sample',
+                    'full CSV/TSV feature parity beyond these generated TSV-to-native samples',
                 ],
             ],
         ];
@@ -415,7 +433,7 @@ final class DelimitedTextUpstreamReaderEvidence
             'kind' => 'executable-generated-tsv-native-parity-evidence',
             'evidenceKind' => 'generated-tsv-native-parity',
             'status' => 'completed-generated-tsv-native-parity-evidence',
-            'claim' => 'Executes the local PHP TSV reader and native writer for one checked-in generated TSV sample; this is not an upstream TSV direct fixture or upstream runner result.',
+            'claim' => 'Executes the local PHP TSV reader and native writer for checked-in generated TSV samples; these are not upstream TSV direct fixtures or upstream runner results.',
             'fixtureDirectory' => self::CHECKED_IN_GENERATED_TSV_NATIVE_FIXTURE_DIRECTORY,
             'reader' => 'tsv',
             'tsvDirectFixtureDenominator' => self::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT,
@@ -432,14 +450,14 @@ final class DelimitedTextUpstreamReaderEvidence
             'mismatches' => $mismatches,
             'claimBoundaries' => [
                 'doesAssert' => [
-                    'the local TSV reader can read the checked-in generated TSV sample',
-                    'the generated native output matches the checked-in expected native fixture by normalized native token stream',
+                    'the local TSV reader can read the checked-in generated TSV samples',
+                    'the generated native output matches the checked-in expected native fixtures by normalized native token stream',
                     'the upstream TSV direct fixture denominator remains zero',
                 ],
                 'doesNotAssert' => [
-                    'that the generated TSV sample is an upstream command fixture',
+                    'that the generated TSV samples are upstream command fixtures',
                     'that upstream Haskell/Cabal/Tasty tests were executed',
-                    'full CSV/TSV feature parity beyond this generated TSV-to-native sample',
+                    'full CSV/TSV feature parity beyond these generated TSV-to-native samples',
                 ],
             ],
         ];
@@ -541,7 +559,7 @@ final class DelimitedTextUpstreamReaderEvidence
 
     private static function claim(): string
     {
-        return 'Tracks the current upstream direct CSV command-reader fixtures, the absence of dedicated TSV command fixtures, and one generated TSV-to-native evidence sample for the delimited text reader.';
+        return 'Tracks the current upstream direct CSV command-reader fixtures, the absence of dedicated TSV command fixtures, and two generated TSV-to-native evidence samples for the delimited text reader.';
     }
 
     /**
@@ -555,12 +573,12 @@ final class DelimitedTextUpstreamReaderEvidence
                 'that the current pinned upstream CSV reader source files are present when an upstream checkout is inspected',
                 'that no dedicated TSV command fixture is available in the pinned direct-reader evidence set',
                 'static checked-in current csv.md and 01.csv fixture identity when staticCurrentEvidence is valid',
-                'one generated TSV-to-native local sample when generatedTsvNativeParityEvidence is valid',
+                'two generated TSV-to-native local samples when generatedTsvNativeParityEvidence is valid',
             ],
             'doesNotAssert' => [
                 'that upstream Haskell/Cabal/Tasty tests were executed',
                 'that local PHP output matches every upstream CSV-adjacent command fixture',
-                'that the generated TSV sample is an upstream command fixture',
+                'that the generated TSV samples are upstream command fixtures',
                 'RST csv-table reader integration',
                 'full CSV/TSV feature parity beyond the direct reader fixture evidence',
             ],
