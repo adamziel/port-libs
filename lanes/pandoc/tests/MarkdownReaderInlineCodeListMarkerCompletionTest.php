@@ -62,6 +62,14 @@ $codeMarkerCases = [
     ],
 ];
 
+$fixtureCodeMarkerCases = [
+    ['codes' => ['(1) x', '2'], 'text' => 'If `(1) x`, then `2`'],
+    ['codes' => ['#. x'], 'text' => '`#. x`'],
+    ['codes' => ['- x'], 'text' => '`- x`'],
+    ['codes' => ['x``#. x'], 'text' => '`x``#. x`'],
+    ['codes' => ['x``- x'], 'text' => '`x``- x`'],
+];
+
 $blankNestedCases = [
     'bullet then bullet bullet' => ['- ', '- ', '- '],
     'bullet then ordered bullet' => ['- ', '1. ', '- '],
@@ -70,6 +78,31 @@ $blankNestedCases = [
 ];
 
 $tests = [];
+
+$tests['maps selected upstream inline code list marker fixture'] =
+    static function (TestRunner $t) use ($fixtureCodeMarkerCases): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-markdown-inline-code-list-markers.md');
+        $document = (new MarkdownReader())->read($fixture);
+        $lists = $document->children;
+
+        $t->same(['bullet_list', 'ordered_list'], array_map(static fn (AstNode $node): string => $node->type, $lists));
+        foreach ($lists as $list) {
+            $t->same(5, count($list->children));
+            foreach ($fixtureCodeMarkerCases as $index => $case) {
+                $item = $list->children[$index] ?? new AstNode('missing');
+                $codes = array_values(array_filter(
+                    $item->children,
+                    static fn (AstNode $node): bool => $node->type === 'code'
+                ));
+
+                $t->same($case['text'], $item->attr('text'));
+                $t->same(
+                    $case['codes'],
+                    array_map(static fn (AstNode $node): string => $node->attr('text'), $codes)
+                );
+            }
+        }
+    };
 
 foreach (['- ', '1. '] as $marker) {
     foreach ($codeMarkerCases as $name => $case) {
