@@ -28,6 +28,7 @@ final class MdocReader
         'Li' => true,
         'Nd' => true,
         'Nm' => true,
+        'Ns' => true,
         'Op' => true,
         'Pa' => true,
         'Ql' => true,
@@ -415,19 +416,27 @@ final class MdocReader
     {
         $inlines = [];
         $offset = 0;
+        $attachNextToPrevious = false;
         while ($offset < count($tokens)) {
             $token = $tokens[$offset];
             if ($token === '') {
                 ++$offset;
                 continue;
             }
+            if ($token === 'Ns') {
+                ++$offset;
+                $attachNextToPrevious = true;
+                continue;
+            }
             if (isset(self::CALLABLE_MACROS[$token])) {
-                $this->appendInlineNodes($inlines, $this->consumeCallableMacro($tokens, $offset));
+                $this->appendInlineNodes($inlines, $this->consumeCallableMacro($tokens, $offset), $attachNextToPrevious);
+                $attachNextToPrevious = false;
                 continue;
             }
 
             ++$offset;
-            $this->appendTextToken($inlines, $this->decodeRoffEscapes($token), $this->isClosingPunctuation($token));
+            $this->appendTextToken($inlines, $this->decodeRoffEscapes($token), $attachNextToPrevious || $this->isClosingPunctuation($token));
+            $attachNextToPrevious = false;
         }
 
         return $this->coalesceTextNodes($inlines);
@@ -492,7 +501,7 @@ final class MdocReader
         $children = $this->parseTokenStream($remaining);
         $inlines = [];
         $this->appendTextToken($inlines, '[', false);
-        $this->appendInlineNodes($inlines, $children);
+        $this->appendInlineNodesPreservingSpacing($inlines, $children);
         $this->appendTextToken($inlines, ']', true);
 
         return $inlines;
@@ -561,15 +570,35 @@ final class MdocReader
      * @param list<AstNode> $inlines
      * @param list<AstNode> $nodes
      */
-    private function appendInlineNodes(array &$inlines, array $nodes): void
+    private function appendInlineNodes(array &$inlines, array $nodes, bool $attachFirstToPrevious = false): void
     {
-        foreach ($nodes as $node) {
-            if ($node->type === 'text') {
-                $text = (string) $node->attr('text', '');
-                $this->appendTextToken($inlines, $text, $this->isClosingPunctuation($text));
+        foreach ($nodes as $offset => $node) {
+            if ($offset > 0) {
+                $inlines[] = $node;
                 continue;
             }
-            $this->appendInlineNode($inlines, $node, false);
+            $attachToPrevious = $attachFirstToPrevious && $offset === 0;
+            if ($node->type === 'text') {
+                $text = (string) $node->attr('text', '');
+                $this->appendTextToken($inlines, $text, $attachToPrevious || $this->isClosingPunctuation($text));
+                continue;
+            }
+            $this->appendInlineNode($inlines, $node, $attachToPrevious);
+        }
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     * @param list<AstNode> $nodes
+     */
+    private function appendInlineNodesPreservingSpacing(array &$inlines, array $nodes): void
+    {
+        foreach ($nodes as $offset => $node) {
+            if ($offset === 0) {
+                $this->appendInlineNodes($inlines, [$node]);
+                continue;
+            }
+            $inlines[] = $node;
         }
     }
 
@@ -633,6 +662,10 @@ final class MdocReader
 
     private function isClosingPunctuation(string $token): bool
     {
+        if ($token === '...') {
+            return false;
+        }
+
         return preg_match('/^[\\]\\)\\.,;:!?]+$/', $token) === 1;
     }
 

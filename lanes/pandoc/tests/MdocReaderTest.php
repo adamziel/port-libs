@@ -112,6 +112,36 @@ MDOC);
         $t->same(['Cm'], $classes($definition->children[1]->children[0]->children[0]));
     },
 
+    'maps mdoc no-space macro between callable inline macros' => static function (TestRunner $t) use ($read, $plainText, $classes): void {
+        $document = $read(<<<'MDOC'
+.Dd July 3, 2026
+.Dt APPLY 1
+.Os
+.Sh SYNOPSIS
+.Nm
+.Op Cm - Ns Ar #
+.Ar command argument ...
+.Sh DESCRIPTION
+.Li d Ns \'th
+.Bl -tag -width indent
+.It Cm - Ns Ar #
+Numbered option.
+.El
+MDOC);
+
+        $synopsis = $document->children[1];
+        $ordinal = $document->children[3];
+        $definition = $document->children[4];
+        $term = $definition->children[0]->children[0];
+
+        $t->same('line_block', $synopsis->type);
+        $t->same('apply [-#] command argument ...', $plainText($synopsis));
+        $t->same("d'th", $plainText($ordinal));
+        $t->same('-#', $plainText($term));
+        $t->same(['Cm'], $classes($term->children[0]));
+        $t->same(['variable'], $classes($term->children[1]));
+    },
+
     'recovers detached mdoc item macros and unmatched closers from real manuals' => static function (TestRunner $t) use ($read, $plainText, $types, $classes): void {
         $document = $read(<<<'MDOC'
 .Dd July 3, 2026
