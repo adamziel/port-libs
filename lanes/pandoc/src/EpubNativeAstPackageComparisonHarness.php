@@ -657,11 +657,42 @@ final class EpubNativeAstPackageComparisonHarness
     private function packageSummary(string $fixture, EpubPackage $package): array
     {
         $assets = $package->assetSummary();
+        $metadata = $package->metadata();
         $navigation = $package->navigation();
+        $navigationSections = $package->navigationSections();
+        $navigationSectionTypes = [];
+        $landmarkEntryCount = 0;
+        $pageListEntryCount = 0;
+        $auxiliaryNavigationEntryCount = 0;
+
+        foreach ($navigationSections as $section) {
+            $types = is_array($section['types'] ?? null) ? $section['types'] : [];
+            $entries = is_array($section['entries'] ?? null) ? $section['entries'] : [];
+            foreach ($types as $type) {
+                if (!is_string($type) || $type === '') {
+                    continue;
+                }
+                $navigationSectionTypes[$type] = true;
+                if ($type === 'landmarks') {
+                    $landmarkEntryCount += count($entries);
+                } elseif ($type === 'page-list') {
+                    $pageListEntryCount += count($entries);
+                } elseif ($type !== 'toc') {
+                    $auxiliaryNavigationEntryCount += count($entries);
+                }
+            }
+        }
+        $navigationSectionTypes = array_keys($navigationSectionTypes);
+        sort($navigationSectionTypes, SORT_STRING);
 
         return [
             'fixture' => $fixture,
             'opfPart' => $package->opfPartName(),
+            'metadataTitle' => is_string($metadata['title'] ?? null) ? $metadata['title'] : '',
+            'metadataLanguage' => is_string($metadata['language'] ?? null) ? $metadata['language'] : '',
+            'metadataCreatorCount' => is_array($metadata['creators'] ?? null) ? count($metadata['creators']) : 0,
+            'packageLinkCount' => count($package->packageLinks()),
+            'guideReferenceCount' => count($package->guideReferences()),
             'manifestItemCount' => count($package->manifestItems()),
             'readingOrderCount' => count($package->readingOrder()),
             'xhtmlAssetCount' => count($assets['xhtmlParts']),
@@ -669,6 +700,11 @@ final class EpubNativeAstPackageComparisonHarness
             'stylesheetAssetCount' => count($assets['stylesheetParts']),
             'navigationType' => is_array($navigation) ? (string) ($navigation['type'] ?? '') : null,
             'navigationEntryCount' => is_array($navigation) && is_array($navigation['entries'] ?? null) ? count($navigation['entries']) : 0,
+            'navigationSectionCount' => count($navigationSections),
+            'navigationSectionTypes' => $navigationSectionTypes,
+            'landmarkEntryCount' => $landmarkEntryCount,
+            'pageListEntryCount' => $pageListEntryCount,
+            'auxiliaryNavigationEntryCount' => $auxiliaryNavigationEntryCount,
             'coverImagePart' => $assets['coverImagePart'],
         ];
     }

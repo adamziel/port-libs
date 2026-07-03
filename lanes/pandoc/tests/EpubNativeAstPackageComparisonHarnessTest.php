@@ -84,6 +84,82 @@ HTML],
     }
 };
 
+$writeNavigationEvidenceEpub = static function (string $path): void {
+    $bytes = ZipPackage::fromParts([
+        ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+        ['name' => 'META-INF/container.xml', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML],
+        ['name' => 'EPUB/package.opf', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf" xmlns:dc="http://purl.org/dc/elements/1.1/" version="3.0" unique-identifier="bookid">
+  <metadata>
+    <dc:identifier id="bookid">urn:uuid:generated-navigation-evidence</dc:identifier>
+    <dc:title>Generated Navigation Evidence</dc:title>
+    <dc:creator id="creator">Package Auditor</dc:creator>
+    <dc:language>en</dc:language>
+    <dc:publisher>Port Libs Press</dc:publisher>
+    <dc:date>2026-07-03</dc:date>
+    <meta property="file-as" refines="#creator">Auditor, Package</meta>
+    <link id="review-record" rel="record" href="review.json" media-type="application/json"/>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="review" href="review.json" media-type="application/json"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+  <guide>
+    <reference type="text" title="Start" href="chapter.xhtml"/>
+  </guide>
+</package>
+XML],
+        ['name' => 'EPUB/nav.xhtml', 'data' => <<<'HTML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <ol>
+        <li><a href="chapter.xhtml">Navigation Evidence</a></li>
+      </ol>
+    </nav>
+    <nav epub:type="landmarks">
+      <ol>
+        <li><a href="chapter.xhtml">Start</a></li>
+      </ol>
+    </nav>
+    <nav epub:type="page-list">
+      <ol>
+        <li><a epub:type="pagebreak" href="chapter.xhtml">1</a></li>
+      </ol>
+    </nav>
+    <nav epub:type="loi">
+      <ol>
+        <li><a href="chapter.xhtml">Illustrations</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+HTML],
+        ['name' => 'EPUB/chapter.xhtml', 'data' => <<<'HTML'
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <body><h1>Navigation Evidence</h1><p>Reader package audit.</p></body>
+</html>
+HTML],
+        ['name' => 'EPUB/review.json', 'data' => '{"kind":"generated-local-epub-package-evidence"}'],
+    ], 'generated EPUB package evidence')->bytes();
+
+    if (file_put_contents($path, $bytes) === false) {
+        throw new RuntimeException("Unable to write generated EPUB evidence fixture {$path}");
+    }
+};
+
 $fixtureRoot = static fn (): string => dirname(__DIR__) . '/fixtures/upstream-current-epub-reader/epub';
 
 return [
@@ -146,6 +222,68 @@ return [
             $t->same('different', $report['mismatchComparisons'][0]['fixture']);
             $t->contains('normalizedAst: matches=1 (50.00%) mismatches=1', $text);
             $t->contains('upstream-epub-native-ast-equality [open]', $text);
+        } finally {
+            $removeTree($root);
+        }
+    },
+
+    'generated epub fixture gates metadata navigation and package summary evidence separately from current snapshot' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeNavigationEvidenceEpub): void {
+        $root = $makeTempDir();
+        try {
+            $writeNavigationEvidenceEpub($root . '/generated-navigation.epub');
+            file_put_contents($root . '/generated-navigation.native', '[Para [Span ("chapter.xhtml",[],[]) []],Header 1 ("",[],[]) [Str "Navigation",Space,Str "Evidence"],Para [Str "Reader",Space,Str "package",Space,Str "audit."]]');
+
+            $harness = new EpubNativeAstPackageComparisonHarness();
+            $report = $harness->run($root);
+            $summary = $report['packageSummaries'][0];
+
+            $t->same('completed', $report['status']);
+            $t->same(1, $report['totalEpubCount']);
+            $t->same(1, $report['packageParsedCount']);
+            $t->same(1, $report['readerParsedCount']);
+            $t->same(1, $report['totalPairCount']);
+            $t->same(1, $report['nativeParsedCount']);
+            $t->same(1, $report['normalizedAstMatchCount']);
+            $t->same(0, $report['normalizedAstMismatchCount']);
+            $t->same(true, EpubNativeAstPackageComparisonHarness::hasRequiredPackageParity($report, 1));
+            $t->same(true, EpubNativeAstPackageComparisonHarness::hasRequiredNativeReadiness($report, 1));
+            $t->same(true, EpubNativeAstPackageComparisonHarness::hasRequiredMappedParity($report, 1));
+            $t->same('generated-navigation', $summary['fixture']);
+            $t->same('Generated Navigation Evidence', $summary['metadataTitle']);
+            $t->same('en', $summary['metadataLanguage']);
+            $t->same(1, $summary['metadataCreatorCount']);
+            $t->same(1, $summary['packageLinkCount']);
+            $t->same(1, $summary['guideReferenceCount']);
+            $t->same(3, $summary['manifestItemCount']);
+            $t->same(1, $summary['readingOrderCount']);
+            $t->same('nav', $summary['navigationType']);
+            $t->same(1, $summary['navigationEntryCount']);
+            $t->same(4, $summary['navigationSectionCount']);
+            $t->same(['landmarks', 'loi', 'page-list', 'toc'], $summary['navigationSectionTypes']);
+            $t->same(1, $summary['landmarkEntryCount']);
+            $t->same(1, $summary['pageListEntryCount']);
+            $t->same(1, $summary['auxiliaryNavigationEntryCount']);
+
+            $command = escapeshellarg(PHP_BINARY)
+                . ' '
+                . escapeshellarg(dirname(__DIR__, 3) . '/tools/pandoc-epub-native-ast-package.php')
+                . ' --epub-dir=' . escapeshellarg($root)
+                . ' --json'
+                . ' summary'
+                . ' --require-package-parity=1'
+                . ' --require-native-readiness=1'
+                . ' --require-mapped-parity=1';
+            $output = [];
+            $exitCode = 0;
+            exec($command, $output, $exitCode);
+            $decoded = json_decode(implode("\n", $output), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same(0, $exitCode);
+            $t->same(1, $decoded['packageParsedCount']);
+            $t->same(1, $decoded['readerParsedCount']);
+            $t->same(1, $decoded['nativeParsedCount']);
+            $t->same(1, $decoded['normalizedAstMatchCount']);
+            $t->same(0, $decoded['normalizedAstMismatchCount']);
         } finally {
             $removeTree($root);
         }
