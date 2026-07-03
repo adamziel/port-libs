@@ -5857,10 +5857,39 @@ final class MarkdownWriter
     private function renderDefinitionTerm(AstNode $item): string
     {
         $term = $item->children[0] ?? null;
-        $text = $term instanceof AstNode && $term->children !== []
-            ? $this->renderBlockInlines($term->children)
-            : (string) $item->attr('term', $term instanceof AstNode ? $term->attr('text', '') : '');
+        if ($term instanceof AstNode && $term->children !== []) {
+            return $this->renderDefinitionTermInlines($term->children);
+        }
 
+        $text = (string) $item->attr('term', $term instanceof AstNode ? $term->attr('text', '') : '');
+
+        return $this->normalizeDefinitionTermLine($text);
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function renderDefinitionTermInlines(array $nodes): string
+    {
+        $lines = [];
+        $lineNodes = [];
+        foreach ($nodes as $node) {
+            if ($node->type === 'linebreak') {
+                $lines[] = $this->normalizeDefinitionTermLine($this->renderBlockInlines($lineNodes));
+                $lineNodes = [];
+                continue;
+            }
+
+            $lineNodes[] = $node;
+        }
+
+        $lines[] = $this->normalizeDefinitionTermLine($this->renderBlockInlines($lineNodes));
+
+        return trim(implode("\n", $lines));
+    }
+
+    private function normalizeDefinitionTermLine(string $text): string
+    {
         return trim(preg_replace('/[ \t]*\R[ \t]*/u', ' ', $text) ?? $text);
     }
 
@@ -5910,6 +5939,18 @@ final class MarkdownWriter
             return [rtrim($marker)];
         }
 
+        if ($this->definitionBodyNeedsDetachedMarker($definition)) {
+            $continuation = str_repeat(' ', $leadingChars);
+
+            return array_merge(
+                [rtrim($marker), ''],
+                array_map(
+                    static fn (string $line): string => $line === '' ? '' : $continuation . $line,
+                    $bodyLines
+                )
+            );
+        }
+
         $first = array_shift($bodyLines);
         $lines = [$marker . (string) $first];
         $continuation = str_repeat(' ', $leadingChars);
@@ -5918,6 +5959,14 @@ final class MarkdownWriter
         }
 
         return $lines;
+    }
+
+    private function definitionBodyNeedsDetachedMarker(AstNode $definition): bool
+    {
+        $first = $definition->children[0] ?? null;
+
+        return $first instanceof AstNode
+            && in_array($first->type, ['div', 'raw_html', 'raw_tex', 'raw_block', 'raw_markdown'], true);
     }
 
     /**
