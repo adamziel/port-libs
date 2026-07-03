@@ -417,7 +417,7 @@ final class MarkdownReader
                 $blocks[] = $listBlock;
                 continue;
             }
-            $indentedCodeBlock = $listStack === [] ? $this->tryReadIndentedCodeBlock($lines, $index) : null;
+            $indentedCodeBlock = $paragraph === [] && $listStack === [] ? $this->tryReadIndentedCodeBlock($lines, $index) : null;
             if ($indentedCodeBlock !== null) {
                 $this->flushParagraph($paragraph, $blocks);
                 $blocks[] = $indentedCodeBlock;
@@ -11590,21 +11590,12 @@ final class MarkdownReader
 
     private function isIndentedCodeLine(string $line): bool
     {
-        return str_starts_with($line, '    ') || str_starts_with($line, "\t");
+        return $this->countIndentColumns($line) >= 4;
     }
 
     private function stripCodeIndent(string $line): string
     {
-        if (str_starts_with($line, "\t")) {
-            return $this->expandTabs(substr($line, 1));
-        }
-
-        return $this->expandTabs(substr($line, 4));
-    }
-
-    private function expandTabs(string $line): string
-    {
-        return str_replace("\t", '    ', $line);
+        return $this->stripIndentColumns($line, 4);
     }
 
     private function isClosingCodeFence(string $line, string $fenceChar, int $fenceLength): bool
@@ -11618,9 +11609,10 @@ final class MarkdownReader
             return $line;
         }
 
-        $spaces = min($indent, strspn($line, ' '));
+        $expanded = $this->expandTabsToSpaces($line);
+        $spaces = min($indent, strspn($expanded, ' '));
 
-        return substr($line, $spaces);
+        return substr($expanded, $spaces);
     }
 
     /**
