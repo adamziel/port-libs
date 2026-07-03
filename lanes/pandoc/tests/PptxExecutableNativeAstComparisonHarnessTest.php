@@ -49,7 +49,7 @@ $copyBasicFixture = static function (string $root): void {
 
 return [
     'validates checked-in real pandoc pptx executable evidence snapshot' => static function (TestRunner $t): void {
-        $snapshotPath = dirname(__DIR__) . '/fixtures/upstream-current-pptx-reader/basic.executable-native-ast.json';
+        $snapshotPath = dirname(__DIR__) . '/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
         $snapshot = json_decode((string) file_get_contents($snapshotPath), true, 512, JSON_THROW_ON_ERROR);
 
         $t->same('pandoc-pptx-executable-native-ast', $snapshot['tool']);
@@ -61,19 +61,21 @@ return [
         $t->same('lanes/pandoc/fixtures/upstream-current-pptx-reader', $snapshot['pptxDirectory']);
         $t->same('/opt/homebrew/bin/pandoc', $snapshot['pandocExecutable']);
         $t->same('pandoc 3.10', $snapshot['pandocVersion']);
-        $t->same(1, $snapshot['totalPptxCount']);
-        $t->same(1, $snapshot['comparedPptxCount']);
-        $t->same(1, $snapshot['localParsedCount']);
-        $t->same(1, $snapshot['pandocParsedCount']);
-        $t->same(1, $snapshot['nativeFixtureParsedCount']);
-        $t->same(1, $snapshot['normalizedAstMatchCount']);
+        $t->same(['basic', 'bullets', 'minimal', 'two-slides'], $snapshot['fixtureStems']);
+        $t->same(4, $snapshot['totalPptxCount']);
+        $t->same(4, $snapshot['comparedPptxCount']);
+        $t->same(4, $snapshot['localParsedCount']);
+        $t->same(4, $snapshot['pandocParsedCount']);
+        $t->same(4, $snapshot['nativeFixtureParsedCount']);
+        $t->same(4, $snapshot['normalizedAstMatchCount']);
         $t->same(0, $snapshot['normalizedAstMismatchCount']);
-        $t->same(1, $snapshot['pandocNativeFixtureMatchCount']);
+        $t->same(4, $snapshot['pandocNativeFixtureMatchCount']);
         $t->same(0, $snapshot['pandocNativeFixtureMismatchCount']);
         $t->same('normalized-ast-equality-observed-against-pandoc-executable', $snapshot['astParityStatus']);
-        $t->same(true, PptxExecutableNativeAstComparisonHarness::hasRequiredExecutableParity($snapshot, 1));
-        $t->contains('--require-executable-parity=1', implode(' ', $snapshot['sourceCommand']));
+        $t->same(true, PptxExecutableNativeAstComparisonHarness::hasRequiredExecutableParity($snapshot, 4));
+        $t->contains('--require-executable-parity=4', implode(' ', $snapshot['sourceCommand']));
         $t->true(in_array('that upstream Haskell/Cabal/Tasty Tests.Readers.Pptx was executed', $snapshot['claimBoundaries']['doesNotAssert'], true));
+        $t->true(in_array('that generated minimal, bullets, or two-slides fixtures are upstream Tests.Readers.Pptx fixtures', $snapshot['claimBoundaries']['doesNotAssert'], true));
         $t->same('covered-by-current-executable-evidence', $snapshot['orderedRemainingGaps'][0]['status']);
         $t->same('open', $snapshot['orderedRemainingGaps'][1]['status']);
     },
@@ -158,7 +160,7 @@ return [
             $removeTree($root);
         }
     },
-    'requires paired upstream native fixtures for executable parity' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFakePandoc): void {
+    'requires paired native fixtures for executable parity' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFakePandoc): void {
         $root = $makeTempDir();
         try {
             $fixtureRoot = dirname(__DIR__) . '/fixtures/upstream-current-pptx-reader';
