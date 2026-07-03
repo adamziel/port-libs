@@ -9,6 +9,7 @@ require __DIR__ . '/bootstrap.php';
 
 $repoRoot = dirname(__DIR__);
 $upstreamRoot = getenv('PANDOC_UPSTREAM_ROOT') ?: getenv('PANDOC_EPUB_UPSTREAM_ROOT') ?: $repoRoot . '/.upstream-cache/pandoc-current';
+$fixtureBase = getenv('PANDOC_EPUB_FIXTURE_BASE') ?: null;
 $limit = 0;
 $requiredMediaBagParity = null;
 $json = false;
@@ -17,7 +18,7 @@ $summary = false;
 foreach (array_slice($argv, 1) as $argument) {
     if ($argument === '--help' || $argument === '-h') {
         fwrite(STDOUT, <<<'TXT'
-Usage: php tools/pandoc-epub-media-bag.php [--upstream-root=PATH] [--limit=N] [--json] [--require-media-bag-parity=N] [summary]
+Usage: php tools/pandoc-epub-media-bag.php [--upstream-root=PATH] [--fixture-base=PATH] [--limit=N] [--json] [--require-media-bag-parity=N] [summary]
 
 Compares local PHP EPUB reader media-bag output with upstream Tests.Readers.EPUB
 expectations by normalized path, MIME type, and byte size when the upstream cache
@@ -45,6 +46,11 @@ TXT);
         continue;
     }
 
+    if (str_starts_with($argument, '--fixture-base=')) {
+        $fixtureBase = substr($argument, strlen('--fixture-base='));
+        continue;
+    }
+
     if (str_starts_with($argument, '--limit=')) {
         $limit = max(0, (int) substr($argument, strlen('--limit=')));
         continue;
@@ -67,9 +73,16 @@ TXT);
 if ($upstreamRoot !== '' && !str_starts_with($upstreamRoot, DIRECTORY_SEPARATOR)) {
     $upstreamRoot = $repoRoot . DIRECTORY_SEPARATOR . $upstreamRoot;
 }
+if (is_string($fixtureBase) && $fixtureBase !== '' && !str_starts_with($fixtureBase, DIRECTORY_SEPARATOR)) {
+    $fixtureBase = $repoRoot . DIRECTORY_SEPARATOR . $fixtureBase;
+}
 
 $harness = new EpubMediaBagComparisonHarness();
-$report = $harness->run($upstreamRoot, ['limit' => $limit]);
+$options = ['limit' => $limit];
+if (is_string($fixtureBase) && $fixtureBase !== '') {
+    $options['fixtureBase'] = $fixtureBase;
+}
+$report = $harness->run($upstreamRoot, $options);
 
 if ($summary) {
     $report = array_intersect_key($report, array_flip([

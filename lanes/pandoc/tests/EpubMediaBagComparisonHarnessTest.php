@@ -48,52 +48,9 @@ $writeFile = static function (string $root, string $relativePath, string $conten
 
 $fixtureRoot = static fn (): string => dirname(__DIR__) . '/fixtures/upstream-current-epub-reader';
 
-$currentEpubReaderSource = static function (): string {
-    return <<<'HS'
-featuresBag :: [(String, String, Int)]
-featuresBag = [("img/check.gif","image/gif",1340)
-              ,("img/check.jpg","image/jpeg",2661)
-              ,("img/check.png","image/png",2815)
-              ,("img/multiscripts_and_greek_alphabet.png","image/png",10060)
-              ]
-
-epub3CoverBag :: [(String, String, Int)]
-epub3CoverBag = [("wasteland-cover.jpg","image/jpeg", 16586)]
-
-epub3NoCoverBag :: [(String, String, Int)]
-epub3NoCoverBag = [("img/check.gif","image/gif",1340)
-                  ,("img/check.jpg","image/jpeg",2661)
-                  ,("img/check.png","image/png",2815)
-                  ]
-
-epub2PictureBag :: [(String, String, Int)]
-epub2PictureBag = [("image/image.jpg","image/jpeg",9713)]
-
-epub2CoverBag :: [(String, String, Int)]
-epub2CoverBag = [("image/cover.jpg","image/jpeg",9713)]
-
-epub2NoCoverBag :: [(String, String, Int)]
-epub2NoCoverBag = []
-
-tests :: [TestTree]
-tests =
-  [ testGroup "EPUB Mediabag"
-    [ testCase "features bag"
-      (testMediaBag "epub/img.epub" featuresBag),
-      testCase "EPUB3 cover bag"
-      (testMediaBag "epub/wasteland.epub" epub3CoverBag),
-      testCase "EPUB3 no cover bag"
-      (testMediaBag "epub/img_no_cover.epub" epub3NoCoverBag),
-      testCase "EPUB2 picture bag"
-      (testMediaBag "epub/epub2_picture.epub" epub2PictureBag),
-      testCase "EPUB2 cover bag"
-      (testMediaBag "epub/epub2_cover.epub" epub2CoverBag),
-      testCase "EPUB2 no cover bag"
-      (testMediaBag "epub/epub2_no_cover.epub" epub2NoCoverBag)
-    ]
-  ]
-HS;
-};
+$currentEpubReaderSource = static fn (): string => (string) file_get_contents(
+    dirname(__DIR__) . '/fixtures/upstream-current-epub-reader/test/Tests/Readers/EPUB.hs'
+);
 
 $currentReaderCases = static fn (): array => EpubUpstreamReaderEvidence::parseReaderCasesFromSource($currentEpubReaderSource());
 
@@ -145,14 +102,15 @@ return [
         }
     },
 
-    'matches checked-in current upstream epub media bag fixtures' => static function (TestRunner $t) use ($fixtureRoot, $currentReaderCases): void {
+    'matches checked-in current upstream epub media bag fixtures' => static function (TestRunner $t) use ($fixtureRoot): void {
         $report = (new EpubMediaBagComparisonHarness())->run($fixtureRoot(), [
             'fixtureBase' => $fixtureRoot(),
-            'readerCases' => $currentReaderCases(),
         ]);
 
         $t->same('completed', $report['status']);
         $t->same(false, $report['skipped']);
+        $t->same($fixtureRoot(), $report['upstreamRoot']);
+        $t->same($fixtureRoot(), $report['fixtureBase']);
         $t->same(6, $report['totalCaseCount']);
         $t->same(6, $report['comparedCaseCount']);
         $t->same(6, $report['epubParsedCount']);
@@ -165,6 +123,30 @@ return [
         $t->same('media-bag-equality-observed-not-runner-parity', $report['mediaBagParityStatus']);
         $t->same('covered-by-current-media-bag-evidence', $report['orderedRemainingGaps'][0]['status']);
         $t->same(true, EpubMediaBagComparisonHarness::hasRequiredMediaBagParity($report, 6));
+    },
+
+    'cli gates checked-in current epub media bag fixtures without hydrated upstream cache' => static function (TestRunner $t) use ($fixtureRoot): void {
+        $command = escapeshellarg(PHP_BINARY)
+            . ' '
+            . escapeshellarg(dirname(__DIR__, 3) . '/tools/pandoc-epub-media-bag.php')
+            . ' --upstream-root=' . escapeshellarg($fixtureRoot())
+            . ' --fixture-base=' . escapeshellarg($fixtureRoot())
+            . ' --json'
+            . ' summary'
+            . ' --require-media-bag-parity=6';
+        $output = [];
+        $exitCode = 0;
+        exec($command, $output, $exitCode);
+        $decoded = json_decode(implode("\n", $output), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same(0, $exitCode);
+        $t->same('completed', $decoded['status']);
+        $t->same(6, $decoded['comparedCaseCount']);
+        $t->same(6, $decoded['mediaBagMatchCount']);
+        $t->same(0, $decoded['mediaBagMismatchCount']);
+        $t->same(10, $decoded['expectedMediaItemCount']);
+        $t->same(10, $decoded['actualMediaItemCount']);
+        $t->same(true, EpubMediaBagComparisonHarness::hasRequiredMediaBagParity($decoded, 6));
     },
 
     'reports epub media bag mismatches without claiming full parity' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile, $fixtureRoot): void {
