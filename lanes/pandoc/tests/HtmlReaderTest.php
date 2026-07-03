@@ -282,6 +282,25 @@ $tests['resolves upstream html doc-noteref notes in table placements and consume
         $t->same('doc footnote', $lastParagraphNote->children[0]->attr('text'));
     };
 
+$tests['imports generated current html table foot rows'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-table-foot.html'));
+        $table = $document->children[0];
+        $head = $table->children[0];
+        $body = $table->children[1];
+        $foot = $table->children[2];
+
+        $t->same(['table', 'paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same('Quarterly totals', $table->attr('caption'));
+        $t->same(['audit-grid'], $table->attr('classes'));
+        $t->same(['table_head', 'table_body', 'table_foot'], array_map(static fn ($node): string => $node->type, $table->children));
+        $t->same(['Quarter', 'Total'], array_map(static fn ($cell): string => $cell->attr('text'), $head->children[0]->children));
+        $t->same(2, count($body->children));
+        $t->same(['Q2', '18'], array_map(static fn ($cell): string => $cell->attr('text'), $body->children[1]->children));
+        $t->same(['Combined', '30'], array_map(static fn ($cell): string => $cell->attr('text'), $foot->children[0]->children));
+        $t->same('After table.', $document->children[1]->attr('text'));
+    };
+
 $tests['preserves html doc-endnotes container when no noteref was resolved'] =
     static function (TestRunner $t): void {
         $document = (new HtmlReader())->read(
