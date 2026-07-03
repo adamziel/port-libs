@@ -42,6 +42,10 @@ return [
         $inlineCodeNative = $root . '/upstream-html-inline-code-aliases.native';
         $langMetadataHtml = $root . '/upstream-html-lang-metadata.html';
         $langMetadataNative = $root . '/upstream-html-lang-metadata.native';
+        $mainNativeDivsHtml = $root . '/upstream-html-main-native-divs.html';
+        $mainNativeDivsNative = $root . '/upstream-html-main-native-divs.native';
+        $sectionAsideNativeDivsHtml = $root . '/upstream-html-section-aside-native-divs.html';
+        $sectionAsideNativeDivsNative = $root . '/upstream-html-section-aside-native-divs.native';
         $spanStrikeoutHtml = $root . '/upstream-html-span-strikeout.html';
         $spanStrikeoutNative = $root . '/upstream-html-span-strikeout.native';
         $spanlikeHtml = $root . '/upstream-html-spanlike-inline.html';
@@ -75,6 +79,10 @@ return [
         $t->true(is_file($inlineCodeNative), 'Native inline-code fixture must be checked in');
         $t->true(is_file($langMetadataHtml), 'HTML lang-metadata fixture must be checked in');
         $t->true(is_file($langMetadataNative), 'Native lang-metadata fixture must be checked in');
+        $t->true(is_file($mainNativeDivsHtml), 'HTML main native-divs fixture must be checked in');
+        $t->true(is_file($mainNativeDivsNative), 'Native main native-divs fixture must be checked in');
+        $t->true(is_file($sectionAsideNativeDivsHtml), 'HTML section-aside native-divs fixture must be checked in');
+        $t->true(is_file($sectionAsideNativeDivsNative), 'Native section-aside native-divs fixture must be checked in');
         $t->true(is_file($spanStrikeoutHtml), 'HTML span-strikeout fixture must be checked in');
         $t->true(is_file($spanStrikeoutNative), 'Native span-strikeout fixture must be checked in');
         $t->true(is_file($spanlikeHtml), 'HTML spanlike-inline fixture must be checked in');
@@ -93,20 +101,20 @@ return [
         $text = $harness->formatReport($report);
 
         $t->same('completed', $report['status']);
-        $t->same(16, $report['totalPairCount']);
-        $t->same(16, $report['comparedPairCount']);
-        $t->same(16, $report['htmlParsedCount']);
-        $t->same(16, $report['nativeParsedCount']);
-        $t->same(16, $report['bothParsedCount']);
+        $t->same(18, $report['totalPairCount']);
+        $t->same(18, $report['comparedPairCount']);
+        $t->same(18, $report['htmlParsedCount']);
+        $t->same(18, $report['nativeParsedCount']);
+        $t->same(18, $report['bothParsedCount']);
         $t->same(0, $report['parseFailureCount']);
-        $t->same(16, $report['normalizedAstMatchCount']);
+        $t->same(18, $report['normalizedAstMatchCount']);
         $t->same(0, $report['normalizedAstMismatchCount']);
         $t->same('normalized-ast-equality-observed-not-runner-parity', $report['astParityStatus']);
-        $t->same(true, HtmlNativeAstComparisonHarness::hasRequiredMappedParity($report, 16));
+        $t->same(true, HtmlNativeAstComparisonHarness::hasRequiredMappedParity($report, 18));
         $t->same('covered-by-current-normalized-ast-evidence', $report['orderedRemainingGaps'][0]['status']);
-        $t->same('The current checked-in gate covers 16 paired fixture(s).', $report['orderedRemainingGaps'][2]['currentEvidence']);
-        $t->contains('pairs: total=16 compared=16 parsedBoth=16 parseFailures=0', $text);
-        $t->contains('normalizedAst: matches=16 (100.00%) mismatches=0', $text);
+        $t->same('The current checked-in gate covers 18 paired fixture(s).', $report['orderedRemainingGaps'][2]['currentEvidence']);
+        $t->contains('pairs: total=18 compared=18 parsedBoth=18 parseFailures=0', $text);
+        $t->contains('normalizedAst: matches=18 (100.00%) mismatches=0', $text);
 
         $command = escapeshellarg(PHP_BINARY)
             . ' '
@@ -114,14 +122,14 @@ return [
             . ' --html-dir=' . escapeshellarg($root)
             . ' --json'
             . ' summary'
-            . ' --require-mapped-parity=16';
+            . ' --require-mapped-parity=18';
         $output = [];
         $exitCode = 0;
         exec($command, $output, $exitCode);
         $decoded = json_decode(implode("\n", $output), true, 512, JSON_THROW_ON_ERROR);
 
         $t->same(0, $exitCode);
-        $t->same(16, $decoded['normalizedAstMatchCount']);
+        $t->same(18, $decoded['normalizedAstMatchCount']);
         $t->same(0, $decoded['normalizedAstMismatchCount']);
     },
 ];

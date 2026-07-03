@@ -1,0 +1,30 @@
+[ Div
+    ( "conversion-body"
+    , [ "wp-import" ]
+    , [ ( "role" , "main" ) , ( "source" , "legacy-export" ) ]
+    )
+    [ Header
+        1
+        ( "main-article" , [] , [] )
+        [ Str "Main" , Space , Str "Article" ]
+    , Para
+        [ Str "Only"
+        , Space
+        , Str "the"
+        , Space
+        , Str "main"
+        , Space
+        , Str "document"
+        , Space
+        , Str "body"
+        , Space
+        , Str "should"
+        , Space
+        , Str "reach"
+        , Space
+        , Str "WordPress"
+        , Space
+        , Str "review."
+        ]
+    ]
+]
