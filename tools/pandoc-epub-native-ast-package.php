@@ -21,6 +21,7 @@ $requiredNativeReadiness = null;
 $requiredMappedParity = null;
 $requireFixtureIdentity = false;
 $requireCurrentPackageFeatureCoverage = false;
+$requireCurrentPackageFeatureSignature = false;
 $json = false;
 $summary = false;
 
@@ -50,6 +51,8 @@ Gates:
   --require-fixture-identity       Require the checked-in current EPUB fixture snapshot hashes and byte counts.
   --require-current-package-feature-coverage
                                    Require the checked-in current EPUB package feature coverage snapshot.
+  --require-current-package-feature-signature
+                                   Require the checked-in current EPUB fixture identity plus exact package feature signature.
 
 TXT);
         exit(0);
@@ -107,6 +110,11 @@ TXT);
         continue;
     }
 
+    if ($argument === '--require-current-package-feature-signature') {
+        $requireCurrentPackageFeatureSignature = true;
+        continue;
+    }
+
     fwrite(STDERR, "Unknown argument: {$argument}\n");
     exit(2);
 }
@@ -116,7 +124,17 @@ if ($useCheckedInFixtures && $epubDirectoryArgumentWasProvided) {
     exit(2);
 }
 
-if ($useCheckedInFixtures || (($requireFixtureIdentity || $requireCurrentPackageFeatureCoverage) && !$epubDirectoryWasExplicit)) {
+if (
+    $useCheckedInFixtures
+    || (
+        (
+            $requireFixtureIdentity
+            || $requireCurrentPackageFeatureCoverage
+            || $requireCurrentPackageFeatureSignature
+        )
+        && !$epubDirectoryWasExplicit
+    )
+) {
     $epubDirectory = $checkedInEpubDirectory;
 }
 
@@ -139,6 +157,7 @@ if ($summary) {
         'upstreamEpubDirectory',
         'fixtureIdentity',
         'packageFeatureCoverage',
+        'packageFeatureSignature',
         'totalEpubCount',
         'comparedEpubCount',
         'packageParsedCount',
@@ -187,6 +206,18 @@ if (
     fwrite(
         STDERR,
         "pandoc-epub-native-ast-package: checked-in current EPUB package feature coverage snapshot did not match the expected snapshot for {$epubDirectory}\n"
+        . "hint: use --checked-in-fixtures or --epub-dir=lanes/pandoc/fixtures/upstream-current-epub-reader/epub to gate the checked-in snapshot\n"
+    );
+    exit(1);
+}
+
+if (
+    $requireCurrentPackageFeatureSignature
+    && !EpubNativeAstPackageComparisonHarness::hasRequiredCurrentPackageFeatureSignature($report)
+) {
+    fwrite(
+        STDERR,
+        "pandoc-epub-native-ast-package: checked-in current EPUB package feature signature did not match the expected snapshot for {$epubDirectory}\n"
         . "hint: use --checked-in-fixtures or --epub-dir=lanes/pandoc/fixtures/upstream-current-epub-reader/epub to gate the checked-in snapshot\n"
     );
     exit(1);

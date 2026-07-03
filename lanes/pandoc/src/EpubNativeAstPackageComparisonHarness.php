@@ -9,6 +9,10 @@ final class EpubNativeAstPackageComparisonHarness
     private const DEFAULT_MAX_EXAMPLES = 12;
     private const VERDICT = 'epub-native-ast-package-comparison-not-full-epub-parity';
     private const CLAIM = 'Compares local PHP EPUB package parsing and reader output with a supplied checked-in current EPUB fixture directory and same-basename .native goldens. Package parsing/reader acceptance, fixture identity, package feature coverage, and native AST equality are reported separately; no upstream Haskell runner, writer parity, or full EPUB feature parity is asserted.';
+    private const PACKAGE_FEATURE_SIGNATURE_KIND = 'checked-in-current-epub-package-feature-signature';
+    private const PACKAGE_FEATURE_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
+    private const PACKAGE_FEATURE_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-8-fixture-snapshot';
+    private const CHECKED_IN_CURRENT_PACKAGE_FEATURE_SIGNATURE_SHA256 = '4bd4dc92125c30c361010936e6a2ca7bc8da3e2efe6ad5096681065deefde3c3';
 
     /** @var array<string, true> */
     private const IGNORED_ATTRS = [
@@ -466,6 +470,8 @@ final class EpubNativeAstPackageComparisonHarness
         $astParseFailureCount = count($astParseFailures);
         $normalizedAstMismatchCount = $bothParsedCount - $normalizedAstMatchCount;
 
+        $packageFeatureCoverage = self::packageFeatureCoverage($packageFeatureSummaries);
+
         return [
             'schemaVersion' => 1,
             'tool' => 'pandoc-epub-native-ast-package',
@@ -477,7 +483,8 @@ final class EpubNativeAstPackageComparisonHarness
             'evidenceKind' => 'epub-native-ast-package-comparison',
             'upstreamEpubDirectory' => $epubDirectory,
             'fixtureIdentity' => $fixtureIdentity,
-            'packageFeatureCoverage' => self::packageFeatureCoverage($packageFeatureSummaries),
+            'packageFeatureCoverage' => $packageFeatureCoverage,
+            'packageFeatureSignature' => self::packageFeatureSignature($fixtureIdentity, $packageFeatureCoverage),
             'normalizationPolicy' => self::normalizationPolicy(),
             'totalEpubCount' => $totalEpubCount,
             'comparedEpubCount' => $comparedEpubCount,
@@ -619,6 +626,17 @@ final class EpubNativeAstPackageComparisonHarness
                 (int) ($totals['missingLocalManifestItems'] ?? 0)
             );
         }
+        $featureSignature = is_array($report['packageFeatureSignature'] ?? null) ? $report['packageFeatureSignature'] : [];
+        if ($featureSignature !== []) {
+            $signatureValidation = is_array($featureSignature['validation'] ?? null) ? $featureSignature['validation'] : [];
+            $lines[] = sprintf(
+                'packageFeatureSignature: status=%s matchesExpected=%s sha256=%s expected=%s',
+                (string) ($signatureValidation['status'] ?? 'unknown'),
+                (($featureSignature['matchesExpected'] ?? false) === true) ? 'true' : 'false',
+                (string) ($featureSignature['sha256'] ?? ''),
+                (string) ($featureSignature['expectedSha256'] ?? '')
+            );
+        }
 
         $mismatches = $report['mismatchComparisons'] ?? [];
         if (is_array($mismatches) && $mismatches !== []) {
@@ -738,13 +756,30 @@ final class EpubNativeAstPackageComparisonHarness
             return false;
         }
 
-        foreach (self::CHECKED_IN_CURRENT_PACKAGE_FEATURE_COVERAGE as $key => $expected) {
-            if (($coverage[$key] ?? null) !== $expected) {
-                return false;
-            }
-        }
+        return self::packageFeatureCoverageMatchesExpected($coverage);
+    }
 
-        return true;
+    /**
+     * @param array<string, mixed> $report
+     */
+    public static function hasRequiredCurrentPackageFeatureSignature(array $report): bool
+    {
+        $signature = is_array($report['packageFeatureSignature'] ?? null) ? $report['packageFeatureSignature'] : [];
+        $validation = is_array($signature['validation'] ?? null) ? $signature['validation'] : [];
+
+        return ($report['skipped'] ?? false) === false
+            && ($report['status'] ?? null) === 'completed'
+            && self::hasRequiredFixtureIdentity($report)
+            && self::hasRequiredCurrentPackageFeatureCoverage($report)
+            && ($signature['kind'] ?? null) === self::PACKAGE_FEATURE_SIGNATURE_KIND
+            && ($signature['algorithm'] ?? null) === self::PACKAGE_FEATURE_SIGNATURE_ALGORITHM
+            && ($signature['scope'] ?? null) === self::PACKAGE_FEATURE_SIGNATURE_SCOPE
+            && ($signature['sha256'] ?? null) === self::CHECKED_IN_CURRENT_PACKAGE_FEATURE_SIGNATURE_SHA256
+            && ($signature['expectedSha256'] ?? null) === self::CHECKED_IN_CURRENT_PACKAGE_FEATURE_SIGNATURE_SHA256
+            && ($signature['hashMatchesExpected'] ?? null) === true
+            && ($signature['matchesExpected'] ?? null) === true
+            && ($validation['status'] ?? null) === 'valid-checked-in-current-epub-package-feature-signature'
+            && ($validation['issues'] ?? null) === [];
     }
 
     /**
@@ -764,6 +799,7 @@ final class EpubNativeAstPackageComparisonHarness
             'upstreamEpubDirectory' => $epubDirectory,
             'fixtureIdentity' => self::notEvaluatedFixtureIdentity(),
             'packageFeatureCoverage' => self::emptyPackageFeatureCoverage(),
+            'packageFeatureSignature' => self::notEvaluatedPackageFeatureSignature($reason),
             'normalizationPolicy' => self::normalizationPolicy(),
             'totalEpubCount' => 0,
             'comparedEpubCount' => 0,
@@ -867,6 +903,176 @@ final class EpubNativeAstPackageComparisonHarness
                 'missingLocalManifestItems' => 0,
             ],
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $coverage
+     */
+    private static function packageFeatureCoverageMatchesExpected(array $coverage): bool
+    {
+        foreach (self::CHECKED_IN_CURRENT_PACKAGE_FEATURE_COVERAGE as $key => $expected) {
+            if (($coverage[$key] ?? null) !== $expected) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array<string, mixed> $fixtureIdentity
+     * @param array<string, mixed> $coverage
+     * @return array<string, mixed>
+     */
+    private static function packageFeatureSignature(array $fixtureIdentity, array $coverage): array
+    {
+        $payload = self::packageFeatureSignaturePayload($fixtureIdentity, $coverage);
+        $sha256 = hash('sha256', self::canonicalJson($payload));
+        $fixtureValidation = is_array($fixtureIdentity['validation'] ?? null) ? $fixtureIdentity['validation'] : [];
+        $fixtureIdentityMatchesExpected = ($fixtureValidation['status'] ?? null) === 'valid-checked-in-current-epub-fixture-identity'
+            && ($fixtureValidation['issues'] ?? null) === [];
+        $coverageMatchesExpected = self::packageFeatureCoverageMatchesExpected($coverage);
+        $hashMatchesExpected = $sha256 === self::CHECKED_IN_CURRENT_PACKAGE_FEATURE_SIGNATURE_SHA256;
+        $issues = [];
+        if (!$fixtureIdentityMatchesExpected) {
+            $issues[] = 'fixture-identity-does-not-match-expected-snapshot';
+        }
+        if (!$coverageMatchesExpected) {
+            $issues[] = 'package-feature-coverage-does-not-match-expected-snapshot';
+        }
+        if (!$hashMatchesExpected) {
+            $issues[] = 'package-feature-signature-sha256-mismatch';
+        }
+
+        return [
+            'kind' => self::PACKAGE_FEATURE_SIGNATURE_KIND,
+            'algorithm' => self::PACKAGE_FEATURE_SIGNATURE_ALGORITHM,
+            'scope' => self::PACKAGE_FEATURE_SIGNATURE_SCOPE,
+            'snapshotSchemaVersion' => 1,
+            'coverageKeys' => array_keys(self::CHECKED_IN_CURRENT_PACKAGE_FEATURE_COVERAGE),
+            'sha256' => $sha256,
+            'expectedSha256' => self::CHECKED_IN_CURRENT_PACKAGE_FEATURE_SIGNATURE_SHA256,
+            'hashMatchesExpected' => $hashMatchesExpected,
+            'matchesExpected' => $issues === [],
+            'validation' => [
+                'status' => $issues === []
+                    ? 'valid-checked-in-current-epub-package-feature-signature'
+                    : 'invalid-checked-in-current-epub-package-feature-signature',
+                'issues' => $issues,
+                'fixtureIdentityStatus' => (string) ($fixtureValidation['status'] ?? 'unknown'),
+                'packageFeatureCoverageMatchesExpected' => $coverageMatchesExpected,
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function notEvaluatedPackageFeatureSignature(string $reason): array
+    {
+        return [
+            'kind' => self::PACKAGE_FEATURE_SIGNATURE_KIND,
+            'algorithm' => self::PACKAGE_FEATURE_SIGNATURE_ALGORITHM,
+            'scope' => self::PACKAGE_FEATURE_SIGNATURE_SCOPE,
+            'snapshotSchemaVersion' => 1,
+            'coverageKeys' => array_keys(self::CHECKED_IN_CURRENT_PACKAGE_FEATURE_COVERAGE),
+            'sha256' => null,
+            'expectedSha256' => self::CHECKED_IN_CURRENT_PACKAGE_FEATURE_SIGNATURE_SHA256,
+            'hashMatchesExpected' => false,
+            'matchesExpected' => false,
+            'validation' => [
+                'status' => 'not-evaluated-source-directory-unavailable',
+                'issues' => [$reason],
+                'fixtureIdentityStatus' => 'not-evaluated-source-directory-unavailable',
+                'packageFeatureCoverageMatchesExpected' => false,
+            ],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $fixtureIdentity
+     * @param array<string, mixed> $coverage
+     * @return array<string, mixed>
+     */
+    private static function packageFeatureSignaturePayload(array $fixtureIdentity, array $coverage): array
+    {
+        $files = [];
+        foreach (is_array($fixtureIdentity['files'] ?? null) ? $fixtureIdentity['files'] : [] as $file) {
+            if (!is_array($file)) {
+                continue;
+            }
+            $bytes = $file['bytes'] ?? null;
+            $files[] = [
+                'path' => (string) ($file['path'] ?? ''),
+                'sha256' => is_string($file['sha256'] ?? null) ? $file['sha256'] : null,
+                'bytes' => is_int($bytes) ? $bytes : (is_numeric($bytes) ? (int) $bytes : null),
+            ];
+        }
+        usort(
+            $files,
+            static fn (array $left, array $right): int => (string) ($left['path'] ?? '') <=> (string) ($right['path'] ?? '')
+        );
+
+        return [
+            'schemaVersion' => 1,
+            'fixtureIdentity' => [
+                'kind' => (string) ($fixtureIdentity['kind'] ?? ''),
+                'expectedFileCount' => (int) ($fixtureIdentity['expectedFileCount'] ?? 0),
+                'observedFileCount' => (int) ($fixtureIdentity['observedFileCount'] ?? 0),
+                'expectedFiles' => self::stringList($fixtureIdentity['expectedFiles'] ?? []),
+                'observedFiles' => self::stringList($fixtureIdentity['observedFiles'] ?? []),
+                'files' => $files,
+            ],
+            'packageFeatureCoverage' => self::packageFeatureCoverageSignatureSnapshot($coverage),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $coverage
+     * @return array<string, mixed>
+     */
+    private static function packageFeatureCoverageSignatureSnapshot(array $coverage): array
+    {
+        $snapshot = [
+            'kind' => (string) ($coverage['kind'] ?? ''),
+        ];
+        foreach (self::CHECKED_IN_CURRENT_PACKAGE_FEATURE_COVERAGE as $key => $_expected) {
+            $snapshot[$key] = $coverage[$key] ?? null;
+        }
+
+        return $snapshot;
+    }
+
+    private static function canonicalJson(mixed $value): string
+    {
+        $json = json_encode(
+            self::canonicalValue($value),
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION
+        );
+        if (!is_string($json)) {
+            throw new \RuntimeException('Unable to encode package feature signature payload.');
+        }
+
+        return $json;
+    }
+
+    private static function canonicalValue(mixed $value): mixed
+    {
+        if (!is_array($value)) {
+            return $value;
+        }
+        if (array_is_list($value)) {
+            return array_map(static fn (mixed $item): mixed => self::canonicalValue($item), $value);
+        }
+
+        $normalized = [];
+        $keys = array_keys($value);
+        sort($keys, SORT_STRING);
+        foreach ($keys as $key) {
+            $normalized[(string) $key] = self::canonicalValue($value[$key]);
+        }
+
+        return $normalized;
     }
 
     /**
