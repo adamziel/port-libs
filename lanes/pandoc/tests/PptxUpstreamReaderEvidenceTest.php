@@ -951,12 +951,23 @@ YAML;
             --checked-in-fixtures \
             --json \
             summary \
-            --require-executable-parity=45
+            --require-executable-parity=45 \
+            --require-pandoc-version="pandoc ${PANDOC_EXECUTABLE_VERSION}"
+YAML;
+        $executableSmokeGate = <<<'YAML'
+      - name: Require upstream pandoc executable PPTX comparison smoke
+        run: |
+          php tools/pandoc-pptx-executable-native-ast.php \
+            --pptx-dir=.upstream-cache/pandoc-current/test/pptx-reader \
+            --json \
+            summary \
+            --require-executable-parity=1 \
+            --require-pandoc-version="pandoc ${PANDOC_EXECUTABLE_VERSION}"
 YAML;
 
         $t->contains('Require upstream PPTX native AST parity fixture smoke', $workflow);
         $t->contains($nativeCorpusGate, $workflow);
-        $t->contains('Require upstream pandoc executable PPTX comparison smoke', $workflow);
+        $t->contains($executableSmokeGate, $workflow);
         $t->contains($executableCorpusGate, $workflow);
     },
     'cli gates supplied pptx reader upstream runner result artifact' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile, $writePptxEvidenceTree, $writeRunnerTranscripts): void {

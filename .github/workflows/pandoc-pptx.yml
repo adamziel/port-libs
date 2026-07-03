@@ -141,7 +141,8 @@ jobs:
             --pptx-dir=.upstream-cache/pandoc-current/test/pptx-reader \
             --json \
             summary \
-            --require-executable-parity=1
+            --require-executable-parity=1 \
+            --require-pandoc-version="pandoc ${PANDOC_EXECUTABLE_VERSION}"
 
       - name: Require checked-in pandoc executable PPTX comparison corpus
         run: |
@@ -149,7 +150,8 @@ jobs:
             --checked-in-fixtures \
             --json \
             summary \
-            --require-executable-parity=45
+            --require-executable-parity=45 \
+            --require-pandoc-version="pandoc ${PANDOC_EXECUTABLE_VERSION}"
 
       - name: Run focused PPTX parity tests
         run: |
