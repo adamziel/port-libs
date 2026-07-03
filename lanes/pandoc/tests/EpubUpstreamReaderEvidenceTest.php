@@ -45,6 +45,9 @@ $writeFile = static function (string $root, string $relativePath, string $conten
     file_put_contents($path, $contents);
 };
 
+$repoRoot = static fn (): string => dirname(__DIR__, 3);
+$checkedInFixtureRoot = static fn (): string => 'lanes/pandoc/fixtures/upstream-current-epub-reader';
+
 $writeEpubEvidenceTree = static function (string $root) use ($writeFile): void {
     $writeFile($root, 'test/Tests/Readers/EPUB.hs', <<<'HS'
 module Tests.Readers.EPUB (tests) where
@@ -124,6 +127,30 @@ return [
         }
     },
 
+    'validates checked-in current epub reader evidence through fixture base' => static function (TestRunner $t) use ($repoRoot, $checkedInFixtureRoot): void {
+        $report = (new EpubUpstreamReaderEvidence(
+            $repoRoot(),
+            'lanes/pandoc/fixtures/upstream-current-epub-reader',
+            'lanes/pandoc/fixtures/upstream-current-epub-reader'
+        ))->report();
+
+        $t->same(EpubUpstreamReaderEvidence::STATUS_COMPLETED, $report['status']);
+        $t->same('valid-upstream-epub-reader-mediabag-denominator', $report['validation']['status']);
+        $t->same([], $report['validation']['issues']);
+        $t->same($checkedInFixtureRoot(), $report['upstream']['resolvedFixtureBase']);
+        $t->same('epub', $report['upstream']['resolvedFixtureDirectory']);
+        $t->same(false, $report['upstream']['readerSourceRequired']);
+        $t->same(6, $report['denominator']['mediaBagTestCount']);
+        $t->same(6, $report['denominator']['fixtureReferenceCount']);
+        $t->same(10, $report['denominator']['expectedMediaItemCount']);
+        $t->same([], $report['denominator']['missingReferencedFiles']);
+        $t->same(['epub/features.epub', 'epub/formatting.epub'], $report['denominator']['unreferencedEpubFixtures']);
+        $t->same(false, $report['sourceInventory']['readerSourceRequired']);
+        $t->same(1, $report['sourceInventory']['presentFileCount']);
+        $t->same(1, $report['sourceInventory']['missingFileCount']);
+        $t->same(true, EpubUpstreamReaderEvidence::hasNoValidationIssues($report));
+    },
+
     'reports invalid epub reader evidence for missing fixture and bag definition' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile): void {
         $root = $makeTempDir();
         try {
@@ -143,6 +170,33 @@ HS);
         } finally {
             $removeTree($root);
         }
+    },
+
+    'cli gates checked-in current epub reader evidence through fixture base' => static function (TestRunner $t) use ($repoRoot): void {
+        $command = escapeshellarg(PHP_BINARY)
+            . ' '
+            . escapeshellarg(dirname(__DIR__, 3) . '/tools/pandoc-epub-reader-evidence.php')
+            . ' --repo-root=' . escapeshellarg($repoRoot())
+            . ' --upstream-root=lanes/pandoc/fixtures/upstream-current-epub-reader'
+            . ' --fixture-base=lanes/pandoc/fixtures/upstream-current-epub-reader'
+            . ' --json'
+            . ' --require-test-count=6'
+            . ' --require-fixture-reference-count=6'
+            . ' --require-expected-media-item-count=10'
+            . ' --require-no-validation-issues';
+        $output = [];
+        $exitCode = 0;
+        exec($command, $output, $exitCode);
+        $decoded = json_decode(implode("\n", $output), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same(0, $exitCode);
+        $t->same(6, $decoded['denominator']['mediaBagTestCount']);
+        $t->same(6, $decoded['denominator']['fixtureReferenceCount']);
+        $t->same(10, $decoded['denominator']['expectedMediaItemCount']);
+        $t->same([], $decoded['denominator']['missingReferencedFiles']);
+        $t->same('valid-upstream-epub-reader-mediabag-denominator', $decoded['validation']['status']);
+        $t->same('epub', $decoded['upstream']['resolvedFixtureDirectory']);
+        $t->same(false, $decoded['upstream']['readerSourceRequired']);
     },
 
     'cli gates epub reader evidence counts and validation issues' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeEpubEvidenceTree): void {

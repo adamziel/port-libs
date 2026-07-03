@@ -14,8 +14,9 @@ final class EpubUpstreamReaderEvidence
 
     private readonly string $repoRoot;
     private readonly string $upstreamRoot;
+    private readonly ?string $fixtureBase;
 
-    public function __construct(string $repoRoot, string $upstreamRoot = self::DEFAULT_RELATIVE_UPSTREAM_ROOT)
+    public function __construct(string $repoRoot, string $upstreamRoot = self::DEFAULT_RELATIVE_UPSTREAM_ROOT, ?string $fixtureBase = null)
     {
         if ($repoRoot === '') {
             throw new \InvalidArgumentException('Repository root must not be empty');
@@ -23,9 +24,13 @@ final class EpubUpstreamReaderEvidence
         if ($upstreamRoot === '') {
             throw new \InvalidArgumentException('Upstream root must not be empty');
         }
+        if ($fixtureBase === '') {
+            throw new \InvalidArgumentException('Fixture base must not be empty');
+        }
 
         $this->repoRoot = rtrim($repoRoot, DIRECTORY_SEPARATOR);
         $this->upstreamRoot = $upstreamRoot;
+        $this->fixtureBase = $fixtureBase;
     }
 
     /**
@@ -57,10 +62,11 @@ final class EpubUpstreamReaderEvidence
         }
 
         $readerTestPath = $root . '/test/Tests/Readers/EPUB.hs';
+        $fixtureRoot = $this->absoluteFixtureBase() ?? $root;
         $readerCases = is_file($readerTestPath)
             ? self::parseReaderCasesFromSource((string) file_get_contents($readerTestPath))
             : [];
-        $validationIssues = $this->validationIssues($root, $readerCases);
+        $validationIssues = $this->validationIssues($root, $fixtureRoot, $readerCases);
 
         return [
             'schemaVersion' => 1,
@@ -73,7 +79,10 @@ final class EpubUpstreamReaderEvidence
                 'expectedCommit' => self::EXPECTED_UPSTREAM_COMMIT,
                 'readerTestModule' => 'test/Tests/Readers/EPUB.hs',
                 'fixtureDirectory' => 'test/epub',
+                'resolvedFixtureBase' => $this->displayPath($fixtureRoot),
+                'resolvedFixtureDirectory' => $this->fixtureDirectoryDisplayPath(),
                 'readerSource' => 'src/Text/Pandoc/Readers/EPUB.hs',
+                'readerSourceRequired' => !$this->hasExplicitFixtureBase(),
             ],
             'denominator' => [
                 'mediaBagTestCount' => count($readerCases),
@@ -81,8 +90,8 @@ final class EpubUpstreamReaderEvidence
                 'expectedMediaItemCount' => $this->expectedMediaItemCount($readerCases),
                 'readerCases' => $readerCases,
                 'referencedFixtures' => $this->fixtureReferences($readerCases),
-                'missingReferencedFiles' => $this->missingReferencedFiles($root, $readerCases),
-                'unreferencedEpubFixtures' => $this->unreferencedEpubFixtures($root, $readerCases),
+                'missingReferencedFiles' => $this->missingReferencedFiles($root, $fixtureRoot, $readerCases),
+                'unreferencedEpubFixtures' => $this->unreferencedEpubFixtures($root, $fixtureRoot, $readerCases),
             ],
             'sourceInventory' => $this->sourceInventory($root),
             'validation' => [
@@ -199,8 +208,8 @@ final class EpubUpstreamReaderEvidence
             'doesAssert' => [
                 'the count and fixture paths of upstream EPUB media-bag tests in Tests.Readers.EPUB',
                 'the expected media-bag path, MIME type, and byte-size tuples embedded in the upstream test module',
-                'that every referenced EPUB fixture exists in the pinned sparse upstream checkout',
-                'that the upstream EPUB reader source file is present in the pinned sparse checkout',
+                'that every referenced EPUB fixture exists in the upstream checkout or explicit checked-in fixture base',
+                'that the upstream EPUB reader source file is present when validating a full upstream checkout without an explicit checked-in fixture base',
             ],
             'doesNotAssert' => [
                 'that upstream Haskell/Cabal/Tasty tests were executed',
@@ -323,13 +332,13 @@ final class EpubUpstreamReaderEvidence
      * @param list<array<string, mixed>> $readerCases
      * @return list<array{path: string}>
      */
-    private function missingReferencedFiles(string $root, array $readerCases): array
+    private function missingReferencedFiles(string $root, string $fixtureRoot, array $readerCases): array
     {
         $missing = [];
         foreach ($this->fixtureReferences($readerCases) as $fixture) {
-            $path = $root . '/test/' . $fixture;
+            $path = $this->fixturePath($root, $fixtureRoot, $fixture);
             if (!is_file($path)) {
-                $missing[] = ['path' => 'test/' . $fixture];
+                $missing[] = ['path' => $this->fixtureDisplayPath($fixture)];
             }
         }
 
@@ -340,9 +349,9 @@ final class EpubUpstreamReaderEvidence
      * @param list<array<string, mixed>> $readerCases
      * @return list<string>
      */
-    private function unreferencedEpubFixtures(string $root, array $readerCases): array
+    private function unreferencedEpubFixtures(string $root, string $fixtureRoot, array $readerCases): array
     {
-        $fixtureDirectory = $root . '/test/epub';
+        $fixtureDirectory = $this->fixtureDirectory($root, $fixtureRoot);
         if (!is_dir($fixtureDirectory)) {
             return [];
         }
@@ -364,13 +373,13 @@ final class EpubUpstreamReaderEvidence
      * @param list<array<string, mixed>> $readerCases
      * @return list<string>
      */
-    private function validationIssues(string $root, array $readerCases): array
+    private function validationIssues(string $root, string $fixtureRoot, array $readerCases): array
     {
         $issues = [];
         if (!is_file($root . '/test/Tests/Readers/EPUB.hs')) {
             $issues[] = 'missing-reader-test-module';
         }
-        if (!is_file($root . '/src/Text/Pandoc/Readers/EPUB.hs')) {
+        if (!$this->hasExplicitFixtureBase() && !is_file($root . '/src/Text/Pandoc/Readers/EPUB.hs')) {
             $issues[] = 'missing-reader-source';
         }
         if ($readerCases === []) {
@@ -384,7 +393,7 @@ final class EpubUpstreamReaderEvidence
             }
         }
 
-        if ($this->missingReferencedFiles($root, $readerCases) !== []) {
+        if ($this->missingReferencedFiles($root, $fixtureRoot, $readerCases) !== []) {
             $issues[] = 'missing-referenced-fixture-files';
         }
 
@@ -412,6 +421,7 @@ final class EpubUpstreamReaderEvidence
 
         return [
             'files' => $files,
+            'readerSourceRequired' => !$this->hasExplicitFixtureBase(),
             'presentFileCount' => count(array_filter($files, static fn (array $file): bool => $file['present'] === true)),
             'missingFileCount' => count(array_filter($files, static fn (array $file): bool => $file['present'] === false)),
             'presentLineCount' => array_sum(array_map(static fn (array $file): int => (int) $file['lineCount'], $files)),
@@ -435,6 +445,49 @@ final class EpubUpstreamReaderEvidence
         }
 
         return $this->repoRoot . DIRECTORY_SEPARATOR . trim($this->upstreamRoot, DIRECTORY_SEPARATOR);
+    }
+
+    private function absoluteFixtureBase(): ?string
+    {
+        if (!$this->hasExplicitFixtureBase()) {
+            return null;
+        }
+
+        $fixtureBase = (string) $this->fixtureBase;
+        if (str_starts_with($fixtureBase, DIRECTORY_SEPARATOR)) {
+            return rtrim($fixtureBase, DIRECTORY_SEPARATOR);
+        }
+
+        return $this->repoRoot . DIRECTORY_SEPARATOR . trim($fixtureBase, DIRECTORY_SEPARATOR);
+    }
+
+    private function hasExplicitFixtureBase(): bool
+    {
+        return is_string($this->fixtureBase) && $this->fixtureBase !== '';
+    }
+
+    private function fixturePath(string $root, string $fixtureRoot, string $fixture): string
+    {
+        return $this->hasExplicitFixtureBase()
+            ? $fixtureRoot . '/' . $fixture
+            : $root . '/test/' . $fixture;
+    }
+
+    private function fixtureDirectory(string $root, string $fixtureRoot): string
+    {
+        return $this->hasExplicitFixtureBase()
+            ? $fixtureRoot . '/epub'
+            : $root . '/test/epub';
+    }
+
+    private function fixtureDisplayPath(string $fixture): string
+    {
+        return $this->hasExplicitFixtureBase() ? $fixture : 'test/' . $fixture;
+    }
+
+    private function fixtureDirectoryDisplayPath(): string
+    {
+        return $this->hasExplicitFixtureBase() ? 'epub' : 'test/epub';
     }
 
     private function displayPath(string $path): string

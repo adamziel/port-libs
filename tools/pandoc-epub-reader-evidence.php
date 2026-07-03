@@ -16,6 +16,9 @@ Options:
   --repo-root PATH                        Repository root. Defaults to the parent of tools/.
   --upstream-root PATH                    Optional upstream Pandoc checkout root.
                                           Defaults to .upstream-cache/pandoc-current.
+  --fixture-base PATH                     Optional checked-in EPUB fixture base.
+                                          When supplied, EPUB files are resolved from PATH/epub
+                                          and the upstream reader source file is not required.
   --require-test-count N                  Exit 1 unless Tests.Readers.EPUB has exactly N media-bag tests.
   --require-fixture-reference-count N     Exit 1 unless Tests.Readers.EPUB references exactly N EPUB fixtures.
   --require-expected-media-item-count N   Exit 1 unless expected media-bag tuples total exactly N items.
@@ -30,6 +33,7 @@ TEXT;
 try {
     $repoRoot = dirname(__DIR__);
     $upstreamRoot = EpubUpstreamReaderEvidence::DEFAULT_RELATIVE_UPSTREAM_ROOT;
+    $fixtureBase = null;
     $json = false;
     $requiredTestCount = null;
     $requiredFixtureReferenceCount = null;
@@ -74,6 +78,14 @@ try {
         }
         if (str_starts_with($arg, '--upstream-root=')) {
             $upstreamRoot = substr($arg, strlen('--upstream-root='));
+            continue;
+        }
+        if ($arg === '--fixture-base') {
+            $fixtureBase = $nextValue('--fixture-base');
+            continue;
+        }
+        if (str_starts_with($arg, '--fixture-base=')) {
+            $fixtureBase = substr($arg, strlen('--fixture-base='));
             continue;
         }
         if ($arg === '--require-test-count') {
@@ -128,7 +140,7 @@ try {
         throw new InvalidArgumentException("Unknown option: {$arg}");
     }
 
-    $report = (new EpubUpstreamReaderEvidence($repoRoot, $upstreamRoot))->report();
+    $report = (new EpubUpstreamReaderEvidence($repoRoot, $upstreamRoot, $fixtureBase))->report();
     if ($json) {
         fwrite(STDOUT, json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR) . PHP_EOL);
     } else {
