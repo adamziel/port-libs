@@ -13194,7 +13194,7 @@ final class MarkdownReader
         $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
         $canonical = MarkdownFormatProfile::canonicalFormat($format);
 
-        return in_array($canonical, ['markdown', 'commonmark_x'], true);
+        return in_array($canonical, ['markdown', 'commonmark_x', 'markdown_mmd'], true);
     }
 
     private function rawAttributeEnabled(): bool
@@ -15664,6 +15664,11 @@ final class MarkdownReader
         }
 
         if (preg_match('/\G\d+/', $text, $m, 0, $offset + 1) !== 1) {
+            return null;
+        }
+
+        $next = $text[$offset + 1 + strlen($m[0])] ?? '';
+        if ($next !== '' && $this->isAsciiAlnum($next)) {
             return null;
         }
 

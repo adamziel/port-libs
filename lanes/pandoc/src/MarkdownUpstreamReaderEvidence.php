@@ -12,7 +12,7 @@ final class MarkdownUpstreamReaderEvidence
     public const STATUS_COMPLETED = 'completed-upstream-markdown-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-markdown-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
-    public const EXPECTED_SELECTED_FIXTURE_COUNT = 35;
+    public const EXPECTED_SELECTED_FIXTURE_COUNT = 36;
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/Markdown.hs',
@@ -446,6 +446,18 @@ final class MarkdownUpstreamReaderEvidence
             'sha256' => '6f09b188dded819552fc8a2297abafbfd0d158d0d238bcaf325a93ec766d8b30',
             'bytes' => 78,
         ],
+        'upstream-markdown-mmd-short-scripts.md' => [
+            'role' => 'markdown-mmd-short-script-reader-fixture',
+            'sourceKind' => 'selected-upstream-markdown-reader-case',
+            'sourceReference' => 'Tests.Readers.Markdown sub- and superscripts/short subscript and short superscript delimiter coverage',
+            'formatProfile' => 'markdown_mmd short superscript/subscript delimiter boundaries',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-markdown-mmd-short-scripts.md',
+            'coverageTests' => [
+                'lanes/pandoc/tests/MarkdownReaderMmdShortScriptFixtureCompletionTest.php',
+            ],
+            'sha256' => '51ad1c2f928c09fe555f260e30579499bdea5d1b34941f1760b3c07a787d03d4',
+            'bytes' => 100,
+        ],
     ];
 
     private readonly string $repoRoot;
@@ -589,9 +601,9 @@ final class MarkdownUpstreamReaderEvidence
             'claim' => 'Static gate binding selected current upstream-derived Markdown reader fixtures to checked-in SHA-256 and byte-count snapshots.',
             'claimBoundaries' => [
                 'doesAssert' => [
-                    'the thirty-five selected checked-in Markdown fixture snapshots match the expected SHA-256 hashes and byte counts',
+                    'the thirty-six selected checked-in Markdown fixture snapshots match the expected SHA-256 hashes and byte counts',
                     'each selected fixture has at least one local PHP test reference',
-                    'the fixture set covers selected command, raw-attribute, abbreviation, details/summary, GFM, autolink, footnote/citation, citation/span boundary, empty-paragraph, definition-list spacing, nested-list body and html-div body, GitHub wiki-link, inline-code list-marker, attribute, and spaced-attribute literal behavior, backslash-escaped link, link-label boundary, unbalanced-bracket literal, link-title entity decoding, plain character-reference decoding, strikeout-with-nested-emphasis, GitHub emoji-shortcode, superscript/subscript escaped-space boundary behavior, smart punctuation quotes/apostrophes/ellipsis behavior, pipe-table alignment with escaped-pipe cell behavior, fenced-div nested container behavior, header-attribute explicit id/class/key behavior, numbered-example labeled cross-reference behavior, mark nested inline behavior, bracketed-span generic Span plus smallcaps behavior, and fenced-code attribute tuple behavior',
+                    'the fixture set covers selected command, raw-attribute, abbreviation, details/summary, GFM, autolink, footnote/citation, citation/span boundary, empty-paragraph, definition-list spacing, nested-list body and html-div body, GitHub wiki-link, inline-code list-marker, attribute, and spaced-attribute literal behavior, backslash-escaped link, link-label boundary, unbalanced-bracket literal, link-title entity decoding, plain character-reference decoding, strikeout-with-nested-emphasis, GitHub emoji-shortcode, superscript/subscript escaped-space boundary behavior, smart punctuation quotes/apostrophes/ellipsis behavior, pipe-table alignment with escaped-pipe cell behavior, fenced-div nested container behavior, header-attribute explicit id/class/key behavior, numbered-example labeled cross-reference behavior, mark nested inline behavior, bracketed-span generic Span plus smallcaps behavior, fenced-code attribute tuple behavior, and MultiMarkdown short superscript/subscript delimiter boundary behavior',
                 ],
                 'doesNotAssert' => [
                     'that upstream Haskell/Cabal/Tasty tests were executed',
@@ -744,7 +756,7 @@ final class MarkdownUpstreamReaderEvidence
     {
         return [
             'doesAssert' => [
-                'the identity and count of thirty-five selected checked-in upstream-derived Markdown fixtures',
+                'the identity and count of thirty-six selected checked-in upstream-derived Markdown fixtures',
                 'that focused local tests cover those selected fixture files',
                 'that the upstream Markdown reader source inventory is present when a hydrated upstream checkout is inspected',
                 'that upstream Haskell runner evidence is explicitly not-run',
