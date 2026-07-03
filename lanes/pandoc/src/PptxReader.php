@@ -233,7 +233,21 @@ final class PptxReader
 
     private function upstreamPresentationSlidePart(string $target): string
     {
-        return 'ppt/' . $target;
+        $target = OpcPackagePath::stripQueryAndFragment($target);
+        $path = str_starts_with($target, '/') ? $target : 'ppt/' . $target;
+        $segments = [];
+        foreach (explode('/', $path) as $segment) {
+            if ($segment === '' || $segment === '.') {
+                continue;
+            }
+            if ($segment === '..') {
+                array_pop($segments);
+                continue;
+            }
+            $segments[] = $segment;
+        }
+
+        return implode('/', $segments);
     }
 
     private function loadPackageXml(ZipPackage $package, string $partName, string $label, bool $literalPath = true): \DOMDocument
@@ -4805,7 +4819,11 @@ final class PptxReader
             if (!$attribute instanceof \DOMAttr) {
                 continue;
             }
-            if ($attribute->localName === $localName && $attribute->prefix === $prefix && $attribute->namespaceURI === $namespace) {
+            if (
+                $attribute->localName === $localName
+                && $attribute->namespaceURI === $namespace
+                && $attribute->prefix === $prefix
+            ) {
                 return $attribute->value;
             }
         }
