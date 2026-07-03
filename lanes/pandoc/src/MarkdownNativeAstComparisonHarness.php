@@ -57,6 +57,9 @@ final class MarkdownNativeAstComparisonHarness
         'sourceFormat' => true,
         'tableGeometry' => true,
         'widths' => true,
+        'yamlMetadataDiagnosticsByPath' => true,
+        'yamlMetadataProvenanceByPath' => true,
+        'yamlMetadataReviewSummary' => true,
     ];
 
     /**
