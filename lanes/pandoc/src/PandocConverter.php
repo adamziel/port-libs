@@ -189,6 +189,7 @@ final class PandocConverter
             LegacyDocReader::class => new LegacyDocReader(),
             ManReader::class => new ManReader(),
             MarkdownReader::class => new MarkdownReader(self::markdownReaderOptions($format, $options)),
+            MediaWikiReader::class => new MediaWikiReader(),
             JsonReader::class => new JsonReader(),
             NativeReader::class => new NativeReader(),
             MdocReader::class => new MdocReader(),

@@ -22,6 +22,7 @@ use PortLibs\Pandoc\LegacyDocReader;
 use PortLibs\Pandoc\ManReader;
 use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\MarkdownWriter;
+use PortLibs\Pandoc\MediaWikiReader;
 use PortLibs\Pandoc\MdocReader;
 use PortLibs\Pandoc\NativeReader;
 use PortLibs\Pandoc\NativeWriter;
@@ -169,6 +170,8 @@ return [
         $t->same(ManReader::class, $support['man']['implementation']);
         $t->same('partial', $support['mdoc']['status']);
         $t->same(MdocReader::class, $support['mdoc']['implementation']);
+        $t->same('partial', $support['mediawiki']['status']);
+        $t->same(MediaWikiReader::class, $support['mediawiki']['implementation']);
         $t->same('partial', $support['csv']['status']);
         $t->same(DelimitedTextReader::class, $support['csv']['implementation']);
         $t->same('partial', $support['tsv']['status']);
@@ -193,7 +196,7 @@ return [
         $t->same(RstReader::class, $support['rst']['implementation']);
         $t->same('partial', $support['xlsx']['status']);
         $t->same(XlsxReader::class, $support['xlsx']['implementation']);
-        $t->same(14, count(PandocFormatRegistry::unsupportedInputFormats()));
+        $t->same(13, count(PandocFormatRegistry::unsupportedInputFormats()));
     },
     'maps current php output support against every upstream output token' => static function (TestRunner $t): void {
         $support = PandocFormatRegistry::phpOutputSupport();
@@ -253,7 +256,7 @@ return [
             $t->same(false, $registry[$format]['directReaderParityClaimed']);
         }
 
-        foreach (['creole', 'mediawiki', 'tikiwiki', 'twiki', 'vimwiki'] as $format) {
+        foreach (['creole', 'tikiwiki', 'twiki', 'vimwiki'] as $format) {
             $t->same('unsupported', $registry[$format]['input']['status'], "{$format} reader remains unsupported");
             $t->same('', $registry[$format]['input']['implementation']);
             $t->same(false, $registry[$format]['directReaderParityClaimed']);
@@ -266,6 +269,10 @@ return [
         $t->same('partial', $registry['jira']['input']['status']);
         $t->same(JiraReader::class, $registry['jira']['input']['implementation']);
         $t->same(false, $registry['jira']['directReaderParityClaimed']);
+
+        $t->same('partial', $registry['mediawiki']['input']['status']);
+        $t->same(MediaWikiReader::class, $registry['mediawiki']['input']['implementation']);
+        $t->same(false, $registry['mediawiki']['directReaderParityClaimed']);
 
         foreach (['dokuwiki', 'jira', 'mediawiki', 'xwiki', 'zimwiki'] as $format) {
             $t->same('unsupported', $registry[$format]['output']['status'], "{$format} writer remains unsupported");
@@ -286,8 +293,8 @@ return [
         $t->same(['dokuwiki', 'jira', 'mediawiki'], $summary['directionBuckets']['input-output']);
         $t->same(['creole', 'tikiwiki', 'twiki', 'vimwiki'], $summary['directionBuckets']['input-only']);
         $t->same(['xwiki', 'zimwiki'], $summary['directionBuckets']['output-only']);
-        $t->same(['dokuwiki', 'jira'], $summary['inputStatusBuckets']['partial']);
-        $t->same(['creole', 'mediawiki', 'tikiwiki', 'twiki', 'vimwiki'], $summary['inputStatusBuckets']['unsupported']);
+        $t->same(['dokuwiki', 'jira', 'mediawiki'], $summary['inputStatusBuckets']['partial']);
+        $t->same(['creole', 'tikiwiki', 'twiki', 'vimwiki'], $summary['inputStatusBuckets']['unsupported']);
         $t->same(['dokuwiki', 'jira', 'mediawiki', 'xwiki', 'zimwiki'], $summary['outputStatusBuckets']['unsupported']);
         $t->same(['dokuwiki' => 'dokuwiki', 'wiki' => 'mediawiki'], $summary['extensionInference']);
         $t->same(false, $summary['directReaderParityClaimed']);
@@ -323,7 +330,7 @@ return [
         $t->same('unsupported', $outputSupport['ms']['status']);
         $t->same('', $outputSupport['ms']['implementation']);
         $t->contains('.ms/.roff extension inference', $outputSupport['ms']['notes']);
-        $t->same(14, count(PandocFormatRegistry::unsupportedInputFormats()));
+        $t->same(13, count(PandocFormatRegistry::unsupportedInputFormats()));
         $t->same(56, count(PandocFormatRegistry::unsupportedOutputFormats()));
     },
     'tracks roff manual direction buckets without direct parity claims' => static function (TestRunner $t): void {
