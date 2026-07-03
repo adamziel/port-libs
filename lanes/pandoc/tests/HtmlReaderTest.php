@@ -333,6 +333,31 @@ $tests['imports generated current html table foot rows'] =
         $t->same('After table.', $document->children[1]->attr('text'));
     };
 
+$tests['imports upstream html block children inside table cells'] =
+    static function (TestRunner $t): void {
+        $html = '<table><tr><td><ul><li>one</li><li>two</li></ul></td><td><blockquote><p>quote</p></blockquote></td></tr></table>';
+        $fullDocument = '<!doctype html><html><body>' . $html . '</body></html>';
+        $assertTable = static function ($document) use ($t): void {
+            $table = $document->children[0];
+            $body = $table->children[1];
+            $row = $body->children[0];
+            $listCell = $row->children[0];
+            $quoteCell = $row->children[1];
+            $list = $listCell->children[0];
+            $quote = $quoteCell->children[0];
+
+            $t->same('table', $table->type);
+            $t->same('bullet_list', $list->type);
+            $t->same(['one', 'two'], array_map(static fn ($item): string => $item->attr('text'), $list->children));
+            $t->same('blockquote', $quote->type);
+            $t->same(['paragraph'], array_map(static fn ($node): string => $node->type, $quote->children));
+            $t->same('quote', $quote->children[0]->attr('text'));
+        };
+
+        $assertTable((new HtmlReader())->read($html));
+        $assertTable((new HtmlReader())->read($fullDocument));
+    };
+
 $tests['imports generated current html thematic break as horizontal rule'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-thematic-break.html'));

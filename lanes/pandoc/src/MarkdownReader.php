@@ -6236,7 +6236,31 @@ final class MarkdownReader
 
         return $this->htmlTableHasHeaderCells($table)
             || $this->htmlTableHasSpans($table)
+            || $this->htmlTableHasBlockCellChildren($table)
             || $this->htmlTableHasPlainBodyRows($table);
+    }
+
+    private function htmlTableHasBlockCellChildren(\DOMElement $table): bool
+    {
+        foreach (['td', 'th'] as $name) {
+            foreach ($table->getElementsByTagName($name) as $cell) {
+                if (!$cell instanceof \DOMElement) {
+                    continue;
+                }
+
+                foreach ($cell->getElementsByTagName('*') as $descendant) {
+                    if (!$descendant instanceof \DOMElement || $descendant->isSameNode($cell)) {
+                        continue;
+                    }
+
+                    if ($this->isHtmlBlockElement($descendant)) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 
     private function htmlTableHasHeaderCells(\DOMElement $table): bool
@@ -7174,18 +7198,10 @@ final class MarkdownReader
     {
         $children = [];
         foreach ($cell->childNodes as $child) {
-            if ($child instanceof \DOMElement && strtolower($child->localName) === 'table') {
-                $children[] = $this->parseHtmlTableElement($child);
-                continue;
-            }
-            if ($child instanceof \DOMElement && strtolower($child->localName) === 'p') {
-                $inlines = $this->parseHtmlInlineChildren($child);
-                if ($inlines !== []) {
-                    $children[] = new AstNode(
-                        'paragraph',
-                        ['text' => trim(preg_replace('/\s+/', ' ', $child->textContent) ?? $child->textContent)],
-                        $inlines
-                    );
+            if ($child instanceof \DOMElement && $this->isHtmlBlockElement($child)) {
+                $block = $this->parseHtmlBlockElement($child);
+                if ($block instanceof AstNode) {
+                    $children[] = $block;
                 }
                 continue;
             }
