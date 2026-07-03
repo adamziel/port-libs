@@ -324,6 +324,7 @@ final class HtmlNativeAstComparisonHarness
                 'derived table-cell header flags when rowHeadColumns carries the semantic row-header contract',
                 'reader-derived list looseness flags and list-item cached text metadata; list item block shape remains compared',
                 'source id/classes/key-value attrs on Pandoc inline constructors without native Attr tuples; inline constructor, text, and children remain compared',
+                'redundant raw HTML format attrs and duplicate raw HTML text attrs; raw HTML payload remains compared',
             ],
             'doesNotAssert' => [
                 'upstream Haskell/Cabal runner execution',
@@ -415,6 +416,9 @@ final class HtmlNativeAstComparisonHarness
             if ($key === 'loose' && self::isListShapeMetadataNode($node)) {
                 continue;
             }
+            if (self::isRedundantRawHtmlAttr($node, $key, $value)) {
+                continue;
+            }
             if (self::isNativeAttrlessInlineNode($node) && in_array($key, ['id', 'classes', 'attributes'], true)) {
                 continue;
             }
@@ -475,6 +479,22 @@ final class HtmlNativeAstComparisonHarness
             'superscript',
             'underline',
         ], true);
+    }
+
+    private static function isRedundantRawHtmlAttr(AstNode $node, string $key, mixed $value): bool
+    {
+        if (!in_array($node->type, ['raw_html', 'raw_html_inline'], true)) {
+            return false;
+        }
+
+        if ($key === 'format' && $value === 'html') {
+            return true;
+        }
+
+        return $key === 'text'
+            && is_string($value)
+            && is_string($node->attr('html', null))
+            && $value === $node->attr('html');
     }
 
     /**
