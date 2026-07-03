@@ -17,7 +17,7 @@ final class DelimitedTextUpstreamReaderEvidence
     public const EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT = 2;
     public const EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT = 0;
     public const EXPECTED_STATIC_CSV_ADJACENT_RST_FIXTURE_COUNT = 2;
-    public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 19;
+    public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 20;
     public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 14;
 
     private const CHECKED_IN_CURRENT_CSV_FIXTURES = [
@@ -303,6 +303,20 @@ final class DelimitedTextUpstreamReaderEvidence
             'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/space-delimiter-single-quote.native',
             'sha256' => '594390fc80d43bada7903e66a771be44bbef23b24a7f11a2e9ac87e96bc542dd',
             'bytes' => 1579,
+        ],
+        'blank-row-skipped.csv' => [
+            'role' => 'generated-csv-native-parity-input-fixture',
+            'sample' => 'blank-row-skipped',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/blank-row-skipped.csv',
+            'sha256' => '4d721ac02e32060a616d3fef61083cc6f88adae5ace5ced3d77fe5f6fb966321',
+            'bytes' => 71,
+        ],
+        'blank-row-skipped.native' => [
+            'role' => 'generated-csv-native-parity-expected-native-output',
+            'sample' => 'blank-row-skipped',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/blank-row-skipped.native',
+            'sha256' => 'cf931bb22f5eeb8934579b99d4109e60801dd40e9f48e4e78a4e24038bc07a5f',
+            'bytes' => 1555,
         ],
     ];
 
@@ -603,6 +617,10 @@ final class DelimitedTextUpstreamReaderEvidence
                 'delimiter' => 'space',
                 'quote' => '\'',
             ],
+        ],
+        'blank-row-skipped' => [
+            'inputPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/blank-row-skipped.csv',
+            'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/blank-row-skipped.native',
         ],
     ];
 
