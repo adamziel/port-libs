@@ -59,6 +59,26 @@ $tests['imports upstream html base absolute image without rewriting absolute url
         $t->same('Stickman', $image->children[0]->attr('text'));
     };
 
+$tests['imports generated current html blockquote fixture as native blockquote'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-blockquote.html'));
+        $meta = $document->attr('meta');
+        $quote = $document->children[0];
+        $quoteParagraph = $quote->children[0];
+        $after = $document->children[1];
+
+        $t->same('HTML Blockquote Import', $meta['title']);
+        $t->same(['blockquote', 'paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same([], $quote->attrs);
+        $t->same(['paragraph'], array_map(static fn ($node): string => $node->type, $quote->children));
+        $t->same('Quoted source paragraph.', $quoteParagraph->attr('text'));
+        $t->same(['text', 'strong', 'text'], array_map(static fn ($node): string => $node->type, $quoteParagraph->children));
+        $t->same('Quoted ', $quoteParagraph->children[0]->attr('text'));
+        $t->same('source', $quoteParagraph->children[1]->children[0]->attr('text'));
+        $t->same(' paragraph.', $quoteParagraph->children[2]->attr('text'));
+        $t->same('After quote.', $after->attr('text'));
+    };
+
 $tests['extracts html reader microdata item metadata with itemref and nested item scopes'] =
     static function (TestRunner $t): void {
         $html = '<!doctype html><html><head><title>Microdata Dispatch</title></head><body>'

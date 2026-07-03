@@ -12,8 +12,8 @@ final class HtmlUpstreamReaderEvidence
     public const STATUS_COMPLETED = 'completed-upstream-html-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-html-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
-    public const EXPECTED_SELECTED_FIXTURE_COUNT = 51;
-    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 51;
+    public const EXPECTED_SELECTED_FIXTURE_COUNT = 52;
+    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 52;
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/HTML.hs',
@@ -36,6 +36,11 @@ final class HtmlUpstreamReaderEvidence
         'upstream-html-bdo-direction.html' => [
             'sha256' => '8a49cc0d2a5be4a343c0bea3717f7003e713b68898d44a03ea65ba4267acb02e',
             'bytes' => 239,
+        ],
+        'upstream-html-blockquote.html' => [
+            'sha256' => '7c1e8ba1dcde81e031bed35a0d75fad7dba0bf13ddbeef6188d38ae5cae82678',
+            'bytes' => 193,
+            'sourceKind' => 'generated-current-html-reader-fixture',
         ],
         'upstream-html-checkbox-list.html' => [
             'sha256' => 'f10574b3a847f995ed86e7c0876948cac0a452a06b7b0aece497a12412de5e45',
@@ -362,12 +367,12 @@ final class HtmlUpstreamReaderEvidence
                 'status' => $issues === [] ? 'valid-checked-in-current-html-reader-evidence' : 'invalid-checked-in-current-html-reader-evidence',
                 'issues' => array_values(array_unique($issues)),
             ],
-            'claim' => 'Static gate binding the checked-in upstream-derived HTML reader fixture corpus to SHA-256 and byte-count snapshots.',
+            'claim' => 'Static gate binding the checked-in upstream-derived and generated-current HTML reader fixture corpus to SHA-256 and byte-count snapshots.',
             'claimBoundaries' => [
                 'doesAssert' => [
-                    'the checked-in HTML reader fixture corpus has 51 pinned fixture snapshots',
+                    'the checked-in HTML reader fixture corpus has 52 pinned fixture snapshots',
                     'each pinned fixture has at least one local test reference',
-                    'the existing HTML/native AST comparator still observes 51 same-basename native-pair matches when included in the report',
+                    'the existing HTML/native AST comparator still observes 52 same-basename native-pair matches when included in the report',
                 ],
                 'doesNotAssert' => [
                     'that upstream Haskell/Cabal/Tasty tests were executed',
@@ -489,7 +494,7 @@ final class HtmlUpstreamReaderEvidence
             $fixtures[] = [
                 'name' => $name,
                 'category' => $category,
-                'sourceKind' => 'selected-upstream-html-reader-fixture',
+                'sourceKind' => (string) (self::CHECKED_IN_HTML_FIXTURES[$name]['sourceKind'] ?? 'selected-upstream-html-reader-fixture'),
             ];
             $categories[$category] = ($categories[$category] ?? 0) + 1;
         }
@@ -497,7 +502,7 @@ final class HtmlUpstreamReaderEvidence
 
         return [
             'selectedFixtureCount' => count($fixtures),
-            'fixtureScope' => 'selected checked-in upstream-derived HTML reader fixtures',
+            'fixtureScope' => 'selected checked-in upstream-derived and generated-current HTML reader fixtures',
             'selectedFixtures' => $fixtures,
             'categoryCounts' => $categories,
             'nativeMappedPairCount' => self::EXPECTED_NATIVE_MAPPED_PAIR_COUNT,
@@ -522,7 +527,7 @@ final class HtmlUpstreamReaderEvidence
 
     private static function claim(): string
     {
-        return 'Tracks selected checked-in upstream-derived HTML reader fixtures, local test references, and the existing same-basename HTML/native AST comparison as bounded evidence for HTML reader progress.';
+        return 'Tracks selected checked-in upstream-derived and generated-current HTML reader fixtures, local test references, and the existing same-basename HTML/native AST comparison as bounded evidence for HTML reader progress.';
     }
 
     /**
@@ -532,9 +537,9 @@ final class HtmlUpstreamReaderEvidence
     {
         return [
             'doesAssert' => [
-                'the identity and count of 51 selected checked-in upstream-derived HTML fixtures',
+                'the identity and count of 52 selected checked-in upstream-derived and generated-current HTML fixtures',
                 'that each selected fixture is referenced by at least one local focused test',
-                'that the existing native AST gate observes 51 checked-in same-basename HTML/native matches',
+                'that the existing native AST gate observes 52 checked-in same-basename HTML/native matches',
                 'that upstream Haskell runner evidence is explicitly not-run',
             ],
             'doesNotAssert' => [
@@ -552,7 +557,7 @@ final class HtmlUpstreamReaderEvidence
     {
         return [
             'selectedFixtureCount' => 0,
-            'fixtureScope' => 'selected checked-in upstream-derived HTML reader fixtures',
+            'fixtureScope' => 'selected checked-in upstream-derived and generated-current HTML reader fixtures',
             'selectedFixtures' => [],
             'categoryCounts' => [],
             'nativeMappedPairCount' => 0,
@@ -704,7 +709,7 @@ final class HtmlUpstreamReaderEvidence
         if (str_contains($name, 'standalone')) {
             return 'standalone-inline-html';
         }
-        if (str_contains($name, 'table') || str_contains($name, 'list') || str_contains($name, 'figure')) {
+        if (str_contains($name, 'blockquote') || str_contains($name, 'table') || str_contains($name, 'list') || str_contains($name, 'figure')) {
             return 'block-structure';
         }
 
