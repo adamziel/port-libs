@@ -41,6 +41,18 @@ $writeFakePandoc = static function (string $path, string $nativePath): void {
     chmod($path, 0755);
 };
 
+$writeFixtureAwareFakePandoc = static function (string $path, string $fixtureRoot): void {
+    file_put_contents(
+        $path,
+        "#!/bin/sh\n"
+        . "if [ \"\$1\" = \"--version\" ]; then echo \"pandoc fake checked-in 1.0\"; exit 0; fi\n"
+        . "for last do :; done\n"
+        . "stem=\$(basename \"\$last\" .pptx)\n"
+        . "cat " . escapeshellarg($fixtureRoot) . "/\"\$stem\".native\n"
+    );
+    chmod($path, 0755);
+};
+
 $copyBasicFixture = static function (string $root): void {
     $fixtureRoot = dirname(__DIR__) . '/fixtures/upstream-current-pptx-reader';
     copy($fixtureRoot . '/basic.pptx', $root . '/basic.pptx');
@@ -221,6 +233,57 @@ return [
             exec($missingCommand, $missingOutput, $missingExitCode);
 
             $t->same(1, $missingExitCode);
+        } finally {
+            $removeTree($root);
+        }
+    },
+    'cli selects checked-in fixtures for executable pptx parity with fake pandoc' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFixtureAwareFakePandoc): void {
+        $root = $makeTempDir();
+        try {
+            $fixtureRoot = dirname(__DIR__) . '/fixtures/upstream-current-pptx-reader';
+            $fakePandoc = $root . '/pandoc';
+            $writeFixtureAwareFakePandoc($fakePandoc, $fixtureRoot);
+            $tool = dirname(__DIR__, 3) . '/tools/pandoc-pptx-executable-native-ast.php';
+            $command = escapeshellarg(PHP_BINARY)
+                . ' '
+                . escapeshellarg($tool)
+                . ' --checked-in-fixtures'
+                . ' --pandoc-bin=' . escapeshellarg($fakePandoc)
+                . ' --json'
+                . ' summary'
+                . ' --require-executable-parity=4';
+            $output = [];
+            $exitCode = 0;
+            exec($command, $output, $exitCode);
+            $decoded = json_decode(implode("\n", $output), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same(0, $exitCode);
+            $t->same(dirname(__DIR__, 3) . '/lanes/pandoc/fixtures/upstream-current-pptx-reader', $decoded['pptxDirectory']);
+            $t->same('pandoc fake checked-in 1.0', $decoded['pandocVersion']);
+            $t->same(4, $decoded['comparedPptxCount']);
+            $t->same(4, $decoded['localParsedCount']);
+            $t->same(4, $decoded['pandocParsedCount']);
+            $t->same(4, $decoded['nativeFixtureParsedCount']);
+            $t->same(4, $decoded['normalizedAstMatchCount']);
+            $t->same(0, $decoded['normalizedAstMismatchCount']);
+            $t->same(4, $decoded['pandocNativeFixtureMatchCount']);
+            $t->same(0, $decoded['pandocNativeFixtureMismatchCount']);
+            $t->same(true, PptxExecutableNativeAstComparisonHarness::hasRequiredExecutableParity($decoded, 4));
+
+            $conflictingCommand = escapeshellarg(PHP_BINARY)
+                . ' '
+                . escapeshellarg($tool)
+                . ' --checked-in-fixtures'
+                . ' --pptx-dir=' . escapeshellarg($fixtureRoot)
+                . ' --pandoc-bin=' . escapeshellarg($fakePandoc)
+                . ' --json'
+                . ' summary'
+                . ' 2>/dev/null';
+            $conflictingOutput = [];
+            $conflictingExitCode = 0;
+            exec($conflictingCommand, $conflictingOutput, $conflictingExitCode);
+
+            $t->same(2, $conflictingExitCode);
         } finally {
             $removeTree($root);
         }

@@ -8,6 +8,9 @@ require __DIR__ . '/bootstrap.php';
 
 $repoRoot = dirname(__DIR__);
 $pptxDirectory = getenv('PANDOC_UPSTREAM_PPTX_DIR') ?: getenv('PANDOC_PPTX_NATIVE_AST_DIR') ?: $repoRoot . '/.upstream-cache/pandoc-current/test/pptx-reader';
+$checkedInPptxDirectory = $repoRoot . '/lanes/pandoc/fixtures/upstream-current-pptx-reader';
+$pptxDirectoryArgumentWasProvided = false;
+$useCheckedInFixtures = false;
 $pandocBin = getenv('PANDOC_BIN') ?: null;
 $limit = 0;
 $requiredExecutableParity = null;
@@ -17,12 +20,14 @@ $summary = false;
 foreach (array_slice($argv, 1) as $argument) {
     if ($argument === '--help' || $argument === '-h') {
         fwrite(STDOUT, <<<'TXT'
-Usage: php tools/pandoc-pptx-executable-native-ast.php [--pptx-dir=PATH] [--pandoc-bin=PATH] [--limit=N] [--json] [--require-executable-parity=N] [summary]
+Usage: php tools/pandoc-pptx-executable-native-ast.php [--pptx-dir=PATH|--checked-in-fixtures] [--pandoc-bin=PATH] [--limit=N] [--json] [--require-executable-parity=N] [summary]
 
 Runs a local pandoc executable as `pandoc -f pptx -t native FILE.pptx`
 and compares that native output with the local PHP PPTX reader by normalized
 AST shape. Missing pandoc is reported as skipped with exit 0 unless executable
 parity is required.
+Use --checked-in-fixtures for the checked-in current PPTX fixture snapshot at
+lanes/pandoc/fixtures/upstream-current-pptx-reader.
 
 TXT);
         exit(0);
@@ -40,6 +45,12 @@ TXT);
 
     if (str_starts_with($argument, '--pptx-dir=')) {
         $pptxDirectory = substr($argument, strlen('--pptx-dir='));
+        $pptxDirectoryArgumentWasProvided = true;
+        continue;
+    }
+
+    if ($argument === '--checked-in-fixtures') {
+        $useCheckedInFixtures = true;
         continue;
     }
 
@@ -65,6 +76,15 @@ TXT);
 
     fwrite(STDERR, "Unknown argument: {$argument}\n");
     exit(2);
+}
+
+if ($useCheckedInFixtures && $pptxDirectoryArgumentWasProvided) {
+    fwrite(STDERR, "--checked-in-fixtures cannot be combined with --pptx-dir\n");
+    exit(2);
+}
+
+if ($useCheckedInFixtures) {
+    $pptxDirectory = $checkedInPptxDirectory;
 }
 
 if ($pptxDirectory !== '' && !str_starts_with($pptxDirectory, DIRECTORY_SEPARATOR)) {
