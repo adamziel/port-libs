@@ -141,8 +141,8 @@ return [
         $t->same(2, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
         $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
-        $t->same(1, $generatedEvidence['sampleCount'] ?? null);
-        $t->same(2, $generatedEvidence['checkedInFixtureCount'] ?? null);
+        $t->same(2, $generatedEvidence['sampleCount'] ?? null);
+        $t->same(4, $generatedEvidence['checkedInFixtureCount'] ?? null);
         $t->same(2, $generatedEvidence['csvDirectFixtureDenominator'] ?? null);
         $t->same('quoted-multiline.csv', $generatedEvidence['checkedInFixtures'][0]['name'] ?? null);
         $t->same('a038fe6edd54cf98e2b3afaf14dd4e5cbdbbdb86ab2b62d9bd60cd783ce3324e', $generatedEvidence['checkedInFixtures'][0]['checkedInFile']['sha256'] ?? null);
@@ -166,6 +166,48 @@ return [
         $t->same('', $table->children[1]->children[2]->children[3]->attr('text'));
         $t->contains('Plain [ Str "Legacy," , Space , Str "\"quoted\"" , Space , Str "title" ]', $native);
         $t->contains('Plain [ Str "two" , LineBreak , Str "line" ]', $native);
+        $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
+    },
+    'matches generated csv post delimiter space native parity fixture without inflating csv denominator' => static function (TestRunner $t) use ($generatedCsvNativeFixture, $nativeTokenStream): void {
+        $fixture = $generatedCsvNativeFixture('post-delimiter-space');
+        $document = (new DelimitedTextReader())->readCsv($fixture['input'], [
+            'sourcePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/post-delimiter-space.csv',
+        ]);
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+        $native = PandocConverter::write($document, 'native');
+        $generatedEvidence = $packet['upstreamEvidence']['staticCurrentEvidence']['generatedCsvNativeStaticEvidence'] ?? [];
+
+        $t->same('csv', $packet['format'] ?? null);
+        $t->same(',', $packet['delimiter'] ?? null);
+        $t->same(2, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(2, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
+        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
+        $t->same(2, $generatedEvidence['sampleCount'] ?? null);
+        $t->same(4, $generatedEvidence['checkedInFixtureCount'] ?? null);
+        $t->same('post-delimiter-space.csv', $generatedEvidence['checkedInFixtures'][2]['name'] ?? null);
+        $t->same('b45a6d7f8cde2d645ce78e0427ff3a29be527c1507db236403c8ea9c1228f7a7', $generatedEvidence['checkedInFixtures'][2]['checkedInFile']['sha256'] ?? null);
+        $t->same('post-delimiter-space.native', $generatedEvidence['checkedInFixtures'][3]['name'] ?? null);
+        $t->same('766278b6bf6c85a71a50a50df5c8ee776c7e774020897f8f39e34d9841a9c8d1', $generatedEvidence['checkedInFixtures'][3]['checkedInFile']['sha256'] ?? null);
+        $t->same(['id', 'title', 'note'], $table->attr('columnNames'));
+        $t->same(4, $packet['rowCount'] ?? null);
+        $t->same(3, $packet['bodyRowCount'] ?? null);
+        $t->same(3, $packet['columnCount'] ?? null);
+        $t->same(12, $packet['fieldCount'] ?? null);
+        $t->same(5, $packet['quotedFieldCount'] ?? null);
+        $t->same(2, $packet['doubledQuoteEscapeCount'] ?? null);
+        $t->same(0, $packet['quotedLineBreakCount'] ?? null);
+        $t->same(0, $packet['multilineFieldCount'] ?? null);
+        $t->same(0, $packet['raggedRowCount'] ?? null);
+        $t->same(0, $packet['diagnosticCount'] ?? null);
+        $t->same('title', $table->children[0]->children[0]->children[1]->attr('text'));
+        $t->same('trimmed after comma', $table->children[1]->children[0]->children[1]->attr('text'));
+        $t->same('alpha, beta', $table->children[1]->children[0]->children[2]->attr('text'));
+        $t->same('quote "inside"', $table->children[1]->children[1]->children[1]->attr('text'));
+        $t->same('closing quote ignores spaces', $table->children[1]->children[2]->children[2]->attr('text'));
+        $t->contains('Plain [ Str "alpha," , Space , Str "beta" ]', $native);
+        $t->contains('Plain [ Str "quote" , Space , Str "\"inside\"" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
     'matches generated tsv native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {

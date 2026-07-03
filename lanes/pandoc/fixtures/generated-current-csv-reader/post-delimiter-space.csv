@@ -1,0 +1,4 @@
+id, title, note
+1, "trimmed after comma", "alpha, beta"
+2, "quote ""inside""", "plain"
+3, unquoted, "closing quote ignores spaces"   
