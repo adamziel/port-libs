@@ -69,6 +69,15 @@ $enabledCases = [
             $t->same(false, $node->attr('display'));
         },
     ],
+    'gfm enables dollar math extension' => [
+        'options' => ['format' => 'gfm'],
+        'markdown' => 'Math $x+1$ done.',
+        'match' => static fn (AstNode $node): bool => $node->type === 'math',
+        'assert' => static function (TestRunner $t, AstNode $node): void {
+            $t->same('x+1', $node->attr('text'));
+            $t->same(false, $node->attr('display'));
+        },
+    ],
     'commonmark plus wikilinks enables wikilink extension' => [
         'options' => ['format' => 'commonmark+wikilinks'],
         'markdown' => 'See [[Label|/target]] now.',
@@ -76,16 +85,6 @@ $enabledCases = [
         'assert' => static function (TestRunner $t, AstNode $node) use ($inlineText): void {
             $t->same('/target', $node->attr('url'));
             $t->same('Label', $inlineText($node));
-        },
-    ],
-    'php extra enables bracketed span extension' => [
-        'options' => ['format' => 'markdown_phpextra'],
-        'markdown' => 'See [marked]{.review data-x=1} now.',
-        'match' => static fn (AstNode $node): bool => $node->type === 'span' && $node->attr('classes') === ['review'],
-        'assert' => static function (TestRunner $t, AstNode $node) use ($inlineText): void {
-            $t->same(['review'], $node->attr('classes'));
-            $t->same(['data-x' => '1'], $node->attr('attributes'));
-            $t->same('marked', $inlineText($node));
         },
     ],
     'gfm plus raw attribute enables raw inline attribute extension' => [
@@ -129,17 +128,17 @@ $disabledCases = [
         'literal' => '@doe2026 says yes.',
         'match' => static fn (AstNode $node): bool => $node->type === 'citation',
     ],
-    'gfm disables dollar math extension' => [
-        'options' => ['format' => 'gfm'],
-        'markdown' => 'Math $x+1$ done.',
-        'literal' => 'Math $x+1$ done.',
-        'match' => static fn (AstNode $node): bool => $node->type === 'math',
-    ],
     'gfm disables wikilink extension' => [
         'options' => ['format' => 'gfm'],
         'markdown' => 'See [[Label|/target]] now.',
         'literal' => 'See [[Label|/target]] now.',
         'match' => static fn (AstNode $node): bool => $node->type === 'link' && $node->attr('classes') === ['wikilink'],
+    ],
+    'php extra disables bracketed span extension' => [
+        'options' => ['format' => 'markdown_phpextra'],
+        'markdown' => 'See [marked]{.review data-x=1} now.',
+        'literal' => 'See [marked]{.review data-x=1} now.',
+        'match' => static fn (AstNode $node): bool => $node->type === 'span' && $node->attr('classes') === ['review'],
     ],
     'gfm disables bracketed span extension' => [
         'options' => ['format' => 'gfm'],

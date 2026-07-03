@@ -1559,6 +1559,7 @@ final class MarkdownReader
         $idsByLine = [];
         $references = [];
         $usedIds = [];
+        $implicitHeaderReferences = $this->implicitHeaderReferenceExtensionEnabled();
 
         for ($index = 0, $count = count($lines); $index < $count; $index++) {
             $boundaryEnd = $this->markdownReferenceBoundaryEndIndex($lines, $index);
@@ -1590,16 +1591,17 @@ final class MarkdownReader
                     $usedIds
                 );
             } else {
-                if ($setextEnd !== null) {
-                    $index = $setextEnd;
-                }
-                continue;
+                $id = '';
             }
 
-            $idsByLine[$index] = $id;
-            $label = $this->normalizeReferenceLabel($this->plainMarkdownHeadingText($heading['text']));
-            if ($label !== '' && !isset($references[$label])) {
-                $references[$label] = ['url' => '#' . $id, 'title' => ''];
+            if ($id !== '') {
+                $idsByLine[$index] = $id;
+            }
+            if ($implicitHeaderReferences) {
+                $label = $this->normalizeReferenceLabel($this->plainMarkdownHeadingText($heading['text']));
+                if ($label !== '' && !isset($references[$label])) {
+                    $references[$label] = ['url' => '#' . $id, 'title' => ''];
+                }
             }
 
             if ($setextEnd !== null) {
@@ -15666,8 +15668,27 @@ final class MarkdownReader
         if (array_key_exists('auto_identifiers', $overrides)) {
             return $overrides['auto_identifiers'];
         }
+        if (array_key_exists('gfm_auto_identifiers', $overrides)) {
+            return $overrides['gfm_auto_identifiers'];
+        }
 
-        return true;
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['markdown', 'commonmark_x', 'gfm', 'markdown_mmd'], true);
+    }
+
+    private function implicitHeaderReferenceExtensionEnabled(): bool
+    {
+        $overrides = $this->markdownExtensionOverrides();
+        if (array_key_exists('implicit_header_references', $overrides)) {
+            return $overrides['implicit_header_references'];
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['markdown', 'commonmark_x', 'markdown_mmd'], true);
     }
 
     private function yamlMetadataEnabled(): bool

@@ -124,7 +124,8 @@ return [
                     $t->same('heading', $heading->type, $label);
                     $t->same($case['level'], $heading->attr('level'), $label);
                     $t->same($case['text'], $inlineText($heading), $label);
-                    $t->same($case['id'], $heading->attr('id'), $label);
+                    $expectedId = in_array($options['format'], ['commonmark', 'markdown_strict'], true) ? '' : $case['id'];
+                    $t->same($expectedId, $heading->attr('id'), $label);
                     $mapped++;
                 }
             }

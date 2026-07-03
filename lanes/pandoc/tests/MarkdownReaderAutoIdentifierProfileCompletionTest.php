@@ -40,8 +40,8 @@ return [
             $t->same('heading', $duplicateHeading->type);
             $t->same('', $duplicateHeading->attr('id', ''));
             $t->same('paragraph', $shortcut->type);
-            $t->same(['text'], $childTypes($shortcut));
-            $t->same('[Auto Heading]', $shortcut->attr('text'));
+            $t->same(['link'], $childTypes($shortcut));
+            $t->same('#', $shortcut->children[0]->attr('url'));
         },
     'keeps explicit heading ids and references when auto identifiers are disabled' =>
         static function (TestRunner $t) use ($readAutoIdentifierFixture, $childTypes): void {
@@ -76,7 +76,7 @@ return [
                 $shortcut = $document->children[1] ?? new AstNode('missing');
 
                 $t->same('', $heading->attr('id', ''), $label);
-                $t->same('[Auto Heading]', $shortcut->attr('text'), $label);
+                $t->same('#', ($shortcut->children[0] ?? new AstNode('missing'))->attr('url'), $label);
             }
         },
     'keeps default generated heading identifiers intact' =>
@@ -92,8 +92,41 @@ return [
             $t->same('#auto-heading', $link->attr('url'));
             $t->same('auto-heading-1', $duplicateHeading->attr('id'));
         },
+    'maps upstream generated heading id and implicit reference flavor split' =>
+        static function (TestRunner $t) use ($readAutoIdentifierFixture): void {
+            $cases = [
+                'markdown' => ['format' => 'markdown', 'id' => 'auto-heading', 'shortcut' => 'link', 'url' => '#auto-heading'],
+                'commonmark' => ['format' => 'commonmark', 'id' => '', 'shortcut' => 'text'],
+                'commonmark_x' => ['format' => 'commonmark_x', 'id' => 'auto-heading', 'shortcut' => 'link', 'url' => '#auto-heading'],
+                'gfm' => ['format' => 'gfm', 'id' => 'auto-heading', 'shortcut' => 'text'],
+                'markdown_github' => ['format' => 'markdown_github', 'id' => 'auto-heading', 'shortcut' => 'text'],
+                'markdown_strict' => ['format' => 'markdown_strict', 'id' => '', 'shortcut' => 'text'],
+                'markdown_phpextra' => ['format' => 'markdown_phpextra', 'id' => '', 'shortcut' => 'text'],
+                'markdown_mmd' => ['format' => 'markdown_mmd', 'id' => 'auto-heading', 'shortcut' => 'link', 'url' => '#auto-heading'],
+                'gfm generated ids off' => ['format' => 'gfm-gfm_auto_identifiers', 'id' => '', 'shortcut' => 'text'],
+                'gfm implicit references on' => ['format' => 'gfm+implicit_header_references', 'id' => 'auto-heading', 'shortcut' => 'link', 'url' => '#auto-heading'],
+                'markdown implicit references off' => ['format' => 'markdown-implicit_header_references', 'id' => 'auto-heading', 'shortcut' => 'text'],
+            ];
+
+            foreach ($cases as $label => $case) {
+                $document = $readAutoIdentifierFixture(['format' => $case['format']]);
+                $heading = $document->children[0] ?? new AstNode('missing');
+                $shortcut = $document->children[1] ?? new AstNode('missing');
+                $firstInline = $shortcut->children[0] ?? new AstNode('missing');
+
+                $t->same('heading', $heading->type, $label . ' heading');
+                $t->same($case['id'], $heading->attr('id', ''), $label . ' generated id');
+                if ($case['shortcut'] === 'link') {
+                    $t->same('link', $firstInline->type, $label . ' shortcut link');
+                    $t->same($case['url'], $firstInline->attr('url'), $label . ' shortcut url');
+                } else {
+                    $t->same('text', $firstInline->type, $label . ' shortcut literal');
+                    $t->same('[Auto Heading]', $shortcut->attr('text'), $label . ' shortcut text');
+                }
+            }
+        },
     'records upstream markdown auto identifier profile mapped-case count' =>
         static function (TestRunner $t): void {
-            $t->same(9, 1 + 1 + 5 + 2);
+            $t->same(20, 1 + 1 + 5 + 2 + 11);
         },
 ];
