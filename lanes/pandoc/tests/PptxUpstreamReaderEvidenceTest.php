@@ -160,6 +160,7 @@ return [
         $speakerNotesPair = $pairsByStem['speaker-notes'];
         $numberedListPair = $pairsByStem['numbered-list'];
         $shapeOrderPair = $pairsByStem['shape-order'];
+        $slidePlaceholdersPair = $pairsByStem['slide-placeholders'];
 
         $t->same(PptxUpstreamReaderEvidence::STATUS_SKIPPED_MISSING_SOURCE, $report['status']);
         $t->same('valid-checked-in-current-pptx-reader-evidence', $static['validation']['status']);
@@ -168,7 +169,7 @@ return [
         $t->same('text extraction', $static['readerDenominator']['expectedReaderCases'][0]['name']);
         $t->same('pptx-reader/basic.pptx', $static['readerDenominator']['expectedReaderCases'][0]['pptx']);
         $t->same('pptx-reader/basic.native', $static['readerDenominator']['expectedReaderCases'][0]['native']);
-        $t->same(21, $static['checkedInFixturePairCount']);
+        $t->same(22, $static['checkedInFixturePairCount']);
         $t->same(0, $static['checkedInUnpairedPptxFixtureCount']);
         $t->same(0, $static['checkedInUnpairedNativeFixtureCount']);
         $t->same([], $static['checkedInUnpairedPptxFixtures']);
@@ -319,6 +320,13 @@ return [
         $t->same('911f29fe22d020d181e007478bff7c157f6df49d06f7c42798bb3a933d33f427', $shapeOrderPair['checkedInNative']['sha256']);
         $t->same(1521, $shapeOrderPair['checkedInPptx']['bytes']);
         $t->same(135, $shapeOrderPair['checkedInNative']['bytes']);
+        $t->same('slide-placeholders', $slidePlaceholdersPair['stem']);
+        $t->same('generated slide footer/date/number placeholder visibility parity', $slidePlaceholdersPair['name']);
+        $t->same('pptx-reader/slide-placeholders.pptx|pptx-reader/slide-placeholders.native', $slidePlaceholdersPair['pairKey']);
+        $t->same('c8e3aebc55d7e464bb43409263586042420acaac2ce308601dadd081ab17354b', $slidePlaceholdersPair['checkedInPptx']['sha256']);
+        $t->same('f76963e6f7aa7b051bddb6ad4fa62016af8f580963f75fee42ecb840c7a64cc6', $slidePlaceholdersPair['checkedInNative']['sha256']);
+        $t->same(1598, $slidePlaceholdersPair['checkedInPptx']['bytes']);
+        $t->same(203, $slidePlaceholdersPair['checkedInNative']['bytes']);
         $t->same(false, PptxUpstreamReaderEvidence::hasNoValidationIssues($report));
         $t->same(true, PptxUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($report));
         $t->same(true, PptxUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
@@ -343,7 +351,8 @@ return [
         $t->true(in_array('that speaker-notes.pptx/speaker-notes.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('that numbered-list.pptx/numbered-list.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('that shape-order.pptx/shape-order.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
-        $t->contains('Static current evidence: valid-checked-in-current-pptx-reader-evidence comparisons=1 checkedInPairs=21', $text);
+        $t->true(in_array('that slide-placeholders.pptx/slide-placeholders.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
+        $t->contains('Static current evidence: valid-checked-in-current-pptx-reader-evidence comparisons=1 checkedInPairs=22', $text);
         $t->contains('Runner status: not-run', $text);
     },
     'reports invalid pptx reader evidence for missing and unreferenced fixtures' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile): void {
