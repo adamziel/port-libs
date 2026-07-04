@@ -129,6 +129,16 @@ final class MarkdownReader
 
     private int $htmlSourceTableFallbackIndex = 0;
 
+    /** @var list<array{thead: bool, tbody: bool, tfoot: bool}> */
+    private array $htmlSourceTableSectionProfiles = [];
+
+    private int $htmlSourceTableSectionProfileIndex = 0;
+
+    /** @var list<string> */
+    private array $htmlSourceTextareaRawHtml = [];
+
+    private int $htmlSourceTextareaRawHtmlIndex = 0;
+
     private bool $resolveInlineNotes = true;
 
     private bool $resolveFootnoteReferences = true;
@@ -3061,19 +3071,7 @@ final class MarkdownReader
      */
     private function htmlAttrsFromOpeningTag(string $openingTag, string $tag): array
     {
-        $previous = libxml_use_internal_errors(true);
-        $dom = new \DOMDocument('1.0', 'UTF-8');
-        $loaded = $dom->loadHTML(
-            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $openingTag . '</' . $tag . '></body></html>',
-            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
-        );
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-        if (!$loaded) {
-            return [];
-        }
-
-        $body = $dom->getElementsByTagName('body')->item(0);
+        $body = $this->parseHtmlFragmentBodyElement($openingTag . '</' . $tag . '>');
         if (!$body instanceof \DOMElement) {
             return [];
         }
@@ -3084,6 +3082,31 @@ final class MarkdownReader
         }
 
         return $this->htmlElementPandocAttrs($element);
+    }
+
+    private function parseHtmlFragmentBodyElement(string $html): ?\DOMElement
+    {
+        try {
+            return Html5Dom::parseHtmlFragment($html);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private function parseHtmlFullDocumentDom(string $html): ?\DOMDocument
+    {
+        try {
+            return Html5Dom::parseHtmlDocument($html);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private function htmlDocumentBodyElement(\DOMDocument $dom): ?\DOMElement
+    {
+        $body = $dom->getElementsByTagName('body')->item(0);
+
+        return $body instanceof \DOMElement ? $body : null;
     }
 
     private function isHtmlLineBlockOpeningTag(string $line): bool
@@ -3369,19 +3392,7 @@ final class MarkdownReader
      */
     private function parseHtmlTransparentBlockContainerFragment(string $html): array
     {
-        $previous = libxml_use_internal_errors(true);
-        $dom = new \DOMDocument('1.0', 'UTF-8');
-        $loaded = $dom->loadHTML(
-            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
-            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
-        );
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-        if (!$loaded) {
-            return [];
-        }
-
-        $body = $dom->getElementsByTagName('body')->item(0);
+        $body = $this->parseHtmlFragmentBodyElement($html);
         if (!$body instanceof \DOMElement) {
             return [];
         }
@@ -3892,19 +3903,12 @@ final class MarkdownReader
 
     private function parseHtmlDocument(string $html): ?AstNode
     {
-        $previous = libxml_use_internal_errors(true);
-        $dom = new \DOMDocument('1.0', 'UTF-8');
-        $loaded = $dom->loadHTML(
-            '<?xml encoding="UTF-8">' . $html,
-            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
-        );
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-        if (!$loaded) {
+        $dom = $this->parseHtmlFullDocumentDom($html);
+        if (!$dom instanceof \DOMDocument) {
             return null;
         }
 
-        $body = $dom->getElementsByTagName('body')->item(0);
+        $body = $this->htmlDocumentBodyElement($dom);
         if (!$body instanceof \DOMElement) {
             return null;
         }
@@ -3914,11 +3918,19 @@ final class MarkdownReader
         $previousHtmlResolvedFootnoteReference = $this->htmlResolvedFootnoteReference;
         $previousHtmlSourceTableFallbacks = $this->htmlSourceTableFallbacks;
         $previousHtmlSourceTableFallbackIndex = $this->htmlSourceTableFallbackIndex;
+        $previousHtmlSourceTableSectionProfiles = $this->htmlSourceTableSectionProfiles;
+        $previousHtmlSourceTableSectionProfileIndex = $this->htmlSourceTableSectionProfileIndex;
+        $previousHtmlSourceTextareaRawHtml = $this->htmlSourceTextareaRawHtml;
+        $previousHtmlSourceTextareaRawHtmlIndex = $this->htmlSourceTextareaRawHtmlIndex;
         $this->htmlBaseHref = $this->htmlDocumentBaseHref($dom);
         $this->htmlFootnoteDefinitions = $this->collectHtmlFootnoteDefinitions($body);
         $this->htmlResolvedFootnoteReference = false;
         $this->htmlSourceTableFallbacks = $this->htmlSourceTableFallbacks($html);
         $this->htmlSourceTableFallbackIndex = 0;
+        $this->htmlSourceTableSectionProfiles = $this->htmlSourceTableSectionProfiles($html);
+        $this->htmlSourceTableSectionProfileIndex = 0;
+        $this->htmlSourceTextareaRawHtml = $this->htmlSourceElementHtmlList($html, 'textarea');
+        $this->htmlSourceTextareaRawHtmlIndex = 0;
         try {
             $attrs = $this->htmlDocumentAttrs($dom);
             $nativeDivs = $this->htmlNativeDivsEnabled();
@@ -3929,7 +3941,8 @@ final class MarkdownReader
                 }
             }
 
-            $children = $this->parseHtmlBlockChildren($body);
+            $sourceOrderChildren = $this->parseHtmlDocumentSourceOrderTableBlocks($html);
+            $children = $sourceOrderChildren ?? $this->parseHtmlBlockChildren($body);
             if (!$nativeDivs && $this->htmlResolvedFootnoteReference) {
                 $children = $this->stripConsumedHtmlFootnoteContainers($children);
             }
@@ -3941,6 +3954,10 @@ final class MarkdownReader
             $this->htmlResolvedFootnoteReference = $previousHtmlResolvedFootnoteReference;
             $this->htmlSourceTableFallbacks = $previousHtmlSourceTableFallbacks;
             $this->htmlSourceTableFallbackIndex = $previousHtmlSourceTableFallbackIndex;
+            $this->htmlSourceTableSectionProfiles = $previousHtmlSourceTableSectionProfiles;
+            $this->htmlSourceTableSectionProfileIndex = $previousHtmlSourceTableSectionProfileIndex;
+            $this->htmlSourceTextareaRawHtml = $previousHtmlSourceTextareaRawHtml;
+            $this->htmlSourceTextareaRawHtmlIndex = $previousHtmlSourceTextareaRawHtmlIndex;
         }
     }
 
@@ -4194,19 +4211,7 @@ final class MarkdownReader
 
     private function parseHtmlNativeDivsFragment(string $html): ?AstNode
     {
-        $previous = libxml_use_internal_errors(true);
-        $dom = new \DOMDocument('1.0', 'UTF-8');
-        $loaded = $dom->loadHTML(
-            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
-            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
-        );
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-        if (!$loaded) {
-            return null;
-        }
-
-        $body = $dom->getElementsByTagName('body')->item(0);
+        $body = $this->parseHtmlFragmentBodyElement($html);
         if (!$body instanceof \DOMElement) {
             return null;
         }
@@ -4251,19 +4256,7 @@ final class MarkdownReader
 
     private function parseHtmlNativeDivsHeaderFragment(string $html): ?AstNode
     {
-        $previous = libxml_use_internal_errors(true);
-        $dom = new \DOMDocument('1.0', 'UTF-8');
-        $loaded = $dom->loadHTML(
-            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
-            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
-        );
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-        if (!$loaded) {
-            return null;
-        }
-
-        $body = $dom->getElementsByTagName('body')->item(0);
+        $body = $this->parseHtmlFragmentBodyElement($html);
         if (!$body instanceof \DOMElement) {
             return null;
         }
@@ -4313,19 +4306,7 @@ final class MarkdownReader
 
     private function parseHtmlNativeDivsContainerFragment(string $html, string $tag): ?AstNode
     {
-        $previous = libxml_use_internal_errors(true);
-        $dom = new \DOMDocument('1.0', 'UTF-8');
-        $loaded = $dom->loadHTML(
-            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
-            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
-        );
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-        if (!$loaded) {
-            return null;
-        }
-
-        $body = $dom->getElementsByTagName('body')->item(0);
+        $body = $this->parseHtmlFragmentBodyElement($html);
         if (!$body instanceof \DOMElement) {
             return null;
         }
@@ -4651,19 +4632,7 @@ final class MarkdownReader
 
     private function parseHtmlParagraphElement(string $html): ?AstNode
     {
-        $previous = libxml_use_internal_errors(true);
-        $dom = new \DOMDocument('1.0', 'UTF-8');
-        $loaded = $dom->loadHTML(
-            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
-            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
-        );
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-        if (!$loaded) {
-            return null;
-        }
-
-        $body = $dom->getElementsByTagName('body')->item(0);
+        $body = $this->parseHtmlFragmentBodyElement($html);
         if (!$body instanceof \DOMElement) {
             return null;
         }
@@ -4725,19 +4694,7 @@ final class MarkdownReader
 
     private function parseHtmlInlineFragmentParagraph(string $html): ?AstNode
     {
-        $previous = libxml_use_internal_errors(true);
-        $dom = new \DOMDocument('1.0', 'UTF-8');
-        $loaded = $dom->loadHTML(
-            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
-            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
-        );
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-        if (!$loaded) {
-            return null;
-        }
-
-        $body = $dom->getElementsByTagName('body')->item(0);
+        $body = $this->parseHtmlFragmentBodyElement($html);
         if (!$body instanceof \DOMElement) {
             return null;
         }
@@ -4755,19 +4712,7 @@ final class MarkdownReader
      */
     private function parseHtmlInlineFragmentNodes(string $html): array
     {
-        $previous = libxml_use_internal_errors(true);
-        $dom = new \DOMDocument('1.0', 'UTF-8');
-        $loaded = $dom->loadHTML(
-            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
-            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
-        );
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-        if (!$loaded) {
-            return [];
-        }
-
-        $body = $dom->getElementsByTagName('body')->item(0);
+        $body = $this->parseHtmlFragmentBodyElement($html);
         if (!$body instanceof \DOMElement) {
             return [];
         }
@@ -4868,19 +4813,7 @@ final class MarkdownReader
 
     private function parseHtmlIframeBlock(string $html): ?AstNode
     {
-        $previous = libxml_use_internal_errors(true);
-        $dom = new \DOMDocument('1.0', 'UTF-8');
-        $loaded = $dom->loadHTML(
-            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
-            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
-        );
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-        if (!$loaded) {
-            return null;
-        }
-
-        $body = $dom->getElementsByTagName('body')->item(0);
+        $body = $this->parseHtmlFragmentBodyElement($html);
         if (!$body instanceof \DOMElement) {
             return null;
         }
@@ -4963,19 +4896,7 @@ final class MarkdownReader
 
     private function parseHtmlHeadingElement(string $html, int $level): ?AstNode
     {
-        $previous = libxml_use_internal_errors(true);
-        $dom = new \DOMDocument('1.0', 'UTF-8');
-        $loaded = $dom->loadHTML(
-            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
-            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
-        );
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-        if (!$loaded) {
-            return null;
-        }
-
-        $body = $dom->getElementsByTagName('body')->item(0);
+        $body = $this->parseHtmlFragmentBodyElement($html);
         if (!$body instanceof \DOMElement) {
             return null;
         }
@@ -5095,19 +5016,7 @@ final class MarkdownReader
 
     private function parseHtmlPreCodeBlock(string $html): ?AstNode
     {
-        $previous = libxml_use_internal_errors(true);
-        $dom = new \DOMDocument('1.0', 'UTF-8');
-        $loaded = $dom->loadHTML(
-            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
-            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
-        );
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-        if (!$loaded) {
-            return null;
-        }
-
-        $body = $dom->getElementsByTagName('body')->item(0);
+        $body = $this->parseHtmlFragmentBodyElement($html);
         if (!$body instanceof \DOMElement) {
             return null;
         }
@@ -5167,19 +5076,7 @@ final class MarkdownReader
 
     private function parseHtmlBlockQuoteBlock(string $html): ?AstNode
     {
-        $previous = libxml_use_internal_errors(true);
-        $dom = new \DOMDocument('1.0', 'UTF-8');
-        $loaded = $dom->loadHTML(
-            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
-            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
-        );
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-        if (!$loaded) {
-            return null;
-        }
-
-        $body = $dom->getElementsByTagName('body')->item(0);
+        $body = $this->parseHtmlFragmentBodyElement($html);
         if (!$body instanceof \DOMElement) {
             return null;
         }
@@ -5194,19 +5091,7 @@ final class MarkdownReader
 
     private function parseHtmlFigureBlock(string $html): ?AstNode
     {
-        $previous = libxml_use_internal_errors(true);
-        $dom = new \DOMDocument('1.0', 'UTF-8');
-        $loaded = $dom->loadHTML(
-            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
-            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
-        );
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-        if (!$loaded) {
-            return null;
-        }
-
-        $body = $dom->getElementsByTagName('body')->item(0);
+        $body = $this->parseHtmlFragmentBodyElement($html);
         if (!$body instanceof \DOMElement) {
             return null;
         }
@@ -5244,19 +5129,7 @@ final class MarkdownReader
 
     private function parseHtmlListBlock(string $html, string $tag): ?AstNode
     {
-        $previous = libxml_use_internal_errors(true);
-        $dom = new \DOMDocument('1.0', 'UTF-8');
-        $loaded = $dom->loadHTML(
-            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
-            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
-        );
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-        if (!$loaded) {
-            return null;
-        }
-
-        $body = $dom->getElementsByTagName('body')->item(0);
+        $body = $this->parseHtmlFragmentBodyElement($html);
         if (!$body instanceof \DOMElement) {
             return null;
         }
@@ -5271,19 +5144,7 @@ final class MarkdownReader
 
     private function parseHtmlDefinitionListBlock(string $html): ?AstNode
     {
-        $previous = libxml_use_internal_errors(true);
-        $dom = new \DOMDocument('1.0', 'UTF-8');
-        $loaded = $dom->loadHTML(
-            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
-            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
-        );
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-        if (!$loaded) {
-            return null;
-        }
-
-        $body = $dom->getElementsByTagName('body')->item(0);
+        $body = $this->parseHtmlFragmentBodyElement($html);
         if (!$body instanceof \DOMElement) {
             return null;
         }
@@ -6832,19 +6693,7 @@ final class MarkdownReader
 
     private function htmlTableBlockIsEmpty(string $html): bool
     {
-        $previous = libxml_use_internal_errors(true);
-        $dom = new \DOMDocument('1.0', 'UTF-8');
-        $loaded = $dom->loadHTML(
-            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
-            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
-        );
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-        if (!$loaded) {
-            return false;
-        }
-
-        $body = $dom->getElementsByTagName('body')->item(0);
+        $body = $this->parseHtmlFragmentBodyElement($html);
         if (!$body instanceof \DOMElement) {
             return false;
         }
@@ -6884,22 +6733,12 @@ final class MarkdownReader
             return null;
         }
 
-        $previous = libxml_use_internal_errors(true);
-        $dom = new \DOMDocument('1.0', 'UTF-8');
-        $source = preg_match('/^\s*(?:<!doctype\s+html\b|<html\b)/i', $html) === 1
-            ? '<?xml encoding="UTF-8">' . $html
-            : '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>';
-        $loaded = $dom->loadHTML(
-            $source,
-            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
-        );
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-        if (!$loaded) {
-            return null;
+        if (preg_match('/^\s*(?:<!doctype\s+html\b|<html\b)/i', $html) === 1) {
+            $dom = $this->parseHtmlFullDocumentDom($html);
+            $body = $dom instanceof \DOMDocument ? $this->htmlDocumentBodyElement($dom) : null;
+        } else {
+            $body = $this->parseHtmlFragmentBodyElement($html);
         }
-
-        $body = $dom->getElementsByTagName('body')->item(0);
         if (!$body instanceof \DOMElement) {
             return null;
         }
@@ -6909,11 +6748,12 @@ final class MarkdownReader
             !$table instanceof \DOMElement
             || (!$this->htmlTableContainsNestedTable($table) && !$this->htmlTableHasStructuredBoundary($table))
             || $this->htmlTableShouldFallBackToBlocks($table)
+            || $this->htmlBodyHasVisibleNonTableSibling($body, $table)
         ) {
             return null;
         }
 
-        return $this->parseHtmlTableElement($table);
+        return $this->parseHtmlTableElementWithSourceProfiles($table, $this->htmlSourceTableSectionProfiles($html));
     }
 
     /**
@@ -6921,19 +6761,7 @@ final class MarkdownReader
      */
     private function parseInvalidHtmlTableBlockChildren(string $html): ?array
     {
-        $previous = libxml_use_internal_errors(true);
-        $dom = new \DOMDocument('1.0', 'UTF-8');
-        $loaded = $dom->loadHTML(
-            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
-            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
-        );
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-        if (!$loaded) {
-            return null;
-        }
-
-        $body = $dom->getElementsByTagName('body')->item(0);
+        $body = $this->parseHtmlFragmentBodyElement($html);
         if (!$body instanceof \DOMElement) {
             return null;
         }
@@ -6945,32 +6773,84 @@ final class MarkdownReader
 
         $sourceFallbacks = $this->htmlSourceTableFallbacks($html);
         $sourceFallback = in_array(true, $sourceFallbacks, true);
-        if (!$sourceFallback && !$this->htmlTableShouldFallBackToBlocks($table)) {
+        $domFosteredFallback = $this->htmlBodyHasVisibleNonTableSibling($body, $table);
+        if ($domFosteredFallback) {
+            $sourceFallbacks = $this->htmlSourceTableFallbacksWithDomTable($body, $table, $sourceFallbacks);
+        }
+        $fallback = in_array(true, $sourceFallbacks, true);
+        if (!$fallback && !$this->htmlTableShouldFallBackToBlocks($table)) {
             return null;
         }
 
+        if (!$sourceFallback && $domFosteredFallback && $this->htmlSourceTableHasSourceOrderFallback($html)) {
+            $sourceOrderBlocks = $this->parseInvalidHtmlTableSourceOrderBlocks($html);
+            if ($sourceOrderBlocks !== null) {
+                return $sourceOrderBlocks;
+            }
+        }
+
         if ($sourceFallback) {
-            return $this->parseHtmlBlockChildrenWithSourceTableFallbacks($body, $sourceFallbacks);
+            return $this->parseHtmlBlockChildrenWithSourceTableFallbacks(
+                $body,
+                $sourceFallbacks,
+                $this->htmlSourceTableSectionProfiles($html)
+            );
         }
 
         return $this->parseHtmlBlockChildren($body);
     }
 
     /**
+     * @return list<AstNode>|null
+     */
+    private function parseHtmlDocumentSourceOrderTableBlocks(string $html): ?array
+    {
+        if (in_array(true, $this->htmlSourceTableFallbacks($html), true)) {
+            return null;
+        }
+
+        if (!$this->htmlSourceTableHasSourceOrderFallback($html)) {
+            return null;
+        }
+
+        $bodyBounds = $this->htmlSourceElementBounds($html, 'body');
+        $source = $bodyBounds === null
+            ? $html
+            : substr(
+                $html,
+                $bodyBounds['openEnd'] + 1,
+                max(0, $bodyBounds['closeStart'] - $bodyBounds['openEnd'] - 1)
+            );
+
+        return $this->parseInvalidHtmlTableSourceOrderBlocks($source);
+    }
+
+    /**
      * @param list<bool> $fallbacks
+     * @param list<array{thead: bool, tbody: bool, tfoot: bool}> $sectionProfiles
      * @return list<AstNode>
      */
-    private function parseHtmlBlockChildrenWithSourceTableFallbacks(\DOMElement $element, array $fallbacks): array
+    private function parseHtmlBlockChildrenWithSourceTableFallbacks(
+        \DOMElement $element,
+        array $fallbacks,
+        array $sectionProfiles = []
+    ): array
     {
         $previousHtmlSourceTableFallbacks = $this->htmlSourceTableFallbacks;
         $previousHtmlSourceTableFallbackIndex = $this->htmlSourceTableFallbackIndex;
+        $previousHtmlSourceTableSectionProfiles = $this->htmlSourceTableSectionProfiles;
+        $previousHtmlSourceTableSectionProfileIndex = $this->htmlSourceTableSectionProfileIndex;
         $this->htmlSourceTableFallbacks = $fallbacks;
         $this->htmlSourceTableFallbackIndex = 0;
+        $this->htmlSourceTableSectionProfiles = $sectionProfiles;
+        $this->htmlSourceTableSectionProfileIndex = 0;
         try {
             return $this->parseHtmlBlockChildren($element);
         } finally {
             $this->htmlSourceTableFallbacks = $previousHtmlSourceTableFallbacks;
             $this->htmlSourceTableFallbackIndex = $previousHtmlSourceTableFallbackIndex;
+            $this->htmlSourceTableSectionProfiles = $previousHtmlSourceTableSectionProfiles;
+            $this->htmlSourceTableSectionProfileIndex = $previousHtmlSourceTableSectionProfileIndex;
         }
     }
 
@@ -6990,20 +6870,11 @@ final class MarkdownReader
      */
     private function htmlSourceTableFallbacks(string $html): array
     {
-        $scan = $this->htmlBodySourceForTableFallbackScan($html);
-        if (preg_match_all('/<\/?(table|thead|tbody|tfoot|tr|td|th)\b[^>]*>/iu', $scan, $matches) !== false) {
-            $tags = $matches[0];
-            $names = $matches[1];
-        } else {
-            $tags = [];
-            $names = [];
-        }
-
         $fallbacks = [];
         $stack = [];
-        foreach ($tags as $index => $rawTag) {
-            $name = strtolower($names[$index]);
-            $closing = str_starts_with(ltrim($rawTag), '</');
+        foreach ($this->htmlSourceTableTokens($html) as $token) {
+            $name = $token['name'];
+            $closing = $token['closing'];
             if ($name === 'table') {
                 if ($closing) {
                     if ($stack !== []) {
@@ -7086,13 +6957,405 @@ final class MarkdownReader
         return $fallbacks;
     }
 
-    private function htmlBodySourceForTableFallbackScan(string $html): string
+    /**
+     * @return list<AstNode>|null
+     */
+    private function parseInvalidHtmlTableSourceOrderBlocks(string $html): ?array
     {
-        if (preg_match('/<body\b[^>]*>(.*)<\/body\s*>/isu', $html, $match) === 1) {
-            return $match[1];
+        $tableBounds = $this->htmlSourceElementBounds($html, 'table');
+        if ($tableBounds === null) {
+            return null;
+        }
+
+        $blocks = [];
+        array_push($blocks, ...$this->parseHtmlSourceOrderFragmentBlocks(substr($html, 0, $tableBounds['openStart'])));
+
+        $inner = substr(
+            $html,
+            $tableBounds['openEnd'] + 1,
+            max(0, $tableBounds['closeStart'] - $tableBounds['openEnd'] - 1)
+        );
+        array_push($blocks, ...$this->parseInvalidHtmlTableInnerSourceOrderBlocks($inner));
+        array_push($blocks, ...$this->parseHtmlSourceOrderFragmentBlocks(substr($html, $tableBounds['closeEnd'] + 1)));
+
+        return $blocks;
+    }
+
+    private function htmlSourceTableHasSourceOrderFallback(string $html): bool
+    {
+        $tableBounds = $this->htmlSourceElementBounds($html, 'table');
+        if ($tableBounds === null) {
+            return false;
+        }
+
+        $inner = substr(
+            $html,
+            $tableBounds['openEnd'] + 1,
+            max(0, $tableBounds['closeStart'] - $tableBounds['openEnd'] - 1)
+        );
+        $offset = 0;
+        $length = strlen($inner);
+        while ($offset < $length) {
+            $rowBounds = $this->htmlSourceElementBounds($inner, 'tr', $offset);
+            if ($rowBounds === null) {
+                break;
+            }
+
+            if ($this->htmlSourceChunkHasVisibleNonSectionContent(substr($inner, $offset, $rowBounds['openStart'] - $offset))) {
+                return true;
+            }
+
+            $offset = $rowBounds['closeEnd'] + 1;
+        }
+
+        return $this->htmlSourceChunkHasVisibleNonSectionContent(substr($inner, $offset));
+    }
+
+    private function htmlSourceChunkHasVisibleNonSectionContent(string $html): bool
+    {
+        $html = $this->htmlSourceRemoveCompleteElements($html, ['caption', 'colgroup']);
+        $cursor = 0;
+        $kept = '';
+        foreach ($this->htmlSourceNamedTokens($html, ['thead', 'tbody', 'tfoot']) as $token) {
+            $kept .= substr($html, $cursor, $token['start'] - $cursor);
+            $cursor = $token['end'] + 1;
+        }
+        $kept .= substr($html, $cursor);
+
+        return trim($kept) !== '';
+    }
+
+    /**
+     * @param list<string> $names
+     */
+    private function htmlSourceRemoveCompleteElements(string $html, array $names): string
+    {
+        $changed = true;
+        while ($changed) {
+            $changed = false;
+            foreach ($names as $name) {
+                $bounds = $this->htmlSourceElementBounds($html, $name);
+                if ($bounds === null) {
+                    continue;
+                }
+
+                $html = substr($html, 0, $bounds['openStart']) . substr($html, $bounds['closeEnd'] + 1);
+                $changed = true;
+                break;
+            }
         }
 
         return $html;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function htmlSourceElementHtmlList(string $html, string $tag): array
+    {
+        $items = [];
+        $offset = 0;
+        while (($bounds = $this->htmlSourceElementBounds($html, $tag, $offset)) !== null) {
+            $items[] = substr($html, $bounds['openStart'], $bounds['closeEnd'] - $bounds['openStart'] + 1);
+            $offset = $bounds['closeEnd'] + 1;
+        }
+
+        return $items;
+    }
+
+    private function nextHtmlSourceTextareaRawHtml(): ?string
+    {
+        if ($this->htmlSourceTextareaRawHtmlIndex < count($this->htmlSourceTextareaRawHtml)) {
+            $html = $this->htmlSourceTextareaRawHtml[$this->htmlSourceTextareaRawHtmlIndex];
+            $this->htmlSourceTextareaRawHtmlIndex++;
+
+            return $html;
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function parseInvalidHtmlTableInnerSourceOrderBlocks(string $html): array
+    {
+        $blocks = [];
+        $offset = 0;
+        $length = strlen($html);
+        while ($offset < $length) {
+            $rowBounds = $this->htmlSourceElementBounds($html, 'tr', $offset);
+            if ($rowBounds === null) {
+                break;
+            }
+
+            array_push($blocks, ...$this->parseHtmlSourceOrderFragmentBlocks(substr($html, $offset, $rowBounds['openStart'] - $offset)));
+
+            $rowHtml = substr($html, $rowBounds['openStart'], $rowBounds['closeEnd'] - $rowBounds['openStart'] + 1);
+            $rowBody = $this->parseHtmlFragmentBodyElement('<table>' . $rowHtml . '</table>');
+            if ($rowBody instanceof \DOMElement) {
+                $table = $this->firstDescendantElement($rowBody, 'table');
+                if ($table instanceof \DOMElement) {
+                    array_push($blocks, ...$this->parseHtmlInvalidTableBlocks($table));
+                }
+            }
+
+            $offset = $rowBounds['closeEnd'] + 1;
+        }
+
+        array_push($blocks, ...$this->parseHtmlSourceOrderFragmentBlocks(substr($html, $offset)));
+
+        return $blocks;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function parseHtmlSourceOrderFragmentBlocks(string $html): array
+    {
+        if (trim($html) === '') {
+            return [];
+        }
+
+        $body = $this->parseHtmlFragmentBodyElement($html);
+        if (!$body instanceof \DOMElement) {
+            return [];
+        }
+
+        return $this->parseHtmlBlockChildren($body);
+    }
+
+    /**
+     * @return list<array{thead: bool, tbody: bool, tfoot: bool}>
+     */
+    private function htmlSourceTableSectionProfiles(string $html): array
+    {
+        $profiles = [];
+        $stack = [];
+        foreach ($this->htmlSourceTableTokens($html) as $token) {
+            $name = $token['name'];
+            if ($name === 'table') {
+                if ($token['closing']) {
+                    array_pop($stack);
+                    continue;
+                }
+
+                $profiles[] = ['thead' => false, 'tbody' => false, 'tfoot' => false];
+                $stack[] = count($profiles) - 1;
+                continue;
+            }
+
+            if ($token['closing'] || $stack === [] || !in_array($name, ['thead', 'tbody', 'tfoot'], true)) {
+                continue;
+            }
+
+            $top = array_key_last($stack);
+            if ($top !== null) {
+                $profiles[(int) $stack[$top]][$name] = true;
+            }
+        }
+
+        return $profiles;
+    }
+
+    /**
+     * @return list<array{name: string, closing: bool, start: int, end: int}>
+     */
+    private function htmlSourceTableTokens(string $html): array
+    {
+        return $this->htmlSourceNamedTokens($html, ['table', 'thead', 'tbody', 'tfoot', 'tr', 'td', 'th']);
+    }
+
+    /**
+     * @param list<string> $names
+     * @return list<array{name: string, closing: bool, start: int, end: int}>
+     */
+    private function htmlSourceNamedTokens(string $html, array $names): array
+    {
+        $tokens = [];
+        $nameSet = array_fill_keys($names, true);
+        $offset = 0;
+        $length = strlen($html);
+        while (($start = strpos($html, '<', $offset)) !== false) {
+            if (str_starts_with(substr($html, $start, 4), '<!--')) {
+                $end = strpos($html, '-->', $start + 4);
+                $offset = $end === false ? $length : $end + 3;
+                continue;
+            }
+
+            if (str_starts_with(strtolower(substr($html, $start, 9)), '<![cdata[')) {
+                $end = strpos($html, ']]>', $start + 9);
+                $offset = $end === false ? $length : $end + 3;
+                continue;
+            }
+
+            $cursor = $start + 1;
+            while ($cursor < $length && ctype_space($html[$cursor])) {
+                $cursor++;
+            }
+
+            $closing = false;
+            if ($cursor < $length && $html[$cursor] === '/') {
+                $closing = true;
+                $cursor++;
+                while ($cursor < $length && ctype_space($html[$cursor])) {
+                    $cursor++;
+                }
+            }
+
+            if ($cursor >= $length || !$this->htmlSourceNameStart($html[$cursor])) {
+                $end = strpos($html, '>', $start + 1);
+                $offset = $end === false ? $length : $end + 1;
+                continue;
+            }
+
+            $nameStart = $cursor;
+            $cursor++;
+            while ($cursor < $length && $this->htmlSourceNameChar($html[$cursor])) {
+                $cursor++;
+            }
+
+            $name = strtolower(substr($html, $nameStart, $cursor - $nameStart));
+            $tagEnd = $this->htmlSourceTagEnd($html, $cursor);
+            $offset = $tagEnd === null ? $length : $tagEnd + 1;
+
+            if (isset($nameSet[$name])) {
+                $tokens[] = ['name' => $name, 'closing' => $closing, 'start' => $start, 'end' => $tagEnd ?? $length - 1];
+            }
+        }
+
+        return $tokens;
+    }
+
+    /**
+     * @return array{openStart: int, openEnd: int, closeStart: int, closeEnd: int}|null
+     */
+    private function htmlSourceElementBounds(string $html, string $tag, int $offset = 0): ?array
+    {
+        $depth = 0;
+        $openStart = null;
+        $openEnd = null;
+        foreach ($this->htmlSourceNamedTokens(substr($html, $offset), [$tag]) as $token) {
+            if ($token['name'] !== $tag) {
+                continue;
+            }
+
+            $start = $offset + $token['start'];
+            $end = $offset + $token['end'];
+            if (!$token['closing']) {
+                if ($depth === 0) {
+                    $openStart = $start;
+                    $openEnd = $end;
+                }
+                $depth++;
+                continue;
+            }
+
+            if ($depth === 0) {
+                continue;
+            }
+
+            $depth--;
+            if ($depth === 0 && $openStart !== null && $openEnd !== null) {
+                return [
+                    'openStart' => $openStart,
+                    'openEnd' => $openEnd,
+                    'closeStart' => $start,
+                    'closeEnd' => $end,
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    private function htmlSourceNameStart(string $char): bool
+    {
+        return ($char >= 'A' && $char <= 'Z') || ($char >= 'a' && $char <= 'z');
+    }
+
+    private function htmlSourceNameChar(string $char): bool
+    {
+        return $this->htmlSourceNameStart($char)
+            || ($char >= '0' && $char <= '9')
+            || in_array($char, ['-', '_', ':'], true);
+    }
+
+    private function htmlSourceTagEnd(string $html, int $offset): ?int
+    {
+        $quote = null;
+        $length = strlen($html);
+        for ($cursor = $offset; $cursor < $length; $cursor++) {
+            $char = $html[$cursor];
+            if ($quote !== null) {
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '>') {
+                return $cursor;
+            }
+        }
+
+        return null;
+    }
+
+    private function htmlBodyHasVisibleNonTableSibling(\DOMElement $body, \DOMElement $table): bool
+    {
+        foreach ($body->childNodes as $child) {
+            if ($child->isSameNode($table)) {
+                continue;
+            }
+
+            if ($child instanceof \DOMText || $child instanceof \DOMCdataSection) {
+                if (trim($child->wholeText) !== '') {
+                    return true;
+                }
+                continue;
+            }
+
+            if ($child instanceof \DOMElement) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<bool> $fallbacks
+     * @return list<bool>
+     */
+    private function htmlSourceTableFallbacksWithDomTable(\DOMElement $body, \DOMElement $table, array $fallbacks): array
+    {
+        $index = 0;
+        foreach ($body->getElementsByTagName('table') as $candidate) {
+            if (!$candidate instanceof \DOMElement) {
+                continue;
+            }
+
+            if ($candidate->isSameNode($table)) {
+                while (count($fallbacks) <= $index) {
+                    $fallbacks[] = false;
+                }
+                $fallbacks[$index] = true;
+
+                return $fallbacks;
+            }
+
+            $index++;
+        }
+
+        $fallbacks[0] = true;
+
+        return $fallbacks;
     }
 
     private function htmlTableContainsNestedTable(\DOMElement $table): bool
@@ -7366,6 +7629,7 @@ final class MarkdownReader
 
     private function parseHtmlTableElement(\DOMElement $table): AstNode
     {
+        $sourceProfile = $this->nextHtmlTableSourceProfile();
         $maxColumns = 0;
         $caption = $this->firstChildElement($table, 'caption');
         $thead = $this->firstChildElement($table, 'thead');
@@ -7383,7 +7647,10 @@ final class MarkdownReader
             : [];
         $bodyNodes = [];
         if ($bodySections !== []) {
-            foreach ($bodySections as $tbody) {
+            $promoteImplicitBodyHead = !$thead instanceof \DOMElement
+                && count($bodySections) === 1
+                && !($sourceProfile['tbody'] ?? false);
+            foreach ($bodySections as $bodyIndex => $tbody) {
                 $rows = $this->readHtmlTableRows(
                     $tbody,
                     false,
@@ -7391,6 +7658,12 @@ final class MarkdownReader
                     $this->normalizeHtmlTableAlignment($tbody),
                     $this->normalizeHtmlTableVerticalAlignment($tbody)
                 );
+                if ($promoteImplicitBodyHead && $bodyIndex === 0 && $headRows === [] && $this->firstHtmlTableRowIsHeader($rows)) {
+                    $headRow = array_shift($rows);
+                    if ($headRow instanceof AstNode) {
+                        $headRows[] = $this->markHtmlTableRowAsHeader($headRow);
+                    }
+                }
                 [$bodyHeadRows, $bodyRows] = $this->splitHtmlTableBodyRows($rows);
                 $bodyNodes[] = new AstNode(
                     'table_body',
@@ -7465,6 +7738,38 @@ final class MarkdownReader
         }
 
         return $this->tableWithReviewPacket(new AstNode('table', $attrs, $children));
+    }
+
+    /**
+     * @param list<array{thead: bool, tbody: bool, tfoot: bool}> $sectionProfiles
+     */
+    private function parseHtmlTableElementWithSourceProfiles(\DOMElement $table, array $sectionProfiles): AstNode
+    {
+        $previousHtmlSourceTableSectionProfiles = $this->htmlSourceTableSectionProfiles;
+        $previousHtmlSourceTableSectionProfileIndex = $this->htmlSourceTableSectionProfileIndex;
+        $this->htmlSourceTableSectionProfiles = $sectionProfiles;
+        $this->htmlSourceTableSectionProfileIndex = 0;
+        try {
+            return $this->parseHtmlTableElement($table);
+        } finally {
+            $this->htmlSourceTableSectionProfiles = $previousHtmlSourceTableSectionProfiles;
+            $this->htmlSourceTableSectionProfileIndex = $previousHtmlSourceTableSectionProfileIndex;
+        }
+    }
+
+    /**
+     * @return array{thead: bool, tbody: bool, tfoot: bool}
+     */
+    private function nextHtmlTableSourceProfile(): array
+    {
+        if ($this->htmlSourceTableSectionProfileIndex < count($this->htmlSourceTableSectionProfiles)) {
+            $profile = $this->htmlSourceTableSectionProfiles[$this->htmlSourceTableSectionProfileIndex];
+            $this->htmlSourceTableSectionProfileIndex++;
+
+            return $profile;
+        }
+
+        return ['thead' => false, 'tbody' => true, 'tfoot' => false];
     }
 
     /**
@@ -8327,6 +8632,14 @@ final class MarkdownReader
             !$this->htmlInlineWrapperMovesBoundaryWhitespace($name)
         );
 
+        if ($name === 'noscript') {
+            $fallbackChildren = $this->parseHtmlInlineFragmentNodes($node->textContent);
+
+            return $this->htmlRawHtmlEnabled()
+                ? $this->wrapHtmlRawInlineElement($node, $fallbackChildren)
+                : $fallbackChildren;
+        }
+
         if (in_array($name, ['strong', 'b'], true)) {
             return $this->wrapHtmlInlineWithBoundaryWhitespace('strong', $this->htmlElementPandocAttrs($node), $children);
         }
@@ -8712,9 +9025,14 @@ final class MarkdownReader
 
     private function buildHtmlRawInlineNode(\DOMElement $element): AstNode
     {
-        $raw = $element->ownerDocument instanceof \DOMDocument
-            ? $element->ownerDocument->saveHTML($element)
-            : '';
+        $raw = strtolower($element->localName) === 'textarea'
+            ? $this->nextHtmlSourceTextareaRawHtml()
+            : null;
+        if ($raw === null) {
+            $raw = $element->ownerDocument instanceof \DOMDocument
+                ? $element->ownerDocument->saveHTML($element)
+                : '';
+        }
         if (!is_string($raw) || $raw === '') {
             $raw = '<' . strtolower($element->localName) . '></' . strtolower($element->localName) . '>';
         }
@@ -9046,69 +9364,7 @@ final class MarkdownReader
 
     private function resolveHtmlUrl(string $url): string
     {
-        if ($url === '' || $this->htmlBaseHref === null || $this->htmlBaseHref === '') {
-            return $url;
-        }
-
-        if (preg_match('/^[a-z][a-z0-9+.-]*:/i', $url) === 1 || str_starts_with($url, '//')) {
-            return $url;
-        }
-
-        $base = parse_url($this->htmlBaseHref);
-        if (!is_array($base) || !isset($base['scheme'], $base['host'])) {
-            return $url;
-        }
-
-        $authority = $base['scheme'] . '://';
-        if (isset($base['user'])) {
-            $authority .= $base['user'];
-            if (isset($base['pass'])) {
-                $authority .= ':' . $base['pass'];
-            }
-            $authority .= '@';
-        }
-        $authority .= $base['host'];
-        if (isset($base['port'])) {
-            $authority .= ':' . $base['port'];
-        }
-
-        if (str_starts_with($url, '/')) {
-            return $authority . $this->normalizeHtmlUrlPath($url);
-        }
-
-        $basePath = (string) ($base['path'] ?? '/');
-        $directory = str_ends_with($basePath, '/')
-            ? $basePath
-            : preg_replace('~[^/]*$~', '', $basePath);
-        if (!is_string($directory) || $directory === '') {
-            $directory = '/';
-        }
-
-        return $authority . $this->normalizeHtmlUrlPath($directory . $url);
-    }
-
-    private function normalizeHtmlUrlPath(string $path): string
-    {
-        $prefixSlash = str_starts_with($path, '/');
-        $suffixSlash = str_ends_with($path, '/');
-        $segments = [];
-        foreach (explode('/', $path) as $segment) {
-            if ($segment === '' || $segment === '.') {
-                continue;
-            }
-            if ($segment === '..') {
-                array_pop($segments);
-                continue;
-            }
-            $segments[] = $segment;
-        }
-
-        $normalized = ($prefixSlash ? '/' : '') . implode('/', $segments);
-        if ($suffixSlash && $normalized !== '/') {
-            $normalized .= '/';
-        }
-
-        return $normalized === '' ? '/' : $normalized;
+        return XmlHtmlDom::resolveHtmlResourceUrlReference($url, $this->htmlBaseHref) ?? $url;
     }
 
     /**
@@ -17470,6 +17726,20 @@ final class MarkdownReader
                 'node' => new AstNode('raw_html_inline', ['html' => $close[0]]),
                 'next' => $offset + strlen($close[0]),
             ];
+        }
+
+        if (
+            $this->htmlReaderModeEnabled()
+            && preg_match('~\G<a(?=\s|/>)(?:\s+[A-Za-z_:][A-Za-z0-9_.:-]*(?:\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s"\'=<>`]+))?)*\s*/>~iu', $text, $selfClosingAnchor, 0, $offset) === 1
+            && preg_match('~\s+href\s*=~iu', $selfClosingAnchor[0]) !== 1
+        ) {
+            $nodes = $this->parseHtmlInlineFragmentNodes($selfClosingAnchor[0]);
+            if (count($nodes) === 1 && $nodes[0]->type === 'span') {
+                return [
+                    'node' => $nodes[0],
+                    'next' => $offset + strlen($selfClosingAnchor[0]),
+                ];
+            }
         }
 
         if (preg_match('~\G<a(?=\s|>)(?:\s+(?:"[^"]*"|\'[^\']*\'|[^\'"<>])*)?>~iu', $text, $open, 0, $offset) === 1) {

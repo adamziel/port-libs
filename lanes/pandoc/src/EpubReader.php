@@ -963,6 +963,7 @@ final class EpubReader
     {
         $xhtml = preg_replace('/^\xEF\xBB\xBF/', '', $xhtml) ?? $xhtml;
         $xhtml = preg_replace('/^\s*<\?xml[^>]*>\s*/i', '', $xhtml) ?? $xhtml;
+        $xhtml = preg_replace('/^\s*<!DOCTYPE\s+html\b[^>]*>\s*/i', '', $xhtml) ?? $xhtml;
 
         return ltrim($xhtml);
     }

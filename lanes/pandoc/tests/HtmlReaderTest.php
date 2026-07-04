@@ -557,6 +557,30 @@ $tests['imports upstream html head body fragment base root-relative image as pla
         $t->same('Stickman', $image->children[0]->attr('text'));
     };
 
+$tests['imports html file base fragment query and scheme relative urls like pandoc'] =
+    static function (TestRunner $t): void {
+        $document = (new HtmlReader())->read(
+            '<!doctype html><html><head>'
+            . '<base href="https://source.example.test/import/posts/post.html">'
+            . '</head><body><p>'
+            . '<a href="#frag">frag</a>'
+            . '<a href="?edition=full">query</a>'
+            . '<a href="//cdn.example.test/a.png">cdn</a>'
+            . '<img src="?cover=1" alt="Cover">'
+            . '</p></body></html>'
+        );
+        $paragraph = $document->children[0];
+        $fragmentLink = $paragraph->children[0];
+        $queryLink = $paragraph->children[1];
+        $schemeRelativeLink = $paragraph->children[2];
+        $image = $paragraph->children[3];
+
+        $t->same('https://source.example.test/import/posts/post.html#frag', $fragmentLink->attr('url'));
+        $t->same('https://source.example.test/import/posts/post.html?edition=full', $queryLink->attr('url'));
+        $t->same('https://cdn.example.test/a.png', $schemeRelativeLink->attr('url'));
+        $t->same('https://source.example.test/import/posts/post.html?cover=1', $image->attr('url'));
+    };
+
 $tests['imports generated current html inline quote cites resolved against base'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-inline-quote-cite-base.html'));
