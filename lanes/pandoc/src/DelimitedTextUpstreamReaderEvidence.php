@@ -17,7 +17,7 @@ final class DelimitedTextUpstreamReaderEvidence
     public const EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT = 2;
     public const EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT = 0;
     public const EXPECTED_STATIC_CSV_ADJACENT_RST_FIXTURE_COUNT = 2;
-    public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 60;
+    public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 61;
     public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 36;
     public const EXPECTED_GENERATED_CSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT = 43;
     public const EXPECTED_GENERATED_TSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT = 24;
@@ -899,6 +899,20 @@ final class DelimitedTextUpstreamReaderEvidence
             'sha256' => 'b83612bbf806265ad8219105375347e30721ffd1d93ae18b789f357ac99dc429',
             'bytes' => 1640,
         ],
+        'single-quote-double-quote-literal.csv' => [
+            'role' => 'generated-csv-native-parity-input-fixture',
+            'sample' => 'single-quote-double-quote-literal',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/single-quote-double-quote-literal.csv',
+            'sha256' => 'b16ed04a1bc02dcefc0e0e8201af1524c3a974ae634ac58a637f2cc328967f65',
+            'bytes' => 158,
+        ],
+        'single-quote-double-quote-literal.native' => [
+            'role' => 'generated-csv-native-parity-expected-native-output',
+            'sample' => 'single-quote-double-quote-literal',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/single-quote-double-quote-literal.native',
+            'sha256' => 'd5dcb94684914780bbb4145fd721770595a39d55019968f5d3a26ceb2e200be7',
+            'bytes' => 1831,
+        ],
     ];
 
     private const CHECKED_IN_GENERATED_TSV_NATIVE_FIXTURES = [
@@ -1696,6 +1710,13 @@ final class DelimitedTextUpstreamReaderEvidence
             'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/bang-escaped-csv-options.native',
             'options' => [
                 'escape' => '!',
+            ],
+        ],
+        'single-quote-double-quote-literal' => [
+            'inputPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/single-quote-double-quote-literal.csv',
+            'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/single-quote-double-quote-literal.native',
+            'options' => [
+                'quote' => '\'',
             ],
         ],
     ];

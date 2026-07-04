@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 90;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 91;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'fa2ec1c7ae826f29461fbf79fa944c57a1b512069581e6864c8d879cfa242d0b';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 39176;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '21f798da16d093631838bdaa58cf1185877e9a0081129d037c57d5708edf26b5';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 39571;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -666,6 +666,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => 'a799a5d732ca0a11d94f239d782b61bffe81325c09ed721705fabc2fe079feba',
             'pptxBytes' => 2155,
             'nativeBytes' => 1228,
+        ],
+        'text-comment-boundary' => [
+            'name' => 'generated XML comment text-node boundary parity',
+            'pptx' => 'pptx-reader/text-comment-boundary.pptx',
+            'native' => 'pptx-reader/text-comment-boundary.native',
+            'pairKey' => 'pptx-reader/text-comment-boundary.pptx|pptx-reader/text-comment-boundary.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/text-comment-boundary.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/text-comment-boundary.native',
+            'pptxSha256' => '6f0b2e376015d61f06e8320c27eeba91a96b364d766e9dac0b75af66326d7e7c',
+            'nativeSha256' => '088750aa75a347feec838c6d3f7bed51842fe70846b64d322b339a5335d5b8e9',
+            'pptxBytes' => 1536,
+            'nativeBytes' => 105,
         ],
         'textbox-without-nonvisual-properties' => [
             'name' => 'generated text box without nonvisual properties parity',

@@ -26,15 +26,15 @@ $readJson = static function (string $relativePath) use ($readText): array {
 return [
     'keeps EPUB current fixture status counters in sync' => static function (TestRunner $t) use ($repoRoot, $readText, $readJson): void {
         $manifest = $readJson('lanes/pandoc/UPSTREAM_TEST_MANIFEST.json');
-        $note = $readText('lanes/pandoc/notes/pandoc-epub-mathml-spine-20260704.md');
+        $note = $readText('lanes/pandoc/notes/pandoc-epub-appendix-navigation-guide-20260704.md');
         $fixtureDirectory = $repoRoot . '/lanes/pandoc/fixtures/upstream-current-epub-reader/epub';
         $epubFiles = glob($fixtureDirectory . '/*.epub') ?: [];
         $nativeFiles = glob($fixtureDirectory . '/*.native') ?: [];
         $totalFiles = count($epubFiles) + count($nativeFiles);
 
-        $t->same(62, count($epubFiles));
-        $t->same(62, count($nativeFiles));
-        $t->same(124, $totalFiles);
+        $t->same(63, count($epubFiles));
+        $t->same(63, count($nativeFiles));
+        $t->same(126, $totalFiles);
 
         foreach ([
             'benchmarkDenominator.breakdown' => $manifest['benchmarkDenominator']['breakdown'] ?? null,
@@ -52,11 +52,16 @@ return [
                 'epubEpubInputArtifacts' => count($epubFiles),
             ];
             $previousIntegrated = [
+                'epubDirectoryArtifacts' => 124,
+                'epubNativeExpectedArtifacts' => 62,
+                'epubEpubInputArtifacts' => 62,
+            ];
+            $olderIntegrated = [
                 'epubDirectoryArtifacts' => 122,
                 'epubNativeExpectedArtifacts' => 61,
                 'epubEpubInputArtifacts' => 61,
             ];
-            $olderIntegrated = [
+            $oldIntegrated = [
                 'epubDirectoryArtifacts' => 120,
                 'epubNativeExpectedArtifacts' => 60,
                 'epubEpubInputArtifacts' => 60,
@@ -96,6 +101,7 @@ return [
                 $observed === $integrated
                     || $observed === $previousIntegrated
                     || $observed === $olderIntegrated
+                    || $observed === $oldIntegrated
                     || $observed === $previousSharedManifest
                     || $observed === $olderSharedManifest
                     || $observed === $oldestSharedManifest
@@ -106,12 +112,12 @@ return [
             );
         }
 
-        $t->true(str_contains($note, '- Checked-in EPUB package inputs: `61 -> 62`.'));
-        $t->true(str_contains($note, '- Checked-in same-basename `.native` goldens: `61 -> 62`.'));
-        $t->true(str_contains($note, '- Checked-in fixture identity files: `122 -> 124`.'));
-        $t->true(str_contains($note, 'mathml-spine.epub'));
-        $t->true(str_contains($note, '--require-package-parity=62'));
-        $t->true(str_contains($note, '--require-native-readiness=62'));
-        $t->true(str_contains($note, '--require-mapped-parity=62'));
+        $t->true(str_contains($note, '- Checked-in EPUB package inputs: `62 -> 63`.'));
+        $t->true(str_contains($note, '- Checked-in same-basename `.native` goldens: `62 -> 63`.'));
+        $t->true(str_contains($note, '- Checked-in fixture identity files: `124 -> 126`.'));
+        $t->true(str_contains($note, 'appendix-navigation-guide.epub'));
+        $t->true(str_contains($note, '--require-package-parity=63'));
+        $t->true(str_contains($note, '--require-native-readiness=63'));
+        $t->true(str_contains($note, '--require-mapped-parity=63'));
     },
 ];

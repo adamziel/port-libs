@@ -1371,6 +1371,20 @@ $tests['imports direct pandoc html standalone select optgroup fragment as plain'
         $t->same(['Draft', 'Ready', ' done'], array_map(static fn ($node): string => $node->attr('text'), $plain->children));
     };
 
+$tests['imports direct pandoc html omitted option end tags as repaired select text'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-optional-option-tree-construction.html'));
+        $plain = $document->children[0];
+
+        $t->same('html', $document->attr('sourceFormat'));
+        $t->same(['plain'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same('DraftReady done', $plain->attr('text'));
+        $t->same(['text', 'strong', 'text'], array_map(static fn ($node): string => $node->type, $plain->children));
+        $t->same('Draft', $plain->children[0]->attr('text'));
+        $t->same('Ready', $plain->children[1]->children[0]->attr('text'));
+        $t->same(' done', $plain->children[2]->attr('text'));
+    };
+
 $tests['imports html result control fragments without swallowing following block boundary'] =
     static function (TestRunner $t): void {
         $document = (new HtmlReader())->read(

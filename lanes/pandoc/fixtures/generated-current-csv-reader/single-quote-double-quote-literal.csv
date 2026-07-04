@@ -1,0 +1,4 @@
+id,title,note
+1,'Alpha, Beta',"double quotes stay literal"
+2,"plain ""double"" text",'single quote keeps comma, too'
+3,'owner''s value',"bare ""quote"" text"
