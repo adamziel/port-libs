@@ -701,19 +701,7 @@ final class HtmlReader
             return null;
         }
 
-        $previous = libxml_use_internal_errors(true);
-        $dom = new \DOMDocument('1.0', 'UTF-8');
-        $loaded = $dom->loadHTML(
-            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $bytes . '</body></html>',
-            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
-        );
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-        if (!$loaded) {
-            return null;
-        }
-
-        $body = $dom->getElementsByTagName('body')->item(0);
+        $body = self::parseHtmlFragmentBody($bytes);
         if (!$body instanceof \DOMElement) {
             return null;
         }
@@ -757,19 +745,7 @@ final class HtmlReader
             return null;
         }
 
-        $previous = libxml_use_internal_errors(true);
-        $dom = new \DOMDocument('1.0', 'UTF-8');
-        $loaded = $dom->loadHTML(
-            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $bytes . '</body></html>',
-            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
-        );
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-        if (!$loaded) {
-            return null;
-        }
-
-        $body = $dom->getElementsByTagName('body')->item(0);
+        $body = self::parseHtmlFragmentBody($bytes);
         if (!$body instanceof \DOMElement) {
             return null;
         }
@@ -935,19 +911,7 @@ final class HtmlReader
             return null;
         }
 
-        $previous = libxml_use_internal_errors(true);
-        $dom = new \DOMDocument('1.0', 'UTF-8');
-        $loaded = $dom->loadHTML(
-            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $bytes . '</body></html>',
-            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
-        );
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-        if (!$loaded) {
-            return null;
-        }
-
-        $body = $dom->getElementsByTagName('body')->item(0);
+        $body = self::parseHtmlFragmentBody($bytes);
         if (!$body instanceof \DOMElement) {
             return null;
         }
@@ -964,6 +928,15 @@ final class HtmlReader
         }
 
         return $element instanceof \DOMElement ? $tag : null;
+    }
+
+    private static function parseHtmlFragmentBody(string $bytes): ?\DOMElement
+    {
+        try {
+            return Html5Dom::parseHtmlFragment($bytes);
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     /**
