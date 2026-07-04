@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\EpubReader;
 use PortLibs\Pandoc\NativeWriter;
 use PortLibs\Pandoc\PandocConverter;
@@ -118,6 +119,54 @@ HTML);
         $t->contains('src="images/cover.png"', $blocks);
         $t->contains('alt="Cover art"', $blocks);
         $t->contains('<!-- wp:list -->', $converterBlocks);
+    },
+    'rejects epub package xml declarations that can define entities or processing instructions' => static function (TestRunner $t): void {
+        $makePackage = static function (string $containerXml): string {
+            $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-xml-policy-');
+            if ($path === false) {
+                throw new RuntimeException('Unable to create temporary EPUB path');
+            }
+
+            $zip = new ZipArchive();
+            if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+                @unlink($path);
+                throw new RuntimeException('Unable to create temporary EPUB package');
+            }
+            $zip->addFromString('META-INF/container.xml', $containerXml);
+            $zip->addFromString('OPS/package.opf', '<?xml version="1.0"?><package xmlns="http://www.idpf.org/2007/opf"><metadata/><manifest/><spine/></package>');
+            $zip->close();
+
+            return $path;
+        };
+
+        $packages = [
+            $makePackage(<<<'XML'
+<?xml version="1.0"?>
+<!DOCTYPE container [
+  <!ENTITY reviewer SYSTEM "file:///etc/passwd">
+]>
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles>
+</container>
+XML),
+            $makePackage(<<<'XML'
+<?xml version="1.0"?>
+<?xml-stylesheet href="https://example.invalid/review.xsl"?>
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles>
+</container>
+XML),
+        ];
+
+        try {
+            foreach ($packages as $path) {
+                $t->throws(InvalidArgumentException::class, static fn (): AstNode => (new EpubReader())->readEpubFile($path));
+            }
+        } finally {
+            foreach ($packages as $path) {
+                @unlink($path);
+            }
+        }
     },
     'maps epub opf core metadata with selected identifier and modified timestamp' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-');

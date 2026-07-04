@@ -105,7 +105,7 @@ HTML);
         $t->same('Imported Batch', trim($title->textContent));
         $t->true($heading instanceof DOMElement);
         $t->same('title', $heading->getAttribute('class'));
-        $t->same('<h1 class="title">Imported Batch</h1><p>Body</p>', XmlHtml5Dom::serializeHtmlFragment($body));
+        $t->same('<h1 class="title">Imported Batch</h1><p>Body</p>', trim(XmlHtml5Dom::serializeHtmlFragment($body)));
     },
     'parses reader xml without network entities or doctype expansion' => static function (TestRunner $t): void {
         $document = XmlHtml5Dom::parseXmlDocument(

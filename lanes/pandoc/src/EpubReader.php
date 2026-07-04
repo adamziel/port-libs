@@ -2116,16 +2116,11 @@ final class EpubReader
         if (!class_exists(\DOMDocument::class)) {
             throw new \RuntimeException($label . ' needs DOMDocument, which is unavailable in this runtime.');
         }
-        $dom = new \DOMDocument('1.0', 'UTF-8');
-        $previous = libxml_use_internal_errors(true);
-        $ok = $dom->loadXML($xml, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-        if (!$ok) {
+        try {
+            return Html5Dom::parseXmlDocument($xml, $label);
+        } catch (\RuntimeException) {
             throw new \InvalidArgumentException($label . ' is not valid XML.');
         }
-
-        return $dom;
     }
 
     private function attributeByLocalName(\DOMElement $element, string $name): string
