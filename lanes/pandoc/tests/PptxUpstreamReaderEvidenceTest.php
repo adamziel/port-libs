@@ -864,7 +864,7 @@ HS);
             . ' '
             . escapeshellarg($repoRoot . '/tools/pandoc-pptx-reader-evidence.php')
             . ' --repo-root=' . escapeshellarg($repoRoot)
-            . ' --upstream-root=' . escapeshellarg('missing-upstream-root-for-static-gate')
+            . ' --checked-in-fixtures'
             . ' --json'
             . ' --require-static-current-evidence'
             . ' --require-static-native-mapped-parity'
@@ -920,7 +920,7 @@ HS);
                 . ' '
                 . escapeshellarg($repoRoot . '/tools/pandoc-pptx-reader-evidence.php')
                 . ' --repo-root=' . escapeshellarg($missingRoot)
-                . ' --upstream-root=' . escapeshellarg('missing-upstream-root-for-static-gate')
+                . ' --checked-in-fixtures'
                 . ' --json'
                 . ' --require-static-current-evidence'
                 . ' 2>/dev/null';
@@ -932,6 +932,17 @@ HS);
         } finally {
             $removeTree($missingRoot);
         }
+
+        $conflictingCommand = str_replace(
+            '--checked-in-fixtures',
+            '--checked-in-fixtures --upstream-root=missing-upstream-root-for-static-pptx-gate',
+            $command
+        ) . ' 2>/dev/null';
+        $conflictingOutput = [];
+        $conflictingExitCode = 0;
+        exec($conflictingCommand, $conflictingOutput, $conflictingExitCode);
+
+        $t->same(2, $conflictingExitCode);
     },
     'workflow gates checked-in pptx native and executable parity corpora' => static function (TestRunner $t): void {
         $workflow = (string) file_get_contents(dirname(__DIR__, 3) . '/.github/workflows/pandoc-pptx.yml');
