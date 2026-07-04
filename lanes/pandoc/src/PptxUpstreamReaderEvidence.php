@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 58;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 59;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '336f8df897325675e6b8c4e61f83c6e286c2684276b59b4c7b8ee68ff989fa66';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 28964;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '0d2509974f2219b67a7f3c0382a038beb6a7ea37761dcb2c94d1016e81511c3e';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 29479;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -318,6 +318,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => '9589ff6f42a0238f3446f02e7e97e9e52f8b2e3817597d91f4e2ec3788fb1356',
             'pptxBytes' => 1503,
             'nativeBytes' => 114,
+        ],
+        'cdata-entity-text' => [
+            'name' => 'generated CDATA and entity text parity',
+            'pptx' => 'pptx-reader/cdata-entity-text.pptx',
+            'native' => 'pptx-reader/cdata-entity-text.native',
+            'pairKey' => 'pptx-reader/cdata-entity-text.pptx|pptx-reader/cdata-entity-text.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/cdata-entity-text.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/cdata-entity-text.native',
+            'pptxSha256' => '369898eb68f295a8e448a0a170a9cecbd39ffb2faf22d70d0d75748c4f7d2d35',
+            'nativeSha256' => 'ebffd044d94f5761cde8e231b149d3fe2eb0c686c5474ff4737c9b060eb7ad46',
+            'pptxBytes' => 1663,
+            'nativeBytes' => 129,
         ],
         'chart-placeholder' => [
             'name' => 'generated chart graphic placeholder parity',

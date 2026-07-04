@@ -5,4 +5,5 @@ lanes/pandoc/fixtures/generated-current-csv-reader/space-only-record.csv -whites
 lanes/pandoc/fixtures/generated-current-csv-reader/quoted-final-vtab-whitespace.csv -whitespace
 lanes/pandoc/fixtures/generated-current-csv-reader/unquoted-final-formfeed.csv -whitespace
 lanes/pandoc/fixtures/generated-current-tsv-reader/leading-blank-whitespace.tsv -whitespace
+lanes/pandoc/fixtures/generated-current-tsv-reader/trailing-empty-fields.tsv -whitespace
 lanes/pandoc/fixtures/generated-current-tsv-reader/unquoted-final-formfeed.tsv -whitespace

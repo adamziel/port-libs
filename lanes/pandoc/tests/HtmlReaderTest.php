@@ -870,6 +870,22 @@ $tests['imports html ordered lists with signed start values'] =
         }
     };
 
+$tests['imports direct pandoc html optional list item end-tag tree construction'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-optional-list-item-tree-construction.html'));
+        $list = $document->children[0];
+
+        $t->same('html', $document->attr('sourceFormat'));
+        $t->same(['bullet_list'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same(
+            ['alpha', 'beta', 'gamma'],
+            array_map(static fn ($item): string => $item->attr('text'), $list->children)
+        );
+        $t->same(['text'], array_map(static fn ($node): string => $node->type, $list->children[0]->children));
+        $t->same(['strong'], array_map(static fn ($node): string => $node->type, $list->children[1]->children));
+        $t->same('beta', $list->children[1]->children[0]->children[0]->attr('text'));
+    };
+
 $tests['imports generated current html ruby annotation text'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-ruby-annotation.html'));
