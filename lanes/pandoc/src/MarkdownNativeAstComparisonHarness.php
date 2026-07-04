@@ -53,6 +53,7 @@ final class MarkdownNativeAstComparisonHarness
         'upstream-markdown-zzzzzzzzzzz-mmd-title-block-profile' => ['format' => 'markdown_mmd'],
         'upstream-markdown-zzzzzzzzzzzz-gfm-auto-identifiers-profile' => ['format' => 'commonmark+gfm_auto_identifiers+ascii_identifiers'],
         'upstream-markdown-zzzzzzzzzzzzzz-footnote-fenced-div-boundary' => ['format' => 'markdown+footnotes+fenced_divs+native_divs'],
+        'upstream-markdown-zzzzzzzzzzzzzzzz-gfm-nested-list-continuation' => ['format' => 'gfm'],
     ];
 
     /** @var array<string, true> */

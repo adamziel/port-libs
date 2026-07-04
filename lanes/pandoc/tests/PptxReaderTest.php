@@ -18889,6 +18889,44 @@ XML);
         $t->true(!str_contains($native, 'Audio Shape'), 'Audio placeholder metadata should stay out of visible native output');
     },
 
+    'keeps checked-in pptx transitions and animations out of visible output with metadata' => static function (TestRunner $t) use ($nodesOfType): void {
+        $path = dirname(__DIR__) . '/fixtures/upstream-current-pptx-reader/transition-animation-metadata.pptx';
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException("Unable to read {$path}");
+        }
+
+        $document = (new PptxReader())->read($bytes);
+        $review = $document->attr('pptx');
+        $slide = $review['slides'][0] ?? [];
+        $native = PandocConverter::write($document, 'native');
+        $paragraphTexts = array_map(static fn (AstNode $paragraph): string => (string) $paragraph->attr('text'), $nodesOfType($document, 'paragraph'));
+
+        $t->same('Transition animation metadata', $document->children[0]->attr('text'));
+        $t->same(['Visible animated body'], $paragraphTexts);
+        $t->same([
+            'type' => 'fade',
+            'speed' => 'slow',
+            'advanceOnClick' => false,
+            'advanceAfterMilliseconds' => 5000,
+        ], $slide['transition'] ?? null);
+        $t->same(5, $slide['timing']['timeNodeCount'] ?? null);
+        $t->same(3, $slide['timing']['parallelCount'] ?? null);
+        $t->same(1, $slide['timing']['sequenceCount'] ?? null);
+        $t->same(['clickEffect', 'mainSeq', 'tmRoot'], $slide['timing']['nodeTypes'] ?? null);
+        $t->same(1, $slide['animationCount'] ?? null);
+        $t->same('animEffect', $slide['animations'][0]['kind'] ?? null);
+        $t->same(['transition' => 'in', 'filter' => 'fade'], $slide['animations'][0]['attributes'] ?? null);
+        $t->same(['type' => 'spTgt', 'attributes' => ['spid' => '3']], $slide['animations'][0]['target'] ?? null);
+        $t->same(['id' => 5, 'dur' => '500'], $slide['animations'][0]['behaviorTimeNode'] ?? null);
+        $t->same('entr', $slide['animations'][0]['triggerTimeNode']['presetClass'] ?? null);
+        $t->same('clickEffect', $slide['animations'][0]['triggerTimeNode']['nodeType'] ?? null);
+        $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Transition" , Space , Str "animation" , Space , Str "metadata" ]', $native);
+        $t->contains('Para [ Str "Visible" , Space , Str "animated" , Space , Str "body" ]', $native);
+        $t->true(!str_contains($native, 'animEffect'), 'Animation behavior metadata should stay out of visible native output');
+        $t->true(!str_contains($native, 'Animated body'), 'Animation target shape names should stay out of visible native output');
+    },
+
     'reads pptx bytes through the converter input path' => static function (TestRunner $t) use ($buildPptxPackage): void {
         $document = PandocConverter::read($buildPptxPackage(), 'pptx');
         $html = PandocConverter::write($document, 'html');

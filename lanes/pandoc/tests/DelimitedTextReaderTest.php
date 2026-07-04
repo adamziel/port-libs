@@ -2645,6 +2645,67 @@ NATIVE;
         $t->contains('Plain [ Str "alphabeta" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
+    'matches generated csv quoted delimiter blank line short row native parity fixture' => static function (TestRunner $t) use ($generatedCsvNativeFixture, $nativeTokenStream): void {
+        $fixture = $generatedCsvNativeFixture('quoted-delimiter-blank-short-row');
+        $document = (new DelimitedTextReader())->readCsv($fixture['input'], [
+            'sourcePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/quoted-delimiter-blank-short-row.csv',
+        ]);
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+        $native = PandocConverter::write($document, 'native');
+        $generatedEvidence = $packet['upstreamEvidence']['generatedNativeParityEvidence'] ?? [];
+        $body = $table->children[1];
+        $quotedCell = $body->children[0]->children[1];
+
+        $t->same('csv', $packet['format'] ?? null);
+        $t->same(',', $packet['delimiter'] ?? null);
+        $t->same(2, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
+        $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
+        $t->same(2 * DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['checkedInFixtureCount'] ?? null);
+        $t->same('quoted-delimiter-blank-short-row.csv', $generatedEvidence['checkedInFixtures'][110]['name'] ?? null);
+        $t->same('522b8a1e6bfa91cafc8d3b96b90724fe05b1947b6aa24775302eeac1c2b29e28', $generatedEvidence['checkedInFixtures'][110]['checkedInFile']['sha256'] ?? null);
+        $t->same('quoted-delimiter-blank-short-row.native', $generatedEvidence['checkedInFixtures'][111]['name'] ?? null);
+        $t->same('1be02b724aa36c655dae9ff39d52086244d5f586ff8c1c8b3fa63513d9d150cb', $generatedEvidence['checkedInFixtures'][111]['checkedInFile']['sha256'] ?? null);
+        $t->same('quoted-delimiter-blank-short-row', $generatedEvidence['samples'][55]['name'] ?? null);
+        $t->same([], $generatedEvidence['samples'][55]['readerOptions'] ?? null);
+        $t->same(['id', 'note', 'status'], $table->attr('columnNames'));
+        $t->same(3, $packet['rowCount'] ?? null);
+        $t->same(2, $packet['bodyRowCount'] ?? null);
+        $t->same(3, $packet['columnCount'] ?? null);
+        $t->same(8, $packet['fieldCount'] ?? null);
+        $t->same(2, $packet['minFieldCount'] ?? null);
+        $t->same(3, $packet['maxFieldCount'] ?? null);
+        $t->same(1, $packet['raggedRowCount'] ?? null);
+        $t->same([2], $packet['raggedRows'] ?? null);
+        $t->same(1, $packet['rowRepairSummary']['paddedRowCount'] ?? null);
+        $t->same(0, $packet['rowRepairSummary']['truncatedRowCount'] ?? null);
+        $t->same(1, $packet['quotedFieldCount'] ?? null);
+        $t->same(2, $packet['quotedLineBreakCount'] ?? null);
+        $t->same(2, $packet['quotedFieldNewlineCount'] ?? null);
+        $t->same(1, $packet['multilineFieldCount'] ?? null);
+        $t->same([1], $packet['multilineQuotedRows'] ?? null);
+        $t->same(4, $packet['diagnosticCount'] ?? null);
+        $t->same([
+            'delimited-text-multiline-quoted-field',
+            'delimited-text-strict-row-width-mismatch',
+            'delimited-text-row-widths-uneven',
+            'delimited-text-header-width-mismatch',
+        ], array_column($packet['diagnostics'] ?? [], 'code'));
+        $t->same("alpha, beta\n\ngamma, delta", $quotedCell->attr('text'));
+        $t->same(
+            ['text', 'linebreak', 'linebreak', 'text'],
+            array_map(static fn (AstNode $node): string => $node->type, $quotedCell->children[0]->children)
+        );
+        $t->same('alpha, beta', $quotedCell->children[0]->children[0]->attr('text'));
+        $t->same('gamma, delta', $quotedCell->children[0]->children[3]->attr('text'));
+        $t->same('short', $body->children[1]->children[1]->attr('text'));
+        $t->same('', $body->children[1]->children[2]->attr('text'));
+        $t->same('padded', $body->children[1]->children[2]->attr('sourceFieldStatus'));
+        $t->contains('Plain [ Str "alpha," , Space , Str "beta" , LineBreak , LineBreak , Str "gamma," , Space , Str "delta" ]', $native);
+        $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
+    },
     'matches generated tsv native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture();
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [

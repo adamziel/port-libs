@@ -60,6 +60,9 @@ final class PptxReader
             $slideComments = $this->slideComments($package, $slideRelationships, $commentAuthors);
             $slideSpeakerNotes = $this->slideSpeakerNotes($package, $slideRelationships);
             $slideBackgrounds = $this->slideBackgrounds($package, $slideDocument, $slideRelationships);
+            $slideTransition = $this->slideTransitionMetadata($slideDocument, $slideRelationships);
+            $slideTiming = $this->slideTimingMetadata($slideDocument);
+            $slideAnimations = $this->slideAnimationsMetadata($slideDocument);
             $imageIssues = [];
             $shapeIssues = [];
             $richMedia = [];
@@ -85,6 +88,10 @@ final class PptxReader
                 'speakerNotes' => $this->speakerNoteReviews($slideSpeakerNotes),
                 'backgroundCount' => count($slideBackgrounds),
                 'backgrounds' => $slideBackgrounds,
+                'transition' => $slideTransition,
+                'timing' => $slideTiming,
+                'animationCount' => count($slideAnimations),
+                'animations' => $slideAnimations,
                 'imageIssueCount' => count($imageIssues),
                 'imageIssues' => $imageIssues,
                 'shapeIssueCount' => count($shapeIssues),
@@ -1797,6 +1804,412 @@ final class PptxReader
         $review['exists'] = true;
 
         return $review;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function slideTransitionMetadata(\DOMDocument $document, OpcRelationships $slideRelationships): array
+    {
+        $root = XmlHtmlDom::rootElement($document, 'sld');
+        if (!$root instanceof \DOMElement) {
+            return [];
+        }
+
+        $transition = $this->firstPresentationChildElement($root, 'transition');
+        if (!$transition instanceof \DOMElement) {
+            return [];
+        }
+
+        $metadata = [];
+        $effect = $this->transitionEffectMetadata($transition);
+        if ($effect !== []) {
+            $metadata = $effect;
+        } else {
+            $metadata['type'] = 'unknown';
+        }
+
+        $speed = trim($transition->getAttribute('spd'));
+        if ($speed !== '') {
+            $metadata['speed'] = $speed;
+        }
+
+        if ($transition->hasAttribute('advClick')) {
+            $metadata['advanceOnClick'] = $this->xmlBooleanValue($transition->getAttribute('advClick'));
+        }
+
+        $advanceAfter = $this->integerAttribute($transition, 'advTm');
+        if ($advanceAfter !== null) {
+            $metadata['advanceAfterMilliseconds'] = $advanceAfter;
+        }
+
+        $sound = $this->transitionSoundMetadata($transition, $slideRelationships);
+        if ($sound !== []) {
+            $metadata['sound'] = $sound;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function transitionEffectMetadata(\DOMElement $transition): array
+    {
+        foreach ($this->childElements($transition, null) as $child) {
+            if (
+                $child->namespaceURI !== self::PRESENTATION_NAMESPACE
+                || in_array($child->localName, ['sndAc', 'extLst'], true)
+            ) {
+                continue;
+            }
+
+            $metadata = ['type' => $child->localName];
+            $attributes = $this->elementStringAttributes($child, [
+                'dir',
+                'orient',
+                'thruBlk',
+                'spokes',
+                'fadeColor',
+            ]);
+            if ($attributes !== []) {
+                $metadata['attributes'] = $attributes;
+            }
+
+            return $metadata;
+        }
+
+        return [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function transitionSoundMetadata(\DOMElement $transition, OpcRelationships $slideRelationships): array
+    {
+        $soundAction = $this->firstPresentationChildElement($transition, 'sndAc');
+        if (!$soundAction instanceof \DOMElement) {
+            return [];
+        }
+
+        $startSound = $this->firstPresentationChildElement($soundAction, 'stSnd');
+        if ($startSound instanceof \DOMElement) {
+            $metadata = ['action' => 'start'];
+            if ($startSound->hasAttribute('loop')) {
+                $metadata['loop'] = $this->xmlBooleanValue($startSound->getAttribute('loop'));
+            }
+
+            $sound = $this->firstPresentationChildElement($startSound, 'snd');
+            if ($sound instanceof \DOMElement) {
+                $name = trim($sound->getAttribute('name'));
+                if ($name !== '') {
+                    $metadata['name'] = $name;
+                }
+
+                foreach (['embed', 'link'] as $relationshipAttribute) {
+                    $relationshipId = $this->relationshipId($sound, $relationshipAttribute);
+                    if ($relationshipId === '') {
+                        continue;
+                    }
+
+                    return array_replace(
+                        $metadata,
+                        $this->transitionSoundRelationshipMetadata($slideRelationships, $relationshipAttribute, $relationshipId)
+                    );
+                }
+            }
+
+            return $metadata;
+        }
+
+        if ($this->firstPresentationChildElement($soundAction, 'endSnd') instanceof \DOMElement) {
+            return ['action' => 'stop'];
+        }
+
+        return ['action' => 'unknown'];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function transitionSoundRelationshipMetadata(OpcRelationships $slideRelationships, string $relationshipAttribute, string $relationshipId): array
+    {
+        $metadata = [
+            'relationshipId' => $relationshipId,
+            'relationshipAttribute' => $relationshipAttribute,
+            'relationshipType' => '',
+            'target' => '',
+            'external' => false,
+            'issues' => [],
+        ];
+
+        $relationship = $slideRelationships->byId($relationshipId);
+        if (!$relationship instanceof OpcRelationship) {
+            $metadata['issues'][] = 'unknown-transition-sound-relationship';
+
+            return $metadata;
+        }
+
+        $metadata['relationshipType'] = $relationship->type;
+        $metadata['target'] = $relationship->target;
+        $metadata['external'] = $relationship->isExternal();
+        if ($relationship->isExternal()) {
+            $metadata['externalTargetPolicy'] = $relationship->externalTargetPreflight();
+
+            return $metadata;
+        }
+
+        $partName = $this->reviewRelationshipPart($slideRelationships, $relationship);
+        if ($partName === null) {
+            $metadata['issues'][] = 'invalid-transition-sound-target';
+
+            return $metadata;
+        }
+
+        $metadata['partName'] = ltrim($partName, '/');
+
+        return $metadata;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function slideTimingMetadata(\DOMDocument $document): array
+    {
+        $timing = $this->slideTimingElement($document);
+        if (!$timing instanceof \DOMElement) {
+            return [];
+        }
+
+        $metadata = [
+            'timeNodeCount' => 0,
+            'parallelCount' => 0,
+            'sequenceCount' => 0,
+            'conditionCount' => 0,
+        ];
+        $nodeTypes = [];
+        foreach ($timing->getElementsByTagName('*') as $element) {
+            if (!$element instanceof \DOMElement || $element->namespaceURI !== self::PRESENTATION_NAMESPACE) {
+                continue;
+            }
+
+            if ($element->localName === 'cTn') {
+                $metadata['timeNodeCount']++;
+                $nodeType = trim($element->getAttribute('nodeType'));
+                if ($nodeType !== '') {
+                    $nodeTypes[$nodeType] = true;
+                }
+                continue;
+            }
+
+            if ($element->localName === 'par') {
+                $metadata['parallelCount']++;
+                continue;
+            }
+
+            if ($element->localName === 'seq') {
+                $metadata['sequenceCount']++;
+                continue;
+            }
+
+            if ($element->localName === 'cond') {
+                $metadata['conditionCount']++;
+            }
+        }
+
+        if ($nodeTypes !== []) {
+            $metadata['nodeTypes'] = array_keys($nodeTypes);
+            sort($metadata['nodeTypes'], SORT_STRING);
+        }
+
+        $rootTimeNode = $this->firstDescendantElement($timing, 'cTn');
+        if ($rootTimeNode instanceof \DOMElement && $rootTimeNode->namespaceURI === self::PRESENTATION_NAMESPACE) {
+            $metadata['rootTimeNode'] = $this->timingNodeMetadata($rootTimeNode);
+        }
+
+        return $metadata;
+    }
+
+    private function slideTimingElement(\DOMDocument $document): ?\DOMElement
+    {
+        $root = XmlHtmlDom::rootElement($document, 'sld');
+        if (!$root instanceof \DOMElement) {
+            return null;
+        }
+
+        return $this->firstPresentationChildElement($root, 'timing');
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function slideAnimationsMetadata(\DOMDocument $document): array
+    {
+        $timing = $this->slideTimingElement($document);
+        if (!$timing instanceof \DOMElement) {
+            return [];
+        }
+
+        $animations = [];
+        foreach ($timing->getElementsByTagName('*') as $element) {
+            if (!$element instanceof \DOMElement || !$this->isAnimationBehaviorElement($element)) {
+                continue;
+            }
+
+            $animations[] = $this->animationBehaviorMetadata($element);
+        }
+
+        return $animations;
+    }
+
+    private function isAnimationBehaviorElement(\DOMElement $element): bool
+    {
+        return $element->namespaceURI === self::PRESENTATION_NAMESPACE
+            && in_array($element->localName, ['anim', 'animClr', 'animEffect', 'animMotion', 'animRot', 'animScale', 'cmd', 'set'], true);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function animationBehaviorMetadata(\DOMElement $animation): array
+    {
+        $metadata = ['kind' => $animation->localName];
+        $attributes = $this->elementStringAttributes($animation, [
+            'transition',
+            'filter',
+            'calcMode',
+            'valueType',
+            'from',
+            'to',
+            'by',
+            'path',
+            'origin',
+            'ptsTypes',
+            'cmd',
+            'type',
+        ]);
+        if ($attributes !== []) {
+            $metadata['attributes'] = $attributes;
+        }
+
+        $commonBehavior = $this->firstPresentationChildElement($animation, 'cBhvr');
+        if ($commonBehavior instanceof \DOMElement) {
+            $target = $this->animationTargetMetadata($commonBehavior);
+            if ($target !== []) {
+                $metadata['target'] = $target;
+            }
+
+            $timeNode = $this->firstPresentationChildElement($commonBehavior, 'cTn');
+            if ($timeNode instanceof \DOMElement) {
+                $metadata['behaviorTimeNode'] = $this->timingNodeMetadata($timeNode);
+            }
+        }
+
+        $trigger = $this->animationAncestorTimingNodeMetadata($animation);
+        if ($trigger !== []) {
+            $metadata['triggerTimeNode'] = $trigger;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function animationTargetMetadata(\DOMElement $commonBehavior): array
+    {
+        $targetElement = $this->firstPresentationChildElement($commonBehavior, 'tgtEl');
+        if (!$targetElement instanceof \DOMElement) {
+            return [];
+        }
+
+        foreach ($this->childElements($targetElement, null) as $target) {
+            if ($target->namespaceURI !== self::PRESENTATION_NAMESPACE) {
+                continue;
+            }
+
+            $metadata = ['type' => $target->localName];
+            $attributes = $this->elementStringAttributes($target, ['spid', 'id']);
+            if ($attributes !== []) {
+                $metadata['attributes'] = $attributes;
+            }
+
+            $range = $this->firstPresentationChildElement($target, 'charRg')
+                ?? $this->firstPresentationChildElement($target, 'pRg');
+            if ($range instanceof \DOMElement) {
+                $rangeAttributes = $this->elementStringAttributes($range, ['st', 'end']);
+                if ($rangeAttributes !== []) {
+                    $metadata['range'] = $rangeAttributes;
+                }
+            }
+
+            return $metadata;
+        }
+
+        return [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function animationAncestorTimingNodeMetadata(\DOMElement $animation): array
+    {
+        $fallback = [];
+        $node = $animation->parentNode;
+        while ($node instanceof \DOMNode) {
+            if ($node instanceof \DOMElement && $node->namespaceURI === self::PRESENTATION_NAMESPACE && $node->localName === 'cTn') {
+                $metadata = $this->timingNodeMetadata($node);
+                if ($fallback === []) {
+                    $fallback = $metadata;
+                }
+                if (isset($metadata['presetClass']) || isset($metadata['presetID']) || isset($metadata['nodeType'])) {
+                    return $metadata;
+                }
+            }
+            $node = $node->parentNode;
+        }
+
+        return $fallback;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function timingNodeMetadata(\DOMElement $timeNode): array
+    {
+        $metadata = [];
+        foreach (['id', 'presetID', 'presetSubtype', 'grpId'] as $attribute) {
+            $value = $this->integerAttribute($timeNode, $attribute);
+            if ($value !== null) {
+                $metadata[$attribute] = $value;
+            }
+        }
+
+        foreach (['dur', 'restart', 'fill', 'nodeType', 'presetClass', 'accel', 'decel', 'autoRev'] as $attribute) {
+            $value = trim($timeNode->getAttribute($attribute));
+            if ($value !== '') {
+                $metadata[$attribute] = $value;
+            }
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param list<string> $names
+     * @return array<string, string>
+     */
+    private function elementStringAttributes(\DOMElement $element, array $names): array
+    {
+        $attributes = [];
+        foreach ($names as $name) {
+            $value = trim($element->getAttribute($name));
+            if ($value !== '') {
+                $attributes[$name] = $value;
+            }
+        }
+
+        return $attributes;
     }
 
     /**

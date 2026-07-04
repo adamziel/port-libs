@@ -338,6 +338,38 @@ $tests['imports upstream html standalone image fragments as plain images'] =
         $t->same([], $titledImage->children);
     };
 
+$tests['imports upstream html picture fallback images without source text leakage'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-picture-fallback-image.html'));
+        $meta = $document->attr('meta');
+        $paragraph = $document->children[0];
+        $image = $paragraph->children[1];
+        $after = $document->children[1];
+
+        $t->same('HTML Picture Fallback Import', $meta['title']);
+        $t->same(['paragraph', 'paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same('Hero Hero frame selected.', $paragraph->attr('text'));
+        $t->same(['text', 'image', 'text'], array_map(static fn ($node): string => $node->type, $paragraph->children));
+        $t->same('Hero ', $paragraph->children[0]->attr('text'));
+        $t->same('hero-small.jpg', $image->attr('url'));
+        $t->same('Hero frame', $image->attr('alt'));
+        $t->same('Fallback title', $image->attr('title'));
+        $t->same(['text'], array_map(static fn ($node): string => $node->type, $image->children));
+        $t->same('Hero frame', $image->children[0]->attr('text'));
+        $t->same(' selected.', $paragraph->children[2]->attr('text'));
+        $t->same('After picture.', $after->attr('text'));
+
+        $standalone = (new HtmlReader())->read(
+            '<picture><source srcset="large.jpg"><img src="small.jpg" alt="Small" title="Title"></picture>'
+        );
+        $standaloneImage = $standalone->children[0]->children[0];
+        $t->same(['plain'], array_map(static fn ($node): string => $node->type, $standalone->children));
+        $t->same(['image'], array_map(static fn ($node): string => $node->type, $standalone->children[0]->children));
+        $t->same('small.jpg', $standaloneImage->attr('url'));
+        $t->same('Small', $standaloneImage->attr('alt'));
+        $t->same('Title', $standaloneImage->attr('title'));
+    };
+
 $tests['imports direct pandoc html standalone emphasis strong span fragment as plain'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-standalone-emph-strong-inline.html'));

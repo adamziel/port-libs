@@ -7,8 +7,8 @@ The checked-in EPUB reader fixture subset now mirrors the upstream current
 `test/epub` inventory plus generated current-upstream edge fixtures used by
 the local native/package harness:
 
-- 53 EPUB package inputs in `lanes/pandoc/fixtures/upstream-current-epub-reader/epub`
-- 53 same-directory `.native` goldens for every checked-in EPUB package input
+- 54 EPUB package inputs in `lanes/pandoc/fixtures/upstream-current-epub-reader/epub`
+- 54 same-directory `.native` goldens for every checked-in EPUB package input
 
 Imported from the hydrated upstream cache at
 `/Users/admin/port-libs-pandoc-pptx/.upstream-cache/pandoc-full/test/epub`:
@@ -189,22 +189,23 @@ record. The native golden was generated with:
 /opt/homebrew/bin/pandoc -f epub -t native -o lanes/pandoc/fixtures/upstream-current-epub-reader/epub/accessibility-metadata-package.native lanes/pandoc/fixtures/upstream-current-epub-reader/epub/accessibility-metadata-package.epub
 ```
 
-2026-07-04 semantic coverage update: no fixture-count delta. The native/package
-harness now promotes already-parsed SMIL media-overlay timeline semantics from
-the checked-in `media-overlay-package` fixture into package-feature coverage:
-`mediaOverlayTimelineItems=1`, `mediaOverlayClipTimings=1`,
-`mediaOverlayValidClipTimings=1`, and `mediaOverlayInvalidClipTimings=0`.
-The checked-in package-feature signature for the same 53-fixture snapshot is
-now `72ef3e85bd273d75877a80b67fdef29e8dc52adece55ad377e4e82d752db9d17`.
+2026-07-04 text-track fixture update: the native/package harness fixture
+snapshot now has 54 EPUB inputs and 54 same-basename native goldens. The added
+`text-track-captions` fixture covers a `text/vtt` manifest item referenced from
+HTML media markup, and package-feature coverage now includes `text-track:1`.
+The checked-in package-feature signature is
+`1af32d34df903f28afae703774ba4c12863921d3506f50703a12d7813bf0f245`; the
+checked-in normalized native AST signature is
+`e0225ddb5570939c39757786bb746559f0e5bff25b4a6cac03fd4fb2552f2faf`.
 
 Verified checked-in gate:
 
 ```sh
-php tools/pandoc-epub-native-ast-package.php --checked-in-fixtures summary --require-package-parity=53 --require-native-readiness=53 --require-mapped-parity=53 --require-fixture-identity --require-current-package-feature-coverage --require-current-package-feature-signature --require-current-native-ast-signature --require-runner-plan
+php tools/pandoc-epub-native-ast-package.php --checked-in-fixtures summary --require-package-parity=54 --require-native-readiness=54 --require-mapped-parity=54 --require-fixture-identity --require-current-package-feature-coverage --require-current-package-feature-signature --require-current-native-ast-signature --require-runner-plan
 ```
 
-Result: `packageParsedCount=53`, `readerParsedCount=53`,
-`nativeParsedCount=53`, `normalizedAstMatchCount=53`, and
+Result: `packageParsedCount=54`, `readerParsedCount=54`,
+`nativeParsedCount=54`, `normalizedAstMatchCount=54`, and
 `normalizedAstMismatchCount=0`.
 
 This continues not to claim upstream Haskell/Tasty runner parity; the harness

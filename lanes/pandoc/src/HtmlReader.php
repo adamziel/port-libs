@@ -22,21 +22,22 @@ final class HtmlReader
 
     public function read(string $bytes): AstNode
     {
-        $standaloneImageChildren = self::standaloneImageFragmentChildren($bytes);
+        $structuralBytes = self::flattenHtmlPictureContainers($bytes);
+        $standaloneImageChildren = self::standaloneImageFragmentChildren($structuralBytes);
         if ($standaloneImageChildren !== null) {
             $children = $standaloneImageChildren;
             $consumedFootnoteContainerCount = 0;
             $attrs = [];
-        } elseif (($standaloneProgressChildren = $this->standaloneProgressFragmentChildren($bytes)) !== null) {
+        } elseif (($standaloneProgressChildren = $this->standaloneProgressFragmentChildren($structuralBytes)) !== null) {
             $children = $standaloneProgressChildren;
             $consumedFootnoteContainerCount = 0;
             $attrs = [];
-        } elseif (($standaloneTransparentChildren = $this->standaloneTransparentInlineFragmentChildren($bytes)) !== null) {
+        } elseif (($standaloneTransparentChildren = $this->standaloneTransparentInlineFragmentChildren($structuralBytes)) !== null) {
             $children = $standaloneTransparentChildren;
             $consumedFootnoteContainerCount = 0;
             $attrs = [];
         } else {
-            $readerBytes = self::flattenHtmlTemplateContainers($bytes);
+            $readerBytes = self::flattenHtmlTemplateContainers($structuralBytes);
             $readerBytes = self::flattenHtmlDetailsSummaryContainers($readerBytes);
             $readerBytes = self::repairParagraphBlockFragmentBoundaries($readerBytes);
             $readerBytes = self::flattenOrphanTableFragmentContainers($readerBytes);
@@ -74,6 +75,92 @@ final class HtmlReader
         ], $this->microdataMetadata($bytes));
 
         return new AstNode('document', $attrs, $children);
+    }
+
+    private static function flattenHtmlPictureContainers(string $bytes): string
+    {
+        if (preg_match('/<picture\b/i', $bytes) !== 1) {
+            return $bytes;
+        }
+
+        try {
+            $trimmed = ltrim($bytes);
+            if (preg_match('/^(?:<!doctype\b|<html\b|<head\b|<body\b)/i', $trimmed) !== 1) {
+                $body = Html5Dom::parseHtmlFragment($bytes);
+                if (!self::flattenHtmlPictureElements($body->ownerDocument)) {
+                    return $bytes;
+                }
+
+                return Html5Dom::serializeHtmlChildren($body);
+            }
+
+            $dom = Html5Dom::parseHtmlDocument($bytes);
+            if (!self::flattenHtmlPictureElements($dom)) {
+                return $bytes;
+            }
+
+            $documentElement = $dom->documentElement;
+            if (!$documentElement instanceof \DOMElement) {
+                return $bytes;
+            }
+
+            $html = $dom->saveHTML($documentElement);
+
+            return is_string($html) ? $html : $bytes;
+        } catch (\Throwable) {
+            return $bytes;
+        }
+    }
+
+    private static function flattenHtmlPictureElements(?\DOMDocument $dom): bool
+    {
+        if (!$dom instanceof \DOMDocument) {
+            return false;
+        }
+
+        $changed = false;
+        for ($pass = 0; $pass < 8; ++$pass) {
+            $pictures = [];
+            foreach ($dom->getElementsByTagName('picture') as $picture) {
+                if ($picture instanceof \DOMElement) {
+                    $pictures[] = $picture;
+                }
+            }
+
+            if ($pictures === []) {
+                return $changed;
+            }
+
+            foreach ($pictures as $picture) {
+                $parent = $picture->parentNode;
+                if (!$parent instanceof \DOMNode) {
+                    continue;
+                }
+
+                self::moveHtmlPictureFallbackChildren($picture, $parent, $picture);
+                $parent->removeChild($picture);
+                $changed = true;
+            }
+        }
+
+        return $changed;
+    }
+
+    private static function moveHtmlPictureFallbackChildren(\DOMElement $source, \DOMNode $destination, \DOMNode $reference): void
+    {
+        foreach (iterator_to_array($source->childNodes) as $child) {
+            if (!$child instanceof \DOMNode) {
+                continue;
+            }
+
+            if ($child instanceof \DOMElement && strtolower($child->localName) === 'source') {
+                self::moveHtmlPictureFallbackChildren($child, $destination, $reference);
+                $source->removeChild($child);
+                continue;
+            }
+
+            $destination->insertBefore($child, $reference);
+        }
     }
 
     private static function flattenHtmlTemplateContainers(string $bytes): string

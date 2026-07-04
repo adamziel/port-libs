@@ -5306,6 +5306,7 @@ XML;
     <item id="font" href="fonts/source.woff2" media-type="font/woff2"/>
     <item id="audio" href="audio/narration.mp3" media-type="audio/mpeg"/>
     <item id="video" href="video/clip.mp4" media-type="video/mp4"/>
+    <item id="captions" href="video/captions.vtt" media-type="text/vtt"/>
     <item id="script" href="scripts/review.js" media-type="application/javascript"/>
     <item id="packet" href="data/review.bin" media-type="application/octet-stream"/>
   </manifest>
@@ -5327,6 +5328,7 @@ XML;
             ['name' => 'EPUB/fonts/source.woff2', 'data' => 'WOFF2'],
             ['name' => 'EPUB/audio/narration.mp3', 'data' => 'MP3'],
             ['name' => 'EPUB/video/clip.mp4', 'data' => 'MP4'],
+            ['name' => 'EPUB/video/captions.vtt', 'data' => "WEBVTT\n\n00:00:00.000 --> 00:00:02.000\nCaption line.\n"],
             ['name' => 'EPUB/scripts/review.js', 'data' => 'window.review = true;'],
             ['name' => 'EPUB/data/review.bin', 'data' => 'REVIEW'],
         ]));
@@ -5342,6 +5344,7 @@ XML;
             'script' => 1,
             'style' => 1,
             'svg' => 1,
+            'text-track' => 1,
             'video' => 1,
             'xhtml' => 1,
         ];
@@ -5354,25 +5357,28 @@ XML;
             'font' => 'font',
             'audio' => 'audio',
             'video' => 'video',
+            'captions' => 'text-track',
             'script' => 'script',
             'packet' => 'asset',
         ];
 
         $t->same(true, $report['present']);
-        $t->same(10, $report['itemCount']);
-        $t->same(10, $report['kindCount']);
+        $t->same(11, $report['itemCount']);
+        $t->same(11, $report['kindCount']);
         $t->same(array_keys($expectedKindCounts), $report['kinds']);
         $t->same($expectedKindCounts, $report['kindCounts']);
         $t->same($expectedKindCounts, $report['summary']['kindCounts']);
         $t->same($expectedKindCounts, $summary['packageInventory']['resourceKindCounts']);
-        $t->same(10, $report['existingItemCount']);
-        $t->same(10, $report['exposableItemCount']);
+        $t->same(11, $report['existingItemCount']);
+        $t->same(11, $report['exposableItemCount']);
         $t->same(0, $report['missingItemCount']);
         $t->same(0, $report['externalItemCount']);
         $t->same(2, $report['mediaTypeBaseCounts']['application/xhtml+xml']);
         $t->same(1, $report['mediaTypeBaseCounts']['application/javascript']);
+        $t->same(1, $report['mediaTypeBaseCounts']['text/vtt']);
         $t->same(1, $report['mediaTypeBaseCounts']['video/mp4']);
         $t->same(['/EPUB/nav.xhtml'], $report['kindPartNames']['navigation']);
+        $t->same(['/EPUB/video/captions.vtt'], $report['kindPartNames']['text-track']);
         $t->same(['/EPUB/data/review.bin'], $report['kindPartNames']['asset']);
 
         foreach ($expectedKindsById as $id => $kind) {

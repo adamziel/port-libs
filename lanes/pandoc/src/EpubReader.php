@@ -155,6 +155,7 @@ final class EpubReader
             $note_reference_hrefs = $this->epubNoteReferenceHrefs($xhtml);
             $link_attribute_overlays_by_href = $this->epubBodyLinkAttributeOverlaysByHref($xhtml);
             $document = $this->epubContentMarkdownReader()->read($this->contentDocumentMarkup($xhtml));
+            $document = $this->normalizeEpubMediaRawBlocks($document);
             if ($footnote_definitions !== []) {
                 $footnote_index = 0;
                 $document = $this->fillEmptyEpubFootnoteNotes($document, $footnote_definitions, $footnote_index);
@@ -1362,6 +1363,115 @@ final class EpubReader
         }
 
         return $changed ? new AstNode($node->type, $node->attrs, $children) : $node;
+    }
+
+    private function normalizeEpubMediaRawBlocks(AstNode $node): AstNode
+    {
+        $children = [];
+        $changed = false;
+        foreach ($node->children as $child) {
+            $normalized = $this->normalizeEpubMediaRawBlockNode($child);
+            array_push($children, ...$normalized);
+            if (count($normalized) !== 1 || $normalized[0] !== $child) {
+                $changed = true;
+            }
+        }
+
+        return $changed ? new AstNode($node->type, $node->attrs, $children) : $node;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function normalizeEpubMediaRawBlockNode(AstNode $node): array
+    {
+        $raw_blocks = $this->epubMediaRawInlineBlocks($node);
+        if ($raw_blocks !== null) {
+            return $raw_blocks;
+        }
+
+        return [$this->normalizeEpubMediaRawBlocks($node)];
+    }
+
+    /**
+     * @return list<AstNode>|null
+     */
+    private function epubMediaRawInlineBlocks(AstNode $node): ?array
+    {
+        if (!in_array($node->type, ['paragraph', 'plain'], true) || $node->children === []) {
+            return null;
+        }
+
+        $html = [];
+        $has_media_tag = false;
+        foreach ($node->children as $child) {
+            if ($child->type !== 'raw_html_inline') {
+                return null;
+            }
+
+            $raw = trim((string) $child->attr('html', $child->attr('text', '')));
+            if ($raw === '') {
+                return null;
+            }
+            if ($this->isEpubMediaRawHtmlTag($raw)) {
+                $has_media_tag = true;
+            }
+            $html[] = $raw;
+        }
+
+        if (!$has_media_tag) {
+            return null;
+        }
+
+        $blocks = [];
+        foreach ($html as $index => $raw) {
+            $blocks[] = new AstNode('raw_html', ['html' => $raw]);
+            if (
+                $this->isEpubOpeningRawHtmlTag($raw, 'track')
+                && !$this->rawHtmlTagClosesElement($raw, 'track')
+                && !$this->nextRawHtmlIsClosingTag($html, $index, 'track')
+            ) {
+                $blocks[] = new AstNode('raw_html', ['html' => '</track>']);
+            }
+        }
+
+        return $blocks;
+    }
+
+    private function isEpubMediaRawHtmlTag(string $html): bool
+    {
+        foreach (['audio', 'source', 'track', 'video'] as $tag) {
+            if ($this->isEpubOpeningRawHtmlTag($html, $tag) || $this->isEpubClosingRawHtmlTag($html, $tag)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isEpubOpeningRawHtmlTag(string $html, string $tag): bool
+    {
+        return preg_match('/^<\s*' . preg_quote($tag, '/') . '\b/i', $html) === 1;
+    }
+
+    private function isEpubClosingRawHtmlTag(string $html, string $tag): bool
+    {
+        return preg_match('/^<\s*\/\s*' . preg_quote($tag, '/') . '\b/i', $html) === 1;
+    }
+
+    private function rawHtmlTagClosesElement(string $html, string $tag): bool
+    {
+        return preg_match('/<\s*\/\s*' . preg_quote($tag, '/') . '\s*>/i', $html) === 1;
+    }
+
+    /**
+     * @param list<string> $html
+     */
+    private function nextRawHtmlIsClosingTag(array $html, int $index, string $tag): bool
+    {
+        $next = $html[$index + 1] ?? null;
+
+        return is_string($next) && $this->isEpubClosingRawHtmlTag($next, $tag);
     }
 
     private function spineMarker(string $filename): AstNode

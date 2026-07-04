@@ -1,0 +1,12 @@
+[ Para
+    [ Str "Hero"
+    , Space
+    , Image
+        ( "" , [] , [] )
+        [ Str "Hero" , Space , Str "frame" ]
+        ( "hero-small.jpg" , "Fallback title" )
+    , Space
+    , Str "selected."
+    ]
+, Para [ Str "After" , Space , Str "picture." ]
+]

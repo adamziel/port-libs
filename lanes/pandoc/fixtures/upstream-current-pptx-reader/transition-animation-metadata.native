@@ -1,0 +1,6 @@
+[ Header
+    2
+    ( "slide-1" , [] , [] )
+    [ Str "Transition animation metadata" ]
+, Para [ Str "Visible animated body" ]
+]

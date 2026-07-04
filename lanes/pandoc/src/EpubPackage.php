@@ -54,6 +54,7 @@ final class EpubPackage
         'image/webp' => 'image',
         'text/css' => 'style',
         'text/javascript' => 'script',
+        'text/vtt' => 'text-track',
     ];
     private const CORE_RESOURCE_PROPERTIES = [
         'nav' => 'nav',
@@ -10224,6 +10225,7 @@ final class EpubPackage
             'otf' => 'font/otf',
             'pdf' => 'application/pdf',
             'txt', 'text' => 'text/plain',
+            'vtt' => 'text/vtt',
             default => 'application/octet-stream',
         };
     }
@@ -16694,6 +16696,9 @@ final class EpubPackage
         }
         if ($baseMediaType === 'text/css') {
             return 'stylesheet';
+        }
+        if ($baseMediaType === 'text/vtt') {
+            return 'text-track';
         }
         if (str_starts_with($baseMediaType, 'image/')) {
             return 'image';

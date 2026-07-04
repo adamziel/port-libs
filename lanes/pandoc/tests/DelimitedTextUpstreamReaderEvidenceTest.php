@@ -112,7 +112,7 @@ return [
         $t->true(in_array('.port-libs/pandoc-runner/artifacts/delimited-text-targeted-run/result.json', $report['runnerEvidence']['requiredArtifacts'], true));
         $t->contains('Pandoc delimited text reader evidence', $text);
         $t->contains('Static current evidence: valid-checked-in-current-delimited-text-reader-evidence checkedInFixtures=2', $text);
-        $t->contains('Generated CSV native parity: 55/55 status=generated-csv-native-parity-observed-not-upstream-fixture', $text);
+        $t->contains('Generated CSV native parity: 56/56 status=generated-csv-native-parity-observed-not-upstream-fixture', $text);
         $t->contains('Generated TSV native parity: 32/32 status=generated-tsv-native-parity-observed-not-upstream-fixture', $text);
         $t->contains('Runner plan: planned-not-run', $text);
         $t->contains('Runner target: Command:/csv.md/#1', $text);
@@ -570,6 +570,14 @@ return [
         $t->same(2112, $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][109]['checkedInFile']['bytes']);
         $t->same('quoted-bare-cr-normalized', $evidence['generatedCsvNativeStaticEvidence']['samples'][54]['name']);
         $t->same([], $evidence['generatedCsvNativeStaticEvidence']['samples'][54]['readerOptions']);
+        $t->same('quoted-delimiter-blank-short-row.csv', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][110]['name']);
+        $t->same('522b8a1e6bfa91cafc8d3b96b90724fe05b1947b6aa24775302eeac1c2b29e28', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][110]['checkedInFile']['sha256']);
+        $t->same(56, $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][110]['checkedInFile']['bytes']);
+        $t->same('quoted-delimiter-blank-short-row.native', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][111]['name']);
+        $t->same('1be02b724aa36c655dae9ff39d52086244d5f586ff8c1c8b3fa63513d9d150cb', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][111]['checkedInFile']['sha256']);
+        $t->same(2304, $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][111]['checkedInFile']['bytes']);
+        $t->same('quoted-delimiter-blank-short-row', $evidence['generatedCsvNativeStaticEvidence']['samples'][55]['name']);
+        $t->same([], $evidence['generatedCsvNativeStaticEvidence']['samples'][55]['readerOptions']);
         $t->same('static-checked-in-generated-tsv-native-parity-fixture-evidence', $evidence['generatedTsvNativeStaticEvidence']['kind']);
         $t->same(32, $evidence['generatedTsvNativeStaticEvidence']['sampleCount']);
         $t->same(64, $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtureCount']);
@@ -1395,6 +1403,18 @@ return [
         $t->same('lanes/pandoc/fixtures/generated-current-csv-reader/quoted-bare-cr-normalized.native', $evidence['samples'][54]['staticFixtureBinding']['expectedNativeFixture']['checkedInPath']);
         $t->same(3, $evidence['samples'][54]['rowCount']);
         $t->same(3, $evidence['samples'][54]['columnCount']);
+        $t->same('matched', $evidence['samples'][55]['status']);
+        $t->same('quoted-delimiter-blank-short-row', $evidence['samples'][55]['name']);
+        $t->same('lanes/pandoc/fixtures/generated-current-csv-reader/quoted-delimiter-blank-short-row.csv', $evidence['samples'][55]['inputPath']);
+        $t->same(['sourcePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/quoted-delimiter-blank-short-row.csv'], $evidence['samples'][55]['readerOptions']);
+        $t->same('generated-csv-native-sample-static-fixture-binding', $evidence['samples'][55]['staticFixtureBinding']['kind']);
+        $t->same('quoted-delimiter-blank-short-row', $evidence['samples'][55]['staticFixtureBinding']['sample']);
+        $t->same('valid-static-fixture-snapshot', $evidence['samples'][55]['staticFixtureBinding']['inputFixture']['status']);
+        $t->same('valid-static-fixture-snapshot', $evidence['samples'][55]['staticFixtureBinding']['expectedNativeFixture']['status']);
+        $t->same('lanes/pandoc/fixtures/generated-current-csv-reader/quoted-delimiter-blank-short-row.csv', $evidence['samples'][55]['staticFixtureBinding']['inputFixture']['checkedInPath']);
+        $t->same('lanes/pandoc/fixtures/generated-current-csv-reader/quoted-delimiter-blank-short-row.native', $evidence['samples'][55]['staticFixtureBinding']['expectedNativeFixture']['checkedInPath']);
+        $t->same(3, $evidence['samples'][55]['rowCount']);
+        $t->same(3, $evidence['samples'][55]['columnCount']);
         $t->same(true, DelimitedTextUpstreamReaderEvidence::hasRequiredGeneratedCsvNativeParity($evidence));
         $t->true(in_array('that the generated CSV samples are upstream command fixtures', $evidence['claimBoundaries']['doesNotAssert'], true));
     },
@@ -1859,6 +1879,7 @@ return [
             'quoted-final-row-padding',
             'quoted-crlf-linebreak',
             'quoted-bare-cr-normalized',
+            'quoted-delimiter-blank-short-row',
         ], array_column($csv['samples'], 'name'));
         $t->same(array_fill(0, DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT, 'matched'), array_column($csv['samples'], 'status'));
         $t->same(array_fill(0, DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT, 'valid-generated-csv-native-sample-static-binding'), array_column($csv['samples'], 'staticFixtureBindingStatus'));
@@ -2008,9 +2029,9 @@ return [
             . ' --repo-root=' . escapeshellarg($repoRoot)
             . ' --json'
             . ' --require-honest-denominators'
-            . ' --require-generated-csv-native-parity=55'
+            . ' --require-generated-csv-native-parity=56'
             . ' --require-generated-tsv-native-parity=32'
-            . ' --require-pandoc-executable-csv-native-parity=40'
+            . ' --require-pandoc-executable-csv-native-parity=41'
             . ' --require-pandoc-executable-tsv-native-parity=23'
             . ' --require-runner-not-run'
             . ' --require-runner-plan'

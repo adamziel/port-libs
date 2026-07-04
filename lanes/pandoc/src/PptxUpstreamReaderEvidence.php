@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 81;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 82;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '2bb340ac4c204eca93abdd0c23f9eb485f36b2eae6478c906a12d67dc8f1a5ec';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 35409;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '1a21160cdbb95a3a25519d50f41c7af8423bb25e5045a2a1824e6790c88bedf0';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 35836;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -762,6 +762,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => 'e626f61a8eb6163e5022a15814de316ae461a73389af1d4694ee87d81a4211ce',
             'pptxBytes' => 3621,
             'nativeBytes' => 236,
+        ],
+        'transition-animation-metadata' => [
+            'name' => 'generated transition and animation metadata parity',
+            'pptx' => 'pptx-reader/transition-animation-metadata.pptx',
+            'native' => 'pptx-reader/transition-animation-metadata.native',
+            'pairKey' => 'pptx-reader/transition-animation-metadata.pptx|pptx-reader/transition-animation-metadata.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/transition-animation-metadata.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/transition-animation-metadata.native',
+            'pptxSha256' => '1705b03613a6a74ccf504d111378482bbe748f1dcfd4412f2a0a6a5bdee36245',
+            'nativeSha256' => 'e3ffd5e45e2cd8d69c94af6bedfeeb6f5e96e5056aa33999de0033fd00ba5e64',
+            'pptxBytes' => 1994,
+            'nativeBytes' => 128,
         ],
         'two-slides' => [
             'name' => 'generated two-slide ordering parity',
