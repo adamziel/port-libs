@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 50;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 51;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '932a6cf4c5bd2c3e83387b69f69c90956c933f7039e199e442479446b995b0b3';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 25299;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '7c56905ff13ece0d313000fc55bbc857cb5c7b738551d180dbd09d2e28f8c0cd';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 25751;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -618,6 +618,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => '9ceb6189090309ad8b3ea4ec49622cbf6f64d110928046136578c33c8fc48242',
             'pptxBytes' => 2506,
             'nativeBytes' => 117,
+        ],
+        'qualified-bullet-level' => [
+            'name' => 'generated qualified bullet level fallback parity',
+            'pptx' => 'pptx-reader/qualified-bullet-level.pptx',
+            'native' => 'pptx-reader/qualified-bullet-level.native',
+            'pairKey' => 'pptx-reader/qualified-bullet-level.pptx|pptx-reader/qualified-bullet-level.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/qualified-bullet-level.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/qualified-bullet-level.native',
+            'pptxSha256' => '975698555e2a3766273d24f0c8b11510f1856b9fae77d3fb53c4d70f01abf55b',
+            'nativeSha256' => 'c80440348f5567bb5cdd29313dc97aaf86b339b0c44211c873350f22cc49177b',
+            'pptxBytes' => 1431,
+            'nativeBytes' => 259,
         ],
         'repeated-slash-slide-target' => [
             'name' => 'generated repeated-slash slide target parity',

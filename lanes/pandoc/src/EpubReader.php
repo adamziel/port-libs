@@ -169,12 +169,6 @@ final class EpubReader
             array_push($children, ...$document->children);
         }
 
-        if ($children === []) {
-            $children[] = new AstNode('paragraph', ['text' => 'No readable EPUB spine content was found.'], [
-                new AstNode('text', ['text' => 'No readable EPUB spine content was found.']),
-            ]);
-        }
-
         $metadata['epubRootfile'] = $rootfile;
         $metadata['epubManifestItemCount'] = count($manifest);
         $metadata['epubManifestItems'] = $this->manifestItemsMetadata($base_path, $manifest);

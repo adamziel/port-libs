@@ -1,0 +1,8 @@
+[ Para
+    [ Str "before"
+    , Space
+    , Str "fallback"
+    , Space
+    , Str "after"
+    ]
+]

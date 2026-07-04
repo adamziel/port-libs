@@ -837,6 +837,71 @@ XML);
         $t->same(false, str_contains($native, 'No readable EPUB spine content was found.'));
         $t->contains('Span ( "source-notes.txt"', $native);
     },
+    'reads all non-linear epub spine as an empty document' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-all-nonlinear-spine-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary EPUB package');
+        }
+        $zip->addFromString('META-INF/container.xml', '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="book-id">
+  <metadata>
+    <dc:identifier id="book-id">book-all-nonlinear-spine</dc:identifier>
+    <dc:title>All Nonlinear Spine</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter" linear="no"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('OPS/nav.xhtml', <<<'HTML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <ol>
+        <li><a href="chapter.xhtml">Chapter</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+HTML);
+        $zip->addFromString('OPS/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>All Nonlinear Spine</h1><p>Nonlinear chapter.</p></body></html>');
+        $zip->close();
+
+        try {
+            $document = (new EpubReader())->readEpubFile($path);
+            $meta = $document->attr('meta');
+            $native = (new NativeWriter(['blocksOnly' => true]))->write($document);
+        } finally {
+            @unlink($path);
+        }
+
+        $t->same([], $document->children);
+        $t->same('All Nonlinear Spine', $meta['title']);
+        $t->same(1, $meta['epubSpineItems']);
+        $t->same(false, $meta['epubSpineItemRefs'][0]['linear']);
+        $t->same(true, $meta['epubSpineItemRefs'][0]['readable']);
+        $t->same([], $meta['epubReadableResources']);
+        $t->same(1, $meta['epubTocEntryCount']);
+        $t->same([
+            ['text' => 'Chapter', 'href' => 'OPS/chapter.xhtml', 'level' => 1],
+        ], $meta['epubTocEntries']);
+        $t->same('[]', $native);
+    },
     'separates epub media bag image usage from manifest image inventory' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-media-bag-scope-');
         if ($path === false) {

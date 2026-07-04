@@ -1,0 +1,8 @@
+[ Header
+    2 ( "slide-1" , [] , [] ) [ Str "Qualified level slide" ]
+, BulletList
+    [ [ Plain [ Str "Qualified level fallback" ] ]
+    , [ Plain [ Str "Explicit zero joins fallback" ] ]
+    ]
+, BulletList [ [ Plain [ Str "Unqualified level split" ] ] ]
+]

@@ -33,6 +33,7 @@ final class MarkdownNativeAstComparisonHarness
         'upstream-markdown-raw-html-invalid-comment' => ['format' => 'markdown+raw_html'],
         'upstream-markdown-strict-compact-heading' => ['format' => 'markdown_strict'],
         'upstream-markdown-task-list' => ['format' => 'markdown+task_lists'],
+        'upstream-markdown-z-fancy-list-markers' => ['format' => 'markdown+fancy_lists'],
     ];
 
     /** @var array<string, true> */

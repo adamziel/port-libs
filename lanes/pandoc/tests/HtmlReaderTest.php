@@ -104,6 +104,21 @@ $tests['imports direct pandoc html standalone progress fragment as plain blocks'
         $t->same(['text'], array_map(static fn ($node): string => $node->type, $after->children));
     };
 
+$tests['imports direct pandoc html progress in paragraph as fallback text'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-progress-in-paragraph.html'));
+        $paragraph = $document->children[0];
+
+        $t->same('html', $document->attr('sourceFormat'));
+        $t->same(['paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same('before fallback after', $paragraph->attr('text'));
+        $t->same(['text', 'text', 'text'], array_map(static fn ($node): string => $node->type, $paragraph->children));
+        $t->same(
+            ['before ', 'fallback', ' after'],
+            array_map(static fn ($node): string => $node->attr('text'), $paragraph->children)
+        );
+    };
+
 $tests['imports direct pandoc html inline time without raw wrappers'] =
     static function (TestRunner $t): void {
         $document = (new HtmlReader())->read('<p>At <time datetime="2026-07-04"><strong>noon</strong></time>.</p>');

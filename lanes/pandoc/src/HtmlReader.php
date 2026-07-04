@@ -45,7 +45,7 @@ final class HtmlReader
                 $children = self::restoreImplicitPlainBody($children);
             }
             $children = $this->restoreImplicitNativeMainPlainBlocks($bytes, $children);
-            $children = self::stripHtmlTimeRawInlineWrappers($children);
+            $children = self::stripHtmlRawInlineWrappers($children);
             $attrs = $document->attrs;
         }
         $meta = $attrs['meta'] ?? [];
@@ -621,25 +621,25 @@ final class HtmlReader
      * @param list<AstNode> $children
      * @return list<AstNode>
      */
-    private static function stripHtmlTimeRawInlineWrappers(array $children): array
+    private static function stripHtmlRawInlineWrappers(array $children): array
     {
         $stripped = [];
         foreach ($children as $child) {
-            if (self::isHtmlTimeRawInlineWrapper($child)) {
+            if (self::isHtmlRawInlineWrapper($child)) {
                 continue;
             }
 
             $stripped[] = new AstNode(
                 $child->type,
-                self::stripHtmlTimeRawInlineWrapperAttrs($child->attrs),
-                self::stripHtmlTimeRawInlineWrappers($child->children)
+                self::stripHtmlRawInlineWrapperAttrs($child->attrs),
+                self::stripHtmlRawInlineWrappers($child->children)
             );
         }
 
         return $stripped;
     }
 
-    private static function isHtmlTimeRawInlineWrapper(AstNode $node): bool
+    private static function isHtmlRawInlineWrapper(AstNode $node): bool
     {
         if ($node->type !== 'raw_html_inline') {
             return false;
@@ -647,41 +647,40 @@ final class HtmlReader
 
         $html = trim((string) ($node->attrs['html'] ?? $node->attrs['text'] ?? ''));
 
-        return preg_match('/^<time(?:\s[^>]*)?>$/i', $html) === 1
-            || preg_match('/^<\/time\s*>$/i', $html) === 1;
+        return self::isHtmlRawInlineWrapperSource($html);
     }
 
     /**
      * @param array<string, mixed> $attrs
      * @return array<string, mixed>
      */
-    private static function stripHtmlTimeRawInlineWrapperAttrs(array $attrs): array
+    private static function stripHtmlRawInlineWrapperAttrs(array $attrs): array
     {
         foreach ($attrs as $key => $value) {
             $attrs[$key] = $key === 'text' && is_string($value)
-                ? self::stripHtmlTimeRawInlineWrapperText($value)
-                : self::stripHtmlTimeRawInlineWrapperValue($value);
+                ? self::stripHtmlRawInlineWrapperText($value)
+                : self::stripHtmlRawInlineWrapperValue($value);
         }
 
         return $attrs;
     }
 
-    private static function stripHtmlTimeRawInlineWrapperText(string $text): string
+    private static function stripHtmlRawInlineWrapperText(string $text): string
     {
-        return (string) preg_replace('/<\/?time(?:\s[^>]*)?>/i', '', $text);
+        return (string) preg_replace('/<\/?(?:progress|time)(?:\s[^>]*)?>/i', '', $text);
     }
 
-    private static function stripHtmlTimeRawInlineWrapperValue(mixed $value): mixed
+    private static function stripHtmlRawInlineWrapperValue(mixed $value): mixed
     {
         if ($value instanceof AstNode) {
-            if (self::isHtmlTimeRawInlineWrapper($value)) {
+            if (self::isHtmlRawInlineWrapper($value)) {
                 return null;
             }
 
             return new AstNode(
                 $value->type,
-                self::stripHtmlTimeRawInlineWrapperAttrs($value->attrs),
-                self::stripHtmlTimeRawInlineWrappers($value->children)
+                self::stripHtmlRawInlineWrapperAttrs($value->attrs),
+                self::stripHtmlRawInlineWrappers($value->children)
             );
         }
 
@@ -692,21 +691,27 @@ final class HtmlReader
         if (array_is_list($value)) {
             $stripped = [];
             foreach ($value as $child) {
-                if ($child instanceof AstNode && self::isHtmlTimeRawInlineWrapper($child)) {
+                if ($child instanceof AstNode && self::isHtmlRawInlineWrapper($child)) {
                     continue;
                 }
 
-                $stripped[] = self::stripHtmlTimeRawInlineWrapperValue($child);
+                $stripped[] = self::stripHtmlRawInlineWrapperValue($child);
             }
 
             return $stripped;
         }
 
         foreach ($value as $key => $child) {
-            $value[$key] = self::stripHtmlTimeRawInlineWrapperValue($child);
+            $value[$key] = self::stripHtmlRawInlineWrapperValue($child);
         }
 
         return $value;
+    }
+
+    private static function isHtmlRawInlineWrapperSource(string $html): bool
+    {
+        return preg_match('/^<(?:progress|time)(?:\s[^>]*)?>$/i', $html) === 1
+            || preg_match('/^<\/(?:progress|time)\s*>$/i', $html) === 1;
     }
 
     /**
