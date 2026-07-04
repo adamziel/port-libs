@@ -1,0 +1,11 @@
+[ Header
+    2 ( "slide-1" , [] , [] ) [ Str "SmartArt title fallback" ]
+, Div
+    ( ""
+    , [ "smartart" , "titleFallbackLayout" ]
+    , [ ( "layout" , "titleFallbackLayout" ) ]
+    )
+    [ Para [ Strong [ Str "Fallback root" ] ]
+    , BulletList [ [ Plain [ Str "Fallback child" ] ] ]
+    ]
+]

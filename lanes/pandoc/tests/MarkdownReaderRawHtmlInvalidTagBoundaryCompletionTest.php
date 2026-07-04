@@ -6,12 +6,14 @@ use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
-$source = '</ div></.div>';
+$fixture = static fn (): string => (string) file_get_contents(
+    dirname(__DIR__) . '/fixtures/upstream-markdown-raw-html-invalid-tag.md'
+);
 
 return [
     'keeps upstream markdown raw html invalid tag boundary literal' =>
-        static function (TestRunner $t) use ($source): void {
-            $document = (new MarkdownReader(['format' => 'markdown']))->read($source);
+        static function (TestRunner $t) use ($fixture): void {
+            $document = (new MarkdownReader(['format' => 'markdown']))->read($fixture());
             $paragraph = $document->children[0] ?? new AstNode('missing');
             $blocks = (new WordPressBlockWriter())->write($document);
 
@@ -27,8 +29,8 @@ return [
         },
 
     'records upstream markdown raw html invalid tag boundary mapped-case count' =>
-        static function (TestRunner $t) use ($source): void {
-            $t->same('</ div></.div>', $source);
+        static function (TestRunner $t) use ($fixture): void {
+            $t->same('</ div></.div>', trim($fixture()));
             $t->same(1, 1);
         },
 ];

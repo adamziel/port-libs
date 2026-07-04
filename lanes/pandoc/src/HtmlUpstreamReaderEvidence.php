@@ -12,8 +12,8 @@ final class HtmlUpstreamReaderEvidence
     public const STATUS_COMPLETED = 'completed-upstream-html-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-html-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
-    public const EXPECTED_SELECTED_FIXTURE_COUNT = 93;
-    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 93;
+    public const EXPECTED_SELECTED_FIXTURE_COUNT = 94;
+    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 94;
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/HTML.hs',
@@ -445,6 +445,10 @@ final class HtmlUpstreamReaderEvidence
             'bytes' => 54,
             'sourceKind' => 'direct-pandoc-3.10-native-probe',
         ],
+        'upstream-html-base-trailing-slash-image.html' => [
+            'sha256' => '02aa50f4dd62dcf7bfa9b57cdaf2756717d1b5209b08f0a4bed6ad739284c2f4',
+            'bytes' => 113,
+        ],
     ];
 
     private readonly string $repoRoot;
@@ -608,10 +612,10 @@ final class HtmlUpstreamReaderEvidence
             'claim' => 'Static gate binding the checked-in upstream-derived and generated-current HTML reader fixture corpus to SHA-256 and byte-count snapshots.',
             'claimBoundaries' => [
                 'doesAssert' => [
-                    'the checked-in HTML reader fixture corpus has 93 pinned fixture snapshots',
+                    'the checked-in HTML reader fixture corpus has 94 pinned fixture snapshots',
                     'each pinned HTML fixture has a same-basename checked-in native expectation file',
                     'each pinned fixture has at least one local test reference',
-                    'the existing HTML/native AST comparator still observes 93 same-basename native-pair matches when included in the report',
+                    'the existing HTML/native AST comparator still observes 94 same-basename native-pair matches when included in the report',
                 ],
                 'doesNotAssert' => [
                     'that upstream Haskell/Cabal/Tasty tests were executed',
@@ -1312,10 +1316,10 @@ final class HtmlUpstreamReaderEvidence
     {
         return [
             'doesAssert' => [
-                'the identity and count of 93 selected checked-in upstream-derived and generated-current HTML fixtures',
+                'the identity and count of 94 selected checked-in upstream-derived and generated-current HTML fixtures',
                 'that each selected fixture has a same-basename checked-in native expectation file',
                 'that each selected fixture is referenced by at least one local focused test',
-                'that the existing native AST gate observes 93 checked-in same-basename HTML/native matches',
+                'that the existing native AST gate observes 94 checked-in same-basename HTML/native matches',
                 'that upstream Haskell runner evidence is either explicitly not-run or supplied as a validated result artifact',
                 'the future upstream runner command plan targets test:test-pandoc Readers/HTML at the pinned upstream commit without execution',
                 'a supplied upstream runner result artifact is validated against the pinned HTML Tasty target, commit, test names, pass/fail counts, and transcript file identities when explicitly provided',

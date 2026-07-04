@@ -2346,6 +2346,45 @@ NATIVE;
         $t->true(!str_contains($native, 'Str "3"'));
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
+    'matches generated csv quoted edge spaces native parity fixture without inflating csv denominator' => static function (TestRunner $t) use ($generatedCsvNativeFixture, $nativeTokenStream): void {
+        $fixture = $generatedCsvNativeFixture('quoted-edge-spaces');
+        $document = (new DelimitedTextReader())->readCsv($fixture['input'], [
+            'sourcePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/quoted-edge-spaces.csv',
+        ]);
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+        $native = PandocConverter::write($document, 'native');
+        $generatedEvidence = $packet['upstreamEvidence']['generatedNativeParityEvidence'] ?? [];
+
+        $t->same('csv', $packet['format'] ?? null);
+        $t->same(',', $packet['delimiter'] ?? null);
+        $t->same(2, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
+        $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
+        $t->same(2 * DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['checkedInFixtureCount'] ?? null);
+        $t->same('quoted-edge-spaces.csv', $generatedEvidence['checkedInFixtures'][96]['name'] ?? null);
+        $t->same('abc9c092cd5343f3609e738a60ced32cc878e6aa6c20518e4218bce5de67e6d2', $generatedEvidence['checkedInFixtures'][96]['checkedInFile']['sha256'] ?? null);
+        $t->same('quoted-edge-spaces.native', $generatedEvidence['checkedInFixtures'][97]['name'] ?? null);
+        $t->same('186662f425cf75dee71c2aaa88f204249922cf5a0fadb3020d4501dff983c052', $generatedEvidence['checkedInFixtures'][97]['checkedInFile']['sha256'] ?? null);
+        $t->same('quoted-edge-spaces', $generatedEvidence['samples'][48]['name'] ?? null);
+        $t->same([], $generatedEvidence['samples'][48]['readerOptions'] ?? null);
+        $t->same(['id', 'note', 'status'], $table->attr('columnNames'));
+        $t->same(4, $packet['rowCount'] ?? null);
+        $t->same(3, $packet['bodyRowCount'] ?? null);
+        $t->same(3, $packet['columnCount'] ?? null);
+        $t->same(12, $packet['fieldCount'] ?? null);
+        $t->same(4, $packet['quotedFieldCount'] ?? null);
+        $t->same(0, $packet['raggedRowCount'] ?? null);
+        $t->same(' leading', $table->children[1]->children[0]->children[1]->attr('text'));
+        $t->same('trailing ', $table->children[1]->children[1]->children[1]->attr('text'));
+        $t->same(' both ', $table->children[1]->children[2]->children[1]->attr('text'));
+        $t->same(' spaced status ', $table->children[1]->children[2]->children[2]->attr('text'));
+        $t->contains('Plain [ Space , Str "leading" ]', $native);
+        $t->contains('Plain [ Str "trailing" , Space ]', $native);
+        $t->contains('Plain [ Space , Str "spaced" , Space , Str "status" , Space ]', $native);
+        $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
+    },
     'matches generated tsv native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture();
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
@@ -3899,6 +3938,8 @@ NATIVE;
         $t->same([], $csvEvidence['generatedNativeParityEvidence']['samples'][38]['readerOptions'] ?? null);
         $t->same('header-width-truncates-extra-fields', $csvEvidence['generatedNativeParityEvidence']['samples'][47]['name'] ?? null);
         $t->same([], $csvEvidence['generatedNativeParityEvidence']['samples'][47]['readerOptions'] ?? null);
+        $t->same('quoted-edge-spaces', $csvEvidence['generatedNativeParityEvidence']['samples'][48]['name'] ?? null);
+        $t->same([], $csvEvidence['generatedNativeParityEvidence']['samples'][48]['readerOptions'] ?? null);
         $t->true(in_array('direct-csv-command-reader', $csvEvidence['closedGaps'] ?? [], true));
         $t->true(in_array('csv-closing-quote-record-whitespace-strictness', $csvEvidence['closedGaps'] ?? [], true));
         $t->true(in_array('generated-csv-native-parity-sample', $csvEvidence['closedGaps'] ?? [], true));

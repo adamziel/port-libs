@@ -468,6 +468,20 @@ $tests['imports upstream html head body fragment base relative image as plain im
         $t->same('Stickman', $image->children[0]->attr('text'));
     };
 
+$tests['imports upstream html head body fragment base trailing slash image as plain image'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-base-trailing-slash-image.html'));
+        $plain = $document->children[0];
+        $image = $plain->children[0];
+
+        $t->same('html', $document->attr('sourceFormat'));
+        $t->same(['plain'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same(['image'], array_map(static fn ($node): string => $node->type, $plain->children));
+        $t->same('http://www.w3schools.com/images/stickman.gif', $image->attr('url'));
+        $t->same('Stickman', $image->attr('alt'));
+        $t->same('Stickman', $image->children[0]->attr('text'));
+    };
+
 $tests['imports upstream html head body fragment base root-relative image as plain image'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-base-root-relative-image.html'));

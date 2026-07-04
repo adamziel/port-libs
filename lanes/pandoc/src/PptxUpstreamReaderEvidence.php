@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 74;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 75;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'e34f25e38d22488d8d8d21f37afe014e7fa300e75d0d00156d519d80d485f918';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 32042;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '626075b0749ae1fb6b76a65ac257228d2318df81ec9988aac49ca385aa98b574';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 32962;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -846,6 +846,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => 'bc41c663b7f2711c8d12039d385926db19bae387c07290cd7629e5ab278e2ce9',
             'pptxBytes' => 2664,
             'nativeBytes' => 332,
+        ],
+        'smartart-title-fallback' => [
+            'name' => 'generated SmartArt layout title fallback parity',
+            'pptx' => 'pptx-reader/smartart-title-fallback.pptx',
+            'native' => 'pptx-reader/smartart-title-fallback.native',
+            'pairKey' => 'pptx-reader/smartart-title-fallback.pptx|pptx-reader/smartart-title-fallback.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/smartart-title-fallback.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/smartart-title-fallback.native',
+            'pptxSha256' => 'bbc1325cd9324ccd14898628b55589da7ddc4fb7079a071599069e842d985046',
+            'nativeSha256' => '46bf18c4facc20fee3f231d19516c94521883988bdc0f0c07a158d477bf51396',
+            'pptxBytes' => 2587,
+            'nativeBytes' => 296,
         ],
         'percent-encoded-target' => [
             'name' => 'generated literal percent-encoded relationship target parity',
