@@ -32,9 +32,9 @@ return [
         $nativeFiles = glob($fixtureDirectory . '/*.native') ?: [];
         $totalFiles = count($epubFiles) + count($nativeFiles);
 
-        $t->same(35, count($epubFiles));
-        $t->same(35, count($nativeFiles));
-        $t->same(70, $totalFiles);
+        $t->same(36, count($epubFiles));
+        $t->same(36, count($nativeFiles));
+        $t->same(72, $totalFiles);
 
         foreach ([
             'benchmarkDenominator.breakdown' => $manifest['benchmarkDenominator']['breakdown'] ?? null,
@@ -46,10 +46,10 @@ return [
             $t->same(count($epubFiles), $counters['epubEpubInputArtifacts'] ?? null);
         }
 
-        $t->contains('- 35 EPUB package inputs', $note);
-        $t->contains('- 35 same-directory `.native` goldens', $note);
-        $t->contains('--require-package-parity=35', $note);
-        $t->contains('--require-native-readiness=35', $note);
-        $t->contains('--require-mapped-parity=35', $note);
+        $t->contains('- 36 EPUB package inputs', $note);
+        $t->contains('- 36 same-directory `.native` goldens', $note);
+        $t->contains('--require-package-parity=36', $note);
+        $t->contains('--require-native-readiness=36', $note);
+        $t->contains('--require-mapped-parity=36', $note);
     },
 ];

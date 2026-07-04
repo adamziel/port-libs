@@ -1,0 +1,8 @@
+[ Para
+    [ Str "alpha"
+    , LineBreak
+    , Str "beta"
+    , LineBreak
+    , Str "gamma"
+    ]
+]

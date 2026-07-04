@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 61;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 62;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '6d5c0665fb0f1bbc211b9a6ca4e2138ee43d2bd0e3ccd1c08bedbaf09e43f707';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 30358;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '4f086593de4c86391a556c31183d86224b572458e11556501dfcffa5bdcc5132';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 30840;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -606,6 +606,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => 'd170e15f31fa6600cd7fa3eb9560e48ebcc5caaff8ce207d43c48c9fe2b49317',
             'pptxBytes' => 2240,
             'nativeBytes' => 118,
+        ],
+        'media-relative-image-target' => [
+            'name' => 'generated media-relative image target parity',
+            'pptx' => 'pptx-reader/media-relative-image-target.pptx',
+            'native' => 'pptx-reader/media-relative-image-target.native',
+            'pairKey' => 'pptx-reader/media-relative-image-target.pptx|pptx-reader/media-relative-image-target.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/media-relative-image-target.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/media-relative-image-target.native',
+            'pptxSha256' => '6058c05a26c250acd076cad8174a2f98b8ceeae3b09ae24f68fd13d0d0f499ee',
+            'nativeSha256' => 'e626f61a8eb6163e5022a15814de316ae461a73389af1d4694ee87d81a4211ce',
+            'pptxBytes' => 3621,
+            'nativeBytes' => 236,
         ],
         'two-slides' => [
             'name' => 'generated two-slide ordering parity',

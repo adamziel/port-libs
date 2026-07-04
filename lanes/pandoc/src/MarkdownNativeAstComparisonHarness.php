@@ -34,6 +34,7 @@ final class MarkdownNativeAstComparisonHarness
         'upstream-markdown-strict-compact-heading' => ['format' => 'markdown_strict'],
         'upstream-markdown-task-list' => ['format' => 'markdown+task_lists'],
         'upstream-markdown-z-fancy-list-markers' => ['format' => 'markdown+fancy_lists'],
+        'upstream-markdown-z-hard-line-break-profile' => ['format' => 'markdown+hard_line_breaks'],
         'upstream-markdown-z-phpextra-profile' => ['format' => 'markdown_phpextra'],
         'upstream-markdown-z-short-subsuperscript-profile' => ['format' => 'markdown+short_subsuperscripts'],
         'upstream-markdown-z-tex-math-double-backslash-profile' => ['format' => 'markdown+tex_math_double_backslash'],

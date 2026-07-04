@@ -45,6 +45,19 @@ HTML);
         $t->same('x', $document->children[0]->attr('text'));
     };
 
+$tests['imports direct pandoc html meta refresh boundary fixture metadata'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-meta-refresh-boundary.html'));
+        $meta = $document->attr('meta');
+
+        $t->same('HTML Meta Refresh Import', $meta['title']);
+        $t->same('Keep me', $meta['description']);
+        $t->true(!array_key_exists('refresh', $meta));
+        $t->same('html', $meta['sourceFormat']);
+        $t->same(['paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same('Visible.', $document->children[0]->attr('text'));
+    };
+
 $tests['imports upstream html sup and sub inline nodes'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-sup-sub-inline.html'));

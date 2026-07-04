@@ -12,9 +12,9 @@ final class MarkdownUpstreamReaderEvidence
     public const STATUS_COMPLETED = 'completed-upstream-markdown-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-markdown-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
-    public const EXPECTED_SELECTED_FIXTURE_COUNT = 61;
-    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 61;
-    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = 'b65bdef038500fa6cbcd3e6a53f4e1c3d938fbaa31ea858ed08e28e9c1d7088b';
+    public const EXPECTED_SELECTED_FIXTURE_COUNT = 62;
+    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 62;
+    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = '27d4848c33f55e392e0bf3a49b43e6529ec7b00fd28ea02a704a921e077a62ec';
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/Markdown.hs',
@@ -719,6 +719,19 @@ final class MarkdownUpstreamReaderEvidence
             'sha256' => 'c3d8db151d6eed0603f2e3774c031b405a5ca8b64d69574f3feb590df1e62d21',
             'bytes' => 71,
         ],
+        'upstream-markdown-z-hard-line-break-profile.md' => [
+            'role' => 'markdown-hard-line-break-profile-reader-fixture',
+            'sourceKind' => 'selected-upstream-markdown-reader-case',
+            'sourceReference' => 'Pandoc 3.10 markdown+hard_line_breaks profile probe',
+            'formatProfile' => 'markdown+hard_line_breaks physical paragraph newlines as LineBreak constructors',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-markdown-z-hard-line-break-profile.md',
+            'coverageTests' => [
+                'lanes/pandoc/tests/MarkdownReaderHardLineBreakProfileFixtureCompletionTest.php',
+                'lanes/pandoc/tests/MarkdownNativeAstComparisonHarnessTest.php',
+            ],
+            'sha256' => '4fdbc441ea7b546100e086ac1e4fc5ae6749b7314311c99db05be450eca12996',
+            'bytes' => 17,
+        ],
         'upstream-markdown-inline-math.md' => [
             'role' => 'markdown-inline-tex-math-reader-fixture',
             'sourceKind' => 'selected-upstream-markdown-reader-case',
@@ -960,7 +973,7 @@ final class MarkdownUpstreamReaderEvidence
                     'the selected checked-in Markdown fixture snapshots match the expected SHA-256 hashes and byte counts',
                     'the selected checked-in Markdown native expectation snapshots match the expected deterministic manifest hash',
                     'each selected fixture has at least one local PHP test reference',
-                    'the fixture set covers selected command, raw-attribute, abbreviation, details/summary, GFM, autolink, angle-autolink attribute attachment and spaced-literal behavior, footnote/citation, inline TeX math, footnote recursive-reference and continuation/termination boundary behavior, citation/span boundary, empty-paragraph, definition-list spacing, nested-list body, html-div body, tight Plain body blocks, lazy SoftBreak continuation and column-zero marker behavior, GitHub wiki-link, inline-code list-marker, attribute, and spaced-attribute literal behavior, backslash-escaped link, link-label boundary, unbalanced-bracket literal, link-title entity decoding, plain character-reference decoding, strikeout-with-nested-emphasis, GitHub emoji-shortcode, superscript/subscript escaped-space boundary behavior, smart punctuation quotes/apostrophes/ellipsis behavior, pipe-table alignment with escaped-pipe cell behavior, fenced-div nested container behavior, header-attribute explicit id/class/key behavior, numbered-example labeled cross-reference behavior, mark nested inline behavior, bracketed-span generic Span plus smallcaps behavior, fenced-code attribute tuple behavior, MultiMarkdown short superscript/subscript delimiter boundary behavior, numeric character-reference decoding, escaped-line-break hard break behavior, implicit-header-reference ATX trailing-hash behavior, emph/strong delimiter nesting plus intraword underscore behavior, raw-LaTeX bare environment command literal behavior, implicit-figure latex-placement plus alt boundary behavior, GitHub raw email address strong-boundary behavior, raw-HTML technically invalid comment preservation behavior, raw-HTML nested tag split behavior, YAML metadata scalar/list/block body-boundary behavior, LHS bird/inverse code with implicit HTML div close behavior, Pandoc 3.10 alert blockquote profile behavior, markdown_strict compact ATX heading profile behavior, commonmark_x grid-table-looking block paragraph behavior when grid_tables is disabled by default, markdown+fancy_lists ordered marker profile behavior, markdown_phpextra header/link-attribute plus definition-list/footnote profile behavior, markdown+short_subsuperscripts short script profile behavior, and markdown+tex_math_double_backslash inline/display math delimiter profile behavior',
+                    'the fixture set covers selected command, raw-attribute, abbreviation, details/summary, GFM, autolink, angle-autolink attribute attachment and spaced-literal behavior, footnote/citation, inline TeX math, footnote recursive-reference and continuation/termination boundary behavior, citation/span boundary, empty-paragraph, definition-list spacing, nested-list body, html-div body, tight Plain body blocks, lazy SoftBreak continuation and column-zero marker behavior, GitHub wiki-link, inline-code list-marker, attribute, and spaced-attribute literal behavior, backslash-escaped link, link-label boundary, unbalanced-bracket literal, link-title entity decoding, plain character-reference decoding, strikeout-with-nested-emphasis, GitHub emoji-shortcode, superscript/subscript escaped-space boundary behavior, smart punctuation quotes/apostrophes/ellipsis behavior, pipe-table alignment with escaped-pipe cell behavior, fenced-div nested container behavior, header-attribute explicit id/class/key behavior, numbered-example labeled cross-reference behavior, mark nested inline behavior, bracketed-span generic Span plus smallcaps behavior, fenced-code attribute tuple behavior, MultiMarkdown short superscript/subscript delimiter boundary behavior, numeric character-reference decoding, escaped-line-break hard break behavior, implicit-header-reference ATX trailing-hash behavior, emph/strong delimiter nesting plus intraword underscore behavior, raw-LaTeX bare environment command literal behavior, implicit-figure latex-placement plus alt boundary behavior, GitHub raw email address strong-boundary behavior, raw-HTML technically invalid comment preservation behavior, raw-HTML nested tag split behavior, YAML metadata scalar/list/block body-boundary behavior, LHS bird/inverse code with implicit HTML div close behavior, Pandoc 3.10 alert blockquote profile behavior, markdown_strict compact ATX heading profile behavior, commonmark_x grid-table-looking block paragraph behavior when grid_tables is disabled by default, markdown+fancy_lists ordered marker profile behavior, markdown+hard_line_breaks physical-newline LineBreak profile behavior, markdown_phpextra header/link-attribute plus definition-list/footnote profile behavior, markdown+short_subsuperscripts short script profile behavior, and markdown+tex_math_double_backslash inline/display math delimiter profile behavior',
                 ],
                 'doesNotAssert' => [
                     'that upstream Haskell/Cabal/Tasty tests were executed',
