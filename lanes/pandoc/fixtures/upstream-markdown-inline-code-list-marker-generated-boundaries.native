@@ -1,0 +1,198 @@
+[ Header
+    2
+    ( "newline-bullet-bullet-bullet" , [] , [] )
+    [ Str "newline"
+    , Space
+    , Str "bullet"
+    , Space
+    , Str "bullet"
+    , Space
+    , Str "bullet"
+    ]
+, BulletList
+    [ [ Plain [ Str "`text" ] ]
+    , [ Plain [ Str "y" ] ]
+    , [ Plain [ Str "x`" ] ]
+    ]
+, Header
+    2
+    ( "newline-bullet-bullet-ordered" , [] , [] )
+    [ Str "newline"
+    , Space
+    , Str "bullet"
+    , Space
+    , Str "bullet"
+    , Space
+    , Str "ordered"
+    ]
+, BulletList
+    [ [ Plain [ Str "`text" ] ] , [ Plain [ Str "y" ] ] ]
+, OrderedList
+    ( 1 , Decimal , Period ) [ [ Plain [ Str "x`" ] ] ]
+, Header
+    2
+    ( "newline-bullet-ordered-bullet" , [] , [] )
+    [ Str "newline"
+    , Space
+    , Str "bullet"
+    , Space
+    , Str "ordered"
+    , Space
+    , Str "bullet"
+    ]
+, BulletList [ [ Plain [ Str "`text" ] ] ]
+, OrderedList
+    ( 1 , Decimal , Period ) [ [ Plain [ Str "y" ] ] ]
+, BulletList [ [ Plain [ Str "x`" ] ] ]
+, Header
+    2
+    ( "newline-bullet-ordered-ordered" , [] , [] )
+    [ Str "newline"
+    , Space
+    , Str "bullet"
+    , Space
+    , Str "ordered"
+    , Space
+    , Str "ordered"
+    ]
+, BulletList [ [ Plain [ Str "`text" ] ] ]
+, OrderedList
+    ( 1 , Decimal , Period )
+    [ [ Plain [ Str "y" ] ] , [ Plain [ Str "x`" ] ] ]
+, Header
+    2
+    ( "newline-ordered-bullet-bullet" , [] , [] )
+    [ Str "newline"
+    , Space
+    , Str "ordered"
+    , Space
+    , Str "bullet"
+    , Space
+    , Str "bullet"
+    ]
+, OrderedList
+    ( 1 , Decimal , Period ) [ [ Plain [ Str "`text" ] ] ]
+, BulletList
+    [ [ Plain [ Str "y" ] ] , [ Plain [ Str "x`" ] ] ]
+, Header
+    2
+    ( "newline-ordered-bullet-ordered" , [] , [] )
+    [ Str "newline"
+    , Space
+    , Str "ordered"
+    , Space
+    , Str "bullet"
+    , Space
+    , Str "ordered"
+    ]
+, OrderedList
+    ( 1 , Decimal , Period ) [ [ Plain [ Str "`text" ] ] ]
+, BulletList [ [ Plain [ Str "y" ] ] ]
+, OrderedList
+    ( 1 , Decimal , Period ) [ [ Plain [ Str "x`" ] ] ]
+, Header
+    2
+    ( "newline-ordered-ordered-bullet" , [] , [] )
+    [ Str "newline"
+    , Space
+    , Str "ordered"
+    , Space
+    , Str "ordered"
+    , Space
+    , Str "bullet"
+    ]
+, OrderedList
+    ( 1 , Decimal , Period )
+    [ [ Plain [ Str "`text" ] ] , [ Plain [ Str "y" ] ] ]
+, BulletList [ [ Plain [ Str "x`" ] ] ]
+, Header
+    2
+    ( "newline-ordered-ordered-ordered" , [] , [] )
+    [ Str "newline"
+    , Space
+    , Str "ordered"
+    , Space
+    , Str "ordered"
+    , Space
+    , Str "ordered"
+    ]
+, OrderedList
+    ( 1 , Decimal , Period )
+    [ [ Plain [ Str "`text" ] ]
+    , [ Plain [ Str "y" ] ]
+    , [ Plain [ Str "x`" ] ]
+    ]
+, Header
+    2
+    ( "blank-bullet-bullet-ordered" , [] , [] )
+    [ Str "blank"
+    , Space
+    , Str "bullet"
+    , Space
+    , Str "bullet"
+    , Space
+    , Str "ordered"
+    ]
+, BulletList
+    [ [ Para [ Str "`text" ]
+      , BulletList [ [ Plain [ Str "y" ] ] ]
+      , OrderedList
+          ( 1 , Decimal , Period ) [ [ Plain [ Str "x`" ] ] ]
+      ]
+    ]
+, Header
+    2
+    ( "blank-bullet-ordered-ordered" , [] , [] )
+    [ Str "blank"
+    , Space
+    , Str "bullet"
+    , Space
+    , Str "ordered"
+    , Space
+    , Str "ordered"
+    ]
+, BulletList
+    [ [ Para [ Str "`text" ]
+      , OrderedList
+          ( 1 , Decimal , Period )
+          [ [ Para [ Str "y" ] ] , [ Para [ Str "x`" ] ] ]
+      ]
+    ]
+, Header
+    2
+    ( "blank-ordered-bullet-bullet" , [] , [] )
+    [ Str "blank"
+    , Space
+    , Str "ordered"
+    , Space
+    , Str "bullet"
+    , Space
+    , Str "bullet"
+    ]
+, OrderedList
+    ( 1 , Decimal , Period )
+    [ [ Para [ Str "`text" ]
+      , BulletList
+          [ [ Para [ Str "y" ] ] , [ Para [ Str "x`" ] ] ]
+      ]
+    ]
+, Header
+    2
+    ( "blank-ordered-ordered-ordered" , [] , [] )
+    [ Str "blank"
+    , Space
+    , Str "ordered"
+    , Space
+    , Str "ordered"
+    , Space
+    , Str "ordered"
+    ]
+, OrderedList
+    ( 1 , Decimal , Period )
+    [ [ Para [ Str "`text" ]
+      , OrderedList
+          ( 1 , Decimal , Period )
+          [ [ Para [ Str "y" ] ] , [ Para [ Str "x`" ] ] ]
+      ]
+    ]
+]

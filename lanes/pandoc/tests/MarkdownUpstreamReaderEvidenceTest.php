@@ -79,14 +79,14 @@ return [
         $t->same(['missing-upstream-root'], $report['validation']['issues']);
         $t->same('valid-checked-in-current-markdown-reader-evidence', $report['staticCurrentEvidence']['validation']['status']);
         $t->same('valid-checked-in-current-markdown-native-expectation-evidence', $report['staticCurrentEvidence']['nativeExpectationEvidence']['validation']['status']);
-        $t->same(94, $report['staticCurrentEvidence']['nativeExpectationEvidence']['presentFixtureCount']);
+        $t->same(95, $report['staticCurrentEvidence']['nativeExpectationEvidence']['presentFixtureCount']);
         $t->same(MarkdownUpstreamReaderEvidence::EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256, $report['staticCurrentEvidence']['nativeExpectationEvidence']['manifestSha256']);
-        $t->same(94, $report['nativeAstEvidence']['totalPairCount']);
-        $t->same(94, $report['nativeAstEvidence']['normalizedAstMatchCount']);
+        $t->same(95, $report['nativeAstEvidence']['totalPairCount']);
+        $t->same(95, $report['nativeAstEvidence']['normalizedAstMatchCount']);
         $t->same(0, $report['nativeAstEvidence']['unpairedMarkdownFixtureCount']);
-        $t->same(true, MarkdownUpstreamReaderEvidence::hasRequiredSelectedFixtureCount($report, 94));
+        $t->same(true, MarkdownUpstreamReaderEvidence::hasRequiredSelectedFixtureCount($report, 95));
         $t->same(true, MarkdownUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($report));
-        $t->same(true, MarkdownUpstreamReaderEvidence::hasRequiredNativeMappedParity($report, 94));
+        $t->same(true, MarkdownUpstreamReaderEvidence::hasRequiredNativeMappedParity($report, 95));
         $t->same(true, MarkdownUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
         $t->same(true, MarkdownUpstreamReaderEvidence::hasRunnerPlanEvidence($report));
         $t->same(false, MarkdownUpstreamReaderEvidence::hasNoValidationIssues($report));
@@ -96,9 +96,9 @@ return [
         $t->true(in_array('.port-libs/pandoc-runner/logs/markdown-targeted-run.txt', $report['runnerEvidence']['requiredTranscripts'], true));
         $t->true(in_array('.port-libs/pandoc-runner/artifacts/markdown-targeted-run/result.json', $report['runnerEvidence']['requiredArtifacts'], true));
         $t->contains('Pandoc Markdown reader evidence', $text);
-        $t->contains('Selected checked-in fixtures: 94', $text);
-        $t->contains('Static current evidence: valid-checked-in-current-markdown-reader-evidence checkedInFixtures=94 nativeExpectations=94 nativeManifest=valid-checked-in-current-markdown-native-expectation-evidence', $text);
-        $t->contains('Native AST mapped parity: 94/94 status=normalized-ast-equality-observed-not-runner-parity', $text);
+        $t->contains('Selected checked-in fixtures: 95', $text);
+        $t->contains('Static current evidence: valid-checked-in-current-markdown-reader-evidence checkedInFixtures=95 nativeExpectations=95 nativeManifest=valid-checked-in-current-markdown-native-expectation-evidence', $text);
+        $t->contains('Native AST mapped parity: 95/95 status=normalized-ast-equality-observed-not-runner-parity', $text);
         $t->contains('Runner plan: planned-not-run', $text);
     },
 
@@ -108,132 +108,30 @@ return [
 
         $t->same('static-checked-in-current-upstream-markdown-reader-fixture-evidence', $evidence['kind']);
         $t->same(MarkdownUpstreamReaderEvidence::EXPECTED_UPSTREAM_COMMIT, $evidence['upstream']['commit']);
-        $t->same(94, $evidence['readerDenominator']['selectedFixtureCount']);
+        $t->same(95, $evidence['readerDenominator']['selectedFixtureCount']);
         $t->same('selected checked-in upstream-derived Markdown reader fixtures', $evidence['readerDenominator']['fixtureScope']);
         $t->same(['selected-upstream-markdown-reader-case', 'upstream-command-fixture'], $evidence['readerDenominator']['sourceKinds']);
-        $t->same(94, $evidence['checkedInFixtureCount']);
+        $t->same(95, $evidence['checkedInFixtureCount']);
         $t->same('static-checked-in-current-markdown-native-expectation-evidence', $evidence['nativeExpectationEvidence']['kind']);
-        $t->same(94, $evidence['nativeExpectationEvidence']['expectedFixtureCount']);
-        $t->same(94, $evidence['nativeExpectationEvidence']['fixtureCount']);
-        $t->same(94, $evidence['nativeExpectationEvidence']['presentFixtureCount']);
+        $t->same(95, $evidence['nativeExpectationEvidence']['expectedFixtureCount']);
+        $t->same(95, $evidence['nativeExpectationEvidence']['fixtureCount']);
+        $t->same(95, $evidence['nativeExpectationEvidence']['presentFixtureCount']);
         $t->same(MarkdownUpstreamReaderEvidence::EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256, $evidence['nativeExpectationEvidence']['expectedManifestSha256']);
         $t->same(MarkdownUpstreamReaderEvidence::EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256, $evidence['nativeExpectationEvidence']['manifestSha256']);
         $t->same('valid-checked-in-current-markdown-native-expectation-evidence', $evidence['nativeExpectationEvidence']['validation']['status']);
         $t->same([], $evidence['nativeExpectationEvidence']['validation']['issues']);
-        $t->same('upstream-command-details-summary.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][0]['name']);
-        $t->same('b4eb75fd704ba79251373224e5dfaf6f5ebb7333af8da4eb7dff9143c570dea5', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][0]['sha256']);
-        $t->same(480, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][0]['bytes']);
-        $t->same('upstream-markdown-ascii-identifiers.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][7]['name']);
-        $t->same('b524cd92748fd10b2d98431e6bd009b446c3fbd885adb77fa325594b20eb6951', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][7]['sha256']);
-        $t->same(1048, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][7]['bytes']);
-        $t->same('upstream-markdown-autolink-attributes.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][8]['name']);
-        $t->same('cd7de98dd3d21abdc5c0b501f7f0c92eda63f4f102449d58c8d0036ff9886726', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][8]['sha256']);
-        $t->same(379, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][8]['bytes']);
-        $t->same('upstream-markdown-definition-list-nested-list.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][16]['name']);
-        $t->same('c22963e813336f323a81771346bf208a06d7cb1b0863aa6ec7073b80fed459e7', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][16]['sha256']);
-        $t->same(110, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][16]['bytes']);
-        $t->same('upstream-markdown-definition-list-tight-bodies.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][17]['name']);
-        $t->same('79070528c9fff595351668c7a84bdba031bbbfbfe94ca511a58923559172c36b', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][17]['sha256']);
-        $t->same(303, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][17]['bytes']);
-        $t->same('upstream-markdown-inline-math.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][34]['name']);
-        $t->same('436699144f2e7a6c951532b7ee1f859a92e32ea954d3694f46f82d1701bc8a3b', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][34]['sha256']);
-        $t->same(169, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][34]['bytes']);
-        $t->same('upstream-markdown-inline-note-citations.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][35]['name']);
-        $t->same('04ec5abd9d97dad4c60a9502fcda48ab6d596d22d8773742dfaa787593513ad0', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][35]['sha256']);
-        $t->same(1115, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][35]['bytes']);
-        $t->same('upstream-markdown-lhs-inverse-bird-html.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][36]['name']);
-        $t->same('ded30bb9ec48394e6dd42c95ab504456b4f85ff37c1f1a68076bf603260c25d8', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][36]['sha256']);
-        $t->same(129, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][36]['bytes']);
-        $t->same('upstream-markdown-ordered-task-list.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][44]['name']);
-        $t->same('646daad81297d628c2b78e63e9b53b9cafb132e21c8f8da170ab84ab6bc2c5f9', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][44]['sha256']);
-        $t->same(436, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][44]['bytes']);
-        $t->same('upstream-markdown-raw-html-invalid-tag.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][48]['name']);
-        $t->same('4708002624c7dd336dd6c1c6adb5305101d414649dea0c071d2a4895f3b85838', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][48]['sha256']);
-        $t->same(50, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][48]['bytes']);
-        $t->same('upstream-markdown-raw-html-nesting.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][49]['name']);
-        $t->same('d16a4635f6eae97cbd79896344371abc70993130b2493e232e8778f950e5e8a6', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][49]['sha256']);
-        $t->same(96, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][49]['bytes']);
-        $t->same('upstream-markdown-smart-inline-note-quotes.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][51]['name']);
-        $t->same('2528eb43bfcc081be4d9eb03fa3e62a99e04617846f60b2403afc049afa2a56d', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][51]['sha256']);
-        $t->same(180, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][51]['bytes']);
-        $t->same('upstream-markdown-strict-compact-heading.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][53]['name']);
-        $t->same('dca4b0a1370fb86f4ea2ab8f19d1254313558ae57954679d1b3ca1fbaa2c8044', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][53]['sha256']);
-        $t->same(43, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][53]['bytes']);
-        $t->same('upstream-markdown-task-list.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][56]['name']);
-        $t->same('80ead08088210467f4ce4ab35800a2be9e47b76a5c63fb92c3692ce3b49728df', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][56]['sha256']);
-        $t->same(846, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][56]['bytes']);
-        $t->same('upstream-markdown-unbalanced-brackets.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][57]['name']);
-        $t->same('9179740322c07d3717a32cb023a504dafaf164a6f39e2b1cc2fd1f3d11b7e5d8', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][57]['sha256']);
-        $t->same(34, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][57]['bytes']);
-        $t->same('upstream-markdown-yaml-metadata.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][58]['name']);
-        $t->same('7ef515f951844ff049c5f6a4c98f42094843aa311061f59eb20d2be6bca6d7b2', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][58]['sha256']);
-        $t->same(75, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][58]['bytes']);
-        $t->same('upstream-markdown-z-commonmark-x-grid-table-default.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][59]['name']);
-        $t->same('566596459e8d3e3ab0ae5842fecc54764cad72c34c81a104ca9df16451e5143d', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][59]['sha256']);
-        $t->same(389, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][59]['bytes']);
-        $t->same('upstream-markdown-z-fancy-list-markers.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][60]['name']);
-        $t->same('d355209d6e62f20b6c85859cac1100dae074c28c12fb7257e5760395a205fd4e', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][60]['sha256']);
-        $t->same(374, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][60]['bytes']);
-        $t->same('upstream-markdown-z-hard-line-break-profile.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][61]['name']);
-        $t->same('ee1a809fbe38b6925fdddb239c1dc67d63202ef0b5d76aa5199e81378547cc42', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][61]['sha256']);
-        $t->same(100, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][61]['bytes']);
-        $t->same('upstream-markdown-z-lists-without-preceding-blankline-profile.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][62]['name']);
-        $t->same('38ba85d714dd40976b5d6d337f2ec718fcbd1eeed971d411b3bee97bee0b804d', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][62]['sha256']);
-        $t->same(237, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][62]['bytes']);
-        $t->same('upstream-markdown-z-phpextra-profile.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][63]['name']);
-        $t->same('be3c3413188c1a207f164bf91440fe7905e791190969231477e6f0aa9e062af4', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][63]['sha256']);
-        $t->same(404, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][63]['bytes']);
-        $t->same('upstream-markdown-z-short-subsuperscript-profile.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][64]['name']);
-        $t->same('3d61d968b764b7cf70200e55a15b3526ef98c85242e2074500302492cd72afba', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][64]['sha256']);
-        $t->same(295, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][64]['bytes']);
-        $t->same('upstream-markdown-z-simple-table-profile.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][65]['name']);
-        $t->same('dbbb32b1d1baa0e7fc2115f459dc2edeaf4bd7967f5e33a5d37e239a74df631b', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][65]['sha256']);
-        $t->same(1132, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][65]['bytes']);
-        $t->same('upstream-markdown-z-spaced-reference-link-profile.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][66]['name']);
-        $t->same('4906924b61eab938e6cf600c8eb43db0bd478eef2ee54686710cf944512f4f60', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][66]['sha256']);
-        $t->same(186, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][66]['bytes']);
-        $t->same('upstream-markdown-z-tex-math-double-backslash-profile.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][67]['name']);
-        $t->same('bdb87c856b1b2c4cca8ff3e9257860e5c83f937dd9e225160abdf2bef763868c', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][67]['sha256']);
-        $t->same(189, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][67]['bytes']);
-        $t->same('upstream-markdown-zz-east-asian-line-break-profile.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][68]['name']);
-        $t->same('e16865147801c4add46e54073ed512140c7e95bcd17924f663174993073750bc', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][68]['sha256']);
-        $t->same(109, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][68]['bytes']);
-        $t->same('upstream-markdown-zz-tex-math-single-backslash-profile.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][69]['name']);
-        $t->same('bdb87c856b1b2c4cca8ff3e9257860e5c83f937dd9e225160abdf2bef763868c', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][69]['sha256']);
-        $t->same(189, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][69]['bytes']);
-        $t->same('upstream-markdown-zzz-intraword-underscore-profile.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][70]['name']);
-        $t->same('4968e47692c43a71eb9ef11faa3a9ce045fd0125d52fe2d1f5fc6618a743090e', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][70]['sha256']);
-        $t->same(171, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][70]['bytes']);
-        $t->same('upstream-markdown-zzzz-angle-brackets-escapable-profile.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][71]['name']);
-        $t->same('204c50df7964fded0de512f7cefcb94bb730d22a88de4b33f27aa527f6ee4c00', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][71]['sha256']);
-        $t->same(61, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][71]['bytes']);
-        $t->same('upstream-markdown-zzzzz-wikilinks-title-after-pipe-profile.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][72]['name']);
-        $t->same('919aab37f5d3b7d0312eb46ec73321fa93a2876a963414742f48d08b2b0d155f', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][72]['sha256']);
-        $t->same(205, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][72]['bytes']);
-        $t->same('upstream-markdown-zzzzzzz-auto-identifiers-disabled-profile.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][74]['name']);
-        $t->same('83b7130b9f460c8b41e8f843bf6ab4a3bbc1baafe616db5e8b8753466d0ca964', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][74]['sha256']);
-        $t->same(101, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][74]['bytes']);
-        $t->same('upstream-markdown-zzzzzzzz-blank-before-header-disabled-profile.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][75]['name']);
-        $t->same('5cdca0df7423cb574a72c2d2cf3e916d37a51cdf0eb883bb9fb0ac4d71166fd8', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][75]['sha256']);
-        $t->same(252, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][75]['bytes']);
-        $t->same('upstream-markdown-zzzzzzzzz-citation-digit-key.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][76]['name']);
-        $t->same('28f37bccb6a9a8a51e9885a388719fdfa7bd4e2e8a60fa171e684487a2415aaf', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][76]['sha256']);
-        $t->same(320, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][76]['bytes']);
-        $t->same('upstream-markdown-zzzzzzzzzz-bare-uri-bracket-encoding.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][77]['name']);
-        $t->same('5a9aa259420310b288f764dd59a0fff5c14b4075f112f37c5c01a0364df52d25', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][77]['sha256']);
-        $t->same(492, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][77]['bytes']);
-        $t->same('upstream-markdown-zzzzzzzzzzz-mmd-title-block-profile.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][78]['name']);
-        $t->same('b863b6fa6acf24ae00e309f4bb02c424af7b7d9fbbfbb686b1807a6dcee157bf', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][78]['sha256']);
-        $t->same(46, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][78]['bytes']);
-        $t->same('upstream-markdown-zzzzzzzzzzzz-gfm-auto-identifiers-profile.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][79]['name']);
-        $t->same('cb049f633fe66d7449130475064da0c16e9b0adf628ec902688467e0dbc5dfcc', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][79]['sha256']);
-        $t->same(525, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][79]['bytes']);
-        $t->same('upstream-markdown-zzzzzzzzzzzzz-citation-link-boundaries.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][80]['name']);
-        $t->same('34b46cf8f763cc2f46122f4a8e594888be5c8166a9d415432297fa35b43aa9cb', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][80]['sha256']);
-        $t->same(2264, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][80]['bytes']);
-        $t->same('upstream-markdown-zzzzzzzzzzzzzz-footnote-fenced-div-boundary.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][81]['name']);
-        $t->same('1b74f20e722381136cc22f566c8f51457e5931440dfd9924d06ab007ea3100eb', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][81]['sha256']);
-        $t->same(690, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][81]['bytes']);
+        $nativeFixturesByName = [];
+        foreach ($evidence['nativeExpectationEvidence']['checkedInNativeFixtures'] as $nativeFixture) {
+            $nativeFixturesByName[$nativeFixture['name']] = $nativeFixture;
+        }
+        $t->same(
+            'b655637d31601bc6d91a01948f12f017f20591d081df4212723c2ff070270eee',
+            $nativeFixturesByName['upstream-markdown-inline-code-list-marker-generated-boundaries.native']['sha256'] ?? null
+        );
+        $t->same(
+            4081,
+            $nativeFixturesByName['upstream-markdown-inline-code-list-marker-generated-boundaries.native']['bytes'] ?? null
+        );
         $t->same('upstream-command-parse-raw.md', $evidence['checkedInFixtures'][0]['name']);
         $t->same('command-parse-raw-reader-fixture', $evidence['checkedInFixtures'][0]['role']);
         $t->same('e3b50f56f86883e3e323cf97d52cd07a3c3797fb7d5f89bbb422392e8008f72b', $evidence['checkedInFixtures'][0]['checkedInFile']['sha256']);
@@ -287,6 +185,12 @@ return [
         $t->same(132, $evidence['checkedInFixtures'][14]['checkedInFile']['bytes']);
         $t->true(in_array('lanes/pandoc/tests/MarkdownReaderInlineCodeListMarkerCompletionTest.php', $evidence['checkedInFixtures'][14]['coverageTests'], true));
         $t->true(in_array('lanes/pandoc/tests/MarkdownReaderInlineCodeListMarkerCompletionTest.php', $evidence['checkedInFixtures'][14]['localTestReferences'], true));
+        $lastFixture = $evidence['checkedInFixtures'][array_key_last($evidence['checkedInFixtures'])];
+        $t->same('upstream-markdown-inline-code-list-marker-generated-boundaries.md', $lastFixture['name']);
+        $t->same('8556aa8110eadfdde51dbf8e8e2afb293acf254118b27ef3b099453d0ee2f74f', $lastFixture['checkedInFile']['sha256']);
+        $t->same(681, $lastFixture['checkedInFile']['bytes']);
+        $t->true(in_array('lanes/pandoc/tests/MarkdownReaderInlineCodeListMarkerCompletionTest.php', $lastFixture['coverageTests'], true));
+        $t->true(in_array('lanes/pandoc/tests/MarkdownReaderInlineCodeListMarkerCompletionTest.php', $lastFixture['localTestReferences'], true));
         $t->same('upstream-markdown-backslash-escaped-links.md', $evidence['checkedInFixtures'][15]['name']);
         $t->same('6ad9984a92f484095874487a5fd713e18489f8216829e1e6f7c9137beb2e5216', $evidence['checkedInFixtures'][15]['checkedInFile']['sha256']);
         $t->same(110, $evidence['checkedInFixtures'][15]['checkedInFile']['bytes']);
@@ -670,33 +574,6 @@ return [
         $t->true(in_array('lanes/pandoc/tests/MarkdownReaderFootnoteFencedDivBoundaryCompletionTest.php', $evidence['checkedInFixtures'][79]['coverageTests'], true));
         $t->true(in_array('lanes/pandoc/tests/MarkdownNativeAstComparisonHarnessTest.php', $evidence['checkedInFixtures'][79]['coverageTests'], true));
         $t->true(in_array('lanes/pandoc/tests/MarkdownReaderFootnoteFencedDivBoundaryCompletionTest.php', $evidence['checkedInFixtures'][79]['localTestReferences'], true));
-        $t->same('upstream-markdown-zzzzzzzzzzzzzzz-raw-html-list-boundary.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][82]['name']);
-        $t->same('4b48b2fc92cf096187d51ac38d4a1dc84877ab04548b052815c39aa7398f1c58', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][82]['sha256']);
-        $t->same(690, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][82]['bytes']);
-        $t->same('upstream-markdown-zzzzzzzzzzzzzzzz-gfm-nested-list-continuation.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][83]['name']);
-        $t->same('1e086c90566b85f38519ace90e2e3663781ec3b52d3a9b0230cec7df42a67d1d', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][83]['sha256']);
-        $t->same(156, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][83]['bytes']);
-        $t->same('upstream-markdown-zzzzzzzzzzzzzzzzz-blank-before-blockquote-disabled-profile.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][84]['name']);
-        $t->same('f3126c89e72fbcf239aed32a07c8b00a03a70d760079cf8eb36154783df36bb0', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][84]['sha256']);
-        $t->same(217, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][84]['bytes']);
-        $t->same('upstream-markdown-zzzzzzzzzzzzzzzzzz-blank-before-header-blockquote-profile.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][85]['name']);
-        $t->same('df0075d199dace341f3a028955f7fa1737ef269dcea05aecad55aaa4fda00402', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][85]['sha256']);
-        $t->same(291, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][85]['bytes']);
-        $t->same('upstream-markdown-zzzzzzzzzzzzzzzzzzz-mark-extension-profile.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][86]['name']);
-        $t->same('a56a441f8c5cb97913566cf8d2b4b8aa253565c53f1c98723aa1bc0590389181', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][86]['sha256']);
-        $t->same(180, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][86]['bytes']);
-        $t->same('upstream-markdown-zzzzzzzzzzzzzzzzzzzz-angle-autolink-unicode-dash-boundary.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][87]['name']);
-        $t->same('8726de6b08623d4e60c4f23d0f73f8beb0f96edecaf6b20c0f74ff4b15f8daf4', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][87]['sha256']);
-        $t->same(143, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][87]['bytes']);
-        $t->same('upstream-markdown-zzzzzzzzzzzzzzzzzzzzz-partial-autolink-boundary.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][88]['name']);
-        $t->same('6ae0899513186d034cc3024bd35524fa7b2b4d5f09c9fcc11b2293e0dadff0ff', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][88]['sha256']);
-        $t->same(74, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][88]['bytes']);
-        $t->same('upstream-markdown-zzzzzzzzzzzzzzzzzzzzzzz-bare-uri-scheme-boundaries.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][90]['name']);
-        $t->same('4f5d1e76db624e34416737c5072b4604712f2309469c8331f2bd6c106eea4b32', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][90]['sha256']);
-        $t->same(652, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][90]['bytes']);
-        $t->same('upstream-markdown-zzzzzzzzzzzzzzzzzzzzzzzzz-atx-heading-space-disabled-profile.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][92]['name']);
-        $t->same('02ab8ce343121501a3f9d78b967ce95d4a9dad06e74fc4daaa59492079eac59f', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][92]['sha256']);
-        $t->same(59, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][92]['bytes']);
         $rawHtmlListFixture = null;
         foreach ($evidence['checkedInFixtures'] as $checkedInFixture) {
             if (($checkedInFixture['name'] ?? null) === 'upstream-markdown-zzzzzzzzzzzzzzz-raw-html-list-boundary.md') {
@@ -913,11 +790,11 @@ return [
             $t->same(MarkdownUpstreamReaderEvidence::STATUS_COMPLETED, $report['status']);
             $t->same('valid-upstream-markdown-reader-evidence', $report['validation']['status']);
             $t->same([], $report['validation']['issues']);
-            $t->same(94, $report['denominator']['selectedFixtureCount']);
+            $t->same(95, $report['denominator']['selectedFixtureCount']);
             $t->same(2, $report['sourceInventory']['presentFileCount']);
             $t->same(0, $report['sourceInventory']['missingFileCount']);
             $t->same(true, MarkdownUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($report));
-            $t->same(true, MarkdownUpstreamReaderEvidence::hasRequiredNativeMappedParity($report, 94));
+            $t->same(true, MarkdownUpstreamReaderEvidence::hasRequiredNativeMappedParity($report, 95));
             $t->same(true, MarkdownUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
             $t->same(true, MarkdownUpstreamReaderEvidence::hasRunnerPlanEvidence($report));
             $t->same(true, MarkdownUpstreamReaderEvidence::hasNoValidationIssues($report));
@@ -1024,9 +901,9 @@ return [
             . ' --repo-root=' . escapeshellarg($repoRoot)
             . ' --checked-in-fixtures'
             . ' --json'
-            . ' --require-selected-fixture-count=94'
+            . ' --require-selected-fixture-count=95'
             . ' --require-static-current-evidence'
-            . ' --require-native-mapped-parity=94'
+            . ' --require-native-mapped-parity=95'
             . ' --require-runner-not-run'
             . ' --require-runner-plan';
         $output = [];
@@ -1036,11 +913,11 @@ return [
 
         $t->same(0, $exitCode);
         $t->same(MarkdownUpstreamReaderEvidence::STATUS_SKIPPED_MISSING_SOURCE, $decoded['status']);
-        $t->same(94, $decoded['staticCurrentEvidence']['readerDenominator']['selectedFixtureCount']);
+        $t->same(95, $decoded['staticCurrentEvidence']['readerDenominator']['selectedFixtureCount']);
         $t->same('valid-checked-in-current-markdown-reader-evidence', $decoded['staticCurrentEvidence']['validation']['status']);
         $t->same('valid-checked-in-current-markdown-native-expectation-evidence', $decoded['staticCurrentEvidence']['nativeExpectationEvidence']['validation']['status']);
         $t->same(MarkdownUpstreamReaderEvidence::EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256, $decoded['staticCurrentEvidence']['nativeExpectationEvidence']['manifestSha256']);
-        $t->same(94, $decoded['nativeAstEvidence']['normalizedAstMatchCount']);
+        $t->same(95, $decoded['nativeAstEvidence']['normalizedAstMatchCount']);
         $t->same(0, $decoded['nativeAstEvidence']['normalizedAstMismatchCount']);
         $t->same('not-run', $decoded['runnerEvidence']['status']);
         $t->same('planned-not-run', $decoded['runnerEvidence']['commandPlanStatus']);
@@ -1048,14 +925,14 @@ return [
         $t->same(['Readers', 'Markdown'], $decoded['runnerEvidence']['target']['tastyGroupPath']);
         $t->true(in_array('complete Markdown dialect parity across every Pandoc extension profile', $decoded['claimBoundaries']['doesNotAssert'], true));
 
-        $failingCommand = str_replace('--require-selected-fixture-count=94', '--require-selected-fixture-count=95', $command) . ' 2>/dev/null';
+        $failingCommand = str_replace('--require-selected-fixture-count=95', '--require-selected-fixture-count=96', $command) . ' 2>/dev/null';
         $failingOutput = [];
         $failingExitCode = 0;
         exec($failingCommand, $failingOutput, $failingExitCode);
 
         $t->same(1, $failingExitCode);
 
-        $failingNativeCommand = str_replace('--require-native-mapped-parity=94', '--require-native-mapped-parity=95', $command) . ' 2>/dev/null';
+        $failingNativeCommand = str_replace('--require-native-mapped-parity=95', '--require-native-mapped-parity=96', $command) . ' 2>/dev/null';
         $failingNativeOutput = [];
         $failingNativeExitCode = 0;
         exec($failingNativeCommand, $failingNativeOutput, $failingNativeExitCode);
@@ -1134,9 +1011,9 @@ return [
             throw new RuntimeException('Unable to read pandoc-markdown workflow');
         }
 
-        $t->contains('--require-selected-fixture-count=94', $workflow);
-        $t->contains('--require-native-mapped-parity=94', $workflow);
-        $t->contains('--require-mapped-parity=94', $workflow);
+        $t->contains('--require-selected-fixture-count=95', $workflow);
+        $t->contains('--require-native-mapped-parity=95', $workflow);
+        $t->contains('--require-mapped-parity=95', $workflow);
         $t->contains('lanes/pandoc/tests/MarkdownReaderAtxHeadingSpaceProfileSurgeTest.php', $workflow);
         $t->contains('lanes/pandoc/tests/MarkdownReaderInlineMathFixtureCompletionTest.php', $workflow);
         $t->contains('lanes/pandoc/tests/MarkdownReaderBareUriSchemeBoundaryFixtureCompletionTest.php', $workflow);

@@ -12,9 +12,9 @@ final class MarkdownUpstreamReaderEvidence
     public const STATUS_COMPLETED = 'completed-upstream-markdown-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-markdown-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
-    public const EXPECTED_SELECTED_FIXTURE_COUNT = 94;
-    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 94;
-    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = 'ac61d3e3b13c6e31b016da00e3bea032e7fd9f5780815cd32e5a53ccf59d8beb';
+    public const EXPECTED_SELECTED_FIXTURE_COUNT = 95;
+    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 95;
+    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = '1cbf8e0f2e0b415ab3bba0e816b6b612c0f84056e6a98fa8e0b8569f79f597c4';
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/Markdown.hs',
@@ -1208,6 +1208,18 @@ final class MarkdownUpstreamReaderEvidence
             ],
             'sha256' => '413d41252fef624ef193fa4175f527d27f0eac5f7cd23c216d4d1afac2901b11',
             'bytes' => 26,
+        ],
+        'upstream-markdown-inline-code-list-marker-generated-boundaries.md' => [
+            'role' => 'markdown-inline-code-list-marker-generated-boundary-reader-fixture',
+            'sourceKind' => 'selected-upstream-markdown-reader-case',
+            'sourceReference' => 'Tests.Readers.Markdown inline code in lists (#6284) generated newline and blank-indent list marker cases',
+            'formatProfile' => 'markdown inline code/list marker generated boundaries',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-markdown-inline-code-list-marker-generated-boundaries.md',
+            'coverageTests' => [
+                'lanes/pandoc/tests/MarkdownReaderInlineCodeListMarkerCompletionTest.php',
+            ],
+            'sha256' => '8556aa8110eadfdde51dbf8e8e2afb293acf254118b27ef3b099453d0ee2f74f',
+            'bytes' => 681,
         ],
     ];
 

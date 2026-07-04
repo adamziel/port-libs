@@ -70,12 +70,18 @@ $fixtureCodeMarkerCases = [
     ['codes' => ['x``- x'], 'text' => '`x``- x`'],
 ];
 
-$blankNestedCases = [
-    'bullet then bullet bullet' => ['- ', '- ', '- '],
-    'bullet then ordered bullet' => ['- ', '1. ', '- '],
-    'ordered then bullet ordered' => ['1. ', '- ', '1. '],
-    'ordered then ordered bullet' => ['1. ', '1. ', '- '],
-];
+$listMarkers = ['- ', '1. '];
+$listMarkerName = static fn (string $marker): string => $marker === '- ' ? 'bullet' : 'ordered';
+$generatedListMarkerTriples = [];
+foreach ($listMarkers as $outerMarker) {
+    foreach ($listMarkers as $middleMarker) {
+        foreach ($listMarkers as $innerMarker) {
+            $generatedListMarkerTriples[
+                $listMarkerName($outerMarker) . ' then ' . $listMarkerName($middleMarker) . ' ' . $listMarkerName($innerMarker)
+            ] = [$outerMarker, $middleMarker, $innerMarker];
+        }
+    }
+}
 
 $tests = [];
 
@@ -102,6 +108,22 @@ $tests['maps selected upstream inline code list marker fixture'] =
                 );
             }
         }
+    };
+
+$tests['maps upstream generated inline code list marker boundary fixture'] =
+    static function (TestRunner $t) use ($collectTypes): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-markdown-inline-code-list-marker-generated-boundaries.md');
+        $document = (new MarkdownReader())->read($fixture);
+        $types = $collectTypes($document);
+        $headings = array_values(array_filter(
+            $document->children,
+            static fn (AstNode $node): bool => $node->type === 'heading'
+        ));
+
+        $t->same(12, count($headings));
+        $t->same(false, in_array('code', $types, true), 'Generated list-marker cases keep multiline backticks as literal text');
+        $t->same('newline bullet bullet bullet', $headings[0]->attr('text'));
+        $t->same('blank ordered ordered ordered', $headings[array_key_last($headings)]->attr('text'));
     };
 
 foreach (['- ', '1. '] as $marker) {
@@ -135,7 +157,42 @@ foreach (['- ', '1. '] as $marker) {
     }
 }
 
-foreach ($blankNestedCases as $name => $markers) {
+foreach ($generatedListMarkerTriples as $name => $markers) {
+    $tests["maps upstream newline inline code list marker grouping {$name}"] =
+        static function (TestRunner $t) use ($listType, $markers): void {
+            $texts = ['`text', 'y', 'x`'];
+            $document = (new MarkdownReader())->read(implode("\n", [
+                $markers[0] . $texts[0],
+                $markers[1] . $texts[1],
+                $markers[2] . $texts[2],
+            ]));
+
+            $groups = [];
+            foreach ($markers as $index => $marker) {
+                $lastIndex = array_key_last($groups);
+                if ($lastIndex !== null && $groups[$lastIndex]['marker'] === $marker) {
+                    $groups[$lastIndex]['texts'][] = $texts[$index];
+                    continue;
+                }
+
+                $groups[] = ['marker' => $marker, 'texts' => [$texts[$index]]];
+            }
+
+            $t->same(
+                array_map(static fn (array $group): string => $listType($group['marker']), $groups),
+                array_map(static fn (AstNode $node): string => $node->type, $document->children)
+            );
+            foreach ($groups as $index => $group) {
+                $list = $document->children[$index] ?? new AstNode('missing');
+                $t->same(
+                    $group['texts'],
+                    array_map(static fn (AstNode $item): string => $item->attr('text'), $list->children)
+                );
+            }
+        };
+}
+
+foreach ($generatedListMarkerTriples as $name => $markers) {
     $tests["maps upstream blank-line inline code list marker nesting {$name}"] =
         static function (TestRunner $t) use ($listType, $markers): void {
             [$outerMarker, $middleMarker, $innerMarker] = $markers;
@@ -180,8 +237,8 @@ foreach ($blankNestedCases as $name => $markers) {
 }
 
 $tests['records upstream inline code list marker mapped-case count'] =
-    static function (TestRunner $t) use ($codeMarkerCases, $blankNestedCases): void {
-        $t->same(14, (2 * count($codeMarkerCases)) + count($blankNestedCases));
+    static function (TestRunner $t) use ($codeMarkerCases, $generatedListMarkerTriples): void {
+        $t->same(26, (2 * count($codeMarkerCases)) + (2 * count($generatedListMarkerTriples)));
     };
 
 return $tests;
