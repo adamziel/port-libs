@@ -136,11 +136,14 @@ return [
             'images/chart.png',
         ];
         $bytesByUrl = $imageBytes();
+        $markerBlocks = [$document->children[0], $document->children[2], $document->children[4]];
+        $imageBlocks = [$document->children[1], $document->children[3], $document->children[5]];
 
         $t->same('Direct Image Spine EPUB', $meta['title']);
-        $t->same(['paragraph', 'paragraph', 'paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
-        $t->same(['image', 'image', 'image'], array_map(static fn ($node): ?string => $node->children[0]->type ?? null, $document->children));
-        $t->same($urls, array_map(static fn ($node): string => (string) $node->children[0]->attr('url'), $document->children));
+        $t->same(['paragraph', 'paragraph', 'paragraph', 'paragraph', 'paragraph', 'paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same(['span', 'image', 'span', 'image', 'span', 'image'], array_map(static fn ($node): ?string => $node->children[0]->type ?? null, $document->children));
+        $t->same(['check.gif', 'photo', 'chart.png'], array_map(static fn ($node): string => (string) $node->children[0]->attr('id'), $markerBlocks));
+        $t->same($urls, array_map(static fn ($node): string => (string) $node->children[0]->attr('url'), $imageBlocks));
         $t->same([
             ['', ''],
             ['', ''],
@@ -148,7 +151,7 @@ return [
         ], array_map(static fn ($node): array => [
             (string) $node->children[0]->attr('alt'),
             (string) $node->children[0]->attr('title'),
-        ], $document->children));
+        ], $imageBlocks));
         $t->same($fullPaths, $meta['epubReadableResources']);
         $t->same($fullPaths, $meta['epubReferencedResources']);
         $t->same($fullPaths, $meta['epubImageResources']);
@@ -173,6 +176,9 @@ return [
         ], $meta['epubMediaResourceDirectory']));
         $t->same([true, true, true], array_map(static fn (array $item): bool => (bool) $item['readable'], $meta['epubManifestItems']));
         $t->same([true, true, true], array_map(static fn (array $item): bool => (bool) $item['readable'], $meta['epubSpineItemRefs']));
+        $t->contains('Span ( "check.gif"', $native);
+        $t->contains('Span ( "photo"', $native);
+        $t->contains('Span ( "chart.png"', $native);
         $t->contains('( "images/check.gif" , "" )', $native);
         $t->contains('( "images/photo" , "" )', $native);
         $t->contains('( "images/chart.png" , "" )', $native);
@@ -223,14 +229,17 @@ HS,
             $writeDirectImagePackage($root);
             $document = (new EpubPackageReader())->readDirectory($root);
             $epub = $document->attr('epub');
+            $markerBlocks = [$document->children[0], $document->children[2], $document->children[4]];
+            $imageBlocks = [$document->children[1], $document->children[3], $document->children[5]];
 
-            $t->same(['paragraph', 'paragraph', 'paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
-            $t->same(['image', 'image', 'image'], array_map(static fn ($node): ?string => $node->children[0]->type ?? null, $document->children));
+            $t->same(['paragraph', 'paragraph', 'paragraph', 'paragraph', 'paragraph', 'paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
+            $t->same(['span', 'image', 'span', 'image', 'span', 'image'], array_map(static fn ($node): ?string => $node->children[0]->type ?? null, $document->children));
+            $t->same(['check.gif', 'photo', 'chart.png'], array_map(static fn ($node): string => (string) $node->children[0]->attr('id'), $markerBlocks));
             $t->same([
                 'OPS/images/check.gif',
                 'OPS/images/photo',
                 'OPS/images/chart.png',
-            ], array_map(static fn ($node): string => (string) $node->children[0]->attr('url'), $document->children));
+            ], array_map(static fn ($node): string => (string) $node->children[0]->attr('url'), $imageBlocks));
             $t->same([true, true, true], array_map(static fn (array $item): bool => (bool) $item['readable'], $epub['spine']));
             $t->same(3, $epub['spineReport']['readableItemCount']);
             $t->same(0, $epub['spineReport']['skippedItemCount']);

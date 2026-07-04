@@ -7851,6 +7851,7 @@ final class EpubPackageReader
     private function readDirectImageSpineItem(string $path): array
     {
         return [
+            $this->spineMarker($this->spineFilename($path)),
             new AstNode('paragraph', ['text' => ''], [
                 new AstNode('image', [
                     'url' => $path,
@@ -7859,6 +7860,20 @@ final class EpubPackageReader
                 ]),
             ]),
         ];
+    }
+
+    private function spineMarker(string $filename): AstNode
+    {
+        return new AstNode('paragraph', ['text' => ''], [
+            new AstNode('span', ['id' => $filename], []),
+        ]);
+    }
+
+    private function spineFilename(string $path): string
+    {
+        $filename = basename(str_replace('\\', '/', $path));
+
+        return str_replace('%2F', '/', rawurlencode($filename));
     }
 
     /**

@@ -139,6 +139,7 @@ final class EpubReader
                 $referenced_resources[] = $href;
                 $media_bag_resources[] = $href;
                 $this->recordMediaBagSource($this->mediaBagSourceUrl($item['href']), $href, $media_bag_sources);
+                $children[] = $this->spineMarker($this->spineFilename($item['href']));
                 $children[] = $this->directImageSpineBlock($this->stripUrlQueryAndFragment($item['href']));
                 continue;
             }

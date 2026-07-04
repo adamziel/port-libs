@@ -14,11 +14,11 @@ final class EpubNativeAstPackageComparisonHarness
     private const PACKAGE_FEATURE_SIGNATURE_KIND = 'checked-in-current-epub-package-feature-signature';
     private const PACKAGE_FEATURE_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
     private const PACKAGE_FEATURE_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-31-fixture-snapshot';
-    private const CHECKED_IN_CURRENT_PACKAGE_FEATURE_SIGNATURE_SHA256 = '4ed27f63d8b652d28a944f5bdf1ea8c94ac0009dedf50bf36f987e407a32e0c5';
+    private const CHECKED_IN_CURRENT_PACKAGE_FEATURE_SIGNATURE_SHA256 = '13b9939a1c655ddbfe40828b8115838e45be3f6c704e42c59dbb524acb8cf1fa';
     private const CURRENT_NATIVE_AST_SIGNATURE_KIND = 'checked-in-current-epub-normalized-native-ast-signature';
     private const CURRENT_NATIVE_AST_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
     private const CURRENT_NATIVE_AST_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-31-fixture-normalized-ast-snapshot';
-    private const CHECKED_IN_CURRENT_NATIVE_AST_SIGNATURE_SHA256 = 'a3f44f165bc71318c549458fb165750f535a99da34608443b853aa7c833f8771';
+    private const CHECKED_IN_CURRENT_NATIVE_AST_SIGNATURE_SHA256 = '5f814ea4f598640a51fa3a58d0480deccae32df17cee54a7575e6676823ba82c';
     private const RUNNER_CABAL_TARGET = 'exe:pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/epub-native-package-run';
     private const RUNNER_FIXTURE_DIRECTORY = 'test/epub';
@@ -84,8 +84,8 @@ final class EpubNativeAstPackageComparisonHarness
             'bytes' => 1355,
         ],
         'direct-image-spine.native' => [
-            'sha256' => '8d430b8f87eee7fc5ced05f7c163b20486977f3d54c644b4ba913f00abde7f4c',
-            'bytes' => 4110,
+            'sha256' => '122dde0a14358daeea4987bdf7a378eb97e59f125bfecbadb404129fd58b2269',
+            'bytes' => 4270,
         ],
         'epub2_cover.epub' => [
             'sha256' => '4af73a135aa632cbf0c00b2889a5fc1d39a59a77fa294fdeff5ede72ff6ffed1',
