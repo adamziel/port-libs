@@ -1,0 +1,7 @@
+[ Para [ Str "Before" ]
+, BulletList
+    [ [ Plain [ Str "one" ] ]
+    , [ Plain [ Strong [ Str "two" ] ] ]
+    ]
+, Para [ Str "After" ]
+]

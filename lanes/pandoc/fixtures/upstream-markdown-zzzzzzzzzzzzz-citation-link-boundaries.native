@@ -1,0 +1,92 @@
+[ Para
+    [ Cite
+        [ Citation
+            { citationId = "cita"
+            , citationPrefix = []
+            , citationSuffix = []
+            , citationMode = AuthorInText
+            , citationNoteNum = 1
+            , citationHash = 0
+            }
+        ]
+        [ Str "@cita" ]
+    , Note [ Para [ Str "note" ] ]
+    ]
+, Para
+    [ Cite
+        [ Citation
+            { citationId = "cita"
+            , citationPrefix = []
+            , citationSuffix = []
+            , citationMode = AuthorInText
+            , citationNoteNum = 3
+            , citationHash = 0
+            }
+        ]
+        [ Str "@cita" ]
+    , Space
+    , Link
+        ( "" , [] , [] ) [ Str "link" ] ( "http://www.com" , "" )
+    ]
+, Para
+    [ Cite
+        [ Citation
+            { citationId = "cita"
+            , citationPrefix = []
+            , citationSuffix = []
+            , citationMode = AuthorInText
+            , citationNoteNum = 4
+            , citationHash = 0
+            }
+        ]
+        [ Str "@cita" ]
+    , Space
+    , Link
+        ( "" , [] , [] ) [ Str "link" ] ( "http://www.com" , "" )
+    ]
+, Para
+    [ Cite
+        [ Citation
+            { citationId = "cita"
+            , citationPrefix = []
+            , citationSuffix = []
+            , citationMode = AuthorInText
+            , citationNoteNum = 5
+            , citationHash = 0
+            }
+        ]
+        [ Str "@cita" ]
+    , Space
+    , Link
+        ( "" , [] , [] ) [ Str "link" ] ( "http://www.com" , "" )
+    ]
+, Header 1 ( "header" , [] , [] ) [ Str "Header" ]
+, Para
+    [ Cite
+        [ Citation
+            { citationId = "cita"
+            , citationPrefix = []
+            , citationSuffix = []
+            , citationMode = AuthorInText
+            , citationNoteNum = 6
+            , citationHash = 0
+            }
+        ]
+        [ Str "@cita" ]
+    , Space
+    , Link ( "" , [] , [] ) [ Str "Header" ] ( "#header" , "" )
+    ]
+, Para
+    [ Cite
+        [ Citation
+            { citationId = "cita"
+            , citationPrefix = []
+            , citationSuffix = [ Str "foo" ]
+            , citationMode = AuthorInText
+            , citationNoteNum = 7
+            , citationHash = 0
+            }
+        ]
+        [ Str "@cita" , Space , Str "[foo]" ]
+    ]
+]

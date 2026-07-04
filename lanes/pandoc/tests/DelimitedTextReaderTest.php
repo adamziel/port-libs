@@ -2516,6 +2516,54 @@ NATIVE;
         $t->contains('Plain [ Str "spaces" , Space , Str "skipped" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
+    'matches generated csv quoted final row padding native parity fixture without inflating csv denominator' => static function (TestRunner $t) use ($generatedCsvNativeFixture, $nativeTokenStream): void {
+        $fixture = $generatedCsvNativeFixture('quoted-final-row-padding');
+        $document = (new DelimitedTextReader())->readCsv($fixture['input'], [
+            'sourcePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/quoted-final-row-padding.csv',
+        ]);
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+        $native = PandocConverter::write($document, 'native');
+        $generatedEvidence = $packet['upstreamEvidence']['generatedNativeParityEvidence'] ?? [];
+        $body = $table->children[1];
+
+        $t->same('csv', $packet['format'] ?? null);
+        $t->same(',', $packet['delimiter'] ?? null);
+        $t->same(2, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
+        $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
+        $t->same(2 * DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['checkedInFixtureCount'] ?? null);
+        $t->same('quoted-final-row-padding.csv', $generatedEvidence['checkedInFixtures'][104]['name'] ?? null);
+        $t->same('c962bf14b2ca02b23d7dd77614492770c4d88673eee7530e52ebbe16b3e85c79', $generatedEvidence['checkedInFixtures'][104]['checkedInFile']['sha256'] ?? null);
+        $t->same('quoted-final-row-padding.native', $generatedEvidence['checkedInFixtures'][105]['name'] ?? null);
+        $t->same('f2d395bc233528a771c73fff137350a3934393bcf070347bce41b83550823667', $generatedEvidence['checkedInFixtures'][105]['checkedInFile']['sha256'] ?? null);
+        $t->same('quoted-final-row-padding', $generatedEvidence['samples'][52]['name'] ?? null);
+        $t->same([], $generatedEvidence['samples'][52]['readerOptions'] ?? null);
+        $t->same(['id', 'note'], $table->attr('columnNames'));
+        $t->same(2, $packet['rowCount'] ?? null);
+        $t->same(1, $packet['bodyRowCount'] ?? null);
+        $t->same(2, $packet['columnCount'] ?? null);
+        $t->same(3, $packet['fieldCount'] ?? null);
+        $t->same(1, $packet['quotedFieldCount'] ?? null);
+        $t->same(1, $packet['raggedRowCount'] ?? null);
+        $t->same([1], $packet['raggedRows'] ?? null);
+        $t->same(1, $packet['rowRepairSummary']['paddedRowCount'] ?? null);
+        $t->same(0, $packet['rowRepairSummary']['truncatedRowCount'] ?? null);
+        $t->same(true, $packet['finalRecordTerminated'] ?? null);
+        $t->same(false, $packet['partialFinalRecord'] ?? null);
+        $t->same([
+            'delimited-text-strict-row-width-mismatch',
+            'delimited-text-row-widths-uneven',
+            'delimited-text-header-width-mismatch',
+        ], array_column($packet['diagnostics'] ?? [], 'code'));
+        $t->same('only quoted', $body->children[0]->children[0]->attr('text'));
+        $t->same('', $body->children[0]->children[1]->attr('text'));
+        $t->same([], $body->children[0]->children[1]->children);
+        $t->contains('Plain [ Str "only" , Space , Str "quoted" ]', $native);
+        $t->contains('Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) []', $native);
+        $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
+    },
     'matches generated tsv native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture();
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
@@ -4073,6 +4121,12 @@ NATIVE;
         $t->same([], $csvEvidence['generatedNativeParityEvidence']['samples'][48]['readerOptions'] ?? null);
         $t->same('quoted-multiline-header', $csvEvidence['generatedNativeParityEvidence']['samples'][49]['name'] ?? null);
         $t->same([], $csvEvidence['generatedNativeParityEvidence']['samples'][49]['readerOptions'] ?? null);
+        $t->same('quoted-empty-headers', $csvEvidence['generatedNativeParityEvidence']['samples'][50]['name'] ?? null);
+        $t->same([], $csvEvidence['generatedNativeParityEvidence']['samples'][50]['readerOptions'] ?? null);
+        $t->same('post-delimiter-empty-quoted', $csvEvidence['generatedNativeParityEvidence']['samples'][51]['name'] ?? null);
+        $t->same([], $csvEvidence['generatedNativeParityEvidence']['samples'][51]['readerOptions'] ?? null);
+        $t->same('quoted-final-row-padding', $csvEvidence['generatedNativeParityEvidence']['samples'][52]['name'] ?? null);
+        $t->same([], $csvEvidence['generatedNativeParityEvidence']['samples'][52]['readerOptions'] ?? null);
         $t->true(in_array('direct-csv-command-reader', $csvEvidence['closedGaps'] ?? [], true));
         $t->true(in_array('csv-closing-quote-record-whitespace-strictness', $csvEvidence['closedGaps'] ?? [], true));
         $t->true(in_array('generated-csv-native-parity-sample', $csvEvidence['closedGaps'] ?? [], true));

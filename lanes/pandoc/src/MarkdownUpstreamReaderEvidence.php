@@ -12,9 +12,9 @@ final class MarkdownUpstreamReaderEvidence
     public const STATUS_COMPLETED = 'completed-upstream-markdown-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-markdown-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
-    public const EXPECTED_SELECTED_FIXTURE_COUNT = 78;
-    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 78;
-    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = '63ca843e877c55e2f1c7e2176f4c5fe0383babec374455f43870be27a0f1f7a6';
+    public const EXPECTED_SELECTED_FIXTURE_COUNT = 79;
+    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 79;
+    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = '760dd2712595d6376094011629388ef34ddf524553c1242a50804dc3afd2581f';
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/Markdown.hs',
@@ -1001,6 +1001,19 @@ final class MarkdownUpstreamReaderEvidence
             ],
             'sha256' => '24fe9261edac6c433bd1add99f394033bda6ad3a8721798e28032ebf00187be8',
             'bytes' => 91,
+        ],
+        'upstream-markdown-zzzzzzzzzzzzz-citation-link-boundaries.md' => [
+            'role' => 'markdown-citation-link-boundary-reader-fixture',
+            'sourceKind' => 'selected-upstream-markdown-reader-case',
+            'sourceReference' => 'Tests.Readers.Markdown footnote/link following citation (#2083)',
+            'formatProfile' => 'markdown citations with following footnote, inline link, reference link, shortcut reference link, implicit header reference, and suffix boundary',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-markdown-zzzzzzzzzzzzz-citation-link-boundaries.md',
+            'coverageTests' => [
+                'lanes/pandoc/tests/MarkdownReaderCitationLinkBoundaryFixtureCompletionTest.php',
+                'lanes/pandoc/tests/MarkdownNativeAstComparisonHarnessTest.php',
+            ],
+            'sha256' => '61c35e0cc522237de7afc0ceb3eedf50716dbab3b654c3bfef996196527a469c',
+            'bytes' => 178,
         ],
     ];
 

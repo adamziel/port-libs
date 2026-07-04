@@ -38,7 +38,7 @@ final class HtmlReader
         } else {
             $readerBytes = self::flattenHtmlTemplateContainers($bytes);
             $readerBytes = self::flattenHtmlDetailsSummaryContainers($readerBytes);
-            $readerBytes = self::repairParagraphTableOrRuleFragmentBoundaries($readerBytes);
+            $readerBytes = self::repairParagraphBlockFragmentBoundaries($readerBytes);
             $readerBytes = self::flattenOrphanTableFragmentContainers($readerBytes);
             $delegated = self::delegateHtmlBytes($readerBytes);
             $document = $this->reader->read($delegated['bytes']);
@@ -210,9 +210,9 @@ final class HtmlReader
         return is_string($html) ? $html : $bytes;
     }
 
-    private static function repairParagraphTableOrRuleFragmentBoundaries(string $bytes): string
+    private static function repairParagraphBlockFragmentBoundaries(string $bytes): string
     {
-        if (preg_match('/<p\b[^>]*>.*<(?:hr|table)\b/is', $bytes) !== 1) {
+        if (preg_match('/<p\b[^>]*>(?:(?!<\/p\s*>).)*<(?:' . self::htmlBlockContainerNameAlternation() . ')\b/is', $bytes) !== 1) {
             return $bytes;
         }
 
@@ -785,7 +785,12 @@ final class HtmlReader
 
     private static function htmlBlockContainerPattern(): string
     {
-        return '/<(?:address|article|aside|blockquote|details|div|dl|fieldset|figcaption|figure|footer|form|h[1-6]|header|hr|main|nav|ol|p|pre|section|table|ul)\b/i';
+        return '/<(?:' . self::htmlBlockContainerNameAlternation() . ')\b/i';
+    }
+
+    private static function htmlBlockContainerNameAlternation(): string
+    {
+        return 'address|article|aside|blockquote|details|div|dl|fieldset|figcaption|figure|footer|form|h[1-6]|header|hr|main|nav|ol|p|pre|section|table|ul';
     }
 
     /**

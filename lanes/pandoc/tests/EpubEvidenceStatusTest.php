@@ -32,9 +32,9 @@ return [
         $nativeFiles = glob($fixtureDirectory . '/*.native') ?: [];
         $totalFiles = count($epubFiles) + count($nativeFiles);
 
-        $t->same(52, count($epubFiles));
-        $t->same(52, count($nativeFiles));
-        $t->same(104, $totalFiles);
+        $t->same(53, count($epubFiles));
+        $t->same(53, count($nativeFiles));
+        $t->same(106, $totalFiles);
 
         foreach ([
             'benchmarkDenominator.breakdown' => $manifest['benchmarkDenominator']['breakdown'] ?? null,
@@ -51,6 +51,11 @@ return [
                 'epubNativeExpectedArtifacts' => count($nativeFiles),
                 'epubEpubInputArtifacts' => count($epubFiles),
             ];
+            $sharedManifest = [
+                'epubDirectoryArtifacts' => 106,
+                'epubNativeExpectedArtifacts' => 53,
+                'epubEpubInputArtifacts' => 53,
+            ];
             $preIntegration = [
                 'epubDirectoryArtifacts' => 98,
                 'epubNativeExpectedArtifacts' => 49,
@@ -58,15 +63,15 @@ return [
             ];
 
             $t->true(
-                $observed === $integrated || $observed === $preIntegration,
+                $observed === $integrated || $observed === $sharedManifest || $observed === $preIntegration,
                 "{$label} EPUB counters must match either local fixture state or the shared manifest state awaiting integration"
             );
         }
 
-        $t->true(str_contains($note, '- 52 EPUB package inputs'));
-        $t->true(str_contains($note, '- 52 same-directory `.native` goldens'));
-        $t->true(str_contains($note, '--require-package-parity=52'));
-        $t->true(str_contains($note, '--require-native-readiness=52'));
-        $t->true(str_contains($note, '--require-mapped-parity=52'));
+        $t->true(str_contains($note, '- 53 EPUB package inputs'));
+        $t->true(str_contains($note, '- 53 same-directory `.native` goldens'));
+        $t->true(str_contains($note, '--require-package-parity=53'));
+        $t->true(str_contains($note, '--require-native-readiness=53'));
+        $t->true(str_contains($note, '--require-mapped-parity=53'));
     },
 ];

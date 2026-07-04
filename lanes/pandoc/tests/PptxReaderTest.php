@@ -15343,6 +15343,33 @@ return [
         $t->same($pandocReaderContentSignature($expected), $pandocReaderContentSignature($actual));
     },
 
+    'matches checked-in namespace-scoped table boundary fixture content' => static function (TestRunner $t) use ($nodesOfType): void {
+        $fixtureRoot = dirname(__DIR__) . '/fixtures/upstream-current-pptx-reader';
+        $pptxPath = $fixtureRoot . '/namespace-scoped-table.pptx';
+        $nativePath = $fixtureRoot . '/namespace-scoped-table.native';
+
+        $t->same('81c2a77fe8ebd2965b39506d4ea52400617133ab74b8c29d39cae18df93ae83d', hash_file('sha256', $pptxPath));
+        $t->same('7f85d7011628e5ca386fc75a5bf138674f47a9b3d2004a2f58df144bd920336e', hash_file('sha256', $nativePath));
+
+        $pptxBytes = file_get_contents($pptxPath);
+        if (!is_string($pptxBytes)) {
+            throw new RuntimeException('Unable to read checked-in namespace-scoped PPTX reader fixture');
+        }
+
+        $document = (new PptxReader())->read($pptxBytes);
+        $tables = $nodesOfType($document, 'table');
+        $cellTexts = array_map(static fn (AstNode $cell): string => (string) $cell->attr('text'), $nodesOfType($document, 'table_cell'));
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same(1, count($tables));
+        $t->same(['Visible header Foreign header', '', 'Drawing body Nested foreign body'], $cellTexts);
+        $t->contains('Plain [ Str "Visible" , Space , Str "header" , Space , Str "Foreign" , Space , Str "header" ]', $native);
+        $t->contains('Plain [ Str "Drawing" , Space , Str "body" , Space , Str "Nested" , Space , Str "foreign" , Space , Str "body" ]', $native);
+        $t->true(!str_contains($native, 'Wrong namespace cell'), 'Non-drawing namespace table cells should stay out of checked-in fixture output');
+        $t->true(!str_contains($native, 'Wrong namespace row'), 'Non-drawing namespace table rows should stay out of checked-in fixture output');
+        $t->true(!str_contains($native, 'Wrong namespace text body'), 'Non-drawing namespace table text bodies should stay out of checked-in fixture output');
+    },
+
     'resolves pptx table style relationship provenance' => static function (TestRunner $t) use ($buildPptxPackage, $nodesOfType): void {
         $document = (new PptxReader())->read($buildPptxPackage());
         $review = $document->attr('pptx');

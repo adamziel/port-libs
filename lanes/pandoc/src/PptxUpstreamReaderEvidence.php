@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 78;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 79;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '38e4cc3d7fc77adb34295833187c9555b116afdb5d021c2f42875d69ff6c8853';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 34175;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'cf7667acd62bb7a94087d4a6e22d3fa81522d2f04043534d0e60ebfa1a304906';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 34574;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -162,6 +162,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => '7e162f0d57dcd35ee21a78ef454f31fa4862dae95294437a6e71ce7dd85a02c3',
             'pptxBytes' => 1411,
             'nativeBytes' => 166,
+        ],
+        'namespace-scoped-table' => [
+            'name' => 'generated namespace-scoped table boundary parity',
+            'pptx' => 'pptx-reader/namespace-scoped-table.pptx',
+            'native' => 'pptx-reader/namespace-scoped-table.native',
+            'pairKey' => 'pptx-reader/namespace-scoped-table.pptx|pptx-reader/namespace-scoped-table.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/namespace-scoped-table.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/namespace-scoped-table.native',
+            'pptxSha256' => '81c2a77fe8ebd2965b39506d4ea52400617133ab74b8c29d39cae18df93ae83d',
+            'nativeSha256' => '7f85d7011628e5ca386fc75a5bf138674f47a9b3d2004a2f58df144bd920336e',
+            'pptxBytes' => 1609,
+            'nativeBytes' => 1039,
         ],
         'nested-list' => [
             'name' => 'generated adjacent list-level split parity',

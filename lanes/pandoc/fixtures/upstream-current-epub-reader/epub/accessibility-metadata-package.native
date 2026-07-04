@@ -1,0 +1,18 @@
+[ Para [ Span ( "chapter.xhtml" , [] , [] ) [] ]
+, Header
+    1
+    ( "" , [] , [] )
+    [ Str "Accessibility"
+    , Space
+    , Str "Metadata"
+    , Space
+    , Str "Package"
+    ]
+, Para
+    [ Str "Package"
+    , Space
+    , Str "accessibility"
+    , Space
+    , Str "evidence."
+    ]
+]
