@@ -10771,7 +10771,7 @@ return [
         $t->same('Para', $encoded['blocks'][0]['c'][2][0]['t']);
         $t->same('Reviewer figure', $roundTrip->attr('caption'));
         $t->contains(
-            '<figure class="wp-block-image wp-import-figure" id="json-figure" data-review="figure" xml:lang="fr-CA" title="Escaped &quot;figure&quot; title" data-pandoc-latex-placement="htbp">',
+            '<figure class="wp-block-image wp-import-figure" id="json-figure" title="Escaped &quot;figure&quot; title" data-review="figure" xml:lang="fr-CA" data-pandoc-short-caption="Short figure" data-pandoc-latex-placement="htbp">',
             $blocks
         );
         $t->contains('<img src="media/review.png" alt="Review image" title="Figure image" class="review-image" data-image="source"/>', $blocks);
@@ -10877,7 +10877,7 @@ return [
         $t->same('Alt', $encoded['blocks'][0]['c'][2][0]['c'][0]['c'][1][0]['c']);
         $t->same('figure', $roundTrip->children[0]->type);
         $t->same('Alt text', $roundTrip->children[0]->children[0]->attr('alt'));
-        $t->contains('<figure class="wp-block-image wp-import" id="json-figure" data-source="json-filter"><img src="media/hero.png" alt="Alt text" title="Hero title" class="hero-image" data-source="media-bag"/><figcaption>Long <em>caption</em> source</figcaption></figure>', $blocks);
+        $t->contains('<figure class="wp-block-image wp-import" id="json-figure" data-source="json-filter" data-pandoc-short-caption="Short figure"><img src="media/hero.png" alt="Alt text" title="Hero title" class="hero-image" data-source="media-bag"/><figcaption>Long <em>caption</em> source</figcaption></figure>', $blocks);
         $t->same('Figure', $generated['blocks'][0]['t']);
         $t->same('Caption', $generated['blocks'][0]['c'][1]['t']);
         $t->same('Just', $generated['blocks'][0]['c'][1]['c'][0]['t']);
