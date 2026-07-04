@@ -60,7 +60,7 @@ return [
     'maps upstream markdown emoji extension enabled profiles' =>
         static function (TestRunner $t) use ($enabledCases, $findEmoji, $inlineText): void {
             foreach ($enabledCases as $label => $options) {
-                $document = (new MarkdownReader($options))->read('Before :rocket: launch after.');
+                $document = (new MarkdownReader($options))->read('Ready, :rocket: launch after.');
                 $emoji = $findEmoji($document);
 
                 $t->same('span', $emoji->type, $label);
@@ -73,11 +73,11 @@ return [
     'maps upstream markdown emoji extension disabled profiles as literal text' =>
         static function (TestRunner $t) use ($disabledCases, $findEmoji, $inlineText): void {
             foreach ($disabledCases as $label => $options) {
-                $document = (new MarkdownReader($options))->read('Before :rocket: launch after.');
+                $document = (new MarkdownReader($options))->read('Ready, :rocket: launch after.');
                 $paragraph = $document->children[0] ?? new AstNode('missing');
 
                 $t->same('missing', $findEmoji($document)->type, $label);
-                $t->same('Before :rocket: launch after.', $inlineText($paragraph), $label . ' literal');
+                $t->same('Ready, :rocket: launch after.', $inlineText($paragraph), $label . ' literal');
             }
         },
 

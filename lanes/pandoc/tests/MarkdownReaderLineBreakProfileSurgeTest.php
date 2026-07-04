@@ -61,8 +61,8 @@ $featureProbes = [
         'match' => static fn (AstNode $node): bool => $node->type === 'span' && $node->attr('classes') === ['mark'],
     ],
     'emoji' => [
-        'markdown' => 'Emoji :rocket: ready.',
-        'literal' => 'Emoji :rocket: ready.',
+        'markdown' => 'Ready, :rocket: now.',
+        'literal' => 'Ready, :rocket: now.',
         'match' => static fn (AstNode $node): bool => $node->type === 'span' && ($node->attr('attributes')['data-emoji'] ?? null) === 'rocket',
     ],
     'citation' => [

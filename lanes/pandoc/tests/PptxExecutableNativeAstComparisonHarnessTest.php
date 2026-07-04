@@ -73,23 +73,23 @@ return [
         $t->same('lanes/pandoc/fixtures/upstream-current-pptx-reader', $snapshot['pptxDirectory']);
         $t->same('/opt/homebrew/bin/pandoc', $snapshot['pandocExecutable']);
         $t->same('pandoc 3.10', $snapshot['pandocVersion']);
-        $t->same(['alternate-content-skip', 'background-image-skip', 'basic', 'body-before-title', 'break-tab-field', 'bullets', 'bunone-wingdings', 'case-sensitive-placeholder-type', 'cdata-entity-text', 'center-title-placeholder', 'chart-placeholder', 'comments-ignored', 'connector-skip', 'content-part-skip', 'diagram-no-relids', 'direct-drawing-paragraphs', 'document-properties', 'dot-presentation-target', 'dot-slide-target', 'duplicate-relationship-id', 'duplicate-slide-reference', 'embed-and-link-image', 'embedded-image', 'empty-bullet-paragraph', 'empty-paragraph-textbox', 'end-paragraph-symbol', 'external-mode-slide-target', 'first-text-body', 'first-title-placeholder', 'generated-table', 'graphic-no-uri', 'grouped-shapes', 'hex-list-level', 'hidden-slide', 'hyperlink-text', 'ignored-slide-id-attributes', 'inline-formatting', 'linked-image-skip', 'list-continuation', 'media-relative-image-target', 'minimal', 'missing-relationship-skip', 'multi-paragraph-table-cell', 'multi-paragraph-textbox', 'multiple-paragraph-properties', 'namespace-agnostic-drawing-text', 'nested-list', 'no-slides', 'no-title-fallback', 'numbered-list', 'octal-list-level', 'overflow-bullet-level', 'pandoc-generated-image-alt-title', 'paragraphless-textbox', 'parenthesized-bullet-level', 'percent-encoded-target', 'qualified-bullet-level', 'rel-prefix-image-skip', 'repeated-slash-slide-target', 'rich-media-skip', 'shape-order', 'signed-bullet-level', 'slide-layout-placeholder-no-inherit', 'slide-placeholders', 'smartart-hierarchy', 'smartart-title-fallback', 'speaker-notes', 'subtitle-placeholder', 'table-span-review', 'table-styles-relationship', 'two-slides', 'unicode-drawing-text', 'unknown-graphic-uri', 'whitespace-drawing-text', 'wingdings-typeface-case', 'wrong-typed-slide-relationship'], $snapshot['fixtureStems']);
-        $t->same(76, $snapshot['totalPptxCount']);
-        $t->same(76, $snapshot['comparedPptxCount']);
-        $t->same(76, $snapshot['localParsedCount']);
-        $t->same(76, $snapshot['pandocParsedCount']);
-        $t->same(76, $snapshot['nativeFixtureParsedCount']);
-        $t->same(76, $snapshot['bothParsedCount']);
-        $t->same(76, $snapshot['normalizedAstMatchCount']);
+        $t->same(['alternate-content-skip', 'background-image-skip', 'basic', 'body-before-title', 'break-tab-field', 'bullets', 'bunone-wingdings', 'case-sensitive-placeholder-type', 'cdata-entity-text', 'center-title-placeholder', 'chart-placeholder', 'comments-ignored', 'connector-skip', 'content-part-skip', 'diagram-missing-rels', 'diagram-no-relids', 'direct-drawing-paragraphs', 'document-properties', 'dot-presentation-target', 'dot-slide-target', 'duplicate-relationship-id', 'duplicate-slide-reference', 'embed-and-link-image', 'embedded-image', 'empty-bullet-paragraph', 'empty-paragraph-textbox', 'end-paragraph-symbol', 'external-mode-slide-target', 'first-text-body', 'first-title-placeholder', 'generated-table', 'graphic-no-uri', 'grouped-shapes', 'hex-list-level', 'hidden-slide', 'hyperlink-text', 'ignored-slide-id-attributes', 'inline-formatting', 'linked-image-skip', 'list-continuation', 'media-relative-image-target', 'minimal', 'missing-relationship-skip', 'multi-paragraph-table-cell', 'multi-paragraph-textbox', 'multiple-paragraph-properties', 'namespace-agnostic-drawing-text', 'nested-list', 'no-slides', 'no-title-fallback', 'numbered-list', 'octal-list-level', 'overflow-bullet-level', 'pandoc-generated-image-alt-title', 'paragraphless-textbox', 'parenthesized-bullet-level', 'percent-encoded-target', 'qualified-bullet-level', 'rel-prefix-image-skip', 'repeated-slash-slide-target', 'rich-media-skip', 'shape-order', 'signed-bullet-level', 'slide-layout-placeholder-no-inherit', 'slide-placeholders', 'smartart-hierarchy', 'smartart-title-fallback', 'speaker-notes', 'subtitle-placeholder', 'table-span-review', 'table-styles-relationship', 'two-slides', 'unicode-drawing-text', 'unknown-graphic-uri', 'whitespace-drawing-text', 'wingdings-typeface-case', 'wrong-typed-slide-relationship'], $snapshot['fixtureStems']);
+        $t->same(77, $snapshot['totalPptxCount']);
+        $t->same(77, $snapshot['comparedPptxCount']);
+        $t->same(77, $snapshot['localParsedCount']);
+        $t->same(77, $snapshot['pandocParsedCount']);
+        $t->same(77, $snapshot['nativeFixtureParsedCount']);
+        $t->same(77, $snapshot['bothParsedCount']);
+        $t->same(77, $snapshot['normalizedAstMatchCount']);
         $t->same(0, $snapshot['normalizedAstMismatchCount']);
-        $t->same(76, $snapshot['pandocNativeFixtureComparedCount']);
-        $t->same(76, $snapshot['pandocNativeFixtureMatchCount']);
+        $t->same(77, $snapshot['pandocNativeFixtureComparedCount']);
+        $t->same(77, $snapshot['pandocNativeFixtureMatchCount']);
         $t->same(0, $snapshot['pandocNativeFixtureMismatchCount']);
         $t->same('normalized-ast-equality-observed-against-pandoc-executable', $snapshot['astParityStatus']);
-        $t->same(true, PptxExecutableNativeAstComparisonHarness::hasRequiredExecutableParity($snapshot, 76));
+        $t->same(true, PptxExecutableNativeAstComparisonHarness::hasRequiredExecutableParity($snapshot, 77));
         $t->same(true, PptxExecutableNativeAstComparisonHarness::hasRequiredPandocVersion($snapshot, 'pandoc 3.10'));
         $t->same(false, PptxExecutableNativeAstComparisonHarness::hasRequiredPandocVersion($snapshot, 'pandoc 3.9'));
-        $t->contains('--require-executable-parity=76', implode(' ', $snapshot['sourceCommand']));
+        $t->contains('--require-executable-parity=77', implode(' ', $snapshot['sourceCommand']));
         $t->contains('--require-pandoc-version=pandoc 3.10', implode(' ', $snapshot['sourceCommand']));
         $t->true(in_array('that upstream Haskell/Cabal/Tasty Tests.Readers.Pptx was executed', $snapshot['claimBoundaries']['doesNotAssert'], true));
         $generatedBoundary = array_values(array_filter(
@@ -97,6 +97,7 @@ return [
             static fn (string $claim): bool => str_starts_with($claim, 'that generated ')
         ))[0] ?? '';
         $t->contains('external-mode-slide-target', $generatedBoundary);
+        $t->contains('diagram-missing-rels', $generatedBoundary);
         $t->contains('graphic-no-uri', $generatedBoundary);
         $t->contains('rel-prefix-image-skip', $generatedBoundary);
         $t->contains('unicode-drawing-text', $generatedBoundary);
@@ -297,7 +298,7 @@ return [
                 . ' --pandoc-bin=' . escapeshellarg($fakePandoc)
                 . ' --json'
                 . ' summary'
-                . ' --require-executable-parity=76';
+                . ' --require-executable-parity=77';
             $output = [];
             $exitCode = 0;
             exec($command, $output, $exitCode);
@@ -306,22 +307,22 @@ return [
             $t->same(0, $exitCode);
             $t->same(dirname(__DIR__, 3) . '/lanes/pandoc/fixtures/upstream-current-pptx-reader', $decoded['pptxDirectory']);
             $t->same('pandoc fake checked-in 1.0', $decoded['pandocVersion']);
-            $t->same(76, $decoded['comparedPptxCount']);
-            $t->same(76, $decoded['localParsedCount']);
-            $t->same(76, $decoded['pandocParsedCount']);
-            $t->same(76, $decoded['nativeFixtureParsedCount']);
-            $t->same(76, $decoded['bothParsedCount']);
-            $t->same(76, $decoded['normalizedAstMatchCount']);
+            $t->same(77, $decoded['comparedPptxCount']);
+            $t->same(77, $decoded['localParsedCount']);
+            $t->same(77, $decoded['pandocParsedCount']);
+            $t->same(77, $decoded['nativeFixtureParsedCount']);
+            $t->same(77, $decoded['bothParsedCount']);
+            $t->same(77, $decoded['normalizedAstMatchCount']);
             $t->same(0, $decoded['normalizedAstMismatchCount']);
-            $t->same(76, $decoded['pandocNativeFixtureComparedCount']);
-            $t->same(76, $decoded['pandocNativeFixtureMatchCount']);
+            $t->same(77, $decoded['pandocNativeFixtureComparedCount']);
+            $t->same(77, $decoded['pandocNativeFixtureMatchCount']);
             $t->same(0, $decoded['pandocNativeFixtureMismatchCount']);
-            $t->same(76, count($decoded['fixtureComparisons']));
+            $t->same(77, count($decoded['fixtureComparisons']));
             $t->same([], array_values(array_filter(
                 $decoded['fixtureComparisons'],
                 static fn (array $row): bool => ($row['status'] ?? null) !== 'matched'
             )));
-            $t->same(true, PptxExecutableNativeAstComparisonHarness::hasRequiredExecutableParity($decoded, 76));
+            $t->same(true, PptxExecutableNativeAstComparisonHarness::hasRequiredExecutableParity($decoded, 77));
 
             $conflictingCommand = escapeshellarg(PHP_BINARY)
                 . ' '

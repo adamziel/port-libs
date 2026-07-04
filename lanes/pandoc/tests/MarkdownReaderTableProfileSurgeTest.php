@@ -109,25 +109,43 @@ $cellText = static function (AstNode $table, string $section, int $row, int $col
     return $plainInlineText($cell->children);
 };
 
-$assertTableParsed = static function (TestRunner $t, AstNode $document, array $fixture, string $position, string $marker, string $caption) use ($firstTable, $cellText): void {
+$assertTableParsed = static function (
+    TestRunner $t,
+    AstNode $document,
+    array $fixture,
+    string $position,
+    string $marker,
+    string $caption,
+    ?string $expectedCaption = null,
+    ?string $expectedCaptionSourcePosition = null,
+    ?string $expectedCaptionSourceMarker = null
+) use ($firstTable, $cellText): void {
     $table = $firstTable($document);
     $packet = TableGeometry::reviewPacket($table, ['accessibility' => false]);
     $markdown = (new MarkdownWriter())->write(new AstNode('document', [], [$table]));
     $blocks = (new WordPressBlockWriter())->write($document);
     [$head0, $head1, $body0, $body1] = $fixture['expected'];
+    $expectedCaption ??= $caption;
+    $expectedCaptionSourcePosition = func_num_args() >= 8 ? $expectedCaptionSourcePosition : $position;
+    $expectedCaptionSourceMarker = func_num_args() >= 9 ? $expectedCaptionSourceMarker : $marker;
+    $expectedCaptionPlacement = $expectedCaptionSourcePosition === null
+        ? ''
+        : ($expectedCaptionSourcePosition === 'before-table' ? 'before-table' : 'after-table');
 
     $t->same('table', $table->type);
     $t->same($fixture['alignments'], $table->attr('alignments'));
-    $t->same($caption, $table->attr('caption'));
-    $t->same($position, $table->attr('captionSource')['position'] ?? null);
-    $t->same($marker, $table->attr('captionSource')['marker'] ?? null);
-    $t->same($position === 'before-table' ? 'before-table' : 'after-table', $packet['summary']['captionPlacement'] ?? null);
+    $t->same($expectedCaption, $table->attr('caption'));
+    $t->same($expectedCaptionSourcePosition, $table->attr('captionSource')['position'] ?? null);
+    $t->same($expectedCaptionSourceMarker, $table->attr('captionSource')['marker'] ?? null);
+    $t->same($expectedCaptionPlacement, $packet['summary']['captionPlacement'] ?? null);
     $t->same($head0, $cellText($table, 'head', 0, 0));
     $t->same($head1, $cellText($table, 'head', 0, 1));
     $t->same($body0, $cellText($table, 'body', 0, 0));
     $t->same($body1, $cellText($table, 'body', 0, 1));
-    $t->contains($caption, $markdown);
-    $t->contains('<figcaption', $blocks);
+    if ($expectedCaption !== '') {
+        $t->contains($expectedCaption, $markdown);
+        $t->contains('<figcaption', $blocks);
+    }
 };
 
 $assertTableDisabled = static function (TestRunner $t, AstNode $document, string $sourceNeedle) use ($firstTable): void {
@@ -280,13 +298,27 @@ foreach ($profileCases as $profileName => $profile) {
             $caseId = str_pad((string) $caseCount, 3, '0', STR_PAD_LEFT);
             $caption = "Table profile caption {$caseId}";
             $markdown = $captionedTable($fixture['markdown'], $position, "{$marker} {$caption}");
+            $mmdTopLevelMetadataCaption = $profileName === 'multimarkdown enables pipe tables only' && $position === 'before-table';
+            $expectedCaption = $mmdTopLevelMetadataCaption ? '' : $caption;
+            $expectedCaptionSourcePosition = $mmdTopLevelMetadataCaption ? null : $position;
+            $expectedCaptionSourceMarker = $mmdTopLevelMetadataCaption ? null : $marker;
 
             $tests["maps upstream markdown reader table profile {$caseId} {$profileName} {$tableName} {$position}"] =
-                static function (TestRunner $t) use ($profile, $markdown, $enabled, $fixture, $position, $marker, $caption, $assertTableParsed, $assertTableDisabled): void {
+                static function (TestRunner $t) use ($profile, $markdown, $enabled, $fixture, $position, $marker, $caption, $expectedCaption, $expectedCaptionSourcePosition, $expectedCaptionSourceMarker, $assertTableParsed, $assertTableDisabled): void {
                     $document = (new MarkdownReader($profile['options']))->read($markdown);
 
                     if ($enabled) {
-                        $assertTableParsed($t, $document, $fixture, $position, $marker, $caption);
+                        $assertTableParsed(
+                            $t,
+                            $document,
+                            $fixture,
+                            $position,
+                            $marker,
+                            $caption,
+                            $expectedCaption,
+                            $expectedCaptionSourcePosition,
+                            $expectedCaptionSourceMarker
+                        );
                         return;
                     }
 

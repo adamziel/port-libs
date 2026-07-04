@@ -39,6 +39,7 @@ final class HtmlReader
             $readerBytes = self::flattenHtmlTemplateContainers($bytes);
             $readerBytes = self::flattenHtmlDetailsSummaryContainers($readerBytes);
             $readerBytes = self::repairParagraphTableOrRuleFragmentBoundaries($readerBytes);
+            $readerBytes = self::flattenOrphanTableFragmentContainers($readerBytes);
             $delegated = self::delegateHtmlBytes($readerBytes);
             $document = $this->reader->read($delegated['bytes']);
             [$children, $consumedFootnoteContainerCount] = self::containsAstNodeType($document->children, 'note')
@@ -243,6 +244,104 @@ final class HtmlReader
         }
 
         return implode("\n", $parts);
+    }
+
+    private static function flattenOrphanTableFragmentContainers(string $bytes): string
+    {
+        if (preg_match('/<(?:caption|col|colgroup|tbody|td|tfoot|th|thead|tr)\b/i', $bytes) !== 1) {
+            return $bytes;
+        }
+        if (preg_match('/<table\b/i', $bytes) === 1) {
+            return $bytes;
+        }
+        if (preg_match(self::orphanTableParagraphizingBlockPattern(), $bytes) !== 1) {
+            return $bytes;
+        }
+
+        try {
+            $body = Html5Dom::parseHtmlFragment($bytes);
+        } catch (\Throwable) {
+            return $bytes;
+        }
+
+        $parts = [];
+        $changed = false;
+        foreach ($body->childNodes as $child) {
+            if ($child instanceof \DOMText && trim($child->wholeText) === '') {
+                continue;
+            }
+
+            if ($child instanceof \DOMElement && self::isOrphanTableFragmentElementName(strtolower($child->localName))) {
+                $blockSources = self::orphanTableFragmentElementBlockSources($child);
+                if ($blockSources !== []) {
+                    array_push($parts, ...$blockSources);
+                }
+                $changed = true;
+                continue;
+            }
+
+            $serialized = self::htmlNodeSource($child);
+            if ($serialized !== '') {
+                $parts[] = $serialized;
+            }
+        }
+
+        return $changed && $parts !== [] ? implode("\n", $parts) : $bytes;
+    }
+
+    private static function orphanTableParagraphizingBlockPattern(): string
+    {
+        return '/<(?:address|article|aside|blockquote|details|div|dl|fieldset|figcaption|figure|footer|form|h[1-6]|header|hr|main|nav|ol|p|pre|section|ul)\b/i';
+    }
+
+    private static function isOrphanTableFragmentElementName(string $name): bool
+    {
+        return in_array($name, ['caption', 'col', 'colgroup', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'tr'], true);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function orphanTableFragmentElementBlockSources(\DOMElement $element): array
+    {
+        $name = strtolower($element->localName);
+        if (in_array($name, ['col', 'colgroup'], true)) {
+            return [];
+        }
+        if (in_array($name, ['caption', 'td', 'th'], true)) {
+            $blockSource = self::orphanTableBlockSource(self::htmlChildNodesSource($element));
+
+            return $blockSource === null ? [] : [$blockSource];
+        }
+
+        $sources = [];
+        foreach ($element->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            $childName = strtolower($child->localName);
+            if (!self::isOrphanTableFragmentElementName($childName)) {
+                continue;
+            }
+
+            array_push($sources, ...self::orphanTableFragmentElementBlockSources($child));
+        }
+
+        return $sources;
+    }
+
+    private static function orphanTableBlockSource(string $source): ?string
+    {
+        $source = trim($source);
+        if ($source === '') {
+            return null;
+        }
+        if (preg_match(self::htmlBlockContainerPattern(), $source) === 1) {
+            return $source;
+        }
+
+        return '<p>' . $source . '</p>';
     }
 
     /**

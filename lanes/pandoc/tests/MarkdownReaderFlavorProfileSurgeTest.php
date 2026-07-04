@@ -86,8 +86,8 @@ $featureProbes = [
         },
     ],
     'emoji' => [
-        'markdown' => 'Emoji :rocket: ready.',
-        'literal' => 'Emoji :rocket: ready.',
+        'markdown' => 'Ready, :rocket: now.',
+        'literal' => 'Ready, :rocket: now.',
         'match' => static fn (AstNode $node): bool => $node->type === 'span' && ($node->attr('attributes')['data-emoji'] ?? null) === 'rocket',
         'assert' => static function (TestRunner $t, AstNode $node) use ($inlineText): void {
             $t->same(['emoji'], $node->attr('classes'));

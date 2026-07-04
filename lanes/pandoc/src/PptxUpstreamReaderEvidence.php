@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 76;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 77;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'd74d7ca01e911175e481fcb1ae7f4eb677c0f1749428eb3fdecbd276b703422a';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 33401;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '743f20a692deae3642fb156b813c1e7d037c64294ab6488c53d9293a503b1578';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 33792;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -402,6 +402,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => '9e223d1d5dad199772749979c4331208ea6ee428b373d213f02c62ad108989f7',
             'pptxBytes' => 1817,
             'nativeBytes' => 125,
+        ],
+        'diagram-missing-rels' => [
+            'name' => 'generated diagram relIds missing relationship placeholder parity',
+            'pptx' => 'pptx-reader/diagram-missing-rels.pptx',
+            'native' => 'pptx-reader/diagram-missing-rels.native',
+            'pairKey' => 'pptx-reader/diagram-missing-rels.pptx|pptx-reader/diagram-missing-rels.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/diagram-missing-rels.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/diagram-missing-rels.native',
+            'pptxSha256' => 'f0c37fc30ddd29f7b35d55002005acdf1ae98be1c32112113d95de3ea54e370b',
+            'nativeSha256' => 'ddf13978208bba40d57db2aceaed9ae3b49bfcf92c11c514719fe520a9066b18',
+            'pptxBytes' => 1461,
+            'nativeBytes' => 141,
         ],
         'diagram-no-relids' => [
             'name' => 'generated diagram graphic without relIds placeholder parity',

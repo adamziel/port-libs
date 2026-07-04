@@ -196,6 +196,7 @@ final class MarkdownReader
                 $this->documentHasYamlMetadata = true;
             }
         }
+        [$lines, $mmdTitleBlock] = $this->mmdTitleBlockEnabled() ? $this->extractMmdTitleBlock($lines) : [$lines, null];
         [$lines, $titleBlock] = $this->titleBlockEnabled() ? $this->extractTitleBlock($lines) : [$lines, null];
         [$lines, $references, $footnotes, $abbreviations] = $this->extractReferenceDefinitions(
             $lines,
@@ -211,6 +212,9 @@ final class MarkdownReader
         $this->abbreviationDefinitions = array_replace($previousAbbreviationDefinitions, $abbreviations);
         $this->exampleReferences = array_replace($previousExampleReferences, $exampleReferences);
         $this->exampleNumbersByLine = $exampleNumbersByLine;
+        if ($mmdTitleBlock !== null) {
+            $documentAttrs = array_replace_recursive($documentAttrs, $this->buildTitleBlockAttrs($mmdTitleBlock));
+        }
         if ($titleBlock !== null) {
             $documentAttrs = array_replace_recursive($documentAttrs, $this->buildTitleBlockAttrs($titleBlock));
         }
@@ -889,6 +893,65 @@ final class MarkdownReader
             }
 
             $fields[$fieldName] = $fieldLines;
+        }
+
+        while ($cursor < $count && trim($lines[$cursor]) === '') {
+            $cursor++;
+        }
+
+        return [array_slice($lines, $cursor), $fields];
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{0:list<string>, 1:array{title:list<string>, author:list<string>, date:list<string>}|null}
+     */
+    private function extractMmdTitleBlock(array $lines): array
+    {
+        if (($lines[0] ?? '') === '' || preg_match('/^[A-Za-z][A-Za-z0-9 _-]*:[ \t]*/', $lines[0]) !== 1) {
+            return [$lines, null];
+        }
+
+        $fields = [
+            'title' => [],
+            'author' => [],
+            'date' => [],
+        ];
+        $fieldAliases = [
+            'title' => 'title',
+            'author' => 'author',
+            'authors' => 'author',
+            'date' => 'date',
+        ];
+        $cursor = 0;
+        $count = count($lines);
+        $currentField = null;
+        $sawMetadataLine = false;
+
+        while ($cursor < $count && trim($lines[$cursor]) !== '') {
+            $line = $lines[$cursor];
+            if (preg_match('/^([A-Za-z][A-Za-z0-9 _-]*):[ \t]*(.*)$/', $line, $m) === 1) {
+                $sawMetadataLine = true;
+                $normalizedKey = strtolower(str_replace([' ', '-'], '_', trim($m[1])));
+                $currentField = $fieldAliases[$normalizedKey] ?? null;
+                if ($currentField !== null) {
+                    $fields[$currentField][] = rtrim($m[2]);
+                }
+                $cursor++;
+                continue;
+            }
+
+            if ($currentField !== null && preg_match('/^[ \t]+(.*)$/', $line, $continuation) === 1) {
+                $fields[$currentField][] = rtrim($continuation[1]);
+                $cursor++;
+                continue;
+            }
+
+            return [$lines, null];
+        }
+
+        if (!$sawMetadataLine) {
+            return [$lines, null];
         }
 
         while ($cursor < $count && trim($lines[$cursor]) === '') {
@@ -16090,6 +16153,18 @@ final class MarkdownReader
         $options['format'] = $this->markdownFormatWithExtensionOption();
 
         return MarkdownFormatProfile::titleBlockEnabled($options, true);
+    }
+
+    private function mmdTitleBlockEnabled(): bool
+    {
+        $overrides = $this->markdownExtensionOverrides();
+        if (array_key_exists('mmd_title_block', $overrides)) {
+            return $overrides['mmd_title_block'];
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+
+        return MarkdownFormatProfile::canonicalFormat($format) === 'markdown_mmd';
     }
 
     private function sectionDivsEnabled(): bool

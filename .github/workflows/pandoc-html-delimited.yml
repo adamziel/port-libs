@@ -103,9 +103,9 @@ jobs:
           php tools/pandoc-html-reader-evidence.php \
             --upstream-root=.upstream-cache/pandoc-current \
             --json \
-            --require-selected-fixture-count=95 \
+            --require-selected-fixture-count=96 \
             --require-static-current-evidence \
-            --require-native-mapped-parity=95 \
+            --require-native-mapped-parity=96 \
             --require-runner-not-run \
             --require-runner-plan \
             --require-no-validation-issues
@@ -116,7 +116,7 @@ jobs:
             --html-dir=lanes/pandoc/fixtures \
             --json \
             summary \
-            --require-mapped-parity=95
+            --require-mapped-parity=96
 
       - name: Require delimited text reader evidence
         run: |
@@ -124,7 +124,7 @@ jobs:
             --repo-root=. \
             --json \
             --require-honest-denominators \
-            --require-generated-csv-native-parity=50 \
+            --require-generated-csv-native-parity=51 \
             --require-generated-tsv-native-parity=32 \
             --require-runner-not-run \
             --require-runner-plan \

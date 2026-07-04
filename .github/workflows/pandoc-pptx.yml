@@ -121,7 +121,7 @@ jobs:
             --checked-in-fixtures \
             --json \
             summary \
-            --require-mapped-parity=76
+            --require-mapped-parity=77
 
       - name: Install pandoc executable
         run: |
@@ -150,7 +150,7 @@ jobs:
             --checked-in-fixtures \
             --json \
             summary \
-            --require-executable-parity=76 \
+            --require-executable-parity=77 \
             --require-pandoc-version="pandoc ${PANDOC_EXECUTABLE_VERSION}"
 
       - name: Run focused PPTX parity tests

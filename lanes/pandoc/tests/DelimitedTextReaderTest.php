@@ -2426,6 +2426,49 @@ NATIVE;
         $t->contains('Plain [ Str "group" , LineBreak , Str "label" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
+    'matches generated csv quoted empty headers native parity fixture without inflating csv denominator' => static function (TestRunner $t) use ($generatedCsvNativeFixture, $nativeTokenStream): void {
+        $fixture = $generatedCsvNativeFixture('quoted-empty-headers');
+        $document = (new DelimitedTextReader())->readCsv($fixture['input'], [
+            'sourcePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/quoted-empty-headers.csv',
+        ]);
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+        $native = PandocConverter::write($document, 'native');
+        $generatedEvidence = $packet['upstreamEvidence']['generatedNativeParityEvidence'] ?? [];
+        $head = $table->children[0]->children[0];
+
+        $t->same('csv', $packet['format'] ?? null);
+        $t->same(',', $packet['delimiter'] ?? null);
+        $t->same(2, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
+        $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
+        $t->same(2 * DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['checkedInFixtureCount'] ?? null);
+        $t->same('quoted-empty-headers.csv', $generatedEvidence['checkedInFixtures'][100]['name'] ?? null);
+        $t->same('d22094a0cfb728163fb7f9e26b2e9985890823d2e470dca087a9f52c21ca4a9b', $generatedEvidence['checkedInFixtures'][100]['checkedInFile']['sha256'] ?? null);
+        $t->same('quoted-empty-headers.native', $generatedEvidence['checkedInFixtures'][101]['name'] ?? null);
+        $t->same('08f6093a0ede304ba9357e01f087d9883666f8e15d91b46e4e5d337c27ed023a', $generatedEvidence['checkedInFixtures'][101]['checkedInFile']['sha256'] ?? null);
+        $t->same('quoted-empty-headers', $generatedEvidence['samples'][50]['name'] ?? null);
+        $t->same([], $generatedEvidence['samples'][50]['readerOptions'] ?? null);
+        $t->same(['', 'note', ''], $table->attr('columnNames'));
+        $t->same(3, $packet['rowCount'] ?? null);
+        $t->same(2, $packet['bodyRowCount'] ?? null);
+        $t->same(3, $packet['columnCount'] ?? null);
+        $t->same(9, $packet['fieldCount'] ?? null);
+        $t->same(2, $packet['quotedFieldCount'] ?? null);
+        $t->same(0, $packet['raggedRowCount'] ?? null);
+        $t->same(1, $packet['diagnosticCount'] ?? null);
+        $t->same('delimited-text-trailing-empty-fields-preserved', $packet['diagnostics'][0]['code'] ?? null);
+        $t->same('', $head->children[0]->attr('text'));
+        $t->same([], $head->children[0]->children);
+        $t->same('note', $head->children[1]->attr('text'));
+        $t->same('', $head->children[2]->attr('text'));
+        $t->same([], $head->children[2]->children);
+        $t->same('alpha', $table->children[1]->children[0]->children[1]->attr('text'));
+        $t->same('done', $table->children[1]->children[1]->children[2]->attr('text'));
+        $t->contains('Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) []', $native);
+        $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
+    },
     'matches generated tsv native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture();
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
