@@ -1106,6 +1106,17 @@ $tests['imports direct pandoc html paragraph transparent block tree construction
         $t->same('After', $document->children[4]->attr('text'));
     };
 
+$tests['imports direct pandoc html button scope paragraph tree construction as repaired blocks'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-button-scope-tree-construction.html'));
+
+        $t->same(['paragraph', 'paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same('one', $document->children[0]->attr('text'));
+        $t->same(['text'], array_map(static fn ($node): string => $node->type, $document->children[0]->children));
+        $t->same('twothree', $document->children[1]->attr('text'));
+        $t->same(['text'], array_map(static fn ($node): string => $node->type, $document->children[1]->children));
+    };
+
 $tests['preserves upstream html omitted table cell closures as visible blocks'] =
     static function (TestRunner $t): void {
         $html = '<table><tbody><tr><td>A<td>B</tbody></table><p>after</p>';

@@ -17914,12 +17914,22 @@ XML);
         try {
             (new PptxReader())->read($buildRootRelativeSlideTargetPptxPackage());
         } catch (RuntimeException $exception) {
-            $t->same('Entry not found: ppt//ppt/slides/slide1.xml', $exception->getMessage());
+            $t->same('Entry not found: ppt/ppt/slides/slide1.xml', $exception->getMessage());
 
             return;
         }
 
         throw new RuntimeException('Expected root-relative slide Target to stay literal like upstream');
+    },
+
+    'normalizes rooted pptx slide targets under ppt like pandoc executable' => static function (TestRunner $t) use ($buildQueryFragmentSlideTargetPptxPackage): void {
+        $document = (new PptxReader())->read($buildQueryFragmentSlideTargetPptxPackage('/slides/slide1.xml', 'ppt/slides/slide1.xml', 'Rooted slide target body'));
+        $review = $document->attr('pptx');
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same('ppt/slides/slide1.xml', $review['slides'][0]['partName'] ?? null);
+        $t->same('Rooted slide target body', $document->children[0]->attr('text'));
+        $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Rooted" , Space , Str "slide" , Space , Str "target" , Space , Str "body" ]', $native);
     },
 
     'normalizes pptx dot-segment slide targets like pandoc executable' => static function (TestRunner $t) use ($buildDotSegmentSlideTargetPptxPackage): void {

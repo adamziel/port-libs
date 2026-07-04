@@ -39,6 +39,7 @@ final class HtmlReader
         } else {
             $readerBytes = self::flattenHtmlTemplateContainers($structuralBytes);
             $readerBytes = self::flattenHtmlDetailsSummaryContainers($readerBytes);
+            $readerBytes = self::repairParagraphButtonScopeBoundaries($readerBytes);
             $readerBytes = self::repairParagraphBlockFragmentBoundaries($readerBytes);
             $readerBytes = self::flattenOrphanTableFragmentContainers($readerBytes);
             $delegated = self::delegateHtmlBytes($readerBytes);
@@ -372,6 +373,193 @@ final class HtmlReader
         );
 
         return is_string($repaired) ? $repaired : $bytes;
+    }
+
+    private static function repairParagraphButtonScopeBoundaries(string $bytes): string
+    {
+        if (preg_match('/<button\b/i', $bytes) !== 1 || preg_match('/<p\b/i', $bytes) !== 1) {
+            return $bytes;
+        }
+
+        $trimmed = ltrim($bytes);
+        $isDocument = preg_match('/^(?:<!doctype\b|<html\b)/i', $trimmed) === 1;
+
+        try {
+            if ($isDocument) {
+                $dom = Html5Dom::parseHtmlDocument($bytes);
+                $body = $dom->getElementsByTagName('body')->item(0);
+            } else {
+                $body = Html5Dom::parseHtmlFragment($bytes);
+                $dom = $body->ownerDocument;
+            }
+        } catch (\Throwable) {
+            return $bytes;
+        }
+
+        if (!$dom instanceof \DOMDocument || !$body instanceof \DOMElement) {
+            return $bytes;
+        }
+
+        $changed = false;
+        for ($pass = 0; $pass < 8; ++$pass) {
+            $button = self::firstParagraphScopedButtonWithBlockChild($body);
+            if (!$button instanceof \DOMElement) {
+                break;
+            }
+
+            $paragraph = $button->parentNode;
+            if (!$paragraph instanceof \DOMElement) {
+                break;
+            }
+
+            $replacementNodes = self::paragraphButtonScopeReplacementNodes($dom, $paragraph, $button);
+            if ($replacementNodes === []) {
+                break;
+            }
+
+            $parent = $paragraph->parentNode;
+            if (!$parent instanceof \DOMNode) {
+                break;
+            }
+
+            foreach ($replacementNodes as $replacementNode) {
+                $parent->insertBefore($replacementNode, $paragraph);
+            }
+            $parent->removeChild($paragraph);
+            $changed = true;
+        }
+
+        if (!$changed) {
+            return $bytes;
+        }
+
+        if ($isDocument) {
+            $documentElement = $dom->documentElement;
+            if (!$documentElement instanceof \DOMElement) {
+                return $bytes;
+            }
+
+            $html = $dom->saveHTML($documentElement);
+
+            return is_string($html) ? $html : $bytes;
+        }
+
+        $parts = [];
+        foreach ($body->childNodes as $child) {
+            $serialized = self::htmlNodeSource($child);
+            if ($child instanceof \DOMText && trim($serialized) === '') {
+                continue;
+            }
+            if (self::isEmptyHtmlParagraphRepairArtifact($child)) {
+                continue;
+            }
+            if ($serialized === '') {
+                continue;
+            }
+
+            $parts[] = $serialized;
+        }
+
+        return $parts === [] ? $bytes : implode("\n", $parts);
+    }
+
+    private static function firstParagraphScopedButtonWithBlockChild(\DOMElement $root): ?\DOMElement
+    {
+        foreach ($root->getElementsByTagName('button') as $button) {
+            if (
+                !$button instanceof \DOMElement
+                || strtolower($button->localName) !== 'button'
+                || !$button->parentNode instanceof \DOMElement
+                || strtolower($button->parentNode->localName) !== 'p'
+            ) {
+                continue;
+            }
+
+            foreach ($button->childNodes as $child) {
+                if ($child instanceof \DOMElement && self::isHtmlBlockContainerName(strtolower($child->localName))) {
+                    return $button;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<\DOMNode>
+     */
+    private static function paragraphButtonScopeReplacementNodes(
+        \DOMDocument $dom,
+        \DOMElement $paragraph,
+        \DOMElement $button
+    ): array {
+        $before = $dom->createElement('p');
+        $buttonBlocks = [];
+        $seenButton = false;
+
+        foreach ($paragraph->childNodes as $child) {
+            if ($child === $button) {
+                $seenButton = true;
+                foreach ($button->childNodes as $buttonChild) {
+                    if ($buttonChild instanceof \DOMElement && self::isHtmlBlockContainerName(strtolower($buttonChild->localName))) {
+                        $buttonBlocks[] = $buttonChild->cloneNode(true);
+                        continue;
+                    }
+
+                    if ($buttonBlocks === []) {
+                        $before->appendChild($buttonChild->cloneNode(true));
+                        continue;
+                    }
+
+                    $buttonBlocks[array_key_last($buttonBlocks)]->appendChild($buttonChild->cloneNode(true));
+                }
+                continue;
+            }
+
+            if (!$seenButton) {
+                $before->appendChild($child->cloneNode(true));
+                continue;
+            }
+
+            if ($buttonBlocks === []) {
+                $before->appendChild($child->cloneNode(true));
+                continue;
+            }
+
+            $buttonBlocks[array_key_last($buttonBlocks)]->appendChild($child->cloneNode(true));
+        }
+
+        if (!$seenButton || $buttonBlocks === []) {
+            return [];
+        }
+
+        $nodes = [];
+        if (trim($before->textContent) !== '' || self::hasElementChild($before)) {
+            $nodes[] = $before;
+        }
+        foreach ($buttonBlocks as $block) {
+            if (!$block instanceof \DOMNode) {
+                continue;
+            }
+            if ($block instanceof \DOMElement && self::isEmptyHtmlParagraphRepairArtifact($block)) {
+                continue;
+            }
+
+            $nodes[] = $block;
+        }
+
+        return $nodes;
+    }
+
+    private static function hasElementChild(\DOMElement $element): bool
+    {
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMElement) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static function flattenOrphanTableFragmentContainers(string $bytes): string

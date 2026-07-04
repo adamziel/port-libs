@@ -1,0 +1,38 @@
+[ Para [ Span ( "chapter.xhtml" , [] , [] ) [] ]
+, Header
+    1
+    ( "" , [] , [] )
+    [ Str "Manifest"
+    , Space
+    , Str "Fallback"
+    , Space
+    , Str "Style"
+    ]
+, Para
+    [ Str "Primary"
+    , Space
+    , Str "reading"
+    , Space
+    , Str "order"
+    , Space
+    , Str "ignores"
+    , Space
+    , Str "the"
+    , Space
+    , Str "widget"
+    , Space
+    , Str "while"
+    , Space
+    , Str "package"
+    , Space
+    , Str "review"
+    , Space
+    , Str "records"
+    , Space
+    , Str "its"
+    , Space
+    , Str "fallback"
+    , Space
+    , Str "style."
+    ]
+]

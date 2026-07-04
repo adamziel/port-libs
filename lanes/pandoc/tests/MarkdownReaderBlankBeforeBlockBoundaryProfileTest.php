@@ -127,6 +127,25 @@ return [
             $t->same('Nested quote', $inlineText($outer->children[1] ?? new AstNode('missing')));
         },
 
+    'maps checked-in markdown blank-before-header blockquote implicit reference profile fixture' =>
+        static function (TestRunner $t) use ($inlineText, $nodeTypes): void {
+            $fixture = (string) file_get_contents(
+                dirname(__DIR__) . '/fixtures/upstream-markdown-zzzzzzzzzzzzzzzzzz-blank-before-header-blockquote-profile.md'
+            );
+            $document = (new MarkdownReader(['format' => 'markdown-blank_before_header']))->read($fixture);
+            $quote = $document->children[0] ?? new AstNode('missing');
+            $heading = $quote->children[1] ?? new AstNode('missing');
+            $link = ($document->children[1] ?? new AstNode('missing'))->children[0] ?? new AstNode('missing');
+
+            $t->same(['blockquote', 'paragraph'], $nodeTypes($document));
+            $t->same(['paragraph', 'heading'], array_map(static fn (AstNode $node): string => $node->type, $quote->children));
+            $t->same('Review Heading', $inlineText($heading));
+            $t->same('review-heading', $heading->attr('id'));
+            $t->same('link', $link->type);
+            $t->same('#review-heading', $link->attr('url'));
+            $t->same('Review Heading', $inlineText($link));
+        },
+
     'applies pandoc markdown blank-before gates inside block quotes' =>
         static function (TestRunner $t) use ($inlineText): void {
             $headingDefault = (new MarkdownReader(['format' => 'markdown']))->read("> Lead\n> # Review Heading\n");
@@ -147,6 +166,6 @@ return [
 
     'records pandoc 3.10 blank-before block boundary mapped-case count' =>
         static function (TestRunner $t) use ($headingInterruptProfiles, $blockQuoteInterruptProfiles): void {
-            $t->same(24, 1 + count($headingInterruptProfiles) + 1 + 1 + count($blockQuoteInterruptProfiles) + 1 + 4);
+            $t->same(25, 1 + count($headingInterruptProfiles) + 1 + 1 + count($blockQuoteInterruptProfiles) + 1 + 1 + 4);
         },
 ];

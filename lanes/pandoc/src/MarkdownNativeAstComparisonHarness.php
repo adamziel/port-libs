@@ -56,6 +56,7 @@ final class MarkdownNativeAstComparisonHarness
         'upstream-markdown-zzzzzzzzzzzzzz-footnote-fenced-div-boundary' => ['format' => 'markdown+footnotes+fenced_divs+native_divs'],
         'upstream-markdown-zzzzzzzzzzzzzzzz-gfm-nested-list-continuation' => ['format' => 'gfm'],
         'upstream-markdown-zzzzzzzzzzzzzzzzz-blank-before-blockquote-disabled-profile' => ['format' => 'markdown-blank_before_blockquote'],
+        'upstream-markdown-zzzzzzzzzzzzzzzzzz-blank-before-header-blockquote-profile' => ['format' => 'markdown-blank_before_header'],
     ];
 
     /** @var array<string, true> */

@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 84;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 85;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'a48a3f7059f63a7fe436223cdd731a094ea87eae153cd8640a341c71fc4338dd';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 36654;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '2f3d2d8ea9a98451d37f775569fea0160387ac23b4dbe1e2e1f0895557d72a5d';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 37041;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -1026,6 +1026,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => 'dde7cc213ac82ae4f03a1c97dfaf72650bcafb5c9d5ce06497bf60ea8ceb688a',
             'pptxBytes' => 2633,
             'nativeBytes' => 122,
+        ],
+        'rooted-slide-target' => [
+            'name' => 'generated rooted slide relationship target parity',
+            'pptx' => 'pptx-reader/rooted-slide-target.pptx',
+            'native' => 'pptx-reader/rooted-slide-target.native',
+            'pairKey' => 'pptx-reader/rooted-slide-target.pptx|pptx-reader/rooted-slide-target.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/rooted-slide-target.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/rooted-slide-target.native',
+            'pptxSha256' => 'f7ae4f4e696bee21ecbfc967fa96e70d9c67dbf5035ad1fa05e5f5974f6bd433',
+            'nativeSha256' => '6059cb62d9ff8d71c8d9719a067256089eb239683e2486b6661f576748b2061b',
+            'pptxBytes' => 1529,
+            'nativeBytes' => 129,
         ],
         'subtitle-placeholder' => [
             'name' => 'generated subtitle placeholder body parity',

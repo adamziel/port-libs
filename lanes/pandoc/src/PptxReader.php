@@ -453,7 +453,6 @@ final class PptxReader
             if ($segment === '') {
                 if (
                     $index === $lastIndex
-                    || ($index === 1 && str_starts_with($target, '/'))
                     || ($index > 0 && str_ends_with($rawSegments[$index - 1], ':'))
                 ) {
                     $segments[] = $segment;

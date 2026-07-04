@@ -1628,9 +1628,35 @@ final class MarkdownReader
         $idsByLine = [];
         $references = [];
         $usedIds = [];
+
+        $this->collectMarkdownHeadingReferencesFromLines($lines, $idsByLine, $references, $usedIds, false);
+
+        return [$idsByLine, $references];
+    }
+
+    /**
+     * @param list<string> $lines
+     * @param array<int, string> $idsByLine
+     * @param array<string, array{url:string, title:string}> $references
+     * @param array<string, int> $usedIds
+     */
+    private function collectMarkdownHeadingReferencesFromLines(
+        array $lines,
+        array &$idsByLine,
+        array &$references,
+        array &$usedIds,
+        bool $nested
+    ): void {
         $implicitHeaderReferences = $this->implicitHeaderReferenceExtensionEnabled();
 
         for ($index = 0, $count = count($lines); $index < $count; $index++) {
+            if ($this->isBlockQuoteLine($lines[$index] ?? '')) {
+                [$content, $end] = $this->collectMarkdownBlockQuoteHeadingReferenceLines($lines, $index);
+                $this->collectMarkdownHeadingReferencesFromLines($content, $idsByLine, $references, $usedIds, true);
+                $index = $end;
+                continue;
+            }
+
             $boundaryEnd = $this->markdownReferenceBoundaryEndIndex($lines, $index);
             if ($boundaryEnd !== null) {
                 $index = $boundaryEnd;
@@ -1667,7 +1693,7 @@ final class MarkdownReader
                 $id = '';
             }
 
-            if ($id !== '') {
+            if ($id !== '' && !$nested) {
                 $idsByLine[$index] = $id;
             }
             if ($implicitHeaderReferences) {
@@ -1681,8 +1707,24 @@ final class MarkdownReader
                 $index = $setextEnd;
             }
         }
+    }
 
-        return [$idsByLine, $references];
+    /**
+     * @param list<string> $lines
+     * @return array{0:list<string>, 1:int}
+     */
+    private function collectMarkdownBlockQuoteHeadingReferenceLines(array $lines, int $index): array
+    {
+        $content = [];
+        $cursor = $index;
+        $count = count($lines);
+
+        while ($cursor < $count && $this->isBlockQuoteLine($lines[$cursor])) {
+            $content[] = $this->stripBlockQuoteMarker($lines[$cursor]);
+            $cursor++;
+        }
+
+        return [$content, $cursor - 1];
     }
 
     /**
