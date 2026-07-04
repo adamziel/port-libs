@@ -41,6 +41,7 @@ final class MarkdownNativeAstComparisonHarness
         'upstream-markdown-z-tex-math-double-backslash-profile' => ['format' => 'markdown+tex_math_double_backslash'],
         'upstream-markdown-zz-east-asian-line-break-profile' => ['format' => 'markdown+east_asian_line_breaks'],
         'upstream-markdown-zz-tex-math-single-backslash-profile' => ['format' => 'markdown+tex_math_single_backslash'],
+        'upstream-markdown-zzz-intraword-underscore-profile' => ['format' => 'markdown-intraword_underscores'],
     ];
 
     /** @var array<string, true> */

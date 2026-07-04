@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 65;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 66;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '714fbfcff489d3d75acf592d011941ff7a11c5d23c170f04c35118a6709717b2';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 32232;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'acbdca5b007404744c5f3d7b1f896f3cb04383060aaaeb084529f566d1fd16c6';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 32762;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -726,6 +726,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => '911f29fe22d020d181e007478bff7c157f6df49d06f7c42798bb3a933d33f427',
             'pptxBytes' => 1521,
             'nativeBytes' => 135,
+        ],
+        'slide-layout-placeholder-no-inherit' => [
+            'name' => 'generated slide layout empty placeholder no-inherit parity',
+            'pptx' => 'pptx-reader/slide-layout-placeholder-no-inherit.pptx',
+            'native' => 'pptx-reader/slide-layout-placeholder-no-inherit.native',
+            'pairKey' => 'pptx-reader/slide-layout-placeholder-no-inherit.pptx|pptx-reader/slide-layout-placeholder-no-inherit.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/slide-layout-placeholder-no-inherit.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/slide-layout-placeholder-no-inherit.native',
+            'pptxSha256' => '16a18e8709ed45075cf556bc8f78527edf86e7c15c76058d6557270defeb64c5',
+            'nativeSha256' => '5fe1085d4fe7bacf348cc26ee690429dc4f783d3f2fdb9202d63a8e9a27176b3',
+            'pptxBytes' => 2279,
+            'nativeBytes' => 129,
         ],
         'slide-placeholders' => [
             'name' => 'generated slide footer/date/number placeholder visibility parity',

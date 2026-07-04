@@ -1,0 +1,48 @@
+[ Table
+    ( "" , [] , [] )
+    (Caption
+       Nothing [ Plain [ Str "Column" , Space , Str "layout" ] ])
+    [ ( AlignDefault , ColWidth 0.25 )
+    , ( AlignDefault , ColWidth 0.75 )
+    ]
+    (TableHead
+       ( "" , [] , [] )
+       [ Row
+           ( "" , [] , [] )
+           [ Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Plain [ Str "Metric" ] ]
+           , Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Plain [ Str "Value" ] ]
+           ]
+       ])
+    [ TableBody
+        ( "" , [] , [] )
+        (RowHeadColumns 0)
+        []
+        [ Row
+            ( "" , [] , [] )
+            [ Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain [ Str "Latency" ] ]
+            , Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain [ Strong [ Str "42" ] , Space , Str "ms" ] ]
+            ]
+        ]
+    ]
+    (TableFoot ( "" , [] , [] ) [])
+]

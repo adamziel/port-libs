@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
+use PortLibs\Pandoc\NativeWriter;
+
+$fixture = (string) file_get_contents(
+    dirname(__DIR__) . '/fixtures/upstream-markdown-zzz-intraword-underscore-profile.md'
+);
 
 /**
  * @return list<string>
@@ -95,6 +100,25 @@ return [
                 $t->same('paragraph', $paragraph->type, $label);
                 $t->same($case['expected'], $describeInlines($paragraph->children), $label);
             }
+        },
+
+    'maps pandoc markdown intraword underscore profile fixture' =>
+        static function (TestRunner $t) use ($fixture, $describeInlines): void {
+            $document = (new MarkdownReader(['format' => 'markdown-intraword_underscores']))->read($fixture);
+            $paragraph = $document->children[0] ?? new AstNode('missing');
+            $native = (new NativeWriter())->write($document);
+
+            $t->same(1, count($document->children));
+            $t->same('paragraph', $paragraph->type);
+            $t->same([
+                'text:foo',
+                'emph(text:bar)',
+                'text:baz and foo',
+                'strong(text:bar)',
+                'text:baz',
+            ], $describeInlines($paragraph->children));
+            $t->contains('Emph [ Str "bar" ]', $native);
+            $t->contains('Strong [ Str "bar" ]', $native);
         },
 
     'records pandoc markdown intraword underscore profile mapped-case count' =>

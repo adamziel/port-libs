@@ -779,6 +779,30 @@ $tests['imports direct pandoc html table row and column spans'] =
         $t->same(['Q2', '18'], array_map(static fn ($cell): string => $cell->attr('text'), $secondBodyRow->children));
     };
 
+$tests['imports direct pandoc html colgroup column widths'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-colgroup-width-table.html'));
+        $table = $document->children[0];
+        $head = $table->children[0];
+        $body = $table->children[1];
+        $bodyRow = $body->children[0];
+        $valueCell = $bodyRow->children[1];
+        $columnSpecs = $table->attr('columnSpecs');
+        $columnSources = $table->attr('columnSources');
+
+        $t->same(['table'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same('Column layout', $table->attr('caption'));
+        $t->same(['default', 'default'], $table->attr('alignments'));
+        $t->same([0.25, 0.75], $table->attr('widths'));
+        $t->same([0.25, 0.75], array_map(static fn (array $spec): float => $spec['width'], $columnSpecs));
+        $t->same(['col', 'col'], array_map(static fn (array $source): string => $source['kind'], $columnSources));
+        $t->same('width: 25%', $columnSources[0]['colAttributes']['attributes']['style'] ?? null);
+        $t->same('width: 75%', $columnSources[1]['colAttributes']['attributes']['style'] ?? null);
+        $t->same(['Metric', 'Value'], array_map(static fn ($cell): string => $cell->attr('text'), $head->children[0]->children));
+        $t->same(['Latency', '42 ms'], array_map(static fn ($cell): string => $cell->attr('text'), $bodyRow->children));
+        $t->same(['strong', 'text'], array_map(static fn ($node): string => $node->type, $valueCell->children));
+    };
+
 $tests['imports upstream html block children inside table cells'] =
     static function (TestRunner $t): void {
         $html = '<table><tr><td><ul><li>one</li><li>two</li></ul></td><td><blockquote><p>quote</p></blockquote></td></tr></table>';
