@@ -171,15 +171,20 @@ XML);
         try {
             $document = (new EpubReader())->readEpubFile($path);
             $meta = $document->attr('meta');
+            $native = (new NativeWriter())->write($document);
         } finally {
             @unlink($path);
         }
 
         $t->same('EPUB Metadata Reader', $meta['title']);
         $t->same('EPUB Metadata Reader', $meta['titleInlines'][0]->attr('text'));
-        $t->same(['First Author', 'Second Author'], $meta['author']);
-        $t->same('First Author', $meta['authorInlines'][0][0]->attr('text'));
-        $t->same('Second Author', $meta['authorInlines'][1][0]->attr('text'));
+        $t->same(['Second Author', 'First Author'], $meta['author']);
+        $t->same('Second Author', $meta['authorInlines'][0][0]->attr('text'));
+        $t->same('First Author', $meta['authorInlines'][1][0]->attr('text'));
+        $t->contains(
+            '( "author" , MetaList [ MetaInlines [ Str "Second" , Space , Str "Author" ] , MetaInlines [ Str "First" , Space , Str "Author" ] ] )',
+            $native
+        );
         $t->same('en-US', $meta['lang']);
         $t->same('en-US', $meta['language']);
         $t->same('2026-04-05', $meta['date']);

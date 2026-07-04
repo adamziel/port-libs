@@ -717,7 +717,7 @@ final class DelimitedTextReader
                     continue;
                 }
 
-                if ($char === ' ' || $char === "\t") {
+                if ($this->isPandocNonLineBreakFinalWhitespace($char)) {
                     $afterClosingQuoteWhitespace = true;
                     continue;
                 }
@@ -1045,7 +1045,7 @@ final class DelimitedTextReader
         $length = strlen($text);
         for ($index = $offset; $index < $length; $index++) {
             $char = $text[$index];
-            if ($char !== ' ' && $char !== "\t" && $char !== "\r" && $char !== "\n") {
+            if (!$this->isPandocFinalWhitespace($char)) {
                 return false;
             }
         }
@@ -1634,7 +1634,7 @@ final class DelimitedTextReader
         $rowIndex = 0;
         for ($offset = 0; $offset < $length; $offset++) {
             $char = $text[$offset];
-            if ($char === ' ' || $char === "\t") {
+            if ($this->isPandocNonLineBreakFinalWhitespace($char)) {
                 continue;
             }
 
@@ -1655,6 +1655,16 @@ final class DelimitedTextReader
         }
 
         return $blankRows === [] ? null : $blankRows;
+    }
+
+    private function isPandocFinalWhitespace(string $char): bool
+    {
+        return $this->isLineBreak($char) || $this->isPandocNonLineBreakFinalWhitespace($char);
+    }
+
+    private function isPandocNonLineBreakFinalWhitespace(string $char): bool
+    {
+        return $char === ' ' || $char === "\t" || $char === "\v" || $char === "\f";
     }
 
     /**

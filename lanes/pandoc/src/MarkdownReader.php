@@ -2478,6 +2478,9 @@ final class MarkdownReader
             if (!$this->isLazyBlockQuoteContinuationLine($lines[$cursor], $cursor, $content)) {
                 break;
             }
+            if ($this->isAlertMarkerOnlyBlockQuoteContent($content)) {
+                break;
+            }
 
             $content[] = $lines[$cursor];
             $cursor++;
@@ -2491,7 +2494,103 @@ final class MarkdownReader
             $this->markdownBlockQuoteDepth--;
         }
 
+        $alert = $this->tryBuildAlertDiv($inner->children);
+        if ($alert !== null) {
+            return $alert;
+        }
+
         return new AstNode('blockquote', [], $inner->children);
+    }
+
+    /**
+     * @param list<string> $content
+     */
+    private function isAlertMarkerOnlyBlockQuoteContent(array $content): bool
+    {
+        return $this->alertExtensionEnabled()
+            && count($content) === 1
+            && $this->alertTypeFromMarkerText($content[0]) !== null;
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     */
+    private function tryBuildAlertDiv(array $blocks): ?AstNode
+    {
+        if (!$this->alertExtensionEnabled()) {
+            return null;
+        }
+
+        $first = $blocks[0] ?? null;
+        if (!$first instanceof AstNode || $first->type !== 'paragraph') {
+            return null;
+        }
+
+        $alert = $this->alertFromMarkerParagraph($first);
+        if ($alert === null) {
+            return null;
+        }
+
+        $alertType = $alert['type'];
+        $contentBlocks = array_slice($blocks, 1);
+        if ($alert['bodyInlines'] !== []) {
+            array_unshift($contentBlocks, new AstNode(
+                'paragraph',
+                ['text' => $this->paragraphTextFromInlines($alert['bodyInlines'])],
+                $alert['bodyInlines']
+            ));
+        }
+
+        $title = ucfirst($alertType);
+        $titleDiv = new AstNode('div', ['classes' => ['title']], [
+            new AstNode('paragraph', ['text' => $title], [
+                new AstNode('text', ['text' => $title]),
+            ]),
+        ]);
+
+        return new AstNode('div', ['classes' => [$alertType]], array_merge([$titleDiv], $contentBlocks));
+    }
+
+    /**
+     * @return array{type:string, bodyInlines:list<AstNode>}|null
+     */
+    private function alertFromMarkerParagraph(AstNode $paragraph): ?array
+    {
+        $children = $paragraph->children;
+        $marker = $children[0] ?? null;
+        if (!$marker instanceof AstNode || $marker->type !== 'text') {
+            return null;
+        }
+
+        $alertType = $this->alertTypeFromMarkerText((string) $marker->attr('text', ''));
+        if ($alertType === null) {
+            return null;
+        }
+
+        if (count($children) === 1) {
+            return ['type' => $alertType, 'bodyInlines' => []];
+        }
+
+        $separator = $children[1] ?? null;
+        if (!$separator instanceof AstNode || !in_array($separator->type, ['softbreak', 'linebreak'], true)) {
+            return null;
+        }
+
+        return ['type' => $alertType, 'bodyInlines' => array_slice($children, 2)];
+    }
+
+    private function alertTypeFromMarkerText(string $text): ?string
+    {
+        $type = strtolower(trim($text));
+
+        return match ($type) {
+            '[!note]' => 'note',
+            '[!tip]' => 'tip',
+            '[!important]' => 'important',
+            '[!warning]' => 'warning',
+            '[!caution]' => 'caution',
+            default => null,
+        };
     }
 
     /**
@@ -15629,6 +15728,19 @@ final class MarkdownReader
 
         return in_array($canonical, ['markdown', 'commonmark_x'], true)
             || ($canonical === 'gfm' && !$this->deprecatedGithubMarkdownAlias($format));
+    }
+
+    private function alertExtensionEnabled(): bool
+    {
+        $overrides = $this->markdownExtensionOverrides();
+        if (array_key_exists('alerts', $overrides)) {
+            return $overrides['alerts'];
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['commonmark_x', 'gfm'], true);
     }
 
     private function scriptExtensionEnabled(string $delimiter): bool

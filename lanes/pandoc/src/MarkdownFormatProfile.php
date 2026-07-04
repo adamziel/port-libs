@@ -394,6 +394,7 @@ final class MarkdownFormatProfile
             array_values(self::EXTENSION_ALIASES),
             [
                 'ascii_identifiers',
+                'alerts',
                 'attributes',
                 'bare_uri_autolinks',
                 'bracketed_spans',

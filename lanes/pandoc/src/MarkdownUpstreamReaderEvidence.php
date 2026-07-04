@@ -12,9 +12,9 @@ final class MarkdownUpstreamReaderEvidence
     public const STATUS_COMPLETED = 'completed-upstream-markdown-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-markdown-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
-    public const EXPECTED_SELECTED_FIXTURE_COUNT = 50;
-    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 50;
-    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = 'ea05c481fd3f7707d52f9f77d39e64e2efcf68c7b46d97f3602d5253a80a44b7';
+    public const EXPECTED_SELECTED_FIXTURE_COUNT = 51;
+    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 51;
+    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = 'a7dee87cd44ad4d401ceb2c558b24dcb627a1f1ca9a8f0c5708b748c027869b2';
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/Markdown.hs',
@@ -643,6 +643,18 @@ final class MarkdownUpstreamReaderEvidence
             'sha256' => 'f08f6db28a623c0f60dbe069e68567e38f7ecbf71367f01eebfa52c2d6735ce0',
             'bytes' => 16,
         ],
+        'upstream-markdown-alerts.md' => [
+            'role' => 'markdown-alerts-reader-profile-fixture',
+            'sourceKind' => 'selected-upstream-markdown-reader-case',
+            'sourceReference' => 'Pandoc 3.10 gfm/commonmark_x alerts extension profile probe',
+            'formatProfile' => 'gfm alerts blockquote-to-div profile',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-markdown-alerts.md',
+            'coverageTests' => [
+                'lanes/pandoc/tests/MarkdownReaderAlertProfileCompletionTest.php',
+            ],
+            'sha256' => 'd4f826212c99ace92b25f414db142d565fa7b737ff6c0cbabb4010d5cf1f7b29',
+            'bytes' => 107,
+        ],
     ];
 
     private readonly string $repoRoot;
@@ -817,10 +829,10 @@ final class MarkdownUpstreamReaderEvidence
             'claim' => 'Static gate binding selected current upstream-derived Markdown reader fixtures and their native expectations to checked-in SHA-256 and byte-count snapshots.',
             'claimBoundaries' => [
                 'doesAssert' => [
-                    'the fifty selected checked-in Markdown fixture snapshots match the expected SHA-256 hashes and byte counts',
-                    'the fifty selected checked-in Markdown native expectation snapshots match the expected deterministic manifest hash',
+                    'the fifty-one selected checked-in Markdown fixture snapshots match the expected SHA-256 hashes and byte counts',
+                    'the fifty-one selected checked-in Markdown native expectation snapshots match the expected deterministic manifest hash',
                     'each selected fixture has at least one local PHP test reference',
-                    'the fixture set covers selected command, raw-attribute, abbreviation, details/summary, GFM, autolink, footnote/citation, footnote recursive-reference and continuation/termination boundary behavior, citation/span boundary, empty-paragraph, definition-list spacing, nested-list body, html-div body, tight Plain body blocks, lazy SoftBreak continuation and column-zero marker behavior, GitHub wiki-link, inline-code list-marker, attribute, and spaced-attribute literal behavior, backslash-escaped link, link-label boundary, unbalanced-bracket literal, link-title entity decoding, plain character-reference decoding, strikeout-with-nested-emphasis, GitHub emoji-shortcode, superscript/subscript escaped-space boundary behavior, smart punctuation quotes/apostrophes/ellipsis behavior, pipe-table alignment with escaped-pipe cell behavior, fenced-div nested container behavior, header-attribute explicit id/class/key behavior, numbered-example labeled cross-reference behavior, mark nested inline behavior, bracketed-span generic Span plus smallcaps behavior, fenced-code attribute tuple behavior, MultiMarkdown short superscript/subscript delimiter boundary behavior, numeric character-reference decoding, escaped-line-break hard break behavior, implicit-header-reference ATX trailing-hash behavior, emph/strong delimiter nesting plus intraword underscore behavior, raw-LaTeX bare environment command literal behavior, implicit-figure latex-placement plus alt boundary behavior, GitHub raw email address strong-boundary behavior, raw-HTML technically invalid comment preservation behavior, YAML metadata scalar/list/block body-boundary behavior, and LHS bird/inverse code with implicit HTML div close behavior',
+                    'the fixture set covers selected command, raw-attribute, abbreviation, details/summary, GFM, autolink, footnote/citation, footnote recursive-reference and continuation/termination boundary behavior, citation/span boundary, empty-paragraph, definition-list spacing, nested-list body, html-div body, tight Plain body blocks, lazy SoftBreak continuation and column-zero marker behavior, GitHub wiki-link, inline-code list-marker, attribute, and spaced-attribute literal behavior, backslash-escaped link, link-label boundary, unbalanced-bracket literal, link-title entity decoding, plain character-reference decoding, strikeout-with-nested-emphasis, GitHub emoji-shortcode, superscript/subscript escaped-space boundary behavior, smart punctuation quotes/apostrophes/ellipsis behavior, pipe-table alignment with escaped-pipe cell behavior, fenced-div nested container behavior, header-attribute explicit id/class/key behavior, numbered-example labeled cross-reference behavior, mark nested inline behavior, bracketed-span generic Span plus smallcaps behavior, fenced-code attribute tuple behavior, MultiMarkdown short superscript/subscript delimiter boundary behavior, numeric character-reference decoding, escaped-line-break hard break behavior, implicit-header-reference ATX trailing-hash behavior, emph/strong delimiter nesting plus intraword underscore behavior, raw-LaTeX bare environment command literal behavior, implicit-figure latex-placement plus alt boundary behavior, GitHub raw email address strong-boundary behavior, raw-HTML technically invalid comment preservation behavior, YAML metadata scalar/list/block body-boundary behavior, LHS bird/inverse code with implicit HTML div close behavior, and Pandoc 3.10 alert blockquote profile behavior',
                 ],
                 'doesNotAssert' => [
                     'that upstream Haskell/Cabal/Tasty tests were executed',
@@ -1525,9 +1537,9 @@ final class MarkdownUpstreamReaderEvidence
     {
         return [
             'doesAssert' => [
-                'the identity and count of fifty selected checked-in upstream-derived Markdown fixtures',
+                'the identity and count of fifty-one selected checked-in upstream-derived Markdown fixtures',
                 'that focused local tests cover those selected fixture files',
-                'that fifty checked-in Markdown/native fixture pairs have normalized AST equality through the local PHP reader harness',
+                'that fifty-one checked-in Markdown/native fixture pairs have normalized AST equality through the local PHP reader harness',
                 'that the upstream Markdown reader source inventory is present when a hydrated upstream checkout is inspected',
                 'that upstream Haskell runner evidence is either explicitly not-run or supplied as a validated result artifact',
                 'the future upstream runner command plan targets test:test-pandoc Readers/Markdown at the pinned upstream commit without execution',

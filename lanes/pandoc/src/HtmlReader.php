@@ -36,6 +36,7 @@ final class HtmlReader
             if ($delegated['implicitPlainBody']) {
                 $children = self::restoreImplicitPlainBody($children);
             }
+            $children = $this->restoreImplicitNativeMainPlainBlocks($bytes, $children);
             $attrs = $document->attrs;
         }
         $meta = $attrs['meta'] ?? [];
@@ -255,6 +256,126 @@ final class HtmlReader
         }
 
         return [new AstNode('plain', $children[0]->attrs, $children[0]->children)];
+    }
+
+    /**
+     * @param list<AstNode> $children
+     * @return list<AstNode>
+     */
+    private function restoreImplicitNativeMainPlainBlocks(string $bytes, array $children): array
+    {
+        if (($this->options['htmlNativeDivs'] ?? true) !== true) {
+            return $children;
+        }
+
+        try {
+            $dom = Html5Dom::parseHtmlDocument($bytes);
+        } catch (\Throwable) {
+            return $children;
+        }
+
+        $body = $dom->getElementsByTagName('body')->item(0);
+        if (!$body instanceof \DOMElement) {
+            return $children;
+        }
+
+        $main = self::firstHtmlElement($body, 'main');
+        if (!$main instanceof \DOMElement || !self::htmlElementHasOnlyInlineContent($main)) {
+            return $children;
+        }
+
+        if (count($children) !== 1) {
+            return $children;
+        }
+
+        $child = $children[0];
+        if ($child->type === 'paragraph') {
+            return [self::paragraphToPlain($child)];
+        }
+
+        if ($child->type === 'div' && count($child->children) === 1 && $child->children[0]->type === 'paragraph') {
+            return [new AstNode('div', $child->attrs, [self::paragraphToPlain($child->children[0])])];
+        }
+
+        return $children;
+    }
+
+    private static function firstHtmlElement(\DOMElement $root, string $name): ?\DOMElement
+    {
+        if (strtolower($root->localName) === $name) {
+            return $root;
+        }
+
+        foreach ($root->getElementsByTagName($name) as $element) {
+            if ($element instanceof \DOMElement) {
+                return $element;
+            }
+        }
+
+        return null;
+    }
+
+    private static function htmlElementHasOnlyInlineContent(\DOMElement $element): bool
+    {
+        $hasContent = false;
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMText || $child instanceof \DOMCdataSection) {
+                if (trim($child->nodeValue ?? '') !== '') {
+                    $hasContent = true;
+                }
+                continue;
+            }
+
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            if (self::isHtmlBlockContainerName(strtolower($child->localName))) {
+                return false;
+            }
+            $hasContent = true;
+        }
+
+        return $hasContent;
+    }
+
+    private static function isHtmlBlockContainerName(string $name): bool
+    {
+        return in_array($name, [
+            'address',
+            'article',
+            'aside',
+            'blockquote',
+            'details',
+            'div',
+            'dl',
+            'fieldset',
+            'figcaption',
+            'figure',
+            'footer',
+            'form',
+            'h1',
+            'h2',
+            'h3',
+            'h4',
+            'h5',
+            'h6',
+            'header',
+            'hr',
+            'main',
+            'nav',
+            'ol',
+            'p',
+            'pre',
+            'section',
+            'table',
+            'ul',
+        ], true);
+    }
+
+    private static function paragraphToPlain(AstNode $paragraph): AstNode
+    {
+        return new AstNode('plain', $paragraph->attrs, $paragraph->children);
     }
 
     /**

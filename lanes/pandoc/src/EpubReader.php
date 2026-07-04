@@ -303,6 +303,9 @@ final class EpubReader
 
         $creators = $this->metadataValueList($dc_values, 'creator');
         if ($creators !== []) {
+            if (count($creators) > 1) {
+                $creators = array_reverse($creators);
+            }
             $meta['author'] = $this->collapseMetadataValueList($creators);
             $meta['authorInlines'] = array_map(fn (string $author): array => $this->metadataTextInlines($author), $creators);
         }
