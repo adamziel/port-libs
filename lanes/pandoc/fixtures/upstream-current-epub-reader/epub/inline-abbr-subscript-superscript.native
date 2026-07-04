@@ -1,0 +1,36 @@
+[ Para [ Span ( "chapter.xhtml" , [] , [] ) [] ]
+, Header
+    1
+    ( "" , [] , [] )
+    [ Str "Inline"
+    , Space
+    , Str "Abbr"
+    , Space
+    , Str "Subscript"
+    , Space
+    , Str "Superscript"
+    ]
+, Para
+    [ Span
+        ( ""
+        , [ "abbr" ]
+        , [ ( "title" , "International Standard Book Number" ) ]
+        )
+        [ Str "ISBN" ]
+    , Space
+    , Str "metadata,"
+    , Space
+    , Str "H"
+    , Subscript [ Str "2" ]
+    , Str "O,"
+    , Space
+    , Str "and"
+    , Space
+    , Str "x"
+    , Superscript [ Str "2" ]
+    , Space
+    , Str "stay"
+    , Space
+    , Str "inline."
+    ]
+]

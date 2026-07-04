@@ -1113,6 +1113,21 @@ $tests['imports direct pandoc html paragraph section tree construction as repair
         $t->same('three', $document->children[2]->attr('text'));
     };
 
+$tests['imports direct pandoc html paragraph nav tree construction as repaired blocks'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-paragraph-nav-tree-construction.html'));
+
+        $t->same('html', $document->attr('sourceFormat'));
+        $t->same(
+            ['paragraph', 'paragraph', 'paragraph'],
+            array_map(static fn ($node): string => $node->type, $document->children)
+        );
+        $t->same(
+            ['Before', 'Links', 'After'],
+            array_map(static fn ($node): string => $node->attr('text'), $document->children)
+        );
+    };
+
 $tests['imports direct pandoc html paragraph transparent block tree construction as repaired blocks'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-paragraph-transparent-block-tree-construction.html'));

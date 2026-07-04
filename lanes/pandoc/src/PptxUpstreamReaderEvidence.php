@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 88;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 89;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '0904fb739fafb5a402b0a3ba1062a4ad572469b8f2414a483f8474c029ec6a2c';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 38294;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'f54f5a4af3607136e2dfe4f4107a01b66a051af36ba384329bfe6b245e1ed4b7';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 38741;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -162,6 +162,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => '7e162f0d57dcd35ee21a78ef454f31fa4862dae95294437a6e71ce7dd85a02c3',
             'pptxBytes' => 1411,
             'nativeBytes' => 166,
+        ],
+        'paragraph-property-descendant-text' => [
+            'name' => 'generated paragraph-property descendant text parity',
+            'pptx' => 'pptx-reader/paragraph-property-descendant-text.pptx',
+            'native' => 'pptx-reader/paragraph-property-descendant-text.native',
+            'pairKey' => 'pptx-reader/paragraph-property-descendant-text.pptx|pptx-reader/paragraph-property-descendant-text.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/paragraph-property-descendant-text.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/paragraph-property-descendant-text.native',
+            'pptxSha256' => '7e1190e41ff541fdd9f09dd3c67110cfda46f4aed4fd2b3c9fa60459e73e4ccf',
+            'nativeSha256' => '758e867887f88b35ec6bdc27ed1fe04baa4b6bbc5d535c1576f40f8c81aa3bf3',
+            'pptxBytes' => 1413,
+            'nativeBytes' => 185,
         ],
         'namespace-scoped-table' => [
             'name' => 'generated namespace-scoped table boundary parity',

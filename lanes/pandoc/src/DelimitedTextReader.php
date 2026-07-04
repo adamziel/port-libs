@@ -1424,6 +1424,7 @@ final class DelimitedTextReader
             'space-delimiter-single-quote',
             'backslash-escaped-quote',
             'backslash-escaped-nonquote',
+            'bang-escaped-csv-options',
             'keep-space-after-delimiter',
             'semicolon-delimiter-multiline-cell',
             'pipe-delimiter-quoted-field',

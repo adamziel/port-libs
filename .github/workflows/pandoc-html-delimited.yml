@@ -106,9 +106,9 @@ jobs:
           php tools/pandoc-html-reader-evidence.php \
             --upstream-root=.upstream-cache/pandoc-current \
             --json \
-            --require-selected-fixture-count=107 \
+            --require-selected-fixture-count=108 \
             --require-static-current-evidence \
-            --require-native-mapped-parity=107 \
+            --require-native-mapped-parity=108 \
             --require-runner-not-run \
             --require-runner-plan \
             --require-no-validation-issues
@@ -119,7 +119,7 @@ jobs:
             --html-dir=lanes/pandoc/fixtures \
             --json \
             summary \
-            --require-mapped-parity=107
+            --require-mapped-parity=108
 
       - name: Install pandoc executable
         run: |
@@ -139,7 +139,7 @@ jobs:
             --repo-root=. \
             --json \
             --require-honest-denominators \
-            --require-generated-csv-native-parity=59 \
+            --require-generated-csv-native-parity=60 \
             --require-generated-tsv-native-parity=35 \
             --require-pandoc-executable-csv-native-parity=43 \
             --require-pandoc-executable-tsv-native-parity=24 \

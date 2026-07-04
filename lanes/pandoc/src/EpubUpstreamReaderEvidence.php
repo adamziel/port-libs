@@ -21,8 +21,8 @@ final class EpubUpstreamReaderEvidence
     private const CHECKED_IN_CURRENT_STATIC_EXPECTED_MEDIA_ITEM_COUNT = 10;
     private const CHECKED_IN_CURRENT_READER_FIXTURE_ROOT = 'lanes/pandoc/fixtures/upstream-current-epub-reader';
     private const CHECKED_IN_CURRENT_NATIVE_PACKAGE_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-epub-reader/epub';
-    private const CHECKED_IN_CURRENT_NATIVE_PACKAGE_EPUB_COUNT = 60;
-    private const CHECKED_IN_CURRENT_NATIVE_PACKAGE_PAIR_COUNT = 60;
+    private const CHECKED_IN_CURRENT_NATIVE_PACKAGE_EPUB_COUNT = 61;
+    private const CHECKED_IN_CURRENT_NATIVE_PACKAGE_PAIR_COUNT = 61;
     private const EXECUTABLE_NATIVE_AST_PARITY_KIND = 'checked-in-current-epub-pandoc-executable-native-ast-parity';
     private const REFERENCED_FIXTURE_IDENTITY_KIND = 'checked-in-current-epub-reader-referenced-fixture-identity';
     private const REFERENCED_FIXTURE_IDENTITY_SCOPE = 'checked-in-current-upstream-epub-reader-6-referenced-epub-fixture-snapshot';
