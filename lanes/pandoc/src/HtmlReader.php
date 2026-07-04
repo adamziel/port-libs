@@ -27,6 +27,10 @@ final class HtmlReader
             $children = $standaloneImageChildren;
             $consumedFootnoteContainerCount = 0;
             $attrs = [];
+        } elseif (($standaloneTransparentChildren = $this->standaloneTransparentInlineFragmentChildren($bytes)) !== null) {
+            $children = $standaloneTransparentChildren;
+            $consumedFootnoteContainerCount = 0;
+            $attrs = [];
         } else {
             $delegated = self::delegateHtmlBytes($bytes);
             $document = $this->reader->read($delegated['bytes']);
@@ -115,6 +119,71 @@ final class HtmlReader
         $imageNode = new AstNode('image', $attrs, $children);
 
         return [new AstNode('plain', ['text' => $alt], [$imageNode])];
+    }
+
+    /**
+     * @return list<AstNode>|null
+     */
+    private function standaloneTransparentInlineFragmentChildren(string $bytes): ?array
+    {
+        if (self::standaloneTransparentInlineFragmentTag($bytes) !== 'time') {
+            return null;
+        }
+
+        $reader = new MarkdownReader(array_replace(
+            ['htmlNativeDivs' => true, 'htmlReader' => true],
+            $this->options,
+            ['htmlRawHtml' => false]
+        ));
+        $document = $reader->read($bytes);
+        if (count($document->children) !== 1 || $document->children[0]->type !== 'paragraph') {
+            return null;
+        }
+
+        return [self::paragraphToPlain($document->children[0])];
+    }
+
+    private static function standaloneTransparentInlineFragmentTag(string $bytes): ?string
+    {
+        $trimmed = trim($bytes);
+        if (preg_match('/^<([A-Za-z][A-Za-z0-9:-]*)\b/', $trimmed, $match) !== 1) {
+            return null;
+        }
+
+        $tag = strtolower($match[1]);
+        if (!in_array($tag, ['time'], true)) {
+            return null;
+        }
+
+        $previous = libxml_use_internal_errors(true);
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+        $loaded = $dom->loadHTML(
+            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $bytes . '</body></html>',
+            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
+        );
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+        if (!$loaded) {
+            return null;
+        }
+
+        $body = $dom->getElementsByTagName('body')->item(0);
+        if (!$body instanceof \DOMElement) {
+            return null;
+        }
+
+        $element = null;
+        foreach ($body->childNodes as $child) {
+            if ($child instanceof \DOMText && trim($child->wholeText) === '') {
+                continue;
+            }
+            if (!$child instanceof \DOMElement || strtolower($child->localName) !== $tag || $element instanceof \DOMElement) {
+                return null;
+            }
+            $element = $child;
+        }
+
+        return $element instanceof \DOMElement ? $tag : null;
     }
 
     /**

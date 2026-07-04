@@ -294,4 +294,35 @@ return [
         $t->same(['layout' => 'chevron2'], $normalizedPptx['attrs']['attributes']);
         $t->same(['smartart', 'chevron2'], $normalizedPptx['attrs']['classes']);
     },
+    'normalizes pptx image alt inline whitespace through semantic image attrs' => static function (TestRunner $t): void {
+        $harness = new PptxNativeAstComparisonHarness();
+        $method = new ReflectionMethod(PptxNativeAstComparisonHarness::class, 'normalizedNode');
+
+        $pptxImage = new AstNode('image', [
+            'url' => 'ppt/media/image1.png',
+            'title' => 'Picture 1',
+            'alt' => 'Image title image.png',
+            'relationshipId' => 'rId2',
+        ], [
+            new AstNode('text', ['text' => 'Image title image.png']),
+        ]);
+        $nativeImage = new AstNode('image', [
+            'url' => 'ppt/media/image1.png',
+            'title' => 'Picture 1',
+            'alt' => 'Image title image.png',
+        ], [
+            new AstNode('text', ['text' => "Image title\n\nimage.png"]),
+        ]);
+
+        $normalizedPptx = $method->invoke($harness, $pptxImage);
+        $normalizedNative = $method->invoke($harness, $nativeImage);
+
+        $t->same($normalizedNative, $normalizedPptx);
+        $t->same('Image title image.png', $normalizedPptx['attrs']['alt']);
+        $t->same([[
+            'type' => 'text',
+            'attrs' => ['text' => 'Image title image.png'],
+            'children' => [],
+        ]], $normalizedPptx['children']);
+    },
 ];

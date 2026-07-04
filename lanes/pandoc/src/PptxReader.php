@@ -2977,7 +2977,7 @@ final class PptxReader
         }
 
         $title = $properties->getAttribute('name');
-        $alt = $properties->getAttribute('descr');
+        $alt = $this->plainPptxImageAltText($properties->getAttribute('descr'));
         $blipFill = $this->firstChildElementForOuterPrefix($pictureElement, 'p', 'blipFill', $presentationNamespace);
         $blip = $blipFill instanceof \DOMElement ? $this->firstChildElementForOuterPrefix($blipFill, 'a', 'blip', $drawingNamespace) : null;
         if (!$blip instanceof \DOMElement) {
@@ -3071,6 +3071,11 @@ final class PptxReader
         }
 
         return $target;
+    }
+
+    private function plainPptxImageAltText(string $text): string
+    {
+        return trim(preg_replace('/[ \t\r\n\f\v]+/', ' ', $text) ?? $text);
     }
 
     private function graphicDataElement(\DOMElement $graphicFrame, ?string $drawingNamespace): ?\DOMElement

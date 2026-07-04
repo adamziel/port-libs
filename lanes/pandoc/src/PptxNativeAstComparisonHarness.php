@@ -286,6 +286,7 @@ final class PptxNativeAstComparisonHarness
                 'local PPTX package review attrs',
                 'local PPTX shape, cell, table-style, chart, relationship, and media provenance attrs',
                 'derived text attrs on plain, paragraph, heading, and table_cell nodes',
+                'raw image alt inline segmentation and line-break whitespace when the plain image alt attribute is compared',
                 'empty/default table captions, table feet, row-head counts, and default column widths omitted by local PPTX AST nodes',
                 'reader-specific adjacent Str/Space text-node segmentation',
             ],
@@ -392,8 +393,28 @@ final class PptxNativeAstComparisonHarness
         return [
             'type' => $node->type,
             'attrs' => $attrs,
-            'children' => $this->normalizedChildren($node->children),
+            'children' => $node->type === 'image' ? $this->normalizedImageAltChildren($attrs) : $this->normalizedChildren($node->children),
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     * @return list<array{type:string, attrs:array{text:string}, children:list<array<string, mixed>>}>
+     */
+    private function normalizedImageAltChildren(array $attrs): array
+    {
+        $alt = $attrs['alt'] ?? '';
+        if (!is_string($alt) || trim($alt) === '') {
+            return [];
+        }
+
+        $alt = trim(preg_replace('/[ \t\r\n\f\v]+/', ' ', $alt) ?? $alt);
+
+        return [[
+            'type' => 'text',
+            'attrs' => ['text' => $alt],
+            'children' => [],
+        ]];
     }
 
     /**

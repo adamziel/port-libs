@@ -182,4 +182,14 @@ final class MarkdownEmojiAliases
     {
         return (self::ALIASES[$alias] ?? null) === $glyph;
     }
+
+    public static function replaceGlyphsWithAliases(string $text): string
+    {
+        $replacements = [];
+        foreach (self::ALIASES as $alias => $glyph) {
+            $replacements[$glyph] ??= $alias;
+        }
+
+        return $replacements === [] ? $text : strtr($text, $replacements);
+    }
 }

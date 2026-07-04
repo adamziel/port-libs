@@ -150,13 +150,12 @@ final class EpubReader
                 continue;
             }
             $resources[] = $href;
-            $document = (new MarkdownReader([
-                'htmlNativeDivs' => true,
-                'htmlEpubExtensions' => true,
-                'htmlImplicitHeadingIds' => false,
-                'htmlPlainInlineBlocks' => true,
-                'htmlPreserveSoftBreaks' => true,
-            ]))->read($this->contentDocumentMarkup($xhtml));
+            $footnote_definitions = $this->epubFootnoteDefinitionsInReferenceOrder($xhtml, $item['href']);
+            $document = $this->epubContentMarkdownReader()->read($this->contentDocumentMarkup($xhtml));
+            if ($footnote_definitions !== []) {
+                $footnote_index = 0;
+                $document = $this->fillEmptyEpubFootnoteNotes($document, $footnote_definitions, $footnote_index);
+            }
             $document = $this->fixEpubContentReferences(
                 $document,
                 $item['href'],
@@ -952,6 +951,208 @@ final class EpubReader
         $xhtml = preg_replace('/^\s*<\?xml[^>]*>\s*/i', '', $xhtml) ?? $xhtml;
 
         return ltrim($xhtml);
+    }
+
+    private function epubContentMarkdownReader(): MarkdownReader
+    {
+        return new MarkdownReader([
+            'htmlNativeDivs' => true,
+            'htmlEpubExtensions' => true,
+            'htmlImplicitHeadingIds' => false,
+            'htmlPlainInlineBlocks' => true,
+            'htmlPreserveSoftBreaks' => true,
+        ]);
+    }
+
+    /**
+     * @return list<list<AstNode>>
+     */
+    private function epubFootnoteDefinitionsInReferenceOrder(string $xhtml, string $content_path): array
+    {
+        try {
+            $dom = $this->loadXml($this->contentDocumentMarkup($xhtml), 'EPUB XHTML footnote scan');
+        } catch (\InvalidArgumentException) {
+            return [];
+        }
+
+        $definitions_by_id = [];
+        foreach ($dom->getElementsByTagName('*') as $element) {
+            if (!$element instanceof \DOMElement || !$this->isEpubFootnoteDefinitionElement($element)) {
+                continue;
+            }
+
+            $id = trim($element->getAttribute('id'));
+            if ($id === '' || isset($definitions_by_id[$id])) {
+                continue;
+            }
+
+            $blocks = $this->epubFootnoteDefinitionBlocks($element);
+            if ($blocks !== []) {
+                $definitions_by_id[$id] = $blocks;
+            }
+        }
+
+        if ($definitions_by_id === []) {
+            return [];
+        }
+
+        $definitions = [];
+        foreach ($dom->getElementsByTagName('*') as $element) {
+            if (!$element instanceof \DOMElement || !$this->isEpubNoteReferenceElement($element)) {
+                continue;
+            }
+
+            $id = $this->epubFootnoteReferenceId($element, $content_path);
+            if ($id === null) {
+                continue;
+            }
+
+            $definition = $definitions_by_id[$id] ?? $definitions_by_id[rawurldecode($id)] ?? null;
+            if ($definition !== null) {
+                $definitions[] = $definition;
+            }
+        }
+
+        return $definitions;
+    }
+
+    private function isEpubFootnoteDefinitionElement(\DOMElement $element): bool
+    {
+        if (trim($element->getAttribute('id')) === '') {
+            return false;
+        }
+
+        $types = $this->tokenList($this->epubTypeAttribute($element));
+
+        return in_array('footnote', $types, true) || in_array('rearnote', $types, true);
+    }
+
+    private function isEpubNoteReferenceElement(\DOMElement $element): bool
+    {
+        if (strtolower(trim($element->getAttribute('role'))) === 'doc-noteref') {
+            return true;
+        }
+
+        return in_array('noteref', $this->tokenList($this->epubTypeAttribute($element)), true);
+    }
+
+    private function epubFootnoteReferenceId(\DOMElement $element, string $content_path): ?string
+    {
+        $href = html_entity_decode($element->getAttribute('href'), ENT_QUOTES | ENT_XML1, 'UTF-8');
+        if ($href === '' || $this->isAbsoluteUrl($href)) {
+            return null;
+        }
+
+        [$path, , $fragment] = $this->splitUrlSuffix($href);
+        if ($path !== '' && !$this->epubFootnoteReferenceTargetsContentDocument($path, $content_path)) {
+            return null;
+        }
+
+        return $fragment === null || $fragment === '' ? null : $fragment;
+    }
+
+    private function epubFootnoteReferenceTargetsContentDocument(string $path, string $content_path): bool
+    {
+        $path = $this->decodePackagePathPercentEscapes($path);
+        $content_part = $this->decodePackagePathPercentEscapes($this->stripUrlQueryAndFragment($content_path));
+        $content_dir = $this->dirname($content_part);
+
+        return $this->normalizeZipPath($content_dir . '/' . $path) === $this->normalizeZipPath($content_part);
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function epubFootnoteDefinitionBlocks(\DOMElement $definition): array
+    {
+        $clone = $definition->cloneNode(true);
+        if (!$clone instanceof \DOMElement) {
+            return [];
+        }
+
+        $this->removeEpubFootnoteBacklinks($clone);
+        $body = $this->serializeXmlChildren($clone);
+        if (trim($body) === '') {
+            return [];
+        }
+
+        $wrapped = '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body>'
+            . $body
+            . '</body></html>';
+
+        return $this->epubContentMarkdownReader()->read($wrapped)->children;
+    }
+
+    private function removeEpubFootnoteBacklinks(\DOMElement $root): void
+    {
+        $links = [];
+        foreach ($root->getElementsByTagName('a') as $link) {
+            if ($link instanceof \DOMElement && strtolower(trim($link->getAttribute('role'))) === 'doc-backlink') {
+                $links[] = $link;
+            }
+        }
+
+        foreach ($links as $link) {
+            $parent = $link->parentNode instanceof \DOMElement ? $link->parentNode : null;
+            $link->parentNode?->removeChild($link);
+            $this->removeEmptyEpubFootnoteBacklinkContainer($parent, $root);
+        }
+    }
+
+    private function removeEmptyEpubFootnoteBacklinkContainer(?\DOMElement $element, \DOMElement $root): void
+    {
+        while ($element instanceof \DOMElement && $element !== $root) {
+            if (trim($element->textContent) !== '') {
+                return;
+            }
+            foreach ($element->childNodes as $child) {
+                if ($child instanceof \DOMElement) {
+                    return;
+                }
+            }
+
+            $parent = $element->parentNode instanceof \DOMElement ? $element->parentNode : null;
+            $element->parentNode?->removeChild($element);
+            $element = $parent;
+        }
+    }
+
+    private function serializeXmlChildren(\DOMElement $element): string
+    {
+        $xml = '';
+        foreach ($element->childNodes as $child) {
+            $serialized = $element->ownerDocument?->saveXML($child);
+            if (is_string($serialized)) {
+                $xml .= $serialized;
+            }
+        }
+
+        return $xml;
+    }
+
+    /**
+     * @param list<list<AstNode>> $definitions
+     */
+    private function fillEmptyEpubFootnoteNotes(AstNode $node, array $definitions, int &$index): AstNode
+    {
+        if ($node->type === 'note' && isset($definitions[$index])) {
+            $children = $node->children === [] ? $definitions[$index] : $node->children;
+            ++$index;
+
+            return new AstNode($node->type, $node->attrs, $children);
+        }
+
+        $children = [];
+        $changed = false;
+        foreach ($node->children as $child) {
+            $updated = $this->fillEmptyEpubFootnoteNotes($child, $definitions, $index);
+            $children[] = $updated;
+            if ($updated !== $child) {
+                $changed = true;
+            }
+        }
+
+        return $changed ? new AstNode($node->type, $node->attrs, $children) : $node;
     }
 
     private function spineMarker(string $filename): AstNode

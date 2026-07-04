@@ -1145,4 +1145,99 @@ HTML);
         $t->contains('href="#chapter%201.xhtml_opening"', $blocks);
         $t->same(false, str_contains($blocks, 'chapter%25201.xhtml'));
     },
+    'fills standalone epub footnote note bodies before media bag extraction' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-standalone-footnote-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $noteImage = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=');
+        if (!is_string($noteImage)) {
+            throw new RuntimeException('Unable to decode note image fixture bytes');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary EPUB package');
+        }
+        $zip->addFromString('META-INF/container.xml', '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="book-id">
+  <metadata>
+    <dc:identifier id="book-id">book-standalone-footnote</dc:identifier>
+    <dc:title>Standalone Footnote EPUB</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="note-image" href="images/note.png" media-type="image/png"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('OPS/chapter.xhtml', <<<'HTML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <p>Body text <a epub:type="noteref" href="#fn1">1</a>.</p>
+    <aside epub:type="footnote" id="fn1">
+      <p>Footnote body <img src="images/note.png" alt="Note art"/>.</p>
+      <p><a role="doc-backlink" href="#fnref1">back</a></p>
+    </aside>
+  </body>
+</html>
+HTML);
+        $zip->addFromString('OPS/images/note.png', $noteImage);
+        $zip->close();
+
+        try {
+            $document = (new EpubReader())->readEpubFile($path);
+            $meta = $document->attr('meta');
+            $native = (new NativeWriter(['blocksOnly' => true]))->write($document);
+        } finally {
+            @unlink($path);
+        }
+
+        $paragraph = $document->children[1] ?? new PortLibs\Pandoc\AstNode('missing');
+        $note = $paragraph->children[1] ?? new PortLibs\Pandoc\AstNode('missing');
+        $noteParagraph = $note->children[0] ?? new PortLibs\Pandoc\AstNode('missing');
+        $noteImageNode = $noteParagraph->children[1] ?? new PortLibs\Pandoc\AstNode('missing');
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same('note', $note->type);
+        $t->same(['paragraph'], array_map(static fn (PortLibs\Pandoc\AstNode $node): string => $node->type, $note->children));
+        $t->same('Footnote body Note art.', $noteParagraph->attr('text'));
+        $t->same('image', $noteImageNode->type);
+        $t->same('images/note.png', $noteImageNode->attr('url'));
+        $t->same('Note art', $noteImageNode->attr('alt'));
+        $t->same(['OPS/chapter.xhtml'], $meta['epubReadableResources']);
+        $t->same(['OPS/images/note.png'], $meta['epubReferencedResources']);
+        $t->same(['OPS/images/note.png'], $meta['epubImageResources']);
+        $t->same(['OPS/images/note.png'], $meta['epubMediaBagResources']);
+        $t->same(1, $meta['epubMediaResourceCount']);
+        $t->same(['epub-media-resource-loaded:OPS/images/note.png'], $meta['epubMediaResourceDiagnostics']);
+        $t->same([
+            [
+                'path' => 'images/note.png',
+                'zipEntry' => 'OPS/images/note.png',
+                'mimeType' => 'image/png',
+                'byteLength' => strlen($noteImage),
+                'sha1' => sha1($noteImage),
+            ],
+        ], array_map(static fn (array $entry): array => [
+            'path' => (string) $entry['path'],
+            'zipEntry' => (string) $entry['zipEntry'],
+            'mimeType' => (string) $entry['mimeType'],
+            'byteLength' => (int) $entry['byteLength'],
+            'sha1' => (string) $entry['sha1'],
+        ], $meta['epubMediaResourceDirectory']));
+        $t->contains('Note [ Para [ Str "Footnote" , Space , Str "body" , Image', $native);
+        $t->contains('( "images/note.png" , "" )', $native);
+        $t->same(false, str_contains($native, 'doc-backlink'));
+    },
 ];

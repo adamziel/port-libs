@@ -1943,10 +1943,65 @@ final class MarkdownReader
     {
         $plain = $this->plainMarkdownHeadingText($text);
         $plain = function_exists('mb_strtolower') ? mb_strtolower($plain, 'UTF-8') : strtolower($plain);
+        if ($this->headingIdentifierEmojiAliasesEnabled()) {
+            $plain = MarkdownEmojiAliases::replaceGlyphsWithAliases($plain);
+        }
+
+        if ($this->asciiIdentifierExtensionEnabled()) {
+            $slug = $this->gfmAutoIdentifierExtensionEnabled()
+                ? $this->gfmMarkdownHeadingIdentifier($plain)
+                : $this->pandocMarkdownHeadingIdentifier($plain);
+            $slug = self::asciiIdentifierText($slug);
+            if (!$this->gfmAutoIdentifierExtensionEnabled()) {
+                $slug = preg_replace('/^[^\pL]+/u', '', $slug) ?? $slug;
+            }
+
+            return $slug;
+        }
+
+        if ($this->gfmAutoIdentifierExtensionEnabled()) {
+            return $this->gfmMarkdownHeadingIdentifier($plain);
+        }
+
         $plain = str_replace(["'", "\u{2019}"], '', $plain);
         $slug = preg_replace('/[^\pL\pN]+/u', '-', $plain) ?? $plain;
 
         return trim($slug, '-');
+    }
+
+    private function headingIdentifierEmojiAliasesEnabled(): bool
+    {
+        return $this->asciiIdentifierExtensionEnabled() || $this->gfmAutoIdentifierExtensionEnabled();
+    }
+
+    private function pandocMarkdownHeadingIdentifier(string $plain): string
+    {
+        $filtered = preg_replace('/[^\pZ\h\v\pL\pN_.-]+/u', '', $plain) ?? $plain;
+        $words = preg_split('/\s+/u', trim($filtered)) ?: [];
+        $words = array_values(array_filter($words, static fn (string $word): bool => $word !== ''));
+
+        return implode('-', $words);
+    }
+
+    private function gfmMarkdownHeadingIdentifier(string $plain): string
+    {
+        $dashed = preg_replace('/\s/u', '-', $plain) ?? $plain;
+
+        return preg_replace('/[^\pL\pN\pM\p{Pc}_-]+/u', '', $dashed) ?? $dashed;
+    }
+
+    private static function asciiIdentifierText(string $text): string
+    {
+        if (class_exists(\Normalizer::class)) {
+            $normalized = \Normalizer::normalize($text, \Normalizer::FORM_D);
+            if (is_string($normalized)) {
+                $text = $normalized;
+            }
+        }
+
+        $text = str_replace("\u{0131}", 'i', $text);
+
+        return preg_replace('/[^\x00-\x7F]/', '', $text) ?? $text;
     }
 
     private function plainMarkdownHeadingText(string $text): string
@@ -15891,6 +15946,25 @@ final class MarkdownReader
         $canonical = MarkdownFormatProfile::canonicalFormat($format);
 
         return in_array($canonical, ['markdown', 'commonmark_x', 'gfm', 'markdown_mmd'], true);
+    }
+
+    private function asciiIdentifierExtensionEnabled(): bool
+    {
+        return ($this->markdownExtensionOverrides()['ascii_identifiers'] ?? false) === true;
+    }
+
+    private function gfmAutoIdentifierExtensionEnabled(): bool
+    {
+        $overrides = $this->markdownExtensionOverrides();
+        if (array_key_exists('gfm_auto_identifiers', $overrides)) {
+            return $overrides['gfm_auto_identifiers'];
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['commonmark_x', 'gfm'], true)
+            || $this->deprecatedGithubMarkdownAlias($format);
     }
 
     private function implicitHeaderReferenceExtensionEnabled(): bool
