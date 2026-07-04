@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 46;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 47;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '3108ae83683406e24944d3b2d02287552a1d3c42e29888379c7cf5e9a0a53002';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 9546;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '255b28c0ddc0a1782c629766a43f2722a4829dc04a7abaf6bef717ff3d376535';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 9743;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -114,6 +114,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => 'dd233a289b57a8fd950c49a5cb4d60835cd9a39905c41701278132a596a413e8',
             'pptxBytes' => 1473,
             'nativeBytes' => 297,
+        ],
+        'namespace-agnostic-drawing-text' => [
+            'name' => 'generated terminal nested drawing text parity',
+            'pptx' => 'pptx-reader/namespace-agnostic-drawing-text.pptx',
+            'native' => 'pptx-reader/namespace-agnostic-drawing-text.native',
+            'pairKey' => 'pptx-reader/namespace-agnostic-drawing-text.pptx|pptx-reader/namespace-agnostic-drawing-text.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/namespace-agnostic-drawing-text.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/namespace-agnostic-drawing-text.native',
+            'pptxSha256' => '6203769629208902d006b9a481e8a3a75e31d56b4d470da081dfa78049df4a95',
+            'nativeSha256' => '7e162f0d57dcd35ee21a78ef454f31fa4862dae95294437a6e71ce7dd85a02c3',
+            'pptxBytes' => 1411,
+            'nativeBytes' => 166,
         ],
         'nested-list' => [
             'name' => 'generated adjacent list-level split parity',

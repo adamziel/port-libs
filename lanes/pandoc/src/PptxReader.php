@@ -5004,13 +5004,43 @@ final class PptxReader
     private function drawingText(\DOMElement $element): string
     {
         $texts = [];
-        foreach ($element->getElementsByTagName('*') as $child) {
-            if ($child instanceof \DOMElement && $child->localName === 't' && $child->textContent !== '') {
-                $texts[] = $child->textContent;
+        $this->collectDrawingText($element, $texts);
+
+        return implode(' ', $texts);
+    }
+
+    /**
+     * @param list<string> $texts
+     */
+    private function collectDrawingText(\DOMElement $element, array &$texts): void
+    {
+        foreach ($element->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            if ($child->localName === 't') {
+                $text = $this->directTextContent($child);
+                if ($text !== '') {
+                    $texts[] = $text;
+                }
+                continue;
+            }
+
+            $this->collectDrawingText($child, $texts);
+        }
+    }
+
+    private function directTextContent(\DOMElement $element): string
+    {
+        $text = '';
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMText || $child instanceof \DOMCdataSection) {
+                $text .= $child->nodeValue ?? '';
             }
         }
 
-        return implode(' ', $texts);
+        return $text;
     }
 
     private function allDescendantText(\DOMElement $element): string

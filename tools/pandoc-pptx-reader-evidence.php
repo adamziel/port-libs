@@ -30,7 +30,7 @@ Options:
                                   snapshot matches by normalized AST shape.
   --require-static-executable-native-ast-parity
                                   Exit 1 unless the checked-in executable Pandoc
-                                  native AST snapshot validates all 45 pairs.
+                                  native AST snapshot validates all 47 pairs.
   --require-runner-not-run        Exit 1 unless upstream runner evidence is structured as not-run.
   --require-runner-plan           Exit 1 unless upstream runner evidence includes the pinned
                                   planned-not-run command plan.

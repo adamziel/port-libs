@@ -60,7 +60,7 @@ $profileCases = [
     [
         'name' => 'commonmark x profile',
         'options' => ['format' => 'commonmark_x'],
-        'enabled' => ['fenced_divs' => true, 'header_attributes' => true, 'fenced_code_attributes' => true, 'line_blocks' => true],
+        'enabled' => ['fenced_divs' => true, 'header_attributes' => true, 'fenced_code_attributes' => true, 'line_blocks' => false],
     ],
     [
         'name' => 'commonmark format suffix enables containers',

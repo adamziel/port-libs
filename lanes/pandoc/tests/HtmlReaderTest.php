@@ -112,6 +112,31 @@ $tests['imports upstream html base absolute image without rewriting absolute url
         $t->same('Stickman', $image->children[0]->attr('text'));
     };
 
+$tests['imports upstream html standalone image fragments as plain images'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-standalone-image-data-external.html'));
+        $plain = $document->children[0];
+        $image = $plain->children[0];
+
+        $t->same('html', $document->attr('sourceFormat'));
+        $t->same(['plain'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same('', $plain->attr('text'));
+        $t->same(['image'], array_map(static fn ($node): string => $node->type, $plain->children));
+        $t->same('http://example.com/stickman.gif', $image->attr('url'));
+        $t->same('', $image->attr('alt'));
+        $t->same(['external' => '1'], $image->attr('attributes'));
+        $t->same('1', $image->attr('htmlAttributes')['data-external'] ?? null);
+        $t->same([], $image->children);
+
+        $titled = (new HtmlReader())->read('<img title="The title" src="http://example.com/stickman.gif">');
+        $titledImage = $titled->children[0]->children[0];
+        $t->same(['plain'], array_map(static fn ($node): string => $node->type, $titled->children));
+        $t->same('http://example.com/stickman.gif', $titledImage->attr('url'));
+        $t->same('', $titledImage->attr('alt'));
+        $t->same('The title', $titledImage->attr('title'));
+        $t->same([], $titledImage->children);
+    };
+
 $tests['imports upstream html head body fragment base relative image as plain image'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-base-relative-image.html'));

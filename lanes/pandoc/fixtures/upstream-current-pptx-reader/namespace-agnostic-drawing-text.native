@@ -1,0 +1,6 @@
+[ Header
+    2 ( "slide-1" , [] , [] ) [ Str "Namespace agnostic text" ]
+, Para
+    [ Str "Drawing text Foreign text Nested foreign text" ]
+, Para [ Str "Outer " ]
+]

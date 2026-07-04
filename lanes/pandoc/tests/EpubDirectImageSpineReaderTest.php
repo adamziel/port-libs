@@ -184,6 +184,66 @@ return [
         $t->contains('( "images/chart.png" , "" )', $native);
     },
 
+    'keeps upstream cover block when cover image is also a direct image spine item' => static function (TestRunner $t) use ($containerXml): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-cover-image-spine-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $coverBytes = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=');
+        if (!is_string($coverBytes)) {
+            throw new RuntimeException('Unable to decode cover image fixture bytes');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary EPUB package');
+        }
+        $zip->addFromString('META-INF/container.xml', $containerXml);
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="book-id">
+  <metadata>
+    <dc:identifier id="book-id">book-cover-image-spine</dc:identifier>
+    <dc:title>Cover Image Spine EPUB</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="cover" href="images/cover.png" media-type="image/png" properties="cover-image"/>
+  </manifest>
+  <spine>
+    <itemref idref="cover"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('OPS/images/cover.png', $coverBytes);
+        $zip->close();
+
+        try {
+            $document = (new EpubReader())->readEpubFile($path);
+            $meta = $document->attr('meta');
+            $native = (new NativeWriter(['blocksOnly' => true]))->write($document);
+        } finally {
+            @unlink($path);
+        }
+
+        $t->same('Cover Image Spine EPUB', $meta['title']);
+        $t->same(['paragraph', 'paragraph', 'paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same(['image', 'span', 'image'], array_map(static fn ($node): string => (string) ($node->children[0]->type ?? ''), $document->children));
+        $t->same('images/cover.png', $document->children[0]->children[0]->attr('url'));
+        $t->same('cover.png', $document->children[1]->children[0]->attr('id'));
+        $t->same('images/cover.png', $document->children[2]->children[0]->attr('url'));
+        $t->same(['OPS/images/cover.png'], $meta['epubReadableResources']);
+        $t->same(['OPS/images/cover.png'], $meta['epubReferencedResources']);
+        $t->same(['OPS/images/cover.png'], $meta['epubMediaBagResources']);
+        $t->same(1, $meta['epubMediaResourceCount']);
+        $t->same(['epub-media-resource-loaded:OPS/images/cover.png'], $meta['epubMediaResourceDiagnostics']);
+        $t->same(2, substr_count($native, '( "images/cover.png" , "" )'));
+    },
+
     'matches upstream-style media bag evidence for direct image spine items' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile, $writeDirectImageEpub, $imageBytes): void {
         $root = $makeTempDir('pandoc-epub-direct-image-bag-');
         try {

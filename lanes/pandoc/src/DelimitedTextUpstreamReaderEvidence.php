@@ -17,9 +17,9 @@ final class DelimitedTextUpstreamReaderEvidence
     public const EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT = 2;
     public const EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT = 0;
     public const EXPECTED_STATIC_CSV_ADJACENT_RST_FIXTURE_COUNT = 2;
-    public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 27;
+    public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 28;
     public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 21;
-    public const EXPECTED_GENERATED_CSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT = 12;
+    public const EXPECTED_GENERATED_CSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT = 13;
     public const EXPECTED_GENERATED_TSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT = 13;
     public const REQUIRED_PANDOC_EXECUTABLE_VERSION = 'pandoc 3.10';
 
@@ -436,6 +436,20 @@ final class DelimitedTextUpstreamReaderEvidence
             'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/header-only.native',
             'sha256' => '6c1d2eed4478d45205fe2f2fb63b3ba282aad8c27f37b5a01168ba689bee0f00',
             'bytes' => 610,
+        ],
+        'leading-whitespace-record.csv' => [
+            'role' => 'generated-csv-native-parity-input-fixture',
+            'sample' => 'leading-whitespace-record',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/leading-whitespace-record.csv',
+            'sha256' => 'f3365cd5dd45cc2aee1135d4c538390734856d50e5fccf2417b7b8a0568dde89',
+            'bytes' => 10,
+        ],
+        'leading-whitespace-record.native' => [
+            'role' => 'generated-csv-native-parity-expected-native-output',
+            'sample' => 'leading-whitespace-record',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/leading-whitespace-record.native',
+            'sha256' => 'a18a1b109ba5943baea04ee1f42bbae8e5d4121d3250745ea61e6178f0324846',
+            'bytes' => 577,
         ],
     ];
 
@@ -885,6 +899,13 @@ final class DelimitedTextUpstreamReaderEvidence
             'inputPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/header-only.csv',
             'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/header-only.native',
         ],
+        'leading-whitespace-record' => [
+            'inputPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/leading-whitespace-record.csv',
+            'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/leading-whitespace-record.native',
+            'options' => [
+                'strictParsing' => true,
+            ],
+        ],
     ];
 
     private const GENERATED_TSV_NATIVE_SAMPLES = [
@@ -1006,6 +1027,7 @@ final class DelimitedTextUpstreamReaderEvidence
         'unicode-safe',
         'quote-in-unquoted-field',
         'header-only',
+        'leading-whitespace-record',
     ];
 
     private const PANDOC_EXECUTABLE_TSV_NATIVE_SAMPLE_NAMES = [
@@ -1497,7 +1519,9 @@ final class DelimitedTextUpstreamReaderEvidence
 
             try {
                 $executionReaderOptions = $readerOptions;
-                $executionReaderOptions['strictParsing'] = false;
+                if (!array_key_exists('strictParsing', $executionReaderOptions)) {
+                    $executionReaderOptions['strictParsing'] = false;
+                }
                 $document = (new DelimitedTextReader())->readCsv($input, $executionReaderOptions);
                 $generatedNative = PandocConverter::write($document, 'native');
             } catch (\Throwable $throwable) {
@@ -1647,7 +1671,9 @@ final class DelimitedTextUpstreamReaderEvidence
 
             try {
                 $executionReaderOptions = $readerOptions;
-                $executionReaderOptions['strictParsing'] = false;
+                if (!array_key_exists('strictParsing', $executionReaderOptions)) {
+                    $executionReaderOptions['strictParsing'] = false;
+                }
                 $document = (new DelimitedTextReader())->readTsv($input, $executionReaderOptions);
                 $generatedNative = PandocConverter::write($document, 'native');
             } catch (\Throwable $throwable) {
@@ -2791,7 +2817,7 @@ final class DelimitedTextUpstreamReaderEvidence
 
     private static function claim(): string
     {
-        return 'Tracks the current upstream direct CSV command-reader fixtures, the adjacent RST csv-table fixture pair with zero direct-reader denominator impact, twenty-seven generated CSV-to-native evidence samples, the absence of dedicated TSV command fixtures, and twenty-one generated TSV-to-native evidence samples for the delimited text reader.';
+        return 'Tracks the current upstream direct CSV command-reader fixtures, the adjacent RST csv-table fixture pair with zero direct-reader denominator impact, twenty-eight generated CSV-to-native evidence samples, the absence of dedicated TSV command fixtures, and twenty-one generated TSV-to-native evidence samples for the delimited text reader.';
     }
 
     /**
@@ -2807,7 +2833,7 @@ final class DelimitedTextUpstreamReaderEvidence
                 'that RST csv-table directives are exercised through the native RST reader integration path',
                 'that no dedicated TSV command fixture is available in the pinned direct-reader evidence set',
                 'static checked-in current csv.md and 01.csv fixture identity when staticCurrentEvidence is valid',
-                'twenty-seven generated CSV-to-native local samples when generatedCsvNativeParityEvidence is valid',
+                'twenty-eight generated CSV-to-native local samples when generatedCsvNativeParityEvidence is valid',
                 'twenty-one generated TSV-to-native local samples when generatedTsvNativeParityEvidence is valid',
                 'the non-executed upstream command-test runner plan for the pinned csv.md command fixture',
                 'that upstream Haskell runner evidence is either explicitly not-run or supplied as a validated result artifact',

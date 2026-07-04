@@ -92,7 +92,6 @@ final class EpubReader
         $media_bag_resources = [];
         $media_bag_sources = [];
         $image_resources = $this->imageResources($base_path, $manifest);
-        $linear_spine_image_hrefs = $this->linearSpineImageHrefs($spine_items, $manifest);
         $spine_filenames = array_map(
             fn (array $spine_item): string => $this->spineFilename((string) ($spine_item['href'] ?? '')),
             array_values(array_filter(
@@ -102,8 +101,7 @@ final class EpubReader
         );
 
         $cover = $this->coverImageHref($package, $manifest);
-        $cover_part = $cover === null ? null : $this->stripUrlQueryAndFragment($cover);
-        if ($cover !== null && !in_array($cover_part, $linear_spine_image_hrefs, true)) {
+        if ($cover !== null) {
             $cover_resource = $this->recordMediaBagResource($cover, '', $base_path, $media_bag_resources);
             if ($cover_resource !== null) {
                 $this->recordMediaBagSource($this->mediaBagSourceUrl($cover), $cover_resource, $media_bag_sources);
@@ -1447,32 +1445,6 @@ final class EpubReader
     private function zipEntryExists(\ZipArchive $zip, string $path): bool
     {
         return $zip->statName($path) !== false;
-    }
-
-    /**
-     * @param list<array<string, mixed>> $spine_items
-     * @param array<string, array{href: string, media-type: string, properties: list<string>}> $manifest
-     * @return list<string>
-     */
-    private function linearSpineImageHrefs(array $spine_items, array $manifest): array
-    {
-        $hrefs = [];
-        foreach ($spine_items as $spine_item) {
-            if (($spine_item['linear'] ?? true) !== true) {
-                continue;
-            }
-            $idref = is_string($spine_item['idref'] ?? null) ? $spine_item['idref'] : '';
-            $item = $manifest[$idref] ?? null;
-            if (!is_array($item)) {
-                continue;
-            }
-            $href = $item['href'];
-            if (!$this->isAbsoluteUrl($href) && $this->isDirectSpineImageMediaType($item['media-type'])) {
-                $hrefs[] = $this->stripUrlQueryAndFragment($href);
-            }
-        }
-
-        return array_values(array_unique($hrefs));
     }
 
     private function isAbsoluteUrl(string $url): bool

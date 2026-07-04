@@ -15750,7 +15750,7 @@ final class MarkdownReader
         $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
         $canonical = MarkdownFormatProfile::canonicalFormat($format);
 
-        return in_array($canonical, ['markdown', 'commonmark_x'], true);
+        return $canonical === 'markdown';
     }
 
     private function literateHaskellExtensionEnabled(): bool

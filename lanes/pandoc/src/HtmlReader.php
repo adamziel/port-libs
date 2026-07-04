@@ -22,15 +22,22 @@ final class HtmlReader
 
     public function read(string $bytes): AstNode
     {
-        $delegated = self::delegateHtmlBytes($bytes);
-        $document = $this->reader->read($delegated['bytes']);
-        [$children, $consumedFootnoteContainerCount] = self::containsAstNodeType($document->children, 'note')
-            ? self::stripConsumedHtmlFootnoteContainers($document->children)
-            : [$document->children, 0];
-        if ($delegated['implicitPlainBody']) {
-            $children = self::restoreImplicitPlainBody($children);
+        $standaloneImageChildren = self::standaloneImageFragmentChildren($bytes);
+        if ($standaloneImageChildren !== null) {
+            $children = $standaloneImageChildren;
+            $consumedFootnoteContainerCount = 0;
+            $attrs = [];
+        } else {
+            $delegated = self::delegateHtmlBytes($bytes);
+            $document = $this->reader->read($delegated['bytes']);
+            [$children, $consumedFootnoteContainerCount] = self::containsAstNodeType($document->children, 'note')
+                ? self::stripConsumedHtmlFootnoteContainers($document->children)
+                : [$document->children, 0];
+            if ($delegated['implicitPlainBody']) {
+                $children = self::restoreImplicitPlainBody($children);
+            }
+            $attrs = $document->attrs;
         }
-        $attrs = $document->attrs;
         $meta = $attrs['meta'] ?? [];
         if (!is_array($meta)) {
             $meta = [];
@@ -51,6 +58,125 @@ final class HtmlReader
         ], $this->microdataMetadata($bytes));
 
         return new AstNode('document', $attrs, $children);
+    }
+
+    /**
+     * @return list<AstNode>|null
+     */
+    private static function standaloneImageFragmentChildren(string $bytes): ?array
+    {
+        if (preg_match('/^\s*<img\b[^>]*>\s*$/is', $bytes) !== 1) {
+            return null;
+        }
+
+        $previous = libxml_use_internal_errors(true);
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+        $loaded = $dom->loadHTML(
+            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $bytes . '</body></html>',
+            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
+        );
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+        if (!$loaded) {
+            return null;
+        }
+
+        $body = $dom->getElementsByTagName('body')->item(0);
+        if (!$body instanceof \DOMElement) {
+            return null;
+        }
+
+        $image = null;
+        foreach ($body->childNodes as $child) {
+            if ($child instanceof \DOMText && trim($child->wholeText) === '') {
+                continue;
+            }
+            if (!$child instanceof \DOMElement || strtolower($child->localName) !== 'img' || $image instanceof \DOMElement) {
+                return null;
+            }
+            $image = $child;
+        }
+
+        if (!$image instanceof \DOMElement) {
+            return null;
+        }
+
+        $alt = $image->getAttribute('alt');
+        $attrs = self::standaloneImageAttrs($image);
+        $attrs['url'] = $image->getAttribute('src');
+        $attrs['alt'] = $alt;
+        $title = $image->getAttribute('title');
+        if ($title !== '') {
+            $attrs['title'] = $title;
+        }
+
+        $children = $alt === '' ? [] : [new AstNode('text', ['text' => $alt])];
+        $imageNode = new AstNode('image', $attrs, $children);
+
+        return [new AstNode('plain', ['text' => $alt], [$imageNode])];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function standaloneImageAttrs(\DOMElement $image): array
+    {
+        $id = '';
+        $classes = [];
+        $attributes = [];
+        $htmlAttributes = [];
+
+        foreach ($image->attributes as $attribute) {
+            if (!$attribute instanceof \DOMAttr) {
+                continue;
+            }
+
+            $name = strtolower($attribute->name);
+            if (in_array($name, ['src', 'alt', 'title'], true)) {
+                continue;
+            }
+
+            $value = trim($attribute->value);
+            if ($name === 'id') {
+                $id = $value;
+                if ($value !== '') {
+                    $htmlAttributes['id'] = $value;
+                }
+                continue;
+            }
+
+            if ($name === 'class') {
+                $classes = preg_split('/\s+/', $value, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+                if ($classes !== []) {
+                    $htmlAttributes['class'] = implode(' ', $classes);
+                }
+                continue;
+            }
+
+            $key = str_starts_with($name, 'data-') ? substr($name, 5) : $name;
+            if ($key === '') {
+                continue;
+            }
+
+            $attributes[$key] = $value;
+            $htmlAttributes[$name] = $value;
+        }
+
+        $attrs = [];
+        if ($id !== '') {
+            $attrs['id'] = $id;
+        }
+        if ($classes !== []) {
+            $attrs['classes'] = $classes;
+        }
+        if ($attributes !== []) {
+            $attrs['attributes'] = $attributes;
+        }
+        if ($htmlAttributes !== []) {
+            $attrs['htmlAttributes'] = $htmlAttributes;
+        }
+
+        return $attrs;
     }
 
     /**

@@ -815,11 +815,6 @@ final class DelimitedTextReader
      */
     private function assertStrictParsing(string $format, array $inputPrefix, array $parse): void
     {
-        if ((int) ($inputPrefix['leadingWhitespaceByteCount'] ?? 0) > 0) {
-            $line = (int) ($inputPrefix['firstContentLine'] ?? 1);
-            throw new \InvalidArgumentException("Malformed {$format} input: leading blank or whitespace-only records before line {$line} are not valid.");
-        }
-
         $blankRows = $this->strictRejectedBlankRows($parse);
         if ($blankRows !== []) {
             $row = $blankRows[0] + 1;
@@ -1931,7 +1926,7 @@ final class DelimitedTextReader
             $diagnostics[] = [
                 'code' => 'delimited-text-input-prefix-leading-whitespace',
                 'severity' => 'info',
-                'message' => 'Leading whitespace-only lines were skipped before parsing the first row.',
+                'message' => 'Leading whitespace-only records were detected in the input prefix; recovery-mode parsing starts at the first non-whitespace record.',
                 'byteCount' => $inputPrefix['leadingWhitespaceByteCount'],
                 'lineCount' => $inputPrefix['leadingWhitespaceLineCount'] ?? 0,
                 'firstContentLine' => $inputPrefix['firstContentLine'] ?? 1,

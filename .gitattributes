@@ -1,1 +1,2 @@
 lanes/pandoc/fixtures/generated-current-csv-reader/crlf-rows.csv -whitespace
+lanes/pandoc/fixtures/generated-current-csv-reader/leading-whitespace-record.csv -whitespace

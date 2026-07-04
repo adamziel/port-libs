@@ -62,6 +62,7 @@ $readerFor = static function (array $profile): MarkdownReader {
 
 $disabledProfiles = [
     ['label' => 'commonmark', 'format' => 'commonmark'],
+    ['label' => 'commonmark x', 'format' => 'commonmark_x'],
     ['label' => 'gfm', 'format' => 'gfm'],
     ['label' => 'markdown github', 'format' => 'markdown_github'],
     ['label' => 'markdown strict', 'format' => 'markdown_strict'],
@@ -120,7 +121,6 @@ $enabledProfiles = [
     ['label' => 'default', 'format' => null],
     ['label' => 'markdown', 'format' => 'markdown'],
     ['label' => 'pandoc', 'format' => 'pandoc'],
-    ['label' => 'commonmark x', 'format' => 'commonmark_x'],
     ['label' => 'commonmark plus line blocks', 'format' => 'commonmark+line_blocks'],
     ['label' => 'gfm plus line blocks', 'format' => 'gfm+line_blocks'],
     ['label' => 'github plus line blocks', 'format' => 'markdown_github+line_blocks'],
@@ -196,9 +196,9 @@ $tests['records upstream markdown reader line block profile surge mapped-case co
         $disabledCount = count($disabledProfiles) * count($disabledCases);
         $enabledCount = count($enabledProfiles) * count($enabledCases);
 
-        $t->same(80, $disabledCount);
-        $t->same(20, $enabledCount);
-        $t->same(100, $disabledCount + $enabledCount);
+        $t->same(88, $disabledCount);
+        $t->same(18, $enabledCount);
+        $t->same(106, $disabledCount + $enabledCount);
     };
 
 return $tests;

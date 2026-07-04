@@ -27,7 +27,6 @@ $disabledFormats = [
 $lineBlockEnabledFormats = [
     'markdown' => true,
     'pandoc' => true,
-    'commonmark_x' => true,
 ];
 
 $definition = static function (array $blocks, bool $loose = false): array {
