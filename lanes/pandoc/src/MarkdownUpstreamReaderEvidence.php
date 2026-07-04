@@ -12,9 +12,9 @@ final class MarkdownUpstreamReaderEvidence
     public const STATUS_COMPLETED = 'completed-upstream-markdown-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-markdown-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
-    public const EXPECTED_SELECTED_FIXTURE_COUNT = 93;
-    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 93;
-    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = '9f95d53bb970a2c05bc8def86a679a013b9b60ea8a711cabfd257df496294b54';
+    public const EXPECTED_SELECTED_FIXTURE_COUNT = 94;
+    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 94;
+    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = 'ac61d3e3b13c6e31b016da00e3bea032e7fd9f5780815cd32e5a53ccf59d8beb';
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/Markdown.hs',
@@ -378,6 +378,18 @@ final class MarkdownUpstreamReaderEvidence
             ],
             'sha256' => '4bb6eabecef549ae4b8e3f29c7a7f956d7d1e2a24f157cb42e7c10a97fbb0fb3',
             'bytes' => 135,
+        ],
+        'upstream-markdown-smart-inline-note-quotes.md' => [
+            'role' => 'markdown-smart-inline-note-quote-reader-fixture',
+            'sourceKind' => 'selected-upstream-markdown-reader-case',
+            'sourceReference' => 'Tests.Readers.Markdown smart punctuation/single quote in inline note within single quotes',
+            'formatProfile' => 'markdown+smart inline note quote nesting',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-markdown-smart-inline-note-quotes.md',
+            'coverageTests' => [
+                'lanes/pandoc/tests/MarkdownReaderSmartPunctuationFixtureCompletionTest.php',
+            ],
+            'sha256' => '7ac90d3c784c265f70c9cb1593a06afe196acaec58e62660144c8657213164e2',
+            'bytes' => 14,
         ],
         'upstream-markdown-pipe-table-escaped-cell.md' => [
             'role' => 'markdown-pipe-table-escaped-cell-reader-fixture',

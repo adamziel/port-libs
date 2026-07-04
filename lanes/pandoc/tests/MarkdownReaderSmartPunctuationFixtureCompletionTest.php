@@ -10,6 +10,9 @@ use PortLibs\Pandoc\WordPressBlockWriter;
 $smartPunctuationFixture = static fn (): string =>
     (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-markdown-smart-punctuation.md');
 
+$smartInlineNoteQuotesFixture = static fn (): string =>
+    (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-markdown-smart-inline-note-quotes.md');
+
 $inlineTypes = static fn (AstNode $node): array => array_map(
     static fn (AstNode $child): string => $child->type,
     $node->children
@@ -67,6 +70,28 @@ return [
             $t->contains('<p>‘…hi’</p>', $blocks);
             $t->contains('D’oh! A l’<em>aide</em>!', $blocks);
             $t->contains('The value of the <span class="math inline">\\(x\\)</span>’s and the systems’ condition.', $blocks);
+        },
+
+    'maps isolated upstream markdown smart inline note quote fixture' =>
+        static function (TestRunner $t) use ($smartInlineNoteQuotesFixture, $inlineTypes, $firstChild): void {
+            $document = (new MarkdownReader(['format' => 'markdown+smart']))->read($smartInlineNoteQuotesFixture());
+            $paragraph = $firstChild($document, 0);
+            $quote = $firstChild($paragraph, 0);
+            $noteParagraph = $firstChild($firstChild($quote, 1), 0);
+            $innerQuote = $firstChild($noteParagraph, 0);
+            $native = (new NativeWriter())->write($document);
+
+            $t->same(1, count($document->children));
+            $t->same(['quoted'], $inlineTypes($paragraph));
+            $t->same('single', $quote->attr('kind'));
+            $t->same(['text', 'note', 'text'], $inlineTypes($quote));
+            $t->same('a', $firstChild($quote, 0)->attr('text'));
+            $t->same('single', $innerQuote->attr('kind'));
+            $t->same('b', $firstChild($innerQuote, 0)->attr('text'));
+            $t->same('.', $firstChild($noteParagraph, 1)->attr('text'));
+            $t->same(' c.', $firstChild($quote, 2)->attr('text'));
+            $t->contains('Quoted SingleQuote [ Str "a" , Note [ Para [ Quoted SingleQuote [ Str "b" ] , Str "." ]', $native);
+            $t->contains(', Space , Str "c." ]', $native);
         },
 
     'records upstream markdown smart punctuation fixture mapped-case count' =>
