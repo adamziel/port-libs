@@ -930,7 +930,7 @@ HTML);
 <html xmlns="http://www.w3.org/1999/xhtml">
   <body>
     <h1 id="opening">Percent Path EPUB</h1>
-    <p><img src="../images/cover%20art.png" alt="Cover art"/> Body.</p>
+    <p><img src="../images/cover%20art.png" alt="Cover art"/> Body. <a href="chapter%201.xhtml#opening">Self link</a>.</p>
   </body>
 </html>
 HTML);
@@ -947,15 +947,20 @@ HTML);
 
         $t->same('Percent Path EPUB', $meta['title']);
         $t->same(['OPS/text/chapter 1.xhtml'], $meta['epubReadableResources']);
-        $t->same(['OPS/images/cover art.png'], $meta['epubReferencedResources']);
+        $t->same(['OPS/images/cover art.png', 'OPS/text/chapter 1.xhtml#opening'], $meta['epubReferencedResources']);
         $t->same(['OPS/images/cover art.png'], $meta['epubImageResources']);
         $t->same(['OPS/nav.xhtml'], $meta['epubTocResources']);
         $t->same([
             ['text' => 'Chapter One', 'href' => 'OPS/text/chapter 1.xhtml#opening', 'level' => 1],
         ], $meta['epubTocEntries']);
         $t->same('paragraph', $document->children[0]->type);
+        $t->same('chapter%201.xhtml', $document->children[0]->children[0]->attr('id'));
         $t->same('heading', $document->children[1]->type);
+        $t->same('chapter%201.xhtml_opening', $document->children[1]->attr('id'));
         $t->same('Percent Path EPUB', $document->children[1]->attr('text'));
         $t->contains('src="images/cover art.png"', $blocks);
+        $t->contains('id="chapter%201.xhtml_opening"', $blocks);
+        $t->contains('href="#chapter%201.xhtml_opening"', $blocks);
+        $t->same(false, str_contains($blocks, 'chapter%25201.xhtml'));
     },
 ];

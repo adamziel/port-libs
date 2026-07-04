@@ -436,7 +436,6 @@ final class PptxReader
 
     private function upstreamPresentationSlidePart(string $target): string
     {
-        $target = OpcPackagePath::stripQueryAndFragment($target);
         $path = 'ppt/' . $target;
         $segments = [];
         foreach (explode('/', $path) as $segment) {

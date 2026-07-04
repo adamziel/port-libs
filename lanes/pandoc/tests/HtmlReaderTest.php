@@ -593,6 +593,35 @@ $tests['imports generated current html form control visible text semantics'] =
         $t->same('After form.', $document->children[2]->attr('text'));
     };
 
+$tests['imports html result control fragments without swallowing following block boundary'] =
+    static function (TestRunner $t): void {
+        $document = (new HtmlReader())->read(
+            '<output name="total">Calculated <strong>total</strong></output><p>After output.</p>' . "\n"
+                . '<select name="status"><option>Draft</option><option selected>Ready</option></select><p>After select.</p>'
+        );
+
+        $t->same(
+            ['paragraph', 'paragraph', 'paragraph', 'paragraph'],
+            array_map(static fn ($node): string => $node->type, $document->children)
+        );
+        $t->same('Calculated total', $document->children[0]->attr('text'));
+        $t->same(
+            ['text', 'strong'],
+            array_map(static fn ($node): string => $node->type, $document->children[0]->children)
+        );
+        $t->same('Calculated ', $document->children[0]->children[0]->attr('text'));
+        $t->same('total', $document->children[0]->children[1]->children[0]->attr('text'));
+        $t->same('After output.', $document->children[1]->attr('text'));
+        $t->same('DraftReady', $document->children[2]->attr('text'));
+        $t->same(
+            ['text', 'text'],
+            array_map(static fn ($node): string => $node->type, $document->children[2]->children)
+        );
+        $t->same('Draft', $document->children[2]->children[0]->attr('text'));
+        $t->same('Ready', $document->children[2]->children[1]->attr('text'));
+        $t->same('After select.', $document->children[3]->attr('text'));
+    };
+
 $tests['imports generated current html address block as paragraph content'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-address-block.html'));

@@ -1387,6 +1387,7 @@ final class EpubReader
     private function spineFilename(string $path): string
     {
         $path = $this->stripUrlQueryAndFragment($path);
+        $path = $this->decodePackagePathPercentEscapes($path);
         $filename = basename(str_replace('\\', '/', $path));
 
         return str_replace('%2F', '/', rawurlencode($filename));

@@ -14033,6 +14033,74 @@ XML);
     }
 };
 
+$buildQueryFragmentSlideTargetPptxPackage = static function (string $target, string $entryName, string $entryTitle): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-query-fragment-slide-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $escapedTarget = htmlspecialchars($target, ENT_XML1 | ENT_COMPAT, 'UTF-8');
+    $slideXml = static function (string $title): string {
+        $escapedTitle = htmlspecialchars($title, ENT_XML1 | ENT_COMPAT, 'UTF-8');
+
+        return <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>{$escapedTitle}</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+  </p:spTree></p:cSld>
+</p:sld>
+XML;
+    };
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="{$escapedTarget}"/>
+</Relationships>
+XML);
+    $zip->addFromString($entryName, $slideXml($entryTitle));
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildUntypedRelationshipsPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-untyped-rels-');
     if ($path === false) {
@@ -17587,6 +17655,27 @@ XML);
         $t->same('ppt/slides/slide1.xml', $review['slides'][0]['partName'] ?? null);
         $t->same('Dot segment slide target body', $document->children[0]->attr('text'));
         $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Dot" , Space , Str "segment" , Space , Str "slide" , Space , Str "target" , Space , Str "body" ]', $native);
+    },
+
+    'keeps pptx slide target query and fragment bytes literal like upstream' => static function (TestRunner $t) use ($buildQueryFragmentSlideTargetPptxPackage): void {
+        foreach ([
+            'slides/slide1.xml?x=1' => 'ppt/slides/slide1.xml?x=1',
+            'slides/slide1.xml#frag' => 'ppt/slides/slide1.xml#frag',
+        ] as $target => $partName) {
+            try {
+                (new PptxReader())->read($buildQueryFragmentSlideTargetPptxPackage(
+                    $target,
+                    'ppt/slides/slide1.xml',
+                    'Normal slide target must stay hidden'
+                ));
+            } catch (RuntimeException $exception) {
+                $t->same('Entry not found: ' . $partName, $exception->getMessage(), $target);
+
+                continue;
+            }
+
+            throw new RuntimeException('Expected query/fragment slide Target to stay literal like upstream: ' . $target);
+        }
     },
 
     'uses upstream literal pptx slide targets instead of percent-decoding' => static function (TestRunner $t) use ($buildPercentEncodedSlideTargetPptxPackage): void {

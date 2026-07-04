@@ -22,7 +22,7 @@ final class HtmlReader
 
     public function read(string $bytes): AstNode
     {
-        $document = $this->reader->read($bytes);
+        $document = $this->reader->read(self::delegateHtmlBytes($bytes));
         [$children, $consumedFootnoteContainerCount] = self::containsAstNodeType($document->children, 'note')
             ? self::stripConsumedHtmlFootnoteContainers($document->children)
             : [$document->children, 0];
@@ -47,6 +47,21 @@ final class HtmlReader
         ], $this->microdataMetadata($bytes));
 
         return new AstNode('document', $attrs, $children);
+    }
+
+    private static function delegateHtmlBytes(string $bytes): string
+    {
+        $trimmed = ltrim($bytes);
+        if (preg_match('/^<(output|select)\b/i', $trimmed, $match) !== 1) {
+            return $bytes;
+        }
+
+        $tag = strtolower($match[1]);
+        if (preg_match('/<\/' . preg_quote($tag, '/') . '\s*>/i', $trimmed) !== 1) {
+            return $bytes;
+        }
+
+        return '<form data-html-reader-boundary="form-control">' . $bytes . '</form>';
     }
 
     /**
