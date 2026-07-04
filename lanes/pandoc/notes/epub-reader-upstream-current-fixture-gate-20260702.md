@@ -7,8 +7,8 @@ The checked-in EPUB reader fixture subset now mirrors the upstream current
 `test/epub` inventory plus generated current-upstream edge fixtures used by
 the local native/package harness:
 
-- 44 EPUB package inputs in `lanes/pandoc/fixtures/upstream-current-epub-reader/epub`
-- 44 same-directory `.native` goldens for every checked-in EPUB package input
+- 45 EPUB package inputs in `lanes/pandoc/fixtures/upstream-current-epub-reader/epub`
+- 45 same-directory `.native` goldens for every checked-in EPUB package input
 
 Imported from the hydrated upstream cache at
 `/Users/admin/port-libs-pandoc-pptx/.upstream-cache/pandoc-full/test/epub`:
@@ -129,14 +129,24 @@ footnote paragraph body. The native golden was generated with:
 /opt/homebrew/bin/pandoc -f epub -t native -o lanes/pandoc/fixtures/upstream-current-epub-reader/epub/standalone-footnote.native lanes/pandoc/fixtures/upstream-current-epub-reader/epub/standalone-footnote.epub
 ```
 
+Added generated `duplicate-spine-idref.epub` plus its Pandoc 3.10 native
+golden to exercise a compact EPUB3 package where the same XHTML manifest item
+is referenced twice by linear `spine/itemref` entries. Pandoc emits the chapter
+marker and section content twice, preserving reading-order occurrence rather
+than deduplicating by manifest idref. The native golden was generated with:
+
+```sh
+/opt/homebrew/bin/pandoc -f epub -t native -o lanes/pandoc/fixtures/upstream-current-epub-reader/epub/duplicate-spine-idref.native lanes/pandoc/fixtures/upstream-current-epub-reader/epub/duplicate-spine-idref.epub
+```
+
 Verified checked-in gate:
 
 ```sh
-php tools/pandoc-epub-native-ast-package.php --checked-in-fixtures summary --require-package-parity=44 --require-native-readiness=44 --require-mapped-parity=44 --require-fixture-identity --require-current-package-feature-coverage --require-current-package-feature-signature --require-current-native-ast-signature --require-runner-plan
+php tools/pandoc-epub-native-ast-package.php --checked-in-fixtures summary --require-package-parity=45 --require-native-readiness=45 --require-mapped-parity=45 --require-fixture-identity --require-current-package-feature-coverage --require-current-package-feature-signature --require-current-native-ast-signature --require-runner-plan
 ```
 
-Result: `packageParsedCount=44`, `readerParsedCount=44`,
-`nativeParsedCount=44`, `normalizedAstMatchCount=44`, and
+Result: `packageParsedCount=45`, `readerParsedCount=45`,
+`nativeParsedCount=45`, `normalizedAstMatchCount=45`, and
 `normalizedAstMismatchCount=0`.
 
 This continues not to claim upstream Haskell/Tasty runner parity; the harness

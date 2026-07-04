@@ -1,0 +1,6 @@
+[ OrderedList
+    ( 3 , UpperAlpha , DefaultDelim )
+    [ [ Plain [ Str "Alpha" ] ]
+    , [ Plain [ Strong [ Str "Beta" ] ] ]
+    ]
+]

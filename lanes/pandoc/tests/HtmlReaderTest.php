@@ -1021,6 +1021,20 @@ $tests['imports html ordered lists with signed start values'] =
         }
     };
 
+$tests['imports direct pandoc html ordered list type and start fixture'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-ordered-list-type-start.html'));
+        $list = $document->children[0];
+
+        $t->same('html', $document->attr('sourceFormat'));
+        $t->same(['ordered_list'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same(3, $list->attr('start'));
+        $t->same('upper_alpha', $list->attr('style'));
+        $t->same(['Alpha', 'Beta'], array_map(static fn ($item): string => $item->attr('text'), $list->children));
+        $t->same(['strong'], array_map(static fn ($node): string => $node->type, $list->children[1]->children));
+        $t->same('Beta', $list->children[1]->children[0]->children[0]->attr('text'));
+    };
+
 $tests['imports direct pandoc html optional list item end-tag tree construction'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-optional-list-item-tree-construction.html'));

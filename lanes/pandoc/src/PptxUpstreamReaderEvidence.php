@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 70;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 71;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '52841ad633a089be6dc9622214bf48978796e99c641ab2edaad26454a9014698';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 30987;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'e495d327e1de7aba900bf2eda662e3da00482ce4ebe8afcb5b4c2be6183bff58';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 31366;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -390,6 +390,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => '9e223d1d5dad199772749979c4331208ea6ee428b373d213f02c62ad108989f7',
             'pptxBytes' => 1817,
             'nativeBytes' => 125,
+        ],
+        'diagram-no-relids' => [
+            'name' => 'generated diagram graphic without relIds placeholder parity',
+            'pptx' => 'pptx-reader/diagram-no-relids.pptx',
+            'native' => 'pptx-reader/diagram-no-relids.native',
+            'pairKey' => 'pptx-reader/diagram-no-relids.pptx|pptx-reader/diagram-no-relids.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/diagram-no-relids.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/diagram-no-relids.native',
+            'pptxSha256' => 'd34b13655f60496d827b983c436780deaad410cb870446086608920292bdbed0',
+            'nativeSha256' => '1e30c1c1df173905b38cd1526f9ae1a95b0f7a63253dee072207ac0925419354',
+            'pptxBytes' => 1418,
+            'nativeBytes' => 122,
         ],
         'direct-drawing-paragraphs' => [
             'name' => 'generated direct drawing paragraph boundary parity',

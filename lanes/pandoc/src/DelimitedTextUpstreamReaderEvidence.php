@@ -17,9 +17,9 @@ final class DelimitedTextUpstreamReaderEvidence
     public const EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT = 2;
     public const EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT = 0;
     public const EXPECTED_STATIC_CSV_ADJACENT_RST_FIXTURE_COUNT = 2;
-    public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 44;
+    public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 45;
     public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 32;
-    public const EXPECTED_GENERATED_CSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT = 29;
+    public const EXPECTED_GENERATED_CSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT = 30;
     public const EXPECTED_GENERATED_TSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT = 23;
     public const REQUIRED_PANDOC_EXECUTABLE_VERSION = 'pandoc 3.10';
 
@@ -674,6 +674,20 @@ final class DelimitedTextUpstreamReaderEvidence
             'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/formula-looking-literals.native',
             'sha256' => 'cd5252c5c890122ababd2e5566f4ae9a02fcf1d23d6c718c6bf77cb72e42ffa5',
             'bytes' => 2185,
+        ],
+        'literal-backslashes.csv' => [
+            'role' => 'generated-csv-native-parity-input-fixture',
+            'sample' => 'literal-backslashes',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/literal-backslashes.csv',
+            'sha256' => '426d024bd9c67b127cedc72003f90a55b54e41cbe20961a05b23845a1e3f1f22',
+            'bytes' => 92,
+        ],
+        'literal-backslashes.native' => [
+            'role' => 'generated-csv-native-parity-expected-native-output',
+            'sample' => 'literal-backslashes',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/literal-backslashes.native',
+            'sha256' => '408fedf50b4502884be9b0f8b1fa9e44c183e769ffc7f9f906a5ef466bdb4dc6',
+            'bytes' => 1311,
         ],
     ];
 
@@ -1348,6 +1362,10 @@ final class DelimitedTextUpstreamReaderEvidence
             'inputPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/formula-looking-literals.csv',
             'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/formula-looking-literals.native',
         ],
+        'literal-backslashes' => [
+            'inputPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/literal-backslashes.csv',
+            'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/literal-backslashes.native',
+        ],
     ];
 
     private const GENERATED_TSV_NATIVE_SAMPLES = [
@@ -1534,6 +1552,7 @@ final class DelimitedTextUpstreamReaderEvidence
         'pre-delimiter-space',
         'markdown-syntax-literal',
         'formula-looking-literals',
+        'literal-backslashes',
     ];
 
     private const PANDOC_EXECUTABLE_TSV_NATIVE_SAMPLE_NAMES = [
