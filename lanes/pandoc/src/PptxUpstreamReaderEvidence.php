@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 85;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 86;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '2f3d2d8ea9a98451d37f775569fea0160387ac23b4dbe1e2e1f0895557d72a5d';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 37041;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'd2abb993ce8b993860b521d71c13620465c24d6680ab6f3b4b9b616dfb7d5263';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 37452;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -282,6 +282,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => 'acad0d5021e8a75d5793e332692bd48b0e7ebe51d69f63cf179e094940f4167b',
             'pptxBytes' => 1344,
             'nativeBytes' => 103,
+        ],
+        'first-run-property-symbol' => [
+            'name' => 'generated first run-property Wingdings symbol parity',
+            'pptx' => 'pptx-reader/first-run-property-symbol.pptx',
+            'native' => 'pptx-reader/first-run-property-symbol.native',
+            'pairKey' => 'pptx-reader/first-run-property-symbol.pptx|pptx-reader/first-run-property-symbol.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/first-run-property-symbol.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/first-run-property-symbol.native',
+            'pptxSha256' => 'ba8e59a0ffaf54ca3bf1966bc508c4237b556105fd8437b1b74d3a1e9ba4aa0f',
+            'nativeSha256' => '4aba0d35d612be97b9dcdc36293d4bd244c9c2fa43d3da270fc873c9930c831d',
+            'pptxBytes' => 1417,
+            'nativeBytes' => 251,
         ],
         'break-tab-field' => [
             'name' => 'generated break, tab, and field text boundary parity',

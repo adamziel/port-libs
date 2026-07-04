@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
+use PortLibs\Pandoc\NativeWriter;
+
+$fixture = static fn (): string => (string) file_get_contents(
+    dirname(__DIR__) . '/fixtures/upstream-markdown-zzzzzzzzzzzzzzzzzzz-mark-extension-profile.md'
+);
 
 $inlineText = static function (AstNode $node) use (&$inlineText): string {
     if ($node->type === 'text' || $node->type === 'code') {
@@ -54,6 +59,23 @@ $disabledCases = [
 ];
 
 return [
+    'maps upstream markdown mark extension native parity fixture' =>
+        static function (TestRunner $t) use ($fixture, $findMark, $inlineText): void {
+            $document = (new MarkdownReader(['format' => 'markdown+mark']))->read($fixture());
+            $paragraph = $document->children[0] ?? new AstNode('missing');
+            $mark = $findMark($document);
+            $native = (new NativeWriter())->write($document);
+
+            $t->same(1, count($document->children));
+            $t->same('paragraph', $paragraph->type);
+            $t->same('Before flagged claim after.', $inlineText($paragraph));
+            $t->same('span', $mark->type);
+            $t->same(['mark'], $mark->attr('classes'));
+            $t->same('flagged claim', $inlineText($mark));
+            $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $mark->children));
+            $t->contains('Span ( "" , [ "mark" ] , [  ] ) [ Str "flagged" , Space , Strong [ Str "claim" ] ]', $native);
+        },
+
     'maps upstream markdown mark extension enabled profiles' =>
         static function (TestRunner $t) use ($enabledCases, $findMark, $inlineText): void {
             foreach ($enabledCases as $label => $options) {

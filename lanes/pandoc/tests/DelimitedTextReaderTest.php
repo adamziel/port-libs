@@ -2795,6 +2795,52 @@ NATIVE;
         $t->contains('Plain [ Str ",both," ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
+    'matches generated csv quoted softbreak native parity fixture' => static function (TestRunner $t) use ($generatedCsvNativeFixture, $nativeTokenStream): void {
+        $fixture = $generatedCsvNativeFixture('quoted-softbreak');
+        $document = (new DelimitedTextReader())->readCsv($fixture['input'], [
+            'sourcePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/quoted-softbreak.csv',
+            'cellLineBreak' => 'softbreak',
+        ]);
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+        $native = PandocConverter::write($document, 'native');
+        $generatedEvidence = $packet['upstreamEvidence']['generatedNativeParityEvidence'] ?? [];
+        $body = $table->children[1];
+
+        $t->same('csv', $packet['format'] ?? null);
+        $t->same(',', $packet['delimiter'] ?? null);
+        $t->same('"', $packet['quote'] ?? null);
+        $t->same('quoted-fields', $packet['dialect']['quoteMode'] ?? null);
+        $t->same(2, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
+        $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
+        $t->same(2 * DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['checkedInFixtureCount'] ?? null);
+        $t->same('quoted-softbreak.csv', $generatedEvidence['checkedInFixtures'][116]['name'] ?? null);
+        $t->same('933f3c6150a9ebc91c5f7e20ed759cd4db485b60c09ad15acef99556db359fea', $generatedEvidence['checkedInFixtures'][116]['checkedInFile']['sha256'] ?? null);
+        $t->same('quoted-softbreak.native', $generatedEvidence['checkedInFixtures'][117]['name'] ?? null);
+        $t->same('499dc8c7d9b0988ed79afc0ec6d533f0a749cdec8b3537cc8c4390d4f5b467a6', $generatedEvidence['checkedInFixtures'][117]['checkedInFile']['sha256'] ?? null);
+        $t->same('quoted-softbreak', $generatedEvidence['samples'][58]['name'] ?? null);
+        $t->same(['cellLineBreak' => 'softbreak'], $generatedEvidence['samples'][58]['readerOptions'] ?? null);
+        $t->same(['id', 'note', 'status'], $table->attr('columnNames'));
+        $t->same(3, $packet['rowCount'] ?? null);
+        $t->same(2, $packet['bodyRowCount'] ?? null);
+        $t->same(3, $packet['columnCount'] ?? null);
+        $t->same(9, $packet['fieldCount'] ?? null);
+        $t->same(2, $packet['quotedFieldCount'] ?? null);
+        $t->same(1, $packet['quotedLineBreakCount'] ?? null);
+        $t->same(1, $packet['multilineFieldCount'] ?? null);
+        $t->same(1, $packet['multilineQuotedFieldCount'] ?? null);
+        $t->same([1], $packet['multilineQuotedRows'] ?? null);
+        $t->same(0, $packet['raggedRowCount'] ?? null);
+        $t->same(1, $packet['diagnosticCount'] ?? null);
+        $t->same(['delimited-text-multiline-quoted-field'], array_column($packet['diagnostics'] ?? [], 'code'));
+        $t->same("two\nlines", $body->children[0]->children[1]->attr('text'));
+        $t->same('alpha, beta', $body->children[1]->children[1]->attr('text'));
+        $t->contains('Plain [ Str "two" , SoftBreak , Str "lines" ]', $native);
+        $t->contains('Plain [ Str "alpha," , Space , Str "beta" ]', $native);
+        $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
+    },
     'matches generated tsv native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture();
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [

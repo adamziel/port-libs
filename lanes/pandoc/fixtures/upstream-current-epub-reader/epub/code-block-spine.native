@@ -1,0 +1,16 @@
+[ Para [ Span ( "chapter.xhtml" , [] , [] ) [] ]
+, Header
+    1
+    ( "" , [] , [] )
+    [ Str "Code" , Space , Str "Block" , Space , Str "Spine" ]
+, Para
+    [ Str "Reader"
+    , Space
+    , Str "code"
+    , Space
+    , Str "block"
+    , Space
+    , Str "evidence."
+    ]
+, CodeBlock ( "" , [] , [] ) "alpha = 1\nbeta = alpha + 1"
+]

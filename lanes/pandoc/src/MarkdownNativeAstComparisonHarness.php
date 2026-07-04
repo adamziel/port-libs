@@ -57,6 +57,7 @@ final class MarkdownNativeAstComparisonHarness
         'upstream-markdown-zzzzzzzzzzzzzzzz-gfm-nested-list-continuation' => ['format' => 'gfm'],
         'upstream-markdown-zzzzzzzzzzzzzzzzz-blank-before-blockquote-disabled-profile' => ['format' => 'markdown-blank_before_blockquote'],
         'upstream-markdown-zzzzzzzzzzzzzzzzzz-blank-before-header-blockquote-profile' => ['format' => 'markdown-blank_before_header'],
+        'upstream-markdown-zzzzzzzzzzzzzzzzzzz-mark-extension-profile' => ['format' => 'markdown+mark'],
     ];
 
     /** @var array<string, true> */
