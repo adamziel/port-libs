@@ -371,9 +371,13 @@ final class Html5DomFragment
 
         $dom = new \DOMDocument('1.0', 'UTF-8');
         $flags = LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING | LIBXML_HTML_NODEFDTD | LIBXML_HTML_NOIMPLIED;
-        $source = '<html><body><div data-pandoc-fragment-root="1">'
+        $source = '<html><head><meta charset="UTF-8"></head><body><div data-pandoc-fragment-root="1">'
             . XmlHtmlDom::protectHtmlRcdataElements($html)
             . '</div></body></html>';
+        // Keep table-scope and multiline fragments on the provenance-preserving path.
+        if (!self::hasHtmlTableScopeElement($html) && !self::hasLineBreak($html)) {
+            $source = Html5Dom::treeConstructedHtmlSource($source) ?? $source;
+        }
         $loaded = $dom->loadHTML($source, $flags);
         $errors = libxml_get_errors();
         libxml_clear_errors();
@@ -398,6 +402,16 @@ final class Html5DomFragment
         }
 
         return $dom;
+    }
+
+    private static function hasHtmlTableScopeElement(string $html): bool
+    {
+        return preg_match('/<(?:caption|col|colgroup|table|tbody|td|tfoot|th|thead|tr)\b/i', $html) === 1;
+    }
+
+    private static function hasLineBreak(string $source): bool
+    {
+        return str_contains($source, "\n") || str_contains($source, "\r");
     }
 
     private static function htmlWrapper(\DOMDocument $dom): ?\DOMElement

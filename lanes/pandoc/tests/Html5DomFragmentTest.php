@@ -26,6 +26,21 @@ return [
         $t->same('br', $nodes[0]['children'][0]['children'][1]['name']);
         $t->same(['libxml-repair'], $fragment->diagnosticCodes());
     },
+    'uses HTMLDocument tree construction for fragment formatting repair' => static function (TestRunner $t): void {
+        if (!class_exists('Dom\\HTMLDocument')) {
+            $t->true(true, 'Dom\\HTMLDocument is unavailable on this PHP runtime');
+
+            return;
+        }
+
+        $formatting = Html5DomFragment::fromHtml('<b><i>one</b> two</i>');
+        $table = Html5DomFragment::fromHtml('<p>Alpha<table><tr><td>Cell</td></tr></table>Omega</p>');
+
+        $t->same('<b><i>one</i></b><i> two</i>', $formatting->serialize());
+        $t->same(['b', 'i'], $formatting->summary()['elementNames']);
+        $t->same('<p>Alpha</p><table><tr><td>Cell</td></tr></table>Omega', $table->serialize());
+        $t->same(['p', 'table', 'td', 'tr'], $table->summary()['elementNames']);
+    },
     'records fragment source provenance for raw html ast handoff' => static function (TestRunner $t): void {
         $source = "<article>\n"
             . '<p onclick="drop()">One<br>Two<script>alert(1)</script></p>'

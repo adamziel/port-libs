@@ -47,6 +47,11 @@ final class Html5Dom
         return self::loadHtml($html, 'HTML document');
     }
 
+    public static function treeConstructedHtmlSource(string $html): ?string
+    {
+        return self::html5TreeConstructedSource($html);
+    }
+
     /**
      * Parse one or more XML fragment roots under a synthetic wrapper element.
      */
@@ -197,7 +202,7 @@ final class Html5Dom
             );
         }
 
-        $html5 = $preferHtml5TreeConstruction ? self::html5TreeConstructedSource($html) : null;
+        $html5 = $preferHtml5TreeConstruction ? self::treeConstructedHtmlSource($html) : null;
         if ($html5 !== null) {
             try {
                 return self::loadLegacyHtml($html5, $label);
