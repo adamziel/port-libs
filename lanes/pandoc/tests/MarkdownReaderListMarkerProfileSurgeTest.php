@@ -51,10 +51,23 @@ $assertParagraph = static function (TestRunner $t, AstNode $document, array $cas
     $t->same($case['literal'], $inlineText($paragraph), $label . ' literal text');
 };
 
+$assertHeading = static function (TestRunner $t, AstNode $document, array $case, string $label) use ($inlineText): void {
+    $heading = $document->children[0] ?? new AstNode('missing');
+
+    $t->same(['heading'], array_map(
+        static fn (AstNode $node): string => $node->type,
+        $document->children
+    ), $label);
+    $t->same(1, $heading->attr('level'), $label . ' level');
+    $t->same($case['strictHeadingText'], $inlineText($heading), $label . ' heading text');
+    $t->same('', $heading->attr('id', ''), $label . ' id');
+};
+
 $fancyMarkers = [
     'default period marker' => [
         'markdown' => '#. default ordered',
         'literal' => '#. default ordered',
+        'strictHeadingText' => '. default ordered',
         'start' => 1,
         'style' => 'default',
         'delimiter' => 'default',
@@ -63,6 +76,7 @@ $fancyMarkers = [
     'default paren marker' => [
         'markdown' => '#) default paren',
         'literal' => '#) default paren',
+        'strictHeadingText' => ') default paren',
         'start' => 1,
         'style' => 'default',
         'delimiter' => 'default',
@@ -250,7 +264,13 @@ foreach ($fancyEnabledFormats as $formatName => $format) {
 foreach ($fancyDisabledFormats as $formatName => $format) {
     foreach ($fancyMarkers as $markerName => $case) {
         $tests["keeps upstream markdown reader fancy list profile disabled literal {$formatName} {$markerName}"] =
-            static function (TestRunner $t) use ($read, $assertParagraph, $format, $case, $formatName, $markerName): void {
+            static function (TestRunner $t) use ($read, $assertHeading, $assertParagraph, $format, $case, $formatName, $markerName): void {
+                if ($format === 'markdown_strict' && isset($case['strictHeadingText'])) {
+                    $assertHeading($t, $read($format, $case['markdown']), $case, "{$formatName} {$markerName}");
+
+                    return;
+                }
+
                 $assertParagraph($t, $read($format, $case['markdown']), $case, "{$formatName} {$markerName}");
             };
     }

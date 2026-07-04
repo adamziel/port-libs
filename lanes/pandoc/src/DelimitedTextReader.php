@@ -1156,8 +1156,8 @@ final class DelimitedTextReader
             return [];
         }
 
-        $parts = preg_split('/\R/u', $text);
-        if ($parts === false || count($parts) <= 1) {
+        $parts = explode("\n", $text);
+        if (count($parts) <= 1) {
             return [new AstNode('text', ['text' => $text])];
         }
 

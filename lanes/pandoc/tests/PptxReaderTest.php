@@ -15327,7 +15327,7 @@ return [
         $jsonTable = $json['blocks'][1] ?? [];
 
         $t->same(1, count($tables));
-        $t->same([], $tables[0]->attr('alignments'));
+        $t->same(null, $tables[0]->attr('alignments'));
         $t->same(0, $tables[0]->attr('nativeColumnCount'));
         $t->same([1828800, 1828800], $tables[0]->attr('columnWidths'));
         $t->same('Table', is_array($jsonTable) ? ($jsonTable['t'] ?? null) : null);

@@ -42,6 +42,7 @@ $compactParagraphCases = [
 $relaxedProfiles = [
     'markdown suffix' => ['format' => 'markdown-space_in_atx_header'],
     'pandoc alias suffix' => ['format' => 'pandoc-space_in_atx_header'],
+    'markdown strict profile' => ['format' => 'markdown_strict', 'autoId' => false, 'headerAttrs' => false],
     'upstream 3512 relaxed auto identifiers off' => ['format' => 'markdown-auto_identifiers-space_in_atx_header', 'autoId' => false],
     'configured array override' => ['format' => 'markdown', 'extensions' => ['space_in_atx_header' => false]],
     'configured string override' => ['format' => 'markdown', 'extensions' => '-space_in_atx_header'],
@@ -52,7 +53,7 @@ $compactHeadingCases = [
     'double compact marker' => ['markdown' => '##two words', 'level' => 2, 'text' => 'two words', 'id' => 'two-words'],
     'trailing hashes without space' => ['markdown' => '###three###', 'level' => 3, 'text' => 'three###', 'id' => 'three'],
     'closing compact marker' => ['markdown' => '####four ####', 'level' => 4, 'text' => 'four', 'id' => 'four'],
-    'attribute compact marker' => ['markdown' => '#####five {#manual}', 'level' => 5, 'text' => 'five', 'id' => 'manual'],
+    'attribute compact marker' => ['markdown' => '#####five {#manual}', 'level' => 5, 'text' => 'five', 'strictText' => 'five {#manual}', 'id' => 'manual'],
     'indented compact marker' => ['markdown' => '   ######six', 'level' => 6, 'text' => 'six', 'id' => 'six'],
 ];
 
@@ -103,14 +104,19 @@ return [
 
                     $t->same('heading', $heading->type, $label);
                     $t->same($case['level'], $heading->attr('level'), $label);
-                    $t->same($case['text'], $inlineText($heading), $label);
-                    $expectedId = (($options['autoId'] ?? true) === false && $case['id'] !== 'manual') ? '' : $case['id'];
+                    $expectedText = (($options['headerAttrs'] ?? true) === false && isset($case['strictText']))
+                        ? $case['strictText']
+                        : $case['text'];
+                    $t->same($expectedText, $inlineText($heading), $label);
+                    $expectedId = (($options['headerAttrs'] ?? true) === false && $case['id'] === 'manual')
+                        ? ''
+                        : ((($options['autoId'] ?? true) === false && $case['id'] !== 'manual') ? '' : $case['id']);
                     $t->same($expectedId, $heading->attr('id', ''), $label);
                     $mapped++;
                 }
             }
 
-            $t->same(30, $mapped);
+            $t->same(36, $mapped);
         },
     'keeps upstream pandoc atx spaced heading fixtures stable across profiles' =>
         static function (TestRunner $t) use ($spacedProfiles, $spacedHeadingCases, $inlineText): void {
@@ -134,6 +140,6 @@ return [
         },
     'records upstream pandoc atx heading space profile mapped-case count' =>
         static function (TestRunner $t) use ($mappedCaseCount): void {
-            $t->same(75, $mappedCaseCount);
+            $t->same(81, $mappedCaseCount);
         },
 ];

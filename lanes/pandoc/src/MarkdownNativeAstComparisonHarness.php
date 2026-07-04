@@ -29,6 +29,7 @@ final class MarkdownNativeAstComparisonHarness
         'upstream-markdown-pipe-table-escaped-cell' => ['format' => 'markdown+pipe_tables'],
         'upstream-markdown-raw-email-address' => ['format' => 'markdown-citations'],
         'upstream-markdown-raw-html-invalid-comment' => ['format' => 'markdown+raw_html'],
+        'upstream-markdown-strict-compact-heading' => ['format' => 'markdown_strict'],
         'upstream-markdown-task-list' => ['format' => 'markdown+task_lists'],
     ];
 

@@ -170,6 +170,24 @@ $tests['imports direct pandoc html inline-only main body as plain'] =
         $t->same('hello', $explicitParagraph->children[0]->attr('text'));
     };
 
+$tests['imports direct pandoc html transparent inline fragments as plain text'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-transparent-inline-fragment.html'));
+        $plain = $document->children[0];
+
+        $t->same('html', $document->attr('sourceFormat'));
+        $t->same(['plain'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same('answer and half with isolated text', $plain->attr('text'));
+        $t->same(
+            ['text', 'text', 'text', 'text', 'text', 'text'],
+            array_map(static fn ($node): string => $node->type, $plain->children)
+        );
+        $t->same(
+            ['answer', ' and ', 'half', ' with ', 'isolated', ' text'],
+            array_map(static fn ($node): string => $node->attr('text'), $plain->children)
+        );
+    };
+
 $tests['imports upstream html head body fragment base relative image as plain image'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-base-relative-image.html'));

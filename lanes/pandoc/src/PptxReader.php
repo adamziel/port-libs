@@ -4101,10 +4101,12 @@ final class PptxReader
         $header = array_shift($rows) ?? [];
         $attrs = [
             'caption' => '',
-            'alignments' => array_fill(0, count($header), 'default'),
             'nativeColumnCount' => count($header),
             'pptxTable' => true,
         ];
+        if ($header !== []) {
+            $attrs['alignments'] = array_fill(0, count($header), 'default');
+        }
         if ($style !== []) {
             $attrs['pptxTableStyle'] = $style;
         }

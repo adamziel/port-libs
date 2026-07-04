@@ -15849,7 +15849,10 @@ final class MarkdownReader
             return $overrides['space_in_atx_header'];
         }
 
-        return true;
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return $canonical !== 'markdown_strict';
     }
 
     private function lineBlockExtensionEnabled(): bool

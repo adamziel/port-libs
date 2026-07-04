@@ -1,0 +1,14 @@
+[ Plain
+    [ Str "answer"
+    , Space
+    , Str "and"
+    , Space
+    , Str "half"
+    , Space
+    , Str "with"
+    , Space
+    , Str "isolated"
+    , Space
+    , Str "text"
+    ]
+]

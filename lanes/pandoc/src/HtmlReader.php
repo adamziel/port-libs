@@ -197,6 +197,13 @@ final class HtmlReader
             return ['bytes' => $bytes, 'implicitPlainBody' => true];
         }
 
+        if (self::isTransparentInlineFragmentStart($trimmed)) {
+            return [
+                'bytes' => '<html><body>' . $bytes . '</body></html>',
+                'implicitPlainBody' => true,
+            ];
+        }
+
         if (preg_match('/^<(output|select)\b/i', $trimmed, $match) !== 1) {
             return ['bytes' => $bytes, 'implicitPlainBody' => false];
         }
@@ -238,6 +245,11 @@ final class HtmlReader
             '/^<(?:a|code|em|samp|span|strong|tt|var)\b/i',
             $trimmed
         ) === 1;
+    }
+
+    private static function isTransparentInlineFragmentStart(string $trimmed): bool
+    {
+        return preg_match('/^<(?:bdi|data|meter)\b/i', $trimmed) === 1;
     }
 
     private static function htmlBlockContainerPattern(): string
