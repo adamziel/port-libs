@@ -312,10 +312,111 @@ final class MarkdownWriter
             if (in_array((string) $key, ['titleInlines', 'authorInlines', 'dateInlines', 'authors', 'abstractBlocks'], true)) {
                 continue;
             }
+            if ($this->shouldSkipYamlMetadataEntry((string) $key, $value)) {
+                continue;
+            }
             array_push($lines, ...$this->renderYamlMetadataEntry((string) $key, $value, 0));
         }
 
         return $lines === [] ? '' : "---\n" . implode("\n", $lines) . "\n...";
+    }
+
+    private function shouldSkipYamlMetadataEntry(string $key, mixed $value): bool
+    {
+        $normalizedKey = strtolower($key);
+        $reviewOnlyKeys = [
+            'associatedstrings',
+            'autocaptionrules',
+            'bookmarkreferences',
+            'bookmarks',
+            'captiondefinitions',
+            'commentauthors',
+            'comments',
+            'documentcompatibilityoptionflags',
+            'documentproperties',
+            'documentvariables',
+            'documentvariablevalues',
+            'embeddedobjectreferences',
+            'embeddedobjects',
+            'endnotes',
+            'externalfilereferences',
+            'fieldcharacters',
+            'fieldstories',
+            'fields',
+            'footnotes',
+            'formattingruns',
+            'formfielddatareferences',
+            'headerfooterstories',
+            'latestsavedby',
+            'latestsavedname',
+            'latestsavedpath',
+            'listformats',
+            'listoverrides',
+            'macroprojects',
+            'mailmergesettings',
+            'mailmergesqlquery',
+            'picturedata',
+            'picturereferences',
+            'routeslip',
+            'sections',
+            'styles',
+            'subdocumentreferences',
+            'subdocuments',
+            'revisionauthors',
+        ];
+        if (in_array($normalizedKey, $reviewOnlyKeys, true)) {
+            return true;
+        }
+
+        if (str_ends_with($normalizedKey, 'policy') && is_string($value) && $this->isNativeReviewPolicy($value)) {
+            return true;
+        }
+
+        return is_array($value) && $this->yamlMetadataValueLooksReviewOnly($value);
+    }
+
+    private function isNativeReviewPolicy(string $value): bool
+    {
+        $policy = strtolower($value);
+
+        return str_contains($policy, 'metadata-only')
+            || str_contains($policy, 'native-review')
+            || str_contains($policy, 'signature-blob')
+            || str_contains($policy, 'suppressed-hidden-text');
+    }
+
+    /**
+     * @param array<mixed> $value
+     */
+    private function yamlMetadataValueLooksReviewOnly(array $value): bool
+    {
+        if ($value === []) {
+            return false;
+        }
+
+        if (array_is_list($value)) {
+            foreach ($value as $item) {
+                if (!is_array($item) || !$this->yamlMetadataValueLooksReviewOnly($item)) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        $policy = $value['extractionPolicy']
+            ?? $value['reviewPolicy']
+            ?? $value['policy']
+            ?? null;
+        if (is_string($policy) && $this->isNativeReviewPolicy($policy)) {
+            return true;
+        }
+
+        if (($value['canExposeBytes'] ?? null) === false) {
+            return true;
+        }
+
+        return isset($value['sourceTable']) || isset($value['sourceSprm']) || isset($value['sourceSprms']);
     }
 
     /**
