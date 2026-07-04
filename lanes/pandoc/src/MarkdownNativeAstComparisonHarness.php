@@ -44,6 +44,7 @@ final class MarkdownNativeAstComparisonHarness
         'upstream-markdown-zz-tex-math-single-backslash-profile' => ['format' => 'markdown+tex_math_single_backslash'],
         'upstream-markdown-zzz-intraword-underscore-profile' => ['format' => 'markdown-intraword_underscores'],
         'upstream-markdown-zzzz-angle-brackets-escapable-profile' => ['format' => 'markdown-all_symbols_escapable+angle_brackets_escapable'],
+        'upstream-markdown-zzzzz-wikilinks-title-after-pipe-profile' => ['format' => 'markdown+wikilinks_title_after_pipe'],
     ];
 
     /** @var array<string, true> */

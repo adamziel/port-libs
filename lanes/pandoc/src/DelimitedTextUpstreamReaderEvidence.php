@@ -18,7 +18,7 @@ final class DelimitedTextUpstreamReaderEvidence
     public const EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT = 0;
     public const EXPECTED_STATIC_CSV_ADJACENT_RST_FIXTURE_COUNT = 2;
     public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 44;
-    public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 30;
+    public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 31;
     public const EXPECTED_GENERATED_CSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT = 29;
     public const EXPECTED_GENERATED_TSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT = 22;
     public const REQUIRED_PANDOC_EXECUTABLE_VERSION = 'pandoc 3.10';
@@ -1098,6 +1098,20 @@ final class DelimitedTextUpstreamReaderEvidence
             'sha256' => 'b22eac43664c1917ebbcd2a9b6053cab9cf1afb4785ccefe8cd1602eda3682b3',
             'bytes' => 2535,
         ],
+        'quoted-softbreak.tsv' => [
+            'role' => 'generated-tsv-native-parity-input-fixture',
+            'sample' => 'quoted-softbreak',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/quoted-softbreak.tsv',
+            'sha256' => '01d5ec9046ee9de78dbc8fdd589b7250fa5925a3d9077d3ff7c941cb1c2c97a1',
+            'bytes' => 54,
+        ],
+        'quoted-softbreak.native' => [
+            'role' => 'generated-tsv-native-parity-expected-native-output',
+            'sample' => 'quoted-softbreak',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/quoted-softbreak.native',
+            'sha256' => 'db9489756eeaacaeb268e403036dddbf10fb9dc35872123331ff01ca1594a810',
+            'bytes' => 1255,
+        ],
     ];
 
     private const GENERATED_CSV_NATIVE_SAMPLES = [
@@ -1461,6 +1475,14 @@ final class DelimitedTextUpstreamReaderEvidence
         'trailing-empty-header' => [
             'inputPath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/trailing-empty-header.tsv',
             'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/trailing-empty-header.native',
+        ],
+        'quoted-softbreak' => [
+            'inputPath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/quoted-softbreak.tsv',
+            'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/quoted-softbreak.native',
+            'options' => [
+                'quote' => '"',
+                'cellLineBreak' => 'softbreak',
+            ],
         ],
     ];
 

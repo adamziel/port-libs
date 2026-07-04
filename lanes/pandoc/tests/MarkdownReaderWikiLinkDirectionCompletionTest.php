@@ -103,9 +103,20 @@ $tests['renders wikilink direction completion through wordpress handoff'] =
         $t->contains('<a href="/docs/wp" class="wikilink">WordPress handoff</a>', $blocks);
     };
 
+$tests['maps checked-in markdown wikilinks title-after-pipe profile fixture'] =
+    static function (TestRunner $t) use ($inlineText, $readWikiLink): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-markdown-zzzzz-wikilinks-title-after-pipe-profile.md');
+        $link = $readWikiLink(['format' => 'markdown+wikilinks_title_after_pipe'], $fixture);
+
+        $t->same('link', $link->type);
+        $t->same(['wikilink'], $link->attr('classes'));
+        $t->same('/docs/runbook', $link->attr('url'));
+        $t->same('Migration runbook', $inlineText($link));
+    };
+
 $tests['records markdown reader wikilink direction completion mapped-case count'] =
     static function (TestRunner $t) use ($cases): void {
-        $t->same(10, count($cases) + 1);
+        $t->same(11, count($cases) + 2);
     };
 
 return $tests;

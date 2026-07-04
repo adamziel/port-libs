@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 68;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 69;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'cf22226ef24968c3b2562133c82fb4505afa49741e1452a1c2c49beccca4b84b';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 33666;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'a60c85b0ad08d4400d8f4bb6a3a9ce59512cd4689ddec082b404623908cb272b';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 30620;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -846,6 +846,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => 'dde7cc213ac82ae4f03a1c97dfaf72650bcafb5c9d5ce06497bf60ea8ceb688a',
             'pptxBytes' => 2633,
             'nativeBytes' => 122,
+        ],
+        'subtitle-placeholder' => [
+            'name' => 'generated subtitle placeholder body parity',
+            'pptx' => 'pptx-reader/subtitle-placeholder.pptx',
+            'native' => 'pptx-reader/subtitle-placeholder.native',
+            'pairKey' => 'pptx-reader/subtitle-placeholder.pptx|pptx-reader/subtitle-placeholder.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/subtitle-placeholder.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/subtitle-placeholder.native',
+            'pptxSha256' => '3f15d4e0767367861baf040c1853b22900e821d32980e555cf5e3c10d41be5ea',
+            'nativeSha256' => 'a217ec6f6e2a1cee8844f7c7230ae57ed5fc13bca6269aaeab2086db2799ee5f',
+            'pptxBytes' => 1505,
+            'nativeBytes' => 129,
         ],
         'wrong-typed-slide-relationship' => [
             'name' => 'generated slide relationship Type ignored parity',
