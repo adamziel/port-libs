@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 64;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 65;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'a82d0b66f15c69c7954bdb347b1ff220b21e0234e7b98f638cd053bf551087fc';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 31786;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '714fbfcff489d3d75acf592d011941ff7a11c5d23c170f04c35118a6709717b2';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 32232;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -774,6 +774,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => 'c80440348f5567bb5cdd29313dc97aaf86b339b0c44211c873350f22cc49177b',
             'pptxBytes' => 1431,
             'nativeBytes' => 259,
+        ],
+        'rel-prefix-image-skip' => [
+            'name' => 'generated noncanonical relationship prefix image skip parity',
+            'pptx' => 'pptx-reader/rel-prefix-image-skip.pptx',
+            'native' => 'pptx-reader/rel-prefix-image-skip.native',
+            'pairKey' => 'pptx-reader/rel-prefix-image-skip.pptx|pptx-reader/rel-prefix-image-skip.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/rel-prefix-image-skip.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/rel-prefix-image-skip.native',
+            'pptxSha256' => '45a26c62512c0e943dc3ef8c007cc94af758ad1e9ca13a2d63ec08ac338fd05f',
+            'nativeSha256' => '346a3a5c5484f21810c5745c41db13a68de5c20a87fe3332bc7da5688fa6ea6b',
+            'pptxBytes' => 2380,
+            'nativeBytes' => 90,
         ],
         'repeated-slash-slide-target' => [
             'name' => 'generated repeated-slash slide target parity',

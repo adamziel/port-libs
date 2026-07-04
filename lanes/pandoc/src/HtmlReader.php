@@ -37,7 +37,7 @@ final class HtmlReader
             $attrs = [];
         } else {
             $readerBytes = self::flattenHtmlDetailsSummaryContainers($bytes);
-            $readerBytes = self::repairParagraphTableFragmentBoundaries($readerBytes);
+            $readerBytes = self::repairParagraphTableOrRuleFragmentBoundaries($readerBytes);
             $delegated = self::delegateHtmlBytes($readerBytes);
             $document = $this->reader->read($delegated['bytes']);
             [$children, $consumedFootnoteContainerCount] = self::containsAstNodeType($document->children, 'note')
@@ -131,9 +131,9 @@ final class HtmlReader
         return is_string($html) ? $html : $bytes;
     }
 
-    private static function repairParagraphTableFragmentBoundaries(string $bytes): string
+    private static function repairParagraphTableOrRuleFragmentBoundaries(string $bytes): string
     {
-        if (preg_match('/<p\b[^>]*>.*<table\b/is', $bytes) !== 1) {
+        if (preg_match('/<p\b[^>]*>.*<(?:hr|table)\b/is', $bytes) !== 1) {
             return $bytes;
         }
 

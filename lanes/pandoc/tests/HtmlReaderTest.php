@@ -842,6 +842,20 @@ $tests['imports direct pandoc html paragraph table tree construction as repaired
         $t->same(['Cell'], array_map(static fn ($cell): string => $cell->attr('text'), $row->children));
     };
 
+$tests['imports direct pandoc html paragraph hr tree construction as repaired blocks'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-paragraph-hr-tree-construction.html'));
+
+        $t->same('html', $document->attr('sourceFormat'));
+        $t->same(
+            ['paragraph', 'horizontal_rule', 'paragraph'],
+            array_map(static fn ($node): string => $node->type, $document->children)
+        );
+        $t->same('Before', $document->children[0]->attr('text'));
+        $t->same([], $document->children[1]->attrs);
+        $t->same('After', $document->children[2]->attr('text'));
+    };
+
 $tests['preserves upstream html omitted table cell closures as visible blocks'] =
     static function (TestRunner $t): void {
         $html = '<table><tbody><tr><td>A<td>B</tbody></table><p>after</p>';
