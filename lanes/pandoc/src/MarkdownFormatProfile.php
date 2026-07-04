@@ -417,6 +417,7 @@ final class MarkdownFormatProfile
                 'inline_notes',
                 'inline_attributes',
                 'inline_code_attributes',
+                'intraword_underscores',
                 'line_blocks',
                 'lists_without_preceding_blankline',
                 'lhs',

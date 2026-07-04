@@ -1390,8 +1390,8 @@ HTML);
         $t->contains('Image ( "fig1" , [ "inline-art" ]', $native);
         $t->same(false, str_contains($native, 'chapter.xhtml_fig1'));
     },
-    'preserves ordinary epub body link role attributes' => static function (TestRunner $t): void {
-        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-body-link-role-');
+    'preserves ordinary epub body link pandoc attributes' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-body-link-attrs-');
         if ($path === false) {
             throw new RuntimeException('Unable to create temporary EPUB path');
         }
@@ -1421,8 +1421,8 @@ HTML);
 </package>
 XML);
         $zip->addFromString('OPS/chapter.xhtml', <<<'HTML'
-<html xmlns="http://www.w3.org/1999/xhtml">
-  <body><p>See <a role="doc-biblioref" href="refs.xhtml#ref-1">reference</a>.</p></body>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body><p>See <a id="bib-link" class="tracked primary" epub:type="biblioref glossary" role="doc-biblioref" target="_blank" rel="noopener" data-kind="ref" href="refs.xhtml#ref-1" title="Reference title">reference</a>.</p></body>
 </html>
 HTML);
         $zip->close();
@@ -1443,10 +1443,21 @@ HTML);
         $link = $links[0] ?? new PortLibs\Pandoc\AstNode('missing');
 
         $t->same('link', $link->type);
+        $t->same('chapter.xhtml_bib-link', $link->attr('id'));
+        $t->same(['tracked', 'primary', 'biblioref', 'glossary'], $link->attr('classes'));
         $t->same('refs.xhtml_ref-1', $link->attr('url'));
-        $t->same(['role' => 'doc-biblioref'], $link->attr('attributes'));
+        $t->same('Reference title', $link->attr('title'));
+        $t->same([
+            'role' => 'doc-biblioref',
+            'target' => '_blank',
+            'rel' => 'noopener',
+            'data-kind' => 'ref',
+        ], $link->attr('attributes'));
         $t->same(['OPS/refs.xhtml#ref-1'], $meta['epubReferencedResources']);
-        $t->contains('Link ( "" , [  ] , [ ( "role" , "doc-biblioref" ) ] ) [ Str "reference" ] ( "refs.xhtml_ref-1" , "" )', $native);
+        $t->contains(
+            'Link ( "chapter.xhtml_bib-link" , [ "tracked" , "primary" , "biblioref" , "glossary" ] , [ ( "data-kind" , "ref" ) , ( "rel" , "noopener" ) , ( "role" , "doc-biblioref" ) , ( "target" , "_blank" ) ] ) [ Str "reference" ] ( "refs.xhtml_ref-1" , "Reference title" )',
+            $native
+        );
     },
     'preserves external epub noteref link class when note body is outside linear spine' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-external-noteref-');

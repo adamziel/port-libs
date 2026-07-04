@@ -20,11 +20,8 @@ final class PptxReader
     private const EMUS_PER_INCH = 914_400;
     private const DEFAULT_SLIDE_WIDTH_EMU = 9_144_000;
     private const DEFAULT_SLIDE_HEIGHT_EMU = 6_858_000;
-    private const HASKELL_INT_MAX_DECIMAL = '9223372036854775807';
     private const HASKELL_INT_MIN_ABS_DECIMAL = '9223372036854775808';
-    private const HASKELL_INT_MAX_HEX = '7fffffffffffffff';
     private const HASKELL_INT_MIN_ABS_HEX = '8000000000000000';
-    private const HASKELL_INT_MAX_OCTAL = '777777777777777777777';
     private const HASKELL_INT_MIN_ABS_OCTAL = '1000000000000000000000';
 
     public function read(string $bytes): AstNode
@@ -2470,23 +2467,73 @@ final class PptxReader
     private function readMaybeIntText(string $value): ?int
     {
         $literal = $this->integerLiteralParts($value);
-        if ($literal === null || !$this->integerLiteralFitsHaskellInt($literal)) {
+        if ($literal === null) {
             return null;
         }
 
-        return $this->integerLiteralToInt($literal);
+        return $this->integerLiteralToHaskellInt($literal);
     }
 
     /**
      * @param array{sign:int, base:int, digits:string} $literal
      */
-    private function integerLiteralFitsHaskellInt(array $literal): bool
+    private function integerLiteralToHaskellInt(array $literal): int
     {
-        $limit = $literal['sign'] < 0
-            ? $this->haskellIntMinAbsLimit($literal['base'])
-            : $this->haskellIntMaxLimit($literal['base']);
+        [$high, $low] = $this->unsignedIntegerLiteralModuloWord64($literal);
+        if ($literal['sign'] < 0 && ($high !== 0 || $low !== 0)) {
+            [$high, $low] = $this->twosComplementWord64($high, $low);
+        }
 
-        return $this->compareIntegerLiteralDigits($this->normalizedIntegerLiteralDigits($literal), $limit) <= 0;
+        return $this->signedIntFromWord64($high, $low);
+    }
+
+    /**
+     * @param array{sign:int, base:int, digits:string} $literal
+     * @return array{int, int}
+     */
+    private function unsignedIntegerLiteralModuloWord64(array $literal): array
+    {
+        $high = 0;
+        $low = 0;
+        $base = $literal['base'];
+        foreach (str_split($literal['digits']) as $character) {
+            $digit = intval($character, $base);
+            $lowProduct = ($low * $base) + $digit;
+            $carry = intdiv($lowProduct, 4_294_967_296);
+            $low = $lowProduct % 4_294_967_296;
+            $high = (($high * $base) + $carry) % 4_294_967_296;
+        }
+
+        return [$high, $low];
+    }
+
+    /**
+     * @return array{int, int}
+     */
+    private function twosComplementWord64(int $high, int $low): array
+    {
+        $high = 4_294_967_295 - $high;
+        $low = 4_294_967_295 - $low + 1;
+        if ($low >= 4_294_967_296) {
+            $low -= 4_294_967_296;
+            $high = ($high + 1) % 4_294_967_296;
+        }
+
+        return [$high, $low];
+    }
+
+    private function signedIntFromWord64(int $high, int $low): int
+    {
+        if ($high < 2_147_483_648) {
+            return (int) (($high * 4_294_967_296) + $low);
+        }
+
+        [$magnitudeHigh, $magnitudeLow] = $this->twosComplementWord64($high, $low);
+        if ($magnitudeHigh === 2_147_483_648 && $magnitudeLow === 0) {
+            return PHP_INT_MIN;
+        }
+
+        return -(int) (($magnitudeHigh * 4_294_967_296) + $magnitudeLow);
     }
 
     /**
@@ -2496,15 +2543,6 @@ final class PptxReader
     {
         return $literal['sign'] < 0
             && $this->normalizedIntegerLiteralDigits($literal) === $this->haskellIntMinAbsLimit($literal['base']);
-    }
-
-    private function haskellIntMaxLimit(int $base): string
-    {
-        return match ($base) {
-            16 => self::HASKELL_INT_MAX_HEX,
-            8 => self::HASKELL_INT_MAX_OCTAL,
-            default => self::HASKELL_INT_MAX_DECIMAL,
-        };
     }
 
     private function haskellIntMinAbsLimit(int $base): string
@@ -2524,16 +2562,6 @@ final class PptxReader
         $digits = ltrim(strtolower($literal['digits']), '0');
 
         return $digits === '' ? '0' : $digits;
-    }
-
-    private function compareIntegerLiteralDigits(string $left, string $right): int
-    {
-        $length = strlen($left) <=> strlen($right);
-        if ($length !== 0) {
-            return $length;
-        }
-
-        return $left <=> $right;
     }
 
     private function trimUnicodeWhitespace(string $value): string

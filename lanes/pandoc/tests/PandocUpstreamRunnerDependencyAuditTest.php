@@ -10,7 +10,7 @@ $makeTempDir = static function (): string {
         throw new RuntimeException('Unable to create temporary audit directory');
     }
 
-    return $path;
+    return realpath($path) ?: $path;
 };
 
 $removeTree = static function (string $path) use (&$removeTree): void {

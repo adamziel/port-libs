@@ -19228,7 +19228,7 @@ final class MarkdownReader
             return false;
         }
 
-        if ($char === '_') {
+        if ($char === '_' && $this->intrawordUnderscoreExtensionEnabled()) {
             if (
                 $this->isRightFlankingInlineDelimiterRun($previous, $next)
                 && !$this->isAsciiPunctuation($previous)
@@ -19259,7 +19259,7 @@ final class MarkdownReader
             return false;
         }
 
-        if ($char === '_') {
+        if ($char === '_' && $this->intrawordUnderscoreExtensionEnabled()) {
             if (
                 $this->isLeftFlankingInlineDelimiterRun($previous, $next)
                 && !$this->isAsciiPunctuation($next)
@@ -19295,7 +19295,21 @@ final class MarkdownReader
 
     private function isIntrawordUnderscoreBoundary(string $previous, string $next): bool
     {
-        return $this->isAsciiAlnum($previous) && $this->isAsciiAlnum($next);
+        return $this->intrawordUnderscoreExtensionEnabled()
+            && $this->isAsciiAlnum($previous)
+            && $this->isAsciiAlnum($next);
+    }
+
+    private function intrawordUnderscoreExtensionEnabled(): bool
+    {
+        $overrides = $this->markdownExtensionOverrides();
+        if (array_key_exists('intraword_underscores', $overrides)) {
+            return $overrides['intraword_underscores'];
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+
+        return MarkdownFormatProfile::canonicalFormat($format) !== 'markdown_strict';
     }
 
     private function isAsciiAlnum(string $char): bool

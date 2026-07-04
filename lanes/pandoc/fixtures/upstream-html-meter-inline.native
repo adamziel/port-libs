@@ -1,0 +1,8 @@
+[ Para
+    [ Str "Load"
+    , Space
+    , Strong [ Str "sixty" , Space , Str "percent" ]
+    , Space
+    , Str "complete."
+    ]
+]

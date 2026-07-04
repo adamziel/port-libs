@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 56;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 57;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '1696638f865f509d06cb5f45b5ee6df78a9fe99eecdc53f78ae9180ac94ba05c';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 28018;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '2dbbe54aa1ad3bb6d6d77f387735f8726dfbe8ace430e3b62afa8e3dd2aeaf00';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 28464;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -618,6 +618,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => 'd9e8c07df9c64b726e687ee75f9e1ff3d6eae528d2df3e853f7f454022a26573',
             'pptxBytes' => 1423,
             'nativeBytes' => 249,
+        ],
+        'overflow-bullet-level' => [
+            'name' => 'generated Haskell Int overflow bullet level parity',
+            'pptx' => 'pptx-reader/overflow-bullet-level.pptx',
+            'native' => 'pptx-reader/overflow-bullet-level.native',
+            'pairKey' => 'pptx-reader/overflow-bullet-level.pptx|pptx-reader/overflow-bullet-level.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/overflow-bullet-level.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/overflow-bullet-level.native',
+            'pptxSha256' => 'c6ccda57f94b450e0aa26ead7887c11edafe4d4efdd183bda2b7fbcbbe469e65',
+            'nativeSha256' => '93a7f80f530d6db03d4f9fcac88e2d3a0758ed6e8afa360d90eee0e722937563',
+            'pptxBytes' => 1622,
+            'nativeBytes' => 378,
         ],
         'pandoc-generated-image-alt-title' => [
             'name' => 'pandoc 3.10 generated image title and alt parity',

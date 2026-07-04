@@ -18606,7 +18606,7 @@ XML);
         $t->same(3, substr_count($native, 'BulletList'));
     },
 
-    'falls back to level zero for out-of-range pptx bullet levels like upstream' => static function (TestRunner $t) use ($buildOverflowBulletLevelPptxPackage): void {
+    'wraps out-of-range pptx bullet levels through Haskell Int like upstream' => static function (TestRunner $t) use ($buildOverflowBulletLevelPptxPackage): void {
         $document = (new PptxReader())->read($buildOverflowBulletLevelPptxPackage());
         $topLevelLists = array_values(array_filter(
             $document->children,
@@ -18621,13 +18621,14 @@ XML);
         };
         $native = PandocConverter::write($document, 'native');
 
-        $t->same(3, count($topLevelLists));
+        $t->same(4, count($topLevelLists));
         $t->same([
             ['Max int level'],
-            ['Min int level'],
-            ['Overflow level fallback', 'Negative overflow level fallback', 'Explicit zero joins fallback'],
+            ['Min int level', 'Overflow level fallback'],
+            ['Negative overflow level fallback'],
+            ['Explicit zero joins fallback'],
         ], array_map($itemTexts, $topLevelLists));
-        $t->same(3, substr_count($native, 'BulletList'));
+        $t->same(4, substr_count($native, 'BulletList'));
     },
 
     'splits pptx list levels instead of nesting like upstream' => static function (TestRunner $t) use ($buildNestedListPptxPackage, $nodesOfType): void {

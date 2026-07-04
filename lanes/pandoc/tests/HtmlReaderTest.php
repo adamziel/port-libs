@@ -342,6 +342,23 @@ $tests['imports direct pandoc html data value inline as visible children'] =
         $t->same('.', $paragraph->children[2]->attr('text'));
     };
 
+$tests['imports direct pandoc html meter inline as visible children'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-meter-inline.html'));
+        $paragraph = $document->children[0];
+
+        $t->same('html', $document->attr('sourceFormat'));
+        $t->same(['paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same('Load sixty percent complete.', $paragraph->attr('text'));
+        $t->same(
+            ['text', 'strong', 'text'],
+            array_map(static fn ($node): string => $node->type, $paragraph->children)
+        );
+        $t->same('Load ', $paragraph->children[0]->attr('text'));
+        $t->same('sixty percent', $paragraph->children[1]->children[0]->attr('text'));
+        $t->same(' complete.', $paragraph->children[2]->attr('text'));
+    };
+
 $tests['imports direct pandoc html inline-only main body as plain'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-main-inline-plain.html'));
