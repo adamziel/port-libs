@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 86;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 87;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'd2abb993ce8b993860b521d71c13620465c24d6680ab6f3b4b9b616dfb7d5263';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 37452;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'e49193a113ccc3763d1ea2b91bad4fce6fd34324391d52e6bb70ed9de66d11e2';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 37839;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -546,6 +546,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => 'df89712378d3c5d4994094744ecd4e20f482e0231acd053619ebf92eff5b1254',
             'pptxBytes' => 1493,
             'nativeBytes' => 139,
+        ],
+        'connector-text-skip' => [
+            'name' => 'generated connector text skip parity',
+            'pptx' => 'pptx-reader/connector-text-skip.pptx',
+            'native' => 'pptx-reader/connector-text-skip.native',
+            'pairKey' => 'pptx-reader/connector-text-skip.pptx|pptx-reader/connector-text-skip.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/connector-text-skip.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/connector-text-skip.native',
+            'pptxSha256' => '4112630a090c011c06adb2f1607b6d240416ae5fc4c2be8c7f93bd3356de0015',
+            'nativeSha256' => '4c0a2dc57adbbe7429f6fcb6ed27c412c6166a2dbe98fa725b4c11739f69aca7',
+            'pptxBytes' => 1470,
+            'nativeBytes' => 112,
         ],
         'embedded-image' => [
             'name' => 'generated embedded image native parity',

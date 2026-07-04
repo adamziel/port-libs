@@ -23,7 +23,10 @@ $tests = [];
 
 $tests['maps upstream markdown angle autolink unicode dash boundary'] =
     static function (TestRunner $t): void {
-        $document = (new MarkdownReader())->read("<http://foo.bar>\u{2014}");
+        $source = (string) file_get_contents(
+            dirname(__DIR__) . '/fixtures/upstream-markdown-zzzzzzzzzzzzzzzzzzzz-angle-autolink-unicode-dash-boundary.md'
+        );
+        $document = (new MarkdownReader())->read($source);
         $paragraph = $document->children[0] ?? new AstNode('missing');
         $link = $paragraph->children[0] ?? new AstNode('missing');
         $dash = $paragraph->children[1] ?? new AstNode('missing');

@@ -26,15 +26,15 @@ $readJson = static function (string $relativePath) use ($readText): array {
 return [
     'keeps EPUB current fixture status counters in sync' => static function (TestRunner $t) use ($repoRoot, $readText, $readJson): void {
         $manifest = $readJson('lanes/pandoc/UPSTREAM_TEST_MANIFEST.json');
-        $note = $readText('lanes/pandoc/notes/pandoc-epub-code-block-spine-20260704.md');
+        $note = $readText('lanes/pandoc/notes/pandoc-epub-blockquote-list-spine-20260704.md');
         $fixtureDirectory = $repoRoot . '/lanes/pandoc/fixtures/upstream-current-epub-reader/epub';
         $epubFiles = glob($fixtureDirectory . '/*.epub') ?: [];
         $nativeFiles = glob($fixtureDirectory . '/*.native') ?: [];
         $totalFiles = count($epubFiles) + count($nativeFiles);
 
-        $t->same(58, count($epubFiles));
-        $t->same(58, count($nativeFiles));
-        $t->same(116, $totalFiles);
+        $t->same(59, count($epubFiles));
+        $t->same(59, count($nativeFiles));
+        $t->same(118, $totalFiles);
 
         foreach ([
             'benchmarkDenominator.breakdown' => $manifest['benchmarkDenominator']['breakdown'] ?? null,
@@ -94,12 +94,12 @@ return [
             );
         }
 
-        $t->true(str_contains($note, '- Checked-in EPUB package inputs: `57 -> 58`.'));
-        $t->true(str_contains($note, '- Checked-in same-basename `.native` goldens: `57 -> 58`.'));
-        $t->true(str_contains($note, '- Checked-in fixture identity files: `114 -> 116`.'));
-        $t->true(str_contains($note, 'code-block-spine.epub'));
-        $t->true(str_contains($note, '--require-package-parity=58'));
-        $t->true(str_contains($note, '--require-native-readiness=58'));
-        $t->true(str_contains($note, '--require-mapped-parity=58'));
+        $t->true(str_contains($note, '- Checked-in EPUB package inputs: `58 -> 59`.'));
+        $t->true(str_contains($note, '- Checked-in same-basename `.native` goldens: `58 -> 59`.'));
+        $t->true(str_contains($note, '- Checked-in fixture identity files: `116 -> 118`.'));
+        $t->true(str_contains($note, 'blockquote-list-spine.epub'));
+        $t->true(str_contains($note, '--require-package-parity=59'));
+        $t->true(str_contains($note, '--require-native-readiness=59'));
+        $t->true(str_contains($note, '--require-mapped-parity=59'));
     },
 ];

@@ -159,6 +159,19 @@ $tests['imports direct pandoc html standalone keyboard fragment as plain'] =
         $t->same('Cmd', $kbd->children[0]->attr('text'));
     };
 
+$tests['imports direct pandoc html standalone output fragment as plain'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-standalone-output-inline.html'));
+        $plain = $document->children[0];
+
+        $t->same('html', $document->attr('sourceFormat'));
+        $t->same(['plain'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same('Result ready', $plain->attr('text'));
+        $t->same(['text', 'strong'], array_map(static fn ($node): string => $node->type, $plain->children));
+        $t->same('Result ', $plain->children[0]->attr('text'));
+        $t->same('ready', $plain->children[1]->children[0]->attr('text'));
+    };
+
 $tests['imports direct pandoc html standalone underline fragment as plain'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-standalone-underline-inline.html'));

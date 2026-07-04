@@ -4242,6 +4242,52 @@ NATIVE;
         $t->same([], $body->children[1]->children[1]->children);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
+    'matches generated tsv single quote dialect native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+        $fixture = $generatedTsvNativeFixture('single-quote-dialect');
+        $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
+            'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/single-quote-dialect.tsv',
+            'quote' => '\'',
+        ]);
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+        $body = $table->children[1];
+        $native = PandocConverter::write($document, 'native');
+        $generatedEvidence = $packet['upstreamEvidence']['generatedNativeParityEvidence'] ?? [];
+
+        $t->same('tsv', $packet['format'] ?? null);
+        $t->same('tab', $packet['delimiter'] ?? null);
+        $t->same('\'', $packet['quote'] ?? null);
+        $t->same('quoted-fields', $packet['dialect']['quoteMode'] ?? null);
+        $t->same(0, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
+        $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
+        $t->same(2 * DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['checkedInFixtureCount'] ?? null);
+        $t->same('single-quote-dialect.tsv', $generatedEvidence['checkedInFixtures'][66]['name'] ?? null);
+        $t->same('61d1d78f1d9c57ab28505af9e139e085b518a07d27fa85db704354fb7338b2cd', $generatedEvidence['checkedInFixtures'][66]['checkedInFile']['sha256'] ?? null);
+        $t->same('single-quote-dialect.native', $generatedEvidence['checkedInFixtures'][67]['name'] ?? null);
+        $t->same('ac434ae179a9b2474a8a7fc6e0ea6c65270e138d25608e73de522f1f21bf67c8', $generatedEvidence['checkedInFixtures'][67]['checkedInFile']['sha256'] ?? null);
+        $t->same('single-quote-dialect', $generatedEvidence['samples'][33]['name'] ?? null);
+        $t->same(['quote' => '\''], $generatedEvidence['samples'][33]['readerOptions'] ?? null);
+        $t->same(['id', 'payload', 'note'], $table->attr('columnNames'));
+        $t->same(4, $packet['rowCount'] ?? null);
+        $t->same(3, $packet['bodyRowCount'] ?? null);
+        $t->same(3, $packet['columnCount'] ?? null);
+        $t->same(12, $packet['fieldCount'] ?? null);
+        $t->same(3, $packet['quotedFieldCount'] ?? null);
+        $t->same(2, $packet['doubledQuoteEscapeCount'] ?? null);
+        $t->same(1, $packet['quotedLineBreakCount'] ?? null);
+        $t->same(1, $packet['multilineFieldCount'] ?? null);
+        $t->same(0, $packet['raggedRowCount'] ?? null);
+        $t->same('alpha' . "\t" . 'beta', $body->children[0]->children[1]->attr('text'));
+        $t->same("two\nlines", $body->children[1]->children[1]->attr('text'));
+        $t->same("embedded 'quote'", $body->children[2]->children[1]->attr('text'));
+        $t->contains('Plain [ Str "alpha" , Space , Str "beta" ]', $native);
+        $t->contains('Plain [ Str "two" , LineBreak , Str "lines" ]', $native);
+        $t->contains('Plain [ Str "embedded" , Space , Str "\'quote\'" ]', $native);
+        $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
+    },
     'matches pinned upstream csv parser option fixtures' => static function (TestRunner $t): void {
         $reader = new DelimitedTextReader();
         $commaDocument = $reader->readCsv(
