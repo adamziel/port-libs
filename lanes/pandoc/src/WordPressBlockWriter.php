@@ -1101,6 +1101,10 @@ final class WordPressBlockWriter
             }
 
             if (count($blocks) === 1 && in_array($blocks[0]->type, ['plain', 'paragraph'], true)) {
+                if ($this->tableCaptionShouldPreserveBlockWrapper($node)) {
+                    return $this->renderBlocksAsHtml($blocks, true);
+                }
+
                 return $this->renderInlines($blocks[0]);
             }
 
@@ -1108,6 +1112,18 @@ final class WordPressBlockWriter
         }
 
         return $this->renderCaptionInlines($node);
+    }
+
+    private function tableCaptionShouldPreserveBlockWrapper(AstNode $node): bool
+    {
+        $captionSource = $node->attr('captionSource', []);
+        if (!is_array($captionSource) || $captionSource === []) {
+            return false;
+        }
+
+        return is_string($captionSource['source'] ?? null)
+            || is_string($captionSource['sourcePosition'] ?? null)
+            || is_array($captionSource['sourceAttributes'] ?? null);
     }
 
     private function renderCaptionInlines(AstNode $node): string

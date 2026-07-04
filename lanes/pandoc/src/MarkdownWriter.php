@@ -3369,7 +3369,7 @@ final class MarkdownWriter
         }
 
         $image = $this->singleImageFigureChild($node);
-        if ($image instanceof AstNode && $this->implicitFiguresEnabled()) {
+        if ($image instanceof AstNode && $this->implicitFiguresEnabled() && !$this->figureRequiresExplicitContainer($node)) {
             $implicitImage = $this->implicitFigureImage($node, $image);
             if (
                 $implicitImage instanceof AstNode
@@ -3395,6 +3395,18 @@ final class MarkdownWriter
     private function figureCanRenderImplicitImage(AstNode $image): bool
     {
         return $this->linkAttributesEnabled() || $this->isNullAttrTuple($this->imageAttrTuple($image));
+    }
+
+    private function figureRequiresExplicitContainer(AstNode $figure): bool
+    {
+        $frameCaption = $figure->attr('odfFrameCaption', null);
+        if (is_array($frameCaption) && $frameCaption !== []) {
+            return true;
+        }
+
+        $attributes = $figure->attr('attributes', []);
+
+        return is_array($attributes) && array_key_exists('data-odf-frame-caption-source', $attributes);
     }
 
     /**
