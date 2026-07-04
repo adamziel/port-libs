@@ -91,8 +91,10 @@ NATIVE
   *SIMPLE*)
     cat <<'NATIVE'
 [ Header 1 ("",[],[]) [ Str "NAME" ]
+, Para []
 , Para [ Str "simple", Space, Str "-", Space, Str "small", Space, Str "command" ]
 , Header 1 ("",[],[]) [ Str "DESCRIPTION" ]
+, Para []
 , Para [ Str "simple", Space, Str "prints", Space, Str "text." ]
 ]
 NATIVE

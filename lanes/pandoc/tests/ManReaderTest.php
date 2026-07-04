@@ -72,6 +72,7 @@ return [
 
         $t->same("ab\u{2007}", $plainText($read("a\\%\\\n\\:b\\0")->children[0]));
         $t->same("- \\\u{201C}\u{201D}\u{2014}\u{2013}\u{201C}\u{201D}", $plainText($read('\\-\\ \\\\\\[lq]\\[rq]\\[em]\\[en]\\*(lq\\*(rq')->children[0]));
+        $t->same('unknown', $plainText($read("\\*(``unknown\\*(''")->children[0]));
         $t->same("\\`\u{200A}\u{2006}'", $plainText($read("\\t\\e\\`\\^\\|\\'")->children[0]));
         $t->same('Foo', $plainText($read("Foo \\\" bar\n")->children[0]));
         $t->same('Foobar', $plainText($read("Foo\\#\nbar\n")->children[0]));
@@ -252,6 +253,70 @@ ROFF);
         $t->same('After list.', $plainText($document->children[3]));
     },
 
+    'keeps man line breaks and tagged paragraph boundaries aligned with pandoc' => static function (TestRunner $t) use ($read, $plainText): void {
+        $lineBreak = $read(<<<'ROFF'
+.SH SYNOPSIS
+.B tool
+.br
+reset
+ROFF);
+        $tagged = $read(<<<'ROFF'
+.SH OPTIONS
+.TP
+.B --flag
+First paragraph.
+.PP
+After options.
+.SH NEXT
+Done.
+ROFF);
+        $blankTerminated = $read(<<<'ROFF'
+.TP
+.B --flag
+First paragraph.
+
+After options.
+ROFF);
+        $spacedParagraph = $read(<<<'ROFF'
+.sp
+    eval `tool -s`
+ROFF);
+
+        $t->same(['heading', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $lineBreak->children));
+        $t->same('tool reset', $plainText($lineBreak->children[1]));
+        $t->same('linebreak', $lineBreak->children[1]->children[1]->type);
+        $t->same(['heading', 'definition_list', 'paragraph', 'heading', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $tagged->children));
+        $t->same('--flag', $plainText($tagged->children[1]->children[0]->children[0]));
+        $t->same('First paragraph.', $plainText($tagged->children[1]->children[0]->children[1]));
+        $t->same('After options.', $plainText($tagged->children[2]));
+        $t->same('NEXT', $plainText($tagged->children[3]));
+        $t->same(['definition_list', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $blankTerminated->children));
+        $t->same('After options.', $plainText($blankTerminated->children[1]));
+        $t->same('eval `tool -s`', $plainText($spacedParagraph->children[0]));
+    },
+
+    'preserves top-level man relative indents as blockquotes' => static function (TestRunner $t) use ($read, $plainText): void {
+        $document = $read(<<<'ROFF'
+.SH DESCRIPTION
+Before.
+.RS
+.TP
+.B =
+Equals.
+.RE
+After.
+ROFF);
+
+        $blockquote = $document->children[2];
+
+        $t->same(['heading', 'paragraph', 'blockquote', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
+        $t->same('blockquote', $blockquote->type);
+        $t->same('definition_list', $blockquote->children[0]->type);
+        $t->same('=', $plainText($blockquote->children[0]->children[0]->children[0]));
+        $t->same('Equals.', $plainText($blockquote->children[0]->children[0]->children[1]));
+        $t->same('After.', $plainText($document->children[3]));
+    },
+
     'skips generated macro definition bodies and bare roff comments' => static function (TestRunner $t) use ($read, $plainText): void {
         $document = $read(<<<'ROFF'
 \" generated wrapper comment
@@ -263,6 +328,7 @@ hidden definition body
 .TH TOOL 1
 .SH NAME
 .B tool \" comment with .SH must stay hidden
+.
 \- visible command
 ROFF);
 
@@ -274,6 +340,7 @@ ROFF);
         $t->true(!str_contains($visible, 'HIDDEN'), 'macro definition body should not become visible text');
         $t->true(!str_contains($visible, '.TH'), 'TH request should not leak after leading comments');
         $t->true(!str_contains($visible, '.SH'), 'comments in macro args should stay hidden');
+        $t->true(!str_contains($visible, 'tool . -'), 'bare control line should stay hidden');
     },
 
     'keeps indented pod man control requests out of visible text' => static function (TestRunner $t) use ($read, $plainText): void {

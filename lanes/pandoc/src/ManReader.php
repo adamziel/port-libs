@@ -131,7 +131,10 @@ final class ManReader
                 }
                 if ($name === 'RS') {
                     ++$this->index;
-                    array_push($blocks, ...$this->parseBlocks('.RE'));
+                    $children = $this->parseBlocks('.RE');
+                    if ($children !== []) {
+                        $blocks[] = new AstNode('blockquote', [], $children);
+                    }
                     continue;
                 }
                 if ($name === 'nf' || $name === 'EX') {
@@ -204,7 +207,7 @@ final class ManReader
                 continue;
             }
 
-            $this->appendInlineNodes($inlines, $this->parseInlines($this->stripInlineComment($line)), $joinNextLineTightly);
+            $this->appendInlineNodes($inlines, $this->parseInlines($this->paragraphLineText($line)), $joinNextLineTightly);
             $joinNextLineTightly = strpos($line, '\#') !== false;
             ++$this->index;
         }
@@ -234,7 +237,8 @@ final class ManReader
 
     private function isControlBraceLine(string $trimmed): bool
     {
-        return $trimmed === '..'
+        return $trimmed === '.'
+            || $trimmed === '..'
             || preg_match('/^[.\']\s*\\\\?[{}]\s*$/', $trimmed) === 1;
     }
 
@@ -380,10 +384,32 @@ final class ManReader
         if ($nodes === []) {
             return;
         }
-        if ($target !== [] && !$joinTightly) {
+        if ($target !== []
+            && !$joinTightly
+            && !$this->lastInlineIsLineBreak($target)
+            && !$this->firstInlineIsLineBreak($nodes)
+        ) {
             $target[] = $this->textNode(' ');
         }
         array_push($target, ...$nodes);
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function firstInlineIsLineBreak(array $nodes): bool
+    {
+        return ($nodes[0] ?? null) instanceof AstNode && $nodes[0]->type === 'linebreak';
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function lastInlineIsLineBreak(array $nodes): bool
+    {
+        $last = $nodes[count($nodes) - 1] ?? null;
+
+        return $last instanceof AstNode && $last->type === 'linebreak';
     }
 
     /**
@@ -425,7 +451,7 @@ final class ManReader
                 break;
             }
 
-            $this->appendInlineNodes($label, $this->parseInlines($this->stripInlineComment($line)));
+            $this->appendInlineNodes($label, $this->parseInlines($this->paragraphLineText($line)));
             ++$this->index;
         }
 
@@ -437,8 +463,16 @@ final class ManReader
      */
     private function inlineMacroInlines(string $name, string $rawArgs): array
     {
+        if ($name === 'br') {
+            return [new AstNode('linebreak')];
+        }
+        if ($name === 'YS') {
+            return [];
+        }
+
         $args = $this->parseArgs($rawArgs);
         if ($args === []
+            && $this->inlineMacroCanConsumeNextLine($name)
             && $this->index < count($this->lines)
             && !$this->isBlockStart($this->lines[$this->index])
             && $this->macroLine($this->lines[$this->index]) === null
@@ -447,12 +481,6 @@ final class ManReader
             ++$this->index;
         }
 
-        if ($name === 'br') {
-            return [new AstNode('linebreak')];
-        }
-        if ($name === 'YS') {
-            return [];
-        }
         if ($name === 'SY') {
             return [new AstNode('strong', [], $this->parseInlines($this->argsText($args)))];
         }
@@ -496,6 +524,11 @@ final class ManReader
         }
 
         return $inlines;
+    }
+
+    private function inlineMacroCanConsumeNextLine(string $name): bool
+    {
+        return in_array($name, ['B', 'I', 'SM', 'SB', 'BI', 'BR', 'IB', 'IR', 'RB', 'RI'], true);
     }
 
     private function inlineMacroArgumentStyle(string $name, int $offset): string
@@ -626,6 +659,11 @@ final class ManReader
         return rtrim(substr($text, 0, min($positions)));
     }
 
+    private function paragraphLineText(string $line): string
+    {
+        return ltrim($this->stripInlineComment($line));
+    }
+
     private function appendRoffTextLine(string &$text, bool &$joinNextLineTightly, string $line): void
     {
         $part = $this->stripInlineComment($line);
@@ -701,21 +739,13 @@ final class ManReader
             $name = substr($source, $offset + 3, 2);
             $offset += 4;
 
-            return match ($name) {
-                'lq' => "\u{201C}",
-                'rq' => "\u{201D}",
-                default => $name,
-            };
+            return $this->stringRegister($name);
         }
         if ($next === '*' && $offset + 3 < $length) {
             $name = substr($source, $offset + 2, 2);
             $offset += 3;
 
-            return match ($name) {
-                'lq' => "\u{201C}",
-                'rq' => "\u{201D}",
-                default => $name,
-            };
+            return $this->stringRegister($name);
         }
 
         ++$offset;
@@ -736,6 +766,16 @@ final class ManReader
             '&' => '',
             'q' => '"',
             default => $next,
+        };
+    }
+
+    private function stringRegister(string $name): string
+    {
+        return match ($name) {
+            'lq' => "\u{201C}",
+            'rq' => "\u{201D}",
+            '``', "''" => '',
+            default => $name,
         };
     }
 
@@ -1019,7 +1059,7 @@ final class ManReader
             }
 
             if (!$this->isCommentLine($trimmed)) {
-                $this->appendInlineNodes($paragraphInlines, $this->parseInlines($this->stripInlineComment($line)), $joinNextLineTightly);
+                $this->appendInlineNodes($paragraphInlines, $this->parseInlines($this->paragraphLineText($line)), $joinNextLineTightly);
                 $joinNextLineTightly = strpos($line, '\#') !== false;
             }
             ++$this->index;
@@ -1128,7 +1168,14 @@ final class ManReader
         while ($this->index < count($this->lines)) {
             $line = $this->lines[$this->index];
             $trimmed = trim($line);
-            if ($trimmed === '' || $this->isCommentLine($trimmed)) {
+            if ($trimmed === '') {
+                if ($blocks !== []) {
+                    break;
+                }
+                ++$this->index;
+                continue;
+            }
+            if ($this->isCommentLine($trimmed)) {
                 ++$this->index;
                 continue;
             }
@@ -1142,7 +1189,14 @@ final class ManReader
                     $this->skipMacroDefinition();
                     continue;
                 }
-                if ($this->isIgnoredRequest($macro[0]) || $this->isParagraphBreakMacro($macro[0])) {
+                if ($this->isParagraphBreakMacro($macro[0])) {
+                    if ($blocks !== []) {
+                        break;
+                    }
+                    ++$this->index;
+                    continue;
+                }
+                if ($this->isIgnoredRequest($macro[0])) {
                     ++$this->index;
                     continue;
                 }
@@ -1156,7 +1210,10 @@ final class ManReader
                 }
                 if ($macro[0] === 'RS') {
                     ++$this->index;
-                    array_push($blocks, ...$this->parseBlocks('.RE'));
+                    $children = $this->parseBlocks('.RE');
+                    if ($children !== []) {
+                        $blocks[] = new AstNode('blockquote', [], $children);
+                    }
                     continue;
                 }
                 if ($macro[0] === 'nf' || $macro[0] === 'EX') {

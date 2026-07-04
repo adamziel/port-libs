@@ -632,6 +632,9 @@ final class ManCorpusAudit
             if ($this->isEmptyTextNode($node)) {
                 continue;
             }
+            if ($this->isEmptyParagraphNode($node)) {
+                continue;
+            }
             $this->appendNormalizedChild($normalized, $node);
         }
 
@@ -646,7 +649,9 @@ final class ManCorpusAudit
     {
         $lastIndex = count($normalized) - 1;
         if ($lastIndex >= 0 && $this->isPlainTextNode($normalized[$lastIndex]) && $this->isPlainTextNode($node)) {
-            $normalized[$lastIndex]['attrs']['text'] .= $node['attrs']['text'];
+            $normalized[$lastIndex]['attrs']['text'] = $this->normalizeWhitespaceText(
+                (string) $normalized[$lastIndex]['attrs']['text'] . (string) $node['attrs']['text']
+            );
             return;
         }
 
@@ -665,6 +670,11 @@ final class ManCorpusAudit
             && array_keys($attrs) === ['text']
             && is_string($attrs['text'])
             && ($node['children'] ?? null) === [];
+    }
+
+    private function normalizeWhitespaceText(string $text): string
+    {
+        return preg_replace('/\s+/u', ' ', $text) ?? $text;
     }
 
     /**
@@ -715,6 +725,16 @@ final class ManCorpusAudit
     /**
      * @param array<string, mixed> $node
      */
+    private function isEmptyParagraphNode(array $node): bool
+    {
+        return in_array($node['type'] ?? null, ['paragraph', 'plain'], true)
+            && ($node['children'] ?? null) === []
+            && ($node['attrs'] ?? null) === [];
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     */
     private function isEmptyPandocTableScaffold(array $node): bool
     {
         return in_array($node['type'] ?? null, ['table_head', 'table_foot'], true)
@@ -725,7 +745,7 @@ final class ManCorpusAudit
     private function normalizedValue(mixed $value): mixed
     {
         if (is_string($value)) {
-            return preg_replace('/\\s+/u', ' ', $value) ?? $value;
+            return $this->normalizeWhitespaceText($value);
         }
         if (is_float($value)) {
             return round($value, 12);
