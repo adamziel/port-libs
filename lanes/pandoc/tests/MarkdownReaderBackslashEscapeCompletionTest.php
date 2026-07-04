@@ -22,6 +22,18 @@ $plainText = static function (AstNode $node) use (&$plainText): string {
 };
 
 $escapablePunctuation = str_split("!\"#\$%&'()*+,-./:;<=>?@[\\]^_`{|}~");
+$classicEscapablePunctuation = str_split("\\`*_{}[]()>#+-.!");
+$allSymbolsEscapableProfileCases = [
+    'markdown default' => ['format' => 'markdown', 'expectedAt' => 'before @ after'],
+    'markdown mmd default' => ['format' => 'markdown_mmd', 'expectedAt' => 'before @ after'],
+    'markdown explicit disabled' => ['format' => 'markdown-all_symbols_escapable', 'expectedAt' => 'before \\@ after'],
+    'markdown disabled before smart suffix' => ['format' => 'markdown-all_symbols_escapable-smart', 'expectedAt' => 'before \\@ after'],
+    'markdown strict default' => ['format' => 'markdown_strict', 'expectedAt' => 'before \\@ after'],
+    'markdown php extra default' => ['format' => 'markdown_phpextra', 'expectedAt' => 'before \\@ after'],
+    'markdown strict explicit enabled' => ['format' => 'markdown_strict+all_symbols_escapable', 'expectedAt' => 'before @ after'],
+    'commonmark default' => ['format' => 'commonmark', 'expectedAt' => 'before @ after'],
+    'gfm default' => ['format' => 'gfm', 'expectedAt' => 'before @ after'],
+];
 $nonEscapableCharacters = [
     'letter' => 'a',
     'digit' => '1',
@@ -96,8 +108,28 @@ return [
             $t->same('escaped', $plainText($inline));
         },
 
-    'records upstream commonmark backslash escape completion mapped-case count' =>
-        static function (TestRunner $t) use ($escapablePunctuation, $nonEscapableCharacters): void {
-            $t->same(40, count($escapablePunctuation) + count($nonEscapableCharacters) + 5);
+    'maps pandoc markdown all symbols escapable profile gate' =>
+        static function (TestRunner $t) use ($allSymbolsEscapableProfileCases, $classicEscapablePunctuation): void {
+            $t->same(9, count($allSymbolsEscapableProfileCases));
+            foreach ($allSymbolsEscapableProfileCases as $label => $case) {
+                $reader = new MarkdownReader(['format' => $case['format']]);
+                $paragraph = $reader->read('before \@ after')->children[0] ?? new AstNode('missing');
+
+                $t->same('paragraph', $paragraph->type, $label);
+                $t->same($case['expectedAt'], $paragraph->attr('text'), $label . ' at sign');
+                $t->same($case['expectedAt'], $paragraph->children[0]->attr('text'), $label . ' at sign inline');
+            }
+
+            $reader = new MarkdownReader(['format' => 'markdown-all_symbols_escapable']);
+            foreach ($classicEscapablePunctuation as $character) {
+                $paragraph = $reader->read('before \\' . $character . ' after')->children[0] ?? new AstNode('missing');
+
+                $t->same('before ' . $character . ' after', $paragraph->attr('text'), 'classic escape ' . $character);
+            }
+        },
+
+    'records upstream markdown backslash escape completion mapped-case count' =>
+        static function (TestRunner $t) use ($escapablePunctuation, $nonEscapableCharacters, $classicEscapablePunctuation, $allSymbolsEscapableProfileCases): void {
+            $t->same(65, count($escapablePunctuation) + count($nonEscapableCharacters) + 5 + count($allSymbolsEscapableProfileCases) + count($classicEscapablePunctuation));
         },
 ];

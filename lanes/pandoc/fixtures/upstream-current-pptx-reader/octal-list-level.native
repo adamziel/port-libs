@@ -1,0 +1,7 @@
+[ Header
+    2 ( "slide-1" , [] , [] ) [ Str "Octal level slide" ]
+, BulletList [ [ Plain [ Str "Octal level one" ] ] ]
+, BulletList [ [ Plain [ Str "Decimal zero separator" ] ] ]
+, BulletList
+    [ [ Plain [ Str "Uppercase octal level one" ] ] ]
+]

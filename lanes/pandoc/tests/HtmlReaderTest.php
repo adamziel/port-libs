@@ -193,6 +193,26 @@ $tests['imports direct pandoc html standalone semantic inline fragments as plain
         $t->same('Hypertext', $abbr->attr('attributes')['title'] ?? null);
     };
 
+$tests['imports direct pandoc html standalone abbr and dfn fixture as plain spans'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-standalone-abbr-dfn-inline.html'));
+        $plain = $document->children[0];
+        $abbr = $plain->children[0];
+        $separator = $plain->children[1];
+        $dfn = $plain->children[2];
+
+        $t->same('html', $document->attr('sourceFormat'));
+        $t->same(['plain'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same('HTML and term', $plain->attr('text'));
+        $t->same(['span', 'text', 'span'], array_map(static fn ($node): string => $node->type, $plain->children));
+        $t->same(['abbr'], $abbr->attr('classes'));
+        $t->same('Hypertext', $abbr->attr('attributes')['title'] ?? null);
+        $t->same('HTML', $abbr->children[0]->attr('text'));
+        $t->same(' and ', $separator->attr('text'));
+        $t->same(['dfn'], $dfn->attr('classes'));
+        $t->same('term', $dfn->children[0]->attr('text'));
+    };
+
 $tests['imports direct pandoc html standalone bdo mark q fragment as plain'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-standalone-bdo-mark-q-inline.html'));

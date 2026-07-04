@@ -7,6 +7,7 @@ namespace PortLibs\Pandoc;
 final class MarkdownReader
 {
     private const MARKDOWN_ESCAPABLE_ASCII_PUNCTUATION = "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~";
+    private const MARKDOWN_CLASSIC_ESCAPABLE_PUNCTUATION = "\\`*_{}[]()>#+-.!";
     /** Preserves backslash-escaped entity delimiters through the final entity decode pass. */
     private const ESCAPED_ENTITY_DELIMITER_PREFIX = "\x1FMD_ESCAPED_ENTITY_DELIMITER\x1F";
     /**
@@ -18814,7 +18815,32 @@ final class MarkdownReader
 
     private function isMarkdownEscapablePunctuation(string $char): bool
     {
-        return $char !== '' && str_contains(self::MARKDOWN_ESCAPABLE_ASCII_PUNCTUATION, $char);
+        if ($char === '') {
+            return false;
+        }
+
+        $escapable = $this->allSymbolsEscapableExtensionEnabled()
+            ? self::MARKDOWN_ESCAPABLE_ASCII_PUNCTUATION
+            : self::MARKDOWN_CLASSIC_ESCAPABLE_PUNCTUATION;
+
+        return str_contains($escapable, $char);
+    }
+
+    private function allSymbolsEscapableExtensionEnabled(): bool
+    {
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        if (in_array($canonical, ['commonmark', 'commonmark_x', 'gfm'], true)) {
+            return true;
+        }
+
+        $overrides = $this->markdownExtensionOverrides();
+        if (array_key_exists('all_symbols_escapable', $overrides)) {
+            return $overrides['all_symbols_escapable'];
+        }
+
+        return in_array($canonical, ['markdown', 'markdown_mmd'], true);
     }
 
     /**

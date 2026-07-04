@@ -1106,7 +1106,7 @@ final class EpubReader
             return [];
         }
 
-        $this->removeEpubFootnoteBacklinks($clone);
+        $link_attribute_overlays = $this->epubFootnoteLinkAttributeOverlays($clone);
         $body = $this->serializeXmlChildren($clone);
         if (trim($body) === '') {
             return [];
@@ -1116,41 +1116,77 @@ final class EpubReader
             . $body
             . '</body></html>';
 
-        return $this->epubContentMarkdownReader()->read($wrapped)->children;
+        $blocks = $this->epubContentMarkdownReader()->read($wrapped)->children;
+        if ($link_attribute_overlays === []) {
+            return $blocks;
+        }
+
+        $link_index = 0;
+        $restored_blocks = [];
+        foreach ($blocks as $block) {
+            $restored_blocks[] = $this->restoreEpubFootnoteLinkAttributes($block, $link_attribute_overlays, $link_index);
+        }
+
+        return $restored_blocks;
     }
 
-    private function removeEpubFootnoteBacklinks(\DOMElement $root): void
+    /**
+     * @return list<array{attributes: array<string, string>}>
+     */
+    private function epubFootnoteLinkAttributeOverlays(\DOMElement $root): array
     {
-        $links = [];
+        $overlays = [];
         foreach ($root->getElementsByTagName('a') as $link) {
-            if ($link instanceof \DOMElement && strtolower(trim($link->getAttribute('role'))) === 'doc-backlink') {
-                $links[] = $link;
+            if (!$link instanceof \DOMElement) {
+                continue;
             }
+
+            $attributes = [];
+            $role = trim($link->getAttribute('role'));
+            if ($role !== '') {
+                $attributes['role'] = $role;
+            }
+
+            $overlays[] = ['attributes' => $attributes];
         }
 
-        foreach ($links as $link) {
-            $parent = $link->parentNode instanceof \DOMElement ? $link->parentNode : null;
-            $link->parentNode?->removeChild($link);
-            $this->removeEmptyEpubFootnoteBacklinkContainer($parent, $root);
-        }
+        return array_filter(
+            $overlays,
+            static fn (array $overlay): bool => $overlay['attributes'] !== []
+        ) === [] ? [] : $overlays;
     }
 
-    private function removeEmptyEpubFootnoteBacklinkContainer(?\DOMElement $element, \DOMElement $root): void
+    /**
+     * @param list<array{attributes: array<string, string>}> $link_attribute_overlays
+     */
+    private function restoreEpubFootnoteLinkAttributes(AstNode $node, array $link_attribute_overlays, int &$link_index): AstNode
     {
-        while ($element instanceof \DOMElement && $element !== $root) {
-            if (trim($element->textContent) !== '') {
-                return;
-            }
-            foreach ($element->childNodes as $child) {
-                if ($child instanceof \DOMElement) {
-                    return;
+        $attrs = $node->attrs;
+        if ($node->type === 'link') {
+            $overlay = $link_attribute_overlays[$link_index] ?? ['attributes' => []];
+            ++$link_index;
+            if ($overlay['attributes'] !== []) {
+                $attributes = isset($attrs['attributes']) && is_array($attrs['attributes'])
+                    ? $attrs['attributes']
+                    : [];
+                foreach ($overlay['attributes'] as $name => $value) {
+                    $attributes[$name] ??= $value;
                 }
+                $attrs['attributes'] = $attributes;
             }
-
-            $parent = $element->parentNode instanceof \DOMElement ? $element->parentNode : null;
-            $element->parentNode?->removeChild($element);
-            $element = $parent;
         }
+
+        $children = [];
+        $changed = $attrs !== $node->attrs;
+        foreach ($node->children as $child) {
+            $updated = $this->restoreEpubFootnoteLinkAttributes($child, $link_attribute_overlays, $link_index);
+            $children[] = $updated;
+            if ($updated !== $child) {
+                $changed = true;
+            }
+        }
+
+        return $changed ? new AstNode($node->type, $attrs, $children) : $node;
     }
 
     private function serializeXmlChildren(\DOMElement $element): string

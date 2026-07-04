@@ -427,6 +427,106 @@ NATIVE;
         $t->same(74, $generatedEvidence['checkedInFixtureCount'] ?? null);
         $t->same($nativeTokenStream($expectedPandocNative), $nativeTokenStream($native));
     },
+    'matches pandoc 3.10 csv quoted blank-line cell native parity without inflating corpus counts' => static function (TestRunner $t) use ($nativeTokenStream): void {
+        $input = "id,note,status\n1,\"alpha\n\nbeta\",ok\n";
+        $expectedPandocNative = <<<'NATIVE'
+[ Table
+    ( "" , [] , [] )
+    (Caption Nothing [])
+    [ ( AlignDefault , ColWidthDefault )
+    , ( AlignDefault , ColWidthDefault )
+    , ( AlignDefault , ColWidthDefault )
+    ]
+    (TableHead
+       ( "" , [] , [] )
+       [ Row
+           ( "" , [] , [] )
+           [ Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Plain [ Str "id" ] ]
+           , Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Plain [ Str "note" ] ]
+           , Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Plain [ Str "status" ] ]
+           ]
+       ])
+    [ TableBody
+        ( "" , [] , [] )
+        (RowHeadColumns 0)
+        []
+        [ Row
+            ( "" , [] , [] )
+            [ Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain [ Str "1" ] ]
+            , Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain
+                    [ Str "alpha" , LineBreak , LineBreak , Str "beta" ]
+                ]
+            , Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain [ Str "ok" ] ]
+            ]
+        ]
+    ]
+    (TableFoot ( "" , [] , [] ) [])
+]
+NATIVE;
+
+        $document = (new DelimitedTextReader())->readCsv($input);
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+        $native = PandocConverter::write($document, 'native');
+        $generatedEvidence = $packet['upstreamEvidence']['generatedNativeParityEvidence'] ?? [];
+        $blankLineCell = $table->children[1]->children[0]->children[1];
+
+        $t->same(['id', 'note', 'status'], $table->attr('columnNames'));
+        $t->same(2, $packet['rowCount'] ?? null);
+        $t->same(1, $packet['bodyRowCount'] ?? null);
+        $t->same(3, $packet['columnCount'] ?? null);
+        $t->same(6, $packet['fieldCount'] ?? null);
+        $t->same(2, $packet['quotedLineBreakCount'] ?? null);
+        $t->same(2, $packet['quotedFieldNewlineCount'] ?? null);
+        $t->same(1, $packet['multilineFieldCount'] ?? null);
+        $t->same([1], $packet['multilineQuotedRows'] ?? null);
+        $t->same(1, $packet['diagnosticCount'] ?? null);
+        $t->same(['delimited-text-multiline-quoted-field'], array_column($packet['diagnostics'] ?? [], 'code'));
+        $t->same("alpha\n\nbeta", $blankLineCell->attr('text'));
+        $t->same(
+            ['text', 'linebreak', 'linebreak', 'text'],
+            array_map(static fn (AstNode $node): string => $node->type, $blankLineCell->children[0]->children)
+        );
+        $t->same('alpha', $blankLineCell->children[0]->children[0]->attr('text'));
+        $t->same('beta', $blankLineCell->children[0]->children[3]->attr('text'));
+        $t->contains('Plain [ Str "alpha" , LineBreak , LineBreak , Str "beta" ]', $native);
+        $t->same(2, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(2, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
+        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
+        $t->same(74, $generatedEvidence['checkedInFixtureCount'] ?? null);
+        $t->same($nativeTokenStream($expectedPandocNative), $nativeTokenStream($native));
+    },
     'matches generated csv no header ragged native parity fixture without inflating csv denominator' => static function (TestRunner $t) use ($generatedCsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedCsvNativeFixture('no-header-ragged');
         $document = (new DelimitedTextReader())->readCsv($fixture['input'], [

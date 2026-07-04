@@ -395,6 +395,7 @@ final class MarkdownFormatProfile
             [
                 'ascii_identifiers',
                 'alerts',
+                'all_symbols_escapable',
                 'attributes',
                 'bare_uri_autolinks',
                 'bracketed_spans',
