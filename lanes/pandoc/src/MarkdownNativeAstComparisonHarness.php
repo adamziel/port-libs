@@ -49,6 +49,7 @@ final class MarkdownNativeAstComparisonHarness
         'upstream-markdown-zzzzzz-ignore-line-breaks-profile' => ['format' => 'markdown+ignore_line_breaks'],
         'upstream-markdown-zzzzzzz-auto-identifiers-disabled-profile' => ['format' => 'markdown-auto_identifiers'],
         'upstream-markdown-zzzzzzzz-blank-before-header-disabled-profile' => ['format' => 'markdown-blank_before_header'],
+        'upstream-markdown-zzzzzzzzzz-bare-uri-bracket-encoding' => ['format' => 'markdown+autolink_bare_uris'],
     ];
 
     /** @var array<string, true> */

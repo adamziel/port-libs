@@ -7,8 +7,8 @@ The checked-in EPUB reader fixture subset now mirrors the upstream current
 `test/epub` inventory plus generated current-upstream edge fixtures used by
 the local native/package harness:
 
-- 49 EPUB package inputs in `lanes/pandoc/fixtures/upstream-current-epub-reader/epub`
-- 49 same-directory `.native` goldens for every checked-in EPUB package input
+- 50 EPUB package inputs in `lanes/pandoc/fixtures/upstream-current-epub-reader/epub`
+- 50 same-directory `.native` goldens for every checked-in EPUB package input
 
 Imported from the hydrated upstream cache at
 `/Users/admin/port-libs-pandoc-pptx/.upstream-cache/pandoc-full/test/epub`:
@@ -163,11 +163,11 @@ golden was generated with:
 Verified checked-in gate:
 
 ```sh
-php tools/pandoc-epub-native-ast-package.php --checked-in-fixtures summary --require-package-parity=49 --require-native-readiness=49 --require-mapped-parity=49 --require-fixture-identity --require-current-package-feature-coverage --require-current-package-feature-signature --require-current-native-ast-signature --require-runner-plan
+php tools/pandoc-epub-native-ast-package.php --checked-in-fixtures summary --require-package-parity=50 --require-native-readiness=50 --require-mapped-parity=50 --require-fixture-identity --require-current-package-feature-coverage --require-current-package-feature-signature --require-current-native-ast-signature --require-runner-plan
 ```
 
-Result: `packageParsedCount=49`, `readerParsedCount=49`,
-`nativeParsedCount=49`, `normalizedAstMatchCount=49`, and
+Result: `packageParsedCount=50`, `readerParsedCount=50`,
+`nativeParsedCount=50`, `normalizedAstMatchCount=50`, and
 `normalizedAstMismatchCount=0`.
 
 This continues not to claim upstream Haskell/Tasty runner parity; the harness

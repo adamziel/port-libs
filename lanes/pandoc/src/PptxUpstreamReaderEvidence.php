@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 75;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 76;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '626075b0749ae1fb6b76a65ac257228d2318df81ec9988aac49ca385aa98b574';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 32962;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'd74d7ca01e911175e481fcb1ae7f4eb677c0f1749428eb3fdecbd276b703422a';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 33401;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -222,6 +222,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => '9a1dd6f8ddf28f555cd1f128f5e24864284f1a721d2ae3c1e4598ebdcbe9b21b',
             'pptxBytes' => 1519,
             'nativeBytes' => 169,
+        ],
+        'end-paragraph-symbol' => [
+            'name' => 'generated end-paragraph Wingdings symbol locality parity',
+            'pptx' => 'pptx-reader/end-paragraph-symbol.pptx',
+            'native' => 'pptx-reader/end-paragraph-symbol.native',
+            'pairKey' => 'pptx-reader/end-paragraph-symbol.pptx|pptx-reader/end-paragraph-symbol.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/end-paragraph-symbol.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/end-paragraph-symbol.native',
+            'pptxSha256' => '5bf9f05d16bbd53092f9e7c4d7cc68be91370d4c2027d59aa4b31f7649569f0a',
+            'nativeSha256' => 'bbcbc22ada6d869940c3b7512ea52562df6a54e6b872a23fb7d536857dbb0466',
+            'pptxBytes' => 1654,
+            'nativeBytes' => 100,
         ],
         'external-mode-slide-target' => [
             'name' => 'generated slide TargetMode ignored parity',

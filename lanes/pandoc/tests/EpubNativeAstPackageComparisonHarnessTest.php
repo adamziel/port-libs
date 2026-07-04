@@ -844,6 +844,14 @@ return [
                 'sha256' => '884c97ef31814c40e380663f07792a4dd223d67457fd4b7cfbf0bae9be158cc5',
                 'bytes' => 1140,
             ],
+            'metadata-record-remote-nav.epub' => [
+                'sha256' => '74f7d7ecaa89dea3d0085f1208a78abf951de22e057245d321036bcd4b35ffe8',
+                'bytes' => 1944,
+            ],
+            'metadata-record-remote-nav.native' => [
+                'sha256' => '9a0dffbca5d0b8a52ac7d12e570a0e671d6892f54298d396d808a49940f31bad',
+                'bytes' => 844,
+            ],
             'missing-local-manifest-resource.epub' => [
                 'sha256' => '5ce06b74cde06eb0d06f1b41b73f99840983451abb9bb120e8206979ac16dca5',
                 'bytes' => 1386,
@@ -1007,9 +1015,9 @@ return [
         ];
         $expectedPackageFeatureCoverage = [
             'kind' => 'epub-package-feature-coverage',
-            'fixtureCount' => 49,
+            'fixtureCount' => 50,
             'opfPartNameCounts' => [
-                '/EPUB/package.opf' => 36,
+                '/EPUB/package.opf' => 37,
                 '/EPUB/wasteland.opf' => 1,
                 '/OEBPS/content.opf' => 3,
                 '/OPS/book/package.opf' => 3,
@@ -1017,7 +1025,7 @@ return [
             ],
             'metadataLanguageCounts' => [
                 'de-DE' => 3,
-                'en' => 42,
+                'en' => 43,
                 'en-GB' => 1,
                 'en-US' => 2,
                 'fr' => 1,
@@ -1040,6 +1048,7 @@ return [
                 'manifest-href-encoding',
                 'media-manifest-mix',
                 'metadata-link-page-list-image',
+                'metadata-record-remote-nav',
                 'missing-media-overlay',
                 'nested-path-media-metadata',
                 'nested-rootfile-nonlinear-spine',
@@ -1051,11 +1060,11 @@ return [
                 'xhtml-semantics-spine',
             ],
             'navigationTypeCounts' => [
-                'nav' => 44,
+                'nav' => 45,
                 'ncx' => 4,
             ],
             'spineLinearStateCounts' => [
-                'linear' => 65,
+                'linear' => 66,
                 'non-linear' => 14,
             ],
             'spinePageSpreadPlacementCounts' => [
@@ -1064,46 +1073,46 @@ return [
             ],
             'manifestMediaTypeCounts' => [
                 'application/javascript' => 1,
-                'application/json' => 4,
+                'application/json' => 5,
                 'application/octet-stream' => 1,
                 'application/pdf' => 1,
                 'application/smil+xml' => 1,
                 'application/x-bound-widget' => 1,
                 'application/x-dtbncx+xml' => 6,
                 'application/x-fallback-demo' => 2,
-                'application/xhtml+xml' => 117,
+                'application/xhtml+xml' => 119,
                 'audio/mpeg' => 4,
                 'font/woff2' => 1,
                 'image/gif' => 5,
                 'image/jpeg' => 7,
                 'image/png' => 9,
                 'image/svg+xml' => 1,
-                'text/css' => 22,
+                'text/css' => 23,
                 'video/mp4' => 2,
             ],
             'manifestPropertyCounts' => [
                 'cover-image' => 3,
                 'mathml' => 2,
-                'nav' => 44,
-                'remote-resources' => 3,
+                'nav' => 45,
+                'remote-resources' => 4,
                 'rendition:layout-pre-paginated' => 1,
                 'scripted' => 2,
                 'svg' => 2,
                 'switch' => 1,
             ],
             'manifestResourceKindCounts' => [
-                'asset' => 9,
+                'asset' => 10,
                 'audio' => 4,
                 'cover-image' => 3,
                 'font' => 1,
                 'image' => 18,
                 'media-overlay' => 1,
-                'navigation' => 50,
+                'navigation' => 51,
                 'script' => 1,
-                'style' => 22,
+                'style' => 23,
                 'svg' => 1,
                 'video' => 2,
-                'xhtml' => 73,
+                'xhtml' => 74,
             ],
             'navigationSectionTypes' => [
                 'landmarks',
@@ -1121,16 +1130,16 @@ return [
                 'index' => 1,
                 'notes' => 1,
                 'preface' => 1,
-                'text' => 7,
+                'text' => 8,
                 'title-page' => 1,
                 'toc' => 1,
             ],
             'packageLinkRelCounts' => [
-                'alternate' => 1,
+                'alternate' => 2,
                 'cc:attributionURL' => 1,
                 'cc:license' => 2,
-                'preview' => 1,
-                'record' => 5,
+                'preview' => 2,
+                'record' => 6,
             ],
             'encryptionRoleCounts' => [
                 'font' => 3,
@@ -1595,6 +1604,30 @@ return [
                     ],
                     'coverImagePartPresent' => false,
                 ],
+                'metadata-record-remote-nav' => [
+                    'navigationType' => 'nav',
+                    'navigationSectionTypes' => [
+                        'landmarks',
+                        'loi',
+                        'page-list',
+                        'toc',
+                    ],
+                    'manifestResourceKindCounts' => [
+                        'asset' => 1,
+                        'navigation' => 1,
+                        'style' => 1,
+                        'xhtml' => 1,
+                    ],
+                    'guideReferenceTypeCounts' => [
+                        'text' => 1,
+                    ],
+                    'packageLinkRelCounts' => [
+                        'alternate' => 1,
+                        'preview' => 1,
+                        'record' => 1,
+                    ],
+                    'coverImagePartPresent' => false,
+                ],
                 'missing-local-manifest-resource' => [
                     'navigationType' => 'nav',
                     'navigationSectionTypes' => [
@@ -1929,6 +1962,7 @@ return [
                 'guide-notes-reference',
                 'guide-preface-reference',
                 'manifest-href-encoding',
+                'metadata-record-remote-nav',
                 'nav-ncx-linear-guide',
                 'nested-path-media-metadata',
                 'nested-rootfile-nonlinear-spine',
@@ -1940,6 +1974,7 @@ return [
                 'bindings-collections-sidecars',
                 'manifest-href-encoding',
                 'metadata-link-page-list-image',
+                'metadata-record-remote-nav',
                 'nav-ncx-linear-guide',
                 'nested-path-media-metadata',
                 'title-page-guide-media-metadata',
@@ -2008,6 +2043,7 @@ return [
                 'img',
                 'img_no_cover',
                 'manifest-href-encoding',
+                'metadata-record-remote-nav',
                 'nav-ncx-linear-guide',
                 'nested-path-media-metadata',
                 'nested-rootfile-nonlinear-spine',
@@ -2022,6 +2058,7 @@ return [
                 'content-image-nav-media',
                 'manifest-href-encoding',
                 'metadata-link-page-list-image',
+                'metadata-record-remote-nav',
                 'nested-path-media-metadata',
                 'package-spine-nav-media-metadata',
                 'page-list-navigation',
@@ -2031,6 +2068,7 @@ return [
             'fixturesWithAuxiliaryNavigation' => [
                 'audio-navigation',
                 'auxiliary-lot-guide-index',
+                'metadata-record-remote-nav',
                 'nested-path-media-metadata',
                 'page-list-navigation',
                 'title-page-guide-media-metadata',
@@ -2038,11 +2076,13 @@ return [
             ],
             'fixturesWithRemoteManifestResources' => [
                 'media-manifest-mix',
+                'metadata-record-remote-nav',
                 'nested-path-media-metadata',
                 'remote-manifest-resource',
             ],
             'fixturesWithExternalManifestItems' => [
                 'media-manifest-mix',
+                'metadata-record-remote-nav',
                 'nested-path-media-metadata',
                 'remote-manifest-resource',
             ],
@@ -2054,6 +2094,7 @@ return [
                 'manifest-fallback-chain',
                 'manifest-href-encoding',
                 'media-manifest-mix',
+                'metadata-record-remote-nav',
                 'nav-ncx-linear-guide',
                 'nested-path-media-metadata',
                 'spine-fallback-resource',
@@ -2081,6 +2122,7 @@ return [
             ],
             'fixturesWithMissingManifestFallbacks' => [
                 'manifest-href-encoding',
+                'metadata-record-remote-nav',
                 'nav-ncx-linear-guide',
                 'nested-path-media-metadata',
                 'title-page-guide-media-metadata',
@@ -2130,27 +2172,27 @@ return [
                 'bindings-collections-sidecars',
             ],
             'totals' => [
-                'metadataCreators' => 46,
-                'manifestItems' => 185,
-                'readingOrderItems' => 79,
+                'metadataCreators' => 47,
+                'manifestItems' => 189,
+                'readingOrderItems' => 80,
                 'spinePageSpreadItems' => 4,
-                'xhtmlAssets' => 117,
+                'xhtmlAssets' => 119,
                 'imageAssets' => 22,
                 'stylesheetAssets' => 20,
-                'navigationEntries' => 137,
-                'landmarkEntries' => 20,
-                'pageListEntries' => 11,
-                'auxiliaryNavigationEntries' => 6,
-                'packageLinks' => 9,
-                'guideReferences' => 17,
-                'remoteResourceManifestItems' => 3,
-                'externalManifestItems' => 3,
+                'navigationEntries' => 138,
+                'landmarkEntries' => 21,
+                'pageListEntries' => 12,
+                'auxiliaryNavigationEntries' => 7,
+                'packageLinks' => 11,
+                'guideReferences' => 18,
+                'remoteResourceManifestItems' => 4,
+                'externalManifestItems' => 4,
                 'missingLocalManifestItems' => 1,
-                'manifestFallbackItems' => 11,
+                'manifestFallbackItems' => 12,
                 'manifestFallbacks' => 5,
                 'resolvedManifestFallbacks' => 5,
                 'usableManifestFallbacks' => 5,
-                'missingManifestFallbacks' => 6,
+                'missingManifestFallbacks' => 7,
                 'mediaOverlays' => 2,
                 'resolvedMediaOverlays' => 1,
                 'missingMediaOverlays' => 1,
@@ -2170,8 +2212,8 @@ return [
                 'ocfSidecars' => 4,
             ],
         ];
-        $expectedPackageFeatureSignatureSha256 = 'fc18a6c19e3a1befffee97b3e01a8bfa4796e839e7e4ac6e2f0b695988e89bc9';
-        $expectedCurrentNativeAstSignatureSha256 = '4985d04a28de187bc9d5758ae173016f4cab2d528d6d1218706e1e3f7dbb8422';
+        $expectedPackageFeatureSignatureSha256 = 'e4c538c979c9260b4d985df1c845e5382ee107f0ea7828821e94c0af6e330ba4';
+        $expectedCurrentNativeAstSignatureSha256 = '632afc25bae2e95b1edddc68a240885ae586478900fdf393d3d121329a075ef1';
         $expectedCurrentNativeAstFixtures = [
             'all-nonlinear-spine',
             'audio-navigation',
@@ -2202,6 +2244,7 @@ return [
             'media-manifest-mix',
             'media-overlay-package',
             'metadata-link-page-list-image',
+            'metadata-record-remote-nav',
             'missing-local-manifest-resource',
             'missing-media-overlay',
             'nav-ncx-linear-guide',
@@ -2224,38 +2267,38 @@ return [
             'xhtml-semantics-spine',
         ];
 
-        $t->same(49, count($epubFiles), 'Checked-in EPUB fixture count changed');
-        $t->same(49, count($nativeFiles), 'Checked-in native fixture count changed');
+        $t->same(50, count($epubFiles), 'Checked-in EPUB fixture count changed');
+        $t->same(50, count($nativeFiles), 'Checked-in native fixture count changed');
 
         $harness = new EpubNativeAstPackageComparisonHarness();
         $report = $harness->run($root);
         $text = $harness->formatReport($report);
 
         $t->same('completed', $report['status']);
-        $t->same(49, $report['totalEpubCount']);
-        $t->same(49, $report['comparedEpubCount']);
-        $t->same(49, $report['packageParsedCount']);
-        $t->same(49, $report['readerParsedCount']);
+        $t->same(50, $report['totalEpubCount']);
+        $t->same(50, $report['comparedEpubCount']);
+        $t->same(50, $report['packageParsedCount']);
+        $t->same(50, $report['readerParsedCount']);
         $t->same(0, $report['packageParseFailureCount']);
         $t->same(0, $report['readerParseFailureCount']);
-        $t->same(49, $report['totalPairCount']);
-        $t->same(49, $report['comparedPairCount']);
-        $t->same(49, $report['epubPairParsedCount']);
-        $t->same(49, $report['nativeParsedCount']);
-        $t->same(49, $report['bothParsedCount']);
+        $t->same(50, $report['totalPairCount']);
+        $t->same(50, $report['comparedPairCount']);
+        $t->same(50, $report['epubPairParsedCount']);
+        $t->same(50, $report['nativeParsedCount']);
+        $t->same(50, $report['bothParsedCount']);
         $t->same(0, $report['astParseFailureCount']);
         $t->same(0, $report['nativeParseFailureCount']);
-        $t->same(49, $report['normalizedAstMatchCount']);
+        $t->same(50, $report['normalizedAstMatchCount']);
         $t->same(0, $report['normalizedAstMismatchCount']);
-        $t->same(true, EpubNativeAstPackageComparisonHarness::hasRequiredPackageParity($report, 49));
-        $t->same(true, EpubNativeAstPackageComparisonHarness::hasRequiredNativeReadiness($report, 49));
+        $t->same(true, EpubNativeAstPackageComparisonHarness::hasRequiredPackageParity($report, 50));
+        $t->same(true, EpubNativeAstPackageComparisonHarness::hasRequiredNativeReadiness($report, 50));
         $t->same(false, EpubNativeAstPackageComparisonHarness::hasRequiredMappedParity($report, 2));
-        $t->same(true, EpubNativeAstPackageComparisonHarness::hasRequiredMappedParity($report, 49));
+        $t->same(true, EpubNativeAstPackageComparisonHarness::hasRequiredMappedParity($report, 50));
         $t->same(true, EpubNativeAstPackageComparisonHarness::hasRequiredFixtureIdentity($report));
         $t->same('valid-checked-in-current-epub-fixture-identity', $report['fixtureIdentity']['validation']['status']);
         $t->same([], $report['fixtureIdentity']['validation']['issues']);
-        $t->same(98, $report['fixtureIdentity']['expectedFileCount']);
-        $t->same(98, $report['fixtureIdentity']['observedFileCount']);
+        $t->same(100, $report['fixtureIdentity']['expectedFileCount']);
+        $t->same(100, $report['fixtureIdentity']['observedFileCount']);
         $observedFixtureIdentity = [];
         foreach ($report['fixtureIdentity']['files'] as $file) {
             $observedFixtureIdentity[$file['path']] = [
@@ -2270,7 +2313,7 @@ return [
         }
         $t->same('checked-in-current-epub-package-feature-signature', $report['packageFeatureSignature']['kind']);
         $t->same('sha256-canonical-json-v1', $report['packageFeatureSignature']['algorithm']);
-        $t->same('checked-in-current-upstream-epub-reader-49-fixture-snapshot', $report['packageFeatureSignature']['scope']);
+        $t->same('checked-in-current-upstream-epub-reader-50-fixture-snapshot', $report['packageFeatureSignature']['scope']);
         $t->same($expectedPackageFeatureSignatureSha256, $report['packageFeatureSignature']['sha256']);
         $t->same($expectedPackageFeatureSignatureSha256, $report['packageFeatureSignature']['expectedSha256']);
         $t->same(true, $report['packageFeatureSignature']['hashMatchesExpected']);
@@ -2280,9 +2323,9 @@ return [
         $t->same(true, $report['packageFeatureSignature']['validation']['packageFeatureCoverageMatchesExpected']);
         $t->same('checked-in-current-epub-normalized-native-ast-signature', $report['currentNativeAstSignature']['kind']);
         $t->same('sha256-canonical-json-v1', $report['currentNativeAstSignature']['algorithm']);
-        $t->same('checked-in-current-upstream-epub-reader-49-fixture-normalized-ast-snapshot', $report['currentNativeAstSignature']['scope']);
-        $t->same(49, $report['currentNativeAstSignature']['fixtureCount']);
-        $t->same(49, $report['currentNativeAstSignature']['expectedFixtureCount']);
+        $t->same('checked-in-current-upstream-epub-reader-50-fixture-normalized-ast-snapshot', $report['currentNativeAstSignature']['scope']);
+        $t->same(50, $report['currentNativeAstSignature']['fixtureCount']);
+        $t->same(50, $report['currentNativeAstSignature']['expectedFixtureCount']);
         $t->same($expectedCurrentNativeAstFixtures, $report['currentNativeAstSignature']['expectedFixtures']);
         $t->same($expectedCurrentNativeAstFixtures, $report['currentNativeAstSignature']['observedFixtures']);
         $t->same($expectedCurrentNativeAstSignatureSha256, $report['currentNativeAstSignature']['sha256']);
@@ -2293,8 +2336,8 @@ return [
         $t->same([], $report['currentNativeAstSignature']['validation']['issues']);
         $t->same(true, $report['currentNativeAstSignature']['validation']['fixturesMatchExpected']);
         $t->same(true, $report['currentNativeAstSignature']['validation']['normalizedAstComparisonMatchesExpected']);
-        $t->same(49, count($report['packageFeatureCoverage']['fixtureFeatureSignatures']));
-        $t->same(49, count($report['currentNativeAstSignature']['fixtureSignatures']));
+        $t->same(50, count($report['packageFeatureCoverage']['fixtureFeatureSignatures']));
+        $t->same(50, count($report['currentNativeAstSignature']['fixtureSignatures']));
         $t->same([
             'navigationType' => 'nav',
             'navigationSectionTypes' => ['loa', 'toc'],
@@ -2585,6 +2628,33 @@ return [
         ], $report['packageFeatureCoverage']['fixtureFeatureSignatures']['media-overlay-package']);
         $t->same(true, $report['currentNativeAstSignature']['fixtureSignatures']['media-overlay-package']['normalizedAstMatches']);
         $t->same(['paragraph', 'heading', 'paragraph'], $report['currentNativeAstSignature']['fixtureSignatures']['media-overlay-package']['epubTopTypes']);
+        $t->same([
+            'navigationType' => 'nav',
+            'navigationSectionTypes' => ['landmarks', 'loi', 'page-list', 'toc'],
+            'manifestResourceKindCounts' => [
+                'asset' => 1,
+                'navigation' => 1,
+                'style' => 1,
+                'xhtml' => 1,
+            ],
+            'guideReferenceTypeCounts' => ['text' => 1],
+            'packageLinkRelCounts' => [
+                'alternate' => 1,
+                'preview' => 1,
+                'record' => 1,
+            ],
+            'coverImagePartPresent' => false,
+        ], $report['packageFeatureCoverage']['fixtureFeatureSignatures']['metadata-record-remote-nav']);
+        $t->same(true, $report['currentNativeAstSignature']['fixtureSignatures']['metadata-record-remote-nav']['normalizedAstMatches']);
+        $t->same(
+            '6716e05903715d07c24abc686a7eb4bed7c6a59d00c98792386e2568268feb71',
+            $report['currentNativeAstSignature']['fixtureSignatures']['metadata-record-remote-nav']['epubNormalizedAstSha256']
+        );
+        $t->same(
+            $report['currentNativeAstSignature']['fixtureSignatures']['metadata-record-remote-nav']['epubNormalizedAstSha256'],
+            $report['currentNativeAstSignature']['fixtureSignatures']['metadata-record-remote-nav']['nativeNormalizedAstSha256']
+        );
+        $t->same(['paragraph', 'div'], $report['currentNativeAstSignature']['fixtureSignatures']['metadata-record-remote-nav']['epubTopTypes']);
         $t->same([
             'navigationType' => 'nav',
             'navigationSectionTypes' => ['landmarks', 'toc'],
@@ -2902,8 +2972,8 @@ return [
         $t->same('native', $report['runnerEvidence']['target']['outputFormat']);
         $t->same('test/epub', $report['runnerEvidence']['target']['fixtureDirectory']);
         $t->same($expectedCurrentNativeAstFixtures, $report['runnerEvidence']['target']['fixtureBasenames']);
-        $t->same(98, $report['runnerEvidence']['checkedInSnapshot']['expectedFileCount']);
-        $t->same(49, $report['runnerEvidence']['checkedInSnapshot']['expectedPairCount']);
+        $t->same(100, $report['runnerEvidence']['checkedInSnapshot']['expectedFileCount']);
+        $t->same(50, $report['runnerEvidence']['checkedInSnapshot']['expectedPairCount']);
         $t->same($expectedPackageFeatureSignatureSha256, $report['runnerEvidence']['checkedInSnapshot']['packageFeatureSignature']);
         $t->same($expectedCurrentNativeAstSignatureSha256, $report['runnerEvidence']['checkedInSnapshot']['nativeAstSignature']);
         $t->same('exe:pandoc', $report['runnerEvidence']['futureCommands'][2]['arguments'][4]);
@@ -2915,24 +2985,24 @@ return [
         $t->same(false, EpubNativeAstPackageComparisonHarness::hasRunnerPlanEvidence($mutatedReport));
         $t->same('covered-by-current-package-evidence', $report['orderedRemainingGaps'][0]['status']);
         $t->same('covered-by-current-normalized-ast-evidence', $report['orderedRemainingGaps'][1]['status']);
-        $t->contains('packages: total=49 compared=49 packageParsed=49 readerParsed=49 packageFailures=0 readerFailures=0', $text);
-        $t->contains('normalizedAst: matches=49 (100.00%) mismatches=0', $text);
-        $t->contains('fixtureIdentity: status=valid-checked-in-current-epub-fixture-identity expected=98 observed=98', $text);
-        $t->contains('packageFeatureCoverage: fixtures=49 nav=44 ncx=4 covers=5 landmarks=17 pageLists=8 auxiliaryNav=6 metadataCreators=46 manifestItems=185', $text);
-        $t->contains('spineLinear=linear:65,non-linear:14 nonLinearSpineFixtures=14 spinePageSpread=left:2,right:2 pageSpreadFixtures=2', $text);
+        $t->contains('packages: total=50 compared=50 packageParsed=50 readerParsed=50 packageFailures=0 readerFailures=0', $text);
+        $t->contains('normalizedAst: matches=50 (100.00%) mismatches=0', $text);
+        $t->contains('fixtureIdentity: status=valid-checked-in-current-epub-fixture-identity expected=100 observed=100', $text);
+        $t->contains('packageFeatureCoverage: fixtures=50 nav=45 ncx=4 covers=5 landmarks=18 pageLists=9 auxiliaryNav=7 metadataCreators=47 manifestItems=189', $text);
+        $t->contains('spineLinear=linear:66,non-linear:14 nonLinearSpineFixtures=14 spinePageSpread=left:2,right:2 pageSpreadFixtures=2', $text);
         $t->contains('packageFeatureSignature: status=valid-checked-in-current-epub-package-feature-signature matchesExpected=true sha256=' . $expectedPackageFeatureSignatureSha256, $text);
-        $t->contains('currentNativeAstSignature: status=valid-checked-in-current-epub-normalized-native-ast-signature matchesExpected=true fixtures=49 sha256=' . $expectedCurrentNativeAstSignatureSha256, $text);
+        $t->contains('currentNativeAstSignature: status=valid-checked-in-current-epub-normalized-native-ast-signature matchesExpected=true fixtures=50 sha256=' . $expectedCurrentNativeAstSignatureSha256, $text);
         $t->contains('runnerEvidence: status=not-run plan=planned-not-run executed=false', $text);
-        $t->contains('resourceKinds=asset:9,audio:4,cover-image:3,font:1,image:18,media-overlay:1,navigation:50,script:1,style:22,svg:1,video:2,xhtml:73', $text);
-        $t->contains('guideRefTypes=bibliography:1,cover:3,glossary:1,index:1,notes:1,preface:1,text:7,title-page:1,toc:1', $text);
-        $t->contains('packageLinkRels=alternate:1,cc:attributionURL:1,cc:license:2,preview:1,record:5', $text);
-        $t->contains('remoteManifest=3 externalManifest=3 missingLocalManifest=1 manifestFallbackItems=10 manifestFallbacks=5 resolvedFallbacks=4 usableFallbacks=4 missingFallbacks=6', $text);
+        $t->contains('resourceKinds=asset:10,audio:4,cover-image:3,font:1,image:18,media-overlay:1,navigation:51,script:1,style:23,svg:1,video:2,xhtml:74', $text);
+        $t->contains('guideRefTypes=bibliography:1,cover:3,glossary:1,index:1,notes:1,preface:1,text:8,title-page:1,toc:1', $text);
+        $t->contains('packageLinkRels=alternate:2,cc:attributionURL:1,cc:license:2,preview:2,record:6', $text);
+        $t->contains('remoteManifest=4 externalManifest=4 missingLocalManifest=1 manifestFallbackItems=11 manifestFallbacks=5 resolvedFallbacks=4 usableFallbacks=4 missingFallbacks=7', $text);
         $t->contains('mediaOverlayFixtures=2 resolvedMediaOverlayFixtures=1 mediaOverlays=2 resolvedMediaOverlays=1 mediaOverlayTextTargets=1 mediaOverlayAudioTargets=1 mediaOverlayDurations=3', $text);
         $t->contains('encryptionFixtures=3 obfuscatedFontFixtures=3 blockedEncryptedByteExposureFixtures=3 encryptionItems=3 obfuscatedFonts=3 blockedEncryptedByteExposures=3 encryptionDiagnostics=6 encryptionRoles=font:3', $text);
         $t->contains('collectionFixtures=1 collections=2 collectionLinks=3 collectionRoles=index:1,role:primary:1,schema:hasPart:1 collectionLinkRels=contents:1,index:1,record:1', $text);
         $t->contains('bindingFixtures=1 bindings=1 bindingResolvedHandlers=1 bindingParams=1 bindingMediaTypes=application/x-bound-widget:1', $text);
         $t->contains('ocfSidecarFixtures=1 ocfSidecars=4 ocfSidecarKinds=manifest:1,metadata:1,rights:1,signatures:1', $text);
-        $t->contains('opfParts=/EPUB/package.opf:36,/EPUB/wasteland.opf:1,/OEBPS/content.opf:3,/OPS/book/package.opf:3,/OPS/package.opf:6', $text);
+        $t->contains('opfParts=/EPUB/package.opf:37,/EPUB/wasteland.opf:1,/OEBPS/content.opf:3,/OPS/book/package.opf:3,/OPS/package.opf:6', $text);
 
         $command = escapeshellarg(PHP_BINARY)
             . ' '
@@ -2945,9 +3015,9 @@ return [
             . ' --require-current-package-feature-signature'
             . ' --require-current-native-ast-signature'
             . ' --require-runner-plan'
-            . ' --require-package-parity=49'
-            . ' --require-native-readiness=49'
-            . ' --require-mapped-parity=49';
+            . ' --require-package-parity=50'
+            . ' --require-native-readiness=50'
+            . ' --require-mapped-parity=50';
         $output = [];
         $exitCode = 0;
         exec($command, $output, $exitCode);
@@ -2955,10 +3025,10 @@ return [
 
         $t->same(0, $exitCode);
         $t->same($root, $decoded['upstreamEpubDirectory']);
-        $t->same(49, $decoded['packageParsedCount']);
-        $t->same(49, $decoded['readerParsedCount']);
-        $t->same(49, $decoded['nativeParsedCount']);
-        $t->same(49, $decoded['normalizedAstMatchCount']);
+        $t->same(50, $decoded['packageParsedCount']);
+        $t->same(50, $decoded['readerParsedCount']);
+        $t->same(50, $decoded['nativeParsedCount']);
+        $t->same(50, $decoded['normalizedAstMatchCount']);
         $t->same(0, $decoded['normalizedAstMismatchCount']);
         $t->same('valid-checked-in-current-epub-fixture-identity', $decoded['fixtureIdentity']['validation']['status']);
         foreach ($expectedPackageFeatureCoverage as $key => $expected) {
@@ -2990,9 +3060,9 @@ return [
             . escapeshellarg(dirname(__DIR__, 3) . '/tools/pandoc-epub-native-ast-package.php')
             . ' --json'
             . ' summary'
-            . ' --require-package-parity=49'
-            . ' --require-native-readiness=49'
-            . ' --require-mapped-parity=49'
+            . ' --require-package-parity=50'
+            . ' --require-native-readiness=50'
+            . ' --require-mapped-parity=50'
             . ' --require-fixture-identity'
             . ' --require-current-package-feature-coverage'
             . ' --require-current-package-feature-signature'
@@ -3010,7 +3080,7 @@ return [
 
         $t->same(0, $defaultFixtureIdentityExitCode);
         $t->same($root, $defaultFixtureIdentityDecoded['upstreamEpubDirectory']);
-        $t->same(49, $defaultFixtureIdentityDecoded['normalizedAstMatchCount']);
+        $t->same(50, $defaultFixtureIdentityDecoded['normalizedAstMatchCount']);
         $t->same('valid-checked-in-current-epub-fixture-identity', $defaultFixtureIdentityDecoded['fixtureIdentity']['validation']['status']);
         $t->same($expectedPackageFeatureSignatureSha256, $defaultFixtureIdentityDecoded['packageFeatureSignature']['sha256']);
         $t->same(true, $defaultFixtureIdentityDecoded['packageFeatureSignature']['matchesExpected']);

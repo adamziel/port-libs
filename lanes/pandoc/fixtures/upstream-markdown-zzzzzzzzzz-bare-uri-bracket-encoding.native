@@ -1,0 +1,21 @@
+[ Para
+    [ Link
+        ( "" , [ "uri" ] , [] )
+        [ Str
+            "http://en.wikipedia.org/wiki/Sprite_[computer_graphics]"
+        ]
+        ( "http://en.wikipedia.org/wiki/Sprite_%5Bcomputer_graphics%5D"
+        , ""
+        )
+    ]
+, Para
+    [ Link
+        ( "" , [ "uri" ] , [] )
+        [ Str
+            "http://en.wikipedia.org/wiki/Sprite_{computer_graphics}"
+        ]
+        ( "http://en.wikipedia.org/wiki/Sprite_%7Bcomputer_graphics%7D"
+        , ""
+        )
+    ]
+]
