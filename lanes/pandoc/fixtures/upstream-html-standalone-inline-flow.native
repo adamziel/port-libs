@@ -1,6 +1,6 @@
 [ Para [ Span ( "" , [ "small" ] , [  ] ) [ Str "source" , Space , Strong [ Str "fine" , Space , Str "print" ] ] ]
 , Para [ SmallCaps [ Str "review" , Space , Str "term" ] ]
-, Para [ RawInline (Format "html") "<time datetime=\"2026-05-24\">" , Str "handoff" , Space , Str "day" , RawInline (Format "html") "</time>" ]
+, Para [ Str "handoff" , Space , Str "day" ]
 , Para [ Quoted DoubleQuote [ Span ( "" , [  ] , [ ( "cite" , "https://example.test/import-log#source" ) ] ) [ Str "quoted" , Space , Str "source" ] ] ]
 , Para [ RawInline (Format "html") "<cite data-source=\"manual\">" , Emph [ Str "Import" , Space , Str "Handbook" ] , RawInline (Format "html") "</cite>" ]
 ]

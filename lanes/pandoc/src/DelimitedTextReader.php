@@ -483,7 +483,8 @@ final class DelimitedTextReader
      *         unclosedQuoteCount:int,
      *         quotedLineBreakCount:int,
      *         multilineFieldCount:int,
-     *         partialRecordCount:int
+     *         partialRecordCount:int,
+     *         emptyQuotedFirstFieldWithoutDelimiterCount:int
      *     }
      * }
      */
@@ -515,6 +516,7 @@ final class DelimitedTextReader
             'quotedLineBreakCount' => 0,
             'multilineFieldCount' => 0,
             'partialRecordCount' => 0,
+            'emptyQuotedFirstFieldWithoutDelimiterCount' => 0,
         ];
         $whitespaceOnlyBlankRows = $this->pandocWhitespaceOnlyDocumentBlankRows($text);
         if ($whitespaceOnlyBlankRows !== null) {
@@ -606,12 +608,30 @@ final class DelimitedTextReader
             &$quotedField,
             &$afterClosingQuote,
             &$afterClosingQuoteWhitespace,
+            &$diagnostics,
+            &$metrics,
             $finishField
         ): void {
             $hasPendingField = $fieldStarted || $field !== '' || $row !== [] || $quotedField || $afterClosingQuote;
             if ($hasPendingField) {
                 $finishField($sourceEndOffset);
-                if (!(count($row) === 1 && $row[0] === '')) {
+                $isSingleEmptyFieldRecord = count($row) === 1 && $row[0] === '';
+                if ($isSingleEmptyFieldRecord) {
+                    $metadata = $rowFieldMetadata[0] ?? [];
+                    if (($metadata['sourceQuoted'] ?? false) === true) {
+                        $metrics['emptyQuotedFirstFieldWithoutDelimiterCount']++;
+                        $diagnostics[] = [
+                            'code' => 'delimited-text-empty-first-field-without-delimiter',
+                            'severity' => 'warning',
+                            'message' => 'A quoted empty first field was not followed by a delimiter; Pandoc rejects empty first fields unless another field is present.',
+                            'row' => $rowIndex,
+                            'column' => 0,
+                            'offset' => (int) ($metadata['sourceEndOffset'] ?? $sourceEndOffset),
+                        ];
+                    }
+                }
+
+                if (!$isSingleEmptyFieldRecord) {
                     $rows[] = $row;
                     $fieldMetadataRows[] = $rowFieldMetadata;
                     $sourceRowIndexes[] = $rowIndex;
@@ -829,6 +849,13 @@ final class DelimitedTextReader
      */
     private function assertStrictParsing(string $format, array $inputPrefix, array $parse): void
     {
+        $diagnostic = $this->firstParseDiagnostic($parse, 'delimited-text-empty-first-field-without-delimiter');
+        if ($diagnostic !== null) {
+            $row = (int) ($diagnostic['sourceLineNumber'] ?? ((int) $diagnostic['row'] + 1));
+            $column = (int) ($diagnostic['sourceByteColumnNumber'] ?? 1);
+            throw new \InvalidArgumentException("Malformed {$format} input: empty first field at line {$row}, column {$column}; Pandoc requires a delimiter after an empty first field.");
+        }
+
         $blankRows = $this->strictRejectedBlankRows($parse);
         if ($blankRows !== []) {
             $row = $blankRows[0] + 1;
@@ -1246,7 +1273,8 @@ final class DelimitedTextReader
      *     unclosedQuoteCount:int,
      *     quotedLineBreakCount:int,
      *     multilineFieldCount:int,
-     *     partialRecordCount:int
+     *     partialRecordCount:int,
+     *     emptyQuotedFirstFieldWithoutDelimiterCount:int
      * } $parseMetrics
      * @param array<string, mixed> $controlCharacters
      * @return array<string, mixed>
@@ -1341,6 +1369,7 @@ final class DelimitedTextReader
             'quotedLineBreakCount' => $parseMetrics['quotedLineBreakCount'],
             'multilineFieldCount' => $parseMetrics['multilineFieldCount'],
             'partialRecordCount' => $parseMetrics['partialRecordCount'],
+            'emptyQuotedFirstFieldWithoutDelimiterCount' => $parseMetrics['emptyQuotedFirstFieldWithoutDelimiterCount'] ?? 0,
             'rowWidthSummary' => $rowWidthSummary,
             'rowRepairSummary' => $rowRepairSummary,
             'controlCharacters' => $controlCharacters,

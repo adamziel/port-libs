@@ -64,6 +64,9 @@ return [
             $t->same(0, $report['comparedEpubCount']);
             $t->same(0, $report['nativeFixtureParsedCount']);
             $t->same(0, $report['pandocNativeFixtureMatchCount']);
+            $t->same(0, $report['pandocNativeFixtureByteComparedCount']);
+            $t->same(0, $report['pandocNativeFixtureByteMatchCount']);
+            $t->same(0, $report['pandocNativeFixtureByteMismatchCount']);
             $t->same('not-evaluated-pandoc-executable-missing', $report['astParityStatus']);
             $t->same('not-evaluated', $report['orderedRemainingGaps'][0]['status']);
             $t->contains('Pandoc EPUB executable/native AST comparison: skipped', $text);
@@ -96,11 +99,50 @@ return [
             $t->same(1, $report['pandocNativeFixtureComparedCount']);
             $t->same(1, $report['pandocNativeFixtureMatchCount']);
             $t->same(0, $report['pandocNativeFixtureMismatchCount']);
+            $t->same(1, $report['pandocNativeFixtureByteComparedCount']);
+            $t->same(1, $report['pandocNativeFixtureByteMatchCount']);
+            $t->same(0, $report['pandocNativeFixtureByteMismatchCount']);
             $t->same('pandoc fake 1.0', $report['pandocVersion']);
             $t->same('normalized-ast-equality-observed-against-pandoc-executable', $report['astParityStatus']);
             $t->same(true, EpubExecutableNativeAstComparisonHarness::hasRequiredExecutableParity($report, 1));
             $t->same(true, EpubExecutableNativeAstComparisonHarness::hasRequiredPandocVersion($report, 'pandoc fake 1.0'));
             $t->same(false, EpubExecutableNativeAstComparisonHarness::hasRequiredPandocVersion($report, 'pandoc fake 2.0'));
+        } finally {
+            $removeTree($root);
+        }
+    },
+
+    'reports executable native byte drift without failing normalized ast parity' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $copyFixture, $writeFakePandoc): void {
+        $root = $makeTempDir();
+        try {
+            $copyFixture($root);
+            $checkedInNative = (string) file_get_contents($root . '/audio-navigation.native');
+            file_put_contents($root . '/byte-drift.native', $checkedInNative . "\n");
+            $fakePandoc = $root . '/pandoc';
+            $writeFakePandoc($fakePandoc, $root . '/byte-drift.native');
+
+            $harness = new EpubExecutableNativeAstComparisonHarness();
+            $report = $harness->run($root, [
+                'pandocBin' => $fakePandoc,
+            ]);
+            $text = $harness->formatReport($report);
+
+            $t->same('completed', $report['status']);
+            $t->same(1, $report['normalizedAstMatchCount']);
+            $t->same(0, $report['normalizedAstMismatchCount']);
+            $t->same(1, $report['pandocNativeFixtureComparedCount']);
+            $t->same(1, $report['pandocNativeFixtureMatchCount']);
+            $t->same(0, $report['pandocNativeFixtureMismatchCount']);
+            $t->same(1, $report['pandocNativeFixtureByteComparedCount']);
+            $t->same(0, $report['pandocNativeFixtureByteMatchCount']);
+            $t->same(1, $report['pandocNativeFixtureByteMismatchCount']);
+            $t->same('audio-navigation', $report['pandocNativeFixtureByteMismatchComparisons'][0]['fixture']);
+            $t->same(strlen($checkedInNative), $report['pandocNativeFixtureByteMismatchComparisons'][0]['nativeFixtureBytes']);
+            $t->same(strlen($checkedInNative) + 1, $report['pandocNativeFixtureByteMismatchComparisons'][0]['pandocNativeBytes']);
+            $t->same('normalized-ast-equality-observed-against-pandoc-executable', $report['astParityStatus']);
+            $t->same(true, EpubExecutableNativeAstComparisonHarness::hasRequiredExecutableParity($report, 1));
+            $t->contains('checkedInNativeFixtureBytes: pandocCompared=1 pandocByteMatches=0 (0.00%) pandocByteMismatches=1', $text);
+            $t->contains('executable/checked-in-native byte mismatches=1', $report['orderedRemainingGaps'][0]['currentEvidence']);
         } finally {
             $removeTree($root);
         }
@@ -123,11 +165,15 @@ return [
             $t->same(1, $report['pandocNativeFixtureComparedCount']);
             $t->same(0, $report['pandocNativeFixtureMatchCount']);
             $t->same(1, $report['pandocNativeFixtureMismatchCount']);
+            $t->same(1, $report['pandocNativeFixtureByteComparedCount']);
+            $t->same(0, $report['pandocNativeFixtureByteMatchCount']);
+            $t->same(1, $report['pandocNativeFixtureByteMismatchCount']);
             $t->same('normalized-ast-mismatches-observed', $report['astParityStatus']);
             $t->same('audio-navigation', $report['mismatchComparisons'][0]['fixture']);
             $t->contains('root.children keys', $report['mismatchComparisons'][0]['firstDifference']);
             $t->same('audio-navigation', $report['pandocNativeFixtureMismatchComparisons'][0]['fixture']);
             $t->contains('root.children keys', $report['pandocNativeFixtureMismatchComparisons'][0]['firstDifference']);
+            $t->same('audio-navigation', $report['pandocNativeFixtureByteMismatchComparisons'][0]['fixture']);
             $t->same(false, EpubExecutableNativeAstComparisonHarness::hasRequiredExecutableParity($report, 1));
         } finally {
             $removeTree($root);
@@ -154,6 +200,9 @@ return [
             $t->same(1, $report['bothParsedCount']);
             $t->same(1, $report['normalizedAstMatchCount']);
             $t->same(0, $report['pandocNativeFixtureComparedCount']);
+            $t->same(0, $report['pandocNativeFixtureByteComparedCount']);
+            $t->same(0, $report['pandocNativeFixtureByteMatchCount']);
+            $t->same(0, $report['pandocNativeFixtureByteMismatchCount']);
             $t->same(1, $report['parseFailureCount']);
             $t->same('missing paired .native fixture', $report['parseFailures'][0]['nativeFixtureError']);
             $t->same('blocked-by-parse-failures', $report['astParityStatus']);
@@ -189,6 +238,9 @@ return [
             $t->same(1, $decoded['pandocNativeFixtureComparedCount']);
             $t->same(1, $decoded['pandocNativeFixtureMatchCount']);
             $t->same(0, $decoded['pandocNativeFixtureMismatchCount']);
+            $t->same(1, $decoded['pandocNativeFixtureByteComparedCount']);
+            $t->same(1, $decoded['pandocNativeFixtureByteMatchCount']);
+            $t->same(0, $decoded['pandocNativeFixtureByteMismatchCount']);
             $t->same(true, EpubExecutableNativeAstComparisonHarness::hasRequiredExecutableParity($decoded, 1));
             $t->same(true, EpubExecutableNativeAstComparisonHarness::hasRequiredPandocVersion($decoded, 'pandoc fake 1.0'));
 

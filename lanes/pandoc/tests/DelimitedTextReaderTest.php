@@ -3464,6 +3464,14 @@ return [
                 "a,b\n1,\"x\"  \n2,y\n",
                 'whitespace after a closing quote before a line break',
             ],
+            [
+                "h\n\"\"\n",
+                'empty first field',
+            ],
+            [
+                "\"\"\n",
+                'empty first field',
+            ],
         ];
 
         foreach ($cases as [$source, $expectedMessage]) {
@@ -3498,6 +3506,33 @@ return [
         $t->same(1, $recoveredTrailingWhitespacePacket['diagnostics'][0]['column'] ?? null);
         $t->same(2, $recoveredTrailingWhitespacePacket['diagnostics'][0]['sourceLineNumber'] ?? null);
         $t->same(8, $recoveredTrailingWhitespacePacket['diagnostics'][0]['sourceByteColumnNumber'] ?? null);
+
+        $recoveredEmptyFirstFieldDocument = $reader->readCsv("h\n\"\"\n", [
+            'strictParsing' => false,
+        ]);
+        $recoveredEmptyFirstFieldTable = $recoveredEmptyFirstFieldDocument->children[0];
+        $recoveredEmptyFirstFieldPacket = $recoveredEmptyFirstFieldTable->attr('delimitedText');
+        $recoveredEmptyFirstFieldDiagnostics = $recoveredEmptyFirstFieldPacket['diagnostics'] ?? [];
+        $recoveredEmptyFirstFieldDiagnostic = $recoveredEmptyFirstFieldDiagnostics[1] ?? [];
+        $t->same(['h'], $recoveredEmptyFirstFieldTable->attr('columnNames'));
+        $t->same(1, $recoveredEmptyFirstFieldPacket['rowCount'] ?? null);
+        $t->same(0, $recoveredEmptyFirstFieldPacket['bodyRowCount'] ?? null);
+        $t->same(1, $recoveredEmptyFirstFieldPacket['blankRowCount'] ?? null);
+        $t->same([1], $recoveredEmptyFirstFieldPacket['blankRows'] ?? null);
+        $t->same(1, $recoveredEmptyFirstFieldPacket['emptyQuotedFirstFieldWithoutDelimiterCount'] ?? null);
+        $t->same([
+            'delimited-text-blank-rows-skipped',
+            'delimited-text-empty-first-field-without-delimiter',
+        ], array_column($recoveredEmptyFirstFieldDiagnostics, 'code'));
+        $t->same(1, $recoveredEmptyFirstFieldDiagnostic['row'] ?? null);
+        $t->same(0, $recoveredEmptyFirstFieldDiagnostic['column'] ?? null);
+        $t->same(2, $recoveredEmptyFirstFieldDiagnostic['sourceLineNumber'] ?? null);
+        $t->same(3, $recoveredEmptyFirstFieldDiagnostic['sourceByteColumnNumber'] ?? null);
+
+        $emptyFirstFieldWithDelimiterDocument = $reader->readCsv("h\n\"\",\n");
+        $emptyFirstFieldWithDelimiterPacket = $emptyFirstFieldWithDelimiterDocument->children[0]->attr('delimitedText');
+        $t->same(0, $emptyFirstFieldWithDelimiterPacket['emptyQuotedFirstFieldWithoutDelimiterCount'] ?? null);
+        $t->same('', $emptyFirstFieldWithDelimiterDocument->children[0]->children[1]->children[0]->children[0]->attr('text'));
 
         $tsvDocument = $reader->readTsv("a\tb\n1\t\"x\"z\n");
         $t->same('"x"z', $tsvDocument->children[0]->children[1]->children[0]->children[1]->attr('text'));

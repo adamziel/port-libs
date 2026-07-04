@@ -5105,7 +5105,6 @@ final class PptxReader
             if (
                 $attribute->localName === $localName
                 && $attribute->namespaceURI === $namespace
-                && $attribute->prefix === $prefix
             ) {
                 return $attribute->value;
             }

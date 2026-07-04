@@ -44,9 +44,12 @@ final class EpubExecutableNativeAstComparisonHarness
         $matchCount = 0;
         $pandocNativeFixtureComparedCount = 0;
         $pandocNativeFixtureMatchCount = 0;
+        $pandocNativeFixtureByteComparedCount = 0;
+        $pandocNativeFixtureByteMatchCount = 0;
         $parseFailures = [];
         $mismatches = [];
         $nativeFixtureMismatches = [];
+        $nativeFixtureByteMismatches = [];
         $categoryCounts = [];
         $normalizer = new EpubNativeAstPackageComparisonHarness();
 
@@ -136,12 +139,29 @@ final class EpubExecutableNativeAstComparisonHarness
                     }
                 }
             }
+
+            if (is_string($nativeFixtureResult['native']) && is_string($pandocResult['native'])) {
+                ++$pandocNativeFixtureByteComparedCount;
+
+                if ($nativeFixtureResult['native'] === $pandocResult['native']) {
+                    ++$pandocNativeFixtureByteMatchCount;
+                } elseif (count($nativeFixtureByteMismatches) < $maxExamples) {
+                    $nativeFixtureByteMismatches[] = [
+                        'fixture' => $fixtureName,
+                        'nativeFixtureSha256' => hash('sha256', $nativeFixtureResult['native']),
+                        'pandocNativeSha256' => hash('sha256', $pandocResult['native']),
+                        'nativeFixtureBytes' => strlen($nativeFixtureResult['native']),
+                        'pandocNativeBytes' => strlen($pandocResult['native']),
+                    ];
+                }
+            }
         }
 
         ksort($categoryCounts, SORT_STRING);
         $comparedEpubCount = count($fixtureNames);
         $mismatchCount = $bothParsedCount - $matchCount;
         $nativeFixtureMismatchCount = $pandocNativeFixtureComparedCount - $pandocNativeFixtureMatchCount;
+        $nativeFixtureByteMismatchCount = $pandocNativeFixtureByteComparedCount - $pandocNativeFixtureByteMatchCount;
 
         return [
             'schemaVersion' => 1,
@@ -170,10 +190,15 @@ final class EpubExecutableNativeAstComparisonHarness
             'pandocNativeFixtureMatchCount' => $pandocNativeFixtureMatchCount,
             'pandocNativeFixtureMismatchCount' => $nativeFixtureMismatchCount,
             'pandocNativeFixtureMatchPercent' => self::percent($pandocNativeFixtureMatchCount, $comparedEpubCount),
+            'pandocNativeFixtureByteComparedCount' => $pandocNativeFixtureByteComparedCount,
+            'pandocNativeFixtureByteMatchCount' => $pandocNativeFixtureByteMatchCount,
+            'pandocNativeFixtureByteMismatchCount' => $nativeFixtureByteMismatchCount,
+            'pandocNativeFixtureByteMatchPercent' => self::percent($pandocNativeFixtureByteMatchCount, $comparedEpubCount),
             'astParityStatus' => self::astParityStatus(count($parseFailures), $mismatchCount, $nativeFixtureMismatchCount, $comparedEpubCount),
             'parseFailures' => array_slice($parseFailures, 0, $maxExamples),
             'mismatchComparisons' => $mismatches,
             'pandocNativeFixtureMismatchComparisons' => $nativeFixtureMismatches,
+            'pandocNativeFixtureByteMismatchComparisons' => $nativeFixtureByteMismatches,
             'mismatchCategories' => array_values($categoryCounts),
             'orderedRemainingGaps' => self::orderedRemainingGaps(
                 true,
@@ -183,7 +208,9 @@ final class EpubExecutableNativeAstComparisonHarness
                 $matchCount,
                 $mismatchCount,
                 $pandocNativeFixtureMatchCount,
-                $nativeFixtureMismatchCount
+                $nativeFixtureMismatchCount,
+                $pandocNativeFixtureByteMatchCount,
+                $nativeFixtureByteMismatchCount
             ),
         ];
     }
@@ -230,6 +257,13 @@ final class EpubExecutableNativeAstComparisonHarness
             self::formatPercent($report['pandocNativeFixtureMatchPercent'] ?? null),
             (int) ($report['pandocNativeFixtureMismatchCount'] ?? 0),
         );
+        $lines[] = sprintf(
+            'checkedInNativeFixtureBytes: pandocCompared=%d pandocByteMatches=%d (%s) pandocByteMismatches=%d',
+            (int) ($report['pandocNativeFixtureByteComparedCount'] ?? 0),
+            (int) ($report['pandocNativeFixtureByteMatchCount'] ?? 0),
+            self::formatPercent($report['pandocNativeFixtureByteMatchPercent'] ?? null),
+            (int) ($report['pandocNativeFixtureByteMismatchCount'] ?? 0),
+        );
 
         $mismatches = $report['mismatchComparisons'] ?? [];
         if (is_array($mismatches) && $mismatches !== []) {
@@ -251,6 +285,23 @@ final class EpubExecutableNativeAstComparisonHarness
                 }
                 $lines[] = '- ' . (string) ($mismatch['fixture'] ?? 'unknown')
                     . ': ' . (string) ($mismatch['firstDifference'] ?? 'unknown');
+            }
+        }
+        $nativeFixtureByteMismatches = $report['pandocNativeFixtureByteMismatchComparisons'] ?? [];
+        if (is_array($nativeFixtureByteMismatches) && $nativeFixtureByteMismatches !== []) {
+            $lines[] = 'checkedInNativeFixtureByteMismatchExamples:';
+            foreach ($nativeFixtureByteMismatches as $mismatch) {
+                if (!is_array($mismatch)) {
+                    continue;
+                }
+                $lines[] = sprintf(
+                    '- %s: fixtureBytes=%d pandocBytes=%d fixtureSha256=%s pandocSha256=%s',
+                    (string) ($mismatch['fixture'] ?? 'unknown'),
+                    (int) ($mismatch['nativeFixtureBytes'] ?? 0),
+                    (int) ($mismatch['pandocNativeBytes'] ?? 0),
+                    (string) ($mismatch['nativeFixtureSha256'] ?? ''),
+                    (string) ($mismatch['pandocNativeSha256'] ?? ''),
+                );
             }
         }
 
@@ -335,12 +386,17 @@ final class EpubExecutableNativeAstComparisonHarness
             'pandocNativeFixtureMatchCount' => 0,
             'pandocNativeFixtureMismatchCount' => 0,
             'pandocNativeFixtureMatchPercent' => null,
+            'pandocNativeFixtureByteComparedCount' => 0,
+            'pandocNativeFixtureByteMatchCount' => 0,
+            'pandocNativeFixtureByteMismatchCount' => 0,
+            'pandocNativeFixtureByteMatchPercent' => null,
             'astParityStatus' => $reason === 'pandoc-executable-missing'
                 ? 'not-evaluated-pandoc-executable-missing'
                 : 'not-evaluated-epub-directory-missing',
             'parseFailures' => [],
             'mismatchComparisons' => [],
             'pandocNativeFixtureMismatchComparisons' => [],
+            'pandocNativeFixtureByteMismatchComparisons' => [],
             'mismatchCategories' => [],
             'orderedRemainingGaps' => self::orderedRemainingGaps($directoryPresent, $executablePresent, 0, 0, 0, 0),
         ];
@@ -395,12 +451,12 @@ final class EpubExecutableNativeAstComparisonHarness
     }
 
     /**
-     * @return array{ok: bool, document: ?AstNode, error: ?string}
+     * @return array{ok: bool, document: ?AstNode, native: ?string, error: ?string}
      */
     private function readNativeFixture(?string $path): array
     {
         if ($path === null) {
-            return ['ok' => false, 'document' => null, 'error' => 'missing paired .native fixture'];
+            return ['ok' => false, 'document' => null, 'native' => null, 'error' => 'missing paired .native fixture'];
         }
 
         try {
@@ -409,14 +465,19 @@ final class EpubExecutableNativeAstComparisonHarness
                 throw new \RuntimeException("Unable to read native fixture '{$path}'.");
             }
 
-            return ['ok' => true, 'document' => (new NativeReader())->read($native), 'error' => null];
+            return ['ok' => true, 'document' => (new NativeReader())->read($native), 'native' => $native, 'error' => null];
         } catch (\Throwable $exception) {
-            return ['ok' => false, 'document' => null, 'error' => $exception::class . ': ' . $exception->getMessage()];
+            return [
+                'ok' => false,
+                'document' => null,
+                'native' => isset($native) && is_string($native) ? $native : null,
+                'error' => $exception::class . ': ' . $exception->getMessage(),
+            ];
         }
     }
 
     /**
-     * @return array{ok: bool, document: ?AstNode, error: ?string}
+     * @return array{ok: bool, document: ?AstNode, native: ?string, error: ?string}
      */
     private function readPandocNative(string $pandoc, string $epubPath): array
     {
@@ -429,14 +490,15 @@ final class EpubExecutableNativeAstComparisonHarness
             return [
                 'ok' => false,
                 'document' => null,
+                'native' => $result['stdout'] !== '' ? $result['stdout'] : null,
                 'error' => 'pandoc exited ' . $result['exitCode'] . ': ' . trim($result['stderr']),
             ];
         }
 
         try {
-            return ['ok' => true, 'document' => (new NativeReader())->read($result['stdout']), 'error' => null];
+            return ['ok' => true, 'document' => (new NativeReader())->read($result['stdout']), 'native' => $result['stdout'], 'error' => null];
         } catch (\Throwable $exception) {
-            return ['ok' => false, 'document' => null, 'error' => $exception::class . ': ' . $exception->getMessage()];
+            return ['ok' => false, 'document' => null, 'native' => $result['stdout'], 'error' => $exception::class . ': ' . $exception->getMessage()];
         }
     }
 
@@ -596,14 +658,16 @@ final class EpubExecutableNativeAstComparisonHarness
         int $matchCount,
         int $mismatchCount,
         int $nativeFixtureMatchCount = 0,
-        int $nativeFixtureMismatchCount = 0
+        int $nativeFixtureMismatchCount = 0,
+        int $nativeFixtureByteMatchCount = 0,
+        int $nativeFixtureByteMismatchCount = 0
     ): array {
         if (!$directoryPresent) {
             $sourceEvidence = 'EPUB directory absent; executable comparison did not run';
         } elseif (!$executablePresent) {
             $sourceEvidence = 'pandoc executable absent; executable comparison did not run';
         } else {
-            $sourceEvidence = "compared epubs={$comparedEpubCount}; parse failures={$parseFailureCount}; local/executable normalized AST matches={$matchCount}; local/executable normalized AST mismatches={$mismatchCount}; executable/checked-in-native matches={$nativeFixtureMatchCount}; executable/checked-in-native mismatches={$nativeFixtureMismatchCount}";
+            $sourceEvidence = "compared epubs={$comparedEpubCount}; parse failures={$parseFailureCount}; local/executable normalized AST matches={$matchCount}; local/executable normalized AST mismatches={$mismatchCount}; executable/checked-in-native matches={$nativeFixtureMatchCount}; executable/checked-in-native mismatches={$nativeFixtureMismatchCount}; executable/checked-in-native byte matches={$nativeFixtureByteMatchCount}; executable/checked-in-native byte mismatches={$nativeFixtureByteMismatchCount}";
         }
 
         $executableEvidenceCovered = $parseFailureCount === 0

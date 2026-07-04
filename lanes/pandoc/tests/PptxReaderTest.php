@@ -16166,25 +16166,27 @@ return [
         $t->true(!str_contains($native, '[Graphic: diagram-missing-rels]'), 'Element-local SmartArt relIds prefix should not be treated as missing relationships');
     },
 
-    'requires the r prefix for pptx picture and SmartArt relationship attributes like upstream' => static function (TestRunner $t) use ($buildAlternatePrefixShapeRelationshipsPptxPackage, $nodesOfType, $nodesWithClass): void {
+    'accepts same-namespace alternate prefixes for pptx picture and SmartArt relationship attributes like upstream' => static function (TestRunner $t) use ($buildAlternatePrefixShapeRelationshipsPptxPackage, $nodesOfType, $nodesWithClass): void {
         $document = (new PptxReader())->read($buildAlternatePrefixShapeRelationshipsPptxPackage());
         $review = $document->attr('pptx');
-        $paragraphs = $nodesOfType($document, 'paragraph');
-        $texts = array_map(static fn (AstNode $paragraph): string => (string) $paragraph->attr('text'), $paragraphs);
+        $images = $nodesOfType($document, 'image');
+        $smartArtDivs = $nodesWithClass($nodesOfType($document, 'div'), 'smartart');
         $native = PandocConverter::write($document, 'native');
 
         $t->same('Alternate prefix shape relationships', $document->children[0]->attr('text'));
-        $t->same([], $nodesOfType($document, 'image'));
-        $t->same([], $nodesWithClass($nodesOfType($document, 'div'), 'smartart'));
-        $t->same(true, in_array('[Graphic: diagram-missing-rels]', $texts, true));
-        $t->same(1, $review['slides'][0]['imageIssueCount'] ?? null);
-        $t->same('missing-image-relationship-id', $review['slides'][0]['imageIssues'][0]['issue'] ?? null);
+        $t->same(1, count($images));
+        $t->same('ppt/media/alternate-prefix.png', $images[0]->attr('url'));
+        $t->same('Alternate Prefix Picture', $images[0]->attr('title'));
+        $t->same(1, count($smartArtDivs));
+        $t->same(['smartart', 'alternatePrefixLayout'], $smartArtDivs[0]->attr('classes'));
+        $t->same(0, $review['slides'][0]['imageIssueCount'] ?? null);
         $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
         $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Alternate" , Space , Str "prefix" , Space , Str "shape" , Space , Str "relationships" ]', $native);
-        $t->contains('Para [ Str "[Graphic:" , Space , Str "diagram-missing-rels]" ]', $native);
-        $t->true(!str_contains($native, 'alternate-prefix.png'), 'Same-namespace rel:embed should not satisfy upstream r:embed lookup');
-        $t->true(!str_contains($native, 'Alternate prefix parent'), 'Same-namespace rel:dm should not satisfy upstream r:dm lookup');
-        $t->true(!str_contains($native, 'Alternate prefix child'), 'Same-namespace rel:lo should not satisfy upstream r:lo lookup');
+        $t->contains('Image ( "" , [  ] , [  ] ) [ Str "Alternate prefix alt" ] ( "ppt/media/alternate-prefix.png" , "Alternate Prefix Picture" )', $native);
+        $t->contains('Strong [ Str "Alternate" , Space , Str "prefix" , Space , Str "parent" ]', $native);
+        $t->contains('BulletList [ [ Plain [ Str "Alternate" , Space , Str "prefix" , Space , Str "child"', $native);
+        $t->true(!str_contains($native, 'Diagram parse error'), 'Same-namespace alternate SmartArt relationship prefixes should parse without diagnostics');
+        $t->true(!str_contains($native, '[Graphic: diagram-missing-rels]'), 'Same-namespace alternate SmartArt relationship prefixes should not be treated as missing relationships');
     },
 
     'drops pptx pictures without nonvisual properties from visible content' => static function (TestRunner $t) use ($buildPictureWithoutNonVisualPropertiesPptxPackage, $nodesOfType): void {
@@ -17417,16 +17419,16 @@ return [
         $t->throws(RuntimeException::class, static fn (): AstNode => (new PptxReader())->read($buildWrongPrefixPresentationRelationshipPptxPackage()));
     },
 
-    'requires the r prefix for pptx presentation slide relationship ids like upstream' => static function (TestRunner $t) use ($buildAlternatePrefixPresentationRelationshipPptxPackage): void {
-        try {
-            (new PptxReader())->read($buildAlternatePrefixPresentationRelationshipPptxPackage());
-        } catch (RuntimeException $exception) {
-            $t->same('Missing r:id in slide 1', $exception->getMessage());
+    'accepts same-namespace alternate prefixes for pptx presentation slide relationship ids like upstream' => static function (TestRunner $t) use ($buildAlternatePrefixPresentationRelationshipPptxPackage): void {
+        $document = (new PptxReader())->read($buildAlternatePrefixPresentationRelationshipPptxPackage());
+        $review = $document->attr('pptx');
+        $native = PandocConverter::write($document, 'native');
 
-            return;
-        }
-
-        throw new RuntimeException('Expected same-namespace rel:id to be ignored by the upstream r:id lookup');
+        $t->same(1, $review['slideCount'] ?? null);
+        $t->same('rIdSlide', $review['slides'][0]['relationshipId'] ?? null);
+        $t->same('ppt/slides/slide1.xml', $review['slides'][0]['partName'] ?? null);
+        $t->same('Alternate prefix presentation body', $document->children[0]->attr('text'));
+        $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Alternate" , Space , Str "prefix" , Space , Str "presentation" , Space , Str "body" ]', $native);
     },
 
     'ignores inherited intermediate r prefix bindings for slide relationship ids like upstream' => static function (TestRunner $t) use ($buildIntermediatePrefixPresentationRelationshipPptxPackage): void {
