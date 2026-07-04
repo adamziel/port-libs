@@ -1,0 +1,24 @@
+[ Para [ Span ( "chapter.xhtml" , [] , [] ) [] ]
+, Para
+    [ Str "Body"
+    , Space
+    , Str "text"
+    , Space
+    , Note
+        [ Para
+            [ Str "Footnote"
+            , Space
+            , Str "body"
+            , Space
+            , Str "with"
+            , Space
+            , Emph [ Str "emphasis" ]
+            , Str "."
+            ]
+        ]
+    , Space
+    , Str "after"
+    , Space
+    , Str "note."
+    ]
+]

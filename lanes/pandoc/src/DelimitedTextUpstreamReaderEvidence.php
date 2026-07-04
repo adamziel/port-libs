@@ -18,9 +18,9 @@ final class DelimitedTextUpstreamReaderEvidence
     public const EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT = 0;
     public const EXPECTED_STATIC_CSV_ADJACENT_RST_FIXTURE_COUNT = 2;
     public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 44;
-    public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 31;
+    public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 32;
     public const EXPECTED_GENERATED_CSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT = 29;
-    public const EXPECTED_GENERATED_TSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT = 22;
+    public const EXPECTED_GENERATED_TSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT = 23;
     public const REQUIRED_PANDOC_EXECUTABLE_VERSION = 'pandoc 3.10';
 
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
@@ -1112,6 +1112,20 @@ final class DelimitedTextUpstreamReaderEvidence
             'sha256' => 'db9489756eeaacaeb268e403036dddbf10fb9dc35872123331ff01ca1594a810',
             'bytes' => 1255,
         ],
+        'post-delimiter-space.tsv' => [
+            'role' => 'generated-tsv-native-parity-input-fixture',
+            'sample' => 'post-delimiter-space',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/post-delimiter-space.tsv',
+            'sha256' => 'e5367f8cd34b279f8f8fc0c5ec78ee042509bc00647c69ee698092d463374496',
+            'bytes' => 22,
+        ],
+        'post-delimiter-space.native' => [
+            'role' => 'generated-tsv-native-parity-expected-native-output',
+            'sample' => 'post-delimiter-space',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/post-delimiter-space.native',
+            'sha256' => '45407755e5d9da0a6d4656f255a9cf0f5b20f924116e4143b964577b56464b10',
+            'bytes' => 1152,
+        ],
     ];
 
     private const GENERATED_CSV_NATIVE_SAMPLES = [
@@ -1484,6 +1498,10 @@ final class DelimitedTextUpstreamReaderEvidence
                 'cellLineBreak' => 'softbreak',
             ],
         ],
+        'post-delimiter-space' => [
+            'inputPath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/post-delimiter-space.tsv',
+            'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/post-delimiter-space.native',
+        ],
     ];
 
     private const PANDOC_EXECUTABLE_CSV_NATIVE_SAMPLE_NAMES = [
@@ -1541,6 +1559,7 @@ final class DelimitedTextUpstreamReaderEvidence
         'markdown-syntax-literal',
         'interior-empty-header',
         'trailing-empty-header',
+        'post-delimiter-space',
     ];
 
     private const SOURCE_FILES = [

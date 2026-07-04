@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 69;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 70;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'a60c85b0ad08d4400d8f4bb6a3a9ce59512cd4689ddec082b404623908cb272b';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 30620;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '52841ad633a089be6dc9622214bf48978796e99c641ab2edaad26454a9014698';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 30987;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -522,6 +522,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => '17b1efbb9d7b21ddf994fffd6c9d34110c48668ab144fd5b027d40034ec2e832',
             'pptxBytes' => 1702,
             'nativeBytes' => 1192,
+        ],
+        'graphic-no-uri' => [
+            'name' => 'generated graphicData without URI placeholder parity',
+            'pptx' => 'pptx-reader/graphic-no-uri.pptx',
+            'native' => 'pptx-reader/graphic-no-uri.native',
+            'pairKey' => 'pptx-reader/graphic-no-uri.pptx|pptx-reader/graphic-no-uri.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/graphic-no-uri.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/graphic-no-uri.native',
+            'pptxSha256' => '83f08ec41905374579aa7d1f3a4298fd839b99fef5fb1f971d170a804bc18a94',
+            'nativeSha256' => '3f88fef1c759398017753ef141d6fb81c0c6e2fe3b93d2042f94027faeac72e4',
+            'pptxBytes' => 1606,
+            'nativeBytes' => 106,
         ],
         'table-span-review' => [
             'name' => 'generated table span review-only parity',

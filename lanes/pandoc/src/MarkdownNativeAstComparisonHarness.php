@@ -45,6 +45,7 @@ final class MarkdownNativeAstComparisonHarness
         'upstream-markdown-zzz-intraword-underscore-profile' => ['format' => 'markdown-intraword_underscores'],
         'upstream-markdown-zzzz-angle-brackets-escapable-profile' => ['format' => 'markdown-all_symbols_escapable+angle_brackets_escapable'],
         'upstream-markdown-zzzzz-wikilinks-title-after-pipe-profile' => ['format' => 'markdown+wikilinks_title_after_pipe'],
+        'upstream-markdown-zzzzzz-ignore-line-breaks-profile' => ['format' => 'markdown+ignore_line_breaks'],
     ];
 
     /** @var array<string, true> */

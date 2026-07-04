@@ -229,6 +229,18 @@ return [
 
             $t->same(11, $mapped);
         },
+    'maps checked-in markdown ignore line break profile fixture' =>
+        static function (TestRunner $t) use ($read): void {
+            $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-markdown-zzzzzz-ignore-line-breaks-profile.md');
+            $document = $read('markdown+ignore_line_breaks', $fixture);
+            $joined = $document->children[0] ?? new AstNode('missing');
+            $hardBreak = $document->children[1] ?? new AstNode('missing');
+
+            $t->same(['text'], array_map(static fn (AstNode $node): string => $node->type, $joined->children));
+            $t->same('alphabetagamma', $joined->attr('text'));
+            $t->same(['text', 'linebreak', 'text'], array_map(static fn (AstNode $node): string => $node->type, $hardBreak->children));
+            $t->same("hard\nbreak", $hardBreak->attr('text'));
+        },
     'maps upstream markdown reader east asian line break format extension overrides' =>
         static function (TestRunner $t) use ($lineBreakFormats, $read): void {
             $mapped = 0;

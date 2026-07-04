@@ -422,6 +422,20 @@ $tests['imports direct pandoc html inline-only main body as plain'] =
         $t->same('hello', $explicitParagraph->children[0]->attr('text'));
     };
 
+$tests['imports upstream html main explicit role as native div'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-main-role-native-divs.html'));
+        $div = $document->children[0];
+        $plain = $div->children[0];
+
+        $t->same('html', $document->attr('sourceFormat'));
+        $t->same(['div'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same(['role' => 'foobar'], $div->attr('attributes'));
+        $t->same(['role' => 'foobar'], $div->attr('htmlAttributes'));
+        $t->same(['plain'], array_map(static fn ($node): string => $node->type, $div->children));
+        $t->same('hello', $plain->attr('text'));
+    };
+
 $tests['imports direct pandoc html transparent inline fragments as plain text'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-transparent-inline-fragment.html'));
