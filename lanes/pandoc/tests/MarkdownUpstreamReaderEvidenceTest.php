@@ -928,16 +928,16 @@ return [
         }
     },
 
-    'workflow remains at parent integration markdown fixture denominator' => static function (TestRunner $t): void {
+    'workflow gates current markdown fixture denominator' => static function (TestRunner $t): void {
         $repoRoot = dirname(__DIR__, 3);
         $workflow = file_get_contents($repoRoot . '/.github/workflows/pandoc-markdown.yml');
         if ($workflow === false) {
             throw new RuntimeException('Unable to read pandoc-markdown workflow');
         }
 
-        $t->contains('--require-selected-fixture-count=81', $workflow);
-        $t->contains('--require-native-mapped-parity=81', $workflow);
-        $t->contains('--require-mapped-parity=81', $workflow);
+        $t->contains('--require-selected-fixture-count=82', $workflow);
+        $t->contains('--require-native-mapped-parity=82', $workflow);
+        $t->contains('--require-mapped-parity=82', $workflow);
         $t->contains('lanes/pandoc/tests/MarkdownNativeAstComparisonHarnessTest.php', $workflow);
         $t->contains('lanes/pandoc/tests/MarkdownUpstreamReaderEvidenceTest.php', $workflow);
         $t->contains('/test/Tests/Readers/Markdown.hs', $workflow);
