@@ -824,6 +824,24 @@ $tests['imports direct pandoc html invalid table children as visible blocks'] =
         $assertBlocks((new HtmlReader())->read('<!doctype html><html><body>' . $html . '</body></html>'), 'document');
     };
 
+$tests['imports direct pandoc html paragraph table tree construction as repaired blocks'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-paragraph-table-tree-construction.html'));
+        $table = $document->children[1];
+        $body = $table->children[1];
+        $row = $body->children[0];
+
+        $t->same('html', $document->attr('sourceFormat'));
+        $t->same(
+            ['paragraph', 'table', 'paragraph'],
+            array_map(static fn ($node): string => $node->type, $document->children)
+        );
+        $t->same('Before', $document->children[0]->attr('text'));
+        $t->same('After', $document->children[2]->attr('text'));
+        $t->same(['table_head', 'table_body'], array_map(static fn ($node): string => $node->type, $table->children));
+        $t->same(['Cell'], array_map(static fn ($cell): string => $cell->attr('text'), $row->children));
+    };
+
 $tests['preserves upstream html omitted table cell closures as visible blocks'] =
     static function (TestRunner $t): void {
         $html = '<table><tbody><tr><td>A<td>B</tbody></table><p>after</p>';

@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 63;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 64;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'b666b7cbe631cabf00608d693f6c77a330292a4a4ff34f856e5c03840814fe98';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 31316;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'a82d0b66f15c69c7954bdb347b1ff220b21e0234e7b98f638cd053bf551087fc';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 31786;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -510,6 +510,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => '8df034dad767bbd20cc5f1f9fb875eecf84b8636dc74100677433cda03b304ce',
             'pptxBytes' => 1739,
             'nativeBytes' => 1598,
+        ],
+        'table-styles-relationship' => [
+            'name' => 'generated table styles relationship parity',
+            'pptx' => 'pptx-reader/table-styles-relationship.pptx',
+            'native' => 'pptx-reader/table-styles-relationship.native',
+            'pairKey' => 'pptx-reader/table-styles-relationship.pptx|pptx-reader/table-styles-relationship.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/table-styles-relationship.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/table-styles-relationship.native',
+            'pptxSha256' => '5031c2ca5d8ea2bcd7ae08cd904655d151312a9bb83646c126e643a4acc4f3bc',
+            'nativeSha256' => 'a799a5d732ca0a11d94f239d782b61bffe81325c09ed721705fabc2fe079feba',
+            'pptxBytes' => 2155,
+            'nativeBytes' => 1228,
         ],
         'grouped-shapes' => [
             'name' => 'generated grouped shape skip parity',

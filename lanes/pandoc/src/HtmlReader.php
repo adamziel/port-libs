@@ -37,6 +37,7 @@ final class HtmlReader
             $attrs = [];
         } else {
             $readerBytes = self::flattenHtmlDetailsSummaryContainers($bytes);
+            $readerBytes = self::repairParagraphTableFragmentBoundaries($readerBytes);
             $delegated = self::delegateHtmlBytes($readerBytes);
             $document = $this->reader->read($delegated['bytes']);
             [$children, $consumedFootnoteContainerCount] = self::containsAstNodeType($document->children, 'note')
@@ -128,6 +129,43 @@ final class HtmlReader
         $html = $dom->saveHTML($documentElement);
 
         return is_string($html) ? $html : $bytes;
+    }
+
+    private static function repairParagraphTableFragmentBoundaries(string $bytes): string
+    {
+        if (preg_match('/<p\b[^>]*>.*<table\b/is', $bytes) !== 1) {
+            return $bytes;
+        }
+
+        $trimmed = ltrim($bytes);
+        if (preg_match('/^(?:<!doctype\b|<html\b|<head\b|<body\b)/i', $trimmed) === 1) {
+            return $bytes;
+        }
+
+        try {
+            $body = Html5Dom::parseHtmlFragment($bytes);
+        } catch (\Throwable) {
+            return $bytes;
+        }
+
+        $parts = [];
+        foreach ($body->childNodes as $child) {
+            $serialized = self::htmlNodeSource($child);
+            if ($child instanceof \DOMText && trim($serialized) === '') {
+                continue;
+            }
+            if ($serialized === '') {
+                continue;
+            }
+
+            $parts[] = $serialized;
+        }
+
+        if (count($parts) < 2) {
+            return $bytes;
+        }
+
+        return implode("\n", $parts);
     }
 
     /**

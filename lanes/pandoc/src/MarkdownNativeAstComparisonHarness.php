@@ -39,6 +39,7 @@ final class MarkdownNativeAstComparisonHarness
         'upstream-markdown-z-short-subsuperscript-profile' => ['format' => 'markdown+short_subsuperscripts'],
         'upstream-markdown-z-spaced-reference-link-profile' => ['format' => 'markdown-shortcut_reference_links+spaced_reference_links'],
         'upstream-markdown-z-tex-math-double-backslash-profile' => ['format' => 'markdown+tex_math_double_backslash'],
+        'upstream-markdown-zz-east-asian-line-break-profile' => ['format' => 'markdown+east_asian_line_breaks'],
     ];
 
     /** @var array<string, true> */

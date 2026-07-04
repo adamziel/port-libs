@@ -12,9 +12,9 @@ final class MarkdownUpstreamReaderEvidence
     public const STATUS_COMPLETED = 'completed-upstream-markdown-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-markdown-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
-    public const EXPECTED_SELECTED_FIXTURE_COUNT = 63;
-    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 63;
-    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = 'a7cb3c14ee685d7d06d80fe5ffc858f8dc147aa4c280ce43efa8a2e0b7f82ed4';
+    public const EXPECTED_SELECTED_FIXTURE_COUNT = 64;
+    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 64;
+    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = '9be5a962b0eb931799b1a8eb38f48968f066d9888b940bc2fec6d6fb8b660a0d';
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/Markdown.hs',
@@ -808,6 +808,19 @@ final class MarkdownUpstreamReaderEvidence
             ],
             'sha256' => '9b0d34f3b6a66f40771940859a979cc06da95e3fc7deb439907edac34a2a484b',
             'bytes' => 40,
+        ],
+        'upstream-markdown-zz-east-asian-line-break-profile.md' => [
+            'role' => 'markdown-east-asian-line-break-profile-reader-fixture',
+            'sourceKind' => 'selected-upstream-markdown-reader-case',
+            'sourceReference' => 'Pandoc 3.10 markdown+east_asian_line_breaks profile probe',
+            'formatProfile' => 'markdown+east_asian_line_breaks joins East Asian soft line boundaries only',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-markdown-zz-east-asian-line-break-profile.md',
+            'coverageTests' => [
+                'lanes/pandoc/tests/MarkdownReaderEastAsianLineBreakProfileFixtureCompletionTest.php',
+                'lanes/pandoc/tests/MarkdownNativeAstComparisonHarnessTest.php',
+            ],
+            'sha256' => 'bfa1c21a376998bbdf364121bcaa093db875c9e415c0d40908a38182922f2871',
+            'bytes' => 20,
         ],
     ];
 
