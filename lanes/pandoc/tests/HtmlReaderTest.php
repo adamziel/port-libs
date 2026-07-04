@@ -146,6 +146,22 @@ $tests['imports direct pandoc html inline time without raw wrappers'] =
         $t->same('.', $paragraph->children[2]->attr('text'));
     };
 
+$tests['can preserve html inline raw wrappers for epub-compatible content reads'] =
+    static function (TestRunner $t): void {
+        $document = (new HtmlReader(['htmlStripRawInlineWrappers' => false]))
+            ->read('<p>At <time class="release">TBD</time>.</p>');
+        $paragraph = $document->children[0];
+
+        $t->same(['paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same(
+            ['text', 'raw_html_inline', 'text', 'raw_html_inline', 'text'],
+            array_map(static fn ($node): string => $node->type, $paragraph->children)
+        );
+        $t->same('<time class="release">', $paragraph->children[1]->attr('html'));
+        $t->same('TBD', $paragraph->children[2]->attr('text'));
+        $t->same('</time>', $paragraph->children[3]->attr('html'));
+    };
+
 $tests['imports direct pandoc html standalone keyboard fragment as plain'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-standalone-kbd-inline.html'));
@@ -842,6 +858,21 @@ $tests['consumes upstream html doc-endnotes container after resolving doc-notere
         $t->same('Editor note with source context.', $noteParagraph->attr('text'));
         $t->same(['text', 'strong', 'text'], array_map(static fn ($node): string => $node->type, $noteParagraph->children));
         $t->same('source context', $noteParagraph->children[1]->children[0]->attr('text'));
+    };
+
+$tests['can preserve resolved html doc-endnotes containers for epub-compatible content reads'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader(['htmlConsumeFootnoteContainers' => false]))
+            ->read($fixture('upstream-html-doc-noteref-footnotes.html'));
+        $meta = $document->attr('meta');
+        $paragraph = $document->children[0];
+        $container = $document->children[1];
+
+        $t->same(0, $meta['htmlConsumedFootnoteContainerCount']);
+        $t->same(['paragraph', 'div'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same(['text', 'note', 'text'], array_map(static fn ($node): string => $node->type, $paragraph->children));
+        $t->same('footnotes', $container->attr('id'));
+        $t->same('doc-endnotes', $container->attr('htmlAttributes')['role'] ?? null);
     };
 
 $tests['resolves upstream html doc-noteref notes in table placements and consumes endnotes'] =

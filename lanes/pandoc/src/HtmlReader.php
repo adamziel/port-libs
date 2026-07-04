@@ -45,16 +45,19 @@ final class HtmlReader
             $delegated = self::delegateHtmlBytes($readerBytes);
             $document = $this->reader->read($delegated['bytes']);
             [$children, $consumedFootnoteContainerCount] = self::containsAstNodeType($document->children, 'note')
+                && $this->consumeFootnoteContainers()
                 ? self::stripConsumedHtmlFootnoteContainers($document->children)
                 : [$document->children, 0];
             if ($delegated['implicitPlainBody']) {
                 $children = self::restoreImplicitPlainBody($children);
             }
             $children = $this->restoreImplicitNativeMainPlainBlocks($readerBytes, $children);
-            $children = self::stripHtmlRawInlineWrappers(
-                $children,
-                self::standaloneRawInlineWrapperTags($readerBytes)
-            );
+            if ($this->stripRawInlineWrappers()) {
+                $children = self::stripHtmlRawInlineWrappers(
+                    $children,
+                    self::standaloneRawInlineWrapperTags($readerBytes)
+                );
+            }
             $attrs = $document->attrs;
         }
         $children = self::restoreHtmlTableBodyRowHeadColumns($children);
@@ -79,6 +82,16 @@ final class HtmlReader
         ], $this->microdataMetadata($bytes));
 
         return new AstNode('document', $attrs, $children);
+    }
+
+    private function consumeFootnoteContainers(): bool
+    {
+        return ($this->options['htmlConsumeFootnoteContainers'] ?? true) !== false;
+    }
+
+    private function stripRawInlineWrappers(): bool
+    {
+        return ($this->options['htmlStripRawInlineWrappers'] ?? true) !== false;
     }
 
     private static function flattenHtmlPictureContainers(string $bytes): string

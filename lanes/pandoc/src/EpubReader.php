@@ -154,7 +154,7 @@ final class EpubReader
             $footnote_definitions = $this->epubFootnoteDefinitionsInReferenceOrder($xhtml, $item['href']);
             $note_reference_hrefs = $this->epubNoteReferenceHrefs($xhtml);
             $link_attribute_overlays_by_href = $this->epubBodyLinkAttributeOverlaysByHref($xhtml);
-            $document = $this->epubContentMarkdownReader()->read($this->contentDocumentMarkup($xhtml));
+            $document = $this->epubContentHtmlReader()->read($this->contentDocumentMarkup($xhtml));
             $document = $this->normalizeEpubMediaRawBlocks($document);
             if ($footnote_definitions !== []) {
                 $footnote_index = 0;
@@ -967,14 +967,16 @@ final class EpubReader
         return ltrim($xhtml);
     }
 
-    private function epubContentMarkdownReader(): MarkdownReader
+    private function epubContentHtmlReader(): HtmlReader
     {
-        return new MarkdownReader([
+        return new HtmlReader([
             'htmlNativeDivs' => true,
             'htmlEpubExtensions' => true,
             'htmlImplicitHeadingIds' => false,
             'htmlPlainInlineBlocks' => true,
             'htmlPreserveSoftBreaks' => true,
+            'htmlConsumeFootnoteContainers' => false,
+            'htmlStripRawInlineWrappers' => false,
         ]);
     }
 
@@ -1239,7 +1241,7 @@ final class EpubReader
             . $body
             . '</body></html>';
 
-        $blocks = $this->epubContentMarkdownReader()->read($wrapped)->children;
+        $blocks = $this->epubContentHtmlReader()->read($wrapped)->children;
         if ($link_attribute_overlays === []) {
             return $blocks;
         }
