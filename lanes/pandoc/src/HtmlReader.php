@@ -39,17 +39,21 @@ final class HtmlReader
         } else {
             $readerBytes = self::flattenHtmlTemplateContainers($structuralBytes);
             $readerBytes = self::flattenHtmlDetailsSummaryContainers($readerBytes);
-            $readerBytes = self::repairParagraphButtonScopeBoundaries($readerBytes);
-            $readerBytes = self::repairParagraphBlockFragmentBoundaries($readerBytes);
             $readerBytes = self::flattenOrphanTableFragmentContainers($readerBytes);
-            $delegated = self::delegateHtmlBytes($readerBytes);
-            $document = $this->reader->read($delegated['bytes']);
-            [$children, $consumedFootnoteContainerCount] = self::containsAstNodeType($document->children, 'note')
-                && $this->consumeFootnoteContainers()
-                ? self::stripConsumedHtmlFootnoteContainers($document->children)
-                : [$document->children, 0];
-            if ($delegated['implicitPlainBody']) {
-                $children = self::restoreImplicitPlainBody($children);
+            $segmentedDocument = $this->readInlineTopLevelSourceSegments($readerBytes);
+            if ($segmentedDocument !== null) {
+                [$children, $attrs] = $segmentedDocument;
+                $consumedFootnoteContainerCount = 0;
+            } else {
+                $document = $this->reader->readHtml($readerBytes);
+                [$children, $consumedFootnoteContainerCount] = self::containsAstNodeType($document->children, 'note')
+                    && $this->consumeFootnoteContainers()
+                    ? self::stripConsumedHtmlFootnoteContainers($document->children)
+                    : [$document->children, 0];
+                if (self::shouldRestoreImplicitPlainBody($readerBytes)) {
+                    $children = self::restoreImplicitPlainBody($children);
+                }
+                $attrs = $document->attrs;
             }
             $children = $this->restoreImplicitNativeMainPlainBlocks($readerBytes, $children);
             if ($this->stripRawInlineWrappers()) {
@@ -58,7 +62,6 @@ final class HtmlReader
                     self::standaloneRawInlineWrapperTags($readerBytes)
                 );
             }
-            $attrs = $document->attrs;
         }
         $children = self::restoreHtmlTableBodyRowHeadColumns($children);
         $children = self::restoreHtmlDefinitionPlainBlocks($bytes, $children);
@@ -72,7 +75,8 @@ final class HtmlReader
             'sourceFormat' => 'html',
             'reader' => self::class,
             'readerScope' => 'bounded-html-reader',
-            'htmlReaderDelegate' => MarkdownReader::class,
+            'htmlReaderDelegate' => MarkdownReader::class . '::readHtml',
+            'htmlTreeConstruction' => class_exists('Dom\\HTMLDocument') ? 'Dom\\HTMLDocument' : 'DOMDocument-loadHTML-compat',
             'htmlNativeDivs' => (bool) (($this->options['htmlNativeDivs'] ?? true)),
             'sourceBytes' => strlen($bytes),
             'sourceSha256' => hash('sha256', $bytes),
@@ -312,254 +316,6 @@ final class HtmlReader
         $html = $dom->saveHTML($documentElement);
 
         return is_string($html) ? $html : $bytes;
-    }
-
-    private static function repairParagraphBlockFragmentBoundaries(string $bytes): string
-    {
-        if (preg_match('/<p\b[^>]*>(?:(?!<\/p\s*>).)*<(?:' . self::htmlBlockContainerNameAlternation() . ')\b/is', $bytes) !== 1) {
-            return $bytes;
-        }
-        if (preg_match('/<p\b[^>]*>(?:(?!<\/p\s*>).)*<main\b/is', $bytes) === 1) {
-            return $bytes;
-        }
-
-        $trimmed = ltrim($bytes);
-        $isDocument = preg_match('/^(?:<!doctype\b|<html\b)/i', $trimmed) === 1;
-
-        try {
-            if ($isDocument) {
-                $dom = Html5Dom::parseHtmlDocument($bytes);
-                $documentElement = $dom->documentElement;
-                if (!$documentElement instanceof \DOMElement) {
-                    return $bytes;
-                }
-
-                $html = $dom->saveHTML($documentElement);
-
-                return is_string($html) ? $html : $bytes;
-            }
-
-            $body = Html5Dom::parseHtmlFragment($bytes);
-        } catch (\Throwable) {
-            return $bytes;
-        }
-
-        $parts = [];
-        foreach ($body->childNodes as $child) {
-            $serialized = self::htmlNodeSource($child);
-            if ($child instanceof \DOMText && trim($serialized) === '') {
-                continue;
-            }
-            if (self::isEmptyHtmlParagraphRepairArtifact($child)) {
-                continue;
-            }
-            if ($serialized === '') {
-                continue;
-            }
-
-            $parts[] = $serialized;
-        }
-
-        if (count($parts) < 2) {
-            return $bytes;
-        }
-
-        return implode("\n", $parts);
-    }
-
-    private static function isEmptyHtmlParagraphRepairArtifact(\DOMNode $node): bool
-    {
-        return $node instanceof \DOMElement
-            && strtolower($node->localName) === 'p'
-            && !$node->hasAttributes()
-            && trim($node->textContent) === '';
-    }
-
-    private static function repairParagraphButtonScopeBoundaries(string $bytes): string
-    {
-        if (preg_match('/<button\b/i', $bytes) !== 1 || preg_match('/<p\b/i', $bytes) !== 1) {
-            return $bytes;
-        }
-
-        $trimmed = ltrim($bytes);
-        $isDocument = preg_match('/^(?:<!doctype\b|<html\b)/i', $trimmed) === 1;
-
-        try {
-            if ($isDocument) {
-                $dom = Html5Dom::parseHtmlDocument($bytes);
-                $body = $dom->getElementsByTagName('body')->item(0);
-            } else {
-                $body = Html5Dom::parseHtmlFragment($bytes);
-                $dom = $body->ownerDocument;
-            }
-        } catch (\Throwable) {
-            return $bytes;
-        }
-
-        if (!$dom instanceof \DOMDocument || !$body instanceof \DOMElement) {
-            return $bytes;
-        }
-
-        $changed = false;
-        for ($pass = 0; $pass < 8; ++$pass) {
-            $button = self::firstParagraphScopedButtonWithBlockChild($body);
-            if (!$button instanceof \DOMElement) {
-                break;
-            }
-
-            $paragraph = $button->parentNode;
-            if (!$paragraph instanceof \DOMElement) {
-                break;
-            }
-
-            $replacementNodes = self::paragraphButtonScopeReplacementNodes($dom, $paragraph, $button);
-            if ($replacementNodes === []) {
-                break;
-            }
-
-            $parent = $paragraph->parentNode;
-            if (!$parent instanceof \DOMNode) {
-                break;
-            }
-
-            foreach ($replacementNodes as $replacementNode) {
-                $parent->insertBefore($replacementNode, $paragraph);
-            }
-            $parent->removeChild($paragraph);
-            $changed = true;
-        }
-
-        if (!$changed) {
-            return $bytes;
-        }
-
-        if ($isDocument) {
-            $documentElement = $dom->documentElement;
-            if (!$documentElement instanceof \DOMElement) {
-                return $bytes;
-            }
-
-            $html = $dom->saveHTML($documentElement);
-
-            return is_string($html) ? $html : $bytes;
-        }
-
-        $parts = [];
-        foreach ($body->childNodes as $child) {
-            $serialized = self::htmlNodeSource($child);
-            if ($child instanceof \DOMText && trim($serialized) === '') {
-                continue;
-            }
-            if (self::isEmptyHtmlParagraphRepairArtifact($child)) {
-                continue;
-            }
-            if ($serialized === '') {
-                continue;
-            }
-
-            $parts[] = $serialized;
-        }
-
-        return $parts === [] ? $bytes : implode("\n", $parts);
-    }
-
-    private static function firstParagraphScopedButtonWithBlockChild(\DOMElement $root): ?\DOMElement
-    {
-        foreach ($root->getElementsByTagName('button') as $button) {
-            if (
-                !$button instanceof \DOMElement
-                || strtolower($button->localName) !== 'button'
-                || !$button->parentNode instanceof \DOMElement
-                || strtolower($button->parentNode->localName) !== 'p'
-            ) {
-                continue;
-            }
-
-            foreach ($button->childNodes as $child) {
-                if ($child instanceof \DOMElement && self::isHtmlBlockContainerName(strtolower($child->localName))) {
-                    return $button;
-                }
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * @return list<\DOMNode>
-     */
-    private static function paragraphButtonScopeReplacementNodes(
-        \DOMDocument $dom,
-        \DOMElement $paragraph,
-        \DOMElement $button
-    ): array {
-        $before = $dom->createElement('p');
-        $buttonBlocks = [];
-        $seenButton = false;
-
-        foreach ($paragraph->childNodes as $child) {
-            if ($child === $button) {
-                $seenButton = true;
-                foreach ($button->childNodes as $buttonChild) {
-                    if ($buttonChild instanceof \DOMElement && self::isHtmlBlockContainerName(strtolower($buttonChild->localName))) {
-                        $buttonBlocks[] = $buttonChild->cloneNode(true);
-                        continue;
-                    }
-
-                    if ($buttonBlocks === []) {
-                        $before->appendChild($buttonChild->cloneNode(true));
-                        continue;
-                    }
-
-                    $buttonBlocks[array_key_last($buttonBlocks)]->appendChild($buttonChild->cloneNode(true));
-                }
-                continue;
-            }
-
-            if (!$seenButton) {
-                $before->appendChild($child->cloneNode(true));
-                continue;
-            }
-
-            if ($buttonBlocks === []) {
-                $before->appendChild($child->cloneNode(true));
-                continue;
-            }
-
-            $buttonBlocks[array_key_last($buttonBlocks)]->appendChild($child->cloneNode(true));
-        }
-
-        if (!$seenButton || $buttonBlocks === []) {
-            return [];
-        }
-
-        $nodes = [];
-        if (trim($before->textContent) !== '' || self::hasElementChild($before)) {
-            $nodes[] = $before;
-        }
-        foreach ($buttonBlocks as $block) {
-            if (!$block instanceof \DOMNode) {
-                continue;
-            }
-            if ($block instanceof \DOMElement && self::isEmptyHtmlParagraphRepairArtifact($block)) {
-                continue;
-            }
-
-            $nodes[] = $block;
-        }
-
-        return $nodes;
-    }
-
-    private static function hasElementChild(\DOMElement $element): bool
-    {
-        foreach ($element->childNodes as $child) {
-            if ($child instanceof \DOMElement) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private static function flattenOrphanTableFragmentContainers(string $bytes): string
@@ -999,78 +755,6 @@ final class HtmlReader
         return $attrs;
     }
 
-    /**
-     * @return array{bytes: string, implicitPlainBody: bool}
-     */
-    private static function delegateHtmlBytes(string $bytes): array
-    {
-        $trimmed = ltrim($bytes);
-        if (self::isHeadOrBodyFragment($trimmed)) {
-            return [
-                'bytes' => '<html>' . $bytes . '</html>',
-                'implicitPlainBody' => self::hasImplicitPlainBody($trimmed),
-            ];
-        }
-
-        if (self::isInlineFragmentStart($trimmed)) {
-            return ['bytes' => $bytes, 'implicitPlainBody' => true];
-        }
-
-        if (self::isTransparentInlineFragmentStart($trimmed)) {
-            return [
-                'bytes' => '<html><body>' . $bytes . '</body></html>',
-                'implicitPlainBody' => true,
-            ];
-        }
-
-        if (preg_match('/^<(output|select)\b/i', $trimmed, $match) !== 1) {
-            return ['bytes' => $bytes, 'implicitPlainBody' => false];
-        }
-
-        $tag = strtolower($match[1]);
-        if (preg_match('/<\/' . preg_quote($tag, '/') . '\s*>/i', $trimmed) !== 1) {
-            return ['bytes' => $bytes, 'implicitPlainBody' => false];
-        }
-
-        return [
-            'bytes' => '<form data-html-reader-boundary="form-control">' . $bytes . '</form>',
-            'implicitPlainBody' => in_array($tag, ['output', 'select'], true),
-        ];
-    }
-
-    private static function isHeadOrBodyFragment(string $trimmed): bool
-    {
-        return preg_match('/^<(head|body)\b/i', $trimmed) === 1
-            && preg_match('/^<html\b/i', $trimmed) !== 1;
-    }
-
-    private static function hasImplicitPlainBody(string $trimmed): bool
-    {
-        if (preg_match('/<body\b[^>]*>(.*?)(?:<\/body\s*>|<\/html\s*>|$)/is', $trimmed, $match) !== 1) {
-            return false;
-        }
-
-        $body = trim((string) preg_replace('/<\/head\s*>/i', '', $match[1]));
-        if ($body === '') {
-            return false;
-        }
-
-        return preg_match(self::htmlBlockContainerPattern(), $body) !== 1;
-    }
-
-    private static function isInlineFragmentStart(string $trimmed): bool
-    {
-        return preg_match(
-            '/^<(?:a|abbr|b|bdo|cite|code|dfn|em|i|kbd|mark|q|s|samp|small|span|strike|strong|sub|sup|tt|u|var)\b/i',
-            $trimmed
-        ) === 1;
-    }
-
-    private static function isTransparentInlineFragmentStart(string $trimmed): bool
-    {
-        return preg_match('/^<(?:bdi|data|del|ins|meter)\b/i', $trimmed) === 1;
-    }
-
     private static function htmlBlockContainerPattern(): string
     {
         return '/<(?:' . self::htmlBlockContainerNameAlternation() . ')\b/i';
@@ -1079,6 +763,177 @@ final class HtmlReader
     private static function htmlBlockContainerNameAlternation(): string
     {
         return 'address|article|aside|blockquote|center|details|dialog|dir|div|dl|fieldset|figcaption|figure|footer|form|h[1-6]|header|hgroup|hr|main|menu|nav|ol|p|pre|search|section|summary|table|ul';
+    }
+
+    /**
+     * @param list<AstNode> $children
+     * @return list<AstNode>
+     */
+    private function readInlineTopLevelSourceSegments(string $bytes): ?array
+    {
+        $segments = self::inlineTopLevelSourceSegments($bytes);
+        if ($segments === null) {
+            return null;
+        }
+
+        $children = [];
+        $attrs = [];
+        foreach ($segments as $segment) {
+            $document = $this->reader->readHtml($segment);
+            array_push($children, ...$document->children);
+            if ($attrs === []) {
+                $attrs = $document->attrs;
+            }
+        }
+
+        return [$children, $attrs];
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private static function inlineTopLevelSourceSegments(string $bytes): ?array
+    {
+        if (!str_contains($bytes, "\n") && !str_contains($bytes, "\r")) {
+            return null;
+        }
+
+        try {
+            $body = Html5Dom::parseHtmlFragment($bytes);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        if (!self::htmlElementHasOnlyInlineTopLevelContent($body)) {
+            return null;
+        }
+
+        $normalized = str_replace(["\r\n", "\r"], "\n", $bytes);
+        $segments = [];
+        foreach (explode("\n", $normalized) as $line) {
+            $segment = trim($line);
+            if ($segment !== '') {
+                $segments[] = $segment;
+            }
+        }
+
+        return count($segments) > 1 ? $segments : null;
+    }
+
+    private static function htmlElementHasOnlyInlineTopLevelContent(\DOMElement $element): bool
+    {
+        $hasContent = false;
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMText || $child instanceof \DOMCdataSection) {
+                if (trim($child->nodeValue ?? '') !== '') {
+                    $hasContent = true;
+                }
+                continue;
+            }
+
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            if (self::isHtmlBlockContainerName(strtolower($child->localName))) {
+                return false;
+            }
+            $hasContent = true;
+        }
+
+        return $hasContent;
+    }
+
+    /**
+     * @param list<AstNode> $children
+     * @return list<AstNode>
+     */
+    private static function shouldRestoreImplicitPlainBody(string $bytes): bool
+    {
+        $trimmed = ltrim($bytes);
+        if (strncasecmp($trimmed, '<!doctype', 9) === 0 || strncasecmp($trimmed, '<html', 5) === 0) {
+            return false;
+        }
+
+        try {
+            if (strncasecmp($trimmed, '<head', 5) === 0 || strncasecmp($trimmed, '<body', 5) === 0) {
+                $dom = Html5Dom::parseHtmlDocument('<html>' . $bytes . '</html>');
+                $body = $dom->getElementsByTagName('body')->item(0);
+
+                return $body instanceof \DOMElement && self::htmlElementHasOnlyPlainEligibleTopLevelContent($body);
+            }
+
+            $body = Html5Dom::parseHtmlFragment($bytes);
+
+            return self::htmlElementHasOnlyPlainEligibleTopLevelContent($body);
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    private static function htmlElementHasOnlyPlainEligibleTopLevelContent(\DOMElement $element): bool
+    {
+        $hasContent = false;
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMText || $child instanceof \DOMCdataSection) {
+                if (trim($child->nodeValue ?? '') !== '') {
+                    $hasContent = true;
+                }
+                continue;
+            }
+
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            if (self::isHtmlBlockContainerName(strtolower($child->localName))) {
+                return false;
+            }
+            if (!self::isPlainEligibleInlineElementName(strtolower($child->localName))) {
+                return false;
+            }
+            $hasContent = true;
+        }
+
+        return $hasContent;
+    }
+
+    private static function isPlainEligibleInlineElementName(string $name): bool
+    {
+        return in_array($name, [
+            'a',
+            'abbr',
+            'b',
+            'bdi',
+            'bdo',
+            'cite',
+            'code',
+            'data',
+            'del',
+            'dfn',
+            'em',
+            'i',
+            'img',
+            'ins',
+            'kbd',
+            'mark',
+            'meter',
+            'output',
+            'q',
+            's',
+            'samp',
+            'select',
+            'small',
+            'span',
+            'strike',
+            'strong',
+            'sub',
+            'sup',
+            'time',
+            'tt',
+            'u',
+            'var',
+        ], true);
     }
 
     /**

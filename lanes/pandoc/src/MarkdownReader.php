@@ -175,6 +175,31 @@ final class MarkdownReader
     {
     }
 
+    public function readHtml(string $html): AstNode
+    {
+        $body = self::htmlSourceLooksLikeWholeDocument($html)
+            ? null
+            : $this->parseHtmlFragmentBodyElement($html);
+        if ($body instanceof \DOMElement && $body->ownerDocument instanceof \DOMDocument) {
+            return $this->parseHtmlDomDocument($body->ownerDocument, $body, $html);
+        }
+
+        $document = $this->parseHtmlDocument($html);
+        if ($document instanceof AstNode) {
+            return $document;
+        }
+
+        $htmlWithoutUnsafeDoctype = self::htmlSourceWithSimpleDoctype($html);
+        if ($htmlWithoutUnsafeDoctype !== null) {
+            $document = $this->parseHtmlDocument($htmlWithoutUnsafeDoctype);
+            if ($document instanceof AstNode) {
+                return $document;
+            }
+        }
+
+        throw new \RuntimeException('Unable to parse HTML input');
+    }
+
     private function tableWithReviewPacket(AstNode $table): AstNode
     {
         return TableGeometry::withReviewPacket($table);
@@ -3914,6 +3939,13 @@ final class MarkdownReader
             return null;
         }
 
+        return $this->parseHtmlDomDocument($dom, $body, $html);
+    }
+
+    private function parseHtmlDomDocument(\DOMDocument $dom, \DOMElement $body, string $html): AstNode
+    {
+        $this->normalizeHtmlButtonScopeParagraphs($body);
+
         $previousHtmlBaseHref = $this->htmlBaseHref;
         $previousHtmlFootnoteDefinitions = $this->htmlFootnoteDefinitions;
         $previousHtmlResolvedFootnoteReference = $this->htmlResolvedFootnoteReference;
@@ -3960,6 +3992,171 @@ final class MarkdownReader
             $this->htmlSourceTextareaRawHtml = $previousHtmlSourceTextareaRawHtml;
             $this->htmlSourceTextareaRawHtmlIndex = $previousHtmlSourceTextareaRawHtmlIndex;
         }
+    }
+
+    private function normalizeHtmlButtonScopeParagraphs(\DOMElement $root): void
+    {
+        $document = $root->ownerDocument;
+        if (!$document instanceof \DOMDocument) {
+            return;
+        }
+
+        // PHP 8.5.7 Dom\HTMLDocument still exposes block children inside a
+        // paragraph-scoped button. Normalize that DOM shape after parser handoff.
+        for ($pass = 0; $pass < 8; ++$pass) {
+            $button = $this->firstParagraphScopedButtonWithBlockChild($root);
+            if (!$button instanceof \DOMElement) {
+                return;
+            }
+
+            $paragraph = $button->parentNode;
+            $parent = $paragraph instanceof \DOMElement ? $paragraph->parentNode : null;
+            if (!$paragraph instanceof \DOMElement || !$parent instanceof \DOMNode) {
+                return;
+            }
+
+            $replacementNodes = $this->paragraphButtonScopeReplacementNodes($document, $paragraph, $button);
+            if ($replacementNodes === []) {
+                return;
+            }
+
+            foreach ($replacementNodes as $replacementNode) {
+                $parent->insertBefore($replacementNode, $paragraph);
+            }
+            $parent->removeChild($paragraph);
+            $root->normalize();
+        }
+    }
+
+    private function firstParagraphScopedButtonWithBlockChild(\DOMElement $root): ?\DOMElement
+    {
+        foreach ($root->getElementsByTagName('button') as $button) {
+            if (
+                !$button instanceof \DOMElement
+                || strtolower($button->localName) !== 'button'
+                || !$button->parentNode instanceof \DOMElement
+                || strtolower($button->parentNode->localName) !== 'p'
+            ) {
+                continue;
+            }
+
+            foreach ($button->childNodes as $child) {
+                if ($child instanceof \DOMElement && $this->isHtmlBlockElement($child)) {
+                    return $button;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<\DOMNode>
+     */
+    private function paragraphButtonScopeReplacementNodes(
+        \DOMDocument $document,
+        \DOMElement $paragraph,
+        \DOMElement $button
+    ): array {
+        $before = $document->createElement('p');
+        $buttonBlocks = [];
+        $seenButton = false;
+
+        foreach ($paragraph->childNodes as $child) {
+            if ($child === $button) {
+                $seenButton = true;
+                foreach ($button->childNodes as $buttonChild) {
+                    if ($buttonChild instanceof \DOMElement && $this->isHtmlBlockElement($buttonChild)) {
+                        $buttonBlocks[] = $buttonChild->cloneNode(true);
+                        continue;
+                    }
+
+                    if ($buttonBlocks === []) {
+                        $before->appendChild($buttonChild->cloneNode(true));
+                        continue;
+                    }
+
+                    $buttonBlocks[array_key_last($buttonBlocks)]->appendChild($buttonChild->cloneNode(true));
+                }
+                continue;
+            }
+
+            if (!$seenButton) {
+                $before->appendChild($child->cloneNode(true));
+                continue;
+            }
+
+            if ($buttonBlocks === []) {
+                $before->appendChild($child->cloneNode(true));
+                continue;
+            }
+
+            $buttonBlocks[array_key_last($buttonBlocks)]->appendChild($child->cloneNode(true));
+        }
+
+        if (!$seenButton || $buttonBlocks === []) {
+            return [];
+        }
+
+        $nodes = [];
+        if ($this->htmlParagraphHasContent($before)) {
+            $nodes[] = $before;
+        }
+        foreach ($buttonBlocks as $block) {
+            if ($block instanceof \DOMNode) {
+                $nodes[] = $block;
+            }
+        }
+
+        return $nodes;
+    }
+
+    private function htmlParagraphHasContent(\DOMElement $paragraph): bool
+    {
+        if (trim($paragraph->textContent) !== '') {
+            return true;
+        }
+
+        foreach ($paragraph->childNodes as $child) {
+            if ($child instanceof \DOMElement) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function htmlSourceLooksLikeWholeDocument(string $html): bool
+    {
+        $trimmed = ltrim($html);
+
+        return strncasecmp($trimmed, '<!doctype', 9) === 0
+            || strncasecmp($trimmed, '<html', 5) === 0
+            || strncasecmp($trimmed, '<head', 5) === 0
+            || strncasecmp($trimmed, '<body', 5) === 0;
+    }
+
+    private static function htmlSourceWithSimpleDoctype(string $html): ?string
+    {
+        $offset = strspn($html, " \t\r\n\f");
+        if (strncasecmp(substr($html, $offset, 9), '<!doctype', 9) !== 0) {
+            return null;
+        }
+
+        $declarationEnd = strpos($html, '>', $offset + 9);
+        $subsetStart = strpos($html, '[', $offset + 9);
+        if ($subsetStart !== false && ($declarationEnd === false || $subsetStart < $declarationEnd)) {
+            $subsetEnd = strpos($html, ']>', $subsetStart + 1);
+            if ($subsetEnd === false) {
+                return null;
+            }
+            $declarationEnd = $subsetEnd + 1;
+        }
+        if ($declarationEnd === false) {
+            return null;
+        }
+
+        return substr($html, 0, $offset) . '<!doctype html>' . substr($html, $declarationEnd + 1);
     }
 
     /**
@@ -5205,7 +5402,7 @@ final class MarkdownReader
                     continue;
                 }
                 $block = $this->parseHtmlBlockElement($child);
-                if ($block instanceof AstNode) {
+                if ($block instanceof AstNode && !$this->isIgnorableHtmlDomRepairBlock($block)) {
                     $blocks[] = $block;
                 }
                 continue;
@@ -5252,7 +5449,7 @@ final class MarkdownReader
             if ($child instanceof \DOMElement && $this->isHtmlBlockElement($child)) {
                 $this->flushHtmlInlineParagraph($inlines, $blocks);
                 $block = $this->parseHtmlBlockElement($child);
-                if ($block instanceof AstNode) {
+                if ($block instanceof AstNode && !$this->isIgnorableHtmlDomRepairBlock($block)) {
                     $blocks[] = $block;
                 }
                 continue;
@@ -5466,6 +5663,19 @@ final class MarkdownReader
             ['text' => $this->plainTextFromInlines($children)],
             $children
         );
+    }
+
+    private function isIgnorableHtmlDomRepairBlock(AstNode $block): bool
+    {
+        if ($block->type !== 'paragraph' || $block->children !== []) {
+            return false;
+        }
+
+        $attrs = $block->attrs;
+        $text = $attrs['text'] ?? null;
+        unset($attrs['text']);
+
+        return $attrs === [] && is_string($text) && trim($text) === '';
     }
 
     /**
@@ -5973,7 +6183,11 @@ final class MarkdownReader
         $inlines = $this->trimHtmlBoundarySoftBreaks($inlines);
         $text = $this->plainTextFromInlines($inlines);
         $normalized = trim(preg_replace('/\s+/', ' ', $text) ?? $text);
-        if ($normalized !== '' || $this->htmlInlineParagraphHasLineBreak($inlines)) {
+        if (
+            $normalized !== ''
+            || $this->htmlInlineParagraphHasLineBreak($inlines)
+            || $this->htmlInlineParagraphHasStructuralContent($inlines)
+        ) {
             $blocks[] = new AstNode(
                 $this->htmlPlainInlineBlocksEnabled() ? 'plain' : 'paragraph',
                 ['text' => $normalized],
@@ -5991,6 +6205,24 @@ final class MarkdownReader
     {
         foreach ($inlines as $inline) {
             if ($inline->type === 'linebreak') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     */
+    private function htmlInlineParagraphHasStructuralContent(array $inlines): bool
+    {
+        foreach ($inlines as $inline) {
+            if ($inline->type === 'text' || $inline->type === 'softbreak') {
+                continue;
+            }
+
+            if ($inline->attrs !== [] || $inline->children !== []) {
                 return true;
             }
         }
