@@ -47,6 +47,8 @@ jobs:
           php -l lanes/pandoc/tests/EpubMediaBagComparisonHarnessTest.php
           php -l lanes/pandoc/tests/EpubNativeAstPackageComparisonHarnessTest.php
           php -l lanes/pandoc/tests/EpubUpstreamReaderEvidenceTest.php
+          php -l lanes/pandoc/tests/EpubEvidenceStatusTest.php
+          php -l lanes/pandoc/tests/EpubDirectImageSpineReaderTest.php
           php -l tools/pandoc-epub-media-bag.php
           php -l tools/pandoc-epub-native-ast-package.php
           php -l tools/pandoc-epub-reader-evidence.php
@@ -114,7 +116,10 @@ jobs:
             --upstream-root=.upstream-cache/pandoc-current \
             --json \
             summary \
-            --require-media-bag-parity=6
+            --require-media-bag-parity=6 \
+            --require-media-bag-item-count=10 \
+            --require-current-media-bag-signatures \
+            --require-runner-plan
 
       - name: Require upstream EPUB native/package coverage
         run: |
@@ -137,4 +142,6 @@ jobs:
             lanes/pandoc/tests/EpubMediaBagComparisonHarnessTest.php \
             lanes/pandoc/tests/EpubNativeAstPackageComparisonHarnessTest.php \
             lanes/pandoc/tests/EpubUpstreamReaderEvidenceTest.php \
+            lanes/pandoc/tests/EpubEvidenceStatusTest.php \
+            lanes/pandoc/tests/EpubDirectImageSpineReaderTest.php \
             lanes/pandoc/tests/EpubReaderTest.php
