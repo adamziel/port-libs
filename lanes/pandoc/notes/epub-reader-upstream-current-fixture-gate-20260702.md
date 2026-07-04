@@ -7,8 +7,8 @@ The checked-in EPUB reader fixture subset now mirrors the upstream current
 `test/epub` inventory plus generated current-upstream edge fixtures used by
 the local native/package harness:
 
-- 51 EPUB package inputs in `lanes/pandoc/fixtures/upstream-current-epub-reader/epub`
-- 51 same-directory `.native` goldens for every checked-in EPUB package input
+- 52 EPUB package inputs in `lanes/pandoc/fixtures/upstream-current-epub-reader/epub`
+- 52 same-directory `.native` goldens for every checked-in EPUB package input
 
 Imported from the hydrated upstream cache at
 `/Users/admin/port-libs-pandoc-pptx/.upstream-cache/pandoc-full/test/epub`:
@@ -112,6 +112,15 @@ and right page-spread spine provenance. The native golden was generated with:
 /opt/homebrew/bin/pandoc -f epub -t native -o lanes/pandoc/fixtures/upstream-current-epub-reader/epub/xhtml-ruby-table-mark.native lanes/pandoc/fixtures/upstream-current-epub-reader/epub/xhtml-ruby-table-mark.epub
 ```
 
+Added generated `metadata-search-link-semantics.epub` plus its Pandoc 3.10
+native golden to exercise OPF `link rel="record search"` package coverage plus
+XHTML spine semantics for `abbr`, quoted cite text, `aside epub:type`, and
+ordered-list start handling. The native golden was generated with:
+
+```sh
+/opt/homebrew/bin/pandoc -f epub -t native -o lanes/pandoc/fixtures/upstream-current-epub-reader/epub/metadata-search-link-semantics.native lanes/pandoc/fixtures/upstream-current-epub-reader/epub/metadata-search-link-semantics.epub
+```
+
 Added generated `parent-relative-nav.epub` plus its Pandoc 3.10 native golden
 to exercise an `OPS/package.opf` rootfile whose EPUB3 nav manifest item uses a
 parent-relative href (`../Navigation/nav.xhtml`) while the linear spine remains
@@ -173,11 +182,11 @@ golden was generated with:
 Verified checked-in gate:
 
 ```sh
-php tools/pandoc-epub-native-ast-package.php --checked-in-fixtures summary --require-package-parity=51 --require-native-readiness=51 --require-mapped-parity=51 --require-fixture-identity --require-current-package-feature-coverage --require-current-package-feature-signature --require-current-native-ast-signature --require-runner-plan
+php tools/pandoc-epub-native-ast-package.php --checked-in-fixtures summary --require-package-parity=52 --require-native-readiness=52 --require-mapped-parity=52 --require-fixture-identity --require-current-package-feature-coverage --require-current-package-feature-signature --require-current-native-ast-signature --require-runner-plan
 ```
 
-Result: `packageParsedCount=51`, `readerParsedCount=51`,
-`nativeParsedCount=51`, `normalizedAstMatchCount=51`, and
+Result: `packageParsedCount=52`, `readerParsedCount=52`,
+`nativeParsedCount=52`, `normalizedAstMatchCount=52`, and
 `normalizedAstMismatchCount=0`.
 
 This continues not to claim upstream Haskell/Tasty runner parity; the harness

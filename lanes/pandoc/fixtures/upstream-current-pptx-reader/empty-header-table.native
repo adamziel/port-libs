@@ -1,0 +1,30 @@
+[ Header
+    2 ( "slide-1" , [] , [] ) [ Str "Empty header table" ]
+, Table
+    ( "" , [] , [] )
+    (Caption Nothing [])
+    []
+    (TableHead ( "" , [] , [] ) [ Row ( "" , [] , [] ) [] ])
+    [ TableBody
+        ( "" , [] , [] )
+        (RowHeadColumns 0)
+        []
+        [ Row
+            ( "" , [] , [] )
+            [ Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain [ Str "Body A" ] ]
+            , Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain [ Str "Body B" ] ]
+            ]
+        ]
+    ]
+    (TableFoot ( "" , [] , [] ) [])
+]

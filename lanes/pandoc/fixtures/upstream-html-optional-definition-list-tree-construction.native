@@ -1,0 +1,13 @@
+[ DefinitionList
+    [ ( [ Str "Term" , Space , Str "alpha" ]
+      , [ [ Plain [ Str "Definition" , Space , Str "alpha" ] ] ]
+      )
+    , ( [ Str "Term" , Space , Str "beta" ]
+      , [ [ Plain
+              [ Str "Definition" , Space , Strong [ Str "beta" ] ]
+          ]
+        ]
+      )
+    ]
+, Para [ Str "After" , Space , Str "definitions." ]
+]

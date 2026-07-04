@@ -51,6 +51,7 @@ final class MarkdownNativeAstComparisonHarness
         'upstream-markdown-zzzzzzzz-blank-before-header-disabled-profile' => ['format' => 'markdown-blank_before_header'],
         'upstream-markdown-zzzzzzzzzz-bare-uri-bracket-encoding' => ['format' => 'markdown+autolink_bare_uris'],
         'upstream-markdown-zzzzzzzzzzz-mmd-title-block-profile' => ['format' => 'markdown_mmd'],
+        'upstream-markdown-zzzzzzzzzzzz-gfm-auto-identifiers-profile' => ['format' => 'commonmark+gfm_auto_identifiers+ascii_identifiers'],
     ];
 
     /** @var array<string, true> */

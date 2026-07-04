@@ -53,6 +53,7 @@ final class HtmlReader
             $attrs = $document->attrs;
         }
         $children = self::restoreHtmlTableBodyRowHeadColumns($children);
+        $children = self::restoreHtmlDefinitionPlainBlocks($bytes, $children);
         $meta = $attrs['meta'] ?? [];
         if (!is_array($meta)) {
             $meta = [];
@@ -1008,6 +1009,131 @@ final class HtmlReader
         }
 
         return $rowCounts === [] ? 0 : min($rowCounts);
+    }
+
+    /**
+     * @param list<AstNode> $children
+     * @return list<AstNode>
+     */
+    private static function restoreHtmlDefinitionPlainBlocks(string $bytes, array $children): array
+    {
+        $plainDefinitionFlags = self::htmlDefinitionPlainBlockFlags($bytes);
+        if ($plainDefinitionFlags === []) {
+            return $children;
+        }
+
+        $index = 0;
+
+        return self::restoreHtmlDefinitionPlainBlockChildren($children, $plainDefinitionFlags, $index);
+    }
+
+    /**
+     * @return list<bool>
+     */
+    private static function htmlDefinitionPlainBlockFlags(string $bytes): array
+    {
+        if (preg_match('/<dd\b/i', $bytes) !== 1) {
+            return [];
+        }
+
+        try {
+            $dom = Html5Dom::parseHtmlDocument($bytes);
+        } catch (\Throwable) {
+            return [];
+        }
+
+        $flags = [];
+        foreach ($dom->getElementsByTagName('dd') as $element) {
+            if (!$element instanceof \DOMElement || strtolower($element->localName) !== 'dd') {
+                continue;
+            }
+
+            $flags[] = !self::htmlElementHasDefinitionBlockChild($element);
+        }
+
+        return $flags;
+    }
+
+    private static function htmlElementHasDefinitionBlockChild(\DOMElement $element): bool
+    {
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMElement && self::isHtmlDefinitionBlockChildName(strtolower($child->localName))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function isHtmlDefinitionBlockChildName(string $name): bool
+    {
+        return in_array($name, [
+            'address',
+            'article',
+            'aside',
+            'blockquote',
+            'center',
+            'dialog',
+            'dir',
+            'div',
+            'dl',
+            'fieldset',
+            'figure',
+            'footer',
+            'form',
+            'h1',
+            'h2',
+            'h3',
+            'h4',
+            'h5',
+            'h6',
+            'header',
+            'hgroup',
+            'hr',
+            'main',
+            'menu',
+            'nav',
+            'ol',
+            'p',
+            'pre',
+            'script',
+            'search',
+            'section',
+            'style',
+            'summary',
+            'table',
+            'textarea',
+            'ul',
+        ], true);
+    }
+
+    /**
+     * @param list<AstNode> $children
+     * @param list<bool> $plainDefinitionFlags
+     * @return list<AstNode>
+     */
+    private static function restoreHtmlDefinitionPlainBlockChildren(array $children, array $plainDefinitionFlags, int &$index): array
+    {
+        $restored = [];
+        foreach ($children as $child) {
+            if ($child->type !== 'definition') {
+                $nestedChildren = self::restoreHtmlDefinitionPlainBlockChildren($child->children, $plainDefinitionFlags, $index);
+                $restored[] = new AstNode($child->type, $child->attrs, $nestedChildren);
+                continue;
+            }
+
+            $shouldBePlain = $plainDefinitionFlags[$index] ?? false;
+            ++$index;
+            $nestedChildren = self::restoreHtmlDefinitionPlainBlockChildren($child->children, $plainDefinitionFlags, $index);
+            if ($shouldBePlain && count($nestedChildren) === 1 && $nestedChildren[0]->type === 'paragraph') {
+                $paragraph = $nestedChildren[0];
+                $nestedChildren = [new AstNode('plain', $paragraph->attrs, $paragraph->children)];
+            }
+
+            $restored[] = new AstNode($child->type, $child->attrs, $nestedChildren);
+        }
+
+        return $restored;
     }
 
     private static function positiveTableSpanAttr(AstNode $node, string $name): int

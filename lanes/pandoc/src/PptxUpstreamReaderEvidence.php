@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 77;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 78;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '743f20a692deae3642fb156b813c1e7d037c64294ab6488c53d9293a503b1578';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 33792;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '38e4cc3d7fc77adb34295833187c9555b116afdb5d021c2f42875d69ff6c8853';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 34175;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -546,6 +546,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => 'a7420eaafce9765543a82c54d9b0ecdc185ff5557ad60ee77ec3cd6cfc154e10',
             'pptxBytes' => 1526,
             'nativeBytes' => 162,
+        ],
+        'empty-header-table' => [
+            'name' => 'generated empty header table parity',
+            'pptx' => 'pptx-reader/empty-header-table.pptx',
+            'native' => 'pptx-reader/empty-header-table.native',
+            'pairKey' => 'pptx-reader/empty-header-table.pptx|pptx-reader/empty-header-table.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/empty-header-table.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/empty-header-table.native',
+            'pptxSha256' => 'adfa227750b01446fb7423b75ebed5ec49d5e8b47b56aee6d2cee3af95e355ad',
+            'nativeSha256' => '313eec07897c789b4bdc2835abc54bae10f67ce37a1795c7c37babb7ac898dae',
+            'pptxBytes' => 1441,
+            'nativeBytes' => 740,
         ],
         'generated-table' => [
             'name' => 'generated table extraction parity',

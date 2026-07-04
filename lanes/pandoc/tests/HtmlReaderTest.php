@@ -562,6 +562,8 @@ $tests['imports generated current html definition list fixture as native definit
         $t->same('term', $term->type);
         $t->same('Packet source', $term->attr('text'));
         $t->same(['definition', 'definition'], [$item->children[1]->type, $item->children[2]->type]);
+        $t->same('paragraph', $primary->type);
+        $t->same('plain', $secondary->type);
         $t->same('Definition primary.', $primary->attr('text'));
         $t->same(['text', 'strong', 'text'], array_map(static fn ($node): string => $node->type, $primary->children));
         $t->same('primary', $primary->children[1]->children[0]->attr('text'));
@@ -569,6 +571,28 @@ $tests['imports generated current html definition list fixture as native definit
         $t->same(['text', 'emph', 'text'], array_map(static fn ($node): string => $node->type, $secondary->children));
         $t->same('note', $secondary->children[1]->children[0]->attr('text'));
         $t->same('After glossary.', $document->children[1]->attr('text'));
+    };
+
+$tests['imports direct pandoc html optional definition-list end tags as tight definitions'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-optional-definition-list-tree-construction.html'));
+        $list = $document->children[0];
+        $firstItem = $list->children[0];
+        $secondItem = $list->children[1];
+        $firstDefinition = $firstItem->children[1]->children[0];
+        $secondDefinition = $secondItem->children[1]->children[0];
+        $after = $document->children[1];
+
+        $t->same(['definition_list', 'paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same(['definition_item', 'definition_item'], array_map(static fn ($node): string => $node->type, $list->children));
+        $t->same('Term alpha', $firstItem->attr('term'));
+        $t->same('Term beta', $secondItem->attr('term'));
+        $t->same('plain', $firstDefinition->type);
+        $t->same('Definition alpha', $firstDefinition->attr('text'));
+        $t->same(['text', 'strong'], array_map(static fn ($node): string => $node->type, $secondDefinition->children));
+        $t->same('Definition beta', $secondDefinition->attr('text'));
+        $t->same('beta', $secondDefinition->children[1]->children[0]->attr('text'));
+        $t->same('After definitions.', $after->attr('text'));
     };
 
 $tests['imports generated current html details summary fixture as visible blocks'] =
