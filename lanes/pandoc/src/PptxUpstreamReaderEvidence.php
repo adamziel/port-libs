@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 91;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 92;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '21f798da16d093631838bdaa58cf1185877e9a0081129d037c57d5708edf26b5';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 39571;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '21a5349b4aa6149eed8dd269aee7ff951e0ac7dad7ae729b913069cadff9c955';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 39974;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -258,6 +258,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => '9a1dd6f8ddf28f555cd1f128f5e24864284f1a721d2ae3c1e4598ebdcbe9b21b',
             'pptxBytes' => 1519,
             'nativeBytes' => 169,
+        ],
+        'empty-title-placeholder' => [
+            'name' => 'generated empty title placeholder fallback parity',
+            'pptx' => 'pptx-reader/empty-title-placeholder.pptx',
+            'native' => 'pptx-reader/empty-title-placeholder.native',
+            'pairKey' => 'pptx-reader/empty-title-placeholder.pptx|pptx-reader/empty-title-placeholder.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/empty-title-placeholder.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/empty-title-placeholder.native',
+            'pptxSha256' => '4a15fd6e8508407c05e09b9c1fcd3481df624d810b6a4443ec2a99271bd83d12',
+            'nativeSha256' => 'aa2979e514f11a5ef811ef8a1a9c2b7a5e61fbf6edc3323dbb8f80d11de1fb3f',
+            'pptxBytes' => 1495,
+            'nativeBytes' => 98,
         ],
         'end-paragraph-symbol' => [
             'name' => 'generated end-paragraph Wingdings symbol locality parity',

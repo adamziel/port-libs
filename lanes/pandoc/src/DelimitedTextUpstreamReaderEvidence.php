@@ -17,7 +17,7 @@ final class DelimitedTextUpstreamReaderEvidence
     public const EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT = 2;
     public const EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT = 0;
     public const EXPECTED_STATIC_CSV_ADJACENT_RST_FIXTURE_COUNT = 2;
-    public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 61;
+    public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 62;
     public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 36;
     public const EXPECTED_GENERATED_CSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT = 43;
     public const EXPECTED_GENERATED_TSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT = 24;
@@ -913,6 +913,20 @@ final class DelimitedTextUpstreamReaderEvidence
             'sha256' => 'd5dcb94684914780bbb4145fd721770595a39d55019968f5d3a26ceb2e200be7',
             'bytes' => 1831,
         ],
+        'keep-space-before-quote.csv' => [
+            'role' => 'generated-csv-native-parity-input-fixture',
+            'sample' => 'keep-space-before-quote',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/keep-space-before-quote.csv',
+            'sha256' => '752a2af5360dfe6d457b209d72923b22d339ac44942f8c74850aff22beabb389',
+            'bytes' => 59,
+        ],
+        'keep-space-before-quote.native' => [
+            'role' => 'generated-csv-native-parity-expected-native-output',
+            'sample' => 'keep-space-before-quote',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/keep-space-before-quote.native',
+            'sha256' => 'f528d527b80b33f7e71db1355373d00ac3de4c509312fecd0cf688468d46c033',
+            'bytes' => 1277,
+        ],
     ];
 
     private const CHECKED_IN_GENERATED_TSV_NATIVE_FIXTURES = [
@@ -1717,6 +1731,13 @@ final class DelimitedTextUpstreamReaderEvidence
             'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/single-quote-double-quote-literal.native',
             'options' => [
                 'quote' => '\'',
+            ],
+        ],
+        'keep-space-before-quote' => [
+            'inputPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/keep-space-before-quote.csv',
+            'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/keep-space-before-quote.native',
+            'options' => [
+                'keepSpace' => true,
             ],
         ],
     ];
@@ -3747,7 +3768,7 @@ final class DelimitedTextUpstreamReaderEvidence
 
     private static function claim(): string
     {
-        return 'Tracks the current upstream direct CSV command-reader fixtures, the adjacent RST csv-table fixture pair with zero direct-reader denominator impact, sixty generated CSV-to-native evidence samples, the absence of dedicated TSV command fixtures, and thirty-six generated TSV-to-native evidence samples for the delimited text reader.';
+        return 'Tracks the current upstream direct CSV command-reader fixtures, the adjacent RST csv-table fixture pair with zero direct-reader denominator impact, sixty-two generated CSV-to-native evidence samples, the absence of dedicated TSV command fixtures, and thirty-six generated TSV-to-native evidence samples for the delimited text reader.';
     }
 
     /**
@@ -3763,7 +3784,7 @@ final class DelimitedTextUpstreamReaderEvidence
                 'that RST csv-table directives are exercised through the native RST reader integration path',
                 'that no dedicated TSV command fixture is available in the pinned direct-reader evidence set',
                 'static checked-in current csv.md and 01.csv fixture identity when staticCurrentEvidence is valid',
-                'sixty generated CSV-to-native local samples when generatedCsvNativeParityEvidence is valid',
+                'sixty-two generated CSV-to-native local samples when generatedCsvNativeParityEvidence is valid',
                 'thirty-six generated TSV-to-native local samples when generatedTsvNativeParityEvidence is valid',
                 'the non-executed upstream command-test runner plan for the pinned csv.md command fixture',
                 'that upstream Haskell runner evidence is either explicitly not-run or supplied as a validated result artifact',

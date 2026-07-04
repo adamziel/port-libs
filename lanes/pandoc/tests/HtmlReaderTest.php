@@ -1359,6 +1359,21 @@ $tests['imports generated current html form control visible text semantics'] =
         $t->same('After form.', $document->children[2]->attr('text'));
     };
 
+$tests['imports direct pandoc html nested form tree construction as sibling paragraphs'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-form-in-form-tree-construction.html'));
+
+        $t->same('html', $document->attr('sourceFormat'));
+        $t->same(
+            ['paragraph', 'paragraph', 'paragraph'],
+            array_map(static fn ($node): string => $node->type, $document->children)
+        );
+        $t->same(
+            ['one', 'two', 'three'],
+            array_map(static fn ($node): string => $node->attr('text'), $document->children)
+        );
+    };
+
 $tests['imports direct pandoc html standalone select optgroup fragment as plain'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-standalone-select-optgroup-inline.html'));

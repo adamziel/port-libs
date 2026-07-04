@@ -1432,6 +1432,54 @@ NATIVE;
         $t->contains('Plain [ Str "owner\'s" , Space , Str "value" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
+    'matches generated csv keep space before quote native parity fixture without inflating csv denominator' => static function (TestRunner $t) use ($generatedCsvNativeFixture, $nativeTokenStream): void {
+        $fixture = $generatedCsvNativeFixture('keep-space-before-quote');
+        $document = (new DelimitedTextReader())->readCsv($fixture['input'], [
+            'sourcePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/keep-space-before-quote.csv',
+            'keepSpace' => true,
+        ]);
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+        $native = PandocConverter::write($document, 'native');
+        $generatedEvidence = $packet['upstreamEvidence']['generatedNativeParityEvidence'] ?? [];
+
+        $t->same('csv', $packet['format'] ?? null);
+        $t->same(',', $packet['delimiter'] ?? null);
+        $t->same(true, $packet['dialect']['keepSpace'] ?? null);
+        $t->same('"', $packet['quote'] ?? null);
+        $t->same(2, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(2, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
+        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
+        $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
+        $t->same(2 * DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['checkedInFixtureCount'] ?? null);
+        $t->same('keep-space-before-quote.csv', $generatedEvidence['checkedInFixtures'][122]['name'] ?? null);
+        $t->same('752a2af5360dfe6d457b209d72923b22d339ac44942f8c74850aff22beabb389', $generatedEvidence['checkedInFixtures'][122]['checkedInFile']['sha256'] ?? null);
+        $t->same('keep-space-before-quote.native', $generatedEvidence['checkedInFixtures'][123]['name'] ?? null);
+        $t->same('f528d527b80b33f7e71db1355373d00ac3de4c509312fecd0cf688468d46c033', $generatedEvidence['checkedInFixtures'][123]['checkedInFile']['sha256'] ?? null);
+        $t->same('keep-space-before-quote', $generatedEvidence['samples'][61]['name'] ?? null);
+        $t->same(['keepSpace' => true], $generatedEvidence['samples'][61]['readerOptions'] ?? null);
+        $t->same(['id', 'note', 'status'], $table->attr('columnNames'));
+        $t->same(3, $packet['rowCount'] ?? null);
+        $t->same(2, $packet['bodyRowCount'] ?? null);
+        $t->same(3, $packet['columnCount'] ?? null);
+        $t->same(9, $packet['fieldCount'] ?? null);
+        $t->same(0, $packet['quotedFieldCount'] ?? null);
+        $t->same(4, $packet['quoteInUnquotedFieldCount'] ?? null);
+        $t->same(4, $packet['diagnosticCount'] ?? null);
+        $t->same([
+            'delimited-text-quote-in-unquoted-field',
+            'delimited-text-quote-in-unquoted-field',
+            'delimited-text-quote-in-unquoted-field',
+            'delimited-text-quote-in-unquoted-field',
+        ], array_column($packet['diagnostics'] ?? [], 'code'));
+        $t->same(' "literal quote"', $table->children[1]->children[0]->children[1]->attr('text'));
+        $t->same('  "alpha beta"', $table->children[1]->children[1]->children[1]->attr('text'));
+        $t->contains('Plain [ Space , Str "\"literal" , Space , Str "quote\"" ]', $native);
+        $t->contains('Plain [ Space , Str "\"alpha" , Space , Str "beta\"" ]', $native);
+        $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
+    },
     'matches generated csv pipe delimiter quoted field native parity fixture without inflating csv denominator' => static function (TestRunner $t) use ($generatedCsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedCsvNativeFixture('pipe-delimiter-quoted-field');
         $document = (new DelimitedTextReader())->readCsv($fixture['input'], [
@@ -4688,6 +4736,8 @@ NATIVE;
         $t->same([], $csvEvidence['generatedNativeParityEvidence']['samples'][54]['readerOptions'] ?? null);
         $t->same('single-quote-double-quote-literal', $csvEvidence['generatedNativeParityEvidence']['samples'][60]['name'] ?? null);
         $t->same(['quote' => '\''], $csvEvidence['generatedNativeParityEvidence']['samples'][60]['readerOptions'] ?? null);
+        $t->same('keep-space-before-quote', $csvEvidence['generatedNativeParityEvidence']['samples'][61]['name'] ?? null);
+        $t->same(['keepSpace' => true], $csvEvidence['generatedNativeParityEvidence']['samples'][61]['readerOptions'] ?? null);
         $t->true(in_array('direct-csv-command-reader', $csvEvidence['closedGaps'] ?? [], true));
         $t->true(in_array('csv-closing-quote-record-whitespace-strictness', $csvEvidence['closedGaps'] ?? [], true));
         $t->true(in_array('generated-csv-native-parity-sample', $csvEvidence['closedGaps'] ?? [], true));
