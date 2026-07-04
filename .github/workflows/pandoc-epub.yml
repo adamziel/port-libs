@@ -127,9 +127,9 @@ jobs:
             --epub-dir=.upstream-cache/pandoc-current/test/epub \
             --json \
             summary \
-            --require-package-parity=46 \
-            --require-native-readiness=46 \
-            --require-mapped-parity=46 \
+            --require-package-parity=47 \
+            --require-native-readiness=47 \
+            --require-mapped-parity=47 \
             --require-fixture-identity \
             --require-current-package-feature-coverage \
             --require-current-package-feature-signature \

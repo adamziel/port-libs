@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 72;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 73;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '68440ece806efba2c1804a4a414ac98f262f98e8cef0ddf7ed0d375f34401813';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 31781;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '746436dee121c820c0a4f295b89b81fe8509aece287a3f7468e1436961de9c93';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 32168;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -702,6 +702,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => '269e2c8b638af9834b52a0ff23c795578f9b21404e27c60d846cf81b3520596a',
             'pptxBytes' => 1897,
             'nativeBytes' => 177,
+        ],
+        'unknown-graphic-uri' => [
+            'name' => 'generated unknown graphicData URI placeholder parity',
+            'pptx' => 'pptx-reader/unknown-graphic-uri.pptx',
+            'native' => 'pptx-reader/unknown-graphic-uri.native',
+            'pairKey' => 'pptx-reader/unknown-graphic-uri.pptx|pptx-reader/unknown-graphic-uri.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/unknown-graphic-uri.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/unknown-graphic-uri.native',
+            'pptxSha256' => '23e41aa0f6462f4c59aa42a3072ac6d76418571e234eeecdf8bce1bb4379e525',
+            'nativeSha256' => '3b55757f406ad3bfc31c5928c6e978536cef7bf81e575cf9308ae092172b6c28',
+            'pptxBytes' => 1642,
+            'nativeBytes' => 143,
         ],
         'speaker-notes' => [
             'name' => 'generated speaker notes visibility parity',

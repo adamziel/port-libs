@@ -1,0 +1,7 @@
+[ Plain
+    [ Image
+        ( "" , [] , [] )
+        []
+        ( "http://example.com/stickman.gif" , "The title" )
+    ]
+]

@@ -17,9 +17,9 @@ final class DelimitedTextUpstreamReaderEvidence
     public const EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT = 2;
     public const EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT = 0;
     public const EXPECTED_STATIC_CSV_ADJACENT_RST_FIXTURE_COUNT = 2;
-    public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 46;
+    public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 47;
     public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 32;
-    public const EXPECTED_GENERATED_CSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT = 31;
+    public const EXPECTED_GENERATED_CSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT = 32;
     public const EXPECTED_GENERATED_TSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT = 23;
     public const REQUIRED_PANDOC_EXECUTABLE_VERSION = 'pandoc 3.10';
 
@@ -703,6 +703,20 @@ final class DelimitedTextUpstreamReaderEvidence
             'sha256' => '6595eba846246fa0a76e818374a36a2356f7ecd97dd4001704e12829e5773ec9',
             'bytes' => 1664,
         ],
+        'interior-empty-header.csv' => [
+            'role' => 'generated-csv-native-parity-input-fixture',
+            'sample' => 'interior-empty-header',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/interior-empty-header.csv',
+            'sha256' => '95252bfc868a3c78b6ba0690c43b6627228f3139242197d9bc9fa05eca0465cc',
+            'bytes' => 41,
+        ],
+        'interior-empty-header.native' => [
+            'role' => 'generated-csv-native-parity-expected-native-output',
+            'sample' => 'interior-empty-header',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/interior-empty-header.native',
+            'sha256' => 'b9a001598d1b933ad675d41970f1c8c25f7212a48ccadb846045fea433a4bb93',
+            'bytes' => 2447,
+        ],
     ];
 
     private const CHECKED_IN_GENERATED_TSV_NATIVE_FIXTURES = [
@@ -1384,6 +1398,10 @@ final class DelimitedTextUpstreamReaderEvidence
             'inputPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/quoted-quotes-only.csv',
             'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/quoted-quotes-only.native',
         ],
+        'interior-empty-header' => [
+            'inputPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/interior-empty-header.csv',
+            'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/interior-empty-header.native',
+        ],
     ];
 
     private const GENERATED_TSV_NATIVE_SAMPLES = [
@@ -1572,6 +1590,7 @@ final class DelimitedTextUpstreamReaderEvidence
         'formula-looking-literals',
         'literal-backslashes',
         'quoted-quotes-only',
+        'interior-empty-header',
     ];
 
     private const PANDOC_EXECUTABLE_TSV_NATIVE_SAMPLE_NAMES = [
