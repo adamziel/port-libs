@@ -398,6 +398,8 @@ final class MarkdownFormatProfile
                 'all_symbols_escapable',
                 'attributes',
                 'bare_uri_autolinks',
+                'blank_before_blockquote',
+                'blank_before_header',
                 'bracketed_spans',
                 'citations',
                 'emoji',

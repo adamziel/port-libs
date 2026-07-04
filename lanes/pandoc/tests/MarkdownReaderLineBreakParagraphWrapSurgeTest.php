@@ -97,9 +97,18 @@ $cases = [
     ],
     'trailing-space marker before atx boundary trims' => [
         'markdown' => "alpha  \n# beta",
-        'blocks' => ['paragraph', 'heading'],
-        'texts' => ['alpha', 'beta'],
-        'headingLevel' => 1,
+        'blocks' => static fn (string $profileName): array =>
+            $profileName === 'pandoc default' || str_starts_with($profileName, 'markdown ')
+                ? ['paragraph']
+                : ['paragraph', 'heading'],
+        'texts' => static fn (string $profileName): array =>
+            $profileName === 'pandoc default' || str_starts_with($profileName, 'markdown ')
+                ? ["alpha\n# beta"]
+                : ['alpha', 'beta'],
+        'headingLevel' => static fn (string $profileName): ?int =>
+            $profileName === 'pandoc default' || str_starts_with($profileName, 'markdown ')
+                ? null
+                : 1,
     ],
 ];
 
@@ -111,6 +120,9 @@ return [
                     $label = "{$profileName} {$caseName}";
                     $document = (new MarkdownReader($profile['options']))->read($case['markdown']);
                     $expectedBlocks = $case['blocks'] ?? ['paragraph'];
+                    if (is_callable($expectedBlocks)) {
+                        $expectedBlocks = $expectedBlocks($profileName, $profile);
+                    }
 
                     $t->same($expectedBlocks, array_map(static fn (AstNode $node): string => $node->type, $document->children), $label . ' block types');
 
@@ -124,14 +136,21 @@ return [
                     }
 
                     $texts = $case['texts'];
+                    if (is_callable($texts)) {
+                        $texts = $texts($profileName, $profile);
+                    }
                     foreach ($texts as $index => $text) {
                         $node = $document->children[$index] ?? new AstNode('missing');
                         $t->same($text, $node->attr('text'), $label . " block {$index} text");
                     }
 
-                    if (isset($case['headingLevel'])) {
+                    $headingLevel = $case['headingLevel'] ?? null;
+                    if (is_callable($headingLevel)) {
+                        $headingLevel = $headingLevel($profileName, $profile);
+                    }
+                    if ($headingLevel !== null) {
                         $heading = $document->children[1] ?? new AstNode('missing');
-                        $t->same($case['headingLevel'], $heading->attr('level'), $label . ' heading level');
+                        $t->same($headingLevel, $heading->attr('level'), $label . ' heading level');
                     }
                 }
             }

@@ -91,8 +91,7 @@ $bodyCases = [
     'heading continuation' => [
         'source' => "Opening\n    ## Nested heading",
         'summary' => [
-            ['type' => 'paragraph', 'text' => 'Opening'],
-            ['type' => 'heading', 'level' => 2, 'text' => 'Nested heading'],
+            ['type' => 'paragraph', 'text' => 'Opening ## Nested heading'],
         ],
     ],
     'bullet list continuation' => [

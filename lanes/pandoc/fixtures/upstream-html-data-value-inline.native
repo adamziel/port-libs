@@ -1,0 +1,7 @@
+[ Para
+    [ Str "Answer"
+    , Space
+    , Strong [ Str "forty" , Space , Str "two" ]
+    , Str "."
+    ]
+]

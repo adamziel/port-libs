@@ -325,6 +325,23 @@ $tests['imports direct pandoc html standalone emphasis strong span fragment as p
         $t->same('sp', $plain->children[2]->children[0]->attr('text'));
     };
 
+$tests['imports direct pandoc html data value inline as visible children'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-data-value-inline.html'));
+        $paragraph = $document->children[0];
+
+        $t->same('html', $document->attr('sourceFormat'));
+        $t->same(['paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same('Answer forty two.', $paragraph->attr('text'));
+        $t->same(
+            ['text', 'strong', 'text'],
+            array_map(static fn ($node): string => $node->type, $paragraph->children)
+        );
+        $t->same('Answer ', $paragraph->children[0]->attr('text'));
+        $t->same('forty two', $paragraph->children[1]->children[0]->attr('text'));
+        $t->same('.', $paragraph->children[2]->attr('text'));
+    };
+
 $tests['imports direct pandoc html inline-only main body as plain'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-main-inline-plain.html'));

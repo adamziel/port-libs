@@ -229,7 +229,7 @@ final class MarkdownReader
                 $blocks[] = $literateHaskellCodeBlock;
                 continue;
             }
-            $blockQuote = ($paragraph === [] || $this->markdownBlockQuoteDepth > 0) && $listStack === []
+            $blockQuote = ($paragraph === [] || !$this->blankBeforeBlockQuoteExtensionEnabled()) && $listStack === []
                 ? $this->tryReadBlockQuote($lines, $index)
                 : null;
             if ($blockQuote !== null) {
@@ -462,7 +462,9 @@ final class MarkdownReader
                 $index++;
                 continue;
             }
-            $markdownHeading = $this->tryParseMarkdownHeading($line);
+            $markdownHeading = $this->canAtxHeadingInterruptParagraph($paragraph)
+                ? $this->tryParseMarkdownHeading($line)
+                : null;
             if ($markdownHeading !== null) {
                 $this->flushParagraph($paragraph, $blocks);
                 $this->flushListStack($listStack, $blocks);
@@ -1573,7 +1575,11 @@ final class MarkdownReader
             }
 
             $line = $lines[$index];
+            $previousLine = $lines[$index - 1] ?? '';
             $heading = $this->tryParseMarkdownHeading($line);
+            if ($heading !== null && !$this->canAtxHeadingLineInterruptPreviousLine($previousLine)) {
+                $heading = null;
+            }
             $setextEnd = null;
             if ($heading === null) {
                 $setextRun = $this->tryReadSetextMarkdownHeadingRun($lines, $index);
@@ -2651,7 +2657,7 @@ final class MarkdownReader
         ) {
             return false;
         }
-        if ($this->tryParseMarkdownHeading($line) !== null) {
+        if ($this->tryParseMarkdownHeading($line) !== null && !$this->blankBeforeHeaderExtensionEnabled()) {
             return false;
         }
         if ($this->isHorizontalRule($line) || $this->isIndentedCodeLine($line)) {
@@ -15935,6 +15941,48 @@ final class MarkdownReader
         $canonical = MarkdownFormatProfile::canonicalFormat($format);
 
         return $canonical !== 'markdown_strict';
+    }
+
+    private function blankBeforeHeaderExtensionEnabled(): bool
+    {
+        $overrides = $this->markdownExtensionOverrides();
+        if (array_key_exists('blank_before_header', $overrides)) {
+            return $overrides['blank_before_header'];
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+
+        return MarkdownFormatProfile::canonicalFormat($format) === 'markdown';
+    }
+
+    /**
+     * @param list<string> $paragraph
+     */
+    private function canAtxHeadingInterruptParagraph(array $paragraph): bool
+    {
+        return $paragraph === [] || !$this->blankBeforeHeaderExtensionEnabled();
+    }
+
+    private function canAtxHeadingLineInterruptPreviousLine(string $previousLine): bool
+    {
+        if (!$this->blankBeforeHeaderExtensionEnabled() || trim($previousLine) === '') {
+            return true;
+        }
+
+        return $this->tryParseMarkdownHeading($previousLine) !== null
+            || preg_match('/^ {0,3}(`{3,}|~{3,})[ \t]*$/', $previousLine) === 1;
+    }
+
+    private function blankBeforeBlockQuoteExtensionEnabled(): bool
+    {
+        $overrides = $this->markdownExtensionOverrides();
+        if (array_key_exists('blank_before_blockquote', $overrides)) {
+            return $overrides['blank_before_blockquote'];
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+
+        return MarkdownFormatProfile::canonicalFormat($format) === 'markdown';
     }
 
     private function lineBlockExtensionEnabled(): bool

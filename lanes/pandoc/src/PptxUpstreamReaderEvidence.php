@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 55;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 56;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'fd0c8d2053ba6dbda6850e22861bc51a8b8c951dabf04293b8fc73c835297569';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 27560;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '1696638f865f509d06cb5f45b5ee6df78a9fe99eecdc53f78ae9180ac94ba05c';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 28018;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -222,6 +222,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => '98aabf841a37c3c677ef20c7ac0a3987ec55bcc38bde09efcaac83bfc39619e7',
             'pptxBytes' => 1552,
             'nativeBytes' => 63,
+        ],
+        'first-title-placeholder' => [
+            'name' => 'generated first duplicate title placeholder parity',
+            'pptx' => 'pptx-reader/first-title-placeholder.pptx',
+            'native' => 'pptx-reader/first-title-placeholder.native',
+            'pairKey' => 'pptx-reader/first-title-placeholder.pptx|pptx-reader/first-title-placeholder.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/first-title-placeholder.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/first-title-placeholder.native',
+            'pptxSha256' => '82b4a59db7cc37a0f31602bc10c60cfb0d9bcb191f6675cd54215e637618a4c6',
+            'nativeSha256' => 'acad0d5021e8a75d5793e332692bd48b0e7ebe51d69f63cf179e094940f4167b',
+            'pptxBytes' => 1344,
+            'nativeBytes' => 103,
         ],
         'break-tab-field' => [
             'name' => 'generated break, tab, and field text boundary parity',

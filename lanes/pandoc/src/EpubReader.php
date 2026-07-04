@@ -152,6 +152,7 @@ final class EpubReader
             $resources[] = $href;
             $footnote_definitions = $this->epubFootnoteDefinitionsInReferenceOrder($xhtml, $item['href']);
             $note_reference_hrefs = $this->epubNoteReferenceHrefs($xhtml);
+            $link_attribute_overlays_by_href = $this->epubBodyLinkAttributeOverlaysByHref($xhtml);
             $document = $this->epubContentMarkdownReader()->read($this->contentDocumentMarkup($xhtml));
             if ($footnote_definitions !== []) {
                 $footnote_index = 0;
@@ -163,6 +164,7 @@ final class EpubReader
                 $base_path,
                 $spine_filenames,
                 $note_reference_hrefs,
+                $link_attribute_overlays_by_href,
                 $referenced_resources,
                 $media_bag_resources,
                 $media_bag_sources
@@ -1052,6 +1054,53 @@ final class EpubReader
         return $hrefs;
     }
 
+    /**
+     * @return array<string, list<array<string, string>>>
+     */
+    private function epubBodyLinkAttributeOverlaysByHref(string $xhtml): array
+    {
+        try {
+            $dom = $this->loadXml($this->contentDocumentMarkup($xhtml), 'EPUB XHTML body link attribute scan');
+        } catch (\InvalidArgumentException) {
+            return [];
+        }
+
+        $overlays_by_href = [];
+        $has_attributes = false;
+        foreach ($dom->getElementsByTagName('a') as $link) {
+            if (!$link instanceof \DOMElement) {
+                continue;
+            }
+
+            $href = html_entity_decode($link->getAttribute('href'), ENT_QUOTES | ENT_XML1, 'UTF-8');
+            if ($href === '') {
+                continue;
+            }
+
+            $attributes = $this->epubBodyLinkAttributeOverlay($link);
+            if ($attributes !== []) {
+                $has_attributes = true;
+            }
+            $overlays_by_href[$href][] = $attributes;
+        }
+
+        return $has_attributes ? $overlays_by_href : [];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function epubBodyLinkAttributeOverlay(\DOMElement $link): array
+    {
+        $attributes = [];
+        $role = trim($link->getAttribute('role'));
+        if ($role !== '') {
+            $attributes['role'] = $role;
+        }
+
+        return $attributes;
+    }
+
     private function isEpubFootnoteDefinitionElement(\DOMElement $element): bool
     {
         if (trim($element->getAttribute('id')) === '') {
@@ -1263,6 +1312,7 @@ final class EpubReader
     /**
      * @param list<string> $spine_filenames
      * @param array<string, true> $note_reference_hrefs
+     * @param array<string, list<array<string, string>>> $link_attribute_overlays_by_href
      * @param list<string> $referenced_resources
      * @param list<string> $media_bag_resources
      */
@@ -1272,6 +1322,7 @@ final class EpubReader
         string $package_base_path,
         array $spine_filenames,
         array $note_reference_hrefs,
+        array $link_attribute_overlays_by_href,
         array &$referenced_resources,
         array &$media_bag_resources,
         array &$media_bag_sources
@@ -1280,12 +1331,13 @@ final class EpubReader
         $filename = $this->spineFilename($content_part);
         $content_dir = $this->dirname($content_part);
 
-        return $this->fixEpubNode($document, $filename, $content_dir, $package_base_path, $spine_filenames, $note_reference_hrefs, $referenced_resources, $media_bag_resources, $media_bag_sources);
+        return $this->fixEpubNode($document, $filename, $content_dir, $package_base_path, $spine_filenames, $note_reference_hrefs, $link_attribute_overlays_by_href, $referenced_resources, $media_bag_resources, $media_bag_sources);
     }
 
     /**
      * @param list<string> $spine_filenames
      * @param array<string, true> $note_reference_hrefs
+     * @param array<string, list<array<string, string>>> $link_attribute_overlays_by_href
      * @param list<string> $referenced_resources
      * @param list<string> $media_bag_resources
      * @param array<string, string> $media_bag_sources
@@ -1297,6 +1349,7 @@ final class EpubReader
         string $package_base_path,
         array $spine_filenames,
         array $note_reference_hrefs,
+        array &$link_attribute_overlays_by_href,
         array &$referenced_resources,
         array &$media_bag_resources,
         array &$media_bag_sources
@@ -1310,6 +1363,7 @@ final class EpubReader
         if ($node->type === 'link') {
             $url = (string) ($attrs['url'] ?? '');
             if ($url !== '') {
+                $attrs = $this->restoreEpubBodyLinkAttributes($attrs, $url, $link_attribute_overlays_by_href);
                 if (isset($note_reference_hrefs[$url])) {
                     $attrs = $this->attrsWithClass($attrs, 'noteref');
                 }
@@ -1330,11 +1384,44 @@ final class EpubReader
 
         $children = [];
         foreach ($node->children as $child) {
-            $children[] = $this->fixEpubNode($child, $filename, $content_dir, $package_base_path, $spine_filenames, $note_reference_hrefs, $referenced_resources, $media_bag_resources, $media_bag_sources);
+            $children[] = $this->fixEpubNode($child, $filename, $content_dir, $package_base_path, $spine_filenames, $note_reference_hrefs, $link_attribute_overlays_by_href, $referenced_resources, $media_bag_resources, $media_bag_sources);
         }
         $children = $this->trimTextBeforeInlineImages($children);
 
         return new AstNode($node->type, $attrs, $children);
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     * @param array<string, list<array<string, string>>> $link_attribute_overlays_by_href
+     * @return array<string, mixed>
+     */
+    private function restoreEpubBodyLinkAttributes(array $attrs, string $url, array &$link_attribute_overlays_by_href): array
+    {
+        if (!isset($link_attribute_overlays_by_href[$url]) || $link_attribute_overlays_by_href[$url] === []) {
+            return $attrs;
+        }
+
+        $queue = $link_attribute_overlays_by_href[$url];
+        $overlay = array_shift($queue);
+        if ($queue === []) {
+            unset($link_attribute_overlays_by_href[$url]);
+        } else {
+            $link_attribute_overlays_by_href[$url] = $queue;
+        }
+        if (!is_array($overlay) || $overlay === []) {
+            return $attrs;
+        }
+
+        $attributes = isset($attrs['attributes']) && is_array($attrs['attributes'])
+            ? $attrs['attributes']
+            : [];
+        foreach ($overlay as $name => $value) {
+            $attributes[$name] ??= $value;
+        }
+        $attrs['attributes'] = $attributes;
+
+        return $attrs;
     }
 
     /**
