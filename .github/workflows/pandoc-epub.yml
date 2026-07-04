@@ -127,9 +127,9 @@ jobs:
             --epub-dir=.upstream-cache/pandoc-current/test/epub \
             --json \
             summary \
-            --require-package-parity=54 \
-            --require-native-readiness=54 \
-            --require-mapped-parity=54 \
+            --require-package-parity=55 \
+            --require-native-readiness=55 \
+            --require-mapped-parity=55 \
             --require-fixture-identity \
             --require-current-package-feature-coverage \
             --require-current-package-feature-signature \
@@ -142,6 +142,7 @@ jobs:
             lanes/pandoc/tests/EpubMediaBagComparisonHarnessTest.php \
             lanes/pandoc/tests/EpubNativeAstPackageComparisonHarnessTest.php \
             lanes/pandoc/tests/EpubPackageTest.php \
+            lanes/pandoc/tests/EpubPackageReaderTest.php \
             lanes/pandoc/tests/EpubUpstreamReaderEvidenceTest.php \
             lanes/pandoc/tests/EpubEvidenceStatusTest.php \
             lanes/pandoc/tests/EpubDirectImageSpineReaderTest.php \

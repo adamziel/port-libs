@@ -849,7 +849,7 @@ final class HtmlReader
 
         return [
             'bytes' => '<form data-html-reader-boundary="form-control">' . $bytes . '</form>',
-            'implicitPlainBody' => false,
+            'implicitPlainBody' => $tag === 'select',
         ];
     }
 

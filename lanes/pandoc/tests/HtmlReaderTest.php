@@ -1272,6 +1272,18 @@ $tests['imports generated current html form control visible text semantics'] =
         $t->same('After form.', $document->children[2]->attr('text'));
     };
 
+$tests['imports direct pandoc html standalone select optgroup fragment as plain'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-standalone-select-optgroup-inline.html'));
+        $plain = $document->children[0];
+
+        $t->same('html', $document->attr('sourceFormat'));
+        $t->same(['plain'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same('DraftReady done', $plain->attr('text'));
+        $t->same(['text', 'text', 'text'], array_map(static fn ($node): string => $node->type, $plain->children));
+        $t->same(['Draft', 'Ready', ' done'], array_map(static fn ($node): string => $node->attr('text'), $plain->children));
+    };
+
 $tests['imports html result control fragments without swallowing following block boundary'] =
     static function (TestRunner $t): void {
         $document = (new HtmlReader())->read(

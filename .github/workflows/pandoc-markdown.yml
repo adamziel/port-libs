@@ -83,9 +83,9 @@ jobs:
           php tools/pandoc-markdown-reader-evidence.php \
             --upstream-root=.upstream-cache/pandoc-current \
             --json \
-            --require-selected-fixture-count=82 \
+            --require-selected-fixture-count=83 \
             --require-static-current-evidence \
-            --require-native-mapped-parity=82 \
+            --require-native-mapped-parity=83 \
             --require-runner-not-run \
             --require-runner-plan \
             --require-no-validation-issues
@@ -96,11 +96,12 @@ jobs:
             --markdown-dir=lanes/pandoc/fixtures \
             --json \
             summary \
-            --require-mapped-parity=82
+            --require-mapped-parity=83
 
       - name: Run focused Markdown parity tests
         run: |
           php tools/run-tests.php \
             lanes/pandoc/tests/MarkdownNativeAstComparisonHarnessTest.php \
             lanes/pandoc/tests/MarkdownReaderGfmNestedListContinuationFixtureCompletionTest.php \
+            lanes/pandoc/tests/MarkdownReaderTaskListProfileSurgeTest.php \
             lanes/pandoc/tests/MarkdownUpstreamReaderEvidenceTest.php

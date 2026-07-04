@@ -1,0 +1,19 @@
+[ OrderedList
+    ( 1 , Decimal , Period )
+    [ [ Para
+          [ Str "\9744" , Space , Str "ordered" , Space , Str "open" ]
+      ]
+    , [ Para
+          [ Str "\9746" , Space , Str "ordered" , Space , Str "done" ]
+      , Para [ Str "Continuation" , Space , Str "note" ]
+      ]
+    , [ Para
+          [ Str "\9746"
+          , Space
+          , Str "uppercase"
+          , Space
+          , Str "done"
+          ]
+      ]
+    ]
+]

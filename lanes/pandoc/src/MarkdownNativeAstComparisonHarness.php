@@ -28,6 +28,7 @@ final class MarkdownNativeAstComparisonHarness
         'upstream-markdown-lhs-inverse-bird-html' => ['format' => 'markdown+lhs'],
         'upstream-markdown-mmd-short-scripts' => ['format' => 'markdown_mmd'],
         'upstream-markdown-numbered-examples' => ['format' => 'markdown+example_lists'],
+        'upstream-markdown-ordered-task-list' => ['format' => 'markdown+task_lists'],
         'upstream-markdown-pipe-table-escaped-cell' => ['format' => 'markdown+pipe_tables'],
         'upstream-markdown-raw-email-address' => ['format' => 'markdown-citations'],
         'upstream-markdown-raw-html-invalid-comment' => ['format' => 'markdown+raw_html'],
@@ -713,6 +714,15 @@ final class MarkdownNativeAstComparisonHarness
                 return $children;
             }
             $children[0]['attrs']['text'] = $prefix . $text;
+
+            return $children;
+        }
+        if (
+            isset($children[0])
+            && in_array($children[0]['type'] ?? null, ['paragraph', 'plain'], true)
+            && is_array($children[0]['children'] ?? null)
+        ) {
+            $children[0]['children'] = $this->withNormalizedTaskMarker($children[0]['children'], $checked);
 
             return $children;
         }

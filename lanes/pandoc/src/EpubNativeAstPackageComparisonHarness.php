@@ -13,12 +13,12 @@ final class EpubNativeAstPackageComparisonHarness
     private const CLAIM = 'Compares local PHP EPUB package parsing and reader output with a supplied checked-in current EPUB fixture directory and same-basename .native goldens. Package parsing/reader acceptance, fixture identity, package feature coverage, and native AST equality are reported separately; no upstream Haskell runner, writer parity, or full EPUB feature parity is asserted.';
     private const PACKAGE_FEATURE_SIGNATURE_KIND = 'checked-in-current-epub-package-feature-signature';
     private const PACKAGE_FEATURE_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
-    private const PACKAGE_FEATURE_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-54-fixture-snapshot';
-    private const CHECKED_IN_CURRENT_PACKAGE_FEATURE_SIGNATURE_SHA256 = '1af32d34df903f28afae703774ba4c12863921d3506f50703a12d7813bf0f245';
+    private const PACKAGE_FEATURE_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-55-fixture-snapshot';
+    private const CHECKED_IN_CURRENT_PACKAGE_FEATURE_SIGNATURE_SHA256 = 'e75142b4b7a60c66daaeee8e86d39db4a59c17ed11f4ae6fdf1d1f62b2219a32';
     private const CURRENT_NATIVE_AST_SIGNATURE_KIND = 'checked-in-current-epub-normalized-native-ast-signature';
     private const CURRENT_NATIVE_AST_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
-    private const CURRENT_NATIVE_AST_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-54-fixture-normalized-ast-snapshot';
-    private const CHECKED_IN_CURRENT_NATIVE_AST_SIGNATURE_SHA256 = 'e0225ddb5570939c39757786bb746559f0e5bff25b4a6cac03fd4fb2552f2faf';
+    private const CURRENT_NATIVE_AST_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-55-fixture-normalized-ast-snapshot';
+    private const CHECKED_IN_CURRENT_NATIVE_AST_SIGNATURE_SHA256 = '823efd0175361dcd665817fa99f41d1cbdb41b0da954f726bf6daf9fefdd5fac';
     private const RUNNER_CABAL_TARGET = 'exe:pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/epub-native-package-run';
     private const RUNNER_FIXTURE_DIRECTORY = 'test/epub';
@@ -374,6 +374,14 @@ final class EpubNativeAstPackageComparisonHarness
             'sha256' => '6d5be8a2ed05f750c291ce141c0110e2264605960ccaf89175de7cf6179fffbd',
             'bytes' => 993,
         ],
+        'page-list-cfi-navigation.epub' => [
+            'sha256' => '88feb1210f770ffa341c907fe0f1b9a68c88677abf28021849e73197695d0a8f',
+            'bytes' => 1411,
+        ],
+        'page-list-cfi-navigation.native' => [
+            'sha256' => '2ae9e1947ee8146d7d007041d4bfff8d8ca8dbfc99ced96851cade2160046500',
+            'bytes' => 206,
+        ],
         'page-list-navigation.epub' => [
             'sha256' => '449c6114a473e2db1df8cf69cd29fddaef4a14a160b65fd7fe30adf0c80b9365',
             'bytes' => 1394,
@@ -509,9 +517,9 @@ final class EpubNativeAstPackageComparisonHarness
      */
     private const CHECKED_IN_CURRENT_PACKAGE_FEATURE_COVERAGE = [
         'kind' => 'epub-package-feature-coverage',
-        'fixtureCount' => 54,
+        'fixtureCount' => 55,
         'opfPartNameCounts' => [
-            '/EPUB/package.opf' => 41,
+            '/EPUB/package.opf' => 42,
             '/EPUB/wasteland.opf' => 1,
             '/OEBPS/content.opf' => 3,
             '/OPS/book/package.opf' => 3,
@@ -519,7 +527,7 @@ final class EpubNativeAstPackageComparisonHarness
         ],
         'metadataLanguageCounts' => [
             'de-DE' => 3,
-            'en' => 47,
+            'en' => 48,
             'en-GB' => 1,
             'en-US' => 2,
             'fr' => 1,
@@ -558,11 +566,11 @@ final class EpubNativeAstPackageComparisonHarness
             'xhtml-semantics-spine',
         ],
         'navigationTypeCounts' => [
-            'nav' => 49,
+            'nav' => 50,
             'ncx' => 4,
         ],
         'spineLinearStateCounts' => [
-            'linear' => 70,
+            'linear' => 71,
             'non-linear' => 14,
         ],
         'spinePageSpreadPlacementCounts' => [
@@ -579,7 +587,7 @@ final class EpubNativeAstPackageComparisonHarness
             'application/x-bound-widget' => 1,
             'application/x-dtbncx+xml' => 6,
             'application/x-fallback-demo' => 2,
-            'application/xhtml+xml' => 127,
+            'application/xhtml+xml' => 129,
             'audio/mpeg' => 4,
             'font/woff2' => 1,
             'image/gif' => 5,
@@ -594,7 +602,7 @@ final class EpubNativeAstPackageComparisonHarness
             'accessibility-metadata' => 1,
             'cover-image' => 3,
             'mathml' => 2,
-            'nav' => 49,
+            'nav' => 50,
             'remote-resources' => 4,
             'rendition:layout-pre-paginated' => 1,
             'scripted' => 2,
@@ -608,13 +616,13 @@ final class EpubNativeAstPackageComparisonHarness
             'font' => 1,
             'image' => 18,
             'media-overlay' => 1,
-            'navigation' => 55,
+            'navigation' => 56,
             'script' => 1,
             'style' => 23,
             'svg' => 1,
             'text-track' => 1,
             'video' => 3,
-            'xhtml' => 78,
+            'xhtml' => 79,
         ],
         'navigationSectionTypes' => [
             'landmarks',
@@ -1299,6 +1307,21 @@ final class EpubNativeAstPackageComparisonHarness
                 'packageLinkRelCounts' => [],
                 'coverImagePartPresent' => false,
             ],
+            'page-list-cfi-navigation' => [
+                'navigationType' => 'nav',
+                'navigationSectionTypes' => [
+                    'page-list',
+                    'toc',
+                ],
+                'manifestResourceKindCounts' => [
+                    'navigation' => 1,
+                    'xhtml' => 1,
+                ],
+                'guideReferenceTypeCounts' => [],
+                'packageLinkRelCounts' => [],
+                'pageListCfiTargetCount' => 2,
+                'coverImagePartPresent' => false,
+            ],
             'page-list-navigation' => [
                 'navigationType' => 'nav',
                 'navigationSectionTypes' => [
@@ -1680,9 +1703,13 @@ final class EpubNativeAstPackageComparisonHarness
             'metadata-record-remote-nav',
             'nested-path-media-metadata',
             'package-spine-nav-media-metadata',
+            'page-list-cfi-navigation',
             'page-list-navigation',
             'spine-fallback-resource',
             'title-page-guide-media-metadata',
+        ],
+        'fixturesWithPageListCfiTargets' => [
+            'page-list-cfi-navigation',
         ],
         'fixturesWithAuxiliaryNavigation' => [
             'audio-navigation',
@@ -1799,15 +1826,16 @@ final class EpubNativeAstPackageComparisonHarness
         ],
         'totals' => [
             'metadataCreators' => 51,
-            'manifestItems' => 201,
-            'readingOrderItems' => 84,
+            'manifestItems' => 203,
+            'readingOrderItems' => 85,
             'spinePageSpreadItems' => 5,
-            'xhtmlAssets' => 127,
+            'xhtmlAssets' => 129,
             'imageAssets' => 22,
             'stylesheetAssets' => 20,
-            'navigationEntries' => 142,
+            'navigationEntries' => 143,
             'landmarkEntries' => 22,
-            'pageListEntries' => 12,
+            'pageListEntries' => 14,
+            'pageListCfiTargets' => 2,
             'auxiliaryNavigationEntries' => 7,
             'packageLinks' => 14,
             'packageLinkMediaTypeItems' => 11,
@@ -2171,6 +2199,9 @@ final class EpubNativeAstPackageComparisonHarness
             $pageListFixtures = is_array($featureCoverage['fixturesWithPageLists'] ?? null)
                 ? $featureCoverage['fixturesWithPageLists']
                 : [];
+            $pageListCfiFixtures = is_array($featureCoverage['fixturesWithPageListCfiTargets'] ?? null)
+                ? $featureCoverage['fixturesWithPageListCfiTargets']
+                : [];
             $auxiliaryNavigationFixtures = is_array($featureCoverage['fixturesWithAuxiliaryNavigation'] ?? null)
                 ? $featureCoverage['fixturesWithAuxiliaryNavigation']
                 : [];
@@ -2262,13 +2293,15 @@ final class EpubNativeAstPackageComparisonHarness
                 ? $featureCoverage['ocfSidecarKindCounts']
                 : [];
             $lines[] = sprintf(
-                'packageFeatureCoverage: fixtures=%d nav=%d ncx=%d covers=%d landmarks=%d pageLists=%d auxiliaryNav=%d metadataCreators=%d accessibilityFixtures=%d accessibilityEntries=%d accessibilityLinkedRecords=%d accessibilityProperties=%s manifestItems=%d readingOrderItems=%d spineLinear=%s nonLinearSpineFixtures=%d spinePageSpread=%s pageSpreadFixtures=%d imageAssets=%d stylesheetAssets=%d resourceKinds=%s guideRefTypes=%s packageLinkRels=%s packageLinkMediaTypes=%s packageLinkParamFixtures=%d packageLinkParams=%d packageLinkParamNames=%s linkHrefSuffixFixtures=%d linkHrefSuffixes=%d linkHrefSuffixSources=%s linkHrefQueries=%d linkHrefFragments=%d remoteManifest=%d externalManifest=%d missingLocalManifest=%d manifestFallbackItems=%d manifestFallbacks=%d resolvedFallbacks=%d usableFallbacks=%d missingFallbacks=%d mediaOverlayFixtures=%d resolvedMediaOverlayFixtures=%d mediaOverlays=%d resolvedMediaOverlays=%d mediaOverlayTimelineItems=%d mediaOverlayClipTimings=%d mediaOverlayValidClipTimings=%d mediaOverlayInvalidClipTimings=%d mediaOverlayTextTargets=%d mediaOverlayAudioTargets=%d mediaOverlayDurations=%d encryptionFixtures=%d obfuscatedFontFixtures=%d blockedEncryptedByteExposureFixtures=%d encryptionItems=%d obfuscatedFonts=%d blockedEncryptedByteExposures=%d encryptionDiagnostics=%d encryptionRoles=%s collectionFixtures=%d collections=%d collectionLinks=%d collectionRoles=%s collectionLinkRels=%s bindingFixtures=%d bindings=%d bindingResolvedHandlers=%d bindingParams=%d bindingMediaTypes=%s ocfSidecarFixtures=%d ocfSidecars=%d ocfSidecarKinds=%s opfParts=%s',
+                'packageFeatureCoverage: fixtures=%d nav=%d ncx=%d covers=%d landmarks=%d pageLists=%d pageListCfiFixtures=%d pageListCfiTargets=%d auxiliaryNav=%d metadataCreators=%d accessibilityFixtures=%d accessibilityEntries=%d accessibilityLinkedRecords=%d accessibilityProperties=%s manifestItems=%d readingOrderItems=%d spineLinear=%s nonLinearSpineFixtures=%d spinePageSpread=%s pageSpreadFixtures=%d imageAssets=%d stylesheetAssets=%d resourceKinds=%s guideRefTypes=%s packageLinkRels=%s packageLinkMediaTypes=%s packageLinkParamFixtures=%d packageLinkParams=%d packageLinkParamNames=%s linkHrefSuffixFixtures=%d linkHrefSuffixes=%d linkHrefSuffixSources=%s linkHrefQueries=%d linkHrefFragments=%d remoteManifest=%d externalManifest=%d missingLocalManifest=%d manifestFallbackItems=%d manifestFallbacks=%d resolvedFallbacks=%d usableFallbacks=%d missingFallbacks=%d mediaOverlayFixtures=%d resolvedMediaOverlayFixtures=%d mediaOverlays=%d resolvedMediaOverlays=%d mediaOverlayTimelineItems=%d mediaOverlayClipTimings=%d mediaOverlayValidClipTimings=%d mediaOverlayInvalidClipTimings=%d mediaOverlayTextTargets=%d mediaOverlayAudioTargets=%d mediaOverlayDurations=%d encryptionFixtures=%d obfuscatedFontFixtures=%d blockedEncryptedByteExposureFixtures=%d encryptionItems=%d obfuscatedFonts=%d blockedEncryptedByteExposures=%d encryptionDiagnostics=%d encryptionRoles=%s collectionFixtures=%d collections=%d collectionLinks=%d collectionRoles=%s collectionLinkRels=%s bindingFixtures=%d bindings=%d bindingResolvedHandlers=%d bindingParams=%d bindingMediaTypes=%s ocfSidecarFixtures=%d ocfSidecars=%d ocfSidecarKinds=%s opfParts=%s',
                 (int) ($featureCoverage['fixtureCount'] ?? 0),
                 (int) ($navigationTypeCounts['nav'] ?? 0),
                 (int) ($navigationTypeCounts['ncx'] ?? 0),
                 count($coverFixtures),
                 count($landmarkFixtures),
                 count($pageListFixtures),
+                count($pageListCfiFixtures),
+                (int) ($totals['pageListCfiTargets'] ?? 0),
                 count($auxiliaryNavigationFixtures),
                 (int) ($totals['metadataCreators'] ?? 0),
                 count($accessibilityFixtures),
@@ -3282,6 +3315,7 @@ final class EpubNativeAstPackageComparisonHarness
             'fixturesWithStylesheets' => [],
             'fixturesWithLandmarks' => [],
             'fixturesWithPageLists' => [],
+            'fixturesWithPageListCfiTargets' => [],
             'fixturesWithAuxiliaryNavigation' => [],
             'fixturesWithRemoteManifestResources' => [],
             'fixturesWithExternalManifestItems' => [],
@@ -3311,6 +3345,7 @@ final class EpubNativeAstPackageComparisonHarness
                 'navigationEntries' => 0,
                 'landmarkEntries' => 0,
                 'pageListEntries' => 0,
+                'pageListCfiTargets' => 0,
                 'auxiliaryNavigationEntries' => 0,
                 'packageLinks' => 0,
                 'packageLinkMediaTypeItems' => 0,
@@ -3915,6 +3950,7 @@ final class EpubNativeAstPackageComparisonHarness
         $navigationSectionTypes = [];
         $landmarkEntryCount = 0;
         $pageListEntryCount = 0;
+        $pageListCfiTargetCount = 0;
         $auxiliaryNavigationEntryCount = 0;
 
         foreach ($navigationSections as $section) {
@@ -3929,6 +3965,7 @@ final class EpubNativeAstPackageComparisonHarness
                     $landmarkEntryCount += count($entries);
                 } elseif ($type === 'page-list') {
                     $pageListEntryCount += count($entries);
+                    $pageListCfiTargetCount += self::pageListCfiTargetCount($entries);
                 } elseif ($type !== 'toc') {
                     $auxiliaryNavigationEntryCount += count($entries);
                 }
@@ -4017,9 +4054,29 @@ final class EpubNativeAstPackageComparisonHarness
             'navigationSectionTypes' => $navigationSectionTypes,
             'landmarkEntryCount' => $landmarkEntryCount,
             'pageListEntryCount' => $pageListEntryCount,
+            'pageListCfiTargetCount' => $pageListCfiTargetCount,
             'auxiliaryNavigationEntryCount' => $auxiliaryNavigationEntryCount,
             'coverImagePart' => $assets['coverImagePart'],
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     */
+    private static function pageListCfiTargetCount(array $entries): int
+    {
+        $count = 0;
+        foreach ($entries as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            if (($entry['epubCfi'] ?? false) === true) {
+                ++$count;
+            }
+        }
+
+        return $count;
     }
 
     /**
@@ -4431,6 +4488,9 @@ final class EpubNativeAstPackageComparisonHarness
             if ($fixture !== '' && (int) ($summary['pageListEntryCount'] ?? 0) > 0) {
                 $coverage['fixturesWithPageLists'][] = $fixture;
             }
+            if ($fixture !== '' && (int) ($summary['pageListCfiTargetCount'] ?? 0) > 0) {
+                $coverage['fixturesWithPageListCfiTargets'][] = $fixture;
+            }
             if ($fixture !== '' && (int) ($summary['auxiliaryNavigationEntryCount'] ?? 0) > 0) {
                 $coverage['fixturesWithAuxiliaryNavigation'][] = $fixture;
             }
@@ -4497,6 +4557,7 @@ final class EpubNativeAstPackageComparisonHarness
             $coverage['totals']['navigationEntries'] += (int) ($summary['navigationEntryCount'] ?? 0);
             $coverage['totals']['landmarkEntries'] += (int) ($summary['landmarkEntryCount'] ?? 0);
             $coverage['totals']['pageListEntries'] += (int) ($summary['pageListEntryCount'] ?? 0);
+            $coverage['totals']['pageListCfiTargets'] += (int) ($summary['pageListCfiTargetCount'] ?? 0);
             $coverage['totals']['auxiliaryNavigationEntries'] += (int) ($summary['auxiliaryNavigationEntryCount'] ?? 0);
             $coverage['totals']['packageLinks'] += (int) ($summary['packageLinkCount'] ?? 0);
             $coverage['totals']['packageLinkMediaTypeItems'] += (int) ($summary['packageLinkMediaTypeCount'] ?? 0);
@@ -4608,6 +4669,10 @@ final class EpubNativeAstPackageComparisonHarness
         $accessibilityLinkedRecordCount = (int) ($summary['accessibilityLinkedRecordCount'] ?? 0);
         if ($accessibilityLinkedRecordCount > 0) {
             $signature['accessibilityLinkedRecordCount'] = $accessibilityLinkedRecordCount;
+        }
+        $pageListCfiTargetCount = (int) ($summary['pageListCfiTargetCount'] ?? 0);
+        if ($pageListCfiTargetCount > 0) {
+            $signature['pageListCfiTargetCount'] = $pageListCfiTargetCount;
         }
         $signature['coverImagePartPresent'] = is_string($summary['coverImagePart'] ?? null) && $summary['coverImagePart'] !== '';
 

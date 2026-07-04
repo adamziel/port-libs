@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 82;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 83;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '1a21160cdbb95a3a25519d50f41c7af8423bb25e5045a2a1824e6790c88bedf0';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 35836;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '676e35d59e7f772edc734da16521d5632e5b29578e650de60cf89b76e117124b';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 36251;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -966,6 +966,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => 'c80440348f5567bb5cdd29313dc97aaf86b339b0c44211c873350f22cc49177b',
             'pptxBytes' => 1431,
             'nativeBytes' => 259,
+        ],
+        'qualified-picture-metadata' => [
+            'name' => 'generated qualified picture metadata attribute parity',
+            'pptx' => 'pptx-reader/qualified-picture-metadata.pptx',
+            'native' => 'pptx-reader/qualified-picture-metadata.native',
+            'pairKey' => 'pptx-reader/qualified-picture-metadata.pptx|pptx-reader/qualified-picture-metadata.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/qualified-picture-metadata.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/qualified-picture-metadata.native',
+            'pptxSha256' => '701d31f75d1d665bf1ba38cd2ac14963a97193c41b4296ced7bd96e556136229',
+            'nativeSha256' => '19bd88efcd70aee87a078b7070ac1909f9c8ba2cb6b05b81e63bc9fcaccc179c',
+            'pptxBytes' => 1936,
+            'nativeBytes' => 207,
         ],
         'rel-prefix-image-skip' => [
             'name' => 'generated noncanonical relationship prefix image skip parity',

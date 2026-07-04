@@ -364,6 +364,26 @@ $tests['maps upstream markdown task-list fixture through default profile'] =
         $t->same('Mark ready to publish', $listItemText($list->children[2] ?? new AstNode('missing')));
     };
 
+$tests['maps upstream markdown ordered task-list fixture through markdown task-lists profile'] =
+    static function (TestRunner $t) use ($childTypes, $collectTaskStates, $listItemText): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-markdown-ordered-task-list.md');
+        $document = (new MarkdownReader(['format' => 'markdown+task_lists']))->read($fixture);
+        $list = $document->children[0] ?? new AstNode('missing');
+        $secondItem = $list->children[1] ?? new AstNode('missing');
+
+        $t->same('ordered_list', $list->type);
+        $t->same(1, $list->attr('start'));
+        $t->same('decimal', $list->attr('style'));
+        $t->same('period', $list->attr('delimiter'));
+        $t->same(true, $list->attr('loose'));
+        $t->same(3, count($list->children));
+        $t->same([false, true, true], $collectTaskStates($list));
+        $t->same('ordered open', $listItemText($list->children[0] ?? new AstNode('missing')));
+        $t->same('ordered done Continuation note', $listItemText($secondItem));
+        $t->same(['paragraph', 'paragraph'], $childTypes($secondItem));
+        $t->same('uppercase done', $listItemText($list->children[2] ?? new AstNode('missing')));
+    };
+
 $tests['records upstream markdown reader task-list profile surge mapped-case count'] =
     static function (TestRunner $t) use ($markers, $variants): void {
         $t->same(90, count($markers) * count($variants));

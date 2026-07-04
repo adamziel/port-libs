@@ -26,15 +26,15 @@ $readJson = static function (string $relativePath) use ($readText): array {
 return [
     'keeps EPUB current fixture status counters in sync' => static function (TestRunner $t) use ($repoRoot, $readText, $readJson): void {
         $manifest = $readJson('lanes/pandoc/UPSTREAM_TEST_MANIFEST.json');
-        $note = $readText('lanes/pandoc/notes/epub-reader-upstream-current-fixture-gate-20260702.md');
+        $note = $readText('lanes/pandoc/notes/pandoc-epub-page-list-cfi-navigation-20260704.md');
         $fixtureDirectory = $repoRoot . '/lanes/pandoc/fixtures/upstream-current-epub-reader/epub';
         $epubFiles = glob($fixtureDirectory . '/*.epub') ?: [];
         $nativeFiles = glob($fixtureDirectory . '/*.native') ?: [];
         $totalFiles = count($epubFiles) + count($nativeFiles);
 
-        $t->same(54, count($epubFiles));
-        $t->same(54, count($nativeFiles));
-        $t->same(108, $totalFiles);
+        $t->same(55, count($epubFiles));
+        $t->same(55, count($nativeFiles));
+        $t->same(110, $totalFiles);
 
         foreach ([
             'benchmarkDenominator.breakdown' => $manifest['benchmarkDenominator']['breakdown'] ?? null,
@@ -51,7 +51,12 @@ return [
                 'epubNativeExpectedArtifacts' => count($nativeFiles),
                 'epubEpubInputArtifacts' => count($epubFiles),
             ];
-            $sharedManifest = [
+            $previousSharedManifest = [
+                'epubDirectoryArtifacts' => 108,
+                'epubNativeExpectedArtifacts' => 54,
+                'epubEpubInputArtifacts' => 54,
+            ];
+            $olderSharedManifest = [
                 'epubDirectoryArtifacts' => 106,
                 'epubNativeExpectedArtifacts' => 53,
                 'epubEpubInputArtifacts' => 53,
@@ -63,15 +68,19 @@ return [
             ];
 
             $t->true(
-                $observed === $integrated || $observed === $sharedManifest || $observed === $preIntegration,
+                $observed === $integrated
+                    || $observed === $previousSharedManifest
+                    || $observed === $olderSharedManifest
+                    || $observed === $preIntegration,
                 "{$label} EPUB counters must match either local fixture state or the shared manifest state awaiting integration"
             );
         }
 
-        $t->true(str_contains($note, '- 54 EPUB package inputs'));
-        $t->true(str_contains($note, '- 54 same-directory `.native` goldens'));
-        $t->true(str_contains($note, '--require-package-parity=54'));
-        $t->true(str_contains($note, '--require-native-readiness=54'));
-        $t->true(str_contains($note, '--require-mapped-parity=54'));
+        $t->true(str_contains($note, '- Checked-in EPUB package inputs: `54 -> 55`.'));
+        $t->true(str_contains($note, '- Checked-in same-basename `.native` goldens: `54 -> 55`.'));
+        $t->true(str_contains($note, '- Checked-in fixture identity files: `108 -> 110`.'));
+        $t->true(str_contains($note, '--require-package-parity=55'));
+        $t->true(str_contains($note, '--require-native-readiness=55'));
+        $t->true(str_contains($note, '--require-mapped-parity=55'));
     },
 ];

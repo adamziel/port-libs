@@ -13052,10 +13052,22 @@ final class EpubPackage
                 }
 
                 if ($label !== '' || ($href !== null && $href !== '')) {
+                    $target = $href === null || $href === '' ? null : self::resolveReadingHref($navPartName, $href);
+                    $suffix = $target !== null
+                        ? self::packageHrefSuffixReport($target)
+                        : ['hasQuery' => false, 'query' => null, 'hasFragment' => false, 'fragment' => null];
+                    $fragmentKind = self::epubFragmentKind($suffix['fragment']);
                     $entries[] = [
                         'label' => $label,
                         'href' => $href,
-                        'target' => $href === null || $href === '' ? null : self::resolveReadingHref($navPartName, $href),
+                        'target' => $target,
+                        'hrefHasQuery' => $suffix['hasQuery'],
+                        'hrefQuery' => $suffix['query'],
+                        'hrefHasFragment' => $suffix['hasFragment'],
+                        'hrefFragment' => $suffix['fragment'],
+                        'fragmentKind' => $fragmentKind,
+                        'epubCfi' => $fragmentKind === 'epub-cfi',
+                        'cfiFragment' => $fragmentKind === 'epub-cfi' ? $suffix['fragment'] : null,
                         'depth' => $depth,
                         'playOrder' => null,
                     ];
@@ -17048,6 +17060,21 @@ final class EpubPackage
             'hasFragment' => $fragmentOffset !== false,
             'fragment' => $fragment,
         ];
+    }
+
+    private static function epubFragmentKind(?string $fragment): string
+    {
+        if ($fragment === null || $fragment === '') {
+            return 'none';
+        }
+
+        return self::isEpubCfiFragment($fragment) ? 'epub-cfi' : 'id';
+    }
+
+    private static function isEpubCfiFragment(?string $fragment): bool
+    {
+        return is_string($fragment)
+            && preg_match('/^epubcfi\s*\(.+\)$/i', trim(rawurldecode($fragment))) === 1;
     }
 
     private static function coreMediaTypeKind(string $mediaType): ?string

@@ -2706,6 +2706,53 @@ NATIVE;
         $t->contains('Plain [ Str "alpha," , Space , Str "beta" , LineBreak , LineBreak , Str "gamma," , Space , Str "delta" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
+    'matches generated csv delimiter only row native parity fixture' => static function (TestRunner $t) use ($generatedCsvNativeFixture, $nativeTokenStream): void {
+        $fixture = $generatedCsvNativeFixture('delimiter-only-row');
+        $document = (new DelimitedTextReader())->readCsv($fixture['input'], [
+            'sourcePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/delimiter-only-row.csv',
+        ]);
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+        $native = PandocConverter::write($document, 'native');
+        $generatedEvidence = $packet['upstreamEvidence']['generatedNativeParityEvidence'] ?? [];
+        $body = $table->children[1];
+        $emptyRow = $body->children[1];
+
+        $t->same('csv', $packet['format'] ?? null);
+        $t->same(',', $packet['delimiter'] ?? null);
+        $t->same(2, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
+        $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
+        $t->same(2 * DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['checkedInFixtureCount'] ?? null);
+        $t->same('delimiter-only-row.csv', $generatedEvidence['checkedInFixtures'][112]['name'] ?? null);
+        $t->same('9ea069dba8355db9b07e013bb2e27ae2293301cff67e96e40d4c6d9bc96fac1d', $generatedEvidence['checkedInFixtures'][112]['checkedInFile']['sha256'] ?? null);
+        $t->same('delimiter-only-row.native', $generatedEvidence['checkedInFixtures'][113]['name'] ?? null);
+        $t->same('20e6be4a619b1e8f9961f222470fef988fe9664f56a9ce8ed691518e9f8c422a', $generatedEvidence['checkedInFixtures'][113]['checkedInFile']['sha256'] ?? null);
+        $t->same('delimiter-only-row', $generatedEvidence['samples'][56]['name'] ?? null);
+        $t->same([], $generatedEvidence['samples'][56]['readerOptions'] ?? null);
+        $t->same(['id', 'note', 'status'], $table->attr('columnNames'));
+        $t->same(4, $packet['rowCount'] ?? null);
+        $t->same(3, $packet['bodyRowCount'] ?? null);
+        $t->same(3, $packet['columnCount'] ?? null);
+        $t->same(12, $packet['fieldCount'] ?? null);
+        $t->same(0, $packet['blankRowCount'] ?? null);
+        $t->same([], $packet['blankRows'] ?? null);
+        $t->same(1, $packet['trailingDelimiterRowCount'] ?? null);
+        $t->same([2], $packet['trailingDelimiterRows'] ?? null);
+        $t->same(0, $packet['raggedRowCount'] ?? null);
+        $t->same(2, $packet['diagnosticCount'] ?? null);
+        $t->same([
+            'delimited-text-trailing-delimiter-empty-field',
+            'delimited-text-trailing-empty-fields-preserved',
+        ], array_column($packet['diagnostics'] ?? [], 'code'));
+        $t->same(['', '', ''], array_map(static fn (AstNode $cell): string => $cell->attr('text'), $emptyRow->children));
+        $t->same([0, 0, 0], array_map(static fn (AstNode $cell): int => count($cell->children), $emptyRow->children));
+        $t->same('alpha', $body->children[0]->children[1]->attr('text'));
+        $t->same('done', $body->children[2]->children[2]->attr('text'));
+        $t->contains('Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) []', $native);
+        $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
+    },
     'matches generated tsv native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture();
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [

@@ -2112,6 +2112,73 @@ XML);
         $t->same(1, $pageListReport['items'][1]['spineIndex']);
         $t->same(true, $pageListReport['items'][1]['spineLinear']);
     },
+    'reports epub page-list CFI fragment targets for package review' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-page-list-cfi-' . str_replace('.', '', uniqid('', true));
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:page-list-cfi-review</dc:identifier>
+    <dc:title>Page List CFI Review</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/nav.xhtml', <<<'HTML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <ol>
+        <li><a href="chapter.xhtml">Page List CFI Review</a></li>
+      </ol>
+    </nav>
+    <nav epub:type="page-list">
+      <ol>
+        <li><a epub:type="pagebreak" href="chapter.xhtml#epubcfi(/6/2[chapter]!/4/2/2)">1</a></li>
+        <li><a epub:type="pagebreak" href="chapter.xhtml#page-2">2</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+HTML);
+            $writePackageFile($root, 'EPUB/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Page List CFI Review</h1><p>Reader page-list CFI audit.</p></body></html>');
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $pageListReport = $document->attr('epub')['pageListReport'];
+
+            $t->same(true, $pageListReport['present']);
+            $t->same(2, $pageListReport['itemCount']);
+            $t->same(1, $pageListReport['cfiTargetCount']);
+            $t->same(1, $pageListReport['epubCfiTargetCount']);
+            $t->same('epub-cfi', $pageListReport['items'][0]['fragmentKind']);
+            $t->same(true, $pageListReport['items'][0]['epubCfi']);
+            $t->same('epubcfi(/6/2[chapter]!/4/2/2)', $pageListReport['items'][0]['cfiFragment']);
+            $t->same('id', $pageListReport['items'][1]['fragmentKind']);
+            $t->same(false, $pageListReport['items'][1]['epubCfi']);
+            $t->same(null, $pageListReport['items'][1]['cfiFragment']);
+            $t->same('EPUB/chapter.xhtml#epubcfi(/6/2[chapter]!/4/2/2)', $pageListReport['cfiTargets'][0]['target']);
+            $t->same([0], $pageListReport['cfiTargets'][0]['readingSpineIndexes']);
+            $t->same('epub-cfi', $pageListReport['readingOrder'][0]['fragmentKind']);
+            $t->same(true, $pageListReport['readingOrder'][0]['epubCfi']);
+        } finally {
+            $removeDirectory($root);
+        }
+    },
     'reports epub page-list manifest and spine reading order diagnostics' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
         $root = sys_get_temp_dir() . '/port-libs-epub-page-list-spine-' . str_replace('.', '', uniqid('', true));
         mkdir($root, 0777, true);

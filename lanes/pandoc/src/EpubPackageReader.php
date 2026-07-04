@@ -5971,6 +5971,8 @@ final class EpubPackageReader
         $outsideSpineTargetCount = 0;
         $externalTargetCount = 0;
         $unresolvedTargetCount = 0;
+        $cfiTargetCount = 0;
+        $cfiTargets = [];
 
         foreach ($flat as $sourceIndex => $item) {
             $type = is_string($item['sectionType'] ?? null)
@@ -6000,6 +6002,7 @@ final class EpubPackageReader
             $target = is_string($item['target'] ?? null) ? $item['target'] : '';
             $path = is_string($item['path'] ?? null) ? $item['path'] : '';
             $fragment = is_string($item['fragment'] ?? null) ? $item['fragment'] : '';
+            $fragmentKind = $this->epubFragmentKind($fragment);
             $external = (bool) ($item['external'] ?? false);
             $manifestItem = !$external && $path !== '' ? ($manifestByPath[$path] ?? null) : null;
             $spineItems = !$external && $path !== '' ? ($spineByPath[$path] ?? []) : [];
@@ -6038,6 +6041,9 @@ final class EpubPackageReader
                 'target' => $target,
                 'path' => $path,
                 'fragment' => $fragment,
+                'fragmentKind' => $fragmentKind,
+                'epubCfi' => $fragmentKind === 'epub-cfi',
+                'cfiFragment' => $fragmentKind === 'epub-cfi' ? $fragment : null,
                 'external' => $external,
                 'unsafe' => (bool) ($item['unsafe'] ?? false),
                 'hrefKind' => is_string($item['hrefKind'] ?? null) ? $item['hrefKind'] : '',
@@ -6064,6 +6070,25 @@ final class EpubPackageReader
                 'collisions' => $collisions,
                 'diagnostics' => $itemDiagnostics,
             ];
+
+            if ($fragmentKind === 'epub-cfi') {
+                ++$cfiTargetCount;
+                $cfiTargets[] = [
+                    'index' => $pageListIndex,
+                    'sourceIndex' => $sourceIndex,
+                    'navIndex' => is_int($item['index'] ?? null) ? $item['index'] : 0,
+                    'label' => is_string($item['label'] ?? null) ? $item['label'] : '',
+                    'href' => $href,
+                    'target' => $target,
+                    'path' => $path,
+                    'fragment' => $fragment,
+                    'fragmentKind' => $fragmentKind,
+                    'manifestId' => is_array($manifestItem) && is_string($manifestItem['id'] ?? null) ? $manifestItem['id'] : null,
+                    'spineIndex' => $spineIndex,
+                    'spineIndexes' => $spineIndexes,
+                    'readingSpineIndexes' => $readingSpineIndexes,
+                ];
+            }
 
             if ($collisions !== []) {
                 $diagnostic = [
@@ -6207,6 +6232,8 @@ final class EpubPackageReader
                 'target' => $target,
                 'path' => $path,
                 'fragment' => $fragment,
+                'fragmentKind' => $fragmentKind,
+                'epubCfi' => $fragmentKind === 'epub-cfi',
                 'spineIndex' => $spineIndex,
                 'spineIndexes' => $spineIndexes,
                 'readingSpineIndexes' => $readingSpineIndexes,
@@ -6413,6 +6440,10 @@ final class EpubPackageReader
             'outsideSpineTargetCount' => $outsideSpineTargetCount,
             'externalTargetCount' => $externalTargetCount,
             'unresolvedTargetCount' => $unresolvedTargetCount,
+            'cfiTargetCount' => $cfiTargetCount,
+            'epubCfiTargetCount' => $cfiTargetCount,
+            'cfiTargets' => $cfiTargets,
+            'epubCfiTargets' => $cfiTargets,
             'collisionTargetCount' => count($collisionTargets),
             'collisionTargets' => array_values($collisionTargets),
             'duplicatePageTargetCount' => count($duplicatePageTargets),
@@ -6876,6 +6907,9 @@ final class EpubPackageReader
     {
         $path = (string) ($item['path'] ?? '');
         $fragment = (string) ($item['fragment'] ?? '');
+        $fragmentKind = is_string($item['fragmentKind'] ?? null)
+            ? (string) $item['fragmentKind']
+            : $this->epubFragmentKind($fragment);
         $diagnostics = is_array($item['diagnostics'] ?? null) ? $item['diagnostics'] : [];
 
         return [
@@ -6887,6 +6921,9 @@ final class EpubPackageReader
             'target' => $path . ($fragment === '' ? '' : '#' . $fragment),
             'path' => $path,
             'fragment' => $fragment,
+            'fragmentKind' => $fragmentKind,
+            'epubCfi' => $fragmentKind === 'epub-cfi',
+            'cfiFragment' => $fragmentKind === 'epub-cfi' ? $fragment : null,
             'manifestId' => is_string($item['manifestId'] ?? null) ? $item['manifestId'] : '',
             'spineIndex' => $item['spineIndex'] ?? null,
             'spineIndexes' => $this->integerList($item['spineIndexes'] ?? []),
@@ -6906,6 +6943,20 @@ final class EpubPackageReader
                 static fn (string $type): bool => $type !== ''
             )),
         ];
+    }
+
+    private function epubFragmentKind(string $fragment): string
+    {
+        if ($fragment === '') {
+            return 'none';
+        }
+
+        return $this->isEpubCfiFragment($fragment) ? 'epub-cfi' : 'id';
+    }
+
+    private function isEpubCfiFragment(string $fragment): bool
+    {
+        return preg_match('/^epubcfi\s*\(.+\)$/i', trim(rawurldecode($fragment))) === 1;
     }
 
     /**
