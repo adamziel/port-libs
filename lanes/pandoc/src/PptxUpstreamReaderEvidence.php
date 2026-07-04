@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 79;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 80;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'cf7667acd62bb7a94087d4a6e22d3fa81522d2f04043534d0e60ebfa1a304906';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 34574;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '35f71df710b79cd449fba4323c84d1b9e926493b5c466c7f986516cb2bef8323';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 35014;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -618,6 +618,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => 'a799a5d732ca0a11d94f239d782b61bffe81325c09ed721705fabc2fe079feba',
             'pptxBytes' => 2155,
             'nativeBytes' => 1228,
+        ],
+        'grouped-shape-media-review' => [
+            'name' => 'generated grouped shape media review parity',
+            'pptx' => 'pptx-reader/grouped-shape-media-review.pptx',
+            'native' => 'pptx-reader/grouped-shape-media-review.native',
+            'pairKey' => 'pptx-reader/grouped-shape-media-review.pptx|pptx-reader/grouped-shape-media-review.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/grouped-shape-media-review.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/grouped-shape-media-review.native',
+            'pptxSha256' => '8125b15cd633f7e88428893df558f6abf7a927b1ba2a13bf36a97497be789de0',
+            'nativeSha256' => 'd782ab60b3a2c37fbcaa60cd2a658d2d9457bf4674d1e4d920be5ee7daa75301',
+            'pptxBytes' => 2289,
+            'nativeBytes' => 119,
         ],
         'grouped-shapes' => [
             'name' => 'generated grouped shape skip parity',

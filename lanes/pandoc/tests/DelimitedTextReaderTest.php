@@ -2564,6 +2564,47 @@ NATIVE;
         $t->contains('Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) []', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
+    'matches generated csv quoted crlf linebreak native parity fixture without inflating csv denominator' => static function (TestRunner $t) use ($generatedCsvNativeFixture, $nativeTokenStream): void {
+        $fixture = $generatedCsvNativeFixture('quoted-crlf-linebreak');
+        $document = (new DelimitedTextReader())->readCsv($fixture['input'], [
+            'sourcePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/quoted-crlf-linebreak.csv',
+        ]);
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+        $native = PandocConverter::write($document, 'native');
+        $generatedEvidence = $packet['upstreamEvidence']['generatedNativeParityEvidence'] ?? [];
+        $body = $table->children[1];
+
+        $t->same('csv', $packet['format'] ?? null);
+        $t->same(',', $packet['delimiter'] ?? null);
+        $t->same(2, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
+        $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
+        $t->same(2 * DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['checkedInFixtureCount'] ?? null);
+        $t->same('quoted-crlf-linebreak.csv', $generatedEvidence['checkedInFixtures'][106]['name'] ?? null);
+        $t->same('3f2469c5b1f5e4b354f235434cd2bed54061b6b2a285447ad29f6fb41b60a1ac', $generatedEvidence['checkedInFixtures'][106]['checkedInFile']['sha256'] ?? null);
+        $t->same('quoted-crlf-linebreak.native', $generatedEvidence['checkedInFixtures'][107]['name'] ?? null);
+        $t->same('3956114302f624d1849536a2d452f85b0ce684fb25319e13db3708f41903e71d', $generatedEvidence['checkedInFixtures'][107]['checkedInFile']['sha256'] ?? null);
+        $t->same('quoted-crlf-linebreak', $generatedEvidence['samples'][53]['name'] ?? null);
+        $t->same([], $generatedEvidence['samples'][53]['readerOptions'] ?? null);
+        $t->same(['id', 'note', 'status'], $table->attr('columnNames'));
+        $t->same(3, $packet['rowCount'] ?? null);
+        $t->same(2, $packet['bodyRowCount'] ?? null);
+        $t->same(3, $packet['columnCount'] ?? null);
+        $t->same(9, $packet['fieldCount'] ?? null);
+        $t->same(2, $packet['quotedFieldCount'] ?? null);
+        $t->same(1, $packet['quotedLineBreakCount'] ?? null);
+        $t->same(1, $packet['multilineFieldCount'] ?? null);
+        $t->same([1], $packet['multilineQuotedRows'] ?? null);
+        $t->same(4, $packet['inputPrefix']['carriageReturnNormalization']['removedCount'] ?? null);
+        $t->same(1, $packet['diagnosticCount'] ?? null);
+        $t->same('delimited-text-multiline-quoted-field', $packet['diagnostics'][0]['code'] ?? null);
+        $t->same("alpha\nbeta", $body->children[0]->children[1]->attr('text'));
+        $t->same('tail', $body->children[1]->children[1]->attr('text'));
+        $t->contains('Plain [ Str "alpha" , LineBreak , Str "beta" ]', $native);
+        $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
+    },
     'matches generated tsv native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture();
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
@@ -4127,6 +4168,8 @@ NATIVE;
         $t->same([], $csvEvidence['generatedNativeParityEvidence']['samples'][51]['readerOptions'] ?? null);
         $t->same('quoted-final-row-padding', $csvEvidence['generatedNativeParityEvidence']['samples'][52]['name'] ?? null);
         $t->same([], $csvEvidence['generatedNativeParityEvidence']['samples'][52]['readerOptions'] ?? null);
+        $t->same('quoted-crlf-linebreak', $csvEvidence['generatedNativeParityEvidence']['samples'][53]['name'] ?? null);
+        $t->same([], $csvEvidence['generatedNativeParityEvidence']['samples'][53]['readerOptions'] ?? null);
         $t->true(in_array('direct-csv-command-reader', $csvEvidence['closedGaps'] ?? [], true));
         $t->true(in_array('csv-closing-quote-record-whitespace-strictness', $csvEvidence['closedGaps'] ?? [], true));
         $t->true(in_array('generated-csv-native-parity-sample', $csvEvidence['closedGaps'] ?? [], true));

@@ -1,0 +1,4 @@
+[ Header
+    2 ( "slide-1" , [] , [] ) [ Str "Grouped media review" ]
+, Para [ Str "Visible after grouped content" ]
+]

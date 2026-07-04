@@ -595,6 +595,33 @@ $tests['imports direct pandoc html optional definition-list end tags as tight de
         $t->same('After definitions.', $after->attr('text'));
     };
 
+$tests['imports direct pandoc html multi-term definition-list optional end tags'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-multi-term-definition-list.html'));
+        $list = $document->children[0];
+        $firstItem = $list->children[0];
+        $firstTerm = $firstItem->children[0];
+        $firstDefinition = $firstItem->children[1]->children[0];
+        $secondDefinition = $firstItem->children[2];
+        $secondItem = $list->children[1];
+
+        $t->same(['definition_list', 'paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same("Term alpha\nAlias alpha", $firstItem->attr('term'));
+        $t->same(['text', 'linebreak', 'text'], array_map(static fn ($node): string => $node->type, $firstTerm->children));
+        $t->same('Term alpha', $firstTerm->children[0]->attr('text'));
+        $t->same('Alias alpha', $firstTerm->children[2]->attr('text'));
+        $t->same('plain', $firstDefinition->type);
+        $t->same('First definition', $firstDefinition->attr('text'));
+        $t->same(['text', 'emph'], array_map(static fn ($node): string => $node->type, $firstDefinition->children));
+        $t->same('definition', $firstDefinition->children[1]->children[0]->attr('text'));
+        $t->same(['paragraph', 'bullet_list'], array_map(static fn ($node): string => $node->type, $secondDefinition->children));
+        $t->same('Second block', $secondDefinition->children[0]->attr('text'));
+        $t->same('Nested note', $secondDefinition->children[1]->children[0]->attr('text'));
+        $t->same('Term beta', $secondItem->attr('term'));
+        $t->same('Final definition', $secondItem->children[1]->children[0]->attr('text'));
+        $t->same('After glossary.', $document->children[1]->attr('text'));
+    };
+
 $tests['imports generated current html details summary fixture as visible blocks'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-details-summary-raw-block.html'));

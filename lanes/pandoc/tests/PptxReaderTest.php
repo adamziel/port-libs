@@ -16402,9 +16402,62 @@ return [
         $t->same('10', $issue['id'] ?? null);
         $t->same('Group 1', $issue['name'] ?? null);
         $t->same(['x' => 100, 'y' => 200, 'cx' => 300, 'cy' => 400], $issue['layout'] ?? null);
+        $t->same(3, $issue['pptxGroup']['directChildShapeCount'] ?? null);
+        $t->same(4, $issue['pptxGroup']['descendantShapeCount'] ?? null);
+        $t->same(['grpSp' => 1, 'pic' => 1, 'sp' => 2], $issue['pptxGroup']['descendantShapeTypes'] ?? null);
+        $t->same('Grouped Text', $issue['pptxGroup']['directChildren'][0]['name'] ?? null);
+        $t->same('Grouped body', $issue['pptxGroup']['directChildren'][0]['text'] ?? null);
+        $t->same('Grouped Picture', $issue['pptxGroup']['directChildren'][1]['name'] ?? null);
+        $t->same('Nested Group', $issue['pptxGroup']['directChildren'][2]['name'] ?? null);
+        $t->same(1, $issue['pptxGroup']['directChildren'][2]['directChildShapeCount'] ?? null);
+        $t->same([['depth' => 1, 'element' => 'sp', 'text' => 'Grouped body'], ['depth' => 2, 'element' => 'sp', 'text' => 'Nested grouped body']], $issue['pptxGroup']['textSamples'] ?? null);
+        $t->same(['rIdImage'], $issue['pptxGroup']['relationshipIds'] ?? null);
+        $t->same('ppt/media/grouped.png', $issue['pptxGroup']['relationships'][0]['partName'] ?? null);
         $t->true(!str_contains($native, 'Grouped body'), 'Grouped child text should stay out of upstream-compatible output');
         $t->true(!str_contains($native, 'Nested grouped body'), 'Nested grouped child text should stay out of upstream-compatible output');
         $t->true(!str_contains($native, 'Grouped Picture'), 'Grouped child picture should stay out of upstream-compatible output');
+    },
+
+    'records checked-in grouped pptx media review while preserving executable native parity' => static function (TestRunner $t) use ($nodesOfType): void {
+        $path = dirname(__DIR__) . '/fixtures/upstream-current-pptx-reader/grouped-shape-media-review.pptx';
+        $document = (new PptxReader())->read((string) file_get_contents($path));
+        $review = $document->attr('pptx');
+        $paragraphs = $nodesOfType($document, 'paragraph');
+        $images = $nodesOfType($document, 'image');
+        $texts = array_map(static fn (AstNode $paragraph): string => (string) $paragraph->attr('text'), $paragraphs);
+        $native = PandocConverter::write($document, 'native');
+        $issue = $review['slides'][0]['shapeIssues'][0] ?? [];
+        $group = $issue['pptxGroup'] ?? [];
+
+        $t->same('Grouped media review', $document->children[0]->attr('text'));
+        $t->same(['Visible after grouped content'], $texts);
+        $t->same(0, count($images));
+        $t->same(0, $review['slides'][0]['imageIssueCount'] ?? null);
+        $t->same(1, $review['slides'][0]['shapeIssueCount'] ?? null);
+        $t->same('grpSp', $issue['element'] ?? null);
+        $t->same('Review Group', $issue['name'] ?? null);
+        $t->same(['x' => 321, 'y' => 654, 'cx' => 987, 'cy' => 1234], $issue['layout'] ?? null);
+        $t->same(3, $group['directChildShapeCount'] ?? null);
+        $t->same(4, $group['descendantShapeCount'] ?? null);
+        $t->same(['grpSp' => 1, 'pic' => 2, 'sp' => 1], $group['descendantShapeTypes'] ?? null);
+        $t->same(['rIdImage', 'rIdVideo'], $group['relationshipIds'] ?? null);
+        $t->same('Grouped Callout', $group['directChildren'][0]['name'] ?? null);
+        $t->same('Grouped callout text', $group['directChildren'][0]['text'] ?? null);
+        $t->same('Grouped Image', $group['directChildren'][1]['name'] ?? null);
+        $t->same('Nested Media Group', $group['directChildren'][2]['name'] ?? null);
+        $t->same('ppt/media/grouped-review.png', $group['relationships'][0]['partName'] ?? null);
+        $t->same('ppt/media/grouped-review.mp4', $group['relationships'][1]['partName'] ?? null);
+        $t->same(1, $issue['richMediaReferenceCount'] ?? null);
+        $t->same(1, $review['slides'][0]['richMediaCount'] ?? null);
+        $t->same('video', $review['slides'][0]['richMedia'][0]['kind'] ?? null);
+        $t->same('ppt/media/grouped-review.mp4', $review['slides'][0]['richMedia'][0]['partName'] ?? null);
+        $t->same(1, $review['mediaBag']['itemCount'] ?? null);
+        $t->same(['rich-media'], $review['mediaBag']['directory'][0]['sourceRoles'] ?? null);
+        $t->contains('Para [ Str "Visible" , Space , Str "after" , Space , Str "grouped" , Space , Str "content" ]', $native);
+        $t->true(!str_contains($native, 'Grouped callout text'), 'Grouped child text should stay out of upstream-compatible output');
+        $t->true(!str_contains($native, 'Grouped Image'), 'Grouped child image metadata should stay out of upstream-compatible output');
+        $t->true(!str_contains($native, 'Nested Video'), 'Grouped child media metadata should stay out of upstream-compatible output');
+        $t->true(!str_contains($native, 'Image'), 'Grouped child images should not emit native Image nodes');
     },
 
     'records unsupported pptx connector shapes without fabricating content' => static function (TestRunner $t) use ($buildUnsupportedConnectorPptxPackage, $nodesOfType): void {

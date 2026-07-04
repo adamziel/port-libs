@@ -2327,7 +2327,7 @@ final class MarkdownReader
     {
         $body = [];
         if ($firstLine !== '') {
-            $body[] = $firstLine;
+            $body[] = $this->normalizeSameLineFootnoteDefinitionBodyStart($firstLine);
         }
 
         $cursor = $index + 1;
@@ -2385,6 +2385,15 @@ final class MarkdownReader
         }
 
         return [$body, $cursor];
+    }
+
+    private function normalizeSameLineFootnoteDefinitionBodyStart(string $line): string
+    {
+        if (preg_match('/^:{3,}/', $line) !== 1) {
+            return $line;
+        }
+
+        return '\\' . $line;
     }
 
     private function normalizeFootnoteBodyLine(string $line): string
@@ -6197,12 +6206,9 @@ final class MarkdownReader
         $termTexts = [];
         $definitions = [];
 
-        foreach ($list->childNodes as $child) {
-            if (!$child instanceof \DOMElement) {
-                continue;
-            }
-
-            $name = strtolower($child->localName);
+        foreach ($this->htmlDefinitionListLogicalParts($list) as $part) {
+            $name = $part['name'];
+            $child = $part['element'];
             if ($name === 'dt') {
                 if ($termInlines !== [] && $definitions !== []) {
                     $this->flushHtmlDefinitionItem($items, $termInlines, $termTexts, $definitions);
@@ -6224,6 +6230,107 @@ final class MarkdownReader
         $this->flushHtmlDefinitionItem($items, $termInlines, $termTexts, $definitions);
 
         return new AstNode('definition_list', $this->htmlElementPandocAttrs($list), $items);
+    }
+
+    /**
+     * @return list<array{name:string, element:\DOMElement}>
+     */
+    private function htmlDefinitionListLogicalParts(\DOMElement $list): array
+    {
+        $parts = [];
+        foreach ($list->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            $name = strtolower($child->localName);
+            if ($name !== 'dt' && $name !== 'dd') {
+                continue;
+            }
+
+            array_push($parts, ...$this->htmlDefinitionListLogicalElementParts($child));
+        }
+
+        return $parts;
+    }
+
+    /**
+     * @return list<array{name:string, element:\DOMElement}>
+     */
+    private function htmlDefinitionListLogicalElementParts(\DOMElement $element): array
+    {
+        $name = strtolower($element->localName);
+        $hasNestedBoundary = false;
+        foreach (iterator_to_array($element->childNodes) as $child) {
+            if ($child instanceof \DOMElement && $this->isHtmlDefinitionListBoundaryElement($child)) {
+                $hasNestedBoundary = true;
+                break;
+            }
+        }
+
+        if (!$hasNestedBoundary) {
+            return [['name' => $name, 'element' => $element]];
+        }
+
+        $parts = [];
+        $segment = $this->emptyHtmlDefinitionListElementClone($element);
+        foreach (iterator_to_array($element->childNodes) as $child) {
+            if ($child instanceof \DOMElement && $this->isHtmlDefinitionListBoundaryElement($child)) {
+                $this->appendHtmlDefinitionListLogicalSegment($parts, $name, $segment);
+                array_push($parts, ...$this->htmlDefinitionListLogicalElementParts($child));
+                $segment = $this->emptyHtmlDefinitionListElementClone($element);
+                continue;
+            }
+
+            $segment->appendChild($segment->ownerDocument->importNode($child, true));
+        }
+
+        $this->appendHtmlDefinitionListLogicalSegment($parts, $name, $segment);
+
+        return $parts;
+    }
+
+    private function emptyHtmlDefinitionListElementClone(\DOMElement $element): \DOMElement
+    {
+        $clone = $element->cloneNode(false);
+        if (!$clone instanceof \DOMElement) {
+            throw new \RuntimeException('Unable to clone HTML definition list element');
+        }
+
+        return $clone;
+    }
+
+    /**
+     * @param list<array{name:string, element:\DOMElement}> $parts
+     */
+    private function appendHtmlDefinitionListLogicalSegment(array &$parts, string $name, \DOMElement $segment): void
+    {
+        if (!$this->htmlDefinitionListSegmentHasContent($segment)) {
+            return;
+        }
+
+        $parts[] = ['name' => $name, 'element' => $segment];
+    }
+
+    private function isHtmlDefinitionListBoundaryElement(\DOMElement $element): bool
+    {
+        return in_array(strtolower($element->localName), ['dt', 'dd'], true);
+    }
+
+    private function htmlDefinitionListSegmentHasContent(\DOMElement $element): bool
+    {
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMElement) {
+                return true;
+            }
+            if (($child instanceof \DOMText || $child instanceof \DOMCdataSection)
+                && trim($child->nodeValue ?? '') !== ''
+            ) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

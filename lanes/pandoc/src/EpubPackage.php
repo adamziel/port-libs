@@ -348,6 +348,28 @@ final class EpubPackage
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public function packageLinkMediaTypes(): array
+    {
+        return is_array($this->metadata['linkMediaTypes'] ?? null)
+            ? $this->metadata['linkMediaTypes']
+            : self::packageLinkMediaTypeReport($this->packageLinks);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function linkHrefSuffixes(): array
+    {
+        return self::linkHrefSuffixReport(
+            $this->containerLinks,
+            $this->packageLinks,
+            $this->collections,
+        );
+    }
+
+    /**
      * @return list<array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, fallbackStyle:?string, mediaOverlay:?string}>
      */
     public function manifestItems(): array

@@ -52,6 +52,7 @@ final class MarkdownNativeAstComparisonHarness
         'upstream-markdown-zzzzzzzzzz-bare-uri-bracket-encoding' => ['format' => 'markdown+autolink_bare_uris'],
         'upstream-markdown-zzzzzzzzzzz-mmd-title-block-profile' => ['format' => 'markdown_mmd'],
         'upstream-markdown-zzzzzzzzzzzz-gfm-auto-identifiers-profile' => ['format' => 'commonmark+gfm_auto_identifiers+ascii_identifiers'],
+        'upstream-markdown-zzzzzzzzzzzzzz-footnote-fenced-div-boundary' => ['format' => 'markdown+footnotes+fenced_divs+native_divs'],
     ];
 
     /** @var array<string, true> */

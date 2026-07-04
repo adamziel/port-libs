@@ -10,7 +10,7 @@ final class HtmlNativeAstComparisonHarness
     private const VERDICT = 'normalized-ast-comparison-not-full-html-parity';
     private const CLAIM = 'Compares local PHP HTML reader output with paired .native fixtures by normalized AST shape; reader provenance, table review metadata, and NativeReader constructor provenance are excluded, but no upstream Haskell runner or full HTML5 tree-construction parity is asserted.';
     private const FIXTURE_INVENTORY_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
-    private const CHECKED_IN_FIXTURE_INVENTORY_SIGNATURE_SHA256 = 'f7e40f5909caf704bcb0142ee9b658bc86aaad085588d0b313cbd08e9709a556';
+    private const CHECKED_IN_FIXTURE_INVENTORY_SIGNATURE_SHA256 = 'e3155ff8d6dadb9a1da170f9bdaf37b624176a3b041ea54e2fcc342b2f4d966e';
     private const HTML_READER_OPTIONS_BY_BASENAME = [
         'upstream-html-raw-disabled-skip' => ['htmlRawHtml' => false],
     ];
@@ -585,6 +585,12 @@ final class HtmlNativeAstComparisonHarness
                 continue;
             }
             if ($key === 'text' && $node->type === 'list_item') {
+                continue;
+            }
+            if ($key === 'text' && $node->type === 'term') {
+                continue;
+            }
+            if ($key === 'term' && $node->type === 'definition_item') {
                 continue;
             }
             if ($key === 'loose' && self::isListShapeMetadataNode($node)) {

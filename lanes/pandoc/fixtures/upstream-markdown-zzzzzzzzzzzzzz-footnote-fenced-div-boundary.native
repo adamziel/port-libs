@@ -1,0 +1,36 @@
+[ Para
+    [ Str "same-line"
+    , Note
+        [ Para
+            [ Str ":::"
+            , Space
+            , Str "note"
+            , SoftBreak
+            , Str "same"
+            , Space
+            , Str "line"
+            , Space
+            , Str "stays"
+            , Space
+            , Str "literal"
+            , SoftBreak
+            , Str ":::"
+            ]
+        ]
+    ]
+, Para
+    [ Str "indented"
+    , Note
+        [ Div
+            ( "" , [ "note" ] , [] )
+            [ Para
+                [ Str "indented"
+                , Space
+                , Str "becomes"
+                , Space
+                , Str "div"
+                ]
+            ]
+        ]
+    ]
+]

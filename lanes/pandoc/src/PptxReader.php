@@ -2247,7 +2247,20 @@ final class PptxReader
      */
     private function unsupportedDrawableShapeBlocks(\DOMElement $shapeElement, OpcRelationships $slideRelationships, int $zOrder, array &$shapeIssues, array &$richMedia): array
     {
-        if (!$this->appendRichMediaReviews($richMedia, $shapeElement, $slideRelationships, $zOrder)) {
+        $richMediaCountBefore = count($richMedia);
+        $hasRichMedia = $this->appendRichMediaReviews($richMedia, $shapeElement, $slideRelationships, $zOrder);
+        if ($shapeElement->localName === 'grpSp') {
+            $shapeIssue = array_replace(
+                ['issue' => 'unsupported-drawable-shape'],
+                $this->shapeMetadata($shapeElement, $zOrder),
+                ['pptxGroup' => $this->groupedShapeReview($shapeElement, $slideRelationships)]
+            );
+            $richMediaReferenceCount = count($richMedia) - $richMediaCountBefore;
+            if ($richMediaReferenceCount > 0) {
+                $shapeIssue['richMediaReferenceCount'] = $richMediaReferenceCount;
+            }
+            $shapeIssues[] = $shapeIssue;
+        } elseif (!$hasRichMedia) {
             $shapeIssues[] = array_replace(
                 ['issue' => 'unsupported-drawable-shape'],
                 $this->shapeMetadata($shapeElement, $zOrder)
@@ -2255,6 +2268,193 @@ final class PptxReader
         }
 
         return [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function groupedShapeReview(\DOMElement $groupShape, OpcRelationships $slideRelationships): array
+    {
+        $directChildren = [];
+        $countsByElement = [];
+        $textSamples = [];
+        $relationshipReviews = [];
+        $relationshipIds = [];
+        $descendantShapeCount = 0;
+
+        foreach ($this->childElements($groupShape, null) as $child) {
+            if (!$this->isGroupedShapeDrawable($child)) {
+                continue;
+            }
+
+            $directChildren[] = $this->groupedShapeChildReview($child, 1);
+        }
+
+        $this->collectGroupedShapeReview(
+            $groupShape,
+            0,
+            $slideRelationships,
+            $countsByElement,
+            $textSamples,
+            $relationshipReviews,
+            $relationshipIds,
+            $descendantShapeCount
+        );
+        ksort($countsByElement, SORT_STRING);
+
+        $review = [
+            'directChildShapeCount' => count($directChildren),
+            'descendantShapeCount' => $descendantShapeCount,
+            'descendantShapeTypes' => $countsByElement,
+            'directChildren' => $directChildren,
+        ];
+
+        if ($textSamples !== []) {
+            $review['textSamples'] = $textSamples;
+        }
+        if ($relationshipReviews !== []) {
+            $review['relationshipIds'] = array_values($relationshipIds);
+            $review['relationships'] = $relationshipReviews;
+        }
+
+        return $review;
+    }
+
+    /**
+     * @param array<string, int> $countsByElement
+     * @param list<array<string, mixed>> $textSamples
+     * @param list<array<string, mixed>> $relationshipReviews
+     * @param list<string> $relationshipIds
+     */
+    private function collectGroupedShapeReview(\DOMElement $element, int $depth, OpcRelationships $slideRelationships, array &$countsByElement, array &$textSamples, array &$relationshipReviews, array &$relationshipIds, int &$descendantShapeCount): void
+    {
+        foreach ($this->childElements($element, null) as $child) {
+            if (!$this->isGroupedShapeDrawable($child)) {
+                continue;
+            }
+
+            $descendantShapeCount++;
+            $countsByElement[$child->localName] = ($countsByElement[$child->localName] ?? 0) + 1;
+            $text = $child->localName === 'grpSp' ? '' : trim($this->drawingText($child));
+            if ($text !== '' && count($textSamples) < 8) {
+                $textSamples[] = [
+                    'depth' => $depth + 1,
+                    'element' => $child->localName,
+                    'text' => $text,
+                ];
+            }
+
+            foreach ($this->shapeRelationshipReviews($child, $slideRelationships) as $relationshipReview) {
+                $relationshipId = (string) ($relationshipReview['relationshipId'] ?? '');
+                if ($relationshipId === '' || in_array($relationshipId, $relationshipIds, true)) {
+                    continue;
+                }
+                $relationshipIds[] = $relationshipId;
+                if (count($relationshipReviews) < 16) {
+                    $relationshipReviews[] = $relationshipReview;
+                }
+            }
+
+            $this->collectGroupedShapeReview(
+                $child,
+                $depth + 1,
+                $slideRelationships,
+                $countsByElement,
+                $textSamples,
+                $relationshipReviews,
+                $relationshipIds,
+                $descendantShapeCount
+            );
+        }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function groupedShapeChildReview(\DOMElement $shapeElement, int $depth): array
+    {
+        $review = [
+            'depth' => $depth,
+            'element' => $shapeElement->localName,
+        ];
+
+        $properties = $this->nonVisualDrawingProperties($shapeElement);
+        if ($properties instanceof \DOMElement) {
+            foreach (['id', 'name', 'descr', 'title'] as $attribute) {
+                $value = $properties->getAttribute($attribute);
+                if ($value !== '') {
+                    $review[$attribute] = $value;
+                }
+            }
+        }
+
+        $text = $shapeElement->localName === 'grpSp' ? '' : trim($this->drawingText($shapeElement));
+        if ($text !== '') {
+            $review['text'] = $text;
+        }
+
+        if ($shapeElement->localName === 'grpSp') {
+            $childCount = 0;
+            foreach ($this->childElements($shapeElement, null) as $child) {
+                if ($this->isGroupedShapeDrawable($child)) {
+                    $childCount++;
+                }
+            }
+            $review['directChildShapeCount'] = $childCount;
+        }
+
+        return $review;
+    }
+
+    private function isGroupedShapeDrawable(\DOMElement $element): bool
+    {
+        return $element->namespaceURI === self::PRESENTATION_NAMESPACE
+            && in_array($element->localName, ['sp', 'pic', 'graphicFrame', 'grpSp', 'cxnSp', 'contentPart'], true);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function shapeRelationshipReviews(\DOMElement $shapeElement, OpcRelationships $slideRelationships): array
+    {
+        $reviews = [];
+        $seen = [];
+        foreach ($shapeElement->getElementsByTagName('*') as $element) {
+            if (!$element instanceof \DOMElement) {
+                continue;
+            }
+
+            foreach (['embed', 'link', 'id'] as $relationshipAttribute) {
+                $relationshipId = $this->relationshipId($element, $relationshipAttribute);
+                if ($relationshipId === '' || isset($seen[$relationshipId])) {
+                    continue;
+                }
+                $seen[$relationshipId] = true;
+
+                $review = [
+                    'relationshipId' => $relationshipId,
+                    'relationshipAttribute' => $relationshipAttribute,
+                    'sourceElement' => $element->localName,
+                    'relationshipFound' => false,
+                ];
+                $relationship = $slideRelationships->byId($relationshipId);
+                if ($relationship instanceof OpcRelationship) {
+                    $review['relationshipFound'] = true;
+                    $review['relationshipType'] = $relationship->type;
+                    $review['target'] = $relationship->target;
+                    $review['external'] = $relationship->isExternal();
+                    if (!$relationship->isExternal()) {
+                        $partName = $this->reviewRelationshipPart($slideRelationships, $relationship);
+                        if ($partName !== null) {
+                            $review['partName'] = ltrim($partName, '/');
+                        }
+                    }
+                }
+                $reviews[] = $review;
+            }
+        }
+
+        return $reviews;
     }
 
     private function isDrawableShapeElement(\DOMElement $element, ?string $presentationNamespace): bool

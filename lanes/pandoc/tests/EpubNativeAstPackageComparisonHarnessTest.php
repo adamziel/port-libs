@@ -139,7 +139,7 @@ XML],
     <meta name="schema:accessibilityHazard" content="noFlashingHazard"/>
     <meta property="schema:accessibilitySummary">Generated package accessibility summary.</meta>
     <meta property="dcterms:conformsTo">EPUB Accessibility 1.1 - WCAG 2.1 AA</meta>
-    <link id="review-record" rel="record accessibility-summary" href="review.json" media-type="application/ld+json" properties="accessibility-metadata"/>
+    <link id="review-record" rel="record accessibility-summary" href="review.json?profile=accessibility#summary" media-type="application/ld+json;profile=schema-a11y" properties="accessibility-metadata"/>
   </metadata>
   <manifest>
     <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
@@ -304,6 +304,14 @@ return [
             $t->same(1, $summary['metadataCreatorCount']);
             $t->same(1, $summary['packageLinkCount']);
             $t->same(['accessibility-summary' => 1, 'record' => 1], $summary['packageLinkRelCounts']);
+            $t->same(1, $summary['packageLinkMediaTypeCount']);
+            $t->same(['application/ld+json' => 1], $summary['packageLinkMediaTypeCounts']);
+            $t->same(1, $summary['packageLinkMediaTypeParameterCount']);
+            $t->same(['profile' => 1], $summary['packageLinkMediaTypeParameterNameCounts']);
+            $t->same(1, $summary['linkHrefSuffixCount']);
+            $t->same(1, $summary['linkHrefSuffixQueryCount']);
+            $t->same(1, $summary['linkHrefSuffixFragmentCount']);
+            $t->same(['package-link' => 1], $summary['linkHrefSuffixSourceCounts']);
             $t->same(true, $summary['accessibilityPresent']);
             $t->same(6, $summary['accessibilityEntryCount']);
             $t->same([
@@ -373,6 +381,9 @@ return [
             $t->same(['landmarks', 'loi', 'page-list', 'toc'], $coverage['navigationSectionTypes']);
             $t->same(['text' => 1], $coverage['guideReferenceTypeCounts']);
             $t->same(['accessibility-summary' => 1, 'record' => 1], $coverage['packageLinkRelCounts']);
+            $t->same(['application/ld+json' => 1], $coverage['packageLinkMediaTypeCounts']);
+            $t->same(['profile' => 1], $coverage['packageLinkMediaTypeParameterNameCounts']);
+            $t->same(['package-link' => 1], $coverage['linkHrefSuffixSourceCounts']);
             $t->same([
                 'accessMode' => 2,
                 'accessibilityFeature' => 1,
@@ -405,6 +416,8 @@ return [
             ], $coverage['fixtureFeatureSignatures']);
             $t->same(['generated-navigation'], $coverage['fixturesWithGuideReferences']);
             $t->same(['generated-navigation'], $coverage['fixturesWithPackageLinks']);
+            $t->same(['generated-navigation'], $coverage['fixturesWithPackageLinkMediaTypeParameters']);
+            $t->same(['generated-navigation'], $coverage['fixturesWithLinkHrefSuffixes']);
             $t->same(['generated-navigation'], $coverage['fixturesWithAccessibilityMetadata']);
             $t->same(['generated-navigation'], $coverage['fixturesWithCreators']);
             $t->same([], $coverage['fixturesWithEncryption']);
@@ -442,6 +455,11 @@ return [
                 'pageListEntries' => 1,
                 'auxiliaryNavigationEntries' => 1,
                 'packageLinks' => 1,
+                'packageLinkMediaTypeItems' => 1,
+                'packageLinkMediaTypeParameters' => 1,
+                'linkHrefSuffixes' => 1,
+                'linkHrefSuffixQueries' => 1,
+                'linkHrefSuffixFragments' => 1,
                 'guideReferences' => 1,
                 'accessibilityEntries' => 6,
                 'accessibilityLinkedRecords' => 1,
@@ -515,6 +533,18 @@ return [
                 $decoded['packageFeatureCoverage']['packageLinkRelCounts']
             );
             $t->same(
+                ['application/ld+json' => 1],
+                $decoded['packageFeatureCoverage']['packageLinkMediaTypeCounts']
+            );
+            $t->same(
+                ['profile' => 1],
+                $decoded['packageFeatureCoverage']['packageLinkMediaTypeParameterNameCounts']
+            );
+            $t->same(
+                ['package-link' => 1],
+                $decoded['packageFeatureCoverage']['linkHrefSuffixSourceCounts']
+            );
+            $t->same(
                 [
                     'accessMode' => 2,
                     'accessibilityFeature' => 1,
@@ -525,6 +555,8 @@ return [
                 $decoded['packageFeatureCoverage']['accessibilityPropertyCounts']
             );
             $t->same(['generated-navigation'], $decoded['packageFeatureCoverage']['fixturesWithAccessibilityMetadata']);
+            $t->same(['generated-navigation'], $decoded['packageFeatureCoverage']['fixturesWithPackageLinkMediaTypeParameters']);
+            $t->same(['generated-navigation'], $decoded['packageFeatureCoverage']['fixturesWithLinkHrefSuffixes']);
             $t->same(['generated-navigation'], $decoded['packageFeatureCoverage']['fixturesWithManifestFallbackItems']);
             $t->same([], $decoded['packageFeatureCoverage']['fixturesWithResolvedManifestFallbacks']);
             $t->same([], $decoded['packageFeatureCoverage']['fixturesWithUsableManifestFallbacks']);
@@ -542,6 +574,8 @@ return [
             );
             $t->same(['generated-navigation'], $decoded['packageFeatureCoverage']['fixturesWithCreators']);
             $t->same(1, $decoded['packageFeatureCoverage']['totals']['metadataCreators']);
+            $t->same(1, $decoded['packageFeatureCoverage']['totals']['packageLinkMediaTypeParameters']);
+            $t->same(1, $decoded['packageFeatureCoverage']['totals']['linkHrefSuffixes']);
             $t->same(6, $decoded['packageFeatureCoverage']['totals']['accessibilityEntries']);
             $t->same(1, $decoded['packageFeatureCoverage']['totals']['accessibilityLinkedRecords']);
             $t->same(0, $decoded['packageFeatureCoverage']['totals']['mediaOverlays']);
@@ -924,8 +958,8 @@ return [
                 'bytes' => 844,
             ],
             'metadata-search-link-semantics.epub' => [
-                'sha256' => '23de9c3376484fc45494dc5aee3c6da0dfc6e9b6ff8197933cec1e4d399434e4',
-                'bytes' => 1868,
+                'sha256' => '02d2f49316abf1e2f2abc8f6959090dc891e24857b849297201782918cca3a3f',
+                'bytes' => 1892,
             ],
             'metadata-search-link-semantics.native' => [
                 'sha256' => '8e78383af179a9392bdc99d397444133b2423163663cfdc41e4e24583c68cd48',
@@ -1234,6 +1268,19 @@ return [
                 'preview' => 3,
                 'record' => 9,
                 'search' => 1,
+            ],
+            'packageLinkMediaTypeCounts' => [
+                'application/json' => 8,
+                'application/ld+json' => 1,
+                'application/opensearchdescription+xml' => 1,
+                'text/html' => 1,
+            ],
+            'packageLinkMediaTypeParameterNameCounts' => [
+                'profile' => 1,
+            ],
+            'linkHrefSuffixSourceCounts' => [
+                'collection-link' => 2,
+                'package-link' => 1,
             ],
             'accessibilityPropertyCounts' => [
                 'accessMode' => 2,
@@ -2149,6 +2196,13 @@ return [
                 'wasteland',
                 'xhtml-ruby-table-mark',
             ],
+            'fixturesWithPackageLinkMediaTypeParameters' => [
+                'metadata-search-link-semantics',
+            ],
+            'fixturesWithLinkHrefSuffixes' => [
+                'bindings-collections-sidecars',
+                'metadata-search-link-semantics',
+            ],
             'fixturesWithAccessibilityMetadata' => [
                 'accessibility-metadata-package',
                 'xhtml-ruby-table-mark',
@@ -2363,6 +2417,11 @@ return [
                 'pageListEntries' => 12,
                 'auxiliaryNavigationEntries' => 7,
                 'packageLinks' => 14,
+                'packageLinkMediaTypeItems' => 11,
+                'packageLinkMediaTypeParameters' => 1,
+                'linkHrefSuffixes' => 3,
+                'linkHrefSuffixQueries' => 1,
+                'linkHrefSuffixFragments' => 3,
                 'guideReferences' => 19,
                 'accessibilityEntries' => 7,
                 'accessibilityLinkedRecords' => 1,
@@ -2397,8 +2456,8 @@ return [
                 'ocfSidecars' => 4,
             ],
         ];
-        $expectedPackageFeatureSignatureSha256 = 'a79f6fedf7c95563c1361089710c982512356e7c366139bf4fa69b594d55f63d';
-        $expectedCurrentNativeAstSignatureSha256 = 'e97a9088a90298b1565cec2ff6af0cf671aa91e3b53bc82ac6367968b9ff5b8c';
+        $expectedPackageFeatureSignatureSha256 = '96ed1b67092db90f74aca44dd20ad923785473466a7c0a0e4d2c4017a7d740da';
+        $expectedCurrentNativeAstSignatureSha256 = 'ffd91cfc066cf7daccc223a09e44623efafcfed57a1697b2accb3eb34f2a3acf';
         $expectedCurrentNativeAstFixtures = [
             'accessibility-metadata-package',
             'all-nonlinear-spine',
@@ -3208,6 +3267,7 @@ return [
         $t->contains('resourceKinds=asset:12,audio:4,cover-image:3,font:1,image:18,media-overlay:1,navigation:54,script:1,style:23,svg:1,video:2,xhtml:77', $text);
         $t->contains('guideRefTypes=bibliography:1,cover:3,glossary:1,index:1,notes:1,preface:1,text:9,title-page:1,toc:1', $text);
         $t->contains('packageLinkRels=accessibility-summary:1,alternate:2,cc:attributionURL:1,cc:license:2,preview:3,record:9,search:1', $text);
+        $t->contains('packageLinkMediaTypes=application/json:8,application/ld+json:1,application/opensearchdescription+xml:1,text/html:1 packageLinkParamFixtures=1 packageLinkParams=1 packageLinkParamNames=profile:1 linkHrefSuffixFixtures=2 linkHrefSuffixes=3 linkHrefSuffixSources=collection-link:2,package-link:1 linkHrefQueries=1 linkHrefFragments=3', $text);
         $t->contains('remoteManifest=4 externalManifest=4 missingLocalManifest=1 manifestFallbackItems=13 manifestFallbacks=5 resolvedFallbacks=4 usableFallbacks=4 missingFallbacks=9', $text);
         $t->contains('mediaOverlayFixtures=2 resolvedMediaOverlayFixtures=1 mediaOverlays=2 resolvedMediaOverlays=1 mediaOverlayTextTargets=1 mediaOverlayAudioTargets=1 mediaOverlayDurations=3', $text);
         $t->contains('encryptionFixtures=3 obfuscatedFontFixtures=3 blockedEncryptedByteExposureFixtures=3 encryptionItems=3 obfuscatedFonts=3 blockedEncryptedByteExposures=3 encryptionDiagnostics=6 encryptionRoles=font:3', $text);

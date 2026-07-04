@@ -3885,6 +3885,7 @@ XML, strlen($chapter1Xhtml), strlen($unmanifestedBytes));
         $t->same('manifest', $report['items'][1]['mediaTypeSource']);
         $t->same('broken-media-type', $report['parameterItems'][2]['id']);
         $t->same(['invalid-package-link-media-type-parameter', 'duplicate-package-link-media-type-parameter'], array_column($report['diagnostics'], 'type'));
+        $t->same($report, $epub->packageLinkMediaTypes());
         $t->same($report, $summary['metadata']['linkMediaTypes']);
         $t->same($report, $summary['wordpressImport']['packageLinkMediaTypes']);
         $t->same($report['parameterItems'], $summary['wordpressImport']['packageLinkMediaTypeParameterItems']);
@@ -4063,6 +4064,7 @@ XML;
         $t->same('supplement', $report['items'][4]['collectionRole']);
         $t->same(true, $report['items'][4]['external']);
         $t->same('collection-remote', $report['itemsBySource']['collection-link'][2]['id']);
+        $t->same($report, $epub->linkHrefSuffixes());
         $t->same($report, $summary['wordpressImport']['linkHrefSuffixes']);
         $t->same($report['items'], $summary['wordpressImport']['linkHrefSuffixItems']);
     },
