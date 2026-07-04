@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 48;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 49;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '17f3e106864b138fbdba72ae5374f6ce0c90368da206b3afcb6e45b428604a27';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 9914;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '0ab3f8c0a957e85007ddd70b32ebb1870d435c657713db473f1c592a9a87c952';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 10107;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -546,6 +546,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => 'be9e2f1c3a9f5815ea6cc86debe2ff081a4666931dd2e48c32245cd3de40cd9f',
             'pptxBytes' => 1520,
             'nativeBytes' => 118,
+        ],
+        'pandoc-generated-image-alt-title' => [
+            'name' => 'pandoc 3.10 generated image title and alt parity',
+            'pptx' => 'pptx-reader/pandoc-generated-image-alt-title.pptx',
+            'native' => 'pptx-reader/pandoc-generated-image-alt-title.native',
+            'pairKey' => 'pptx-reader/pandoc-generated-image-alt-title.pptx|pptx-reader/pandoc-generated-image-alt-title.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/pandoc-generated-image-alt-title.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/pandoc-generated-image-alt-title.native',
+            'pptxSha256' => '8603ee4876a9d3e5dcc713e283fd256b507555e37b5e29bc4eb24e51077df3a6',
+            'nativeSha256' => 'e268004d2c0de80415609e20914e4c949b418cf01b860b58cdb02649badf1136',
+            'pptxBytes' => 28067,
+            'nativeBytes' => 233,
         ],
         'shape-order' => [
             'name' => 'generated plain text shape ordering parity',

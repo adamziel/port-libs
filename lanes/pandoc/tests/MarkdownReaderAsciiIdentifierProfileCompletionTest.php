@@ -67,8 +67,56 @@ return [
             $t->same(['-'], $headingIds('markdown+gfm_auto_identifiers+ascii_identifiers', "# Привет мир\n"));
         },
 
+    'keeps pandoc heading identifier underscores that are literal inline text' =>
+        static function (TestRunner $t) use ($headingIds): void {
+            $source = implode("\n", [
+                '# snake_case heading',
+                '# snake__case__heading',
+                '# snake_case_',
+                '# __dunder__',
+                '# A_B C_D',
+                '',
+            ]);
+            $expected = [
+                'snake_case-heading',
+                'snake__case__heading',
+                'snake_case_',
+                'dunder',
+                'a_b-c_d',
+            ];
+
+            foreach (['markdown', 'markdown+ascii_identifiers', 'gfm', 'commonmark_x'] as $format) {
+                $t->same($expected, $headingIds($format, $source), $format);
+            }
+        },
+
+    'keeps pandoc markdown identifier punctuation and leading trim rules' =>
+        static function (TestRunner $t) use ($headingIds): void {
+            $source = implode("\n", [
+                '# A.B-C! e',
+                '# a_b.c-d e',
+                '# .leading',
+                '# -leading',
+                '# _leading',
+                '# 123 abc',
+                '',
+            ]);
+            $expected = [
+                'a.b-c-e',
+                'a_b.c-d-e',
+                'leading',
+                'leading-1',
+                'leading-2',
+                'abc',
+            ];
+
+            foreach (['markdown', 'markdown+ascii_identifiers'] as $format) {
+                $t->same($expected, $headingIds($format, $source), $format);
+            }
+        },
+
     'records pandoc markdown ascii identifier mapped-case count' =>
         static function (TestRunner $t): void {
-            $t->same(11, 4 + 4 + 2 + 1);
+            $t->same(43, 4 + 4 + 2 + 20 + 12 + 1);
         },
 ];

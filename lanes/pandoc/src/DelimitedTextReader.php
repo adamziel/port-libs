@@ -553,6 +553,7 @@ final class DelimitedTextReader
             &$rowIndex,
             &$fieldStarted,
             &$quotedField,
+            &$inQuotedField,
             &$afterClosingQuote,
             &$afterClosingQuoteWhitespace,
             &$fieldHadQuotedLineBreak,
@@ -573,6 +574,7 @@ final class DelimitedTextReader
                 'sourceByteLength' => $sourceEndOffset - $fieldStartOffset,
                 ...$span,
                 'sourceQuoted' => $quotedField,
+                'sourceQuoteClosed' => !$quotedField || !$inQuotedField,
                 'sourceMultiline' => $fieldHadQuotedLineBreak,
             ];
             if ($quotedField && $fieldHadQuotedLineBreak) {
@@ -1066,9 +1068,14 @@ final class DelimitedTextReader
             : ($originalColumnCount > $columnCount ? 'truncated' : 'unchanged');
         $rowSource = $this->rowSourceFromFieldMetadata($fieldMetadata);
         for ($column = 0; $column < $columnCount; $column++) {
-            $text = $row[$column] ?? '';
+            $sourceText = $row[$column] ?? '';
             $metadata = is_array($fieldMetadata[$column] ?? null) ? $fieldMetadata[$column] : null;
-            $cells[] = new AstNode('table_cell', [
+            $normalizeTrailingLineBreak = $metadata !== null
+                && (bool) ($metadata['sourceQuoted'] ?? false)
+                && (bool) ($metadata['sourceQuoteClosed'] ?? true);
+            $text = $normalizeTrailingLineBreak ? $this->pandocCellText($sourceText) : $sourceText;
+            $inlines = $this->cellInlines($text, $cellLineBreak);
+            $attrs = [
                 'header' => $header,
                 'text' => $text,
                 'sourceColumn' => $column,
@@ -1076,10 +1083,23 @@ final class DelimitedTextReader
                 'repairedColumnCount' => $columnCount,
                 'rowRepair' => $rowRepair,
                 ...$this->cellSourceProvenance($metadata, $rowSource, $column),
-            ], $text === '' ? [] : [new AstNode('plain', [], $this->cellInlines($text, $cellLineBreak))]);
+            ];
+            if ($sourceText !== $text) {
+                $attrs['sourceText'] = $sourceText;
+            }
+            $cells[] = new AstNode('table_cell', $attrs, $inlines === [] ? [] : [new AstNode('plain', [], $inlines)]);
         }
 
         return new AstNode('table_row', ['header' => $header], $cells);
+    }
+
+    private function pandocCellText(string $text): string
+    {
+        if (!str_ends_with($text, "\n")) {
+            return $text;
+        }
+
+        return substr($text, 0, -1);
     }
 
     /**
@@ -1143,6 +1163,7 @@ final class DelimitedTextReader
             'sourceLocationUnit' => (string) ($metadata['sourceLocationUnit'] ?? 'byte-column'),
             'sourceEndOffsetPolicy' => (string) ($metadata['sourceEndOffsetPolicy'] ?? 'exclusive'),
             'sourceQuoted' => (bool) ($metadata['sourceQuoted'] ?? false),
+            'sourceQuoteClosed' => (bool) ($metadata['sourceQuoteClosed'] ?? true),
             'sourceMultiline' => (bool) ($metadata['sourceMultiline'] ?? false),
         ];
     }
@@ -1158,7 +1179,11 @@ final class DelimitedTextReader
 
         $parts = explode("\n", $text);
         if (count($parts) <= 1) {
-            return [new AstNode('text', ['text' => $text])];
+            if (($parts[0] ?? '') === '') {
+                return [];
+            }
+
+            return [new AstNode('text', ['text' => $parts[0]])];
         }
 
         $inlines = [];

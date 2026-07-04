@@ -1,0 +1,9 @@
+[ Header 2 ( "slide-1" , [] , [] ) [ Str "Generated Image" ]
+, Para
+    [ Image
+        ( "" , [] , [] )
+        [ Str "Title Here\n\ndot.png" ]
+        ( "ppt/media/image1.png" , "Picture 1" )
+    ]
+, Para [ Str "Alt text here" ]
+]

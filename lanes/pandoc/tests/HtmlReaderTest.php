@@ -90,6 +90,19 @@ $tests['imports direct pandoc html standalone time fragment as plain'] =
         $t->same(' day', $plain->children[1]->attr('text'));
     };
 
+$tests['imports direct pandoc html standalone keyboard fragment as plain'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-standalone-kbd-inline.html'));
+        $plain = $document->children[0];
+        $kbd = $plain->children[0];
+
+        $t->same('html', $document->attr('sourceFormat'));
+        $t->same(['plain'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same(['span'], array_map(static fn ($node): string => $node->type, $plain->children));
+        $t->same(['kbd'], $kbd->attr('classes'));
+        $t->same('Cmd', $kbd->children[0]->attr('text'));
+    };
+
 $tests['imports upstream html self closing anchor without href as span'] =
     static function (TestRunner $t): void {
         $document = (new HtmlReader())->read('<a name="anchor"/>');

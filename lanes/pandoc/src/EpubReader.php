@@ -124,7 +124,7 @@ final class EpubReader
                 continue;
             }
             $item = $manifest[$idref];
-            $media_type = $this->mediaTypeBase($item['media-type']);
+            $media_type = $item['media-type'];
             if ($this->isAbsoluteUrl($item['href'])) {
                 continue;
             }
@@ -141,7 +141,7 @@ final class EpubReader
                 $children[] = $this->directImageSpineBlock($this->stripUrlQueryAndFragment($item['href']));
                 continue;
             }
-            if (!$this->isReadablePackageXhtml($href, $media_type)) {
+            if (!$this->isReadablePackageXhtml($media_type)) {
                 $children[] = $this->spineMarker($this->spineFilename($item['href']));
                 continue;
             }
@@ -509,9 +509,10 @@ final class EpubReader
             $href = $item['href'];
             $path = $this->rewriteRelativeResourceUrl($href, $base_path);
             $part_path = $this->isAbsoluteUrl($href) ? $path : $this->packagePartPath($href, $base_path);
-            $media_type = strtolower($item['media-type']);
+            $media_type = $item['media-type'];
             $properties = $item['properties'];
             $lower_properties = array_map('strtolower', $properties);
+            $media_type_lower = strtolower($media_type);
 
             $items[] = [
                 'id' => $id,
@@ -520,9 +521,9 @@ final class EpubReader
                 'mediaType' => $item['media-type'],
                 'properties' => $properties,
                 'external' => $this->isAbsoluteUrl($href),
-                'readable' => !$this->isAbsoluteUrl($href) && $this->isReadableSpineItem($part_path, $media_type),
+                'readable' => !$this->isAbsoluteUrl($href) && $this->isReadableSpineItem($media_type),
                 'navigation' => in_array('nav', $lower_properties, true),
-                'ncx' => str_contains($media_type, 'x-dtbncx') || str_ends_with(strtolower($part_path), '.ncx'),
+                'ncx' => str_contains($media_type_lower, 'x-dtbncx') || str_ends_with(strtolower($part_path), '.ncx'),
                 'coverImage' => in_array('cover-image', $lower_properties, true),
             ];
         }
@@ -565,7 +566,7 @@ final class EpubReader
                 'manifestProperties' => is_array($manifest_item) ? $manifest_item['properties'] : [],
                 'missingManifestItem' => !is_array($manifest_item),
                 'external' => $external,
-                'readable' => is_array($manifest_item) && !$external && $this->isReadableSpineItem($part_path, $media_type),
+                'readable' => is_array($manifest_item) && !$external && $this->isReadableSpineItem($media_type),
             ];
         }
 
@@ -1652,25 +1653,20 @@ final class EpubReader
             && !str_starts_with(strtolower($url), 'mailto:');
     }
 
-    private function isReadablePackageXhtml(string $path, string $media_type): bool
+    private function isReadablePackageXhtml(string $media_type): bool
     {
-        $path = strtolower($path);
-        $media_type = $this->mediaTypeBase($media_type);
-
-        return str_contains($media_type, 'html')
-            || str_ends_with($path, '.xhtml')
-            || str_ends_with($path, '.html');
+        return $media_type === 'application/xhtml+xml';
     }
 
-    private function isReadableSpineItem(string $path, string $media_type): bool
+    private function isReadableSpineItem(string $media_type): bool
     {
-        return $this->isReadablePackageXhtml($path, $media_type)
+        return $this->isReadablePackageXhtml($media_type)
             || $this->isDirectSpineImageMediaType($media_type);
     }
 
     private function isDirectSpineImageMediaType(string $media_type): bool
     {
-        return in_array($this->mediaTypeBase($media_type), ['image/gif', 'image/jpeg', 'image/png'], true);
+        return in_array($media_type, ['image/gif', 'image/jpeg', 'image/png'], true);
     }
 
     private function mediaTypeBase(string $media_type): string

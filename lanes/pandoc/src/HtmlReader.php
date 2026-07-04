@@ -311,7 +311,7 @@ final class HtmlReader
     private static function isInlineFragmentStart(string $trimmed): bool
     {
         return preg_match(
-            '/^<(?:a|code|em|samp|span|strong|sub|sup|tt|var)\b/i',
+            '/^<(?:a|code|em|kbd|samp|span|strong|sub|sup|tt|var)\b/i',
             $trimmed
         ) === 1;
     }

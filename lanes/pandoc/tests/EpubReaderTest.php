@@ -734,6 +734,59 @@ XML);
         $t->same(false, str_contains($native, 'Str "Uppercase"'));
         $t->same(false, str_contains($native, 'Str "Invalid"'));
     },
+    'uses exact upstream spine media type dispatch for parameterized xhtml manifest items' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-parameterized-spine-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary EPUB package');
+        }
+        $zip->addFromString('META-INF/container.xml', '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="book-id">
+  <metadata>
+    <dc:identifier id="book-id">book-parameterized-spine</dc:identifier>
+    <dc:title>Parameterized Spine MIME EPUB</dc:title>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml; charset=utf-8"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('OPS/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Skipped Chapter</h1><p>Body should not be read through parameterized MIME dispatch.</p></body></html>');
+        $zip->close();
+
+        try {
+            $document = (new EpubReader())->readEpubFile($path);
+            $meta = $document->attr('meta');
+            $native = (new NativeWriter(['blocksOnly' => true]))->write($document);
+        } finally {
+            @unlink($path);
+        }
+
+        $t->same('Parameterized Spine MIME EPUB', $meta['title']);
+        $t->same(1, count($document->children));
+        $t->same('paragraph', $document->children[0]->type);
+        $t->same('span', $document->children[0]->children[0]->type);
+        $t->same('chapter.xhtml', $document->children[0]->children[0]->attr('id'));
+        $t->same('application/xhtml+xml; charset=utf-8', $meta['epubManifestItems'][0]['mediaType']);
+        $t->same(false, $meta['epubManifestItems'][0]['readable']);
+        $t->same(false, $meta['epubSpineItemRefs'][0]['readable']);
+        $t->same([], $meta['epubReadableResources']);
+        $t->contains('Span ( "chapter.xhtml"', $native);
+        $t->same(false, str_contains($native, 'Str "Skipped"'));
+        $t->same(false, str_contains($native, 'parameterized'));
+    },
     'preserves epub basename marker for unreadable linear spine items' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-unreadable-spine-');
         if ($path === false) {

@@ -1964,9 +1964,9 @@ final class MarkdownReader
         }
 
         $plain = str_replace(["'", "\u{2019}"], '', $plain);
-        $slug = preg_replace('/[^\pL\pN]+/u', '-', $plain) ?? $plain;
+        $slug = $this->pandocMarkdownHeadingIdentifier($plain);
 
-        return trim($slug, '-');
+        return preg_replace('/^[^\pL]+/u', '', $slug) ?? $slug;
     }
 
     private function headingIdentifierEmojiAliasesEnabled(): bool
@@ -1978,6 +1978,10 @@ final class MarkdownReader
     {
         $filtered = preg_replace('/[^\pZ\h\v\pL\pN_.-]+/u', '', $plain) ?? $plain;
         $words = preg_split('/\s+/u', trim($filtered)) ?: [];
+        $words = array_map(
+            static fn (string $word): string => preg_replace('/^[_.-]+/u', '', $word) ?? $word,
+            $words
+        );
         $words = array_values(array_filter($words, static fn (string $word): bool => $word !== ''));
 
         return implode('-', $words);
@@ -2006,26 +2010,9 @@ final class MarkdownReader
 
     private function plainMarkdownHeadingText(string $text): string
     {
-        $escapedPunctuation = [];
-        $text = preg_replace_callback(
-            '/\\\\([' . preg_quote(self::MARKDOWN_ESCAPABLE_ASCII_PUNCTUATION, '/') . '])/',
-            static function (array $matches) use (&$escapedPunctuation): string {
-                $token = "\x1FMDHEADINGPUNCT" . count($escapedPunctuation) . "\x1F";
-                $escapedPunctuation[$token] = (string) $matches[1];
+        $plain = $this->paragraphTextFromInlines($this->parseInlines($text));
 
-                return $token;
-            },
-            $text
-        ) ?? $text;
-        $text = preg_replace('/!\[([^\]]*)\]\([^)]+\)/', '$1', $text) ?? $text;
-        $text = preg_replace('/\[([^\]]+)\]\([^)]+\)/', '$1', $text) ?? $text;
-        $text = preg_replace('/`+([^`]*)`+/', '$1', $text) ?? $text;
-        $text = str_replace(['*', '_', '~', '^'], '', $text);
-        if ($escapedPunctuation !== []) {
-            $text = strtr($text, $escapedPunctuation);
-        }
-
-        return $this->decodeHtmlEntities(trim($text));
+        return trim(preg_replace('/\s+/u', ' ', $plain) ?? $plain);
     }
 
     /**
