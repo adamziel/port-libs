@@ -325,7 +325,6 @@ final class HtmlReader
 
         $trimmed = ltrim($bytes);
         $isDocument = preg_match('/^(?:<!doctype\b|<html\b)/i', $trimmed) === 1;
-        $bytes = self::repairModernParagraphBlockOpeners($bytes);
 
         try {
             if ($isDocument) {
@@ -374,21 +373,6 @@ final class HtmlReader
             && strtolower($node->localName) === 'p'
             && !$node->hasAttributes()
             && trim($node->textContent) === '';
-    }
-
-    private static function repairModernParagraphBlockOpeners(string $bytes): string
-    {
-        if (preg_match('/<(?:center|dialog|dir|hgroup|menu|search|summary)\b/i', $bytes) !== 1) {
-            return $bytes;
-        }
-
-        $repaired = preg_replace(
-            '/(<p\b[^>]*>(?:(?!<\/p\s*>).)*?)(<(?:(?:center|dialog|dir|hgroup|menu|search|summary))\b)/is',
-            '$1</p>$2',
-            $bytes
-        );
-
-        return is_string($repaired) ? $repaired : $bytes;
     }
 
     private static function repairParagraphButtonScopeBoundaries(string $bytes): string
