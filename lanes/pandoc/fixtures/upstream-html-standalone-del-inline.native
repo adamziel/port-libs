@@ -1,4 +1,4 @@
-[ Para
+[ Plain
     [ Strikeout [ Str "Remove" , Space , Str "deprecated" , Space , Str "shortcode" ]
     , Space
     , Str "and"

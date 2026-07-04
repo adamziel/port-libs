@@ -18720,6 +18720,29 @@ XML);
         $t->true(!str_contains($native, 'Ask about migration risks'), 'PPTX notesSlide text should stay out of visible native output');
     },
 
+    'keeps checked-in pptx alternate content choices and fallbacks hidden like upstream' => static function (TestRunner $t) use ($nodesOfType): void {
+        $path = dirname(__DIR__) . '/fixtures/upstream-current-pptx-reader/alternate-content-skip.pptx';
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException("Unable to read {$path}");
+        }
+
+        $document = (new PptxReader())->read($bytes);
+        $review = $document->attr('pptx');
+        $native = PandocConverter::write($document, 'native');
+        $paragraphTexts = array_map(static fn (AstNode $paragraph): string => (string) $paragraph->attr('text'), $nodesOfType($document, 'paragraph'));
+
+        $t->same('AlternateContent skip deck', $document->children[0]->attr('text'));
+        $t->same(['Visible before alternate content', 'Visible after alternate content'], $paragraphTexts);
+        $t->same(3, $review['slides'][0]['blockCount'] ?? null);
+        $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
+        $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "AlternateContent" , Space , Str "skip" , Space , Str "deck" ]', $native);
+        $t->contains('Para [ Str "Visible" , Space , Str "before" , Space , Str "alternate" , Space , Str "content" ]', $native);
+        $t->contains('Para [ Str "Visible" , Space , Str "after" , Space , Str "alternate" , Space , Str "content" ]', $native);
+        $t->true(!str_contains($native, 'Choice content hidden'), 'mc:Choice shapes should stay hidden with the current upstream PPTX reader');
+        $t->true(!str_contains($native, 'Fallback content hidden'), 'mc:Fallback shapes should stay hidden with the current upstream PPTX reader');
+    },
+
     'keeps checked-in pptx rich media placeholders out of visible output with diagnostics' => static function (TestRunner $t) use ($nodesOfType): void {
         $path = dirname(__DIR__) . '/fixtures/upstream-current-pptx-reader/rich-media-skip.pptx';
         $bytes = file_get_contents($path);

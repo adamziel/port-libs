@@ -1254,7 +1254,7 @@ final class EpubReader
     ): AstNode {
         $attrs = in_array($node->type, ['blockquote', 'definition_list'], true)
             ? []
-            : $this->fixEpubNodeAttrs($node->attrs, $filename);
+            : $this->fixEpubNodeAttrs($node->attrs, $filename, $this->shouldPrefixEpubNodeId($node->type));
         if ($node->type === 'list_item') {
             unset($attrs['text']);
         }
@@ -1343,7 +1343,7 @@ final class EpubReader
     /**
      * @return array<string, mixed>
      */
-    private function fixEpubNodeAttrs(array $attrs, string $filename): array
+    private function fixEpubNodeAttrs(array $attrs, string $filename, bool $prefix_id): array
     {
         unset($attrs['htmlAttributes']);
 
@@ -1369,7 +1369,7 @@ final class EpubReader
             $attrs['attributes'] = $attributes;
         }
 
-        if (isset($attrs['id']) && is_string($attrs['id']) && $attrs['id'] !== '') {
+        if ($prefix_id && isset($attrs['id']) && is_string($attrs['id']) && $attrs['id'] !== '') {
             $attrs['id'] = $this->prefixedEpubId($filename, $attrs['id']);
         }
 
@@ -1397,6 +1397,11 @@ final class EpubReader
         }
 
         return $attrs;
+    }
+
+    private function shouldPrefixEpubNodeId(string $type): bool
+    {
+        return in_array($type, ['code', 'code_block', 'div', 'heading', 'link', 'span'], true);
     }
 
     /**

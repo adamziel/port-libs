@@ -1,0 +1,7 @@
+[ Header
+    2
+    ( "slide-1" , [] , [] )
+    [ Str "AlternateContent skip deck" ]
+, Para [ Str "Visible before alternate content" ]
+, Para [ Str "Visible after alternate content" ]
+]

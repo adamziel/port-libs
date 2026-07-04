@@ -163,6 +163,36 @@ $tests['imports direct pandoc html standalone underline fragment as plain'] =
         $t->same('review', $underline->children[1]->children[0]->attr('text'));
     };
 
+$tests['imports direct pandoc html standalone semantic inline fragments as plain'] =
+    static function (TestRunner $t): void {
+        $cases = [
+            '<abbr title="Hypertext">HTML</abbr>' => ['span', 'HTML', ['abbr']],
+            '<b>bold</b>' => ['strong', 'bold', []],
+            '<i>italics</i>' => ['emph', 'italics', []],
+            '<small>fine print</small>' => ['span', 'fine print', ['small']],
+            '<dfn>term</dfn>' => ['span', 'term', ['dfn']],
+            '<del>old</del>' => ['strikeout', 'old', []],
+            '<ins>new</ins>' => ['underline', 'new', []],
+            '<s>gone</s>' => ['strikeout', 'gone', []],
+            '<strike>gone</strike>' => ['strikeout', 'gone', []],
+        ];
+
+        foreach ($cases as $html => [$expectedType, $expectedText, $expectedClasses]) {
+            $document = (new HtmlReader())->read($html);
+            $plain = $document->children[0];
+            $inline = $plain->children[0];
+
+            $t->same(['plain'], array_map(static fn ($node): string => $node->type, $document->children), $html);
+            $t->same([$expectedType], array_map(static fn ($node): string => $node->type, $plain->children), $html);
+            $t->same($expectedText, $plain->attr('text'), $html);
+            $t->same($expectedText, $inline->children[0]->attr('text'), $html);
+            $t->same($expectedClasses, $inline->attr('classes', []), $html);
+        }
+
+        $abbr = (new HtmlReader())->read('<abbr title="Hypertext">HTML</abbr>')->children[0]->children[0];
+        $t->same('Hypertext', $abbr->attr('attributes')['title'] ?? null);
+    };
+
 $tests['imports direct pandoc html standalone bdo mark q fragment as plain'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-standalone-bdo-mark-q-inline.html'));

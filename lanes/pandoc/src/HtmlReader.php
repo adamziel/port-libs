@@ -469,14 +469,14 @@ final class HtmlReader
     private static function isInlineFragmentStart(string $trimmed): bool
     {
         return preg_match(
-            '/^<(?:a|bdo|code|em|kbd|mark|q|samp|span|strong|sub|sup|tt|u|var)\b/i',
+            '/^<(?:a|abbr|b|bdo|code|dfn|em|i|kbd|mark|q|s|samp|small|span|strike|strong|sub|sup|tt|u|var)\b/i',
             $trimmed
         ) === 1;
     }
 
     private static function isTransparentInlineFragmentStart(string $trimmed): bool
     {
-        return preg_match('/^<(?:bdi|data|meter)\b/i', $trimmed) === 1;
+        return preg_match('/^<(?:bdi|data|del|ins|meter)\b/i', $trimmed) === 1;
     }
 
     private static function htmlBlockContainerPattern(): string

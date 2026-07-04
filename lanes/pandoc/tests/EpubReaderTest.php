@@ -1263,6 +1263,69 @@ HTML);
         $t->contains('href="#chapter%201.xhtml_opening"', $blocks);
         $t->same(false, str_contains($blocks, 'chapter%25201.xhtml'));
     },
+    'keeps epub image element ids unprefixed while prefixing upstream attr-bearing references' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-image-id-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary EPUB package');
+        }
+        $zip->addFromString('META-INF/container.xml', '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf" xmlns:dc="http://purl.org/dc/elements/1.1/" version="3.0">
+  <metadata>
+    <dc:title>Image Id EPUB</dc:title>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="pixel" href="images/pixel.png" media-type="image/png"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('OPS/chapter.xhtml', <<<'HTML'
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <body>
+    <h1 id="top">Image Id EPUB</h1>
+    <p><img id="fig1" class="inline-art" src="images/pixel.png" alt="Pixel"/></p>
+  </body>
+</html>
+HTML);
+        $pixel = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=');
+        if (!is_string($pixel)) {
+            throw new RuntimeException('Unable to decode image fixture bytes');
+        }
+        $zip->addFromString('OPS/images/pixel.png', $pixel);
+        $zip->close();
+
+        try {
+            $document = (new EpubReader())->readEpubFile($path);
+            $meta = $document->attr('meta');
+            $native = (new NativeWriter(['blocksOnly' => true]))->write($document);
+        } finally {
+            @unlink($path);
+        }
+
+        $heading = $document->children[1] ?? new PortLibs\Pandoc\AstNode('missing');
+        $image = $document->children[2]->children[0] ?? new PortLibs\Pandoc\AstNode('missing');
+        $t->same('heading', $heading->type);
+        $t->same('chapter.xhtml_top', $heading->attr('id'));
+        $t->same('image', $image->type);
+        $t->same('fig1', $image->attr('id'));
+        $t->same(['inline-art'], $image->attr('classes'));
+        $t->same('images/pixel.png', $image->attr('url'));
+        $t->same(['OPS/images/pixel.png'], $meta['epubMediaBagResources']);
+        $t->same(['epub-media-resource-loaded:OPS/images/pixel.png'], $meta['epubMediaResourceDiagnostics']);
+        $t->contains('Header 1 ( "chapter.xhtml_top"', $native);
+        $t->contains('Image ( "fig1" , [ "inline-art" ]', $native);
+        $t->same(false, str_contains($native, 'chapter.xhtml_fig1'));
+    },
     'preserves external epub noteref link class when note body is outside linear spine' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-external-noteref-');
         if ($path === false) {

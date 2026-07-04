@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 52;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 53;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '6e812c3d34e08bf9ed1d0203d6884124a7af2f5137704449895dc3dfa9946a67';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 26227;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '5bbff786b0c4c5d60d3b5183cea89f0a9df27b37d0afe7ea01b03ed1323a2d8d';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 26686;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -54,6 +54,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => '42804b9b1954094a4b0ff0be20084e2e6d9bc0a84272f34f7f219f82505da6b4',
             'pptxBytes' => 111674,
             'nativeBytes' => 3966,
+        ],
+        'alternate-content-skip' => [
+            'name' => 'generated alternate content wrapper skip parity',
+            'pptx' => 'pptx-reader/alternate-content-skip.pptx',
+            'native' => 'pptx-reader/alternate-content-skip.native',
+            'pairKey' => 'pptx-reader/alternate-content-skip.pptx|pptx-reader/alternate-content-skip.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/alternate-content-skip.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/alternate-content-skip.native',
+            'pptxSha256' => 'f84d950060c44f8f0b85ed15f29c5760c49aaf445b101806d70711507c93a194',
+            'nativeSha256' => 'd067f8fa32d162f9bc33280c7bc4b725fb1543b454861b7f61e31ef2a18acea1',
+            'pptxBytes' => 1534,
+            'nativeBytes' => 185,
         ],
         'body-before-title' => [
             'name' => 'generated body-before-title placeholder ordering parity',

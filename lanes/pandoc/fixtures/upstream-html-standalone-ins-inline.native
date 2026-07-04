@@ -1,4 +1,4 @@
-[ Para
+[ Plain
     [ Underline [ Str "Inserted" , Space , Str "review" , Space , Str "note" ]
     , Space
     , Str "remains"
