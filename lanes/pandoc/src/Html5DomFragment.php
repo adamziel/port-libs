@@ -374,7 +374,9 @@ final class Html5DomFragment
         $source = '<html><head><meta charset="UTF-8"></head><body><div data-pandoc-fragment-root="1">'
             . XmlHtmlDom::protectHtmlRcdataElements($html)
             . '</div></body></html>';
-        // Keep table-scope and multiline fragments on the provenance-preserving path.
+        // PHP exposes HTML5 tree construction for full documents, not
+        // context-aware table fragments; multiline sanitizer fragments keep
+        // the provenance-preserving path for source-line diagnostics.
         if (!self::hasHtmlTableScopeElement($html) && !self::hasLineBreak($html)) {
             $source = Html5Dom::treeConstructedHtmlSource($source) ?? $source;
         }
@@ -406,7 +408,94 @@ final class Html5DomFragment
 
     private static function hasHtmlTableScopeElement(string $html): bool
     {
-        return preg_match('/<(?:caption|col|colgroup|table|tbody|td|tfoot|th|thead|tr)\b/i', $html) === 1;
+        foreach (self::htmlStartTagNames($html) as $name) {
+            if (isset(self::HTML5_TABLE_ALLOWED_CHILDREN[$name])) {
+                return true;
+            }
+            if (in_array($name, ['caption', 'col', 'td', 'th'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function htmlStartTagNames(string $html): array
+    {
+        $names = [];
+        $offset = 0;
+        $length = strlen($html);
+        while ($offset < $length) {
+            $tagStart = strpos($html, '<', $offset);
+            if ($tagStart === false || $tagStart + 1 >= $length) {
+                break;
+            }
+
+            if (str_starts_with(substr($html, $tagStart, 4), '<!--')) {
+                $commentEnd = strpos($html, '-->', $tagStart + 4);
+                $offset = $commentEnd === false ? $length : $commentEnd + 3;
+                continue;
+            }
+
+            if (str_starts_with(substr($html, $tagStart, 9), '<![CDATA[')) {
+                $cdataEnd = strpos($html, ']]>', $tagStart + 9);
+                $offset = $cdataEnd === false ? $length : $cdataEnd + 3;
+                continue;
+            }
+
+            $next = $html[$tagStart + 1];
+            if ($next === '/' || $next === '!' || $next === '?') {
+                $offset = $tagStart + 2;
+                continue;
+            }
+
+            $nameEnd = $tagStart + 1;
+            while ($nameEnd < $length && self::isHtmlTagNameChar($html[$nameEnd])) {
+                ++$nameEnd;
+            }
+            if ($nameEnd > $tagStart + 1) {
+                $names[] = strtolower(substr($html, $tagStart + 1, $nameEnd - $tagStart - 1));
+            }
+
+            $tagEnd = self::htmlTagSourceEndOffset($html, $tagStart);
+            $offset = $tagEnd === null ? $nameEnd : $tagEnd + 1;
+        }
+
+        return $names;
+    }
+
+    private static function htmlTagSourceEndOffset(string $html, int $start): ?int
+    {
+        $quote = null;
+        $length = strlen($html);
+        for ($offset = $start + 1; $offset < $length; ++$offset) {
+            $char = $html[$offset];
+            if ($quote !== null) {
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '>') {
+                return $offset;
+            }
+        }
+
+        return null;
+    }
+
+    private static function isHtmlTagNameChar(string $char): bool
+    {
+        return ctype_alpha($char) || ctype_digit($char) || in_array($char, ['-', ':'], true);
     }
 
     private static function hasLineBreak(string $source): bool

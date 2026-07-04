@@ -35,11 +35,13 @@ return [
 
         $formatting = Html5DomFragment::fromHtml('<b><i>one</b> two</i>');
         $table = Html5DomFragment::fromHtml('<p>Alpha<table><tr><td>Cell</td></tr></table>Omega</p>');
+        $commentedTableText = Html5DomFragment::fromHtml('<!-- <td>not a cell</td> --><b><i>one</b> two</i>');
 
         $t->same('<b><i>one</i></b><i> two</i>', $formatting->serialize());
         $t->same(['b', 'i'], $formatting->summary()['elementNames']);
         $t->same('<p>Alpha</p><table><tr><td>Cell</td></tr></table>Omega', $table->serialize());
         $t->same(['p', 'table', 'td', 'tr'], $table->summary()['elementNames']);
+        $t->same('<!-- <td>not a cell</td> --><b><i>one</i></b><i> two</i>', $commentedTableText->serialize());
     },
     'records fragment source provenance for raw html ast handoff' => static function (TestRunner $t): void {
         $source = "<article>\n"
