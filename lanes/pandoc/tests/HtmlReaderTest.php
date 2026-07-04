@@ -1005,13 +1005,9 @@ $tests['imports html fragment hr variants as horizontal rules'] =
         }
     };
 
-$tests['imports html fragment headings with omitted end tags'] =
-    static function (TestRunner $t): void {
-        $document = (new HtmlReader())->read(<<<'HTML'
-<h1>Title
-<h2>Next <em>heading</em></h2>
-<p>Body.</p>
-HTML);
+$tests['imports direct pandoc html omitted heading end-tag fixture'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-omitted-heading-end-tags.html'));
 
         $t->same(['heading', 'heading', 'paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
         $t->same(1, $document->children[0]->attr('level'));

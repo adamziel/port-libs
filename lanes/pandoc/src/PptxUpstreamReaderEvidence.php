@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 73;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 74;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '746436dee121c820c0a4f295b89b81fe8509aece287a3f7468e1436961de9c93';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 32168;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'e34f25e38d22488d8d8d21f37afe014e7fa300e75d0d00156d519d80d485f918';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 32042;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -702,6 +702,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => '269e2c8b638af9834b52a0ff23c795578f9b21404e27c60d846cf81b3520596a',
             'pptxBytes' => 1897,
             'nativeBytes' => 177,
+        ],
+        'unicode-drawing-text' => [
+            'name' => 'pandoc 3.10 Unicode drawing text parity',
+            'pptx' => 'pptx-reader/unicode-drawing-text.pptx',
+            'native' => 'pptx-reader/unicode-drawing-text.native',
+            'pairKey' => 'pptx-reader/unicode-drawing-text.pptx|pptx-reader/unicode-drawing-text.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/unicode-drawing-text.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/unicode-drawing-text.native',
+            'pptxSha256' => '6bae0a4e7a6ccf8a08a04bb6bfab89f7912b35ef2f2ee0074b886f2383911136',
+            'nativeSha256' => 'd0309729b6886e5c7c8b72813360c1e1a0a88ccc9f6ce2364e8a2a991441c252',
+            'pptxBytes' => 1496,
+            'nativeBytes' => 127,
         ],
         'unknown-graphic-uri' => [
             'name' => 'generated unknown graphicData URI placeholder parity',

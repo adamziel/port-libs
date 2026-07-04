@@ -1,0 +1,7 @@
+[ Header 1 ( "title" , [] , [] ) [ Str "Title" ]
+, Header
+    2
+    ( "next-heading" , [] , [] )
+    [ Str "Next" , Space , Emph [ Str "heading" ] ]
+, Para [ Str "Body." ]
+]

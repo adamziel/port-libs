@@ -7,8 +7,8 @@ The checked-in EPUB reader fixture subset now mirrors the upstream current
 `test/epub` inventory plus generated current-upstream edge fixtures used by
 the local native/package harness:
 
-- 47 EPUB package inputs in `lanes/pandoc/fixtures/upstream-current-epub-reader/epub`
-- 47 same-directory `.native` goldens for every checked-in EPUB package input
+- 48 EPUB package inputs in `lanes/pandoc/fixtures/upstream-current-epub-reader/epub`
+- 48 same-directory `.native` goldens for every checked-in EPUB package input
 
 Imported from the hydrated upstream cache at
 `/Users/admin/port-libs-pandoc-pptx/.upstream-cache/pandoc-full/test/epub`:
@@ -150,14 +150,24 @@ generated with:
 /opt/homebrew/bin/pandoc -f epub -t native -o lanes/pandoc/fixtures/upstream-current-epub-reader/epub/external-footnote-reference.native lanes/pandoc/fixtures/upstream-current-epub-reader/epub/external-footnote-reference.epub
 ```
 
+Added generated `epub3-ncx-toc-fallback.epub` plus its Pandoc 3.10 native
+golden to exercise an EPUB3 package without an EPUB3 nav document, using an
+NCX manifest item bound by `spine toc="ncx"` for table-of-contents fallback
+while preserving two linear XHTML spine items as reading order. The native
+golden was generated with:
+
+```sh
+/opt/homebrew/bin/pandoc -f epub -t native -o lanes/pandoc/fixtures/upstream-current-epub-reader/epub/epub3-ncx-toc-fallback.native lanes/pandoc/fixtures/upstream-current-epub-reader/epub/epub3-ncx-toc-fallback.epub
+```
+
 Verified checked-in gate:
 
 ```sh
-php tools/pandoc-epub-native-ast-package.php --checked-in-fixtures summary --require-package-parity=47 --require-native-readiness=47 --require-mapped-parity=47 --require-fixture-identity --require-current-package-feature-coverage --require-current-package-feature-signature --require-current-native-ast-signature --require-runner-plan
+php tools/pandoc-epub-native-ast-package.php --checked-in-fixtures summary --require-package-parity=48 --require-native-readiness=48 --require-mapped-parity=48 --require-fixture-identity --require-current-package-feature-coverage --require-current-package-feature-signature --require-current-native-ast-signature --require-runner-plan
 ```
 
-Result: `packageParsedCount=47`, `readerParsedCount=47`,
-`nativeParsedCount=47`, `normalizedAstMatchCount=47`, and
+Result: `packageParsedCount=48`, `readerParsedCount=48`,
+`nativeParsedCount=48`, `normalizedAstMatchCount=48`, and
 `normalizedAstMismatchCount=0`.
 
 This continues not to claim upstream Haskell/Tasty runner parity; the harness
