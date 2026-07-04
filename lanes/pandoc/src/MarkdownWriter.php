@@ -4792,17 +4792,29 @@ final class MarkdownWriter
     {
         $inlines = $this->tableCaptionInlines($table);
         $shortCaption = $this->renderTableShortCaptionMarkdown($table);
-        if ($inlines === [] && $shortCaption === '') {
+        $caption = $inlines === []
+            ? $this->renderTableLongCaptionMarkdown($table)
+            : $this->renderBlockInlines($inlines);
+        if ($caption === '' && $shortCaption === '') {
             return '';
         }
 
-        $caption = $this->renderBlockInlines($inlines);
         if ($shortCaption !== '') {
             $caption = '[' . $shortCaption . ']' . ($caption === '' ? '' : ' ' . $caption);
         }
         $attrs = $this->renderAttributesTuple($this->linkAttrTuple($table));
 
         return $caption . ($attrs === '' ? '' : ' ' . $attrs);
+    }
+
+    private function renderTableLongCaptionMarkdown(AstNode $table): string
+    {
+        $blocks = $this->tableCaptionBlocks($table);
+        if ($blocks !== []) {
+            return str_replace("\n", '<br />', $this->renderBlockCollection($blocks));
+        }
+
+        return '';
     }
 
     private function renderTableShortCaptionMarkdown(AstNode $table): string

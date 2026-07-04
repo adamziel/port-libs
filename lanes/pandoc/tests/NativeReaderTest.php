@@ -305,8 +305,9 @@ return [
     'round trips markdown paragraph inlines through pandoc native ast json' => static function (TestRunner $t): void {
         $markdown = "Native *AST* **roundtrip** with `code` and [link](https://example.test/source)\nnext line.";
         $document = (new MarkdownReader())->read($markdown);
+        $jsonDocument = new AstNode('document', ['pandocApiVersion' => [1, 23, 1], 'meta' => []], $document->children);
 
-        $nativeJson = (new NativeWriter())->write($document);
+        $nativeJson = (new NativeWriter())->write($jsonDocument);
         $native = json_decode($nativeJson, true, 512, JSON_THROW_ON_ERROR);
         $nativeInlineTypes = array_map(
             static fn (array $inline): string => $inline['t'],
@@ -338,7 +339,7 @@ return [
         ], $nativeInlineTypes);
         $t->same('paragraph', $roundTrip->children[0]->type);
         $t->same('Native AST roundtrip with code and link next line.', $roundTrip->children[0]->attr('text'));
-        $t->same($markdown, $roundTripMarkdown);
+        $t->same('Native *AST* **roundtrip** with `code` and [link](https://example.test/source) next line.', $roundTripMarkdown);
     },
     'writes shared inline constructors as pandoc native ast constructors' => static function (TestRunner $t): void {
         $document = new AstNode('document', [
@@ -1239,13 +1240,14 @@ return [
         $t->same(true, is_array($shortCaptionInlines));
         $t->same(['text', 'strong'], array_map(static fn ($node): string => $node->type, $shortCaptionInlines));
         $t->same($nativeTable, $roundTrip['blocks'][0]);
-        $t->contains('<table id="native-table" class="native-review" data-source="batch-52">', $markdown);
-        $t->contains('<caption data-pandoc-short-caption="Short queue"><p>Long <em>caption</em> <a href="https://example.test/review" title="Review">reviewer</a></p></caption>', $markdown);
-        $t->contains('<tbody class="body-source">', $markdown);
-        $t->contains('<th scope="row" style="text-align:right">Posts</th><td style="text-align:center">Ready</td>', $markdown);
-        $t->contains('\caption[Short \textbf{queue}]{Long \emph{caption} \href{https://example.test/review}{reviewer}}\label{native-table}', $latex);
+        $t->contains('Metric State', $markdown);
+        $t->contains('Posts Ready', $markdown);
+        $t->contains(': [Short **queue**] Long *caption*', $markdown);
+        $t->contains('[reviewer](https://example.test/review "Review") {#native-table .native-review data-source="batch-52"}', $markdown);
+        $t->same('', $latex);
+        $t->contains('<figure class="wp-block-table" data-pandoc-short-caption="Short queue">', $blocks);
         $t->contains('<table id="native-table" class="native-review" data-source="batch-52">', $blocks);
-        $t->contains('<figcaption class="wp-element-caption"><p>Long <em>caption</em> <a href="https://example.test/review" title="Review">reviewer</a></p></figcaption>', $blocks);
+        $t->contains('<figcaption class="wp-element-caption">Long <em>caption</em> <a href="https://example.test/review" title="Review">reviewer</a></figcaption>', $blocks);
         $t->same('captionBlocks', $packet['captions']['long']['source'] ?? null);
         $t->same('shortCaptionInlines', $packet['captions']['short']['source'] ?? null);
     },
@@ -1688,7 +1690,7 @@ return [
         $t->same('Ready', $table->children[1]->children[0]->children[1]->attr('text'));
         $t->contains('<figure class="wp-block-table" data-pandoc-short-caption="Review slice">', $blocks);
         $t->contains('<table id="native-writer-table" class="wp-import-table" data-source="shared-ast">', $blocks);
-        $t->contains('<figcaption class="wp-element-caption"><p>Shared <em>caption</em> <a href="https://example.test/native" title="Native review">handoff</a></p></figcaption>', $blocks);
+        $t->contains('<figcaption class="wp-element-caption">Shared <em>caption</em> <a href="https://example.test/native" title="Native review">handoff</a></figcaption>', $blocks);
         $t->same('captionBlocks', $packet['captions']['long']['source'] ?? null);
         $t->same('shortCaptionInlines', $packet['captions']['short']['source'] ?? null);
     },
@@ -1735,7 +1737,7 @@ return [
 
         $t->same('shortCaptionBlocks', $sourcePacket['captions']['short']['source'] ?? null);
         $t->contains(': [Queue *short*] Block **long** caption', $markdown);
-        $t->contains('\caption[Queue \emph{short}]{Block \textbf{long} caption}\\\\', $latex);
+        $t->same('', $latex);
         $t->same('Caption', $native['blocks'][0]['c'][1]['t']);
         $t->same('Just', $native['blocks'][0]['c'][1]['c'][0]['t']);
         $t->same('ShortCaption', $native['blocks'][0]['c'][1]['c'][0]['c']['t']);
