@@ -49,6 +49,7 @@ final class HtmlReader
             $children = self::stripHtmlRawInlineWrappers($children);
             $attrs = $document->attrs;
         }
+        $children = self::restoreHtmlTableBodyRowHeadColumns($children);
         $meta = $attrs['meta'] ?? [];
         if (!is_array($meta)) {
             $meta = [];
@@ -703,6 +704,106 @@ final class HtmlReader
     private static function paragraphToPlain(AstNode $paragraph): AstNode
     {
         return new AstNode('plain', $paragraph->attrs, $paragraph->children);
+    }
+
+    /**
+     * @param list<AstNode> $children
+     * @return list<AstNode>
+     */
+    private static function restoreHtmlTableBodyRowHeadColumns(array $children): array
+    {
+        $restored = [];
+        foreach ($children as $child) {
+            $nestedChildren = self::restoreHtmlTableBodyRowHeadColumns($child->children);
+            $attrs = $child->attrs;
+            if ($child->type === 'table_body' && !array_key_exists('rowHeadColumns', $attrs)) {
+                $rowHeadColumns = self::htmlTableBodyRowHeadColumns($nestedChildren);
+                if ($rowHeadColumns > 0) {
+                    $attrs['rowHeadColumns'] = $rowHeadColumns;
+                }
+            }
+
+            $restored[] = new AstNode($child->type, $attrs, $nestedChildren);
+        }
+
+        return $restored;
+    }
+
+    /**
+     * @param list<AstNode> $rows
+     */
+    private static function htmlTableBodyRowHeadColumns(array $rows): int
+    {
+        $rowCounts = [];
+        $activeRowspans = [];
+
+        foreach ($rows as $row) {
+            if ($row->type !== 'table_row') {
+                continue;
+            }
+
+            $rowSlots = [];
+            $nextActiveRowspans = [];
+            foreach ($activeRowspans as $column => $cover) {
+                $remaining = max(0, (int) ($cover['remaining'] ?? 0));
+                if ($remaining <= 0) {
+                    continue;
+                }
+
+                $rowSlots[(int) $column] = (bool) ($cover['header'] ?? false);
+                if ($remaining > 1) {
+                    $nextActiveRowspans[(int) $column] = [
+                        'remaining' => $remaining - 1,
+                        'header' => (bool) ($cover['header'] ?? false),
+                    ];
+                }
+            }
+
+            $column = 0;
+            foreach ($row->children as $cell) {
+                if ($cell->type !== 'table_cell') {
+                    continue;
+                }
+
+                while (array_key_exists($column, $rowSlots)) {
+                    ++$column;
+                }
+
+                $colspan = self::positiveTableSpanAttr($cell, 'colspan');
+                $rowspan = self::positiveTableSpanAttr($cell, 'rowspan');
+                $header = (bool) ($cell->attrs['header'] ?? false);
+                for ($coveredColumn = $column; $coveredColumn < $column + $colspan; ++$coveredColumn) {
+                    $rowSlots[$coveredColumn] = $header;
+                    if ($rowspan > 1) {
+                        $nextActiveRowspans[$coveredColumn] = [
+                            'remaining' => $rowspan - 1,
+                            'header' => $header,
+                        ];
+                    }
+                }
+
+                $column += $colspan;
+            }
+
+            $leadingHeaderColumns = 0;
+            while (($rowSlots[$leadingHeaderColumns] ?? false) === true) {
+                ++$leadingHeaderColumns;
+            }
+            $rowCounts[] = $leadingHeaderColumns;
+            $activeRowspans = $nextActiveRowspans;
+        }
+
+        return $rowCounts === [] ? 0 : min($rowCounts);
+    }
+
+    private static function positiveTableSpanAttr(AstNode $node, string $name): int
+    {
+        $value = $node->attrs[$name] ?? 1;
+        if (!is_int($value) && !is_float($value) && !is_string($value)) {
+            return 1;
+        }
+
+        return max(1, (int) $value);
     }
 
     /**

@@ -12,9 +12,9 @@ final class MarkdownUpstreamReaderEvidence
     public const STATUS_COMPLETED = 'completed-upstream-markdown-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-markdown-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
-    public const EXPECTED_SELECTED_FIXTURE_COUNT = 60;
-    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 60;
-    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = '56117b89425186b5f8e06d1a56d5c9a770b12c4076eee4cbdf353eb4d5dd4d8b';
+    public const EXPECTED_SELECTED_FIXTURE_COUNT = 61;
+    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 61;
+    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = 'b65bdef038500fa6cbcd3e6a53f4e1c3d938fbaa31ea858ed08e28e9c1d7088b';
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/Markdown.hs',
@@ -771,6 +771,18 @@ final class MarkdownUpstreamReaderEvidence
             'sha256' => '749be67c41a587eefa87c24129d84369e3fa3a10d9cc299fb709e51d3818e33a',
             'bytes' => 29,
         ],
+        'upstream-markdown-z-tex-math-double-backslash-profile.md' => [
+            'role' => 'markdown-double-backslash-tex-math-profile-reader-fixture',
+            'sourceKind' => 'selected-upstream-markdown-reader-case',
+            'sourceReference' => 'Pandoc 3.10 markdown+tex_math_double_backslash profile probe',
+            'formatProfile' => 'markdown+tex_math_double_backslash inline/display math delimiters',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-markdown-z-tex-math-double-backslash-profile.md',
+            'coverageTests' => [
+                'lanes/pandoc/tests/MarkdownReaderDoubleBackslashMathProfileFixtureCompletionTest.php',
+            ],
+            'sha256' => '9b0d34f3b6a66f40771940859a979cc06da95e3fc7deb439907edac34a2a484b',
+            'bytes' => 40,
+        ],
     ];
 
     private readonly string $repoRoot;
@@ -945,10 +957,10 @@ final class MarkdownUpstreamReaderEvidence
             'claim' => 'Static gate binding selected current upstream-derived Markdown reader fixtures and their native expectations to checked-in SHA-256 and byte-count snapshots.',
             'claimBoundaries' => [
                 'doesAssert' => [
-                    'the sixty selected checked-in Markdown fixture snapshots match the expected SHA-256 hashes and byte counts',
-                    'the sixty selected checked-in Markdown native expectation snapshots match the expected deterministic manifest hash',
+                    'the selected checked-in Markdown fixture snapshots match the expected SHA-256 hashes and byte counts',
+                    'the selected checked-in Markdown native expectation snapshots match the expected deterministic manifest hash',
                     'each selected fixture has at least one local PHP test reference',
-                    'the fixture set covers selected command, raw-attribute, abbreviation, details/summary, GFM, autolink, angle-autolink attribute attachment and spaced-literal behavior, footnote/citation, inline TeX math, footnote recursive-reference and continuation/termination boundary behavior, citation/span boundary, empty-paragraph, definition-list spacing, nested-list body, html-div body, tight Plain body blocks, lazy SoftBreak continuation and column-zero marker behavior, GitHub wiki-link, inline-code list-marker, attribute, and spaced-attribute literal behavior, backslash-escaped link, link-label boundary, unbalanced-bracket literal, link-title entity decoding, plain character-reference decoding, strikeout-with-nested-emphasis, GitHub emoji-shortcode, superscript/subscript escaped-space boundary behavior, smart punctuation quotes/apostrophes/ellipsis behavior, pipe-table alignment with escaped-pipe cell behavior, fenced-div nested container behavior, header-attribute explicit id/class/key behavior, numbered-example labeled cross-reference behavior, mark nested inline behavior, bracketed-span generic Span plus smallcaps behavior, fenced-code attribute tuple behavior, MultiMarkdown short superscript/subscript delimiter boundary behavior, numeric character-reference decoding, escaped-line-break hard break behavior, implicit-header-reference ATX trailing-hash behavior, emph/strong delimiter nesting plus intraword underscore behavior, raw-LaTeX bare environment command literal behavior, implicit-figure latex-placement plus alt boundary behavior, GitHub raw email address strong-boundary behavior, raw-HTML technically invalid comment preservation behavior, raw-HTML nested tag split behavior, YAML metadata scalar/list/block body-boundary behavior, LHS bird/inverse code with implicit HTML div close behavior, Pandoc 3.10 alert blockquote profile behavior, markdown_strict compact ATX heading profile behavior, commonmark_x grid-table-looking block paragraph behavior when grid_tables is disabled by default, markdown+fancy_lists ordered marker profile behavior, markdown_phpextra header/link-attribute plus definition-list/footnote profile behavior, and markdown+short_subsuperscripts short script profile behavior',
+                    'the fixture set covers selected command, raw-attribute, abbreviation, details/summary, GFM, autolink, angle-autolink attribute attachment and spaced-literal behavior, footnote/citation, inline TeX math, footnote recursive-reference and continuation/termination boundary behavior, citation/span boundary, empty-paragraph, definition-list spacing, nested-list body, html-div body, tight Plain body blocks, lazy SoftBreak continuation and column-zero marker behavior, GitHub wiki-link, inline-code list-marker, attribute, and spaced-attribute literal behavior, backslash-escaped link, link-label boundary, unbalanced-bracket literal, link-title entity decoding, plain character-reference decoding, strikeout-with-nested-emphasis, GitHub emoji-shortcode, superscript/subscript escaped-space boundary behavior, smart punctuation quotes/apostrophes/ellipsis behavior, pipe-table alignment with escaped-pipe cell behavior, fenced-div nested container behavior, header-attribute explicit id/class/key behavior, numbered-example labeled cross-reference behavior, mark nested inline behavior, bracketed-span generic Span plus smallcaps behavior, fenced-code attribute tuple behavior, MultiMarkdown short superscript/subscript delimiter boundary behavior, numeric character-reference decoding, escaped-line-break hard break behavior, implicit-header-reference ATX trailing-hash behavior, emph/strong delimiter nesting plus intraword underscore behavior, raw-LaTeX bare environment command literal behavior, implicit-figure latex-placement plus alt boundary behavior, GitHub raw email address strong-boundary behavior, raw-HTML technically invalid comment preservation behavior, raw-HTML nested tag split behavior, YAML metadata scalar/list/block body-boundary behavior, LHS bird/inverse code with implicit HTML div close behavior, Pandoc 3.10 alert blockquote profile behavior, markdown_strict compact ATX heading profile behavior, commonmark_x grid-table-looking block paragraph behavior when grid_tables is disabled by default, markdown+fancy_lists ordered marker profile behavior, markdown_phpextra header/link-attribute plus definition-list/footnote profile behavior, markdown+short_subsuperscripts short script profile behavior, and markdown+tex_math_double_backslash inline/display math delimiter profile behavior',
                 ],
                 'doesNotAssert' => [
                     'that upstream Haskell/Cabal/Tasty tests were executed',
@@ -1653,9 +1665,9 @@ final class MarkdownUpstreamReaderEvidence
     {
         return [
             'doesAssert' => [
-                'the identity and count of sixty selected checked-in upstream-derived Markdown fixtures',
+                'the identity and count of selected checked-in upstream-derived Markdown fixtures',
                 'that focused local tests cover those selected fixture files',
-                'that sixty checked-in Markdown/native fixture pairs have normalized AST equality through the local PHP reader harness',
+                'that checked-in Markdown/native fixture pairs have normalized AST equality through the local PHP reader harness',
                 'that the upstream Markdown reader source inventory is present when a hydrated upstream checkout is inspected',
                 'that upstream Haskell runner evidence is either explicitly not-run or supplied as a validated result artifact',
                 'the future upstream runner command plan targets test:test-pandoc Readers/Markdown at the pinned upstream commit without execution',

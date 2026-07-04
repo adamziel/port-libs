@@ -36,6 +36,7 @@ final class MarkdownNativeAstComparisonHarness
         'upstream-markdown-z-fancy-list-markers' => ['format' => 'markdown+fancy_lists'],
         'upstream-markdown-z-phpextra-profile' => ['format' => 'markdown_phpextra'],
         'upstream-markdown-z-short-subsuperscript-profile' => ['format' => 'markdown+short_subsuperscripts'],
+        'upstream-markdown-z-tex-math-double-backslash-profile' => ['format' => 'markdown+tex_math_double_backslash'],
     ];
 
     /** @var array<string, true> */

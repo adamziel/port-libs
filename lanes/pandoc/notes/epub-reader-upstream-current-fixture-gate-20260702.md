@@ -7,8 +7,8 @@ The checked-in EPUB reader fixture subset now mirrors the upstream current
 `test/epub` inventory plus generated current-upstream edge fixtures used by
 the local native/package harness:
 
-- 34 EPUB package inputs in `lanes/pandoc/fixtures/upstream-current-epub-reader/epub`
-- 34 same-directory `.native` goldens for every checked-in EPUB package input
+- 35 EPUB package inputs in `lanes/pandoc/fixtures/upstream-current-epub-reader/epub`
+- 35 same-directory `.native` goldens for every checked-in EPUB package input
 
 Imported from the hydrated upstream cache at
 `/Users/admin/port-libs-pandoc-pptx/.upstream-cache/pandoc-full/test/epub`:
@@ -34,14 +34,20 @@ native golden to exercise title/creator/language/subject/date metadata, two
 linear spine items, TOC/landmarks/page-list navigation, a stylesheet manifest
 item, and a content image resolved through the media bag.
 
+Added generated `title-page-guide-media-metadata.epub` plus its Pandoc 3.10
+native golden to exercise a title-page guide reference, TOC/landmarks/page-list
+and auxiliary `loa` navigation, creator/contributor/subject metadata, a
+package metadata `preview` link, a non-linear glossary spine item, a stylesheet,
+and an emitted title-page image.
+
 Verified checked-in gate:
 
 ```sh
-php tools/pandoc-epub-native-ast-package.php --checked-in-fixtures summary --require-package-parity=34 --require-native-readiness=34 --require-mapped-parity=34 --require-fixture-identity --require-current-package-feature-coverage --require-current-package-feature-signature --require-current-native-ast-signature --require-runner-plan
+php tools/pandoc-epub-native-ast-package.php --checked-in-fixtures summary --require-package-parity=35 --require-native-readiness=35 --require-mapped-parity=35 --require-fixture-identity --require-current-package-feature-coverage --require-current-package-feature-signature --require-current-native-ast-signature --require-runner-plan
 ```
 
-Result: `packageParsedCount=34`, `readerParsedCount=34`,
-`nativeParsedCount=34`, `normalizedAstMatchCount=34`, and
+Result: `packageParsedCount=35`, `readerParsedCount=35`,
+`nativeParsedCount=35`, `normalizedAstMatchCount=35`, and
 `normalizedAstMismatchCount=0`.
 
 This continues not to claim upstream Haskell/Tasty runner parity; the harness

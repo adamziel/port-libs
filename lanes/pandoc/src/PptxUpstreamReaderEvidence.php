@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 60;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 61;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '6471197baf72a766c7baf0e9e0c60c3ac5b68377b8591cb8fd5f8bb29676b7e9';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 29912;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '6d5c0665fb0f1bbc211b9a6ca4e2138ee43d2bd0e3ccd1c08bedbaf09e43f707';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 30358;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -66,6 +66,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => 'd067f8fa32d162f9bc33280c7bc4b725fb1543b454861b7f61e31ef2a18acea1',
             'pptxBytes' => 1534,
             'nativeBytes' => 185,
+        ],
+        'background-image-skip' => [
+            'name' => 'generated background image relationship skip parity',
+            'pptx' => 'pptx-reader/background-image-skip.pptx',
+            'native' => 'pptx-reader/background-image-skip.native',
+            'pairKey' => 'pptx-reader/background-image-skip.pptx|pptx-reader/background-image-skip.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/background-image-skip.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/background-image-skip.native',
+            'pptxSha256' => 'e9483d1883b3ea011c81ddf140e6400334f3aa3d52acd3b5f68cf81f0ead1769',
+            'nativeSha256' => '5c14cd84da6db538df5569de41e3f5a29ac75b4030de9e3e0b4e28caf14e7b5d',
+            'pptxBytes' => 2328,
+            'nativeBytes' => 127,
         ],
         'body-before-title' => [
             'name' => 'generated body-before-title placeholder ordering parity',

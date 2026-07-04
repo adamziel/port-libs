@@ -745,6 +745,27 @@ $tests['imports direct pandoc html implicit tbody row header table'] =
         $t->same(['Item', 'Count'], array_map(static fn ($cell): string => $cell->attr('text'), $row->children));
     };
 
+$tests['imports direct pandoc html table row and column spans'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-table-row-col-span.html'));
+        $table = $document->children[0];
+        $head = $table->children[0];
+        $body = $table->children[1];
+        $headRow = $head->children[0];
+        $firstBodyRow = $body->children[0];
+        $secondBodyRow = $body->children[1];
+
+        $t->same(['table'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same(['table_head', 'table_body'], array_map(static fn ($node): string => $node->type, $table->children));
+        $t->same('Span audit', $table->attr('caption'));
+        $t->same(1, $body->attr('rowHeadColumns'));
+        $t->same(['Region', 'Totals'], array_map(static fn ($cell): string => $cell->attr('text'), $headRow->children));
+        $t->same(2, $headRow->children[1]->attr('colspan'));
+        $t->same(['North', 'Q1', '12'], array_map(static fn ($cell): string => $cell->attr('text'), $firstBodyRow->children));
+        $t->same(2, $firstBodyRow->children[0]->attr('rowspan'));
+        $t->same(['Q2', '18'], array_map(static fn ($cell): string => $cell->attr('text'), $secondBodyRow->children));
+    };
+
 $tests['imports upstream html block children inside table cells'] =
     static function (TestRunner $t): void {
         $html = '<table><tr><td><ul><li>one</li><li>two</li></ul></td><td><blockquote><p>quote</p></blockquote></td></tr></table>';
