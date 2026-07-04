@@ -44,7 +44,9 @@ $tests['maps upstream markdown angle autolink unicode dash boundary'] =
 
 $tests['keeps upstream markdown partial angle www url literal'] =
     static function (TestRunner $t) use ($collectLinks): void {
-        $source = '<www.boe.es/buscar/act.php?id=BOE-A-1996-8930#a66>';
+        $source = trim((string) file_get_contents(
+            dirname(__DIR__) . '/fixtures/upstream-markdown-zzzzzzzzzzzzzzzzzzzzz-partial-autolink-boundary.md'
+        ));
         $document = (new MarkdownReader())->read($source);
         $paragraph = $document->children[0] ?? new AstNode('missing');
         $literal = $paragraph->children[0] ?? new AstNode('missing');

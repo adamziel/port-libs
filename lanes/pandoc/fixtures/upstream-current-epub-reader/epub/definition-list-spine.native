@@ -1,0 +1,38 @@
+[ Para [ Span ( "chapter.xhtml" , [] , [] ) [] ]
+, Header
+    1
+    ( "" , [] , [] )
+    [ Str "Definition"
+    , Space
+    , Str "List"
+    , Space
+    , Str "Spine"
+    ]
+, DefinitionList
+    [ ( [ Str "Term" , Space , Str "One" ]
+      , [ [ Para
+              [ Str "First"
+              , Space
+              , Str "definition"
+              , Space
+              , Str "paragraph."
+              ]
+          ]
+        ]
+      )
+    , ( [ Str "Term" , Space , Str "Two" ]
+      , [ [ Para
+              [ Str "Second"
+              , Space
+              , Str "definition"
+              , Space
+              , Str "with"
+              , Space
+              , Emph [ Str "inline" , Space , Str "emphasis" ]
+              , Str "."
+              ]
+          ]
+        ]
+      )
+    ]
+]

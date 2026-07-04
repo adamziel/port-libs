@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 87;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 88;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'e49193a113ccc3763d1ea2b91bad4fce6fd34324391d52e6bb70ed9de66d11e2';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 37839;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '0904fb739fafb5a402b0a3ba1062a4ad572469b8f2414a483f8474c029ec6a2c';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 38294;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -642,6 +642,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => 'a799a5d732ca0a11d94f239d782b61bffe81325c09ed721705fabc2fe079feba',
             'pptxBytes' => 2155,
             'nativeBytes' => 1228,
+        ],
+        'textbox-without-nonvisual-properties' => [
+            'name' => 'generated text box without nonvisual properties parity',
+            'pptx' => 'pptx-reader/textbox-without-nonvisual-properties.pptx',
+            'native' => 'pptx-reader/textbox-without-nonvisual-properties.native',
+            'pairKey' => 'pptx-reader/textbox-without-nonvisual-properties.pptx|pptx-reader/textbox-without-nonvisual-properties.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/textbox-without-nonvisual-properties.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/textbox-without-nonvisual-properties.native',
+            'pptxSha256' => 'c52b2158d87f686fe7f8772ed2981046e565b1248116f4790b6ac8e137db8dbf',
+            'nativeSha256' => '4166c3c576b0b9c56b1660166572f88a2d24130db590bb76b6cc211f8201e743',
+            'pptxBytes' => 1315,
+            'nativeBytes' => 110,
         ],
         'grouped-shape-media-review' => [
             'name' => 'generated grouped shape media review parity',

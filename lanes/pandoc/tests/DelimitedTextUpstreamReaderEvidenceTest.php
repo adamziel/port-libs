@@ -113,7 +113,7 @@ return [
         $t->contains('Pandoc delimited text reader evidence', $text);
         $t->contains('Static current evidence: valid-checked-in-current-delimited-text-reader-evidence checkedInFixtures=2', $text);
         $t->contains('Generated CSV native parity: 59/59 status=generated-csv-native-parity-observed-not-upstream-fixture', $text);
-        $t->contains('Generated TSV native parity: 34/34 status=generated-tsv-native-parity-observed-not-upstream-fixture', $text);
+        $t->contains('Generated TSV native parity: 35/35 status=generated-tsv-native-parity-observed-not-upstream-fixture', $text);
         $t->contains('Runner plan: planned-not-run', $text);
         $t->contains('Runner target: Command:/csv.md/#1', $text);
         $t->contains('Runner execution boundary: plan-only-not-run', $text);
@@ -637,12 +637,28 @@ return [
         $t->same('delimiter-only-row.native', $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][65]['name']);
         $t->same('7c35f383cedcdfe02af9e39232a63e94fce26b62c3750624110a5475cb9caddd', $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][65]['checkedInFile']['sha256']);
         $t->same(1067, $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][65]['checkedInFile']['bytes']);
+        $t->same('single-quote-dialect.tsv', $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][66]['name']);
+        $t->same('61d1d78f1d9c57ab28505af9e139e085b518a07d27fa85db704354fb7338b2cd', $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][66]['checkedInFile']['sha256']);
+        $t->same(94, $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][66]['checkedInFile']['bytes']);
+        $t->same('single-quote-dialect.native', $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][67]['name']);
+        $t->same('ac434ae179a9b2474a8a7fc6e0ea6c65270e138d25608e73de522f1f21bf67c8', $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][67]['checkedInFile']['sha256']);
+        $t->same(1613, $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][67]['checkedInFile']['bytes']);
+        $t->same('escaped-tab-dialect.tsv', $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][68]['name']);
+        $t->same('045876667fbdafbdc984fb54e11ab05837d7fe3bc7c39469fae774b909452eb3', $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][68]['checkedInFile']['sha256']);
+        $t->same(84, $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][68]['checkedInFile']['bytes']);
+        $t->same('escaped-tab-dialect.native', $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][69]['name']);
+        $t->same('68b50ae72ee5b99702e8dd6aafa1a2e909775e17e3954b5967c94b2e7b0c0404', $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][69]['checkedInFile']['sha256']);
+        $t->same(1296, $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][69]['checkedInFile']['bytes']);
         $t->same('quoted-softbreak', $evidence['generatedTsvNativeStaticEvidence']['samples'][30]['name']);
         $t->same(['quote' => '"', 'cellLineBreak' => 'softbreak'], $evidence['generatedTsvNativeStaticEvidence']['samples'][30]['readerOptions']);
         $t->same('post-delimiter-space', $evidence['generatedTsvNativeStaticEvidence']['samples'][31]['name']);
         $t->same([], $evidence['generatedTsvNativeStaticEvidence']['samples'][31]['readerOptions']);
         $t->same('delimiter-only-row', $evidence['generatedTsvNativeStaticEvidence']['samples'][32]['name']);
         $t->same([], $evidence['generatedTsvNativeStaticEvidence']['samples'][32]['readerOptions']);
+        $t->same('single-quote-dialect', $evidence['generatedTsvNativeStaticEvidence']['samples'][33]['name']);
+        $t->same(['quote' => '\''], $evidence['generatedTsvNativeStaticEvidence']['samples'][33]['readerOptions']);
+        $t->same('escaped-tab-dialect', $evidence['generatedTsvNativeStaticEvidence']['samples'][34]['name']);
+        $t->same(['quote' => '"', 'escape' => '\\'], $evidence['generatedTsvNativeStaticEvidence']['samples'][34]['readerOptions']);
         $t->same('cd7a0f7e2c4737a1884c0ff3ec73bf6a5990fbdfb6ba1b588b6a6d9202ab3e02', $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][4]['checkedInFile']['sha256']);
         $t->same(91, $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][4]['checkedInFile']['bytes']);
         $t->same('unicode-safe.native', $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][5]['name']);
@@ -1814,6 +1830,22 @@ return [
         $t->same('lanes/pandoc/fixtures/generated-current-tsv-reader/quoted-softbreak.native', $evidence['samples'][30]['staticFixtureBinding']['expectedNativeFixture']['checkedInPath']);
         $t->same(3, $evidence['samples'][30]['rowCount']);
         $t->same(3, $evidence['samples'][30]['columnCount']);
+        $t->same('matched', $evidence['samples'][34]['status']);
+        $t->same('escaped-tab-dialect', $evidence['samples'][34]['name']);
+        $t->same('lanes/pandoc/fixtures/generated-current-tsv-reader/escaped-tab-dialect.tsv', $evidence['samples'][34]['inputPath']);
+        $t->same([
+            'quote' => '"',
+            'escape' => '\\',
+            'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/escaped-tab-dialect.tsv',
+        ], $evidence['samples'][34]['readerOptions']);
+        $t->same('generated-tsv-native-sample-static-fixture-binding', $evidence['samples'][34]['staticFixtureBinding']['kind']);
+        $t->same('escaped-tab-dialect', $evidence['samples'][34]['staticFixtureBinding']['sample']);
+        $t->same('valid-static-fixture-snapshot', $evidence['samples'][34]['staticFixtureBinding']['inputFixture']['status']);
+        $t->same('valid-static-fixture-snapshot', $evidence['samples'][34]['staticFixtureBinding']['expectedNativeFixture']['status']);
+        $t->same('lanes/pandoc/fixtures/generated-current-tsv-reader/escaped-tab-dialect.tsv', $evidence['samples'][34]['staticFixtureBinding']['inputFixture']['checkedInPath']);
+        $t->same('lanes/pandoc/fixtures/generated-current-tsv-reader/escaped-tab-dialect.native', $evidence['samples'][34]['staticFixtureBinding']['expectedNativeFixture']['checkedInPath']);
+        $t->same(3, $evidence['samples'][34]['rowCount']);
+        $t->same(3, $evidence['samples'][34]['columnCount']);
         $t->same(true, DelimitedTextUpstreamReaderEvidence::hasRequiredGeneratedTsvNativeParity($evidence));
         $t->true(in_array('that the generated TSV samples are upstream command fixtures', $evidence['claimBoundaries']['doesNotAssert'], true));
     },

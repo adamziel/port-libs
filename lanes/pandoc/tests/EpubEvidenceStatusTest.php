@@ -26,15 +26,15 @@ $readJson = static function (string $relativePath) use ($readText): array {
 return [
     'keeps EPUB current fixture status counters in sync' => static function (TestRunner $t) use ($repoRoot, $readText, $readJson): void {
         $manifest = $readJson('lanes/pandoc/UPSTREAM_TEST_MANIFEST.json');
-        $note = $readText('lanes/pandoc/notes/pandoc-epub-blockquote-list-spine-20260704.md');
+        $note = $readText('lanes/pandoc/notes/pandoc-epub-definition-list-spine-20260704.md');
         $fixtureDirectory = $repoRoot . '/lanes/pandoc/fixtures/upstream-current-epub-reader/epub';
         $epubFiles = glob($fixtureDirectory . '/*.epub') ?: [];
         $nativeFiles = glob($fixtureDirectory . '/*.native') ?: [];
         $totalFiles = count($epubFiles) + count($nativeFiles);
 
-        $t->same(59, count($epubFiles));
-        $t->same(59, count($nativeFiles));
-        $t->same(118, $totalFiles);
+        $t->same(60, count($epubFiles));
+        $t->same(60, count($nativeFiles));
+        $t->same(120, $totalFiles);
 
         foreach ([
             'benchmarkDenominator.breakdown' => $manifest['benchmarkDenominator']['breakdown'] ?? null,
@@ -50,6 +50,11 @@ return [
                 'epubDirectoryArtifacts' => $totalFiles,
                 'epubNativeExpectedArtifacts' => count($nativeFiles),
                 'epubEpubInputArtifacts' => count($epubFiles),
+            ];
+            $previousIntegrated = [
+                'epubDirectoryArtifacts' => 118,
+                'epubNativeExpectedArtifacts' => 59,
+                'epubEpubInputArtifacts' => 59,
             ];
             $previousSharedManifest = [
                 'epubDirectoryArtifacts' => 114,
@@ -84,6 +89,7 @@ return [
 
             $t->true(
                 $observed === $integrated
+                    || $observed === $previousIntegrated
                     || $observed === $previousSharedManifest
                     || $observed === $olderSharedManifest
                     || $observed === $oldestSharedManifest
@@ -94,12 +100,12 @@ return [
             );
         }
 
-        $t->true(str_contains($note, '- Checked-in EPUB package inputs: `58 -> 59`.'));
-        $t->true(str_contains($note, '- Checked-in same-basename `.native` goldens: `58 -> 59`.'));
-        $t->true(str_contains($note, '- Checked-in fixture identity files: `116 -> 118`.'));
-        $t->true(str_contains($note, 'blockquote-list-spine.epub'));
-        $t->true(str_contains($note, '--require-package-parity=59'));
-        $t->true(str_contains($note, '--require-native-readiness=59'));
-        $t->true(str_contains($note, '--require-mapped-parity=59'));
+        $t->true(str_contains($note, '- Checked-in EPUB package inputs: `59 -> 60`.'));
+        $t->true(str_contains($note, '- Checked-in same-basename `.native` goldens: `59 -> 60`.'));
+        $t->true(str_contains($note, '- Checked-in fixture identity files: `118 -> 120`.'));
+        $t->true(str_contains($note, 'definition-list-spine.epub'));
+        $t->true(str_contains($note, '--require-package-parity=60'));
+        $t->true(str_contains($note, '--require-native-readiness=60'));
+        $t->true(str_contains($note, '--require-mapped-parity=60'));
     },
 ];
