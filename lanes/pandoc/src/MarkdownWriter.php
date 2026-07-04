@@ -67,6 +67,8 @@ final class MarkdownWriter
 
     private bool $escapeInlineSpaces = false;
 
+    private bool $renderingImageLabel = false;
+
     /** @var list<string> */
     private array $plainTemplatePartialStack = [];
 
@@ -94,6 +96,7 @@ final class MarkdownWriter
         $this->nextNoteNumber = 1;
         $this->lastReferenceIndex = 0;
         $this->escapeInlineSpaces = false;
+        $this->renderingImageLabel = false;
         $this->plainTemplatePartialStack = [];
 
         $customPlainTemplate = $this->customPlainTemplateSource();
@@ -7688,11 +7691,22 @@ final class MarkdownWriter
             return $text;
         }
 
+        $rawFamily = MarkdownFormatProfile::rawFamily($format);
+        if (
+            $this->renderingImageLabel
+            && ($rawFamily === 'html' || $rawFamily === 'tex')
+            && $this->rawAttributeEnabled()
+        ) {
+            return $this->renderRawAttributeInline(new AstNode($node->type, [
+                'format' => $format,
+                'text' => $text,
+            ]));
+        }
+
         if ($this->rawMarkdownTextEnabledForWriter($format)) {
             return $text;
         }
 
-        $rawFamily = MarkdownFormatProfile::rawFamily($format);
         if ($rawFamily === 'html' && $this->rawHtmlEnabled()) {
             return $text;
         }
@@ -8052,10 +8066,16 @@ final class MarkdownWriter
             return $this->renderRawHtmlImage($node);
         }
 
-        return '!' . $this->renderLink(
-            new AstNode('link', $this->imageLinkAttrs($node), $this->imageLabelNodesForLink($node)),
-            $following
-        );
+        $previous = $this->renderingImageLabel;
+        $this->renderingImageLabel = true;
+        try {
+            return '!' . $this->renderLink(
+                new AstNode('link', $this->imageLinkAttrs($node), $this->imageLabelNodesForLink($node)),
+                $following
+            );
+        } finally {
+            $this->renderingImageLabel = $previous;
+        }
     }
 
     private function linkUrl(AstNode $node): string

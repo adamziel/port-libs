@@ -14,6 +14,7 @@ $buildImplicitFigureMarkdown = static function (array $case): array {
     $url = 'media/implicit-figure-' . $case['caseId'] . '.png';
     $title = 'Implicit figure title ' . $case['caseId'];
     $label = $case['label'];
+    $expectedMarkdownLabel = $case['expectedMarkdownLabel'] ?? $label;
     $attributes = $case['attributeSource'];
 
     return match ($case['targetMode']) {
@@ -21,7 +22,7 @@ $buildImplicitFigureMarkdown = static function (array $case): array {
             'markdown' => '![' . $label . '](' . $url . ' "' . $title . '")' . $attributes,
             'url' => $url,
             'title' => $title,
-            'expectedMarkdownFragment' => '![' . $label . '](' . $url,
+            'expectedMarkdownFragment' => '![' . $expectedMarkdownLabel . '](' . $url,
         ],
         'full-reference' => [
             'markdown' => implode("\n", [
@@ -31,7 +32,7 @@ $buildImplicitFigureMarkdown = static function (array $case): array {
             ]),
             'url' => $url,
             'title' => $title,
-            'expectedMarkdownFragment' => '![' . $label . '](' . $url,
+            'expectedMarkdownFragment' => '![' . $expectedMarkdownLabel . '](' . $url,
         ],
         'shortcut-reference' => [
             'markdown' => implode("\n", [
@@ -41,7 +42,7 @@ $buildImplicitFigureMarkdown = static function (array $case): array {
             ]),
             'url' => $url,
             'title' => $title,
-            'expectedMarkdownFragment' => '![' . $label . '](' . $url,
+            'expectedMarkdownFragment' => '![' . $expectedMarkdownLabel . '](' . $url,
         ],
     };
 };
@@ -74,7 +75,7 @@ $inlineVariants = [
     'mark image label' => [
         'labelTemplate' => 'Implicit ==figure== %s',
         'plainTemplate' => 'Implicit figure %s',
-        'htmlTemplate' => 'Implicit <span class="mark">figure</span> %s',
+        'htmlTemplate' => 'Implicit <mark>figure</mark> %s',
         'type' => 'span',
     ],
     'math image label' => [
@@ -103,6 +104,7 @@ $inlineVariants = [
     ],
     'raw tex image label' => [
         'labelTemplate' => 'Implicit \LaTeX{} %s',
+        'markdownLabelTemplate' => 'Implicit `\LaTeX{}`{=tex} %s',
         'plainTemplate' => 'Implicit \LaTeX{} %s',
         'htmlTemplate' => 'Implicit <span class="pandoc-raw-tex">\LaTeX{}</span> %s',
         'type' => 'raw_tex',
@@ -150,6 +152,7 @@ foreach ($inlineVariants as $inlineName => $inlineVariant) {
                     str_replace('-', ' ', $targetMode . ' ' . $attributeName)
                 ),
                 'label' => $label,
+                'expectedMarkdownLabel' => sprintf($inlineVariant['markdownLabelTemplate'] ?? $inlineVariant['labelTemplate'], $caseId),
                 'plainCaption' => sprintf($inlineVariant['plainTemplate'], $caseId),
                 'htmlCaption' => sprintf($inlineVariant['htmlTemplate'], $caseId),
                 'expectedType' => $inlineVariant['type'],

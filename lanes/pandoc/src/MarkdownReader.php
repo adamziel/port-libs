@@ -144,6 +144,8 @@ final class MarkdownReader
 
     private bool $forceLinkLabelSingleBackslashMath = false;
 
+    private bool $forceLinkLabelMark = false;
+
     /**
      * @param array{
      *     literateHaskell?: bool,
@@ -15205,14 +15207,20 @@ final class MarkdownReader
     {
         $label = $this->protectWhitespaceFlankedLinkLabelDelimiters($label);
 
-        if (
-            $this->linkLabelSingleBackslashMathCompatibilityEnabled()
-            && $this->linkLabelContainsSingleBackslashMathBracketPayload($label)
-        ) {
-            return $this->parseLinkLabelInlinesWithSingleBackslashMath($label);
-        }
+        $previousMark = $this->forceLinkLabelMark;
+        $this->forceLinkLabelMark = true;
+        try {
+            if (
+                $this->linkLabelSingleBackslashMathCompatibilityEnabled()
+                && $this->linkLabelContainsSingleBackslashMathBracketPayload($label)
+            ) {
+                return $this->parseLinkLabelInlinesWithSingleBackslashMath($label);
+            }
 
-        return $this->parseInlines($label, false);
+            return $this->parseInlines($label, false);
+        } finally {
+            $this->forceLinkLabelMark = $previousMark;
+        }
     }
 
     /**
@@ -15510,6 +15518,10 @@ final class MarkdownReader
 
     private function markExtensionEnabled(): bool
     {
+        if ($this->forceLinkLabelMark) {
+            return true;
+        }
+
         $overrides = $this->markdownExtensionOverrides();
         if (array_key_exists('mark', $overrides)) {
             return $overrides['mark'];
