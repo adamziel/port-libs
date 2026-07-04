@@ -1,0 +1,4 @@
+[ Para [ Str "Before" ]
+, BlockQuote [ Para [ Str "Quoted" ] ]
+, Para [ Str "After" ]
+]

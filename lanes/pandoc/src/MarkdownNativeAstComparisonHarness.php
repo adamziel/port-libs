@@ -59,6 +59,7 @@ final class MarkdownNativeAstComparisonHarness
         'upstream-markdown-zzzzzzzzzzzzzzzzzz-blank-before-header-blockquote-profile' => ['format' => 'markdown-blank_before_header'],
         'upstream-markdown-zzzzzzzzzzzzzzzzzzz-mark-extension-profile' => ['format' => 'markdown+mark'],
         'upstream-markdown-zzzzzzzzzzzzzzzzzzzzzz-gfm-raw-html-split-angle-boundary' => ['format' => 'gfm'],
+        'upstream-markdown-zzzzzzzzzzzzzzzzzzzzzzz-bare-uri-scheme-boundaries' => ['format' => 'markdown+autolink_bare_uris'],
     ];
 
     /** @var array<string, true> */

@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 89;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 90;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'f54f5a4af3607136e2dfe4f4107a01b66a051af36ba384329bfe6b245e1ed4b7';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 38741;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'fa2ec1c7ae826f29461fbf79fa944c57a1b512069581e6864c8d879cfa242d0b';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 39176;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -114,6 +114,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => 'e751a414543010757345bac58bc4fb6157c1c99cbbd0e958f39753c18db3e5cd',
             'pptxBytes' => 1795,
             'nativeBytes' => 144,
+        ],
+        'missing-slide-relationship-type' => [
+            'name' => 'generated missing slide relationship Type fallback parity',
+            'pptx' => 'pptx-reader/missing-slide-relationship-type.pptx',
+            'native' => 'pptx-reader/missing-slide-relationship-type.native',
+            'pairKey' => 'pptx-reader/missing-slide-relationship-type.pptx|pptx-reader/missing-slide-relationship-type.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/missing-slide-relationship-type.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/missing-slide-relationship-type.native',
+            'pptxSha256' => 'ba37020b6c4a1118758c3dc53292e7137e52cd2188ac6c46ce236f9000b442b4',
+            'nativeSha256' => '10d3dad7c71db5cf453d3602d085f9c9cf63a6d63d4ae0558b8e75b7eabde390',
+            'pptxBytes' => 1707,
+            'nativeBytes' => 157,
         ],
         'multi-paragraph-table-cell' => [
             'name' => 'generated multi-paragraph table cell flattening parity',

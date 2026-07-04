@@ -18,7 +18,7 @@ final class DelimitedTextUpstreamReaderEvidence
     public const EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT = 0;
     public const EXPECTED_STATIC_CSV_ADJACENT_RST_FIXTURE_COUNT = 2;
     public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 60;
-    public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 35;
+    public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 36;
     public const EXPECTED_GENERATED_CSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT = 43;
     public const EXPECTED_GENERATED_TSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT = 24;
     public const REQUIRED_PANDOC_EXECUTABLE_VERSION = 'pandoc 3.10';
@@ -1392,6 +1392,20 @@ final class DelimitedTextUpstreamReaderEvidence
             'sha256' => '68b50ae72ee5b99702e8dd6aafa1a2e909775e17e3954b5967c94b2e7b0c0404',
             'bytes' => 1296,
         ],
+        'pipe-delimiter-quoted-field.tsv' => [
+            'role' => 'generated-tsv-native-parity-input-fixture',
+            'sample' => 'pipe-delimiter-quoted-field',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/pipe-delimiter-quoted-field.tsv',
+            'sha256' => '68ff56d2b21faa5fff4bb21e434af9e9436fb4fb8cc049b0555a1de1441b75b1',
+            'bytes' => 95,
+        ],
+        'pipe-delimiter-quoted-field.native' => [
+            'role' => 'generated-tsv-native-parity-expected-native-output',
+            'sample' => 'pipe-delimiter-quoted-field',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/pipe-delimiter-quoted-field.native',
+            'sha256' => 'fe8cce799250bddd6e4c6b8459b393afc5fed657be5e9875705afd53d21c58c6',
+            'bytes' => 1600,
+        ],
     ];
 
     private const GENERATED_CSV_NATIVE_SAMPLES = [
@@ -1855,6 +1869,14 @@ final class DelimitedTextUpstreamReaderEvidence
             'options' => [
                 'quote' => '"',
                 'escape' => '\\',
+            ],
+        ],
+        'pipe-delimiter-quoted-field' => [
+            'inputPath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/pipe-delimiter-quoted-field.tsv',
+            'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/pipe-delimiter-quoted-field.native',
+            'options' => [
+                'delimiter' => 'pipe',
+                'quote' => '"',
             ],
         ],
     ];
@@ -3704,7 +3726,7 @@ final class DelimitedTextUpstreamReaderEvidence
 
     private static function claim(): string
     {
-        return 'Tracks the current upstream direct CSV command-reader fixtures, the adjacent RST csv-table fixture pair with zero direct-reader denominator impact, sixty generated CSV-to-native evidence samples, the absence of dedicated TSV command fixtures, and thirty-five generated TSV-to-native evidence samples for the delimited text reader.';
+        return 'Tracks the current upstream direct CSV command-reader fixtures, the adjacent RST csv-table fixture pair with zero direct-reader denominator impact, sixty generated CSV-to-native evidence samples, the absence of dedicated TSV command fixtures, and thirty-six generated TSV-to-native evidence samples for the delimited text reader.';
     }
 
     /**
@@ -3721,7 +3743,7 @@ final class DelimitedTextUpstreamReaderEvidence
                 'that no dedicated TSV command fixture is available in the pinned direct-reader evidence set',
                 'static checked-in current csv.md and 01.csv fixture identity when staticCurrentEvidence is valid',
                 'sixty generated CSV-to-native local samples when generatedCsvNativeParityEvidence is valid',
-                'thirty-five generated TSV-to-native local samples when generatedTsvNativeParityEvidence is valid',
+                'thirty-six generated TSV-to-native local samples when generatedTsvNativeParityEvidence is valid',
                 'the non-executed upstream command-test runner plan for the pinned csv.md command fixture',
                 'that upstream Haskell runner evidence is either explicitly not-run or supplied as a validated result artifact',
                 'a supplied upstream runner result artifact is validated against the pinned CSV command Tasty target, commit, test names, pass/fail counts, and transcript file identities when explicitly provided',

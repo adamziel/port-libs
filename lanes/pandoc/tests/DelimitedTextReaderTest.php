@@ -4380,6 +4380,57 @@ NATIVE;
         $t->contains('Plain [ Str "escaped\\\\slash" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
+    'matches generated tsv pipe delimiter quoted field native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+        $fixture = $generatedTsvNativeFixture('pipe-delimiter-quoted-field');
+        $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
+            'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/pipe-delimiter-quoted-field.tsv',
+            'delimiter' => 'pipe',
+            'quote' => '"',
+        ]);
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+        $body = $table->children[1];
+        $native = PandocConverter::write($document, 'native');
+        $generatedEvidence = $packet['upstreamEvidence']['generatedNativeParityEvidence'] ?? [];
+
+        $t->same('tsv', $packet['format'] ?? null);
+        $t->same('|', $packet['delimiter'] ?? null);
+        $t->same('"', $packet['quote'] ?? null);
+        $t->same('pipe', $packet['dialect']['delimiterName'] ?? null);
+        $t->same('quoted-fields', $packet['dialect']['quoteMode'] ?? null);
+        $t->same(0, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
+        $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
+        $t->same(2 * DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['checkedInFixtureCount'] ?? null);
+        $t->same('pipe-delimiter-quoted-field.tsv', $generatedEvidence['checkedInFixtures'][70]['name'] ?? null);
+        $t->same('68ff56d2b21faa5fff4bb21e434af9e9436fb4fb8cc049b0555a1de1441b75b1', $generatedEvidence['checkedInFixtures'][70]['checkedInFile']['sha256'] ?? null);
+        $t->same('pipe-delimiter-quoted-field.native', $generatedEvidence['checkedInFixtures'][71]['name'] ?? null);
+        $t->same('fe8cce799250bddd6e4c6b8459b393afc5fed657be5e9875705afd53d21c58c6', $generatedEvidence['checkedInFixtures'][71]['checkedInFile']['sha256'] ?? null);
+        $t->same('pipe-delimiter-quoted-field', $generatedEvidence['samples'][35]['name'] ?? null);
+        $t->same(['delimiter' => 'pipe', 'quote' => '"'], $generatedEvidence['samples'][35]['readerOptions'] ?? null);
+        $t->same(['id', 'payload', 'note'], $table->attr('columnNames'));
+        $t->same(4, $packet['rowCount'] ?? null);
+        $t->same(3, $packet['bodyRowCount'] ?? null);
+        $t->same(3, $packet['columnCount'] ?? null);
+        $t->same(12, $packet['fieldCount'] ?? null);
+        $t->same(3, $packet['quotedFieldCount'] ?? null);
+        $t->same(2, $packet['doubledQuoteEscapeCount'] ?? null);
+        $t->same(1, $packet['quotedLineBreakCount'] ?? null);
+        $t->same(1, $packet['multilineFieldCount'] ?? null);
+        $t->same([2], $packet['multilineQuotedRows'] ?? null);
+        $t->same(0, $packet['raggedRowCount'] ?? null);
+        $t->same(1, $packet['diagnosticCount'] ?? null);
+        $t->same(['delimited-text-multiline-quoted-field'], array_column($packet['diagnostics'] ?? [], 'code'));
+        $t->same('alpha|beta', $body->children[0]->children[1]->attr('text'));
+        $t->same("two\nlines", $body->children[1]->children[1]->attr('text'));
+        $t->same('embedded "quote"', $body->children[2]->children[1]->attr('text'));
+        $t->contains('Plain [ Str "alpha|beta" ]', $native);
+        $t->contains('Plain [ Str "two" , LineBreak , Str "lines" ]', $native);
+        $t->contains('Plain [ Str "embedded" , Space , Str "\\"quote\\"" ]', $native);
+        $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
+    },
     'matches pinned upstream csv parser option fixtures' => static function (TestRunner $t): void {
         $reader = new DelimitedTextReader();
         $commaDocument = $reader->readCsv(
@@ -4713,6 +4764,8 @@ NATIVE;
         $t->same(['quote' => '\''], $tsvEvidence['generatedNativeParityEvidence']['samples'][33]['readerOptions'] ?? null);
         $t->same('escaped-tab-dialect', $tsvEvidence['generatedNativeParityEvidence']['samples'][34]['name'] ?? null);
         $t->same(['quote' => '"', 'escape' => '\\'], $tsvEvidence['generatedNativeParityEvidence']['samples'][34]['readerOptions'] ?? null);
+        $t->same('pipe-delimiter-quoted-field', $tsvEvidence['generatedNativeParityEvidence']['samples'][35]['name'] ?? null);
+        $t->same(['delimiter' => 'pipe', 'quote' => '"'], $tsvEvidence['generatedNativeParityEvidence']['samples'][35]['readerOptions'] ?? null);
         $t->true(in_array('tsv-tab-delimiter-reader', $tsvEvidence['closedGaps'] ?? [], true));
         $t->true(in_array('generated-tsv-native-parity-sample', $tsvEvidence['closedGaps'] ?? [], true));
         $t->true(in_array('no-dedicated-upstream-tsv-command-fixture-in-pinned-corpus', $tsvEvidence['openGaps'] ?? [], true));

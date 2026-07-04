@@ -1050,6 +1050,22 @@ $tests['imports direct pandoc html paragraph table tree construction as repaired
         $t->same(['Cell'], array_map(static fn ($cell): string => $cell->attr('text'), $row->children));
     };
 
+$tests['imports direct pandoc html paragraph blockquote tree construction as repaired blocks'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-paragraph-blockquote-tree-construction.html'));
+        $quote = $document->children[1];
+
+        $t->same('html', $document->attr('sourceFormat'));
+        $t->same(
+            ['paragraph', 'blockquote', 'paragraph'],
+            array_map(static fn ($node): string => $node->type, $document->children)
+        );
+        $t->same('Before', $document->children[0]->attr('text'));
+        $t->same(['paragraph'], array_map(static fn ($node): string => $node->type, $quote->children));
+        $t->same('Quoted', $quote->children[0]->attr('text'));
+        $t->same('After', $document->children[2]->attr('text'));
+    };
+
 $tests['imports direct pandoc html paragraph hr tree construction as repaired blocks'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-paragraph-hr-tree-construction.html'));
