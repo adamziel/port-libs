@@ -362,7 +362,7 @@ return [
             . ' '
             . escapeshellarg($repoRoot . '/tools/pandoc-html-reader-evidence.php')
             . ' --repo-root=' . escapeshellarg($repoRoot)
-            . ' --upstream-root=missing-upstream-root-for-static-html-gate'
+            . ' --checked-in-fixtures'
             . ' --json'
             . ' --require-selected-fixture-count=62'
             . ' --require-static-current-evidence'
@@ -390,6 +390,13 @@ return [
         exec($failingCommand, $failingOutput, $failingExitCode);
 
         $t->same(1, $failingExitCode);
+
+        $conflictingCommand = str_replace('--checked-in-fixtures', '--checked-in-fixtures --upstream-root=missing-upstream-root-for-static-html-gate', $command) . ' 2>/dev/null';
+        $conflictingOutput = [];
+        $conflictingExitCode = 0;
+        exec($conflictingCommand, $conflictingOutput, $conflictingExitCode);
+
+        $t->same(2, $conflictingExitCode);
     },
 
     'cli gates supplied html reader upstream runner result artifact' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile, $writeHtmlEvidenceTree, $writeRunnerTranscripts): void {
