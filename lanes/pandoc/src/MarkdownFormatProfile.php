@@ -165,9 +165,9 @@ final class MarkdownFormatProfile
             'citations' => false,
             'taskLists' => true,
             'pipeTables' => true,
-            'simpleTables' => true,
-            'gridTables' => true,
-            'multilineTables' => true,
+            'simpleTables' => false,
+            'gridTables' => false,
+            'multilineTables' => false,
             'listsWithoutPrecedingBlankline' => true,
         ],
         'gfm' => [

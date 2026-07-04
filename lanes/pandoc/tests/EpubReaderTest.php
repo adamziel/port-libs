@@ -259,6 +259,54 @@ XML);
             $native
         );
     },
+    'ignores epub metadata outside upstream dc prefixed dublin core elements' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-dc-prefix-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary EPUB package');
+        }
+        $zip->addFromString('META-INF/container.xml', '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         xmlns:dcx="http://purl.org/dc/elements/1.1/"
+         version="3.0">
+  <metadata>
+    <dc:title>Recognized DC Title</dc:title>
+    <dcx:creator>Alt Prefix Author</dcx:creator>
+    <description>Bare Description</description>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('OPS/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Body.</p></body></html>');
+        $zip->close();
+
+        try {
+            $document = (new EpubReader())->readEpubFile($path);
+            $meta = $document->attr('meta');
+            $native = (new NativeWriter())->write($document);
+        } finally {
+            @unlink($path);
+        }
+
+        $t->same('Recognized DC Title', $meta['title']);
+        $t->same(false, array_key_exists('author', $meta));
+        $t->same(false, array_key_exists('description', $meta));
+        $t->contains('( "title" , MetaInlines [ Str "Recognized" , Space , Str "DC" , Space , Str "Title" ] )', $native);
+        $t->same(false, str_contains($native, 'Alt Prefix Author'));
+        $t->same(false, str_contains($native, 'Bare Description'));
+    },
     'matches upstream wasteland epub core metadata surface' => static function (TestRunner $t): void {
         $fixture = __DIR__ . '/../fixtures/upstream-current-epub-reader/epub/wasteland.epub';
         $meta = (new EpubReader())->readEpubFile($fixture)->attr('meta');

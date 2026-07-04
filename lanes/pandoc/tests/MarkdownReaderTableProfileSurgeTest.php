@@ -147,9 +147,9 @@ $profileCases = [
         'options' => ['format' => 'markdown'],
         'enabled' => ['pipe', 'simple', 'grid', 'multiline'],
     ],
-    'commonmark x enables all table syntaxes' => [
+    'commonmark x enables pipe table syntax only' => [
         'options' => ['format' => 'commonmark_x'],
-        'enabled' => ['pipe', 'simple', 'grid', 'multiline'],
+        'enabled' => ['pipe'],
     ],
     'commonmark disables table syntaxes' => [
         'options' => ['format' => 'commonmark'],
@@ -305,6 +305,10 @@ $multilineProfileCases = [
         'options' => ['format' => 'commonmark'],
         'enabled' => false,
     ],
+    'commonmark x disables multiline table syntax' => [
+        'options' => ['format' => 'commonmark_x'],
+        'enabled' => false,
+    ],
     'commonmark suffix enables multiline table syntax' => [
         'options' => ['format' => 'commonmark+multiline_tables'],
         'enabled' => true,
@@ -348,9 +352,29 @@ foreach ($multilineProfileCases as $profileName => $profile) {
     }
 }
 
+$tests['maps upstream markdown reader commonmark x grid table default fixture as paragraph'] =
+    static function (TestRunner $t) use ($firstTable, $plainInlineText): void {
+        $fixtureName = 'upstream-markdown-z-commonmark-x-grid-table-default.md';
+        $markdown = file_get_contents(dirname(__DIR__) . '/fixtures/' . $fixtureName);
+        if (!is_string($markdown)) {
+            throw new RuntimeException("Unable to read {$fixtureName}");
+        }
+
+        $commonmark = (new MarkdownReader(['format' => 'commonmark_x']))->read($markdown);
+        $paragraph = $commonmark->children[0] ?? new AstNode('missing');
+
+        $t->same('missing', $firstTable($commonmark)->type);
+        $t->same('paragraph', $paragraph->type);
+        $t->same(
+            "+\u{2014}+\u{2014}+\n| A | B |\n+===+===+\n| 1 | 2 |\n+\u{2014}+\u{2014}+",
+            $plainInlineText($paragraph->children)
+        );
+        $t->same('table', $firstTable((new MarkdownReader(['format' => 'markdown']))->read($markdown))->type);
+    };
+
 $tests['records upstream markdown reader table profile surge mapped-case count'] =
     static function (TestRunner $t) use ($caseCount): void {
-        $t->same(206, $caseCount);
+        $t->same(208, $caseCount);
     };
 
 return $tests;

@@ -17734,6 +17734,27 @@ XML);
         $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Repeated" , Space , Str "slash" , Space , Str "slide" , Space , Str "target" , Space , Str "body" ]', $native);
     },
 
+    'keeps pptx slide target parent segments literal like upstream' => static function (TestRunner $t) use ($buildQueryFragmentSlideTargetPptxPackage): void {
+        foreach ([
+            '../slides/slide1.xml' => ['ppt/../slides/slide1.xml', 'slides/slide1.xml'],
+            'slides/../slides/slide1.xml' => ['ppt/slides/../slides/slide1.xml', 'ppt/slides/slide1.xml'],
+        ] as $target => [$partName, $entryName]) {
+            try {
+                (new PptxReader())->read($buildQueryFragmentSlideTargetPptxPackage(
+                    $target,
+                    $entryName,
+                    'Normalized parent segment slide target must stay hidden'
+                ));
+            } catch (RuntimeException $exception) {
+                $t->same('Entry not found: ' . $partName, $exception->getMessage(), $target);
+
+                continue;
+            }
+
+            throw new RuntimeException('Expected parent-segment slide Target to stay literal like upstream: ' . $target);
+        }
+    },
+
     'keeps pptx slide target query and fragment bytes literal like upstream' => static function (TestRunner $t) use ($buildQueryFragmentSlideTargetPptxPackage): void {
         foreach ([
             'slides/slide1.xml?x=1' => 'ppt/slides/slide1.xml?x=1',

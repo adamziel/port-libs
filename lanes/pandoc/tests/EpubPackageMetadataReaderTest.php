@@ -52,6 +52,32 @@ XML;
         $t->same('MetaList', $json['meta']['languages']['t']);
         $t->same('MetaList', $json['meta']['subject']['t']);
     },
+    'ignores opf metadata outside upstream dc prefixed dublin core elements' => static function (TestRunner $t): void {
+        $xml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         xmlns:dcx="http://purl.org/dc/elements/1.1/"
+         version="3.0">
+  <metadata>
+    <dc:title>Recognized DC Title</dc:title>
+    <dcx:creator>Alt Prefix Author</dcx:creator>
+    <description>Bare Description</description>
+  </metadata>
+</package>
+XML;
+
+        $document = (new EpubPackageMetadataReader())->readPackageXml($xml);
+        $meta = $document->attr('meta');
+        $json = json_decode((new JsonWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same('Recognized DC Title', $meta['title']);
+        $t->same(false, array_key_exists('author', $meta));
+        $t->same(false, array_key_exists('description', $meta));
+        $t->same('MetaInlines', $json['meta']['title']['t']);
+        $t->same(false, array_key_exists('author', $json['meta']));
+        $t->same(false, array_key_exists('description', $json['meta']));
+    },
     'discovers opf rootfile from an epub zip container' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-');
         if ($path === false) {

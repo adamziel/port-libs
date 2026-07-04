@@ -1,0 +1,28 @@
+[ Para
+    [ Str "+\8212+\8212+"
+    , SoftBreak
+    , Str "|"
+    , Space
+    , Str "A"
+    , Space
+    , Str "|"
+    , Space
+    , Str "B"
+    , Space
+    , Str "|"
+    , SoftBreak
+    , Str "+===+===+"
+    , SoftBreak
+    , Str "|"
+    , Space
+    , Str "1"
+    , Space
+    , Str "|"
+    , Space
+    , Str "2"
+    , Space
+    , Str "|"
+    , SoftBreak
+    , Str "+\8212+\8212+"
+    ]
+]

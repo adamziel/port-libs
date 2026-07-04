@@ -62,6 +62,22 @@ $tests['imports upstream html sup and sub inline nodes'] =
         $t->same(' stay inline.', $paragraph->children[4]->attr('text'));
     };
 
+$tests['imports direct pandoc html standalone sup and sub fragment as plain'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-standalone-sup-sub-inline.html'));
+        $plain = $document->children[0];
+
+        $t->same('html', $document->attr('sourceFormat'));
+        $t->same(['plain'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same(
+            ['subscript', 'text', 'superscript'],
+            array_map(static fn ($node): string => $node->type, $plain->children)
+        );
+        $t->same('2', $plain->children[0]->children[0]->attr('text'));
+        $t->same(' and ', $plain->children[1]->attr('text'));
+        $t->same('review', $plain->children[2]->children[0]->attr('text'));
+    };
+
 $tests['imports upstream html self closing anchor without href as span'] =
     static function (TestRunner $t): void {
         $document = (new HtmlReader())->read('<a name="anchor"/>');

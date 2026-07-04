@@ -459,10 +459,6 @@ final class PptxReader
             if ($segment === '.') {
                 continue;
             }
-            if ($segment === '..') {
-                array_pop($segments);
-                continue;
-            }
             $segments[] = $segment;
         }
 

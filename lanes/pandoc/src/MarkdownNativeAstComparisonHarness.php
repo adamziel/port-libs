@@ -13,6 +13,7 @@ final class MarkdownNativeAstComparisonHarness
     private const MARKDOWN_READER_OPTIONS_BY_BASENAME = [
         'upstream-command-gfm-details-list' => ['format' => 'gfm'],
         'upstream-markdown-alerts' => ['format' => 'gfm'],
+        'upstream-markdown-z-commonmark-x-grid-table-default' => ['format' => 'commonmark_x'],
         'upstream-markdown-definition-list-html-div' => ['format' => 'markdown+definition_lists+raw_html'],
         'upstream-markdown-definition-list-nested-list' => ['format' => 'markdown+definition_lists'],
         'upstream-markdown-emoji-symbols' => ['format' => 'markdown+emoji'],

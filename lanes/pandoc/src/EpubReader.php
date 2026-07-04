@@ -360,9 +360,7 @@ final class EpubReader
 
     private function isDublinCoreMetadataElement(\DOMElement $element): bool
     {
-        return $element->namespaceURI === self::DC_NAMESPACE
-            || array_key_exists($element->localName, self::DC_METADATA_FIELD_KEYS)
-            || in_array($element->localName, ['title', 'creator', 'date', 'language', 'identifier', 'subject'], true);
+        return $element->namespaceURI === self::DC_NAMESPACE && $element->prefix === 'dc';
     }
 
     /**

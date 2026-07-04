@@ -1877,6 +1877,10 @@ final class DelimitedTextReader
             return $text;
         }
 
+        if ($firstContentOffset >= strlen($text)) {
+            return $this->pandocWhitespaceOnlyDocumentBlankRows($text) === null ? $text : '';
+        }
+
         return substr($text, $firstContentOffset);
     }
 
@@ -1998,7 +2002,7 @@ final class DelimitedTextReader
             $diagnostics[] = [
                 'code' => 'delimited-text-input-prefix-leading-whitespace',
                 'severity' => 'info',
-                'message' => 'Leading whitespace-only records were detected in the input prefix; recovery-mode parsing starts at the first non-whitespace record.',
+                'message' => 'Leading whitespace-only records were detected in the input prefix; recovery-mode parsing starts at the first non-whitespace record when one exists.',
                 'byteCount' => $inputPrefix['leadingWhitespaceByteCount'],
                 'lineCount' => $inputPrefix['leadingWhitespaceLineCount'] ?? 0,
                 'firstContentLine' => $inputPrefix['firstContentLine'] ?? 1,
