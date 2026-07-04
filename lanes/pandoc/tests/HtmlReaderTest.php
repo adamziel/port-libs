@@ -537,6 +537,21 @@ $tests['imports generated current html details summary fixture as visible blocks
         $t->same('Sum', $inlineSummary->children[0]->children[0]->children[0]->attr('text'));
     };
 
+$tests['imports direct pandoc html template content as visible blocks'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-template-raw-boundary.html'));
+        $fallback = $document->children[0];
+        $after = $document->children[1];
+
+        $t->same('html', $document->attr('sourceFormat'));
+        $t->same(['paragraph', 'paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same('Fallback content', $fallback->attr('text'));
+        $t->same(['text', 'strong'], array_map(static fn ($node): string => $node->type, $fallback->children));
+        $t->same('Fallback ', $fallback->children[0]->attr('text'));
+        $t->same('content', $fallback->children[1]->children[0]->attr('text'));
+        $t->same('After template.', $after->attr('text'));
+    };
+
 $tests['extracts html reader microdata item metadata with itemref and nested item scopes'] =
     static function (TestRunner $t): void {
         $html = '<!doctype html><html><head><title>Microdata Dispatch</title></head><body>'

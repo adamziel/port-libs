@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 66;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 67;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'acbdca5b007404744c5f3d7b1f896f3cb04383060aaaeb084529f566d1fd16c6';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 32762;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '75f4160c1ff81842e5ce60b133f6722a0ac182d7af0d43f7aadac178cba8a53a';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 33232;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -426,6 +426,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => '835dfba7de0cdcc016d24d7eba54ff6eee05d0434da2154bd49f51fe25a66bb4',
             'pptxBytes' => 1280,
             'nativeBytes' => 101,
+        ],
+        'duplicate-relationship-id' => [
+            'name' => 'generated duplicate relationship id first-target parity',
+            'pptx' => 'pptx-reader/duplicate-relationship-id.pptx',
+            'native' => 'pptx-reader/duplicate-relationship-id.native',
+            'pairKey' => 'pptx-reader/duplicate-relationship-id.pptx|pptx-reader/duplicate-relationship-id.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/duplicate-relationship-id.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/duplicate-relationship-id.native',
+            'pptxSha256' => 'da3cc0a2e97ec681bdea132762fe438ac20beee5c4eda19c89e721d82888ab55',
+            'nativeSha256' => 'c782680dd8586098eacc123dcbd3c608f621ae3e83853c8c1e7bb58f9f8781f8',
+            'pptxBytes' => 1923,
+            'nativeBytes' => 115,
         ],
         'duplicate-slide-reference' => [
             'name' => 'generated duplicate slide reference parity',

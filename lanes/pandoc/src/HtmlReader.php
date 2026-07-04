@@ -36,7 +36,8 @@ final class HtmlReader
             $consumedFootnoteContainerCount = 0;
             $attrs = [];
         } else {
-            $readerBytes = self::flattenHtmlDetailsSummaryContainers($bytes);
+            $readerBytes = self::flattenHtmlTemplateContainers($bytes);
+            $readerBytes = self::flattenHtmlDetailsSummaryContainers($readerBytes);
             $readerBytes = self::repairParagraphTableOrRuleFragmentBoundaries($readerBytes);
             $delegated = self::delegateHtmlBytes($readerBytes);
             $document = $this->reader->read($delegated['bytes']);
@@ -71,6 +72,82 @@ final class HtmlReader
         ], $this->microdataMetadata($bytes));
 
         return new AstNode('document', $attrs, $children);
+    }
+
+    private static function flattenHtmlTemplateContainers(string $bytes): string
+    {
+        if (preg_match('/<template\b/i', $bytes) !== 1) {
+            return $bytes;
+        }
+
+        try {
+            $trimmed = ltrim($bytes);
+            if (preg_match('/^(?:<!doctype\b|<html\b|<head\b|<body\b)/i', $trimmed) !== 1) {
+                $body = Html5Dom::parseHtmlFragment($bytes);
+                if (!self::flattenHtmlTemplateElements($body->ownerDocument)) {
+                    return $bytes;
+                }
+
+                return Html5Dom::serializeHtmlChildren($body);
+            }
+
+            $dom = Html5Dom::parseHtmlDocument($bytes);
+            if (!self::flattenHtmlTemplateElements($dom)) {
+                return $bytes;
+            }
+
+            $documentElement = $dom->documentElement;
+            if (!$documentElement instanceof \DOMElement) {
+                return $bytes;
+            }
+
+            $html = $dom->saveHTML($documentElement);
+
+            return is_string($html) ? $html : $bytes;
+        } catch (\Throwable) {
+            return $bytes;
+        }
+    }
+
+    private static function flattenHtmlTemplateElements(?\DOMDocument $dom): bool
+    {
+        if (!$dom instanceof \DOMDocument) {
+            return false;
+        }
+
+        $changed = false;
+        for ($pass = 0; $pass < 8; ++$pass) {
+            $templates = [];
+            foreach ($dom->getElementsByTagName('template') as $template) {
+                if ($template instanceof \DOMElement) {
+                    $templates[] = $template;
+                }
+            }
+
+            if ($templates === []) {
+                return $changed;
+            }
+
+            foreach ($templates as $template) {
+                $parent = $template->parentNode;
+                if (!$parent instanceof \DOMNode) {
+                    continue;
+                }
+
+                $content = $template->textContent;
+                $fragment = Html5Dom::parseHtmlFragment($content);
+                foreach (iterator_to_array($fragment->childNodes) as $child) {
+                    if (!$child instanceof \DOMNode) {
+                        continue;
+                    }
+                    $parent->insertBefore($dom->importNode($child, true), $template);
+                }
+                $parent->removeChild($template);
+                $changed = true;
+            }
+        }
+
+        return $changed;
     }
 
     private static function flattenHtmlDetailsSummaryContainers(string $bytes): string

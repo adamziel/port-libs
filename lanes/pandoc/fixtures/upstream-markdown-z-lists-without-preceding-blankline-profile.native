@@ -1,0 +1,8 @@
+[ Para [ Str "Lead" ]
+, BulletList
+    [ [ Plain [ Str "dash" , Space , Str "item" ] ] ]
+, Para [ Str "Lead" , Space , Str "ordered" ]
+, OrderedList
+    ( 2 , Decimal , Period )
+    [ [ Plain [ Str "decimal" , Space , Str "item" ] ] ]
+]
