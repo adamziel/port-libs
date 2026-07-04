@@ -22,10 +22,14 @@ final class HtmlReader
 
     public function read(string $bytes): AstNode
     {
-        $document = $this->reader->read(self::delegateHtmlBytes($bytes));
+        $delegated = self::delegateHtmlBytes($bytes);
+        $document = $this->reader->read($delegated['bytes']);
         [$children, $consumedFootnoteContainerCount] = self::containsAstNodeType($document->children, 'note')
             ? self::stripConsumedHtmlFootnoteContainers($document->children)
             : [$document->children, 0];
+        if ($delegated['implicitPlainBody']) {
+            $children = self::restoreImplicitPlainBody($children);
+        }
         $attrs = $document->attrs;
         $meta = $attrs['meta'] ?? [];
         if (!is_array($meta)) {
@@ -49,19 +53,70 @@ final class HtmlReader
         return new AstNode('document', $attrs, $children);
     }
 
-    private static function delegateHtmlBytes(string $bytes): string
+    /**
+     * @return array{bytes: string, implicitPlainBody: bool}
+     */
+    private static function delegateHtmlBytes(string $bytes): array
     {
         $trimmed = ltrim($bytes);
+        if (self::isHeadOrBodyFragment($trimmed)) {
+            return [
+                'bytes' => '<html>' . $bytes . '</html>',
+                'implicitPlainBody' => self::hasImplicitPlainBody($trimmed),
+            ];
+        }
+
         if (preg_match('/^<(output|select)\b/i', $trimmed, $match) !== 1) {
-            return $bytes;
+            return ['bytes' => $bytes, 'implicitPlainBody' => false];
         }
 
         $tag = strtolower($match[1]);
         if (preg_match('/<\/' . preg_quote($tag, '/') . '\s*>/i', $trimmed) !== 1) {
-            return $bytes;
+            return ['bytes' => $bytes, 'implicitPlainBody' => false];
         }
 
-        return '<form data-html-reader-boundary="form-control">' . $bytes . '</form>';
+        return [
+            'bytes' => '<form data-html-reader-boundary="form-control">' . $bytes . '</form>',
+            'implicitPlainBody' => false,
+        ];
+    }
+
+    private static function isHeadOrBodyFragment(string $trimmed): bool
+    {
+        return preg_match('/^<(head|body)\b/i', $trimmed) === 1
+            && preg_match('/^<html\b/i', $trimmed) !== 1;
+    }
+
+    private static function hasImplicitPlainBody(string $trimmed): bool
+    {
+        if (preg_match('/<body\b[^>]*>(.*?)(?:<\/body\s*>|<\/html\s*>|$)/is', $trimmed, $match) !== 1) {
+            return false;
+        }
+
+        $body = trim((string) preg_replace('/<\/head\s*>/i', '', $match[1]));
+        if ($body === '') {
+            return false;
+        }
+
+        return preg_match(self::htmlBlockContainerPattern(), $body) !== 1;
+    }
+
+    private static function htmlBlockContainerPattern(): string
+    {
+        return '/<(?:address|article|aside|blockquote|details|div|dl|fieldset|figcaption|figure|footer|form|h[1-6]|header|hr|main|nav|ol|p|pre|section|table|ul)\b/i';
+    }
+
+    /**
+     * @param list<AstNode> $children
+     * @return list<AstNode>
+     */
+    private static function restoreImplicitPlainBody(array $children): array
+    {
+        if (count($children) !== 1 || $children[0]->type !== 'paragraph') {
+            return $children;
+        }
+
+        return [new AstNode('plain', $children[0]->attrs, $children[0]->children)];
     }
 
     /**

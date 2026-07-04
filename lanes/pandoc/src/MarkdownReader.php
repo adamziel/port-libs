@@ -13483,7 +13483,7 @@ final class MarkdownReader
                     $definitions[$definitionIndex] = new AstNode(
                         $definition->type,
                         array_merge($definition->attrs, ['loose' => true]),
-                        $definition->children
+                        $this->looseDefinitionChildren($definition->children)
                     );
                 }
             }
@@ -13592,7 +13592,7 @@ final class MarkdownReader
         $blankBeforeNextDefinition = false;
         $marker = $this->matchDefinitionMarker($lines[$cursor]);
         $markerIndent = $this->definitionMarkerIndent($lines[$cursor]);
-        $blocks = $marker === null ? [] : $this->parseDefinitionBlocks($marker['content']);
+        $blocks = $marker === null ? [] : $this->parseDefinitionBlocks($marker['content'], $loose);
         $cursor++;
         $count = count($lines);
 
@@ -13607,7 +13607,7 @@ final class MarkdownReader
                 }
                 if ($next < $count && $this->isIndentedDefinitionContinuation($lines[$next])) {
                     $cursor = $next;
-                    foreach ($this->readDefinitionContinuationBlock($lines, $cursor) as $block) {
+                    foreach ($this->readDefinitionContinuationBlock($lines, $cursor, $loose) as $block) {
                         $blocks[] = $block;
                     }
                     continue;
@@ -13620,7 +13620,7 @@ final class MarkdownReader
             }
 
             if ($this->isIndentedDefinitionContinuation($line)) {
-                foreach ($this->readDefinitionContinuationBlock($lines, $cursor) as $block) {
+                foreach ($this->readDefinitionContinuationBlock($lines, $cursor, $loose) as $block) {
                     $blocks[] = $block;
                 }
                 continue;
@@ -13634,7 +13634,7 @@ final class MarkdownReader
                 break;
             }
 
-            $this->appendLazyDefinitionLine($blocks, trim($line));
+            $this->appendLazyDefinitionLine($blocks, trim($line), $loose);
             $cursor++;
         }
 
@@ -13645,7 +13645,7 @@ final class MarkdownReader
      * @param list<string> $lines
      * @return list<AstNode>
      */
-    private function readDefinitionContinuationBlock(array $lines, int &$cursor): array
+    private function readDefinitionContinuationBlock(array $lines, int &$cursor, bool $loose): array
     {
         $content = [];
         $count = count($lines);
@@ -13679,7 +13679,9 @@ final class MarkdownReader
             return [];
         }
 
-        return $this->read(implode("\n", $content))->children;
+        $children = $this->read(implode("\n", $content))->children;
+
+        return $loose ? $children : $this->tightDefinitionChildren($children);
     }
 
     private function isIndentedDefinitionContinuation(string $line): bool
@@ -13699,27 +13701,32 @@ final class MarkdownReader
     /**
      * @param list<AstNode> $blocks
      */
-    private function appendLazyDefinitionLine(array &$blocks, string $text): void
+    private function appendLazyDefinitionLine(array &$blocks, string $text, bool $loose): void
     {
         if ($text === '') {
             return;
         }
 
         $lastIndex = array_key_last($blocks);
-        if ($lastIndex !== null && $blocks[$lastIndex]->type === 'paragraph') {
+        if ($lastIndex !== null && in_array($blocks[$lastIndex]->type, ['paragraph', 'plain'], true)) {
             $current = (string) $blocks[$lastIndex]->attr('text', '');
-            $combined = $current === '' ? $text : $current . ' ' . $text;
-            $blocks[$lastIndex] = new AstNode('paragraph', ['text' => $combined], $this->parseInlines($combined));
+            $combined = $current === '' ? $text : $current . "\n" . $text;
+            $inlines = $this->parseInlines($combined);
+            $blocks[$lastIndex] = new AstNode(
+                $blocks[$lastIndex]->type,
+                ['text' => $this->paragraphTextFromInlines($inlines)],
+                $inlines
+            );
             return;
         }
 
-        $blocks[] = new AstNode('paragraph', ['text' => $text], $this->parseInlines($text));
+        $blocks[] = $this->definitionTextBlock($loose ? 'paragraph' : 'plain', $text);
     }
 
     /**
      * @return list<AstNode>
      */
-    private function parseDefinitionBlocks(string $content): array
+    private function parseDefinitionBlocks(string $content, bool $loose = false): array
     {
         $content = rtrim($content, " \t");
         if (trim($content) === '') {
@@ -13729,7 +13736,9 @@ final class MarkdownReader
         $leadingSpaces = strspn($content, ' ');
         $afterMarkerPadding = substr($content, min(3, $leadingSpaces));
         if (preg_match('/^(?: {4,}|\t)/', $afterMarkerPadding) === 1) {
-            return $this->read($afterMarkerPadding)->children;
+            $children = $this->read($afterMarkerPadding)->children;
+
+            return $loose ? $children : $this->tightDefinitionChildren($children);
         }
 
         $trimmed = ltrim($content, " \t");
@@ -13741,7 +13750,50 @@ final class MarkdownReader
             return $this->read($trimmed)->children;
         }
 
-        return [new AstNode('paragraph', ['text' => $trimmed], $this->parseInlines($trimmed))];
+        return [$this->definitionTextBlock($loose ? 'paragraph' : 'plain', $trimmed)];
+    }
+
+    /**
+     * @param list<AstNode> $children
+     * @return list<AstNode>
+     */
+    private function tightDefinitionChildren(array $children): array
+    {
+        return array_map(
+            function (AstNode $child): AstNode {
+                if ($child->type !== 'paragraph') {
+                    return $child;
+                }
+
+                return new AstNode('plain', $child->attrs, $child->children);
+            },
+            $children
+        );
+    }
+
+    /**
+     * @param list<AstNode> $children
+     * @return list<AstNode>
+     */
+    private function looseDefinitionChildren(array $children): array
+    {
+        return array_map(
+            function (AstNode $child): AstNode {
+                if ($child->type !== 'plain') {
+                    return $child;
+                }
+
+                return new AstNode('paragraph', $child->attrs, $child->children);
+            },
+            $children
+        );
+    }
+
+    private function definitionTextBlock(string $type, string $text): AstNode
+    {
+        $inlines = $this->parseInlines($text);
+
+        return new AstNode($type, ['text' => $this->paragraphTextFromInlines($inlines)], $inlines);
     }
 
     /**

@@ -64,7 +64,7 @@ $assertDefinitionList = static function (TestRunner $t, AstNode $document, array
 };
 
 $paragraphDefinition = static fn (string $text, bool $loose = false): array => [
-    'blocks' => ['paragraph'],
+    'blocks' => [$loose ? 'paragraph' : 'plain'],
     'text' => $text,
     'loose' => $loose,
 ];
@@ -140,7 +140,7 @@ $bodyCases = [
     'four-space continuation becomes second paragraph block' => [
         'markdown' => "Term\n: first\n    continued",
         'items' => [['term' => 'Term', 'definitions' => [[
-            'blocks' => ['paragraph', 'paragraph'],
+            'blocks' => ['plain', 'plain'],
             'text' => 'first continued',
             'loose' => false,
         ]]]],
@@ -148,7 +148,7 @@ $bodyCases = [
     'tab continuation becomes second paragraph block' => [
         'markdown' => "Term\n: first\n\tcontinued",
         'items' => [['term' => 'Term', 'definitions' => [[
-            'blocks' => ['paragraph', 'paragraph'],
+            'blocks' => ['plain', 'plain'],
             'text' => 'first continued',
             'loose' => false,
         ]]]],
@@ -156,7 +156,7 @@ $bodyCases = [
     'blank and four-space continuation becomes multi paragraph body' => [
         'markdown' => "Term\n: first\n\n    second paragraph",
         'items' => [['term' => 'Term', 'definitions' => [[
-            'blocks' => ['paragraph', 'paragraph'],
+            'blocks' => ['plain', 'plain'],
             'text' => 'first second paragraph',
             'loose' => false,
         ]]]],
@@ -164,7 +164,7 @@ $bodyCases = [
     'blank and repeated indented continuation keeps two body paragraphs' => [
         'markdown' => "Term\n: first\n\n    second paragraph\n\n    third paragraph",
         'items' => [['term' => 'Term', 'definitions' => [[
-            'blocks' => ['paragraph', 'paragraph', 'paragraph'],
+            'blocks' => ['plain', 'plain', 'plain'],
             'text' => 'first second paragraph third paragraph',
             'loose' => false,
         ]]]],
@@ -212,7 +212,7 @@ $bodyCases = [
     'continuation blockquote body after paragraph' => [
         'markdown' => "Term\n: first\n\n    > quoted",
         'items' => [['term' => 'Term', 'definitions' => [[
-            'blocks' => ['paragraph', 'blockquote'],
+            'blocks' => ['plain', 'blockquote'],
             'text' => 'first quoted',
             'loose' => false,
         ]]]],
@@ -220,7 +220,7 @@ $bodyCases = [
     'continuation bullet list body after paragraph' => [
         'markdown' => "Term\n: first\n\n    - nested",
         'items' => [['term' => 'Term', 'definitions' => [[
-            'blocks' => ['paragraph', 'bullet_list'],
+            'blocks' => ['plain', 'bullet_list'],
             'text' => 'first nested',
             'loose' => false,
         ]]]],
@@ -228,7 +228,7 @@ $bodyCases = [
     'continuation ordered list body after paragraph' => [
         'markdown' => "Term\n: first\n\n    1. nested",
         'items' => [['term' => 'Term', 'definitions' => [[
-            'blocks' => ['paragraph', 'ordered_list'],
+            'blocks' => ['plain', 'ordered_list'],
             'text' => 'first nested',
             'loose' => false,
         ]]]],
@@ -236,7 +236,7 @@ $bodyCases = [
     'continuation fenced code body after paragraph' => [
         'markdown' => "Term\n: first\n\n    ```\n    code\n    ```",
         'items' => [['term' => 'Term', 'definitions' => [[
-            'blocks' => ['paragraph', 'code_block'],
+            'blocks' => ['plain', 'code_block'],
             'text' => 'first code',
             'loose' => false,
         ]]]],
@@ -244,7 +244,7 @@ $bodyCases = [
     'continuation indented code body after paragraph' => [
         'markdown' => "Term\n: first\n\n        code",
         'items' => [['term' => 'Term', 'definitions' => [[
-            'blocks' => ['paragraph', 'code_block'],
+            'blocks' => ['plain', 'code_block'],
             'text' => 'first code',
             'loose' => false,
         ]]]],
@@ -252,7 +252,7 @@ $bodyCases = [
     'continuation heading body after paragraph' => [
         'markdown' => "Term\n: first\n\n    # Heading",
         'items' => [['term' => 'Term', 'definitions' => [[
-            'blocks' => ['paragraph', 'heading'],
+            'blocks' => ['plain', 'heading'],
             'text' => 'first Heading',
             'loose' => false,
         ]]]],
@@ -260,7 +260,7 @@ $bodyCases = [
     'continuation nested definition list body after paragraph' => [
         'markdown' => "Term\n: first\n\n    Nested\n    : nested definition",
         'items' => [['term' => 'Term', 'definitions' => [[
-            'blocks' => ['paragraph', 'definition_list'],
+            'blocks' => ['plain', 'definition_list'],
             'text' => 'first Nested nested definition',
             'loose' => false,
         ]]]],
@@ -284,7 +284,7 @@ $bodyCases = [
         'items' => [['term' => 'Term', 'definitions' => [
             $paragraphDefinition('First'),
             [
-                'blocks' => ['paragraph', 'bullet_list'],
+                'blocks' => ['plain', 'bullet_list'],
                 'text' => 'Second nested',
                 'loose' => false,
             ],

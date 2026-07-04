@@ -23,6 +23,12 @@ Options:
   --require-generated-csv-native-parity[=N]
                                   Exit 1 unless the generated CSV-to-native
                                   samples match their native fixtures.
+  --require-pandoc-executable-csv-native-parity[=N]
+                                  Exit 1 unless installed pandoc 3.10 matches
+                                  the representable generated CSV subset.
+  --require-pandoc-executable-tsv-native-parity[=N]
+                                  Exit 1 unless installed pandoc 3.10 matches
+                                  the representable generated TSV subset.
   --require-runner-not-run        Exit 1 unless upstream runner evidence is
                                   structured as not-run for CSV and TSV.
   --require-runner-plan           Exit 1 unless upstream runner evidence includes
@@ -34,7 +40,7 @@ Options:
   --help                          Show this help.
 
 This is a focused evidence gate for the native CSV/TSV reader packet.
-It does not run Cabal/Tasty or execute pandoc.
+It does not run Cabal/Tasty. It only executes pandoc when explicitly requested.
 TEXT;
 };
 
@@ -146,6 +152,68 @@ $validateGeneratedCsvNativeParity = static function (array $evidence, ?int $requ
     return $issues;
 };
 
+$validateGeneratedCsvPandocExecutableNativeParity = static function (array $evidence, ?int $requiredSampleCount = null): array {
+    $issues = [];
+    $expect = static function (bool $condition, string $message) use (&$issues): void {
+        if (!$condition) {
+            $issues[] = $message;
+        }
+    };
+    $expectedSampleCount = $requiredSampleCount ?? DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT;
+    $samples = is_array($evidence['samples'] ?? null) ? $evidence['samples'] : [];
+
+    $expect(($evidence['reader'] ?? null) === 'csv', 'Pandoc executable CSV native parity evidence reader must be csv');
+    $expect(($evidence['requiredPandocVersion'] ?? null) === DelimitedTextUpstreamReaderEvidence::REQUIRED_PANDOC_EXECUTABLE_VERSION, 'Pandoc executable CSV native parity must require pandoc 3.10');
+    $expect(($evidence['pandocVersion'] ?? null) === DelimitedTextUpstreamReaderEvidence::REQUIRED_PANDOC_EXECUTABLE_VERSION, 'Pandoc executable CSV native parity must observe pandoc 3.10');
+    $expect(($evidence['pandocExecutableStatus'] ?? null) === 'available', 'Pandoc executable CSV native parity must have an available pandoc executable');
+    $expect(($evidence['csvDirectFixtureDenominator'] ?? null) === DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, 'Pandoc executable CSV native parity must keep CSV direct denominator at 2');
+    $expect(($evidence['sampleCount'] ?? null) === $expectedSampleCount, 'Pandoc executable CSV native parity sample count must match expected generated subset count');
+    $expect(count($samples) === $expectedSampleCount, 'Pandoc executable CSV native parity sample result count must match expected generated subset count');
+    $expect(($evidence['comparedSampleCount'] ?? null) === $expectedSampleCount, 'Pandoc executable CSV native parity compared sample count must match expected generated subset count');
+    $expect(($evidence['parseFailureCount'] ?? null) === 0, 'Pandoc executable CSV native parity parse failure count must be 0');
+    $expect(($evidence['pandocExecutableNativeMatchCount'] ?? null) === $expectedSampleCount, 'Pandoc executable CSV native parity match count must match expected generated subset count');
+    $expect(($evidence['pandocExecutableNativeMismatchCount'] ?? null) === 0, 'Pandoc executable CSV native parity mismatch count must be 0');
+    $expect(($evidence['staticFixtureBindingValidCount'] ?? null) === $expectedSampleCount, 'Pandoc executable CSV native parity static fixture binding valid count must match expected generated subset count');
+    $expect(($evidence['staticFixtureBindingInvalidCount'] ?? null) === 0, 'Pandoc executable CSV native parity static fixture binding invalid count must be 0');
+    $expect(
+        DelimitedTextUpstreamReaderEvidence::hasRequiredGeneratedCsvPandocExecutableNativeParity($evidence, $expectedSampleCount),
+        'Pandoc executable CSV native parity helper must recognize required evidence'
+    );
+
+    return $issues;
+};
+
+$validateGeneratedTsvPandocExecutableNativeParity = static function (array $evidence, ?int $requiredSampleCount = null): array {
+    $issues = [];
+    $expect = static function (bool $condition, string $message) use (&$issues): void {
+        if (!$condition) {
+            $issues[] = $message;
+        }
+    };
+    $expectedSampleCount = $requiredSampleCount ?? DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT;
+    $samples = is_array($evidence['samples'] ?? null) ? $evidence['samples'] : [];
+
+    $expect(($evidence['reader'] ?? null) === 'tsv', 'Pandoc executable TSV native parity evidence reader must be tsv');
+    $expect(($evidence['requiredPandocVersion'] ?? null) === DelimitedTextUpstreamReaderEvidence::REQUIRED_PANDOC_EXECUTABLE_VERSION, 'Pandoc executable TSV native parity must require pandoc 3.10');
+    $expect(($evidence['pandocVersion'] ?? null) === DelimitedTextUpstreamReaderEvidence::REQUIRED_PANDOC_EXECUTABLE_VERSION, 'Pandoc executable TSV native parity must observe pandoc 3.10');
+    $expect(($evidence['pandocExecutableStatus'] ?? null) === 'available', 'Pandoc executable TSV native parity must have an available pandoc executable');
+    $expect(($evidence['tsvDirectFixtureDenominator'] ?? null) === DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, 'Pandoc executable TSV native parity must keep TSV direct denominator at 0');
+    $expect(($evidence['sampleCount'] ?? null) === $expectedSampleCount, 'Pandoc executable TSV native parity sample count must match expected generated subset count');
+    $expect(count($samples) === $expectedSampleCount, 'Pandoc executable TSV native parity sample result count must match expected generated subset count');
+    $expect(($evidence['comparedSampleCount'] ?? null) === $expectedSampleCount, 'Pandoc executable TSV native parity compared sample count must match expected generated subset count');
+    $expect(($evidence['parseFailureCount'] ?? null) === 0, 'Pandoc executable TSV native parity parse failure count must be 0');
+    $expect(($evidence['pandocExecutableNativeMatchCount'] ?? null) === $expectedSampleCount, 'Pandoc executable TSV native parity match count must match expected generated subset count');
+    $expect(($evidence['pandocExecutableNativeMismatchCount'] ?? null) === 0, 'Pandoc executable TSV native parity mismatch count must be 0');
+    $expect(($evidence['staticFixtureBindingValidCount'] ?? null) === $expectedSampleCount, 'Pandoc executable TSV native parity static fixture binding valid count must match expected generated subset count');
+    $expect(($evidence['staticFixtureBindingInvalidCount'] ?? null) === 0, 'Pandoc executable TSV native parity static fixture binding invalid count must be 0');
+    $expect(
+        DelimitedTextUpstreamReaderEvidence::hasRequiredGeneratedTsvPandocExecutableNativeParity($evidence, $expectedSampleCount),
+        'Pandoc executable TSV native parity helper must recognize required evidence'
+    );
+
+    return $issues;
+};
+
 $validateRunnerNotRun = static function (array $csv, array $tsv): array {
     $issues = [];
     $expect = static function (bool $condition, string $message) use (&$issues): void {
@@ -214,6 +282,12 @@ $formatTextReport = static function (array $report): string {
     $tsv = $report['tsv'];
     $generatedCsvNative = $report['generatedCsvNativeParity'];
     $generatedTsvNative = $report['generatedTsvNativeParity'];
+    $generatedCsvPandocExecutableNative = is_array($report['generatedCsvPandocExecutableNativeParity'] ?? null)
+        ? $report['generatedCsvPandocExecutableNativeParity']
+        : null;
+    $generatedTsvPandocExecutableNative = is_array($report['generatedTsvPandocExecutableNativeParity'] ?? null)
+        ? $report['generatedTsvPandocExecutableNativeParity']
+        : null;
     $runnerResultArtifact = is_array($report['runnerResultArtifactEvidence'] ?? null) ? $report['runnerResultArtifactEvidence'] : [];
     $runnerResultArtifactValidation = is_array($runnerResultArtifact['validation'] ?? null) ? $runnerResultArtifact['validation'] : [];
     $lines = [
@@ -242,6 +316,18 @@ $formatTextReport = static function (array $report): string {
         'TSV runner boundary: ' . ($tsv['runnerEvidence']['executionBoundary']['status'] ?? 'unknown'),
         'Runner result artifact: ' . (string) (($runnerResultArtifactValidation['status'] ?? null) ?? 'not-supplied'),
     ];
+    if ($generatedCsvPandocExecutableNative !== null) {
+        $lines[] = 'Pandoc executable CSV native parity: '
+            . $generatedCsvPandocExecutableNative['pandocExecutableNativeMatchCount']
+            . '/' . $generatedCsvPandocExecutableNative['sampleCount']
+            . ' (' . $generatedCsvPandocExecutableNative['parityStatus'] . ')';
+    }
+    if ($generatedTsvPandocExecutableNative !== null) {
+        $lines[] = 'Pandoc executable TSV native parity: '
+            . $generatedTsvPandocExecutableNative['pandocExecutableNativeMatchCount']
+            . '/' . $generatedTsvPandocExecutableNative['sampleCount']
+            . ' (' . $generatedTsvPandocExecutableNative['parityStatus'] . ')';
+    }
 
     if ($report['validationIssues'] === []) {
         $lines[] = 'Validation issues: none';
@@ -261,8 +347,12 @@ try {
     $requireHonestDenominators = false;
     $requireGeneratedCsvNativeParity = false;
     $requireGeneratedTsvNativeParity = false;
+    $requireGeneratedCsvPandocExecutableNativeParity = false;
+    $requireGeneratedTsvPandocExecutableNativeParity = false;
     $requiredGeneratedCsvNativeParityCount = null;
     $requiredGeneratedTsvNativeParityCount = null;
+    $requiredGeneratedCsvPandocExecutableNativeParityCount = null;
+    $requiredGeneratedTsvPandocExecutableNativeParityCount = null;
     $requireRunnerNotRun = false;
     $requireRunnerPlan = false;
     $runnerResultArtifact = null;
@@ -324,6 +414,30 @@ try {
             );
             continue;
         }
+        if ($arg === '--require-pandoc-executable-csv-native-parity') {
+            $requireGeneratedCsvPandocExecutableNativeParity = true;
+            continue;
+        }
+        if (str_starts_with($arg, '--require-pandoc-executable-csv-native-parity=')) {
+            $requireGeneratedCsvPandocExecutableNativeParity = true;
+            $requiredGeneratedCsvPandocExecutableNativeParityCount = $parseNonNegativeInt(
+                '--require-pandoc-executable-csv-native-parity',
+                substr($arg, strlen('--require-pandoc-executable-csv-native-parity='))
+            );
+            continue;
+        }
+        if ($arg === '--require-pandoc-executable-tsv-native-parity') {
+            $requireGeneratedTsvPandocExecutableNativeParity = true;
+            continue;
+        }
+        if (str_starts_with($arg, '--require-pandoc-executable-tsv-native-parity=')) {
+            $requireGeneratedTsvPandocExecutableNativeParity = true;
+            $requiredGeneratedTsvPandocExecutableNativeParityCount = $parseNonNegativeInt(
+                '--require-pandoc-executable-tsv-native-parity',
+                substr($arg, strlen('--require-pandoc-executable-tsv-native-parity='))
+            );
+            continue;
+        }
         if ($arg === '--require-runner-not-run') {
             $requireRunnerNotRun = true;
             continue;
@@ -377,6 +491,24 @@ try {
     $generatedCsvNativeIssues = $validateGeneratedCsvNativeParity($generatedCsvNativeParity, $requiredGeneratedCsvNativeParityCount);
     $generatedTsvNativeParity = DelimitedTextUpstreamReaderEvidence::generatedTsvNativeParityEvidence($repoRoot);
     $generatedTsvNativeIssues = $validateGeneratedTsvNativeParity($generatedTsvNativeParity, $requiredGeneratedTsvNativeParityCount);
+    $generatedCsvPandocExecutableNativeParity = null;
+    $generatedCsvPandocExecutableNativeIssues = [];
+    if ($requireGeneratedCsvPandocExecutableNativeParity) {
+        $generatedCsvPandocExecutableNativeParity = DelimitedTextUpstreamReaderEvidence::generatedCsvPandocExecutableNativeParityEvidence($repoRoot);
+        $generatedCsvPandocExecutableNativeIssues = $validateGeneratedCsvPandocExecutableNativeParity(
+            $generatedCsvPandocExecutableNativeParity,
+            $requiredGeneratedCsvPandocExecutableNativeParityCount
+        );
+    }
+    $generatedTsvPandocExecutableNativeParity = null;
+    $generatedTsvPandocExecutableNativeIssues = [];
+    if ($requireGeneratedTsvPandocExecutableNativeParity) {
+        $generatedTsvPandocExecutableNativeParity = DelimitedTextUpstreamReaderEvidence::generatedTsvPandocExecutableNativeParityEvidence($repoRoot);
+        $generatedTsvPandocExecutableNativeIssues = $validateGeneratedTsvPandocExecutableNativeParity(
+            $generatedTsvPandocExecutableNativeParity,
+            $requiredGeneratedTsvPandocExecutableNativeParityCount
+        );
+    }
     $runnerPlanIssues = $validateRunnerPlan($csvEvidence, $tsvEvidence);
     $runnerResultArtifactEvidence = null;
     $runnerResultArtifactIssues = [];
@@ -405,11 +537,15 @@ try {
         'tsv' => $tsvEvidence,
         'generatedCsvNativeParity' => $generatedCsvNativeParity,
         'generatedTsvNativeParity' => $generatedTsvNativeParity,
+        'generatedCsvPandocExecutableNativeParity' => $generatedCsvPandocExecutableNativeParity,
+        'generatedTsvPandocExecutableNativeParity' => $generatedTsvPandocExecutableNativeParity,
         'runnerResultArtifactEvidence' => $runnerResultArtifactEvidence,
         'validation' => [
             'honestDenominators' => $denominatorIssues === [],
             'generatedCsvNativeParity' => $generatedCsvNativeIssues === [],
             'generatedTsvNativeParity' => $generatedTsvNativeIssues === [],
+            'generatedCsvPandocExecutableNativeParity' => $requireGeneratedCsvPandocExecutableNativeParity ? $generatedCsvPandocExecutableNativeIssues === [] : null,
+            'generatedTsvPandocExecutableNativeParity' => $requireGeneratedTsvPandocExecutableNativeParity ? $generatedTsvPandocExecutableNativeIssues === [] : null,
             'runnerNotRun' => $runnerIssues === [],
             'runnerPlan' => $runnerPlanIssues === [],
             'runnerResultArtifact' => $runnerResultArtifact === null && !$requireRunnerResultArtifact ? null : $runnerResultArtifactIssues === [],
@@ -418,6 +554,8 @@ try {
             ...$denominatorIssues,
             ...$generatedCsvNativeIssues,
             ...$generatedTsvNativeIssues,
+            ...$generatedCsvPandocExecutableNativeIssues,
+            ...$generatedTsvPandocExecutableNativeIssues,
             ...$runnerIssues,
             ...$runnerPlanIssues,
             ...$runnerResultArtifactIssues,
@@ -440,6 +578,14 @@ try {
     }
     if ($requireGeneratedTsvNativeParity && $generatedTsvNativeIssues !== []) {
         fwrite(STDERR, "pandoc-delimited-text-reader-evidence: generated TSV native parity validation reported issues\n");
+        exit(1);
+    }
+    if ($requireGeneratedCsvPandocExecutableNativeParity && $generatedCsvPandocExecutableNativeIssues !== []) {
+        fwrite(STDERR, "pandoc-delimited-text-reader-evidence: pandoc executable CSV native parity validation reported issues\n");
+        exit(1);
+    }
+    if ($requireGeneratedTsvPandocExecutableNativeParity && $generatedTsvPandocExecutableNativeIssues !== []) {
+        fwrite(STDERR, "pandoc-delimited-text-reader-evidence: pandoc executable TSV native parity validation reported issues\n");
         exit(1);
     }
     if ($requireRunnerNotRun && $runnerIssues !== []) {

@@ -19,6 +19,9 @@ final class DelimitedTextUpstreamReaderEvidence
     public const EXPECTED_STATIC_CSV_ADJACENT_RST_FIXTURE_COUNT = 2;
     public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 27;
     public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 21;
+    public const EXPECTED_GENERATED_CSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT = 12;
+    public const EXPECTED_GENERATED_TSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT = 13;
+    public const REQUIRED_PANDOC_EXECUTABLE_VERSION = 'pandoc 3.10';
 
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/delimited-text-targeted-run';
@@ -990,6 +993,37 @@ final class DelimitedTextUpstreamReaderEvidence
         ],
     ];
 
+    private const PANDOC_EXECUTABLE_CSV_NATIVE_SAMPLE_NAMES = [
+        'quoted-multiline',
+        'post-delimiter-space',
+        'quoted-linebreak',
+        'trailing-empty-fields',
+        'crlf-rows',
+        'comment-looking-data',
+        'cr-only-rows',
+        'duplicate-header-labels',
+        'blank-input',
+        'unicode-safe',
+        'quote-in-unquoted-field',
+        'header-only',
+    ];
+
+    private const PANDOC_EXECUTABLE_TSV_NATIVE_SAMPLE_NAMES = [
+        'simple',
+        'quote-trailing',
+        'unicode-safe',
+        'ragged-blank-fields',
+        'comment-looking-data',
+        'csv-quoted-literal',
+        'crlf-rows',
+        'blank-leading-header',
+        'basic-status',
+        'header-only',
+        'blank-input',
+        'duplicate-header-labels',
+        'literal-quote-tab-split',
+    ];
+
     private const SOURCE_FILES = [
         'src/Text/Pandoc/CSV.hs',
         'src/Text/Pandoc/Readers/CSV.hs',
@@ -1715,6 +1749,40 @@ final class DelimitedTextUpstreamReaderEvidence
                 ],
             ],
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function generatedCsvPandocExecutableNativeParityEvidence(string $repoRoot, ?string $pandoc = null): array
+    {
+        return self::pandocExecutableNativeParityEvidence(
+            $repoRoot,
+            'csv',
+            self::PANDOC_EXECUTABLE_CSV_NATIVE_SAMPLE_NAMES,
+            self::GENERATED_CSV_NATIVE_SAMPLES,
+            self::CHECKED_IN_GENERATED_CSV_NATIVE_FIXTURE_DIRECTORY,
+            self::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT,
+            self::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT,
+            $pandoc
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function generatedTsvPandocExecutableNativeParityEvidence(string $repoRoot, ?string $pandoc = null): array
+    {
+        return self::pandocExecutableNativeParityEvidence(
+            $repoRoot,
+            'tsv',
+            self::PANDOC_EXECUTABLE_TSV_NATIVE_SAMPLE_NAMES,
+            self::GENERATED_TSV_NATIVE_SAMPLES,
+            self::CHECKED_IN_GENERATED_TSV_NATIVE_FIXTURE_DIRECTORY,
+            self::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT,
+            self::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT,
+            $pandoc
+        );
     }
 
     /**
@@ -2482,6 +2550,66 @@ final class DelimitedTextUpstreamReaderEvidence
     }
 
     /**
+     * @param array<string, mixed> $evidence
+     */
+    public static function hasRequiredGeneratedCsvPandocExecutableNativeParity(array $evidence, int $requiredSampleCount = self::EXPECTED_GENERATED_CSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT): bool
+    {
+        if ($requiredSampleCount < 0) {
+            throw new \InvalidArgumentException('Required generated CSV pandoc executable native sample count must not be negative');
+        }
+
+        $staticEvidence = is_array($evidence['staticFixtureEvidence'] ?? null) ? $evidence['staticFixtureEvidence'] : [];
+
+        return ($evidence['status'] ?? null) === 'completed-pandoc-executable-generated-csv-native-parity-evidence'
+            && ($evidence['reader'] ?? null) === 'csv'
+            && ($evidence['requiredPandocVersion'] ?? null) === self::REQUIRED_PANDOC_EXECUTABLE_VERSION
+            && ($evidence['pandocVersion'] ?? null) === self::REQUIRED_PANDOC_EXECUTABLE_VERSION
+            && ($evidence['pandocExecutableStatus'] ?? null) === 'available'
+            && (int) ($evidence['csvDirectFixtureDenominator'] ?? -1) === self::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT
+            && (int) ($evidence['sampleCount'] ?? -1) === $requiredSampleCount
+            && (int) ($evidence['comparedSampleCount'] ?? -1) === $requiredSampleCount
+            && (int) ($evidence['parseFailureCount'] ?? -1) === 0
+            && (int) ($evidence['pandocExecutableNativeMatchCount'] ?? -1) === $requiredSampleCount
+            && (int) ($evidence['pandocExecutableNativeMismatchCount'] ?? -1) === 0
+            && (int) ($evidence['staticFixtureBindingValidCount'] ?? -1) === $requiredSampleCount
+            && (int) ($evidence['staticFixtureBindingInvalidCount'] ?? -1) === 0
+            && ($evidence['parityStatus'] ?? null) === 'pandoc-executable-generated-csv-native-parity-observed'
+            && array_column(is_array($evidence['samples'] ?? null) ? $evidence['samples'] : [], 'name') === self::PANDOC_EXECUTABLE_CSV_NATIVE_SAMPLE_NAMES
+            && self::hasRequiredGeneratedCsvNativeStaticEvidence($staticEvidence)
+            && self::hasRequiredGeneratedNativeSampleStaticBindings($evidence, 'csv', $requiredSampleCount);
+    }
+
+    /**
+     * @param array<string, mixed> $evidence
+     */
+    public static function hasRequiredGeneratedTsvPandocExecutableNativeParity(array $evidence, int $requiredSampleCount = self::EXPECTED_GENERATED_TSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT): bool
+    {
+        if ($requiredSampleCount < 0) {
+            throw new \InvalidArgumentException('Required generated TSV pandoc executable native sample count must not be negative');
+        }
+
+        $staticEvidence = is_array($evidence['staticFixtureEvidence'] ?? null) ? $evidence['staticFixtureEvidence'] : [];
+
+        return ($evidence['status'] ?? null) === 'completed-pandoc-executable-generated-tsv-native-parity-evidence'
+            && ($evidence['reader'] ?? null) === 'tsv'
+            && ($evidence['requiredPandocVersion'] ?? null) === self::REQUIRED_PANDOC_EXECUTABLE_VERSION
+            && ($evidence['pandocVersion'] ?? null) === self::REQUIRED_PANDOC_EXECUTABLE_VERSION
+            && ($evidence['pandocExecutableStatus'] ?? null) === 'available'
+            && (int) ($evidence['tsvDirectFixtureDenominator'] ?? -1) === self::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT
+            && (int) ($evidence['sampleCount'] ?? -1) === $requiredSampleCount
+            && (int) ($evidence['comparedSampleCount'] ?? -1) === $requiredSampleCount
+            && (int) ($evidence['parseFailureCount'] ?? -1) === 0
+            && (int) ($evidence['pandocExecutableNativeMatchCount'] ?? -1) === $requiredSampleCount
+            && (int) ($evidence['pandocExecutableNativeMismatchCount'] ?? -1) === 0
+            && (int) ($evidence['staticFixtureBindingValidCount'] ?? -1) === $requiredSampleCount
+            && (int) ($evidence['staticFixtureBindingInvalidCount'] ?? -1) === 0
+            && ($evidence['parityStatus'] ?? null) === 'pandoc-executable-generated-tsv-native-parity-observed'
+            && array_column(is_array($evidence['samples'] ?? null) ? $evidence['samples'] : [], 'name') === self::PANDOC_EXECUTABLE_TSV_NATIVE_SAMPLE_NAMES
+            && self::hasRequiredGeneratedTsvNativeStaticEvidence($staticEvidence)
+            && self::hasRequiredGeneratedNativeSampleStaticBindings($evidence, 'tsv', $requiredSampleCount);
+    }
+
+    /**
      * @param array<string, mixed> $staticEvidence
      * @param list<string> $sampleNames
      */
@@ -2838,6 +2966,226 @@ final class DelimitedTextUpstreamReaderEvidence
         ];
     }
 
+    /**
+     * @param list<string> $sampleNames
+     * @param array<string, array<string, mixed>> $allSamples
+     * @return array<string, mixed>
+     */
+    private static function pandocExecutableNativeParityEvidence(
+        string $repoRoot,
+        string $reader,
+        array $sampleNames,
+        array $allSamples,
+        string $fixtureDirectory,
+        int $directFixtureDenominator,
+        int $generatedNativeCorpusSampleCount,
+        ?string $pandoc
+    ): array {
+        if ($reader !== 'csv' && $reader !== 'tsv') {
+            throw new \InvalidArgumentException("Unsupported pandoc executable native parity reader: {$reader}");
+        }
+
+        $root = rtrim($repoRoot, DIRECTORY_SEPARATOR);
+        $staticEvidence = $reader === 'csv'
+            ? self::checkedInGeneratedCsvNativeEvidence($root)
+            : self::checkedInGeneratedTsvNativeEvidence($root);
+        $staticEvidenceValid = $reader === 'csv'
+            ? self::hasRequiredGeneratedCsvNativeStaticEvidence($staticEvidence)
+            : self::hasRequiredGeneratedTsvNativeStaticEvidence($staticEvidence);
+        $resolvedPandoc = self::resolvePandocExecutable($pandoc);
+        $pandocVersion = $resolvedPandoc === null ? null : self::pandocExecutableVersion($resolvedPandoc);
+        $pandocAvailable = $resolvedPandoc !== null;
+        $pandocVersionMatches = $pandocVersion === self::REQUIRED_PANDOC_EXECUTABLE_VERSION;
+        $sampleResults = [];
+        $parseFailures = [];
+        $mismatches = [];
+        $matchCount = 0;
+        $comparedCount = 0;
+
+        foreach ($sampleNames as $name) {
+            $sample = is_array($allSamples[$name] ?? null) ? $allSamples[$name] : null;
+            $inputPath = is_array($sample) ? (string) ($sample['inputPath'] ?? '') : '';
+            $expectedNativePath = is_array($sample) ? (string) ($sample['expectedNativePath'] ?? '') : '';
+            $readerOptions = is_array($sample['options'] ?? null) ? $sample['options'] : [];
+            $staticFixtureBinding = self::generatedNativeSampleStaticBinding($staticEvidence, $reader, $name);
+            $baseResult = [
+                'name' => $name,
+                'inputPath' => $inputPath,
+                'expectedNativePath' => $expectedNativePath,
+                'readerOptions' => $readerOptions,
+                'reader' => $reader,
+                'staticFixtureBindingStatus' => $staticFixtureBinding['status'],
+                'staticFixtureBinding' => $staticFixtureBinding,
+                'pandocExecutable' => $resolvedPandoc,
+                'pandocVersion' => $pandocVersion,
+            ];
+
+            if ($sample === null) {
+                $failure = [
+                    'sample' => $name,
+                    'inputPath' => $inputPath,
+                    'expectedNativePath' => $expectedNativePath,
+                    'readerOptions' => $readerOptions,
+                    'inputError' => 'missing-generated-sample-definition',
+                    'expectedNativeError' => 'missing-generated-sample-definition',
+                ];
+                $parseFailures[] = $failure;
+                $sampleResults[] = [
+                    ...$baseResult,
+                    'status' => 'parse-failed',
+                    ...$failure,
+                ];
+                continue;
+            }
+
+            $absoluteInputPath = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $inputPath);
+            $absoluteExpectedNativePath = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $expectedNativePath);
+            $input = is_file($absoluteInputPath) ? file_get_contents($absoluteInputPath) : false;
+            $expectedNative = is_file($absoluteExpectedNativePath) ? file_get_contents($absoluteExpectedNativePath) : false;
+            if (!is_string($input) || !is_string($expectedNative)) {
+                $failure = [
+                    'sample' => $name,
+                    'inputPath' => $inputPath,
+                    'expectedNativePath' => $expectedNativePath,
+                    'readerOptions' => $readerOptions,
+                    'inputError' => is_string($input) ? null : "missing-or-unreadable-{$reader}-input-fixture",
+                    'expectedNativeError' => is_string($expectedNative) ? null : 'missing-or-unreadable-native-fixture',
+                ];
+                $parseFailures[] = $failure;
+                $sampleResults[] = [
+                    ...$baseResult,
+                    'status' => 'parse-failed',
+                    ...$failure,
+                ];
+                continue;
+            }
+
+            if (!$pandocAvailable || !$pandocVersionMatches) {
+                $sampleResults[] = [
+                    ...$baseResult,
+                    'status' => 'not-run',
+                    'expectedNativeSha256' => hash('sha256', $expectedNative),
+                    'expectedNativeTokenSha256' => hash('sha256', self::nativeTokenStream($expectedNative)),
+                ];
+                continue;
+            }
+
+            $result = self::runProcess(
+                escapeshellarg($resolvedPandoc)
+                . ' -f '
+                . escapeshellarg($reader)
+                . ' -t native '
+                . escapeshellarg($absoluteInputPath)
+            );
+            if ($result['exitCode'] !== 0) {
+                $failure = [
+                    'sample' => $name,
+                    'inputPath' => $inputPath,
+                    'expectedNativePath' => $expectedNativePath,
+                    'readerOptions' => $readerOptions,
+                    'inputError' => 'pandoc exited ' . $result['exitCode'] . ': ' . trim($result['stderr']),
+                    'expectedNativeError' => null,
+                ];
+                $parseFailures[] = $failure;
+                $sampleResults[] = [
+                    ...$baseResult,
+                    'status' => 'parse-failed',
+                    'pandocExitCode' => $result['exitCode'],
+                    ...$failure,
+                ];
+                continue;
+            }
+
+            ++$comparedCount;
+            $expectedTokens = self::nativeTokenStream($expectedNative);
+            $pandocTokens = self::nativeTokenStream($result['stdout']);
+            $matched = $expectedTokens === $pandocTokens;
+            if ($matched) {
+                ++$matchCount;
+            } else {
+                $mismatches[] = [
+                    'sample' => $name,
+                    'inputPath' => $inputPath,
+                    'expectedNativePath' => $expectedNativePath,
+                    'firstDifference' => self::firstStringDifference($expectedTokens, $pandocTokens) ?? 'unknown-native-token-difference',
+                ];
+            }
+
+            $sampleResults[] = [
+                ...$baseResult,
+                'status' => $matched ? 'matched' : 'mismatched',
+                'pandocExitCode' => $result['exitCode'],
+                'expectedNativeSha256' => hash('sha256', $expectedNative),
+                'pandocNativeSha256' => hash('sha256', $result['stdout']),
+                'expectedNativeTokenSha256' => hash('sha256', $expectedTokens),
+                'pandocNativeTokenSha256' => hash('sha256', $pandocTokens),
+            ];
+        }
+
+        $sampleCount = count($sampleNames);
+        $mismatchCount = $comparedCount - $matchCount;
+        $validStaticFixtureBindingCount = self::validGeneratedNativeSampleStaticBindingCount($sampleResults, $reader);
+        $invalidStaticFixtureBindingCount = $sampleCount - $validStaticFixtureBindingCount;
+        $parityStatus = self::pandocExecutableNativeParityStatus(
+            $reader,
+            $pandocAvailable,
+            $pandocVersionMatches,
+            $staticEvidenceValid && $invalidStaticFixtureBindingCount === 0,
+            count($parseFailures),
+            $mismatchCount,
+            $comparedCount,
+            $sampleCount
+        );
+        $directDenominatorKey = "{$reader}DirectFixtureDenominator";
+
+        return [
+            'schemaVersion' => 1,
+            'tool' => self::TOOL_NAME,
+            'kind' => "pandoc-executable-generated-{$reader}-native-parity-evidence",
+            'evidenceKind' => "generated-{$reader}-pandoc-executable-native-parity",
+            'status' => $parityStatus === "pandoc-executable-generated-{$reader}-native-parity-observed"
+                ? "completed-pandoc-executable-generated-{$reader}-native-parity-evidence"
+                : "incomplete-pandoc-executable-generated-{$reader}-native-parity-evidence",
+            'claim' => "Executes installed pandoc against the generated {$reader}-to-native subset that is representable by pandoc 3.10 defaults; custom local dialect and recovery samples stay in generated {$reader} native parity evidence.",
+            'fixtureDirectory' => $fixtureDirectory,
+            'reader' => $reader,
+            $directDenominatorKey => $directFixtureDenominator,
+            'generatedNativeCorpusSampleCount' => $generatedNativeCorpusSampleCount,
+            'sampleNames' => $sampleNames,
+            'sampleCount' => $sampleCount,
+            'comparedSampleCount' => $comparedCount,
+            'parseFailureCount' => count($parseFailures),
+            'pandocExecutableNativeMatchCount' => $matchCount,
+            'pandocExecutableNativeMismatchCount' => $mismatchCount,
+            'pandocExecutableNativeMatchPercent' => self::percent($matchCount, $sampleCount),
+            'staticFixtureBindingValidCount' => $validStaticFixtureBindingCount,
+            'staticFixtureBindingInvalidCount' => $invalidStaticFixtureBindingCount,
+            'parityStatus' => $parityStatus,
+            'pandocExecutable' => $resolvedPandoc,
+            'pandocExecutableStatus' => $pandocAvailable ? 'available' : 'missing',
+            'requiredPandocVersion' => self::REQUIRED_PANDOC_EXECUTABLE_VERSION,
+            'pandocVersion' => $pandocVersion,
+            'requiredPandocVersionObserved' => $pandocVersionMatches,
+            'staticFixtureEvidence' => $staticEvidence,
+            'samples' => $sampleResults,
+            'parseFailures' => $parseFailures,
+            'mismatches' => $mismatches,
+            'claimBoundaries' => [
+                'doesAssert' => [
+                    'installed pandoc is available and reports pandoc 3.10 when parityStatus is observed',
+                    "the selected generated {$reader} samples match installed pandoc native output by normalized native token stream",
+                    "each executable-pandoc {$reader} sample is bound to valid checked-in input and native snapshot evidence",
+                    "the selected subset is narrower than the generated {$reader} local reader corpus",
+                ],
+                'doesNotAssert' => [
+                    'that custom local delimiter, quote, escape, no-header, or recovery-mode samples are accepted by pandoc default CSV/TSV readers',
+                    'that upstream Haskell/Cabal/Tasty tests were executed',
+                    'full CSV/TSV feature parity beyond this executable-pandoc subset',
+                ],
+            ],
+        ];
+    }
+
     private static function nativeTokenStream(string $native): string
     {
         $native = (string) preg_replace('/\[\s*\]/', '[]', $native);
@@ -2900,6 +3248,100 @@ final class DelimitedTextUpstreamReaderEvidence
         }
 
         return 'not-evaluated-no-generated-tsv-native-samples';
+    }
+
+    private static function pandocExecutableNativeParityStatus(
+        string $reader,
+        bool $pandocAvailable,
+        bool $pandocVersionMatches,
+        bool $staticEvidenceValid,
+        int $parseFailureCount,
+        int $mismatchCount,
+        int $comparedCount,
+        int $sampleCount
+    ): string {
+        if (!$pandocAvailable) {
+            return "missing-pandoc-executable-for-generated-{$reader}-native-parity";
+        }
+        if (!$pandocVersionMatches) {
+            return "pandoc-executable-version-mismatch-for-generated-{$reader}-native-parity";
+        }
+        if (!$staticEvidenceValid) {
+            return "blocked-by-pandoc-executable-generated-{$reader}-native-fixture-validation";
+        }
+        if ($parseFailureCount > 0) {
+            return "blocked-by-pandoc-executable-generated-{$reader}-native-parse-failures";
+        }
+        if ($mismatchCount > 0) {
+            return "pandoc-executable-generated-{$reader}-native-mismatches-observed";
+        }
+        if ($sampleCount > 0 && $comparedCount === $sampleCount) {
+            return "pandoc-executable-generated-{$reader}-native-parity-observed";
+        }
+
+        return "not-evaluated-no-pandoc-executable-generated-{$reader}-native-samples";
+    }
+
+    private static function resolvePandocExecutable(?string $requested): ?string
+    {
+        $candidate = $requested;
+        if ($candidate === null || $candidate === '') {
+            $env = getenv('PANDOC_BIN');
+            $candidate = is_string($env) && $env !== '' ? $env : 'pandoc';
+        }
+
+        if (str_contains($candidate, DIRECTORY_SEPARATOR)) {
+            return is_file($candidate) && is_executable($candidate) ? $candidate : null;
+        }
+
+        $output = [];
+        $exitCode = 0;
+        exec('command -v ' . escapeshellarg($candidate) . ' 2>/dev/null', $output, $exitCode);
+        if ($exitCode !== 0 || !is_string($output[0] ?? null) || trim($output[0]) === '') {
+            return null;
+        }
+
+        return trim($output[0]);
+    }
+
+    private static function pandocExecutableVersion(string $pandoc): ?string
+    {
+        $result = self::runProcess(escapeshellarg($pandoc) . ' --version');
+        if ($result['exitCode'] !== 0) {
+            return null;
+        }
+
+        $lines = preg_split('/\R/', trim($result['stdout']));
+
+        return is_array($lines) && is_string($lines[0] ?? null) && $lines[0] !== '' ? $lines[0] : null;
+    }
+
+    /**
+     * @return array{exitCode: int, stdout: string, stderr: string}
+     */
+    private static function runProcess(string $command): array
+    {
+        $process = proc_open($command, [
+            0 => ['pipe', 'r'],
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w'],
+        ], $pipes);
+        if (!is_resource($process)) {
+            return ['exitCode' => 127, 'stdout' => '', 'stderr' => 'Unable to start process'];
+        }
+
+        fclose($pipes[0]);
+        $stdout = stream_get_contents($pipes[1]);
+        fclose($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[2]);
+        $exitCode = proc_close($process);
+
+        return [
+            'exitCode' => is_int($exitCode) ? $exitCode : 1,
+            'stdout' => is_string($stdout) ? $stdout : '',
+            'stderr' => is_string($stderr) ? $stderr : '',
+        ];
     }
 
     private static function percent(int $numerator, int $denominator): ?float

@@ -1128,6 +1128,90 @@ return [
             $removeTree($root);
         }
     },
+    'executes generated csv and tsv pandoc executable native parity evidence' => static function (TestRunner $t): void {
+        $repoRoot = dirname(__DIR__, 3);
+        $csv = DelimitedTextUpstreamReaderEvidence::generatedCsvPandocExecutableNativeParityEvidence($repoRoot);
+        $tsv = DelimitedTextUpstreamReaderEvidence::generatedTsvPandocExecutableNativeParityEvidence($repoRoot);
+
+        $t->same('pandoc-executable-generated-csv-native-parity-evidence', $csv['kind']);
+        $t->same('generated-csv-pandoc-executable-native-parity', $csv['evidenceKind']);
+        $t->same('csv', $csv['reader']);
+        $t->same(2, $csv['csvDirectFixtureDenominator']);
+        $t->same(27, $csv['generatedNativeCorpusSampleCount']);
+        $t->same(12, $csv['sampleCount']);
+        $t->same(12, $csv['comparedSampleCount']);
+        $t->same(0, $csv['parseFailureCount']);
+        $t->same(12, $csv['pandocExecutableNativeMatchCount']);
+        $t->same(0, $csv['pandocExecutableNativeMismatchCount']);
+        $t->same(100.0, $csv['pandocExecutableNativeMatchPercent']);
+        $t->same(12, $csv['staticFixtureBindingValidCount']);
+        $t->same(0, $csv['staticFixtureBindingInvalidCount']);
+        $t->same('available', $csv['pandocExecutableStatus']);
+        $t->same('pandoc 3.10', $csv['requiredPandocVersion']);
+        $t->same('pandoc 3.10', $csv['pandocVersion']);
+        $t->same(true, $csv['requiredPandocVersionObserved']);
+        $t->same('pandoc-executable-generated-csv-native-parity-observed', $csv['parityStatus']);
+        $t->same([
+            'quoted-multiline',
+            'post-delimiter-space',
+            'quoted-linebreak',
+            'trailing-empty-fields',
+            'crlf-rows',
+            'comment-looking-data',
+            'cr-only-rows',
+            'duplicate-header-labels',
+            'blank-input',
+            'unicode-safe',
+            'quote-in-unquoted-field',
+            'header-only',
+        ], array_column($csv['samples'], 'name'));
+        $t->same(array_fill(0, 12, 'matched'), array_column($csv['samples'], 'status'));
+        $t->same(array_fill(0, 12, 'valid-generated-csv-native-sample-static-binding'), array_column($csv['samples'], 'staticFixtureBindingStatus'));
+        $t->same([], $csv['parseFailures']);
+        $t->same([], $csv['mismatches']);
+        $t->same(true, DelimitedTextUpstreamReaderEvidence::hasRequiredGeneratedCsvPandocExecutableNativeParity($csv));
+        $t->true(in_array('that custom local delimiter, quote, escape, no-header, or recovery-mode samples are accepted by pandoc default CSV/TSV readers', $csv['claimBoundaries']['doesNotAssert'], true));
+
+        $t->same('pandoc-executable-generated-tsv-native-parity-evidence', $tsv['kind']);
+        $t->same('generated-tsv-pandoc-executable-native-parity', $tsv['evidenceKind']);
+        $t->same('tsv', $tsv['reader']);
+        $t->same(0, $tsv['tsvDirectFixtureDenominator']);
+        $t->same(21, $tsv['generatedNativeCorpusSampleCount']);
+        $t->same(13, $tsv['sampleCount']);
+        $t->same(13, $tsv['comparedSampleCount']);
+        $t->same(0, $tsv['parseFailureCount']);
+        $t->same(13, $tsv['pandocExecutableNativeMatchCount']);
+        $t->same(0, $tsv['pandocExecutableNativeMismatchCount']);
+        $t->same(100.0, $tsv['pandocExecutableNativeMatchPercent']);
+        $t->same(13, $tsv['staticFixtureBindingValidCount']);
+        $t->same(0, $tsv['staticFixtureBindingInvalidCount']);
+        $t->same('available', $tsv['pandocExecutableStatus']);
+        $t->same('pandoc 3.10', $tsv['requiredPandocVersion']);
+        $t->same('pandoc 3.10', $tsv['pandocVersion']);
+        $t->same(true, $tsv['requiredPandocVersionObserved']);
+        $t->same('pandoc-executable-generated-tsv-native-parity-observed', $tsv['parityStatus']);
+        $t->same([
+            'simple',
+            'quote-trailing',
+            'unicode-safe',
+            'ragged-blank-fields',
+            'comment-looking-data',
+            'csv-quoted-literal',
+            'crlf-rows',
+            'blank-leading-header',
+            'basic-status',
+            'header-only',
+            'blank-input',
+            'duplicate-header-labels',
+            'literal-quote-tab-split',
+        ], array_column($tsv['samples'], 'name'));
+        $t->same(array_fill(0, 13, 'matched'), array_column($tsv['samples'], 'status'));
+        $t->same(array_fill(0, 13, 'valid-generated-tsv-native-sample-static-binding'), array_column($tsv['samples'], 'staticFixtureBindingStatus'));
+        $t->same([], $tsv['parseFailures']);
+        $t->same([], $tsv['mismatches']);
+        $t->same(true, DelimitedTextUpstreamReaderEvidence::hasRequiredGeneratedTsvPandocExecutableNativeParity($tsv));
+        $t->true(in_array('that custom local delimiter, quote, escape, no-header, or recovery-mode samples are accepted by pandoc default CSV/TSV readers', $tsv['claimBoundaries']['doesNotAssert'], true));
+    },
     'validates supplied delimited text reader upstream runner result artifact' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile, $writeDelimitedTextEvidenceTree, $writeRunnerTranscripts): void {
         $repoRoot = dirname(__DIR__, 3);
         $root = $makeTempDir();
@@ -1221,6 +1305,8 @@ return [
             . ' --require-honest-denominators'
             . ' --require-generated-csv-native-parity=27'
             . ' --require-generated-tsv-native-parity=21'
+            . ' --require-pandoc-executable-csv-native-parity=12'
+            . ' --require-pandoc-executable-tsv-native-parity=13'
             . ' --require-runner-not-run'
             . ' --require-runner-plan'
             . ' --require-no-validation-issues';
@@ -1241,6 +1327,14 @@ return [
         $t->same(21, $decoded['tsv']['generatedNativeParitySampleCount']);
         $t->same(21, $decoded['generatedTsvNativeParity']['generatedNativeMatchCount']);
         $t->same('generated-tsv-native-parity-observed-not-upstream-fixture', $decoded['generatedTsvNativeParity']['parityStatus']);
+        $t->same(12, $decoded['generatedCsvPandocExecutableNativeParity']['sampleCount']);
+        $t->same(12, $decoded['generatedCsvPandocExecutableNativeParity']['pandocExecutableNativeMatchCount']);
+        $t->same('pandoc-executable-generated-csv-native-parity-observed', $decoded['generatedCsvPandocExecutableNativeParity']['parityStatus']);
+        $t->same(13, $decoded['generatedTsvPandocExecutableNativeParity']['sampleCount']);
+        $t->same(13, $decoded['generatedTsvPandocExecutableNativeParity']['pandocExecutableNativeMatchCount']);
+        $t->same('pandoc-executable-generated-tsv-native-parity-observed', $decoded['generatedTsvPandocExecutableNativeParity']['parityStatus']);
+        $t->same(true, $decoded['validation']['generatedCsvPandocExecutableNativeParity']);
+        $t->same(true, $decoded['validation']['generatedTsvPandocExecutableNativeParity']);
         $t->same(true, $decoded['validation']['runnerPlan']);
         $t->same('planned-not-run', $decoded['csv']['runnerEvidence']['commandPlanStatus']);
         $t->same('upstream-runner-command-plan', $decoded['csv']['runnerEvidence']['commandPlan']['kind']);

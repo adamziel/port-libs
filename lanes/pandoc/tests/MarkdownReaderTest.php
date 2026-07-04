@@ -12628,8 +12628,9 @@ XML;
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
         $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
 
-        $t->contains('<dt>Import note</dt><dd>Keep the archive URL attached and mention reviewer follow-up.</dd>', $blocks);
-        $t->contains('<dt>Cleanup pass</dt><dd><p>Check legacy shortcodes after block conversion.</p><p>Record manual remediation notes.</p></dd>', $blocks);
+        $t->contains("<dt>Import note</dt><dd>Keep the archive URL attached\nand mention reviewer follow-up.</dd>", $blocks);
+        $t->contains('<dt>Cleanup pass</dt><dd>Check legacy shortcodes after block conversion.', $blocks);
+        $t->contains('Record manual remediation notes.</dd>', $blocks);
         $t->contains('<div><dl><dt>Migration audit</dt><dd><ul><li>Preserve div-wrapped glossary notes from legacy imports</li></ul></dd></dl></div>', $blocks);
     },
     'writes wordpress alternate definition marker notes with nested review tasks' => static function (TestRunner $t): void {

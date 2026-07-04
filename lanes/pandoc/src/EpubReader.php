@@ -951,7 +951,7 @@ final class EpubReader
             }
         }
 
-        return null;
+        return $cover_id === '' ? null : $cover_id;
     }
 
     /**

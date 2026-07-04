@@ -1,0 +1,12 @@
+[ DefinitionList
+    [ ( [ Str "foo1" ]
+      , [ [ Plain [ Str "bar" , SoftBreak , Str "baz" ] ]
+        , [ Plain [ Str "bar2" ] ]
+        ]
+      )
+    , ( [ Str "foo2" ] , [ [ Plain [ Str "bar" ] ] ] )
+    , ( [ Str "foo3" ]
+      , [ [ Plain [ Str "baz" ] , Plain [ Str "qux" ] ] ]
+      )
+    ]
+]

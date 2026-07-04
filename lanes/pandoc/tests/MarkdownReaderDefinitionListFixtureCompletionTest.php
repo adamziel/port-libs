@@ -107,6 +107,36 @@ return [
         $t->same('bar', $nestedItem->attr('text'));
     },
 
+    'maps checked-in upstream markdown tight-body definition-list fixture' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-markdown-definition-list-tight-bodies.md');
+        $document = (new MarkdownReader(['format' => 'markdown']))->read($source);
+        $list = $document->children[0] ?? new AstNode('missing');
+        $lazyItem = $list->children[0] ?? new AstNode('missing');
+        $columnZeroItem = $list->children[1] ?? new AstNode('missing');
+        $multiPlainItem = $list->children[2] ?? new AstNode('missing');
+        $lazyDefinition = $lazyItem->children[1] ?? new AstNode('missing');
+        $lazySecondDefinition = $lazyItem->children[2] ?? new AstNode('missing');
+        $columnZeroDefinition = $columnZeroItem->children[1] ?? new AstNode('missing');
+        $multiPlainDefinition = $multiPlainItem->children[1] ?? new AstNode('missing');
+
+        $t->same('definition_list', $list->type);
+        $t->same(3, count($list->children));
+        $t->same('foo1', $lazyItem->attr('term'));
+        $t->same('plain', ($lazyDefinition->children[0] ?? new AstNode('missing'))->type);
+        $t->same('bar baz', $lazyDefinition->children[0]->attr('text'));
+        $t->same('softbreak', ($lazyDefinition->children[0]->children[1] ?? new AstNode('missing'))->type);
+        $t->same('plain', ($lazySecondDefinition->children[0] ?? new AstNode('missing'))->type);
+        $t->same('bar2', $lazySecondDefinition->children[0]->attr('text'));
+        $t->same('foo2', $columnZeroItem->attr('term'));
+        $t->same('plain', ($columnZeroDefinition->children[0] ?? new AstNode('missing'))->type);
+        $t->same('bar', $columnZeroDefinition->children[0]->attr('text'));
+        $t->same('foo3', $multiPlainItem->attr('term'));
+        $t->same('definition', $multiPlainDefinition->type);
+        $t->same(['plain', 'plain'], array_map(static fn (AstNode $node): string => $node->type, $multiPlainDefinition->children));
+        $t->same('baz', $multiPlainDefinition->children[0]->attr('text'));
+        $t->same('qux', $multiPlainDefinition->children[1]->attr('text'));
+    },
+
     'keeps checked-in upstream markdown definition-list fixture behind extension gate' => static function (TestRunner $t): void {
         $source = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-markdown-definition-lists.md');
         $strict = (new MarkdownReader(['format' => 'markdown_strict']))->read($source);

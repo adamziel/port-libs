@@ -54,15 +54,15 @@ $item = static function (string $term, array $definitions, ?array $termTypes = n
 $definitionCases = [
     'colon-marker tight' => [
         'markdown' => "term\n: definition",
-        'items' => [$item('term', [$definition([['paragraph', 'definition']])])],
+        'items' => [$item('term', [$definition([['plain', 'definition']])])],
     ],
     'indented colon marker' => [
         'markdown' => "term\n  : spaced marker",
-        'items' => [$item('term', [$definition([['paragraph', 'spaced marker']])])],
+        'items' => [$item('term', [$definition([['plain', 'spaced marker']])])],
     ],
     'tilde marker tight' => [
         'markdown' => "term\n~ alternate marker",
-        'items' => [$item('term', [$definition([['paragraph', 'alternate marker']])])],
+        'items' => [$item('term', [$definition([['plain', 'alternate marker']])])],
     ],
     'loose first definition' => [
         'markdown' => "term\n\n: loose definition",
@@ -70,11 +70,11 @@ $definitionCases = [
     ],
     'stacked terms' => [
         'markdown' => "term a\nterm b\n: stacked definition",
-        'items' => [$item("term a\nterm b", [$definition([['paragraph', 'stacked definition']])], ['text', 'linebreak', 'text'])],
+        'items' => [$item("term a\nterm b", [$definition([['plain', 'stacked definition']])], ['text', 'linebreak', 'text'])],
     ],
     'lazy continuation' => [
         'markdown' => "term\n: first line\ncontinued line",
-        'items' => [$item('term', [$definition([['paragraph', 'first line continued line']])])],
+        'items' => [$item('term', [$definition([['plain', 'first line continued line']])])],
     ],
     'marker-line bullet list' => [
         'markdown' => "term\n: - bullet",
@@ -86,7 +86,7 @@ $definitionCases = [
     ],
     'indented paragraph body' => [
         'markdown' => "term\n:\n    second paragraph",
-        'items' => [$item('term', [$definition([['paragraph', 'second paragraph']])])],
+        'items' => [$item('term', [$definition([['plain', 'second paragraph']])])],
     ],
     'indented code body' => [
         'markdown' => "term\n:\n        code",
@@ -98,13 +98,13 @@ $definitionCases = [
     ],
     'multiple definitions' => [
         'markdown' => "term\n: one\n: two",
-        'items' => [$item('term', [$definition([['paragraph', 'one']]), $definition([['paragraph', 'two']])])],
+        'items' => [$item('term', [$definition([['plain', 'one']]), $definition([['plain', 'two']])])],
     ],
     'multiple items' => [
         'markdown' => "term one\n: one\n\nterm two\n: two",
         'items' => [
-            $item('term one', [$definition([['paragraph', 'one']])]),
-            $item('term two', [$definition([['paragraph', 'two']])]),
+            $item('term one', [$definition([['plain', 'one']])]),
+            $item('term two', [$definition([['plain', 'two']])]),
         ],
     ],
     'indented heading body' => [
@@ -130,7 +130,7 @@ $nodeTypes = static fn (array $nodes): array => array_map(static fn (AstNode $no
 
 $blockSummary = static function (AstNode $block): array {
     return match ($block->type) {
-        'paragraph', 'code_block', 'heading' => [$block->type, (string) $block->attr('text', '')],
+        'paragraph', 'plain', 'code_block', 'heading' => [$block->type, (string) $block->attr('text', '')],
         'blockquote' => [$block->type, (string) ($block->children[0] ?? new AstNode('missing'))->attr('text', '')],
         'bullet_list', 'ordered_list' => [
             $block->type,
@@ -178,7 +178,7 @@ return [
                             $expectedLoose = $expectedDefinition['loose'] ?? false;
                             $expectedBlocks = $expectedDefinition['blocks'];
                             if ($caseName === 'indented line block body' && !($lineBlockEnabledFormats[$formatName] ?? false)) {
-                                $expectedBlocks = [['paragraph', '| line one | line two']];
+                                $expectedBlocks = [['plain', '| line one | line two']];
                             }
 
                             $t->same('definition', $definition->type, $label . " definition {$definitionIndex}");

@@ -214,6 +214,72 @@ XML);
         );
         $t->same(['2012-01-18T12:47:00Z'], $meta['epubProperties']['dcterms:modified']);
     },
+    'uses epub2 meta cover content as upstream cover path fallback' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-meta-cover-path-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary EPUB package');
+        }
+        $zip->addFromString('META-INF/container.xml', '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0">
+  <metadata>
+    <dc:title>Meta Cover Path</dc:title>
+    <meta name="cover" content="images/cover.png"/>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="art" href="images/cover.png" media-type="image/png"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('OPS/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Body.</p></body></html>');
+        $coverBytes = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=');
+        $zip->addFromString('OPS/images/cover.png', $coverBytes);
+        $zip->close();
+
+        try {
+            $document = (new EpubReader())->readEpubFile($path);
+            $meta = $document->attr('meta');
+            $native = PandocConverter::write($document, 'native');
+        } finally {
+            @unlink($path);
+        }
+
+        $t->same('Meta Cover Path', $meta['title']);
+        $t->same('paragraph', $document->children[0]->type);
+        $t->same('image', $document->children[0]->children[0]->type);
+        $t->same('images/cover.png', $document->children[0]->children[0]->attr('url'));
+        $t->same(['OPS/images/cover.png'], $meta['epubMediaBagResources']);
+        $t->same(1, $meta['epubMediaResourceCount']);
+        $t->same(['epub-media-resource-loaded:OPS/images/cover.png'], $meta['epubMediaResourceDiagnostics']);
+        $t->same([
+            [
+                'path' => 'images/cover.png',
+                'zipEntry' => 'OPS/images/cover.png',
+                'mimeType' => 'image/png',
+                'byteLength' => strlen($coverBytes),
+                'sha1' => sha1($coverBytes),
+            ],
+        ], array_map(static fn (array $entry): array => [
+            'path' => (string) $entry['path'],
+            'zipEntry' => (string) $entry['zipEntry'],
+            'mimeType' => (string) $entry['mimeType'],
+            'byteLength' => (int) $entry['byteLength'],
+            'sha1' => (string) $entry['sha1'],
+        ], $meta['epubMediaResourceDirectory']));
+        $t->contains('( "images/cover.png" , "" )', $native);
+    },
     'reads epub bytes through the converter input path' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-');
         if ($path === false) {
