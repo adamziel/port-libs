@@ -516,6 +516,18 @@ final class DelimitedTextReader
             'multilineFieldCount' => 0,
             'partialRecordCount' => 0,
         ];
+        $whitespaceOnlyBlankRows = $this->pandocWhitespaceOnlyDocumentBlankRows($text);
+        if ($whitespaceOnlyBlankRows !== null) {
+            return [
+                'rows' => [],
+                'fieldMetadataRows' => [],
+                'sourceRowIndexes' => [],
+                'blankRows' => $whitespaceOnlyBlankRows,
+                'diagnostics' => [],
+                'metrics' => $metrics,
+            ];
+        }
+
         $row = [];
         $rowFieldMetadata = [];
         $field = '';
@@ -1482,6 +1494,19 @@ final class DelimitedTextReader
      */
     private function sourceAnalysis(string $text, array $dialect, array $widths): array
     {
+        if ($this->pandocWhitespaceOnlyDocumentBlankRows($text) !== null) {
+            return [
+                'finalRecordTerminated' => true,
+                'multilineQuotedFieldCount' => 0,
+                'multilineQuotedRows' => [],
+                'quotedFieldNewlineCount' => 0,
+                'trailingDelimiterRows' => [],
+                'unterminatedQuoteRow' => null,
+                'partialFinalRecordRow' => null,
+                'partialFinalRecordFieldCount' => null,
+            ];
+        }
+
         $delimiter = $dialect['delimiter'];
         $quote = $dialect['quote'];
         $escape = $dialect['escape'];
@@ -1593,6 +1618,43 @@ final class DelimitedTextReader
             'partialFinalRecordRow' => $partialFinalRecordRow,
             'partialFinalRecordFieldCount' => $partialFinalRecordFieldCount,
         ];
+    }
+
+    /**
+     * @return list<int>|null
+     */
+    private function pandocWhitespaceOnlyDocumentBlankRows(string $text): ?array
+    {
+        $length = strlen($text);
+        if ($length === 0 || !$this->isLineBreak($text[0])) {
+            return null;
+        }
+
+        $blankRows = [];
+        $rowIndex = 0;
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $text[$offset];
+            if ($char === ' ' || $char === "\t") {
+                continue;
+            }
+
+            if ($char === "\r") {
+                $blankRows[] = $rowIndex++;
+                if (($text[$offset + 1] ?? '') === "\n") {
+                    $offset++;
+                }
+                continue;
+            }
+
+            if ($char === "\n") {
+                $blankRows[] = $rowIndex++;
+                continue;
+            }
+
+            return null;
+        }
+
+        return $blankRows === [] ? null : $blankRows;
     }
 
     /**

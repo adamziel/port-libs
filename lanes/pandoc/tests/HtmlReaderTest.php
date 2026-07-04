@@ -137,6 +137,23 @@ $tests['imports upstream html standalone image fragments as plain images'] =
         $t->same([], $titledImage->children);
     };
 
+$tests['imports direct pandoc html standalone emphasis strong span fragment as plain'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-standalone-emph-strong-inline.html'));
+        $plain = $document->children[0];
+
+        $t->same('html', $document->attr('sourceFormat'));
+        $t->same(['plain'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same(
+            ['strong', 'emph', 'span'],
+            array_map(static fn ($node): string => $node->type, $plain->children)
+        );
+        $t->same('bold', $plain->children[0]->children[0]->attr('text'));
+        $t->same('em', $plain->children[1]->children[0]->attr('text'));
+        $t->same(['x'], $plain->children[2]->attr('classes'));
+        $t->same('sp', $plain->children[2]->children[0]->attr('text'));
+    };
+
 $tests['imports upstream html head body fragment base relative image as plain image'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-base-relative-image.html'));

@@ -54,6 +54,7 @@ final class MarkdownFormatProfile
         'auto_identifier' => 'auto_identifiers',
         'auto_id' => 'auto_identifiers',
         'auto_ids' => 'auto_identifiers',
+        'autolink_bare_uris' => 'bare_uri_autolinks',
         'gfm_auto_identifier' => 'gfm_auto_identifiers',
         'definition_list' => 'definition_lists',
         'emoji_shortcode' => 'emoji_shortcodes',

@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 47;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 48;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '255b28c0ddc0a1782c629766a43f2722a4829dc04a7abaf6bef717ff3d376535';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 9743;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '17f3e106864b138fbdba72ae5374f6ce0c90368da206b3afcb6e45b428604a27';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 9914;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -594,6 +594,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => '9ceb6189090309ad8b3ea4ec49622cbf6f64d110928046136578c33c8fc48242',
             'pptxBytes' => 2506,
             'nativeBytes' => 117,
+        ],
+        'repeated-slash-slide-target' => [
+            'name' => 'generated repeated-slash slide target parity',
+            'pptx' => 'pptx-reader/repeated-slash-slide-target.pptx',
+            'native' => 'pptx-reader/repeated-slash-slide-target.native',
+            'pairKey' => 'pptx-reader/repeated-slash-slide-target.pptx|pptx-reader/repeated-slash-slide-target.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/repeated-slash-slide-target.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/repeated-slash-slide-target.native',
+            'pptxSha256' => '8592b2e23603c128d9a70849acbd17a50058c405c8699b60f4b01a83ef471300',
+            'nativeSha256' => '8174d5156e67751932faec8de101c6e66bd7e7339183cc0bd0248a6137b06e05',
+            'pptxBytes' => 1310,
+            'nativeBytes' => 92,
         ],
         'rich-media-skip' => [
             'name' => 'generated rich media placeholder skip parity',

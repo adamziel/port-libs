@@ -339,6 +339,11 @@ final class EpubReader
             $meta['subject'] = $this->collapseMetadataValueList($subjects);
         }
 
+        $contributor = $this->metadataInlineMetaValue($this->metadataValueList($dc_values, 'contributor'));
+        if ($contributor !== null) {
+            $meta['contributor'] = $contributor;
+        }
+
         if (isset($property_values['dcterms:modified'][0])) {
             $meta['modified'] = $property_values['dcterms:modified'][0];
         }
@@ -413,6 +418,35 @@ final class EpubReader
     private function metadataTextInlines(string $text): array
     {
         return $text === '' ? [] : [new AstNode('text', ['text' => $text])];
+    }
+
+    /**
+     * @param list<string> $values
+     * @return array{type: string, value: mixed}|null
+     */
+    private function metadataInlineMetaValue(array $values): ?array
+    {
+        if ($values === []) {
+            return null;
+        }
+
+        $items = [];
+        // Pandoc's addMetaField prepends duplicate metadata values.
+        foreach (array_reverse($values) as $value) {
+            $items[] = [
+                'type' => 'MetaInlines',
+                'value' => $this->metadataTextInlines($value),
+            ];
+        }
+
+        if (count($items) === 1) {
+            return $items[0];
+        }
+
+        return [
+            'type' => 'MetaList',
+            'value' => $items,
+        ];
     }
 
     /**

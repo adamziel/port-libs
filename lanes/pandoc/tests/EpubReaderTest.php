@@ -198,6 +198,62 @@ XML);
         $t->same(['2026-04-06T07:08:09Z'], $meta['epubProperties']['dcterms:modified']);
         $t->same(['pre-paginated'], $meta['epubProperties']['rendition:layout']);
     },
+    'retains upstream dublin core contributor metadata as pandoc meta values' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-contributor-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary EPUB package');
+        }
+        $zip->addFromString('META-INF/container.xml', '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="book-id">
+  <metadata>
+    <dc:identifier id="book-id">urn:uuid:contributor-gap</dc:identifier>
+    <dc:title>Contributor Gap</dc:title>
+    <dc:creator>Primary Author</dc:creator>
+    <dc:contributor>Review Editor</dc:contributor>
+    <dc:contributor>Illustration Desk</dc:contributor>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('OPS/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Contributor Gap</h1><p>Body.</p></body></html>');
+        $zip->close();
+
+        try {
+            $document = (new EpubReader())->readEpubFile($path);
+            $meta = $document->attr('meta');
+            $native = (new NativeWriter())->write($document);
+        } finally {
+            @unlink($path);
+        }
+
+        $contributor = $meta['contributor'] ?? null;
+        $t->same('Contributor Gap', $meta['title']);
+        $t->same('MetaList', $contributor['type'] ?? null);
+        $t->same('MetaInlines', $contributor['value'][0]['type'] ?? null);
+        $t->same('Illustration Desk', $contributor['value'][0]['value'][0]->attr('text') ?? null);
+        $t->same('MetaInlines', $contributor['value'][1]['type'] ?? null);
+        $t->same('Review Editor', $contributor['value'][1]['value'][0]->attr('text') ?? null);
+        $t->contains(
+            '( "contributor" , MetaList [ MetaInlines [ Str "Illustration" , Space , Str "Desk" ] , MetaInlines [ Str "Review" , Space , Str "Editor" ] ] )',
+            $native
+        );
+    },
     'matches upstream wasteland epub core metadata surface' => static function (TestRunner $t): void {
         $fixture = __DIR__ . '/../fixtures/upstream-current-epub-reader/epub/wasteland.epub';
         $meta = (new EpubReader())->readEpubFile($fixture)->attr('meta');

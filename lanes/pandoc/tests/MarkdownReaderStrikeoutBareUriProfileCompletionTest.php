@@ -60,7 +60,9 @@ $bareUriEnabledCases = [
     'commonmark x underscore' => ['format' => 'commonmark_x'],
     'gfm format' => ['format' => 'gfm'],
     'commonmark plus bare uri' => ['format' => 'commonmark+bare_uri_autolinks'],
+    'commonmark plus pandoc autolink bare uri' => ['format' => 'commonmark+autolink_bare_uris'],
     'strict extension map' => ['format' => 'markdown_strict', 'extensions' => ['bare_uri_autolinks' => true]],
+    'strict pandoc extension map' => ['format' => 'markdown_strict', 'extensions' => ['autolink_bare_uris' => true]],
 ];
 
 $bareUriDisabledCases = [
@@ -69,7 +71,9 @@ $bareUriDisabledCases = [
     'markdown php extra default' => ['format' => 'markdown_phpextra'],
     'markdown mmd default' => ['format' => 'markdown_mmd'],
     'gfm minus bare uri suffix' => ['format' => 'gfm-bare_uri_autolinks'],
+    'gfm minus pandoc autolink bare uri suffix' => ['format' => 'gfm-autolink_bare_uris'],
     'default extension map disabled' => ['extensions' => ['bare_uri_autolinks' => false]],
+    'default pandoc extension map disabled' => ['extensions' => ['autolink_bare_uris' => false]],
 ];
 
 return [
@@ -121,7 +125,7 @@ return [
     'records upstream markdown strikeout bare uri profile mapped-case count' =>
         static function (TestRunner $t) use ($strikeoutEnabledCases, $strikeoutDisabledCases, $bareUriEnabledCases, $bareUriDisabledCases): void {
             $t->same(
-                26,
+                30,
                 count($strikeoutEnabledCases)
                 + count($strikeoutDisabledCases)
                 + count($bareUriEnabledCases)
