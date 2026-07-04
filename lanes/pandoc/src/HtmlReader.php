@@ -195,6 +195,7 @@ final class HtmlReader
         }
 
         $idIndex = self::microdataElementIdIndex($dom);
+        $baseHref = self::htmlDocumentBaseHref($dom);
         $itemElements = self::microdataItemElements($dom);
         $items = [];
         $topLevelIndexes = [];
@@ -208,7 +209,7 @@ final class HtmlReader
         }
 
         foreach (array_slice($itemElements, 0, self::MICRODATA_MAX_ITEMS) as $index => $element) {
-            [$item, $itemDiagnostics] = self::microdataItemSummary($element, $idIndex);
+            [$item, $itemDiagnostics] = self::microdataItemSummary($element, $idIndex, $baseHref);
             $items[] = $item;
             array_push($diagnostics, ...$itemDiagnostics);
 
@@ -290,13 +291,13 @@ final class HtmlReader
      * @param array<string, \DOMElement> $idIndex
      * @return array{0: array<string, mixed>, 1: list<string>}
      */
-    private static function microdataItemSummary(\DOMElement $element, array $idIndex): array
+    private static function microdataItemSummary(\DOMElement $element, array $idIndex, ?string $baseHref): array
     {
         $properties = [];
         $seenPropertyElements = [];
         $diagnostics = [];
         foreach ($element->childNodes as $child) {
-            self::collectMicrodataProperties($child, $properties, $seenPropertyElements, $diagnostics);
+            self::collectMicrodataProperties($child, $properties, $seenPropertyElements, $diagnostics, $baseHref);
         }
 
         $itemrefIds = self::spaceSeparatedTokens($element->getAttribute('itemref'));
@@ -308,7 +309,7 @@ final class HtmlReader
                 continue;
             }
 
-            self::collectMicrodataProperties($idIndex[$id], $properties, $seenPropertyElements, $diagnostics);
+            self::collectMicrodataProperties($idIndex[$id], $properties, $seenPropertyElements, $diagnostics, $baseHref);
         }
 
         $properties = array_slice($properties, 0, self::MICRODATA_MAX_PROPERTIES_PER_ITEM);
@@ -346,7 +347,8 @@ final class HtmlReader
         \DOMNode $node,
         array &$properties,
         array &$seenPropertyElements,
-        array &$diagnostics
+        array &$diagnostics,
+        ?string $baseHref
     ): void {
         if (!$node instanceof \DOMElement) {
             return;
@@ -359,7 +361,7 @@ final class HtmlReader
             if (!isset($seenPropertyElements[$propertyKey])) {
                 $seenPropertyElements[$propertyKey] = true;
                 if (count($properties) < self::MICRODATA_MAX_PROPERTIES_PER_ITEM) {
-                    $properties[] = self::microdataPropertySummary($node);
+                    $properties[] = self::microdataPropertySummary($node, $baseHref);
                 } else {
                     $diagnostics[] = 'html-microdata-property-limit-exceeded';
                 }
@@ -372,16 +374,16 @@ final class HtmlReader
         }
 
         foreach ($node->childNodes as $child) {
-            self::collectMicrodataProperties($child, $properties, $seenPropertyElements, $diagnostics);
+            self::collectMicrodataProperties($child, $properties, $seenPropertyElements, $diagnostics, $baseHref);
         }
     }
 
     /**
      * @return array<string, mixed>
      */
-    private static function microdataPropertySummary(\DOMElement $element): array
+    private static function microdataPropertySummary(\DOMElement $element, ?string $baseHref): array
     {
-        [$value, $valueSource, $valueType] = self::microdataPropertyValue($element);
+        [$value, $valueSource, $valueType] = self::microdataPropertyValue($element, $baseHref);
         $summary = [
             'elementName' => XmlHtmlDom::htmlElementName($element),
             'itempropRaw' => $element->getAttribute('itemprop'),
@@ -404,7 +406,7 @@ final class HtmlReader
     /**
      * @return array{0: string, 1: string, 2: string}
      */
-    private static function microdataPropertyValue(\DOMElement $element): array
+    private static function microdataPropertyValue(\DOMElement $element, ?string $baseHref): array
     {
         if ($element->hasAttribute('itemscope')) {
             return [Html5Dom::normalizedText($element), 'item', 'item'];
@@ -415,13 +417,13 @@ final class HtmlReader
             return [$element->getAttribute('content'), 'content', 'string'];
         }
         if (in_array($name, ['audio', 'embed', 'iframe', 'img', 'source', 'track', 'video'], true)) {
-            return [$element->getAttribute('src'), 'src', 'url'];
+            return [self::resolveHtmlUrl($element->getAttribute('src'), $baseHref), 'src', 'url'];
         }
         if (in_array($name, ['a', 'area', 'link'], true)) {
-            return [$element->getAttribute('href'), 'href', 'url'];
+            return [self::resolveHtmlUrl($element->getAttribute('href'), $baseHref), 'href', 'url'];
         }
         if ($name === 'object') {
-            return [$element->getAttribute('data'), 'data', 'url'];
+            return [self::resolveHtmlUrl($element->getAttribute('data'), $baseHref), 'data', 'url'];
         }
         if ($name === 'data' || $name === 'meter') {
             return [$element->getAttribute('value'), 'value', 'string'];
@@ -524,5 +526,26 @@ final class HtmlReader
         }
 
         return substr($value, 0, self::MICRODATA_MAX_VALUE_BYTES);
+    }
+
+    private static function htmlDocumentBaseHref(\DOMDocument $dom): ?string
+    {
+        foreach ($dom->getElementsByTagName('base') as $node) {
+            if (!$node instanceof \DOMElement) {
+                continue;
+            }
+
+            $href = trim($node->getAttribute('href'));
+            if ($href !== '') {
+                return $href;
+            }
+        }
+
+        return null;
+    }
+
+    private static function resolveHtmlUrl(string $url, ?string $baseHref): string
+    {
+        return XmlHtmlDom::resolveHtmlResourceUrlReference($url, $baseHref) ?? $url;
     }
 }

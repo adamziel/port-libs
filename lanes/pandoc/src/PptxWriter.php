@@ -3499,7 +3499,7 @@ final class PptxWriter
             return $text;
         }
         if (isset($node->attrs['text']) && is_scalar($node->attrs['text'])) {
-            return (string) $node->attrs['text'];
+            return $this->normalizedInlineText((string) $node->attrs['text']);
         }
 
         return '';
@@ -3518,7 +3518,12 @@ final class PptxWriter
             }
         }
 
-        return trim(preg_replace('/\s+/u', ' ', implode('', $parts)) ?? implode('', $parts));
+        return $this->normalizedInlineText(implode('', $parts));
+    }
+
+    private function normalizedInlineText(string $text): string
+    {
+        return trim(preg_replace('/\s+/u', ' ', $text) ?? $text);
     }
 
     private function imageFallbackText(AstNode $image): string

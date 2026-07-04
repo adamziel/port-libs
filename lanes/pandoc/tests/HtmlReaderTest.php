@@ -268,6 +268,42 @@ $tests['extracts html reader microdata item metadata with itemref and nested ite
         $t->same('Nested unrelated', $commentItem['properties'][0]['value']);
     };
 
+$tests['resolves html reader microdata url values against document base'] =
+    static function (TestRunner $t): void {
+        $document = (new HtmlReader())->read(
+            '<!doctype html><html><head><base href="https://source.example.test/import/posts/"></head><body>'
+            . '<article itemscope>'
+            . '<a itemprop="url" href="../review/source.html">source</a>'
+            . '<img itemprop="image" src="media/cover.jpg" alt="cover">'
+            . '<object itemprop="downloadUrl" data="/exports/archive.zip"></object>'
+            . '<source itemprop="contentUrl" src="//cdn.example.test/video.mp4">'
+            . '<track itemprop="caption" src="#captions">'
+            . '<a itemprop="variant" href="?edition=full">variant</a>'
+            . '</article>'
+            . '</body></html>'
+        );
+        $properties = $document->attr('meta')['htmlMicrodataItems'][0]['properties'];
+
+        $t->same('https://source.example.test/import/review/source.html', $properties[0]['value']);
+        $t->same('href', $properties[0]['valueSource']);
+        $t->same('url', $properties[0]['valueType']);
+        $t->same('https://source.example.test/import/posts/media/cover.jpg', $properties[1]['value']);
+        $t->same('src', $properties[1]['valueSource']);
+        $t->same('url', $properties[1]['valueType']);
+        $t->same('https://source.example.test/exports/archive.zip', $properties[2]['value']);
+        $t->same('data', $properties[2]['valueSource']);
+        $t->same('url', $properties[2]['valueType']);
+        $t->same('https://cdn.example.test/video.mp4', $properties[3]['value']);
+        $t->same('src', $properties[3]['valueSource']);
+        $t->same('url', $properties[3]['valueType']);
+        $t->same('https://source.example.test/import/posts/#captions', $properties[4]['value']);
+        $t->same('src', $properties[4]['valueSource']);
+        $t->same('url', $properties[4]['valueType']);
+        $t->same('https://source.example.test/import/posts/?edition=full', $properties[5]['value']);
+        $t->same('href', $properties[5]['valueSource']);
+        $t->same('url', $properties[5]['valueType']);
+    };
+
 $tests['consumes upstream html doc-endnotes container after resolving doc-noteref note'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-doc-noteref-footnotes.html'));
@@ -665,7 +701,7 @@ $tests['keeps html reader imports alive when microdata dom parse is unavailable'
 
 $tests['records html reader microdata metadata mapped-case count'] =
     static function (TestRunner $t) use ($valueSourceCases): void {
-        $t->same(10, 1 + 3 + count($valueSourceCases) + 1);
+        $t->same(11, 1 + 4 + count($valueSourceCases) + 1);
     };
 
 return $tests;

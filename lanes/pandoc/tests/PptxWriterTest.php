@@ -608,6 +608,17 @@ return [
         $t->contains('<dc:creator>Ada Lovelace</dc:creator>', $coreProperties);
     },
 
+    'skips cached whitespace only fallback block text in generated slides' => static function (TestRunner $t) use ($mediaOptions): void {
+        $document = new AstNode('document', [], [
+            new AstNode('review_block', ['text' => "\u{00A0}"], []),
+        ]);
+        $package = ZipPackage::fromString((new PptxWriter($mediaOptions))->write($document));
+        $slide = $package->read('ppt/slides/slide1.xml');
+
+        $t->true(!str_contains($slide, '<a:t>'), 'NBSP-only cached fallback text must not produce a text run');
+        $t->true(!str_contains($slide, 'Review Block'), 'NBSP-only cached fallback text must not produce a text shape');
+    },
+
     'round trips generated pptx through native reader' => static function (TestRunner $t) use ($document, $mediaOptions, $collectText, $findNodes): void {
         $bytes = (new PptxWriter($mediaOptions))->write($document());
         $roundTrip = (new PptxReader())->read($bytes);

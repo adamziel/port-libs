@@ -1273,6 +1273,11 @@ final class XmlHtmlDom
         ];
     }
 
+    public static function resolveHtmlResourceUrlReference(?string $url, ?string $baseUrl): ?string
+    {
+        return self::resolveHtmlResourceUrl($url, $baseUrl);
+    }
+
     public static function serializeHtmlFragment(\DOMDocument $dom): string
     {
         $root = self::requireFragmentRoot($dom);
