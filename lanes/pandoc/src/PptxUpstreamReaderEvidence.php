@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 45;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 46;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'a4f6bc5e4f2bdf1cec32b16c2a44c328ebc9f711588b84ae57f1a5f4c57fbd88';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 9398;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '3108ae83683406e24944d3b2d02287552a1d3c42e29888379c7cf5e9a0a53002';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 9546;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -294,6 +294,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => 'cc7a90f26bdb968391ccaecfd3172a4666636d309f3024f67948022e88460b22',
             'pptxBytes' => 1405,
             'nativeBytes' => 124,
+        ],
+        'dot-presentation-target' => [
+            'name' => 'generated dot-segment presentation target parity',
+            'pptx' => 'pptx-reader/dot-presentation-target.pptx',
+            'native' => 'pptx-reader/dot-presentation-target.native',
+            'pairKey' => 'pptx-reader/dot-presentation-target.pptx|pptx-reader/dot-presentation-target.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/dot-presentation-target.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/dot-presentation-target.native',
+            'pptxSha256' => '9783b8a44828e294087a1de24045e4ad9e268479b57f5850f0b4d3c82ef9a5ae',
+            'nativeSha256' => 'd86a49808a54e15a27287e0fb9fbcd4838f55b68eca8d3c0ca68547667f7462f',
+            'pptxBytes' => 1310,
+            'nativeBytes' => 90,
         ],
         'dot-slide-target' => [
             'name' => 'generated dot-segment slide target parity',
@@ -1676,7 +1688,7 @@ final class PptxUpstreamReaderEvidence
             ]) {
                 $issues[] = 'checked-in-current-pptx-executable-native-ast-source-command-mismatch';
             }
-            if (($payload['capturedDate'] ?? null) !== '2026-07-03') {
+            if (($payload['capturedDate'] ?? null) !== '2026-07-04') {
                 $issues[] = 'checked-in-current-pptx-executable-native-ast-captured-date-mismatch';
             }
             if (($payload['pptxDirectory'] ?? null) !== self::CHECKED_IN_CURRENT_FIXTURE_DIRECTORY) {

@@ -65,14 +65,35 @@ $tests['imports upstream html sup and sub inline nodes'] =
 $tests['imports upstream html self closing anchor without href as span'] =
     static function (TestRunner $t): void {
         $document = (new HtmlReader())->read('<a name="anchor"/>');
-        $paragraph = $document->children[0];
-        $anchor = $paragraph->children[0];
+        $plain = $document->children[0];
+        $anchor = $plain->children[0];
 
         $t->same('html', $document->attr('sourceFormat'));
-        $t->same(['paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
-        $t->same(['span'], array_map(static fn ($node): string => $node->type, $paragraph->children));
+        $t->same(['plain'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same(['span'], array_map(static fn ($node): string => $node->type, $plain->children));
         $t->same('anchor', $anchor->attr('id'));
         $t->same([], $anchor->children);
+    };
+
+$tests['imports upstream html standalone inline code aliases as plain blocks'] =
+    static function (TestRunner $t): void {
+        $cases = [
+            '<code>Answer is 42</code>' => [[], 'Answer is 42'],
+            '<tt>Answer is 42</tt>' => [[], 'Answer is 42'],
+            '<samp>Answer is 42</samp>' => [['sample'], 'Answer is 42'],
+            '<var>result</var>' => [['variable'], 'result'],
+        ];
+
+        foreach ($cases as $html => [$classes, $text]) {
+            $document = (new HtmlReader())->read($html);
+            $plain = $document->children[0];
+            $code = $plain->children[0];
+
+            $t->same(['plain'], array_map(static fn ($node): string => $node->type, $document->children), $html);
+            $t->same(['code'], array_map(static fn ($node): string => $node->type, $plain->children), $html);
+            $t->same($classes, $code->attr('classes', []), $html);
+            $t->same($text, $code->attr('text'), $html);
+        }
     };
 
 $tests['imports upstream html base absolute image without rewriting absolute url'] =

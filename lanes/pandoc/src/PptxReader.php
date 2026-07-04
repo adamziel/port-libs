@@ -38,7 +38,7 @@ final class PptxReader
     {
         $rootRelationships = $this->relationshipsOrEmpty($package, '/');
         $presentationRelationship = $this->presentationRelationship($package);
-        $presentationPart = $presentationRelationship->target;
+        $presentationPart = $this->upstreamPresentationPart($presentationRelationship->target);
         $presentation = $this->loadPackageXmlFromUpstreamPath($package, $presentationPart, 'PPTX presentation');
         $slides = $this->parsePresentationSlides($presentation);
         $slideSize = $this->presentationSlideSize($presentation);
@@ -434,6 +434,11 @@ final class PptxReader
         return ($directory === '.' ? '/' : $directory . '/') . '_rels/' . $file . '.rels';
     }
 
+    private function upstreamPresentationPart(string $target): string
+    {
+        return $this->upstreamArchiveLookupPath($target);
+    }
+
     private function upstreamPresentationSlidePart(string $target): string
     {
         $path = 'ppt/' . $target;
@@ -450,6 +455,26 @@ final class PptxReader
         }
 
         return implode('/', $segments);
+    }
+
+    private function upstreamArchiveLookupPath(string $path): string
+    {
+        if ($path === '' || str_starts_with($path, '/') || preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:\\/\\//', $path) === 1) {
+            return $path;
+        }
+
+        $trailingSlash = str_ends_with($path, '/');
+        $segments = [];
+        foreach (explode('/', $path) as $segment) {
+            if ($segment === '' || $segment === '.') {
+                continue;
+            }
+            $segments[] = $segment;
+        }
+
+        $normalized = implode('/', $segments);
+
+        return $trailingSlash ? $normalized . '/' : $normalized;
     }
 
     private function loadPackageXml(ZipPackage $package, string $partName, string $label, bool $literalPath = true): \DOMDocument

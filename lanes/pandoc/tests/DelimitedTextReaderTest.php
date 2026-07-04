@@ -2488,6 +2488,7 @@ return [
         $t->same('blank-input', $csvEvidence['generatedNativeParityEvidence']['samples'][23]['name'] ?? null);
         $t->same([], $csvEvidence['generatedNativeParityEvidence']['samples'][23]['readerOptions'] ?? null);
         $t->true(in_array('direct-csv-command-reader', $csvEvidence['closedGaps'] ?? [], true));
+        $t->true(in_array('csv-closing-quote-record-whitespace-strictness', $csvEvidence['closedGaps'] ?? [], true));
         $t->true(in_array('generated-csv-native-parity-sample', $csvEvidence['closedGaps'] ?? [], true));
         $t->true(in_array('rst-csv-table-integration-via-rst-reader', $csvEvidence['closedGaps'] ?? [], true));
         $t->same('not-run', $csvEvidence['runnerEvidence']['status'] ?? null);
@@ -3090,6 +3091,10 @@ return [
                 "a,b,c\n1,\"x\" ,y\n",
                 'delimiter must immediately follow the quoted field',
             ],
+            [
+                "a,b\n1,\"x\"  \n2,y\n",
+                'whitespace after a closing quote before a line break',
+            ],
         ];
 
         foreach ($cases as [$source, $expectedMessage]) {
@@ -3108,7 +3113,22 @@ return [
         $t->same('y', $validTable->children[1]->children[0]->children[2]->attr('text'));
 
         $trailingWhitespaceDocument = $reader->readCsv("a,b\n1,\"x\"  \n");
+        $trailingWhitespacePacket = $trailingWhitespaceDocument->children[0]->attr('delimitedText');
         $t->same('x', $trailingWhitespaceDocument->children[0]->children[1]->children[0]->children[1]->attr('text'));
+        $t->same(0, $trailingWhitespacePacket['closingQuoteTrailingRecordWhitespaceCount'] ?? null);
+
+        $recoveredTrailingWhitespaceDocument = $reader->readCsv("a,b\n1,\"x\"  \n2,y\n", [
+            'strictParsing' => false,
+        ]);
+        $recoveredTrailingWhitespacePacket = $recoveredTrailingWhitespaceDocument->children[0]->attr('delimitedText');
+        $t->same('x', $recoveredTrailingWhitespaceDocument->children[0]->children[1]->children[0]->children[1]->attr('text'));
+        $t->same('y', $recoveredTrailingWhitespaceDocument->children[0]->children[1]->children[1]->children[1]->attr('text'));
+        $t->same(1, $recoveredTrailingWhitespacePacket['closingQuoteTrailingRecordWhitespaceCount'] ?? null);
+        $t->same(['delimited-text-closing-quote-trailing-record-whitespace'], array_column($recoveredTrailingWhitespacePacket['diagnostics'] ?? [], 'code'));
+        $t->same(1, $recoveredTrailingWhitespacePacket['diagnostics'][0]['row'] ?? null);
+        $t->same(1, $recoveredTrailingWhitespacePacket['diagnostics'][0]['column'] ?? null);
+        $t->same(2, $recoveredTrailingWhitespacePacket['diagnostics'][0]['sourceLineNumber'] ?? null);
+        $t->same(8, $recoveredTrailingWhitespacePacket['diagnostics'][0]['sourceByteColumnNumber'] ?? null);
 
         $tsvDocument = $reader->readTsv("a\tb\n1\t\"x\"z\n");
         $t->same('"x"z', $tsvDocument->children[0]->children[1]->children[0]->children[1]->attr('text'));

@@ -17631,8 +17631,14 @@ XML);
         throw new RuntimeException('Expected root-relative presentation Target to stay literal like upstream');
     },
 
-    'uses upstream literal root officeDocument targets instead of normalizing dot segments' => static function (TestRunner $t) use ($buildDotSegmentPresentationTargetPptxPackage): void {
-        $t->throws(RuntimeException::class, static fn (): AstNode => (new PptxReader())->read($buildDotSegmentPresentationTargetPptxPackage()));
+    'normalizes pptx root officeDocument dot-segment targets like pandoc executable' => static function (TestRunner $t) use ($buildDotSegmentPresentationTargetPptxPackage): void {
+        $document = (new PptxReader())->read($buildDotSegmentPresentationTargetPptxPackage());
+        $review = $document->attr('pptx');
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same('ppt/presentation.xml', $review['presentationPart'] ?? null);
+        $t->same('Normalized presentation target', $document->children[0]->attr('text'));
+        $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Normalized" , Space , Str "presentation" , Space , Str "target" ]', $native);
     },
 
     'uses upstream literal pptx slide targets instead of normalizing root-relative paths' => static function (TestRunner $t) use ($buildRootRelativeSlideTargetPptxPackage): void {

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\EpubReader;
+use PortLibs\Pandoc\NativeWriter;
 use PortLibs\Pandoc\PandocConverter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
@@ -804,6 +805,7 @@ XML);
     <h1 id="body">Href Suffix EPUB</h1>
     <p><img src="../images/cover.png?display=inline#pixel" alt="Cover suffix"/></p>
     <p><a href="chapter.xhtml?source=archive#body">Self link</a></p>
+    <p><a href="chapter.xhtml?source=archive">Self query link</a></p>
   </body>
 </html>
 HTML);
@@ -823,6 +825,7 @@ HTML);
         try {
             $document = (new EpubReader())->readEpubFile($path);
             $meta = $document->attr('meta');
+            $native = (new NativeWriter(['blocksOnly' => true]))->write($document);
             $blocks = (new WordPressBlockWriter())->write($document);
         } finally {
             @unlink($path);
@@ -844,7 +847,7 @@ HTML);
         $t->same('OPS/text/chapter.xhtml?source=archive#body', $meta['epubSpineItemRefs'][0]['path']);
         $t->same(true, $meta['epubSpineItemRefs'][0]['readable']);
         $t->same(['OPS/text/chapter.xhtml'], $meta['epubReadableResources']);
-        $t->same(['OPS/images/cover.png#pixel', 'OPS/text/chapter.xhtml#body'], $meta['epubReferencedResources']);
+        $t->same(['OPS/images/cover.png#pixel', 'OPS/text/chapter.xhtml#body', 'OPS/text/chapter.xhtml'], $meta['epubReferencedResources']);
         $t->same(['OPS/images/cover.png'], $meta['epubImageResources']);
         $t->same(['OPS/images/cover.png'], $meta['epubMediaBagResources']);
         $t->same(1, $meta['epubMediaResourceCount']);
@@ -868,8 +871,12 @@ HTML);
         $t->same([
             ['text' => 'Chapter with suffix', 'href' => 'OPS/text/chapter.xhtml?source=nav#body', 'level' => 1],
         ], $meta['epubTocEntries']);
-        $t->contains('href="#chapter.xhtml_body"', $blocks);
-        $t->contains('src="images/cover.png#pixel"', $blocks);
+        $t->contains('( "#chapter.xhtml?source=archive#body" , "" )', $native);
+        $t->contains('( "#chapter.xhtml?source=archive" , "" )', $native);
+        $t->contains('( "images/cover.png?display=inline#pixel" , "" )', $native);
+        $t->contains('href="#chapter.xhtml?source=archive#body"', $blocks);
+        $t->contains('href="#chapter.xhtml?source=archive"', $blocks);
+        $t->contains('src="images/cover.png?display=inline#pixel"', $blocks);
     },
     'reads epub ncx table of contents metadata' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-');

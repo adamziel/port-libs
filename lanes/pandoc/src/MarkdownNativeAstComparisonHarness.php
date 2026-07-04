@@ -22,6 +22,7 @@ final class MarkdownNativeAstComparisonHarness
         'upstream-markdown-github-wikilinks' => ['format' => 'gfm+wikilinks_title_before_pipe'],
         'upstream-markdown-header-attributes' => ['format' => 'markdown+header_attributes+implicit_header_references'],
         'upstream-markdown-line-blocks' => ['format' => 'markdown+line_blocks'],
+        'upstream-markdown-lhs-inverse-bird-html' => ['format' => 'markdown+lhs'],
         'upstream-markdown-mmd-short-scripts' => ['format' => 'markdown_mmd'],
         'upstream-markdown-numbered-examples' => ['format' => 'markdown+example_lists'],
         'upstream-markdown-pipe-table-escaped-cell' => ['format' => 'markdown+pipe_tables'],

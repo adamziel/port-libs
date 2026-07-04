@@ -479,6 +479,7 @@ final class DelimitedTextReader
      *         quoteInUnquotedFieldCount:int,
      *         textAfterClosingQuoteCount:int,
      *         closingQuoteTrailingWhitespaceCount:int,
+     *         closingQuoteTrailingRecordWhitespaceCount:int,
      *         unclosedQuoteCount:int,
      *         quotedLineBreakCount:int,
      *         multilineFieldCount:int,
@@ -509,6 +510,7 @@ final class DelimitedTextReader
             'quoteInUnquotedFieldCount' => 0,
             'textAfterClosingQuoteCount' => 0,
             'closingQuoteTrailingWhitespaceCount' => 0,
+            'closingQuoteTrailingRecordWhitespaceCount' => 0,
             'unclosedQuoteCount' => 0,
             'quotedLineBreakCount' => 0,
             'multilineFieldCount' => 0,
@@ -683,7 +685,19 @@ final class DelimitedTextReader
                 }
 
                 if ($this->isLineBreak($char)) {
-                    $finishRow($offset, $char === "\r" && $next === "\n" ? $offset + 2 : $offset + 1);
+                    $nextRowStartOffset = $char === "\r" && $next === "\n" ? $offset + 2 : $offset + 1;
+                    if ($afterClosingQuoteWhitespace && !$this->isOnlyTrailingWhitespace($text, $nextRowStartOffset)) {
+                        $metrics['closingQuoteTrailingRecordWhitespaceCount']++;
+                        $diagnostics[] = $this->diagnostic(
+                            'delimited-text-closing-quote-trailing-record-whitespace',
+                            'warning',
+                            'Whitespace after a closing quote before a line break was retained; Pandoc only accepts this at end of input.',
+                            $rowIndex,
+                            $columnIndex,
+                            $offset
+                        );
+                    }
+                    $finishRow($offset, $nextRowStartOffset);
                     if ($char === "\r" && $next === "\n") {
                         $offset++;
                     }
@@ -823,6 +837,14 @@ final class DelimitedTextReader
 
         if ((int) ($metrics['closingQuoteTrailingWhitespaceCount'] ?? 0) > 0) {
             throw new \InvalidArgumentException("Malformed {$format} input: delimiter must immediately follow the quoted field, not trailing whitespace.");
+        }
+
+        if ((int) ($metrics['closingQuoteTrailingRecordWhitespaceCount'] ?? 0) > 0) {
+            $diagnostic = $this->firstParseDiagnostic($parse, 'delimited-text-closing-quote-trailing-record-whitespace');
+            $row = $diagnostic === null ? null : ((int) $diagnostic['row'] + 1);
+            $column = $diagnostic === null ? null : ((int) $diagnostic['column'] + 1);
+            $location = $row === null ? '' : " at line {$row}, column {$column}";
+            throw new \InvalidArgumentException("Malformed {$format} input: whitespace after a closing quote before a line break{$location}; Pandoc only accepts trailing whitespace after the final record.");
         }
 
         $diagnostic = $this->firstParseDiagnostic($parse, 'delimited-text-backslash-quote-preserved');
@@ -1011,6 +1033,19 @@ final class DelimitedTextReader
         return $delimiter === "\t" ? $char === ' ' : ($char === ' ' || $char === "\t");
     }
 
+    private function isOnlyTrailingWhitespace(string $text, int $offset): bool
+    {
+        $length = strlen($text);
+        for ($index = $offset; $index < $length; $index++) {
+            $char = $text[$index];
+            if ($char !== ' ' && $char !== "\t" && $char !== "\r" && $char !== "\n") {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     /**
      * @param list<string> $row
      * @param list<array<string, mixed>> $fieldMetadata
@@ -1175,6 +1210,7 @@ final class DelimitedTextReader
      *     quoteInUnquotedFieldCount:int,
      *     textAfterClosingQuoteCount:int,
      *     closingQuoteTrailingWhitespaceCount:int,
+     *     closingQuoteTrailingRecordWhitespaceCount:int,
      *     unclosedQuoteCount:int,
      *     quotedLineBreakCount:int,
      *     multilineFieldCount:int,
@@ -1268,6 +1304,7 @@ final class DelimitedTextReader
             'quoteInUnquotedFieldCount' => $parseMetrics['quoteInUnquotedFieldCount'],
             'textAfterClosingQuoteCount' => $parseMetrics['textAfterClosingQuoteCount'],
             'closingQuoteTrailingWhitespaceCount' => $parseMetrics['closingQuoteTrailingWhitespaceCount'] ?? 0,
+            'closingQuoteTrailingRecordWhitespaceCount' => $parseMetrics['closingQuoteTrailingRecordWhitespaceCount'] ?? 0,
             'unclosedQuoteCount' => $parseMetrics['unclosedQuoteCount'],
             'quotedLineBreakCount' => $parseMetrics['quotedLineBreakCount'],
             'multilineFieldCount' => $parseMetrics['multilineFieldCount'],
@@ -1417,6 +1454,7 @@ final class DelimitedTextReader
             'closedGaps' => [
                 'direct-csv-command-reader',
                 'shared-csv-parser-option-fixtures',
+                'csv-closing-quote-record-whitespace-strictness',
                 'csv-row-repair-and-control-character-provenance',
                 'rst-csv-table-integration-via-rst-reader',
                 'generated-csv-native-parity-sample',

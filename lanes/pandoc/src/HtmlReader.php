@@ -66,6 +66,10 @@ final class HtmlReader
             ];
         }
 
+        if (self::isInlineFragmentStart($trimmed)) {
+            return ['bytes' => $bytes, 'implicitPlainBody' => true];
+        }
+
         if (preg_match('/^<(output|select)\b/i', $trimmed, $match) !== 1) {
             return ['bytes' => $bytes, 'implicitPlainBody' => false];
         }
@@ -99,6 +103,14 @@ final class HtmlReader
         }
 
         return preg_match(self::htmlBlockContainerPattern(), $body) !== 1;
+    }
+
+    private static function isInlineFragmentStart(string $trimmed): bool
+    {
+        return preg_match(
+            '/^<(?:a|code|samp|tt|var)\b/i',
+            $trimmed
+        ) === 1;
     }
 
     private static function htmlBlockContainerPattern(): string

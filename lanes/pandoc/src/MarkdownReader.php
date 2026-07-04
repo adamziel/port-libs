@@ -148,6 +148,7 @@ final class MarkdownReader
 
     /**
      * @param array{
+     *     format?: string,
      *     literateHaskell?: bool,
      *     htmlNativeDivs?: bool,
      *     htmlEpubExtensions?: bool,
@@ -2407,7 +2408,7 @@ final class MarkdownReader
      */
     private function tryReadLiterateHaskellCodeBlock(array $lines, int &$index): ?AstNode
     {
-        if (($this->options['literateHaskell'] ?? false) !== true) {
+        if (!$this->literateHaskellExtensionEnabled()) {
             return null;
         }
 
@@ -2729,6 +2730,12 @@ final class MarkdownReader
 
             $content[] = $lineContent;
             $cursor++;
+        }
+
+        if ($cursor === $count) {
+            $index = $count - 1;
+
+            return $this->buildDivBlock($content, false, $this->isHtmlLineBlockOpeningTag($lines[$openingIndex]), $attrs);
         }
 
         return null;
@@ -15744,6 +15751,15 @@ final class MarkdownReader
         $canonical = MarkdownFormatProfile::canonicalFormat($format);
 
         return in_array($canonical, ['markdown', 'commonmark_x'], true);
+    }
+
+    private function literateHaskellExtensionEnabled(): bool
+    {
+        if (array_key_exists('literateHaskell', $this->options)) {
+            return $this->booleanOptionValue($this->options['literateHaskell'], false);
+        }
+
+        return $this->markdownExtensionOverrides()['lhs'] ?? false;
     }
 
     private function autoIdentifierExtensionEnabled(): bool

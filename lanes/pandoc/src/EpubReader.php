@@ -1126,14 +1126,15 @@ final class EpubReader
         }
 
         [$path, $query, $fragment] = $this->splitUrlSuffix($url);
+        if ($query !== null && $path !== '') {
+            $target = $this->spineFilename($path);
+            if (in_array($target, $spine_filenames, true)) {
+                return '#' . $this->appendUrlSuffix($target, $query, $fragment);
+            }
+        }
         if ($fragment !== null && $fragment !== '') {
             $target = $path === '' ? $filename : $this->spineFilename($path);
             $url = $this->prefixedEpubId($target, $fragment);
-        } elseif ($query !== null && $path !== '') {
-            $target = $this->spineFilename($path);
-            if (in_array($target, $spine_filenames, true)) {
-                return '#' . $target;
-            }
         }
 
         foreach ($spine_filenames as $spine_filename) {
@@ -1151,11 +1152,11 @@ final class EpubReader
             return $url;
         }
 
-        [$path, , $fragment] = $this->splitUrlSuffix($url);
+        [$path, $query, $fragment] = $this->splitUrlSuffix($url);
         $path = $this->decodePackagePathPercentEscapes($path);
         $normalized = $this->normalizeZipPath($content_dir . '/' . $path);
 
-        return $fragment === null || $fragment === '' ? $normalized : $normalized . '#' . $fragment;
+        return $this->appendUrlSuffix($normalized, $query, $fragment);
     }
 
     private function directImageSpineBlock(string $href): AstNode
