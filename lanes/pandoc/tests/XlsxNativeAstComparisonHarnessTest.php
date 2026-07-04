@@ -151,12 +151,11 @@ return [
         $t->same(true, XlsxNativeAstComparisonHarness::hasRequiredMappedParity($report, 1));
     },
 
-    'cli gates required mapped xlsx parity from checked-in fixture' => static function (TestRunner $t) use ($fixtureDir): void {
+    'cli gates required mapped xlsx parity from checked-in fixture' => static function (TestRunner $t): void {
         $command = escapeshellarg(PHP_BINARY)
             . ' '
             . escapeshellarg(dirname(__DIR__, 3) . '/tools/pandoc-xlsx-native-ast.php')
-            . ' --upstream-xlsx-dir='
-            . escapeshellarg($fixtureDir())
+            . ' --checked-in-fixtures'
             . ' --json'
             . ' summary'
             . ' --require-mapped-parity=1';

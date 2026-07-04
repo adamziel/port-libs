@@ -109,6 +109,14 @@ jobs:
             summary \
             --require-mapped-parity=1
 
+      - name: Require checked-in XLSX native AST parity fixture
+        run: |
+          php tools/pandoc-xlsx-native-ast.php \
+            --checked-in-fixtures \
+            --json \
+            summary \
+            --require-mapped-parity=1
+
       - name: Install pandoc executable
         run: |
           set -euo pipefail
@@ -127,7 +135,8 @@ jobs:
             --xlsx-dir=.upstream-cache/pandoc-current/test/xlsx-reader \
             --json \
             summary \
-            --require-executable-parity=1
+            --require-executable-parity=1 \
+            --require-pandoc-version="pandoc ${PANDOC_EXECUTABLE_VERSION}"
 
       - name: Run focused XLSX parity tests
         run: |

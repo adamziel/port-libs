@@ -8,6 +8,7 @@ require __DIR__ . '/bootstrap.php';
 
 $repoRoot = dirname(__DIR__);
 $defaultXlsxDirectory = $repoRoot . '/.upstream-cache/pandoc-current/test/xlsx-reader';
+$checkedInXlsxDirectory = $repoRoot . '/lanes/pandoc/fixtures/upstream-current-xlsx-reader';
 $xlsxDirectory = getenv('PANDOC_UPSTREAM_XLSX_DIR') ?: getenv('PANDOC_XLSX_NATIVE_AST_DIR') ?: $defaultXlsxDirectory;
 $limit = 0;
 $requiredMappedParity = null;
@@ -17,12 +18,14 @@ $summary = false;
 foreach (array_slice($argv, 1) as $argument) {
     if ($argument === '--help' || $argument === '-h') {
         fwrite(STDOUT, <<<'TXT'
-Usage: php tools/pandoc-xlsx-native-ast.php [--upstream-xlsx-dir=PATH] [--limit=N] [--json] [--require-mapped-parity=N] [summary]
+Usage: php tools/pandoc-xlsx-native-ast.php [--upstream-xlsx-dir=PATH|--checked-in-fixtures] [--limit=N] [--json] [--require-mapped-parity=N] [summary]
 
 Compares local PHP XLSX reader output with same-basename upstream .native
 expectations by normalized AST shape when the upstream cache is present.
 Missing cache is reported as skipped with exit 0 unless required parity is
 requested.
+With --checked-in-fixtures, uses the checked-in current upstream XLSX fixture
+snapshot under lanes/pandoc/fixtures/upstream-current-xlsx-reader.
 With --require-mapped-parity=N, exits 1 unless exactly N paired fixtures are
 compared, parsed by both readers, and matched by normalized AST shape.
 
@@ -37,6 +40,11 @@ TXT);
 
     if ($argument === 'summary') {
         $summary = true;
+        continue;
+    }
+
+    if ($argument === '--checked-in-fixtures') {
+        $xlsxDirectory = $checkedInXlsxDirectory;
         continue;
     }
 

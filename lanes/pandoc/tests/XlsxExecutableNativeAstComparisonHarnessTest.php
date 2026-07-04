@@ -99,6 +99,8 @@ return [
             $t->same('pandoc fake 1.0', $report['pandocVersion']);
             $t->same('normalized-ast-equality-observed-against-pandoc-executable', $report['astParityStatus']);
             $t->same(true, XlsxExecutableNativeAstComparisonHarness::hasRequiredExecutableParity($report, 1));
+            $t->same(true, XlsxExecutableNativeAstComparisonHarness::hasRequiredPandocVersion($report, 'pandoc fake 1.0'));
+            $t->same(false, XlsxExecutableNativeAstComparisonHarness::hasRequiredPandocVersion($report, 'pandoc fake 2.0'));
         } finally {
             $removeTree($root);
         }
@@ -174,7 +176,8 @@ return [
                 . ' --pandoc-bin=' . escapeshellarg($fakePandoc)
                 . ' --json'
                 . ' summary'
-                . ' --require-executable-parity=1';
+                . ' --require-executable-parity=1'
+                . ' --require-pandoc-version=' . escapeshellarg('pandoc fake 1.0');
             $output = [];
             $exitCode = 0;
             exec($command, $output, $exitCode);
@@ -187,6 +190,7 @@ return [
             $t->same(1, $decoded['pandocNativeFixtureMatchCount']);
             $t->same(0, $decoded['pandocNativeFixtureMismatchCount']);
             $t->same(true, XlsxExecutableNativeAstComparisonHarness::hasRequiredExecutableParity($decoded, 1));
+            $t->same(true, XlsxExecutableNativeAstComparisonHarness::hasRequiredPandocVersion($decoded, 'pandoc fake 1.0'));
 
             $missingCommand = str_replace('--pandoc-bin=' . escapeshellarg($fakePandoc), '--pandoc-bin=' . escapeshellarg($root . '/missing'), $command) . ' 2>/dev/null';
             $missingOutput = [];
@@ -194,6 +198,52 @@ return [
             exec($missingCommand, $missingOutput, $missingExitCode);
 
             $t->same(1, $missingExitCode);
+
+            $versionMismatchCommand = str_replace(
+                '--require-pandoc-version=' . escapeshellarg('pandoc fake 1.0'),
+                '--require-pandoc-version=' . escapeshellarg('pandoc fake 2.0'),
+                $command
+            ) . ' 2>/dev/null';
+            $versionMismatchOutput = [];
+            $versionMismatchExitCode = 0;
+            exec($versionMismatchCommand, $versionMismatchOutput, $versionMismatchExitCode);
+
+            $t->same(1, $versionMismatchExitCode);
+        } finally {
+            $removeTree($root);
+        }
+    },
+
+    'cli accepts checked-in xlsx fixtures for executable parity' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFakePandoc): void {
+        $root = $makeTempDir();
+        try {
+            $fixtureRoot = dirname(__DIR__) . '/fixtures/upstream-current-xlsx-reader';
+            $fakePandoc = $root . '/pandoc';
+            $writeFakePandoc($fakePandoc, $fixtureRoot . '/basic.native');
+            $command = escapeshellarg(PHP_BINARY)
+                . ' '
+                . escapeshellarg(dirname(__DIR__, 3) . '/tools/pandoc-xlsx-executable-native-ast.php')
+                . ' --checked-in-fixtures'
+                . ' --pandoc-bin=' . escapeshellarg($fakePandoc)
+                . ' --json'
+                . ' summary'
+                . ' --require-executable-parity=1'
+                . ' --require-pandoc-version=' . escapeshellarg('pandoc fake 1.0');
+            $output = [];
+            $exitCode = 0;
+            exec($command, $output, $exitCode);
+            $decoded = json_decode(implode("\n", $output), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same(0, $exitCode);
+            $t->same('completed', $decoded['status']);
+            $t->same(1, $decoded['comparedXlsxCount']);
+            $t->same(1, $decoded['normalizedAstMatchCount']);
+            $t->same(0, $decoded['normalizedAstMismatchCount']);
+            $t->same(1, $decoded['pandocNativeFixtureComparedCount']);
+            $t->same(1, $decoded['pandocNativeFixtureMatchCount']);
+            $t->same(0, $decoded['pandocNativeFixtureMismatchCount']);
+            $t->same(true, XlsxExecutableNativeAstComparisonHarness::hasRequiredExecutableParity($decoded, 1));
+            $t->same(true, XlsxExecutableNativeAstComparisonHarness::hasRequiredPandocVersion($decoded, 'pandoc fake 1.0'));
         } finally {
             $removeTree($root);
         }

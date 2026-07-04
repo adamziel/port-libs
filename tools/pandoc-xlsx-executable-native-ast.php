@@ -7,22 +7,26 @@ use PortLibs\Pandoc\XlsxExecutableNativeAstComparisonHarness;
 require __DIR__ . '/bootstrap.php';
 
 $repoRoot = dirname(__DIR__);
+$checkedInXlsxDirectory = $repoRoot . '/lanes/pandoc/fixtures/upstream-current-xlsx-reader';
 $xlsxDirectory = getenv('PANDOC_UPSTREAM_XLSX_DIR') ?: getenv('PANDOC_XLSX_NATIVE_AST_DIR') ?: $repoRoot . '/.upstream-cache/pandoc-current/test/xlsx-reader';
 $pandocBin = getenv('PANDOC_BIN') ?: null;
 $limit = 0;
 $requiredExecutableParity = null;
+$requiredPandocVersion = null;
 $json = false;
 $summary = false;
 
 foreach (array_slice($argv, 1) as $argument) {
     if ($argument === '--help' || $argument === '-h') {
         fwrite(STDOUT, <<<'TXT'
-Usage: php tools/pandoc-xlsx-executable-native-ast.php [--xlsx-dir=PATH] [--pandoc-bin=PATH] [--limit=N] [--json] [--require-executable-parity=N] [summary]
+Usage: php tools/pandoc-xlsx-executable-native-ast.php [--xlsx-dir=PATH|--checked-in-fixtures] [--pandoc-bin=PATH] [--limit=N] [--json] [--require-executable-parity=N] [--require-pandoc-version=VERSION] [summary]
 
 Runs a local pandoc executable as `pandoc -f xlsx -t native FILE.xlsx`
 and compares that native output with the local PHP XLSX reader by normalized
 AST shape. Missing pandoc is reported as skipped with exit 0 unless executable
 parity is required.
+With --checked-in-fixtures, uses the checked-in current upstream XLSX fixture
+snapshot under lanes/pandoc/fixtures/upstream-current-xlsx-reader.
 
 TXT);
         exit(0);
@@ -35,6 +39,11 @@ TXT);
 
     if ($argument === 'summary') {
         $summary = true;
+        continue;
+    }
+
+    if ($argument === '--checked-in-fixtures') {
+        $xlsxDirectory = $checkedInXlsxDirectory;
         continue;
     }
 
@@ -60,6 +69,15 @@ TXT);
             exit(2);
         }
         $requiredExecutableParity = (int) $rawCount;
+        continue;
+    }
+
+    if (str_starts_with($argument, '--require-pandoc-version=')) {
+        $requiredPandocVersion = substr($argument, strlen('--require-pandoc-version='));
+        if ($requiredPandocVersion === '') {
+            fwrite(STDERR, "--require-pandoc-version must not be empty\n");
+            exit(2);
+        }
         continue;
     }
 
@@ -122,6 +140,17 @@ if (
     fwrite(
         STDERR,
         "pandoc-xlsx-executable-native-ast: executable normalized AST parity did not match {$requiredExecutableParity}/{$requiredExecutableParity} XLSX files\n"
+    );
+    exit(1);
+}
+
+if (
+    $requiredPandocVersion !== null
+    && !XlsxExecutableNativeAstComparisonHarness::hasRequiredPandocVersion($report, $requiredPandocVersion)
+) {
+    fwrite(
+        STDERR,
+        "pandoc-xlsx-executable-native-ast: pandoc version did not match {$requiredPandocVersion}\n"
     );
     exit(1);
 }
