@@ -5318,6 +5318,12 @@ final class MarkdownReader
                 continue;
             }
 
+            if ($child instanceof \DOMElement && $this->isHtmlEpubRawBlockWrapper($child)) {
+                $this->flushHtmlInlineParagraph($inlines, $blocks);
+                array_push($blocks, ...$this->parseHtmlEpubRawBlockWrapper($child));
+                continue;
+            }
+
             if ($child instanceof \DOMElement && $this->isHtmlTransparentBlockContainer($child)) {
                 $this->flushHtmlInlineParagraph($inlines, $blocks);
                 array_push($blocks, ...$this->parseHtmlBlockChildren($child));
@@ -5360,6 +5366,12 @@ final class MarkdownReader
         $inlines = [];
         foreach ($element->childNodes as $child) {
             if ($child instanceof \DOMElement && $this->isHtmlFootnoteItemElement($child)) {
+                continue;
+            }
+
+            if ($child instanceof \DOMElement && $this->isHtmlEpubRawBlockWrapper($child)) {
+                $this->flushHtmlInlineParagraph($inlines, $blocks);
+                array_push($blocks, ...$this->parseHtmlEpubRawBlockWrapper($child));
                 continue;
             }
 
@@ -5447,6 +5459,35 @@ final class MarkdownReader
             'search',
             'summary',
         ], true);
+    }
+
+    private function isHtmlEpubRawBlockWrapper(\DOMElement $element): bool
+    {
+        return $this->htmlEpubExtensionsEnabled()
+            && $this->htmlRawHtmlEnabled()
+            && strtolower($element->localName) === 'address';
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function parseHtmlEpubRawBlockWrapper(\DOMElement $element): array
+    {
+        $name = strtolower($element->localName);
+        $open = $this->renderHtmlOpeningTag($element);
+        $close = '</' . $name . '>';
+        $children = array_map(
+            static fn (AstNode $node): AstNode => $node->type === 'plain'
+                ? new AstNode('paragraph', $node->attrs, $node->children)
+                : $node,
+            $this->parseHtmlBlockChildren($element)
+        );
+
+        return [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $open, 'text' => $open]),
+            ...$children,
+            new AstNode('raw_html', ['format' => 'html', 'html' => $close, 'text' => $close]),
+        ];
     }
 
     private function parseHtmlBlockElement(\DOMElement $element): ?AstNode

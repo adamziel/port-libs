@@ -1,0 +1,6 @@
+[ Para [ Str "Before" ]
+, Div
+    ( "" , [ "aside" ] , [] )
+    [ Para [ Str "Note" , Space , Strong [ Str "inside" ] ] ]
+, Para [ Str "After" ]
+]

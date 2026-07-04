@@ -12,9 +12,9 @@ final class MarkdownUpstreamReaderEvidence
     public const STATUS_COMPLETED = 'completed-upstream-markdown-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-markdown-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
-    public const EXPECTED_SELECTED_FIXTURE_COUNT = 92;
-    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 92;
-    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = '05ed82f68a9c75e97906fdbdaad8723a85c1bd731f910c65e1ed73bf3d431b8d';
+    public const EXPECTED_SELECTED_FIXTURE_COUNT = 93;
+    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 93;
+    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = '9f95d53bb970a2c05bc8def86a679a013b9b60ea8a711cabfd257df496294b54';
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/Markdown.hs',
@@ -1170,6 +1170,19 @@ final class MarkdownUpstreamReaderEvidence
             ],
             'sha256' => '4cd6d7a97debf74bcd4580ee94fb067a8d7eea429d74562d5ab1a3204837f1b5',
             'bytes' => 45,
+        ],
+        'upstream-markdown-zzzzzzzzzzzzzzzzzzzzzzzzzz-raw-html-inline-commonmark-profile.md' => [
+            'role' => 'markdown-commonmark-raw-attribute-inline-profile-reader-fixture',
+            'sourceKind' => 'selected-upstream-markdown-reader-case',
+            'sourceReference' => 'Pandoc 3.10 commonmark+raw_attribute raw HTML inline profile probe',
+            'formatProfile' => 'commonmark+raw_attribute raw HTML inline constructor',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-markdown-zzzzzzzzzzzzzzzzzzzzzzzzzz-raw-html-inline-commonmark-profile.md',
+            'coverageTests' => [
+                'lanes/pandoc/tests/MarkdownReaderRawCodeProfileOverrideSurgeTest.php',
+                'lanes/pandoc/tests/MarkdownNativeAstComparisonHarnessTest.php',
+            ],
+            'sha256' => '4f5b81222a650acf3c9cc2367c3b0638e122e53c7647275528ae3d5aed370a2a',
+            'bytes' => 40,
         ],
         'upstream-markdown-zzzzzzzzzzzzzzzzzzzzzzzzz-atx-heading-space-disabled-profile.md' => [
             'role' => 'markdown-atx-heading-space-disabled-profile-reader-fixture',

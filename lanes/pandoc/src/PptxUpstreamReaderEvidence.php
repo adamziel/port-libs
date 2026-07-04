@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 92;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 93;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '21a5349b4aa6149eed8dd269aee7ff951e0ac7dad7ae729b913069cadff9c955';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 39974;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'ed3d2f8a4c149776d41715fcac68fc60007f7c0c8255f099fa2852e13fca6c09';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 40421;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -1098,6 +1098,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => '8174d5156e67751932faec8de101c6e66bd7e7339183cc0bd0248a6137b06e05',
             'pptxBytes' => 1310,
             'nativeBytes' => 92,
+        ],
+        'repeated-slash-presentation-target' => [
+            'name' => 'generated repeated-slash presentation target parity',
+            'pptx' => 'pptx-reader/repeated-slash-presentation-target.pptx',
+            'native' => 'pptx-reader/repeated-slash-presentation-target.native',
+            'pairKey' => 'pptx-reader/repeated-slash-presentation-target.pptx|pptx-reader/repeated-slash-presentation-target.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/repeated-slash-presentation-target.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/repeated-slash-presentation-target.native',
+            'pptxSha256' => '41899644c0c987c2ec8e96aa25b9ec8160476d1de1d02042c37721d150786f7c',
+            'nativeSha256' => '8f5ecb6310e128bbb0c8ec8203c5639722be03864ddcf5ef3e6f9c4f474ce331',
+            'pptxBytes' => 1453,
+            'nativeBytes' => 94,
         ],
         'rich-media-skip' => [
             'name' => 'generated rich media placeholder skip parity',

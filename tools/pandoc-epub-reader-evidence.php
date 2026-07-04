@@ -325,7 +325,7 @@ try {
         fwrite(
             STDERR,
             "pandoc-epub-reader-evidence: checked-in current EPUB native/package parity did not match the expected snapshot\n"
-            . "hint: run tools/pandoc-epub-native-ast-package.php --checked-in-fixtures summary --require-package-parity=64 --require-native-readiness=64 --require-mapped-parity=64 --require-fixture-identity --require-current-package-feature-coverage --require-current-package-feature-signature --require-current-native-ast-signature --require-runner-plan\n"
+            . "hint: run tools/pandoc-epub-native-ast-package.php --checked-in-fixtures summary --require-package-parity=65 --require-native-readiness=65 --require-mapped-parity=65 --require-fixture-identity --require-current-package-feature-coverage --require-current-package-feature-signature --require-current-native-ast-signature --require-runner-plan\n"
         );
         exit(1);
     }

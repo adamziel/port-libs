@@ -1,0 +1,8 @@
+[ Para
+    [ Str "Before"
+    , Space
+    , RawInline (Format "html") "<span>raw</span>"
+    , Space
+    , Str "after."
+    ]
+]

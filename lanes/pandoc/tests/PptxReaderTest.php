@@ -17910,6 +17910,22 @@ XML);
         $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Normalized" , Space , Str "presentation" , Space , Str "target" ]', $native);
     },
 
+    'normalizes repeated slashes in pptx root officeDocument targets like pandoc executable' => static function (TestRunner $t): void {
+        $path = dirname(__DIR__) . '/fixtures/upstream-current-pptx-reader/repeated-slash-presentation-target.pptx';
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read repeated-slash presentation target fixture');
+        }
+
+        $document = (new PptxReader())->read($bytes);
+        $review = $document->attr('pptx');
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same('ppt/presentation.xml', $review['presentationPart'] ?? null);
+        $t->same('Repeated slash presentation target', $document->children[0]->attr('text'));
+        $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Repeated" , Space , Str "slash" , Space , Str "presentation" , Space , Str "target" ]', $native);
+    },
+
     'uses upstream literal pptx slide targets instead of normalizing root-relative paths' => static function (TestRunner $t) use ($buildRootRelativeSlideTargetPptxPackage): void {
         try {
             (new PptxReader())->read($buildRootRelativeSlideTargetPptxPackage());

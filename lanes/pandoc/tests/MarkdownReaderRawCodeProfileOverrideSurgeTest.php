@@ -270,6 +270,17 @@ return [
                     $t->same(true, in_array('code', $inlineTypes($document), true), $name);
                 }
             }
+
+            $fixture = (string) file_get_contents(
+                dirname(__DIR__) . '/fixtures/upstream-markdown-zzzzzzzzzzzzzzzzzzzzzzzzzz-raw-html-inline-commonmark-profile.md'
+            );
+            $document = (new MarkdownReader(['format' => 'commonmark+raw_attribute']))->read($fixture);
+            $raw = $findFirst($document, 'raw_html_inline');
+
+            $t->same(['text', 'raw_html_inline', 'text'], $inlineTypes($document));
+            $t->same('raw_html_inline', $raw->type);
+            $t->same('html', $raw->attr('format'));
+            $t->same('<span>raw</span>', $raw->attr('text'));
         },
 
     'maps upstream markdown reader fenced code attribute option overrides' =>

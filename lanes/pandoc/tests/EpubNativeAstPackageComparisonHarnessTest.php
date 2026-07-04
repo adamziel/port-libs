@@ -716,2140 +716,2773 @@ return [
         $root = $fixtureRoot();
         $epubFiles = glob($root . '/*.epub') ?: [];
         $nativeFiles = glob($root . '/*.native') ?: [];
-        $expectedFixtureIdentity = [
-            'accessibility-metadata-package.epub' => [
-                'sha256' => '1f0fc1e25c99a96af5af9a0128f2eeb72affcf8e86afbbf7f1541e2a7695c9cc',
-                'bytes' => 1855,
-            ],
-            'accessibility-metadata-package.native' => [
-                'sha256' => '99e5e68f3899c680fcb162ffb432797a07e8194d5aa7ce73b8eca93f8900cfde',
-                'bytes' => 289,
-            ],
-            'all-nonlinear-spine.epub' => [
-                'sha256' => '83fc005e5ab9feaca5c6a08b61d590d0cc3958bbe75b43b5f5a108c599e59882',
-                'bytes' => 1364,
-            ],
-            'all-nonlinear-spine.native' => [
-                'sha256' => '37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570',
-                'bytes' => 3,
-            ],
-            'appendix-navigation-guide.epub' => [
-                'sha256' => '2c7b9ca20d38dcda15b63a1bf4aa210a3b11b132dc0a8fe6bedec13d24675c4f',
-                'bytes' => 1645,
-            ],
-            'appendix-navigation-guide.native' => [
-                'sha256' => '8e9029119f437f20c1ba3fa8055beb80087bf9230c083e297ac91f3115453bed',
-                'bytes' => 272,
-            ],
-            'audio-navigation.epub' => [
-                'sha256' => '09e5d95402b3a0b34fc1843b61534fe02a58df21ec524071776698f66b8c43a2',
-                'bytes' => 1509,
-            ],
-            'audio-navigation.native' => [
-                'sha256' => '86911ce05ad45760deb8f82eb4fe1b569626b09cddcf9fabc2b45cae50b37a22',
-                'bytes' => 262,
-            ],
-            'auxiliary-lot-guide-index.epub' => [
-                'sha256' => '8581efb4630635b95af119442cb682181b0004b90d53c6c43dfa255fc1c5bb58',
-                'bytes' => 1434,
-            ],
-            'auxiliary-lot-guide-index.native' => [
-                'sha256' => '0cdecc48fd17c19b93fe001e19aac7fb7f4a09e04c80a4d833e55c1828485995',
-                'bytes' => 211,
-            ],
-            'bindings-collections-sidecars.epub' => [
-                'sha256' => '82cd32b901ed412a69c5080707ed566207b06030c074bffa3b83460692f07834',
-                'bytes' => 3767,
-            ],
-            'bindings-collections-sidecars.native' => [
-                'sha256' => '2dc016af0d0e6f660a7a825acebf27d3bd2a74d30cc0914651b099877774932d',
-                'bytes' => 679,
-            ],
-            'blockquote-list-spine.epub' => [
-                'sha256' => '74fbf6f8f030e88a866ba652f72d0ec6864149c38ae8df45b9efd0bb4b8d0746',
-                'bytes' => 1494,
-            ],
-            'blockquote-list-spine.native' => [
-                'sha256' => 'dc459413755a1c07b599fb45cbb3cbd4c26bcdf8cf2caef31bdeaa1029bdfbc0',
-                'bytes' => 761,
-            ],
-            'code-block-spine.epub' => [
-                'sha256' => 'edce77261e123eb3aa3ef2614978a0854900a24ae02834d68f9625d70e5f5f3b',
-                'bytes' => 1364,
-            ],
-            'code-block-spine.native' => [
-                'sha256' => '996f70134a1e706fb7525e5fbac1d2d7d7c2ae4d95bfa52a99f1cfee5e3137f8',
-                'bytes' => 334,
-            ],
-            'content-image-nav-media.epub' => [
-                'sha256' => 'd02bb4c45558841903bb5e83ea3f15af2ca00d4221236d10978b4c0d672e8ce6',
-                'bytes' => 2410,
-            ],
-            'content-image-nav-media.native' => [
-                'sha256' => '258f9b8a1b2a9c8df41cbe9142d573d52e248b45cb3872ef2c071328d0e80b34',
-                'bytes' => 589,
-            ],
-            'cross-spine-internal-links.epub' => [
-                'sha256' => '10356bf8205f5eab35bb851bf155cdd279b23804740017cf59bb28d4f10a07e5',
-                'bytes' => 1701,
-            ],
-            'cross-spine-internal-links.native' => [
-                'sha256' => '55c6607d1baee634d2e06404a7c1b7c5271880b20d86c9ccf06d097045bb7f09',
-                'bytes' => 743,
-            ],
-            'definition-list-spine.epub' => [
-                'sha256' => '0baab26570c728b891093f14904fcebd543708c902091e851dce748a76ab2fa0',
-                'bytes' => 1416,
-            ],
-            'definition-list-spine.native' => [
-                'sha256' => 'c63677d9de4ea45d6fe74f5d68f433d73a2b2ec9076a803ecf4c6d7a5e5d78dd',
-                'bytes' => 790,
-            ],
-            'direct-image-spine.epub' => [
-                'sha256' => '695bb5c110c2011b4567c6f4a62b5d3249e00be37cfaff92b965ce346b376cb7',
-                'bytes' => 1355,
-            ],
-            'direct-image-spine.native' => [
-                'sha256' => '122dde0a14358daeea4987bdf7a378eb97e59f125bfecbadb404129fd58b2269',
-                'bytes' => 4270,
-            ],
-            'duplicate-spine-idref.epub' => [
-                'sha256' => 'cdcd53351890ca8b684b2ad5581be3f57a49c80296c1c7c70bf52fa5220ea3cd',
-                'bytes' => 1423,
-            ],
-            'duplicate-spine-idref.native' => [
-                'sha256' => 'a531ce241637505ddcc5a03704f159d5fd5ee213cc59721bb1fb4e93105bb5ff',
-                'bytes' => 1312,
-            ],
-            'epub2_cover.epub' => [
-                'sha256' => '4af73a135aa632cbf0c00b2889a5fc1d39a59a77fa294fdeff5ede72ff6ffed1',
-                'bytes' => 11794,
-            ],
-            'epub2_cover.native' => [
-                'sha256' => '4107c44d7711b63dac21745139f9cfb6dd99288b38ecf0d43e07b5ecd2493618',
-                'bytes' => 1314,
-            ],
-            'epub2_no_cover.epub' => [
-                'sha256' => '8369dbe5cf315f1fe00f9dd1bf7c500cc663d7648edbf0d7b6a9b4d785fedf4e',
-                'bytes' => 3584,
-            ],
-            'epub2_no_cover.native' => [
-                'sha256' => '48808c2e009669341a887a3c23adf033744aa652b0f69c319f0058396b59c6b8',
-                'bytes' => 1242,
-            ],
-            'epub2_picture.epub' => [
-                'sha256' => '6049dde9e1d0ebcd175a8c5b937984f349af996e293310eafbce09e4c7384495',
-                'bytes' => 11742,
-            ],
-            'epub2_picture.native' => [
-                'sha256' => 'fa1cc897a5172b6f66411f2b61156a86669654e0338d137f543e069d4f73fb39',
-                'bytes' => 1314,
-            ],
-            'epub3-ncx-toc-fallback.epub' => [
-                'sha256' => 'ead984a9fdd9e85194a55d0c1a4f28d67182493bad9692f8ee19424b33ddd225',
-                'bytes' => 2189,
-            ],
-            'epub3-ncx-toc-fallback.native' => [
-                'sha256' => 'd2af2d91536fe498affbe70f0de4a917c30c5c8e0cc147dc631bbb5cf49af781',
-                'bytes' => 1013,
-            ],
-            'external-footnote-reference.epub' => [
-                'sha256' => '9df47e23e87d0385737c76fbc518bec86d7ab222e9a007c1db1d0e5f9c0ec5d2',
-                'bytes' => 1766,
-            ],
-            'external-footnote-reference.native' => [
-                'sha256' => 'ee4878561dad1a0f53703d0cb4bd8b2726068cee9482c32df47fa481194675ee',
-                'bytes' => 286,
-            ],
-            'features.epub' => [
-                'sha256' => '6bf9a102249d58b32f14b39dfbc966bdecadff68a3fb707cb3ca62334734358a',
-                'bytes' => 8970,
-            ],
-            'features.native' => [
-                'sha256' => 'c384a314081ecc860bb0f8a9ffb5273976ed56341e4f16e05dd448126e85c41f',
-                'bytes' => 48453,
-            ],
-            'font-manifest-resource.epub' => [
-                'sha256' => 'ab561d6de4579fbe572ae1e99e56c3dcba464f1d9c2906310f1324d1a1243d0e',
-                'bytes' => 1512,
-            ],
-            'font-manifest-resource.native' => [
-                'sha256' => 'f1f123f4ab0d1a612523707a09504a1e3e9b61194f6cbe1338dcb5d920c089d1',
-                'bytes' => 177,
-            ],
-            'formatting.epub' => [
-                'sha256' => '491fc57ec384449a23c4f2abdcfe91be9ab2a07f50f466fb8d80775b89bf3965',
-                'bytes' => 14022,
-            ],
-            'formatting.native' => [
-                'sha256' => '9041b6aa23827579a4db45074bd9b26077337defc26ec62ab3b57f676f4eeb21',
-                'bytes' => 172999,
-            ],
-            'fragment-nav-spine.epub' => [
-                'sha256' => 'cf582d0b887cd5c7a01180a7fe45138144bb650dc257f21c32ef33765a50a6b8',
-                'bytes' => 1372,
-            ],
-            'fragment-nav-spine.native' => [
-                'sha256' => '81ffc5d60c1d7c49cfe3f95c44036d87d922c2aef8d71425dce3cb666da5576e',
-                'bytes' => 550,
-            ],
-            'guide-bibliography-reference.epub' => [
-                'sha256' => 'c41d806bf13306837ecfdbc12504a1f134f85d40545bb4694447763297f891fd',
-                'bytes' => 1391,
-            ],
-            'guide-bibliography-reference.native' => [
-                'sha256' => 'de4ce57368f4f73e70c2f2018c52548ccbe7dcc275fcf50cab0b05277191ec9d',
-                'bytes' => 188,
-            ],
-            'guide-glossary-reference.epub' => [
-                'sha256' => '699550c8c91e9f11cb430c24e2e157a1f6dfb4f11cff2b98f5ad3cce72b6141d',
-                'bytes' => 1386,
-            ],
-            'guide-glossary-reference.native' => [
-                'sha256' => 'bd285d34bd9a24f860fb1f398ad291957f68189468858f15192d9823b6f06279',
-                'bytes' => 181,
-            ],
-            'guide-notes-reference.epub' => [
-                'sha256' => '7fdc04f51cc6f359c5f44cd56661d953f2ccd00983a45ae4fedcb91c275fccee',
-                'bytes' => 1378,
-            ],
-            'guide-notes-reference.native' => [
-                'sha256' => '53f14b3a3553b8ba92832a2736b8c08dc75218ebf60c92585c4c0056875ac75d',
-                'bytes' => 174,
-            ],
-            'guide-preface-reference.epub' => [
-                'sha256' => 'd4470953a6b05f8a8d33a1aa766a04fd9a58ea897b3017a41aed7d2410990d37',
-                'bytes' => 1367,
-            ],
-            'guide-preface-reference.native' => [
-                'sha256' => '521b247130c5f4e5d561857912fb378bbf6305108ccc0f3700bad8847ee9e9e9',
-                'bytes' => 178,
-            ],
-            'img.epub' => [
-                'sha256' => 'f2c25e0e0612b7ac33a8d6a1c9719a86e7d2a0290472fc7d8b5068de781a822f',
-                'bytes' => 20478,
-            ],
-            'img.native' => [
-                'sha256' => '817c691f8fab94b1ed9092b9cc23a2299771af8df99c8b0a8dded51ce63baf91',
-                'bytes' => 6762,
-            ],
-            'img_no_cover.epub' => [
-                'sha256' => '3063f5e9b9610df1ddcc682ce49c293bcf681f1958700a5b6c3eda344383cf2a',
-                'bytes' => 10602,
-            ],
-            'img_no_cover.native' => [
-                'sha256' => '0e0152ba08256f6926bb9e9bba1892b673aa994ddbc8ab369d36f0abeab0b2b2',
-                'bytes' => 6630,
-            ],
-            'inline-abbr-subscript-superscript.epub' => [
-                'sha256' => '60d188945fb302e0e658afdc5be5843422f94b2edb344b392703dae00f1d1409',
-                'bytes' => 1476,
-            ],
-            'inline-abbr-subscript-superscript.native' => [
-                'sha256' => '3d9b3e8d736bcb4f233b70228b0bebce47e5716334cb949adb80977716999e53',
-                'bytes' => 615,
-            ],
-            'language-french-metadata.epub' => [
-                'sha256' => 'a64733afbdd101dcf679227227eacaa6dd8ec1649721e406cbc245e4e91a5f87',
-                'bytes' => 1317,
-            ],
-            'language-french-metadata.native' => [
-                'sha256' => '66ed9d9c546eb58f4fb7685ab5c30affa158a84b415a068408f95d52298a4dcf',
-                'bytes' => 144,
-            ],
-            'main-section-spine.epub' => [
-                'sha256' => '99f8c2afa52f3cb97bed7466fdff1bcb9a94f795ba27d306cabc70314cab40dc',
-                'bytes' => 1445,
-            ],
-            'main-section-spine.native' => [
-                'sha256' => '9f9d405ee278ca5a586aa3a9cd1020c90e6b66d2c8019e985d7c779a1347e5a5',
-                'bytes' => 353,
-            ],
-            'manifest-fallback-chain.epub' => [
-                'sha256' => 'af579a53102ff39e74bf2f79df687384ba1897c961aba9be197ba575079e18a4',
-                'bytes' => 1735,
-            ],
-            'manifest-fallback-chain.native' => [
-                'sha256' => '54fe7e8b655152d47863121ec647bddd468e69bfab601a05af54fc00f07893d3',
-                'bytes' => 180,
-            ],
-            'manifest-fallback-style.epub' => [
-                'sha256' => 'e9c4c86b4fc4d167600f09b0daf4cafa4cd15763b833119209ed42d01ffd5f8f',
-                'bytes' => 2063,
-            ],
-            'manifest-fallback-style.native' => [
-                'sha256' => 'e5ab69b21a48e6f8b0f907ec5dfb1d07bd8942de45fb1aff6e8ce6159f40abb7',
-                'bytes' => 580,
-            ],
-            'manifest-href-encoding.epub' => [
-                'sha256' => 'a5f5643ef8d10b7ed6339a14153991273db0d78e23b2b8c2fcf949922f0c11e8',
-                'bytes' => 2281,
-            ],
-            'manifest-href-encoding.native' => [
-                'sha256' => '59c8166ffa04fa003cf7a11d2f8b5e9097d3402218f1d7553d760f9cad70f8e5',
-                'bytes' => 513,
-            ],
-            'mathml-spine.epub' => [
-                'sha256' => 'c89ff2507ce6ca380f20bdf0e4d2ca15f27baf0c9a68fac7f482587727a568b3',
-                'bytes' => 1562,
-            ],
-            'mathml-spine.native' => [
-                'sha256' => '394d586dfd52a7717a6989f20d0e034d9ac1dbb0c904d43ed2ae598b91be81d0',
-                'bytes' => 484,
-            ],
-            'media-manifest-mix.epub' => [
-                'sha256' => 'd74b69c881a8a46913a719fe2aa5311cb7fdf5ac747f98e7c5b342a3a78fe04c',
-                'bytes' => 1801,
-            ],
-            'media-manifest-mix.native' => [
-                'sha256' => 'aa1c71ce01bcc9a0a893188663f1c381fad780371edd17ac791c60c183ae5f85',
-                'bytes' => 415,
-            ],
-            'media-overlay-package.epub' => [
-                'sha256' => '6af50dc4bf618cd964af7274a688aebcbd16da6804581325c00195b1721ed972',
-                'bytes' => 1894,
-            ],
-            'media-overlay-package.native' => [
-                'sha256' => '2083a3e8168ce9f47a3f6e8574fb8917a29b0760736a6123e238fc5681eef5e7',
-                'bytes' => 192,
-            ],
-            'metadata-link-page-list-image.epub' => [
-                'sha256' => 'ed2da17a5ea5cc370bde15d43e9480558654e644cf3c4d637ea50c71c1a3241c',
-                'bytes' => 1926,
-            ],
-            'metadata-link-page-list-image.native' => [
-                'sha256' => '884c97ef31814c40e380663f07792a4dd223d67457fd4b7cfbf0bae9be158cc5',
-                'bytes' => 1140,
-            ],
-            'metadata-record-remote-nav.epub' => [
-                'sha256' => '74f7d7ecaa89dea3d0085f1208a78abf951de22e057245d321036bcd4b35ffe8',
-                'bytes' => 1944,
-            ],
-            'metadata-record-remote-nav.native' => [
-                'sha256' => '9a0dffbca5d0b8a52ac7d12e570a0e671d6892f54298d396d808a49940f31bad',
-                'bytes' => 844,
-            ],
-            'metadata-search-link-semantics.epub' => [
-                'sha256' => '02d2f49316abf1e2f2abc8f6959090dc891e24857b849297201782918cca3a3f',
-                'bytes' => 1892,
-            ],
-            'metadata-search-link-semantics.native' => [
-                'sha256' => '8e78383af179a9392bdc99d397444133b2423163663cfdc41e4e24583c68cd48',
-                'bytes' => 1861,
-            ],
-            'missing-local-manifest-resource.epub' => [
-                'sha256' => '5ce06b74cde06eb0d06f1b41b73f99840983451abb9bb120e8206979ac16dca5',
-                'bytes' => 1386,
-            ],
-            'missing-local-manifest-resource.native' => [
-                'sha256' => '2eaad3b88904dc836c7d9993ccba2894946df1bb91d59524b63346c5ea24921c',
-                'bytes' => 200,
-            ],
-            'missing-media-overlay.epub' => [
-                'sha256' => '2f6f3b7da6babcda4101045e106c1bfac5ea56377ae96764793d8ccd98cadf07',
-                'bytes' => 1422,
-            ],
-            'missing-media-overlay.native' => [
-                'sha256' => 'fb2b6d05c5d95f316dd8f73f4898ec493f509bc287084e81427c5617e182d252',
-                'bytes' => 213,
-            ],
-            'multi-rootfile-nested-nav.epub' => [
-                'sha256' => 'd4d65c5c0c6db9dc89ddbe0545f7870815a770d1441be00211b865155a273961',
-                'bytes' => 2715,
-            ],
-            'multi-rootfile-nested-nav.native' => [
-                'sha256' => 'd6aaf8b80629420e9b3ea1854a751cca180bc408a0eac6c8a1513b83eb2aa96b',
-                'bytes' => 479,
-            ],
-            'nav-ncx-linear-guide.epub' => [
-                'sha256' => '45b914d6e5ef83949c5432b7c523c383d323a3b9aa56499946155b88ace41f26',
-                'bytes' => 2336,
-            ],
-            'nav-ncx-linear-guide.native' => [
-                'sha256' => '0e44bc8507ce00254743af59dbdc8ab96508730543ae0fd19f8a1a26b97cc95f',
-                'bytes' => 202,
-            ],
-            'nested-path-media-metadata.epub' => [
-                'sha256' => '685025a751e882b4700b6b31a0cdb8f51eceecaae86be1d83e0590beb2d876b7',
-                'bytes' => 3588,
-            ],
-            'nested-path-media-metadata.native' => [
-                'sha256' => '237760af79e8ff533a0bdab616e5a100ec81c85f7543b34ab388844bb8ad9766',
-                'bytes' => 1899,
-            ],
-            'nested-rootfile-nonlinear-spine.epub' => [
-                'sha256' => 'e0e41f25280f3b7a092ea2ed105af51c33e445221b2d54c877181c96aed191f4',
-                'bytes' => 2043,
-            ],
-            'nested-rootfile-nonlinear-spine.native' => [
-                'sha256' => '9f857344d02b81e87d3643b01fc7a98e2ed1504d5c61da8a116d4bd3e725222e',
-                'bytes' => 200,
-            ],
-            'package-spine-nav-media-metadata.epub' => [
-                'sha256' => '64981f08e5f4b2ae41baf55233e3cf4419c62c25d2606347bfedf0ee7e181a18',
-                'bytes' => 2402,
-            ],
-            'package-spine-nav-media-metadata.native' => [
-                'sha256' => '6d5be8a2ed05f750c291ce141c0110e2264605960ccaf89175de7cf6179fffbd',
-                'bytes' => 993,
-            ],
-            'page-list-cfi-navigation.epub' => [
-                'sha256' => '88feb1210f770ffa341c907fe0f1b9a68c88677abf28021849e73197695d0a8f',
-                'bytes' => 1411,
-            ],
-            'page-list-cfi-navigation.native' => [
-                'sha256' => '2ae9e1947ee8146d7d007041d4bfff8d8ca8dbfc99ced96851cade2160046500',
-                'bytes' => 206,
-            ],
-            'page-list-navigation.epub' => [
-                'sha256' => '449c6114a473e2db1df8cf69cd29fddaef4a14a160b65fd7fe30adf0c80b9365',
-                'bytes' => 1394,
-            ],
-            'page-list-navigation.native' => [
-                'sha256' => '3b5fb7863f0df2ba4875092b369aa2b5f8e6797ec0a1edc17232d594ee1047c6',
-                'bytes' => 175,
-            ],
-            'parent-relative-nav.epub' => [
-                'sha256' => 'caafa83c3b42b02d6aa25905f04b045df1a3db37913a636a296193cc4f8f27f6',
-                'bytes' => 1652,
-            ],
-            'parent-relative-nav.native' => [
-                'sha256' => 'fa48842bd1b89d8ba991dc5d577bb526f61bf89c7e8966f66c0929ca6d149a9e',
-                'bytes' => 705,
-            ],
-            'remote-manifest-resource.epub' => [
-                'sha256' => 'aaf4a5557c55af341a6a2ed5950ccc5807ce529f6ae4ed4398336345b0646c7f',
-                'bytes' => 1385,
-            ],
-            'remote-manifest-resource.native' => [
-                'sha256' => '96cafe1fc0398a6f41e4ec352d52f961e6bdb1206bfcc5637505f4cd5ebc2c2b',
-                'bytes' => 181,
-            ],
-            'rendition-layout-property.epub' => [
-                'sha256' => 'abdbb293f94d979445600249a1162c0607a2fbcb73fc260d77d61334edef3671',
-                'bytes' => 1390,
-            ],
-            'rendition-layout-property.native' => [
-                'sha256' => '3147a4f4255f778f5419ea67d411038c008173a08ca94a8b5fefc37e4bb668e5',
-                'bytes' => 206,
-            ],
-            'scripted-svg-manifest.epub' => [
-                'sha256' => '8845d9a35825bdf882b5d2239b60c1e7fd0f9589c8d06f5be74f0565fc56bb1b',
-                'bytes' => 1577,
-            ],
-            'scripted-svg-manifest.native' => [
-                'sha256' => 'c4c89cc198ed6aab17f1f6c417e9b4bb919ba704af09eb508f5805d2077c193e',
-                'bytes' => 180,
-            ],
-            'scripted-xhtml-resource.epub' => [
-                'sha256' => '4600cb6c58330de0c0dc6e27deb73c41dae16a395c98ad0774fb3812323d77e5',
-                'bytes' => 1556,
-            ],
-            'scripted-xhtml-resource.native' => [
-                'sha256' => '0da002a70192ef1d75d04151403344c1f5fce75769ed97bf335b4a316545b85d',
-                'bytes' => 177,
-            ],
-            'spine-fallback-resource.epub' => [
-                'sha256' => 'c042da479466e7353f063d986eb5481e49d2a6d9b93a8348576994f6ae3dbde6',
-                'bytes' => 1661,
-            ],
-            'spine-fallback-resource.native' => [
-                'sha256' => '56a094f8d97c055aeca928ad6d5162be7ca396ea1f869a2b29740aef3415baaa',
-                'bytes' => 48,
-            ],
-            'spine-page-spread.epub' => [
-                'sha256' => '47c48d493ff2846023ce78c1cb407d8025865ef7eb986c9f60607de4189bd5e1',
-                'bytes' => 1562,
-            ],
-            'spine-page-spread.native' => [
-                'sha256' => 'ecdae2b7e18be738e3530727e3d04f253fed3a6474091964d0b9c0c16c984dd9',
-                'bytes' => 483,
-            ],
-            'standalone-footnote.epub' => [
-                'sha256' => '5058fb925a59dadae5ac5e371f4907c5a192b074410d2c668b4e2b6ff483ab53',
-                'bytes' => 1384,
-            ],
-            'standalone-footnote.native' => [
-                'sha256' => '8ba2f5a23a13f1c6d0e309e3ba77ea8bb65702e5c166c38589d954fcc5026657',
-                'bytes' => 431,
-            ],
-            'text-track-captions.epub' => [
-                'sha256' => '2559039311ac1b9a25be74e4b4a7587cadc5579563a8d0ff1fb3b80503c30da5',
-                'bytes' => 1812,
-            ],
-            'text-track-captions.native' => [
-                'sha256' => 'e1f54a06e556fcd9a130357978b110a6931ed79f27af8424df8a861155b71eed',
-                'bytes' => 568,
-            ],
-            'title-page-guide-media-metadata.epub' => [
-                'sha256' => '9a21d071427572212113af33e11d1d39cd692ea840a81980dfaf471840d28dc7',
-                'bytes' => 2801,
-            ],
-            'title-page-guide-media-metadata.native' => [
-                'sha256' => '8f2c47bb97258bdf88a8cf1a8f8f398e42d2afa8bf2633ceda835785aefdf3d0',
-                'bytes' => 747,
-            ],
-            'video-manifest-resource.epub' => [
-                'sha256' => '7db258c0f96c66dc1de9eeaa1fc75ca5e9fddf821b6f0783cd4b74f4f59013b5',
-                'bytes' => 1508,
-            ],
-            'video-manifest-resource.native' => [
-                'sha256' => '844b189a6f0de4d43e260e07766cdc0329db17c0963024d9fd866c80a73d2f6b',
-                'bytes' => 179,
-            ],
-            'video-navigation.epub' => [
-                'sha256' => '71bf3f39156a0911cd9b542aee3c45d88aabd608a9a268a4c4fe6a949f1956fe',
-                'bytes' => 1505,
-            ],
-            'video-navigation.native' => [
-                'sha256' => '0a7d0436add9426392a1a10b4d4b725848931a4b7f49fdf6c8acea5e86f14241',
-                'bytes' => 262,
-            ],
-            'wasteland.epub' => [
-                'sha256' => '151ec5dbca33e39a4e3f6894e92fa5a101290bdeaaa792e0700595971456a278',
-                'bytes' => 25840,
-            ],
-            'wasteland.native' => [
-                'sha256' => '0a268af28518f063604659adb2ff27b123c771f8312b60fb40445bb2c551bbac',
-                'bytes' => 150477,
-            ],
-            'xhtml-ruby-table-mark.epub' => [
-                'sha256' => '19e2ed10e4aeafe94970c38606939b9dfbd561f15c7f71e4ee904425f9b13b4d',
-                'bytes' => 1876,
-            ],
-            'xhtml-ruby-table-mark.native' => [
-                'sha256' => 'ec35ac3bda86e5242aa9ceb8b5614be45f689b643c2620508687f55daa68a4b8',
-                'bytes' => 2302,
-            ],
-            'xhtml-semantics-spine.epub' => [
-                'sha256' => 'd2a4df3e7287b534b0ad1685d8f241940dd728fa3541ae1d14924506f7544452',
-                'bytes' => 1893,
-            ],
-            'xhtml-semantics-spine.native' => [
-                'sha256' => 'd2e7da70eb00cd5172cc2382532b972a62d9ef9fc1e4c107aa3c504fa2367fa2',
-                'bytes' => 3228,
-            ],
-        ];
-        $expectedPackageFeatureCoverage = [
-            'kind' => 'epub-package-feature-coverage',
-            'fixtureCount' => 64,
-            'opfPartNameCounts' => [
-                '/EPUB/package.opf' => 50,
-                '/EPUB/wasteland.opf' => 1,
-                '/OEBPS/content.opf' => 3,
-                '/OPS/book/package.opf' => 4,
-                '/OPS/package.opf' => 6,
-            ],
-            'metadataLanguageCounts' => [
-                'de-DE' => 3,
-                'en' => 57,
-                'en-GB' => 1,
-                'en-US' => 2,
-                'fr' => 1,
-            ],
-            'fixturesWithCreators' => [
-                'accessibility-metadata-package',
-                'bindings-collections-sidecars',
-                'blockquote-list-spine',
-                'code-block-spine',
-                'content-image-nav-media',
-                'cross-spine-internal-links',
-                'definition-list-spine',
-                'duplicate-spine-idref',
-                'epub2_cover',
-                'epub2_no_cover',
-                'epub2_picture',
-                'epub3-ncx-toc-fallback',
-                'external-footnote-reference',
-                'features',
-                'formatting',
-                'img',
-                'img_no_cover',
-                'inline-abbr-subscript-superscript',
-                'language-french-metadata',
-                'main-section-spine',
-                'manifest-fallback-style',
-                'manifest-href-encoding',
-                'mathml-spine',
-                'media-manifest-mix',
-                'metadata-link-page-list-image',
-                'metadata-record-remote-nav',
-                'metadata-search-link-semantics',
-                'missing-media-overlay',
-                'multi-rootfile-nested-nav',
-                'nested-path-media-metadata',
-                'nested-rootfile-nonlinear-spine',
-                'package-spine-nav-media-metadata',
-                'parent-relative-nav',
-                'spine-fallback-resource',
-                'text-track-captions',
-                'title-page-guide-media-metadata',
-                'wasteland',
-                'xhtml-ruby-table-mark',
-                'xhtml-semantics-spine',
-            ],
-            'navigationTypeCounts' => [
-                'nav' => 59,
-                'ncx' => 4,
-            ],
-            'spineLinearStateCounts' => [
-                'linear' => 80,
-                'non-linear' => 15,
-            ],
-            'spinePageSpreadPlacementCounts' => [
-                'left' => 2,
-                'right' => 3,
-            ],
-            'manifestMediaTypeCounts' => [
-                'application/javascript' => 1,
-                'application/json' => 6,
-                'application/ld+json' => 1,
-                'application/octet-stream' => 1,
-                'application/pdf' => 1,
-                'application/smil+xml' => 1,
-                'application/x-bound-widget' => 1,
-                'application/x-dtbncx+xml' => 6,
-                'application/x-fallback-demo' => 3,
-                'application/xhtml+xml' => 151,
-                'audio/mpeg' => 4,
-                'font/woff2' => 1,
-                'image/gif' => 5,
-                'image/jpeg' => 7,
-                'image/png' => 9,
-                'image/svg+xml' => 1,
-                'text/css' => 24,
-                'text/vtt' => 1,
-                'video/mp4' => 3,
-            ],
-            'manifestPropertyCounts' => [
-                'accessibility-metadata' => 1,
-                'cover-image' => 3,
-                'mathml' => 3,
-                'nav' => 59,
-                'remote-resources' => 4,
-                'rendition:layout-pre-paginated' => 1,
-                'scripted' => 2,
-                'svg' => 2,
-                'switch' => 1,
-            ],
-            'manifestResourceKindCounts' => [
-                'asset' => 13,
-                'audio' => 4,
-                'cover-image' => 3,
-                'font' => 1,
-                'image' => 18,
-                'media-overlay' => 1,
-                'navigation' => 65,
-                'script' => 1,
-                'style' => 24,
-                'svg' => 1,
-                'text-track' => 1,
-                'video' => 3,
-                'xhtml' => 92,
-            ],
-            'navigationSectionTypes' => [
-                'appendix',
-                'landmarks',
-                'loa',
-                'loi',
-                'lot',
-                'lov',
-                'page-list',
-                'toc',
-            ],
-            'guideReferenceTypeCounts' => [
-                'appendix' => 1,
-                'bibliography' => 1,
-                'cover' => 3,
-                'glossary' => 1,
-                'index' => 1,
-                'notes' => 1,
-                'preface' => 1,
-                'text' => 12,
-                'title-page' => 1,
-                'toc' => 1,
-            ],
-            'packageLinkRelCounts' => [
+        $expectedFixtureIdentity = array (
+          'accessibility-metadata-package.epub' =>
+          array (
+            'sha256' => '1f0fc1e25c99a96af5af9a0128f2eeb72affcf8e86afbbf7f1541e2a7695c9cc',
+            'bytes' => 1855,
+          ),
+          'accessibility-metadata-package.native' =>
+          array (
+            'sha256' => '99e5e68f3899c680fcb162ffb432797a07e8194d5aa7ce73b8eca93f8900cfde',
+            'bytes' => 289,
+          ),
+          'all-nonlinear-spine.epub' =>
+          array (
+            'sha256' => '83fc005e5ab9feaca5c6a08b61d590d0cc3958bbe75b43b5f5a108c599e59882',
+            'bytes' => 1364,
+          ),
+          'all-nonlinear-spine.native' =>
+          array (
+            'sha256' => '37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570',
+            'bytes' => 3,
+          ),
+          'appendix-navigation-guide.epub' =>
+          array (
+            'sha256' => '2c7b9ca20d38dcda15b63a1bf4aa210a3b11b132dc0a8fe6bedec13d24675c4f',
+            'bytes' => 1645,
+          ),
+          'appendix-navigation-guide.native' =>
+          array (
+            'sha256' => '8e9029119f437f20c1ba3fa8055beb80087bf9230c083e297ac91f3115453bed',
+            'bytes' => 272,
+          ),
+          'audio-navigation.epub' =>
+          array (
+            'sha256' => '09e5d95402b3a0b34fc1843b61534fe02a58df21ec524071776698f66b8c43a2',
+            'bytes' => 1509,
+          ),
+          'audio-navigation.native' =>
+          array (
+            'sha256' => '86911ce05ad45760deb8f82eb4fe1b569626b09cddcf9fabc2b45cae50b37a22',
+            'bytes' => 262,
+          ),
+          'auxiliary-lot-guide-index.epub' =>
+          array (
+            'sha256' => '8581efb4630635b95af119442cb682181b0004b90d53c6c43dfa255fc1c5bb58',
+            'bytes' => 1434,
+          ),
+          'auxiliary-lot-guide-index.native' =>
+          array (
+            'sha256' => '0cdecc48fd17c19b93fe001e19aac7fb7f4a09e04c80a4d833e55c1828485995',
+            'bytes' => 211,
+          ),
+          'bindings-collections-sidecars.epub' =>
+          array (
+            'sha256' => '82cd32b901ed412a69c5080707ed566207b06030c074bffa3b83460692f07834',
+            'bytes' => 3767,
+          ),
+          'bindings-collections-sidecars.native' =>
+          array (
+            'sha256' => '2dc016af0d0e6f660a7a825acebf27d3bd2a74d30cc0914651b099877774932d',
+            'bytes' => 679,
+          ),
+          'blockquote-list-spine.epub' =>
+          array (
+            'sha256' => '74fbf6f8f030e88a866ba652f72d0ec6864149c38ae8df45b9efd0bb4b8d0746',
+            'bytes' => 1494,
+          ),
+          'blockquote-list-spine.native' =>
+          array (
+            'sha256' => 'dc459413755a1c07b599fb45cbb3cbd4c26bcdf8cf2caef31bdeaa1029bdfbc0',
+            'bytes' => 761,
+          ),
+          'code-block-spine.epub' =>
+          array (
+            'sha256' => 'edce77261e123eb3aa3ef2614978a0854900a24ae02834d68f9625d70e5f5f3b',
+            'bytes' => 1364,
+          ),
+          'code-block-spine.native' =>
+          array (
+            'sha256' => '996f70134a1e706fb7525e5fbac1d2d7d7c2ae4d95bfa52a99f1cfee5e3137f8',
+            'bytes' => 334,
+          ),
+          'content-image-nav-media.epub' =>
+          array (
+            'sha256' => 'd02bb4c45558841903bb5e83ea3f15af2ca00d4221236d10978b4c0d672e8ce6',
+            'bytes' => 2410,
+          ),
+          'content-image-nav-media.native' =>
+          array (
+            'sha256' => '258f9b8a1b2a9c8df41cbe9142d573d52e248b45cb3872ef2c071328d0e80b34',
+            'bytes' => 589,
+          ),
+          'cross-spine-internal-links.epub' =>
+          array (
+            'sha256' => '10356bf8205f5eab35bb851bf155cdd279b23804740017cf59bb28d4f10a07e5',
+            'bytes' => 1701,
+          ),
+          'cross-spine-internal-links.native' =>
+          array (
+            'sha256' => '55c6607d1baee634d2e06404a7c1b7c5271880b20d86c9ccf06d097045bb7f09',
+            'bytes' => 743,
+          ),
+          'definition-list-spine.epub' =>
+          array (
+            'sha256' => '0baab26570c728b891093f14904fcebd543708c902091e851dce748a76ab2fa0',
+            'bytes' => 1416,
+          ),
+          'definition-list-spine.native' =>
+          array (
+            'sha256' => 'c63677d9de4ea45d6fe74f5d68f433d73a2b2ec9076a803ecf4c6d7a5e5d78dd',
+            'bytes' => 790,
+          ),
+          'direct-image-spine.epub' =>
+          array (
+            'sha256' => '695bb5c110c2011b4567c6f4a62b5d3249e00be37cfaff92b965ce346b376cb7',
+            'bytes' => 1355,
+          ),
+          'direct-image-spine.native' =>
+          array (
+            'sha256' => '122dde0a14358daeea4987bdf7a378eb97e59f125bfecbadb404129fd58b2269',
+            'bytes' => 4270,
+          ),
+          'duplicate-spine-idref.epub' =>
+          array (
+            'sha256' => 'cdcd53351890ca8b684b2ad5581be3f57a49c80296c1c7c70bf52fa5220ea3cd',
+            'bytes' => 1423,
+          ),
+          'duplicate-spine-idref.native' =>
+          array (
+            'sha256' => 'a531ce241637505ddcc5a03704f159d5fd5ee213cc59721bb1fb4e93105bb5ff',
+            'bytes' => 1312,
+          ),
+          'epub2_cover.epub' =>
+          array (
+            'sha256' => '4af73a135aa632cbf0c00b2889a5fc1d39a59a77fa294fdeff5ede72ff6ffed1',
+            'bytes' => 11794,
+          ),
+          'epub2_cover.native' =>
+          array (
+            'sha256' => '4107c44d7711b63dac21745139f9cfb6dd99288b38ecf0d43e07b5ecd2493618',
+            'bytes' => 1314,
+          ),
+          'epub2_no_cover.epub' =>
+          array (
+            'sha256' => '8369dbe5cf315f1fe00f9dd1bf7c500cc663d7648edbf0d7b6a9b4d785fedf4e',
+            'bytes' => 3584,
+          ),
+          'epub2_no_cover.native' =>
+          array (
+            'sha256' => '48808c2e009669341a887a3c23adf033744aa652b0f69c319f0058396b59c6b8',
+            'bytes' => 1242,
+          ),
+          'epub2_picture.epub' =>
+          array (
+            'sha256' => '6049dde9e1d0ebcd175a8c5b937984f349af996e293310eafbce09e4c7384495',
+            'bytes' => 11742,
+          ),
+          'epub2_picture.native' =>
+          array (
+            'sha256' => 'fa1cc897a5172b6f66411f2b61156a86669654e0338d137f543e069d4f73fb39',
+            'bytes' => 1314,
+          ),
+          'epub3-ncx-toc-fallback.epub' =>
+          array (
+            'sha256' => 'ead984a9fdd9e85194a55d0c1a4f28d67182493bad9692f8ee19424b33ddd225',
+            'bytes' => 2189,
+          ),
+          'epub3-ncx-toc-fallback.native' =>
+          array (
+            'sha256' => 'd2af2d91536fe498affbe70f0de4a917c30c5c8e0cc147dc631bbb5cf49af781',
+            'bytes' => 1013,
+          ),
+          'external-footnote-reference.epub' =>
+          array (
+            'sha256' => '9df47e23e87d0385737c76fbc518bec86d7ab222e9a007c1db1d0e5f9c0ec5d2',
+            'bytes' => 1766,
+          ),
+          'external-footnote-reference.native' =>
+          array (
+            'sha256' => 'ee4878561dad1a0f53703d0cb4bd8b2726068cee9482c32df47fa481194675ee',
+            'bytes' => 286,
+          ),
+          'features.epub' =>
+          array (
+            'sha256' => '6bf9a102249d58b32f14b39dfbc966bdecadff68a3fb707cb3ca62334734358a',
+            'bytes' => 8970,
+          ),
+          'features.native' =>
+          array (
+            'sha256' => 'c384a314081ecc860bb0f8a9ffb5273976ed56341e4f16e05dd448126e85c41f',
+            'bytes' => 48453,
+          ),
+          'font-manifest-resource.epub' =>
+          array (
+            'sha256' => 'ab561d6de4579fbe572ae1e99e56c3dcba464f1d9c2906310f1324d1a1243d0e',
+            'bytes' => 1512,
+          ),
+          'font-manifest-resource.native' =>
+          array (
+            'sha256' => 'f1f123f4ab0d1a612523707a09504a1e3e9b61194f6cbe1338dcb5d920c089d1',
+            'bytes' => 177,
+          ),
+          'formatting.epub' =>
+          array (
+            'sha256' => '491fc57ec384449a23c4f2abdcfe91be9ab2a07f50f466fb8d80775b89bf3965',
+            'bytes' => 14022,
+          ),
+          'formatting.native' =>
+          array (
+            'sha256' => '9041b6aa23827579a4db45074bd9b26077337defc26ec62ab3b57f676f4eeb21',
+            'bytes' => 172999,
+          ),
+          'fragment-nav-spine.epub' =>
+          array (
+            'sha256' => 'cf582d0b887cd5c7a01180a7fe45138144bb650dc257f21c32ef33765a50a6b8',
+            'bytes' => 1372,
+          ),
+          'fragment-nav-spine.native' =>
+          array (
+            'sha256' => '81ffc5d60c1d7c49cfe3f95c44036d87d922c2aef8d71425dce3cb666da5576e',
+            'bytes' => 550,
+          ),
+          'guide-bibliography-reference.epub' =>
+          array (
+            'sha256' => 'c41d806bf13306837ecfdbc12504a1f134f85d40545bb4694447763297f891fd',
+            'bytes' => 1391,
+          ),
+          'guide-bibliography-reference.native' =>
+          array (
+            'sha256' => 'de4ce57368f4f73e70c2f2018c52548ccbe7dcc275fcf50cab0b05277191ec9d',
+            'bytes' => 188,
+          ),
+          'guide-glossary-reference.epub' =>
+          array (
+            'sha256' => '699550c8c91e9f11cb430c24e2e157a1f6dfb4f11cff2b98f5ad3cce72b6141d',
+            'bytes' => 1386,
+          ),
+          'guide-glossary-reference.native' =>
+          array (
+            'sha256' => 'bd285d34bd9a24f860fb1f398ad291957f68189468858f15192d9823b6f06279',
+            'bytes' => 181,
+          ),
+          'guide-notes-reference.epub' =>
+          array (
+            'sha256' => '7fdc04f51cc6f359c5f44cd56661d953f2ccd00983a45ae4fedcb91c275fccee',
+            'bytes' => 1378,
+          ),
+          'guide-notes-reference.native' =>
+          array (
+            'sha256' => '53f14b3a3553b8ba92832a2736b8c08dc75218ebf60c92585c4c0056875ac75d',
+            'bytes' => 174,
+          ),
+          'guide-preface-reference.epub' =>
+          array (
+            'sha256' => 'd4470953a6b05f8a8d33a1aa766a04fd9a58ea897b3017a41aed7d2410990d37',
+            'bytes' => 1367,
+          ),
+          'guide-preface-reference.native' =>
+          array (
+            'sha256' => '521b247130c5f4e5d561857912fb378bbf6305108ccc0f3700bad8847ee9e9e9',
+            'bytes' => 178,
+          ),
+          'img.epub' =>
+          array (
+            'sha256' => 'f2c25e0e0612b7ac33a8d6a1c9719a86e7d2a0290472fc7d8b5068de781a822f',
+            'bytes' => 20478,
+          ),
+          'img.native' =>
+          array (
+            'sha256' => '817c691f8fab94b1ed9092b9cc23a2299771af8df99c8b0a8dded51ce63baf91',
+            'bytes' => 6762,
+          ),
+          'img_no_cover.epub' =>
+          array (
+            'sha256' => '3063f5e9b9610df1ddcc682ce49c293bcf681f1958700a5b6c3eda344383cf2a',
+            'bytes' => 10602,
+          ),
+          'img_no_cover.native' =>
+          array (
+            'sha256' => '0e0152ba08256f6926bb9e9bba1892b673aa994ddbc8ab369d36f0abeab0b2b2',
+            'bytes' => 6630,
+          ),
+          'inline-abbr-subscript-superscript.epub' =>
+          array (
+            'sha256' => '60d188945fb302e0e658afdc5be5843422f94b2edb344b392703dae00f1d1409',
+            'bytes' => 1476,
+          ),
+          'inline-abbr-subscript-superscript.native' =>
+          array (
+            'sha256' => '3d9b3e8d736bcb4f233b70228b0bebce47e5716334cb949adb80977716999e53',
+            'bytes' => 615,
+          ),
+          'language-french-metadata.epub' =>
+          array (
+            'sha256' => 'a64733afbdd101dcf679227227eacaa6dd8ec1649721e406cbc245e4e91a5f87',
+            'bytes' => 1317,
+          ),
+          'language-french-metadata.native' =>
+          array (
+            'sha256' => '66ed9d9c546eb58f4fb7685ab5c30affa158a84b415a068408f95d52298a4dcf',
+            'bytes' => 144,
+          ),
+          'main-section-spine.epub' =>
+          array (
+            'sha256' => '99f8c2afa52f3cb97bed7466fdff1bcb9a94f795ba27d306cabc70314cab40dc',
+            'bytes' => 1445,
+          ),
+          'main-section-spine.native' =>
+          array (
+            'sha256' => '9f9d405ee278ca5a586aa3a9cd1020c90e6b66d2c8019e985d7c779a1347e5a5',
+            'bytes' => 353,
+          ),
+          'manifest-fallback-chain.epub' =>
+          array (
+            'sha256' => 'af579a53102ff39e74bf2f79df687384ba1897c961aba9be197ba575079e18a4',
+            'bytes' => 1735,
+          ),
+          'manifest-fallback-chain.native' =>
+          array (
+            'sha256' => '54fe7e8b655152d47863121ec647bddd468e69bfab601a05af54fc00f07893d3',
+            'bytes' => 180,
+          ),
+          'manifest-fallback-style.epub' =>
+          array (
+            'sha256' => 'e9c4c86b4fc4d167600f09b0daf4cafa4cd15763b833119209ed42d01ffd5f8f',
+            'bytes' => 2063,
+          ),
+          'manifest-fallback-style.native' =>
+          array (
+            'sha256' => 'e5ab69b21a48e6f8b0f907ec5dfb1d07bd8942de45fb1aff6e8ce6159f40abb7',
+            'bytes' => 580,
+          ),
+          'manifest-href-encoding.epub' =>
+          array (
+            'sha256' => 'a5f5643ef8d10b7ed6339a14153991273db0d78e23b2b8c2fcf949922f0c11e8',
+            'bytes' => 2281,
+          ),
+          'manifest-href-encoding.native' =>
+          array (
+            'sha256' => '59c8166ffa04fa003cf7a11d2f8b5e9097d3402218f1d7553d760f9cad70f8e5',
+            'bytes' => 513,
+          ),
+          'mathml-spine.epub' =>
+          array (
+            'sha256' => 'c89ff2507ce6ca380f20bdf0e4d2ca15f27baf0c9a68fac7f482587727a568b3',
+            'bytes' => 1562,
+          ),
+          'mathml-spine.native' =>
+          array (
+            'sha256' => '394d586dfd52a7717a6989f20d0e034d9ac1dbb0c904d43ed2ae598b91be81d0',
+            'bytes' => 484,
+          ),
+          'media-manifest-mix.epub' =>
+          array (
+            'sha256' => 'd74b69c881a8a46913a719fe2aa5311cb7fdf5ac747f98e7c5b342a3a78fe04c',
+            'bytes' => 1801,
+          ),
+          'media-manifest-mix.native' =>
+          array (
+            'sha256' => 'aa1c71ce01bcc9a0a893188663f1c381fad780371edd17ac791c60c183ae5f85',
+            'bytes' => 415,
+          ),
+          'media-overlay-package.epub' =>
+          array (
+            'sha256' => '6af50dc4bf618cd964af7274a688aebcbd16da6804581325c00195b1721ed972',
+            'bytes' => 1894,
+          ),
+          'media-overlay-package.native' =>
+          array (
+            'sha256' => '2083a3e8168ce9f47a3f6e8574fb8917a29b0760736a6123e238fc5681eef5e7',
+            'bytes' => 192,
+          ),
+          'metadata-link-page-list-image.epub' =>
+          array (
+            'sha256' => 'ed2da17a5ea5cc370bde15d43e9480558654e644cf3c4d637ea50c71c1a3241c',
+            'bytes' => 1926,
+          ),
+          'metadata-link-page-list-image.native' =>
+          array (
+            'sha256' => '884c97ef31814c40e380663f07792a4dd223d67457fd4b7cfbf0bae9be158cc5',
+            'bytes' => 1140,
+          ),
+          'metadata-record-remote-nav.epub' =>
+          array (
+            'sha256' => '74f7d7ecaa89dea3d0085f1208a78abf951de22e057245d321036bcd4b35ffe8',
+            'bytes' => 1944,
+          ),
+          'metadata-record-remote-nav.native' =>
+          array (
+            'sha256' => '9a0dffbca5d0b8a52ac7d12e570a0e671d6892f54298d396d808a49940f31bad',
+            'bytes' => 844,
+          ),
+          'metadata-search-link-semantics.epub' =>
+          array (
+            'sha256' => '02d2f49316abf1e2f2abc8f6959090dc891e24857b849297201782918cca3a3f',
+            'bytes' => 1892,
+          ),
+          'metadata-search-link-semantics.native' =>
+          array (
+            'sha256' => '8e78383af179a9392bdc99d397444133b2423163663cfdc41e4e24583c68cd48',
+            'bytes' => 1861,
+          ),
+          'missing-local-manifest-resource.epub' =>
+          array (
+            'sha256' => '5ce06b74cde06eb0d06f1b41b73f99840983451abb9bb120e8206979ac16dca5',
+            'bytes' => 1386,
+          ),
+          'missing-local-manifest-resource.native' =>
+          array (
+            'sha256' => '2eaad3b88904dc836c7d9993ccba2894946df1bb91d59524b63346c5ea24921c',
+            'bytes' => 200,
+          ),
+          'missing-media-overlay.epub' =>
+          array (
+            'sha256' => '2f6f3b7da6babcda4101045e106c1bfac5ea56377ae96764793d8ccd98cadf07',
+            'bytes' => 1422,
+          ),
+          'missing-media-overlay.native' =>
+          array (
+            'sha256' => 'fb2b6d05c5d95f316dd8f73f4898ec493f509bc287084e81427c5617e182d252',
+            'bytes' => 213,
+          ),
+          'multi-rootfile-nested-nav.epub' =>
+          array (
+            'sha256' => 'd4d65c5c0c6db9dc89ddbe0545f7870815a770d1441be00211b865155a273961',
+            'bytes' => 2715,
+          ),
+          'multi-rootfile-nested-nav.native' =>
+          array (
+            'sha256' => 'd6aaf8b80629420e9b3ea1854a751cca180bc408a0eac6c8a1513b83eb2aa96b',
+            'bytes' => 479,
+          ),
+          'nav-ncx-linear-guide.epub' =>
+          array (
+            'sha256' => '45b914d6e5ef83949c5432b7c523c383d323a3b9aa56499946155b88ace41f26',
+            'bytes' => 2336,
+          ),
+          'nav-ncx-linear-guide.native' =>
+          array (
+            'sha256' => '0e44bc8507ce00254743af59dbdc8ab96508730543ae0fd19f8a1a26b97cc95f',
+            'bytes' => 202,
+          ),
+          'nested-path-media-metadata.epub' =>
+          array (
+            'sha256' => '685025a751e882b4700b6b31a0cdb8f51eceecaae86be1d83e0590beb2d876b7',
+            'bytes' => 3588,
+          ),
+          'nested-path-media-metadata.native' =>
+          array (
+            'sha256' => '237760af79e8ff533a0bdab616e5a100ec81c85f7543b34ab388844bb8ad9766',
+            'bytes' => 1899,
+          ),
+          'nested-rootfile-nonlinear-spine.epub' =>
+          array (
+            'sha256' => 'e0e41f25280f3b7a092ea2ed105af51c33e445221b2d54c877181c96aed191f4',
+            'bytes' => 2043,
+          ),
+          'nested-rootfile-nonlinear-spine.native' =>
+          array (
+            'sha256' => '9f857344d02b81e87d3643b01fc7a98e2ed1504d5c61da8a116d4bd3e725222e',
+            'bytes' => 200,
+          ),
+          'package-spine-nav-media-metadata.epub' =>
+          array (
+            'sha256' => '64981f08e5f4b2ae41baf55233e3cf4419c62c25d2606347bfedf0ee7e181a18',
+            'bytes' => 2402,
+          ),
+          'package-spine-nav-media-metadata.native' =>
+          array (
+            'sha256' => '6d5be8a2ed05f750c291ce141c0110e2264605960ccaf89175de7cf6179fffbd',
+            'bytes' => 993,
+          ),
+          'page-list-cfi-navigation.epub' =>
+          array (
+            'sha256' => '88feb1210f770ffa341c907fe0f1b9a68c88677abf28021849e73197695d0a8f',
+            'bytes' => 1411,
+          ),
+          'page-list-cfi-navigation.native' =>
+          array (
+            'sha256' => '2ae9e1947ee8146d7d007041d4bfff8d8ca8dbfc99ced96851cade2160046500',
+            'bytes' => 206,
+          ),
+          'page-list-navigation.epub' =>
+          array (
+            'sha256' => '449c6114a473e2db1df8cf69cd29fddaef4a14a160b65fd7fe30adf0c80b9365',
+            'bytes' => 1394,
+          ),
+          'page-list-navigation.native' =>
+          array (
+            'sha256' => '3b5fb7863f0df2ba4875092b369aa2b5f8e6797ec0a1edc17232d594ee1047c6',
+            'bytes' => 175,
+          ),
+          'parent-relative-nav.epub' =>
+          array (
+            'sha256' => 'caafa83c3b42b02d6aa25905f04b045df1a3db37913a636a296193cc4f8f27f6',
+            'bytes' => 1652,
+          ),
+          'parent-relative-nav.native' =>
+          array (
+            'sha256' => 'fa48842bd1b89d8ba991dc5d577bb526f61bf89c7e8966f66c0929ca6d149a9e',
+            'bytes' => 705,
+          ),
+          'remote-manifest-resource.epub' =>
+          array (
+            'sha256' => 'aaf4a5557c55af341a6a2ed5950ccc5807ce529f6ae4ed4398336345b0646c7f',
+            'bytes' => 1385,
+          ),
+          'remote-manifest-resource.native' =>
+          array (
+            'sha256' => '96cafe1fc0398a6f41e4ec352d52f961e6bdb1206bfcc5637505f4cd5ebc2c2b',
+            'bytes' => 181,
+          ),
+          'rendition-layout-property.epub' =>
+          array (
+            'sha256' => 'abdbb293f94d979445600249a1162c0607a2fbcb73fc260d77d61334edef3671',
+            'bytes' => 1390,
+          ),
+          'rendition-layout-property.native' =>
+          array (
+            'sha256' => '3147a4f4255f778f5419ea67d411038c008173a08ca94a8b5fefc37e4bb668e5',
+            'bytes' => 206,
+          ),
+          'scripted-svg-manifest.epub' =>
+          array (
+            'sha256' => '8845d9a35825bdf882b5d2239b60c1e7fd0f9589c8d06f5be74f0565fc56bb1b',
+            'bytes' => 1577,
+          ),
+          'scripted-svg-manifest.native' =>
+          array (
+            'sha256' => 'c4c89cc198ed6aab17f1f6c417e9b4bb919ba704af09eb508f5805d2077c193e',
+            'bytes' => 180,
+          ),
+          'scripted-xhtml-resource.epub' =>
+          array (
+            'sha256' => '4600cb6c58330de0c0dc6e27deb73c41dae16a395c98ad0774fb3812323d77e5',
+            'bytes' => 1556,
+          ),
+          'scripted-xhtml-resource.native' =>
+          array (
+            'sha256' => '0da002a70192ef1d75d04151403344c1f5fce75769ed97bf335b4a316545b85d',
+            'bytes' => 177,
+          ),
+          'spine-fallback-resource.epub' =>
+          array (
+            'sha256' => 'c042da479466e7353f063d986eb5481e49d2a6d9b93a8348576994f6ae3dbde6',
+            'bytes' => 1661,
+          ),
+          'spine-fallback-resource.native' =>
+          array (
+            'sha256' => '56a094f8d97c055aeca928ad6d5162be7ca396ea1f869a2b29740aef3415baaa',
+            'bytes' => 48,
+          ),
+          'spine-page-spread.epub' =>
+          array (
+            'sha256' => '47c48d493ff2846023ce78c1cb407d8025865ef7eb986c9f60607de4189bd5e1',
+            'bytes' => 1562,
+          ),
+          'spine-page-spread.native' =>
+          array (
+            'sha256' => 'ecdae2b7e18be738e3530727e3d04f253fed3a6474091964d0b9c0c16c984dd9',
+            'bytes' => 483,
+          ),
+          'standalone-footnote.epub' =>
+          array (
+            'sha256' => '5058fb925a59dadae5ac5e371f4907c5a192b074410d2c668b4e2b6ff483ab53',
+            'bytes' => 1384,
+          ),
+          'standalone-footnote.native' =>
+          array (
+            'sha256' => '8ba2f5a23a13f1c6d0e309e3ba77ea8bb65702e5c166c38589d954fcc5026657',
+            'bytes' => 431,
+          ),
+          'text-track-captions.epub' =>
+          array (
+            'sha256' => '2559039311ac1b9a25be74e4b4a7587cadc5579563a8d0ff1fb3b80503c30da5',
+            'bytes' => 1812,
+          ),
+          'text-track-captions.native' =>
+          array (
+            'sha256' => 'e1f54a06e556fcd9a130357978b110a6931ed79f27af8424df8a861155b71eed',
+            'bytes' => 568,
+          ),
+          'title-page-guide-media-metadata.epub' =>
+          array (
+            'sha256' => '9a21d071427572212113af33e11d1d39cd692ea840a81980dfaf471840d28dc7',
+            'bytes' => 2801,
+          ),
+          'title-page-guide-media-metadata.native' =>
+          array (
+            'sha256' => '8f2c47bb97258bdf88a8cf1a8f8f398e42d2afa8bf2633ceda835785aefdf3d0',
+            'bytes' => 747,
+          ),
+          'video-manifest-resource.epub' =>
+          array (
+            'sha256' => '7db258c0f96c66dc1de9eeaa1fc75ca5e9fddf821b6f0783cd4b74f4f59013b5',
+            'bytes' => 1508,
+          ),
+          'video-manifest-resource.native' =>
+          array (
+            'sha256' => '844b189a6f0de4d43e260e07766cdc0329db17c0963024d9fd866c80a73d2f6b',
+            'bytes' => 179,
+          ),
+          'video-navigation.epub' =>
+          array (
+            'sha256' => '71bf3f39156a0911cd9b542aee3c45d88aabd608a9a268a4c4fe6a949f1956fe',
+            'bytes' => 1505,
+          ),
+          'video-navigation.native' =>
+          array (
+            'sha256' => '0a7d0436add9426392a1a10b4d4b725848931a4b7f49fdf6c8acea5e86f14241',
+            'bytes' => 262,
+          ),
+          'wasteland.epub' =>
+          array (
+            'sha256' => '151ec5dbca33e39a4e3f6894e92fa5a101290bdeaaa792e0700595971456a278',
+            'bytes' => 25840,
+          ),
+          'wasteland.native' =>
+          array (
+            'sha256' => '0a268af28518f063604659adb2ff27b123c771f8312b60fb40445bb2c551bbac',
+            'bytes' => 150477,
+          ),
+          'xhtml-address-spine.epub' =>
+          array (
+            'sha256' => '0c0587cc7ada8eeaf5fe7d544597696deee1a92a489aa9d4574be2ed2f85ddf5',
+            'bytes' => 1460,
+          ),
+          'xhtml-address-spine.native' =>
+          array (
+            'sha256' => 'efd99a7ad2c49eca7935013ced77add45c426b4ed2bd6dafdb2532d9e90ccd02',
+            'bytes' => 518,
+          ),
+          'xhtml-ruby-table-mark.epub' =>
+          array (
+            'sha256' => '19e2ed10e4aeafe94970c38606939b9dfbd561f15c7f71e4ee904425f9b13b4d',
+            'bytes' => 1876,
+          ),
+          'xhtml-ruby-table-mark.native' =>
+          array (
+            'sha256' => 'ec35ac3bda86e5242aa9ceb8b5614be45f689b643c2620508687f55daa68a4b8',
+            'bytes' => 2302,
+          ),
+          'xhtml-semantics-spine.epub' =>
+          array (
+            'sha256' => 'd2a4df3e7287b534b0ad1685d8f241940dd728fa3541ae1d14924506f7544452',
+            'bytes' => 1893,
+          ),
+          'xhtml-semantics-spine.native' =>
+          array (
+            'sha256' => 'd2e7da70eb00cd5172cc2382532b972a62d9ef9fc1e4c107aa3c504fa2367fa2',
+            'bytes' => 3228,
+          ),
+        );
+        $expectedPackageFeatureCoverage = array (
+          'kind' => 'epub-package-feature-coverage',
+          'fixtureCount' => 65,
+          'opfPartNameCounts' =>
+          array (
+            '/EPUB/package.opf' => 51,
+            '/EPUB/wasteland.opf' => 1,
+            '/OEBPS/content.opf' => 3,
+            '/OPS/book/package.opf' => 4,
+            '/OPS/package.opf' => 6,
+          ),
+          'metadataLanguageCounts' =>
+          array (
+            'de-DE' => 3,
+            'en' => 58,
+            'en-GB' => 1,
+            'en-US' => 2,
+            'fr' => 1,
+          ),
+          'fixturesWithCreators' =>
+          array (
+            0 => 'accessibility-metadata-package',
+            1 => 'bindings-collections-sidecars',
+            2 => 'blockquote-list-spine',
+            3 => 'code-block-spine',
+            4 => 'content-image-nav-media',
+            5 => 'cross-spine-internal-links',
+            6 => 'definition-list-spine',
+            7 => 'duplicate-spine-idref',
+            8 => 'epub2_cover',
+            9 => 'epub2_no_cover',
+            10 => 'epub2_picture',
+            11 => 'epub3-ncx-toc-fallback',
+            12 => 'external-footnote-reference',
+            13 => 'features',
+            14 => 'formatting',
+            15 => 'img',
+            16 => 'img_no_cover',
+            17 => 'inline-abbr-subscript-superscript',
+            18 => 'language-french-metadata',
+            19 => 'main-section-spine',
+            20 => 'manifest-fallback-style',
+            21 => 'manifest-href-encoding',
+            22 => 'mathml-spine',
+            23 => 'media-manifest-mix',
+            24 => 'metadata-link-page-list-image',
+            25 => 'metadata-record-remote-nav',
+            26 => 'metadata-search-link-semantics',
+            27 => 'missing-media-overlay',
+            28 => 'multi-rootfile-nested-nav',
+            29 => 'nested-path-media-metadata',
+            30 => 'nested-rootfile-nonlinear-spine',
+            31 => 'package-spine-nav-media-metadata',
+            32 => 'parent-relative-nav',
+            33 => 'spine-fallback-resource',
+            34 => 'text-track-captions',
+            35 => 'title-page-guide-media-metadata',
+            36 => 'wasteland',
+            37 => 'xhtml-address-spine',
+            38 => 'xhtml-ruby-table-mark',
+            39 => 'xhtml-semantics-spine',
+          ),
+          'navigationTypeCounts' =>
+          array (
+            'nav' => 60,
+            'ncx' => 4,
+          ),
+          'spineLinearStateCounts' =>
+          array (
+            'linear' => 81,
+            'non-linear' => 15,
+          ),
+          'spinePageSpreadPlacementCounts' =>
+          array (
+            'left' => 2,
+            'right' => 3,
+          ),
+          'manifestMediaTypeCounts' =>
+          array (
+            'application/javascript' => 1,
+            'application/json' => 6,
+            'application/ld+json' => 1,
+            'application/octet-stream' => 1,
+            'application/pdf' => 1,
+            'application/smil+xml' => 1,
+            'application/x-bound-widget' => 1,
+            'application/x-dtbncx+xml' => 6,
+            'application/x-fallback-demo' => 3,
+            'application/xhtml+xml' => 153,
+            'audio/mpeg' => 4,
+            'font/woff2' => 1,
+            'image/gif' => 5,
+            'image/jpeg' => 7,
+            'image/png' => 9,
+            'image/svg+xml' => 1,
+            'text/css' => 24,
+            'text/vtt' => 1,
+            'video/mp4' => 3,
+          ),
+          'manifestPropertyCounts' =>
+          array (
+            'accessibility-metadata' => 1,
+            'cover-image' => 3,
+            'mathml' => 3,
+            'nav' => 60,
+            'remote-resources' => 4,
+            'rendition:layout-pre-paginated' => 1,
+            'scripted' => 2,
+            'svg' => 2,
+            'switch' => 1,
+          ),
+          'manifestResourceKindCounts' =>
+          array (
+            'asset' => 13,
+            'audio' => 4,
+            'cover-image' => 3,
+            'font' => 1,
+            'image' => 18,
+            'media-overlay' => 1,
+            'navigation' => 66,
+            'script' => 1,
+            'style' => 24,
+            'svg' => 1,
+            'text-track' => 1,
+            'video' => 3,
+            'xhtml' => 93,
+          ),
+          'navigationSectionTypes' =>
+          array (
+            0 => 'appendix',
+            1 => 'landmarks',
+            2 => 'loa',
+            3 => 'loi',
+            4 => 'lot',
+            5 => 'lov',
+            6 => 'page-list',
+            7 => 'toc',
+          ),
+          'guideReferenceTypeCounts' =>
+          array (
+            'appendix' => 1,
+            'bibliography' => 1,
+            'cover' => 3,
+            'glossary' => 1,
+            'index' => 1,
+            'notes' => 1,
+            'preface' => 1,
+            'text' => 12,
+            'title-page' => 1,
+            'toc' => 1,
+          ),
+          'packageLinkRelCounts' =>
+          array (
+            'accessibility-summary' => 1,
+            'alternate' => 2,
+            'cc:attributionURL' => 1,
+            'cc:license' => 2,
+            'preview' => 3,
+            'record' => 9,
+            'search' => 1,
+          ),
+          'packageLinkMediaTypeCounts' =>
+          array (
+            'application/json' => 8,
+            'application/ld+json' => 1,
+            'application/opensearchdescription+xml' => 1,
+            'text/html' => 1,
+          ),
+          'packageLinkMediaTypeParameterNameCounts' =>
+          array (
+            'profile' => 1,
+          ),
+          'linkHrefSuffixSourceCounts' =>
+          array (
+            'collection-link' => 2,
+            'package-link' => 1,
+          ),
+          'accessibilityPropertyCounts' =>
+          array (
+            'accessMode' => 2,
+            'accessibilityFeature' => 2,
+            'accessibilityHazard' => 1,
+            'accessibilitySummary' => 1,
+            'conformsTo' => 1,
+          ),
+          'encryptionRoleCounts' =>
+          array (
+            'font' => 3,
+          ),
+          'collectionRoleCounts' =>
+          array (
+            'index' => 1,
+            'role:primary' => 1,
+            'schema:hasPart' => 1,
+          ),
+          'collectionLinkRelCounts' =>
+          array (
+            'contents' => 1,
+            'index' => 1,
+            'record' => 1,
+          ),
+          'bindingMediaTypeCounts' =>
+          array (
+            'application/x-bound-widget' => 1,
+          ),
+          'ocfSidecarKindCounts' =>
+          array (
+            'manifest' => 1,
+            'metadata' => 1,
+            'rights' => 1,
+            'signatures' => 1,
+          ),
+          'fixtureFeatureSignatures' =>
+          array (
+            'accessibility-metadata-package' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'asset' => 1,
+                'navigation' => 1,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
                 'accessibility-summary' => 1,
-                'alternate' => 2,
-                'cc:attributionURL' => 1,
-                'cc:license' => 2,
-                'preview' => 3,
-                'record' => 9,
-                'search' => 1,
-            ],
-            'packageLinkMediaTypeCounts' => [
-                'application/json' => 8,
-                'application/ld+json' => 1,
-                'application/opensearchdescription+xml' => 1,
-                'text/html' => 1,
-            ],
-            'packageLinkMediaTypeParameterNameCounts' => [
-                'profile' => 1,
-            ],
-            'linkHrefSuffixSourceCounts' => [
-                'collection-link' => 2,
-                'package-link' => 1,
-            ],
-            'accessibilityPropertyCounts' => [
+                'record' => 1,
+              ),
+              'accessibilityPropertyCounts' =>
+              array (
                 'accessMode' => 2,
-                'accessibilityFeature' => 2,
+                'accessibilityFeature' => 1,
                 'accessibilityHazard' => 1,
                 'accessibilitySummary' => 1,
                 'conformsTo' => 1,
-            ],
-            'encryptionRoleCounts' => [
-                'font' => 3,
-            ],
-            'collectionRoleCounts' => [
+              ),
+              'accessibilityLinkedRecordCount' => 1,
+              'coverImagePartPresent' => false,
+            ),
+            'all-nonlinear-spine' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'navigation' => 1,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'appendix-navigation-guide' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'appendix',
+                1 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'navigation' => 1,
+                'xhtml' => 2,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+                'appendix' => 1,
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'audio-navigation' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'loa',
+                1 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'audio' => 1,
+                'navigation' => 1,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'auxiliary-lot-guide-index' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'lot',
+                1 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'navigation' => 1,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
                 'index' => 1,
-                'role:primary' => 1,
-                'schema:hasPart' => 1,
-            ],
-            'collectionLinkRelCounts' => [
-                'contents' => 1,
-                'index' => 1,
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'bindings-collections-sidecars' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'landmarks',
+                1 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'asset' => 1,
+                'navigation' => 1,
+                'xhtml' => 2,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
                 'record' => 1,
-            ],
-            'bindingMediaTypeCounts' => [
-                'application/x-bound-widget' => 1,
-            ],
-            'ocfSidecarKindCounts' => [
-                'manifest' => 1,
-                'metadata' => 1,
-                'rights' => 1,
-                'signatures' => 1,
-            ],
-            'fixtureFeatureSignatures' => [
-                'accessibility-metadata-package' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'asset' => 1,
-                        'navigation' => 1,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [],
-                    'packageLinkRelCounts' => [
-                        'accessibility-summary' => 1,
-                        'record' => 1,
-                    ],
-                    'accessibilityPropertyCounts' => [
-                        'accessMode' => 2,
-                        'accessibilityFeature' => 1,
-                        'accessibilityHazard' => 1,
-                        'accessibilitySummary' => 1,
-                        'conformsTo' => 1,
-                    ],
-                    'accessibilityLinkedRecordCount' => 1,
-                    'coverImagePartPresent' => false,
-                ],
-                'all-nonlinear-spine' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'navigation' => 1,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'appendix-navigation-guide' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'appendix',
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'navigation' => 1,
-                        'xhtml' => 2,
-                    ],
-                    'guideReferenceTypeCounts' => [
-                        'appendix' => 1,
-                    ],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'audio-navigation' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'loa',
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'audio' => 1,
-                        'navigation' => 1,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'auxiliary-lot-guide-index' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'lot',
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'navigation' => 1,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [
-                        'index' => 1,
-                    ],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'bindings-collections-sidecars' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'landmarks',
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'asset' => 1,
-                        'navigation' => 1,
-                        'xhtml' => 2,
-                    ],
-                    'guideReferenceTypeCounts' => [],
-                    'packageLinkRelCounts' => [
-                        'record' => 1,
-                    ],
-                    'coverImagePartPresent' => false,
-                ],
-                'blockquote-list-spine' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'navigation' => 1,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'code-block-spine' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'navigation' => 1,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'content-image-nav-media' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'landmarks',
-                        'page-list',
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'audio' => 1,
-                        'image' => 2,
-                        'navigation' => 1,
-                        'xhtml' => 2,
-                    ],
-                    'guideReferenceTypeCounts' => [],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'cross-spine-internal-links' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'navigation' => 1,
-                        'xhtml' => 2,
-                    ],
-                    'guideReferenceTypeCounts' => [],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'definition-list-spine' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'navigation' => 1,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'direct-image-spine' => [
-                    'navigationType' => '',
-                    'navigationSectionTypes' => [],
-                    'manifestResourceKindCounts' => [
-                        'image' => 3,
-                    ],
-                    'guideReferenceTypeCounts' => [],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'duplicate-spine-idref' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'navigation' => 1,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'epub2_cover' => [
-                    'navigationType' => 'ncx',
-                    'navigationSectionTypes' => [
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'image' => 1,
-                        'navigation' => 1,
-                        'style' => 1,
-                        'xhtml' => 2,
-                    ],
-                    'guideReferenceTypeCounts' => [
-                        'cover' => 1,
-                    ],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => true,
-                ],
-                'epub2_no_cover' => [
-                    'navigationType' => 'ncx',
-                    'navigationSectionTypes' => [
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'navigation' => 1,
-                        'style' => 1,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [
-                        'toc' => 1,
-                    ],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'epub2_picture' => [
-                    'navigationType' => 'ncx',
-                    'navigationSectionTypes' => [
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'image' => 1,
-                        'navigation' => 1,
-                        'style' => 1,
-                        'xhtml' => 2,
-                    ],
-                    'guideReferenceTypeCounts' => [
-                        'cover' => 1,
-                    ],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => true,
-                ],
-                'epub3-ncx-toc-fallback' => [
-                    'navigationType' => 'ncx',
-                    'navigationSectionTypes' => [
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'navigation' => 1,
-                        'xhtml' => 2,
-                    ],
-                    'guideReferenceTypeCounts' => [
-                        'text' => 1,
-                    ],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'external-footnote-reference' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'landmarks',
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'navigation' => 1,
-                        'xhtml' => 2,
-                    ],
-                    'guideReferenceTypeCounts' => [],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'features' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'landmarks',
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'navigation' => 1,
-                        'style' => 2,
-                        'xhtml' => 3,
-                    ],
-                    'guideReferenceTypeCounts' => [],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'font-manifest-resource' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'font' => 1,
-                        'navigation' => 1,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'formatting' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'landmarks',
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'image' => 1,
-                        'navigation' => 1,
-                        'style' => 2,
-                        'xhtml' => 7,
-                    ],
-                    'guideReferenceTypeCounts' => [],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'fragment-nav-spine' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'navigation' => 1,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'guide-bibliography-reference' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'navigation' => 1,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [
-                        'bibliography' => 1,
-                    ],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'guide-glossary-reference' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'navigation' => 1,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [
-                        'glossary' => 1,
-                    ],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'guide-notes-reference' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'navigation' => 1,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [
-                        'notes' => 1,
-                    ],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'guide-preface-reference' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'navigation' => 1,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [
-                        'preface' => 1,
-                    ],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'img' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'landmarks',
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'cover-image' => 1,
-                        'image' => 3,
-                        'navigation' => 1,
-                        'style' => 2,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => true,
-                ],
-                'img_no_cover' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'landmarks',
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'image' => 3,
-                        'navigation' => 1,
-                        'style' => 2,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'inline-abbr-subscript-superscript' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'navigation' => 1,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'language-french-metadata' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'navigation' => 1,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'main-section-spine' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'navigation' => 1,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'manifest-fallback-chain' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'asset' => 1,
-                        'navigation' => 1,
-                        'xhtml' => 2,
-                    ],
-                    'guideReferenceTypeCounts' => [],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'manifest-fallback-style' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'asset' => 1,
-                        'navigation' => 1,
-                        'style' => 1,
-                        'xhtml' => 2,
-                    ],
-                    'guideReferenceTypeCounts' => [
-                        'text' => 1,
-                    ],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'manifest-href-encoding' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'landmarks',
-                        'page-list',
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'asset' => 1,
-                        'navigation' => 1,
-                        'style' => 1,
-                        'xhtml' => 2,
-                    ],
-                    'guideReferenceTypeCounts' => [
-                        'text' => 1,
-                    ],
-                    'packageLinkRelCounts' => [
-                        'record' => 1,
-                    ],
-                    'coverImagePartPresent' => false,
-                ],
-                'mathml-spine' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'navigation' => 1,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [
-                        'text' => 1,
-                    ],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'media-manifest-mix' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'asset' => 2,
-                        'navigation' => 1,
-                        'style' => 1,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'media-overlay-package' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'audio' => 1,
-                        'media-overlay' => 1,
-                        'navigation' => 1,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'metadata-link-page-list-image' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'page-list',
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'image' => 1,
-                        'navigation' => 1,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [],
-                    'packageLinkRelCounts' => [
-                        'alternate' => 1,
-                        'record' => 1,
-                    ],
-                    'coverImagePartPresent' => false,
-                ],
-                'metadata-record-remote-nav' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'landmarks',
-                        'loi',
-                        'page-list',
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'asset' => 1,
-                        'navigation' => 1,
-                        'style' => 1,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [
-                        'text' => 1,
-                    ],
-                    'packageLinkRelCounts' => [
-                        'alternate' => 1,
-                        'preview' => 1,
-                        'record' => 1,
-                    ],
-                    'coverImagePartPresent' => false,
-                ],
-                'metadata-search-link-semantics' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'navigation' => 1,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [],
-                    'packageLinkRelCounts' => [
-                        'record' => 1,
-                        'search' => 1,
-                    ],
-                    'coverImagePartPresent' => false,
-                ],
-                'missing-local-manifest-resource' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'navigation' => 1,
-                        'style' => 1,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'missing-media-overlay' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'navigation' => 1,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'multi-rootfile-nested-nav' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'landmarks',
-                        'page-list',
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'navigation' => 1,
-                        'xhtml' => 3,
-                    ],
-                    'guideReferenceTypeCounts' => [
-                        'text' => 1,
-                    ],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'nav-ncx-linear-guide' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'landmarks',
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'asset' => 1,
-                        'navigation' => 2,
-                        'xhtml' => 2,
-                    ],
-                    'guideReferenceTypeCounts' => [
-                        'text' => 1,
-                    ],
-                    'packageLinkRelCounts' => [
-                        'record' => 1,
-                    ],
-                    'coverImagePartPresent' => false,
-                ],
-                'nested-path-media-metadata' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'landmarks',
-                        'lot',
-                        'page-list',
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'asset' => 1,
-                        'audio' => 1,
-                        'cover-image' => 1,
-                        'image' => 1,
-                        'navigation' => 1,
-                        'style' => 1,
-                        'xhtml' => 3,
-                    ],
-                    'guideReferenceTypeCounts' => [
-                        'cover' => 1,
-                        'text' => 1,
-                    ],
-                    'packageLinkRelCounts' => [
-                        'record' => 1,
-                    ],
-                    'coverImagePartPresent' => true,
-                ],
-                'nested-rootfile-nonlinear-spine' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'landmarks',
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'navigation' => 1,
-                        'style' => 1,
-                        'xhtml' => 2,
-                    ],
-                    'guideReferenceTypeCounts' => [
-                        'text' => 1,
-                    ],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'package-spine-nav-media-metadata' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'landmarks',
-                        'page-list',
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'image' => 1,
-                        'navigation' => 1,
-                        'style' => 1,
-                        'xhtml' => 2,
-                    ],
-                    'guideReferenceTypeCounts' => [],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'page-list-cfi-navigation' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'page-list',
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'navigation' => 1,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [],
-                    'packageLinkRelCounts' => [],
-                    'pageListCfiTargetCount' => 2,
-                    'coverImagePartPresent' => false,
-                ],
-                'page-list-navigation' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'loi',
-                        'page-list',
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'navigation' => 1,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'parent-relative-nav' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'landmarks',
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'navigation' => 1,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [
-                        'text' => 1,
-                    ],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'remote-manifest-resource' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'navigation' => 1,
-                        'style' => 1,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'rendition-layout-property' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'navigation' => 1,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'scripted-svg-manifest' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'navigation' => 1,
-                        'svg' => 1,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'scripted-xhtml-resource' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'navigation' => 1,
-                        'script' => 1,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'spine-fallback-resource' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'landmarks',
-                        'page-list',
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'asset' => 1,
-                        'navigation' => 1,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'spine-page-spread' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'navigation' => 1,
-                        'xhtml' => 2,
-                    ],
-                    'guideReferenceTypeCounts' => [],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'standalone-footnote' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'navigation' => 1,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'text-track-captions' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'navigation' => 1,
-                        'text-track' => 1,
-                        'video' => 1,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'title-page-guide-media-metadata' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'landmarks',
-                        'loa',
-                        'page-list',
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'asset' => 1,
-                        'image' => 1,
-                        'navigation' => 1,
-                        'style' => 1,
-                        'xhtml' => 3,
-                    ],
-                    'guideReferenceTypeCounts' => [
-                        'title-page' => 1,
-                    ],
-                    'packageLinkRelCounts' => [
-                        'preview' => 1,
-                    ],
-                    'coverImagePartPresent' => false,
-                ],
-                'video-manifest-resource' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'navigation' => 1,
-                        'video' => 1,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'video-navigation' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'lov',
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'navigation' => 1,
-                        'video' => 1,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-                'wasteland' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'landmarks',
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'cover-image' => 1,
-                        'navigation' => 2,
-                        'style' => 2,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [],
-                    'packageLinkRelCounts' => [
-                        'cc:attributionURL' => 1,
-                        'cc:license' => 2,
-                    ],
-                    'coverImagePartPresent' => true,
-                ],
-                'xhtml-ruby-table-mark' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'landmarks',
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'asset' => 1,
-                        'navigation' => 1,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [
-                        'text' => 1,
-                    ],
-                    'packageLinkRelCounts' => [
-                        'preview' => 1,
-                        'record' => 1,
-                    ],
-                    'accessibilityPropertyCounts' => [
-                        'accessibilityFeature' => 1,
-                    ],
-                    'coverImagePartPresent' => false,
-                ],
-                'xhtml-semantics-spine' => [
-                    'navigationType' => 'nav',
-                    'navigationSectionTypes' => [
-                        'landmarks',
-                        'toc',
-                    ],
-                    'manifestResourceKindCounts' => [
-                        'navigation' => 1,
-                        'style' => 1,
-                        'xhtml' => 1,
-                    ],
-                    'guideReferenceTypeCounts' => [
-                        'text' => 1,
-                    ],
-                    'packageLinkRelCounts' => [],
-                    'coverImagePartPresent' => false,
-                ],
-            ],
-            'fixturesWithGuideReferences' => [
-                'appendix-navigation-guide',
-                'auxiliary-lot-guide-index',
-                'epub2_cover',
-                'epub2_no_cover',
-                'epub2_picture',
-                'epub3-ncx-toc-fallback',
-                'guide-bibliography-reference',
-                'guide-glossary-reference',
-                'guide-notes-reference',
-                'guide-preface-reference',
-                'manifest-fallback-style',
-                'manifest-href-encoding',
-                'mathml-spine',
-                'metadata-record-remote-nav',
-                'multi-rootfile-nested-nav',
-                'nav-ncx-linear-guide',
-                'nested-path-media-metadata',
-                'nested-rootfile-nonlinear-spine',
-                'parent-relative-nav',
-                'title-page-guide-media-metadata',
-                'xhtml-ruby-table-mark',
-                'xhtml-semantics-spine',
-            ],
-            'fixturesWithPackageLinks' => [
-                'accessibility-metadata-package',
-                'bindings-collections-sidecars',
-                'manifest-href-encoding',
-                'metadata-link-page-list-image',
-                'metadata-record-remote-nav',
-                'metadata-search-link-semantics',
-                'nav-ncx-linear-guide',
-                'nested-path-media-metadata',
-                'title-page-guide-media-metadata',
-                'wasteland',
-                'xhtml-ruby-table-mark',
-            ],
-            'fixturesWithPackageLinkMediaTypeParameters' => [
-                'metadata-search-link-semantics',
-            ],
-            'fixturesWithLinkHrefSuffixes' => [
-                'bindings-collections-sidecars',
-                'metadata-search-link-semantics',
-            ],
-            'fixturesWithAccessibilityMetadata' => [
-                'accessibility-metadata-package',
-                'xhtml-ruby-table-mark',
-            ],
-            'fixturesWithCoverImagePart' => [
-                'epub2_cover',
-                'epub2_picture',
-                'img',
-                'nested-path-media-metadata',
-                'wasteland',
-            ],
-            'fixturesWithEncryption' => [
-                'epub2_cover',
-                'epub2_no_cover',
-                'epub2_picture',
-            ],
-            'fixturesWithObfuscatedFonts' => [
-                'epub2_cover',
-                'epub2_no_cover',
-                'epub2_picture',
-            ],
-            'fixturesWithBlockedEncryptedByteExposures' => [
-                'epub2_cover',
-                'epub2_no_cover',
-                'epub2_picture',
-            ],
-            'fixturesWithImages' => [
-                'content-image-nav-media',
-                'direct-image-spine',
-                'epub2_cover',
-                'epub2_picture',
-                'formatting',
-                'img',
-                'img_no_cover',
-                'metadata-link-page-list-image',
-                'nested-path-media-metadata',
-                'package-spine-nav-media-metadata',
-                'scripted-svg-manifest',
-                'title-page-guide-media-metadata',
-                'wasteland',
-            ],
-            'fixturesWithStylesheets' => [
-                'epub2_cover',
-                'epub2_no_cover',
-                'epub2_picture',
-                'features',
-                'formatting',
-                'img',
-                'img_no_cover',
-                'manifest-fallback-style',
-                'manifest-href-encoding',
-                'missing-local-manifest-resource',
-                'nested-path-media-metadata',
-                'nested-rootfile-nonlinear-spine',
-                'package-spine-nav-media-metadata',
-                'title-page-guide-media-metadata',
-                'wasteland',
-                'xhtml-semantics-spine',
-            ],
-            'fixturesWithLandmarks' => [
-                'bindings-collections-sidecars',
-                'content-image-nav-media',
-                'external-footnote-reference',
-                'features',
-                'formatting',
-                'img',
-                'img_no_cover',
-                'manifest-href-encoding',
-                'metadata-record-remote-nav',
-                'multi-rootfile-nested-nav',
-                'nav-ncx-linear-guide',
-                'nested-path-media-metadata',
-                'nested-rootfile-nonlinear-spine',
-                'package-spine-nav-media-metadata',
-                'parent-relative-nav',
-                'spine-fallback-resource',
-                'title-page-guide-media-metadata',
-                'wasteland',
-                'xhtml-ruby-table-mark',
-                'xhtml-semantics-spine',
-            ],
-            'fixturesWithPageLists' => [
-                'content-image-nav-media',
-                'manifest-href-encoding',
-                'metadata-link-page-list-image',
-                'metadata-record-remote-nav',
-                'multi-rootfile-nested-nav',
-                'nested-path-media-metadata',
-                'package-spine-nav-media-metadata',
-                'page-list-cfi-navigation',
-                'page-list-navigation',
-                'spine-fallback-resource',
-                'title-page-guide-media-metadata',
-            ],
-            'fixturesWithPageListCfiTargets' => [
-                'page-list-cfi-navigation',
-            ],
-            'fixturesWithAuxiliaryNavigation' => [
-                'appendix-navigation-guide',
-                'audio-navigation',
-                'auxiliary-lot-guide-index',
-                'metadata-record-remote-nav',
-                'nested-path-media-metadata',
-                'page-list-navigation',
-                'title-page-guide-media-metadata',
-                'video-navigation',
-            ],
-            'fixturesWithRemoteManifestResources' => [
-                'media-manifest-mix',
-                'metadata-record-remote-nav',
-                'nested-path-media-metadata',
-                'remote-manifest-resource',
-            ],
-            'fixturesWithExternalManifestItems' => [
-                'media-manifest-mix',
-                'metadata-record-remote-nav',
-                'nested-path-media-metadata',
-                'remote-manifest-resource',
-            ],
-            'fixturesWithMissingLocalManifestItems' => [
-                'missing-local-manifest-resource',
-            ],
-            'fixturesWithManifestFallbackItems' => [
-                'accessibility-metadata-package',
-                'bindings-collections-sidecars',
-                'manifest-fallback-chain',
-                'manifest-fallback-style',
-                'manifest-href-encoding',
-                'media-manifest-mix',
-                'metadata-record-remote-nav',
-                'nav-ncx-linear-guide',
-                'nested-path-media-metadata',
-                'spine-fallback-resource',
-                'text-track-captions',
-                'title-page-guide-media-metadata',
-                'video-manifest-resource',
-                'video-navigation',
-                'xhtml-ruby-table-mark',
-            ],
-            'fixturesWithManifestFallbacks' => [
-                'bindings-collections-sidecars',
-                'manifest-fallback-chain',
-                'manifest-fallback-style',
-                'media-manifest-mix',
-                'spine-fallback-resource',
-            ],
-            'fixturesWithResolvedManifestFallbacks' => [
-                'bindings-collections-sidecars',
-                'manifest-fallback-chain',
-                'manifest-fallback-style',
-                'media-manifest-mix',
-                'spine-fallback-resource',
-            ],
-            'fixturesWithUsableManifestFallbacks' => [
-                'bindings-collections-sidecars',
-                'manifest-fallback-chain',
-                'manifest-fallback-style',
-                'media-manifest-mix',
-                'spine-fallback-resource',
-            ],
-            'fixturesWithMissingManifestFallbacks' => [
-                'accessibility-metadata-package',
-                'manifest-href-encoding',
-                'metadata-record-remote-nav',
-                'nav-ncx-linear-guide',
-                'nested-path-media-metadata',
-                'text-track-captions',
-                'title-page-guide-media-metadata',
-                'video-manifest-resource',
-                'video-navigation',
-                'xhtml-ruby-table-mark',
-            ],
-            'fixturesWithMediaOverlays' => [
-                'media-overlay-package',
-                'missing-media-overlay',
-            ],
-            'fixturesWithResolvedMediaOverlays' => [
-                'media-overlay-package',
-            ],
-            'fixturesWithMediaOverlayTextTargets' => [
-                'media-overlay-package',
-            ],
-            'fixturesWithMediaOverlayAudioTargets' => [
-                'media-overlay-package',
-            ],
-            'fixturesWithNonLinearSpineItems' => [
-                'all-nonlinear-spine',
-                'content-image-nav-media',
-                'epub2_cover',
-                'epub2_picture',
-                'external-footnote-reference',
-                'features',
-                'formatting',
-                'img',
-                'img_no_cover',
-                'manifest-href-encoding',
-                'multi-rootfile-nested-nav',
-                'nav-ncx-linear-guide',
-                'nested-path-media-metadata',
-                'nested-rootfile-nonlinear-spine',
-                'title-page-guide-media-metadata',
-            ],
-            'fixturesWithSpinePageSpreadItems' => [
-                'nested-path-media-metadata',
-                'spine-page-spread',
-                'xhtml-ruby-table-mark',
-            ],
-            'fixturesWithCollections' => [
-                'bindings-collections-sidecars',
-            ],
-            'fixturesWithBindings' => [
-                'bindings-collections-sidecars',
-            ],
-            'fixturesWithOcfSidecars' => [
-                'bindings-collections-sidecars',
-            ],
-            'totals' => [
-                'metadataCreators' => 59,
-                'manifestItems' => 227,
-                'readingOrderItems' => 95,
-                'spinePageSpreadItems' => 5,
-                'xhtmlAssets' => 151,
-                'imageAssets' => 22,
-                'stylesheetAssets' => 21,
-                'navigationEntries' => 154,
-                'landmarkEntries' => 24,
-                'pageListEntries' => 16,
-                'pageListCfiTargets' => 2,
-                'auxiliaryNavigationEntries' => 8,
-                'packageLinks' => 14,
-                'packageLinkMediaTypeItems' => 11,
-                'packageLinkMediaTypeParameters' => 1,
-                'linkHrefSuffixes' => 3,
-                'linkHrefSuffixQueries' => 1,
-                'linkHrefSuffixFragments' => 3,
-                'guideReferences' => 23,
-                'accessibilityEntries' => 7,
-                'accessibilityLinkedRecords' => 1,
-                'accessibilityAccessModes' => 2,
-                'accessibilityFeatures' => 2,
-                'accessibilityHazards' => 1,
-                'accessibilityConformsTo' => 1,
-                'remoteResourceManifestItems' => 4,
-                'externalManifestItems' => 4,
-                'missingLocalManifestItems' => 1,
-                'manifestFallbackItems' => 16,
-                'manifestFallbacks' => 6,
-                'resolvedManifestFallbacks' => 6,
-                'usableManifestFallbacks' => 6,
-                'missingManifestFallbacks' => 10,
-                'mediaOverlays' => 2,
-                'resolvedMediaOverlays' => 1,
-                'missingMediaOverlays' => 1,
-                'mediaOverlayReferencedContentItems' => 2,
-                'mediaOverlayTimelineItems' => 1,
-                'mediaOverlayClipTimings' => 1,
-                'mediaOverlayValidClipTimings' => 1,
-                'mediaOverlayInvalidClipTimings' => 0,
-                'mediaOverlayTextLocalTargets' => 1,
-                'mediaOverlayAudioLocalTargets' => 1,
-                'mediaOverlayDurations' => 3,
-                'encryptionItems' => 3,
-                'obfuscatedFonts' => 3,
-                'blockedEncryptedByteExposures' => 3,
-                'encryptionDiagnostics' => 6,
-                'collections' => 2,
-                'collectionLinks' => 3,
-                'bindingItems' => 1,
-                'bindingResolvedHandlers' => 1,
-                'bindingMediaTypeParameters' => 1,
-                'ocfSidecars' => 4,
-            ],
-        ];
-        $expectedPackageFeatureSignatureSha256 = '157f63a2070a1437698fb331f3d621c7fa0ee9de184544793a0f6a74973cba70';
-        $expectedCurrentNativeAstSignatureSha256 = '4fa93f1c1184f45af171b365d91f979d51d20e9140fb8f5e3035ab1ab1282cfc';
-        $expectedCurrentNativeAstFixtures = [
-            'accessibility-metadata-package',
-            'all-nonlinear-spine',
-            'appendix-navigation-guide',
-            'audio-navigation',
-            'auxiliary-lot-guide-index',
-            'bindings-collections-sidecars',
-            'blockquote-list-spine',
-            'code-block-spine',
-            'content-image-nav-media',
-            'cross-spine-internal-links',
-            'definition-list-spine',
-            'direct-image-spine',
-            'duplicate-spine-idref',
-            'epub2_cover',
-            'epub2_no_cover',
-            'epub2_picture',
-            'epub3-ncx-toc-fallback',
-            'external-footnote-reference',
-            'features',
-            'font-manifest-resource',
-            'formatting',
-            'fragment-nav-spine',
-            'guide-bibliography-reference',
-            'guide-glossary-reference',
-            'guide-notes-reference',
-            'guide-preface-reference',
-            'img',
-            'img_no_cover',
-            'inline-abbr-subscript-superscript',
-            'language-french-metadata',
-            'main-section-spine',
-            'manifest-fallback-chain',
-            'manifest-fallback-style',
-            'manifest-href-encoding',
-            'mathml-spine',
-            'media-manifest-mix',
-            'media-overlay-package',
-            'metadata-link-page-list-image',
-            'metadata-record-remote-nav',
-            'metadata-search-link-semantics',
-            'missing-local-manifest-resource',
-            'missing-media-overlay',
-            'multi-rootfile-nested-nav',
-            'nav-ncx-linear-guide',
-            'nested-path-media-metadata',
-            'nested-rootfile-nonlinear-spine',
-            'package-spine-nav-media-metadata',
-            'page-list-cfi-navigation',
-            'page-list-navigation',
-            'parent-relative-nav',
-            'remote-manifest-resource',
-            'rendition-layout-property',
-            'scripted-svg-manifest',
-            'scripted-xhtml-resource',
-            'spine-fallback-resource',
-            'spine-page-spread',
-            'standalone-footnote',
-            'text-track-captions',
-            'title-page-guide-media-metadata',
-            'video-manifest-resource',
-            'video-navigation',
-            'wasteland',
-            'xhtml-ruby-table-mark',
-            'xhtml-semantics-spine',
-        ];
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'blockquote-list-spine' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'navigation' => 1,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'code-block-spine' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'navigation' => 1,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'content-image-nav-media' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'landmarks',
+                1 => 'page-list',
+                2 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'audio' => 1,
+                'image' => 2,
+                'navigation' => 1,
+                'xhtml' => 2,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'cross-spine-internal-links' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'navigation' => 1,
+                'xhtml' => 2,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'definition-list-spine' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'navigation' => 1,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'direct-image-spine' =>
+            array (
+              'navigationType' => '',
+              'navigationSectionTypes' =>
+              array (
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'image' => 3,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'duplicate-spine-idref' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'navigation' => 1,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'epub2_cover' =>
+            array (
+              'navigationType' => 'ncx',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'image' => 1,
+                'navigation' => 1,
+                'style' => 1,
+                'xhtml' => 2,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+                'cover' => 1,
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => true,
+            ),
+            'epub2_no_cover' =>
+            array (
+              'navigationType' => 'ncx',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'navigation' => 1,
+                'style' => 1,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+                'toc' => 1,
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'epub2_picture' =>
+            array (
+              'navigationType' => 'ncx',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'image' => 1,
+                'navigation' => 1,
+                'style' => 1,
+                'xhtml' => 2,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+                'cover' => 1,
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => true,
+            ),
+            'epub3-ncx-toc-fallback' =>
+            array (
+              'navigationType' => 'ncx',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'navigation' => 1,
+                'xhtml' => 2,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+                'text' => 1,
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'external-footnote-reference' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'landmarks',
+                1 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'navigation' => 1,
+                'xhtml' => 2,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'features' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'landmarks',
+                1 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'navigation' => 1,
+                'style' => 2,
+                'xhtml' => 3,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'font-manifest-resource' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'font' => 1,
+                'navigation' => 1,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'formatting' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'landmarks',
+                1 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'image' => 1,
+                'navigation' => 1,
+                'style' => 2,
+                'xhtml' => 7,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'fragment-nav-spine' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'navigation' => 1,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'guide-bibliography-reference' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'navigation' => 1,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+                'bibliography' => 1,
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'guide-glossary-reference' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'navigation' => 1,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+                'glossary' => 1,
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'guide-notes-reference' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'navigation' => 1,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+                'notes' => 1,
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'guide-preface-reference' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'navigation' => 1,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+                'preface' => 1,
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'img' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'landmarks',
+                1 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'cover-image' => 1,
+                'image' => 3,
+                'navigation' => 1,
+                'style' => 2,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => true,
+            ),
+            'img_no_cover' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'landmarks',
+                1 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'image' => 3,
+                'navigation' => 1,
+                'style' => 2,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'inline-abbr-subscript-superscript' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'navigation' => 1,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'language-french-metadata' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'navigation' => 1,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'main-section-spine' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'navigation' => 1,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'manifest-fallback-chain' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'asset' => 1,
+                'navigation' => 1,
+                'xhtml' => 2,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'manifest-fallback-style' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'asset' => 1,
+                'navigation' => 1,
+                'style' => 1,
+                'xhtml' => 2,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+                'text' => 1,
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'manifest-href-encoding' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'landmarks',
+                1 => 'page-list',
+                2 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'asset' => 1,
+                'navigation' => 1,
+                'style' => 1,
+                'xhtml' => 2,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+                'text' => 1,
+              ),
+              'packageLinkRelCounts' =>
+              array (
+                'record' => 1,
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'mathml-spine' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'navigation' => 1,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+                'text' => 1,
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'media-manifest-mix' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'asset' => 2,
+                'navigation' => 1,
+                'style' => 1,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'media-overlay-package' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'audio' => 1,
+                'media-overlay' => 1,
+                'navigation' => 1,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'metadata-link-page-list-image' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'page-list',
+                1 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'image' => 1,
+                'navigation' => 1,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
+                'alternate' => 1,
+                'record' => 1,
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'metadata-record-remote-nav' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'landmarks',
+                1 => 'loi',
+                2 => 'page-list',
+                3 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'asset' => 1,
+                'navigation' => 1,
+                'style' => 1,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+                'text' => 1,
+              ),
+              'packageLinkRelCounts' =>
+              array (
+                'alternate' => 1,
+                'preview' => 1,
+                'record' => 1,
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'metadata-search-link-semantics' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'navigation' => 1,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
+                'record' => 1,
+                'search' => 1,
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'missing-local-manifest-resource' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'navigation' => 1,
+                'style' => 1,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'missing-media-overlay' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'navigation' => 1,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'multi-rootfile-nested-nav' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'landmarks',
+                1 => 'page-list',
+                2 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'navigation' => 1,
+                'xhtml' => 3,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+                'text' => 1,
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'nav-ncx-linear-guide' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'landmarks',
+                1 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'asset' => 1,
+                'navigation' => 2,
+                'xhtml' => 2,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+                'text' => 1,
+              ),
+              'packageLinkRelCounts' =>
+              array (
+                'record' => 1,
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'nested-path-media-metadata' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'landmarks',
+                1 => 'lot',
+                2 => 'page-list',
+                3 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'asset' => 1,
+                'audio' => 1,
+                'cover-image' => 1,
+                'image' => 1,
+                'navigation' => 1,
+                'style' => 1,
+                'xhtml' => 3,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+                'cover' => 1,
+                'text' => 1,
+              ),
+              'packageLinkRelCounts' =>
+              array (
+                'record' => 1,
+              ),
+              'coverImagePartPresent' => true,
+            ),
+            'nested-rootfile-nonlinear-spine' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'landmarks',
+                1 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'navigation' => 1,
+                'style' => 1,
+                'xhtml' => 2,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+                'text' => 1,
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'package-spine-nav-media-metadata' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'landmarks',
+                1 => 'page-list',
+                2 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'image' => 1,
+                'navigation' => 1,
+                'style' => 1,
+                'xhtml' => 2,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'page-list-cfi-navigation' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'page-list',
+                1 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'navigation' => 1,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'pageListCfiTargetCount' => 2,
+              'coverImagePartPresent' => false,
+            ),
+            'page-list-navigation' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'loi',
+                1 => 'page-list',
+                2 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'navigation' => 1,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'parent-relative-nav' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'landmarks',
+                1 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'navigation' => 1,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+                'text' => 1,
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'remote-manifest-resource' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'navigation' => 1,
+                'style' => 1,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'rendition-layout-property' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'navigation' => 1,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'scripted-svg-manifest' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'navigation' => 1,
+                'svg' => 1,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'scripted-xhtml-resource' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'navigation' => 1,
+                'script' => 1,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'spine-fallback-resource' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'landmarks',
+                1 => 'page-list',
+                2 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'asset' => 1,
+                'navigation' => 1,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'spine-page-spread' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'navigation' => 1,
+                'xhtml' => 2,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'standalone-footnote' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'navigation' => 1,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'text-track-captions' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'navigation' => 1,
+                'text-track' => 1,
+                'video' => 1,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'title-page-guide-media-metadata' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'landmarks',
+                1 => 'loa',
+                2 => 'page-list',
+                3 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'asset' => 1,
+                'image' => 1,
+                'navigation' => 1,
+                'style' => 1,
+                'xhtml' => 3,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+                'title-page' => 1,
+              ),
+              'packageLinkRelCounts' =>
+              array (
+                'preview' => 1,
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'video-manifest-resource' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'navigation' => 1,
+                'video' => 1,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'video-navigation' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'lov',
+                1 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'navigation' => 1,
+                'video' => 1,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'wasteland' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'landmarks',
+                1 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'cover-image' => 1,
+                'navigation' => 2,
+                'style' => 2,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
+                'cc:attributionURL' => 1,
+                'cc:license' => 2,
+              ),
+              'coverImagePartPresent' => true,
+            ),
+            'xhtml-address-spine' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'navigation' => 1,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'xhtml-ruby-table-mark' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'landmarks',
+                1 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'asset' => 1,
+                'navigation' => 1,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+                'text' => 1,
+              ),
+              'packageLinkRelCounts' =>
+              array (
+                'preview' => 1,
+                'record' => 1,
+              ),
+              'accessibilityPropertyCounts' =>
+              array (
+                'accessibilityFeature' => 1,
+              ),
+              'coverImagePartPresent' => false,
+            ),
+            'xhtml-semantics-spine' =>
+            array (
+              'navigationType' => 'nav',
+              'navigationSectionTypes' =>
+              array (
+                0 => 'landmarks',
+                1 => 'toc',
+              ),
+              'manifestResourceKindCounts' =>
+              array (
+                'navigation' => 1,
+                'style' => 1,
+                'xhtml' => 1,
+              ),
+              'guideReferenceTypeCounts' =>
+              array (
+                'text' => 1,
+              ),
+              'packageLinkRelCounts' =>
+              array (
+              ),
+              'coverImagePartPresent' => false,
+            ),
+          ),
+          'fixturesWithGuideReferences' =>
+          array (
+            0 => 'appendix-navigation-guide',
+            1 => 'auxiliary-lot-guide-index',
+            2 => 'epub2_cover',
+            3 => 'epub2_no_cover',
+            4 => 'epub2_picture',
+            5 => 'epub3-ncx-toc-fallback',
+            6 => 'guide-bibliography-reference',
+            7 => 'guide-glossary-reference',
+            8 => 'guide-notes-reference',
+            9 => 'guide-preface-reference',
+            10 => 'manifest-fallback-style',
+            11 => 'manifest-href-encoding',
+            12 => 'mathml-spine',
+            13 => 'metadata-record-remote-nav',
+            14 => 'multi-rootfile-nested-nav',
+            15 => 'nav-ncx-linear-guide',
+            16 => 'nested-path-media-metadata',
+            17 => 'nested-rootfile-nonlinear-spine',
+            18 => 'parent-relative-nav',
+            19 => 'title-page-guide-media-metadata',
+            20 => 'xhtml-ruby-table-mark',
+            21 => 'xhtml-semantics-spine',
+          ),
+          'fixturesWithPackageLinks' =>
+          array (
+            0 => 'accessibility-metadata-package',
+            1 => 'bindings-collections-sidecars',
+            2 => 'manifest-href-encoding',
+            3 => 'metadata-link-page-list-image',
+            4 => 'metadata-record-remote-nav',
+            5 => 'metadata-search-link-semantics',
+            6 => 'nav-ncx-linear-guide',
+            7 => 'nested-path-media-metadata',
+            8 => 'title-page-guide-media-metadata',
+            9 => 'wasteland',
+            10 => 'xhtml-ruby-table-mark',
+          ),
+          'fixturesWithPackageLinkMediaTypeParameters' =>
+          array (
+            0 => 'metadata-search-link-semantics',
+          ),
+          'fixturesWithLinkHrefSuffixes' =>
+          array (
+            0 => 'bindings-collections-sidecars',
+            1 => 'metadata-search-link-semantics',
+          ),
+          'fixturesWithAccessibilityMetadata' =>
+          array (
+            0 => 'accessibility-metadata-package',
+            1 => 'xhtml-ruby-table-mark',
+          ),
+          'fixturesWithCoverImagePart' =>
+          array (
+            0 => 'epub2_cover',
+            1 => 'epub2_picture',
+            2 => 'img',
+            3 => 'nested-path-media-metadata',
+            4 => 'wasteland',
+          ),
+          'fixturesWithEncryption' =>
+          array (
+            0 => 'epub2_cover',
+            1 => 'epub2_no_cover',
+            2 => 'epub2_picture',
+          ),
+          'fixturesWithObfuscatedFonts' =>
+          array (
+            0 => 'epub2_cover',
+            1 => 'epub2_no_cover',
+            2 => 'epub2_picture',
+          ),
+          'fixturesWithBlockedEncryptedByteExposures' =>
+          array (
+            0 => 'epub2_cover',
+            1 => 'epub2_no_cover',
+            2 => 'epub2_picture',
+          ),
+          'fixturesWithImages' =>
+          array (
+            0 => 'content-image-nav-media',
+            1 => 'direct-image-spine',
+            2 => 'epub2_cover',
+            3 => 'epub2_picture',
+            4 => 'formatting',
+            5 => 'img',
+            6 => 'img_no_cover',
+            7 => 'metadata-link-page-list-image',
+            8 => 'nested-path-media-metadata',
+            9 => 'package-spine-nav-media-metadata',
+            10 => 'scripted-svg-manifest',
+            11 => 'title-page-guide-media-metadata',
+            12 => 'wasteland',
+          ),
+          'fixturesWithStylesheets' =>
+          array (
+            0 => 'epub2_cover',
+            1 => 'epub2_no_cover',
+            2 => 'epub2_picture',
+            3 => 'features',
+            4 => 'formatting',
+            5 => 'img',
+            6 => 'img_no_cover',
+            7 => 'manifest-fallback-style',
+            8 => 'manifest-href-encoding',
+            9 => 'missing-local-manifest-resource',
+            10 => 'nested-path-media-metadata',
+            11 => 'nested-rootfile-nonlinear-spine',
+            12 => 'package-spine-nav-media-metadata',
+            13 => 'title-page-guide-media-metadata',
+            14 => 'wasteland',
+            15 => 'xhtml-semantics-spine',
+          ),
+          'fixturesWithLandmarks' =>
+          array (
+            0 => 'bindings-collections-sidecars',
+            1 => 'content-image-nav-media',
+            2 => 'external-footnote-reference',
+            3 => 'features',
+            4 => 'formatting',
+            5 => 'img',
+            6 => 'img_no_cover',
+            7 => 'manifest-href-encoding',
+            8 => 'metadata-record-remote-nav',
+            9 => 'multi-rootfile-nested-nav',
+            10 => 'nav-ncx-linear-guide',
+            11 => 'nested-path-media-metadata',
+            12 => 'nested-rootfile-nonlinear-spine',
+            13 => 'package-spine-nav-media-metadata',
+            14 => 'parent-relative-nav',
+            15 => 'spine-fallback-resource',
+            16 => 'title-page-guide-media-metadata',
+            17 => 'wasteland',
+            18 => 'xhtml-ruby-table-mark',
+            19 => 'xhtml-semantics-spine',
+          ),
+          'fixturesWithPageLists' =>
+          array (
+            0 => 'content-image-nav-media',
+            1 => 'manifest-href-encoding',
+            2 => 'metadata-link-page-list-image',
+            3 => 'metadata-record-remote-nav',
+            4 => 'multi-rootfile-nested-nav',
+            5 => 'nested-path-media-metadata',
+            6 => 'package-spine-nav-media-metadata',
+            7 => 'page-list-cfi-navigation',
+            8 => 'page-list-navigation',
+            9 => 'spine-fallback-resource',
+            10 => 'title-page-guide-media-metadata',
+          ),
+          'fixturesWithPageListCfiTargets' =>
+          array (
+            0 => 'page-list-cfi-navigation',
+          ),
+          'fixturesWithAuxiliaryNavigation' =>
+          array (
+            0 => 'appendix-navigation-guide',
+            1 => 'audio-navigation',
+            2 => 'auxiliary-lot-guide-index',
+            3 => 'metadata-record-remote-nav',
+            4 => 'nested-path-media-metadata',
+            5 => 'page-list-navigation',
+            6 => 'title-page-guide-media-metadata',
+            7 => 'video-navigation',
+          ),
+          'fixturesWithRemoteManifestResources' =>
+          array (
+            0 => 'media-manifest-mix',
+            1 => 'metadata-record-remote-nav',
+            2 => 'nested-path-media-metadata',
+            3 => 'remote-manifest-resource',
+          ),
+          'fixturesWithExternalManifestItems' =>
+          array (
+            0 => 'media-manifest-mix',
+            1 => 'metadata-record-remote-nav',
+            2 => 'nested-path-media-metadata',
+            3 => 'remote-manifest-resource',
+          ),
+          'fixturesWithMissingLocalManifestItems' =>
+          array (
+            0 => 'missing-local-manifest-resource',
+          ),
+          'fixturesWithManifestFallbackItems' =>
+          array (
+            0 => 'accessibility-metadata-package',
+            1 => 'bindings-collections-sidecars',
+            2 => 'manifest-fallback-chain',
+            3 => 'manifest-fallback-style',
+            4 => 'manifest-href-encoding',
+            5 => 'media-manifest-mix',
+            6 => 'metadata-record-remote-nav',
+            7 => 'nav-ncx-linear-guide',
+            8 => 'nested-path-media-metadata',
+            9 => 'spine-fallback-resource',
+            10 => 'text-track-captions',
+            11 => 'title-page-guide-media-metadata',
+            12 => 'video-manifest-resource',
+            13 => 'video-navigation',
+            14 => 'xhtml-ruby-table-mark',
+          ),
+          'fixturesWithManifestFallbacks' =>
+          array (
+            0 => 'bindings-collections-sidecars',
+            1 => 'manifest-fallback-chain',
+            2 => 'manifest-fallback-style',
+            3 => 'media-manifest-mix',
+            4 => 'spine-fallback-resource',
+          ),
+          'fixturesWithResolvedManifestFallbacks' =>
+          array (
+            0 => 'bindings-collections-sidecars',
+            1 => 'manifest-fallback-chain',
+            2 => 'manifest-fallback-style',
+            3 => 'media-manifest-mix',
+            4 => 'spine-fallback-resource',
+          ),
+          'fixturesWithUsableManifestFallbacks' =>
+          array (
+            0 => 'bindings-collections-sidecars',
+            1 => 'manifest-fallback-chain',
+            2 => 'manifest-fallback-style',
+            3 => 'media-manifest-mix',
+            4 => 'spine-fallback-resource',
+          ),
+          'fixturesWithMissingManifestFallbacks' =>
+          array (
+            0 => 'accessibility-metadata-package',
+            1 => 'manifest-href-encoding',
+            2 => 'metadata-record-remote-nav',
+            3 => 'nav-ncx-linear-guide',
+            4 => 'nested-path-media-metadata',
+            5 => 'text-track-captions',
+            6 => 'title-page-guide-media-metadata',
+            7 => 'video-manifest-resource',
+            8 => 'video-navigation',
+            9 => 'xhtml-ruby-table-mark',
+          ),
+          'fixturesWithMediaOverlays' =>
+          array (
+            0 => 'media-overlay-package',
+            1 => 'missing-media-overlay',
+          ),
+          'fixturesWithResolvedMediaOverlays' =>
+          array (
+            0 => 'media-overlay-package',
+          ),
+          'fixturesWithMediaOverlayTextTargets' =>
+          array (
+            0 => 'media-overlay-package',
+          ),
+          'fixturesWithMediaOverlayAudioTargets' =>
+          array (
+            0 => 'media-overlay-package',
+          ),
+          'fixturesWithNonLinearSpineItems' =>
+          array (
+            0 => 'all-nonlinear-spine',
+            1 => 'content-image-nav-media',
+            2 => 'epub2_cover',
+            3 => 'epub2_picture',
+            4 => 'external-footnote-reference',
+            5 => 'features',
+            6 => 'formatting',
+            7 => 'img',
+            8 => 'img_no_cover',
+            9 => 'manifest-href-encoding',
+            10 => 'multi-rootfile-nested-nav',
+            11 => 'nav-ncx-linear-guide',
+            12 => 'nested-path-media-metadata',
+            13 => 'nested-rootfile-nonlinear-spine',
+            14 => 'title-page-guide-media-metadata',
+          ),
+          'fixturesWithSpinePageSpreadItems' =>
+          array (
+            0 => 'nested-path-media-metadata',
+            1 => 'spine-page-spread',
+            2 => 'xhtml-ruby-table-mark',
+          ),
+          'fixturesWithCollections' =>
+          array (
+            0 => 'bindings-collections-sidecars',
+          ),
+          'fixturesWithBindings' =>
+          array (
+            0 => 'bindings-collections-sidecars',
+          ),
+          'fixturesWithOcfSidecars' =>
+          array (
+            0 => 'bindings-collections-sidecars',
+          ),
+          'totals' =>
+          array (
+            'metadataCreators' => 60,
+            'manifestItems' => 229,
+            'readingOrderItems' => 96,
+            'spinePageSpreadItems' => 5,
+            'xhtmlAssets' => 153,
+            'imageAssets' => 22,
+            'stylesheetAssets' => 21,
+            'navigationEntries' => 155,
+            'landmarkEntries' => 24,
+            'pageListEntries' => 16,
+            'pageListCfiTargets' => 2,
+            'auxiliaryNavigationEntries' => 8,
+            'packageLinks' => 14,
+            'packageLinkMediaTypeItems' => 11,
+            'packageLinkMediaTypeParameters' => 1,
+            'linkHrefSuffixes' => 3,
+            'linkHrefSuffixQueries' => 1,
+            'linkHrefSuffixFragments' => 3,
+            'guideReferences' => 23,
+            'accessibilityEntries' => 7,
+            'accessibilityLinkedRecords' => 1,
+            'accessibilityAccessModes' => 2,
+            'accessibilityFeatures' => 2,
+            'accessibilityHazards' => 1,
+            'accessibilityConformsTo' => 1,
+            'remoteResourceManifestItems' => 4,
+            'externalManifestItems' => 4,
+            'missingLocalManifestItems' => 1,
+            'manifestFallbackItems' => 16,
+            'manifestFallbacks' => 6,
+            'resolvedManifestFallbacks' => 6,
+            'usableManifestFallbacks' => 6,
+            'missingManifestFallbacks' => 10,
+            'mediaOverlays' => 2,
+            'resolvedMediaOverlays' => 1,
+            'missingMediaOverlays' => 1,
+            'mediaOverlayReferencedContentItems' => 2,
+            'mediaOverlayTimelineItems' => 1,
+            'mediaOverlayClipTimings' => 1,
+            'mediaOverlayValidClipTimings' => 1,
+            'mediaOverlayInvalidClipTimings' => 0,
+            'mediaOverlayTextLocalTargets' => 1,
+            'mediaOverlayAudioLocalTargets' => 1,
+            'mediaOverlayDurations' => 3,
+            'encryptionItems' => 3,
+            'obfuscatedFonts' => 3,
+            'blockedEncryptedByteExposures' => 3,
+            'encryptionDiagnostics' => 6,
+            'collections' => 2,
+            'collectionLinks' => 3,
+            'bindingItems' => 1,
+            'bindingResolvedHandlers' => 1,
+            'bindingMediaTypeParameters' => 1,
+            'ocfSidecars' => 4,
+          ),
+        );
+        $expectedPackageFeatureSignatureSha256 = 'f8e7b30e1179b9bd13ce3d09f782eb49fd65d907792585424e8093cd46a3d9cd';
+        $expectedCurrentNativeAstSignatureSha256 = '11deed6d7cd3c4f120e11abf2cfa3e0fdae350866afffccd20cd7717f38c9569';
+        $expectedCurrentNativeAstFixtures = array (
+          0 => 'accessibility-metadata-package',
+          1 => 'all-nonlinear-spine',
+          2 => 'appendix-navigation-guide',
+          3 => 'audio-navigation',
+          4 => 'auxiliary-lot-guide-index',
+          5 => 'bindings-collections-sidecars',
+          6 => 'blockquote-list-spine',
+          7 => 'code-block-spine',
+          8 => 'content-image-nav-media',
+          9 => 'cross-spine-internal-links',
+          10 => 'definition-list-spine',
+          11 => 'direct-image-spine',
+          12 => 'duplicate-spine-idref',
+          13 => 'epub2_cover',
+          14 => 'epub2_no_cover',
+          15 => 'epub2_picture',
+          16 => 'epub3-ncx-toc-fallback',
+          17 => 'external-footnote-reference',
+          18 => 'features',
+          19 => 'font-manifest-resource',
+          20 => 'formatting',
+          21 => 'fragment-nav-spine',
+          22 => 'guide-bibliography-reference',
+          23 => 'guide-glossary-reference',
+          24 => 'guide-notes-reference',
+          25 => 'guide-preface-reference',
+          26 => 'img',
+          27 => 'img_no_cover',
+          28 => 'inline-abbr-subscript-superscript',
+          29 => 'language-french-metadata',
+          30 => 'main-section-spine',
+          31 => 'manifest-fallback-chain',
+          32 => 'manifest-fallback-style',
+          33 => 'manifest-href-encoding',
+          34 => 'mathml-spine',
+          35 => 'media-manifest-mix',
+          36 => 'media-overlay-package',
+          37 => 'metadata-link-page-list-image',
+          38 => 'metadata-record-remote-nav',
+          39 => 'metadata-search-link-semantics',
+          40 => 'missing-local-manifest-resource',
+          41 => 'missing-media-overlay',
+          42 => 'multi-rootfile-nested-nav',
+          43 => 'nav-ncx-linear-guide',
+          44 => 'nested-path-media-metadata',
+          45 => 'nested-rootfile-nonlinear-spine',
+          46 => 'package-spine-nav-media-metadata',
+          47 => 'page-list-cfi-navigation',
+          48 => 'page-list-navigation',
+          49 => 'parent-relative-nav',
+          50 => 'remote-manifest-resource',
+          51 => 'rendition-layout-property',
+          52 => 'scripted-svg-manifest',
+          53 => 'scripted-xhtml-resource',
+          54 => 'spine-fallback-resource',
+          55 => 'spine-page-spread',
+          56 => 'standalone-footnote',
+          57 => 'text-track-captions',
+          58 => 'title-page-guide-media-metadata',
+          59 => 'video-manifest-resource',
+          60 => 'video-navigation',
+          61 => 'wasteland',
+          62 => 'xhtml-address-spine',
+          63 => 'xhtml-ruby-table-mark',
+          64 => 'xhtml-semantics-spine',
+        );
 
-        $t->same(64, count($epubFiles), 'Checked-in EPUB fixture count changed');
-        $t->same(64, count($nativeFiles), 'Checked-in native fixture count changed');
+        $t->same(65, count($epubFiles), 'Checked-in EPUB fixture count changed');
+        $t->same(65, count($nativeFiles), 'Checked-in native fixture count changed');
 
         $harness = new EpubNativeAstPackageComparisonHarness();
         $report = $harness->run($root);
         $text = $harness->formatReport($report);
 
         $t->same('completed', $report['status']);
-        $t->same(64, $report['totalEpubCount']);
-        $t->same(64, $report['comparedEpubCount']);
-        $t->same(64, $report['packageParsedCount']);
-        $t->same(64, $report['readerParsedCount']);
+        $t->same(65, $report['totalEpubCount']);
+        $t->same(65, $report['comparedEpubCount']);
+        $t->same(65, $report['packageParsedCount']);
+        $t->same(65, $report['readerParsedCount']);
         $t->same(0, $report['packageParseFailureCount']);
         $t->same(0, $report['readerParseFailureCount']);
-        $t->same(64, $report['totalPairCount']);
-        $t->same(64, $report['comparedPairCount']);
-        $t->same(64, $report['epubPairParsedCount']);
-        $t->same(64, $report['nativeParsedCount']);
-        $t->same(64, $report['bothParsedCount']);
+        $t->same(65, $report['totalPairCount']);
+        $t->same(65, $report['comparedPairCount']);
+        $t->same(65, $report['epubPairParsedCount']);
+        $t->same(65, $report['nativeParsedCount']);
+        $t->same(65, $report['bothParsedCount']);
         $t->same(0, $report['astParseFailureCount']);
         $t->same(0, $report['nativeParseFailureCount']);
-        $t->same(64, $report['normalizedAstMatchCount']);
+        $t->same(65, $report['normalizedAstMatchCount']);
         $t->same(0, $report['normalizedAstMismatchCount']);
-        $t->same(true, EpubNativeAstPackageComparisonHarness::hasRequiredPackageParity($report, 64));
-        $t->same(true, EpubNativeAstPackageComparisonHarness::hasRequiredNativeReadiness($report, 64));
+        $t->same(true, EpubNativeAstPackageComparisonHarness::hasRequiredPackageParity($report, 65));
+        $t->same(true, EpubNativeAstPackageComparisonHarness::hasRequiredNativeReadiness($report, 65));
         $t->same(false, EpubNativeAstPackageComparisonHarness::hasRequiredMappedParity($report, 2));
-        $t->same(true, EpubNativeAstPackageComparisonHarness::hasRequiredMappedParity($report, 64));
+        $t->same(true, EpubNativeAstPackageComparisonHarness::hasRequiredMappedParity($report, 65));
         $t->same(true, EpubNativeAstPackageComparisonHarness::hasRequiredFixtureIdentity($report));
         $t->same('valid-checked-in-current-epub-fixture-identity', $report['fixtureIdentity']['validation']['status']);
         $t->same([], $report['fixtureIdentity']['validation']['issues']);
-        $t->same(128, $report['fixtureIdentity']['expectedFileCount']);
-        $t->same(128, $report['fixtureIdentity']['observedFileCount']);
+        $t->same(130, $report['fixtureIdentity']['expectedFileCount']);
+        $t->same(130, $report['fixtureIdentity']['observedFileCount']);
         $observedFixtureIdentity = [];
         foreach ($report['fixtureIdentity']['files'] as $file) {
             $observedFixtureIdentity[$file['path']] = [
@@ -2864,7 +3497,7 @@ return [
         }
         $t->same('checked-in-current-epub-package-feature-signature', $report['packageFeatureSignature']['kind']);
         $t->same('sha256-canonical-json-v1', $report['packageFeatureSignature']['algorithm']);
-        $t->same('checked-in-current-upstream-epub-reader-64-fixture-snapshot', $report['packageFeatureSignature']['scope']);
+        $t->same('checked-in-current-upstream-epub-reader-65-fixture-snapshot', $report['packageFeatureSignature']['scope']);
         $t->same($expectedPackageFeatureSignatureSha256, $report['packageFeatureSignature']['sha256']);
         $t->same($expectedPackageFeatureSignatureSha256, $report['packageFeatureSignature']['expectedSha256']);
         $t->same(true, $report['packageFeatureSignature']['hashMatchesExpected']);
@@ -2874,9 +3507,9 @@ return [
         $t->same(true, $report['packageFeatureSignature']['validation']['packageFeatureCoverageMatchesExpected']);
         $t->same('checked-in-current-epub-normalized-native-ast-signature', $report['currentNativeAstSignature']['kind']);
         $t->same('sha256-canonical-json-v1', $report['currentNativeAstSignature']['algorithm']);
-        $t->same('checked-in-current-upstream-epub-reader-64-fixture-normalized-ast-snapshot', $report['currentNativeAstSignature']['scope']);
-        $t->same(64, $report['currentNativeAstSignature']['fixtureCount']);
-        $t->same(64, $report['currentNativeAstSignature']['expectedFixtureCount']);
+        $t->same('checked-in-current-upstream-epub-reader-65-fixture-normalized-ast-snapshot', $report['currentNativeAstSignature']['scope']);
+        $t->same(65, $report['currentNativeAstSignature']['fixtureCount']);
+        $t->same(65, $report['currentNativeAstSignature']['expectedFixtureCount']);
         $t->same($expectedCurrentNativeAstFixtures, $report['currentNativeAstSignature']['expectedFixtures']);
         $t->same($expectedCurrentNativeAstFixtures, $report['currentNativeAstSignature']['observedFixtures']);
         $t->same($expectedCurrentNativeAstSignatureSha256, $report['currentNativeAstSignature']['sha256']);
@@ -2887,8 +3520,8 @@ return [
         $t->same([], $report['currentNativeAstSignature']['validation']['issues']);
         $t->same(true, $report['currentNativeAstSignature']['validation']['fixturesMatchExpected']);
         $t->same(true, $report['currentNativeAstSignature']['validation']['normalizedAstComparisonMatchesExpected']);
-        $t->same(64, count($report['packageFeatureCoverage']['fixtureFeatureSignatures']));
-        $t->same(64, count($report['currentNativeAstSignature']['fixtureSignatures']));
+        $t->same(65, count($report['packageFeatureCoverage']['fixtureFeatureSignatures']));
+        $t->same(65, count($report['currentNativeAstSignature']['fixtureSignatures']));
         $t->same([
             'navigationType' => 'nav',
             'navigationSectionTypes' => ['appendix', 'toc'],
@@ -3654,8 +4287,8 @@ return [
         $t->same('native', $report['runnerEvidence']['target']['outputFormat']);
         $t->same('test/epub', $report['runnerEvidence']['target']['fixtureDirectory']);
         $t->same($expectedCurrentNativeAstFixtures, $report['runnerEvidence']['target']['fixtureBasenames']);
-        $t->same(128, $report['runnerEvidence']['checkedInSnapshot']['expectedFileCount']);
-        $t->same(64, $report['runnerEvidence']['checkedInSnapshot']['expectedPairCount']);
+        $t->same(130, $report['runnerEvidence']['checkedInSnapshot']['expectedFileCount']);
+        $t->same(65, $report['runnerEvidence']['checkedInSnapshot']['expectedPairCount']);
         $t->same($expectedPackageFeatureSignatureSha256, $report['runnerEvidence']['checkedInSnapshot']['packageFeatureSignature']);
         $t->same($expectedCurrentNativeAstSignatureSha256, $report['runnerEvidence']['checkedInSnapshot']['nativeAstSignature']);
         $t->same('exe:pandoc', $report['runnerEvidence']['futureCommands'][2]['arguments'][4]);
@@ -3667,15 +4300,15 @@ return [
         $t->same(false, EpubNativeAstPackageComparisonHarness::hasRunnerPlanEvidence($mutatedReport));
         $t->same('covered-by-current-package-evidence', $report['orderedRemainingGaps'][0]['status']);
         $t->same('covered-by-current-normalized-ast-evidence', $report['orderedRemainingGaps'][1]['status']);
-        $t->contains('packages: total=64 compared=64 packageParsed=64 readerParsed=64 packageFailures=0 readerFailures=0', $text);
-        $t->contains('normalizedAst: matches=64 (100.00%) mismatches=0', $text);
-        $t->contains('fixtureIdentity: status=valid-checked-in-current-epub-fixture-identity expected=128 observed=128', $text);
-        $t->contains('packageFeatureCoverage: fixtures=64 nav=59 ncx=4 covers=5 landmarks=20 pageLists=11 pageListCfiFixtures=1 pageListCfiTargets=2 auxiliaryNav=8 metadataCreators=59 accessibilityFixtures=2 accessibilityEntries=7 accessibilityLinkedRecords=1 accessibilityProperties=accessMode:2,accessibilityFeature:2,accessibilityHazard:1,accessibilitySummary:1,conformsTo:1 manifestItems=227', $text);
-        $t->contains('spineLinear=linear:80,non-linear:15 nonLinearSpineFixtures=15 spinePageSpread=left:2,right:3 pageSpreadFixtures=3', $text);
+        $t->contains('packages: total=65 compared=65 packageParsed=65 readerParsed=65 packageFailures=0 readerFailures=0', $text);
+        $t->contains('normalizedAst: matches=65 (100.00%) mismatches=0', $text);
+        $t->contains('fixtureIdentity: status=valid-checked-in-current-epub-fixture-identity expected=130 observed=130', $text);
+        $t->contains('packageFeatureCoverage: fixtures=65 nav=60 ncx=4 covers=5 landmarks=20 pageLists=11 pageListCfiFixtures=1 pageListCfiTargets=2 auxiliaryNav=8 metadataCreators=60 accessibilityFixtures=2 accessibilityEntries=7 accessibilityLinkedRecords=1 accessibilityProperties=accessMode:2,accessibilityFeature:2,accessibilityHazard:1,accessibilitySummary:1,conformsTo:1 manifestItems=229', $text);
+        $t->contains('spineLinear=linear:81,non-linear:15 nonLinearSpineFixtures=15 spinePageSpread=left:2,right:3 pageSpreadFixtures=3', $text);
         $t->contains('packageFeatureSignature: status=valid-checked-in-current-epub-package-feature-signature matchesExpected=true sha256=' . $expectedPackageFeatureSignatureSha256, $text);
-        $t->contains('currentNativeAstSignature: status=valid-checked-in-current-epub-normalized-native-ast-signature matchesExpected=true fixtures=64 sha256=' . $expectedCurrentNativeAstSignatureSha256, $text);
+        $t->contains('currentNativeAstSignature: status=valid-checked-in-current-epub-normalized-native-ast-signature matchesExpected=true fixtures=65 sha256=' . $expectedCurrentNativeAstSignatureSha256, $text);
         $t->contains('runnerEvidence: status=not-run plan=planned-not-run executed=false', $text);
-        $t->contains('resourceKinds=asset:13,audio:4,cover-image:3,font:1,image:18,media-overlay:1,navigation:65,script:1,style:24,svg:1,text-track:1,video:3,xhtml:92', $text);
+        $t->contains('resourceKinds=asset:13,audio:4,cover-image:3,font:1,image:18,media-overlay:1,navigation:66,script:1,style:24,svg:1,text-track:1,video:3,xhtml:93', $text);
         $t->contains('guideRefTypes=appendix:1,bibliography:1,cover:3,glossary:1,index:1,notes:1,preface:1,text:12,title-page:1,toc:1', $text);
         $t->contains('packageLinkRels=accessibility-summary:1,alternate:2,cc:attributionURL:1,cc:license:2,preview:3,record:9,search:1', $text);
         $t->contains('packageLinkMediaTypes=application/json:8,application/ld+json:1,application/opensearchdescription+xml:1,text/html:1 packageLinkParamFixtures=1 packageLinkParams=1 packageLinkParamNames=profile:1 linkHrefSuffixFixtures=2 linkHrefSuffixes=3 linkHrefSuffixSources=collection-link:2,package-link:1 linkHrefQueries=1 linkHrefFragments=3', $text);
@@ -3685,7 +4318,7 @@ return [
         $t->contains('collectionFixtures=1 collections=2 collectionLinks=3 collectionRoles=index:1,role:primary:1,schema:hasPart:1 collectionLinkRels=contents:1,index:1,record:1', $text);
         $t->contains('bindingFixtures=1 bindings=1 bindingResolvedHandlers=1 bindingParams=1 bindingMediaTypes=application/x-bound-widget:1', $text);
         $t->contains('ocfSidecarFixtures=1 ocfSidecars=4 ocfSidecarKinds=manifest:1,metadata:1,rights:1,signatures:1', $text);
-        $t->contains('opfParts=/EPUB/package.opf:50,/EPUB/wasteland.opf:1,/OEBPS/content.opf:3,/OPS/book/package.opf:4,/OPS/package.opf:6', $text);
+        $t->contains('opfParts=/EPUB/package.opf:51,/EPUB/wasteland.opf:1,/OEBPS/content.opf:3,/OPS/book/package.opf:4,/OPS/package.opf:6', $text);
 
         $command = escapeshellarg(PHP_BINARY)
             . ' '
@@ -3698,9 +4331,9 @@ return [
             . ' --require-current-package-feature-signature'
             . ' --require-current-native-ast-signature'
             . ' --require-runner-plan'
-            . ' --require-package-parity=64'
-            . ' --require-native-readiness=64'
-            . ' --require-mapped-parity=64';
+            . ' --require-package-parity=65'
+            . ' --require-native-readiness=65'
+            . ' --require-mapped-parity=65';
         $output = [];
         $exitCode = 0;
         exec($command, $output, $exitCode);
@@ -3708,10 +4341,10 @@ return [
 
         $t->same(0, $exitCode);
         $t->same($root, $decoded['upstreamEpubDirectory']);
-        $t->same(64, $decoded['packageParsedCount']);
-        $t->same(64, $decoded['readerParsedCount']);
-        $t->same(64, $decoded['nativeParsedCount']);
-        $t->same(64, $decoded['normalizedAstMatchCount']);
+        $t->same(65, $decoded['packageParsedCount']);
+        $t->same(65, $decoded['readerParsedCount']);
+        $t->same(65, $decoded['nativeParsedCount']);
+        $t->same(65, $decoded['normalizedAstMatchCount']);
         $t->same(0, $decoded['normalizedAstMismatchCount']);
         $t->same('valid-checked-in-current-epub-fixture-identity', $decoded['fixtureIdentity']['validation']['status']);
         foreach ($expectedPackageFeatureCoverage as $key => $expected) {
@@ -3743,9 +4376,9 @@ return [
             . escapeshellarg(dirname(__DIR__, 3) . '/tools/pandoc-epub-native-ast-package.php')
             . ' --json'
             . ' summary'
-            . ' --require-package-parity=64'
-            . ' --require-native-readiness=64'
-            . ' --require-mapped-parity=64'
+            . ' --require-package-parity=65'
+            . ' --require-native-readiness=65'
+            . ' --require-mapped-parity=65'
             . ' --require-fixture-identity'
             . ' --require-current-package-feature-coverage'
             . ' --require-current-package-feature-signature'
@@ -3763,7 +4396,7 @@ return [
 
         $t->same(0, $defaultFixtureIdentityExitCode);
         $t->same($root, $defaultFixtureIdentityDecoded['upstreamEpubDirectory']);
-        $t->same(64, $defaultFixtureIdentityDecoded['normalizedAstMatchCount']);
+        $t->same(65, $defaultFixtureIdentityDecoded['normalizedAstMatchCount']);
         $t->same('valid-checked-in-current-epub-fixture-identity', $defaultFixtureIdentityDecoded['fixtureIdentity']['validation']['status']);
         $t->same($expectedPackageFeatureSignatureSha256, $defaultFixtureIdentityDecoded['packageFeatureSignature']['sha256']);
         $t->same(true, $defaultFixtureIdentityDecoded['packageFeatureSignature']['matchesExpected']);
