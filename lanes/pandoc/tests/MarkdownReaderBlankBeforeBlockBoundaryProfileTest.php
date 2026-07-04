@@ -73,6 +73,23 @@ return [
             }
         },
 
+    'maps checked-in markdown blank-before-header disabled profile fixture' =>
+        static function (TestRunner $t) use ($inlineText, $nodeTypes): void {
+            $fixture = (string) file_get_contents(
+                dirname(__DIR__) . '/fixtures/upstream-markdown-zzzzzzzz-blank-before-header-disabled-profile.md'
+            );
+            $document = (new MarkdownReader(['format' => 'markdown-blank_before_header']))->read($fixture);
+            $heading = $document->children[1] ?? new AstNode('missing');
+            $link = ($document->children[2] ?? new AstNode('missing'))->children[0] ?? new AstNode('missing');
+
+            $t->same(['paragraph', 'heading', 'paragraph'], $nodeTypes($document));
+            $t->same('Lead', $inlineText($document->children[0] ?? new AstNode('missing')));
+            $t->same('Review Heading', $inlineText($heading));
+            $t->same('link', $link->type);
+            $t->same('#review-heading', $link->attr('url'));
+            $t->same('Review Heading', $inlineText($link));
+        },
+
     'keeps pandoc markdown blank-before-blockquote default from interrupting paragraphs' =>
         static function (TestRunner $t) use ($inlineText, $nodeTypes): void {
             $document = (new MarkdownReader(['format' => 'markdown']))->read("Lead\n> Review quote\n");
@@ -113,6 +130,6 @@ return [
 
     'records pandoc 3.10 blank-before block boundary mapped-case count' =>
         static function (TestRunner $t) use ($headingInterruptProfiles, $blockQuoteInterruptProfiles): void {
-            $t->same(22, 1 + count($headingInterruptProfiles) + 1 + count($blockQuoteInterruptProfiles) + 4);
+            $t->same(23, 1 + count($headingInterruptProfiles) + 1 + 1 + count($blockQuoteInterruptProfiles) + 4);
         },
 ];

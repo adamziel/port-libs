@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 71;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 72;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'e495d327e1de7aba900bf2eda662e3da00482ce4ebe8afcb5b4c2be6183bff58';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 31366;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '68440ece806efba2c1804a4a414ac98f262f98e8cef0ddf7ed0d375f34401813';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 31781;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -750,6 +750,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => '93a7f80f530d6db03d4f9fcac88e2d3a0758ed6e8afa360d90eee0e722937563',
             'pptxBytes' => 1622,
             'nativeBytes' => 378,
+        ],
+        'parenthesized-bullet-level' => [
+            'name' => 'generated parenthesized bullet level parity',
+            'pptx' => 'pptx-reader/parenthesized-bullet-level.pptx',
+            'native' => 'pptx-reader/parenthesized-bullet-level.native',
+            'pairKey' => 'pptx-reader/parenthesized-bullet-level.pptx|pptx-reader/parenthesized-bullet-level.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/parenthesized-bullet-level.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/parenthesized-bullet-level.native',
+            'pptxSha256' => '7378843edb65e1063a902bbb646e5602a4fa2ed3fb8632dfddc585ccab202931',
+            'nativeSha256' => '6f7909e6f75fa02bb9941a58789b9b27d83740ff78cb3b6ad0d54ddf082af32e',
+            'pptxBytes' => 1430,
+            'nativeBytes' => 276,
         ],
         'pandoc-generated-image-alt-title' => [
             'name' => 'pandoc 3.10 generated image title and alt parity',

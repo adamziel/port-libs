@@ -17,9 +17,9 @@ final class DelimitedTextUpstreamReaderEvidence
     public const EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT = 2;
     public const EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT = 0;
     public const EXPECTED_STATIC_CSV_ADJACENT_RST_FIXTURE_COUNT = 2;
-    public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 45;
+    public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 46;
     public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 32;
-    public const EXPECTED_GENERATED_CSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT = 30;
+    public const EXPECTED_GENERATED_CSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT = 31;
     public const EXPECTED_GENERATED_TSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT = 23;
     public const REQUIRED_PANDOC_EXECUTABLE_VERSION = 'pandoc 3.10';
 
@@ -688,6 +688,20 @@ final class DelimitedTextUpstreamReaderEvidence
             'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/literal-backslashes.native',
             'sha256' => '408fedf50b4502884be9b0f8b1fa9e44c183e769ffc7f9f906a5ef466bdb4dc6',
             'bytes' => 1311,
+        ],
+        'quoted-quotes-only.csv' => [
+            'role' => 'generated-csv-native-parity-input-fixture',
+            'sample' => 'quoted-quotes-only',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/quoted-quotes-only.csv',
+            'sha256' => '63ef7ddd79d41205fa8bc5a8eaa5dcd0be980be3529ea9fc4abbddfbd4b1179c',
+            'bytes' => 99,
+        ],
+        'quoted-quotes-only.native' => [
+            'role' => 'generated-csv-native-parity-expected-native-output',
+            'sample' => 'quoted-quotes-only',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/quoted-quotes-only.native',
+            'sha256' => '6595eba846246fa0a76e818374a36a2356f7ecd97dd4001704e12829e5773ec9',
+            'bytes' => 1664,
         ],
     ];
 
@@ -1366,6 +1380,10 @@ final class DelimitedTextUpstreamReaderEvidence
             'inputPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/literal-backslashes.csv',
             'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/literal-backslashes.native',
         ],
+        'quoted-quotes-only' => [
+            'inputPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/quoted-quotes-only.csv',
+            'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/quoted-quotes-only.native',
+        ],
     ];
 
     private const GENERATED_TSV_NATIVE_SAMPLES = [
@@ -1553,6 +1571,7 @@ final class DelimitedTextUpstreamReaderEvidence
         'markdown-syntax-literal',
         'formula-looking-literals',
         'literal-backslashes',
+        'quoted-quotes-only',
     ];
 
     private const PANDOC_EXECUTABLE_TSV_NATIVE_SAMPLE_NAMES = [
@@ -3352,7 +3371,7 @@ final class DelimitedTextUpstreamReaderEvidence
 
     private static function claim(): string
     {
-        return 'Tracks the current upstream direct CSV command-reader fixtures, the adjacent RST csv-table fixture pair with zero direct-reader denominator impact, forty-four generated CSV-to-native evidence samples, the absence of dedicated TSV command fixtures, and thirty generated TSV-to-native evidence samples for the delimited text reader.';
+        return 'Tracks the current upstream direct CSV command-reader fixtures, the adjacent RST csv-table fixture pair with zero direct-reader denominator impact, forty-six generated CSV-to-native evidence samples, the absence of dedicated TSV command fixtures, and thirty-two generated TSV-to-native evidence samples for the delimited text reader.';
     }
 
     /**
@@ -3368,8 +3387,8 @@ final class DelimitedTextUpstreamReaderEvidence
                 'that RST csv-table directives are exercised through the native RST reader integration path',
                 'that no dedicated TSV command fixture is available in the pinned direct-reader evidence set',
                 'static checked-in current csv.md and 01.csv fixture identity when staticCurrentEvidence is valid',
-                'forty-four generated CSV-to-native local samples when generatedCsvNativeParityEvidence is valid',
-                'thirty generated TSV-to-native local samples when generatedTsvNativeParityEvidence is valid',
+                'forty-six generated CSV-to-native local samples when generatedCsvNativeParityEvidence is valid',
+                'thirty-two generated TSV-to-native local samples when generatedTsvNativeParityEvidence is valid',
                 'the non-executed upstream command-test runner plan for the pinned csv.md command fixture',
                 'that upstream Haskell runner evidence is either explicitly not-run or supplied as a validated result artifact',
                 'a supplied upstream runner result artifact is validated against the pinned CSV command Tasty target, commit, test names, pass/fail counts, and transcript file identities when explicitly provided',

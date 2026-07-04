@@ -1,0 +1,16 @@
+[ Para [ Span ( "chapter.xhtml" , [] , [] ) [] ]
+, Para
+    [ Str "Main"
+    , Space
+    , Str "note"
+    , Space
+    , Link
+        ( "" , [ "noteref" ] , [] )
+        [ Str "1" ]
+        ( "notes.xhtml_fn1" , "" )
+    , Space
+    , Str "stays"
+    , Space
+    , Str "linked."
+    ]
+]

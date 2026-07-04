@@ -47,6 +47,7 @@ final class MarkdownNativeAstComparisonHarness
         'upstream-markdown-zzzzz-wikilinks-title-after-pipe-profile' => ['format' => 'markdown+wikilinks_title_after_pipe'],
         'upstream-markdown-zzzzzz-ignore-line-breaks-profile' => ['format' => 'markdown+ignore_line_breaks'],
         'upstream-markdown-zzzzzzz-auto-identifiers-disabled-profile' => ['format' => 'markdown-auto_identifiers'],
+        'upstream-markdown-zzzzzzzz-blank-before-header-disabled-profile' => ['format' => 'markdown-blank_before_header'],
     ];
 
     /** @var array<string, true> */

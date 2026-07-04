@@ -1,0 +1,4 @@
+id,quote,note
+1,"""",single quote char
+2,"""""",two quote chars
+3,"before "" after",embedded quote

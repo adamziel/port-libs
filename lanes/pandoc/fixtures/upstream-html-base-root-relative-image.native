@@ -1,0 +1,7 @@
+[ Plain
+    [ Image
+        ( "" , [] , [] )
+        [ Str "Stickman" ]
+        ( "http://www.w3schools.com/stickman.gif" , "" )
+    ]
+]
