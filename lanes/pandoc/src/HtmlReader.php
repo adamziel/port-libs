@@ -27,6 +27,10 @@ final class HtmlReader
             $children = $standaloneImageChildren;
             $consumedFootnoteContainerCount = 0;
             $attrs = [];
+        } elseif (($standaloneProgressChildren = $this->standaloneProgressFragmentChildren($bytes)) !== null) {
+            $children = $standaloneProgressChildren;
+            $consumedFootnoteContainerCount = 0;
+            $attrs = [];
         } elseif (($standaloneTransparentChildren = $this->standaloneTransparentInlineFragmentChildren($bytes)) !== null) {
             $children = $standaloneTransparentChildren;
             $consumedFootnoteContainerCount = 0;
@@ -120,6 +124,159 @@ final class HtmlReader
         $imageNode = new AstNode('image', $attrs, $children);
 
         return [new AstNode('plain', ['text' => $alt], [$imageNode])];
+    }
+
+    /**
+     * @return list<AstNode>|null
+     */
+    private function standaloneProgressFragmentChildren(string $bytes): ?array
+    {
+        if (preg_match('/<progress\b/i', $bytes) !== 1) {
+            return null;
+        }
+
+        $previous = libxml_use_internal_errors(true);
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+        $loaded = $dom->loadHTML(
+            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $bytes . '</body></html>',
+            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
+        );
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+        if (!$loaded) {
+            return null;
+        }
+
+        $body = $dom->getElementsByTagName('body')->item(0);
+        if (!$body instanceof \DOMElement) {
+            return null;
+        }
+
+        $children = [];
+        $pendingInlineSource = '';
+        $sawTopLevelProgress = false;
+        foreach ($body->childNodes as $child) {
+            if ($child instanceof \DOMElement && strtolower($child->localName) === 'progress') {
+                $this->appendStandaloneProgressPlainBlock($children, $pendingInlineSource);
+                $pendingInlineSource = '';
+                $this->appendStandaloneProgressPlainBlock($children, self::htmlChildNodesSource($child));
+                $sawTopLevelProgress = true;
+                continue;
+            }
+
+            if ($child instanceof \DOMElement && !self::isStandaloneProgressInlineSiblingName(strtolower($child->localName))) {
+                return null;
+            }
+
+            $pendingInlineSource .= self::htmlNodeSource($child);
+        }
+
+        if (!$sawTopLevelProgress) {
+            return null;
+        }
+
+        $this->appendStandaloneProgressPlainBlock($children, $pendingInlineSource);
+
+        return $children;
+    }
+
+    /**
+     * @param list<AstNode> $children
+     */
+    private function appendStandaloneProgressPlainBlock(array &$children, string $inlineSource): void
+    {
+        $plain = $this->plainBlockFromHtmlInlineSource($inlineSource);
+        if ($plain instanceof AstNode) {
+            $children[] = $plain;
+        }
+    }
+
+    private function plainBlockFromHtmlInlineSource(string $inlineSource): ?AstNode
+    {
+        $inlineSource = trim($inlineSource);
+        if ($inlineSource === '') {
+            return null;
+        }
+
+        $reader = new MarkdownReader(array_replace(
+            ['htmlNativeDivs' => true, 'htmlReader' => true],
+            $this->options,
+            ['htmlRawHtml' => false]
+        ));
+        $document = $reader->read($inlineSource);
+        if (count($document->children) !== 1) {
+            return null;
+        }
+
+        $block = $document->children[0];
+        if ($block->type === 'plain') {
+            return $block;
+        }
+        if ($block->type === 'paragraph') {
+            return self::paragraphToPlain($block);
+        }
+
+        return null;
+    }
+
+    private static function isStandaloneProgressInlineSiblingName(string $name): bool
+    {
+        return in_array($name, [
+            'a',
+            'abbr',
+            'b',
+            'bdi',
+            'bdo',
+            'br',
+            'cite',
+            'code',
+            'data',
+            'dfn',
+            'em',
+            'i',
+            'kbd',
+            'mark',
+            'meter',
+            'q',
+            's',
+            'samp',
+            'small',
+            'span',
+            'strong',
+            'sub',
+            'sup',
+            'time',
+            'tt',
+            'u',
+            'var',
+            'wbr',
+        ], true);
+    }
+
+    private static function htmlChildNodesSource(\DOMElement $element): string
+    {
+        $source = '';
+        foreach ($element->childNodes as $child) {
+            $source .= self::htmlNodeSource($child);
+        }
+
+        return $source;
+    }
+
+    private static function htmlNodeSource(\DOMNode $node): string
+    {
+        if ($node instanceof \DOMText || $node instanceof \DOMCdataSection) {
+            return htmlspecialchars($node->nodeValue ?? '', ENT_NOQUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        }
+
+        $document = $node->ownerDocument;
+        if (!$document instanceof \DOMDocument) {
+            return '';
+        }
+
+        $source = $document->saveHTML($node);
+
+        return is_string($source) ? $source : '';
     }
 
     /**

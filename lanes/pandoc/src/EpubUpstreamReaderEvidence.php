@@ -23,6 +23,7 @@ final class EpubUpstreamReaderEvidence
     private const CHECKED_IN_CURRENT_NATIVE_PACKAGE_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-epub-reader/epub';
     private const CHECKED_IN_CURRENT_NATIVE_PACKAGE_EPUB_COUNT = 31;
     private const CHECKED_IN_CURRENT_NATIVE_PACKAGE_PAIR_COUNT = 31;
+    private const EXECUTABLE_NATIVE_AST_PARITY_KIND = 'checked-in-current-epub-pandoc-executable-native-ast-parity';
     private const REFERENCED_FIXTURE_IDENTITY_KIND = 'checked-in-current-epub-reader-referenced-fixture-identity';
     private const REFERENCED_FIXTURE_IDENTITY_SCOPE = 'checked-in-current-upstream-epub-reader-6-referenced-epub-fixture-snapshot';
     private const REFERENCED_FIXTURE_IDENTITY_HASH_ALGORITHM = 'sha256';
@@ -72,12 +73,16 @@ final class EpubUpstreamReaderEvidence
     private readonly string $upstreamRoot;
     private readonly ?string $fixtureBase;
     private readonly ?string $runnerResultArtifact;
+    private readonly ?string $pandocBin;
+    private readonly bool $includeExecutableNativeAstParity;
 
     public function __construct(
         string $repoRoot,
         string $upstreamRoot = self::DEFAULT_RELATIVE_UPSTREAM_ROOT,
         ?string $fixtureBase = null,
-        ?string $runnerResultArtifact = null
+        ?string $runnerResultArtifact = null,
+        ?string $pandocBin = null,
+        bool $includeExecutableNativeAstParity = false
     ) {
         if ($repoRoot === '') {
             throw new \InvalidArgumentException('Repository root must not be empty');
@@ -91,11 +96,16 @@ final class EpubUpstreamReaderEvidence
         if ($runnerResultArtifact === '') {
             throw new \InvalidArgumentException('Runner result artifact must not be empty');
         }
+        if ($pandocBin === '') {
+            throw new \InvalidArgumentException('Pandoc executable path must not be empty');
+        }
 
         $this->repoRoot = rtrim($repoRoot, DIRECTORY_SEPARATOR);
         $this->upstreamRoot = $upstreamRoot;
         $this->fixtureBase = $fixtureBase;
         $this->runnerResultArtifact = $runnerResultArtifact;
+        $this->pandocBin = $pandocBin;
+        $this->includeExecutableNativeAstParity = $includeExecutableNativeAstParity || $pandocBin !== null;
     }
 
     /**
@@ -122,6 +132,7 @@ final class EpubUpstreamReaderEvidence
                 'referencedFixtureIdentity' => self::notEvaluatedReferencedFixtureIdentity('missing-upstream-root'),
                 'currentReaderStaticSignature' => self::notEvaluatedCurrentReaderStaticSignature('missing-upstream-root'),
                 'nativeAstPackageParity' => $this->currentNativeAstPackageParity(),
+                'executableNativeAstParity' => $this->currentExecutableNativeAstParity(),
                 'runnerEvidence' => $this->runnerEvidence($denominator),
                 'validation' => [
                     'status' => 'not-evaluated-missing-upstream-root',
@@ -173,6 +184,7 @@ final class EpubUpstreamReaderEvidence
             'referencedFixtureIdentity' => $referencedFixtureIdentity,
             'currentReaderStaticSignature' => self::currentReaderStaticSignature($denominator, $validationIssues, $referencedFixtureIdentity),
             'nativeAstPackageParity' => $this->currentNativeAstPackageParity(),
+            'executableNativeAstParity' => $this->currentExecutableNativeAstParity(),
             'runnerEvidence' => $this->runnerEvidence($denominator),
             'validation' => [
                 'status' => $validationIssues === [] ? 'valid-upstream-epub-reader-mediabag-denominator' : 'invalid-upstream-epub-reader-mediabag-denominator',
@@ -223,6 +235,7 @@ final class EpubUpstreamReaderEvidence
         $signature = is_array($report['currentReaderStaticSignature'] ?? null) ? $report['currentReaderStaticSignature'] : [];
         $signatureValidation = is_array($signature['validation'] ?? null) ? $signature['validation'] : [];
         $nativePackage = is_array($report['nativeAstPackageParity'] ?? null) ? $report['nativeAstPackageParity'] : [];
+        $executableParity = is_array($report['executableNativeAstParity'] ?? null) ? $report['executableNativeAstParity'] : [];
         $identity = is_array($report['referencedFixtureIdentity'] ?? null) ? $report['referencedFixtureIdentity'] : [];
         $identityValidation = is_array($identity['validation'] ?? null) ? $identity['validation'] : [];
         $runnerResultLine = self::hasRunnerResultArtifactEvidence($report)
@@ -244,6 +257,12 @@ final class EpubUpstreamReaderEvidence
                 . ' nativeAst=' . (int) ($nativePackage['normalizedAstMatchCount'] ?? 0)
                 . '/' . (int) ($nativePackage['requiredPairCount'] ?? self::CHECKED_IN_CURRENT_NATIVE_PACKAGE_PAIR_COUNT)
                 . ' status=' . (string) ($nativePackage['astParityStatus'] ?? 'unknown'),
+            'Executable/native parity: localPandoc=' . (int) ($executableParity['normalizedAstMatchCount'] ?? 0)
+                . '/' . (int) ($executableParity['requiredEpubCount'] ?? self::CHECKED_IN_CURRENT_NATIVE_PACKAGE_EPUB_COUNT)
+                . ' checkedNative=' . (int) ($executableParity['pandocNativeFixtureMatchCount'] ?? 0)
+                . '/' . (int) ($executableParity['requiredEpubCount'] ?? self::CHECKED_IN_CURRENT_NATIVE_PACKAGE_EPUB_COUNT)
+                . ' status=' . (string) ($executableParity['astParityStatus'] ?? 'unknown')
+                . ' version=' . (string) (($executableParity['pandocVersion'] ?? null) ?? 'not-evaluated'),
             'Runner status: ' . (string) ($runner['status'] ?? 'unknown'),
             'Runner plan: ' . (string) ($runner['commandPlanStatus'] ?? 'unknown'),
             'Runner result artifact: ' . (string) (($runner['validation']['status'] ?? null) ?? 'not-evaluated'),
@@ -460,6 +479,40 @@ final class EpubUpstreamReaderEvidence
     /**
      * @param array<string, mixed> $report
      */
+    public static function hasRequiredExecutableNativeAstParity(array $report, ?string $requiredPandocVersion = null): bool
+    {
+        if ($requiredPandocVersion === '') {
+            throw new \InvalidArgumentException('Required Pandoc version must not be empty');
+        }
+
+        $parity = is_array($report['executableNativeAstParity'] ?? null) ? $report['executableNativeAstParity'] : [];
+        $hasExecutableParity = ($parity['hasRequiredExecutableParity'] ?? null) === true
+            && (int) ($parity['requiredEpubCount'] ?? -1) === self::CHECKED_IN_CURRENT_NATIVE_PACKAGE_EPUB_COUNT
+            && (int) ($parity['totalEpubCount'] ?? -1) === self::CHECKED_IN_CURRENT_NATIVE_PACKAGE_EPUB_COUNT
+            && (int) ($parity['comparedEpubCount'] ?? -1) === self::CHECKED_IN_CURRENT_NATIVE_PACKAGE_EPUB_COUNT
+            && (int) ($parity['localParsedCount'] ?? -1) === self::CHECKED_IN_CURRENT_NATIVE_PACKAGE_EPUB_COUNT
+            && (int) ($parity['pandocParsedCount'] ?? -1) === self::CHECKED_IN_CURRENT_NATIVE_PACKAGE_EPUB_COUNT
+            && (int) ($parity['nativeFixtureParsedCount'] ?? -1) === self::CHECKED_IN_CURRENT_NATIVE_PACKAGE_EPUB_COUNT
+            && (int) ($parity['bothParsedCount'] ?? -1) === self::CHECKED_IN_CURRENT_NATIVE_PACKAGE_EPUB_COUNT
+            && (int) ($parity['parseFailureCount'] ?? -1) === 0
+            && (int) ($parity['normalizedAstMatchCount'] ?? -1) === self::CHECKED_IN_CURRENT_NATIVE_PACKAGE_EPUB_COUNT
+            && (int) ($parity['normalizedAstMismatchCount'] ?? -1) === 0
+            && (int) ($parity['pandocNativeFixtureComparedCount'] ?? -1) === self::CHECKED_IN_CURRENT_NATIVE_PACKAGE_EPUB_COUNT
+            && (int) ($parity['pandocNativeFixtureMatchCount'] ?? -1) === self::CHECKED_IN_CURRENT_NATIVE_PACKAGE_EPUB_COUNT
+            && (int) ($parity['pandocNativeFixtureMismatchCount'] ?? -1) === 0
+            && ($parity['astParityStatus'] ?? null) === 'normalized-ast-equality-observed-against-pandoc-executable';
+
+        if (!$hasExecutableParity) {
+            return false;
+        }
+
+        return $requiredPandocVersion === null
+            || ($parity['pandocVersion'] ?? null) === $requiredPandocVersion;
+    }
+
+    /**
+     * @param array<string, mixed> $report
+     */
     public static function hasRequiredReferencedFixtureIdentity(array $report): bool
     {
         $identity = is_array($report['referencedFixtureIdentity'] ?? null) ? $report['referencedFixtureIdentity'] : [];
@@ -500,6 +553,7 @@ final class EpubUpstreamReaderEvidence
                 'the checked-in current referenced EPUB fixture SHA-256 and byte identity snapshot when explicitly gated',
                 'the checked-in current static EPUB reader denominator and referenced fixture identity signature when explicitly gated',
                 'the checked-in current EPUB package acceptance, package-feature signature, and normalized native AST parity snapshot when explicitly gated',
+                'the checked-in current EPUB local pandoc executable/native AST parity snapshot when explicitly requested and gated',
                 'that upstream Haskell runner evidence is explicitly not-run',
                 'the future upstream runner command plan targets test:test-pandoc Readers/EPUB/EPUB Mediabag at the pinned upstream commit without execution',
                 'a supplied upstream runner result artifact is validated against the pinned EPUB Tasty target, commit, test names, pass/fail counts, and transcript file identities when explicitly provided',
@@ -508,6 +562,7 @@ final class EpubUpstreamReaderEvidence
                 'that this PHP evidence command executed upstream Haskell/Cabal/Tasty tests',
                 'full upstream Tests.Readers.EPUB runner parity',
                 'that local PHP output matches upstream output outside the checked-in current native/package snapshot',
+                'that local pandoc executable evidence was evaluated unless explicitly requested or a pandoc binary was supplied',
                 'EPUB writer parity',
                 'full EPUB feature parity beyond the upstream reader media-bag tests',
             ],
@@ -989,6 +1044,27 @@ final class EpubUpstreamReaderEvidence
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    private function currentExecutableNativeAstParity(): array
+    {
+        if (!$this->includeExecutableNativeAstParity) {
+            return self::notEvaluatedExecutableNativeAstParity('not-requested');
+        }
+
+        $fixtureDirectory = $this->repoRoot
+            . DIRECTORY_SEPARATOR
+            . str_replace('/', DIRECTORY_SEPARATOR, self::CHECKED_IN_CURRENT_NATIVE_PACKAGE_FIXTURE_DIRECTORY);
+        $options = [];
+        if ($this->pandocBin !== null) {
+            $options['pandocBin'] = $this->pandocBin;
+        }
+        $report = (new EpubExecutableNativeAstComparisonHarness())->run($fixtureDirectory, $options);
+
+        return self::executableNativeAstParityEvidence($report);
+    }
+
+    /**
      * @param array<string, mixed> $report
      * @return array<string, mixed>
      */
@@ -1073,6 +1149,128 @@ final class EpubUpstreamReaderEvidence
                     'upstream Haskell/Cabal runner execution',
                     'EPUB writer parity',
                     'byte-level EPUB writer package equality',
+                    'full EPUB feature parity',
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $report
+     * @return array<string, mixed>
+     */
+    private static function executableNativeAstParityEvidence(array $report): array
+    {
+        return [
+            'kind' => self::EXECUTABLE_NATIVE_AST_PARITY_KIND,
+            'tool' => (string) ($report['tool'] ?? 'pandoc-epub-executable-native-ast'),
+            'status' => (string) ($report['status'] ?? 'unknown'),
+            'skipped' => (bool) ($report['skipped'] ?? false),
+            'reason' => $report['reason'] ?? null,
+            'evidenceKind' => (string) ($report['evidenceKind'] ?? 'epub-pandoc-executable-normalized-ast-comparison'),
+            'requiredEpubCount' => self::CHECKED_IN_CURRENT_NATIVE_PACKAGE_EPUB_COUNT,
+            'epubDirectory' => (string) ($report['epubDirectory'] ?? ''),
+            'pandocExecutable' => is_string($report['pandocExecutable'] ?? null) ? $report['pandocExecutable'] : null,
+            'pandocVersion' => is_string($report['pandocVersion'] ?? null) ? $report['pandocVersion'] : null,
+            'totalEpubCount' => (int) ($report['totalEpubCount'] ?? 0),
+            'comparedEpubCount' => (int) ($report['comparedEpubCount'] ?? 0),
+            'localParsedCount' => (int) ($report['localParsedCount'] ?? 0),
+            'pandocParsedCount' => (int) ($report['pandocParsedCount'] ?? 0),
+            'nativeFixtureParsedCount' => (int) ($report['nativeFixtureParsedCount'] ?? 0),
+            'bothParsedCount' => (int) ($report['bothParsedCount'] ?? 0),
+            'parseFailureCount' => (int) ($report['parseFailureCount'] ?? 0),
+            'normalizedAstMatchCount' => (int) ($report['normalizedAstMatchCount'] ?? 0),
+            'normalizedAstMismatchCount' => (int) ($report['normalizedAstMismatchCount'] ?? 0),
+            'normalizedAstMatchPercent' => $report['normalizedAstMatchPercent'] ?? null,
+            'pandocNativeFixtureComparedCount' => (int) ($report['pandocNativeFixtureComparedCount'] ?? 0),
+            'pandocNativeFixtureMatchCount' => (int) ($report['pandocNativeFixtureMatchCount'] ?? 0),
+            'pandocNativeFixtureMismatchCount' => (int) ($report['pandocNativeFixtureMismatchCount'] ?? 0),
+            'pandocNativeFixtureMatchPercent' => $report['pandocNativeFixtureMatchPercent'] ?? null,
+            'pandocNativeFixtureByteComparedCount' => (int) ($report['pandocNativeFixtureByteComparedCount'] ?? 0),
+            'pandocNativeFixtureByteMatchCount' => (int) ($report['pandocNativeFixtureByteMatchCount'] ?? 0),
+            'pandocNativeFixtureByteMismatchCount' => (int) ($report['pandocNativeFixtureByteMismatchCount'] ?? 0),
+            'pandocNativeFixtureByteMatchPercent' => $report['pandocNativeFixtureByteMatchPercent'] ?? null,
+            'astParityStatus' => (string) ($report['astParityStatus'] ?? 'unknown'),
+            'hasRequiredExecutableParity' => EpubExecutableNativeAstComparisonHarness::hasRequiredExecutableParity(
+                $report,
+                self::CHECKED_IN_CURRENT_NATIVE_PACKAGE_EPUB_COUNT
+            ),
+            'mismatchCategories' => is_array($report['mismatchCategories'] ?? null) ? $report['mismatchCategories'] : [],
+            'orderedRemainingGaps' => is_array($report['orderedRemainingGaps'] ?? null) ? $report['orderedRemainingGaps'] : [],
+            'byteMismatchExamples' => is_array($report['pandocNativeFixtureByteMismatchComparisons'] ?? null)
+                ? $report['pandocNativeFixtureByteMismatchComparisons']
+                : [],
+            'claim' => (string) ($report['claim'] ?? 'Checked-in current EPUB pandoc executable/native AST comparison.'),
+            'claimBoundaries' => [
+                'doesAssert' => [
+                    'checked-in current EPUB packages parse through the local PHP reader and a local pandoc executable',
+                    'local PHP EPUB reader output and local pandoc executable native output are equal after documented native AST normalization',
+                    'local pandoc executable native output and checked-in current .native fixtures are equal after documented native AST normalization',
+                ],
+                'doesNotAssert' => [
+                    'upstream Haskell/Cabal/Tasty runner execution',
+                    'byte-level native writer formatting equality',
+                    'EPUB writer parity',
+                    'full EPUB feature parity',
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function notEvaluatedExecutableNativeAstParity(string $reason): array
+    {
+        return [
+            'kind' => self::EXECUTABLE_NATIVE_AST_PARITY_KIND,
+            'tool' => 'pandoc-epub-executable-native-ast',
+            'status' => 'not-evaluated',
+            'skipped' => true,
+            'reason' => $reason,
+            'evidenceKind' => 'epub-pandoc-executable-normalized-ast-comparison',
+            'requiredEpubCount' => self::CHECKED_IN_CURRENT_NATIVE_PACKAGE_EPUB_COUNT,
+            'epubDirectory' => '',
+            'pandocExecutable' => null,
+            'pandocVersion' => null,
+            'totalEpubCount' => 0,
+            'comparedEpubCount' => 0,
+            'localParsedCount' => 0,
+            'pandocParsedCount' => 0,
+            'nativeFixtureParsedCount' => 0,
+            'bothParsedCount' => 0,
+            'parseFailureCount' => 0,
+            'normalizedAstMatchCount' => 0,
+            'normalizedAstMismatchCount' => 0,
+            'normalizedAstMatchPercent' => null,
+            'pandocNativeFixtureComparedCount' => 0,
+            'pandocNativeFixtureMatchCount' => 0,
+            'pandocNativeFixtureMismatchCount' => 0,
+            'pandocNativeFixtureMatchPercent' => null,
+            'pandocNativeFixtureByteComparedCount' => 0,
+            'pandocNativeFixtureByteMatchCount' => 0,
+            'pandocNativeFixtureByteMismatchCount' => 0,
+            'pandocNativeFixtureByteMatchPercent' => null,
+            'astParityStatus' => 'not-evaluated-' . $reason,
+            'hasRequiredExecutableParity' => false,
+            'mismatchCategories' => [],
+            'orderedRemainingGaps' => [
+                [
+                    'rank' => 1,
+                    'id' => 'pandoc-executable-epub-native-ast-equality',
+                    'status' => 'not-evaluated',
+                    'currentEvidence' => 'local pandoc executable comparison was not requested by this evidence command',
+                    'evidenceRequired' => 'Run local PHP EPUB reader, a pandoc executable, and paired checked-in .native fixtures against the same EPUB files, keeping parse failures and normalized AST mismatches at zero.',
+                ],
+            ],
+            'byteMismatchExamples' => [],
+            'claim' => 'Local pandoc executable/native AST comparison was not evaluated for this report.',
+            'claimBoundaries' => [
+                'doesAssert' => [],
+                'doesNotAssert' => [
+                    'local pandoc executable parity',
+                    'upstream Haskell/Cabal/Tasty runner execution',
+                    'EPUB writer parity',
                     'full EPUB feature parity',
                 ],
             ],

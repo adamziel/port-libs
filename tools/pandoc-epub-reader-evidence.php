@@ -36,6 +36,15 @@ Options:
   --runner-result-artifact PATH           Validate a captured upstream runner result JSON artifact
                                           and its transcript file identities.
   --require-runner-result-artifact        Exit 1 unless the supplied runner result artifact is valid.
+  --pandoc-bin PATH                       Include checked-in current EPUB executable/native AST
+                                          parity evidence using PATH as the pandoc executable.
+                                          When omitted but executable parity is required, PATH
+                                          defaults to PANDOC_BIN or `pandoc`.
+  --require-executable-native-ast-parity  Exit 1 unless local PHP reader output, local pandoc
+                                          executable output, and checked-in .native fixtures match
+                                          by normalized AST for all checked-in current EPUB inputs.
+  --require-pandoc-version VERSION        Exit 1 unless executable parity evidence observed VERSION
+                                          as the pandoc executable version line.
   --require-no-validation-issues          Exit 1 when denominator validation reports any issue.
   --help                                  Show this help.
 
@@ -62,8 +71,11 @@ try {
     $requireRunnerNotRun = false;
     $requireRunnerPlan = false;
     $requireRunnerResultArtifact = false;
+    $requireExecutableNativeAstParity = false;
     $requireNoValidationIssues = false;
     $runnerResultArtifact = null;
+    $pandocBin = null;
+    $requiredPandocVersion = null;
     $args = array_slice($argv, 1);
 
     for ($i = 0, $count = count($args); $i < $count; ++$i) {
@@ -99,6 +111,10 @@ try {
         }
         if ($arg === '--require-runner-result-artifact') {
             $requireRunnerResultArtifact = true;
+            continue;
+        }
+        if ($arg === '--require-executable-native-ast-parity') {
+            $requireExecutableNativeAstParity = true;
             continue;
         }
         if ($arg === '--require-static-current-signature') {
@@ -151,6 +167,22 @@ try {
         }
         if (str_starts_with($arg, '--runner-result-artifact=')) {
             $runnerResultArtifact = substr($arg, strlen('--runner-result-artifact='));
+            continue;
+        }
+        if ($arg === '--pandoc-bin') {
+            $pandocBin = $nextValue('--pandoc-bin');
+            continue;
+        }
+        if (str_starts_with($arg, '--pandoc-bin=')) {
+            $pandocBin = substr($arg, strlen('--pandoc-bin='));
+            continue;
+        }
+        if ($arg === '--require-pandoc-version') {
+            $requiredPandocVersion = $nextValue('--require-pandoc-version');
+            continue;
+        }
+        if (str_starts_with($arg, '--require-pandoc-version=')) {
+            $requiredPandocVersion = substr($arg, strlen('--require-pandoc-version='));
             continue;
         }
         if ($arg === '--require-test-count') {
@@ -214,7 +246,25 @@ try {
         $fixtureBase = $checkedInFixtureRoot;
     }
 
-    $report = (new EpubUpstreamReaderEvidence($repoRoot, $upstreamRoot, $fixtureBase, $runnerResultArtifact))->report();
+    if ($pandocBin === '') {
+        throw new InvalidArgumentException('--pandoc-bin must not be empty');
+    }
+    if ($requiredPandocVersion === '') {
+        throw new InvalidArgumentException('--require-pandoc-version must not be empty');
+    }
+
+    $includeExecutableNativeAstParity = $pandocBin !== null
+        || $requireExecutableNativeAstParity
+        || $requiredPandocVersion !== null;
+
+    $report = (new EpubUpstreamReaderEvidence(
+        $repoRoot,
+        $upstreamRoot,
+        $fixtureBase,
+        $runnerResultArtifact,
+        $pandocBin,
+        $includeExecutableNativeAstParity
+    ))->report();
     if ($json) {
         fwrite(STDOUT, json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR) . PHP_EOL);
     } else {
@@ -287,6 +337,27 @@ try {
 
     if ($requireRunnerPlan && !EpubUpstreamReaderEvidence::hasRunnerPlanEvidence($report)) {
         fwrite(STDERR, "pandoc-epub-reader-evidence: runner command-plan evidence is invalid\n");
+        exit(1);
+    }
+
+    if (
+        $requireExecutableNativeAstParity
+        && !EpubUpstreamReaderEvidence::hasRequiredExecutableNativeAstParity($report, $requiredPandocVersion)
+    ) {
+        fwrite(
+            STDERR,
+            "pandoc-epub-reader-evidence: checked-in current EPUB executable/native AST parity did not match the expected snapshot\n"
+            . "hint: use --checked-in-fixtures --require-executable-native-ast-parity with a local pandoc 3.10 executable, optionally via --pandoc-bin=PATH --require-pandoc-version='pandoc 3.10'\n"
+        );
+        exit(1);
+    }
+
+    if (
+        $requiredPandocVersion !== null
+        && !$requireExecutableNativeAstParity
+        && !EpubUpstreamReaderEvidence::hasRequiredExecutableNativeAstParity($report, $requiredPandocVersion)
+    ) {
+        fwrite(STDERR, "pandoc-epub-reader-evidence: pandoc executable version did not match {$requiredPandocVersion}\n");
         exit(1);
     }
 

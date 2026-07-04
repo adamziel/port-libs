@@ -32,7 +32,7 @@ return [
             'htmlAttributes' => ['latex-placement' => 'htbp'],
         ], $image->attr('figureAttributes'));
         $t->same('text', $label->type);
-        $t->same('caption', $label->attr('text'));
+        $t->same('alt text', $label->attr('text'));
     },
 
     'records upstream markdown figure latex-placement fixture mapped-case count' => static function (TestRunner $t) use ($fixture): void {

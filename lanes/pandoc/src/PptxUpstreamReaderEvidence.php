@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 49;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 50;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '0ab3f8c0a957e85007ddd70b32ebb1870d435c657713db473f1c592a9a87c952';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 10107;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '932a6cf4c5bd2c3e83387b69f69c90956c933f7039e199e442479446b995b0b3';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 25299;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -138,6 +138,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => '395c237357a332023f6bb3c991f2f84d54be6fb277ce964cdaad6d9ffe2336a6',
             'pptxBytes' => 1703,
             'nativeBytes' => 253,
+        ],
+        'no-slides' => [
+            'name' => 'generated no-slide presentation parity',
+            'pptx' => 'pptx-reader/no-slides.pptx',
+            'native' => 'pptx-reader/no-slides.native',
+            'pairKey' => 'pptx-reader/no-slides.pptx|pptx-reader/no-slides.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/no-slides.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/no-slides.native',
+            'pptxSha256' => '06ee4f11b616153b569aba25917a0c77fd963ad825e65f3a61baf6d83988aead',
+            'nativeSha256' => '37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570',
+            'pptxBytes' => 781,
+            'nativeBytes' => 3,
         ],
         'no-title-fallback' => [
             'name' => 'generated no-title slide fallback parity',

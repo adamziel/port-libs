@@ -1950,7 +1950,7 @@ return [
         $t->same('img.jpg', $image->attr('url'));
         $t->same('alt text', $image->attr('alt'));
         $t->same('caption', $image->attr('caption'));
-        $t->same('caption', $image->children[0]->attr('text'));
+        $t->same('alt text', $image->children[0]->attr('text'));
         $t->contains('<figure class="wp-block-image" data-pandoc-latex-placement="htbp"><img src="img.jpg" alt="alt text"/><figcaption>caption</figcaption></figure>', $blocks);
     },
     'maps upstream html reader images as paragraph image inlines' => static function (TestRunner $t): void {

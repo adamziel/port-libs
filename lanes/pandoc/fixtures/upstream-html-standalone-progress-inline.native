@@ -1,2 +1,3 @@
-[ Para [ RawInline (Format "html") "<progress value=\"7\" max=\"10\">" , Str "70%" , RawInline (Format "html") "</progress>" , Space , Str "import" , Space , Str "complete." ]
+[ Plain [ Str "70%" ]
+, Plain [ Str "import" , Space , Str "complete." ]
 ]

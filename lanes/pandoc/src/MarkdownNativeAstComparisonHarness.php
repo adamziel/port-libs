@@ -507,7 +507,7 @@ final class MarkdownNativeAstComparisonHarness
             if ($node->type === 'small_caps' && in_array($key, ['id', 'classes', 'attributes'], true)) {
                 continue;
             }
-            if ($node->type === 'image' && $key === 'figureAttributes' && $parentType === 'figure') {
+            if ($node->type === 'image' && $key === 'figureAttributes') {
                 continue;
             }
             if ($node->type === 'image' && $key === 'alt' && $this->isNativeRedundantImageAltAttr($node, $value, $parentType)) {
@@ -561,6 +561,11 @@ final class MarkdownNativeAstComparisonHarness
 
         $label = $this->plainInlineText($node->children);
         if ($label !== '' && $alt === $label) {
+            return true;
+        }
+
+        $attributes = $node->attr('attributes', []);
+        if (is_array($attributes) && array_key_exists('alt', $attributes) && (string) $attributes['alt'] === $alt) {
             return true;
         }
 

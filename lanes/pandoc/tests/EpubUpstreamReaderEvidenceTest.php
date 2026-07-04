@@ -118,6 +118,25 @@ $writeRunnerTranscripts = static function (string $root, array $paths, string $l
     return $records;
 };
 
+$writeFakePandoc = static function (string $path, string $version = 'pandoc fake 3.10'): void {
+    file_put_contents($path, <<<'SH'
+#!/bin/sh
+if [ "$1" = "--version" ]; then
+    echo "__VERSION__"
+    exit 0
+fi
+last=""
+for arg do
+    last="$arg"
+done
+native="${last%.*}.native"
+cat "$native"
+SH);
+    $script = (string) file_get_contents($path);
+    file_put_contents($path, str_replace('__VERSION__', $version, $script));
+    chmod($path, 0755);
+};
+
 return [
     'reports skipped epub reader evidence when upstream root is absent' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $root = $makeTempDir();
@@ -138,6 +157,10 @@ return [
             $t->same('skipped', $report['nativeAstPackageParity']['status']);
             $t->same('not-evaluated-source-directory-unavailable', $report['nativeAstPackageParity']['astParityStatus']);
             $t->same(false, EpubUpstreamReaderEvidence::hasRequiredNativeAstPackageParity($report));
+            $t->same('not-evaluated', $report['executableNativeAstParity']['status']);
+            $t->same('not-requested', $report['executableNativeAstParity']['reason']);
+            $t->same('not-evaluated-not-requested', $report['executableNativeAstParity']['astParityStatus']);
+            $t->same(false, EpubUpstreamReaderEvidence::hasRequiredExecutableNativeAstParity($report));
             $t->same(false, EpubUpstreamReaderEvidence::hasNoValidationIssues($report));
             $t->same(true, EpubUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
             $t->same(true, EpubUpstreamReaderEvidence::hasRunnerPlanEvidence($report));
@@ -152,6 +175,7 @@ return [
             $t->contains('Referenced fixture identity: not-evaluated-source-directory-unavailable', $text);
             $t->contains('Static current signature: not-evaluated-source-directory-unavailable', $text);
             $t->contains('Native/package parity: package=0/31 nativeAst=0/31 status=not-evaluated-source-directory-unavailable', $text);
+            $t->contains('Executable/native parity: localPandoc=0/31 checkedNative=0/31 status=not-evaluated-not-requested version=not-evaluated', $text);
             $t->contains('Runner status: not-run', $text);
             $t->contains('Runner plan: planned-not-run', $text);
         } finally {
@@ -335,9 +359,61 @@ return [
         $t->same(true, $nativePackageParity['hasRunnerPlanEvidence']);
         $t->same(true, EpubUpstreamReaderEvidence::hasRequiredNativeAstPackageParity($report));
         $t->contains('Native/package parity: package=31/31 nativeAst=31/31 status=normalized-ast-equality-observed-not-runner-parity', $text);
+        $t->same('not-evaluated', $report['executableNativeAstParity']['status']);
+        $t->same('not-requested', $report['executableNativeAstParity']['reason']);
+        $t->same(false, EpubUpstreamReaderEvidence::hasRequiredExecutableNativeAstParity($report));
         $t->same(true, EpubUpstreamReaderEvidence::hasNoValidationIssues($report));
         $t->same(true, EpubUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
         $t->same(true, EpubUpstreamReaderEvidence::hasRunnerPlanEvidence($report));
+    },
+
+    'validates checked-in current epub executable native ast parity with supplied pandoc' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $repoRoot, $checkedInFixtureRoot, $writeFakePandoc): void {
+        $root = $makeTempDir();
+        try {
+            $fakePandoc = $root . '/pandoc';
+            $writeFakePandoc($fakePandoc);
+            $report = (new EpubUpstreamReaderEvidence(
+                $repoRoot(),
+                $checkedInFixtureRoot(),
+                $checkedInFixtureRoot(),
+                null,
+                $fakePandoc
+            ))->report();
+            $text = EpubUpstreamReaderEvidence::formatTextReport($report);
+            $executableParity = $report['executableNativeAstParity'];
+
+            $t->same('checked-in-current-epub-pandoc-executable-native-ast-parity', $executableParity['kind']);
+            $t->same('completed', $executableParity['status']);
+            $t->same(false, $executableParity['skipped']);
+            $t->same(31, $executableParity['requiredEpubCount']);
+            $t->same(31, $executableParity['totalEpubCount']);
+            $t->same(31, $executableParity['comparedEpubCount']);
+            $t->same(31, $executableParity['localParsedCount']);
+            $t->same(31, $executableParity['pandocParsedCount']);
+            $t->same(31, $executableParity['nativeFixtureParsedCount']);
+            $t->same(31, $executableParity['bothParsedCount']);
+            $t->same(0, $executableParity['parseFailureCount']);
+            $t->same(31, $executableParity['normalizedAstMatchCount']);
+            $t->same(0, $executableParity['normalizedAstMismatchCount']);
+            $t->same(31, $executableParity['pandocNativeFixtureComparedCount']);
+            $t->same(31, $executableParity['pandocNativeFixtureMatchCount']);
+            $t->same(0, $executableParity['pandocNativeFixtureMismatchCount']);
+            $t->same(31, $executableParity['pandocNativeFixtureByteComparedCount']);
+            $t->same(31, $executableParity['pandocNativeFixtureByteMatchCount']);
+            $t->same(0, $executableParity['pandocNativeFixtureByteMismatchCount']);
+            $t->same('normalized-ast-equality-observed-against-pandoc-executable', $executableParity['astParityStatus']);
+            $t->same('pandoc fake 3.10', $executableParity['pandocVersion']);
+            $t->same(true, $executableParity['hasRequiredExecutableParity']);
+            $t->same([], $executableParity['byteMismatchExamples']);
+            $t->same(true, EpubUpstreamReaderEvidence::hasRequiredExecutableNativeAstParity($report));
+            $t->same(true, EpubUpstreamReaderEvidence::hasRequiredExecutableNativeAstParity($report, 'pandoc fake 3.10'));
+            $t->same(false, EpubUpstreamReaderEvidence::hasRequiredExecutableNativeAstParity($report, 'pandoc fake 3.9'));
+            $t->contains('Executable/native parity: localPandoc=31/31 checkedNative=31/31 status=normalized-ast-equality-observed-against-pandoc-executable version=pandoc fake 3.10', $text);
+            $t->true(in_array('the checked-in current EPUB local pandoc executable/native AST parity snapshot when explicitly requested and gated', $report['claimBoundaries']['doesAssert'], true));
+            $t->true(in_array('that local pandoc executable evidence was evaluated unless explicitly requested or a pandoc binary was supplied', $report['claimBoundaries']['doesNotAssert'], true));
+        } finally {
+            $removeTree($root);
+        }
     },
 
     'validates supplied epub reader upstream runner result artifact' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile, $writeRunnerTranscripts, $repoRoot): void {
@@ -469,66 +545,83 @@ HS);
         }
     },
 
-    'cli gates checked-in current epub reader evidence through checked-in fixtures mode' => static function (TestRunner $t) use ($repoRoot, $checkedInFixtureRoot, $expectedCurrentReaderStaticSignatureSha256, $expectedReferencedFixtureIdentity): void {
-        $command = escapeshellarg(PHP_BINARY)
-            . ' '
-            . escapeshellarg(dirname(__DIR__, 3) . '/tools/pandoc-epub-reader-evidence.php')
-            . ' --repo-root=' . escapeshellarg($repoRoot())
-            . ' --checked-in-fixtures'
-            . ' --json'
-            . ' --require-test-count=6'
-            . ' --require-fixture-reference-count=6'
-            . ' --require-expected-media-item-count=10'
-            . ' --require-referenced-fixture-identity'
-            . ' --require-static-current-signature'
-            . ' --require-native-ast-package-parity'
-            . ' --require-runner-not-run'
-            . ' --require-runner-plan'
-            . ' --require-no-validation-issues';
-        $output = [];
-        $exitCode = 0;
-        exec($command, $output, $exitCode);
-        $decoded = json_decode(implode("\n", $output), true, 512, JSON_THROW_ON_ERROR);
+    'cli gates checked-in current epub reader evidence through checked-in fixtures mode' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $repoRoot, $checkedInFixtureRoot, $expectedCurrentReaderStaticSignatureSha256, $expectedReferencedFixtureIdentity, $writeFakePandoc): void {
+        $root = $makeTempDir();
+        try {
+            $fakePandoc = $root . '/pandoc';
+            $writeFakePandoc($fakePandoc);
 
-        $t->same(0, $exitCode);
-        $t->same(6, $decoded['denominator']['mediaBagTestCount']);
-        $t->same(6, $decoded['denominator']['fixtureReferenceCount']);
-        $t->same(10, $decoded['denominator']['expectedMediaItemCount']);
-        $t->same([], $decoded['denominator']['missingReferencedFiles']);
-        $t->same('valid-upstream-epub-reader-mediabag-denominator', $decoded['validation']['status']);
-        $t->same($checkedInFixtureRoot(), $decoded['upstream']['root']);
-        $t->same(EpubUpstreamReaderEvidence::EXPECTED_UPSTREAM_COMMIT, $decoded['upstream']['commit']);
-        $t->same('checked-in-current-fixture-snapshot', $decoded['upstream']['commitSource']);
-        $t->same('checked-in-current-fixture-snapshot', $decoded['upstream']['provenanceMode']);
-        $t->same($checkedInFixtureRoot(), $decoded['upstream']['resolvedFixtureBase']);
-        $t->same('epub', $decoded['upstream']['resolvedFixtureDirectory']);
-        $t->same(false, $decoded['upstream']['readerSourceRequired']);
-        $t->same('valid-checked-in-current-epub-reader-referenced-fixture-identity', $decoded['referencedFixtureIdentity']['validation']['status']);
-        $t->same(true, $decoded['referencedFixtureIdentity']['matchesExpected']);
-        $t->same(84040, $decoded['referencedFixtureIdentity']['totalBytes']);
-        $decodedReferencedFixtureIdentity = [];
-        foreach ($decoded['referencedFixtureIdentity']['files'] as $file) {
-            $decodedReferencedFixtureIdentity[$file['path']] = [
-                'sha256' => $file['sha256'],
-                'bytes' => $file['bytes'],
-            ];
+            $command = escapeshellarg(PHP_BINARY)
+                . ' '
+                . escapeshellarg(dirname(__DIR__, 3) . '/tools/pandoc-epub-reader-evidence.php')
+                . ' --repo-root=' . escapeshellarg($repoRoot())
+                . ' --checked-in-fixtures'
+                . ' --pandoc-bin=' . escapeshellarg($fakePandoc)
+                . ' --json'
+                . ' --require-test-count=6'
+                . ' --require-fixture-reference-count=6'
+                . ' --require-expected-media-item-count=10'
+                . ' --require-referenced-fixture-identity'
+                . ' --require-static-current-signature'
+                . ' --require-native-ast-package-parity'
+                . ' --require-executable-native-ast-parity'
+                . ' --require-pandoc-version=' . escapeshellarg('pandoc fake 3.10')
+                . ' --require-runner-not-run'
+                . ' --require-runner-plan'
+                . ' --require-no-validation-issues';
+            $output = [];
+            $exitCode = 0;
+            exec($command, $output, $exitCode);
+            $decoded = json_decode(implode("\n", $output), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same(0, $exitCode);
+            $t->same(6, $decoded['denominator']['mediaBagTestCount']);
+            $t->same(6, $decoded['denominator']['fixtureReferenceCount']);
+            $t->same(10, $decoded['denominator']['expectedMediaItemCount']);
+            $t->same([], $decoded['denominator']['missingReferencedFiles']);
+            $t->same('valid-upstream-epub-reader-mediabag-denominator', $decoded['validation']['status']);
+            $t->same($checkedInFixtureRoot(), $decoded['upstream']['root']);
+            $t->same(EpubUpstreamReaderEvidence::EXPECTED_UPSTREAM_COMMIT, $decoded['upstream']['commit']);
+            $t->same('checked-in-current-fixture-snapshot', $decoded['upstream']['commitSource']);
+            $t->same('checked-in-current-fixture-snapshot', $decoded['upstream']['provenanceMode']);
+            $t->same($checkedInFixtureRoot(), $decoded['upstream']['resolvedFixtureBase']);
+            $t->same('epub', $decoded['upstream']['resolvedFixtureDirectory']);
+            $t->same(false, $decoded['upstream']['readerSourceRequired']);
+            $t->same('valid-checked-in-current-epub-reader-referenced-fixture-identity', $decoded['referencedFixtureIdentity']['validation']['status']);
+            $t->same(true, $decoded['referencedFixtureIdentity']['matchesExpected']);
+            $t->same(84040, $decoded['referencedFixtureIdentity']['totalBytes']);
+            $decodedReferencedFixtureIdentity = [];
+            foreach ($decoded['referencedFixtureIdentity']['files'] as $file) {
+                $decodedReferencedFixtureIdentity[$file['path']] = [
+                    'sha256' => $file['sha256'],
+                    'bytes' => $file['bytes'],
+                ];
+            }
+            $t->same($expectedReferencedFixtureIdentity, $decodedReferencedFixtureIdentity);
+            $t->same(true, EpubUpstreamReaderEvidence::hasRequiredReferencedFixtureIdentity($decoded));
+            $t->same($expectedCurrentReaderStaticSignatureSha256, $decoded['currentReaderStaticSignature']['sha256']);
+            $t->same(true, $decoded['currentReaderStaticSignature']['hashMatchesExpected']);
+            $t->same(true, $decoded['currentReaderStaticSignature']['matchesExpected']);
+            $t->same('valid-checked-in-current-epub-reader-static-signature', $decoded['currentReaderStaticSignature']['validation']['status']);
+            $t->same(true, EpubUpstreamReaderEvidence::hasRequiredStaticCurrentSignature($decoded));
+            $t->same('normalized-ast-equality-observed-not-runner-parity', $decoded['nativeAstPackageParity']['astParityStatus']);
+            $t->same(31, $decoded['nativeAstPackageParity']['normalizedAstMatchCount']);
+            $t->same(true, EpubUpstreamReaderEvidence::hasRequiredNativeAstPackageParity($decoded));
+            $t->same('normalized-ast-equality-observed-against-pandoc-executable', $decoded['executableNativeAstParity']['astParityStatus']);
+            $t->same(31, $decoded['executableNativeAstParity']['normalizedAstMatchCount']);
+            $t->same(31, $decoded['executableNativeAstParity']['pandocNativeFixtureMatchCount']);
+            $t->same(0, $decoded['executableNativeAstParity']['pandocNativeFixtureMismatchCount']);
+            $t->same('pandoc fake 3.10', $decoded['executableNativeAstParity']['pandocVersion']);
+            $t->same(true, EpubUpstreamReaderEvidence::hasRequiredExecutableNativeAstParity($decoded, 'pandoc fake 3.10'));
+            $t->same(true, EpubUpstreamReaderEvidence::hasRunnerNotRunEvidence($decoded));
+            $t->same(true, EpubUpstreamReaderEvidence::hasRunnerPlanEvidence($decoded));
+            $t->same('not-run', $decoded['runnerEvidence']['status']);
+            $t->same('$2 == "Readers" && $3 == "EPUB" && $4 == "EPUB Mediabag"', $decoded['runnerEvidence']['target']['tastyPattern']);
+            $t->true(in_array('.port-libs/pandoc-runner/logs/epub-targeted-list-tests.txt', $decoded['runnerEvidence']['requiredTranscripts'], true));
+            $t->true(in_array('full EPUB feature parity beyond the upstream reader media-bag tests', $decoded['claimBoundaries']['doesNotAssert'], true));
+        } finally {
+            $removeTree($root);
         }
-        $t->same($expectedReferencedFixtureIdentity, $decodedReferencedFixtureIdentity);
-        $t->same(true, EpubUpstreamReaderEvidence::hasRequiredReferencedFixtureIdentity($decoded));
-        $t->same($expectedCurrentReaderStaticSignatureSha256, $decoded['currentReaderStaticSignature']['sha256']);
-        $t->same(true, $decoded['currentReaderStaticSignature']['hashMatchesExpected']);
-        $t->same(true, $decoded['currentReaderStaticSignature']['matchesExpected']);
-        $t->same('valid-checked-in-current-epub-reader-static-signature', $decoded['currentReaderStaticSignature']['validation']['status']);
-        $t->same(true, EpubUpstreamReaderEvidence::hasRequiredStaticCurrentSignature($decoded));
-        $t->same('normalized-ast-equality-observed-not-runner-parity', $decoded['nativeAstPackageParity']['astParityStatus']);
-        $t->same(31, $decoded['nativeAstPackageParity']['normalizedAstMatchCount']);
-        $t->same(true, EpubUpstreamReaderEvidence::hasRequiredNativeAstPackageParity($decoded));
-        $t->same(true, EpubUpstreamReaderEvidence::hasRunnerNotRunEvidence($decoded));
-        $t->same(true, EpubUpstreamReaderEvidence::hasRunnerPlanEvidence($decoded));
-        $t->same('not-run', $decoded['runnerEvidence']['status']);
-        $t->same('$2 == "Readers" && $3 == "EPUB" && $4 == "EPUB Mediabag"', $decoded['runnerEvidence']['target']['tastyPattern']);
-        $t->true(in_array('.port-libs/pandoc-runner/logs/epub-targeted-list-tests.txt', $decoded['runnerEvidence']['requiredTranscripts'], true));
-        $t->true(in_array('full EPUB feature parity beyond the upstream reader media-bag tests', $decoded['claimBoundaries']['doesNotAssert'], true));
     },
 
     'cli gates supplied epub reader upstream runner result artifact' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile, $writeRunnerTranscripts, $repoRoot): void {

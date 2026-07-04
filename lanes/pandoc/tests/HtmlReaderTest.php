@@ -90,6 +90,20 @@ $tests['imports direct pandoc html standalone time fragment as plain'] =
         $t->same(' day', $plain->children[1]->attr('text'));
     };
 
+$tests['imports direct pandoc html standalone progress fragment as plain blocks'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-standalone-progress-inline.html'));
+        $progress = $document->children[0];
+        $after = $document->children[1];
+
+        $t->same('html', $document->attr('sourceFormat'));
+        $t->same(['plain', 'plain'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same(['text'], array_map(static fn ($node): string => $node->type, $progress->children));
+        $t->same('70%', $progress->children[0]->attr('text'));
+        $t->same('import complete.', $after->attr('text'));
+        $t->same(['text'], array_map(static fn ($node): string => $node->type, $after->children));
+    };
+
 $tests['imports direct pandoc html inline time without raw wrappers'] =
     static function (TestRunner $t): void {
         $document = (new HtmlReader())->read('<p>At <time datetime="2026-07-04"><strong>noon</strong></time>.</p>');

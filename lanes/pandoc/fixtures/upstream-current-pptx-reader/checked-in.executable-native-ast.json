@@ -11,18 +11,18 @@
     "pandocExecutable": "/opt/homebrew/bin/pandoc",
     "pandocVersion": "pandoc 3.10",
     "normalizationPolicy": "PortLibs\\Pandoc\\PptxNativeAstComparisonHarness::normalizedDocument",
-    "totalPptxCount": 49,
-    "comparedPptxCount": 49,
-    "localParsedCount": 49,
-    "pandocParsedCount": 49,
-    "nativeFixtureParsedCount": 49,
-    "bothParsedCount": 49,
+    "totalPptxCount": 50,
+    "comparedPptxCount": 50,
+    "localParsedCount": 50,
+    "pandocParsedCount": 50,
+    "nativeFixtureParsedCount": 50,
+    "bothParsedCount": 50,
     "parseFailureCount": 0,
-    "normalizedAstMatchCount": 49,
+    "normalizedAstMatchCount": 50,
     "normalizedAstMismatchCount": 0,
     "normalizedAstMatchPercent": 100,
-    "pandocNativeFixtureComparedCount": 49,
-    "pandocNativeFixtureMatchCount": 49,
+    "pandocNativeFixtureComparedCount": 50,
+    "pandocNativeFixtureMatchCount": 50,
     "pandocNativeFixtureMismatchCount": 0,
     "pandocNativeFixtureMatchPercent": 100,
     "astParityStatus": "normalized-ast-equality-observed-against-pandoc-executable",
@@ -30,19 +30,471 @@
     "mismatchComparisons": [],
     "pandocNativeFixtureMismatchComparisons": [],
     "mismatchCategories": [],
+    "fixtureComparisons": [
+        {
+            "fixture": "basic",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "body-before-title",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "break-tab-field",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "bullets",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "bunone-wingdings",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "case-sensitive-placeholder-type",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "center-title-placeholder",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "chart-placeholder",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "comments-ignored",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "connector-skip",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "content-part-skip",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "direct-drawing-paragraphs",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "dot-presentation-target",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "dot-slide-target",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "duplicate-slide-reference",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "embedded-image",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "empty-bullet-paragraph",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "empty-paragraph-textbox",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "first-text-body",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "generated-table",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "grouped-shapes",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "hex-list-level",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "hidden-slide",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "hyperlink-text",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "ignored-slide-id-attributes",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "inline-formatting",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "linked-image-skip",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "list-continuation",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "minimal",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "missing-relationship-skip",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "multi-paragraph-textbox",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "multiple-paragraph-properties",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "namespace-agnostic-drawing-text",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "nested-list",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "no-slides",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "no-title-fallback",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "numbered-list",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "pandoc-generated-image-alt-title",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "paragraphless-textbox",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "percent-encoded-target",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "repeated-slash-slide-target",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "rich-media-skip",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "shape-order",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "signed-bullet-level",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "slide-placeholders",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "smartart-hierarchy",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "speaker-notes",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "table-span-review",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "two-slides",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        },
+        {
+            "fixture": "wingdings-typeface-case",
+            "localParsed": true,
+            "pandocParsed": true,
+            "nativeFixtureParsed": true,
+            "localPandocStatus": "matched",
+            "pandocNativeFixtureStatus": "matched",
+            "status": "matched"
+        }
+    ],
     "orderedRemainingGaps": [
         {
             "rank": 1,
             "id": "pandoc-executable-pptx-native-ast-equality",
             "status": "covered-by-current-executable-evidence",
-            "currentEvidence": "compared pptx=49; parse failures=0; local/executable normalized AST matches=49; local/executable normalized AST mismatches=0; executable/native-fixture matches=49; executable/native-fixture mismatches=0",
+            "currentEvidence": "compared pptx=50; fixture rows=50; parse failures=0; local/executable normalized AST matches=50; local/executable normalized AST mismatches=0; executable/native-fixture matches=50; executable/native-fixture mismatches=0",
             "evidenceRequired": "Run local PHP PPTX reader, a pandoc executable, and paired checked-in .native fixtures against the same PPTX files, keeping parse failures and normalized AST mismatches at zero."
         },
         {
             "rank": 2,
             "id": "upstream-haskell-pptx-reader-runner-results",
             "status": "open",
-            "currentEvidence": "This harness invokes a pandoc executable and checks paired checked-in native fixtures, but it does not run the upstream Haskell/Tasty process itself.",
+            "currentEvidence": "This harness records per-fixture local/executable/native-fixture rows, but it does not run the upstream Haskell/Tasty process itself.",
             "evidenceRequired": "Record reproducible upstream Tests.Readers.Pptx runner results when a Haskell runner is available."
         }
     ],
@@ -53,7 +505,7 @@
         "--pptx-dir=lanes/pandoc/fixtures/upstream-current-pptx-reader",
         "--pandoc-bin=/opt/homebrew/bin/pandoc",
         "--json",
-        "--require-executable-parity=49",
+        "--require-executable-parity=50",
         "--require-pandoc-version=pandoc 3.10"
     ],
     "capturedDate": "2026-07-04",
@@ -92,6 +544,7 @@
         "multiple-paragraph-properties",
         "namespace-agnostic-drawing-text",
         "nested-list",
+        "no-slides",
         "no-title-fallback",
         "numbered-list",
         "pandoc-generated-image-alt-title",
@@ -110,15 +563,15 @@
     ],
     "claimBoundaries": {
         "doesAssert": [
-            "the checked-in basic.pptx, body-before-title.pptx, break-tab-field.pptx, bullets.pptx, bunone-wingdings.pptx, case-sensitive-placeholder-type.pptx, center-title-placeholder.pptx, chart-placeholder.pptx, comments-ignored.pptx, connector-skip.pptx, content-part-skip.pptx, direct-drawing-paragraphs.pptx, dot-presentation-target.pptx, dot-slide-target.pptx, duplicate-slide-reference.pptx, embedded-image.pptx, empty-bullet-paragraph.pptx, empty-paragraph-textbox.pptx, first-text-body.pptx, generated-table.pptx, grouped-shapes.pptx, hex-list-level.pptx, hidden-slide.pptx, hyperlink-text.pptx, ignored-slide-id-attributes.pptx, inline-formatting.pptx, linked-image-skip.pptx, list-continuation.pptx, minimal.pptx, missing-relationship-skip.pptx, multi-paragraph-textbox.pptx, multiple-paragraph-properties.pptx, namespace-agnostic-drawing-text.pptx, nested-list.pptx, no-title-fallback.pptx, numbered-list.pptx, pandoc-generated-image-alt-title.pptx, paragraphless-textbox.pptx, percent-encoded-target.pptx, repeated-slash-slide-target.pptx, rich-media-skip.pptx, shape-order.pptx, signed-bullet-level.pptx, slide-placeholders.pptx, smartart-hierarchy.pptx, speaker-notes.pptx, table-span-review.pptx, two-slides.pptx, and wingdings-typeface-case.pptx fixtures parsed through the local PHP PPTX reader",
-            "pandoc 3.10 parsed those forty-nine checked-in PPTX fixtures to native output",
-            "local PHP output and pandoc executable output had normalized AST equality for all forty-nine checked-in PPTX fixtures",
-            "pandoc executable output and paired checked-in .native fixtures had normalized AST equality for the same forty-nine fixtures"
+            "the checked-in basic.pptx, body-before-title.pptx, break-tab-field.pptx, bullets.pptx, bunone-wingdings.pptx, case-sensitive-placeholder-type.pptx, center-title-placeholder.pptx, chart-placeholder.pptx, comments-ignored.pptx, connector-skip.pptx, content-part-skip.pptx, direct-drawing-paragraphs.pptx, dot-presentation-target.pptx, dot-slide-target.pptx, duplicate-slide-reference.pptx, embedded-image.pptx, empty-bullet-paragraph.pptx, empty-paragraph-textbox.pptx, first-text-body.pptx, generated-table.pptx, grouped-shapes.pptx, hex-list-level.pptx, hidden-slide.pptx, hyperlink-text.pptx, ignored-slide-id-attributes.pptx, inline-formatting.pptx, linked-image-skip.pptx, list-continuation.pptx, minimal.pptx, missing-relationship-skip.pptx, multi-paragraph-textbox.pptx, multiple-paragraph-properties.pptx, namespace-agnostic-drawing-text.pptx, nested-list.pptx, no-slides.pptx, no-title-fallback.pptx, numbered-list.pptx, pandoc-generated-image-alt-title.pptx, paragraphless-textbox.pptx, percent-encoded-target.pptx, repeated-slash-slide-target.pptx, rich-media-skip.pptx, shape-order.pptx, signed-bullet-level.pptx, slide-placeholders.pptx, smartart-hierarchy.pptx, speaker-notes.pptx, table-span-review.pptx, two-slides.pptx, and wingdings-typeface-case.pptx fixtures parsed through the local PHP PPTX reader",
+            "pandoc 3.10 parsed those 50 checked-in PPTX fixtures to native output",
+            "local PHP output and pandoc executable output had normalized AST equality for all 50 checked-in PPTX fixtures",
+            "pandoc executable output and paired checked-in .native fixtures had normalized AST equality for the same 50 fixtures"
         ],
         "doesNotAssert": [
             "that upstream Haskell/Cabal/Tasty Tests.Readers.Pptx was executed",
-            "that generated body-before-title, break-tab-field, bullets, bunone-wingdings, case-sensitive-placeholder-type, center-title-placeholder, chart-placeholder, comments-ignored, connector-skip, content-part-skip, direct-drawing-paragraphs, dot-presentation-target, dot-slide-target, duplicate-slide-reference, embedded-image, empty-bullet-paragraph, empty-paragraph-textbox, first-text-body, generated-table, grouped-shapes, hex-list-level, hidden-slide, hyperlink-text, ignored-slide-id-attributes, inline-formatting, linked-image-skip, list-continuation, minimal, missing-relationship-skip, multi-paragraph-textbox, multiple-paragraph-properties, namespace-agnostic-drawing-text, nested-list, no-title-fallback, numbered-list, pandoc-generated-image-alt-title, paragraphless-textbox, percent-encoded-target, repeated-slash-slide-target, rich-media-skip, shape-order, signed-bullet-level, slide-placeholders, smartart-hierarchy, speaker-notes, table-span-review, two-slides, and wingdings-typeface-case fixtures are upstream Tests.Readers.Pptx fixtures",
-            "full PowerPoint feature parity beyond the checked-in basic.pptx/basic.native, body-before-title.pptx/body-before-title.native, break-tab-field.pptx/break-tab-field.native, bullets.pptx/bullets.native, bunone-wingdings.pptx/bunone-wingdings.native, case-sensitive-placeholder-type.pptx/case-sensitive-placeholder-type.native, center-title-placeholder.pptx/center-title-placeholder.native, chart-placeholder.pptx/chart-placeholder.native, comments-ignored.pptx/comments-ignored.native, connector-skip.pptx/connector-skip.native, content-part-skip.pptx/content-part-skip.native, direct-drawing-paragraphs.pptx/direct-drawing-paragraphs.native, dot-presentation-target.pptx/dot-presentation-target.native, dot-slide-target.pptx/dot-slide-target.native, duplicate-slide-reference.pptx/duplicate-slide-reference.native, embedded-image.pptx/embedded-image.native, empty-bullet-paragraph.pptx/empty-bullet-paragraph.native, empty-paragraph-textbox.pptx/empty-paragraph-textbox.native, first-text-body.pptx/first-text-body.native, generated-table.pptx/generated-table.native, grouped-shapes.pptx/grouped-shapes.native, hex-list-level.pptx/hex-list-level.native, hidden-slide.pptx/hidden-slide.native, hyperlink-text.pptx/hyperlink-text.native, ignored-slide-id-attributes.pptx/ignored-slide-id-attributes.native, inline-formatting.pptx/inline-formatting.native, linked-image-skip.pptx/linked-image-skip.native, list-continuation.pptx/list-continuation.native, minimal.pptx/minimal.native, missing-relationship-skip.pptx/missing-relationship-skip.native, multi-paragraph-textbox.pptx/multi-paragraph-textbox.native, multiple-paragraph-properties.pptx/multiple-paragraph-properties.native, namespace-agnostic-drawing-text.pptx/namespace-agnostic-drawing-text.native, nested-list.pptx/nested-list.native, no-title-fallback.pptx/no-title-fallback.native, numbered-list.pptx/numbered-list.native, pandoc-generated-image-alt-title.pptx/pandoc-generated-image-alt-title.native, paragraphless-textbox.pptx/paragraphless-textbox.native, percent-encoded-target.pptx/percent-encoded-target.native, repeated-slash-slide-target.pptx/repeated-slash-slide-target.native, rich-media-skip.pptx/rich-media-skip.native, shape-order.pptx/shape-order.native, signed-bullet-level.pptx/signed-bullet-level.native, slide-placeholders.pptx/slide-placeholders.native, smartart-hierarchy.pptx/smartart-hierarchy.native, speaker-notes.pptx/speaker-notes.native, table-span-review.pptx/table-span-review.native, two-slides.pptx/two-slides.native, and wingdings-typeface-case.pptx/wingdings-typeface-case.native fixtures",
+            "that generated body-before-title, break-tab-field, bullets, bunone-wingdings, case-sensitive-placeholder-type, center-title-placeholder, chart-placeholder, comments-ignored, connector-skip, content-part-skip, direct-drawing-paragraphs, dot-presentation-target, dot-slide-target, duplicate-slide-reference, embedded-image, empty-bullet-paragraph, empty-paragraph-textbox, first-text-body, generated-table, grouped-shapes, hex-list-level, hidden-slide, hyperlink-text, ignored-slide-id-attributes, inline-formatting, linked-image-skip, list-continuation, minimal, missing-relationship-skip, multi-paragraph-textbox, multiple-paragraph-properties, namespace-agnostic-drawing-text, nested-list, no-slides, no-title-fallback, numbered-list, pandoc-generated-image-alt-title, paragraphless-textbox, percent-encoded-target, repeated-slash-slide-target, rich-media-skip, shape-order, signed-bullet-level, slide-placeholders, smartart-hierarchy, speaker-notes, table-span-review, two-slides, and wingdings-typeface-case fixtures are upstream Tests.Readers.Pptx fixtures",
+            "full PowerPoint feature parity beyond the checked-in basic.pptx/basic.native, body-before-title.pptx/body-before-title.native, break-tab-field.pptx/break-tab-field.native, bullets.pptx/bullets.native, bunone-wingdings.pptx/bunone-wingdings.native, case-sensitive-placeholder-type.pptx/case-sensitive-placeholder-type.native, center-title-placeholder.pptx/center-title-placeholder.native, chart-placeholder.pptx/chart-placeholder.native, comments-ignored.pptx/comments-ignored.native, connector-skip.pptx/connector-skip.native, content-part-skip.pptx/content-part-skip.native, direct-drawing-paragraphs.pptx/direct-drawing-paragraphs.native, dot-presentation-target.pptx/dot-presentation-target.native, dot-slide-target.pptx/dot-slide-target.native, duplicate-slide-reference.pptx/duplicate-slide-reference.native, embedded-image.pptx/embedded-image.native, empty-bullet-paragraph.pptx/empty-bullet-paragraph.native, empty-paragraph-textbox.pptx/empty-paragraph-textbox.native, first-text-body.pptx/first-text-body.native, generated-table.pptx/generated-table.native, grouped-shapes.pptx/grouped-shapes.native, hex-list-level.pptx/hex-list-level.native, hidden-slide.pptx/hidden-slide.native, hyperlink-text.pptx/hyperlink-text.native, ignored-slide-id-attributes.pptx/ignored-slide-id-attributes.native, inline-formatting.pptx/inline-formatting.native, linked-image-skip.pptx/linked-image-skip.native, list-continuation.pptx/list-continuation.native, minimal.pptx/minimal.native, missing-relationship-skip.pptx/missing-relationship-skip.native, multi-paragraph-textbox.pptx/multi-paragraph-textbox.native, multiple-paragraph-properties.pptx/multiple-paragraph-properties.native, namespace-agnostic-drawing-text.pptx/namespace-agnostic-drawing-text.native, nested-list.pptx/nested-list.native, no-slides.pptx/no-slides.native, no-title-fallback.pptx/no-title-fallback.native, numbered-list.pptx/numbered-list.native, pandoc-generated-image-alt-title.pptx/pandoc-generated-image-alt-title.native, paragraphless-textbox.pptx/paragraphless-textbox.native, percent-encoded-target.pptx/percent-encoded-target.native, repeated-slash-slide-target.pptx/repeated-slash-slide-target.native, rich-media-skip.pptx/rich-media-skip.native, shape-order.pptx/shape-order.native, signed-bullet-level.pptx/signed-bullet-level.native, slide-placeholders.pptx/slide-placeholders.native, smartart-hierarchy.pptx/smartart-hierarchy.native, speaker-notes.pptx/speaker-notes.native, table-span-review.pptx/table-span-review.native, two-slides.pptx/two-slides.native, and wingdings-typeface-case.pptx/wingdings-typeface-case.native fixtures",
             "PPTX writer parity"
         ]
     }

@@ -13970,13 +13970,22 @@ final class MarkdownReader
 
         $plainText = $this->paragraphTextFromInlines($children);
         if (count($children) === 1 && $children[0]->type === 'image') {
-            $figureAttrs = $children[0]->attr('figureAttributes', []);
+            $image = $children[0];
+            $captionInlines = $image->children;
+            $explicitAlt = $this->markdownImageAttributeAlt($image);
+            $image = new AstNode(
+                'image',
+                $this->withoutMarkdownImageNativeAttributes($image->attrs),
+                $explicitAlt === null ? $image->children : ($explicitAlt === '' ? [] : [new AstNode('text', ['text' => $explicitAlt])])
+            );
+
+            $figureAttrs = $this->withoutMarkdownImageAttributeAlt($image->attr('figureAttributes', []));
             if (!is_array($figureAttrs)) {
                 $figureAttrs = [];
             }
-            $figureAttrs['caption'] = (string) $children[0]->attr('caption', $children[0]->attr('alt', ''));
-            if ($children[0]->children !== []) {
-                $figureAttrs['captionInlines'] = $children[0]->children;
+            $figureAttrs['caption'] = (string) $image->attr('caption', $image->attr('alt', ''));
+            if ($captionInlines !== []) {
+                $figureAttrs['captionInlines'] = $captionInlines;
                 $figureAttrs['renderCaptionInlines'] = true;
             }
             if (!isset($figureAttrs['captionSource']) || !is_array($figureAttrs['captionSource'])) {
@@ -13989,7 +13998,7 @@ final class MarkdownReader
             $blocks[] = new AstNode(
                 'figure',
                 $figureAttrs,
-                [$children[0]]
+                [$image]
             );
             $paragraph = [];
             return;
@@ -15363,19 +15372,62 @@ final class MarkdownReader
         $alt = null;
         if (isset($attrs['attributes']) && is_array($attrs['attributes']) && array_key_exists('alt', $attrs['attributes'])) {
             $alt = (string) $attrs['attributes']['alt'];
-            unset($attrs['attributes']['alt']);
-            if ($attrs['attributes'] === []) {
-                unset($attrs['attributes']);
-            }
         }
         if (isset($attrs['htmlAttributes']) && is_array($attrs['htmlAttributes']) && array_key_exists('alt', $attrs['htmlAttributes'])) {
-            unset($attrs['htmlAttributes']['alt']);
-            if ($attrs['htmlAttributes'] === []) {
-                unset($attrs['htmlAttributes']);
-            }
+            $alt ??= (string) $attrs['htmlAttributes']['alt'];
         }
 
         return [$this->buildImageNode($label, $url, $title, $attrs, $alt), $offset];
+    }
+
+    private function markdownImageAttributeAlt(AstNode $image): ?string
+    {
+        $attributes = $image->attr('attributes', []);
+        if (is_array($attributes) && array_key_exists('alt', $attributes)) {
+            return (string) $attributes['alt'];
+        }
+
+        $htmlAttributes = $image->attr('htmlAttributes', []);
+        if (is_array($htmlAttributes) && array_key_exists('alt', $htmlAttributes)) {
+            return (string) $htmlAttributes['alt'];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     * @return array<string, mixed>
+     */
+    private function withoutMarkdownImageAttributeAlt(array $attrs): array
+    {
+        foreach (['attributes', 'htmlAttributes'] as $key) {
+            if (!isset($attrs[$key]) || !is_array($attrs[$key])) {
+                continue;
+            }
+
+            unset($attrs[$key]['alt']);
+            if ($attrs[$key] === []) {
+                unset($attrs[$key]);
+            }
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     * @return array<string, mixed>
+     */
+    private function withoutMarkdownImageNativeAttributes(array $attrs): array
+    {
+        if (isset($attrs['figureAttributes']) && is_array($attrs['figureAttributes'])) {
+            $attrs['figureAttributes'] = $this->withoutMarkdownImageAttributeAlt($attrs['figureAttributes']);
+        }
+
+        unset($attrs['id'], $attrs['classes'], $attrs['attributes'], $attrs['htmlAttributes']);
+
+        return $attrs;
     }
 
     /**
@@ -15396,6 +15448,11 @@ final class MarkdownReader
             'alt' => $altOverride ?? $caption,
             'caption' => $caption,
         ];
+        foreach (['id', 'classes', 'attributes', 'htmlAttributes'] as $key) {
+            if (array_key_exists($key, $figureAttributes)) {
+                $attrs[$key] = $figureAttributes[$key];
+            }
+        }
         if ($title !== '') {
             $attrs['title'] = $title;
         }

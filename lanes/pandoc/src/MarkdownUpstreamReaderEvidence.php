@@ -14,7 +14,7 @@ final class MarkdownUpstreamReaderEvidence
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
     public const EXPECTED_SELECTED_FIXTURE_COUNT = 55;
     public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 55;
-    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = '31755bddfe6db4fd726aaec0a73307acb7843ef1abc05f9c4a5574fe156033b0';
+    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = '307f608d6835b9a7d7c2a64ee381510398f6e8ce2ab8d5aeb1b9d62cd6b7f626';
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/Markdown.hs',
