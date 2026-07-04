@@ -328,13 +328,13 @@ final class EpubReader
         foreach (self::DC_METADATA_FIELD_KEYS as $dc_name => $meta_key) {
             $values = $this->metadataValueList($dc_values, $dc_name);
             if ($values !== []) {
-                $meta[$meta_key] = $this->collapseMetadataValueList($values);
+                $meta[$meta_key] = $this->metadataScalarOrRepeatedInlineMetaValue($values);
             }
         }
 
         $subjects = $this->metadataValueList($dc_values, 'subject');
         if ($subjects !== []) {
-            $meta['subject'] = $this->collapseMetadataValueList($subjects);
+            $meta['subject'] = $this->metadataScalarOrRepeatedInlineMetaValue($subjects);
         }
 
         $contributor = $this->metadataInlineMetaValue($this->metadataValueList($dc_values, 'contributor'));
@@ -443,6 +443,19 @@ final class EpubReader
             'type' => 'MetaList',
             'value' => $items,
         ];
+    }
+
+    /**
+     * @param list<string> $values
+     * @return string|array{type: string, value: mixed}
+     */
+    private function metadataScalarOrRepeatedInlineMetaValue(array $values): string|array
+    {
+        if (count($values) === 1) {
+            return $values[0];
+        }
+
+        return $this->metadataInlineMetaValue($values) ?? '';
     }
 
     /**

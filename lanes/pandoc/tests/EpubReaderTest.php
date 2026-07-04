@@ -191,7 +191,12 @@ XML);
         $t->same('2026-04-05', $meta['dateInlines'][0]->attr('text'));
         $t->same('urn:uuid:12345678-1234-1234-1234-123456789abc', $meta['identifier']);
         $t->same('Example Press', $meta['publisher']);
-        $t->same(['migration', 'package metadata'], $meta['subject']);
+        $subject = $meta['subject'] ?? null;
+        $t->same('MetaList', $subject['type'] ?? null);
+        $t->same('MetaInlines', $subject['value'][0]['type'] ?? null);
+        $t->same('package metadata', $subject['value'][0]['value'][0]->attr('text') ?? null);
+        $t->same('MetaInlines', $subject['value'][1]['type'] ?? null);
+        $t->same('migration', $subject['value'][1]['value'][0]->attr('text') ?? null);
         $t->same('Reader metadata parity.', $meta['description']);
         $t->same('Example rights statement.', $meta['rights']);
         $t->same('source-record', $meta['source']);
@@ -256,6 +261,65 @@ XML);
         $t->same('Review Editor', $contributor['value'][1]['value'][0]->attr('text') ?? null);
         $t->contains(
             '( "contributor" , MetaList [ MetaInlines [ Str "Illustration" , Space , Str "Desk" ] , MetaInlines [ Str "Review" , Space , Str "Editor" ] ] )',
+            $native
+        );
+    },
+    'retains repeated upstream dublin core metadata fields as pandoc meta lists' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-repeated-dc-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary EPUB package');
+        }
+        $zip->addFromString('META-INF/container.xml', '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0">
+  <metadata>
+    <dc:title>Repeated DC Metadata</dc:title>
+    <dc:publisher>First Publisher</dc:publisher>
+    <dc:publisher>Second Publisher</dc:publisher>
+    <dc:subject>First Subject</dc:subject>
+    <dc:subject>Second Subject</dc:subject>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('OPS/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Body.</p></body></html>');
+        $zip->close();
+
+        try {
+            $document = (new EpubReader())->readEpubFile($path);
+            $meta = $document->attr('meta');
+            $native = (new NativeWriter())->write($document);
+        } finally {
+            @unlink($path);
+        }
+
+        $publisher = $meta['publisher'] ?? null;
+        $subject = $meta['subject'] ?? null;
+        $t->same('MetaList', $publisher['type'] ?? null);
+        $t->same('Second Publisher', $publisher['value'][0]['value'][0]->attr('text') ?? null);
+        $t->same('First Publisher', $publisher['value'][1]['value'][0]->attr('text') ?? null);
+        $t->same('MetaList', $subject['type'] ?? null);
+        $t->same('Second Subject', $subject['value'][0]['value'][0]->attr('text') ?? null);
+        $t->same('First Subject', $subject['value'][1]['value'][0]->attr('text') ?? null);
+        $t->contains(
+            '( "publisher" , MetaList [ MetaInlines [ Str "Second" , Space , Str "Publisher" ] , MetaInlines [ Str "First" , Space , Str "Publisher" ] ] )',
+            $native
+        );
+        $t->contains(
+            '( "subject" , MetaList [ MetaInlines [ Str "Second" , Space , Str "Subject" ] , MetaInlines [ Str "First" , Space , Str "Subject" ] ] )',
             $native
         );
     },

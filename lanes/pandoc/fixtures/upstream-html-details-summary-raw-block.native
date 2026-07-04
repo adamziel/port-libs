@@ -1,3 +1,39 @@
-[ RawBlock (Format "html") "<details class=\"migration-review\" data-source=\"classic\">\n<summary>Show imported source notes</summary>\n<p>Details body keeps <em>emphasis</em> inside the raw disclosure.</p>\n<p>Second note keeps <strong>strong</strong> context.</p>\n</details>"
+[ Para
+    [ Str "Show"
+    , Space
+    , Str "imported"
+    , Space
+    , Str "source"
+    , Space
+    , Str "notes"
+    ]
+, Para
+    [ Str "Details"
+    , Space
+    , Str "body"
+    , Space
+    , Str "keeps"
+    , Space
+    , Emph [ Str "emphasis" ]
+    , Space
+    , Str "inside"
+    , Space
+    , Str "the"
+    , Space
+    , Str "raw"
+    , Space
+    , Str "disclosure."
+    ]
+, Para
+    [ Str "Second"
+    , Space
+    , Str "note"
+    , Space
+    , Str "keeps"
+    , Space
+    , Strong [ Str "strong" ]
+    , Space
+    , Str "context."
+    ]
 , Para [ Str "After" , Space , Str "disclosure." ]
 ]

@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 53;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 54;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '5bbff786b0c4c5d60d3b5183cea89f0a9df27b37d0afe7ea01b03ed1323a2d8d';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 26686;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'eb2c2184fabf52fdfec818e91619d1c4ca457ec0ab67a90cef9c65949828d514';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 27144;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -234,6 +234,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => 'e619a9e7b375700d5fd8c2c74cd9bb5c424098d39b972212a86f58764affadf4',
             'pptxBytes' => 1435,
             'nativeBytes' => 113,
+        ],
+        'whitespace-drawing-text' => [
+            'name' => 'generated whitespace-only drawing text parity',
+            'pptx' => 'pptx-reader/whitespace-drawing-text.pptx',
+            'native' => 'pptx-reader/whitespace-drawing-text.native',
+            'pairKey' => 'pptx-reader/whitespace-drawing-text.pptx|pptx-reader/whitespace-drawing-text.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/whitespace-drawing-text.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/whitespace-drawing-text.native',
+            'pptxSha256' => '5ae9d3ad48991a588151ed1be4b24c049cdcba38c934832dad3b3e2e583aca1c',
+            'nativeSha256' => 'fca7800593fc3281941905b032d7256d447402d49b3b6886df979d264d5ce7c5',
+            'pptxBytes' => 1759,
+            'nativeBytes' => 614,
         ],
         'bullets' => [
             'name' => 'generated minimal bullet list parity',

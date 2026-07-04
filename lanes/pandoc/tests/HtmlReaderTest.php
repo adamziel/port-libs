@@ -428,23 +428,29 @@ $tests['imports generated current html definition list fixture as native definit
         $t->same('After glossary.', $document->children[1]->attr('text'));
     };
 
-$tests['imports generated current html details summary fixture as raw block boundary'] =
+$tests['imports generated current html details summary fixture as visible blocks'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-details-summary-raw-block.html'));
-        $raw = $document->children[0];
-        $after = $document->children[1];
+        $summary = $document->children[0];
+        $firstBody = $document->children[1];
+        $secondBody = $document->children[2];
+        $after = $document->children[3];
 
         $t->same('html', $document->attr('sourceFormat'));
-        $t->same(['raw_html', 'paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
-        $t->same(
-            "<details class=\"migration-review\" data-source=\"classic\">\n"
-                . "<summary>Show imported source notes</summary>\n"
-                . "<p>Details body keeps <em>emphasis</em> inside the raw disclosure.</p>\n"
-                . "<p>Second note keeps <strong>strong</strong> context.</p>\n"
-                . '</details>',
-            $raw->attr('html')
-        );
+        $t->same(['paragraph', 'paragraph', 'paragraph', 'paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same('Show imported source notes', $summary->attr('text'));
+        $t->same('Details body keeps emphasis inside the raw disclosure.', $firstBody->attr('text'));
+        $t->same(['text', 'emph', 'text'], array_map(static fn ($node): string => $node->type, $firstBody->children));
+        $t->same('emphasis', $firstBody->children[1]->children[0]->attr('text'));
+        $t->same('Second note keeps strong context.', $secondBody->attr('text'));
+        $t->same(['text', 'strong', 'text'], array_map(static fn ($node): string => $node->type, $secondBody->children));
+        $t->same('strong', $secondBody->children[1]->children[0]->attr('text'));
         $t->same('After disclosure.', $after->attr('text'));
+
+        $inlineSummary = (new HtmlReader())->read('<details><summary><strong>Sum</strong></summary><p>Body</p></details>');
+        $t->same(['paragraph', 'paragraph'], array_map(static fn ($node): string => $node->type, $inlineSummary->children));
+        $t->same(['strong'], array_map(static fn ($node): string => $node->type, $inlineSummary->children[0]->children));
+        $t->same('Sum', $inlineSummary->children[0]->children[0]->children[0]->attr('text'));
     };
 
 $tests['extracts html reader microdata item metadata with itemref and nested item scopes'] =

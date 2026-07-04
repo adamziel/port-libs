@@ -36,7 +36,8 @@ final class HtmlReader
             $consumedFootnoteContainerCount = 0;
             $attrs = [];
         } else {
-            $delegated = self::delegateHtmlBytes($bytes);
+            $readerBytes = self::flattenHtmlDetailsSummaryContainers($bytes);
+            $delegated = self::delegateHtmlBytes($readerBytes);
             $document = $this->reader->read($delegated['bytes']);
             [$children, $consumedFootnoteContainerCount] = self::containsAstNodeType($document->children, 'note')
                 ? self::stripConsumedHtmlFootnoteContainers($document->children)
@@ -44,7 +45,7 @@ final class HtmlReader
             if ($delegated['implicitPlainBody']) {
                 $children = self::restoreImplicitPlainBody($children);
             }
-            $children = $this->restoreImplicitNativeMainPlainBlocks($bytes, $children);
+            $children = $this->restoreImplicitNativeMainPlainBlocks($readerBytes, $children);
             $children = self::stripHtmlRawInlineWrappers($children);
             $attrs = $document->attrs;
         }
@@ -68,6 +69,93 @@ final class HtmlReader
         ], $this->microdataMetadata($bytes));
 
         return new AstNode('document', $attrs, $children);
+    }
+
+    private static function flattenHtmlDetailsSummaryContainers(string $bytes): string
+    {
+        if (preg_match('/<\/?(?:details|summary)\b/i', $bytes) !== 1) {
+            return $bytes;
+        }
+
+        try {
+            $dom = Html5Dom::parseHtmlDocument($bytes);
+        } catch (\Throwable) {
+            return $bytes;
+        }
+
+        $changed = false;
+        foreach (self::htmlElementsByName($dom, 'summary') as $summary) {
+            if (!self::htmlElementHasAncestorName($summary, 'details')) {
+                continue;
+            }
+
+            $parent = $summary->parentNode;
+            if (!$parent instanceof \DOMNode) {
+                continue;
+            }
+
+            $paragraph = $dom->createElement('p');
+            while ($summary->firstChild instanceof \DOMNode) {
+                $paragraph->appendChild($summary->firstChild);
+            }
+            $parent->replaceChild($paragraph, $summary);
+            $changed = true;
+        }
+
+        foreach (self::htmlElementsByName($dom, 'details') as $details) {
+            $parent = $details->parentNode;
+            if (!$parent instanceof \DOMNode) {
+                continue;
+            }
+
+            while ($details->firstChild instanceof \DOMNode) {
+                $parent->insertBefore($details->firstChild, $details);
+            }
+            $parent->removeChild($details);
+            $changed = true;
+        }
+
+        if (!$changed) {
+            return $bytes;
+        }
+
+        $documentElement = $dom->documentElement;
+        if (!$documentElement instanceof \DOMElement) {
+            return $bytes;
+        }
+
+        $html = $dom->saveHTML($documentElement);
+
+        return is_string($html) ? $html : $bytes;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private static function htmlElementsByName(\DOMDocument $dom, string $name): array
+    {
+        $elements = [];
+        foreach ($dom->getElementsByTagName($name) as $element) {
+            if ($element instanceof \DOMElement && strtolower($element->localName) === $name) {
+                $elements[] = $element;
+            }
+        }
+
+        return $elements;
+    }
+
+    private static function htmlElementHasAncestorName(\DOMElement $element, string $name): bool
+    {
+        $parent = $element->parentNode;
+        while ($parent instanceof \DOMElement) {
+            if (strtolower($parent->localName) === $name) {
+                return true;
+            }
+
+            $parent = $parent->parentNode;
+        }
+
+        return false;
     }
 
     /**
