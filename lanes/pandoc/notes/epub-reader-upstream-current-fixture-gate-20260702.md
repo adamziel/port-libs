@@ -7,8 +7,8 @@ The checked-in EPUB reader fixture subset now mirrors the upstream current
 `test/epub` inventory plus generated current-upstream edge fixtures used by
 the local native/package harness:
 
-- 36 EPUB package inputs in `lanes/pandoc/fixtures/upstream-current-epub-reader/epub`
-- 36 same-directory `.native` goldens for every checked-in EPUB package input
+- 37 EPUB package inputs in `lanes/pandoc/fixtures/upstream-current-epub-reader/epub`
+- 37 same-directory `.native` goldens for every checked-in EPUB package input
 
 Imported from the hydrated upstream cache at
 `/Users/admin/port-libs-pandoc-pptx/.upstream-cache/pandoc-full/test/epub`:
@@ -51,14 +51,23 @@ manifest declaration. The native golden was generated with:
 /opt/homebrew/bin/pandoc -f epub -t native -o lanes/pandoc/fixtures/upstream-current-epub-reader/epub/nested-path-media-metadata.native lanes/pandoc/fixtures/upstream-current-epub-reader/epub/nested-path-media-metadata.epub
 ```
 
+Added generated `metadata-link-page-list-image.epub` plus its Pandoc 3.10
+native golden to exercise a remote OPF metadata link with `alternate` and
+`record` rel tokens, non-empty publisher/rights metadata, TOC/page-list
+navigation, and an emitted manifest image. The native golden was generated with:
+
+```sh
+/opt/homebrew/bin/pandoc -f epub -t native -o lanes/pandoc/fixtures/upstream-current-epub-reader/epub/metadata-link-page-list-image.native lanes/pandoc/fixtures/upstream-current-epub-reader/epub/metadata-link-page-list-image.epub
+```
+
 Verified checked-in gate:
 
 ```sh
-php tools/pandoc-epub-native-ast-package.php --checked-in-fixtures summary --require-package-parity=36 --require-native-readiness=36 --require-mapped-parity=36 --require-fixture-identity --require-current-package-feature-coverage --require-current-package-feature-signature --require-current-native-ast-signature --require-runner-plan
+php tools/pandoc-epub-native-ast-package.php --checked-in-fixtures summary --require-package-parity=37 --require-native-readiness=37 --require-mapped-parity=37 --require-fixture-identity --require-current-package-feature-coverage --require-current-package-feature-signature --require-current-native-ast-signature --require-runner-plan
 ```
 
-Result: `packageParsedCount=36`, `readerParsedCount=36`,
-`nativeParsedCount=36`, `normalizedAstMatchCount=36`, and
+Result: `packageParsedCount=37`, `readerParsedCount=37`,
+`nativeParsedCount=37`, `normalizedAstMatchCount=37`, and
 `normalizedAstMismatchCount=0`.
 
 This continues not to claim upstream Haskell/Tasty runner parity; the harness

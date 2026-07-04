@@ -804,9 +804,9 @@ $tests['imports upstream html block children inside table cells'] =
         $assertTable((new HtmlReader())->read($fullDocument));
     };
 
-$tests['preserves upstream html invalid table children as visible blocks'] =
-    static function (TestRunner $t): void {
-        $html = '<table><p>loose</p><tr><td>A</td></tr>tail<tr><td>B</td></tr></table><p>after</p>';
+$tests['imports direct pandoc html invalid table children as visible blocks'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $html = $fixture('upstream-html-invalid-table-children.html');
         $assertBlocks = static function ($document, string $label) use ($t): void {
             $t->same(
                 ['paragraph', 'paragraph', 'paragraph', 'paragraph', 'paragraph'],

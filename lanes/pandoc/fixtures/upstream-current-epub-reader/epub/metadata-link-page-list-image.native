@@ -1,0 +1,57 @@
+[ Para [ Span ( "chapter.xhtml" , [] , [] ) [] ]
+, Div
+    ( "chapter.xhtml_start" , [ "section" ] , [] )
+    [ Header
+        1
+        ( "" , [] , [] )
+        [ Str "Metadata"
+        , Space
+        , Str "Link"
+        , Space
+        , Str "Chapter"
+        ]
+    , Para
+        [ Str "This"
+        , Space
+        , Str "compact"
+        , Space
+        , Str "fixture"
+        , Space
+        , Str "keeps"
+        , Space
+        , Str "a"
+        , Space
+        , Str "remote"
+        , Space
+        , Str "metadata"
+        , Space
+        , Str "link,"
+        , Space
+        , Str "page-list"
+        , Space
+        , Str "navigation,"
+        , Space
+        , Str "and"
+        , Space
+        , Str "an"
+        , Space
+        , Str "emitted"
+        , Space
+        , Str "image"
+        , Space
+        , Str "in"
+        , Space
+        , Str "one"
+        , Space
+        , Str "EPUB"
+        , Space
+        , Str "package."
+        ]
+    , Para
+        [ Image
+            ( "" , [] , [] )
+            [ Str "Sample" , Space , Str "pixel" ]
+            ( "images/sample.png" , "Sample pixel" )
+        ]
+    ]
+]

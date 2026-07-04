@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 62;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 63;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '4f086593de4c86391a556c31183d86224b572458e11556501dfcffa5bdcc5132';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 30840;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'b666b7cbe631cabf00608d693f6c77a330292a4a4ff34f856e5c03840814fe98';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 31316;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -222,6 +222,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => '9a1dd6f8ddf28f555cd1f128f5e24864284f1a721d2ae3c1e4598ebdcbe9b21b',
             'pptxBytes' => 1519,
             'nativeBytes' => 169,
+        ],
+        'external-mode-slide-target' => [
+            'name' => 'generated slide TargetMode ignored parity',
+            'pptx' => 'pptx-reader/external-mode-slide-target.pptx',
+            'native' => 'pptx-reader/external-mode-slide-target.native',
+            'pairKey' => 'pptx-reader/external-mode-slide-target.pptx|pptx-reader/external-mode-slide-target.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/external-mode-slide-target.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/external-mode-slide-target.native',
+            'pptxSha256' => 'b0bb86a568a2020e07bebe50775568a3dc2fbd27a10d4ab8144258ae9f7f3eef',
+            'nativeSha256' => '7f8c73a728f91c0142c503e40e06a3fa5bf76c1d931d63ffbcf3ffacf205c918',
+            'pptxBytes' => 1707,
+            'nativeBytes' => 110,
         ],
         'first-text-body' => [
             'name' => 'generated first text body child parity',

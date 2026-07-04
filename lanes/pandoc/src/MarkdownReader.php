@@ -15980,6 +15980,32 @@ final class MarkdownReader
         return MarkdownFormatProfile::canonicalFormat($format) === 'markdown';
     }
 
+    private function shortcutReferenceLinkExtensionEnabled(): bool
+    {
+        $overrides = $this->markdownExtensionOverrides();
+        if (array_key_exists('shortcut_reference_links', $overrides)) {
+            return $overrides['shortcut_reference_links'];
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['markdown', 'commonmark', 'commonmark_x', 'gfm', 'markdown_mmd', 'markdown_phpextra', 'markdown_strict'], true);
+    }
+
+    private function spacedReferenceLinkExtensionEnabled(): bool
+    {
+        $overrides = $this->markdownExtensionOverrides();
+        if (array_key_exists('spaced_reference_links', $overrides)) {
+            return $overrides['spaced_reference_links'];
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['markdown_mmd', 'markdown_phpextra', 'markdown_strict'], true);
+    }
+
     private function lineBlockExtensionEnabled(): bool
     {
         $overrides = $this->markdownExtensionOverrides();
@@ -16462,6 +16488,16 @@ final class MarkdownReader
 
             $referenceLabel = $reference['text'] === '' ? $label['text'] : $reference['text'];
             $next = $reference['next'];
+        } elseif ($this->spacedReferenceLinkExtensionEnabled()) {
+            $spacedReference = $this->tryParseSpacedReferenceLabel($text, $next);
+            if ($spacedReference !== null) {
+                $referenceLabel = $spacedReference['label'] === '' ? $label['text'] : $spacedReference['label'];
+                $next = $spacedReference['next'];
+            } elseif (!$this->shortcutReferenceLinkExtensionEnabled()) {
+                return null;
+            }
+        } elseif (!$this->shortcutReferenceLinkExtensionEnabled()) {
+            return null;
         }
 
         $target = $this->referenceLinks[$this->normalizeReferenceLabel($referenceLabel)] ?? null;
@@ -16482,6 +16518,26 @@ final class MarkdownReader
         return [
             'node' => new AstNode('link', $attrs, $this->parseLinkLabelInlines($label['text'])),
             'next' => $next,
+        ];
+    }
+
+    /**
+     * @return array{label:string, next:int}|null
+     */
+    private function tryParseSpacedReferenceLabel(string $text, int $offset): ?array
+    {
+        if (preg_match('/\G[ \t]+/', $text, $space, 0, $offset) !== 1) {
+            return null;
+        }
+
+        $reference = $this->parseBracketedLabel($text, $offset + strlen($space[0]));
+        if ($reference === null) {
+            return null;
+        }
+
+        return [
+            'label' => $reference['text'],
+            'next' => $reference['next'],
         ];
     }
 

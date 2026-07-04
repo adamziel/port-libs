@@ -1,0 +1,6 @@
+[ Para [ Str "loose" ]
+, Para [ Str "A" ]
+, Para [ Str "tail" ]
+, Para [ Str "B" ]
+, Para [ Str "after" ]
+]
