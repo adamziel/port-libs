@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 67;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 68;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '75f4160c1ff81842e5ce60b133f6722a0ac182d7af0d43f7aadac178cba8a53a';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 33232;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'cf22226ef24968c3b2562133c82fb4505afa49741e1452a1c2c49beccca4b84b';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 33666;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -402,6 +402,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => 'cc7a90f26bdb968391ccaecfd3172a4666636d309f3024f67948022e88460b22',
             'pptxBytes' => 1405,
             'nativeBytes' => 124,
+        ],
+        'document-properties' => [
+            'name' => 'generated document property sidecar metadata parity',
+            'pptx' => 'pptx-reader/document-properties.pptx',
+            'native' => 'pptx-reader/document-properties.native',
+            'pairKey' => 'pptx-reader/document-properties.pptx|pptx-reader/document-properties.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/document-properties.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/document-properties.native',
+            'pptxSha256' => 'd059bf3fe2086ca7012e76a47a8cdd44c0e0235a6786444fe6ca628f25fba23c',
+            'nativeSha256' => '8be0433cdacbaa8af79c12f3eb61f95d789ee60ccae8e2c26e39a35dddbd3648',
+            'pptxBytes' => 3187,
+            'nativeBytes' => 126,
         ],
         'dot-presentation-target' => [
             'name' => 'generated dot-segment presentation target parity',

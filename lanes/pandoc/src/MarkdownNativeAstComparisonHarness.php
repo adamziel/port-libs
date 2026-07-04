@@ -43,6 +43,7 @@ final class MarkdownNativeAstComparisonHarness
         'upstream-markdown-zz-east-asian-line-break-profile' => ['format' => 'markdown+east_asian_line_breaks'],
         'upstream-markdown-zz-tex-math-single-backslash-profile' => ['format' => 'markdown+tex_math_single_backslash'],
         'upstream-markdown-zzz-intraword-underscore-profile' => ['format' => 'markdown-intraword_underscores'],
+        'upstream-markdown-zzzz-angle-brackets-escapable-profile' => ['format' => 'markdown-all_symbols_escapable+angle_brackets_escapable'],
     ];
 
     /** @var array<string, true> */

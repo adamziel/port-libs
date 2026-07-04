@@ -11,6 +11,10 @@ $paragraphText = static function (array $options, string $markdown): string {
     return (string) $paragraph->attr('text', '');
 };
 
+$fixture = (string) file_get_contents(
+    dirname(__DIR__) . '/fixtures/upstream-markdown-zzzz-angle-brackets-escapable-profile.md'
+);
+
 $enabledCases = [
     'strict plus angle brackets' => ['format' => 'markdown_strict+angle_brackets_escapable'],
     'php extra plus angle brackets' => ['format' => 'markdown_phpextra+angle_brackets_escapable'],
@@ -48,8 +52,16 @@ return [
             );
         },
 
+    'maps pandoc angle brackets escapable checked-in profile fixture' =>
+        static function (TestRunner $t) use ($fixture, $paragraphText): void {
+            $t->same(
+                '\@ <x> !',
+                $paragraphText(['format' => 'markdown-all_symbols_escapable+angle_brackets_escapable'], $fixture),
+            );
+        },
+
     'records pandoc angle brackets escapable profile mapped-case count' =>
         static function (TestRunner $t) use ($enabledCases, $disabledCases): void {
-            $t->same(9, count($enabledCases) + count($disabledCases) + 1);
+            $t->same(10, count($enabledCases) + count($disabledCases) + 2);
         },
 ];

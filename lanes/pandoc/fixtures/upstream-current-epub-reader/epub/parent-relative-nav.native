@@ -1,0 +1,37 @@
+[ Para [ Span ( "chapter.xhtml" , [] , [] ) [] ]
+, Div
+    ( "chapter.xhtml_start" , [ "section" ] , [] )
+    [ Header
+        1
+        ( "" , [] , [] )
+        [ Str "Parent"
+        , Space
+        , Str "Relative"
+        , Space
+        , Str "Nav"
+        ]
+    , Para
+        [ Str "The"
+        , Space
+        , Str "package"
+        , Space
+        , Str "document"
+        , Space
+        , Str "points"
+        , Space
+        , Str "at"
+        , Space
+        , Str "a"
+        , Space
+        , Str "navigation"
+        , Space
+        , Str "document"
+        , Space
+        , Str "outside"
+        , Space
+        , Str "its"
+        , Space
+        , Str "directory."
+        ]
+    ]
+]
