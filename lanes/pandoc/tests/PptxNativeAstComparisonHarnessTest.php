@@ -103,6 +103,7 @@ return [
             $t->same(0, $report['comparedPairCount']);
             $t->same(0, $report['normalizedAstMatchCount']);
             $t->same(0, $report['normalizedAstMismatchCount']);
+            $t->same([], $report['fixtureComparisons']);
             $t->same('not-evaluated-source-directory-unavailable', $report['astParityStatus']);
             $t->same('normalized-pptx-native-ast-equality', $report['orderedRemainingGaps'][0]['id']);
             $t->same('not-evaluated', $report['orderedRemainingGaps'][0]['status']);
@@ -142,9 +143,17 @@ return [
             $t->same('normalized-ast-mismatches-observed', $report['astParityStatus']);
             $t->same('different', $report['mismatchComparisons'][0]['fixture']);
             $t->contains('root.children.1.children.0.attrs.text value', $report['mismatchComparisons'][0]['firstDifference']);
+            $t->same(2, count($report['fixtureComparisons']));
+            $t->same('different', $report['fixtureComparisons'][0]['fixture']);
+            $t->same('mismatched', $report['fixtureComparisons'][0]['status']);
+            $t->same(false, $report['fixtureComparisons'][0]['normalizedAstMatched']);
+            $t->same('same', $report['fixtureComparisons'][1]['fixture']);
+            $t->same('matched', $report['fixtureComparisons'][1]['status']);
+            $t->same(true, $report['fixtureComparisons'][1]['normalizedAstMatched']);
             $t->true(in_array('scalar-value', $categoryNames, true));
             $t->same('open', $report['orderedRemainingGaps'][0]['status']);
             $t->contains('normalizedAst: matches=1 (50.00%) mismatches=1 status=normalized-ast-mismatches-observed', $text);
+            $t->contains('fixtureComparisons: rows=2', $text);
             $t->contains('mismatchExamples:', $text);
             $t->contains('1. normalized-pptx-native-ast-equality [open]', $text);
         } finally {
@@ -162,6 +171,8 @@ return [
 
             $t->same(1, $report['normalizedAstMatchCount']);
             $t->same(0, $report['normalizedAstMismatchCount']);
+            $t->same(1, count($report['fixtureComparisons']));
+            $t->same('matched', $report['fixtureComparisons'][0]['status']);
             $t->same('normalized-ast-equality-observed-not-runner-parity', $report['astParityStatus']);
             $t->same('covered-by-current-normalized-ast-evidence', $report['orderedRemainingGaps'][0]['status']);
             $t->same('upstream-pptx-reader-runner-results', $report['orderedRemainingGaps'][1]['id']);
@@ -187,6 +198,11 @@ return [
             $t->same(0, $report['parseFailureCount']);
             $t->same(49, $report['normalizedAstMatchCount']);
             $t->same(0, $report['normalizedAstMismatchCount']);
+            $t->same(49, count($report['fixtureComparisons']));
+            $t->same([], array_values(array_filter(
+                $report['fixtureComparisons'],
+                static fn (array $row): bool => ($row['status'] ?? null) !== 'matched'
+            )));
             $t->same(true, PptxNativeAstComparisonHarness::hasRequiredMappedParity($report, 49));
     },
     'cli gates required mapped pptx parity from checked-in fixture selector' => static function (TestRunner $t): void {
@@ -207,6 +223,8 @@ return [
         $t->same(dirname(__DIR__, 3) . '/lanes/pandoc/fixtures/upstream-current-pptx-reader', $decoded['upstreamPptxDirectory']);
             $t->same(49, $decoded['normalizedAstMatchCount']);
             $t->same(0, $decoded['normalizedAstMismatchCount']);
+            $t->same(49, count($decoded['fixtureComparisons']));
+            $t->same('matched', $decoded['fixtureComparisons'][0]['status']);
             $t->same(true, PptxNativeAstComparisonHarness::hasRequiredMappedParity($decoded, 49));
     },
     'cli required mapped pptx parity fails on skipped and mismatched evidence' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writePptx): void {

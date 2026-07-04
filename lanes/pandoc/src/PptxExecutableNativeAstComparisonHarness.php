@@ -48,6 +48,7 @@ final class PptxExecutableNativeAstComparisonHarness
         $mismatches = [];
         $nativeFixtureMismatches = [];
         $categoryCounts = [];
+        $fixtureComparisons = [];
         $normalizer = new PptxNativeAstComparisonHarness();
 
         foreach ($fixtureNames as $fixtureName) {
@@ -66,6 +67,16 @@ final class PptxExecutableNativeAstComparisonHarness
                 ++$nativeFixtureParsedCount;
             }
 
+            $fixtureComparison = [
+                'fixture' => $fixtureName,
+                'localParsed' => (bool) $localResult['ok'],
+                'pandocParsed' => (bool) $pandocResult['ok'],
+                'nativeFixtureParsed' => (bool) $nativeFixtureResult['ok'],
+                'localPandocStatus' => 'not-compared',
+                'pandocNativeFixtureStatus' => 'not-compared',
+                'status' => 'parse-failure',
+            ];
+
             if (!$localResult['ok'] || !$pandocResult['ok'] || !$nativeFixtureResult['ok']) {
                 $parseFailures[] = [
                     'fixture' => $fixtureName,
@@ -73,6 +84,15 @@ final class PptxExecutableNativeAstComparisonHarness
                     'pandocError' => $pandocResult['error'],
                     'nativeFixtureError' => $nativeFixtureResult['error'],
                 ];
+                if ($localResult['error'] !== null) {
+                    $fixtureComparison['localError'] = $localResult['error'];
+                }
+                if ($pandocResult['error'] !== null) {
+                    $fixtureComparison['pandocError'] = $pandocResult['error'];
+                }
+                if ($nativeFixtureResult['error'] !== null) {
+                    $fixtureComparison['nativeFixtureError'] = $nativeFixtureResult['error'];
+                }
                 $this->addCategory($categoryCounts, 'parse-failure', $fixtureName, $maxExamples);
             }
 
@@ -87,9 +107,13 @@ final class PptxExecutableNativeAstComparisonHarness
                 $pandocAst = $normalizer->normalizedDocument($pandocDocument);
                 if ($localAst === $pandocAst) {
                     ++$matchCount;
+                    $fixtureComparison['localPandocStatus'] = 'matched';
                 } else {
                     $difference = $this->firstDifference($localAst, $pandocAst) ?? 'unknown-normalized-ast-difference';
                     $categories = $this->mismatchCategories($difference);
+                    $fixtureComparison['localPandocStatus'] = 'mismatched';
+                    $fixtureComparison['localPandocFirstDifference'] = $difference;
+                    $fixtureComparison['localPandocCategories'] = $categories;
                     foreach ($categories as $category) {
                         $this->addCategory($categoryCounts, $category, $fixtureName, $maxExamples);
                     }
@@ -117,9 +141,13 @@ final class PptxExecutableNativeAstComparisonHarness
                 $pandocAst = $normalizer->normalizedDocument($pandocDocument);
                 if ($nativeFixtureAst === $pandocAst) {
                     ++$pandocNativeFixtureMatchCount;
+                    $fixtureComparison['pandocNativeFixtureStatus'] = 'matched';
                 } else {
                     $difference = $this->firstDifference($nativeFixtureAst, $pandocAst) ?? 'unknown-native-fixture-difference';
                     $categories = $this->mismatchCategories($difference);
+                    $fixtureComparison['pandocNativeFixtureStatus'] = 'mismatched';
+                    $fixtureComparison['pandocNativeFixtureFirstDifference'] = $difference;
+                    $fixtureComparison['pandocNativeFixtureCategories'] = $categories;
                     $this->addCategory($categoryCounts, 'native-fixture-drift', $fixtureName, $maxExamples);
                     foreach ($categories as $category) {
                         $this->addCategory($categoryCounts, $category, $fixtureName, $maxExamples);
@@ -136,6 +164,19 @@ final class PptxExecutableNativeAstComparisonHarness
                     }
                 }
             }
+
+            if (
+                $fixtureComparison['localPandocStatus'] === 'matched'
+                && $fixtureComparison['pandocNativeFixtureStatus'] === 'matched'
+            ) {
+                $fixtureComparison['status'] = 'matched';
+            } elseif (
+                $fixtureComparison['localPandocStatus'] === 'mismatched'
+                || $fixtureComparison['pandocNativeFixtureStatus'] === 'mismatched'
+            ) {
+                $fixtureComparison['status'] = 'mismatched';
+            }
+            $fixtureComparisons[] = $fixtureComparison;
         }
 
         ksort($categoryCounts);
@@ -175,6 +216,7 @@ final class PptxExecutableNativeAstComparisonHarness
             'mismatchComparisons' => $mismatches,
             'pandocNativeFixtureMismatchComparisons' => $nativeFixtureMismatches,
             'mismatchCategories' => array_values($categoryCounts),
+            'fixtureComparisons' => $fixtureComparisons,
             'orderedRemainingGaps' => self::orderedRemainingGaps(
                 true,
                 true,
@@ -229,6 +271,11 @@ final class PptxExecutableNativeAstComparisonHarness
             (int) ($report['pandocNativeFixtureMatchCount'] ?? 0),
             self::formatPercent($report['pandocNativeFixtureMatchPercent'] ?? null),
             (int) ($report['pandocNativeFixtureMismatchCount'] ?? 0),
+        );
+        $fixtureComparisons = $report['fixtureComparisons'] ?? [];
+        $lines[] = sprintf(
+            'fixtureComparisons: rows=%d',
+            is_array($fixtureComparisons) ? count($fixtureComparisons) : 0,
         );
 
         $mismatches = $report['mismatchComparisons'] ?? [];
@@ -342,6 +389,7 @@ final class PptxExecutableNativeAstComparisonHarness
             'mismatchComparisons' => [],
             'pandocNativeFixtureMismatchComparisons' => [],
             'mismatchCategories' => [],
+            'fixtureComparisons' => [],
             'orderedRemainingGaps' => self::orderedRemainingGaps($directoryPresent, $executablePresent, 0, 0, 0, 0),
         ];
     }
@@ -606,7 +654,7 @@ final class PptxExecutableNativeAstComparisonHarness
         } elseif (!$executablePresent) {
             $sourceEvidence = 'pandoc executable absent; executable comparison did not run';
         } else {
-            $sourceEvidence = "compared pptx={$comparedPptxCount}; parse failures={$parseFailureCount}; local/executable normalized AST matches={$matchCount}; local/executable normalized AST mismatches={$mismatchCount}; executable/native-fixture matches={$nativeFixtureMatchCount}; executable/native-fixture mismatches={$nativeFixtureMismatchCount}";
+            $sourceEvidence = "compared pptx={$comparedPptxCount}; fixture rows={$comparedPptxCount}; parse failures={$parseFailureCount}; local/executable normalized AST matches={$matchCount}; local/executable normalized AST mismatches={$mismatchCount}; executable/native-fixture matches={$nativeFixtureMatchCount}; executable/native-fixture mismatches={$nativeFixtureMismatchCount}";
         }
 
         $executableEvidenceCovered = $parseFailureCount === 0
@@ -630,7 +678,7 @@ final class PptxExecutableNativeAstComparisonHarness
                 'rank' => 2,
                 'id' => 'upstream-haskell-pptx-reader-runner-results',
                 'status' => 'open',
-                'currentEvidence' => 'This harness invokes a pandoc executable and checks paired checked-in native fixtures, but it does not run the upstream Haskell/Tasty process itself.',
+                'currentEvidence' => 'This harness records per-fixture local/executable/native-fixture rows, but it does not run the upstream Haskell/Tasty process itself.',
                 'evidenceRequired' => 'Record reproducible upstream Tests.Readers.Pptx runner results when a Haskell runner is available.',
             ],
         ];

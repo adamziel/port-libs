@@ -112,6 +112,7 @@ return [
             $t->same(0, $report['comparedPptxCount']);
             $t->same(0, $report['nativeFixtureParsedCount']);
             $t->same(0, $report['pandocNativeFixtureMatchCount']);
+            $t->same([], $report['fixtureComparisons']);
             $t->same('not-evaluated-pandoc-executable-missing', $report['astParityStatus']);
             $t->same('not-evaluated', $report['orderedRemainingGaps'][0]['status']);
             $t->contains('Pandoc PPTX executable/native AST comparison: skipped', $text);
@@ -145,6 +146,11 @@ return [
             $t->same(0, $report['pandocNativeFixtureMismatchCount']);
             $t->same('pandoc fake 1.0', $report['pandocVersion']);
             $t->same('normalized-ast-equality-observed-against-pandoc-executable', $report['astParityStatus']);
+            $t->same(1, count($report['fixtureComparisons']));
+            $t->same('basic', $report['fixtureComparisons'][0]['fixture']);
+            $t->same('matched', $report['fixtureComparisons'][0]['status']);
+            $t->same('matched', $report['fixtureComparisons'][0]['localPandocStatus']);
+            $t->same('matched', $report['fixtureComparisons'][0]['pandocNativeFixtureStatus']);
             $t->same(true, PptxExecutableNativeAstComparisonHarness::hasRequiredExecutableParity($report, 1));
             $t->same(true, PptxExecutableNativeAstComparisonHarness::hasRequiredPandocVersion($report, 'pandoc fake 1.0'));
             $t->same(false, PptxExecutableNativeAstComparisonHarness::hasRequiredPandocVersion($report, 'pandoc fake 2.0'));
@@ -174,6 +180,10 @@ return [
             $t->contains('root.children keys', $report['mismatchComparisons'][0]['firstDifference']);
             $t->same('basic', $report['pandocNativeFixtureMismatchComparisons'][0]['fixture']);
             $t->contains('root.children keys', $report['pandocNativeFixtureMismatchComparisons'][0]['firstDifference']);
+            $t->same(1, count($report['fixtureComparisons']));
+            $t->same('mismatched', $report['fixtureComparisons'][0]['status']);
+            $t->same('mismatched', $report['fixtureComparisons'][0]['localPandocStatus']);
+            $t->same('mismatched', $report['fixtureComparisons'][0]['pandocNativeFixtureStatus']);
             $t->same(false, PptxExecutableNativeAstComparisonHarness::hasRequiredExecutableParity($report, 1));
         } finally {
             $removeTree($root);
@@ -201,6 +211,11 @@ return [
             $t->same(0, $report['pandocNativeFixtureComparedCount']);
             $t->same(1, $report['parseFailureCount']);
             $t->same('missing paired .native fixture', $report['parseFailures'][0]['nativeFixtureError']);
+            $t->same(1, count($report['fixtureComparisons']));
+            $t->same('parse-failure', $report['fixtureComparisons'][0]['status']);
+            $t->same('matched', $report['fixtureComparisons'][0]['localPandocStatus']);
+            $t->same('not-compared', $report['fixtureComparisons'][0]['pandocNativeFixtureStatus']);
+            $t->same('missing paired .native fixture', $report['fixtureComparisons'][0]['nativeFixtureError']);
             $t->same('blocked-by-parse-failures', $report['astParityStatus']);
             $t->same(false, PptxExecutableNativeAstComparisonHarness::hasRequiredExecutableParity($report, 1));
         } finally {
@@ -233,6 +248,8 @@ return [
             $t->same(1, $decoded['pandocNativeFixtureComparedCount']);
             $t->same(1, $decoded['pandocNativeFixtureMatchCount']);
             $t->same(0, $decoded['pandocNativeFixtureMismatchCount']);
+            $t->same(1, count($decoded['fixtureComparisons']));
+            $t->same('matched', $decoded['fixtureComparisons'][0]['status']);
             $t->same(true, PptxExecutableNativeAstComparisonHarness::hasRequiredExecutableParity($decoded, 1));
             $t->same(true, PptxExecutableNativeAstComparisonHarness::hasRequiredPandocVersion($decoded, 'pandoc fake 1.0'));
 
@@ -290,6 +307,11 @@ return [
             $t->same(49, $decoded['pandocNativeFixtureComparedCount']);
             $t->same(49, $decoded['pandocNativeFixtureMatchCount']);
             $t->same(0, $decoded['pandocNativeFixtureMismatchCount']);
+            $t->same(49, count($decoded['fixtureComparisons']));
+            $t->same([], array_values(array_filter(
+                $decoded['fixtureComparisons'],
+                static fn (array $row): bool => ($row['status'] ?? null) !== 'matched'
+            )));
             $t->same(true, PptxExecutableNativeAstComparisonHarness::hasRequiredExecutableParity($decoded, 49));
 
             $conflictingCommand = escapeshellarg(PHP_BINARY)

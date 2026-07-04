@@ -112,6 +112,7 @@ if ($summary) {
         'normalizedAstMatchPercent',
         'astParityStatus',
         'mismatchCategories',
+        'fixtureComparisons',
         'orderedRemainingGaps',
     ]));
 }

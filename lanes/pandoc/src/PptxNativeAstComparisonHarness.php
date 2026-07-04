@@ -56,6 +56,7 @@ final class PptxNativeAstComparisonHarness
                 'parseFailures' => [],
                 'mismatchComparisons' => [],
                 'mismatchCategories' => [],
+                'fixtureComparisons' => [],
                 'orderedRemainingGaps' => self::orderedRemainingGaps(false, 0, 0, 0, 0),
             ];
         }
@@ -77,6 +78,7 @@ final class PptxNativeAstComparisonHarness
         $parseFailures = [];
         $mismatches = [];
         $categoryCounts = [];
+        $fixtureComparisons = [];
 
         foreach ($pairNames as $pairName) {
             $pptxResult = $this->readPptx($pptxFiles[$pairName]);
@@ -89,12 +91,28 @@ final class PptxNativeAstComparisonHarness
                 ++$nativeParsedCount;
             }
 
+            $fixtureComparison = [
+                'fixture' => $pairName,
+                'pptxParsed' => (bool) $pptxResult['ok'],
+                'nativeParsed' => (bool) $nativeResult['ok'],
+                'bothParsed' => false,
+                'normalizedAstMatched' => false,
+                'status' => 'parse-failure',
+            ];
+
             if (!$pptxResult['ok'] || !$nativeResult['ok']) {
                 $parseFailures[] = [
                     'fixture' => $pairName,
                     'pptxError' => $pptxResult['error'],
                     'nativeError' => $nativeResult['error'],
                 ];
+                if ($pptxResult['error'] !== null) {
+                    $fixtureComparison['pptxError'] = $pptxResult['error'];
+                }
+                if ($nativeResult['error'] !== null) {
+                    $fixtureComparison['nativeError'] = $nativeResult['error'];
+                }
+                $fixtureComparisons[] = $fixtureComparison;
                 $this->addCategory($categoryCounts, 'parse-failure', $pairName, $maxExamples);
                 continue;
             }
@@ -104,16 +122,23 @@ final class PptxNativeAstComparisonHarness
             /** @var AstNode $nativeDocument */
             $nativeDocument = $nativeResult['document'];
             ++$bothParsedCount;
+            $fixtureComparison['bothParsed'] = true;
 
             $pptxAst = $this->normalizedNode($pptxDocument);
             $nativeAst = $this->normalizedNode($nativeDocument);
             if ($pptxAst === $nativeAst) {
                 ++$matchCount;
+                $fixtureComparison['normalizedAstMatched'] = true;
+                $fixtureComparison['status'] = 'matched';
+                $fixtureComparisons[] = $fixtureComparison;
                 continue;
             }
 
             $difference = $this->firstDifference($pptxAst, $nativeAst) ?? 'unknown-normalized-ast-difference';
             $categories = $this->mismatchCategories($difference);
+            $fixtureComparison['status'] = 'mismatched';
+            $fixtureComparison['firstDifference'] = $difference;
+            $fixtureComparison['categories'] = $categories;
             foreach ($categories as $category) {
                 $this->addCategory($categoryCounts, $category, $pairName, $maxExamples);
             }
@@ -127,6 +152,7 @@ final class PptxNativeAstComparisonHarness
                     'nativeTopTypes' => $this->topTypeSequence($nativeDocument),
                 ];
             }
+            $fixtureComparisons[] = $fixtureComparison;
         }
 
         ksort($categoryCounts);
@@ -157,6 +183,7 @@ final class PptxNativeAstComparisonHarness
             'parseFailures' => array_slice($parseFailures, 0, $maxExamples),
             'mismatchComparisons' => $mismatches,
             'mismatchCategories' => array_values($categoryCounts),
+            'fixtureComparisons' => $fixtureComparisons,
             'orderedRemainingGaps' => self::orderedRemainingGaps(
                 true,
                 $comparedPairCount,
@@ -199,6 +226,11 @@ final class PptxNativeAstComparisonHarness
             self::formatPercent($report['normalizedAstMatchPercent'] ?? null),
             (int) ($report['normalizedAstMismatchCount'] ?? 0),
             (string) ($report['astParityStatus'] ?? 'unknown'),
+        );
+        $fixtureComparisons = $report['fixtureComparisons'] ?? [];
+        $lines[] = sprintf(
+            'fixtureComparisons: rows=%d',
+            is_array($fixtureComparisons) ? count($fixtureComparisons) : 0,
         );
 
         $categories = $report['mismatchCategories'] ?? [];
@@ -695,7 +727,7 @@ final class PptxNativeAstComparisonHarness
         int $mismatchCount
     ): array {
         $sourceEvidence = $sourceDirectoryPresent
-            ? "compared pairs={$comparedPairCount}; parse failures={$parseFailureCount}; normalized AST matches={$matchCount}; normalized AST mismatches={$mismatchCount}"
+            ? "compared pairs={$comparedPairCount}; fixture rows={$comparedPairCount}; parse failures={$parseFailureCount}; normalized AST matches={$matchCount}; normalized AST mismatches={$mismatchCount}"
             : 'optional upstream PPTX cache absent; normalized AST comparison did not run';
 
         return [
@@ -712,8 +744,8 @@ final class PptxNativeAstComparisonHarness
                 'rank' => 2,
                 'id' => 'upstream-pptx-reader-runner-results',
                 'status' => 'open',
-                'currentEvidence' => 'No upstream Haskell/Cabal test-pandoc PPTX reader runner result is recorded by this AST lane.',
-                'evidenceRequired' => 'Record reproducible upstream PPTX reader runner results or a native-PHP equivalent denominator with per-fixture pass/fail rows.',
+                'currentEvidence' => 'Native-PHP per-fixture pass/fail rows are recorded, but no upstream Haskell/Cabal test-pandoc PPTX reader runner result is recorded by this AST lane.',
+                'evidenceRequired' => 'Record reproducible upstream PPTX reader runner results and retain per-fixture pass/fail rows for every compared fixture.',
             ],
             [
                 'rank' => 3,

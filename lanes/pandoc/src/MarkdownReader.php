@@ -3382,6 +3382,12 @@ final class MarkdownReader
             return null;
         }
 
+        if (!$this->htmlRawHtmlEnabled()) {
+            $text = trim($line);
+
+            return [new AstNode('paragraph', ['text' => $text], $this->parseInlines($text))];
+        }
+
         $blocks = [
             new AstNode('raw_html', ['html' => $m[1]]),
         ];

@@ -135,6 +135,7 @@ if ($summary) {
         'pandocNativeFixtureMatchPercent',
         'astParityStatus',
         'mismatchCategories',
+        'fixtureComparisons',
         'orderedRemainingGaps',
     ]));
 }

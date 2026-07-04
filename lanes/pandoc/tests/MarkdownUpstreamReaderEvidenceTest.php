@@ -79,14 +79,14 @@ return [
         $t->same(['missing-upstream-root'], $report['validation']['issues']);
         $t->same('valid-checked-in-current-markdown-reader-evidence', $report['staticCurrentEvidence']['validation']['status']);
         $t->same('valid-checked-in-current-markdown-native-expectation-evidence', $report['staticCurrentEvidence']['nativeExpectationEvidence']['validation']['status']);
-        $t->same(54, $report['staticCurrentEvidence']['nativeExpectationEvidence']['presentFixtureCount']);
+        $t->same(55, $report['staticCurrentEvidence']['nativeExpectationEvidence']['presentFixtureCount']);
         $t->same(MarkdownUpstreamReaderEvidence::EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256, $report['staticCurrentEvidence']['nativeExpectationEvidence']['manifestSha256']);
-        $t->same(54, $report['nativeAstEvidence']['totalPairCount']);
-        $t->same(54, $report['nativeAstEvidence']['normalizedAstMatchCount']);
+        $t->same(55, $report['nativeAstEvidence']['totalPairCount']);
+        $t->same(55, $report['nativeAstEvidence']['normalizedAstMatchCount']);
         $t->same(0, $report['nativeAstEvidence']['unpairedMarkdownFixtureCount']);
-        $t->same(true, MarkdownUpstreamReaderEvidence::hasRequiredSelectedFixtureCount($report, 54));
+        $t->same(true, MarkdownUpstreamReaderEvidence::hasRequiredSelectedFixtureCount($report, 55));
         $t->same(true, MarkdownUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($report));
-        $t->same(true, MarkdownUpstreamReaderEvidence::hasRequiredNativeMappedParity($report, 54));
+        $t->same(true, MarkdownUpstreamReaderEvidence::hasRequiredNativeMappedParity($report, 55));
         $t->same(true, MarkdownUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
         $t->same(true, MarkdownUpstreamReaderEvidence::hasRunnerPlanEvidence($report));
         $t->same(false, MarkdownUpstreamReaderEvidence::hasNoValidationIssues($report));
@@ -96,9 +96,9 @@ return [
         $t->true(in_array('.port-libs/pandoc-runner/logs/markdown-targeted-run.txt', $report['runnerEvidence']['requiredTranscripts'], true));
         $t->true(in_array('.port-libs/pandoc-runner/artifacts/markdown-targeted-run/result.json', $report['runnerEvidence']['requiredArtifacts'], true));
         $t->contains('Pandoc Markdown reader evidence', $text);
-        $t->contains('Selected checked-in fixtures: 54', $text);
-        $t->contains('Static current evidence: valid-checked-in-current-markdown-reader-evidence checkedInFixtures=54 nativeExpectations=54 nativeManifest=valid-checked-in-current-markdown-native-expectation-evidence', $text);
-        $t->contains('Native AST mapped parity: 54/54 status=normalized-ast-equality-observed-not-runner-parity', $text);
+        $t->contains('Selected checked-in fixtures: 55', $text);
+        $t->contains('Static current evidence: valid-checked-in-current-markdown-reader-evidence checkedInFixtures=55 nativeExpectations=55 nativeManifest=valid-checked-in-current-markdown-native-expectation-evidence', $text);
+        $t->contains('Native AST mapped parity: 55/55 status=normalized-ast-equality-observed-not-runner-parity', $text);
         $t->contains('Runner plan: planned-not-run', $text);
     },
 
@@ -108,14 +108,14 @@ return [
 
         $t->same('static-checked-in-current-upstream-markdown-reader-fixture-evidence', $evidence['kind']);
         $t->same(MarkdownUpstreamReaderEvidence::EXPECTED_UPSTREAM_COMMIT, $evidence['upstream']['commit']);
-        $t->same(54, $evidence['readerDenominator']['selectedFixtureCount']);
+        $t->same(55, $evidence['readerDenominator']['selectedFixtureCount']);
         $t->same('selected checked-in upstream-derived Markdown reader fixtures', $evidence['readerDenominator']['fixtureScope']);
         $t->same(['selected-upstream-markdown-reader-case', 'upstream-command-fixture'], $evidence['readerDenominator']['sourceKinds']);
-        $t->same(54, $evidence['checkedInFixtureCount']);
+        $t->same(55, $evidence['checkedInFixtureCount']);
         $t->same('static-checked-in-current-markdown-native-expectation-evidence', $evidence['nativeExpectationEvidence']['kind']);
-        $t->same(54, $evidence['nativeExpectationEvidence']['expectedFixtureCount']);
-        $t->same(54, $evidence['nativeExpectationEvidence']['fixtureCount']);
-        $t->same(54, $evidence['nativeExpectationEvidence']['presentFixtureCount']);
+        $t->same(55, $evidence['nativeExpectationEvidence']['expectedFixtureCount']);
+        $t->same(55, $evidence['nativeExpectationEvidence']['fixtureCount']);
+        $t->same(55, $evidence['nativeExpectationEvidence']['presentFixtureCount']);
         $t->same(MarkdownUpstreamReaderEvidence::EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256, $evidence['nativeExpectationEvidence']['expectedManifestSha256']);
         $t->same(MarkdownUpstreamReaderEvidence::EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256, $evidence['nativeExpectationEvidence']['manifestSha256']);
         $t->same('valid-checked-in-current-markdown-native-expectation-evidence', $evidence['nativeExpectationEvidence']['validation']['status']);
@@ -138,21 +138,24 @@ return [
         $t->same('upstream-markdown-lhs-inverse-bird-html.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][34]['name']);
         $t->same('ded30bb9ec48394e6dd42c95ab504456b4f85ff37c1f1a68076bf603260c25d8', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][34]['sha256']);
         $t->same(129, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][34]['bytes']);
-        $t->same('upstream-markdown-strict-compact-heading.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][47]['name']);
-        $t->same('dca4b0a1370fb86f4ea2ab8f19d1254313558ae57954679d1b3ca1fbaa2c8044', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][47]['sha256']);
-        $t->same(43, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][47]['bytes']);
-        $t->same('upstream-markdown-task-list.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][50]['name']);
-        $t->same('80ead08088210467f4ce4ab35800a2be9e47b76a5c63fb92c3692ce3b49728df', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][50]['sha256']);
-        $t->same(846, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][50]['bytes']);
-        $t->same('upstream-markdown-unbalanced-brackets.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][51]['name']);
-        $t->same('9179740322c07d3717a32cb023a504dafaf164a6f39e2b1cc2fd1f3d11b7e5d8', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][51]['sha256']);
-        $t->same(34, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][51]['bytes']);
-        $t->same('upstream-markdown-yaml-metadata.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][52]['name']);
-        $t->same('7ef515f951844ff049c5f6a4c98f42094843aa311061f59eb20d2be6bca6d7b2', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][52]['sha256']);
-        $t->same(75, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][52]['bytes']);
-        $t->same('upstream-markdown-z-commonmark-x-grid-table-default.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][53]['name']);
-        $t->same('566596459e8d3e3ab0ae5842fecc54764cad72c34c81a104ca9df16451e5143d', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][53]['sha256']);
-        $t->same(389, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][53]['bytes']);
+        $t->same('upstream-markdown-raw-html-nesting.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][45]['name']);
+        $t->same('d16a4635f6eae97cbd79896344371abc70993130b2493e232e8778f950e5e8a6', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][45]['sha256']);
+        $t->same(96, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][45]['bytes']);
+        $t->same('upstream-markdown-strict-compact-heading.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][48]['name']);
+        $t->same('dca4b0a1370fb86f4ea2ab8f19d1254313558ae57954679d1b3ca1fbaa2c8044', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][48]['sha256']);
+        $t->same(43, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][48]['bytes']);
+        $t->same('upstream-markdown-task-list.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][51]['name']);
+        $t->same('80ead08088210467f4ce4ab35800a2be9e47b76a5c63fb92c3692ce3b49728df', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][51]['sha256']);
+        $t->same(846, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][51]['bytes']);
+        $t->same('upstream-markdown-unbalanced-brackets.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][52]['name']);
+        $t->same('9179740322c07d3717a32cb023a504dafaf164a6f39e2b1cc2fd1f3d11b7e5d8', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][52]['sha256']);
+        $t->same(34, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][52]['bytes']);
+        $t->same('upstream-markdown-yaml-metadata.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][53]['name']);
+        $t->same('7ef515f951844ff049c5f6a4c98f42094843aa311061f59eb20d2be6bca6d7b2', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][53]['sha256']);
+        $t->same(75, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][53]['bytes']);
+        $t->same('upstream-markdown-z-commonmark-x-grid-table-default.native', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][54]['name']);
+        $t->same('566596459e8d3e3ab0ae5842fecc54764cad72c34c81a104ca9df16451e5143d', $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][54]['sha256']);
+        $t->same(389, $evidence['nativeExpectationEvidence']['checkedInNativeFixtures'][54]['bytes']);
         $t->same('upstream-command-parse-raw.md', $evidence['checkedInFixtures'][0]['name']);
         $t->same('command-parse-raw-reader-fixture', $evidence['checkedInFixtures'][0]['role']);
         $t->same('e3b50f56f86883e3e323cf97d52cd07a3c3797fb7d5f89bbb422392e8008f72b', $evidence['checkedInFixtures'][0]['checkedInFile']['sha256']);
@@ -366,47 +369,52 @@ return [
         $t->same(23, $evidence['checkedInFixtures'][46]['checkedInFile']['bytes']);
         $t->true(in_array('lanes/pandoc/tests/MarkdownReaderRawHtmlInvalidCommentFixtureCompletionTest.php', $evidence['checkedInFixtures'][46]['coverageTests'], true));
         $t->true(in_array('lanes/pandoc/tests/MarkdownReaderRawHtmlInvalidCommentFixtureCompletionTest.php', $evidence['checkedInFixtures'][46]['localTestReferences'], true));
-        $t->same('upstream-markdown-yaml-metadata.md', $evidence['checkedInFixtures'][47]['name']);
-        $t->same('5f69d57ef44116f63721edde6e0f164d3388f692e0fb9359bdc8ea35261e3376', $evidence['checkedInFixtures'][47]['checkedInFile']['sha256']);
-        $t->same(142, $evidence['checkedInFixtures'][47]['checkedInFile']['bytes']);
-        $t->true(in_array('lanes/pandoc/tests/MarkdownReaderYamlMetadataFixtureCompletionTest.php', $evidence['checkedInFixtures'][47]['coverageTests'], true));
-        $t->true(in_array('lanes/pandoc/tests/MarkdownReaderYamlMetadataFixtureCompletionTest.php', $evidence['checkedInFixtures'][47]['localTestReferences'], true));
-        $t->same('upstream-markdown-definition-list-tight-bodies.md', $evidence['checkedInFixtures'][48]['name']);
-        $t->same('58eb007d7f3dac48da8c992622e5a29defd68c7a84cdabb29b81ac4e218df924', $evidence['checkedInFixtures'][48]['checkedInFile']['sha256']);
-        $t->same(62, $evidence['checkedInFixtures'][48]['checkedInFile']['bytes']);
-        $t->true(in_array('lanes/pandoc/tests/MarkdownReaderDefinitionListFixtureCompletionTest.php', $evidence['checkedInFixtures'][48]['coverageTests'], true));
-        $t->true(in_array('lanes/pandoc/tests/MarkdownReaderDefinitionListFixtureCompletionTest.php', $evidence['checkedInFixtures'][48]['localTestReferences'], true));
-        $t->same('upstream-markdown-lhs-inverse-bird-html.md', $evidence['checkedInFixtures'][49]['name']);
-        $t->same('f08f6db28a623c0f60dbe069e68567e38f7ecbf71367f01eebfa52c2d6735ce0', $evidence['checkedInFixtures'][49]['checkedInFile']['sha256']);
-        $t->same(16, $evidence['checkedInFixtures'][49]['checkedInFile']['bytes']);
-        $t->true(in_array('lanes/pandoc/tests/MarkdownReaderLiterateHaskellFixtureCompletionTest.php', $evidence['checkedInFixtures'][49]['coverageTests'], true));
-        $t->true(in_array('lanes/pandoc/tests/MarkdownReaderLiterateHaskellFixtureCompletionTest.php', $evidence['checkedInFixtures'][49]['localTestReferences'], true));
-        $t->same('upstream-markdown-alerts.md', $evidence['checkedInFixtures'][50]['name']);
-        $t->same('d4f826212c99ace92b25f414db142d565fa7b737ff6c0cbabb4010d5cf1f7b29', $evidence['checkedInFixtures'][50]['checkedInFile']['sha256']);
-        $t->same(107, $evidence['checkedInFixtures'][50]['checkedInFile']['bytes']);
-        $t->true(in_array('lanes/pandoc/tests/MarkdownReaderAlertProfileCompletionTest.php', $evidence['checkedInFixtures'][50]['coverageTests'], true));
-        $t->true(in_array('lanes/pandoc/tests/MarkdownReaderAlertProfileCompletionTest.php', $evidence['checkedInFixtures'][50]['localTestReferences'], true));
-        $t->same('upstream-markdown-strict-compact-heading.md', $evidence['checkedInFixtures'][51]['name']);
-        $t->same('7631fb35c6f86b29590e5a339c7c14abc67cb65adc8557efffef6f69485eb0b4', $evidence['checkedInFixtures'][51]['checkedInFile']['sha256']);
-        $t->same(4, $evidence['checkedInFixtures'][51]['checkedInFile']['bytes']);
-        $t->true(in_array('lanes/pandoc/tests/MarkdownReaderStrictCompactHeadingFixtureCompletionTest.php', $evidence['checkedInFixtures'][51]['coverageTests'], true));
-        $t->true(in_array('lanes/pandoc/tests/MarkdownReaderStrictCompactHeadingFixtureCompletionTest.php', $evidence['checkedInFixtures'][51]['localTestReferences'], true));
-        $t->same('upstream-markdown-z-commonmark-x-grid-table-default.md', $evidence['checkedInFixtures'][52]['name']);
-        $t->same('412a732f5c23e980d34d1be6b014030f06ff723439ba06740804fe1d52a946a1', $evidence['checkedInFixtures'][52]['checkedInFile']['sha256']);
-        $t->same(50, $evidence['checkedInFixtures'][52]['checkedInFile']['bytes']);
-        $t->same('commonmark_x grid_tables disabled by default, pipe_tables still enabled', $evidence['checkedInFixtures'][52]['formatProfile']);
-        $t->true(in_array('lanes/pandoc/tests/MarkdownReaderTableProfileSurgeTest.php', $evidence['checkedInFixtures'][52]['coverageTests'], true));
-        $t->true(in_array('lanes/pandoc/tests/MarkdownReaderTableProfileSurgeTest.php', $evidence['checkedInFixtures'][52]['localTestReferences'], true));
-        $t->same('upstream-markdown-autolink-attributes.md', $evidence['checkedInFixtures'][53]['name']);
-        $t->same('1e53b4ffdeab43731a3909f53ffd8d4f44d2560d5355b7e490ef2f19376c2052', $evidence['checkedInFixtures'][53]['checkedInFile']['sha256']);
-        $t->same(64, $evidence['checkedInFixtures'][53]['checkedInFile']['bytes']);
-        $t->same('markdown angle autolink raw_attribute boundary', $evidence['checkedInFixtures'][53]['formatProfile']);
-        $t->true(in_array('lanes/pandoc/tests/MarkdownReaderAutolinkAttributeFixtureCompletionTest.php', $evidence['checkedInFixtures'][53]['coverageTests'], true));
-        $t->true(in_array('lanes/pandoc/tests/MarkdownReaderAutolinkAttributeFixtureCompletionTest.php', $evidence['checkedInFixtures'][53]['localTestReferences'], true));
+        $t->same('upstream-markdown-raw-html-nesting.md', $evidence['checkedInFixtures'][47]['name']);
+        $t->same('0e02bd68029985d4aa7eb46ecd54335afa80af300626cf32fbe23756dc764f7b', $evidence['checkedInFixtures'][47]['checkedInFile']['sha256']);
+        $t->same(16, $evidence['checkedInFixtures'][47]['checkedInFile']['bytes']);
+        $t->true(in_array('lanes/pandoc/tests/MarkdownReaderRawHtmlNestingFixtureCompletionTest.php', $evidence['checkedInFixtures'][47]['coverageTests'], true));
+        $t->true(in_array('lanes/pandoc/tests/MarkdownReaderRawHtmlNestingFixtureCompletionTest.php', $evidence['checkedInFixtures'][47]['localTestReferences'], true));
+        $t->same('upstream-markdown-yaml-metadata.md', $evidence['checkedInFixtures'][48]['name']);
+        $t->same('5f69d57ef44116f63721edde6e0f164d3388f692e0fb9359bdc8ea35261e3376', $evidence['checkedInFixtures'][48]['checkedInFile']['sha256']);
+        $t->same(142, $evidence['checkedInFixtures'][48]['checkedInFile']['bytes']);
+        $t->true(in_array('lanes/pandoc/tests/MarkdownReaderYamlMetadataFixtureCompletionTest.php', $evidence['checkedInFixtures'][48]['coverageTests'], true));
+        $t->true(in_array('lanes/pandoc/tests/MarkdownReaderYamlMetadataFixtureCompletionTest.php', $evidence['checkedInFixtures'][48]['localTestReferences'], true));
+        $t->same('upstream-markdown-definition-list-tight-bodies.md', $evidence['checkedInFixtures'][49]['name']);
+        $t->same('58eb007d7f3dac48da8c992622e5a29defd68c7a84cdabb29b81ac4e218df924', $evidence['checkedInFixtures'][49]['checkedInFile']['sha256']);
+        $t->same(62, $evidence['checkedInFixtures'][49]['checkedInFile']['bytes']);
+        $t->true(in_array('lanes/pandoc/tests/MarkdownReaderDefinitionListFixtureCompletionTest.php', $evidence['checkedInFixtures'][49]['coverageTests'], true));
+        $t->true(in_array('lanes/pandoc/tests/MarkdownReaderDefinitionListFixtureCompletionTest.php', $evidence['checkedInFixtures'][49]['localTestReferences'], true));
+        $t->same('upstream-markdown-lhs-inverse-bird-html.md', $evidence['checkedInFixtures'][50]['name']);
+        $t->same('f08f6db28a623c0f60dbe069e68567e38f7ecbf71367f01eebfa52c2d6735ce0', $evidence['checkedInFixtures'][50]['checkedInFile']['sha256']);
+        $t->same(16, $evidence['checkedInFixtures'][50]['checkedInFile']['bytes']);
+        $t->true(in_array('lanes/pandoc/tests/MarkdownReaderLiterateHaskellFixtureCompletionTest.php', $evidence['checkedInFixtures'][50]['coverageTests'], true));
+        $t->true(in_array('lanes/pandoc/tests/MarkdownReaderLiterateHaskellFixtureCompletionTest.php', $evidence['checkedInFixtures'][50]['localTestReferences'], true));
+        $t->same('upstream-markdown-alerts.md', $evidence['checkedInFixtures'][51]['name']);
+        $t->same('d4f826212c99ace92b25f414db142d565fa7b737ff6c0cbabb4010d5cf1f7b29', $evidence['checkedInFixtures'][51]['checkedInFile']['sha256']);
+        $t->same(107, $evidence['checkedInFixtures'][51]['checkedInFile']['bytes']);
+        $t->true(in_array('lanes/pandoc/tests/MarkdownReaderAlertProfileCompletionTest.php', $evidence['checkedInFixtures'][51]['coverageTests'], true));
+        $t->true(in_array('lanes/pandoc/tests/MarkdownReaderAlertProfileCompletionTest.php', $evidence['checkedInFixtures'][51]['localTestReferences'], true));
+        $t->same('upstream-markdown-strict-compact-heading.md', $evidence['checkedInFixtures'][52]['name']);
+        $t->same('7631fb35c6f86b29590e5a339c7c14abc67cb65adc8557efffef6f69485eb0b4', $evidence['checkedInFixtures'][52]['checkedInFile']['sha256']);
+        $t->same(4, $evidence['checkedInFixtures'][52]['checkedInFile']['bytes']);
+        $t->true(in_array('lanes/pandoc/tests/MarkdownReaderStrictCompactHeadingFixtureCompletionTest.php', $evidence['checkedInFixtures'][52]['coverageTests'], true));
+        $t->true(in_array('lanes/pandoc/tests/MarkdownReaderStrictCompactHeadingFixtureCompletionTest.php', $evidence['checkedInFixtures'][52]['localTestReferences'], true));
+        $t->same('upstream-markdown-z-commonmark-x-grid-table-default.md', $evidence['checkedInFixtures'][53]['name']);
+        $t->same('412a732f5c23e980d34d1be6b014030f06ff723439ba06740804fe1d52a946a1', $evidence['checkedInFixtures'][53]['checkedInFile']['sha256']);
+        $t->same(50, $evidence['checkedInFixtures'][53]['checkedInFile']['bytes']);
+        $t->same('commonmark_x grid_tables disabled by default, pipe_tables still enabled', $evidence['checkedInFixtures'][53]['formatProfile']);
+        $t->true(in_array('lanes/pandoc/tests/MarkdownReaderTableProfileSurgeTest.php', $evidence['checkedInFixtures'][53]['coverageTests'], true));
+        $t->true(in_array('lanes/pandoc/tests/MarkdownReaderTableProfileSurgeTest.php', $evidence['checkedInFixtures'][53]['localTestReferences'], true));
+        $t->same('upstream-markdown-autolink-attributes.md', $evidence['checkedInFixtures'][54]['name']);
+        $t->same('1e53b4ffdeab43731a3909f53ffd8d4f44d2560d5355b7e490ef2f19376c2052', $evidence['checkedInFixtures'][54]['checkedInFile']['sha256']);
+        $t->same(64, $evidence['checkedInFixtures'][54]['checkedInFile']['bytes']);
+        $t->same('markdown angle autolink raw_attribute boundary', $evidence['checkedInFixtures'][54]['formatProfile']);
+        $t->true(in_array('lanes/pandoc/tests/MarkdownReaderAutolinkAttributeFixtureCompletionTest.php', $evidence['checkedInFixtures'][54]['coverageTests'], true));
+        $t->true(in_array('lanes/pandoc/tests/MarkdownReaderAutolinkAttributeFixtureCompletionTest.php', $evidence['checkedInFixtures'][54]['localTestReferences'], true));
         $t->same('valid-checked-in-current-markdown-reader-evidence', $evidence['validation']['status']);
         $t->same([], $evidence['validation']['issues']);
         $t->true(in_array('each selected fixture has at least one local PHP test reference', $evidence['claimBoundaries']['doesAssert'], true));
-        $t->true(in_array('the fifty-four selected checked-in Markdown native expectation snapshots match the expected deterministic manifest hash', $evidence['claimBoundaries']['doesAssert'], true));
+        $t->true(in_array('the fifty-five selected checked-in Markdown native expectation snapshots match the expected deterministic manifest hash', $evidence['claimBoundaries']['doesAssert'], true));
         $t->true(in_array('full Markdown dialect parity across every extension combination', $evidence['claimBoundaries']['doesNotAssert'], true));
     },
 
@@ -420,11 +428,11 @@ return [
             $t->same(MarkdownUpstreamReaderEvidence::STATUS_COMPLETED, $report['status']);
             $t->same('valid-upstream-markdown-reader-evidence', $report['validation']['status']);
             $t->same([], $report['validation']['issues']);
-            $t->same(54, $report['denominator']['selectedFixtureCount']);
+            $t->same(55, $report['denominator']['selectedFixtureCount']);
             $t->same(2, $report['sourceInventory']['presentFileCount']);
             $t->same(0, $report['sourceInventory']['missingFileCount']);
             $t->same(true, MarkdownUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($report));
-            $t->same(true, MarkdownUpstreamReaderEvidence::hasRequiredNativeMappedParity($report, 54));
+            $t->same(true, MarkdownUpstreamReaderEvidence::hasRequiredNativeMappedParity($report, 55));
             $t->same(true, MarkdownUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
             $t->same(true, MarkdownUpstreamReaderEvidence::hasRunnerPlanEvidence($report));
             $t->same(true, MarkdownUpstreamReaderEvidence::hasNoValidationIssues($report));
@@ -531,9 +539,9 @@ return [
             . ' --repo-root=' . escapeshellarg($repoRoot)
             . ' --checked-in-fixtures'
             . ' --json'
-            . ' --require-selected-fixture-count=54'
+            . ' --require-selected-fixture-count=55'
             . ' --require-static-current-evidence'
-            . ' --require-native-mapped-parity=54'
+            . ' --require-native-mapped-parity=55'
             . ' --require-runner-not-run'
             . ' --require-runner-plan';
         $output = [];
@@ -543,11 +551,11 @@ return [
 
         $t->same(0, $exitCode);
         $t->same(MarkdownUpstreamReaderEvidence::STATUS_SKIPPED_MISSING_SOURCE, $decoded['status']);
-        $t->same(54, $decoded['staticCurrentEvidence']['readerDenominator']['selectedFixtureCount']);
+        $t->same(55, $decoded['staticCurrentEvidence']['readerDenominator']['selectedFixtureCount']);
         $t->same('valid-checked-in-current-markdown-reader-evidence', $decoded['staticCurrentEvidence']['validation']['status']);
         $t->same('valid-checked-in-current-markdown-native-expectation-evidence', $decoded['staticCurrentEvidence']['nativeExpectationEvidence']['validation']['status']);
         $t->same(MarkdownUpstreamReaderEvidence::EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256, $decoded['staticCurrentEvidence']['nativeExpectationEvidence']['manifestSha256']);
-        $t->same(54, $decoded['nativeAstEvidence']['normalizedAstMatchCount']);
+        $t->same(55, $decoded['nativeAstEvidence']['normalizedAstMatchCount']);
         $t->same(0, $decoded['nativeAstEvidence']['normalizedAstMismatchCount']);
         $t->same('not-run', $decoded['runnerEvidence']['status']);
         $t->same('planned-not-run', $decoded['runnerEvidence']['commandPlanStatus']);
@@ -555,14 +563,14 @@ return [
         $t->same(['Readers', 'Markdown'], $decoded['runnerEvidence']['target']['tastyGroupPath']);
         $t->true(in_array('complete Markdown dialect parity across every Pandoc extension profile', $decoded['claimBoundaries']['doesNotAssert'], true));
 
-        $failingCommand = str_replace('--require-selected-fixture-count=54', '--require-selected-fixture-count=55', $command) . ' 2>/dev/null';
+        $failingCommand = str_replace('--require-selected-fixture-count=55', '--require-selected-fixture-count=56', $command) . ' 2>/dev/null';
         $failingOutput = [];
         $failingExitCode = 0;
         exec($failingCommand, $failingOutput, $failingExitCode);
 
         $t->same(1, $failingExitCode);
 
-        $failingNativeCommand = str_replace('--require-native-mapped-parity=54', '--require-native-mapped-parity=55', $command) . ' 2>/dev/null';
+        $failingNativeCommand = str_replace('--require-native-mapped-parity=55', '--require-native-mapped-parity=56', $command) . ' 2>/dev/null';
         $failingNativeOutput = [];
         $failingNativeExitCode = 0;
         exec($failingNativeCommand, $failingNativeOutput, $failingNativeExitCode);

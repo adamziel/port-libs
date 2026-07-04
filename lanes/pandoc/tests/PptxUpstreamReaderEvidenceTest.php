@@ -418,6 +418,11 @@ return [
         $t->same(0, $nativeParity['parseFailureCount']);
         $t->same(49, $nativeParity['normalizedAstMatchCount']);
         $t->same(0, $nativeParity['normalizedAstMismatchCount']);
+        $t->same(49, count($nativeParity['fixtureComparisons']));
+        $t->same([], array_values(array_filter(
+            $nativeParity['fixtureComparisons'],
+            static fn (array $row): bool => ($row['status'] ?? null) !== 'matched'
+        )));
         $t->same('normalized-ast-equality-observed-not-runner-parity', $nativeParity['astParityStatus']);
         $t->same(true, $nativeParity['hasRequiredMappedParity']);
         $t->same('checked-in-current-pptx-executable-native-normalized-ast-parity', $executableParity['kind']);

@@ -369,6 +369,9 @@ return [
             $t->same(['generated-navigation'], $coverage['fixturesWithGuideReferences']);
             $t->same(['generated-navigation'], $coverage['fixturesWithPackageLinks']);
             $t->same(['generated-navigation'], $coverage['fixturesWithCreators']);
+            $t->same([], $coverage['fixturesWithEncryption']);
+            $t->same([], $coverage['fixturesWithObfuscatedFonts']);
+            $t->same([], $coverage['fixturesWithBlockedEncryptedByteExposures']);
             $t->same([], $coverage['fixturesWithCoverImagePart']);
             $t->same([], $coverage['fixturesWithImages']);
             $t->same([], $coverage['fixturesWithStylesheets']);
@@ -417,6 +420,10 @@ return [
                 'mediaOverlayTextLocalTargets' => 0,
                 'mediaOverlayAudioLocalTargets' => 0,
                 'mediaOverlayDurations' => 0,
+                'encryptionItems' => 0,
+                'obfuscatedFonts' => 0,
+                'blockedEncryptedByteExposures' => 0,
+                'encryptionDiagnostics' => 0,
             ], $coverage['totals']);
 
             $command = escapeshellarg(PHP_BINARY)
@@ -459,6 +466,9 @@ return [
             $t->same([], $decoded['packageFeatureCoverage']['fixturesWithResolvedMediaOverlays']);
             $t->same([], $decoded['packageFeatureCoverage']['fixturesWithMediaOverlayTextTargets']);
             $t->same([], $decoded['packageFeatureCoverage']['fixturesWithMediaOverlayAudioTargets']);
+            $t->same([], $decoded['packageFeatureCoverage']['fixturesWithEncryption']);
+            $t->same([], $decoded['packageFeatureCoverage']['fixturesWithObfuscatedFonts']);
+            $t->same([], $decoded['packageFeatureCoverage']['fixturesWithBlockedEncryptedByteExposures']);
             $t->same(
                 $coverage['fixtureFeatureSignatures'],
                 $decoded['packageFeatureCoverage']['fixtureFeatureSignatures']
@@ -466,6 +476,7 @@ return [
             $t->same(['generated-navigation'], $decoded['packageFeatureCoverage']['fixturesWithCreators']);
             $t->same(1, $decoded['packageFeatureCoverage']['totals']['metadataCreators']);
             $t->same(0, $decoded['packageFeatureCoverage']['totals']['mediaOverlays']);
+            $t->same(0, $decoded['packageFeatureCoverage']['totals']['encryptionItems']);
         } finally {
             $removeTree($root);
         }
@@ -871,6 +882,21 @@ return [
                 'nested-rootfile-nonlinear-spine',
                 'wasteland',
             ],
+            'fixturesWithEncryption' => [
+                'epub2_cover',
+                'epub2_no_cover',
+                'epub2_picture',
+            ],
+            'fixturesWithObfuscatedFonts' => [
+                'epub2_cover',
+                'epub2_no_cover',
+                'epub2_picture',
+            ],
+            'fixturesWithBlockedEncryptedByteExposures' => [
+                'epub2_cover',
+                'epub2_no_cover',
+                'epub2_picture',
+            ],
             'navigationTypeCounts' => [
                 'nav' => 27,
                 'ncx' => 3,
@@ -948,6 +974,9 @@ return [
                 'cc:attributionURL' => 1,
                 'cc:license' => 2,
                 'record' => 1,
+            ],
+            'encryptionRoleCounts' => [
+                'font' => 3,
             ],
             'fixtureFeatureSignatures' => [
                 'audio-navigation' => [
@@ -1570,9 +1599,13 @@ return [
                 'mediaOverlayTextLocalTargets' => 1,
                 'mediaOverlayAudioLocalTargets' => 1,
                 'mediaOverlayDurations' => 3,
+                'encryptionItems' => 3,
+                'obfuscatedFonts' => 3,
+                'blockedEncryptedByteExposures' => 3,
+                'encryptionDiagnostics' => 6,
             ],
         ];
-        $expectedPackageFeatureSignatureSha256 = '13b9939a1c655ddbfe40828b8115838e45be3f6c704e42c59dbb524acb8cf1fa';
+        $expectedPackageFeatureSignatureSha256 = '20d37ee4c30cf8dc3885553eac4967c091751b1262fad791e845828fa43c3293';
         $expectedCurrentNativeAstSignatureSha256 = '5f814ea4f598640a51fa3a58d0480deccae32df17cee54a7575e6676823ba82c';
         $expectedCurrentNativeAstFixtures = [
             'audio-navigation',
@@ -2146,6 +2179,7 @@ return [
         $t->contains('packageLinkRels=cc:attributionURL:1,cc:license:2,record:1', $text);
         $t->contains('remoteManifest=2 externalManifest=2 missingLocalManifest=1 manifestFallbackItems=5 manifestFallbacks=3 resolvedFallbacks=2 usableFallbacks=2 missingFallbacks=3', $text);
         $t->contains('mediaOverlayFixtures=2 resolvedMediaOverlayFixtures=1 mediaOverlays=2 resolvedMediaOverlays=1 mediaOverlayTextTargets=1 mediaOverlayAudioTargets=1 mediaOverlayDurations=3', $text);
+        $t->contains('encryptionFixtures=3 obfuscatedFontFixtures=3 blockedEncryptedByteExposureFixtures=3 encryptionItems=3 obfuscatedFonts=3 blockedEncryptedByteExposures=3 encryptionDiagnostics=6 encryptionRoles=font:3', $text);
         $t->contains('opfParts=/EPUB/package.opf:25,/EPUB/wasteland.opf:1,/OEBPS/content.opf:3,/OPS/book/package.opf:1,/OPS/package.opf:1', $text);
 
         $command = escapeshellarg(PHP_BINARY)

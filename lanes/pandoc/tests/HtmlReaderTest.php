@@ -117,6 +117,26 @@ $tests['imports direct pandoc html standalone keyboard fragment as plain'] =
         $t->same('Cmd', $kbd->children[0]->attr('text'));
     };
 
+$tests['imports direct pandoc html standalone bdo mark q fragment as plain'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-standalone-bdo-mark-q-inline.html'));
+        $plain = $document->children[0];
+
+        $t->same('html', $document->attr('sourceFormat'));
+        $t->same(['plain'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same(
+            ['span', 'span', 'quoted'],
+            array_map(static fn ($node): string => $node->type, $plain->children)
+        );
+        $t->same(['dir' => 'rtl'], $plain->children[0]->attr('attributes'));
+        $t->same('abc', $plain->children[0]->children[0]->attr('text'));
+        $t->same(['mark'], $plain->children[1]->attr('classes'));
+        $t->same('hi', $plain->children[1]->children[0]->attr('text'));
+        $t->same('double', $plain->children[2]->attr('kind'));
+        $t->same('/source', $plain->children[2]->children[0]->attr('attributes')['cite'] ?? null);
+        $t->same('quote', $plain->children[2]->children[0]->children[0]->attr('text'));
+    };
+
 $tests['imports upstream html self closing anchor without href as span'] =
     static function (TestRunner $t): void {
         $document = (new HtmlReader())->read('<a name="anchor"/>');

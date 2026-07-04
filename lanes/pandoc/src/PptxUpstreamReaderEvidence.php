@@ -1791,6 +1791,7 @@ final class PptxUpstreamReaderEvidence
             'parseFailures' => is_array($report['parseFailures'] ?? null) ? $report['parseFailures'] : [],
             'mismatchCategories' => is_array($report['mismatchCategories'] ?? null) ? $report['mismatchCategories'] : [],
             'mismatchComparisons' => is_array($report['mismatchComparisons'] ?? null) ? $report['mismatchComparisons'] : [],
+            'fixtureComparisons' => is_array($report['fixtureComparisons'] ?? null) ? $report['fixtureComparisons'] : [],
             'orderedRemainingGaps' => is_array($report['orderedRemainingGaps'] ?? null) ? $report['orderedRemainingGaps'] : [],
             'claim' => (string) ($report['claim'] ?? 'Checked-in current PPTX/native normalized AST comparison.'),
             'claimBoundaries' => [
@@ -1859,6 +1860,7 @@ final class PptxUpstreamReaderEvidence
             'mismatchCategories' => is_array($report['mismatchCategories'] ?? null) ? $report['mismatchCategories'] : [],
             'mismatchComparisons' => is_array($report['mismatchComparisons'] ?? null) ? $report['mismatchComparisons'] : [],
             'pandocNativeFixtureMismatchComparisons' => is_array($report['pandocNativeFixtureMismatchComparisons'] ?? null) ? $report['pandocNativeFixtureMismatchComparisons'] : [],
+            'fixtureComparisons' => is_array($report['fixtureComparisons'] ?? null) ? $report['fixtureComparisons'] : [],
             'orderedRemainingGaps' => is_array($report['orderedRemainingGaps'] ?? null) ? $report['orderedRemainingGaps'] : [],
             'validation' => [
                 'status' => $issues === [] ? 'valid-checked-in-current-pptx-executable-native-ast-parity' : 'invalid-checked-in-current-pptx-executable-native-ast-parity',
