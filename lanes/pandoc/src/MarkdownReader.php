@@ -15860,24 +15860,19 @@ final class MarkdownReader
 
     private function shortScriptExtensionEnabled(string $delimiter): bool
     {
-        $extension = match ($delimiter) {
-            '^' => 'superscript',
-            '~' => 'subscript',
-            default => null,
-        };
-        if ($extension === null) {
+        if ($delimiter !== '^' && $delimiter !== '~') {
             return false;
         }
 
         $overrides = $this->markdownExtensionOverrides();
-        if (array_key_exists($extension, $overrides)) {
-            return $overrides[$extension];
+        if (array_key_exists('short_subsuperscripts', $overrides)) {
+            return $overrides['short_subsuperscripts'];
         }
 
         $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
         $canonical = MarkdownFormatProfile::canonicalFormat($format);
 
-        return in_array($canonical, ['markdown', 'commonmark_x', 'markdown_mmd'], true);
+        return $canonical === 'markdown_mmd';
     }
 
     private function rawAttributeEnabled(): bool
@@ -19006,12 +19001,7 @@ final class MarkdownReader
             return null;
         }
 
-        if (preg_match('/\G\d+/', $text, $m, 0, $offset + 1) !== 1) {
-            return null;
-        }
-
-        $next = $text[$offset + 1 + strlen($m[0])] ?? '';
-        if ($next !== '' && $this->isAsciiAlnum($next)) {
+        if (preg_match('/\G[A-Za-z0-9]+/', $text, $m, 0, $offset + 1) !== 1) {
             return null;
         }
 

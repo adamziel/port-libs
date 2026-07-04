@@ -1,0 +1,55 @@
+[ Para [ Span ( "intro.xhtml" , [] , [] ) [] ]
+, Header
+    1
+    ( "" , [] , [] )
+    [ Str "Opening" , Space , Str "Metadata" ]
+, Para
+    [ Str "The"
+    , Space
+    , Str "package"
+    , Space
+    , Str "carries"
+    , Space
+    , Str "title,"
+    , Space
+    , Str "creator,"
+    , Space
+    , Str "language,"
+    , Space
+    , Str "subject,"
+    , Space
+    , Str "and"
+    , Space
+    , Str "date"
+    , Space
+    , Str "metadata."
+    ]
+, Para [ Span ( "chapter.xhtml" , [] , [] ) [] ]
+, Header
+    1 ( "" , [] , [] ) [ Str "Media" , Space , Str "Chapter" ]
+, Para
+    [ Str "The"
+    , Space
+    , Str "second"
+    , Space
+    , Str "linear"
+    , Space
+    , Str "spine"
+    , Space
+    , Str "item"
+    , Space
+    , Str "references"
+    , Space
+    , Str "a"
+    , Space
+    , Str "manifest"
+    , Space
+    , Str "image."
+    ]
+, Para
+    [ Image
+        ( "" , [] , [] )
+        [ Str "Fixture" , Space , Str "figure" ]
+        ( "images/figure.png" , "Metadata image" )
+    ]
+]

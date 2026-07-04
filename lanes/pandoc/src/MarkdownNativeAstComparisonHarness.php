@@ -35,6 +35,7 @@ final class MarkdownNativeAstComparisonHarness
         'upstream-markdown-task-list' => ['format' => 'markdown+task_lists'],
         'upstream-markdown-z-fancy-list-markers' => ['format' => 'markdown+fancy_lists'],
         'upstream-markdown-z-phpextra-profile' => ['format' => 'markdown_phpextra'],
+        'upstream-markdown-z-short-subsuperscript-profile' => ['format' => 'markdown+short_subsuperscripts'],
     ];
 
     /** @var array<string, true> */

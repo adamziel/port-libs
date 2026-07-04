@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 59;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 60;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '0d2509974f2219b67a7f3c0382a038beb6a7ea37761dcb2c94d1016e81511c3e';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 29479;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '6471197baf72a766c7baf0e9e0c60c3ac5b68377b8591cb8fd5f8bb29676b7e9';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 29912;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -414,6 +414,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => 'a13be46a0ba2e04ae56ee4da86015c4f30401c654f942f574c2d3516a0eb2a3d',
             'pptxBytes' => 1895,
             'nativeBytes' => 176,
+        ],
+        'embed-and-link-image' => [
+            'name' => 'generated embed-over-link image relationship parity',
+            'pptx' => 'pptx-reader/embed-and-link-image.pptx',
+            'native' => 'pptx-reader/embed-and-link-image.native',
+            'pairKey' => 'pptx-reader/embed-and-link-image.pptx|pptx-reader/embed-and-link-image.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/embed-and-link-image.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/embed-and-link-image.native',
+            'pptxSha256' => '0675b7e479fbd55a76fb798357dbe2266e509023be3a7a2d2d34dff8ddf7322b',
+            'nativeSha256' => '2088c8c09db8bad7bbc09ddcabc8d54500491b2ac13bb75970c5e6ed0969c507',
+            'pptxBytes' => 2607,
+            'nativeBytes' => 218,
         ],
         'connector-skip' => [
             'name' => 'generated connector shape skip parity',

@@ -1,0 +1,20 @@
+[ Para
+    [ Str "H"
+    , Subscript [ Str "2O" ]
+    , Space
+    , Str "and"
+    , Space
+    , Str "X"
+    , Superscript [ Str "2" ]
+    ]
+, Para
+    [ Str "H"
+    , Subscript [ Str "2" ]
+    , Str "O"
+    , Space
+    , Str "and"
+    , Space
+    , Str "X"
+    , Superscript [ Str "2" ]
+    ]
+]

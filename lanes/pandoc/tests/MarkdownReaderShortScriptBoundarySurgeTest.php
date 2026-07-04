@@ -85,6 +85,22 @@ $validBoundaryCases = [
 ];
 
 return [
+    'keeps upstream markdown reader short script forms literal without extension opt in' =>
+        static function (TestRunner $t) use ($inlineText, $containsInlineType): void {
+            $reader = new MarkdownReader(['format' => 'markdown']);
+            $cases = [
+                ['type' => 'subscript', 'source' => 'H~2O and water.'],
+                ['type' => 'superscript', 'source' => 'X^2 and area.'],
+            ];
+
+            foreach ($cases as $index => $case) {
+                $paragraph = $reader->read($case['source'])->children[0] ?? new AstNode('missing');
+
+                $t->same('paragraph', $paragraph->type, 'literal case ' . $index);
+                $t->same($case['source'], $inlineText($paragraph), 'literal case ' . $index . ' source text');
+                $t->same(false, $containsInlineType($paragraph, $case['type']), 'literal case ' . $index . ' should not parse short script');
+            }
+        },
     'maps upstream markdown reader short script alphanumeric boundary cases' =>
         static function (TestRunner $t) use ($boundaryCases, $inlineText, $containsInlineType): void {
             $reader = new MarkdownReader();
@@ -108,7 +124,7 @@ return [
         },
     'preserves upstream markdown reader short script delimiter boundaries' =>
         static function (TestRunner $t) use ($validBoundaryCases, $inlineText, $containsInlineType): void {
-            $reader = new MarkdownReader();
+            $reader = new MarkdownReader(['format' => 'markdown+short_subsuperscripts']);
 
             foreach ($validBoundaryCases as $index => $case) {
                 $paragraph = $reader->read($case['source'])->children[0] ?? new AstNode('missing');

@@ -730,6 +730,21 @@ $tests['imports generated current html multiple tbody row header columns'] =
         $t->same(true, $geometry['summary']['hasDifferingRowHeadColumns'] ?? null);
     };
 
+$tests['imports direct pandoc html implicit tbody row header table'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-implicit-tbody-table.html'));
+        $table = $document->children[0];
+        $head = $table->children[0];
+        $body = $table->children[1];
+        $row = $body->children[0];
+
+        $t->same(['table'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same(['table_head', 'table_body'], array_map(static fn ($node): string => $node->type, $table->children));
+        $t->same([], $head->children);
+        $t->same(1, $body->attr('rowHeadColumns'));
+        $t->same(['Item', 'Count'], array_map(static fn ($cell): string => $cell->attr('text'), $row->children));
+    };
+
 $tests['imports upstream html block children inside table cells'] =
     static function (TestRunner $t): void {
         $html = '<table><tr><td><ul><li>one</li><li>two</li></ul></td><td><blockquote><p>quote</p></blockquote></td></tr></table>';

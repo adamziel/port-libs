@@ -162,7 +162,7 @@ return [
         $t->contains('a^b c^d, a~b c~d.', $notScript->children[2]->attr('text'));
     },
     'maps upstream markdown reader mmd short subscript superscript delimiters' => static function (TestRunner $t): void {
-        $reader = new MarkdownReader();
+        $reader = new MarkdownReader(['format' => 'markdown_mmd']);
         $subspace = $reader->read('O~2 is dangerous')->children[0];
         $subnewline = $reader->read("O~2\n")->children[0];
         $subeof = $reader->read('O~2')->children[0];
@@ -177,7 +177,7 @@ return [
         $supNoNesting = $reader->read('y^*2*')->children[0];
         $regularSubscript = $reader->read('H~2~')->children[0];
         $regularSuperscript = $reader->read('x^3^')->children[0];
-        $defaultWhitespaceGuard = $reader->read('a^b c^d, a~b c~d.')->children[0];
+        $defaultWhitespaceGuard = (new MarkdownReader())->read('a^b c^d, a~b c~d.')->children[0];
 
         $t->same(['text', 'subscript', 'text'], array_map(static fn (AstNode $node): string => $node->type, $subspace->children));
         $t->same('O', $subspace->children[0]->attr('text'));
@@ -12855,7 +12855,7 @@ XML;
         $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
 
         $t->contains('<p>Chemistry note: H<sub>2</sub>O import and a<sup><em>draft</em></sup> status need <del>legacy cleanup</del>.</p>', $blocks);
-        $t->contains('<p>Short script audit: O<sub>2</sub> levels and x<sup>2</sup><em>status</em> annotations stay compact for reviewer notes.</p>', $blocks);
+        $t->contains('<p>Short script audit: O~2 levels and x^2<em>status</em> annotations stay compact for reviewer notes.</p>', $blocks);
     },
     'writes wordpress smart punctuation from import review notes' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
