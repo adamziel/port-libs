@@ -42,9 +42,9 @@ $cases = [
     ],
     'single quote attribute close bracket' => [
         'body' => '<a href="/docs" title=\']\'>link</a>',
-        'types' => ['raw_html_inline'],
-        'html' => ['<a href="/docs" title=\']\'>link</a>'],
-        'text' => '',
+        'types' => ['raw_html_inline', 'text', 'raw_html_inline'],
+        'html' => ['<a href="/docs" title=\']\'>', '</a>'],
+        'text' => 'link',
     ],
     'unquoted attribute close bracket' => [
         'body' => '<span data-token=]>raw</span>',

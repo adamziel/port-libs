@@ -14644,7 +14644,12 @@ final class MarkdownReader
     /**
      * @return list<AstNode>
      */
-    private function parseInlines(string $text, bool $allowLinks = true, bool $allowBareCitations = true): array
+    private function parseInlines(
+        string $text,
+        bool $allowLinks = true,
+        bool $allowBareCitations = true,
+        bool $allowBareUriAutolinks = true
+    ): array
     {
         $nodes = [];
         $buffer = '';
@@ -14895,12 +14900,16 @@ final class MarkdownReader
             $rawHtmlInline = $allowLinks ? $this->tryParseRawHtmlInline($text, $offset) : null;
             if ($rawHtmlInline !== null) {
                 $this->flushText($buffer, $nodes);
-                $nodes[] = $rawHtmlInline['node'];
+                if (isset($rawHtmlInline['nodes'])) {
+                    array_push($nodes, ...$rawHtmlInline['nodes']);
+                } else {
+                    $nodes[] = $rawHtmlInline['node'];
+                }
                 $offset = $rawHtmlInline['next'];
                 continue;
             }
 
-            $bareUriAutolink = $allowLinks && $this->bareUriAutolinkExtensionEnabled()
+            $bareUriAutolink = $allowLinks && $allowBareUriAutolinks && $this->bareUriAutolinkExtensionEnabled()
                 ? $this->tryParseBareUriAutolink($text, $offset)
                 : null;
             if ($bareUriAutolink !== null) {
@@ -17444,7 +17453,7 @@ final class MarkdownReader
     }
 
     /**
-     * @return array{node: AstNode, next: int}|null
+     * @return array{node?: AstNode, nodes?: list<AstNode>, next: int}|null
      */
     private function tryParseRawHtmlInline(string $text, int $offset): ?array
     {
@@ -17463,33 +17472,35 @@ final class MarkdownReader
             ];
         }
 
-        if (
-            preg_match('~\G<a(?=\s|/>)(?:\s+[A-Za-z_:][A-Za-z0-9_.:-]*(?:\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s"\'=<>`]+))?)*\s*/>~iu', $text, $selfClosingAnchor, 0, $offset) === 1
-            && preg_match('~\s+href\s*=~iu', $selfClosingAnchor[0]) !== 1
-        ) {
-            $nodes = $this->parseHtmlInlineFragmentNodes($selfClosingAnchor[0]);
-            if (count($nodes) === 1 && $nodes[0]->type === 'span') {
-                return [
-                    'node' => $nodes[0],
-                    'next' => $offset + strlen($selfClosingAnchor[0]),
-                ];
-            }
-        }
-
         if (preg_match('~\G<a(?=\s|>)(?:\s+(?:"[^"]*"|\'[^\']*\'|[^\'"<>])*)?>~iu', $text, $open, 0, $offset) === 1) {
             $afterOpen = $offset + strlen($open[0]);
             if (preg_match('~\G</a\s*>~iu', $text, $close, 0, $afterOpen) === 1) {
                 return [
-                    'node' => new AstNode('raw_html_inline', ['html' => $open[0]]),
-                    'next' => $afterOpen,
+                    'nodes' => [
+                        new AstNode('raw_html_inline', ['html' => $open[0]]),
+                        new AstNode('raw_html_inline', ['html' => $close[0]]),
+                    ],
+                    'next' => $afterOpen + strlen($close[0]),
                 ];
             }
 
             if (preg_match('~</a\s*>~iu', $text, $close, PREG_OFFSET_CAPTURE, $afterOpen) === 1) {
-                $end = $close[0][1] + strlen($close[0][0]);
+                $closeHtml = $close[0][0];
+                $closeOffset = $close[0][1];
+                $end = $closeOffset + strlen($closeHtml);
+                $children = $this->parseInlines(
+                    substr($text, $afterOpen, $closeOffset - $afterOpen),
+                    true,
+                    true,
+                    false
+                );
 
                 return [
-                    'node' => new AstNode('raw_html_inline', ['html' => substr($text, $offset, $end - $offset)]),
+                    'nodes' => [
+                        new AstNode('raw_html_inline', ['html' => $open[0]]),
+                        ...$children,
+                        new AstNode('raw_html_inline', ['html' => $closeHtml]),
+                    ],
                     'next' => $end,
                 ];
             }

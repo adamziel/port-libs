@@ -1365,11 +1365,17 @@ return [
             . "\n\n" . implode(",\n\n", $urls)
         );
         $rawAnchor = $document->children[0]->children[0];
+        $anchorText = $document->children[0]->children[1];
+        $anchorClose = $document->children[0]->children[2];
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $t->same('raw_html_inline', $rawAnchor->type);
-        $t->same('<a href="http://foo.bar.baz">http://foo.bar.baz</a>', $rawAnchor->attr('html'));
-        $t->same(1, count($document->children[0]->children));
+        $t->same('<a href="http://foo.bar.baz">', $rawAnchor->attr('html'));
+        $t->same('text', $anchorText->type);
+        $t->same('http://foo.bar.baz', $anchorText->attr('text'));
+        $t->same('raw_html_inline', $anchorClose->type);
+        $t->same('</a>', $anchorClose->attr('html'));
+        $t->same(3, count($document->children[0]->children));
 
         foreach ($urls as $index => $url) {
             $paragraph = $document->children[$index + 1];
@@ -1385,6 +1391,23 @@ return [
         $t->contains('<a href="http://www.rubyonrails.com/~minam/url%20with%20spaces">http://www.rubyonrails.com/~minam/url%20with%20spaces</a>', $blocks);
         $t->contains('<a href="http://www.mail-archive.com/rails@lists.rubyonrails.org/">http://www.mail-archive.com/rails@lists.rubyonrails.org/</a>', $blocks);
         $t->contains('<a href="https://example.org/?anchor=-lala">https://example.org/?anchor=-lala</a>', $blocks);
+    },
+    'splits paired raw html anchors while parsing markdown children like upstream pandoc' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read('foo <a href="x">*bar* [baz](url) http://z.test</a> qux');
+        $children = $document->children[0]->children;
+
+        $t->same('text', $children[0]->type);
+        $t->same('foo ', $children[0]->attr('text'));
+        $t->same('raw_html_inline', $children[1]->type);
+        $t->same('<a href="x">', $children[1]->attr('html'));
+        $t->same('emph', $children[2]->type);
+        $t->same('bar', $children[2]->children[0]->attr('text'));
+        $t->same('link', $children[4]->type);
+        $t->same('url', $children[4]->attr('url'));
+        $t->same(' http://z.test', $children[5]->attr('text'));
+        $t->same('raw_html_inline', $children[6]->type);
+        $t->same('</a>', $children[6]->attr('html'));
+        $t->same(' qux', $children[7]->attr('text'));
     },
     'maps upstream markdown reader no links inside link labels' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n\n", [
