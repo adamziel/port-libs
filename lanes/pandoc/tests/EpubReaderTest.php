@@ -1459,6 +1459,97 @@ HTML);
             $native
         );
     },
+    'preserves epub footnote definition link attributes without body href overlay collision' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-footnote-link-attrs-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary EPUB package');
+        }
+        $zip->addFromString('META-INF/container.xml', '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="book-id">
+  <metadata>
+    <dc:identifier id="book-id">urn:uuid:footnote-link-attrs</dc:identifier>
+    <dc:title>Footnote Link Attrs</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('OPS/chapter.xhtml', <<<'HTML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <p>Body text <a epub:type="noteref" href="#fn1">1</a> and <a id="ordinary" class="body-link" role="doc-example" data-kind="ordinary" href="#fnref1">ordinary</a>.</p>
+    <aside epub:type="footnote" id="fn1">
+      <p><a id="back-link" class="tracked secondary" epub:type="backlink review" role="doc-backlink" target="_self" rel="prev" data-kind="return" href="#fnref1">back</a></p>
+    </aside>
+  </body>
+</html>
+HTML);
+        $zip->close();
+
+        try {
+            $document = (new EpubReader())->readEpubFile($path);
+            $native = (new NativeWriter(['blocksOnly' => true]))->write($document);
+        } finally {
+            @unlink($path);
+        }
+
+        $paragraph = $document->children[1] ?? new PortLibs\Pandoc\AstNode('missing');
+        $notes = array_values(array_filter(
+            $paragraph->children,
+            static fn (PortLibs\Pandoc\AstNode $child): bool => $child->type === 'note'
+        ));
+        $ordinaryLinks = array_values(array_filter(
+            $paragraph->children,
+            static fn (PortLibs\Pandoc\AstNode $child): bool => $child->type === 'link'
+        ));
+        $note = $notes[0] ?? new PortLibs\Pandoc\AstNode('missing');
+        $backlinkParagraph = $note->children[0] ?? new PortLibs\Pandoc\AstNode('missing');
+        $backlink = $backlinkParagraph->children[0] ?? new PortLibs\Pandoc\AstNode('missing');
+        $ordinaryLink = $ordinaryLinks[0] ?? new PortLibs\Pandoc\AstNode('missing');
+
+        $t->same('link', $backlink->type);
+        $t->same('chapter.xhtml_back-link', $backlink->attr('id'));
+        $t->same(['tracked', 'secondary', 'backlink', 'review'], $backlink->attr('classes'));
+        $t->same('#chapter.xhtml_fnref1', $backlink->attr('url'));
+        $t->same([
+            'role' => 'doc-backlink',
+            'target' => '_self',
+            'rel' => 'prev',
+            'data-kind' => 'return',
+        ], $backlink->attr('attributes'));
+
+        $t->same('link', $ordinaryLink->type);
+        $t->same('chapter.xhtml_ordinary', $ordinaryLink->attr('id'));
+        $t->same(['body-link'], $ordinaryLink->attr('classes'));
+        $t->same('#chapter.xhtml_fnref1', $ordinaryLink->attr('url'));
+        $t->same([
+            'role' => 'doc-example',
+            'data-kind' => 'ordinary',
+        ], $ordinaryLink->attr('attributes'));
+        $t->contains(
+            'Link ( "chapter.xhtml_back-link" , [ "tracked" , "secondary" , "backlink" , "review" ] , [ ( "data-kind" , "return" ) , ( "rel" , "prev" ) , ( "role" , "doc-backlink" ) , ( "target" , "_self" ) ] ) [ Str "back" ] ( "#chapter.xhtml_fnref1" , "" )',
+            $native
+        );
+        $t->contains(
+            'Link ( "chapter.xhtml_ordinary" , [ "body-link" ] , [ ( "data-kind" , "ordinary" ) , ( "role" , "doc-example" ) ] ) [ Str "ordinary" ] ( "#chapter.xhtml_fnref1" , "" )',
+            $native
+        );
+    },
     'preserves external epub noteref link class when note body is outside linear spine' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-external-noteref-');
         if ($path === false) {

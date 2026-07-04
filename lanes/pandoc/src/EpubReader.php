@@ -8,6 +8,7 @@ final class EpubReader
 {
     private const OPF_MEDIA_TYPE = 'application/oebps-package+xml';
     private const DC_NAMESPACE = 'http://purl.org/dc/elements/1.1/';
+    private const EPUB_FOOTNOTE_DEFINITION_LINK_ATTR = '_epubFootnoteDefinitionLink';
     /**
      * @var array<string, string>
      */
@@ -1071,6 +1072,9 @@ final class EpubReader
             if (!$link instanceof \DOMElement) {
                 continue;
             }
+            if ($this->hasEpubFootnoteDefinitionAncestor($link)) {
+                continue;
+            }
 
             $href = html_entity_decode($link->getAttribute('href'), ENT_QUOTES | ENT_XML1, 'UTF-8');
             if ($href === '') {
@@ -1179,6 +1183,17 @@ final class EpubReader
         return in_array('noteref', $this->tokenList($this->epubTypeAttribute($element)), true);
     }
 
+    private function hasEpubFootnoteDefinitionAncestor(\DOMElement $element): bool
+    {
+        for ($node = $element; $node instanceof \DOMElement; $node = $node->parentNode) {
+            if ($this->isEpubFootnoteDefinitionElement($node)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private function epubFootnoteReferenceId(\DOMElement $element, string $content_path): ?string
     {
         $href = html_entity_decode($element->getAttribute('href'), ENT_QUOTES | ENT_XML1, 'UTF-8');
@@ -1238,7 +1253,7 @@ final class EpubReader
     }
 
     /**
-     * @return list<array{attributes: array<string, string>}>
+     * @return list<array{id: string, classes: list<string>, attributes: array<string, string>}>
      */
     private function epubFootnoteLinkAttributeOverlays(\DOMElement $root): array
     {
@@ -1248,30 +1263,45 @@ final class EpubReader
                 continue;
             }
 
-            $attributes = [];
-            $role = trim($link->getAttribute('role'));
-            if ($role !== '') {
-                $attributes['role'] = $role;
-            }
-
-            $overlays[] = ['attributes' => $attributes];
+            $overlays[] = $this->epubBodyLinkAttributeOverlay($link);
         }
 
-        return array_filter(
-            $overlays,
-            static fn (array $overlay): bool => $overlay['attributes'] !== []
-        ) === [] ? [] : $overlays;
+        return $overlays;
     }
 
     /**
-     * @param list<array{attributes: array<string, string>}> $link_attribute_overlays
+     * @param list<array{id: string, classes: list<string>, attributes: array<string, string>}> $link_attribute_overlays
      */
     private function restoreEpubFootnoteLinkAttributes(AstNode $node, array $link_attribute_overlays, int &$link_index): AstNode
     {
         $attrs = $node->attrs;
         if ($node->type === 'link') {
-            $overlay = $link_attribute_overlays[$link_index] ?? ['attributes' => []];
+            $has_overlay = array_key_exists($link_index, $link_attribute_overlays);
+            $overlay = $has_overlay ? $link_attribute_overlays[$link_index] : ['id' => '', 'classes' => [], 'attributes' => []];
             ++$link_index;
+            if ($has_overlay) {
+                $attrs[self::EPUB_FOOTNOTE_DEFINITION_LINK_ATTR] = true;
+            }
+
+            $id = trim((string) ($overlay['id'] ?? ''));
+            if ($id !== '' && trim((string) ($attrs['id'] ?? '')) === '') {
+                $attrs['id'] = $id;
+            }
+
+            $classes = isset($attrs['classes']) && is_array($attrs['classes'])
+                ? array_values(array_map('strval', $attrs['classes']))
+                : [];
+            $overlay_classes = isset($overlay['classes']) && is_array($overlay['classes']) ? $overlay['classes'] : [];
+            foreach ($overlay_classes as $class) {
+                $class = trim((string) $class);
+                if ($class !== '' && !in_array($class, $classes, true)) {
+                    $classes[] = $class;
+                }
+            }
+            if ($classes !== []) {
+                $attrs['classes'] = $classes;
+            }
+
             if ($overlay['attributes'] !== []) {
                 $attributes = isset($attrs['attributes']) && is_array($attrs['attributes'])
                     ? $attrs['attributes']
@@ -1412,6 +1442,8 @@ final class EpubReader
         array &$media_bag_resources,
         array &$media_bag_sources
     ): AstNode {
+        $is_footnote_definition_link = $node->type === 'link'
+            && ($node->attrs[self::EPUB_FOOTNOTE_DEFINITION_LINK_ATTR] ?? false) === true;
         $attrs = in_array($node->type, ['blockquote', 'definition_list'], true)
             ? []
             : $this->fixEpubNodeAttrs($node->attrs, $filename, $this->shouldPrefixEpubNodeId($node->type));
@@ -1421,7 +1453,9 @@ final class EpubReader
         if ($node->type === 'link') {
             $url = (string) ($attrs['url'] ?? '');
             if ($url !== '') {
-                $attrs = $this->restoreEpubBodyLinkAttributes($attrs, $url, $filename, $link_attribute_overlays_by_href);
+                if (!$is_footnote_definition_link) {
+                    $attrs = $this->restoreEpubBodyLinkAttributes($attrs, $url, $filename, $link_attribute_overlays_by_href);
+                }
                 if (isset($note_reference_hrefs[$url])) {
                     $attrs = $this->attrsWithClass($attrs, 'noteref');
                 }
@@ -1566,6 +1600,7 @@ final class EpubReader
     private function fixEpubNodeAttrs(array $attrs, string $filename, bool $prefix_id): array
     {
         unset($attrs['htmlAttributes']);
+        unset($attrs[self::EPUB_FOOTNOTE_DEFINITION_LINK_ATTR]);
 
         $attributes = [];
         if (isset($attrs['attributes']) && is_array($attrs['attributes'])) {

@@ -233,6 +233,23 @@ $tests['imports direct pandoc html standalone bdo mark q fragment as plain'] =
         $t->same('quote', $plain->children[2]->children[0]->children[0]->attr('text'));
     };
 
+$tests['imports direct pandoc html standalone bdi fragment as visible text'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-standalone-bdi-inline.html'));
+        $plain = $document->children[0];
+
+        $t->same('html', $document->attr('sourceFormat'));
+        $t->same(['plain'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same('abc and name', $plain->attr('text'));
+        $t->same(
+            ['text', 'text', 'text'],
+            array_map(static fn ($node): string => $node->type, $plain->children)
+        );
+        $t->same('abc', $plain->children[0]->attr('text'));
+        $t->same(' and ', $plain->children[1]->attr('text'));
+        $t->same('name', $plain->children[2]->attr('text'));
+    };
+
 $tests['imports upstream html self closing anchor without href as span'] =
     static function (TestRunner $t): void {
         $document = (new HtmlReader())->read('<a name="anchor"/>');

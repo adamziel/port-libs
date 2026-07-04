@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 57;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 58;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '2dbbe54aa1ad3bb6d6d77f387735f8726dfbe8ace430e3b62afa8e3dd2aeaf00';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 28464;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '336f8df897325675e6b8c4e61f83c6e286c2684276b59b4c7b8ee68ff989fa66';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 28964;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -726,6 +726,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => 'dde7cc213ac82ae4f03a1c97dfaf72650bcafb5c9d5ce06497bf60ea8ceb688a',
             'pptxBytes' => 2633,
             'nativeBytes' => 122,
+        ],
+        'wrong-typed-slide-relationship' => [
+            'name' => 'generated slide relationship Type ignored parity',
+            'pptx' => 'pptx-reader/wrong-typed-slide-relationship.pptx',
+            'native' => 'pptx-reader/wrong-typed-slide-relationship.native',
+            'pairKey' => 'pptx-reader/wrong-typed-slide-relationship.pptx|pptx-reader/wrong-typed-slide-relationship.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/wrong-typed-slide-relationship.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/wrong-typed-slide-relationship.native',
+            'pptxSha256' => 'f781a8b009b67786a1df88e500dfd5111ce8848ee72a9eb9d20ba944172e2d70',
+            'nativeSha256' => '85a93bce0aa4d85219e859b3abdbaf78cf1e0c1884a6a59934b0e39e2790baf5',
+            'pptxBytes' => 1449,
+            'nativeBytes' => 121,
         ],
     ];
 

@@ -18867,11 +18867,20 @@ final class MarkdownReader
             return false;
         }
 
-        $escapable = $this->allSymbolsEscapableExtensionEnabled()
+        $allSymbolsEscapable = $this->allSymbolsEscapableExtensionEnabled();
+        $escapable = $allSymbolsEscapable
             ? self::MARKDOWN_ESCAPABLE_ASCII_PUNCTUATION
             : self::MARKDOWN_CLASSIC_ESCAPABLE_PUNCTUATION;
+        if (!$allSymbolsEscapable && $this->angleBracketsEscapableExtensionEnabled()) {
+            $escapable .= '<>';
+        }
 
         return str_contains($escapable, $char);
+    }
+
+    private function angleBracketsEscapableExtensionEnabled(): bool
+    {
+        return $this->markdownExtensionOverrides()['angle_brackets_escapable'] ?? false;
     }
 
     private function allSymbolsEscapableExtensionEnabled(): bool

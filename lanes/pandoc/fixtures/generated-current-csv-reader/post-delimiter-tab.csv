@@ -1,0 +1,3 @@
+id,	title,	note
+1,	"tab after comma",	plain
+2,	unquoted tab trim,	"quoted note"
