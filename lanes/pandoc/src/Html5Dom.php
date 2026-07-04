@@ -243,8 +243,82 @@ final class Html5Dom
 
     private static function hasOrphanTableScopeFragment(string $html): bool
     {
-        return preg_match('/<table\b/i', $html) !== 1
-            && preg_match('/<(?:caption|col|colgroup|tbody|td|tfoot|th|thead|tr)\b/i', $html) === 1;
+        $hasTableScopeElement = false;
+        foreach (self::htmlStartTagNames($html) as $name) {
+            if ($name === 'table') {
+                return false;
+            }
+            if (in_array($name, ['caption', 'col', 'colgroup', 'tbody', 'td', 'tfoot', 'th', 'thead', 'tr'], true)) {
+                $hasTableScopeElement = true;
+            }
+        }
+
+        return $hasTableScopeElement;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function htmlStartTagNames(string $html): array
+    {
+        $names = [];
+        $offset = 0;
+        $length = strlen($html);
+        while ($offset < $length) {
+            $tagStart = strpos($html, '<', $offset);
+            if ($tagStart === false || $tagStart + 1 >= $length) {
+                break;
+            }
+
+            $next = $html[$tagStart + 1];
+            if ($next === '/' || $next === '!' || $next === '?') {
+                $offset = $tagStart + 2;
+                continue;
+            }
+
+            $nameEnd = $tagStart + 1;
+            while ($nameEnd < $length && self::isHtmlTagNameChar($html[$nameEnd])) {
+                $nameEnd++;
+            }
+            if ($nameEnd > $tagStart + 1) {
+                $names[] = strtolower(substr($html, $tagStart + 1, $nameEnd - $tagStart - 1));
+            }
+            $tagEnd = self::htmlTagSourceEndOffset($html, $tagStart);
+            $offset = $tagEnd === null ? $nameEnd : $tagEnd + 1;
+        }
+
+        return $names;
+    }
+
+    private static function htmlTagSourceEndOffset(string $html, int $start): ?int
+    {
+        $quote = null;
+        $length = strlen($html);
+        for ($offset = $start + 1; $offset < $length; $offset++) {
+            $char = $html[$offset];
+            if ($quote !== null) {
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '>') {
+                return $offset;
+            }
+        }
+
+        return null;
+    }
+
+    private static function isHtmlTagNameChar(string $char): bool
+    {
+        return ctype_alpha($char) || ctype_digit($char) || in_array($char, ['-', ':'], true);
     }
 
     private static function html5TreeConstructedSource(string $html): ?string

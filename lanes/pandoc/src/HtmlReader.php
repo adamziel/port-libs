@@ -100,34 +100,13 @@ final class HtmlReader
 
     private static function flattenHtmlPictureContainers(string $bytes): string
     {
-        if (preg_match('/<picture\b/i', $bytes) !== 1) {
-            return $bytes;
-        }
-
         try {
-            $trimmed = ltrim($bytes);
-            if (preg_match('/^(?:<!doctype\b|<html\b|<head\b|<body\b)/i', $trimmed) !== 1) {
-                $body = Html5Dom::parseHtmlFragment($bytes);
-                if (!self::flattenHtmlPictureElements($body->ownerDocument)) {
-                    return $bytes;
-                }
-
-                return Html5Dom::serializeHtmlChildren($body);
-            }
-
-            $dom = Html5Dom::parseHtmlDocument($bytes);
-            if (!self::flattenHtmlPictureElements($dom)) {
+            $source = self::parseHtmlRewriteSource($bytes);
+            if ($source === null || !self::flattenHtmlPictureElements($source['dom'])) {
                 return $bytes;
             }
 
-            $documentElement = $dom->documentElement;
-            if (!$documentElement instanceof \DOMElement) {
-                return $bytes;
-            }
-
-            $html = $dom->saveHTML($documentElement);
-
-            return is_string($html) ? $html : $bytes;
+            return self::serializeHtmlRewriteSource($source) ?? $bytes;
         } catch (\Throwable) {
             return $bytes;
         }
@@ -186,34 +165,13 @@ final class HtmlReader
 
     private static function flattenHtmlTemplateContainers(string $bytes): string
     {
-        if (preg_match('/<template\b/i', $bytes) !== 1) {
-            return $bytes;
-        }
-
         try {
-            $trimmed = ltrim($bytes);
-            if (preg_match('/^(?:<!doctype\b|<html\b|<head\b|<body\b)/i', $trimmed) !== 1) {
-                $body = Html5Dom::parseHtmlFragment($bytes);
-                if (!self::flattenHtmlTemplateElements($body->ownerDocument)) {
-                    return $bytes;
-                }
-
-                return Html5Dom::serializeHtmlChildren($body);
-            }
-
-            $dom = Html5Dom::parseHtmlDocument($bytes);
-            if (!self::flattenHtmlTemplateElements($dom)) {
+            $source = self::parseHtmlRewriteSource($bytes);
+            if ($source === null || !self::flattenHtmlTemplateElements($source['dom'])) {
                 return $bytes;
             }
 
-            $documentElement = $dom->documentElement;
-            if (!$documentElement instanceof \DOMElement) {
-                return $bytes;
-            }
-
-            $html = $dom->saveHTML($documentElement);
-
-            return is_string($html) ? $html : $bytes;
+            return self::serializeHtmlRewriteSource($source) ?? $bytes;
         } catch (\Throwable) {
             return $bytes;
         }
@@ -262,18 +220,17 @@ final class HtmlReader
 
     private static function flattenHtmlDetailsSummaryContainers(string $bytes): string
     {
-        if (preg_match('/<\/?(?:details|summary)\b/i', $bytes) !== 1) {
+        try {
+            $source = self::parseHtmlRewriteSource($bytes);
+        } catch (\Throwable) {
             return $bytes;
         }
-
-        try {
-            $dom = Html5Dom::parseHtmlDocument($bytes);
-        } catch (\Throwable) {
+        if ($source === null) {
             return $bytes;
         }
 
         $changed = false;
-        foreach (self::htmlElementsByName($dom, 'summary') as $summary) {
+        foreach (self::htmlElementsByName($source['dom'], 'summary') as $summary) {
             if (!self::htmlElementHasAncestorName($summary, 'details')) {
                 continue;
             }
@@ -283,7 +240,7 @@ final class HtmlReader
                 continue;
             }
 
-            $paragraph = $dom->createElement('p');
+            $paragraph = $source['dom']->createElement('p');
             while ($summary->firstChild instanceof \DOMNode) {
                 $paragraph->appendChild($summary->firstChild);
             }
@@ -291,7 +248,7 @@ final class HtmlReader
             $changed = true;
         }
 
-        foreach (self::htmlElementsByName($dom, 'details') as $details) {
+        foreach (self::htmlElementsByName($source['dom'], 'details') as $details) {
             $parent = $details->parentNode;
             if (!$parent instanceof \DOMNode) {
                 continue;
@@ -308,31 +265,21 @@ final class HtmlReader
             return $bytes;
         }
 
-        $documentElement = $dom->documentElement;
-        if (!$documentElement instanceof \DOMElement) {
-            return $bytes;
-        }
-
-        $html = $dom->saveHTML($documentElement);
-
-        return is_string($html) ? $html : $bytes;
+        return self::serializeHtmlRewriteSource($source) ?? $bytes;
     }
 
     private static function flattenOrphanTableFragmentContainers(string $bytes): string
     {
-        if (preg_match('/<(?:caption|col|colgroup|tbody|td|tfoot|th|thead|tr)\b/i', $bytes) !== 1) {
-            return $bytes;
-        }
-        if (preg_match('/<table\b/i', $bytes) === 1) {
-            return $bytes;
-        }
-        if (preg_match(self::orphanTableParagraphizingBlockPattern(), $bytes) !== 1) {
-            return $bytes;
-        }
-
         try {
             $body = Html5Dom::parseHtmlFragment($bytes);
         } catch (\Throwable) {
+            return $bytes;
+        }
+        if (
+            self::htmlElementContainsElementName($body, 'table')
+            || !self::htmlElementContainsAnyElementName($body, self::orphanTableFragmentElementNames())
+            || !self::htmlElementContainsBlockContainer($body)
+        ) {
             return $bytes;
         }
 
@@ -361,14 +308,17 @@ final class HtmlReader
         return $changed && $parts !== [] ? implode("\n", $parts) : $bytes;
     }
 
-    private static function orphanTableParagraphizingBlockPattern(): string
-    {
-        return '/<(?:address|article|aside|blockquote|details|div|dl|fieldset|figcaption|figure|footer|form|h[1-6]|header|hr|main|nav|ol|p|pre|section|ul)\b/i';
-    }
-
     private static function isOrphanTableFragmentElementName(string $name): bool
     {
-        return in_array($name, ['caption', 'col', 'colgroup', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'tr'], true);
+        return in_array($name, self::orphanTableFragmentElementNames(), true);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function orphanTableFragmentElementNames(): array
+    {
+        return ['caption', 'col', 'colgroup', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'tr'];
     }
 
     /**
@@ -409,7 +359,7 @@ final class HtmlReader
         if ($source === '') {
             return null;
         }
-        if (preg_match(self::htmlBlockContainerPattern(), $source) === 1) {
+        if (self::htmlSourceContainsBlockContainer($source)) {
             return $source;
         }
 
@@ -450,10 +400,6 @@ final class HtmlReader
      */
     private static function standaloneImageFragmentChildren(string $bytes): ?array
     {
-        if (preg_match('/^\s*<img\b[^>]*>\s*$/is', $bytes) !== 1) {
-            return null;
-        }
-
         $body = self::parseHtmlFragmentBody($bytes);
         if (!$body instanceof \DOMElement) {
             return null;
@@ -494,10 +440,6 @@ final class HtmlReader
      */
     private function standaloneProgressFragmentChildren(string $bytes): ?array
     {
-        if (preg_match('/<progress\b/i', $bytes) !== 1) {
-            return null;
-        }
-
         $body = self::parseHtmlFragmentBody($bytes);
         if (!$body instanceof \DOMElement) {
             return null;
@@ -654,16 +596,6 @@ final class HtmlReader
 
     private static function standaloneTransparentInlineFragmentTag(string $bytes): ?string
     {
-        $trimmed = trim($bytes);
-        if (preg_match('/^<([A-Za-z][A-Za-z0-9:-]*)\b/', $trimmed, $match) !== 1) {
-            return null;
-        }
-
-        $tag = strtolower($match[1]);
-        if (!in_array($tag, ['time'], true)) {
-            return null;
-        }
-
         $body = self::parseHtmlFragmentBody($bytes);
         if (!$body instanceof \DOMElement) {
             return null;
@@ -674,13 +606,19 @@ final class HtmlReader
             if ($child instanceof \DOMText && trim($child->wholeText) === '') {
                 continue;
             }
-            if (!$child instanceof \DOMElement || strtolower($child->localName) !== $tag || $element instanceof \DOMElement) {
+            if (!$child instanceof \DOMElement || $element instanceof \DOMElement) {
                 return null;
             }
             $element = $child;
         }
 
-        return $element instanceof \DOMElement ? $tag : null;
+        if (!$element instanceof \DOMElement) {
+            return null;
+        }
+
+        $tag = strtolower($element->localName);
+
+        return in_array($tag, ['time'], true) ? $tag : null;
     }
 
     private static function parseHtmlFragmentBody(string $bytes): ?\DOMElement
@@ -753,16 +691,6 @@ final class HtmlReader
         }
 
         return $attrs;
-    }
-
-    private static function htmlBlockContainerPattern(): string
-    {
-        return '/<(?:' . self::htmlBlockContainerNameAlternation() . ')\b/i';
-    }
-
-    private static function htmlBlockContainerNameAlternation(): string
-    {
-        return 'address|article|aside|blockquote|center|details|dialog|dir|div|dl|fieldset|figcaption|figure|footer|form|h[1-6]|header|hgroup|hr|main|menu|nav|ol|p|pre|search|section|summary|table|ul';
     }
 
     /**
@@ -1187,10 +1115,6 @@ final class HtmlReader
      */
     private static function htmlDefinitionPlainBlockFlags(string $bytes): array
     {
-        if (preg_match('/<dd\b/i', $bytes) !== 1) {
-            return [];
-        }
-
         try {
             $dom = Html5Dom::parseHtmlDocument($bytes);
         } catch (\Throwable) {
@@ -1359,11 +1283,31 @@ final class HtmlReader
      */
     private static function stripHtmlRawInlineWrapperText(string $text, array $extraWrapperTags = []): string
     {
-        return (string) preg_replace(
-            '/<\/?(?:' . self::htmlRawInlineWrapperTagAlternation($extraWrapperTags) . ')(?:\s[^>]*)?>/i',
-            '',
-            $text
-        );
+        $stripped = '';
+        $offset = 0;
+        $length = strlen($text);
+        while ($offset < $length) {
+            $tagStart = strpos($text, '<', $offset);
+            if ($tagStart === false) {
+                $stripped .= substr($text, $offset);
+                break;
+            }
+
+            $stripped .= substr($text, $offset, $tagStart - $offset);
+            $tagEnd = self::htmlTagSourceEndOffset($text, $tagStart);
+            if ($tagEnd === null) {
+                $stripped .= substr($text, $tagStart);
+                break;
+            }
+
+            $tagSource = substr($text, $tagStart, $tagEnd - $tagStart + 1);
+            if (!self::isHtmlRawInlineWrapperSource($tagSource, $extraWrapperTags)) {
+                $stripped .= $tagSource;
+            }
+            $offset = $tagEnd + 1;
+        }
+
+        return $stripped;
     }
 
     /**
@@ -1412,10 +1356,9 @@ final class HtmlReader
      */
     private static function isHtmlRawInlineWrapperSource(string $html, array $extraWrapperTags = []): bool
     {
-        $tags = self::htmlRawInlineWrapperTagAlternation($extraWrapperTags);
+        $name = self::htmlRawInlineWrapperSourceName($html);
 
-        return preg_match('/^<(?:' . $tags . ')(?:\s[^>]*)?>$/i', $html) === 1
-            || preg_match('/^<\/(?:' . $tags . ')\s*>$/i', $html) === 1;
+        return $name !== null && in_array($name, self::htmlRawInlineWrapperTagNames($extraWrapperTags), true);
     }
 
     /**
@@ -1423,7 +1366,7 @@ final class HtmlReader
      */
     private static function standaloneRawInlineWrapperTags(string $bytes): array
     {
-        return preg_match('/^\s*<cite\s*>(?:(?!<\/cite\s*>).)*<\/cite\s*>\s*$/is', $bytes) === 1
+        return self::standaloneElementName($bytes) === 'cite'
             ? ['cite']
             : [];
     }
@@ -1431,17 +1374,256 @@ final class HtmlReader
     /**
      * @param list<string> $extraWrapperTags
      */
-    private static function htmlRawInlineWrapperTagAlternation(array $extraWrapperTags = []): string
+    private static function htmlRawInlineWrapperSourceName(string $html): ?string
+    {
+        $html = trim($html);
+        if ($html === '' || $html[0] !== '<' || !str_ends_with($html, '>')) {
+            return null;
+        }
+
+        if (str_starts_with($html, '</')) {
+            return self::htmlClosingTagSourceName($html);
+        }
+
+        $body = self::parseHtmlFragmentBody($html);
+        if (!$body instanceof \DOMElement) {
+            return null;
+        }
+
+        $element = null;
+        foreach ($body->childNodes as $child) {
+            if ($child instanceof \DOMText && trim($child->wholeText) === '') {
+                continue;
+            }
+            if (!$child instanceof \DOMElement || $element instanceof \DOMElement) {
+                return null;
+            }
+            $element = $child;
+        }
+
+        return $element instanceof \DOMElement && trim($element->textContent) === ''
+            ? strtolower($element->localName)
+            : null;
+    }
+
+    private static function htmlClosingTagSourceName(string $html): ?string
+    {
+        $nameStart = 2;
+        $nameEnd = $nameStart;
+        $length = strlen($html);
+        while ($nameEnd < $length && self::isHtmlTagNameChar($html[$nameEnd])) {
+            $nameEnd++;
+        }
+        if ($nameEnd === $nameStart) {
+            return null;
+        }
+
+        for ($offset = $nameEnd; $offset < $length - 1; $offset++) {
+            if (!self::isAsciiWhitespace($html[$offset])) {
+                return null;
+            }
+        }
+
+        $name = strtolower(substr($html, $nameStart, $nameEnd - $nameStart));
+
+        return self::isSafeHtmlTagName($name) ? $name : null;
+    }
+
+    private static function htmlTagSourceEndOffset(string $text, int $start): ?int
+    {
+        $quote = null;
+        $length = strlen($text);
+        for ($offset = $start + 1; $offset < $length; $offset++) {
+            $char = $text[$offset];
+            if ($quote !== null) {
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '>') {
+                return $offset;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $extraWrapperTags
+     * @return list<string>
+     */
+    private static function htmlRawInlineWrapperTagNames(array $extraWrapperTags = []): array
     {
         $tags = ['progress', 'time'];
         foreach ($extraWrapperTags as $tag) {
             $normalized = strtolower($tag);
-            if (preg_match('/^[a-z][a-z0-9-]*$/', $normalized) === 1 && !in_array($normalized, $tags, true)) {
+            if (self::isSafeHtmlTagName($normalized) && !in_array($normalized, $tags, true)) {
                 $tags[] = $normalized;
             }
         }
 
-        return implode('|', array_map(static fn (string $tag): string => preg_quote($tag, '/'), $tags));
+        return $tags;
+    }
+
+    private static function isSafeHtmlTagName(string $name): bool
+    {
+        if ($name === '' || !self::isAsciiLowerAlpha($name[0])) {
+            return false;
+        }
+
+        $length = strlen($name);
+        for ($offset = 1; $offset < $length; $offset++) {
+            $char = $name[$offset];
+            if (!self::isAsciiLowerAlpha($char) && !ctype_digit($char) && $char !== '-') {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static function isHtmlTagNameChar(string $char): bool
+    {
+        return ctype_alpha($char) || ctype_digit($char) || in_array($char, ['-', ':'], true);
+    }
+
+    private static function isAsciiLowerAlpha(string $char): bool
+    {
+        return $char >= 'a' && $char <= 'z';
+    }
+
+    private static function isAsciiWhitespace(string $char): bool
+    {
+        return in_array($char, ["\t", "\n", "\f", "\r", ' '], true);
+    }
+
+    /**
+     * @return array{dom:\DOMDocument, root:\DOMElement, fragment:bool}|null
+     */
+    private static function parseHtmlRewriteSource(string $bytes): ?array
+    {
+        if (self::htmlSourceLooksLikeWholeDocument($bytes)) {
+            $dom = Html5Dom::parseHtmlDocument($bytes);
+            $root = $dom->documentElement;
+
+            return $root instanceof \DOMElement
+                ? ['dom' => $dom, 'root' => $root, 'fragment' => false]
+                : null;
+        }
+
+        $root = Html5Dom::parseHtmlFragment($bytes);
+        $dom = $root->ownerDocument;
+
+        return $dom instanceof \DOMDocument
+            ? ['dom' => $dom, 'root' => $root, 'fragment' => true]
+            : null;
+    }
+
+    /**
+     * @param array{dom:\DOMDocument, root:\DOMElement, fragment:bool} $source
+     */
+    private static function serializeHtmlRewriteSource(array $source): ?string
+    {
+        if ($source['fragment']) {
+            return Html5Dom::serializeHtmlChildren($source['root']);
+        }
+
+        $html = $source['dom']->saveHTML($source['root']);
+
+        return is_string($html) ? $html : null;
+    }
+
+    private static function htmlSourceLooksLikeWholeDocument(string $bytes): bool
+    {
+        $trimmed = ltrim($bytes);
+
+        return strncasecmp($trimmed, '<!doctype', 9) === 0
+            || strncasecmp($trimmed, '<html', 5) === 0
+            || strncasecmp($trimmed, '<head', 5) === 0
+            || strncasecmp($trimmed, '<body', 5) === 0;
+    }
+
+    private static function htmlSourceContainsBlockContainer(string $source): bool
+    {
+        try {
+            return self::htmlElementContainsBlockContainer(Html5Dom::parseHtmlFragment($source));
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    private static function htmlElementContainsBlockContainer(\DOMElement $element): bool
+    {
+        foreach (self::htmlElementAndDescendants($element) as $candidate) {
+            if (self::isHtmlBlockContainerName(strtolower($candidate->localName))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function htmlElementContainsElementName(\DOMElement $element, string $name): bool
+    {
+        return self::htmlElementContainsAnyElementName($element, [$name]);
+    }
+
+    /**
+     * @param list<string> $names
+     */
+    private static function htmlElementContainsAnyElementName(\DOMElement $element, array $names): bool
+    {
+        $lookup = array_fill_keys($names, true);
+        foreach (self::htmlElementAndDescendants($element) as $candidate) {
+            if (isset($lookup[strtolower($candidate->localName)])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private static function htmlElementAndDescendants(\DOMElement $element): array
+    {
+        $elements = [$element];
+        foreach ($element->getElementsByTagName('*') as $descendant) {
+            if ($descendant instanceof \DOMElement) {
+                $elements[] = $descendant;
+            }
+        }
+
+        return $elements;
+    }
+
+    private static function standaloneElementName(string $bytes): ?string
+    {
+        $body = self::parseHtmlFragmentBody($bytes);
+        if (!$body instanceof \DOMElement) {
+            return null;
+        }
+
+        $element = null;
+        foreach ($body->childNodes as $child) {
+            if ($child instanceof \DOMText && trim($child->wholeText) === '') {
+                continue;
+            }
+            if (!$child instanceof \DOMElement || $element instanceof \DOMElement) {
+                return null;
+            }
+            $element = $child;
+        }
+
+        return $element instanceof \DOMElement ? strtolower($element->localName) : null;
     }
 
     /**

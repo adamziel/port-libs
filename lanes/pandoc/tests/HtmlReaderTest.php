@@ -1173,6 +1173,7 @@ $tests['imports direct pandoc html paragraph section tree construction as repair
         $section = $document->children[1];
 
         $t->same('html', $document->attr('sourceFormat'));
+        $t->same('Dom\\HTMLDocument', $document->attr('meta')['htmlTreeConstruction'] ?? null);
         $t->same(
             ['paragraph', 'div', 'paragraph'],
             array_map(static fn ($node): string => $node->type, $document->children)
