@@ -235,6 +235,10 @@ final class PandocConverter
             return array_replace(['htmlNativeDivs' => true], $options);
         }
 
+        if (!isset($options['format']) && !isset($options['variant'])) {
+            $options['format'] = $format;
+        }
+
         return $options;
     }
 

@@ -61,6 +61,22 @@ return [
         $t->contains('<h1 id="html-dispatch">HTML Dispatch</h1>', $blocks);
         $t->contains('<p>Ready.</p>', $blocks);
     },
+    'passes canonical markdown family formats through converter reader dispatch' => static function (TestRunner $t): void {
+        $source = "---\ntitle: Converter Probe\n---\n\n# Head\n";
+        $markdown = PandocConverter::read($source, 'markdown');
+        $commonmark = PandocConverter::read($source, 'commonmark');
+        $strict = PandocConverter::read($source, 'markdown-strict');
+        $mmd = PandocConverter::read($source, 'markdown-mmd');
+
+        $t->same('Converter Probe', $markdown->attr('meta')['title'] ?? null);
+        $t->same(['heading'], array_map(static fn (AstNode $node): string => $node->type, $markdown->children));
+        $t->same(null, $commonmark->attr('meta'));
+        $t->same(['horizontal_rule', 'heading', 'heading'], array_map(static fn (AstNode $node): string => $node->type, $commonmark->children));
+        $t->same(null, $strict->attr('meta'));
+        $t->same(['horizontal_rule', 'heading', 'heading'], array_map(static fn (AstNode $node): string => $node->type, $strict->children));
+        $t->same(null, $mmd->attr('meta'));
+        $t->same(['horizontal_rule', 'heading', 'heading'], array_map(static fn (AstNode $node): string => $node->type, $mmd->children));
+    },
     'converts rtf through the registered reader path' => static function (TestRunner $t): void {
         $blocks = PandocConverter::convert('{\\rtf1\\ansi\\pard RTF {\\b bold} import.\\par}', 'rtf', 'blocks');
 
