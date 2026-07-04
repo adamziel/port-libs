@@ -80,7 +80,7 @@ XML;
         $t->contains('<img src="images/architecture.png" alt="Architecture diagram" data-docbook-media-source="figure" data-docbook-media-selected-object="imageobject"/>', $blocks);
         $t->contains('<colgroup><col style="width:25%"/><col style="width:75%"/></colgroup>', $blocks);
         $t->contains('<td style="text-align:left">Parser</td><td style="text-align:center">Ready</td>', $blocks);
-        $t->contains('<dl><dt>ref-a</dt><dd>DocBook Source. Smith. 2026</dd></dl>', $blocks);
+        $t->contains('<dl class="docbook-bibliography"><dt>ref-a</dt><dd>DocBook Source. Smith. 2026</dd></dl>', $blocks);
         $t->contains('# DocBook Reader Demo', $markdown);
         $t->contains('Field             Status', $markdown);
         $t->contains('Parser            Ready', $markdown);
@@ -380,8 +380,8 @@ XML;
         $t->contains('<th>Name</th><th>Status</th>', $blocks);
         $t->contains('<td>Parser</td><td>Ready</td>', $blocks);
         $t->contains('<ol><li data-docbook-arearefs="co1">Review callout.</li></ol>', $blocks);
-        $t->contains('<dl><dt>AST</dt><dd>Abstract syntax tree.</dd></dl>', $blocks);
-        $t->contains('<dl><dt>Ready?</dt><dd>Yes.</dd></dl>', $blocks);
+        $t->contains('<dl class="docbook-glossary"><dt>AST</dt><dd>Abstract syntax tree.</dd></dl>', $blocks);
+        $t->contains('<dl class="docbook-qanda"><dt>Ready?</dt><dd>Yes.</dd></dl>', $blocks);
     },
     'preserves docbook sets anchors index terms and callout area specs' => static function (TestRunner $t): void {
         $docbook = <<<'XML'

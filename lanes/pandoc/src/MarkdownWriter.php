@@ -362,6 +362,12 @@ final class MarkdownWriter
         if ($value === null) {
             return '""';
         }
+        if (is_array($value) || is_object($value)) {
+            $encoded = json_encode($value, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            $text = is_string($encoded) ? $encoded : '';
+
+            return '"' . str_replace(['\\', '"'], ['\\\\', '\"'], $text) . '"';
+        }
 
         $text = (string) $value;
         if ($text === '' || preg_match('/[\s:#\[\]{},&*?|<>=!%@`"\']/u', $text) === 1 || str_starts_with($text, '-')) {
