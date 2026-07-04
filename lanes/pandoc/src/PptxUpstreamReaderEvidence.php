@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 80;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 81;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '35f71df710b79cd449fba4323c84d1b9e926493b5c466c7f986516cb2bef8323';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 35014;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '2bb340ac4c204eca93abdd0c23f9eb485f36b2eae6478c906a12d67dc8f1a5ec';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 35409;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -678,6 +678,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => 'a543e3ed60ca4d5f187fba970ed855d5f064a911e3ee3224b07929481c62b515',
             'pptxBytes' => 1893,
             'nativeBytes' => 178,
+        ],
+        'hidden-shape-metadata' => [
+            'name' => 'generated hidden shape metadata parity',
+            'pptx' => 'pptx-reader/hidden-shape-metadata.pptx',
+            'native' => 'pptx-reader/hidden-shape-metadata.native',
+            'pairKey' => 'pptx-reader/hidden-shape-metadata.pptx|pptx-reader/hidden-shape-metadata.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/hidden-shape-metadata.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/hidden-shape-metadata.native',
+            'pptxSha256' => '8ef23fb882dd6f0acd914e1da20fcf14295f8bbd413ddc5fb41da6e4d7e8caea',
+            'nativeSha256' => '430227468460a2c9d03fa45b39efdb0ea659e49ad44d9b7a374128688a0f2f4c',
+            'pptxBytes' => 1937,
+            'nativeBytes' => 304,
         ],
         'ignored-slide-id-attributes' => [
             'name' => 'generated ignored presentation slide id attributes parity',

@@ -2386,6 +2386,9 @@ final class PptxReader
                     $review[$attribute] = $value;
                 }
             }
+            if ($properties->hasAttribute('hidden')) {
+                $review['hidden'] = $this->xmlBooleanValue($properties->getAttribute('hidden'));
+            }
         }
 
         $text = $shapeElement->localName === 'grpSp' ? '' : trim($this->drawingText($shapeElement));
@@ -2519,6 +2522,9 @@ final class PptxReader
                 if ($value !== '') {
                     $metadata[$attribute] = $value;
                 }
+            }
+            if ($properties->hasAttribute('hidden')) {
+                $metadata['hidden'] = $this->xmlBooleanValue($properties->getAttribute('hidden'));
             }
         }
 

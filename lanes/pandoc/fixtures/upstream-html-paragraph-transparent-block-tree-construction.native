@@ -1,0 +1,6 @@
+[ Para [ Str "Before" ]
+, Para [ Str "Find" , Space , Strong [ Str "term" ] ]
+, Para [ Str "Middle" ]
+, Header 1 ( "title" , [] , [] ) [ Str "Title" ]
+, Para [ Str "After" ]
+]

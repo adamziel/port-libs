@@ -14,8 +14,11 @@ Scope:
 Fixture and signatures:
 - `metadata-search-link-semantics.epub`: `1892` bytes,
   sha256 `02d2f49316abf1e2f2abc8f6959090dc891e24857b849297201782918cca3a3f`.
-- Current package feature signature:
+- Package feature signature at this link/suffix handoff:
   `96ed1b67092db90f74aca44dd20ad923785473466a7c0a0e4d2c4017a7d740da`.
+- Current package feature signature after the same-day media-overlay timeline
+  coverage update:
+  `72ef3e85bd273d75877a80b67fdef29e8dc52adece55ad377e4e82d752db9d17`.
 - Current normalized native AST signature:
   `ffd91cfc066cf7daccc223a09e44623efafcfed57a1697b2accb3eb34f2a3acf`.
 

@@ -16380,6 +16380,40 @@ return [
         $t->true(!str_contains($native, 'Link ('), 'Text box hlinkClick should not emit a native Link inline');
     },
 
+    'records checked-in hidden pptx shape metadata while preserving native visibility' => static function (TestRunner $t) use ($nodesOfType): void {
+        $path = dirname(__DIR__) . '/fixtures/upstream-current-pptx-reader/hidden-shape-metadata.pptx';
+        $document = (new PptxReader())->read((string) file_get_contents($path));
+        $review = $document->attr('pptx');
+        $paragraphs = $nodesOfType($document, 'paragraph');
+        $images = $nodesOfType($document, 'image');
+        $byText = [];
+        foreach ($paragraphs as $paragraph) {
+            $byText[(string) $paragraph->attr('text')] = $paragraph;
+        }
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same('Hidden shape metadata', $document->children[0]->attr('text'));
+        $t->same(true, isset($byText['Explicit visible body']));
+        $t->same(true, isset($byText['Hidden body remains visible']));
+        $t->same(false, $byText['Explicit visible body']->attr('pptxShape')['hidden'] ?? null);
+        $t->same(true, $byText['Hidden body remains visible']->attr('pptxShape')['hidden'] ?? null);
+        $t->same('Explicit Visible Shape', $byText['Explicit visible body']->attr('pptxShape')['name'] ?? null);
+        $t->same('Hidden Text Shape', $byText['Hidden body remains visible']->attr('pptxShape')['name'] ?? null);
+        $t->same(1, count($images));
+        $t->same('ppt/media/hidden-shape.png', $images[0]->attr('url'));
+        $t->same('Hidden Picture', $images[0]->attr('title'));
+        $t->same('Hidden picture alt', $images[0]->attr('alt'));
+        $t->same(true, $images[0]->attr('pptxShape')['hidden'] ?? null);
+        $t->same('Hidden Picture', $images[0]->attr('pptxShape')['name'] ?? null);
+        $t->same(0, $review['slides'][0]['imageIssueCount'] ?? null);
+        $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
+        $t->same(1, $review['mediaBag']['itemCount'] ?? null);
+        $t->same(['image'], $review['mediaBag']['directory'][0]['sourceRoles'] ?? null);
+        $t->contains('Para [ Str "Explicit" , Space , Str "visible" , Space , Str "body" ]', $native);
+        $t->contains('Para [ Str "Hidden" , Space , Str "body" , Space , Str "remains" , Space , Str "visible" ]', $native);
+        $t->contains('Image ( "" , [  ] , [  ] ) [ Str "Hidden picture alt" ] ( "ppt/media/hidden-shape.png" , "Hidden Picture" )', $native);
+    },
+
     'skips grouped pptx shapes to match upstream reader output' => static function (TestRunner $t) use ($buildGroupedShapesPptxPackage, $nodesOfType): void {
         $document = (new PptxReader())->read($buildGroupedShapesPptxPackage());
         $review = $document->attr('pptx');

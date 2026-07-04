@@ -14,7 +14,7 @@ final class EpubNativeAstPackageComparisonHarness
     private const PACKAGE_FEATURE_SIGNATURE_KIND = 'checked-in-current-epub-package-feature-signature';
     private const PACKAGE_FEATURE_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
     private const PACKAGE_FEATURE_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-53-fixture-snapshot';
-    private const CHECKED_IN_CURRENT_PACKAGE_FEATURE_SIGNATURE_SHA256 = '96ed1b67092db90f74aca44dd20ad923785473466a7c0a0e4d2c4017a7d740da';
+    private const CHECKED_IN_CURRENT_PACKAGE_FEATURE_SIGNATURE_SHA256 = '72ef3e85bd273d75877a80b67fdef29e8dc52adece55ad377e4e82d752db9d17';
     private const CURRENT_NATIVE_AST_SIGNATURE_KIND = 'checked-in-current-epub-normalized-native-ast-signature';
     private const CURRENT_NATIVE_AST_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
     private const CURRENT_NATIVE_AST_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-53-fixture-normalized-ast-snapshot';
@@ -1806,6 +1806,10 @@ final class EpubNativeAstPackageComparisonHarness
             'resolvedMediaOverlays' => 1,
             'missingMediaOverlays' => 1,
             'mediaOverlayReferencedContentItems' => 2,
+            'mediaOverlayTimelineItems' => 1,
+            'mediaOverlayClipTimings' => 1,
+            'mediaOverlayValidClipTimings' => 1,
+            'mediaOverlayInvalidClipTimings' => 0,
             'mediaOverlayTextLocalTargets' => 1,
             'mediaOverlayAudioLocalTargets' => 1,
             'mediaOverlayDurations' => 3,
@@ -2230,7 +2234,7 @@ final class EpubNativeAstPackageComparisonHarness
                 ? $featureCoverage['ocfSidecarKindCounts']
                 : [];
             $lines[] = sprintf(
-                'packageFeatureCoverage: fixtures=%d nav=%d ncx=%d covers=%d landmarks=%d pageLists=%d auxiliaryNav=%d metadataCreators=%d accessibilityFixtures=%d accessibilityEntries=%d accessibilityLinkedRecords=%d accessibilityProperties=%s manifestItems=%d readingOrderItems=%d spineLinear=%s nonLinearSpineFixtures=%d spinePageSpread=%s pageSpreadFixtures=%d imageAssets=%d stylesheetAssets=%d resourceKinds=%s guideRefTypes=%s packageLinkRels=%s packageLinkMediaTypes=%s packageLinkParamFixtures=%d packageLinkParams=%d packageLinkParamNames=%s linkHrefSuffixFixtures=%d linkHrefSuffixes=%d linkHrefSuffixSources=%s linkHrefQueries=%d linkHrefFragments=%d remoteManifest=%d externalManifest=%d missingLocalManifest=%d manifestFallbackItems=%d manifestFallbacks=%d resolvedFallbacks=%d usableFallbacks=%d missingFallbacks=%d mediaOverlayFixtures=%d resolvedMediaOverlayFixtures=%d mediaOverlays=%d resolvedMediaOverlays=%d mediaOverlayTextTargets=%d mediaOverlayAudioTargets=%d mediaOverlayDurations=%d encryptionFixtures=%d obfuscatedFontFixtures=%d blockedEncryptedByteExposureFixtures=%d encryptionItems=%d obfuscatedFonts=%d blockedEncryptedByteExposures=%d encryptionDiagnostics=%d encryptionRoles=%s collectionFixtures=%d collections=%d collectionLinks=%d collectionRoles=%s collectionLinkRels=%s bindingFixtures=%d bindings=%d bindingResolvedHandlers=%d bindingParams=%d bindingMediaTypes=%s ocfSidecarFixtures=%d ocfSidecars=%d ocfSidecarKinds=%s opfParts=%s',
+                'packageFeatureCoverage: fixtures=%d nav=%d ncx=%d covers=%d landmarks=%d pageLists=%d auxiliaryNav=%d metadataCreators=%d accessibilityFixtures=%d accessibilityEntries=%d accessibilityLinkedRecords=%d accessibilityProperties=%s manifestItems=%d readingOrderItems=%d spineLinear=%s nonLinearSpineFixtures=%d spinePageSpread=%s pageSpreadFixtures=%d imageAssets=%d stylesheetAssets=%d resourceKinds=%s guideRefTypes=%s packageLinkRels=%s packageLinkMediaTypes=%s packageLinkParamFixtures=%d packageLinkParams=%d packageLinkParamNames=%s linkHrefSuffixFixtures=%d linkHrefSuffixes=%d linkHrefSuffixSources=%s linkHrefQueries=%d linkHrefFragments=%d remoteManifest=%d externalManifest=%d missingLocalManifest=%d manifestFallbackItems=%d manifestFallbacks=%d resolvedFallbacks=%d usableFallbacks=%d missingFallbacks=%d mediaOverlayFixtures=%d resolvedMediaOverlayFixtures=%d mediaOverlays=%d resolvedMediaOverlays=%d mediaOverlayTimelineItems=%d mediaOverlayClipTimings=%d mediaOverlayValidClipTimings=%d mediaOverlayInvalidClipTimings=%d mediaOverlayTextTargets=%d mediaOverlayAudioTargets=%d mediaOverlayDurations=%d encryptionFixtures=%d obfuscatedFontFixtures=%d blockedEncryptedByteExposureFixtures=%d encryptionItems=%d obfuscatedFonts=%d blockedEncryptedByteExposures=%d encryptionDiagnostics=%d encryptionRoles=%s collectionFixtures=%d collections=%d collectionLinks=%d collectionRoles=%s collectionLinkRels=%s bindingFixtures=%d bindings=%d bindingResolvedHandlers=%d bindingParams=%d bindingMediaTypes=%s ocfSidecarFixtures=%d ocfSidecars=%d ocfSidecarKinds=%s opfParts=%s',
                 (int) ($featureCoverage['fixtureCount'] ?? 0),
                 (int) ($navigationTypeCounts['nav'] ?? 0),
                 (int) ($navigationTypeCounts['ncx'] ?? 0),
@@ -2281,6 +2285,10 @@ final class EpubNativeAstPackageComparisonHarness
                 count($resolvedMediaOverlayFixtures),
                 (int) ($totals['mediaOverlays'] ?? 0),
                 (int) ($totals['resolvedMediaOverlays'] ?? 0),
+                (int) ($totals['mediaOverlayTimelineItems'] ?? 0),
+                (int) ($totals['mediaOverlayClipTimings'] ?? 0),
+                (int) ($totals['mediaOverlayValidClipTimings'] ?? 0),
+                (int) ($totals['mediaOverlayInvalidClipTimings'] ?? 0),
                 (int) ($totals['mediaOverlayTextLocalTargets'] ?? 0),
                 (int) ($totals['mediaOverlayAudioLocalTargets'] ?? 0),
                 (int) ($totals['mediaOverlayDurations'] ?? 0),
@@ -3301,6 +3309,10 @@ final class EpubNativeAstPackageComparisonHarness
                 'resolvedMediaOverlays' => 0,
                 'missingMediaOverlays' => 0,
                 'mediaOverlayReferencedContentItems' => 0,
+                'mediaOverlayTimelineItems' => 0,
+                'mediaOverlayClipTimings' => 0,
+                'mediaOverlayValidClipTimings' => 0,
+                'mediaOverlayInvalidClipTimings' => 0,
                 'mediaOverlayTextLocalTargets' => 0,
                 'mediaOverlayAudioLocalTargets' => 0,
                 'mediaOverlayDurations' => 0,
@@ -3941,6 +3953,10 @@ final class EpubNativeAstPackageComparisonHarness
             'resolvedMediaOverlayCount' => (int) ($mediaOverlays['resolvedOverlayCount'] ?? 0),
             'missingMediaOverlayCount' => (int) ($mediaOverlays['missingOverlayCount'] ?? 0),
             'mediaOverlayReferencedContentItemCount' => (int) ($mediaOverlays['referencedContentItemCount'] ?? 0),
+            'mediaOverlayTimelineItemCount' => self::mediaOverlayTimelineItemCount($mediaOverlays),
+            'mediaOverlayClipTimingCount' => self::mediaOverlayClipTimingCount($mediaOverlays),
+            'mediaOverlayValidClipTimingCount' => self::mediaOverlayClipTimingCount($mediaOverlays, true),
+            'mediaOverlayInvalidClipTimingCount' => self::mediaOverlayClipTimingCount($mediaOverlays, false),
             'mediaOverlayTextLocalTargetCount' => (int) ($mediaOverlays['textLocalTargetCount'] ?? 0),
             'mediaOverlayAudioLocalTargetCount' => (int) ($mediaOverlays['audioLocalTargetCount'] ?? 0),
             'mediaOverlayDurationCount' => (int) ($mediaOverlays['durationCount'] ?? 0),
@@ -4156,6 +4172,51 @@ final class EpubNativeAstPackageComparisonHarness
         ksort($counts, SORT_STRING);
 
         return $counts;
+    }
+
+    /**
+     * @param array<string, mixed> $mediaOverlays
+     */
+    private static function mediaOverlayTimelineItemCount(array $mediaOverlays): int
+    {
+        $count = 0;
+        foreach (is_array($mediaOverlays['items'] ?? null) ? $mediaOverlays['items'] : [] as $overlay) {
+            if (is_array($overlay)) {
+                $count += count(is_array($overlay['items'] ?? null) ? $overlay['items'] : []);
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param array<string, mixed> $mediaOverlays
+     */
+    private static function mediaOverlayClipTimingCount(array $mediaOverlays, ?bool $valid = null): int
+    {
+        $count = 0;
+        foreach (is_array($mediaOverlays['items'] ?? null) ? $mediaOverlays['items'] : [] as $overlay) {
+            if (!is_array($overlay)) {
+                continue;
+            }
+
+            foreach (is_array($overlay['items'] ?? null) ? $overlay['items'] : [] as $item) {
+                if (!is_array($item)) {
+                    continue;
+                }
+
+                $hasClipTiming = is_string($item['clipBegin'] ?? null) || is_string($item['clipEnd'] ?? null);
+                if (!$hasClipTiming) {
+                    continue;
+                }
+
+                if ($valid === null || (($item['clipValid'] ?? false) === $valid)) {
+                    ++$count;
+                }
+            }
+        }
+
+        return $count;
     }
 
     /**
@@ -4434,6 +4495,10 @@ final class EpubNativeAstPackageComparisonHarness
             $coverage['totals']['resolvedMediaOverlays'] += (int) ($summary['resolvedMediaOverlayCount'] ?? 0);
             $coverage['totals']['missingMediaOverlays'] += (int) ($summary['missingMediaOverlayCount'] ?? 0);
             $coverage['totals']['mediaOverlayReferencedContentItems'] += (int) ($summary['mediaOverlayReferencedContentItemCount'] ?? 0);
+            $coverage['totals']['mediaOverlayTimelineItems'] += (int) ($summary['mediaOverlayTimelineItemCount'] ?? 0);
+            $coverage['totals']['mediaOverlayClipTimings'] += (int) ($summary['mediaOverlayClipTimingCount'] ?? 0);
+            $coverage['totals']['mediaOverlayValidClipTimings'] += (int) ($summary['mediaOverlayValidClipTimingCount'] ?? 0);
+            $coverage['totals']['mediaOverlayInvalidClipTimings'] += (int) ($summary['mediaOverlayInvalidClipTimingCount'] ?? 0);
             $coverage['totals']['mediaOverlayTextLocalTargets'] += (int) ($summary['mediaOverlayTextLocalTargetCount'] ?? 0);
             $coverage['totals']['mediaOverlayAudioLocalTargets'] += (int) ($summary['mediaOverlayAudioLocalTargetCount'] ?? 0);
             $coverage['totals']['mediaOverlayDurations'] += (int) ($summary['mediaOverlayDurationCount'] ?? 0);

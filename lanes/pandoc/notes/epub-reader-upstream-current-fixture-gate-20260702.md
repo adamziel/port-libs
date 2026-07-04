@@ -189,6 +189,14 @@ record. The native golden was generated with:
 /opt/homebrew/bin/pandoc -f epub -t native -o lanes/pandoc/fixtures/upstream-current-epub-reader/epub/accessibility-metadata-package.native lanes/pandoc/fixtures/upstream-current-epub-reader/epub/accessibility-metadata-package.epub
 ```
 
+2026-07-04 semantic coverage update: no fixture-count delta. The native/package
+harness now promotes already-parsed SMIL media-overlay timeline semantics from
+the checked-in `media-overlay-package` fixture into package-feature coverage:
+`mediaOverlayTimelineItems=1`, `mediaOverlayClipTimings=1`,
+`mediaOverlayValidClipTimings=1`, and `mediaOverlayInvalidClipTimings=0`.
+The checked-in package-feature signature for the same 53-fixture snapshot is
+now `72ef3e85bd273d75877a80b67fdef29e8dc52adece55ad377e4e82d752db9d17`.
+
 Verified checked-in gate:
 
 ```sh

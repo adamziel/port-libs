@@ -220,6 +220,7 @@ final class HtmlReader
         if (preg_match('/^(?:<!doctype\b|<html\b|<head\b|<body\b)/i', $trimmed) === 1) {
             return $bytes;
         }
+        $bytes = self::repairModernParagraphBlockOpeners($bytes);
 
         try {
             $body = Html5Dom::parseHtmlFragment($bytes);
@@ -245,6 +246,21 @@ final class HtmlReader
         }
 
         return implode("\n", $parts);
+    }
+
+    private static function repairModernParagraphBlockOpeners(string $bytes): string
+    {
+        if (preg_match('/<(?:center|dialog|dir|hgroup|menu|search|summary)\b/i', $bytes) !== 1) {
+            return $bytes;
+        }
+
+        $repaired = preg_replace(
+            '/(<p\b[^>]*>(?:(?!<\/p\s*>).)*?)(<(?:(?:center|dialog|dir|hgroup|menu|search|summary))\b)/is',
+            '$1</p>$2',
+            $bytes
+        );
+
+        return is_string($repaired) ? $repaired : $bytes;
     }
 
     private static function flattenOrphanTableFragmentContainers(string $bytes): string
@@ -790,7 +806,7 @@ final class HtmlReader
 
     private static function htmlBlockContainerNameAlternation(): string
     {
-        return 'address|article|aside|blockquote|details|div|dl|fieldset|figcaption|figure|footer|form|h[1-6]|header|hr|main|nav|ol|p|pre|section|table|ul';
+        return 'address|article|aside|blockquote|center|details|dialog|dir|div|dl|fieldset|figcaption|figure|footer|form|h[1-6]|header|hgroup|hr|main|menu|nav|ol|p|pre|search|section|summary|table|ul';
     }
 
     /**
@@ -894,7 +910,10 @@ final class HtmlReader
             'article',
             'aside',
             'blockquote',
+            'center',
             'details',
+            'dialog',
+            'dir',
             'div',
             'dl',
             'fieldset',
@@ -909,13 +928,17 @@ final class HtmlReader
             'h5',
             'h6',
             'header',
+            'hgroup',
             'hr',
             'main',
+            'menu',
             'nav',
             'ol',
             'p',
             'pre',
+            'search',
             'section',
+            'summary',
             'table',
             'ul',
         ], true);

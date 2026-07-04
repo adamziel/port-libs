@@ -1,0 +1,32 @@
+[ BulletList
+    [ [ Div
+          ( "" , [] , [] )
+          [ Para
+              [ Str "first" , Space , Str "div" , Space , Str "breaks" ]
+          ]
+      , RawBlock (Format "html") "<button>"
+      , Plain
+          [ Str "if"
+          , Space
+          , Str "this"
+          , Space
+          , Str "button"
+          , Space
+          , Str "exists"
+          ]
+      , RawBlock (Format "html") "</button>"
+      , Div
+          ( "" , [] , [] )
+          [ Para
+              [ Str "with"
+              , Space
+              , Str "this"
+              , Space
+              , Str "div"
+              , Space
+              , Str "too."
+              ]
+          ]
+      ]
+    ]
+]

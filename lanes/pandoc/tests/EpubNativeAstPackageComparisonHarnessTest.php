@@ -479,6 +479,10 @@ return [
                 'resolvedMediaOverlays' => 0,
                 'missingMediaOverlays' => 0,
                 'mediaOverlayReferencedContentItems' => 0,
+                'mediaOverlayTimelineItems' => 0,
+                'mediaOverlayClipTimings' => 0,
+                'mediaOverlayValidClipTimings' => 0,
+                'mediaOverlayInvalidClipTimings' => 0,
                 'mediaOverlayTextLocalTargets' => 0,
                 'mediaOverlayAudioLocalTargets' => 0,
                 'mediaOverlayDurations' => 0,
@@ -579,6 +583,8 @@ return [
             $t->same(6, $decoded['packageFeatureCoverage']['totals']['accessibilityEntries']);
             $t->same(1, $decoded['packageFeatureCoverage']['totals']['accessibilityLinkedRecords']);
             $t->same(0, $decoded['packageFeatureCoverage']['totals']['mediaOverlays']);
+            $t->same(0, $decoded['packageFeatureCoverage']['totals']['mediaOverlayTimelineItems']);
+            $t->same(0, $decoded['packageFeatureCoverage']['totals']['mediaOverlayClipTimings']);
             $t->same(0, $decoded['packageFeatureCoverage']['totals']['encryptionItems']);
         } finally {
             $removeTree($root);
@@ -2441,6 +2447,10 @@ return [
                 'resolvedMediaOverlays' => 1,
                 'missingMediaOverlays' => 1,
                 'mediaOverlayReferencedContentItems' => 2,
+                'mediaOverlayTimelineItems' => 1,
+                'mediaOverlayClipTimings' => 1,
+                'mediaOverlayValidClipTimings' => 1,
+                'mediaOverlayInvalidClipTimings' => 0,
                 'mediaOverlayTextLocalTargets' => 1,
                 'mediaOverlayAudioLocalTargets' => 1,
                 'mediaOverlayDurations' => 3,
@@ -2456,7 +2466,7 @@ return [
                 'ocfSidecars' => 4,
             ],
         ];
-        $expectedPackageFeatureSignatureSha256 = '96ed1b67092db90f74aca44dd20ad923785473466a7c0a0e4d2c4017a7d740da';
+        $expectedPackageFeatureSignatureSha256 = '72ef3e85bd273d75877a80b67fdef29e8dc52adece55ad377e4e82d752db9d17';
         $expectedCurrentNativeAstSignatureSha256 = 'ffd91cfc066cf7daccc223a09e44623efafcfed57a1697b2accb3eb34f2a3acf';
         $expectedCurrentNativeAstFixtures = [
             'accessibility-metadata-package',
@@ -3269,7 +3279,7 @@ return [
         $t->contains('packageLinkRels=accessibility-summary:1,alternate:2,cc:attributionURL:1,cc:license:2,preview:3,record:9,search:1', $text);
         $t->contains('packageLinkMediaTypes=application/json:8,application/ld+json:1,application/opensearchdescription+xml:1,text/html:1 packageLinkParamFixtures=1 packageLinkParams=1 packageLinkParamNames=profile:1 linkHrefSuffixFixtures=2 linkHrefSuffixes=3 linkHrefSuffixSources=collection-link:2,package-link:1 linkHrefQueries=1 linkHrefFragments=3', $text);
         $t->contains('remoteManifest=4 externalManifest=4 missingLocalManifest=1 manifestFallbackItems=13 manifestFallbacks=5 resolvedFallbacks=4 usableFallbacks=4 missingFallbacks=9', $text);
-        $t->contains('mediaOverlayFixtures=2 resolvedMediaOverlayFixtures=1 mediaOverlays=2 resolvedMediaOverlays=1 mediaOverlayTextTargets=1 mediaOverlayAudioTargets=1 mediaOverlayDurations=3', $text);
+        $t->contains('mediaOverlayFixtures=2 resolvedMediaOverlayFixtures=1 mediaOverlays=2 resolvedMediaOverlays=1 mediaOverlayTimelineItems=1 mediaOverlayClipTimings=1 mediaOverlayValidClipTimings=1 mediaOverlayInvalidClipTimings=0 mediaOverlayTextTargets=1 mediaOverlayAudioTargets=1 mediaOverlayDurations=3', $text);
         $t->contains('encryptionFixtures=3 obfuscatedFontFixtures=3 blockedEncryptedByteExposureFixtures=3 encryptionItems=3 obfuscatedFonts=3 blockedEncryptedByteExposures=3 encryptionDiagnostics=6 encryptionRoles=font:3', $text);
         $t->contains('collectionFixtures=1 collections=2 collectionLinks=3 collectionRoles=index:1,role:primary:1,schema:hasPart:1 collectionLinkRels=contents:1,index:1,record:1', $text);
         $t->contains('bindingFixtures=1 bindings=1 bindingResolvedHandlers=1 bindingParams=1 bindingMediaTypes=application/x-bound-widget:1', $text);

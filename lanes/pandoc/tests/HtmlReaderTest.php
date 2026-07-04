@@ -1036,6 +1036,27 @@ $tests['imports direct pandoc html paragraph list tree construction as repaired 
         $t->same('After', $document->children[2]->attr('text'));
     };
 
+$tests['imports direct pandoc html paragraph transparent block tree construction as repaired blocks'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-paragraph-transparent-block-tree-construction.html'));
+        $searchBody = $document->children[1];
+        $heading = $document->children[3];
+
+        $t->same('html', $document->attr('sourceFormat'));
+        $t->same(
+            ['paragraph', 'paragraph', 'paragraph', 'heading', 'paragraph'],
+            array_map(static fn ($node): string => $node->type, $document->children)
+        );
+        $t->same('Before', $document->children[0]->attr('text'));
+        $t->same('Find term', $searchBody->attr('text'));
+        $t->same(['text', 'strong'], array_map(static fn ($node): string => $node->type, $searchBody->children));
+        $t->same('term', $searchBody->children[1]->children[0]->attr('text'));
+        $t->same('Middle', $document->children[2]->attr('text'));
+        $t->same(1, $heading->attr('level'));
+        $t->same('Title', $heading->attr('text'));
+        $t->same('After', $document->children[4]->attr('text'));
+    };
+
 $tests['preserves upstream html omitted table cell closures as visible blocks'] =
     static function (TestRunner $t): void {
         $html = '<table><tbody><tr><td>A<td>B</tbody></table><p>after</p>';
