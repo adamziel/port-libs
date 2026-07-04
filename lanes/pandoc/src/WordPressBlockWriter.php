@@ -3317,7 +3317,7 @@ final class WordPressBlockWriter
             'link' => $this->renderLinkInline($node),
             'image' => $this->renderImageHtml($node),
             'note' => $this->renderNoteReference($node),
-            'citation' => $this->renderCitationInline($node),
+            'citation', 'citation_group' => $this->renderCitationInline($node),
             default => $this->renderInlines($node),
         };
     }
@@ -3345,12 +3345,38 @@ final class WordPressBlockWriter
         $payload = json_encode($citations, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         $attrs .= ' data-pandoc-citations="' . $this->esc($payload) . '"';
 
-        $display = $this->renderInlines($node);
-        if ($display === '') {
-            $display = $this->esc((string) $node->attr('text', $ids === [] ? '' : '[' . implode('; ', array_map(static fn (string $id): string => '@' . $id, $ids)) . ']'));
-        }
+        $display = $this->renderCitationInlineDisplay($node, $citations, $ids);
 
         return '<span' . $attrs . '>' . $display . '</span>';
+    }
+
+    /**
+     * @param list<array{id:string, mode:string, noteNum:int, hash:int, prefix:string, suffix:string}> $citations
+     * @param list<string> $ids
+     */
+    private function renderCitationInlineDisplay(AstNode $node, array $citations, array $ids): string
+    {
+        if ($node->type === 'citation_group' && $citations !== []) {
+            return $this->esc($this->renderCitationMarkdownDisplay($citations));
+        }
+
+        $display = $this->renderInlines($node);
+        if ($display !== '') {
+            return $display;
+        }
+
+        $text = (string) $node->attr('text', '');
+        if ($text !== '') {
+            return $this->esc($text);
+        }
+
+        if ($citations !== []) {
+            return $this->esc($this->renderCitationMarkdownDisplay($citations));
+        }
+
+        return $ids === []
+            ? ''
+            : $this->esc('[' . implode('; ', array_map(static fn (string $id): string => '@' . $id, $ids)) . ']');
     }
 
     /**
@@ -3514,6 +3540,17 @@ final class WordPressBlockWriter
      */
     private function citationEntries(AstNode $node): array
     {
+        if ($node->type === 'citation_group') {
+            $entries = [];
+            foreach ($node->children as $child) {
+                if ($child->type === 'citation') {
+                    $entries[] = $this->citationEntryFromNode($child);
+                }
+            }
+
+            return $entries;
+        }
+
         $citations = $node->attr('citations', null);
         if (is_array($citations) && $citations !== []) {
             $entries = [];
@@ -3531,6 +3568,95 @@ final class WordPressBlockWriter
         $entry = $this->citationEntryFromNode($node);
 
         return $entry['id'] === '' && (string) $node->attr('text', '') === '' ? [] : [$entry];
+    }
+
+    /**
+     * @param list<array{id:string, mode:string, noteNum:int, hash:int, prefix:string, suffix:string}> $citations
+     */
+    private function renderCitationMarkdownDisplay(array $citations): string
+    {
+        if ($citations === []) {
+            return '';
+        }
+
+        $first = $citations[0];
+        if ($first['mode'] === 'author_in_text') {
+            $suffix = $first['suffix'];
+            $rest = $this->renderCitationEntries(array_slice($citations, 1));
+            $inside = $suffix;
+            if ($inside !== '' && $rest !== '') {
+                $inside .= ';';
+            }
+            if ($rest !== '') {
+                $inside = $this->joinInlinePartsWithSpace($inside, $rest);
+            }
+
+            return '@' . $this->renderCitationKey($first['id'])
+                . ($inside === '' ? '' : ' [' . $inside . ']');
+        }
+
+        return '[' . $this->renderCitationEntries($citations) . ']';
+    }
+
+    /**
+     * @param list<array{id:string, mode:string, noteNum:int, hash:int, prefix:string, suffix:string}> $citations
+     */
+    private function renderCitationEntries(array $citations): string
+    {
+        $rendered = [];
+        foreach ($citations as $citation) {
+            $entry = $this->renderCitationEntry($citation);
+            if ($entry !== '') {
+                $rendered[] = $entry;
+            }
+        }
+
+        return implode('; ', $rendered);
+    }
+
+    /**
+     * @param array{id:string, mode:string, noteNum:int, hash:int, prefix:string, suffix:string} $citation
+     */
+    private function renderCitationEntry(array $citation): string
+    {
+        $prefix = $citation['prefix'];
+        $suffix = $citation['suffix'];
+        $key = ($citation['mode'] === 'suppress_author' ? '-' : '')
+            . '@'
+            . $this->renderCitationKey($citation['id']);
+
+        if ($suffix !== '') {
+            $first = mb_substr($suffix, 0, 1, 'UTF-8');
+            $key .= ($first === ' ' || in_array($first, [',', ';', ']', '@'], true))
+                ? $suffix
+                : ' ' . $suffix;
+        }
+
+        return $this->joinInlinePartsWithSpace($prefix, $key);
+    }
+
+    private function renderCitationKey(string $id): string
+    {
+        return preg_match('/^[A-Za-z0-9_:.#\/$%&+?<>~|-]*[A-Za-z0-9_#\/$%&+?<>~|-]$/u', $id) === 1
+            ? $id
+            : '{' . strtr($id, [
+                '\\' => '\\\\',
+                '[' => '\\[',
+                ']' => '\\]',
+                '}' => '\\}',
+            ]) . '}';
+    }
+
+    private function joinInlinePartsWithSpace(string $left, string $right): string
+    {
+        if ($left === '') {
+            return $right;
+        }
+        if ($right === '') {
+            return $left;
+        }
+
+        return $left . ' ' . $right;
     }
 
     /**

@@ -179,7 +179,7 @@ $payloads = [
     ],
     'mark span' => [
         'source' => static fn (string $delimiter): string => '==marked==',
-        'plain' => static fn (string $delimiter): string => 'marked',
+        'plain' => static fn (string $delimiter): string => '==marked==',
     ],
     'raw html inline' => [
         'source' => static fn (string $delimiter): string => '<span>raw</span>',

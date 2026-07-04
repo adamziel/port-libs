@@ -98,7 +98,7 @@ $affixInlineCases = [
     ['strikeout prefix', '[~~old~~ @doe, p. 7]', 0, 'prefix', 'old', ['strikeout'], null, null],
     ['escaped punctuation prefix', '[\\*literal\\* @doe, p. 7]', 0, 'prefix', '*literal*', ['text'], null, null],
     ['entity prefix', '[source &amp; packet @doe, p. 7]', 0, 'prefix', 'source & packet', ['text'], null, null],
-    ['wikilink prefix', '[[[Packet|/packet]] @doe, p. 7]', 0, 'prefix', 'Packet', ['link'], null, null],
+    ['wikilink prefix', '[[[Packet|/packet]] @doe, p. 7]', 0, 'prefix', 'Packet', ['link'], null, null, ['format' => 'markdown+wikilinks_title_before_pipe']],
     ['emphasis locator', '[@doe, *chapter* 2]', 0, 'locator', 'chapter 2', ['emph', 'text'], 'chapter', '2'],
     ['strong locator', '[@doe, **sec.** 4]', 0, 'locator', 'sec. 4', ['strong', 'text'], 'section', '4'],
     ['code locator', '[@doe, `p.` 8]', 0, 'locator', 'p. 8', ['code', 'text'], 'page', '8'],
@@ -152,7 +152,7 @@ $profileCases = [
     ['span reparses citation when profile reenables', ['format' => 'markdown-citations+citations'], '[@doe]{.source}', 'span', 1],
     ['extension list disables citations', ['extensions' => ['-citations']], '@doe', 'text', 0],
     ['extension map disables citations', ['extensions' => ['citations' => false]], '[@doe]', 'text', 0],
-    ['multimarkdown keeps citations enabled', ['format' => 'markdown_mmd'], '@doe', 'citation', 1],
+    ['multimarkdown keeps citations disabled', ['format' => 'markdown_mmd'], '@doe', 'text', 0],
 ];
 
 $tests = [];
@@ -169,10 +169,12 @@ foreach ($unicodeCitationCases as [$name, $markdown, $id, $mode]) {
         };
 }
 
-foreach ($affixInlineCases as [$name, $markdown, $childIndex, $attr, $plain, $types, $locatorLabel, $locatorValue]) {
+foreach ($affixInlineCases as $case) {
+    [$name, $markdown, $childIndex, $attr, $plain, $types, $locatorLabel, $locatorValue] = array_pad($case, 8, null);
+    $options = is_array($case[8] ?? null) ? $case[8] : [];
     $tests["preserves final harvest citation inline affix {$name}"] =
-        static function (TestRunner $t) use ($firstInline, $inlinePlain, $inlineTypes, $markdown, $childIndex, $attr, $plain, $types, $locatorLabel, $locatorValue): void {
-            $node = $firstInline($markdown);
+        static function (TestRunner $t) use ($firstInline, $inlinePlain, $inlineTypes, $markdown, $childIndex, $attr, $plain, $types, $locatorLabel, $locatorValue, $options): void {
+            $node = $firstInline($markdown, $options);
             $citation = $node->type === 'citation_group' ? ($node->children[$childIndex] ?? new AstNode('missing')) : $node;
             $value = $citation->attr($attr);
 

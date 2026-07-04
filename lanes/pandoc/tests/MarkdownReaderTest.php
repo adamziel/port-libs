@@ -1203,8 +1203,8 @@ return [
         $t->same('raw_block', $texBlock->type);
         $t->same('tex', $texBlock->attr('format'));
         $t->same("\\begin{review}\nsource\n\\end{review}", $texBlock->attr('text'));
-        $t->contains('*Hi `\foo{there}`{=latex}*', $markdown);
-        $t->contains('*Hi `<blink>`{=html}there`</blink>`{=html}*', $markdown);
+        $t->contains('*Hi \foo{there}*', $markdown);
+        $t->contains('*Hi <blink>there</blink>*', $markdown);
         $t->contains('`<outline text="Legacy"/>`{=opml}', $markdown);
         $t->contains('<section data-source="batch-42">Review</section>', $markdown);
         $t->contains("\\begin{review}\nsource\n\\end{review}", $markdown);
@@ -7587,7 +7587,7 @@ TPL;
         ]);
 
         $t->same(implode("\n", [
-            'Cleanup ~~legacy *markup*~~ water H~2~ and status ^*draft*^ plus inline math $x \in y$<!-- -->2 follows raw `\cite[22-23]{smith.1899}`{=tex} and raw attr `<outline/>`{=opml}.',
+            'Cleanup ~~legacy *markup*~~ water H~2~ and status ^*draft*^ plus inline math $x \in y$<!-- -->2 follows raw \cite[22-23]{smith.1899} and raw attr `<outline/>`{=opml}.',
             '',
             'Script words ~review\ status~ and ^post\ id^ display $$\alpha + \omega$$.',
         ]), (new MarkdownWriter())->write($document));
@@ -7605,7 +7605,7 @@ TPL;
         $rawMarkdown = new AstNode('raw_inline', ['format' => 'markdown_github', 'text' => '**trusted reviewer markdown**']);
 
         $t->same(
-            '`<mark data-source="batch-42">review</mark>`{=html}',
+            '<mark data-source="batch-42">review</mark>',
             $write($rawHtml)
         );
         $t->same(
@@ -7616,7 +7616,7 @@ TPL;
             'rawAttribute' => false,
             'rawHtml' => false,
         ]));
-        $t->same('`\cite[22-23]{smith.1899}`{=tex}', $write($rawTex));
+        $t->same('\cite[22-23]{smith.1899}', $write($rawTex));
         $t->same('\cite[22-23]{smith.1899}', $write($rawTex, ['rawAttribute' => false]));
         $t->same('', $write($rawTex, [
             'rawAttribute' => false,
@@ -14506,7 +14506,7 @@ HTML);
         $table = $parsed->children[2];
         $citation = null;
         foreach ($parsed->children[1]->children as $inline) {
-            if ($inline->type === 'citation') {
+            if ($inline->type === 'citation' || $inline->type === 'citation_group') {
                 $citation = $inline;
                 break;
             }
@@ -14518,8 +14518,9 @@ HTML);
         $t->same('image', $parsed->children[0]->children[0]->type);
         $t->same('Release frame', $parsed->children[0]->attr('caption'));
         $t->true($citation instanceof AstNode, 'Native reader should preserve the Cite inline node');
-        $t->same('author_in_text', $citation->attr('citations')[0]['mode']);
-        $t->same('suppress_author', $citation->attr('citations')[1]['mode']);
+        $t->same('citation_group', $citation->type);
+        $t->same('author_in_text', $citation->children[0]->attr('mode'));
+        $t->same('suppress_author', $citation->children[1]->attr('mode'));
         $t->same('table', $table->type);
         $t->same(['left', 'right'], $table->attr('alignments'));
         $t->same([0.4, 0.6], $table->attr('widths'));
@@ -14575,10 +14576,10 @@ HTML);
         $t->same('nonexistent', $normalCitation->attr('citations')[0]['id']);
         $t->same('author_in_text', $authorCitation->attr('citations')[0]['mode']);
         $t->same('p.' . "\xC2\xA0" . '30', $authorCitation->attr('citations')[0]['suffix'][0]->attr('text'));
-        $t->same(3, count($groupCitation->attr('citations')));
-        $t->same('suppress_author', $groupCitation->attr('citations')[1]['mode']);
-        $t->same('пункт3', $groupCitation->attr('citations')[2]['id']);
-        $t->same('see', $groupCitation->attr('citations')[2]['prefix'][0]->attr('text'));
+        $t->same(3, count($groupCitation->children));
+        $t->same('suppress_author', $groupCitation->children[1]->attr('mode'));
+        $t->same('пункт3', $groupCitation->children[2]->attr('id'));
+        $t->same('see', $groupCitation->children[2]->attr('prefix')[0]->attr('text'));
         $t->same('note', $note->type);
         $t->same('пункт3', $noteCitation->attr('citations')[0]['id']);
         $t->contains('Cite [ Citation { citationId = "\1087\1091\1085\1082\1090\&3"', $roundTrip);

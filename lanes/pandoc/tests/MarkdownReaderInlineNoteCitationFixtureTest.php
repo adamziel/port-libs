@@ -116,7 +116,9 @@ $tests['serializes upstream markdown inline-note citations through native markdo
         $t->contains('<a href="https://example.test/source" title="source title">packet</a>', $blocks);
         $t->contains('<span class="pandoc-citation" data-pandoc-citation-id="roe"', $blocks);
         $t->contains('<code>]</code>', $blocks);
-        $t->contains('<span class="pandoc-citation" data-pandoc-citation-id="smith"', $blocks);
+        $t->contains('<span class="pandoc-citation" data-pandoc-citation-count="2"', $blocks);
+        $t->contains('data-pandoc-citation-ids="[&quot;smith&quot;,&quot;doe&quot;]"', $blocks);
+        $t->contains('>[@smith; see -@doe]</span>', $blocks);
     };
 
 $tests['records upstream markdown inline-note citation mapped-case count'] =

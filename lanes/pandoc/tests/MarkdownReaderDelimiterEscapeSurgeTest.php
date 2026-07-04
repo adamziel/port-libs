@@ -87,9 +87,10 @@ $semanticConfigs = [
         'close' => '==',
         'escaped' => '\\=\\=',
         'literal' => '==',
-        'html' => '<span class="mark">%s</span>',
-        'htmlStart' => '<span class="mark">',
+        'html' => '<mark>%s</mark>',
+        'htmlStart' => '<mark>',
         'classes' => ['mark'],
+        'options' => ['format' => 'markdown+mark'],
     ],
     'superscript' => [
         'type' => 'superscript',
@@ -179,14 +180,15 @@ $literalOpeningCases = [
 
 return [
     'maps upstream markdown escaped closing delimiter surge cases' => static function (TestRunner $t) use ($escapedClosingCases, $inlineText, $firstInlineOfType): void {
-        $reader = new MarkdownReader();
         $mapped = 0;
 
         foreach ($escapedClosingCases as $label => $case) {
+            $options = $case['config']['options'] ?? [];
+            $reader = new MarkdownReader($options);
             $document = $reader->read($case['markdown']);
             $node = $firstInlineOfType($document, $case['config']['type']);
             $blocks = (new WordPressBlockWriter())->write($document);
-            $markdown = (new MarkdownWriter())->write($document);
+            $markdown = (new MarkdownWriter($options))->write($document);
             $roundTripped = $firstInlineOfType($reader->read($markdown), $case['config']['type']);
 
             $t->same($case['config']['type'], $node->type, $label);
