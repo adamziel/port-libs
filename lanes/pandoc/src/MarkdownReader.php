@@ -3763,12 +3763,13 @@ final class MarkdownReader
 
     private function parseDocBookInformalTable(string $xml): ?AstNode
     {
-        $previous = libxml_use_internal_errors(true);
-        $dom = new \DOMDocument('1.0', 'UTF-8');
-        $loaded = $dom->loadXML($xml, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-        if (!$loaded || !$dom->documentElement instanceof \DOMElement) {
+        try {
+            $dom = Html5Dom::parseXmlDocument($xml, 'DocBook informal table');
+        } catch (\Throwable) {
+            return null;
+        }
+
+        if (!$dom->documentElement instanceof \DOMElement) {
             return null;
         }
 

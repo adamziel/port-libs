@@ -202,15 +202,22 @@ final class Html5Dom
             );
         }
 
-        $html5 = $preferHtml5TreeConstruction ? self::treeConstructedHtmlSource($html) : null;
-        if ($html5 !== null) {
+        if ($preferHtml5TreeConstruction && class_exists('Dom\\HTMLDocument')) {
+            $html5 = self::treeConstructedHtmlSource($html);
+            if ($html5 === null) {
+                throw new \RuntimeException('Unable to parse ' . $label . ' through Dom\\HTMLDocument');
+            }
+
             try {
                 return self::loadLegacyHtml($html5, $label);
-            } catch (\Throwable) {
-                // Fall through to the legacy source path when the bridge cannot be reloaded.
+            } catch (\Throwable $exception) {
+                throw new \RuntimeException('Unable to bridge Dom\\HTMLDocument output for ' . $label, 0, $exception);
             }
         }
 
+        // PHP < 8.4 has no Dom\HTMLDocument; orphan table-scope fragments also
+        // use this compatibility path because PHP exposes document parsing, not
+        // context-fragment parsing for table rows/cells.
         return self::loadLegacyHtml($html, $label);
     }
 
