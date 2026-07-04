@@ -7692,13 +7692,6 @@ final class MarkdownWriter
             return $text;
         }
 
-        if ($this->rawAttributeEnabled()) {
-            return $this->renderRawAttributeInline(new AstNode($node->type, [
-                'format' => $format,
-                'text' => $text,
-            ]));
-        }
-
         $rawFamily = MarkdownFormatProfile::rawFamily($format);
         if ($rawFamily === 'html' && $this->rawHtmlEnabled()) {
             return $text;
@@ -7706,6 +7699,13 @@ final class MarkdownWriter
 
         if ($rawFamily === 'tex' && $this->rawTexEnabled()) {
             return $text;
+        }
+
+        if ($this->rawAttributeEnabled()) {
+            return $this->renderRawAttributeInline(new AstNode($node->type, [
+                'format' => $format,
+                'text' => $text,
+            ]));
         }
 
         return '';

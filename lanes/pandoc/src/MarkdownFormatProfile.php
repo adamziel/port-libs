@@ -687,13 +687,13 @@ final class MarkdownFormatProfile
 
     private static function extensionFlag(mixed $format, string $extension, bool $default): bool
     {
+        if ($extension === 'raw_tex' && self::formatDisallowsRawTexExtension($format)) {
+            return $default;
+        }
+
         $overrides = self::markdownExtensionOverrides($format);
         if (array_key_exists($extension, $overrides)) {
             return $overrides[$extension];
-        }
-
-        if ($extension === 'raw_tex' && self::formatDisallowsRawTexExtension($format)) {
-            return $default;
         }
 
         return $default;

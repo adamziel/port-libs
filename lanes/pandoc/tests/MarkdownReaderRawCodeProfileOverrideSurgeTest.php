@@ -80,11 +80,19 @@ foreach (['commonmark-raw_html', 'gfm-raw_html'] as $format) {
 }
 
 $rawTexCases = [];
-foreach (['commonmark', 'gfm', 'markdown_strict'] as $format) {
+foreach (['markdown_strict'] as $format) {
     foreach ($forms as $form) {
         $rawTexCases[$format . ' ' . $form . ' enables raw tex block'] = [
             'options' => $options($format, ['raw_tex' => true], $form),
             'enabled' => true,
+        ];
+    }
+}
+foreach (['commonmark', 'gfm'] as $format) {
+    foreach ($forms as $form) {
+        $rawTexCases[$format . ' ' . $form . ' leaves unsupported raw tex block literal'] = [
+            'options' => $options($format, ['raw_tex' => true], $form),
+            'enabled' => false,
         ];
     }
 }
@@ -107,11 +115,12 @@ $rawBlockCases = [];
 foreach (['commonmark', 'gfm'] as $format) {
     foreach ($forms as $form) {
         foreach ($rawBlockPayloads as $name => $payload) {
-            $rawBlockCases[$format . ' ' . $form . ' enables raw fenced block ' . $name] = [
+            $enabled = $name !== 'latex';
+            $rawBlockCases[$format . ' ' . $form . ' ' . ($enabled ? 'enables' : 'leaves unsupported') . ' raw fenced block ' . $name] = [
                 'options' => $options($format, $payload['extensions'], $form),
                 'rawFormat' => $payload['format'],
                 'text' => $payload['text'],
-                'enabled' => true,
+                'enabled' => $enabled,
             ];
         }
     }
@@ -139,11 +148,12 @@ $rawInlineCases = [];
 foreach (['commonmark', 'gfm'] as $format) {
     foreach ($forms as $form) {
         foreach ($rawBlockPayloads as $name => $payload) {
-            $rawInlineCases[$format . ' ' . $form . ' enables raw inline ' . $name] = [
+            $enabled = $name !== 'latex';
+            $rawInlineCases[$format . ' ' . $form . ' ' . ($enabled ? 'enables' : 'leaves unsupported') . ' raw inline ' . $name] = [
                 'options' => $options($format, $payload['extensions'], $form),
                 'rawFormat' => $payload['format'],
                 'text' => str_replace("\n", ' ', $payload['text']),
-                'enabled' => true,
+                'enabled' => $enabled,
             ];
         }
     }

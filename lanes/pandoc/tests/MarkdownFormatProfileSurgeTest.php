@@ -235,12 +235,12 @@ foreach ($profileCases as $case) {
 
 $overrideCases = [
     [
-        'name' => 'commonmark raw tex extension enables inline raw tex',
+        'name' => 'commonmark raw tex extension leaves inline raw tex literal',
         'assert' => static function (TestRunner $t, callable $inlineTypes): void {
             $document = (new MarkdownReader(['format' => 'commonmark+raw_tex']))->read('Before \\textbf{raw} after.');
             $types = $inlineTypes($document);
-            $t->same(true, in_array('raw_tex', $types, true));
-            $t->same(['text', 'raw_tex', 'text'], $types);
+            $t->same(false, in_array('raw_tex', $types, true));
+            $t->same(['text'], $types);
         },
     ],
     [
