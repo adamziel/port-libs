@@ -1,0 +1,12 @@
+[ Para
+    [ Str "Inline"
+    , Space
+    , Str "math"
+    , Space
+    , Math InlineMath "x_1 + y"
+    , Space
+    , Str "stays"
+    , Space
+    , Str "inline."
+    ]
+]

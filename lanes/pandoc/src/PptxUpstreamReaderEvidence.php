@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 51;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 52;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '7c56905ff13ece0d313000fc55bbc857cb5c7b738551d180dbd09d2e28f8c0cd';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 25751;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '6e812c3d34e08bf9ed1d0203d6884124a7af2f5137704449895dc3dfa9946a67';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 26227;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -90,6 +90,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => 'e751a414543010757345bac58bc4fb6157c1c99cbbd0e958f39753c18db3e5cd',
             'pptxBytes' => 1795,
             'nativeBytes' => 144,
+        ],
+        'multi-paragraph-table-cell' => [
+            'name' => 'generated multi-paragraph table cell flattening parity',
+            'pptx' => 'pptx-reader/multi-paragraph-table-cell.pptx',
+            'native' => 'pptx-reader/multi-paragraph-table-cell.native',
+            'pairKey' => 'pptx-reader/multi-paragraph-table-cell.pptx|pptx-reader/multi-paragraph-table-cell.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/multi-paragraph-table-cell.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/multi-paragraph-table-cell.native',
+            'pptxSha256' => 'ea8c0da62e75f272bd9f3ae72e9c646086e698ee518e8b7c66ff59ed8eafdd19',
+            'nativeSha256' => '779fba71bf9c3b12489fe696e19362fc4c435f9cc00c41958887a5d16fa1cff6',
+            'pptxBytes' => 1622,
+            'nativeBytes' => 1224,
         ],
         'multi-paragraph-textbox' => [
             'name' => 'generated multi-paragraph text box parity',

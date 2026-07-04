@@ -13791,22 +13791,23 @@ HTML);
         $t->contains('data-source="mathml-only"', $fixtureBlocks);
         $t->contains('<p>Assistive source: <span class="math display">\[E=mc^2\]</span></p>', $fixtureBlocks);
     },
-    'maps upstream html reader span class strikeout branch' => static function (TestRunner $t): void {
+    'maps upstream html reader span class strikeout as generic span' => static function (TestRunner $t): void {
         $reader = new MarkdownReader();
         $document = $reader->read('<p>Migration <span class="strikeout">remove <strong>legacy</strong></span> before publish.</p>');
         $paragraph = $document->children[0] ?? new AstNode('missing');
-        $strikeout = $paragraph->children[1] ?? new AstNode('missing');
+        $span = $paragraph->children[1] ?? new AstNode('missing');
         $native = (new NativeWriter(['blocksOnly' => true]))->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $t->same('paragraph', $paragraph->type);
-        $t->same(['text', 'strikeout', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
-        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $strikeout->children));
-        $t->same('remove ', $strikeout->children[0]->attr('text'));
-        $t->same('legacy', $strikeout->children[1]->children[0]->attr('text'));
-        $t->contains('Strikeout [ Str "remove" , Space , Strong [ Str "legacy" ] ]', $native);
-        $t->contains('<p>Migration <del>remove <strong>legacy</strong></del> before publish.</p>', $blocks);
-        $t->true(!str_contains($native, 'Span ( "" , [ "strikeout" ]'), 'Exact strikeout span should map to native Strikeout instead of generic Span');
+        $t->same(['text', 'span', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same(['strikeout'], $span->attr('classes'));
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $span->children));
+        $t->same('remove ', $span->children[0]->attr('text'));
+        $t->same('legacy', $span->children[1]->children[0]->attr('text'));
+        $t->contains('Span ( "" , [ "strikeout" ] , [  ] ) [ Str "remove" , Space , Strong [ Str "legacy" ] ]', $native);
+        $t->contains('<p>Migration <span class="strikeout">remove <strong>legacy</strong></span> before publish.</p>', $blocks);
+        $t->true(!str_contains($native, 'Strikeout [ Str "remove"'), 'Classed span should stay a generic Span like pandoc 3.10');
 
         $editDocument = $reader->read('<p><del>old caption</del> and <ins>new caption</ins></p>');
         $editParagraph = $editDocument->children[0] ?? new AstNode('missing');
@@ -13818,13 +13819,14 @@ HTML);
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-html-span-strikeout.html');
         $fixtureDocument = $reader->read($fixture);
         $fixtureParagraph = $fixtureDocument->children[0] ?? new AstNode('missing');
-        $fixtureStrikeout = $fixtureParagraph->children[1] ?? new AstNode('missing');
+        $fixtureSpan = $fixtureParagraph->children[1] ?? new AstNode('missing');
         $fixtureBlocks = (new WordPressBlockWriter())->write($fixtureDocument);
 
         $t->same('HTML Span Strikeout Import', $fixtureDocument->attr('meta')['title'] ?? '');
-        $t->same('strikeout', $fixtureStrikeout->type);
-        $t->same('remove the legacy shortcode', $fixtureStrikeout->children[0]->attr('text'));
-        $t->contains('<p>Migration note <del>remove the legacy shortcode</del> before publish.</p>', $fixtureBlocks);
+        $t->same('span', $fixtureSpan->type);
+        $t->same(['strikeout'], $fixtureSpan->attr('classes'));
+        $t->same('remove the legacy shortcode', $fixtureSpan->children[0]->attr('text'));
+        $t->contains('<p>Migration note <span class="strikeout">remove the legacy shortcode</span> before publish.</p>', $fixtureBlocks);
         $t->contains('<p>Explicit markup <del>old caption</del> and <u>new caption</u> remain reviewable.</p>', $fixtureBlocks);
     },
     'maps upstream html reader disabled raw html skip for style script and textarea' => static function (TestRunner $t): void {

@@ -8888,37 +8888,13 @@ final class MarkdownReader
     {
         if (
             $this->htmlElementStyleMatches($element, '/^font-variant(?:-caps)?\s*:\s*small-caps\b/i')
-            || $this->htmlElementHasAnyClass($element, ['smallcaps', 'small-caps'])
+            || $this->htmlElementHasClass($element, 'smallcaps')
         ) {
             return [
                 'type' => 'small_caps',
-                'removeClasses' => ['smallcaps', 'small-caps'],
+                'removeClasses' => ['smallcaps'],
                 'addClasses' => [],
                 'removeStylePatterns' => ['/^font-variant(?:-caps)?\s*:\s*small-caps\b/i'],
-            ];
-        }
-
-        if (
-            $this->htmlElementStyleMatches($element, '/^text-decoration(?:-line)?\s*:\s*underline\b/i')
-            || $this->htmlElementHasAnyClass($element, ['underline', 'underlined'])
-        ) {
-            return [
-                'type' => 'underline',
-                'removeClasses' => ['underline', 'underlined'],
-                'addClasses' => [],
-                'removeStylePatterns' => ['/^text-decoration(?:-line)?\s*:\s*underline\b/i'],
-            ];
-        }
-
-        if (
-            $this->htmlElementStyleMatches($element, '/^text-decoration(?:-line)?\s*:\s*line-through\b/i')
-            || $this->htmlElementHasAnyClass($element, ['strikeout', 'strikethrough', 'strike-through'])
-        ) {
-            return [
-                'type' => 'strikeout',
-                'removeClasses' => ['strikeout', 'strikethrough', 'strike-through'],
-                'addClasses' => [],
-                'removeStylePatterns' => ['/^text-decoration(?:-line)?\s*:\s*line-through\b/i'],
             ];
         }
 

@@ -151,6 +151,7 @@ final class EpubReader
             }
             $resources[] = $href;
             $footnote_definitions = $this->epubFootnoteDefinitionsInReferenceOrder($xhtml, $item['href']);
+            $note_reference_hrefs = $this->epubNoteReferenceHrefs($xhtml);
             $document = $this->epubContentMarkdownReader()->read($this->contentDocumentMarkup($xhtml));
             if ($footnote_definitions !== []) {
                 $footnote_index = 0;
@@ -161,6 +162,7 @@ final class EpubReader
                 $item['href'],
                 $base_path,
                 $spine_filenames,
+                $note_reference_hrefs,
                 $referenced_resources,
                 $media_bag_resources,
                 $media_bag_sources
@@ -1011,6 +1013,32 @@ final class EpubReader
         return $definitions;
     }
 
+    /**
+     * @return array<string, true>
+     */
+    private function epubNoteReferenceHrefs(string $xhtml): array
+    {
+        try {
+            $dom = $this->loadXml($this->contentDocumentMarkup($xhtml), 'EPUB XHTML note reference scan');
+        } catch (\InvalidArgumentException) {
+            return [];
+        }
+
+        $hrefs = [];
+        foreach ($dom->getElementsByTagName('*') as $element) {
+            if (!$element instanceof \DOMElement || !$this->isEpubNoteReferenceElement($element)) {
+                continue;
+            }
+
+            $href = html_entity_decode($element->getAttribute('href'), ENT_QUOTES | ENT_XML1, 'UTF-8');
+            if ($href !== '') {
+                $hrefs[$href] = true;
+            }
+        }
+
+        return $hrefs;
+    }
+
     private function isEpubFootnoteDefinitionElement(\DOMElement $element): bool
     {
         if (trim($element->getAttribute('id')) === '') {
@@ -1185,6 +1213,7 @@ final class EpubReader
 
     /**
      * @param list<string> $spine_filenames
+     * @param array<string, true> $note_reference_hrefs
      * @param list<string> $referenced_resources
      * @param list<string> $media_bag_resources
      */
@@ -1193,6 +1222,7 @@ final class EpubReader
         string $content_path,
         string $package_base_path,
         array $spine_filenames,
+        array $note_reference_hrefs,
         array &$referenced_resources,
         array &$media_bag_resources,
         array &$media_bag_sources
@@ -1201,11 +1231,12 @@ final class EpubReader
         $filename = $this->spineFilename($content_part);
         $content_dir = $this->dirname($content_part);
 
-        return $this->fixEpubNode($document, $filename, $content_dir, $package_base_path, $spine_filenames, $referenced_resources, $media_bag_resources, $media_bag_sources);
+        return $this->fixEpubNode($document, $filename, $content_dir, $package_base_path, $spine_filenames, $note_reference_hrefs, $referenced_resources, $media_bag_resources, $media_bag_sources);
     }
 
     /**
      * @param list<string> $spine_filenames
+     * @param array<string, true> $note_reference_hrefs
      * @param list<string> $referenced_resources
      * @param list<string> $media_bag_resources
      * @param array<string, string> $media_bag_sources
@@ -1216,6 +1247,7 @@ final class EpubReader
         string $content_dir,
         string $package_base_path,
         array $spine_filenames,
+        array $note_reference_hrefs,
         array &$referenced_resources,
         array &$media_bag_resources,
         array &$media_bag_sources
@@ -1229,6 +1261,9 @@ final class EpubReader
         if ($node->type === 'link') {
             $url = (string) ($attrs['url'] ?? '');
             if ($url !== '') {
+                if (isset($note_reference_hrefs[$url])) {
+                    $attrs = $this->attrsWithClass($attrs, 'noteref');
+                }
                 $this->recordReferencedResource($url, $content_dir, $package_base_path, $referenced_resources);
                 $attrs['url'] = $this->fixEpubLinkUrl($url, $filename, $spine_filenames);
             }
@@ -1246,11 +1281,34 @@ final class EpubReader
 
         $children = [];
         foreach ($node->children as $child) {
-            $children[] = $this->fixEpubNode($child, $filename, $content_dir, $package_base_path, $spine_filenames, $referenced_resources, $media_bag_resources, $media_bag_sources);
+            $children[] = $this->fixEpubNode($child, $filename, $content_dir, $package_base_path, $spine_filenames, $note_reference_hrefs, $referenced_resources, $media_bag_resources, $media_bag_sources);
         }
         $children = $this->trimTextBeforeInlineImages($children);
 
         return new AstNode($node->type, $attrs, $children);
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     * @return array<string, mixed>
+     */
+    private function attrsWithClass(array $attrs, string $class): array
+    {
+        $classes = [];
+        if (isset($attrs['classes']) && is_array($attrs['classes'])) {
+            foreach ($attrs['classes'] as $existing) {
+                $existing = trim((string) $existing);
+                if ($existing !== '' && !in_array($existing, $classes, true)) {
+                    $classes[] = $existing;
+                }
+            }
+        }
+        if (!in_array($class, $classes, true)) {
+            $classes[] = $class;
+        }
+        $attrs['classes'] = $classes;
+
+        return $attrs;
     }
 
     /**

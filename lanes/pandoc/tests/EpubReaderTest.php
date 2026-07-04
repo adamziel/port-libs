@@ -1263,6 +1263,73 @@ HTML);
         $t->contains('href="#chapter%201.xhtml_opening"', $blocks);
         $t->same(false, str_contains($blocks, 'chapter%25201.xhtml'));
     },
+    'preserves external epub noteref link class when note body is outside linear spine' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-external-noteref-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary EPUB package');
+        }
+        $zip->addFromString('META-INF/container.xml', '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="book-id">
+  <metadata>
+    <dc:identifier id="book-id">book-external-noteref</dc:identifier>
+    <dc:title>External Noteref EPUB</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="notes" href="notes.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+    <itemref idref="notes" linear="no"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('OPS/chapter.xhtml', <<<'HTML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body><p>Main note <a epub:type="noteref" href="notes.xhtml#fn1">1</a>.</p></body>
+</html>
+HTML);
+        $zip->addFromString('OPS/notes.xhtml', <<<'HTML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body><aside epub:type="footnote" id="fn1"><p>Separate note body.</p></aside></body>
+</html>
+HTML);
+        $zip->close();
+
+        try {
+            $document = (new EpubReader())->readEpubFile($path);
+            $meta = $document->attr('meta');
+            $native = (new NativeWriter(['blocksOnly' => true]))->write($document);
+        } finally {
+            @unlink($path);
+        }
+
+        $paragraph = $document->children[1];
+        $links = array_values(array_filter(
+            $paragraph->children,
+            static fn (PortLibs\Pandoc\AstNode $child): bool => $child->type === 'link'
+        ));
+        $link = $links[0] ?? new PortLibs\Pandoc\AstNode('missing');
+        $t->same('link', $link->type);
+        $t->same(['noteref'], $link->attr('classes'));
+        $t->same('notes.xhtml_fn1', $link->attr('url'));
+        $t->same(['OPS/chapter.xhtml'], $meta['epubReadableResources']);
+        $t->same(['OPS/notes.xhtml#fn1'], $meta['epubReferencedResources']);
+        $t->contains('Link ( "" , [ "noteref" ] , [  ] ) [ Str "1" ] ( "notes.xhtml_fn1" , "" )', $native);
+        $t->same(false, str_contains($native, 'Note ['));
+        $t->same(false, str_contains($native, 'Separate note body'));
+    },
     'fills standalone epub footnote note bodies before media bag extraction' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-standalone-footnote-');
         if ($path === false) {
