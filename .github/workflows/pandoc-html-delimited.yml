@@ -20,6 +20,8 @@ permissions:
 
 env:
   PANDOC_HTML_DELIMITED_UPSTREAM_PINNED_COMMIT: 4f5226df4faa0d66dd2c089465b13886360ab3c2
+  PANDOC_EXECUTABLE_VERSION: '3.10'
+  PANDOC_EXECUTABLE_LINUX_AMD64_SHA256: e0f8af62d0f267d22baa5bcefe6d5dda3a097ccc60de794b759fe03159923244
 
 jobs:
   focused-html-delimited:
@@ -49,6 +51,7 @@ jobs:
           php -l lanes/pandoc/src/NativeWriter.php
           php -l lanes/pandoc/tests/DelimitedTextReaderTest.php
           php -l lanes/pandoc/tests/DelimitedTextUpstreamReaderEvidenceTest.php
+          php -l lanes/pandoc/tests/Html5DomTest.php
           php -l lanes/pandoc/tests/HtmlNativeAstComparisonHarnessTest.php
           php -l lanes/pandoc/tests/HtmlReaderTest.php
           php -l lanes/pandoc/tests/HtmlUpstreamReaderEvidenceTest.php
@@ -103,9 +106,9 @@ jobs:
           php tools/pandoc-html-reader-evidence.php \
             --upstream-root=.upstream-cache/pandoc-current \
             --json \
-            --require-selected-fixture-count=102 \
+            --require-selected-fixture-count=103 \
             --require-static-current-evidence \
-            --require-native-mapped-parity=102 \
+            --require-native-mapped-parity=103 \
             --require-runner-not-run \
             --require-runner-plan \
             --require-no-validation-issues
@@ -116,7 +119,19 @@ jobs:
             --html-dir=lanes/pandoc/fixtures \
             --json \
             summary \
-            --require-mapped-parity=102
+            --require-mapped-parity=103
+
+      - name: Install pandoc executable
+        run: |
+          set -euo pipefail
+          archive="/tmp/pandoc-${PANDOC_EXECUTABLE_VERSION}-linux-amd64.tar.gz"
+          curl -fsSL \
+            -o "$archive" \
+            "https://github.com/jgm/pandoc/releases/download/${PANDOC_EXECUTABLE_VERSION}/pandoc-${PANDOC_EXECUTABLE_VERSION}-linux-amd64.tar.gz"
+          echo "${PANDOC_EXECUTABLE_LINUX_AMD64_SHA256}  ${archive}" | sha256sum -c -
+          tar -xzf "$archive" -C /tmp
+          sudo install -m 0755 "/tmp/pandoc-${PANDOC_EXECUTABLE_VERSION}/bin/pandoc" /usr/local/bin/pandoc
+          pandoc --version | head -n 1
 
       - name: Require delimited text reader evidence
         run: |
@@ -124,8 +139,10 @@ jobs:
             --repo-root=. \
             --json \
             --require-honest-denominators \
-            --require-generated-csv-native-parity=57 \
+            --require-generated-csv-native-parity=58 \
             --require-generated-tsv-native-parity=32 \
+            --require-pandoc-executable-csv-native-parity=43 \
+            --require-pandoc-executable-tsv-native-parity=23 \
             --require-runner-not-run \
             --require-runner-plan \
             --require-no-validation-issues
@@ -135,6 +152,7 @@ jobs:
           php tools/run-tests.php \
             lanes/pandoc/tests/DelimitedTextReaderTest.php \
             lanes/pandoc/tests/DelimitedTextUpstreamReaderEvidenceTest.php \
+            lanes/pandoc/tests/Html5DomTest.php \
             lanes/pandoc/tests/HtmlNativeAstComparisonHarnessTest.php \
             lanes/pandoc/tests/HtmlReaderTest.php \
             lanes/pandoc/tests/HtmlUpstreamReaderEvidenceTest.php

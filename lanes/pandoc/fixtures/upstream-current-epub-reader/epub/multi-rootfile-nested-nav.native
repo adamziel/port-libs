@@ -1,0 +1,29 @@
+[ Para [ Span ( "chapter.xhtml" , [] , [] ) [] ]
+, Header
+    1
+    ( "" , [] , [] )
+    [ Str "Multi"
+    , Space
+    , Str "Rootfile"
+    , Space
+    , Str "Nested"
+    , Space
+    , Str "Nav"
+    ]
+, Para
+    [ Str "Rootfile-selected"
+    , Space
+    , Str "reading"
+    , Space
+    , Str "order."
+    ]
+, Header
+    2 ( "chapter.xhtml_details" , [] , [] ) [ Str "Details" ]
+, Para
+    [ Str "Nested"
+    , Space
+    , Str "navigation"
+    , Space
+    , Str "target."
+    ]
+]

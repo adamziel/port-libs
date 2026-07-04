@@ -302,14 +302,27 @@ final class HtmlReader
         if (preg_match('/<p\b[^>]*>(?:(?!<\/p\s*>).)*<(?:' . self::htmlBlockContainerNameAlternation() . ')\b/is', $bytes) !== 1) {
             return $bytes;
         }
-
-        $trimmed = ltrim($bytes);
-        if (preg_match('/^(?:<!doctype\b|<html\b|<head\b|<body\b)/i', $trimmed) === 1) {
+        if (preg_match('/<p\b[^>]*>(?:(?!<\/p\s*>).)*<main\b/is', $bytes) === 1) {
             return $bytes;
         }
+
+        $trimmed = ltrim($bytes);
+        $isDocument = preg_match('/^(?:<!doctype\b|<html\b)/i', $trimmed) === 1;
         $bytes = self::repairModernParagraphBlockOpeners($bytes);
 
         try {
+            if ($isDocument) {
+                $dom = Html5Dom::parseHtmlDocument($bytes);
+                $documentElement = $dom->documentElement;
+                if (!$documentElement instanceof \DOMElement) {
+                    return $bytes;
+                }
+
+                $html = $dom->saveHTML($documentElement);
+
+                return is_string($html) ? $html : $bytes;
+            }
+
             $body = Html5Dom::parseHtmlFragment($bytes);
         } catch (\Throwable) {
             return $bytes;
@@ -319,6 +332,9 @@ final class HtmlReader
         foreach ($body->childNodes as $child) {
             $serialized = self::htmlNodeSource($child);
             if ($child instanceof \DOMText && trim($serialized) === '') {
+                continue;
+            }
+            if (self::isEmptyHtmlParagraphRepairArtifact($child)) {
                 continue;
             }
             if ($serialized === '') {
@@ -333,6 +349,14 @@ final class HtmlReader
         }
 
         return implode("\n", $parts);
+    }
+
+    private static function isEmptyHtmlParagraphRepairArtifact(\DOMNode $node): bool
+    {
+        return $node instanceof \DOMElement
+            && strtolower($node->localName) === 'p'
+            && !$node->hasAttributes()
+            && trim($node->textContent) === '';
     }
 
     private static function repairModernParagraphBlockOpeners(string $bytes): string

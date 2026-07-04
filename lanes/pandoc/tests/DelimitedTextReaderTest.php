@@ -2753,6 +2753,48 @@ NATIVE;
         $t->contains('Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) []', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
+    'matches generated csv quoted delimiter boundaries native parity fixture' => static function (TestRunner $t) use ($generatedCsvNativeFixture, $nativeTokenStream): void {
+        $fixture = $generatedCsvNativeFixture('quoted-delimiter-boundaries');
+        $document = (new DelimitedTextReader())->readCsv($fixture['input'], [
+            'sourcePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/quoted-delimiter-boundaries.csv',
+        ]);
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+        $native = PandocConverter::write($document, 'native');
+        $generatedEvidence = $packet['upstreamEvidence']['generatedNativeParityEvidence'] ?? [];
+        $body = $table->children[1];
+
+        $t->same('csv', $packet['format'] ?? null);
+        $t->same(',', $packet['delimiter'] ?? null);
+        $t->same(2, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
+        $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
+        $t->same(2 * DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['checkedInFixtureCount'] ?? null);
+        $t->same('quoted-delimiter-boundaries.csv', $generatedEvidence['checkedInFixtures'][114]['name'] ?? null);
+        $t->same('daedb210e8254563974d614e0ff69337115b63e61334dea670751bedc7b94c8d', $generatedEvidence['checkedInFixtures'][114]['checkedInFile']['sha256'] ?? null);
+        $t->same('quoted-delimiter-boundaries.native', $generatedEvidence['checkedInFixtures'][115]['name'] ?? null);
+        $t->same('39aea7e34af33e26b7a533b072ace9fca853fba38497e084f06e5c40034bf5fb', $generatedEvidence['checkedInFixtures'][115]['checkedInFile']['sha256'] ?? null);
+        $t->same('quoted-delimiter-boundaries', $generatedEvidence['samples'][57]['name'] ?? null);
+        $t->same([], $generatedEvidence['samples'][57]['readerOptions'] ?? null);
+        $t->same(['id', 'note', 'status'], $table->attr('columnNames'));
+        $t->same(4, $packet['rowCount'] ?? null);
+        $t->same(3, $packet['bodyRowCount'] ?? null);
+        $t->same(3, $packet['columnCount'] ?? null);
+        $t->same(12, $packet['fieldCount'] ?? null);
+        $t->same(3, $packet['quotedFieldCount'] ?? null);
+        $t->same(0, $packet['quotedLineBreakCount'] ?? null);
+        $t->same(0, $packet['multilineFieldCount'] ?? null);
+        $t->same(0, $packet['raggedRowCount'] ?? null);
+        $t->same(0, $packet['diagnosticCount'] ?? null);
+        $t->same(',leading comma', $body->children[0]->children[1]->attr('text'));
+        $t->same('trailing comma,', $body->children[1]->children[1]->attr('text'));
+        $t->same(',both,', $body->children[2]->children[1]->attr('text'));
+        $t->contains('Plain [ Str ",leading" , Space , Str "comma" ]', $native);
+        $t->contains('Plain [ Str "trailing" , Space , Str "comma," ]', $native);
+        $t->contains('Plain [ Str ",both," ]', $native);
+        $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
+    },
     'matches generated tsv native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture();
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [

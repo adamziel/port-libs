@@ -112,7 +112,7 @@ return [
         $t->true(in_array('.port-libs/pandoc-runner/artifacts/delimited-text-targeted-run/result.json', $report['runnerEvidence']['requiredArtifacts'], true));
         $t->contains('Pandoc delimited text reader evidence', $text);
         $t->contains('Static current evidence: valid-checked-in-current-delimited-text-reader-evidence checkedInFixtures=2', $text);
-        $t->contains('Generated CSV native parity: 57/57 status=generated-csv-native-parity-observed-not-upstream-fixture', $text);
+        $t->contains('Generated CSV native parity: 58/58 status=generated-csv-native-parity-observed-not-upstream-fixture', $text);
         $t->contains('Generated TSV native parity: 32/32 status=generated-tsv-native-parity-observed-not-upstream-fixture', $text);
         $t->contains('Runner plan: planned-not-run', $text);
         $t->contains('Runner target: Command:/csv.md/#1', $text);
@@ -586,6 +586,14 @@ return [
         $t->same(2445, $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][113]['checkedInFile']['bytes']);
         $t->same('delimiter-only-row', $evidence['generatedCsvNativeStaticEvidence']['samples'][56]['name']);
         $t->same([], $evidence['generatedCsvNativeStaticEvidence']['samples'][56]['readerOptions']);
+        $t->same('quoted-delimiter-boundaries.csv', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][114]['name']);
+        $t->same('daedb210e8254563974d614e0ff69337115b63e61334dea670751bedc7b94c8d', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][114]['checkedInFile']['sha256']);
+        $t->same(82, $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][114]['checkedInFile']['bytes']);
+        $t->same('quoted-delimiter-boundaries.native', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][115]['name']);
+        $t->same('39aea7e34af33e26b7a533b072ace9fca853fba38497e084f06e5c40034bf5fb', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][115]['checkedInFile']['sha256']);
+        $t->same(2756, $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][115]['checkedInFile']['bytes']);
+        $t->same('quoted-delimiter-boundaries', $evidence['generatedCsvNativeStaticEvidence']['samples'][57]['name']);
+        $t->same([], $evidence['generatedCsvNativeStaticEvidence']['samples'][57]['readerOptions']);
         $t->same('static-checked-in-generated-tsv-native-parity-fixture-evidence', $evidence['generatedTsvNativeStaticEvidence']['kind']);
         $t->same(32, $evidence['generatedTsvNativeStaticEvidence']['sampleCount']);
         $t->same(64, $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtureCount']);
@@ -1889,6 +1897,7 @@ return [
             'quoted-bare-cr-normalized',
             'quoted-delimiter-blank-short-row',
             'delimiter-only-row',
+            'quoted-delimiter-boundaries',
         ], array_column($csv['samples'], 'name'));
         $t->same(array_fill(0, DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT, 'matched'), array_column($csv['samples'], 'status'));
         $t->same(array_fill(0, DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT, 'valid-generated-csv-native-sample-static-binding'), array_column($csv['samples'], 'staticFixtureBindingStatus'));
@@ -2038,9 +2047,9 @@ return [
             . ' --repo-root=' . escapeshellarg($repoRoot)
             . ' --json'
             . ' --require-honest-denominators'
-            . ' --require-generated-csv-native-parity=57'
+            . ' --require-generated-csv-native-parity=' . DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT
             . ' --require-generated-tsv-native-parity=32'
-            . ' --require-pandoc-executable-csv-native-parity=42'
+            . ' --require-pandoc-executable-csv-native-parity=' . DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT
             . ' --require-pandoc-executable-tsv-native-parity=23'
             . ' --require-runner-not-run'
             . ' --require-runner-plan'

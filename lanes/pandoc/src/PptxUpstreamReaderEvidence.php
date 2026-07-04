@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 83;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 84;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '676e35d59e7f772edc734da16521d5632e5b29578e650de60cf89b76e117124b';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 36251;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'a48a3f7059f63a7fe436223cdd731a094ea87eae153cd8640a341c71fc4338dd';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 36654;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -750,6 +750,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => 'd170e15f31fa6600cd7fa3eb9560e48ebcc5caaff8ce207d43c48c9fe2b49317',
             'pptxBytes' => 2240,
             'nativeBytes' => 118,
+        ],
+        'picture-shape-hyperlink' => [
+            'name' => 'generated picture shape hyperlink ignore parity',
+            'pptx' => 'pptx-reader/picture-shape-hyperlink.pptx',
+            'native' => 'pptx-reader/picture-shape-hyperlink.native',
+            'pairKey' => 'pptx-reader/picture-shape-hyperlink.pptx|pptx-reader/picture-shape-hyperlink.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/picture-shape-hyperlink.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/picture-shape-hyperlink.native',
+            'pptxSha256' => '9d4c19437a20700472715756f14926783f6a1fa9f2379bb5187f3fd19391f07a',
+            'nativeSha256' => '4fa780ef19805afc3e13c3fee77b4bff99c03468ef2569099aa92e7eef6d3aa5',
+            'pptxBytes' => 2491,
+            'nativeBytes' => 261,
         ],
         'media-relative-image-target' => [
             'name' => 'generated media-relative image target parity',

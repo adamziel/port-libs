@@ -1,0 +1,7 @@
+[ Para [ Str "Lead" ]
+, BlockQuote [ Para [ Str "Review" , Space , Str "quote" ] ]
+, BlockQuote
+    [ Para [ Str "Outer" , Space , Str "lead" ]
+    , BlockQuote [ Para [ Str "Nested" , Space , Str "quote" ] ]
+    ]
+]

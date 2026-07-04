@@ -1,0 +1,13 @@
+[ Header
+    2
+    ( "slide-1" , [] , [] )
+    [ Str "Picture hyperlink ignored" ]
+, Para
+    [ Image
+        ( "" , [] , [] )
+        [ Str "Picture hyperlink alt" ]
+        ( "ppt/media/picture-hyperlink.png"
+        , "Hyperlinked Picture"
+        )
+    ]
+]

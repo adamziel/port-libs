@@ -22,6 +22,26 @@ return [
             Html5Dom::serializeHtmlChildren($body)
         );
     },
+    'bridges HTML5 tree construction through legacy DOMDocument helpers' => static function (TestRunner $t): void {
+        if (!class_exists('Dom\\HTMLDocument')) {
+            $t->true(true, 'Dom\\HTMLDocument is unavailable on this PHP runtime');
+
+            return;
+        }
+
+        $document = Html5Dom::parseHtmlDocument(
+            '<!doctype html><html><body><p>one<section><p>two</section>three</body></html>'
+        );
+        $body = $document->getElementsByTagName('body')->item(0);
+        $section = $body instanceof DOMElement ? Html5Dom::firstChildElement($body, 'section') : null;
+
+        $t->true($body instanceof DOMElement, 'Expected body from bridged HTML5 document parse');
+        $t->true($section instanceof DOMElement, 'Expected section to be fostered out of the paragraph');
+        $t->same(
+            '<p>one</p><section><p>two</p></section>three',
+            $body instanceof DOMElement ? Html5Dom::serializeHtmlChildren($body) : ''
+        );
+    },
     'decodes HTML entities once and keeps comparison text safe on serialization' => static function (TestRunner $t): void {
         $body = Html5Dom::parseHtmlFragment('<p>AT&amp;T &lt;source&gt; &copy;</p><p>AT&amp;amp;T</p>');
         $paragraphs = Html5Dom::childElements($body, 'p');
@@ -582,7 +602,7 @@ return [
         );
         $serialized = Html5Dom::serializeHtmlChildren($body);
 
-        $t->same('<p>Loose note</p>orphan text<table class="legacy"><caption>Review rows</caption><tr><td>A</td></tr><tr><td>B</td></tr></table><p>after</p>', $serialized);
+        $t->same('<p>Loose note</p>orphan text<table class="legacy"><caption>Review rows</caption><tbody><tr><td>A</td></tr><tr><td>B</td></tr></tbody></table><p>after</p>', $serialized);
         $t->true(!str_contains($serialized, '</caption><p>Loose note</p>'), 'Expected loose paragraph to move outside the table');
         $t->true(!str_contains($serialized, '</tr>orphan text<tr>'), 'Expected loose text to move outside the table rows');
     },

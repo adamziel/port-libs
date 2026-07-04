@@ -32,9 +32,9 @@ return [
         $nativeFiles = glob($fixtureDirectory . '/*.native') ?: [];
         $totalFiles = count($epubFiles) + count($nativeFiles);
 
-        $t->same(55, count($epubFiles));
-        $t->same(55, count($nativeFiles));
-        $t->same(110, $totalFiles);
+        $t->same(56, count($epubFiles));
+        $t->same(56, count($nativeFiles));
+        $t->same(112, $totalFiles);
 
         foreach ([
             'benchmarkDenominator.breakdown' => $manifest['benchmarkDenominator']['breakdown'] ?? null,
@@ -52,11 +52,16 @@ return [
                 'epubEpubInputArtifacts' => count($epubFiles),
             ];
             $previousSharedManifest = [
+                'epubDirectoryArtifacts' => 110,
+                'epubNativeExpectedArtifacts' => 55,
+                'epubEpubInputArtifacts' => 55,
+            ];
+            $olderSharedManifest = [
                 'epubDirectoryArtifacts' => 108,
                 'epubNativeExpectedArtifacts' => 54,
                 'epubEpubInputArtifacts' => 54,
             ];
-            $olderSharedManifest = [
+            $oldestSharedManifest = [
                 'epubDirectoryArtifacts' => 106,
                 'epubNativeExpectedArtifacts' => 53,
                 'epubEpubInputArtifacts' => 53,
@@ -71,16 +76,18 @@ return [
                 $observed === $integrated
                     || $observed === $previousSharedManifest
                     || $observed === $olderSharedManifest
+                    || $observed === $oldestSharedManifest
                     || $observed === $preIntegration,
                 "{$label} EPUB counters must match either local fixture state or the shared manifest state awaiting integration"
             );
         }
 
-        $t->true(str_contains($note, '- Checked-in EPUB package inputs: `54 -> 55`.'));
-        $t->true(str_contains($note, '- Checked-in same-basename `.native` goldens: `54 -> 55`.'));
-        $t->true(str_contains($note, '- Checked-in fixture identity files: `108 -> 110`.'));
-        $t->true(str_contains($note, '--require-package-parity=55'));
-        $t->true(str_contains($note, '--require-native-readiness=55'));
-        $t->true(str_contains($note, '--require-mapped-parity=55'));
+        $t->true(str_contains($note, '- Checked-in EPUB package inputs: `55 -> 56`.'));
+        $t->true(str_contains($note, '- Checked-in same-basename `.native` goldens: `55 -> 56`.'));
+        $t->true(str_contains($note, '- Checked-in fixture identity files: `110 -> 112`.'));
+        $t->true(str_contains($note, 'multi-rootfile-nested-nav.epub'));
+        $t->true(str_contains($note, '--require-package-parity=56'));
+        $t->true(str_contains($note, '--require-native-readiness=56'));
+        $t->true(str_contains($note, '--require-mapped-parity=56'));
     },
 ];

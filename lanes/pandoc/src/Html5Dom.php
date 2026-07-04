@@ -30,7 +30,8 @@ final class Html5Dom
         $dom = self::loadHtml(
             '<!doctype html><html><body>' . $html . '</body></html>',
             'HTML fragment',
-            protectRcdata: false
+            protectRcdata: false,
+            preferHtml5TreeConstruction: !self::hasOrphanTableScopeFragment($html)
         );
 
         return self::requireBody($dom, 'HTML fragment');
@@ -180,12 +181,13 @@ final class Html5Dom
         return trim($text);
     }
 
-    private static function loadHtml(string $html, string $label, bool $protectRcdata = true): \DOMDocument
+    private static function loadHtml(
+        string $html,
+        string $label,
+        bool $protectRcdata = true,
+        bool $preferHtml5TreeConstruction = true
+    ): \DOMDocument
     {
-        $previous = libxml_use_internal_errors(true);
-        $dom = new \DOMDocument('1.0', 'UTF-8');
-        $dom->resolveExternals = false;
-        $dom->substituteEntities = false;
         if ($protectRcdata) {
             $html = XmlHtmlDom::protectHtmlRcdataElements(
                 $html,
@@ -194,6 +196,25 @@ final class Html5Dom
                 protectNoscriptContent: true
             );
         }
+
+        $html5 = $preferHtml5TreeConstruction ? self::html5TreeConstructedSource($html) : null;
+        if ($html5 !== null) {
+            try {
+                return self::loadLegacyHtml($html5, $label);
+            } catch (\Throwable) {
+                // Fall through to the legacy source path when the bridge cannot be reloaded.
+            }
+        }
+
+        return self::loadLegacyHtml($html, $label);
+    }
+
+    private static function loadLegacyHtml(string $html, string $label): \DOMDocument
+    {
+        $previous = libxml_use_internal_errors(true);
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+        $dom->resolveExternals = false;
+        $dom->substituteEntities = false;
         $loaded = $dom->loadHTML(
             '<?xml encoding="UTF-8">' . $html,
             LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
@@ -206,6 +227,35 @@ final class Html5Dom
         }
 
         return $dom;
+    }
+
+    private static function hasOrphanTableScopeFragment(string $html): bool
+    {
+        return preg_match('/<table\b/i', $html) !== 1
+            && preg_match('/<(?:caption|col|colgroup|tbody|td|tfoot|th|thead|tr)\b/i', $html) === 1;
+    }
+
+    private static function html5TreeConstructedSource(string $html): ?string
+    {
+        if (!class_exists('Dom\\HTMLDocument')) {
+            return null;
+        }
+
+        $previous = libxml_use_internal_errors(true);
+        try {
+            $document = \Dom\HTMLDocument::createFromString(
+                $html,
+                LIBXML_NOERROR | LIBXML_COMPACT,
+                'UTF-8'
+            );
+
+            return $document->saveHtml();
+        } catch (\Throwable) {
+            return null;
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+        }
     }
 
     private static function loadXml(string $xml, string $label): \DOMDocument

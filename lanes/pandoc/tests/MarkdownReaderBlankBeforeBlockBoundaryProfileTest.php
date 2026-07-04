@@ -110,6 +110,23 @@ return [
             }
         },
 
+    'maps checked-in markdown blank-before-blockquote disabled profile fixture' =>
+        static function (TestRunner $t) use ($inlineText, $nodeTypes): void {
+            $fixture = (string) file_get_contents(
+                dirname(__DIR__) . '/fixtures/upstream-markdown-zzzzzzzzzzzzzzzzz-blank-before-blockquote-disabled-profile.md'
+            );
+            $document = (new MarkdownReader(['format' => 'markdown-blank_before_blockquote']))->read($fixture);
+            $quote = $document->children[1] ?? new AstNode('missing');
+            $outer = $document->children[2] ?? new AstNode('missing');
+
+            $t->same(['paragraph', 'blockquote', 'blockquote'], $nodeTypes($document));
+            $t->same('Lead', $inlineText($document->children[0] ?? new AstNode('missing')));
+            $t->same('Review quote', $inlineText($quote));
+            $t->same(['paragraph', 'blockquote'], array_map(static fn (AstNode $node): string => $node->type, $outer->children));
+            $t->same('Outer lead', $inlineText($outer->children[0] ?? new AstNode('missing')));
+            $t->same('Nested quote', $inlineText($outer->children[1] ?? new AstNode('missing')));
+        },
+
     'applies pandoc markdown blank-before gates inside block quotes' =>
         static function (TestRunner $t) use ($inlineText): void {
             $headingDefault = (new MarkdownReader(['format' => 'markdown']))->read("> Lead\n> # Review Heading\n");
@@ -130,6 +147,6 @@ return [
 
     'records pandoc 3.10 blank-before block boundary mapped-case count' =>
         static function (TestRunner $t) use ($headingInterruptProfiles, $blockQuoteInterruptProfiles): void {
-            $t->same(23, 1 + count($headingInterruptProfiles) + 1 + 1 + count($blockQuoteInterruptProfiles) + 4);
+            $t->same(24, 1 + count($headingInterruptProfiles) + 1 + 1 + count($blockQuoteInterruptProfiles) + 1 + 4);
         },
 ];
