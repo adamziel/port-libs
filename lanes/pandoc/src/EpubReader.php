@@ -1728,6 +1728,7 @@ final class EpubReader
     private function epubContentHtmlReader(): HtmlReader
     {
         return new HtmlReader([
+            'htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE,
             'htmlNativeDivs' => true,
             'htmlEpubExtensions' => true,
             'htmlImplicitHeadingIds' => false,

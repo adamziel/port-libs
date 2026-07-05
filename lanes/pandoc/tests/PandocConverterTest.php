@@ -54,10 +54,11 @@ return [
         $t->same('html', $document->attr('sourceFormat'));
         $t->same('HTML Dispatch', $meta['title']);
         $t->same('html', $meta['sourceFormat']);
-        $t->same(\PortLibs\Pandoc\HtmlReader::class, $meta['reader']);
-        $t->same(\PortLibs\Pandoc\MarkdownReader::class, $meta['htmlReaderDelegate']);
-        $t->same('bounded-html-reader', $meta['readerScope']);
-        $t->same(true, $meta['htmlNativeDivs']);
+        $t->same(\PortLibs\Pandoc\PandocHtmlTagSoupReader::class, $meta['reader']);
+        $t->same('tagsoup-pandoc-html-reader-port', $meta['readerScope']);
+        $t->same(\PortLibs\Pandoc\TagSoupParser::class, $meta['htmlTokenizer']);
+        $t->same(null, $meta['htmlReaderDelegate'] ?? null);
+        $t->same(null, $meta['htmlNativeDivs'] ?? null);
         $t->contains('<h1 id="html-dispatch">HTML Dispatch</h1>', $blocks);
         $t->contains('<p>Ready.</p>', $blocks);
     },

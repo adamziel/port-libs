@@ -5,6 +5,8 @@ declare(strict_types=1);
 use PortLibs\Pandoc\Html5Dom;
 use PortLibs\Pandoc\HtmlReader;
 use PortLibs\Pandoc\MarkdownReader;
+use PortLibs\Pandoc\PandocHtmlTagSoupReader;
+use PortLibs\Pandoc\TagSoupParser;
 
 $tests = [];
 
@@ -75,9 +77,21 @@ $methodBody = static function (string $source, string $methodName): string {
     throw new RuntimeException("Unable to find method body for {$methodName}");
 };
 
-$tests['routes public html reader parsing through HTMLDocument when available'] =
+$tests['routes public html reader through TagSoup Pandoc backend by default'] =
     static function (TestRunner $t): void {
-        $document = (new HtmlReader())->read(
+        $document = (new HtmlReader())->read('<p><strong>one</strong> two</p>');
+        $meta = $document->attr('meta');
+
+        $t->same(PandocHtmlTagSoupReader::class, $meta['reader'] ?? null);
+        $t->same('tagsoup-pandoc-html-reader-port', $meta['readerScope'] ?? null);
+        $t->same(TagSoupParser::class, $meta['htmlTokenizer'] ?? null);
+        $t->same(['paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same(['strong', 'text'], array_map(static fn ($node): string => $node->type, $document->children[0]->children));
+    };
+
+$tests['routes explicit legacy html reader parsing through HTMLDocument when available'] =
+    static function (TestRunner $t): void {
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read(
             '<!doctype html><html><body><p>one<section><p>two</section>three</body></html>'
         );
         $meta = $document->attr('meta');
@@ -95,9 +109,9 @@ $tests['routes public html reader parsing through HTMLDocument when available'] 
         $t->same('three', $document->children[2]->attr('text'));
     };
 
-$tests['routes public html reader HTML5 repairs through HTMLDocument when available'] =
+$tests['routes explicit legacy html reader HTML5 repairs through HTMLDocument when available'] =
     static function (TestRunner $t): void {
-        $document = (new HtmlReader())->read(
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read(
             '<!doctype html><html><body><p><b>one<p>two</b>three<table>loose<tr><td>A</td></tr></table>tail</body></html>'
         );
         $meta = $document->attr('meta');
@@ -122,7 +136,7 @@ $tests['routes public html reader HTML5 repairs through HTMLDocument when availa
 $tests['uses HTMLDocument for parser-hard html5 tree construction cases'] =
     static function (TestRunner $t): void {
         $source = '<!doctype html><html><body><p><a><b>one</a>two</b><table><tr><td>A</td></tr>loose</table><select><option>One<option>Two</select><p>tail</body></html>';
-        $document = (new HtmlReader())->read($source);
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($source);
         $meta = $document->attr('meta');
 
         $t->same('Dom\\HTMLDocument', $meta['htmlTreeConstruction'] ?? null);
@@ -139,10 +153,10 @@ $tests['uses HTMLDocument for parser-hard html5 tree construction cases'] =
         $t->same('two', $document->children[0]->children[1]->children[0]->attr('text'));
     };
 
-$tests['does not route public html input through markdown raw html tokenization'] =
+$tests['does not route explicit legacy html input through markdown raw html tokenization'] =
     static function (TestRunner $t): void {
         $source = '<!doctype html><html><body><p><b>one<p>two</b>three<table>loose<tr><td>A</td></tr></table>tail</body></html>';
-        $document = (new HtmlReader())->read($source);
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($source);
         $markdownDocument = (new MarkdownReader())->read($source);
 
         $t->same('Dom\\HTMLDocument', $document->attr('meta')['htmlTreeConstruction'] ?? null);
@@ -156,14 +170,14 @@ $tests['does not route public html input through markdown raw html tokenization'
         );
         $t->true(
             in_array('table', array_map(static fn ($node): string => $node->type, $markdownDocument->children), true),
-            'The Markdown source reader must remain distinguishable from the HTMLDocument-backed HTML reader'
+            'The Markdown source reader must remain distinguishable from the explicit legacy HTML bridge reader'
         );
     };
 
 $tests['maps invalid html input c1 bytes like pandoc text parsing'] =
     static function (TestRunner $t): void {
         $bytes = '<p>A' . chr(0x80) . 'B' . chr(0x81) . 'C' . chr(0x82) . 'D' . chr(0x85) . 'E' . chr(0x8d) . 'F' . chr(0x9f) . 'G</p>';
-        $document = (new HtmlReader())->read($bytes);
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($bytes);
         $paragraph = $document->children[0];
 
         $t->same('Dom\\HTMLDocument', $document->attr('meta')['htmlTreeConstruction'] ?? null);
@@ -388,7 +402,7 @@ $tests['reports html document tree construction backend for table-scope fragment
             Html5Dom::htmlFragmentTreeConstructionBackend('<p>one<section><p>two</section>three')
         );
 
-        $document = (new HtmlReader())->read('<td>A</td><td>B</td><tr><td>C</td></tr><p>after</p>');
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read('<td>A</td><td>B</td><tr><td>C</td></tr><p>after</p>');
         $meta = $document->attr('meta');
 
         $t->same(Html5Dom::htmlDocumentTreeConstructionBackend(), $meta['htmlTreeConstruction'] ?? null);
@@ -400,7 +414,7 @@ $tests['reports html document tree construction backend for table-scope fragment
 
 $tests['imports upstream html xml lang metadata from root element'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-xml-lang-metadata.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-xml-lang-metadata.html'));
         $meta = $document->attr('meta');
 
         $t->same('es', $meta['lang']);
@@ -411,7 +425,7 @@ $tests['imports upstream html xml lang metadata from root element'] =
 
 $tests['imports html body lang metadata with pandoc body precedence'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-body-lang-overrides-html.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-body-lang-overrides-html.html'));
         $meta = $document->attr('meta');
 
         $t->same('fr', $meta['lang'] ?? null);
@@ -419,12 +433,12 @@ $tests['imports html body lang metadata with pandoc body precedence'] =
         $t->same(['paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
         $t->same('bonjour', $document->children[0]->attr('text'));
 
-        $bodyOnly = (new HtmlReader())->read('<!doctype html><html><body lang="de"><p>hallo</p></body></html>');
+        $bodyOnly = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read('<!doctype html><html><body lang="de"><p>hallo</p></body></html>');
         $bodyOnlyMeta = $bodyOnly->attr('meta');
         $t->same('de', $bodyOnlyMeta['lang'] ?? null);
         $t->same('hallo', $bodyOnly->children[0]->attr('text'));
 
-        $bodyXmlLang = (new HtmlReader())->read('<!doctype html><html lang="es"><body xml:lang="pt-BR"><p>ola</p></body></html>');
+        $bodyXmlLang = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read('<!doctype html><html lang="es"><body xml:lang="pt-BR"><p>ola</p></body></html>');
         $bodyXmlLangMeta = $bodyXmlLang->attr('meta');
         $t->same('pt-BR', $bodyXmlLangMeta['lang'] ?? null);
         $t->same('ola', $bodyXmlLang->children[0]->attr('text'));
@@ -432,7 +446,7 @@ $tests['imports html body lang metadata with pandoc body precedence'] =
 
 $tests['appends html meta name fields without trimming or lowercasing like upstream pandoc'] =
     static function (TestRunner $t): void {
-        $document = (new HtmlReader())->read(<<<'HTML'
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read(<<<'HTML'
 <html><head>
 <meta name="keywords" content="one">
 <meta name="keywords" content="two">
@@ -451,7 +465,7 @@ HTML);
 
 $tests['imports direct pandoc html meta refresh boundary fixture metadata'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-meta-refresh-boundary.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-meta-refresh-boundary.html'));
         $meta = $document->attr('meta');
 
         $t->same('HTML Meta Refresh Import', $meta['title']);
@@ -464,7 +478,7 @@ $tests['imports direct pandoc html meta refresh boundary fixture metadata'] =
 
 $tests['imports upstream html sup and sub inline nodes'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-sup-sub-inline.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-sup-sub-inline.html'));
         $paragraph = $document->children[0];
 
         $t->same(['paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
@@ -481,7 +495,7 @@ $tests['imports upstream html sup and sub inline nodes'] =
 
 $tests['imports direct pandoc html standalone sup and sub fragment as plain'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-standalone-sup-sub-inline.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-standalone-sup-sub-inline.html'));
         $plain = $document->children[0];
 
         $t->same('html', $document->attr('sourceFormat'));
@@ -497,7 +511,7 @@ $tests['imports direct pandoc html standalone sup and sub fragment as plain'] =
 
 $tests['imports direct pandoc html standalone time fragment as plain'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-standalone-time-inline.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-standalone-time-inline.html'));
         $plain = $document->children[0];
 
         $t->same('html', $document->attr('sourceFormat'));
@@ -509,7 +523,7 @@ $tests['imports direct pandoc html standalone time fragment as plain'] =
 
 $tests['imports direct pandoc html standalone progress fragment as plain blocks'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-standalone-progress-inline.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-standalone-progress-inline.html'));
         $progress = $document->children[0];
         $after = $document->children[1];
 
@@ -523,8 +537,8 @@ $tests['imports direct pandoc html standalone progress fragment as plain blocks'
 
 $tests['imports direct pandoc html standalone media fallback fragments as plain blocks'] =
     static function (TestRunner $t) use ($fixture): void {
-        $video = (new HtmlReader())->read($fixture('upstream-html-standalone-video-inline.html'));
-        $audio = (new HtmlReader())->read($fixture('upstream-html-standalone-audio-inline.html'));
+        $video = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-standalone-video-inline.html'));
+        $audio = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-standalone-audio-inline.html'));
 
         $t->same('html', $video->attr('sourceFormat'));
         $t->same(['plain', 'plain'], array_map(static fn ($node): string => $node->type, $video->children));
@@ -537,7 +551,7 @@ $tests['imports direct pandoc html standalone media fallback fragments as plain 
         $t->same('Audio fallback', $audio->children[0]->attr('text'));
         $t->same('remains playable after import.', $audio->children[1]->attr('text'));
 
-        $paragraph = (new HtmlReader())->read(
+        $paragraph = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read(
             '<p><video><source src="movie.mp4"><track src="captions.vtt">fallback</video> remains visible.</p>'
         )->children[0];
         $t->same('paragraph', $paragraph->type);
@@ -547,7 +561,7 @@ $tests['imports direct pandoc html standalone media fallback fragments as plain 
 
 $tests['imports direct pandoc html progress in paragraph as fallback text'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-progress-in-paragraph.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-progress-in-paragraph.html'));
         $paragraph = $document->children[0];
 
         $t->same('html', $document->attr('sourceFormat'));
@@ -562,7 +576,7 @@ $tests['imports direct pandoc html progress in paragraph as fallback text'] =
 
 $tests['imports direct pandoc html inline time without raw wrappers'] =
     static function (TestRunner $t): void {
-        $document = (new HtmlReader())->read('<p>At <time datetime="2026-07-04"><strong>noon</strong></time>.</p>');
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read('<p>At <time datetime="2026-07-04"><strong>noon</strong></time>.</p>');
         $paragraph = $document->children[0];
 
         $t->same('html', $document->attr('sourceFormat'));
@@ -576,7 +590,7 @@ $tests['imports direct pandoc html inline time without raw wrappers'] =
 
 $tests['imports direct pandoc html inline button fallback without raw wrappers'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-button-inline-fallback.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-button-inline-fallback.html'));
         $paragraph = $document->children[0];
 
         $t->same('html', $document->attr('sourceFormat'));
@@ -590,7 +604,7 @@ $tests['imports direct pandoc html inline button fallback without raw wrappers']
 
 $tests['imports direct pandoc html block fallback content containers without raw wrappers'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-fallback-content-containers.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-fallback-content-containers.html'));
 
         $t->same('html', $document->attr('sourceFormat'));
         $t->same(Html5Dom::htmlFragmentTreeConstructionBackend($fixture('upstream-html-fallback-content-containers.html')), $document->attr('meta')['htmlTreeConstruction'] ?? null);
@@ -612,7 +626,7 @@ $tests['imports direct pandoc html block fallback content containers without raw
 
 $tests['imports direct pandoc html inline fallback content containers without raw wrappers'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-inline-fallback-content-containers.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-inline-fallback-content-containers.html'));
         $paragraph = $document->children[0];
 
         $t->same('html', $document->attr('sourceFormat'));
@@ -635,7 +649,7 @@ $tests['imports direct pandoc html inline fallback content containers without ra
 
 $tests['can preserve html inline raw wrappers for epub-compatible content reads'] =
     static function (TestRunner $t): void {
-        $document = (new HtmlReader(['htmlRawHtml' => true, 'htmlStripRawInlineWrappers' => false]))
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE, 'htmlRawHtml' => true, 'htmlStripRawInlineWrappers' => false]))
             ->read('<p>At <time class="release">TBD</time>.</p>');
         $paragraph = $document->children[0];
 
@@ -651,7 +665,7 @@ $tests['can preserve html inline raw wrappers for epub-compatible content reads'
 
 $tests['preserves textarea raw block source newline after HTMLDocument tree construction'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader(['htmlRawHtml' => true]))->read($fixture('upstream-html-textarea-raw-block.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE, 'htmlRawHtml' => true]))->read($fixture('upstream-html-textarea-raw-block.html'));
         $rawBlock = $document->children[1];
         $expected = '<textarea id="legacy-packet" class="source-payload" data-source="batch-42">'
             . "\n"
@@ -667,7 +681,7 @@ $tests['preserves textarea raw block source newline after HTMLDocument tree cons
 
 $tests['imports direct pandoc html standalone keyboard fragment as plain'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-standalone-kbd-inline.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-standalone-kbd-inline.html'));
         $plain = $document->children[0];
         $kbd = $plain->children[0];
 
@@ -680,7 +694,7 @@ $tests['imports direct pandoc html standalone keyboard fragment as plain'] =
 
 $tests['imports upstream html standalone code aliases as plain code inlines'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-standalone-code-aliases-inline.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-standalone-code-aliases-inline.html'));
         $plain = $document->children[0];
 
         $t->same('html', $document->attr('sourceFormat'));
@@ -699,7 +713,7 @@ $tests['imports upstream html standalone code aliases as plain code inlines'] =
 
 $tests['imports direct pandoc html standalone output fragment as plain'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-standalone-output-inline.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-standalone-output-inline.html'));
         $plain = $document->children[0];
 
         $t->same('html', $document->attr('sourceFormat'));
@@ -712,7 +726,7 @@ $tests['imports direct pandoc html standalone output fragment as plain'] =
 
 $tests['imports direct pandoc html standalone underline fragment as plain'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-standalone-underline-inline.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-standalone-underline-inline.html'));
         $plain = $document->children[0];
         $underline = $plain->children[0];
 
@@ -742,7 +756,7 @@ $tests['imports direct pandoc html standalone semantic inline fragments as plain
         ];
 
         foreach ($cases as $html => [$expectedType, $expectedText, $expectedClasses]) {
-            $document = (new HtmlReader())->read($html);
+            $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($html);
             $plain = $document->children[0];
             $inline = $plain->children[0];
 
@@ -753,13 +767,13 @@ $tests['imports direct pandoc html standalone semantic inline fragments as plain
             $t->same($expectedClasses, $inline->attr('classes', []), $html);
         }
 
-        $abbr = (new HtmlReader())->read('<abbr title="Hypertext">HTML</abbr>')->children[0]->children[0];
+        $abbr = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read('<abbr title="Hypertext">HTML</abbr>')->children[0]->children[0];
         $t->same('Hypertext', $abbr->attr('attributes')['title'] ?? null);
     };
 
 $tests['imports direct pandoc html standalone b and i aliases fixture as plain'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-standalone-b-i-inline.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-standalone-b-i-inline.html'));
         $plain = $document->children[0];
 
         $t->same('html', $document->attr('sourceFormat'));
@@ -772,7 +786,7 @@ $tests['imports direct pandoc html standalone b and i aliases fixture as plain']
 
 $tests['imports direct pandoc html standalone abbr and dfn fixture as plain spans'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-standalone-abbr-dfn-inline.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-standalone-abbr-dfn-inline.html'));
         $plain = $document->children[0];
         $abbr = $plain->children[0];
         $separator = $plain->children[1];
@@ -792,7 +806,7 @@ $tests['imports direct pandoc html standalone abbr and dfn fixture as plain span
 
 $tests['imports direct pandoc html standalone bdo mark q fragment as plain'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-standalone-bdo-mark-q-inline.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-standalone-bdo-mark-q-inline.html'));
         $plain = $document->children[0];
 
         $t->same('html', $document->attr('sourceFormat'));
@@ -812,7 +826,7 @@ $tests['imports direct pandoc html standalone bdo mark q fragment as plain'] =
 
 $tests['imports direct pandoc html standalone bdi fragment as visible text'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-standalone-bdi-inline.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-standalone-bdi-inline.html'));
         $plain = $document->children[0];
 
         $t->same('html', $document->attr('sourceFormat'));
@@ -829,7 +843,7 @@ $tests['imports direct pandoc html standalone bdi fragment as visible text'] =
 
 $tests['imports upstream html self closing anchor without href as span'] =
     static function (TestRunner $t): void {
-        $document = (new HtmlReader())->read('<a name="anchor"/>');
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read('<a name="anchor"/>');
         $plain = $document->children[0];
         $anchor = $plain->children[0];
 
@@ -850,7 +864,7 @@ $tests['imports upstream html standalone inline code aliases as plain blocks'] =
         ];
 
         foreach ($cases as $html => [$classes, $text]) {
-            $document = (new HtmlReader())->read($html);
+            $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($html);
             $plain = $document->children[0];
             $code = $plain->children[0];
 
@@ -863,7 +877,7 @@ $tests['imports upstream html standalone inline code aliases as plain blocks'] =
 
 $tests['imports upstream html base absolute image without rewriting absolute url'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-base-absolute-image.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-base-absolute-image.html'));
         $meta = $document->attr('meta');
         $paragraph = $document->children[0];
         $image = $paragraph->children[0];
@@ -879,7 +893,7 @@ $tests['imports upstream html base absolute image without rewriting absolute url
 
 $tests['imports upstream html standalone image fragments as plain images'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-standalone-image-data-external.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-standalone-image-data-external.html'));
         $plain = $document->children[0];
         $image = $plain->children[0];
 
@@ -893,7 +907,7 @@ $tests['imports upstream html standalone image fragments as plain images'] =
         $t->same('1', $image->attr('htmlAttributes')['data-external'] ?? null);
         $t->same([], $image->children);
 
-        $titled = (new HtmlReader())->read('<img title="The title" src="http://example.com/stickman.gif">');
+        $titled = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read('<img title="The title" src="http://example.com/stickman.gif">');
         $titledImage = $titled->children[0]->children[0];
         $t->same(['plain'], array_map(static fn ($node): string => $node->type, $titled->children));
         $t->same('http://example.com/stickman.gif', $titledImage->attr('url'));
@@ -904,7 +918,7 @@ $tests['imports upstream html standalone image fragments as plain images'] =
 
 $tests['imports html figure with single image body in pandoc native shape'] =
     static function (TestRunner $t): void {
-        $document = (new HtmlReader())->read(
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read(
             '<figure id="chart-figure"><img src="images/chart.png" alt="Quarterly chart"><figcaption>Quarterly chart caption.</figcaption></figure>'
         );
         $figure = $document->children[0];
@@ -924,7 +938,7 @@ $tests['imports html figure with single image body in pandoc native shape'] =
 
 $tests['imports upstream html picture fallback images without source text leakage'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-picture-fallback-image.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-picture-fallback-image.html'));
         $meta = $document->attr('meta');
         $paragraph = $document->children[0];
         $image = $paragraph->children[1];
@@ -943,7 +957,7 @@ $tests['imports upstream html picture fallback images without source text leakag
         $t->same(' selected.', $paragraph->children[2]->attr('text'));
         $t->same('After picture.', $after->attr('text'));
 
-        $standalone = (new HtmlReader())->read(
+        $standalone = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read(
             '<picture><source srcset="large.jpg"><img src="small.jpg" alt="Small" title="Title"></picture>'
         );
         $standaloneImage = $standalone->children[0]->children[0];
@@ -956,7 +970,7 @@ $tests['imports upstream html picture fallback images without source text leakag
 
 $tests['imports direct pandoc html standalone emphasis strong span fragment as plain'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-standalone-emph-strong-inline.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-standalone-emph-strong-inline.html'));
         $plain = $document->children[0];
 
         $t->same('html', $document->attr('sourceFormat'));
@@ -973,7 +987,7 @@ $tests['imports direct pandoc html standalone emphasis strong span fragment as p
 
 $tests['imports direct pandoc html standalone s inline as strikeout'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-standalone-s-inline.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-standalone-s-inline.html'));
         $paragraph = $document->children[0];
 
         $t->same('html', $document->attr('sourceFormat'));
@@ -990,7 +1004,7 @@ $tests['imports direct pandoc html standalone s inline as strikeout'] =
 
 $tests['imports direct pandoc html data value inline as visible children'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-data-value-inline.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-data-value-inline.html'));
         $paragraph = $document->children[0];
 
         $t->same('html', $document->attr('sourceFormat'));
@@ -1007,7 +1021,7 @@ $tests['imports direct pandoc html data value inline as visible children'] =
 
 $tests['imports direct pandoc html meter inline as visible children'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-meter-inline.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-meter-inline.html'));
         $paragraph = $document->children[0];
 
         $t->same('html', $document->attr('sourceFormat'));
@@ -1024,7 +1038,7 @@ $tests['imports direct pandoc html meter inline as visible children'] =
 
 $tests['imports direct pandoc html inline-only main body as plain'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-main-inline-plain.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-main-inline-plain.html'));
         $plain = $document->children[0];
 
         $t->same('html', $document->attr('sourceFormat'));
@@ -1033,7 +1047,7 @@ $tests['imports direct pandoc html inline-only main body as plain'] =
         $t->same(['text'], array_map(static fn ($node): string => $node->type, $plain->children));
         $t->same('hello', $plain->children[0]->attr('text'));
 
-        $explicitParagraph = (new HtmlReader())->read('<main><p>hello</p></main>');
+        $explicitParagraph = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read('<main><p>hello</p></main>');
         $t->same(['paragraph'], array_map(static fn ($node): string => $node->type, $explicitParagraph->children));
         $t->same('hello', $explicitParagraph->children[0]->attr('text'));
     };
@@ -1042,7 +1056,7 @@ $tests['imports direct pandoc html main that closes paragraph through HTML5 tree
     static function (TestRunner $t) use ($fixture): void {
         $html = $fixture('upstream-html-main-closes-paragraph.html');
         $body = Html5Dom::parseHtmlFragment($html);
-        $document = (new HtmlReader())->read($html);
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($html);
         $meta = $document->attr('meta');
         $plain = $document->children[0];
 
@@ -1053,14 +1067,14 @@ $tests['imports direct pandoc html main that closes paragraph through HTML5 tree
         $t->same(['text'], array_map(static fn ($node): string => $node->type, $plain->children));
         $t->same('main content', $plain->children[0]->attr('text'));
 
-        $trailingText = (new HtmlReader())->read($fixture('upstream-html-main-followed-by-text.html'));
+        $trailingText = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-main-followed-by-text.html'));
         $t->same(['plain'], array_map(static fn ($node): string => $node->type, $trailingText->children));
         $t->same('main content', $trailingText->children[0]->attr('text'));
     };
 
 $tests['imports upstream html titlepage blocks as skipped content'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-titlepage-skip.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-titlepage-skip.html'));
         $meta = $document->attr('meta');
 
         $t->same('html', $document->attr('sourceFormat'));
@@ -1069,14 +1083,14 @@ $tests['imports upstream html titlepage blocks as skipped content'] =
         $t->same(['paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
         $t->same('Real main.', $document->children[0]->attr('text'));
 
-        $paragraphTitlepage = (new HtmlReader())->read('<p type="titlepage">Skip.</p><p>Body.</p>');
+        $paragraphTitlepage = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read('<p type="titlepage">Skip.</p><p>Body.</p>');
         $t->same(['paragraph'], array_map(static fn ($node): string => $node->type, $paragraphTitlepage->children));
         $t->same('Body.', $paragraphTitlepage->children[0]->attr('text'));
     };
 
 $tests['imports upstream html main explicit role as native div'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-main-role-native-divs.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-main-role-native-divs.html'));
         $div = $document->children[0];
         $plain = $div->children[0];
 
@@ -1090,7 +1104,7 @@ $tests['imports upstream html main explicit role as native div'] =
 
 $tests['imports direct pandoc html transparent inline fragments as plain text'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-transparent-inline-fragment.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-transparent-inline-fragment.html'));
         $plain = $document->children[0];
 
         $t->same('html', $document->attr('sourceFormat'));
@@ -1108,7 +1122,7 @@ $tests['imports direct pandoc html transparent inline fragments as plain text'] 
 
 $tests['imports upstream html head body fragment base relative image as plain image'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-base-relative-image.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-base-relative-image.html'));
         $plain = $document->children[0];
         $image = $plain->children[0];
 
@@ -1122,7 +1136,7 @@ $tests['imports upstream html head body fragment base relative image as plain im
 
 $tests['imports upstream html head body fragment base trailing slash image as plain image'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-base-trailing-slash-image.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-base-trailing-slash-image.html'));
         $plain = $document->children[0];
         $image = $plain->children[0];
 
@@ -1136,7 +1150,7 @@ $tests['imports upstream html head body fragment base trailing slash image as pl
 
 $tests['imports upstream html head body fragment base root-relative image as plain image'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-base-root-relative-image.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-base-root-relative-image.html'));
         $plain = $document->children[0];
         $image = $plain->children[0];
 
@@ -1150,7 +1164,7 @@ $tests['imports upstream html head body fragment base root-relative image as pla
 
 $tests['imports html file base fragment query and scheme relative urls like pandoc'] =
     static function (TestRunner $t): void {
-        $document = (new HtmlReader())->read(
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read(
             '<!doctype html><html><head>'
             . '<base href="https://source.example.test/import/posts/post.html">'
             . '</head><body><p>'
@@ -1174,7 +1188,7 @@ $tests['imports html file base fragment query and scheme relative urls like pand
 
 $tests['imports generated current html inline quote cites resolved against base'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-inline-quote-cite-base.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-inline-quote-cite-base.html'));
         $meta = $document->attr('meta');
         $paragraph = $document->children[0];
         $outerQuote = $paragraph->children[1];
@@ -1203,7 +1217,7 @@ $tests['imports generated current html inline quote cites resolved against base'
 
 $tests['imports generated current html blockquote fixture as native blockquote'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-blockquote.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-blockquote.html'));
         $meta = $document->attr('meta');
         $quote = $document->children[0];
         $quoteParagraph = $quote->children[0];
@@ -1223,7 +1237,7 @@ $tests['imports generated current html blockquote fixture as native blockquote']
 
 $tests['imports generated current html definition list fixture as native definition list'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-definition-list.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-definition-list.html'));
         $meta = $document->attr('meta');
         $list = $document->children[0];
         $item = $list->children[0];
@@ -1251,7 +1265,7 @@ $tests['imports generated current html definition list fixture as native definit
 
 $tests['imports direct pandoc html optional definition-list end tags as tight definitions'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-optional-definition-list-tree-construction.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-optional-definition-list-tree-construction.html'));
         $list = $document->children[0];
         $firstItem = $list->children[0];
         $secondItem = $list->children[1];
@@ -1273,7 +1287,7 @@ $tests['imports direct pandoc html optional definition-list end tags as tight de
 
 $tests['imports direct pandoc html paragraph definition-list tree construction as repaired blocks'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-paragraph-definition-list-tree-construction.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-paragraph-definition-list-tree-construction.html'));
         $list = $document->children[1];
         $item = $list->children[0];
         $definition = $item->children[1]->children[0];
@@ -1295,7 +1309,7 @@ $tests['imports direct pandoc html paragraph definition-list tree construction a
 
 $tests['imports direct pandoc html multi-term definition-list optional end tags'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-multi-term-definition-list.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-multi-term-definition-list.html'));
         $list = $document->children[0];
         $firstItem = $list->children[0];
         $firstTerm = $firstItem->children[0];
@@ -1322,7 +1336,7 @@ $tests['imports direct pandoc html multi-term definition-list optional end tags'
 
 $tests['imports generated current html details summary fixture as visible blocks'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-details-summary-raw-block.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-details-summary-raw-block.html'));
         $summary = $document->children[0];
         $firstBody = $document->children[1];
         $secondBody = $document->children[2];
@@ -1339,7 +1353,7 @@ $tests['imports generated current html details summary fixture as visible blocks
         $t->same('strong', $secondBody->children[1]->children[0]->attr('text'));
         $t->same('After disclosure.', $after->attr('text'));
 
-        $inlineSummary = (new HtmlReader())->read('<details><summary><strong>Sum</strong></summary><p>Body</p></details>');
+        $inlineSummary = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read('<details><summary><strong>Sum</strong></summary><p>Body</p></details>');
         $t->same(['paragraph', 'paragraph'], array_map(static fn ($node): string => $node->type, $inlineSummary->children));
         $t->same(['strong'], array_map(static fn ($node): string => $node->type, $inlineSummary->children[0]->children));
         $t->same('Sum', $inlineSummary->children[0]->children[0]->children[0]->attr('text'));
@@ -1347,7 +1361,7 @@ $tests['imports generated current html details summary fixture as visible blocks
 
 $tests['imports direct pandoc html template content as visible blocks'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-template-raw-boundary.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-template-raw-boundary.html'));
         $fallback = $document->children[0];
         $after = $document->children[1];
 
@@ -1362,7 +1376,7 @@ $tests['imports direct pandoc html template content as visible blocks'] =
 
 $tests['imports direct pandoc html xmp rawtext fallback as parsed blocks'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-xmp-rawtext-fallback.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-xmp-rawtext-fallback.html'));
         $before = $document->children[0];
         $fallback = $document->children[1];
         $list = $document->children[2];
@@ -1386,7 +1400,7 @@ $tests['imports direct pandoc html xmp rawtext fallback as parsed blocks'] =
 
 $tests['imports direct pandoc html rawtext fallback containers as parsed blocks'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-rawtext-fallback-containers.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-rawtext-fallback-containers.html'));
 
         $t->same('html', $document->attr('sourceFormat'));
         $t->same(Html5Dom::htmlDocumentTreeConstructionBackend(), $document->attr('meta')['htmlTreeConstruction'] ?? null);
@@ -1429,7 +1443,7 @@ $tests['extracts html reader microdata item metadata with itemref and nested ite
             . '<p id="extra"><span itemprop="keywords">migration, html</span></p>'
             . '</body></html>';
 
-        $document = (new HtmlReader())->read($html);
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($html);
         $meta = $document->attr('meta');
         $items = $meta['htmlMicrodataItems'];
         $article = $items[0];
@@ -1500,7 +1514,7 @@ $tests['extracts html reader microdata item metadata with itemref and nested ite
 
 $tests['resolves html reader microdata url values against document base'] =
     static function (TestRunner $t): void {
-        $document = (new HtmlReader())->read(
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read(
             '<!doctype html><html><head><base href="https://source.example.test/import/posts/"></head><body>'
             . '<article itemscope>'
             . '<a itemprop="url" href="../review/source.html">source</a>'
@@ -1536,7 +1550,7 @@ $tests['resolves html reader microdata url values against document base'] =
 
 $tests['consumes upstream html doc-endnotes container after resolving doc-noteref note'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-doc-noteref-footnotes.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-doc-noteref-footnotes.html'));
         $meta = $document->attr('meta');
         $paragraph = $document->children[0];
         $note = $paragraph->children[1];
@@ -1554,7 +1568,7 @@ $tests['consumes upstream html doc-endnotes container after resolving doc-notere
 
 $tests['can preserve resolved html doc-endnotes containers for epub-compatible content reads'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader(['htmlConsumeFootnoteContainers' => false]))
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE, 'htmlConsumeFootnoteContainers' => false]))
             ->read($fixture('upstream-html-doc-noteref-footnotes.html'));
         $meta = $document->attr('meta');
         $paragraph = $document->children[0];
@@ -1569,7 +1583,7 @@ $tests['can preserve resolved html doc-endnotes containers for epub-compatible c
 
 $tests['resolves upstream html doc-noteref notes in table placements and consumes endnotes'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-doc-noteref-table-placement.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-doc-noteref-table-placement.html'));
         $meta = $document->attr('meta');
         $firstParagraphNote = $document->children[1]->children[1];
         $table = $document->children[2];
@@ -1597,7 +1611,7 @@ $tests['resolves upstream html doc-noteref notes in table placements and consume
 
 $tests['imports generated current html table foot rows'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-table-foot.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-table-foot.html'));
         $table = $document->children[0];
         $head = $table->children[0];
         $body = $table->children[1];
@@ -1616,7 +1630,7 @@ $tests['imports generated current html table foot rows'] =
 
 $tests['imports generated current html multiple tbody row header columns'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-multi-tbody-row-header-table.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-multi-tbody-row-header-table.html'));
         $table = $document->children[0];
         $head = $table->children[0];
         $firstBody = $table->children[1];
@@ -1638,7 +1652,7 @@ $tests['imports generated current html multiple tbody row header columns'] =
 
 $tests['imports direct pandoc html implicit tbody row header table'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-implicit-tbody-table.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-implicit-tbody-table.html'));
         $table = $document->children[0];
         $head = $table->children[0];
         $body = $table->children[1];
@@ -1653,7 +1667,7 @@ $tests['imports direct pandoc html implicit tbody row header table'] =
 
 $tests['imports direct pandoc html table row and column spans'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-table-row-col-span.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-table-row-col-span.html'));
         $table = $document->children[0];
         $head = $table->children[0];
         $body = $table->children[1];
@@ -1674,7 +1688,7 @@ $tests['imports direct pandoc html table row and column spans'] =
 
 $tests['imports direct pandoc html colgroup column widths'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-colgroup-width-table.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-colgroup-width-table.html'));
         $table = $document->children[0];
         $head = $table->children[0];
         $body = $table->children[1];
@@ -1717,8 +1731,8 @@ $tests['imports upstream html block children inside table cells'] =
             $t->same('quote', $quote->children[0]->attr('text'));
         };
 
-        $assertTable((new HtmlReader())->read($html));
-        $assertTable((new HtmlReader())->read($fullDocument));
+        $assertTable((new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($html));
+        $assertTable((new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fullDocument));
     };
 
 $tests['imports direct pandoc html invalid table children as visible blocks'] =
@@ -1737,13 +1751,13 @@ $tests['imports direct pandoc html invalid table children as visible blocks'] =
             );
         };
 
-        $assertBlocks((new HtmlReader())->read($html), 'fragment');
-        $assertBlocks((new HtmlReader())->read('<!doctype html><html><body>' . $html . '</body></html>'), 'document');
+        $assertBlocks((new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($html), 'fragment');
+        $assertBlocks((new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read('<!doctype html><html><body>' . $html . '</body></html>'), 'document');
     };
 
 $tests['imports direct pandoc html foster-parented table text in source order'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-foster-parent-table-text.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-foster-parent-table-text.html'));
 
         $t->same(
             ['paragraph', 'paragraph', 'paragraph'],
@@ -1757,7 +1771,7 @@ $tests['imports direct pandoc html foster-parented table text in source order'] 
 
 $tests['imports direct pandoc html orphan table fragment tree construction as visible blocks'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-orphan-table-fragment-tree-construction.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-orphan-table-fragment-tree-construction.html'));
 
         $t->same(
             ['paragraph', 'paragraph', 'paragraph', 'paragraph'],
@@ -1771,7 +1785,7 @@ $tests['imports direct pandoc html orphan table fragment tree construction as vi
 
 $tests['imports direct pandoc html paragraph table tree construction as repaired blocks'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-paragraph-table-tree-construction.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-paragraph-table-tree-construction.html'));
         $table = $document->children[1];
         $body = $table->children[1];
         $row = $body->children[0];
@@ -1789,7 +1803,7 @@ $tests['imports direct pandoc html paragraph table tree construction as repaired
 
 $tests['imports direct pandoc html paragraph blockquote tree construction as repaired blocks'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-paragraph-blockquote-tree-construction.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-paragraph-blockquote-tree-construction.html'));
         $quote = $document->children[1];
 
         $t->same('html', $document->attr('sourceFormat'));
@@ -1805,7 +1819,7 @@ $tests['imports direct pandoc html paragraph blockquote tree construction as rep
 
 $tests['imports direct pandoc html nested paragraph tree construction as repaired paragraphs'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-nested-paragraph-tree-construction.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-nested-paragraph-tree-construction.html'));
 
         $t->same('html', $document->attr('sourceFormat'));
         $t->same(Html5Dom::htmlDocumentTreeConstructionBackend(), $document->attr('meta')['htmlTreeConstruction'] ?? null);
@@ -1821,7 +1835,7 @@ $tests['imports direct pandoc html nested paragraph tree construction as repaire
 
 $tests['imports direct pandoc html paragraph heading tree construction as repaired blocks'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-paragraph-heading-tree-construction.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-paragraph-heading-tree-construction.html'));
         $heading = $document->children[1];
 
         $t->same('html', $document->attr('sourceFormat'));
@@ -1839,7 +1853,7 @@ $tests['imports direct pandoc html paragraph heading tree construction as repair
 
 $tests['imports direct pandoc html paragraph hr tree construction as repaired blocks'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-paragraph-hr-tree-construction.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-paragraph-hr-tree-construction.html'));
 
         $t->same('html', $document->attr('sourceFormat'));
         $t->same(
@@ -1853,7 +1867,7 @@ $tests['imports direct pandoc html paragraph hr tree construction as repaired bl
 
 $tests['imports direct pandoc html paragraph pre tree construction as repaired blocks'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-paragraph-pre-tree-construction.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-paragraph-pre-tree-construction.html'));
 
         $t->same('html', $document->attr('sourceFormat'));
         $t->same(
@@ -1868,7 +1882,7 @@ $tests['imports direct pandoc html paragraph pre tree construction as repaired b
 
 $tests['imports direct pandoc html paragraph fieldset tree construction as repaired blocks'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-paragraph-fieldset-tree-construction.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-paragraph-fieldset-tree-construction.html'));
 
         $t->same('html', $document->attr('sourceFormat'));
         $t->same(Html5Dom::htmlDocumentTreeConstructionBackend(), $document->attr('meta')['htmlTreeConstruction'] ?? null);
@@ -1884,7 +1898,7 @@ $tests['imports direct pandoc html paragraph fieldset tree construction as repai
 
 $tests['imports direct pandoc html paragraph list tree construction as repaired blocks'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-paragraph-block-tree-construction.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-paragraph-block-tree-construction.html'));
         $list = $document->children[1];
 
         $t->same('html', $document->attr('sourceFormat'));
@@ -1901,7 +1915,7 @@ $tests['imports direct pandoc html paragraph list tree construction as repaired 
 
 $tests['imports direct pandoc html menu item tree construction as repaired blocks'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-menu-item-tree-construction.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-menu-item-tree-construction.html'));
 
         $t->same('html', $document->attr('sourceFormat'));
         $t->same(Html5Dom::htmlDocumentTreeConstructionBackend(), $document->attr('meta')['htmlTreeConstruction'] ?? null);
@@ -1923,7 +1937,7 @@ $tests['imports direct pandoc html menu item tree construction as repaired block
 
 $tests['imports direct pandoc html paragraph section tree construction as repaired blocks'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-paragraph-section-tree-construction.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-paragraph-section-tree-construction.html'));
         $section = $document->children[1];
 
         $t->same('html', $document->attr('sourceFormat'));
@@ -1941,7 +1955,7 @@ $tests['imports direct pandoc html paragraph section tree construction as repair
 
 $tests['imports direct pandoc html paragraph article tree construction as repaired blocks'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-paragraph-article-tree-construction.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-paragraph-article-tree-construction.html'));
         $inside = $document->children[1];
 
         $t->same('html', $document->attr('sourceFormat'));
@@ -1960,7 +1974,7 @@ $tests['imports direct pandoc html paragraph article tree construction as repair
 
 $tests['imports direct pandoc html paragraph aside tree construction as repaired native div'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-paragraph-aside-tree-construction.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-paragraph-aside-tree-construction.html'));
         $aside = $document->children[1];
         $asideParagraph = $aside->children[0];
 
@@ -1981,7 +1995,7 @@ $tests['imports direct pandoc html paragraph aside tree construction as repaired
 
 $tests['imports direct pandoc html paragraph nav tree construction as repaired blocks'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-paragraph-nav-tree-construction.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-paragraph-nav-tree-construction.html'));
 
         $t->same('html', $document->attr('sourceFormat'));
         $t->same(
@@ -1996,7 +2010,7 @@ $tests['imports direct pandoc html paragraph nav tree construction as repaired b
 
 $tests['imports direct pandoc html paragraph transparent block tree construction as repaired blocks'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-paragraph-transparent-block-tree-construction.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-paragraph-transparent-block-tree-construction.html'));
         $searchBody = $document->children[1];
         $heading = $document->children[3];
 
@@ -2017,7 +2031,7 @@ $tests['imports direct pandoc html paragraph transparent block tree construction
 
 $tests['imports direct pandoc html button scope paragraph tree construction as repaired blocks'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-button-scope-tree-construction.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-button-scope-tree-construction.html'));
 
         $t->same(['paragraph', 'paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
         $t->same('one', $document->children[0]->attr('text'));
@@ -2046,15 +2060,15 @@ $tests['preserves upstream html omitted table cell closures as structured table'
             $t->same('after', $document->children[1]->attr('text'), $label);
         };
 
-        $assertBlocks((new HtmlReader())->read($html), 'fragment');
-        $assertBlocks((new HtmlReader())->read('<!doctype html><html><body>' . $html . '</body></html>'), 'document');
-        $t->same('table', (new HtmlReader())->read($explicit)->children[0]->type);
-        $t->same('table', (new HtmlReader())->read('<!doctype html><html><body>' . $explicit . '</body></html>')->children[0]->type);
+        $assertBlocks((new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($html), 'fragment');
+        $assertBlocks((new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read('<!doctype html><html><body>' . $html . '</body></html>'), 'document');
+        $t->same('table', (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($explicit)->children[0]->type);
+        $t->same('table', (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read('<!doctype html><html><body>' . $explicit . '</body></html>')->children[0]->type);
     };
 
 $tests['skips upstream html reader empty tables after HTMLDocument tree construction'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-empty-tables.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-empty-tables.html'));
 
         $t->same('html', $document->attr('sourceFormat'));
         $t->same(Html5Dom::htmlDocumentTreeConstructionBackend(), $document->attr('meta')['htmlTreeConstruction'] ?? null);
@@ -2080,14 +2094,14 @@ $tests['imports upstream html transparent block containers as structural childre
 
         foreach ($tags as $tag) {
             $html = '<' . $tag . ' id="wrapper"><h1>Title</h1><p>Body <em>text</em>.</p></' . $tag . '><p>After</p>';
-            $assertBlocks((new HtmlReader())->read($html), $tag . ' fragment');
-            $assertBlocks((new HtmlReader())->read('<!doctype html><html><body>' . $html . '</body></html>'), $tag . ' document');
+            $assertBlocks((new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($html), $tag . ' fragment');
+            $assertBlocks((new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read('<!doctype html><html><body>' . $html . '</body></html>'), $tag . ' document');
         }
     };
 
 $tests['imports generated current html thematic break as horizontal rule'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-thematic-break.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-thematic-break.html'));
 
         $t->same(
             ['paragraph', 'horizontal_rule', 'paragraph'],
@@ -2101,7 +2115,7 @@ $tests['imports generated current html thematic break as horizontal rule'] =
 $tests['imports html fragment hr variants as horizontal rules'] =
     static function (TestRunner $t): void {
         foreach (['<hr>', '<hr />', '<hr class="x" id="y">'] as $html) {
-            $document = (new HtmlReader())->read($html);
+            $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($html);
 
             $t->same(['horizontal_rule'], array_map(static fn ($node): string => $node->type, $document->children), $html);
             $t->same([], $document->children[0]->attrs, $html);
@@ -2110,7 +2124,7 @@ $tests['imports html fragment hr variants as horizontal rules'] =
 
 $tests['imports direct pandoc html omitted heading end-tag fixture'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-omitted-heading-end-tags.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-omitted-heading-end-tags.html'));
 
         $t->same(['heading', 'heading', 'paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
         $t->same(1, $document->children[0]->attr('level'));
@@ -2124,7 +2138,7 @@ $tests['imports direct pandoc html omitted heading end-tag fixture'] =
 $tests['imports html ordered lists with signed start values'] =
     static function (TestRunner $t): void {
         foreach ([['0', 0], ['-2', -2], ['+3', 3]] as [$rawStart, $expectedStart]) {
-            $document = (new HtmlReader())->read('<ol type="1" start="' . $rawStart . '"><li>Item</li></ol>');
+            $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read('<ol type="1" start="' . $rawStart . '"><li>Item</li></ol>');
             $list = $document->children[0];
 
             $t->same('ordered_list', $list->type, $rawStart);
@@ -2136,7 +2150,7 @@ $tests['imports html ordered lists with signed start values'] =
 
 $tests['imports direct pandoc html ordered list type and start fixture'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-ordered-list-type-start.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-ordered-list-type-start.html'));
         $list = $document->children[0];
 
         $t->same('html', $document->attr('sourceFormat'));
@@ -2150,7 +2164,7 @@ $tests['imports direct pandoc html ordered list type and start fixture'] =
 
 $tests['imports direct pandoc html optional list item end-tag tree construction'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-optional-list-item-tree-construction.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-optional-list-item-tree-construction.html'));
         $list = $document->children[0];
 
         $t->same('html', $document->attr('sourceFormat'));
@@ -2166,7 +2180,7 @@ $tests['imports direct pandoc html optional list item end-tag tree construction'
 
 $tests['imports generated current html ruby annotation text'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-ruby-annotation.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-ruby-annotation.html'));
         $paragraph = $document->children[0];
 
         $t->same(
@@ -2184,7 +2198,7 @@ $tests['imports generated current html ruby annotation text'] =
 
 $tests['imports generated current html keyboard sample and variable inline semantics'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-kbd-samp-var-inline.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-kbd-samp-var-inline.html'));
         $paragraph = $document->children[0];
 
         $t->same(
@@ -2208,7 +2222,7 @@ $tests['imports generated current html keyboard sample and variable inline seman
 
 $tests['imports generated current html form control visible text semantics'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-form-controls.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-form-controls.html'));
 
         $t->same(
             ['paragraph', 'paragraph', 'paragraph'],
@@ -2228,7 +2242,7 @@ $tests['imports generated current html form control visible text semantics'] =
 
 $tests['imports direct pandoc html nested form tree construction as sibling paragraphs'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-form-in-form-tree-construction.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-form-in-form-tree-construction.html'));
 
         $t->same('html', $document->attr('sourceFormat'));
         $t->same(
@@ -2243,7 +2257,7 @@ $tests['imports direct pandoc html nested form tree construction as sibling para
 
 $tests['imports direct pandoc html standalone select optgroup fragment as plain'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-standalone-select-optgroup-inline.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-standalone-select-optgroup-inline.html'));
         $plain = $document->children[0];
 
         $t->same('html', $document->attr('sourceFormat'));
@@ -2255,7 +2269,7 @@ $tests['imports direct pandoc html standalone select optgroup fragment as plain'
 
 $tests['imports direct pandoc html omitted option end tags as repaired select text'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-optional-option-tree-construction.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-optional-option-tree-construction.html'));
         $plain = $document->children[0];
 
         $t->same('html', $document->attr('sourceFormat'));
@@ -2269,7 +2283,7 @@ $tests['imports direct pandoc html omitted option end tags as repaired select te
 
 $tests['imports html result control fragments without swallowing following block boundary'] =
     static function (TestRunner $t): void {
-        $document = (new HtmlReader())->read(
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read(
             '<output name="total">Calculated <strong>total</strong></output><p>After output.</p>' . "\n"
                 . '<select name="status"><option>Draft</option><option selected>Ready</option></select><p>After select.</p>'
         );
@@ -2298,7 +2312,7 @@ $tests['imports html result control fragments without swallowing following block
 
 $tests['imports generated current html address block as paragraph content'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-address-block.html'));
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-address-block.html'));
         $contact = $document->children[0];
         $link = $contact->children[2];
 
@@ -2320,7 +2334,7 @@ $tests['imports generated current html address block as paragraph content'] =
 
 $tests['preserves html doc-endnotes container when no noteref was resolved'] =
     static function (TestRunner $t): void {
-        $document = (new HtmlReader())->read(
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read(
             '<section role="doc-endnotes"><ol><li id="fn1"><p>Loose footnote body.</p></li></ol></section>'
         );
         $meta = $document->attr('meta');
@@ -2374,7 +2388,7 @@ $valueSourceCases = [
 foreach ($valueSourceCases as $name => [$markup, $propertyName, $expectedValue, $expectedSource, $expectedType]) {
     $tests['extracts html reader microdata property value source ' . $name] =
         static function (TestRunner $t) use ($expectedSource, $expectedType, $expectedValue, $markup, $propertyName): void {
-            $document = (new HtmlReader())->read(
+            $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read(
                 '<!doctype html><html><body><section itemscope itemtype="https://schema.org/Review">'
                 . $markup
                 . '</section></body></html>'
@@ -2390,7 +2404,7 @@ foreach ($valueSourceCases as $name => [$markup, $propertyName, $expectedValue, 
 
 $tests['keeps html reader imports alive when microdata dom parse is unavailable'] =
     static function (TestRunner $t): void {
-        $document = (new HtmlReader())->read(
+        $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read(
             '<!doctype html [<!ENTITY review SYSTEM "file:///etc/passwd">]><html><body><p>Unsafe declaration source.</p></body></html>'
         );
         $meta = $document->attr('meta');

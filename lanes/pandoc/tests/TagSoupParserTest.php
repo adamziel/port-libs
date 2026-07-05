@@ -209,6 +209,26 @@ HTML);
         $t->same([], $document->children[2]->children[3]->children);
     },
 
+    'opt-in tagsoup backend matches upstream html reader full golden fixture' => static function (TestRunner $t): void {
+        $root = dirname(__DIR__) . '/fixtures';
+        $harness = new HtmlNativeAstComparisonHarness();
+        $basename = 'upstream-html-reader-full-golden';
+        $htmlFixture = 'upstream-html-reader-full-golden.html';
+        $nativeFixture = 'upstream-html-reader-full-golden.native';
+        $html = file_get_contents($root . '/' . $htmlFixture);
+        $native = file_get_contents($root . '/' . $nativeFixture);
+        if (!is_string($html) || !is_string($native)) {
+            throw new RuntimeException('Missing fixture pair for ' . $basename);
+        }
+
+        $local = $harness->normalizedDocument(
+            (new HtmlReader(['htmlReaderBackend' => 'tagsoup-pandoc-port']))->read($html)
+        );
+        $expected = $harness->normalizedDocument((new NativeReader())->read($native));
+
+        $t->same($expected, $local, $basename . ' should match through the TagSoup backend');
+    },
+
     'opt-in tagsoup backend matches every checked-in html native fixture pair' => static function (TestRunner $t): void {
         $root = dirname(__DIR__) . '/fixtures';
         $harness = new HtmlNativeAstComparisonHarness();
@@ -220,7 +240,7 @@ HTML);
             }
         }
         sort($basenames, SORT_STRING);
-        $t->same(132, count($basenames), 'checked-in HTML/native fixture pair count');
+        $t->same(133, count($basenames), 'checked-in HTML/native fixture pair count');
 
         foreach ($basenames as $basename) {
             $options = HtmlNativeAstComparisonHarness::readerOptionsForFixtureBasename($basename);

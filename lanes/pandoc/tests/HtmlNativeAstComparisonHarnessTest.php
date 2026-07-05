@@ -534,50 +534,50 @@ return [
         $text = $harness->formatReport($report);
 
         $t->same('completed', $report['status']);
-        $t->same(132, $report['htmlFixtureCount']);
-        $t->same(132, $report['nativeFixtureCount']);
-        $t->same(132, $report['pairedFixtureCount']);
+        $t->same(133, $report['htmlFixtureCount']);
+        $t->same(133, $report['nativeFixtureCount']);
+        $t->same(133, $report['pairedFixtureCount']);
         $t->same(0, $report['unpairedHtmlFixtureCount']);
         $t->same(0, $report['unpairedNativeFixtureCount']);
         $t->same($expectedUnpairedHtmlFixtureNames, $report['unpairedHtmlFixtureNames']);
         $t->same([], $report['unpairedNativeFixtureNames']);
         $t->same([], $report['unpairedHtmlFixtureExamples']);
-        $t->same(132, $report['totalPairCount']);
-        $t->same(132, $report['comparedPairCount']);
+        $t->same(133, $report['totalPairCount']);
+        $t->same(133, $report['comparedPairCount']);
         $t->same(0, $report['excludedMappedPairCount']);
         $t->same([], $report['excludedMappedPairs']);
-        $t->same(132, $report['htmlParsedCount']);
-        $t->same(132, $report['nativeParsedCount']);
-        $t->same(132, $report['bothParsedCount']);
+        $t->same(133, $report['htmlParsedCount']);
+        $t->same(133, $report['nativeParsedCount']);
+        $t->same(133, $report['bothParsedCount']);
         $t->same(0, $report['parseFailureCount']);
-        $t->same(132, $report['normalizedAstMatchCount']);
+        $t->same(133, $report['normalizedAstMatchCount']);
         $t->same(0, $report['normalizedAstMismatchCount']);
         $t->same('normalized-ast-implementation-equivalence-observed', $report['astParityStatus']);
         $t->same(true, HtmlNativeAstComparisonHarness::hasValidCheckedInFixtureInventorySignature($report));
-        $t->same(true, HtmlNativeAstComparisonHarness::hasRequiredMappedParity($report, 132));
+        $t->same(true, HtmlNativeAstComparisonHarness::hasRequiredMappedParity($report, 133));
         $signature = $report['checkedInFixtureInventorySignature'];
         $t->same('valid-checked-in-html-fixture-inventory', $signature['status'] ?? null);
         $t->same(true, $signature['matchesExpected'] ?? null);
-        $t->same('1e060214695c37e94ae32c93feed595683fda66e2e11546ed5147a4231d731a4', $signature['sha256'] ?? null);
-        $t->same('1e060214695c37e94ae32c93feed595683fda66e2e11546ed5147a4231d731a4', $signature['expectedSha256'] ?? null);
-        $t->same(132, $signature['htmlFixtureCount'] ?? null);
-        $t->same(132, $signature['nativeFixtureCount'] ?? null);
-        $t->same(132, $signature['pairedFixtureCount'] ?? null);
-        $t->same(264, $signature['recordCount'] ?? null);
+        $t->same('9aadf222117db0bea94c4248d9df4b93738acea303f2f524d5d347a33ba5636b', $signature['sha256'] ?? null);
+        $t->same('9aadf222117db0bea94c4248d9df4b93738acea303f2f524d5d347a33ba5636b', $signature['expectedSha256'] ?? null);
+        $t->same(133, $signature['htmlFixtureCount'] ?? null);
+        $t->same(133, $signature['nativeFixtureCount'] ?? null);
+        $t->same(133, $signature['pairedFixtureCount'] ?? null);
+        $t->same(266, $signature['recordCount'] ?? null);
         $t->same('upstream-html-address-block.html', $signature['sampleRecords'][0]['fixture'] ?? null);
         $t->same('8108f7532e80e46c24c47d11ea212837f7cc3123d5dfbafa03af9187a0b50fcf', $signature['sampleRecords'][0]['sha256'] ?? null);
         $t->same(['htmlRawHtml' => false], $report['htmlReaderFixtureOptionOverrides']['upstream-html-raw-disabled-skip.html'] ?? null);
         $t->same('covered-by-current-normalized-ast-evidence', $report['orderedRemainingGaps'][0]['status']);
         $t->same('checked-in-html-fixtures-without-native-pairs', $report['orderedRemainingGaps'][1]['id']);
         $t->same('covered-by-current-normalized-ast-evidence', $report['orderedRemainingGaps'][1]['status']);
-        $t->same('HTML fixtures=132; native fixtures=132; same-basename pairs=132; HTML fixtures without native pairs=0', $report['orderedRemainingGaps'][1]['currentEvidence']);
-        $t->same('html5-tree-construction-backend', $report['orderedRemainingGaps'][3]['id']);
-        $t->same('covered-by-current-html-document-backend', $report['orderedRemainingGaps'][3]['status']);
-        $t->same('Dom\\HTMLDocument available=yes; checked-in gate covers 132 HTMLDocument-backed paired fixture(s) out of 132 HTML fixture(s); 0 source-preservation fixture(s) are tracked but excluded from the mapped gate.', $report['orderedRemainingGaps'][3]['currentEvidence']);
-        $t->contains('fixtureInventory: html=132 native=132 paired=132 unpairedHtml=0 unpairedNative=0', $text);
-        $t->contains('fixtureInventorySignature: status=valid-checked-in-html-fixture-inventory matchesExpected=yes sha256=1e060214695c37e94ae32c93feed595683fda66e2e11546ed5147a4231d731a4', $text);
-        $t->contains('pairs: total=132 compared=132 excluded=0 parsedBoth=132 parseFailures=0', $text);
-        $t->contains('normalizedAst: matches=132 (100.00%) mismatches=0', $text);
+        $t->same('HTML fixtures=133; native fixtures=133; same-basename pairs=133; HTML fixtures without native pairs=0', $report['orderedRemainingGaps'][1]['currentEvidence']);
+        $t->same('tagsoup-pandoc-html-reader-backend', $report['orderedRemainingGaps'][3]['id']);
+        $t->same('covered-by-current-tagsoup-backend', $report['orderedRemainingGaps'][3]['status']);
+        $t->same('TagSoup backend=tagsoup-pandoc-port; checked-in gate covers 133 TagSoup-backed paired fixture(s) out of 133 HTML fixture(s); 0 source-preservation fixture(s) are tracked but excluded from the mapped gate.', $report['orderedRemainingGaps'][3]['currentEvidence']);
+        $t->contains('fixtureInventory: html=133 native=133 paired=133 unpairedHtml=0 unpairedNative=0', $text);
+        $t->contains('fixtureInventorySignature: status=valid-checked-in-html-fixture-inventory matchesExpected=yes sha256=9aadf222117db0bea94c4248d9df4b93738acea303f2f524d5d347a33ba5636b', $text);
+        $t->contains('pairs: total=133 compared=133 excluded=0 parsedBoth=133 parseFailures=0', $text);
+        $t->contains('normalizedAst: matches=133 (100.00%) mismatches=0', $text);
 
         $command = escapeshellarg(PHP_BINARY)
             . ' '
@@ -585,24 +585,24 @@ return [
             . ' --html-dir=' . escapeshellarg($root)
             . ' --json'
             . ' summary'
-            . ' --require-mapped-parity=132';
+            . ' --require-mapped-parity=133';
         $output = [];
         $exitCode = 0;
         exec($command, $output, $exitCode);
         $decoded = json_decode(implode("\n", $output), true, 512, JSON_THROW_ON_ERROR);
 
         $t->same(0, $exitCode);
-        $t->same(132, $decoded['htmlFixtureCount']);
-        $t->same(132, $decoded['comparedPairCount']);
+        $t->same(133, $decoded['htmlFixtureCount']);
+        $t->same(133, $decoded['comparedPairCount']);
         $t->same(0, $decoded['excludedMappedPairCount']);
         $t->same(0, $decoded['unpairedHtmlFixtureCount']);
         $t->same($expectedUnpairedHtmlFixtureNames, $decoded['unpairedHtmlFixtureNames']);
         $t->same([], $decoded['unpairedNativeFixtureNames']);
         $t->same('valid-checked-in-html-fixture-inventory', $decoded['checkedInFixtureInventorySignature']['status'] ?? null);
         $t->same(true, $decoded['checkedInFixtureInventorySignature']['matchesExpected'] ?? null);
-        $t->same('1e060214695c37e94ae32c93feed595683fda66e2e11546ed5147a4231d731a4', $decoded['checkedInFixtureInventorySignature']['sha256'] ?? null);
+        $t->same('9aadf222117db0bea94c4248d9df4b93738acea303f2f524d5d347a33ba5636b', $decoded['checkedInFixtureInventorySignature']['sha256'] ?? null);
         $t->same(['htmlRawHtml' => false], $decoded['htmlReaderFixtureOptionOverrides']['upstream-html-raw-disabled-skip.html'] ?? null);
-        $t->same(132, $decoded['normalizedAstMatchCount']);
+        $t->same(133, $decoded['normalizedAstMatchCount']);
         $t->same(0, $decoded['normalizedAstMismatchCount']);
     },
 ];

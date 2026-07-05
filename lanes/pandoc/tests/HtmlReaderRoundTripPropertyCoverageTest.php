@@ -73,7 +73,7 @@ return [
         $roundTripComparable,
         $text
     ): void {
-        $reader = new HtmlReader();
+        $reader = new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]);
         $writer = new HtmlWriter(['writerWrapText' => 'WrapPreserve']);
         $rewrite = static fn (AstNode $document): AstNode => $reader->read($writer->write($document) . "\n");
 

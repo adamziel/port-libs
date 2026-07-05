@@ -45,7 +45,7 @@ final class PandocHtmlTagSoupReader
             'meta' => array_replace($documentMeta, [
                 'sourceFormat' => 'html',
                 'reader' => self::class,
-                'readerScope' => 'tagsoup-pandoc-html-reader-port-in-progress',
+                'readerScope' => 'tagsoup-pandoc-html-reader-port',
                 'htmlTokenizer' => TagSoupParser::class,
                 'sourceBytes' => strlen($html),
                 'sourceSha256' => hash('sha256', $html),

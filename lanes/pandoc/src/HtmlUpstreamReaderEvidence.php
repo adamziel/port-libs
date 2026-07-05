@@ -12,8 +12,8 @@ final class HtmlUpstreamReaderEvidence
     public const STATUS_COMPLETED = 'completed-upstream-html-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-html-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
-    public const EXPECTED_SELECTED_FIXTURE_COUNT = 132;
-    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 132;
+    public const EXPECTED_SELECTED_FIXTURE_COUNT = 133;
+    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 133;
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/HTML.hs',
@@ -638,6 +638,11 @@ final class HtmlUpstreamReaderEvidence
             'bytes' => 297,
             'sourceKind' => 'direct-pandoc-3.10-native-probe',
         ],
+        'upstream-html-reader-full-golden.html' => [
+            'sha256' => 'a0ede6d299a88152efa6e776e4d3d6ecbdb2303e2efc195a7cb1d56820d71d25',
+            'bytes' => 17314,
+            'sourceKind' => 'selected-upstream-html-reader-fixture',
+        ],
     ];
 
     private readonly string $repoRoot;
@@ -798,13 +803,13 @@ final class HtmlUpstreamReaderEvidence
                 'status' => $issues === [] ? 'valid-checked-in-current-html-reader-evidence' : 'invalid-checked-in-current-html-reader-evidence',
                 'issues' => array_values(array_unique($issues)),
             ],
-            'claim' => 'Static gate binding the checked-in upstream-derived and generated-current HTML reader fixture corpus, native expectations, and HTMLDocument-backed native AST comparison to SHA-256 and byte-count snapshots.',
+            'claim' => 'Static gate binding the checked-in upstream-derived and generated-current HTML reader fixture corpus, native expectations, and TagSoup-backed native AST comparison to SHA-256 and byte-count snapshots.',
             'claimBoundaries' => [
                 'doesAssert' => [
-                    'the checked-in HTML reader fixture corpus has 132 pinned fixture snapshots',
+                    'the checked-in HTML reader fixture corpus has 133 pinned fixture snapshots',
                     'each pinned HTML fixture has a same-basename checked-in native expectation file',
                     'each pinned fixture has at least one local test reference',
-                    'the current checked-in HTML/native mapped gate observes 132/132 normalized AST matches through Dom\\HTMLDocument-backed parsing when included in the report',
+                    'the current checked-in HTML/native mapped gate observes 133/133 normalized AST matches through the TagSoup-backed Pandoc HTML reader port when included in the report',
                 ],
                 'doesNotAssert' => [
                     'that this PHP report command executed upstream Haskell/Cabal/Tasty tests',
@@ -1512,10 +1517,10 @@ final class HtmlUpstreamReaderEvidence
     {
         return [
             'doesAssert' => [
-                'the identity and count of 132 selected checked-in upstream-derived and generated-current HTML fixtures',
+                'the identity and count of 133 selected checked-in upstream-derived and generated-current HTML fixtures',
                 'that each selected fixture has a same-basename checked-in native expectation file',
                 'that each selected fixture is referenced by at least one local focused test',
-                'that the native AST gate observes 132/132 HTMLDocument-backed checked-in same-basename HTML/native matches',
+                'that the native AST gate observes 133/133 TagSoup-backed checked-in same-basename HTML/native matches',
                 'that upstream Haskell runner evidence is either explicitly not-run or supplied as a validated result artifact',
                 'the future upstream runner command plan targets test:test-pandoc Readers/HTML at the pinned upstream commit without execution',
                 'a supplied upstream runner result artifact is validated against the pinned HTML Tasty target, commit, test names, pass/fail counts, and transcript file identities when explicitly provided',

@@ -161,7 +161,7 @@ return [
         $t->same(NativeReader::class, $support['native']['implementation']);
         $t->same('reader-equivalent', $support['html']['status']);
         $t->same(HtmlReader::class, $support['html']['implementation']);
-        $t->contains('132/132 checked-in HTML/native pairs', $support['html']['notes']);
+        $t->contains('133/133 checked-in HTML/native pairs', $support['html']['notes']);
         $t->same('partial', $support['docbook']['status']);
         $t->same(DocBookReader::class, $support['docbook']['implementation']);
         $t->same('partial', $support['ipynb']['status']);

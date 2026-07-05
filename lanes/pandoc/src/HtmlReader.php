@@ -6,6 +6,9 @@ namespace PortLibs\Pandoc;
 
 final class HtmlReader
 {
+    public const BACKEND_TAGSOUP_PANDOC_PORT = 'tagsoup-pandoc-port';
+    public const BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE = 'html-document-markdown-bridge';
+
     private const MICRODATA_MAX_ITEMS = 32;
     private const MICRODATA_MAX_PROPERTIES_PER_ITEM = 64;
     private const MICRODATA_MAX_VALUE_BYTES = 512;
@@ -26,8 +29,12 @@ final class HtmlReader
 
     public function read(string $bytes): AstNode
     {
-        if (($this->options['htmlReaderBackend'] ?? null) === 'tagsoup-pandoc-port') {
+        $backend = $this->options['htmlReaderBackend'] ?? self::BACKEND_TAGSOUP_PANDOC_PORT;
+        if ($backend === self::BACKEND_TAGSOUP_PANDOC_PORT) {
             return (new PandocHtmlTagSoupReader($this->options))->read($bytes);
+        }
+        if ($backend !== self::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE) {
+            throw new \InvalidArgumentException('Unknown HTML reader backend: ' . (string) $backend);
         }
 
         $htmlTreeConstructionBackend = self::htmlTreeConstructionBackendForSource($bytes);

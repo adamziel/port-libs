@@ -8,9 +8,9 @@ final class HtmlNativeAstComparisonHarness
 {
     private const DEFAULT_MAX_EXAMPLES = 12;
     private const VERDICT = 'normalized-ast-comparison-html-implementation-equivalence-observed';
-    private const CLAIM = 'Compares local PHP HTML reader output with paired .native fixtures by normalized AST shape; reader provenance, table review metadata, and NativeReader constructor provenance are excluded. HTML5 tree construction is delegated to Dom\\HTMLDocument when this report is produced on PHP 8.5+.';
+    private const CLAIM = 'Compares local PHP TagSoup-backed Pandoc HTML reader output with paired .native fixtures by normalized AST shape; reader provenance, table review metadata, and NativeReader constructor provenance are excluded.';
     private const FIXTURE_INVENTORY_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
-    private const CHECKED_IN_FIXTURE_INVENTORY_SIGNATURE_SHA256 = '1e060214695c37e94ae32c93feed595683fda66e2e11546ed5147a4231d731a4';
+    private const CHECKED_IN_FIXTURE_INVENTORY_SIGNATURE_SHA256 = '9aadf222117db0bea94c4248d9df4b93738acea303f2f524d5d347a33ba5636b';
     private const HTML_READER_OPTIONS_BY_BASENAME = [
         'upstream-html-cite-wbr-raw-inline' => ['htmlRawHtml' => true],
         'upstream-html-generic-raw-inline' => ['htmlRawHtml' => true],
@@ -450,7 +450,10 @@ final class HtmlNativeAstComparisonHarness
 
             return [
                 'ok' => true,
-                'document' => (new HtmlReader(self::HTML_READER_OPTIONS_BY_BASENAME[$fixtureName] ?? []))->read($bytes),
+                'document' => (new HtmlReader(array_replace(
+                    ['htmlReaderBackend' => HtmlReader::BACKEND_TAGSOUP_PANDOC_PORT],
+                    self::HTML_READER_OPTIONS_BY_BASENAME[$fixtureName] ?? []
+                )))->read($bytes),
                 'error' => null,
             ];
         } catch (\Throwable $exception) {
@@ -1012,9 +1015,9 @@ final class HtmlNativeAstComparisonHarness
             && $parseFailureCount === 0
             && $mismatchCount === 0
             && $matchCount === $comparedPairCount;
-        $htmlDocumentBacked = Html5Dom::nativeHtmlDocumentAvailable();
-        $htmlTreeConstructionCovered = $astCovered
-            && $htmlDocumentBacked
+        $tagSoupBacked = true;
+        $tagSoupReaderCovered = $astCovered
+            && $tagSoupBacked
             && $pairedFixtureCount === $htmlFixtureCount
             && $excludedMappedPairCount === 0;
 
@@ -1024,7 +1027,7 @@ final class HtmlNativeAstComparisonHarness
                 'id' => 'checked-in-html-native-ast-equality',
                 'status' => !$directoryPresent ? 'not-evaluated' : ($astCovered ? 'covered-by-current-normalized-ast-evidence' : 'open'),
                 'currentEvidence' => $astEvidence,
-                'evidenceRequired' => 'Compare every HTMLDocument-backed same-basename checked-in HTML/native fixture with zero parse failures and zero normalized AST mismatches.',
+                'evidenceRequired' => 'Compare every TagSoup-backed same-basename checked-in HTML/native fixture with zero parse failures and zero normalized AST mismatches.',
             ],
             [
                 'rank' => 2,
@@ -1044,12 +1047,12 @@ final class HtmlNativeAstComparisonHarness
             ],
             [
                 'rank' => 4,
-                'id' => 'html5-tree-construction-backend',
-                'status' => !$directoryPresent ? 'not-evaluated' : ($htmlTreeConstructionCovered ? 'covered-by-current-html-document-backend' : 'open'),
+                'id' => 'tagsoup-pandoc-html-reader-backend',
+                'status' => !$directoryPresent ? 'not-evaluated' : ($tagSoupReaderCovered ? 'covered-by-current-tagsoup-backend' : 'open'),
                 'currentEvidence' => $directoryPresent
-                    ? "Dom\\HTMLDocument available=" . ($htmlDocumentBacked ? 'yes' : 'no') . "; checked-in gate covers {$comparedPairCount} HTMLDocument-backed paired fixture(s) out of {$htmlFixtureCount} HTML fixture(s); {$excludedMappedPairCount} source-preservation fixture(s) are tracked but excluded from the mapped gate."
+                    ? "TagSoup backend=tagsoup-pandoc-port; checked-in gate covers {$comparedPairCount} TagSoup-backed paired fixture(s) out of {$htmlFixtureCount} HTML fixture(s); {$excludedMappedPairCount} source-preservation fixture(s) are tracked but excluded from the mapped gate."
                     : 'HTML/native fixture directory absent; fixture coverage did not run.',
-                'evidenceRequired' => 'Use Dom\\HTMLDocument for HTML5 tree construction and keep every checked-in HTML/native mapped fixture at zero parse failures and zero normalized AST mismatches.',
+                'evidenceRequired' => 'Use the TagSoup-backed Pandoc HTML reader port and keep every checked-in HTML/native mapped fixture at zero parse failures and zero normalized AST mismatches.',
             ],
         ];
     }

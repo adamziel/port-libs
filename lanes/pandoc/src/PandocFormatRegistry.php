@@ -338,7 +338,7 @@ final class PandocFormatRegistry
         'html' => [
             'status' => 'reader-equivalent',
             'implementation' => HtmlReader::class,
-            'notes' => 'HTML reader implementation-equivalence gate covers 132/132 checked-in HTML/native pairs through Dom\\HTMLDocument-backed HTML5 tree construction.',
+            'notes' => 'HTML reader implementation-equivalence gate covers 133/133 checked-in HTML/native pairs through the TagSoup-backed Pandoc HTML reader port.',
         ],
         'ipynb' => [
             'status' => 'partial',

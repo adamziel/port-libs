@@ -39,7 +39,7 @@ jobs:
 
       - name: Lint HTML and delimited parity files
         run: |
-          php -r 'if (!class_exists("Dom\\HTMLDocument")) { fwrite(STDERR, "Dom\\HTMLDocument is required for HTML reader parity\n"); exit(1); }'
+          php -r 'if (!class_exists("Dom\\HTMLDocument")) { fwrite(STDERR, "Dom\\HTMLDocument is required for explicit legacy HTML bridge tests\n"); exit(1); }'
           php -l lanes/pandoc/src/AstNode.php
           php -l lanes/pandoc/src/DelimitedTextReader.php
           php -l lanes/pandoc/src/DelimitedTextUpstreamReaderEvidence.php
@@ -50,12 +50,17 @@ jobs:
           php -l lanes/pandoc/src/HtmlUpstreamReaderEvidence.php
           php -l lanes/pandoc/src/NativeReader.php
           php -l lanes/pandoc/src/NativeWriter.php
+          php -l lanes/pandoc/src/PandocHtmlTagSoupReader.php
+          php -l lanes/pandoc/src/PandocHtmlTagSoupTableReader.php
+          php -l lanes/pandoc/src/TagSoupParser.php
           php -l lanes/pandoc/tests/DelimitedTextReaderTest.php
           php -l lanes/pandoc/tests/DelimitedTextUpstreamReaderEvidenceTest.php
           php -l lanes/pandoc/tests/Html5DomTest.php
           php -l lanes/pandoc/tests/HtmlNativeAstComparisonHarnessTest.php
           php -l lanes/pandoc/tests/HtmlReaderTest.php
           php -l lanes/pandoc/tests/HtmlUpstreamReaderEvidenceTest.php
+          php -l lanes/pandoc/tests/PandocHtmlTagSoupTableReaderTest.php
+          php -l lanes/pandoc/tests/TagSoupParserTest.php
           php -l tools/pandoc-delimited-text-reader-evidence.php
           php -l tools/pandoc-html-native-ast.php
           php -l tools/pandoc-html-reader-evidence.php
@@ -110,9 +115,9 @@ jobs:
           php tools/pandoc-html-reader-evidence.php \
             --upstream-root=.upstream-cache/pandoc-current \
             --json \
-            --require-selected-fixture-count=132 \
+            --require-selected-fixture-count=133 \
             --require-static-current-evidence \
-            --require-native-mapped-parity=132 \
+            --require-native-mapped-parity=133 \
             --require-runner-not-run \
             --require-runner-plan \
             --require-no-validation-issues
@@ -123,7 +128,7 @@ jobs:
             --html-dir=lanes/pandoc/fixtures \
             --json \
             summary \
-            --require-mapped-parity=132
+            --require-mapped-parity=133
 
       - name: Install pandoc executable
         run: |
@@ -163,4 +168,6 @@ jobs:
             lanes/pandoc/tests/Html5DomTest.php \
             lanes/pandoc/tests/HtmlNativeAstComparisonHarnessTest.php \
             lanes/pandoc/tests/HtmlReaderTest.php \
-            lanes/pandoc/tests/HtmlUpstreamReaderEvidenceTest.php
+            lanes/pandoc/tests/HtmlUpstreamReaderEvidenceTest.php \
+            lanes/pandoc/tests/PandocHtmlTagSoupTableReaderTest.php \
+            lanes/pandoc/tests/TagSoupParserTest.php

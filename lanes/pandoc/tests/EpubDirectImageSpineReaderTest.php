@@ -467,7 +467,7 @@ HS,
             $t->same(3, $report['actualMediaItemCount']);
             $t->same(1, $report['mediaBagMatchCount']);
             $t->same(0, $report['mediaBagMismatchCount']);
-            $t->same('media-bag-equality-observed-not-runner-parity', $report['mediaBagParityStatus']);
+            $t->same('media-bag-implementation-equivalence-observed', $report['mediaBagParityStatus']);
         } finally {
             $removeTree($root);
         }
