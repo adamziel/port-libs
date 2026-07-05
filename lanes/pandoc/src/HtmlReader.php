@@ -26,6 +26,10 @@ final class HtmlReader
 
     public function read(string $bytes): AstNode
     {
+        if (($this->options['htmlReaderBackend'] ?? null) === 'tagsoup-pandoc-port') {
+            return (new PandocHtmlTagSoupReader($this->options))->read($bytes);
+        }
+
         $htmlTreeConstructionBackend = self::htmlTreeConstructionBackendForSource($bytes);
         $structuralBytes = self::flattenHtmlPictureContainers($bytes);
         $standaloneImageChildren = self::standaloneImageFragmentChildren($structuralBytes);

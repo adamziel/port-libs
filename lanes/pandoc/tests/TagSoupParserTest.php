@@ -1,0 +1,119 @@
+<?php
+
+declare(strict_types=1);
+
+use PortLibs\Pandoc\HtmlReader;
+use PortLibs\Pandoc\TagSoupParseOptions;
+use PortLibs\Pandoc\TagSoupParser;
+use PortLibs\Pandoc\TagSoupRenderer;
+use PortLibs\Pandoc\TagSoupTag;
+
+return [
+    'parses malformed formatting tags as source-order flat tokens' => static function (TestRunner $t): void {
+        $tokens = TagSoupParser::canonicalizeTags((new TagSoupParser())->parse('<p><b>one<i>two</b>three</i>'));
+
+        $t->same([
+            ['open', 'p', '', []],
+            ['open', 'b', '', []],
+            ['text', '', 'one', []],
+            ['open', 'i', '', []],
+            ['text', '', 'two', []],
+            ['close', 'b', '', []],
+            ['text', '', 'three', []],
+            ['close', 'i', '', []],
+        ], tokenSummary($tokens));
+    },
+
+    'parses attributes entities and self-closing syntax' => static function (TestRunner $t): void {
+        $tokens = TagSoupParser::canonicalizeTags((new TagSoupParser())->parse('<BR class=x disabled data-v="A&amp;B"/>'));
+
+        $t->same([
+            ['open', 'br', '', [
+                ['name' => 'class', 'value' => 'x'],
+                ['name' => 'disabled', 'value' => ''],
+                ['name' => 'data-v', 'value' => 'A&B'],
+            ]],
+            ['close', 'br', '', []],
+        ], tokenSummary($tokens));
+    },
+
+    'parses comments declarations cdata and script source-order content' => static function (TestRunner $t): void {
+        $tokens = TagSoupParser::canonicalizeTags((new TagSoupParser())->parse(
+            '<!doctype html><!--c--><![CDATA[x<y]]><script>a < b && c</script>'
+        ));
+
+        $t->same([
+            ['open', '!DOCTYPE', '', [['name' => 'html', 'value' => '']]],
+            ['comment', '', 'c', []],
+            ['text', '', 'x<y', []],
+            ['open', 'script', '', []],
+            ['text', '', 'a < b && c', []],
+            ['close', 'script', '', []],
+        ], tokenSummary($tokens));
+    },
+
+    'emits optional position and warning tokens' => static function (TestRunner $t): void {
+        $options = (new TagSoupParseOptions(includePositions: true, includeWarnings: true));
+        $tokens = (new TagSoupParser())->parse("x\n<>", $options);
+
+        $t->same([
+            ['position', '', '', []],
+            ['text', '', "x\n", []],
+            ['position', '', '', []],
+            ['warning', '', 'Unexpected "<>"', []],
+            ['position', '', '', []],
+            ['text', '', '<>', []],
+        ], tokenSummary($tokens));
+        $t->same([1, 1], [$tokens[0]->row, $tokens[0]->column]);
+        $t->same([2, 1], [$tokens[2]->row, $tokens[2]->column]);
+    },
+
+    'renders tags with tagsoup-style escaping and br minimization' => static function (TestRunner $t): void {
+        $renderer = new TagSoupRenderer();
+
+        $t->same(
+            '<p title="A&amp;B">A&lt;B<br /></p>',
+            $renderer->render([
+                TagSoupTag::open('p', [['name' => 'title', 'value' => 'A&B']]),
+                TagSoupTag::text('A<B'),
+                TagSoupTag::open('br'),
+                TagSoupTag::close('br'),
+                TagSoupTag::close('p'),
+            ])
+        );
+    },
+
+    'opt-in html reader backend reads simple blocks through tagsoup token stream' => static function (TestRunner $t): void {
+        $document = (new HtmlReader(['htmlReaderBackend' => 'tagsoup-pandoc-port']))->read(
+            '<h1>Hi <em>there</em></h1><p>A <strong>B</strong> <a href="/x">x</a></p>'
+        );
+
+        $t->same('PortLibs\Pandoc\PandocHtmlTagSoupReader', $document->attr('meta')['reader'] ?? null);
+        $t->same(2, count($document->children));
+        $t->same('heading', $document->children[0]->type);
+        $t->same(1, $document->children[0]->attr('level'));
+        $t->same('Hi there', $document->children[0]->attr('text'));
+        $t->same('paragraph', $document->children[1]->type);
+        $t->same('A B x', $document->children[1]->attr('text'));
+        $t->same('strong', $document->children[1]->children[1]->type);
+        $t->same('link', $document->children[1]->children[3]->type);
+        $t->same('/x', $document->children[1]->children[3]->attr('url'));
+    },
+];
+
+/**
+ * @param list<TagSoupTag> $tokens
+ * @return list<array{0:string,1:string,2:string,3:list<array{name:string,value:string}>}>
+ */
+function tokenSummary(array $tokens): array
+{
+    return array_map(
+        static fn (TagSoupTag $token): array => [
+            $token->type,
+            $token->name,
+            $token->text,
+            $token->attributes,
+        ],
+        $tokens
+    );
+}
