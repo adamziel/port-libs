@@ -123,6 +123,24 @@ return [
         $t->true($legacySerialized !== $serialized, 'Legacy DOMDocument must not produce the accepted HTML5 tree');
         $t->true(!str_contains($legacySerialized, '<p><b>two</b>three</p>'), 'Legacy DOMDocument should not satisfy the HTML5 formatting repair');
     },
+    'delegates document tree construction directly to native HTMLDocument' => static function (TestRunner $t): void {
+        if (!class_exists('Dom\\HTMLDocument')) {
+            $t->true(true, 'Dom\\HTMLDocument is unavailable on this PHP runtime');
+
+            return;
+        }
+
+        $source = '<!doctype html><html><body><p><a><b>one</a>two</b><table>loose<tr><td>A<td>B</table><select><option>One<option>Two</select><p>tail</body></html>';
+        $previous = libxml_use_internal_errors(true);
+        try {
+            $native = \Dom\HTMLDocument::createFromString($source, LIBXML_NOERROR | LIBXML_COMPACT, 'UTF-8')->saveHtml();
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+        }
+
+        $t->same($native, Html5Dom::treeConstructedHtmlSource($source));
+    },
     'passes ordinary malformed html raw to HTMLDocument tree construction' => static function (TestRunner $t): void {
         if (!class_exists('Dom\\HTMLDocument')) {
             $t->true(true, 'Dom\\HTMLDocument is unavailable on this PHP runtime');
