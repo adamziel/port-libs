@@ -88,8 +88,18 @@ $tests['keeps html tree construction centralized through Html5Dom'] =
         }
 
         $t->contains('HTMLDocument::createFromString', $html5DomSource);
+        $t->contains('insertAdjacentHTML', $html5DomSource);
+        $t->contains('AdjacentPosition::BeforeEnd', $html5DomSource);
         $t->contains('function parseHtmlFragment', $html5DomSource);
         $t->contains('function parseHtmlDocument', $html5DomSource);
+        foreach ([
+            'htmlTagTokens',
+            'wrapOrphanTableScopeRuns',
+            'hasOrphanTableScopeFragment',
+            'isOrphanTableScopeElementName',
+        ] as $removedScanner) {
+            $t->true(!str_contains($html5DomSource, $removedScanner), "Html5Dom must not restore source-scanned HTML tree construction via {$removedScanner}");
+        }
     };
 
 $tests['reports html document tree construction backend for table-scope fragments'] =

@@ -49,10 +49,26 @@ final class Html5Dom
             protectNoscriptContent: true
         );
 
+        if (self::nativeHtmlDocumentAvailable()) {
+            $html5 = self::html5TreeConstructedFragmentSource($html);
+            if ($html5 === null) {
+                throw new \RuntimeException('Unable to parse HTML fragment through Dom\\HTMLDocument');
+            }
+
+            try {
+                $dom = self::loadLegacyHtml('<!doctype html><html><body>' . $html5 . '</body></html>', 'HTML fragment');
+            } catch (\Throwable $exception) {
+                throw new \RuntimeException('Unable to bridge Dom\\HTMLDocument output for HTML fragment', 0, $exception);
+            }
+
+            return self::requireBody($dom, 'HTML fragment');
+        }
+
         $dom = self::loadHtml(
             '<!doctype html><html><body>' . $html . '</body></html>',
             'HTML fragment',
-            protectRcdata: false
+            protectRcdata: false,
+            preferHtml5TreeConstruction: false
         );
 
         return self::requireBody($dom, 'HTML fragment');
@@ -223,10 +239,6 @@ final class Html5Dom
             );
         }
 
-        if ($preferHtml5TreeConstruction) {
-            $html = self::htmlSourceForHtmlDocumentTreeConstruction($html);
-        }
-
         if ($preferHtml5TreeConstruction && self::nativeHtmlDocumentAvailable()) {
             $html5 = self::treeConstructedHtmlSource($html);
             if ($html5 === null) {
@@ -240,22 +252,9 @@ final class Html5Dom
             }
         }
 
-        // PHP < 8.4 has no Dom\HTMLDocument; orphan table-scope fragments also
-        // use this compatibility path because PHP exposes document parsing, not
-        // context-fragment parsing for table rows/cells.
+        // PHP < 8.4 has no Dom\HTMLDocument, so it uses the legacy libxml
+        // parser with network access disabled.
         return self::loadLegacyHtml($html, $label);
-    }
-
-    private static function htmlSourceForHtmlDocumentTreeConstruction(string $html): string
-    {
-        if (!self::nativeHtmlDocumentAvailable() || !self::hasOrphanTableScopeFragment($html)) {
-            return $html;
-        }
-
-        // PHP exposes HTMLDocument document parsing, but no table-cell
-        // fragment context. Synthesize that context; HTMLDocument still builds
-        // the tree.
-        return self::wrapOrphanTableScopeRuns($html);
     }
 
     private static function loadLegacyHtml(string $html, string $label): \DOMDocument
@@ -276,200 +275,6 @@ final class Html5Dom
         }
 
         return $dom;
-    }
-
-    private static function hasOrphanTableScopeFragment(string $html): bool
-    {
-        $tableDepth = 0;
-        foreach (self::htmlTagTokens($html) as $token) {
-            $name = $token['name'];
-            if ($name === 'table') {
-                if ($token['closing']) {
-                    $tableDepth = max(0, $tableDepth - 1);
-                } elseif (!$token['selfClosing']) {
-                    ++$tableDepth;
-                }
-                continue;
-            }
-
-            if ($tableDepth === 0 && !$token['closing'] && self::isOrphanTableScopeElementName($name)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * @return list<array{name: string, closing: bool, selfClosing: bool, start: int, end: int}>
-     */
-    private static function htmlTagTokens(string $html): array
-    {
-        $tokens = [];
-        $offset = 0;
-        $length = strlen($html);
-        while ($offset < $length) {
-            $tagStart = strpos($html, '<', $offset);
-            if ($tagStart === false || $tagStart + 1 >= $length) {
-                break;
-            }
-
-            if (str_starts_with(substr($html, $tagStart, 4), '<!--')) {
-                $commentEnd = strpos($html, '-->', $tagStart + 4);
-                $offset = $commentEnd === false ? $length : $commentEnd + 3;
-                continue;
-            }
-            if (str_starts_with(strtolower(substr($html, $tagStart, 9)), '<![cdata[')) {
-                $cdataEnd = strpos($html, ']]>', $tagStart + 9);
-                $offset = $cdataEnd === false ? $length : $cdataEnd + 3;
-                continue;
-            }
-
-            $cursor = $tagStart + 1;
-            $closing = false;
-            if ($html[$cursor] === '/') {
-                $closing = true;
-                ++$cursor;
-            }
-            if ($cursor >= $length || !self::isHtmlTagNameChar($html[$cursor])) {
-                $tagEnd = self::htmlTagSourceEndOffset($html, $tagStart);
-                $offset = $tagEnd === null ? $cursor + 1 : $tagEnd + 1;
-                continue;
-            }
-
-            $nameEnd = $cursor;
-            while ($nameEnd < $length && self::isHtmlTagNameChar($html[$nameEnd])) {
-                $nameEnd++;
-            }
-            $tagEnd = self::htmlTagSourceEndOffset($html, $tagStart);
-            if ($tagEnd === null) {
-                break;
-            }
-
-            $source = substr($html, $tagStart, $tagEnd - $tagStart + 1);
-            $tokens[] = [
-                'name' => strtolower(substr($html, $cursor, $nameEnd - $cursor)),
-                'closing' => $closing,
-                'selfClosing' => str_ends_with(rtrim($source), '/>'),
-                'start' => $tagStart,
-                'end' => $tagEnd,
-            ];
-            $offset = $tagEnd + 1;
-        }
-
-        return $tokens;
-    }
-
-    private static function wrapOrphanTableScopeRuns(string $html): string
-    {
-        $result = '';
-        $offset = 0;
-        $tableDepth = 0;
-        $orphanDepth = 0;
-        $wrapping = false;
-
-        foreach (self::htmlTagTokens($html) as $token) {
-            $before = substr($html, $offset, $token['start'] - $offset);
-            if ($wrapping && $orphanDepth === 0 && trim($before) !== '') {
-                $result .= '</table>';
-                $wrapping = false;
-            }
-            $result .= $before;
-
-            $name = $token['name'];
-            $source = substr($html, $token['start'], $token['end'] - $token['start'] + 1);
-            if ($name === 'table') {
-                if ($wrapping) {
-                    $result .= '</table>';
-                    $wrapping = false;
-                    $orphanDepth = 0;
-                }
-                $result .= $source;
-                if ($token['closing']) {
-                    $tableDepth = max(0, $tableDepth - 1);
-                } elseif (!$token['selfClosing']) {
-                    ++$tableDepth;
-                }
-                $offset = $token['end'] + 1;
-                continue;
-            }
-
-            if ($tableDepth === 0 && self::isOrphanTableScopeElementName($name)) {
-                if (!$wrapping) {
-                    $result .= '<table>';
-                    $wrapping = true;
-                }
-                $result .= $source;
-                if ($token['closing']) {
-                    $orphanDepth = max(0, $orphanDepth - 1);
-                } elseif (!$token['selfClosing'] && !self::isHtmlVoidElementName($name)) {
-                    ++$orphanDepth;
-                }
-                $offset = $token['end'] + 1;
-                continue;
-            }
-
-            if ($wrapping) {
-                $result .= '</table>';
-                $wrapping = false;
-                $orphanDepth = 0;
-            }
-            $result .= $source;
-            $offset = $token['end'] + 1;
-        }
-
-        $tail = substr($html, $offset);
-        if ($wrapping && $orphanDepth === 0 && trim($tail) !== '') {
-            $result .= '</table>';
-            $wrapping = false;
-        }
-        $result .= $tail;
-        if ($wrapping) {
-            $result .= '</table>';
-        }
-
-        return $result;
-    }
-
-    private static function isOrphanTableScopeElementName(string $name): bool
-    {
-        return in_array($name, ['caption', 'col', 'colgroup', 'tbody', 'td', 'tfoot', 'th', 'thead', 'tr'], true);
-    }
-
-    private static function isHtmlVoidElementName(string $name): bool
-    {
-        return in_array($name, ['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr'], true);
-    }
-
-    private static function htmlTagSourceEndOffset(string $html, int $start): ?int
-    {
-        $quote = null;
-        $length = strlen($html);
-        for ($offset = $start + 1; $offset < $length; $offset++) {
-            $char = $html[$offset];
-            if ($quote !== null) {
-                if ($char === $quote) {
-                    $quote = null;
-                }
-                continue;
-            }
-
-            if ($char === '"' || $char === "'") {
-                $quote = $char;
-                continue;
-            }
-
-            if ($char === '>') {
-                return $offset;
-            }
-        }
-
-        return null;
-    }
-
-    private static function isHtmlTagNameChar(string $char): bool
-    {
-        return ctype_alpha($char) || ctype_digit($char) || in_array($char, ['-', ':'], true);
     }
 
     private static function html5TreeConstructedSource(string $html): ?string
@@ -493,6 +298,154 @@ final class Html5Dom
             libxml_clear_errors();
             libxml_use_internal_errors($previous);
         }
+    }
+
+    private static function html5TreeConstructedFragmentSource(string $html): ?string
+    {
+        if (!self::nativeHtmlDocumentAvailable()) {
+            return null;
+        }
+
+        $previous = libxml_use_internal_errors(true);
+        try {
+            $normal = self::html5BodyContextFragment($html);
+            if ($normal === null) {
+                return null;
+            }
+
+            $table = self::html5TableContextFragment($html);
+            if (
+                $table !== null
+                && !self::html5ElementHasTableStructure($normal['body'])
+                && self::html5ElementChildrenHaveTableStructure($table['table'])
+            ) {
+                return $table['source'];
+            }
+
+            return $normal['source'];
+        } catch (\Throwable) {
+            return null;
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+        }
+    }
+
+    /**
+     * @return array{body:\Dom\Element, source:string}|null
+     */
+    private static function html5BodyContextFragment(string $html): ?array
+    {
+        $document = \Dom\HTMLDocument::createFromString(
+            '<!doctype html><html><body>' . $html . '</body></html>',
+            LIBXML_NOERROR | LIBXML_COMPACT,
+            'UTF-8'
+        );
+        $body = self::html5FirstElementByTagName($document, 'body');
+        if (!$body instanceof \Dom\Element) {
+            return null;
+        }
+
+        return [
+            'body' => $body,
+            'source' => self::html5SerializeChildren($document, $body),
+        ];
+    }
+
+    /**
+     * @return array{table:\Dom\Element, source:string}|null
+     */
+    private static function html5TableContextFragment(string $html): ?array
+    {
+        $document = \Dom\HTMLDocument::createFromString(
+            '<!doctype html><html><body><table id="pandoc-html-fragment-context"></table></body></html>',
+            LIBXML_NOERROR | LIBXML_COMPACT,
+            'UTF-8'
+        );
+        $table = $document->getElementById('pandoc-html-fragment-context');
+        if (!$table instanceof \Dom\HTMLElement) {
+            return null;
+        }
+
+        $table->insertAdjacentHTML(\Dom\AdjacentPosition::BeforeEnd, $html);
+
+        return [
+            'table' => $table,
+            'source' => self::html5TableContextSource($document, $table),
+        ];
+    }
+
+    private static function html5TableContextSource(\Dom\HTMLDocument $document, \Dom\Element $table): string
+    {
+        $source = '';
+        $tableChildren = '';
+        foreach ($table->childNodes as $child) {
+            if ($child instanceof \Dom\Element && self::isHtml5TableContextChildName(strtolower($child->localName))) {
+                $tableChildren .= $document->saveHtml($child);
+                continue;
+            }
+
+            if ($tableChildren !== '') {
+                $source .= '<table>' . $tableChildren . '</table>';
+                $tableChildren = '';
+            }
+
+            $source .= $document->saveHtml($child);
+        }
+
+        if ($tableChildren !== '') {
+            $source .= '<table>' . $tableChildren . '</table>';
+        }
+
+        return $source;
+    }
+
+    private static function isHtml5TableContextChildName(string $name): bool
+    {
+        return in_array($name, ['caption', 'col', 'colgroup', 'script', 'tbody', 'template', 'tfoot', 'thead', 'tr'], true);
+    }
+
+    private static function html5ElementHasTableStructure(\Dom\Element $element): bool
+    {
+        if (self::isHtml5TableStructureName(strtolower($element->localName))) {
+            return true;
+        }
+
+        return self::html5ElementChildrenHaveTableStructure($element);
+    }
+
+    private static function html5ElementChildrenHaveTableStructure(\Dom\Element $element): bool
+    {
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof \Dom\Element && self::html5ElementHasTableStructure($child)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function isHtml5TableStructureName(string $name): bool
+    {
+        return in_array($name, ['caption', 'col', 'colgroup', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'tr'], true);
+    }
+
+    private static function html5FirstElementByTagName(\Dom\HTMLDocument $document, string $name): ?\Dom\Element
+    {
+        $elements = $document->getElementsByTagName($name);
+        $element = $elements->item(0);
+
+        return $element instanceof \Dom\Element ? $element : null;
+    }
+
+    private static function html5SerializeChildren(\Dom\HTMLDocument $document, \Dom\Element $element): string
+    {
+        $source = '';
+        foreach ($element->childNodes as $child) {
+            $source .= $document->saveHtml($child);
+        }
+
+        return $source;
     }
 
     private static function loadXml(string $xml, string $label): \DOMDocument
