@@ -1,0 +1,34 @@
+Pandoc
+  Meta
+    { unMeta =
+        fromList
+          [ ( "array"
+            , MetaList
+                [ MetaMap
+                    (fromList [ ( "foo" , MetaInlines [ Str "bar" ] ) ])
+                , MetaMap (fromList [ ( "bool" , MetaBool True ) ])
+                ]
+            )
+          , ( "bool" , MetaBool True )
+          , ( "empty" , MetaList [] )
+          , ( "float" , MetaInlines [ Str "1.5" ] )
+          , ( "foo" , MetaMap (fromList []) )
+          , ( "int" , MetaInlines [ Str "7" ] )
+          , ( "more" , MetaBool False )
+          , ( "nested"
+            , MetaMap
+                (fromList
+                   [ ( "bool" , MetaBool True )
+                   , ( "empty" , MetaList [] )
+                   , ( "float" , MetaInlines [ Str "2.5" ] )
+                   , ( "int" , MetaInlines [ Str "8" ] )
+                   , ( "more" , MetaBool False )
+                   , ( "nothing" , MetaString "" )
+                   , ( "scientific" , MetaInlines [ Str "3.7e-5" ] )
+                   ])
+            )
+          , ( "nothing" , MetaString "" )
+          , ( "scientific" , MetaInlines [ Str "3.7e-5" ] )
+          ]
+    }
+  []

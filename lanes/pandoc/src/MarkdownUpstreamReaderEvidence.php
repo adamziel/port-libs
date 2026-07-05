@@ -12,9 +12,9 @@ final class MarkdownUpstreamReaderEvidence
     public const STATUS_COMPLETED = 'completed-upstream-markdown-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-markdown-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
-    public const EXPECTED_SELECTED_FIXTURE_COUNT = 106;
-    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 106;
-    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = '6253a6388c134ccb1b82dfb674101173c4af8dd253167146fb0a292af484a3f3';
+    public const EXPECTED_SELECTED_FIXTURE_COUNT = 107;
+    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 107;
+    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = '184f70c2c4e51571d2e28c1062b0c2b2418df8c8b5b191aec0deaf45b310ee00';
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/Markdown.hs',
@@ -1363,6 +1363,19 @@ final class MarkdownUpstreamReaderEvidence
             ],
             'sha256' => 'c9b0bb4fd75042f55ff3287c0519c9df48a6017a116d42403a7a99840a761ca6',
             'bytes' => 56,
+        ],
+        'upstream-markdown-yaml-typed-metadata.md' => [
+            'role' => 'markdown-yaml-typed-metadata-reader-fixture',
+            'sourceKind' => 'upstream-command-fixture',
+            'sourceReference' => 'test/command/yaml-metadata-blocks.md typed scalar/list/map cases',
+            'formatProfile' => 'markdown yaml_metadata_block typed metadata constructors',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-markdown-yaml-typed-metadata.md',
+            'coverageTests' => [
+                'lanes/pandoc/tests/MarkdownReaderYamlMetadataFixtureCompletionTest.php',
+                'lanes/pandoc/tests/YamlMetadataReviewTest.php',
+            ],
+            'sha256' => '111f6bfc28a9b9aefb6e0e2a06752b55bcac4ebf550708c8b0ec2b51862595f9',
+            'bytes' => 293,
         ],
     ];
 

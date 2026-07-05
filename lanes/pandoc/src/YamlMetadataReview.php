@@ -25,6 +25,7 @@ final class YamlMetadataReview
      * @return array{
      *     meta: array<string, mixed>,
      *     summary: array<string, mixed>,
+     *     constructorProvenance: array<string, array<string, mixed>>,
      *     provenanceByPath: array<string, list<array<string, mixed>>>,
      *     diagnosticsByPath: array<string, list<array<string, mixed>>>
      * }
@@ -41,6 +42,7 @@ final class YamlMetadataReview
         return [
             'meta' => self::stringMap($document->attr('meta', [])),
             'summary' => self::stringMap($document->attr('yamlMetadataReviewSummary', [])),
+            'constructorProvenance' => self::stringMap($document->attr('metaConstructorProvenance', [])),
             'provenanceByPath' => self::provenanceByPath($document),
             'diagnosticsByPath' => self::diagnosticsByPath($document),
         ];
@@ -81,6 +83,7 @@ final class YamlMetadataReview
      * @return array{
      *     meta: array<string, mixed>,
      *     summary: array<string, mixed>,
+     *     constructorProvenance: array<string, array<string, mixed>>,
      *     provenanceByPath: array<string, list<array<string, mixed>>>,
      *     diagnosticsByPath: array<string, list<array<string, mixed>>>
      * }|null
@@ -99,6 +102,8 @@ final class YamlMetadataReview
             'tagProvenance' => [],
             'collectionProvenance' => [],
             'aliasProvenance' => [],
+            'constructorProvenance' => [],
+            'anchorConstructorProvenance' => [],
             'diagnostics' => [],
             'collectionCount' => 0,
         ];
@@ -133,6 +138,7 @@ final class YamlMetadataReview
                 'aliasCount' => count($state['aliasProvenance']),
                 'collectionCount' => $state['collectionCount'],
             ],
+            'constructorProvenance' => self::stringMap($state['constructorProvenance']),
             'provenanceByPath' => self::yamlProvenanceByPath($state),
             'diagnosticsByPath' => $diagnosticsByPath,
         ];
@@ -232,6 +238,9 @@ final class YamlMetadataReview
         if ($countCollection) {
             self::noteYamlCollection($state);
         }
+        if ($path !== '') {
+            self::recordYamlNativeConstructor($path, ['t' => 'MetaMap', 'c' => []], $baseLine + $start, $state);
+        }
         $map = [];
         $count = count($lines);
         $index = $start;
@@ -269,8 +278,15 @@ final class YamlMetadataReview
             $blockScalar = self::yamlBlockScalarHeaderFromSource($sourceValue, $entryPath, $baseLine + $index, $state);
             if ($blockScalar !== null) {
                 [$value, $nextIndex] = self::parseYamlBlockScalar($lines, $index + 1, $lineIndent, $blockScalar);
+                self::recordYamlNativeConstructor(
+                    $entryPath,
+                    self::yamlBlockScalarNative($value),
+                    $baseLine + $index,
+                    $state
+                );
                 if (($blockScalar['anchor'] ?? null) !== null && $blockScalar['anchor'] !== '') {
                     $state['anchors'][$blockScalar['anchor']] = $value;
+                    $state['anchorConstructorProvenance'][$blockScalar['anchor']] = $state['constructorProvenance'][$entryPath] ?? null;
                 }
             } elseif ($sourceValue === '' && $nextIndent !== null && $nextIndent > $lineIndent) {
                 if (str_starts_with(trim($lines[self::nextYamlContentIndex($lines, $index + 1) ?? $index] ?? ''), '- ')) {
@@ -308,6 +324,7 @@ final class YamlMetadataReview
         int $baseLine
     ): array {
         self::noteYamlCollection($state);
+        self::recordYamlNativeConstructor($path, ['t' => 'MetaList', 'c' => []], $baseLine + $start, $state);
         $items = [];
         $count = count($lines);
         $index = $start;
@@ -338,14 +355,22 @@ final class YamlMetadataReview
             $mapping = $source === '' ? null : self::splitYamlPair($source);
             if ($mapping !== null) {
                 self::noteYamlCollection($state);
+                self::recordYamlNativeConstructor($itemPath, ['t' => 'MetaMap', 'c' => []], $baseLine + $index, $state);
                 [$sourceKey, $sourceValue] = $mapping;
                 $key = self::normalizeYamlKey($sourceKey, $state);
                 $fieldPath = self::yamlPathAppend($itemPath, $key);
                 $blockScalar = self::yamlBlockScalarHeaderFromSource($sourceValue, $fieldPath, $baseLine + $index, $state);
                 if ($blockScalar !== null) {
                     [$fieldValue, $nextIndex] = self::parseYamlBlockScalar($lines, $index + 1, $lineIndent, $blockScalar);
+                    self::recordYamlNativeConstructor(
+                        $fieldPath,
+                        self::yamlBlockScalarNative($fieldValue),
+                        $baseLine + $index,
+                        $state
+                    );
                     if (($blockScalar['anchor'] ?? null) !== null && $blockScalar['anchor'] !== '') {
                         $state['anchors'][$blockScalar['anchor']] = $fieldValue;
+                        $state['anchorConstructorProvenance'][$blockScalar['anchor']] = $state['constructorProvenance'][$fieldPath] ?? null;
                     }
                 } else {
                     $fieldValue = self::parseYamlValue($sourceValue, $fieldPath, $baseLine + $index, $state);
@@ -377,8 +402,15 @@ final class YamlMetadataReview
             $blockScalar = self::yamlBlockScalarHeaderFromSource($source, $itemPath, $baseLine + $index, $state);
             if ($blockScalar !== null) {
                 [$value, $nextIndex] = self::parseYamlBlockScalar($lines, $index + 1, $lineIndent, $blockScalar);
+                self::recordYamlNativeConstructor(
+                    $itemPath,
+                    self::yamlBlockScalarNative($value),
+                    $baseLine + $index,
+                    $state
+                );
                 if (($blockScalar['anchor'] ?? null) !== null && $blockScalar['anchor'] !== '') {
                     $state['anchors'][$blockScalar['anchor']] = $value;
+                    $state['anchorConstructorProvenance'][$blockScalar['anchor']] = $state['constructorProvenance'][$itemPath] ?? null;
                 }
                 $items[] = $value;
                 $index = $nextIndex;
@@ -539,7 +571,9 @@ final class YamlMetadataReview
         }
 
         if ($source === '') {
-            $value = null;
+            $scalar = self::parseYamlScalar($source);
+            $value = $scalar['value'];
+            self::recordYamlNativeConstructor($path, $scalar['native'], $line, $state);
         } elseif (self::isYamlAlias($source)) {
             $value = self::resolveYamlAlias(substr($source, 1), $path, $line, $state);
         } elseif ($source[0] === '{' && str_ends_with($source, '}')) {
@@ -547,11 +581,14 @@ final class YamlMetadataReview
         } elseif ($source[0] === '[' && str_ends_with($source, ']')) {
             $value = self::parseYamlFlowSequence(substr($source, 1, -1), $path, $line, $state);
         } else {
-            $value = self::unquoteYamlScalar($source);
+            $scalar = self::parseYamlScalar($source);
+            $value = $scalar['value'];
+            self::recordYamlNativeConstructor($path, $scalar['native'], $line, $state);
         }
 
         if ($anchor !== null && $anchor !== '') {
             $state['anchors'][$anchor] = self::cloneYamlValue($value);
+            $state['anchorConstructorProvenance'][$anchor] = $state['constructorProvenance'][$path] ?? null;
         }
 
         return $value;
@@ -564,6 +601,7 @@ final class YamlMetadataReview
     private static function parseYamlFlowMap(string $source, string $path, int $line, array &$state): array
     {
         self::noteYamlCollection($state);
+        self::recordYamlNativeConstructor($path, ['t' => 'MetaMap', 'c' => []], $line, $state);
         $map = [];
         foreach (self::splitYamlFlowItems($source) as $item) {
             $item = trim($item);
@@ -605,6 +643,7 @@ final class YamlMetadataReview
     private static function parseYamlFlowSequence(string $source, string $path, int $line, array &$state): array
     {
         self::noteYamlCollection($state);
+        self::recordYamlNativeConstructor($path, ['t' => 'MetaList', 'c' => []], $line, $state);
         $items = [];
         foreach (self::splitYamlFlowItems($source) as $item) {
             $items[] = self::parseYamlValue($item, self::yamlPathAppend($path, (string) count($items)), $line, $state);
@@ -827,6 +866,89 @@ final class YamlMetadataReview
         return $source;
     }
 
+    /**
+     * @return array{value:mixed, native:array<string, mixed>}
+     */
+    private static function parseYamlScalar(string $source): array
+    {
+        $trimmed = trim($source);
+        if ($trimmed === '' || preg_match('/^(?:null|~)$/i', $trimmed) === 1) {
+            return [
+                'value' => '',
+                'native' => ['t' => 'MetaString', 'c' => ''],
+            ];
+        }
+
+        if (preg_match('/^true$/i', $trimmed) === 1) {
+            return [
+                'value' => true,
+                'native' => ['t' => 'MetaBool', 'c' => true],
+            ];
+        }
+
+        if (preg_match('/^false$/i', $trimmed) === 1) {
+            return [
+                'value' => false,
+                'native' => ['t' => 'MetaBool', 'c' => false],
+            ];
+        }
+
+        $value = self::unquoteYamlScalar($trimmed);
+
+        return [
+            'value' => $value,
+            'native' => ['t' => 'MetaInlines', 'c' => self::yamlTextNativeInlines($value)],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function yamlBlockScalarNative(string $value): array
+    {
+        if ($value === '') {
+            return ['t' => 'MetaString', 'c' => ''];
+        }
+
+        return [
+            't' => 'MetaBlocks',
+            'c' => [
+                ['t' => 'Para', 'c' => self::yamlTextNativeInlines(rtrim($value, "\n"))],
+            ],
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function yamlTextNativeInlines(string $text): array
+    {
+        if ($text === '') {
+            return [];
+        }
+
+        $parts = preg_split('/([ \t]+|\n)/u', $text, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
+        if ($parts === false) {
+            $parts = [$text];
+        }
+
+        $inlines = [];
+        foreach ($parts as $part) {
+            if ($part === "\n") {
+                $inlines[] = ['t' => 'SoftBreak'];
+                continue;
+            }
+            if (preg_match('/^[ \t]+$/u', $part) === 1) {
+                $inlines[] = ['t' => 'Space'];
+                continue;
+            }
+
+            $inlines[] = ['t' => 'Str', 'c' => $part];
+        }
+
+        return $inlines;
+    }
+
     private static function isYamlAlias(string $source): bool
     {
         return preg_match('/^\*[^\s\[\]\{\},]+$/', trim($source)) === 1;
@@ -838,6 +960,9 @@ final class YamlMetadataReview
     private static function resolveYamlAlias(string $anchor, string $path, int $line, array &$state): mixed
     {
         $resolved = array_key_exists($anchor, $state['anchors']);
+        if ($resolved && is_array($state['anchorConstructorProvenance'][$anchor] ?? null)) {
+            $state['constructorProvenance'][$path] = $state['anchorConstructorProvenance'][$anchor];
+        }
         $state['aliasProvenance'][] = [
             'type' => 'yaml-alias',
             'path' => $path,
@@ -916,6 +1041,22 @@ final class YamlMetadataReview
         ];
     }
 
+    /**
+     * @param array<string, mixed> $native
+     * @param array<string, mixed> $state
+     */
+    private static function recordYamlNativeConstructor(string $path, array $native, int $line, array &$state): void
+    {
+        if ($path === '') {
+            return;
+        }
+
+        $state['constructorProvenance'][$path] = [
+            'native' => $native,
+            'sourceLine' => (string) $line,
+        ];
+    }
+
     private static function normalizeYamlTag(string $tag): string
     {
         if (str_starts_with($tag, 'tag:')) {
@@ -966,7 +1107,30 @@ final class YamlMetadataReview
                 continue;
             }
 
-            $public[$field] = $value;
+            $public[$field] = self::publicYamlValue($value);
+        }
+
+        return $public;
+    }
+
+    private static function publicYamlValue(mixed $value): mixed
+    {
+        if (!is_array($value)) {
+            return $value;
+        }
+
+        if (array_is_list($value)) {
+            return array_map(static fn (mixed $item): mixed => self::publicYamlValue($item), $value);
+        }
+
+        $public = [];
+        foreach ($value as $key => $item) {
+            $field = (string) $key;
+            if ($field === '' || str_ends_with($field, '_')) {
+                continue;
+            }
+
+            $public[$field] = self::publicYamlValue($item);
         }
 
         return $public;

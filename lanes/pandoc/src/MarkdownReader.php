@@ -688,6 +688,9 @@ final class MarkdownReader
         if (is_array($review['provenanceByPath'] ?? null) && $review['provenanceByPath'] !== []) {
             $attrs['yamlMetadataProvenanceByPath'] = $review['provenanceByPath'];
         }
+        if (is_array($review['constructorProvenance'] ?? null) && $review['constructorProvenance'] !== []) {
+            $attrs['metaConstructorProvenance'] = $review['constructorProvenance'];
+        }
         if (is_array($review['diagnosticsByPath'] ?? null) && $review['diagnosticsByPath'] !== []) {
             $attrs['yamlMetadataDiagnosticsByPath'] = $review['diagnosticsByPath'];
         }

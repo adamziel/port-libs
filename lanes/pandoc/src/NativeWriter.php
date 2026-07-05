@@ -100,8 +100,11 @@ final class NativeWriter
             return $this->renderBlockList($document->children, 0);
         }
 
+        $metaNativeValues = $this->metaNativeValues($document);
+        $metaProvenance = $this->metaConstructorProvenance($document);
+
         return 'Pandoc' . "\n"
-            . '  ' . $this->renderMeta(is_array($meta) ? $meta : []) . "\n"
+            . '  ' . $this->renderMeta(is_array($meta) ? $meta : [], $metaNativeValues, $metaProvenance) . "\n"
             . '  ' . $this->renderBlockList($document->children, 2);
     }
 
@@ -197,6 +200,9 @@ final class NativeWriter
         }
 
         foreach ($node->attrs as $attr => $value) {
+            if (in_array($attr, ['metaConstructorProvenance', 'metaNativeValues'], true)) {
+                continue;
+            }
             if (in_array($attr, self::NATIVE_COMPARISON_PROVENANCE_ATTRS, true) && $value !== null) {
                 return true;
             }
@@ -822,8 +828,10 @@ final class NativeWriter
 
     /**
      * @param array<string, mixed> $meta
+     * @param array<string, mixed> $nativeValues
+     * @param array<string, mixed> $provenance
      */
-    private function renderMeta(array $meta): string
+    private function renderMeta(array $meta, array $nativeValues = [], array $provenance = []): string
     {
         $entries = $this->normalizedMetaEntries($meta);
         if ($entries === []) {
@@ -832,10 +840,32 @@ final class NativeWriter
 
         $pairs = [];
         foreach ($entries as $key => $value) {
-            $pairs[] = '( ' . $this->quote($key) . ' , ' . $this->renderMetaValue($value) . ' )';
+            $fieldPath = [$key];
+            $sourceNative = $nativeValues[$key] ?? $this->metaProvenanceNative($provenance, $fieldPath);
+            $pairs[] = '( ' . $this->quote($key) . ' , ' . $this->renderMetaValue($value, $sourceNative, $provenance, $fieldPath) . ' )';
         }
 
         return 'Meta { unMeta = fromList [ ' . implode(' , ', $pairs) . ' ] }';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function metaNativeValues(AstNode $document): array
+    {
+        $values = $document->attr('metaNativeValues', []);
+
+        return is_array($values) && !array_is_list($values) ? $values : [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function metaConstructorProvenance(AstNode $document): array
+    {
+        $provenance = $document->attr('metaConstructorProvenance', []);
+
+        return is_array($provenance) && !array_is_list($provenance) ? $provenance : [];
     }
 
     /**
@@ -894,8 +924,18 @@ final class NativeWriter
         return $entries;
     }
 
-    private function renderMetaValue(mixed $value): string
+    /**
+     * @param list<string> $path
+     */
+    private function renderMetaValue(mixed $value, mixed $sourceNative = null, array $provenance = [], array $path = []): string
     {
+        if (is_array($sourceNative) && $this->isTaggedMetaNativeValue($sourceNative)) {
+            $rendered = $this->renderMetaValueFromNative($sourceNative, $value, $provenance, $path);
+            if ($rendered !== null) {
+                return $rendered;
+            }
+        }
+
         if (is_array($value) && isset($value['type'])) {
             $type = (string) $value['type'];
             $payload = $value['value'] ?? null;
@@ -903,7 +943,12 @@ final class NativeWriter
             return match ($type) {
                 'MetaInlines' => 'MetaInlines ' . $this->renderInlineList(is_array($payload) ? $payload : []),
                 'MetaBlocks' => 'MetaBlocks ' . $this->renderBlockList(is_array($payload) ? $payload : [], 0),
-                'MetaList' => 'MetaList [ ' . implode(' , ', array_map(fn (mixed $item): string => $this->renderMetaValue($item), is_array($payload) ? $payload : [])) . ' ]',
+                'MetaList' => 'MetaList [ ' . implode(' , ', $this->renderMetaListItems(is_array($payload) && array_is_list($payload) ? $payload : [], $provenance, $path)) . ' ]',
+                'MetaMap' => 'MetaMap (fromList [ ' . implode(' , ', $this->renderMetaMapPairs(is_array($payload) && !array_is_list($payload) ? $payload : [], $provenance, $path)) . ' ])',
+                'inlines' => 'MetaInlines ' . $this->renderInlineList($this->metaTypedChildren($value)),
+                'blocks' => 'MetaBlocks ' . $this->renderBlockList($this->metaTypedChildren($value), 0),
+                'list' => 'MetaList [ ' . implode(' , ', $this->renderMetaListItems(is_array($value['items'] ?? null) && array_is_list($value['items']) ? $value['items'] : [], $provenance, $path)) . ' ]',
+                'map' => 'MetaMap (fromList [ ' . implode(' , ', $this->renderMetaMapPairs(is_array($value['items'] ?? null) && !array_is_list($value['items']) ? $value['items'] : [], $provenance, $path)) . ' ])',
                 default => 'MetaString ' . $this->quote((string) $payload),
             };
         }
@@ -935,19 +980,166 @@ final class NativeWriter
             }
 
             if ($this->isList($value)) {
-                return 'MetaList [ ' . implode(' , ', array_map(fn (mixed $item): string => $this->renderMetaValue($item), $value)) . ' ]';
+                return 'MetaList [ ' . implode(' , ', $this->renderMetaListItems($value, $provenance, $path)) . ' ]';
             }
 
-            ksort($value);
-            $pairs = [];
-            foreach ($value as $key => $item) {
-                $pairs[] = '( ' . $this->quote((string) $key) . ' , ' . $this->renderMetaValue($item) . ' )';
-            }
-
-            return 'MetaMap (fromList [ ' . implode(' , ', $pairs) . ' ])';
+            return 'MetaMap (fromList [ ' . implode(' , ', $this->renderMetaMapPairs($value, $provenance, $path)) . ' ])';
         }
 
         return 'MetaString ' . $this->quote((string) $value);
+    }
+
+    /**
+     * @param array<string, mixed> $native
+     * @param list<string> $path
+     */
+    private function renderMetaValueFromNative(array $native, mixed $value, array $provenance, array $path): ?string
+    {
+        $constructor = (string) ($native['t'] ?? '');
+        $content = $native['c'] ?? null;
+
+        return match ($constructor) {
+            'MetaString' => 'MetaString ' . $this->quote((string) ($this->singleWrappedMetaContent($content) ?? (is_scalar($value) ? $value : ''))),
+            'MetaBool' => 'MetaBool ' . (($this->singleWrappedMetaContent($content) === true || $value === true) ? 'True' : 'False'),
+            'MetaInlines' => 'MetaInlines ' . $this->renderNativeInlineListOrFallback($content, $value),
+            'MetaBlocks' => 'MetaBlocks ' . $this->renderNativeBlockListOrFallback($content, $value),
+            'MetaList' => 'MetaList [ ' . implode(' , ', $this->renderMetaListItems(is_array($value) && array_is_list($value) ? $value : [], $provenance, $path)) . ' ]',
+            'MetaMap' => 'MetaMap (fromList [ ' . implode(' , ', $this->renderMetaMapPairs(is_array($value) && !array_is_list($value) ? $value : [], $provenance, $path)) . ' ])',
+            default => null,
+        };
+    }
+
+    /**
+     * @param list<mixed> $items
+     * @return list<string>
+     */
+    private function renderMetaListItems(array $items, array $provenance, array $path): array
+    {
+        $rendered = [];
+        foreach ($items as $index => $item) {
+            $itemPath = [...$path, (string) $index];
+            $rendered[] = $this->renderMetaValue(
+                $item,
+                $this->metaProvenanceNative($provenance, $itemPath),
+                $provenance,
+                $itemPath
+            );
+        }
+
+        return $rendered;
+    }
+
+    /**
+     * @param array<string, mixed> $items
+     * @param list<string> $path
+     * @return list<string>
+     */
+    private function renderMetaMapPairs(array $items, array $provenance, array $path): array
+    {
+        ksort($items);
+        $pairs = [];
+        foreach ($items as $key => $item) {
+            $field = (string) $key;
+            $fieldPath = [...$path, $field];
+            $pairs[] = '( ' . $this->quote($field) . ' , ' . $this->renderMetaValue(
+                $item,
+                $this->metaProvenanceNative($provenance, $fieldPath),
+                $provenance,
+                $fieldPath
+            ) . ' )';
+        }
+
+        return $pairs;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function metaTypedChildren(array $value): array
+    {
+        $children = $value['children'] ?? [];
+        if (!is_array($children) || !array_is_list($children)) {
+            return [];
+        }
+
+        return array_values(array_filter($children, static fn (mixed $child): bool => $child instanceof AstNode));
+    }
+
+    /**
+     * @param list<string> $path
+     */
+    private function metaProvenanceNative(array $provenance, array $path): mixed
+    {
+        $entry = $provenance[$this->metaProvenancePath($path)] ?? null;
+
+        return is_array($entry) && is_array($entry['native'] ?? null) ? $entry['native'] : null;
+    }
+
+    /**
+     * @param list<string> $path
+     */
+    private function metaProvenancePath(array $path): string
+    {
+        if ($path === []) {
+            return '/';
+        }
+
+        return '/' . implode('/', array_map(
+            static fn (string $part): string => strtr($part, ['~' => '~0', '/' => '~1']),
+            $path
+        ));
+    }
+
+    /**
+     * @param array<string, mixed> $value
+     */
+    private function isTaggedMetaNativeValue(array $value): bool
+    {
+        return !array_is_list($value)
+            && is_string($value['t'] ?? null)
+            && in_array($value['t'], self::NATIVE_METADATA_CONSTRUCTORS, true);
+    }
+
+    private function renderNativeInlineListOrFallback(mixed $content, mixed $value): string
+    {
+        $inlines = $this->singleWrappedMetaListContent($content);
+        if (is_array($inlines) && array_is_list($inlines)) {
+            return $this->renderNativeValue($inlines);
+        }
+
+        return $this->renderInlineList($this->textInlines(is_scalar($value) ? (string) $value : ''));
+    }
+
+    private function renderNativeBlockListOrFallback(mixed $content, mixed $value): string
+    {
+        $blocks = $this->singleWrappedMetaListContent($content);
+        if (is_array($blocks) && array_is_list($blocks)) {
+            return $this->renderNativeValue($blocks);
+        }
+
+        return $this->renderBlockList(is_string($value) && $value !== '' ? [
+            new AstNode('paragraph', [], $this->textInlines($value)),
+        ] : [], 0);
+    }
+
+    private function singleWrappedMetaContent(mixed $content): mixed
+    {
+        return is_array($content) && array_is_list($content) && count($content) === 1 ? $content[0] : $content;
+    }
+
+    private function singleWrappedMetaListContent(mixed $content): mixed
+    {
+        if (
+            is_array($content)
+            && array_is_list($content)
+            && count($content) === 1
+            && is_array($content[0])
+            && array_is_list($content[0])
+        ) {
+            return $content[0];
+        }
+
+        return $content;
     }
 
     /**

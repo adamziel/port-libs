@@ -101,4 +101,59 @@ return [
             $t->same('true', $entries[0]['resolved'] ?? null);
         }
     },
+    'records pandoc yaml metadata native constructors by path' => static function (TestRunner $t): void {
+        $review = YamlMetadataReview::fromMarkdown(implode("\n", [
+            '---',
+            'foobar_: this should be ignored',
+            'foo:',
+            '  bar_: as should this',
+            'int: 7',
+            'float: 1.5',
+            'scientific: 3.7e-5',
+            'bool: true',
+            'more: False',
+            'nothing: null',
+            'empty: []',
+            'nested:',
+            '  int: 8',
+            '  empty: []',
+            'array:',
+            '  - foo: bar',
+            '  - bool: True',
+            '...',
+        ]));
+
+        $meta = $review['meta'];
+        $constructors = $review['constructorProvenance'];
+
+        $t->same([], $meta['foo'] ?? null);
+        $t->same('7', $meta['int'] ?? null);
+        $t->same('1.5', $meta['float'] ?? null);
+        $t->same('3.7e-5', $meta['scientific'] ?? null);
+        $t->same(true, $meta['bool'] ?? null);
+        $t->same(false, $meta['more'] ?? null);
+        $t->same('', $meta['nothing'] ?? null);
+        $t->same([], $meta['empty'] ?? null);
+        $t->same('8', $meta['nested']['int'] ?? null);
+        $t->same('bar', $meta['array'][0]['foo'] ?? null);
+        $t->same(true, $meta['array'][1]['bool'] ?? null);
+
+        $t->same('MetaMap', $constructors['/foo']['native']['t'] ?? null);
+        $t->same('MetaInlines', $constructors['/int']['native']['t'] ?? null);
+        $t->same('Str', $constructors['/int']['native']['c'][0]['t'] ?? null);
+        $t->same('7', $constructors['/int']['native']['c'][0]['c'] ?? null);
+        $t->same('MetaBool', $constructors['/bool']['native']['t'] ?? null);
+        $t->same(true, $constructors['/bool']['native']['c'] ?? null);
+        $t->same('MetaBool', $constructors['/more']['native']['t'] ?? null);
+        $t->same(false, $constructors['/more']['native']['c'] ?? null);
+        $t->same('MetaString', $constructors['/nothing']['native']['t'] ?? null);
+        $t->same('', $constructors['/nothing']['native']['c'] ?? null);
+        $t->same('MetaList', $constructors['/empty']['native']['t'] ?? null);
+        $t->same('MetaMap', $constructors['/nested']['native']['t'] ?? null);
+        $t->same('MetaList', $constructors['/nested/empty']['native']['t'] ?? null);
+        $t->same('MetaList', $constructors['/array']['native']['t'] ?? null);
+        $t->same('MetaMap', $constructors['/array/0']['native']['t'] ?? null);
+        $t->same('MetaInlines', $constructors['/array/0/foo']['native']['t'] ?? null);
+        $t->same('MetaBool', $constructors['/array/1/bool']['native']['t'] ?? null);
+    },
 ];

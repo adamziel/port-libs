@@ -94,6 +94,7 @@ final class MarkdownNativeAstComparisonHarness
         'htmlAttributes' => true,
         'legacyTableCellBlocksNative' => true,
         'meta' => true,
+        'metaConstructorProvenance' => true,
         'native' => true,
         'nativeInlineConstructors' => true,
         'nativeInlineParts' => true,
