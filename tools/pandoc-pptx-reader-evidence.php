@@ -53,6 +53,7 @@ $summaryReport = static function (array $report): array {
     $staticDenominator = is_array($staticEvidence['readerDenominator'] ?? null) ? $staticEvidence['readerDenominator'] : [];
     $staticNativeParity = is_array($staticEvidence['nativeAstMappedParity'] ?? null) ? $staticEvidence['nativeAstMappedParity'] : [];
     $staticExecutableParity = is_array($staticEvidence['executableNativeAstMappedParity'] ?? null) ? $staticEvidence['executableNativeAstMappedParity'] : [];
+    $staticReviewMetadata = is_array($staticEvidence['checkedInReviewMetadata'] ?? null) ? $staticEvidence['checkedInReviewMetadata'] : [];
 
     return [
         'schemaVersion' => $report['schemaVersion'] ?? null,
@@ -116,6 +117,14 @@ $summaryReport = static function (array $report): array {
                 'hasRequiredExecutableParity' => $staticExecutableParity['hasRequiredExecutableParity'] ?? false,
                 'hasRequiredPandocVersion' => $staticExecutableParity['hasRequiredPandocVersion'] ?? false,
                 'validation' => $staticExecutableParity['validation'] ?? [],
+            ],
+            'checkedInReviewMetadata' => [
+                'kind' => $staticReviewMetadata['kind'] ?? null,
+                'fixtureCount' => $staticReviewMetadata['fixtureCount'] ?? 0,
+                'chartReviewFixtureCount' => $staticReviewMetadata['chartReviewFixtureCount'] ?? 0,
+                'chartReviewCount' => $staticReviewMetadata['chartReviewCount'] ?? 0,
+                'fixtures' => $staticReviewMetadata['fixtures'] ?? [],
+                'validation' => $staticReviewMetadata['validation'] ?? [],
             ],
             'validation' => $staticEvidence['validation'] ?? [],
         ],

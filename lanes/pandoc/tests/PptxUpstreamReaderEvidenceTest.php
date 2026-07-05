@@ -347,6 +347,24 @@ return [
         $static = $report['staticCurrentEvidence'];
         $nativeParity = $static['nativeAstMappedParity'];
         $executableParity = $static['executableNativeAstMappedParity'];
+        $reviewMetadata = $static['checkedInReviewMetadata'];
+        $reviewFixture = $reviewMetadata['fixtures'][0];
+        $reviewChart = $reviewFixture['charts'][0];
+        $expectedChartPlaceholderReview = [
+            'graphicUri' => 'http://schemas.openxmlformats.org/drawingml/2006/chart',
+            'relationshipId' => 'rIdChart1',
+            'relationshipType' => '',
+            'target' => '',
+            'partName' => '',
+            'external' => false,
+            'title' => '',
+            'chartType' => 'unknown',
+            'series' => [],
+            'externalDataRelationshipIds' => [],
+            'issues' => ['unknown-chart-relationship'],
+            'byteExposurePolicy' => 'chart-part-bytes-blocked',
+            'reviewPolicy' => 'chart-metadata-and-cache-values-only',
+        ];
         $pairsByStem = [];
         foreach ($static['checkedInFixturePairs'] as $fixturePair) {
             $pairsByStem[$fixturePair['stem']] = $fixturePair;
@@ -505,6 +523,16 @@ return [
         $t->same(true, $executableParity['hasRequiredExecutableParity']);
         $t->same(true, $executableParity['hasRequiredPandocVersion']);
         $t->same(true, PptxUpstreamReaderEvidence::hasRequiredStaticExecutableNativeAstParity($report));
+        $t->same(true, PptxUpstreamReaderEvidence::hasRequiredStaticReviewMetadata($report));
+        $t->same('checked-in-current-pptx-review-metadata', $reviewMetadata['kind']);
+        $t->same('valid-checked-in-current-pptx-review-metadata', $reviewMetadata['validation']['status']);
+        $t->same([], $reviewMetadata['validation']['issues']);
+        $t->same(1, $reviewMetadata['fixtureCount']);
+        $t->same(1, $reviewMetadata['chartReviewFixtureCount']);
+        $t->same(1, $reviewMetadata['chartReviewCount']);
+        $t->same('chart-placeholder', $reviewFixture['stem']);
+        $t->same(1, $reviewFixture['chartCount']);
+        $t->same($expectedChartPlaceholderReview, $reviewChart);
         $t->same('basic', $pair['stem']);
         $t->same('pptx-reader/basic.pptx|pptx-reader/basic.native', $pair['pairKey']);
         $t->same('e48fd9c2f8369d1792197e301d5fea676bf6e51097a24af7d85831a6f96dc2dc', $pair['checkedInPptx']['sha256']);
@@ -1263,6 +1291,7 @@ return [
         $t->contains('Static current evidence: valid-checked-in-current-pptx-reader-evidence comparisons=1 checkedInPairs=94', $text);
         $t->contains('Static native AST mapped parity: normalized-ast-equality-observed-not-runner-parity matches=94 mismatches=0 required=94', $text);
         $t->contains('Static executable native AST parity: normalized-ast-equality-observed-against-pandoc-executable matches=94 mismatches=0 required=94', $text);
+        $t->contains('Static checked-in review metadata: valid-checked-in-current-pptx-review-metadata chartFixtures=1 charts=1', $text);
         $t->contains('Runner status: not-run', $text);
         $t->contains('Runner plan: planned-not-run', $text);
     },
@@ -1328,6 +1357,9 @@ HS);
         $t->same(true, PptxUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($decoded));
         $t->same(true, PptxUpstreamReaderEvidence::hasRequiredStaticNativeMappedParity($decoded));
         $t->same(true, PptxUpstreamReaderEvidence::hasRequiredStaticExecutableNativeAstParity($decoded));
+        $t->same(true, PptxUpstreamReaderEvidence::hasRequiredStaticReviewMetadata($decoded));
+        $t->same('valid-checked-in-current-pptx-review-metadata', $decoded['staticCurrentEvidence']['checkedInReviewMetadata']['validation']['status']);
+        $t->same(1, $decoded['staticCurrentEvidence']['checkedInReviewMetadata']['chartReviewCount']);
         $t->same(true, PptxUpstreamReaderEvidence::hasRunnerNotRunEvidence($decoded));
         $t->same(true, PptxUpstreamReaderEvidence::hasRunnerPlanEvidence($decoded));
         $t->same('not-run', $decoded['runnerEvidence']['status']);

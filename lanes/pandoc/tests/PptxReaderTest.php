@@ -18622,6 +18622,39 @@ XML);
         $t->true(!str_contains($native, 'Unexpected Chart Root'), 'Chart shape names should stay metadata-only');
     },
 
+    'records checked-in pptx chart placeholder metadata while preserving native parity' => static function (TestRunner $t) use ($nodesOfType): void {
+        $path = dirname(__DIR__) . '/fixtures/upstream-current-pptx-reader/chart-placeholder.pptx';
+        $document = (new PptxReader())->read((string) file_get_contents($path));
+        $review = $document->attr('pptx');
+        $paragraphs = $nodesOfType($document, 'paragraph');
+        $native = PandocConverter::write($document, 'native');
+        $expectedChart = [
+            'graphicUri' => 'http://schemas.openxmlformats.org/drawingml/2006/chart',
+            'relationshipId' => 'rIdChart1',
+            'relationshipType' => '',
+            'target' => '',
+            'partName' => '',
+            'external' => false,
+            'title' => '',
+            'chartType' => 'unknown',
+            'series' => [],
+            'externalDataRelationshipIds' => [],
+            'issues' => ['unknown-chart-relationship'],
+            'byteExposurePolicy' => 'chart-part-bytes-blocked',
+            'reviewPolicy' => 'chart-metadata-and-cache-values-only',
+        ];
+
+        $t->same('Chart placeholder deck', $document->children[0]->attr('text'));
+        $t->same('[Graphic: other: http://schemas.openxmlformats.org/drawingml/2006/chart]', $paragraphs[0]->attr('text'));
+        $t->same(1, $review['slideCount'] ?? null);
+        $t->same(1, $review['slides'][0]['chartCount'] ?? null);
+        $t->same([$expectedChart], $review['slides'][0]['charts'] ?? null);
+        $t->same($expectedChart, $paragraphs[0]->attr('pptxChart') ?? null);
+        $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Chart" , Space , Str "placeholder" , Space , Str "deck" ]', $native);
+        $t->contains('Para [ Str "[Graphic:" , Space , Str "other:" , Space , Str "http://schemas.openxmlformats.org/drawingml/2006/chart]" ]', $native);
+        $t->true(!str_contains($native, 'rIdChart1'), 'Chart relationship ids should stay review metadata only');
+    },
+
     'uses only the first pptx graphic and graphicData children like upstream' => static function (TestRunner $t) use ($buildFirstGraphicDataPptxPackage, $nodesOfType): void {
         $document = (new PptxReader())->read($buildFirstGraphicDataPptxPackage());
         $review = $document->attr('pptx');

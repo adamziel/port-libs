@@ -1290,6 +1290,8 @@ final class PptxUpstreamReaderEvidence
         $staticDenominator = is_array($staticEvidence['readerDenominator'] ?? null) ? $staticEvidence['readerDenominator'] : [];
         $staticNativeParity = is_array($staticEvidence['nativeAstMappedParity'] ?? null) ? $staticEvidence['nativeAstMappedParity'] : [];
         $staticExecutableParity = is_array($staticEvidence['executableNativeAstMappedParity'] ?? null) ? $staticEvidence['executableNativeAstMappedParity'] : [];
+        $staticReviewMetadata = is_array($staticEvidence['checkedInReviewMetadata'] ?? null) ? $staticEvidence['checkedInReviewMetadata'] : [];
+        $staticReviewMetadataValidation = is_array($staticReviewMetadata['validation'] ?? null) ? $staticReviewMetadata['validation'] : [];
         $runner = is_array($report['runnerEvidence'] ?? null) ? $report['runnerEvidence'] : [];
         $runnerResultLine = self::hasRunnerResultArtifactEvidence($report)
             ? 'Supplied upstream Haskell/Cabal runner result artifact is validated; PPTX writer parity and full PowerPoint feature parity are not asserted.'
@@ -1317,6 +1319,9 @@ final class PptxUpstreamReaderEvidence
                 . ' matches=' . (int) ($staticExecutableParity['normalizedAstMatchCount'] ?? 0)
                 . ' mismatches=' . (int) ($staticExecutableParity['normalizedAstMismatchCount'] ?? 0)
                 . ' required=' . (int) ($staticExecutableParity['requiredPptxCount'] ?? self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT),
+            'Static checked-in review metadata: ' . (string) ($staticReviewMetadataValidation['status'] ?? 'unknown')
+                . ' chartFixtures=' . (int) ($staticReviewMetadata['chartReviewFixtureCount'] ?? 0)
+                . ' charts=' . (int) ($staticReviewMetadata['chartReviewCount'] ?? 0),
             'Runner status: ' . (string) ($runner['status'] ?? 'unknown'),
             'Runner plan: ' . (string) ($runner['commandPlanStatus'] ?? 'unknown'),
             'Runner result artifact: ' . (string) (($runner['validation']['status'] ?? null) ?? 'not-evaluated'),
@@ -1391,6 +1396,7 @@ final class PptxUpstreamReaderEvidence
             && (int) ($denominator['expectedCompareCount'] ?? -1) === self::EXPECTED_STATIC_READER_TEST_COMPARE_COUNT
             && (int) ($evidence['checkedInFixturePairCount'] ?? -1) === self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT
             && self::hasRequiredStaticNativeMappedParity($report)
+            && self::hasRequiredStaticReviewMetadata($report)
             && self::hasRequiredStaticExecutableNativeAstParity($report);
     }
 
@@ -1411,6 +1417,29 @@ final class PptxUpstreamReaderEvidence
             && (int) ($parity['normalizedAstMatchCount'] ?? -1) === self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT
             && (int) ($parity['normalizedAstMismatchCount'] ?? -1) === 0
             && ($parity['astParityStatus'] ?? null) === 'normalized-ast-equality-observed-not-runner-parity';
+    }
+
+    /**
+     * @param array<string, mixed> $report
+     */
+    public static function hasRequiredStaticReviewMetadata(array $report): bool
+    {
+        $evidence = is_array($report['staticCurrentEvidence'] ?? null) ? $report['staticCurrentEvidence'] : [];
+        $review = is_array($evidence['checkedInReviewMetadata'] ?? null) ? $evidence['checkedInReviewMetadata'] : [];
+        $validation = is_array($review['validation'] ?? null) ? $review['validation'] : [];
+        $fixtures = is_array($review['fixtures'] ?? null) ? $review['fixtures'] : [];
+        $fixture = is_array($fixtures[0] ?? null) ? $fixtures[0] : [];
+        $charts = is_array($fixture['charts'] ?? null) ? $fixture['charts'] : [];
+        $chart = is_array($charts[0] ?? null) ? $charts[0] : [];
+
+        return ($validation['status'] ?? null) === 'valid-checked-in-current-pptx-review-metadata'
+            && ($validation['issues'] ?? null) === []
+            && (int) ($review['fixtureCount'] ?? -1) === 1
+            && (int) ($review['chartReviewFixtureCount'] ?? -1) === 1
+            && (int) ($review['chartReviewCount'] ?? -1) === 1
+            && ($fixture['stem'] ?? null) === 'chart-placeholder'
+            && (int) ($fixture['chartCount'] ?? -1) === 1
+            && $chart === self::expectedChartPlaceholderReview();
     }
 
     /**
@@ -2103,6 +2132,7 @@ final class PptxUpstreamReaderEvidence
         $nativeAstReport = (new PptxNativeAstComparisonHarness())->run($fixtureDirectory);
         $nativeAstMappedParity = self::nativeAstMappedParityEvidence($nativeAstReport);
         $executableNativeAstMappedParity = $this->executableNativeAstSnapshotEvidence();
+        $checkedInReviewMetadata = $this->checkedInReviewMetadataEvidence($fixtureDirectory);
 
         $issues = [];
         if (!is_dir($fixtureDirectory)) {
@@ -2131,6 +2161,10 @@ final class PptxUpstreamReaderEvidence
         $executableValidation = is_array($executableNativeAstMappedParity['validation'] ?? null) ? $executableNativeAstMappedParity['validation'] : [];
         if (($executableValidation['issues'] ?? []) !== []) {
             $issues[] = 'checked-in-current-executable-native-ast-snapshot-invalid';
+        }
+        $reviewMetadataValidation = is_array($checkedInReviewMetadata['validation'] ?? null) ? $checkedInReviewMetadata['validation'] : [];
+        if (($reviewMetadataValidation['issues'] ?? []) !== []) {
+            $issues[] = 'checked-in-current-review-metadata-invalid';
         }
 
         $snapshotPairs = [];
@@ -2198,6 +2232,7 @@ final class PptxUpstreamReaderEvidence
             'checkedInUnpairedNativeFixtures' => $checkedInUnpairedFixtures['native'],
             'nativeAstMappedParity' => $nativeAstMappedParity,
             'executableNativeAstMappedParity' => $executableNativeAstMappedParity,
+            'checkedInReviewMetadata' => $checkedInReviewMetadata,
             'validation' => [
                 'status' => $issues === [] ? 'valid-checked-in-current-pptx-reader-evidence' : 'invalid-checked-in-current-pptx-reader-evidence',
                 'issues' => array_values(array_unique($issues)),
@@ -2210,6 +2245,7 @@ final class PptxUpstreamReaderEvidence
                     'the checked-in ' . self::fixturePairNameList(self::checkedInStaticFixturePairNames()) . ' files match the expected SHA-256 hashes and byte counts for this snapshot',
                     'local PHP PPTX reader output matches all ' . self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT . ' checked-in current PPTX/native pairs by normalized AST shape',
                     'checked-in executable native AST evidence shows pandoc 3.10, local PHP output, and paired .native fixtures match all ' . self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT . ' checked-in current PPTX fixtures by normalized AST shape',
+                    'checked-in chart-placeholder.pptx exposes one chart review metadata record with metadata-only byte exposure',
                 ],
                 'doesNotAssert' => [
                     'that upstream Haskell/Cabal/Tasty tests were executed',
@@ -2222,6 +2258,123 @@ final class PptxUpstreamReaderEvidence
                     'full PowerPoint feature parity',
                 ],
             ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function checkedInReviewMetadataEvidence(string $fixtureDirectory): array
+    {
+        $snapshot = self::CHECKED_IN_CURRENT_FIXTURE_SNAPSHOT['chart-placeholder'] ?? null;
+        $issues = [];
+        $fixtures = [];
+        $chartReviewFixtureCount = 0;
+        $chartReviewCount = 0;
+
+        if (!is_array($snapshot)) {
+            $issues[] = 'missing-chart-placeholder-static-snapshot';
+        } else {
+            $pptx = $this->snapshotFileEvidence(
+                (string) $snapshot['pptxPath'],
+                (string) $snapshot['pptxSha256'],
+                (int) $snapshot['pptxBytes']
+            );
+            $charts = [];
+            $path = $fixtureDirectory . DIRECTORY_SEPARATOR . 'chart-placeholder.pptx';
+            if (($pptx['present'] ?? false) !== true || !is_file($path)) {
+                $issues[] = 'missing-chart-placeholder-pptx-fixture';
+            } else {
+                try {
+                    $document = (new PptxReader())->read((string) file_get_contents($path));
+                    $review = $document->attr('pptx');
+                    $slides = is_array($review['slides'] ?? null) ? $review['slides'] : [];
+                    $slide = is_array($slides[0] ?? null) ? $slides[0] : [];
+                    foreach (is_array($slide['charts'] ?? null) ? $slide['charts'] : [] as $chart) {
+                        if (is_array($chart)) {
+                            $charts[] = self::compactChartReview($chart);
+                        }
+                    }
+                } catch (\Throwable) {
+                    $issues[] = 'chart-placeholder-pptx-review-metadata-read-failed';
+                }
+            }
+
+            $chartCount = count($charts);
+            if ($chartCount > 0) {
+                ++$chartReviewFixtureCount;
+                $chartReviewCount += $chartCount;
+            }
+            if ($charts !== [self::expectedChartPlaceholderReview()]) {
+                $issues[] = 'chart-placeholder-pptx-review-metadata-mismatch';
+            }
+
+            $fixtures[] = [
+                'stem' => 'chart-placeholder',
+                'pptx' => (string) $snapshot['pptx'],
+                'checkedInPptx' => $pptx,
+                'chartCount' => $chartCount,
+                'charts' => $charts,
+            ];
+        }
+
+        return [
+            'kind' => 'checked-in-current-pptx-review-metadata',
+            'fixtureScope' => 'checked-in PPTX review metadata records that are intentionally excluded from native AST parity',
+            'fixtureCount' => count($fixtures),
+            'chartReviewFixtureCount' => $chartReviewFixtureCount,
+            'chartReviewCount' => $chartReviewCount,
+            'fixtures' => $fixtures,
+            'validation' => [
+                'status' => $issues === [] ? 'valid-checked-in-current-pptx-review-metadata' : 'invalid-checked-in-current-pptx-review-metadata',
+                'issues' => array_values(array_unique($issues)),
+            ],
+            'claim' => 'Static gate binding checked-in PPTX review metadata that is not exposed in native writer output.',
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $chart
+     * @return array<string, mixed>
+     */
+    private static function compactChartReview(array $chart): array
+    {
+        return [
+            'graphicUri' => (string) ($chart['graphicUri'] ?? ''),
+            'relationshipId' => (string) ($chart['relationshipId'] ?? ''),
+            'relationshipType' => (string) ($chart['relationshipType'] ?? ''),
+            'target' => (string) ($chart['target'] ?? ''),
+            'partName' => (string) ($chart['partName'] ?? ''),
+            'external' => (bool) ($chart['external'] ?? false),
+            'title' => (string) ($chart['title'] ?? ''),
+            'chartType' => (string) ($chart['chartType'] ?? ''),
+            'series' => is_array($chart['series'] ?? null) ? $chart['series'] : [],
+            'externalDataRelationshipIds' => self::stringList($chart['externalDataRelationshipIds'] ?? []),
+            'issues' => self::stringList($chart['issues'] ?? []),
+            'byteExposurePolicy' => (string) ($chart['byteExposurePolicy'] ?? ''),
+            'reviewPolicy' => (string) ($chart['reviewPolicy'] ?? ''),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function expectedChartPlaceholderReview(): array
+    {
+        return [
+            'graphicUri' => 'http://schemas.openxmlformats.org/drawingml/2006/chart',
+            'relationshipId' => 'rIdChart1',
+            'relationshipType' => '',
+            'target' => '',
+            'partName' => '',
+            'external' => false,
+            'title' => '',
+            'chartType' => 'unknown',
+            'series' => [],
+            'externalDataRelationshipIds' => [],
+            'issues' => ['unknown-chart-relationship'],
+            'byteExposurePolicy' => 'chart-part-bytes-blocked',
+            'reviewPolicy' => 'chart-metadata-and-cache-values-only',
         ];
     }
 
