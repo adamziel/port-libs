@@ -79,6 +79,16 @@ $tests['keeps html tree construction centralized through Html5Dom'] =
         $xmlHtmlDomSource = (string) file_get_contents($sourceRoot . '/XmlHtmlDom.php');
         $xmlHtmlDomFragmentSource = (string) file_get_contents($sourceRoot . '/XmlHtmlDomFragment.php');
         $html5DomFragmentSource = (string) file_get_contents($sourceRoot . '/Html5DomFragment.php');
+        $sourceFiles = [];
+        $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($sourceRoot, FilesystemIterator::SKIP_DOTS));
+        foreach ($iterator as $fileInfo) {
+            if (!$fileInfo instanceof SplFileInfo || $fileInfo->getExtension() !== 'php') {
+                continue;
+            }
+
+            $path = $fileInfo->getPathname();
+            $sourceFiles[str_replace($sourceRoot . '/', '', $path)] = (string) file_get_contents($path);
+        }
 
         foreach ([
             'HtmlReader.php' => $htmlReaderSource,
@@ -88,6 +98,14 @@ $tests['keeps html tree construction centralized through Html5Dom'] =
             $t->true(!str_contains($source, 'HTMLDocument::createFromString'), "{$file} must not bypass Html5Dom with Dom\\HTMLDocument");
             $t->true(!str_contains($source, 'new \\DOMDocument'), "{$file} must not construct DOMDocument directly for HTML parsing");
             $t->true(!str_contains($source, 'new DOMDocument'), "{$file} must not construct DOMDocument directly for HTML parsing");
+        }
+        foreach ($sourceFiles as $file => $source) {
+            if ($file === 'Html5Dom.php') {
+                continue;
+            }
+
+            $t->true(!str_contains($source, '->loadHTML('), "{$file} must not bypass Html5Dom with DOMDocument::loadHTML");
+            $t->true(!str_contains($source, 'HTMLDocument::createFromString'), "{$file} must not bypass Html5Dom with Dom\\HTMLDocument");
         }
         foreach (['preg_', 'rawHtmlOpeningTagAt', 'rawHtmlClosingTagAt', 'markdownRawHtml'] as $parserFragment) {
             $t->true(!str_contains($htmlReaderSource, $parserFragment), "HtmlReader must not parse HTML source via {$parserFragment}");

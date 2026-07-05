@@ -39,6 +39,7 @@ jobs:
 
       - name: Lint HTML and delimited parity files
         run: |
+          php -r 'if (!class_exists("Dom\\HTMLDocument")) { fwrite(STDERR, "Dom\\HTMLDocument is required for HTML reader parity\n"); exit(1); }'
           php -l lanes/pandoc/src/AstNode.php
           php -l lanes/pandoc/src/DelimitedTextReader.php
           php -l lanes/pandoc/src/DelimitedTextUpstreamReaderEvidence.php
