@@ -119,6 +119,26 @@ $tests['routes public html reader HTML5 repairs through HTMLDocument when availa
         $t->same('three', $document->children[1]->children[1]->attr('text'));
     };
 
+$tests['uses HTMLDocument for parser-hard html5 tree construction cases'] =
+    static function (TestRunner $t): void {
+        $source = '<!doctype html><html><body><p><a><b>one</a>two</b><table><tr><td>A</td></tr>loose</table><select><option>One<option>Two</select><p>tail</body></html>';
+        $document = (new HtmlReader())->read($source);
+        $meta = $document->attr('meta');
+
+        $t->same('Dom\\HTMLDocument', $meta['htmlTreeConstruction'] ?? null);
+        $t->same(
+            ['paragraph', 'paragraph', 'paragraph', 'paragraph', 'paragraph'],
+            array_map(static fn ($node): string => $node->type, $document->children)
+        );
+        $t->same(
+            ['onetwo', 'loose', 'A', 'OneTwo', 'tail'],
+            array_map(static fn ($node): string => $node->attr('text'), $document->children)
+        );
+        $t->same(['strong', 'strong'], array_map(static fn ($node): string => $node->type, $document->children[0]->children));
+        $t->same('one', $document->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('two', $document->children[0]->children[1]->children[0]->attr('text'));
+    };
+
 $tests['does not route public html input through markdown raw html tokenization'] =
     static function (TestRunner $t): void {
         $source = '<!doctype html><html><body><p><b>one<p>two</b>three<table>loose<tr><td>A</td></tr></table>tail</body></html>';
