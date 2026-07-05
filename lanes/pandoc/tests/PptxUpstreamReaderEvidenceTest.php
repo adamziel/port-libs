@@ -404,6 +404,30 @@ return [
             'byteExposurePolicy' => 'chart-part-bytes-blocked',
             'reviewPolicy' => 'chart-metadata-and-cache-values-only',
         ];
+        $expectedSpeakerNoteReview = [
+            'relationshipId' => 'rIdNotes',
+            'relationshipType' => 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide',
+            'target' => '../notesSlides/notesSlide1.xml',
+            'partName' => 'ppt/notesSlides/notesSlide1.xml',
+            'text' => "Remember the launch date.\nAsk about migration risks.",
+            'blockCount' => 2,
+        ];
+        $expectedCommentAuthorReview = [
+            'name' => 'Reviewer',
+            'initials' => 'RV',
+            'lastIdx' => '1',
+        ];
+        $expectedCommentReview = [
+            'id' => '1',
+            'authorId' => '0',
+            'author' => 'Reviewer',
+            'initials' => 'RV',
+            'date' => '2026-07-03T00:00:00Z',
+            'text' => 'Reviewer-only note',
+            'partName' => 'ppt/comments/comment1.xml',
+            'x' => 120,
+            'y' => 240,
+        ];
         $pairsByStem = [];
         foreach ($static['checkedInFixturePairs'] as $fixturePair) {
             $pairsByStem[$fixturePair['stem']] = $fixturePair;
@@ -568,15 +592,30 @@ return [
         $t->same('checked-in-current-pptx-review-metadata', $reviewMetadata['kind']);
         $t->same('valid-checked-in-current-pptx-review-metadata', $reviewMetadata['validation']['status']);
         $t->same([], $reviewMetadata['validation']['issues']);
-        $t->same(2, $reviewMetadata['fixtureCount']);
+        $t->same(4, $reviewMetadata['fixtureCount']);
         $t->same(2, $reviewMetadata['chartReviewFixtureCount']);
         $t->same(2, $reviewMetadata['chartReviewCount']);
+        $t->same(1, $reviewMetadata['speakerNotesFixtureCount']);
+        $t->same(1, $reviewMetadata['speakerNoteCount']);
+        $t->same(1, $reviewMetadata['commentFixtureCount']);
+        $t->same(1, $reviewMetadata['commentAuthorCount']);
+        $t->same(1, $reviewMetadata['commentCount']);
         $t->same('chart-placeholder', $reviewFixture['stem']);
         $t->same(1, $reviewFixture['chartCount']);
         $t->same($expectedChartPlaceholderReview, $reviewChart);
         $t->same('chart-embedded-workbook', $reviewFixturesByStem['chart-embedded-workbook']['stem']);
         $t->same(1, $reviewFixturesByStem['chart-embedded-workbook']['chartCount']);
         $t->same($expectedChartEmbeddedWorkbookReview, $reviewFixturesByStem['chart-embedded-workbook']['charts'][0]);
+        $t->same('speaker-notes', $reviewFixturesByStem['speaker-notes']['stem']);
+        $t->same(0, $reviewFixturesByStem['speaker-notes']['chartCount']);
+        $t->same(1, $reviewFixturesByStem['speaker-notes']['speakerNoteCount']);
+        $t->same($expectedSpeakerNoteReview, $reviewFixturesByStem['speaker-notes']['speakerNotes'][0]);
+        $t->same('comments-ignored', $reviewFixturesByStem['comments-ignored']['stem']);
+        $t->same(0, $reviewFixturesByStem['comments-ignored']['chartCount']);
+        $t->same(1, $reviewFixturesByStem['comments-ignored']['commentAuthorCount']);
+        $t->same(1, $reviewFixturesByStem['comments-ignored']['commentCount']);
+        $t->same($expectedCommentAuthorReview, $reviewFixturesByStem['comments-ignored']['commentAuthors'][0]);
+        $t->same($expectedCommentReview, $reviewFixturesByStem['comments-ignored']['comments'][0]);
         $t->same('basic', $pair['stem']);
         $t->same('pptx-reader/basic.pptx|pptx-reader/basic.native', $pair['pairKey']);
         $t->same('e48fd9c2f8369d1792197e301d5fea676bf6e51097a24af7d85831a6f96dc2dc', $pair['checkedInPptx']['sha256']);
@@ -1256,6 +1295,7 @@ return [
         $t->true(in_array('local PHP PPTX reader output matches all 97 checked-in current PPTX/native pairs by normalized AST shape', $static['claimBoundaries']['doesAssert'], true));
         $t->true(in_array('checked-in executable native AST evidence shows pandoc 3.10, local PHP output, and paired .native fixtures match all 97 checked-in current PPTX fixtures by normalized AST shape', $static['claimBoundaries']['doesAssert'], true));
         $t->true(in_array('checked-in chart review metadata covers chart-placeholder.pptx and chart-embedded-workbook.pptx, including embedded workbook package relationships with hashed byte exposure', $static['claimBoundaries']['doesAssert'], true));
+        $t->true(in_array('checked-in speaker note and comment review metadata covers speaker-notes.pptx and comments-ignored.pptx without rendering those records into native AST output', $static['claimBoundaries']['doesAssert'], true));
         $t->true(in_array('that alternate-content-skip.pptx/alternate-content-skip.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('that background-image-skip.pptx/background-image-skip.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('that body-before-title.pptx/body-before-title.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
@@ -1352,7 +1392,7 @@ return [
         $t->contains('Static current evidence: valid-checked-in-current-pptx-reader-evidence comparisons=1 checkedInPairs=97', $text);
         $t->contains('Static native AST mapped parity: normalized-ast-equality-observed-not-runner-parity matches=97 mismatches=0 required=97', $text);
         $t->contains('Static executable native AST parity: normalized-ast-equality-observed-against-pandoc-executable matches=97 mismatches=0 required=97', $text);
-        $t->contains('Static checked-in review metadata: valid-checked-in-current-pptx-review-metadata chartFixtures=2 charts=2', $text);
+        $t->contains('Static checked-in review metadata: valid-checked-in-current-pptx-review-metadata chartFixtures=2 charts=2 noteFixtures=1 notes=1 commentFixtures=1 comments=1', $text);
         $t->contains('Runner status: not-run', $text);
         $t->contains('Runner plan: planned-not-run', $text);
     },
@@ -1421,6 +1461,9 @@ HS);
         $t->same(true, PptxUpstreamReaderEvidence::hasRequiredStaticReviewMetadata($decoded));
         $t->same('valid-checked-in-current-pptx-review-metadata', $decoded['staticCurrentEvidence']['checkedInReviewMetadata']['validation']['status']);
         $t->same(2, $decoded['staticCurrentEvidence']['checkedInReviewMetadata']['chartReviewCount']);
+        $t->same(1, $decoded['staticCurrentEvidence']['checkedInReviewMetadata']['speakerNoteCount']);
+        $t->same(1, $decoded['staticCurrentEvidence']['checkedInReviewMetadata']['commentAuthorCount']);
+        $t->same(1, $decoded['staticCurrentEvidence']['checkedInReviewMetadata']['commentCount']);
         $t->same(true, PptxUpstreamReaderEvidence::hasRunnerNotRunEvidence($decoded));
         $t->same(true, PptxUpstreamReaderEvidence::hasRunnerPlanEvidence($decoded));
         $t->same('not-run', $decoded['runnerEvidence']['status']);

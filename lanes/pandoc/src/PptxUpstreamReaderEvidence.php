@@ -1357,7 +1357,11 @@ final class PptxUpstreamReaderEvidence
                 . ' required=' . (int) ($staticExecutableParity['requiredPptxCount'] ?? self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT),
             'Static checked-in review metadata: ' . (string) ($staticReviewMetadataValidation['status'] ?? 'unknown')
                 . ' chartFixtures=' . (int) ($staticReviewMetadata['chartReviewFixtureCount'] ?? 0)
-                . ' charts=' . (int) ($staticReviewMetadata['chartReviewCount'] ?? 0),
+                . ' charts=' . (int) ($staticReviewMetadata['chartReviewCount'] ?? 0)
+                . ' noteFixtures=' . (int) ($staticReviewMetadata['speakerNotesFixtureCount'] ?? 0)
+                . ' notes=' . (int) ($staticReviewMetadata['speakerNoteCount'] ?? 0)
+                . ' commentFixtures=' . (int) ($staticReviewMetadata['commentFixtureCount'] ?? 0)
+                . ' comments=' . (int) ($staticReviewMetadata['commentCount'] ?? 0),
             'Runner status: ' . (string) ($runner['status'] ?? 'unknown'),
             'Runner plan: ' . (string) ($runner['commandPlanStatus'] ?? 'unknown'),
             'Runner result artifact: ' . (string) (($runner['validation']['status'] ?? null) ?? 'not-evaluated'),
@@ -1472,13 +1476,31 @@ final class PptxUpstreamReaderEvidence
             $fixturesByStem[$fixture['stem']] = $fixture;
         }
 
-        $expectedReviewsByStem = self::expectedChartReviewsByStem();
-        foreach ($expectedReviewsByStem as $stem => $expectedCharts) {
+        $expectedReviewsByStem = self::expectedReviewMetadataByStem();
+        foreach ($expectedReviewsByStem as $stem => $expectedReview) {
             $fixture = is_array($fixturesByStem[$stem] ?? null) ? $fixturesByStem[$stem] : [];
-            if ((int) ($fixture['chartCount'] ?? -1) !== count($expectedCharts)) {
+            if ((int) ($fixture['chartCount'] ?? -1) !== count($expectedReview['charts'])) {
                 return false;
             }
-            if (($fixture['charts'] ?? null) !== $expectedCharts) {
+            if (($fixture['charts'] ?? null) !== $expectedReview['charts']) {
+                return false;
+            }
+            if ((int) ($fixture['speakerNoteCount'] ?? -1) !== count($expectedReview['speakerNotes'])) {
+                return false;
+            }
+            if (($fixture['speakerNotes'] ?? null) !== $expectedReview['speakerNotes']) {
+                return false;
+            }
+            if ((int) ($fixture['commentAuthorCount'] ?? -1) !== count($expectedReview['commentAuthors'])) {
+                return false;
+            }
+            if (($fixture['commentAuthors'] ?? null) !== $expectedReview['commentAuthors']) {
+                return false;
+            }
+            if ((int) ($fixture['commentCount'] ?? -1) !== count($expectedReview['comments'])) {
+                return false;
+            }
+            if (($fixture['comments'] ?? null) !== $expectedReview['comments']) {
                 return false;
             }
         }
@@ -1486,8 +1508,13 @@ final class PptxUpstreamReaderEvidence
         return ($validation['status'] ?? null) === 'valid-checked-in-current-pptx-review-metadata'
             && ($validation['issues'] ?? null) === []
             && (int) ($review['fixtureCount'] ?? -1) === count($expectedReviewsByStem)
-            && (int) ($review['chartReviewFixtureCount'] ?? -1) === count($expectedReviewsByStem)
-            && (int) ($review['chartReviewCount'] ?? -1) === array_sum(array_map('count', $expectedReviewsByStem));
+            && (int) ($review['chartReviewFixtureCount'] ?? -1) === count(array_filter($expectedReviewsByStem, static fn (array $expected): bool => $expected['charts'] !== []))
+            && (int) ($review['chartReviewCount'] ?? -1) === array_sum(array_map(static fn (array $expected): int => count($expected['charts']), $expectedReviewsByStem))
+            && (int) ($review['speakerNotesFixtureCount'] ?? -1) === count(array_filter($expectedReviewsByStem, static fn (array $expected): bool => $expected['speakerNotes'] !== []))
+            && (int) ($review['speakerNoteCount'] ?? -1) === array_sum(array_map(static fn (array $expected): int => count($expected['speakerNotes']), $expectedReviewsByStem))
+            && (int) ($review['commentFixtureCount'] ?? -1) === count(array_filter($expectedReviewsByStem, static fn (array $expected): bool => $expected['comments'] !== []))
+            && (int) ($review['commentCount'] ?? -1) === array_sum(array_map(static fn (array $expected): int => count($expected['comments']), $expectedReviewsByStem))
+            && (int) ($review['commentAuthorCount'] ?? -1) === array_sum(array_map(static fn (array $expected): int => count($expected['commentAuthors']), $expectedReviewsByStem));
     }
 
     /**
@@ -2294,6 +2321,7 @@ final class PptxUpstreamReaderEvidence
                     'local PHP PPTX reader output matches all ' . self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT . ' checked-in current PPTX/native pairs by normalized AST shape',
                     'checked-in executable native AST evidence shows pandoc 3.10, local PHP output, and paired .native fixtures match all ' . self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT . ' checked-in current PPTX fixtures by normalized AST shape',
                     'checked-in chart review metadata covers chart-placeholder.pptx and chart-embedded-workbook.pptx, including embedded workbook package relationships with hashed byte exposure',
+                    'checked-in speaker note and comment review metadata covers speaker-notes.pptx and comments-ignored.pptx without rendering those records into native AST output',
                 ],
                 'doesNotAssert' => [
                     'that upstream Haskell/Cabal/Tasty tests were executed',
@@ -2318,8 +2346,13 @@ final class PptxUpstreamReaderEvidence
         $fixtures = [];
         $chartReviewFixtureCount = 0;
         $chartReviewCount = 0;
+        $speakerNotesFixtureCount = 0;
+        $speakerNoteCount = 0;
+        $commentFixtureCount = 0;
+        $commentCount = 0;
+        $commentAuthorCount = 0;
 
-        foreach (self::expectedChartReviewsByStem() as $stem => $expectedCharts) {
+        foreach (self::expectedReviewMetadataByStem() as $stem => $expectedReview) {
             $snapshot = self::CHECKED_IN_CURRENT_FIXTURE_SNAPSHOT[$stem] ?? null;
             if (!is_array($snapshot)) {
                 $issues[] = 'missing-' . $stem . '-static-snapshot';
@@ -2331,6 +2364,9 @@ final class PptxUpstreamReaderEvidence
                 (int) $snapshot['pptxBytes']
             );
             $charts = [];
+            $speakerNotes = [];
+            $commentAuthors = [];
+            $comments = [];
             $path = $fixtureDirectory . DIRECTORY_SEPARATOR . $stem . '.pptx';
             if (($pptx['present'] ?? false) !== true || !is_file($path)) {
                 $issues[] = 'missing-' . $stem . '-pptx-fixture';
@@ -2338,11 +2374,30 @@ final class PptxUpstreamReaderEvidence
                 try {
                     $document = (new PptxReader())->read((string) file_get_contents($path));
                     $review = $document->attr('pptx');
+                    foreach (is_array($review['commentAuthors'] ?? null) ? $review['commentAuthors'] : [] as $author) {
+                        if (is_array($author)) {
+                            $commentAuthors[] = self::compactCommentAuthorReview($author);
+                        }
+                    }
                     $slides = is_array($review['slides'] ?? null) ? $review['slides'] : [];
-                    $slide = is_array($slides[0] ?? null) ? $slides[0] : [];
-                    foreach (is_array($slide['charts'] ?? null) ? $slide['charts'] : [] as $chart) {
-                        if (is_array($chart)) {
-                            $charts[] = self::compactChartReview($chart);
+                    foreach ($slides as $slide) {
+                        if (!is_array($slide)) {
+                            continue;
+                        }
+                        foreach (is_array($slide['charts'] ?? null) ? $slide['charts'] : [] as $chart) {
+                            if (is_array($chart)) {
+                                $charts[] = self::compactChartReview($chart);
+                            }
+                        }
+                        foreach (is_array($slide['speakerNotes'] ?? null) ? $slide['speakerNotes'] : [] as $note) {
+                            if (is_array($note)) {
+                                $speakerNotes[] = self::compactSpeakerNoteReview($note);
+                            }
+                        }
+                        foreach (is_array($slide['comments'] ?? null) ? $slide['comments'] : [] as $comment) {
+                            if (is_array($comment)) {
+                                $comments[] = self::compactCommentReview($comment);
+                            }
                         }
                     }
                 } catch (\Throwable) {
@@ -2355,7 +2410,23 @@ final class PptxUpstreamReaderEvidence
                 ++$chartReviewFixtureCount;
                 $chartReviewCount += $chartCount;
             }
-            if ($charts !== $expectedCharts) {
+            $speakerNoteCountForFixture = count($speakerNotes);
+            if ($speakerNoteCountForFixture > 0) {
+                ++$speakerNotesFixtureCount;
+                $speakerNoteCount += $speakerNoteCountForFixture;
+            }
+            $commentCountForFixture = count($comments);
+            if ($commentCountForFixture > 0) {
+                ++$commentFixtureCount;
+                $commentCount += $commentCountForFixture;
+            }
+            $commentAuthorCount += count($commentAuthors);
+            if (
+                $charts !== $expectedReview['charts']
+                || $speakerNotes !== $expectedReview['speakerNotes']
+                || $commentAuthors !== $expectedReview['commentAuthors']
+                || $comments !== $expectedReview['comments']
+            ) {
                 $issues[] = $stem . '-pptx-review-metadata-mismatch';
             }
 
@@ -2365,6 +2436,12 @@ final class PptxUpstreamReaderEvidence
                 'checkedInPptx' => $pptx,
                 'chartCount' => $chartCount,
                 'charts' => $charts,
+                'speakerNoteCount' => $speakerNoteCountForFixture,
+                'speakerNotes' => $speakerNotes,
+                'commentAuthorCount' => count($commentAuthors),
+                'commentAuthors' => $commentAuthors,
+                'commentCount' => $commentCountForFixture,
+                'comments' => $comments,
             ];
         }
 
@@ -2374,6 +2451,11 @@ final class PptxUpstreamReaderEvidence
             'fixtureCount' => count($fixtures),
             'chartReviewFixtureCount' => $chartReviewFixtureCount,
             'chartReviewCount' => $chartReviewCount,
+            'speakerNotesFixtureCount' => $speakerNotesFixtureCount,
+            'speakerNoteCount' => $speakerNoteCount,
+            'commentFixtureCount' => $commentFixtureCount,
+            'commentAuthorCount' => $commentAuthorCount,
+            'commentCount' => $commentCount,
             'fixtures' => $fixtures,
             'validation' => [
                 'status' => $issues === [] ? 'valid-checked-in-current-pptx-review-metadata' : 'invalid-checked-in-current-pptx-review-metadata',
@@ -2445,6 +2527,87 @@ final class PptxUpstreamReaderEvidence
     }
 
     /**
+     * @param array<string, mixed> $note
+     * @return array<string, mixed>
+     */
+    private static function compactSpeakerNoteReview(array $note): array
+    {
+        return [
+            'relationshipId' => (string) ($note['relationshipId'] ?? ''),
+            'relationshipType' => (string) ($note['relationshipType'] ?? ''),
+            'target' => (string) ($note['target'] ?? ''),
+            'partName' => (string) ($note['partName'] ?? ''),
+            'text' => (string) ($note['text'] ?? ''),
+            'blockCount' => (int) ($note['blockCount'] ?? -1),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $author
+     * @return array<string, mixed>
+     */
+    private static function compactCommentAuthorReview(array $author): array
+    {
+        return [
+            'name' => (string) ($author['name'] ?? ''),
+            'initials' => (string) ($author['initials'] ?? ''),
+            'lastIdx' => (string) ($author['lastIdx'] ?? ''),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $comment
+     * @return array<string, mixed>
+     */
+    private static function compactCommentReview(array $comment): array
+    {
+        return [
+            'id' => (string) ($comment['id'] ?? ''),
+            'authorId' => (string) ($comment['authorId'] ?? ''),
+            'author' => (string) ($comment['author'] ?? ''),
+            'initials' => (string) ($comment['initials'] ?? ''),
+            'date' => (string) ($comment['date'] ?? ''),
+            'text' => (string) ($comment['text'] ?? ''),
+            'partName' => (string) ($comment['partName'] ?? ''),
+            'x' => (int) ($comment['x'] ?? 0),
+            'y' => (int) ($comment['y'] ?? 0),
+        ];
+    }
+
+    /**
+     * @return array<string, array{charts: list<array<string, mixed>>, speakerNotes: list<array<string, mixed>>, commentAuthors: list<array<string, mixed>>, comments: list<array<string, mixed>>}>
+     */
+    private static function expectedReviewMetadataByStem(): array
+    {
+        return [
+            'chart-placeholder' => [
+                'charts' => [self::expectedChartPlaceholderReview()],
+                'speakerNotes' => [],
+                'commentAuthors' => [],
+                'comments' => [],
+            ],
+            'chart-embedded-workbook' => [
+                'charts' => [self::expectedChartEmbeddedWorkbookReview()],
+                'speakerNotes' => [],
+                'commentAuthors' => [],
+                'comments' => [],
+            ],
+            'speaker-notes' => [
+                'charts' => [],
+                'speakerNotes' => [self::expectedSpeakerNoteReview()],
+                'commentAuthors' => [],
+                'comments' => [],
+            ],
+            'comments-ignored' => [
+                'charts' => [],
+                'speakerNotes' => [],
+                'commentAuthors' => [self::expectedCommentAuthorReview()],
+                'comments' => [self::expectedCommentReview()],
+            ],
+        ];
+    }
+
+    /**
      * @return array<string, list<array<string, mixed>>>
      */
     private static function expectedChartReviewsByStem(): array
@@ -2452,6 +2615,51 @@ final class PptxUpstreamReaderEvidence
         return [
             'chart-placeholder' => [self::expectedChartPlaceholderReview()],
             'chart-embedded-workbook' => [self::expectedChartEmbeddedWorkbookReview()],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function expectedSpeakerNoteReview(): array
+    {
+        return [
+            'relationshipId' => 'rIdNotes',
+            'relationshipType' => 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide',
+            'target' => '../notesSlides/notesSlide1.xml',
+            'partName' => 'ppt/notesSlides/notesSlide1.xml',
+            'text' => "Remember the launch date.\nAsk about migration risks.",
+            'blockCount' => 2,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function expectedCommentAuthorReview(): array
+    {
+        return [
+            'name' => 'Reviewer',
+            'initials' => 'RV',
+            'lastIdx' => '1',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function expectedCommentReview(): array
+    {
+        return [
+            'id' => '1',
+            'authorId' => '0',
+            'author' => 'Reviewer',
+            'initials' => 'RV',
+            'date' => '2026-07-03T00:00:00Z',
+            'text' => 'Reviewer-only note',
+            'partName' => 'ppt/comments/comment1.xml',
+            'x' => 120,
+            'y' => 240,
         ];
     }
 

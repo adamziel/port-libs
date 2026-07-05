@@ -19227,6 +19227,43 @@ XML);
         $t->true(!str_contains($native, 'Ask about migration risks'), 'PPTX notesSlide text should stay out of visible native output');
     },
 
+    'keeps checked-in pptx notes and comments as review metadata only' => static function (TestRunner $t) use ($nodesOfType): void {
+        $fixtureRoot = dirname(__DIR__) . '/fixtures/upstream-current-pptx-reader';
+        $notesBytes = file_get_contents($fixtureRoot . '/speaker-notes.pptx');
+        $commentsBytes = file_get_contents($fixtureRoot . '/comments-ignored.pptx');
+        if (!is_string($notesBytes) || !is_string($commentsBytes)) {
+            throw new RuntimeException('Unable to read checked-in PPTX review metadata fixtures');
+        }
+
+        $notesDocument = (new PptxReader())->read($notesBytes);
+        $commentsDocument = (new PptxReader())->read($commentsBytes);
+        $notesReview = $notesDocument->attr('pptx');
+        $commentsReview = $commentsDocument->attr('pptx');
+        $notesNative = PandocConverter::write($notesDocument, 'native');
+        $commentsNative = PandocConverter::write($commentsDocument, 'native');
+        $notesParagraphTexts = array_map(static fn (AstNode $paragraph): string => (string) $paragraph->attr('text'), $nodesOfType($notesDocument, 'paragraph'));
+        $commentsParagraphTexts = array_map(static fn (AstNode $paragraph): string => (string) $paragraph->attr('text'), $nodesOfType($commentsDocument, 'paragraph'));
+
+        $t->same(['Visible slide body'], $notesParagraphTexts);
+        $t->same(1, $notesReview['slides'][0]['speakerNoteCount'] ?? null);
+        $t->same('rIdNotes', $notesReview['slides'][0]['speakerNotes'][0]['relationshipId'] ?? null);
+        $t->same('ppt/notesSlides/notesSlide1.xml', $notesReview['slides'][0]['speakerNotes'][0]['partName'] ?? null);
+        $t->same("Remember the launch date.\nAsk about migration risks.", $notesReview['slides'][0]['speakerNotes'][0]['text'] ?? null);
+        $t->same(2, $notesReview['slides'][0]['speakerNotes'][0]['blockCount'] ?? null);
+        $t->true(!str_contains($notesNative, 'Remember the launch date'), 'Checked-in speaker notes must stay out of native output');
+        $t->true(!str_contains($notesNative, 'Ask about migration risks'), 'Checked-in speaker notes must stay out of native output');
+
+        $t->same(['Visible body'], $commentsParagraphTexts);
+        $t->same('Reviewer', $commentsReview['commentAuthors'][0]['name'] ?? null);
+        $t->same('RV', $commentsReview['commentAuthors'][0]['initials'] ?? null);
+        $t->same(1, $commentsReview['slides'][0]['commentCount'] ?? null);
+        $t->same('Reviewer', $commentsReview['slides'][0]['comments'][0]['author'] ?? null);
+        $t->same('Reviewer-only note', $commentsReview['slides'][0]['comments'][0]['text'] ?? null);
+        $t->same(120, $commentsReview['slides'][0]['comments'][0]['x'] ?? null);
+        $t->same(240, $commentsReview['slides'][0]['comments'][0]['y'] ?? null);
+        $t->true(!str_contains($commentsNative, 'Reviewer-only note'), 'Checked-in comments must stay out of native output');
+    },
+
     'keeps checked-in pptx alternate content choices and fallbacks hidden like upstream' => static function (TestRunner $t) use ($nodesOfType): void {
         $path = dirname(__DIR__) . '/fixtures/upstream-current-pptx-reader/alternate-content-skip.pptx';
         $bytes = file_get_contents($path);
