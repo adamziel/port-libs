@@ -143,6 +143,21 @@ final class PandocHtmlTagSoupReader
     private function parseOpenBlock(TagSoupTag $token, array $outerStopTags): AstNode|array|null
     {
         $name = $token->name;
+        if (in_array($name, ['article', 'nav', 'fieldset', 'search', 'hgroup'], true)) {
+            if ($this->isTitlepageElement($token) || $this->isFootnoteContainer($token)) {
+                $this->index++;
+                $this->skipBalancedElement($name);
+
+                return [];
+            }
+
+            $this->index++;
+            $children = $this->parseBlocksUntil([$name, ...$outerStopTags]);
+            $this->consumeClose($name);
+
+            return $children;
+        }
+
         if (in_array($name, ['main', 'section', 'article', 'header', 'footer', 'aside'], true)) {
             if ($this->isTitlepageElement($token)) {
                 $this->index++;
@@ -271,8 +286,35 @@ final class PandocHtmlTagSoupReader
             return new AstNode('raw_html', ['format' => 'html', 'html' => $raw, 'text' => $raw]);
         }
 
+        if (in_array($name, ['tbody', 'thead', 'tfoot', 'tr'], true)) {
+            $this->index++;
+            $children = $this->parseBlocksUntil([$name, ...$outerStopTags]);
+            $this->consumeClose($name);
+
+            return $children;
+        }
+
+        if (in_array($name, ['td', 'th', 'caption'], true)) {
+            $this->index++;
+            $inlines = $this->parseInlinesUntil([$name, ...$outerStopTags], stopBeforeBlock: true);
+            $this->consumeClose($name);
+
+            return $inlines === [] ? [] : [new AstNode('paragraph', ['text' => $this->plainTextFromInlines($inlines)], $inlines)];
+        }
+
+        if (in_array($name, ['col', 'colgroup'], true)) {
+            $this->index++;
+            $this->consumeClose($name);
+
+            return [];
+        }
+
         if (in_array($name, ['script', 'style', 'textarea', 'xmp'], true)) {
             return $this->parseRawTextBlock($token);
+        }
+
+        if ($name === 'button' && $this->balancedElementContainsOpenTag('button', 'p')) {
+            return $this->parseButtonScopeBlock($outerStopTags);
         }
 
         if ($this->isBlockElement($name)) {
@@ -302,6 +344,10 @@ final class PandocHtmlTagSoupReader
             if ($token->type === TagSoupTag::CLOSE && $token->name === $list->name) {
                 break;
             }
+            if ($token->type === TagSoupTag::TEXT && trim($token->text) === '') {
+                $this->index++;
+                continue;
+            }
             if ($this->skipIgnorable($token)) {
                 continue;
             }
@@ -311,14 +357,22 @@ final class PandocHtmlTagSoupReader
                     && $this->current()->type === TagSoupTag::OPEN
                     && $this->current()->name === 'p';
                 $this->listItemDepth++;
-                $blocks = $this->parseBlocksUntil(['li']);
+                $blocks = $this->parseBlocksUntil(['li', $list->name]);
                 $this->listItemDepth--;
                 $this->consumeClose('li');
                 $blocks = $this->applyListItemId($token, $this->listItemBlocks($blocks, $explicitParagraph), $explicitParagraph);
-                if ($blocks === []) {
-                    $blocks[] = new AstNode('plain');
+                $items[] = $this->listItemNode($blocks);
+                continue;
+            }
+            $orphanBlocks = $this->parseListOrphanBlocks($list->name);
+            if ($orphanBlocks !== []) {
+                $lastIndex = array_key_last($items);
+                if ($lastIndex === null) {
+                    $items[] = $this->listItemNode($orphanBlocks);
+                    continue;
                 }
-                $items[] = new AstNode('list_item', ['text' => $this->plainTextFromBlocks($blocks)], $blocks);
+
+                $items[$lastIndex] = $this->listItemNode([...$items[$lastIndex]->children, ...$orphanBlocks]);
                 continue;
             }
             $this->index++;
@@ -326,6 +380,47 @@ final class PandocHtmlTagSoupReader
         $this->consumeClose($list->name);
 
         return new AstNode($ordered ? 'ordered_list' : 'bullet_list', $attrs, $items);
+    }
+
+    private function listItemNode(array $blocks): AstNode
+    {
+        if ($blocks === []) {
+            $blocks[] = new AstNode('plain');
+        }
+
+        return new AstNode('list_item', ['text' => $this->plainTextFromBlocks($blocks)], $blocks);
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function parseListOrphanBlocks(string $listName): array
+    {
+        $token = $this->current();
+        if (!$token instanceof TagSoupTag) {
+            return [];
+        }
+
+        if ($token->type === TagSoupTag::OPEN) {
+            $block = $this->parseOpenBlock($token, [$listName]);
+            if ($block instanceof AstNode) {
+                return [$block];
+            }
+            if (is_array($block)) {
+                return $block;
+            }
+        }
+
+        $beforeInlineIndex = $this->index;
+        $inlines = $this->parseInlinesUntil([$listName], stopBeforeBlock: true);
+        if ($inlines !== []) {
+            return $this->inlineFallbackBlocks($inlines);
+        }
+        if ($this->index === $beforeInlineIndex) {
+            return [];
+        }
+
+        return [];
     }
 
     private function orderedListStyle(string $type): string
@@ -542,6 +637,15 @@ final class PandocHtmlTagSoupReader
                 break;
             }
             if ($token->type === TagSoupTag::OPEN && $stopBeforeBlock && $this->isBlockElement($token->name)) {
+                break;
+            }
+            if (
+                $token->type === TagSoupTag::OPEN
+                && $stopBeforeBlock
+                && in_array('p', $stopTags, true)
+                && $token->name === 'button'
+                && $this->balancedElementContainsOpenTag('button', 'p')
+            ) {
                 break;
             }
             if (
@@ -1464,6 +1568,36 @@ final class PandocHtmlTagSoupReader
     }
 
     /**
+     * @param list<string> $outerStopTags
+     * @return list<AstNode>
+     */
+    private function parseButtonScopeBlock(array $outerStopTags): array
+    {
+        $this->index++;
+        while (($token = $this->current()) instanceof TagSoupTag) {
+            if ($token->type === TagSoupTag::CLOSE && $token->name === 'button') {
+                $this->index++;
+                return [];
+            }
+            if ($token->type === TagSoupTag::OPEN && $token->name === 'p') {
+                $this->index++;
+                $inlines = $this->parseInlinesUntil(['button', 'p', ...$outerStopTags], stopBeforeBlock: true);
+                $this->consumeClose('p');
+                $this->consumeClose('button');
+                $tail = $this->parseInlinesUntil($outerStopTags, stopBeforeBlock: true);
+                $inlines = [...$inlines, ...$tail];
+
+                return $inlines === []
+                    ? []
+                    : [new AstNode('paragraph', ['text' => $this->plainTextFromInlines($inlines)], $inlines)];
+            }
+            $this->index++;
+        }
+
+        return [];
+    }
+
+    /**
      * @return list<AstNode>
      */
     private function parseRawInlineWrapper(TagSoupTag $token): array
@@ -1829,9 +1963,11 @@ final class PandocHtmlTagSoupReader
     private function isBlockElement(string $name): bool
     {
         return in_array($name, [
+            'caption',
             'address', 'article', 'aside', 'blockquote', 'body', 'dd', 'details', 'dialog', 'div', 'dl', 'dt',
             'fieldset', 'figcaption', 'figure', 'footer', 'form', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'head',
-            'header', 'hr', 'html', 'li', 'main', 'menu', 'nav', 'ol', 'p', 'pre', 'section', 'table', 'ul',
+            'header', 'hgroup', 'hr', 'html', 'li', 'main', 'menu', 'nav', 'ol', 'p', 'pre', 'search',
+            'section', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'tr', 'ul',
         ], true);
     }
 

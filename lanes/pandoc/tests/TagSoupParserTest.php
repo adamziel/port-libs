@@ -116,73 +116,20 @@ return [
         $t->same('/x', $document->children[1]->children[3]->attr('url'));
     },
 
-    'opt-in tagsoup backend matches initial html native fixture slice' => static function (TestRunner $t): void {
+    'opt-in tagsoup backend matches every checked-in html native fixture pair' => static function (TestRunner $t): void {
         $root = dirname(__DIR__) . '/fixtures';
         $harness = new HtmlNativeAstComparisonHarness();
-        foreach ([
-            'upstream-html-address-block',
-            'upstream-html-anchor-image-attrs',
-            'upstream-html-base-relative-image',
-            'upstream-html-blockquote',
-            'upstream-html-button-inline-fallback',
-            'upstream-html-colgroup-width-table',
-            'upstream-html-definition-list',
-            'upstream-html-doc-noteref-footnotes',
-            'upstream-html-doc-noteref-table-placement',
-            'upstream-html-empty-tables',
-            'upstream-html-fallback-content-containers',
-            'upstream-html-figure-caption',
-            'upstream-html-form-controls',
-            'upstream-html-generic-raw-inline',
-            'upstream-html-header-native-divs',
-            'upstream-html-implicit-tbody-table',
-            'upstream-html-inline-code-aliases',
-            'upstream-html-inline-fallback-content-containers',
-            'upstream-html-inline-quote-cite-base',
-            'upstream-html-invalid-table-children',
-            'upstream-html-line-block',
-            'upstream-html-list-item-id',
-            'upstream-html-main-native-divs',
-            'upstream-html-main-inline-plain',
-            'upstream-html-math-renderer-spans',
-            'upstream-html-mathml-annotation',
-            'upstream-html-multi-tbody-row-header-table',
-            'upstream-html-multi-term-definition-list',
-            'upstream-html-optional-definition-list-tree-construction',
-            'upstream-html-ordered-list-type-start',
-            'upstream-html-paragraph-blockquote-tree-construction',
-            'upstream-html-paragraph-heading-tree-construction',
-            'upstream-html-pre-code-attributes',
-            'upstream-html-pre-code-br',
-            'upstream-html-rawtext-fallback-containers',
-            'upstream-html-script-raw-block',
-            'upstream-html-section-aside-native-divs',
-            'upstream-html-smallcaps-class',
-            'upstream-html-raw-disabled-skip',
-            'upstream-html-standalone-applet-inline',
-            'upstream-html-standalone-audio-inline',
-            'upstream-html-standalone-bdo-mark-q-inline',
-            'upstream-html-standalone-button-inline',
-            'upstream-html-standalone-inline-flow',
-            'upstream-html-standalone-map-inline',
-            'upstream-html-standalone-noscript-inline',
-            'upstream-html-standalone-object-embed-inline',
-            'upstream-html-standalone-progress-inline',
-            'upstream-html-standalone-svg-inline',
-            'upstream-html-standalone-video-inline',
-            'upstream-html-standalone-void-inline',
-            'upstream-html-style-raw-block',
-            'upstream-html-svg-disabled-raw-html',
-            'upstream-html-svg-raw-html',
-            'upstream-html-table-foot',
-            'upstream-html-table-row-col-span',
-            'upstream-html-template-raw-boundary',
-            'upstream-html-textarea-raw-block',
-            'upstream-html-thematic-break',
-            'upstream-html-titlepage-skip',
-            'upstream-html-xmp-rawtext-fallback',
-            'upstream-native-html-row-header-table',
-        ] as $basename) {
+        $basenames = [];
+        foreach (glob($root . '/*.html') ?: [] as $htmlPath) {
+            $basename = basename($htmlPath, '.html');
+            if (is_file($root . '/' . $basename . '.native')) {
+                $basenames[] = $basename;
+            }
+        }
+        sort($basenames, SORT_STRING);
+        $t->same(132, count($basenames), 'checked-in HTML/native fixture pair count');
+
+        foreach ($basenames as $basename) {
             $options = HtmlNativeAstComparisonHarness::readerOptionsForFixtureBasename($basename);
             $options['htmlReaderBackend'] = 'tagsoup-pandoc-port';
             $html = file_get_contents($root . '/' . $basename . '.html');
