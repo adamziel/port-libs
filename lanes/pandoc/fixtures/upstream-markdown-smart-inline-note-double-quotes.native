@@ -1,0 +1,10 @@
+[ Para
+    [ Quoted
+        DoubleQuote
+        [ Str "a"
+        , Note [ Para [ Quoted DoubleQuote [ Str "b" ] , Str "." ] ]
+        , Space
+        , Str "c."
+        ]
+    ]
+]

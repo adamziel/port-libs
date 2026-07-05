@@ -12,9 +12,9 @@ final class MarkdownUpstreamReaderEvidence
     public const STATUS_COMPLETED = 'completed-upstream-markdown-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-markdown-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
-    public const EXPECTED_SELECTED_FIXTURE_COUNT = 99;
-    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 99;
-    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = 'd42f5be43009849a2d9453a9d5f0b69359da1371d27d408f8b511cd64b9070eb';
+    public const EXPECTED_SELECTED_FIXTURE_COUNT = 100;
+    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 100;
+    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = 'f05d22412519fca55991f637f7019db566e48d1d4ecf969aee99537e5a1d97f6';
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/Markdown.hs',
@@ -1272,6 +1272,19 @@ final class MarkdownUpstreamReaderEvidence
             ],
             'sha256' => '2d251db0ec3147f60db5580984f4c7dc5a18eedc8f03f6e8814f4e7c2d4e3e57',
             'bytes' => 183,
+        ],
+        'upstream-markdown-smart-inline-note-double-quotes.md' => [
+            'role' => 'markdown-smart-inline-note-double-quote-reader-fixture',
+            'sourceKind' => 'selected-upstream-markdown-reader-case',
+            'sourceReference' => 'Tests.Readers.Markdown smart punctuation/double quote in inline note within double quotes',
+            'formatProfile' => 'markdown+smart inline note double-quote nesting',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-markdown-smart-inline-note-double-quotes.md',
+            'coverageTests' => [
+                'lanes/pandoc/tests/MarkdownReaderSmartPunctuationFixtureCompletionTest.php',
+                'lanes/pandoc/tests/MarkdownNativeAstComparisonHarnessTest.php',
+            ],
+            'sha256' => '5bd2d9572cd5b3956d61c659cb060d34616c0194c620762c064f2784cae2eeb0',
+            'bytes' => 14,
         ],
     ];
 
