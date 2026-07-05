@@ -7623,7 +7623,18 @@ final class MarkdownReader
     {
         return $this->htmlReaderModeEnabled()
             && strtolower($element->localName) === 'table'
-            && $pendingInlines !== [];
+            && $this->htmlInlineNodesHaveVisibleContent($pendingInlines);
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     */
+    private function htmlInlineNodesHaveVisibleContent(array $inlines): bool
+    {
+        $text = $this->plainTextFromInlines($inlines);
+        $normalized = trim(preg_replace('/\s+/', ' ', $text) ?? $text);
+
+        return $normalized !== '' || $this->htmlInlineParagraphHasStructuralContent($inlines);
     }
 
     /**

@@ -146,9 +146,9 @@ jobs:
             --checked-in-fixtures \
             --json \
             summary \
-            --require-package-parity=65 \
-            --require-native-readiness=65 \
-            --require-mapped-parity=65 \
+            --require-package-parity=66 \
+            --require-native-readiness=66 \
+            --require-mapped-parity=66 \
             --require-fixture-identity \
             --require-current-package-feature-coverage \
             --require-current-package-feature-signature \
@@ -162,7 +162,7 @@ jobs:
             --pandoc-bin=/usr/local/bin/pandoc \
             --json \
             summary \
-            --require-executable-parity=65 \
+            --require-executable-parity=66 \
             --require-pandoc-version="pandoc ${PANDOC_EXECUTABLE_VERSION}"
 
       - name: Run focused EPUB parity tests

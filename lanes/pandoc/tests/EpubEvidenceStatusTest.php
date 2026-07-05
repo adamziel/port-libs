@@ -32,9 +32,9 @@ return [
         $nativeFiles = glob($fixtureDirectory . '/*.native') ?: [];
         $totalFiles = count($epubFiles) + count($nativeFiles);
 
-        $t->same(65, count($epubFiles));
-        $t->same(65, count($nativeFiles));
-        $t->same(130, $totalFiles);
+        $t->same(66, count($epubFiles));
+        $t->same(66, count($nativeFiles));
+        $t->same(132, $totalFiles);
 
         foreach ([
             'benchmarkDenominator.breakdown' => $manifest['benchmarkDenominator']['breakdown'] ?? null,
@@ -52,56 +52,61 @@ return [
                 'epubEpubInputArtifacts' => count($epubFiles),
             ];
             $previousIntegrated = [
+                'epubDirectoryArtifacts' => 130,
+                'epubNativeExpectedArtifacts' => 65,
+                'epubEpubInputArtifacts' => 65,
+            ];
+            $olderIntegrated = [
                 'epubDirectoryArtifacts' => 128,
                 'epubNativeExpectedArtifacts' => 64,
                 'epubEpubInputArtifacts' => 64,
             ];
-            $olderIntegrated = [
+            $oldIntegrated = [
                 'epubDirectoryArtifacts' => 126,
                 'epubNativeExpectedArtifacts' => 63,
                 'epubEpubInputArtifacts' => 63,
             ];
-            $oldIntegrated = [
+            $previousOldIntegrated = [
                 'epubDirectoryArtifacts' => 124,
                 'epubNativeExpectedArtifacts' => 62,
                 'epubEpubInputArtifacts' => 62,
             ];
-            $previousOldIntegrated = [
+            $previousSharedManifest = [
                 'epubDirectoryArtifacts' => 122,
                 'epubNativeExpectedArtifacts' => 61,
                 'epubEpubInputArtifacts' => 61,
             ];
-            $previousSharedManifest = [
+            $olderSharedManifest = [
                 'epubDirectoryArtifacts' => 120,
                 'epubNativeExpectedArtifacts' => 60,
                 'epubEpubInputArtifacts' => 60,
             ];
-            $olderSharedManifest = [
+            $oldestSharedManifest = [
                 'epubDirectoryArtifacts' => 114,
                 'epubNativeExpectedArtifacts' => 57,
                 'epubEpubInputArtifacts' => 57,
             ];
-            $oldestSharedManifest = [
+            $preIntegrationSharedManifest = [
                 'epubDirectoryArtifacts' => 112,
                 'epubNativeExpectedArtifacts' => 56,
                 'epubEpubInputArtifacts' => 56,
             ];
-            $preIntegrationSharedManifest = [
+            $legacySharedManifest = [
                 'epubDirectoryArtifacts' => 110,
                 'epubNativeExpectedArtifacts' => 55,
                 'epubEpubInputArtifacts' => 55,
             ];
-            $legacySharedManifest = [
+            $preIntegrationLegacySharedManifest = [
                 'epubDirectoryArtifacts' => 108,
                 'epubNativeExpectedArtifacts' => 54,
                 'epubEpubInputArtifacts' => 54,
             ];
-            $preIntegrationLegacySharedManifest = [
+            $preIntegration = [
                 'epubDirectoryArtifacts' => 106,
                 'epubNativeExpectedArtifacts' => 53,
                 'epubEpubInputArtifacts' => 53,
             ];
-            $preIntegration = [
+            $legacyPreIntegration = [
                 'epubDirectoryArtifacts' => 98,
                 'epubNativeExpectedArtifacts' => 49,
                 'epubEpubInputArtifacts' => 49,
@@ -119,7 +124,8 @@ return [
                     || $observed === $preIntegrationSharedManifest
                     || $observed === $legacySharedManifest
                     || $observed === $preIntegrationLegacySharedManifest
-                    || $observed === $preIntegration,
+                    || $observed === $preIntegration
+                    || $observed === $legacyPreIntegration,
                 "{$label} EPUB counters must match either local fixture state or the shared manifest state awaiting integration"
             );
         }
