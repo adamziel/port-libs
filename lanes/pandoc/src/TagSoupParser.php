@@ -63,6 +63,7 @@ final class TagSoupParser
                 } else {
                     $name = strtolower($name);
                 }
+                $name = self::stripTagNamespacePrefix($name);
 
                 $attrs = [];
                 foreach ($token->attributes as $attribute) {
@@ -76,7 +77,7 @@ final class TagSoupParser
             }
 
             if ($token->type === TagSoupTag::CLOSE) {
-                $canonical[] = TagSoupTag::close(strtolower($token->name));
+                $canonical[] = TagSoupTag::close(self::stripTagNamespacePrefix(strtolower($token->name)));
                 continue;
             }
 
@@ -84,6 +85,13 @@ final class TagSoupParser
         }
 
         return $canonical;
+    }
+
+    private static function stripTagNamespacePrefix(string $name): string
+    {
+        $colon = strrpos($name, ':');
+
+        return $colon === false ? $name : substr($name, $colon + 1);
     }
 
     private function parseText(): void

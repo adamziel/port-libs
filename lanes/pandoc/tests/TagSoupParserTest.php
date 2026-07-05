@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\HtmlReader;
 use PortLibs\Pandoc\HtmlNativeAstComparisonHarness;
 use PortLibs\Pandoc\NativeReader;
@@ -37,6 +38,24 @@ return [
             ]],
             ['close', 'br', '', []],
         ], tokenSummary($tokens));
+    },
+
+    'strips namespace prefixes from tag names like pandoc html reader' => static function (TestRunner $t): void {
+        $tokens = TagSoupParser::canonicalizeTags((new TagSoupParser())->parse('<xhtml:p xml:lang="en">Hi <m:strong>there</m:strong></xhtml:p>'));
+
+        $t->same([
+            ['open', 'p', '', [['name' => 'xml:lang', 'value' => 'en']]],
+            ['text', '', 'Hi ', []],
+            ['open', 'strong', '', []],
+            ['text', '', 'there', []],
+            ['close', 'strong', '', []],
+            ['close', 'p', '', []],
+        ], tokenSummary($tokens));
+
+        $document = (new HtmlReader(['htmlReaderBackend' => 'tagsoup-pandoc-port']))->read('<xhtml:p>Hi <m:strong>there</m:strong></xhtml:p>');
+        $t->same('paragraph', $document->children[0]->type);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $document->children[0]->children));
+        $t->same('there', $document->children[0]->children[1]->children[0]->attr('text'));
     },
 
     'parses comments declarations cdata and raw text source-order content' => static function (TestRunner $t): void {
