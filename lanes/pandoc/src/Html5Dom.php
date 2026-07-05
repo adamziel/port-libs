@@ -7,7 +7,6 @@ namespace PortLibs\Pandoc;
 final class Html5Dom
 {
     public const HTML_TREE_CONSTRUCTION_HTML_DOCUMENT = 'Dom\\HTMLDocument';
-    public const HTML_TREE_CONSTRUCTION_LEGACY_COMPAT = 'DOMDocument-loadHTML-compat';
     public const HTML_FRAGMENT_CONTEXT_BODY = 'html-body-fragment-context';
     public const HTML_FRAGMENT_CONTEXT_TABLE = 'html-table-fragment-context';
 
@@ -30,16 +29,16 @@ final class Html5Dom
 
     public static function htmlDocumentTreeConstructionBackend(): string
     {
-        return self::nativeHtmlDocumentAvailable()
-            ? self::HTML_TREE_CONSTRUCTION_HTML_DOCUMENT
-            : self::HTML_TREE_CONSTRUCTION_LEGACY_COMPAT;
+        self::requireNativeHtmlDocument('HTML document');
+
+        return self::HTML_TREE_CONSTRUCTION_HTML_DOCUMENT;
     }
 
     public static function htmlFragmentTreeConstructionBackend(string $html): string
     {
-        return self::nativeHtmlDocumentAvailable()
-            ? self::HTML_TREE_CONSTRUCTION_HTML_DOCUMENT
-            : self::HTML_TREE_CONSTRUCTION_LEGACY_COMPAT;
+        self::requireNativeHtmlDocument('HTML fragment');
+
+        return self::HTML_TREE_CONSTRUCTION_HTML_DOCUMENT;
     }
 
     public static function nativeHtmlDocumentAvailable(): bool
@@ -81,41 +80,24 @@ final class Html5Dom
             protectNoscriptContent: true
         );
         self::assertNoHtmlFragmentDeclarations($preflight, 'HTML fragment');
+        self::requireNativeHtmlDocument('HTML fragment');
 
-        if (self::nativeHtmlDocumentAvailable()) {
-            $fragment = self::html5TreeConstructedFragment(
-                $html,
-                protectTemplateContentForBridge: $protectTemplateContentForParse,
-                protectIframeContentForBridge: $protectIframeContentForParse,
-                protectRawTextContentForBridge: $protectRawTextContentForParse,
-                protectNoscriptContentForBridge: $protectNoscriptContentForParse
-            );
-            if ($fragment === null) {
-                throw new \RuntimeException('Unable to parse HTML fragment through Dom\\HTMLDocument');
-            }
-
-            try {
-                $dom = self::loadLegacyHtml('<!doctype html><html><body>' . $fragment['source'] . '</body></html>', 'HTML fragment');
-            } catch (\Throwable $exception) {
-                throw new \RuntimeException('Unable to bridge Dom\\HTMLDocument output for HTML fragment', 0, $exception);
-            }
-
-            return self::requireBody($dom, 'HTML fragment');
+        $fragment = self::html5TreeConstructedFragment(
+            $html,
+            protectTemplateContentForBridge: $protectTemplateContentForParse,
+            protectIframeContentForBridge: $protectIframeContentForParse,
+            protectRawTextContentForBridge: $protectRawTextContentForParse,
+            protectNoscriptContentForBridge: $protectNoscriptContentForParse
+        );
+        if ($fragment === null) {
+            throw new \RuntimeException('Unable to parse HTML fragment through Dom\\HTMLDocument');
         }
 
-        $html = XmlHtmlDom::protectHtmlRcdataElements(
-            $html,
-            protectTemplateContent: $protectTemplateContentForParse,
-            protectIframeContent: $protectIframeContentForParse,
-            protectRawTextContent: $protectRawTextContentForParse,
-            protectNoscriptContent: $protectNoscriptContentForParse
-        );
-        $dom = self::loadHtml(
-            '<!doctype html><html><body>' . $html . '</body></html>',
-            'HTML fragment',
-            protectRcdata: false,
-            preferHtml5TreeConstruction: false
-        );
+        try {
+            $dom = self::loadLegacyHtml('<!doctype html><html><body>' . $fragment['source'] . '</body></html>', 'HTML fragment');
+        } catch (\Throwable $exception) {
+            throw new \RuntimeException('Unable to bridge Dom\\HTMLDocument output for HTML fragment', 0, $exception);
+        }
 
         return self::requireBody($dom, 'HTML fragment');
     }
@@ -131,9 +113,7 @@ final class Html5Dom
             protectNoscriptContent: true
         );
         self::assertNoHtmlFragmentDeclarations($preflight, 'HTML fragment');
-        if (!self::nativeHtmlDocumentAvailable()) {
-            return self::HTML_FRAGMENT_CONTEXT_BODY;
-        }
+        self::requireNativeHtmlDocument('HTML fragment');
 
         $fragment = self::html5TreeConstructedFragment($html);
         if ($fragment === null) {
@@ -589,36 +569,20 @@ final class Html5Dom
     private static function loadHtml(
         string $html,
         string $label,
-        bool $protectRcdata = true,
-        bool $preferHtml5TreeConstruction = true,
         bool $prependEncodingDeclaration = true
     ): \DOMDocument
     {
-        if ($preferHtml5TreeConstruction && self::nativeHtmlDocumentAvailable()) {
-            $html5 = self::html5TreeConstructedBridgeSource($html);
-            if ($html5 === null) {
-                throw new \RuntimeException('Unable to parse ' . $label . ' through Dom\\HTMLDocument');
-            }
-
-            try {
-                return self::loadLegacyHtml($html5, $label, $prependEncodingDeclaration);
-            } catch (\Throwable $exception) {
-                throw new \RuntimeException('Unable to bridge Dom\\HTMLDocument output for ' . $label, 0, $exception);
-            }
+        self::requireNativeHtmlDocument($label);
+        $html5 = self::html5TreeConstructedBridgeSource($html);
+        if ($html5 === null) {
+            throw new \RuntimeException('Unable to parse ' . $label . ' through Dom\\HTMLDocument');
         }
 
-        if ($protectRcdata) {
-            $html = XmlHtmlDom::protectHtmlRcdataElements(
-                $html,
-                protectTemplateContent: true,
-                protectIframeContent: true,
-                protectNoscriptContent: true
-            );
+        try {
+            return self::loadLegacyHtml($html5, $label, $prependEncodingDeclaration);
+        } catch (\Throwable $exception) {
+            throw new \RuntimeException('Unable to bridge Dom\\HTMLDocument output for ' . $label, 0, $exception);
         }
-
-        // PHP < 8.4 has no Dom\HTMLDocument, so it uses the legacy libxml
-        // parser with network access disabled.
-        return self::loadLegacyHtml($html, $label, $prependEncodingDeclaration);
     }
 
     private static function loadLegacyHtml(string $html, string $label, bool $prependEncodingDeclaration = true): \DOMDocument
@@ -798,9 +762,7 @@ final class Html5Dom
 
     private static function htmlDocumentAcceptsRawTagCandidate(string $candidate): bool
     {
-        if (!self::nativeHtmlDocumentAvailable()) {
-            return true;
-        }
+        self::requireNativeHtmlDocument('raw HTML tag candidate');
 
         $previous = libxml_use_internal_errors(true);
         try {
@@ -1296,6 +1258,13 @@ final class Html5Dom
         }
 
         return $body;
+    }
+
+    private static function requireNativeHtmlDocument(string $label): void
+    {
+        if (!self::nativeHtmlDocumentAvailable()) {
+            throw new \RuntimeException('Dom\\HTMLDocument is required to parse ' . $label);
+        }
     }
 
     private static function elementMatches(\DOMElement $element, ?string $localName, ?string $namespace): bool

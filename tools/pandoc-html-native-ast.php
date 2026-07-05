@@ -89,6 +89,8 @@ if ($summary) {
         'unpairedNativeFixtureNames',
         'unpairedHtmlFixtureExamples',
         'unpairedNativeFixtureExamples',
+        'excludedMappedPairCount',
+        'excludedMappedPairs',
         'totalPairCount',
         'comparedPairCount',
         'htmlParsedCount',

@@ -124,21 +124,6 @@ final class MarkdownReader
 
     private bool $htmlResolvedFootnoteReference = false;
 
-    /** @var list<bool> */
-    private array $htmlSourceTableFallbacks = [];
-
-    private int $htmlSourceTableFallbackIndex = 0;
-
-    /** @var list<array{thead: bool, tbody: bool, tfoot: bool}> */
-    private array $htmlSourceTableSectionProfiles = [];
-
-    private int $htmlSourceTableSectionProfileIndex = 0;
-
-    /** @var list<string> */
-    private array $htmlSourceTextareaRawHtml = [];
-
-    private int $htmlSourceTextareaRawHtmlIndex = 0;
-
     private bool $resolveInlineNotes = true;
 
     private bool $resolveFootnoteReferences = true;
@@ -3069,10 +3054,6 @@ final class MarkdownReader
             return null;
         }
 
-        if ($tag === 'pre') {
-            return null;
-        }
-
         if ($this->isMarkdownInHtmlVerbatimTag($tag)) {
             return $this->rawHtmlBlockFromCollectedHtml($collected, $index);
         }
@@ -3168,27 +3149,12 @@ final class MarkdownReader
 
     private function htmlBlockStartTagName(string $line): ?string
     {
-        $line = $this->expandTabsToSpaces($line);
-        $offset = 0;
-        $length = strlen($line);
-        while ($offset < $length && $offset < 4 && $line[$offset] === ' ') {
-            ++$offset;
-        }
-        if ($offset > 3 || ($line[$offset] ?? '') !== '<') {
+        $tag = Html5Dom::markdownRawHtmlOpeningTagBoundary($this->expandTabsToSpaces($line));
+        if ($tag === null || $tag['selfClosing']) {
             return null;
         }
 
-        $nameOffset = $offset + 1;
-        if ($nameOffset >= $length || !$this->htmlSourceNameStart($line[$nameOffset])) {
-            return null;
-        }
-
-        $nameEnd = $nameOffset + 1;
-        while ($nameEnd < $length && $this->htmlSourceNameChar($line[$nameEnd])) {
-            ++$nameEnd;
-        }
-
-        return strtolower(substr($line, $nameOffset, $nameEnd - $nameOffset));
+        return $tag['name'];
     }
 
     private function isMarkdownInHtmlBlockContainerTag(string $tag): bool
@@ -3230,13 +3196,60 @@ final class MarkdownReader
         for ($cursor = $index; $cursor < $count; ++$cursor) {
             $content[] = $this->normalizeRawHtmlLine($lines[$cursor]);
             $html = implode("\n", $content);
-            // Markdown needs the original byte range so it can parse the
-            // element body as Markdown. HTML element validation and attribute
-            // handling still go through Html5Dom/HTMLDocument below.
-            $bounds = $this->htmlSourceElementBounds($html, $tag);
+            $bounds = $this->markdownHtmlElementBounds($html, $tag);
             if ($bounds !== null) {
                 return [$html, $cursor, $bounds];
             }
+        }
+
+        return null;
+    }
+
+    /**
+     * Markdown-in-HTML needs source byte ranges for block delimiters. Tree
+     * construction and attributes still go through Html5Dom/HTMLDocument.
+     *
+     * @return array{openStart:int, openEnd:int, closeStart:int, closeEnd:int}|null
+     */
+    private function markdownHtmlElementBounds(string $html, string $tag): ?array
+    {
+        $tag = strtolower($tag);
+        $depth = 0;
+        $openStart = null;
+        $openEnd = null;
+        $cursor = 0;
+        while (($candidateOffset = strpos($html, '<', $cursor)) !== false) {
+            $closing = Html5Dom::rawHtmlClosingTagAt($html, $candidateOffset);
+            if ($closing !== null) {
+                if ($closing['name'] === $tag && $depth > 0) {
+                    $depth--;
+                    if ($depth === 0 && $openStart !== null && $openEnd !== null) {
+                        return [
+                            'openStart' => $openStart,
+                            'openEnd' => $openEnd,
+                            'closeStart' => $candidateOffset,
+                            'closeEnd' => $closing['next'] - 1,
+                        ];
+                    }
+                }
+                $cursor = max($candidateOffset + 1, $closing['next']);
+                continue;
+            }
+
+            $opening = Html5Dom::rawHtmlOpeningTagAt($html, $candidateOffset);
+            if ($opening !== null) {
+                if ($opening['name'] === $tag && !$opening['selfClosing']) {
+                    if ($depth === 0) {
+                        $openStart = $candidateOffset;
+                        $openEnd = $opening['next'] - 1;
+                    }
+                    $depth++;
+                }
+                $cursor = max($candidateOffset + 1, $opening['next']);
+                continue;
+            }
+
+            $cursor = $candidateOffset + 1;
         }
 
         return null;
@@ -4305,21 +4318,9 @@ final class MarkdownReader
         $previousHtmlBaseHref = $this->htmlBaseHref;
         $previousHtmlFootnoteDefinitions = $this->htmlFootnoteDefinitions;
         $previousHtmlResolvedFootnoteReference = $this->htmlResolvedFootnoteReference;
-        $previousHtmlSourceTableFallbacks = $this->htmlSourceTableFallbacks;
-        $previousHtmlSourceTableFallbackIndex = $this->htmlSourceTableFallbackIndex;
-        $previousHtmlSourceTableSectionProfiles = $this->htmlSourceTableSectionProfiles;
-        $previousHtmlSourceTableSectionProfileIndex = $this->htmlSourceTableSectionProfileIndex;
-        $previousHtmlSourceTextareaRawHtml = $this->htmlSourceTextareaRawHtml;
-        $previousHtmlSourceTextareaRawHtmlIndex = $this->htmlSourceTextareaRawHtmlIndex;
         $this->htmlBaseHref = $this->htmlDocumentBaseHref($dom);
         $this->htmlFootnoteDefinitions = $this->collectHtmlFootnoteDefinitions($body);
         $this->htmlResolvedFootnoteReference = false;
-        $this->htmlSourceTableFallbacks = $this->htmlSourceTableFallbacks($html);
-        $this->htmlSourceTableFallbackIndex = 0;
-        $this->htmlSourceTableSectionProfiles = $this->htmlSourceTableSectionProfiles($html);
-        $this->htmlSourceTableSectionProfileIndex = 0;
-        $this->htmlSourceTextareaRawHtml = $this->htmlSourceElementHtmlList($html, 'textarea');
-        $this->htmlSourceTextareaRawHtmlIndex = 0;
         try {
             $attrs = $this->htmlDocumentAttrs($dom);
             $nativeDivs = $this->htmlNativeDivsEnabled();
@@ -4330,8 +4331,7 @@ final class MarkdownReader
                 }
             }
 
-            $sourceOrderChildren = $this->parseHtmlDocumentSourceOrderTableBlocks($html);
-            $children = $sourceOrderChildren ?? $this->parseHtmlBlockChildren($body);
+            $children = $this->parseHtmlBlockChildren($body);
             if (!$nativeDivs && $this->htmlResolvedFootnoteReference) {
                 $children = $this->stripConsumedHtmlFootnoteContainers($children);
             }
@@ -4341,12 +4341,6 @@ final class MarkdownReader
             $this->htmlBaseHref = $previousHtmlBaseHref;
             $this->htmlFootnoteDefinitions = $previousHtmlFootnoteDefinitions;
             $this->htmlResolvedFootnoteReference = $previousHtmlResolvedFootnoteReference;
-            $this->htmlSourceTableFallbacks = $previousHtmlSourceTableFallbacks;
-            $this->htmlSourceTableFallbackIndex = $previousHtmlSourceTableFallbackIndex;
-            $this->htmlSourceTableSectionProfiles = $previousHtmlSourceTableSectionProfiles;
-            $this->htmlSourceTableSectionProfileIndex = $previousHtmlSourceTableSectionProfileIndex;
-            $this->htmlSourceTextareaRawHtml = $previousHtmlSourceTextareaRawHtml;
-            $this->htmlSourceTextareaRawHtmlIndex = $previousHtmlSourceTextareaRawHtmlIndex;
         }
     }
 
@@ -5779,7 +5773,13 @@ final class MarkdownReader
                 continue;
             }
 
-            if ($child instanceof \DOMElement && $this->htmlTableShouldFallBackToBlocksFromDomOrSource($child)) {
+            if (
+                $child instanceof \DOMElement
+                && (
+                    $this->htmlTableShouldFallBackToBlocksFromDom($child)
+                    || $this->htmlTableFollowsPendingInlineFosteredContent($child, $inlines)
+                )
+            ) {
                 $this->flushHtmlInlineParagraph($inlines, $blocks);
                 array_push($blocks, ...$this->parseHtmlInvalidTableBlocks($child));
                 continue;
@@ -5830,7 +5830,13 @@ final class MarkdownReader
                 continue;
             }
 
-            if ($child instanceof \DOMElement && $this->htmlTableShouldFallBackToBlocksFromDomOrSource($child)) {
+            if (
+                $child instanceof \DOMElement
+                && (
+                    $this->htmlTableShouldFallBackToBlocksFromDom($child)
+                    || $this->htmlTableFollowsPendingInlineFosteredContent($child, $inlines)
+                )
+            ) {
                 $this->flushHtmlInlineParagraph($inlines, $blocks);
                 array_push($blocks, ...$this->parseHtmlInvalidTableBlocks($child));
                 continue;
@@ -7365,10 +7371,6 @@ final class MarkdownReader
 
     private function parseStructuredHtmlTable(string $html): ?AstNode
     {
-        if ($this->htmlTableSourceShouldFallBackToBlocks($html)) {
-            return null;
-        }
-
         if (Html5Dom::htmlDocumentBoundaryAtStart($html)) {
             $dom = $this->parseHtmlFullDocumentDom($html);
             $body = $dom instanceof \DOMDocument ? $this->htmlDocumentBodyElement($dom) : null;
@@ -7389,7 +7391,7 @@ final class MarkdownReader
             return null;
         }
 
-        return $this->parseHtmlTableElementWithSourceProfiles($table, $this->htmlSourceTableSectionProfiles($html));
+        return $this->parseHtmlTableElement($table);
     }
 
     /**
@@ -7407,540 +7409,13 @@ final class MarkdownReader
             return null;
         }
 
-        $sourceFallbacks = $this->htmlSourceTableFallbacks($html);
-        $sourceFallback = in_array(true, $sourceFallbacks, true);
         $domFosteredFallback = $this->htmlBodyHasVisibleNonTableSibling($body, $table);
-        if ($domFosteredFallback) {
-            $sourceFallbacks = $this->htmlSourceTableFallbacksWithDomTable($body, $table, $sourceFallbacks);
-        }
-        $fallback = in_array(true, $sourceFallbacks, true);
-        if (!$fallback && !$this->htmlTableShouldFallBackToBlocks($table)) {
+        $fallback = $domFosteredFallback || $this->htmlTableShouldFallBackToBlocks($table);
+        if (!$fallback) {
             return null;
-        }
-
-        if (!$sourceFallback && $domFosteredFallback && $this->htmlSourceTableHasSourceOrderFallback($html)) {
-            $sourceOrderBlocks = $this->parseInvalidHtmlTableSourceOrderBlocks($html);
-            if ($sourceOrderBlocks !== null) {
-                return $sourceOrderBlocks;
-            }
-        }
-
-        if ($sourceFallback) {
-            return $this->parseHtmlBlockChildrenWithSourceTableFallbacks(
-                $body,
-                $sourceFallbacks,
-                $this->htmlSourceTableSectionProfiles($html)
-            );
         }
 
         return $this->parseHtmlBlockChildren($body);
-    }
-
-    /**
-     * @return list<AstNode>|null
-     */
-    private function parseHtmlDocumentSourceOrderTableBlocks(string $html): ?array
-    {
-        if (in_array(true, $this->htmlSourceTableFallbacks($html), true)) {
-            return null;
-        }
-
-        if (!$this->htmlSourceTableHasSourceOrderFallback($html)) {
-            return null;
-        }
-
-        $bodyBounds = $this->htmlSourceElementBounds($html, 'body');
-        $source = $bodyBounds === null
-            ? $html
-            : substr(
-                $html,
-                $bodyBounds['openEnd'] + 1,
-                max(0, $bodyBounds['closeStart'] - $bodyBounds['openEnd'] - 1)
-            );
-
-        return $this->parseInvalidHtmlTableSourceOrderBlocks($source);
-    }
-
-    /**
-     * @param list<bool> $fallbacks
-     * @param list<array{thead: bool, tbody: bool, tfoot: bool}> $sectionProfiles
-     * @return list<AstNode>
-     */
-    private function parseHtmlBlockChildrenWithSourceTableFallbacks(
-        \DOMElement $element,
-        array $fallbacks,
-        array $sectionProfiles = []
-    ): array
-    {
-        $previousHtmlSourceTableFallbacks = $this->htmlSourceTableFallbacks;
-        $previousHtmlSourceTableFallbackIndex = $this->htmlSourceTableFallbackIndex;
-        $previousHtmlSourceTableSectionProfiles = $this->htmlSourceTableSectionProfiles;
-        $previousHtmlSourceTableSectionProfileIndex = $this->htmlSourceTableSectionProfileIndex;
-        $this->htmlSourceTableFallbacks = $fallbacks;
-        $this->htmlSourceTableFallbackIndex = 0;
-        $this->htmlSourceTableSectionProfiles = $sectionProfiles;
-        $this->htmlSourceTableSectionProfileIndex = 0;
-        try {
-            return $this->parseHtmlBlockChildren($element);
-        } finally {
-            $this->htmlSourceTableFallbacks = $previousHtmlSourceTableFallbacks;
-            $this->htmlSourceTableFallbackIndex = $previousHtmlSourceTableFallbackIndex;
-            $this->htmlSourceTableSectionProfiles = $previousHtmlSourceTableSectionProfiles;
-            $this->htmlSourceTableSectionProfileIndex = $previousHtmlSourceTableSectionProfileIndex;
-        }
-    }
-
-    private function htmlTableSourceShouldFallBackToBlocks(string $html): bool
-    {
-        foreach ($this->htmlSourceTableFallbacks($html) as $fallback) {
-            if ($fallback) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * @return list<bool>
-     */
-    private function htmlSourceTableFallbacks(string $html): array
-    {
-        $fallbacks = [];
-        $stack = [];
-        foreach ($this->htmlSourceTableTokens($html) as $token) {
-            $name = $token['name'];
-            $closing = $token['closing'];
-            if ($name === 'table') {
-                if ($closing) {
-                    if ($stack !== []) {
-                        $frame = array_pop($stack);
-                        if (($frame['cellOpen'] ?? false) || ($frame['rowOpen'] ?? false)) {
-                            $fallbacks[(int) $frame['index']] = true;
-                        }
-                    }
-                    continue;
-                }
-
-                $fallbacks[] = false;
-                $stack[] = [
-                    'index' => count($fallbacks) - 1,
-                    'rowOpen' => false,
-                    'cellOpen' => false,
-                ];
-                continue;
-            }
-
-            if ($stack === []) {
-                continue;
-            }
-
-            $top = array_key_last($stack);
-            if ($top === null) {
-                continue;
-            }
-
-            if ($closing) {
-                if ($name === 'tr') {
-                    if ($stack[$top]['cellOpen']) {
-                        $fallbacks[(int) $stack[$top]['index']] = true;
-                    }
-                    $stack[$top]['cellOpen'] = false;
-                    $stack[$top]['rowOpen'] = false;
-                    continue;
-                }
-
-                if ($name === 'td' || $name === 'th') {
-                    $stack[$top]['cellOpen'] = false;
-                    continue;
-                }
-
-                if (in_array($name, ['thead', 'tbody', 'tfoot'], true)) {
-                    if ($stack[$top]['cellOpen'] || $stack[$top]['rowOpen']) {
-                        $fallbacks[(int) $stack[$top]['index']] = true;
-                    }
-                    $stack[$top]['cellOpen'] = false;
-                    $stack[$top]['rowOpen'] = false;
-                }
-                continue;
-            }
-
-            if ($name === 'tr') {
-                if ($stack[$top]['cellOpen'] || $stack[$top]['rowOpen']) {
-                    $fallbacks[(int) $stack[$top]['index']] = true;
-                }
-                $stack[$top]['rowOpen'] = true;
-                $stack[$top]['cellOpen'] = false;
-                continue;
-            }
-
-            if ($name === 'td' || $name === 'th') {
-                if ($stack[$top]['cellOpen']) {
-                    $fallbacks[(int) $stack[$top]['index']] = true;
-                }
-                $stack[$top]['rowOpen'] = true;
-                $stack[$top]['cellOpen'] = true;
-            }
-        }
-
-        while ($stack !== []) {
-            $frame = array_pop($stack);
-            if (($frame['cellOpen'] ?? false) || ($frame['rowOpen'] ?? false)) {
-                $fallbacks[(int) $frame['index']] = true;
-            }
-        }
-
-        return $fallbacks;
-    }
-
-    /**
-     * @return list<AstNode>|null
-     */
-    private function parseInvalidHtmlTableSourceOrderBlocks(string $html): ?array
-    {
-        $tableBounds = $this->htmlSourceElementBounds($html, 'table');
-        if ($tableBounds === null) {
-            return null;
-        }
-
-        $blocks = [];
-        array_push($blocks, ...$this->parseHtmlSourceOrderFragmentBlocks(substr($html, 0, $tableBounds['openStart'])));
-
-        $inner = substr(
-            $html,
-            $tableBounds['openEnd'] + 1,
-            max(0, $tableBounds['closeStart'] - $tableBounds['openEnd'] - 1)
-        );
-        array_push($blocks, ...$this->parseInvalidHtmlTableInnerSourceOrderBlocks($inner));
-        array_push($blocks, ...$this->parseHtmlSourceOrderFragmentBlocks(substr($html, $tableBounds['closeEnd'] + 1)));
-
-        return $blocks;
-    }
-
-    private function htmlSourceTableHasSourceOrderFallback(string $html): bool
-    {
-        $tableBounds = $this->htmlSourceElementBounds($html, 'table');
-        if ($tableBounds === null) {
-            return false;
-        }
-
-        $inner = substr(
-            $html,
-            $tableBounds['openEnd'] + 1,
-            max(0, $tableBounds['closeStart'] - $tableBounds['openEnd'] - 1)
-        );
-        $offset = 0;
-        $length = strlen($inner);
-        while ($offset < $length) {
-            $rowBounds = $this->htmlSourceElementBounds($inner, 'tr', $offset);
-            if ($rowBounds === null) {
-                break;
-            }
-
-            if ($this->htmlSourceChunkHasVisibleNonSectionContent(substr($inner, $offset, $rowBounds['openStart'] - $offset))) {
-                return true;
-            }
-
-            $offset = $rowBounds['closeEnd'] + 1;
-        }
-
-        return $this->htmlSourceChunkHasVisibleNonSectionContent(substr($inner, $offset));
-    }
-
-    private function htmlSourceChunkHasVisibleNonSectionContent(string $html): bool
-    {
-        $html = $this->htmlSourceRemoveCompleteElements($html, ['caption', 'colgroup']);
-        $cursor = 0;
-        $kept = '';
-        foreach ($this->htmlSourceNamedTokens($html, ['thead', 'tbody', 'tfoot']) as $token) {
-            $kept .= substr($html, $cursor, $token['start'] - $cursor);
-            $cursor = $token['end'] + 1;
-        }
-        $kept .= substr($html, $cursor);
-
-        return trim($kept) !== '';
-    }
-
-    /**
-     * @param list<string> $names
-     */
-    private function htmlSourceRemoveCompleteElements(string $html, array $names): string
-    {
-        $changed = true;
-        while ($changed) {
-            $changed = false;
-            foreach ($names as $name) {
-                $bounds = $this->htmlSourceElementBounds($html, $name);
-                if ($bounds === null) {
-                    continue;
-                }
-
-                $html = substr($html, 0, $bounds['openStart']) . substr($html, $bounds['closeEnd'] + 1);
-                $changed = true;
-                break;
-            }
-        }
-
-        return $html;
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function htmlSourceElementHtmlList(string $html, string $tag): array
-    {
-        $items = [];
-        $offset = 0;
-        while (($bounds = $this->htmlSourceElementBounds($html, $tag, $offset)) !== null) {
-            $items[] = substr($html, $bounds['openStart'], $bounds['closeEnd'] - $bounds['openStart'] + 1);
-            $offset = $bounds['closeEnd'] + 1;
-        }
-
-        return $items;
-    }
-
-    private function nextHtmlSourceTextareaRawHtml(): ?string
-    {
-        if ($this->htmlSourceTextareaRawHtmlIndex < count($this->htmlSourceTextareaRawHtml)) {
-            $html = $this->htmlSourceTextareaRawHtml[$this->htmlSourceTextareaRawHtmlIndex];
-            $this->htmlSourceTextareaRawHtmlIndex++;
-
-            return $html;
-        }
-
-        return null;
-    }
-
-    /**
-     * @return list<AstNode>
-     */
-    private function parseInvalidHtmlTableInnerSourceOrderBlocks(string $html): array
-    {
-        $blocks = [];
-        $offset = 0;
-        $length = strlen($html);
-        while ($offset < $length) {
-            $rowBounds = $this->htmlSourceElementBounds($html, 'tr', $offset);
-            if ($rowBounds === null) {
-                break;
-            }
-
-            array_push($blocks, ...$this->parseHtmlSourceOrderFragmentBlocks(substr($html, $offset, $rowBounds['openStart'] - $offset)));
-
-            $rowHtml = substr($html, $rowBounds['openStart'], $rowBounds['closeEnd'] - $rowBounds['openStart'] + 1);
-            $rowBody = $this->parseHtmlFragmentBodyElement('<table>' . $rowHtml . '</table>');
-            if ($rowBody instanceof \DOMElement) {
-                $table = $this->firstDescendantElement($rowBody, 'table');
-                if ($table instanceof \DOMElement) {
-                    array_push($blocks, ...$this->parseHtmlInvalidTableBlocks($table));
-                }
-            }
-
-            $offset = $rowBounds['closeEnd'] + 1;
-        }
-
-        array_push($blocks, ...$this->parseHtmlSourceOrderFragmentBlocks(substr($html, $offset)));
-
-        return $blocks;
-    }
-
-    /**
-     * @return list<AstNode>
-     */
-    private function parseHtmlSourceOrderFragmentBlocks(string $html): array
-    {
-        if (trim($html) === '') {
-            return [];
-        }
-
-        $body = $this->parseHtmlFragmentBodyElement($html);
-        if (!$body instanceof \DOMElement) {
-            return [];
-        }
-
-        return $this->parseHtmlBlockChildren($body);
-    }
-
-    /**
-     * @return list<array{thead: bool, tbody: bool, tfoot: bool}>
-     */
-    private function htmlSourceTableSectionProfiles(string $html): array
-    {
-        $profiles = [];
-        $stack = [];
-        foreach ($this->htmlSourceTableTokens($html) as $token) {
-            $name = $token['name'];
-            if ($name === 'table') {
-                if ($token['closing']) {
-                    array_pop($stack);
-                    continue;
-                }
-
-                $profiles[] = ['thead' => false, 'tbody' => false, 'tfoot' => false];
-                $stack[] = count($profiles) - 1;
-                continue;
-            }
-
-            if ($token['closing'] || $stack === [] || !in_array($name, ['thead', 'tbody', 'tfoot'], true)) {
-                continue;
-            }
-
-            $top = array_key_last($stack);
-            if ($top !== null) {
-                $profiles[(int) $stack[$top]][$name] = true;
-            }
-        }
-
-        return $profiles;
-    }
-
-    /**
-     * @return list<array{name: string, closing: bool, start: int, end: int}>
-     */
-    private function htmlSourceTableTokens(string $html): array
-    {
-        return $this->htmlSourceNamedTokens($html, ['table', 'thead', 'tbody', 'tfoot', 'tr', 'td', 'th']);
-    }
-
-    /**
-     * @param list<string> $names
-     * @return list<array{name: string, closing: bool, start: int, end: int}>
-     */
-    private function htmlSourceNamedTokens(string $html, array $names): array
-    {
-        $tokens = [];
-        $nameSet = array_fill_keys($names, true);
-        $offset = 0;
-        $length = strlen($html);
-        while (($start = strpos($html, '<', $offset)) !== false) {
-            if (str_starts_with(substr($html, $start, 4), '<!--')) {
-                $end = strpos($html, '-->', $start + 4);
-                $offset = $end === false ? $length : $end + 3;
-                continue;
-            }
-
-            if (str_starts_with(strtolower(substr($html, $start, 9)), '<![cdata[')) {
-                $end = strpos($html, ']]>', $start + 9);
-                $offset = $end === false ? $length : $end + 3;
-                continue;
-            }
-
-            $cursor = $start + 1;
-            while ($cursor < $length && ctype_space($html[$cursor])) {
-                $cursor++;
-            }
-
-            $closing = false;
-            if ($cursor < $length && $html[$cursor] === '/') {
-                $closing = true;
-                $cursor++;
-                while ($cursor < $length && ctype_space($html[$cursor])) {
-                    $cursor++;
-                }
-            }
-
-            if ($cursor >= $length || !$this->htmlSourceNameStart($html[$cursor])) {
-                $end = strpos($html, '>', $start + 1);
-                $offset = $end === false ? $length : $end + 1;
-                continue;
-            }
-
-            $nameStart = $cursor;
-            $cursor++;
-            while ($cursor < $length && $this->htmlSourceNameChar($html[$cursor])) {
-                $cursor++;
-            }
-
-            $name = strtolower(substr($html, $nameStart, $cursor - $nameStart));
-            $tagEnd = $this->htmlSourceTagEnd($html, $cursor);
-            $offset = $tagEnd === null ? $length : $tagEnd + 1;
-
-            if (isset($nameSet[$name])) {
-                $tokens[] = ['name' => $name, 'closing' => $closing, 'start' => $start, 'end' => $tagEnd ?? $length - 1];
-            }
-        }
-
-        return $tokens;
-    }
-
-    /**
-     * @return array{openStart: int, openEnd: int, closeStart: int, closeEnd: int}|null
-     */
-    private function htmlSourceElementBounds(string $html, string $tag, int $offset = 0): ?array
-    {
-        $depth = 0;
-        $openStart = null;
-        $openEnd = null;
-        foreach ($this->htmlSourceNamedTokens(substr($html, $offset), [$tag]) as $token) {
-            if ($token['name'] !== $tag) {
-                continue;
-            }
-
-            $start = $offset + $token['start'];
-            $end = $offset + $token['end'];
-            if (!$token['closing']) {
-                if ($depth === 0) {
-                    $openStart = $start;
-                    $openEnd = $end;
-                }
-                $depth++;
-                continue;
-            }
-
-            if ($depth === 0) {
-                continue;
-            }
-
-            $depth--;
-            if ($depth === 0 && $openStart !== null && $openEnd !== null) {
-                return [
-                    'openStart' => $openStart,
-                    'openEnd' => $openEnd,
-                    'closeStart' => $start,
-                    'closeEnd' => $end,
-                ];
-            }
-        }
-
-        return null;
-    }
-
-    private function htmlSourceNameStart(string $char): bool
-    {
-        return ($char >= 'A' && $char <= 'Z') || ($char >= 'a' && $char <= 'z');
-    }
-
-    private function htmlSourceNameChar(string $char): bool
-    {
-        return $this->htmlSourceNameStart($char)
-            || ($char >= '0' && $char <= '9')
-            || in_array($char, ['-', '_', ':'], true);
-    }
-
-    private function htmlSourceTagEnd(string $html, int $offset): ?int
-    {
-        $quote = null;
-        $length = strlen($html);
-        for ($cursor = $offset; $cursor < $length; $cursor++) {
-            $char = $html[$cursor];
-            if ($quote !== null) {
-                if ($char === $quote) {
-                    $quote = null;
-                }
-                continue;
-            }
-
-            if ($char === '"' || $char === "'") {
-                $quote = $char;
-                continue;
-            }
-
-            if ($char === '>') {
-                return $cursor;
-            }
-        }
-
-        return null;
     }
 
     private function htmlBodyHasVisibleNonTableSibling(\DOMElement $body, \DOMElement $table): bool
@@ -7963,35 +7438,6 @@ final class MarkdownReader
         }
 
         return false;
-    }
-
-    /**
-     * @param list<bool> $fallbacks
-     * @return list<bool>
-     */
-    private function htmlSourceTableFallbacksWithDomTable(\DOMElement $body, \DOMElement $table, array $fallbacks): array
-    {
-        $index = 0;
-        foreach ($body->getElementsByTagName('table') as $candidate) {
-            if (!$candidate instanceof \DOMElement) {
-                continue;
-            }
-
-            if ($candidate->isSameNode($table)) {
-                while (count($fallbacks) <= $index) {
-                    $fallbacks[] = false;
-                }
-                $fallbacks[$index] = true;
-
-                return $fallbacks;
-            }
-
-            $index++;
-        }
-
-        $fallbacks[0] = true;
-
-        return $fallbacks;
     }
 
     private function htmlTableContainsNestedTable(\DOMElement $table): bool
@@ -8156,19 +7602,28 @@ final class MarkdownReader
         return false;
     }
 
-    private function htmlTableShouldFallBackToBlocksFromDomOrSource(\DOMElement $element): bool
+    private function htmlTableShouldFallBackToBlocksFromDom(\DOMElement $element): bool
     {
         if (!$this->htmlReaderModeEnabled() || strtolower($element->localName) !== 'table') {
             return false;
         }
 
-        $sourceFallback = false;
-        if ($this->htmlSourceTableFallbackIndex < count($this->htmlSourceTableFallbacks)) {
-            $sourceFallback = $this->htmlSourceTableFallbacks[$this->htmlSourceTableFallbackIndex];
-            $this->htmlSourceTableFallbackIndex++;
-        }
+        return $this->htmlTableShouldFallBackToBlocks($element);
+    }
 
-        return $sourceFallback || $this->htmlTableShouldFallBackToBlocks($element);
+    /**
+     * HTML5 foster parenting moves text that appeared inside a table to a
+     * sibling before that table. If pending inline content is immediately
+     * followed by a table in HTML-reader mode, keep Pandoc's visible-block
+     * behavior without scanning table source.
+     *
+     * @param list<AstNode> $pendingInlines
+     */
+    private function htmlTableFollowsPendingInlineFosteredContent(\DOMElement $element, array $pendingInlines): bool
+    {
+        return $this->htmlReaderModeEnabled()
+            && strtolower($element->localName) === 'table'
+            && $pendingInlines !== [];
     }
 
     /**
@@ -8265,7 +7720,6 @@ final class MarkdownReader
 
     private function parseHtmlTableElement(\DOMElement $table): AstNode
     {
-        $sourceProfile = $this->nextHtmlTableSourceProfile();
         $maxColumns = 0;
         $caption = $this->firstChildElement($table, 'caption');
         $thead = $this->firstChildElement($table, 'thead');
@@ -8284,8 +7738,7 @@ final class MarkdownReader
         $bodyNodes = [];
         if ($bodySections !== []) {
             $promoteImplicitBodyHead = !$thead instanceof \DOMElement
-                && count($bodySections) === 1
-                && !($sourceProfile['tbody'] ?? false);
+                && count($bodySections) === 1;
             foreach ($bodySections as $bodyIndex => $tbody) {
                 $rows = $this->readHtmlTableRows(
                     $tbody,
@@ -8374,38 +7827,6 @@ final class MarkdownReader
         }
 
         return $this->tableWithReviewPacket(new AstNode('table', $attrs, $children));
-    }
-
-    /**
-     * @param list<array{thead: bool, tbody: bool, tfoot: bool}> $sectionProfiles
-     */
-    private function parseHtmlTableElementWithSourceProfiles(\DOMElement $table, array $sectionProfiles): AstNode
-    {
-        $previousHtmlSourceTableSectionProfiles = $this->htmlSourceTableSectionProfiles;
-        $previousHtmlSourceTableSectionProfileIndex = $this->htmlSourceTableSectionProfileIndex;
-        $this->htmlSourceTableSectionProfiles = $sectionProfiles;
-        $this->htmlSourceTableSectionProfileIndex = 0;
-        try {
-            return $this->parseHtmlTableElement($table);
-        } finally {
-            $this->htmlSourceTableSectionProfiles = $previousHtmlSourceTableSectionProfiles;
-            $this->htmlSourceTableSectionProfileIndex = $previousHtmlSourceTableSectionProfileIndex;
-        }
-    }
-
-    /**
-     * @return array{thead: bool, tbody: bool, tfoot: bool}
-     */
-    private function nextHtmlTableSourceProfile(): array
-    {
-        if ($this->htmlSourceTableSectionProfileIndex < count($this->htmlSourceTableSectionProfiles)) {
-            $profile = $this->htmlSourceTableSectionProfiles[$this->htmlSourceTableSectionProfileIndex];
-            $this->htmlSourceTableSectionProfileIndex++;
-
-            return $profile;
-        }
-
-        return ['thead' => false, 'tbody' => true, 'tfoot' => false];
     }
 
     /**
@@ -9670,14 +9091,9 @@ final class MarkdownReader
 
     private function buildHtmlRawInlineNode(\DOMElement $element): AstNode
     {
-        $raw = strtolower($element->localName) === 'textarea'
-            ? $this->nextHtmlSourceTextareaRawHtml()
-            : null;
-        if ($raw === null) {
-            $raw = $element->ownerDocument instanceof \DOMDocument
-                ? $element->ownerDocument->saveHTML($element)
-                : '';
-        }
+        $raw = $element->ownerDocument instanceof \DOMDocument
+            ? $element->ownerDocument->saveHTML($element)
+            : '';
         if (!is_string($raw) || $raw === '') {
             $raw = '<' . strtolower($element->localName) . '></' . strtolower($element->localName) . '>';
         }

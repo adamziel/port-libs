@@ -13,7 +13,7 @@ final class HtmlUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-html-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
     public const EXPECTED_SELECTED_FIXTURE_COUNT = 114;
-    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 114;
+    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 112;
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/HTML.hs',
@@ -34,6 +34,10 @@ final class HtmlUpstreamReaderEvidence
     private const RUNNER_RESULT_ARTIFACT_KIND = 'upstream-html-reader-runner-result-artifact';
     private const RUNNER_TRANSCRIPT_KIND = 'upstream-html-reader-runner-transcript';
     private const RUNNER_RESULT_ARTIFACT_SCHEMA_VERSION = 2;
+    private const HTMLDOCUMENT_MAPPED_PAIR_EXCLUSIONS = [
+        'upstream-html-invalid-table-children.html' => 'upstream pandoc preserves source order inside malformed table content; Dom\\HTMLDocument exposes the browser DOM after foster parenting without source positions',
+        'upstream-html-textarea-raw-block.html' => 'upstream pandoc preserves raw textarea source bytes; Dom\\HTMLDocument applies textarea initial-newline preprocessing and serializes the DOM value',
+    ];
 
     private const CHECKED_IN_HTML_FIXTURES = [
         'upstream-html-anchor-image-attrs.html' => [
@@ -713,7 +717,7 @@ final class HtmlUpstreamReaderEvidence
                     'the checked-in HTML reader fixture corpus has 114 pinned fixture snapshots',
                     'each pinned HTML fixture has a same-basename checked-in native expectation file',
                     'each pinned fixture has at least one local test reference',
-                    'the existing HTML/native AST comparator still observes 114 same-basename native-pair matches when included in the report',
+                    'the existing HTML/native AST comparator observes 112 HTMLDocument-backed same-basename native-pair matches when included in the report',
                 ],
                 'doesNotAssert' => [
                     'that upstream Haskell/Cabal/Tasty tests were executed',
@@ -790,7 +794,7 @@ final class HtmlUpstreamReaderEvidence
 
         return ($validation['status'] ?? null) === 'valid-checked-in-current-html-reader-evidence'
             && ($validation['issues'] ?? null) === []
-            && (int) ($staticEvidence['checkedInNativePairCount'] ?? -1) === self::EXPECTED_NATIVE_MAPPED_PAIR_COUNT
+            && (int) ($staticEvidence['checkedInNativePairCount'] ?? -1) === self::EXPECTED_SELECTED_FIXTURE_COUNT
             && self::hasRequiredSelectedFixtureCount($report, self::EXPECTED_SELECTED_FIXTURE_COUNT);
     }
 
@@ -940,6 +944,12 @@ final class HtmlUpstreamReaderEvidence
             'selectedFixtures' => $fixtures,
             'categoryCounts' => $categories,
             'nativeMappedPairCount' => self::EXPECTED_NATIVE_MAPPED_PAIR_COUNT,
+            'nativeMappedPairExclusionCount' => count(self::HTMLDOCUMENT_MAPPED_PAIR_EXCLUSIONS),
+            'nativeMappedPairExclusions' => array_map(
+                static fn (string $name, string $reason): array => ['name' => $name, 'reason' => $reason],
+                array_keys(self::HTMLDOCUMENT_MAPPED_PAIR_EXCLUSIONS),
+                array_values(self::HTMLDOCUMENT_MAPPED_PAIR_EXCLUSIONS)
+            ),
         ];
     }
 
@@ -1417,7 +1427,7 @@ final class HtmlUpstreamReaderEvidence
                 'the identity and count of 114 selected checked-in upstream-derived and generated-current HTML fixtures',
                 'that each selected fixture has a same-basename checked-in native expectation file',
                 'that each selected fixture is referenced by at least one local focused test',
-                'that the existing native AST gate observes 114 checked-in same-basename HTML/native matches',
+                'that the existing native AST gate observes 112 HTMLDocument-backed checked-in same-basename HTML/native matches',
                 'that upstream Haskell runner evidence is either explicitly not-run or supplied as a validated result artifact',
                 'the future upstream runner command plan targets test:test-pandoc Readers/HTML at the pinned upstream commit without execution',
                 'a supplied upstream runner result artifact is validated against the pinned HTML Tasty target, commit, test names, pass/fail counts, and transcript file identities when explicitly provided',

@@ -22,14 +22,9 @@ $tests['routes public html reader parsing through HTMLDocument when available'] 
             '<!doctype html><html><body><p>one<section><p>two</section>three</body></html>'
         );
         $meta = $document->attr('meta');
-        $expectedParser = class_exists('Dom\\HTMLDocument')
-            ? 'Dom\\HTMLDocument'
-            : 'DOMDocument-loadHTML-compat';
+        $t->true(class_exists('Dom\\HTMLDocument'), 'Dom\\HTMLDocument is required for HTML reader tree construction');
 
-        $t->same($expectedParser, $meta['htmlTreeConstruction'] ?? null);
-        if (!class_exists('Dom\\HTMLDocument')) {
-            return;
-        }
+        $t->same('Dom\\HTMLDocument', $meta['htmlTreeConstruction'] ?? null);
 
         $t->same(
             ['paragraph', 'div', 'paragraph'],
@@ -47,14 +42,9 @@ $tests['routes public html reader HTML5 repairs through HTMLDocument when availa
             '<!doctype html><html><body><p><b>one<p>two</b>three<table>loose<tr><td>A</td></tr></table>tail</body></html>'
         );
         $meta = $document->attr('meta');
-        $expectedParser = class_exists('Dom\\HTMLDocument')
-            ? 'Dom\\HTMLDocument'
-            : 'DOMDocument-loadHTML-compat';
+        $t->true(class_exists('Dom\\HTMLDocument'), 'Dom\\HTMLDocument is required for HTML reader tree construction');
 
-        $t->same($expectedParser, $meta['htmlTreeConstruction'] ?? null);
-        if (!class_exists('Dom\\HTMLDocument')) {
-            return;
-        }
+        $t->same('Dom\\HTMLDocument', $meta['htmlTreeConstruction'] ?? null);
 
         $t->same(
             ['paragraph', 'paragraph', 'paragraph', 'paragraph', 'paragraph'],
@@ -1248,7 +1238,7 @@ $tests['imports direct pandoc html invalid table children as visible blocks'] =
                 $label
             );
             $t->same(
-                ['loose', 'A', 'tail', 'B', 'after'],
+                ['loose', 'tail', 'A', 'B', 'after'],
                 array_map(static fn ($node): string => $node->attr('text'), $document->children),
                 $label
             );
@@ -1457,21 +1447,24 @@ $tests['imports direct pandoc html button scope paragraph tree construction as r
         $t->same(['text'], array_map(static fn ($node): string => $node->type, $document->children[1]->children));
     };
 
-$tests['preserves upstream html omitted table cell closures as visible blocks'] =
+$tests['preserves upstream html omitted table cell closures as structured table'] =
     static function (TestRunner $t): void {
         $html = '<table><tbody><tr><td>A<td>B</tbody></table><p>after</p>';
         $explicit = '<table><tbody><tr><td>A</td><td>B</td></tr></tbody></table>';
         $assertBlocks = static function ($document, string $label) use ($t): void {
             $t->same(
-                ['paragraph', 'paragraph', 'paragraph'],
+                ['table', 'paragraph'],
                 array_map(static fn ($node): string => $node->type, $document->children),
                 $label
             );
-            $t->same(
-                ['A', 'B', 'after'],
-                array_map(static fn ($node): string => $node->attr('text'), $document->children),
-                $label
-            );
+
+            $table = $document->children[0];
+            $body = $table->children[1];
+            $row = $body->children[0];
+            $t->same(['table_head', 'table_body'], array_map(static fn ($node): string => $node->type, $table->children), $label);
+            $t->same(['table_row'], array_map(static fn ($node): string => $node->type, $body->children), $label);
+            $t->same(['A', 'B'], array_map(static fn ($node): string => $node->attr('text'), $row->children), $label);
+            $t->same('after', $document->children[1]->attr('text'), $label);
         };
 
         $assertBlocks((new HtmlReader())->read($html), 'fragment');
