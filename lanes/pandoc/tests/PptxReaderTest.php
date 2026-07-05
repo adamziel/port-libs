@@ -16592,6 +16592,13 @@ return [
         $t->same('Content Part 8', $issue['name'] ?? null);
         $t->same('Content part desc', $issue['descr'] ?? null);
         $t->same(['x' => 111, 'y' => 222, 'cx' => 333, 'cy' => 444], $issue['layout'] ?? null);
+        $t->same(['rIdContent'], $issue['relationshipIds'] ?? null);
+        $t->same('id', $issue['relationships'][0]['relationshipAttribute'] ?? null);
+        $t->same('contentPart', $issue['relationships'][0]['sourceElement'] ?? null);
+        $t->same(true, $issue['relationships'][0]['relationshipFound'] ?? null);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/unknownContentPart', $issue['relationships'][0]['relationshipType'] ?? null);
+        $t->same('../contentParts/content1.xml', $issue['relationships'][0]['target'] ?? null);
+        $t->same('ppt/contentParts/content1.xml', $issue['relationships'][0]['partName'] ?? null);
         $t->contains('Para [ Str "Visible" , Space , Str "body" , Space , Str "after" , Space , Str "content" , Space , Str "part" ]', $native);
         $t->true(!str_contains($native, 'Hidden content part text'), 'contentPart descendants should stay out of upstream-compatible output');
     },

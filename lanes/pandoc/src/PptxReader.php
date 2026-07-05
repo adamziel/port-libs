@@ -2745,10 +2745,20 @@ final class PptxReader
             }
             $shapeIssues[] = $shapeIssue;
         } elseif (!$hasRichMedia) {
-            $shapeIssues[] = array_replace(
+            $shapeIssue = array_replace(
                 ['issue' => 'unsupported-drawable-shape'],
                 $this->shapeMetadata($shapeElement, $zOrder)
             );
+            $relationshipReviews = $this->shapeRelationshipReviews($shapeElement, $slideRelationships);
+            if ($relationshipReviews !== []) {
+                $shapeIssue['relationshipIds'] = array_map(
+                    static fn (array $relationship): string => (string) ($relationship['relationshipId'] ?? ''),
+                    $relationshipReviews
+                );
+                $shapeIssue['relationships'] = $relationshipReviews;
+            }
+
+            $shapeIssues[] = $shapeIssue;
         }
 
         return [];
@@ -2906,7 +2916,7 @@ final class PptxReader
     {
         $reviews = [];
         $seen = [];
-        foreach ($shapeElement->getElementsByTagName('*') as $element) {
+        foreach ($this->shapeAndDescendantElements($shapeElement) as $element) {
             if (!$element instanceof \DOMElement) {
                 continue;
             }
@@ -2942,6 +2952,21 @@ final class PptxReader
         }
 
         return $reviews;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private function shapeAndDescendantElements(\DOMElement $shapeElement): array
+    {
+        $elements = [$shapeElement];
+        foreach ($shapeElement->getElementsByTagName('*') as $element) {
+            if ($element instanceof \DOMElement) {
+                $elements[] = $element;
+            }
+        }
+
+        return $elements;
     }
 
     private function isDrawableShapeElement(\DOMElement $element, ?string $presentationNamespace): bool
