@@ -36,6 +36,29 @@ $removeTree = static function (string $path) use (&$removeTree): void {
     @rmdir($path);
 };
 
+$copyTree = static function (string $source, string $destination) use (&$copyTree): void {
+    if (!is_dir($source)) {
+        throw new RuntimeException("Unable to copy missing fixture directory {$source}");
+    }
+    if (!is_dir($destination) && !mkdir($destination, 0777, true) && !is_dir($destination)) {
+        throw new RuntimeException("Unable to create fixture directory {$destination}");
+    }
+
+    foreach (scandir($source) ?: [] as $entry) {
+        if ($entry === '.' || $entry === '..') {
+            continue;
+        }
+
+        $sourcePath = $source . DIRECTORY_SEPARATOR . $entry;
+        $destinationPath = $destination . DIRECTORY_SEPARATOR . $entry;
+        if (is_dir($sourcePath)) {
+            $copyTree($sourcePath, $destinationPath);
+        } elseif (!copy($sourcePath, $destinationPath)) {
+            throw new RuntimeException("Unable to copy fixture file {$sourcePath}");
+        }
+    }
+};
+
 $writeFile = static function (string $root, string $relativePath, string $contents): void {
     $path = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
     $directory = dirname($path);
@@ -936,6 +959,48 @@ return [
         $t->same('valid-checked-in-current-delimited-text-reader-evidence', $evidence['validation']['status']);
         $t->same([], $evidence['validation']['issues']);
         $t->true(in_array('that upstream Haskell/Cabal/Tasty tests were executed', $evidence['claimBoundaries']['doesNotAssert'], true));
+    },
+    'rejects generated csv and tsv fixture inventory drift' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $copyTree, $writeFile): void {
+        $repoRoot = dirname(__DIR__, 3);
+        $root = $makeTempDir();
+
+        try {
+            foreach ([
+                'generated-current-csv-reader',
+                'generated-current-tsv-reader',
+            ] as $directory) {
+                $copyTree(
+                    $repoRoot . '/lanes/pandoc/fixtures/' . $directory,
+                    $root . '/lanes/pandoc/fixtures/' . $directory
+                );
+            }
+
+            $writeFile($root, 'lanes/pandoc/fixtures/generated-current-csv-reader/untracked-extra.csv', "a,b\n1,2\n");
+            $writeFile($root, 'lanes/pandoc/fixtures/generated-current-tsv-reader/untracked-extra.tsv', "a\tb\n1\t2\n");
+
+            $csv = DelimitedTextUpstreamReaderEvidence::checkedInGeneratedCsvNativeEvidence($root);
+            $tsv = DelimitedTextUpstreamReaderEvidence::checkedInGeneratedTsvNativeEvidence($root);
+
+            $t->same('invalid-checked-in-generated-csv-native-parity-evidence', $csv['validation']['status']);
+            $t->true(in_array('checked-in-generated-csv-native-fixture-inventory-drift', $csv['validation']['issues'], true));
+            $t->same('invalid-generated-csv-native-fixture-inventory', $csv['fixtureInventory']['status']);
+            $t->same(2 * DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $csv['fixtureInventory']['expectedFileCount']);
+            $t->same(2 * DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT + 1, $csv['fixtureInventory']['actualFileCount']);
+            $t->same([], $csv['fixtureInventory']['missingFiles']);
+            $t->same(['untracked-extra.csv'], $csv['fixtureInventory']['unexpectedFiles']);
+            $t->same(false, DelimitedTextUpstreamReaderEvidence::hasRequiredGeneratedCsvNativeStaticEvidence($csv));
+
+            $t->same('invalid-checked-in-generated-tsv-native-parity-evidence', $tsv['validation']['status']);
+            $t->true(in_array('checked-in-generated-tsv-native-fixture-inventory-drift', $tsv['validation']['issues'], true));
+            $t->same('invalid-generated-tsv-native-fixture-inventory', $tsv['fixtureInventory']['status']);
+            $t->same(2 * DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $tsv['fixtureInventory']['expectedFileCount']);
+            $t->same(2 * DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT + 1, $tsv['fixtureInventory']['actualFileCount']);
+            $t->same([], $tsv['fixtureInventory']['missingFiles']);
+            $t->same(['untracked-extra.tsv'], $tsv['fixtureInventory']['unexpectedFiles']);
+            $t->same(false, DelimitedTextUpstreamReaderEvidence::hasRequiredGeneratedTsvNativeStaticEvidence($tsv));
+        } finally {
+            $removeTree($root);
+        }
     },
     'executes generated csv native parity evidence' => static function (TestRunner $t): void {
         $repoRoot = dirname(__DIR__, 3);

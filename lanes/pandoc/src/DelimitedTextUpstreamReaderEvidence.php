@@ -2266,6 +2266,12 @@ final class DelimitedTextUpstreamReaderEvidence
         if (!is_dir($fixtureDirectory)) {
             $issues[] = 'missing-checked-in-generated-csv-native-fixture-directory';
         }
+        $fixtureInventory = self::generatedNativeFixtureInventory(
+            $root,
+            self::CHECKED_IN_GENERATED_CSV_NATIVE_FIXTURE_DIRECTORY,
+            self::CHECKED_IN_GENERATED_CSV_NATIVE_FIXTURES,
+            'csv'
+        );
 
         $fixtures = [];
         foreach (self::CHECKED_IN_GENERATED_CSV_NATIVE_FIXTURES as $name => $snapshot) {
@@ -2290,6 +2296,9 @@ final class DelimitedTextUpstreamReaderEvidence
                 $issues[] = 'checked-in-generated-csv-native-fixture-byte-count-mismatch';
             }
         }
+        if (($fixtureInventory['status'] ?? null) !== 'valid-generated-csv-native-fixture-inventory') {
+            $issues[] = 'checked-in-generated-csv-native-fixture-inventory-drift';
+        }
 
         $samples = [];
         foreach (self::GENERATED_CSV_NATIVE_SAMPLES as $name => $sample) {
@@ -2309,6 +2318,7 @@ final class DelimitedTextUpstreamReaderEvidence
             'samples' => $samples,
             'checkedInFixtureCount' => count($fixtures),
             'checkedInFixtures' => $fixtures,
+            'fixtureInventory' => $fixtureInventory,
             'csvDirectFixtureDenominator' => self::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT,
             'validation' => [
                 'status' => $issues === [] ? 'valid-checked-in-generated-csv-native-parity-evidence' : 'invalid-checked-in-generated-csv-native-parity-evidence',
@@ -2381,6 +2391,12 @@ final class DelimitedTextUpstreamReaderEvidence
         if (!is_dir($fixtureDirectory)) {
             $issues[] = 'missing-checked-in-generated-tsv-native-fixture-directory';
         }
+        $fixtureInventory = self::generatedNativeFixtureInventory(
+            $root,
+            self::CHECKED_IN_GENERATED_TSV_NATIVE_FIXTURE_DIRECTORY,
+            self::CHECKED_IN_GENERATED_TSV_NATIVE_FIXTURES,
+            'tsv'
+        );
 
         $fixtures = [];
         foreach (self::CHECKED_IN_GENERATED_TSV_NATIVE_FIXTURES as $name => $snapshot) {
@@ -2405,6 +2421,9 @@ final class DelimitedTextUpstreamReaderEvidence
                 $issues[] = 'checked-in-generated-tsv-native-fixture-byte-count-mismatch';
             }
         }
+        if (($fixtureInventory['status'] ?? null) !== 'valid-generated-tsv-native-fixture-inventory') {
+            $issues[] = 'checked-in-generated-tsv-native-fixture-inventory-drift';
+        }
 
         $samples = [];
         foreach (self::GENERATED_TSV_NATIVE_SAMPLES as $name => $sample) {
@@ -2424,6 +2443,7 @@ final class DelimitedTextUpstreamReaderEvidence
             'samples' => $samples,
             'checkedInFixtureCount' => count($fixtures),
             'checkedInFixtures' => $fixtures,
+            'fixtureInventory' => $fixtureInventory,
             'tsvDirectFixtureDenominator' => self::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT,
             'validation' => [
                 'status' => $issues === [] ? 'valid-checked-in-generated-tsv-native-parity-evidence' : 'invalid-checked-in-generated-tsv-native-parity-evidence',
@@ -3485,6 +3505,7 @@ final class DelimitedTextUpstreamReaderEvidence
             && (int) ($evidence['sampleCount'] ?? -1) === self::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT
             && (int) ($evidence['checkedInFixtureCount'] ?? -1) === count(self::CHECKED_IN_GENERATED_CSV_NATIVE_FIXTURES)
             && (int) ($evidence['csvDirectFixtureDenominator'] ?? -1) === self::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT
+            && (($evidence['fixtureInventory']['status'] ?? null) === 'valid-generated-csv-native-fixture-inventory')
             && self::hasRequiredGeneratedNativeStaticFixtureBindings($evidence, 'csv', array_keys(self::GENERATED_CSV_NATIVE_SAMPLES));
     }
 
@@ -3500,6 +3521,7 @@ final class DelimitedTextUpstreamReaderEvidence
             && (int) ($evidence['sampleCount'] ?? -1) === self::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT
             && (int) ($evidence['checkedInFixtureCount'] ?? -1) === count(self::CHECKED_IN_GENERATED_TSV_NATIVE_FIXTURES)
             && (int) ($evidence['tsvDirectFixtureDenominator'] ?? -1) === self::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT
+            && (($evidence['fixtureInventory']['status'] ?? null) === 'valid-generated-tsv-native-fixture-inventory')
             && self::hasRequiredGeneratedNativeStaticFixtureBindings($evidence, 'tsv', array_keys(self::GENERATED_TSV_NATIVE_SAMPLES));
     }
 
@@ -3985,6 +4007,64 @@ final class DelimitedTextUpstreamReaderEvidence
             'expectedSha256' => $expectedSha256,
             'bytes' => is_int($bytes) ? $bytes : null,
             'expectedBytes' => $expectedBytes,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $snapshots
+     * @return array<string, mixed>
+     */
+    private static function generatedNativeFixtureInventory(string $root, string $relativeDirectory, array $snapshots, string $reader): array
+    {
+        if ($reader !== 'csv' && $reader !== 'tsv') {
+            throw new \InvalidArgumentException("Unsupported generated native fixture inventory reader: {$reader}");
+        }
+
+        $expectedFiles = [];
+        $directoryPrefix = rtrim($relativeDirectory, '/') . '/';
+        foreach ($snapshots as $snapshot) {
+            $path = (string) ($snapshot['checkedInPath'] ?? '');
+            $expectedFiles[] = str_starts_with($path, $directoryPrefix)
+                ? substr($path, strlen($directoryPrefix))
+                : $path;
+        }
+        sort($expectedFiles, SORT_STRING);
+
+        $directory = rtrim($root, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativeDirectory);
+        $actualFiles = [];
+        if (is_dir($directory)) {
+            $iterator = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($directory, \FilesystemIterator::SKIP_DOTS)
+            );
+            foreach ($iterator as $fileInfo) {
+                if (!$fileInfo instanceof \SplFileInfo || !$fileInfo->isFile()) {
+                    continue;
+                }
+
+                $relativePath = substr($fileInfo->getPathname(), strlen($directory) + 1);
+                $actualFiles[] = str_replace(DIRECTORY_SEPARATOR, '/', $relativePath);
+            }
+        }
+        sort($actualFiles, SORT_STRING);
+
+        $missingFiles = array_values(array_diff($expectedFiles, $actualFiles));
+        $unexpectedFiles = array_values(array_diff($actualFiles, $expectedFiles));
+
+        return [
+            'kind' => "generated-{$reader}-native-fixture-directory-inventory",
+            'reader' => $reader,
+            'checkedInFixtureDirectory' => $relativeDirectory,
+            'status' => $missingFiles === [] && $unexpectedFiles === []
+                ? "valid-generated-{$reader}-native-fixture-inventory"
+                : "invalid-generated-{$reader}-native-fixture-inventory",
+            'expectedFileCount' => count($expectedFiles),
+            'actualFileCount' => count($actualFiles),
+            'missingFileCount' => count($missingFiles),
+            'unexpectedFileCount' => count($unexpectedFiles),
+            'expectedFiles' => $expectedFiles,
+            'actualFiles' => $actualFiles,
+            'missingFiles' => $missingFiles,
+            'unexpectedFiles' => $unexpectedFiles,
         ];
     }
 
