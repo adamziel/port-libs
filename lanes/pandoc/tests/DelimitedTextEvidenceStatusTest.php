@@ -98,7 +98,7 @@ return [
                 '--require-parser-option-fixture-count=9',
                 '--require-generated-csv-native-parity=64',
                 '--require-generated-tsv-native-parity=36',
-                '--require-pandoc-executable-csv-native-parity=44',
+                '--require-pandoc-executable-csv-native-parity=45',
                 '--require-pandoc-executable-tsv-native-parity=24',
                 '--require-runner-not-run',
                 '--require-runner-plan',

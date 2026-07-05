@@ -117,14 +117,14 @@
         },
         "pandocExecutableNativeParity": {
             "requiredPandocVersion": "pandoc 3.10",
-            "csvSampleCount": 44,
-            "csvMatchCount": 44,
+            "csvSampleCount": 45,
+            "csvMatchCount": 45,
             "csvMismatchCount": 0,
             "tsvSampleCount": 24,
             "tsvMatchCount": 24,
             "tsvMismatchCount": 0,
-            "totalSampleCount": 68,
-            "totalMatchCount": 68
+            "totalSampleCount": 69,
+            "totalMatchCount": 69
         },
         "runnerEvidence": {
             "status": "not-run",

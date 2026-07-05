@@ -10,6 +10,7 @@ final class PandocConverter
     private const EXTRA_INPUT_ALIASES = [
         'md' => 'markdown',
         'htm' => 'html',
+        'tab' => 'tsv',
     ];
 
     /** @var array<string, string> */

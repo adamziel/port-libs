@@ -5768,6 +5768,20 @@ NATIVE;
         $t->same('delimited-text-format-inferred', $csvPacket['diagnostics'][0]['code'] ?? null);
         $t->same('10', $csvDocument->children[0]->children[1]->children[0]->children[1]->attr('text'));
     },
+    'routes tab input format alias through tsv reader' => static function (TestRunner $t): void {
+        $document = PandocConverter::read("name\tqty\nA\t10\n", 'tab');
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+
+        $t->same('tsv', PandocConverter::canonicalInputFormat('tab'));
+        $t->same(true, PandocConverter::canRead('tab'));
+        $t->same('tsv', $document->attr('sourceFormat'));
+        $t->same('tsv', $packet['format'] ?? null);
+        $t->same('tab', $packet['delimiter'] ?? null);
+        $t->same(['name', 'qty'], $table->attr('columnNames'));
+        $t->same('A', $table->children[1]->children[0]->children[0]->attr('text'));
+        $t->same('10', $table->children[1]->children[0]->children[1]->attr('text'));
+    },
     'records csv header row width repair provenance without widening table output' => static function (TestRunner $t): void {
         $sourceText = implode("\n", [
             'id,title,published',
