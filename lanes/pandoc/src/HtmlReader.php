@@ -39,6 +39,7 @@ final class HtmlReader
             $attrs = [];
         } else {
             $readerBytes = self::flattenHtmlTemplateContainers($structuralBytes);
+            $readerBytes = self::flattenHtmlRawTextFallbackContainers($readerBytes);
             if ($this->shouldFlattenHtmlDetailsSummaryContainers()) {
                 $readerBytes = self::flattenHtmlDetailsSummaryContainers($readerBytes);
             }
@@ -231,6 +232,69 @@ final class HtmlReader
         }
 
         return $changed;
+    }
+
+    private static function flattenHtmlRawTextFallbackContainers(string $bytes): string
+    {
+        try {
+            $source = self::parseHtmlRewriteSource($bytes);
+            if ($source === null || !self::flattenHtmlRawTextFallbackElements($source['dom'])) {
+                return $bytes;
+            }
+
+            return self::serializeHtmlRewriteSource($source) ?? $bytes;
+        } catch (\Throwable) {
+            return $bytes;
+        }
+    }
+
+    private static function flattenHtmlRawTextFallbackElements(?\DOMDocument $dom): bool
+    {
+        if (!$dom instanceof \DOMDocument) {
+            return false;
+        }
+
+        $changed = false;
+        foreach (self::htmlRawTextFallbackElementNames() as $name) {
+            for ($pass = 0; $pass < 8; ++$pass) {
+                $elements = [];
+                foreach ($dom->getElementsByTagName($name) as $element) {
+                    if ($element instanceof \DOMElement && strtolower($element->localName) === $name) {
+                        $elements[] = $element;
+                    }
+                }
+
+                if ($elements === []) {
+                    break;
+                }
+
+                foreach ($elements as $element) {
+                    $parent = $element->parentNode;
+                    if (!$parent instanceof \DOMNode) {
+                        continue;
+                    }
+
+                    $fragment = Html5Dom::parseHtmlFragment($element->textContent);
+                    foreach (iterator_to_array($fragment->childNodes) as $child) {
+                        if ($child instanceof \DOMNode) {
+                            $parent->insertBefore($dom->importNode($child, true), $element);
+                        }
+                    }
+                    $parent->removeChild($element);
+                    $changed = true;
+                }
+            }
+        }
+
+        return $changed;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function htmlRawTextFallbackElementNames(): array
+    {
+        return ['xmp'];
     }
 
     private static function flattenHtmlDetailsSummaryContainers(string $bytes): string

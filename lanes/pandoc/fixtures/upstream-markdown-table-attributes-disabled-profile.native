@@ -1,0 +1,62 @@
+[ Table
+    ( "" , [] , [] )
+    (Caption
+       Nothing
+       [ Plain
+           [ Str "Reviewed"
+           , Space
+           , Strong [ Str "table" ]
+           , Space
+           , Str "{#review-table"
+           , Space
+           , Str ".audited"
+           , Space
+           , Str "data-source="
+           , Quoted DoubleQuote [ Str "upstream" ]
+           , Str "}"
+           ]
+       ])
+    [ ( AlignLeft , ColWidthDefault )
+    , ( AlignRight , ColWidthDefault )
+    ]
+    (TableHead
+       ( "" , [] , [] )
+       [ Row
+           ( "" , [] , [] )
+           [ Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Plain [ Str "Metric" ] ]
+           , Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Plain [ Str "Value" ] ]
+           ]
+       ])
+    [ TableBody
+        ( "" , [] , [] )
+        (RowHeadColumns 0)
+        []
+        [ Row
+            ( "" , [] , [] )
+            [ Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain [ Str "Queue" ] ]
+            , Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain [ Str "12" ] ]
+            ]
+        ]
+    ]
+    (TableFoot ( "" , [] , [] ) [])
+]

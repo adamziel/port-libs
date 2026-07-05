@@ -102,6 +102,7 @@ final class MarkdownFormatProfile
         'task-list' => 'task_lists',
         'tasklist' => 'task_lists',
         'tasklists' => 'task_lists',
+        'table_attribute' => 'table_attributes',
         'tables' => 'pipe_tables',
         'pipe_table' => 'pipe_tables',
         'pipe-table' => 'pipe_tables',
@@ -120,7 +121,7 @@ final class MarkdownFormatProfile
         'yaml_metadata_blocks' => 'yaml_metadata_block',
     ];
 
-    /** @var array<string, array{yamlMetadata:bool, titleBlock:bool, rawAttribute:bool, rawHtml:bool, rawTex:bool, latexMacros:bool, rawMarkdown:bool, definitionLists:bool, footnotes:bool, citations:bool, taskLists:bool, pipeTables:bool, simpleTables:bool, gridTables:bool, multilineTables:bool, listsWithoutPrecedingBlankline:bool}> */
+    /** @var array<string, array{yamlMetadata:bool, titleBlock:bool, rawAttribute:bool, rawHtml:bool, rawTex:bool, latexMacros:bool, rawMarkdown:bool, definitionLists:bool, footnotes:bool, citations:bool, taskLists:bool, pipeTables:bool, simpleTables:bool, gridTables:bool, multilineTables:bool, tableAttributes:bool, listsWithoutPrecedingBlankline:bool}> */
     private const DEFAULTS = [
         'markdown' => [
             'yamlMetadata' => true,
@@ -138,6 +139,7 @@ final class MarkdownFormatProfile
             'simpleTables' => true,
             'gridTables' => true,
             'multilineTables' => true,
+            'tableAttributes' => true,
             'listsWithoutPrecedingBlankline' => false,
         ],
         'commonmark' => [
@@ -156,6 +158,7 @@ final class MarkdownFormatProfile
             'simpleTables' => false,
             'gridTables' => false,
             'multilineTables' => false,
+            'tableAttributes' => false,
             'listsWithoutPrecedingBlankline' => true,
         ],
         'commonmark_x' => [
@@ -174,6 +177,7 @@ final class MarkdownFormatProfile
             'simpleTables' => false,
             'gridTables' => false,
             'multilineTables' => false,
+            'tableAttributes' => false,
             'listsWithoutPrecedingBlankline' => true,
         ],
         'gfm' => [
@@ -192,6 +196,7 @@ final class MarkdownFormatProfile
             'simpleTables' => false,
             'gridTables' => false,
             'multilineTables' => false,
+            'tableAttributes' => false,
             'listsWithoutPrecedingBlankline' => true,
         ],
         'markdown_mmd' => [
@@ -210,6 +215,7 @@ final class MarkdownFormatProfile
             'simpleTables' => false,
             'gridTables' => false,
             'multilineTables' => false,
+            'tableAttributes' => false,
             'listsWithoutPrecedingBlankline' => false,
         ],
         'markdown_phpextra' => [
@@ -228,6 +234,7 @@ final class MarkdownFormatProfile
             'simpleTables' => false,
             'gridTables' => false,
             'multilineTables' => false,
+            'tableAttributes' => false,
             'listsWithoutPrecedingBlankline' => false,
         ],
         'markdown_strict' => [
@@ -246,6 +253,7 @@ final class MarkdownFormatProfile
             'simpleTables' => false,
             'gridTables' => false,
             'multilineTables' => false,
+            'tableAttributes' => false,
             'listsWithoutPrecedingBlankline' => false,
         ],
     ];
@@ -457,6 +465,7 @@ final class MarkdownFormatProfile
                 'strikeout',
                 'subscript',
                 'superscript',
+                'table_attributes',
                 'task_lists',
                 'tex_math_dollars',
                 'grid_tables',
@@ -654,6 +663,14 @@ final class MarkdownFormatProfile
     public static function multilineTablesEnabled(array $options, bool $defaultWithoutFormat): bool
     {
         return self::enabled($options, 'multilineTables', $defaultWithoutFormat, 'multiline_tables');
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     */
+    public static function tableAttributesEnabled(array $options, bool $defaultWithoutFormat): bool
+    {
+        return self::enabled($options, 'tableAttributes', $defaultWithoutFormat, 'table_attributes');
     }
 
     /**

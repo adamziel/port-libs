@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 101;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 102;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '2c1b67e9ff1e2635b4f555a51e7eee1f7d50b20a3b643929537905eda9550e01';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 43795;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'c7f8c9caf0eb30d38878087f01669b4cd9887ae3be45ee675fb7fdb08db8c513';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 44154;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -330,6 +330,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => '600f69ab626db820ccdbdbd28f0d8e3f43dde299bf35d82eb77dab031f229b20',
             'pptxBytes' => 2340,
             'nativeBytes' => 135,
+        ],
+        'field-title' => [
+            'name' => 'generated field-backed title placeholder parity',
+            'pptx' => 'pptx-reader/field-title.pptx',
+            'native' => 'pptx-reader/field-title.native',
+            'pairKey' => 'pptx-reader/field-title.pptx|pptx-reader/field-title.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/field-title.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/field-title.native',
+            'pptxSha256' => '3f7ed6cd3d9f6088310c5b92652bab7f382d4ec3f128c2d92caf4408fae374cf',
+            'nativeSha256' => '125290aa28897bd5dd8bb81472ac61216d200bb8ef6b2358b7992438ea071568',
+            'pptxBytes' => 1545,
+            'nativeBytes' => 116,
         ],
         'first-text-body' => [
             'name' => 'generated first text body child parity',

@@ -42,6 +42,7 @@ final class MarkdownNativeAstComparisonHarness
         'upstream-markdown-smart-inline-note-double-quotes' => ['format' => 'markdown+smart'],
         'upstream-markdown-smart-inline-note-quotes' => ['format' => 'markdown+smart'],
         'upstream-markdown-strict-compact-heading' => ['format' => 'markdown_strict'],
+        'upstream-markdown-table-attributes-disabled-profile' => ['format' => 'markdown-table_attributes'],
         'upstream-markdown-task-list' => ['format' => 'markdown+task_lists'],
         'upstream-markdown-z-fancy-list-markers' => ['format' => 'markdown+fancy_lists'],
         'upstream-markdown-z-hard-line-break-profile' => ['format' => 'markdown+hard_line_breaks'],

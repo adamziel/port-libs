@@ -787,6 +787,14 @@ return [
         $t->same(['quote' => '"', 'escape' => '\\'], $evidence['generatedTsvNativeStaticEvidence']['samples'][34]['readerOptions']);
         $t->same('pipe-delimiter-quoted-field', $evidence['generatedTsvNativeStaticEvidence']['samples'][35]['name']);
         $t->same(['delimiter' => 'pipe', 'quote' => '"'], $evidence['generatedTsvNativeStaticEvidence']['samples'][35]['readerOptions']);
+        $t->same('space-only-fields.tsv', $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][84]['name']);
+        $t->same('498ff7e89da4ecd3f0589a5006d9bcfae4cb859040cb6f609ee2fd158eef1822', $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][84]['checkedInFile']['sha256']);
+        $t->same(68, $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][84]['checkedInFile']['bytes']);
+        $t->same('space-only-fields.native', $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][85]['name']);
+        $t->same('c8cd96df6c5e457474bcd7a199a54e3388fde74e27dde3e0a3ddca7da6777b83', $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][85]['checkedInFile']['sha256']);
+        $t->same(2514, $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][85]['checkedInFile']['bytes']);
+        $t->same('space-only-fields', $evidence['generatedTsvNativeStaticEvidence']['samples'][42]['name']);
+        $t->same([], $evidence['generatedTsvNativeStaticEvidence']['samples'][42]['readerOptions']);
         $t->same('cd7a0f7e2c4737a1884c0ff3ec73bf6a5990fbdfb6ba1b588b6a6d9202ab3e02', $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][4]['checkedInFile']['sha256']);
         $t->same(91, $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][4]['checkedInFile']['bytes']);
         $t->same('unicode-safe.native', $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][5]['name']);
@@ -2204,6 +2212,18 @@ return [
         $t->same('lanes/pandoc/fixtures/generated-current-tsv-reader/pipe-delimiter-quoted-field.native', $evidence['samples'][35]['staticFixtureBinding']['expectedNativeFixture']['checkedInPath']);
         $t->same(4, $evidence['samples'][35]['rowCount']);
         $t->same(3, $evidence['samples'][35]['columnCount']);
+        $t->same('matched', $evidence['samples'][42]['status']);
+        $t->same('space-only-fields', $evidence['samples'][42]['name']);
+        $t->same('lanes/pandoc/fixtures/generated-current-tsv-reader/space-only-fields.tsv', $evidence['samples'][42]['inputPath']);
+        $t->same(['sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/space-only-fields.tsv'], $evidence['samples'][42]['readerOptions']);
+        $t->same('generated-tsv-native-sample-static-fixture-binding', $evidence['samples'][42]['staticFixtureBinding']['kind']);
+        $t->same('space-only-fields', $evidence['samples'][42]['staticFixtureBinding']['sample']);
+        $t->same('valid-static-fixture-snapshot', $evidence['samples'][42]['staticFixtureBinding']['inputFixture']['status']);
+        $t->same('valid-static-fixture-snapshot', $evidence['samples'][42]['staticFixtureBinding']['expectedNativeFixture']['status']);
+        $t->same('lanes/pandoc/fixtures/generated-current-tsv-reader/space-only-fields.tsv', $evidence['samples'][42]['staticFixtureBinding']['inputFixture']['checkedInPath']);
+        $t->same('lanes/pandoc/fixtures/generated-current-tsv-reader/space-only-fields.native', $evidence['samples'][42]['staticFixtureBinding']['expectedNativeFixture']['checkedInPath']);
+        $t->same(4, $evidence['samples'][42]['rowCount']);
+        $t->same(3, $evidence['samples'][42]['columnCount']);
         $t->same(true, DelimitedTextUpstreamReaderEvidence::hasRequiredGeneratedTsvNativeParity($evidence));
         $t->true(in_array('that the generated TSV samples are upstream command fixtures', $evidence['claimBoundaries']['doesNotAssert'], true));
     },
@@ -2454,6 +2474,7 @@ return [
             'header-width-truncates-extra-fields',
             'numeric-looking-literals',
             'literal-quote-space-boundaries',
+            'space-only-fields',
         ], array_column($tsv['samples'], 'name'));
         $t->same(array_fill(0, DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT, 'matched'), array_column($tsv['samples'], 'status'));
         $t->same(array_fill(0, DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT, 'valid-generated-tsv-native-sample-static-binding'), array_column($tsv['samples'], 'staticFixtureBindingStatus'));

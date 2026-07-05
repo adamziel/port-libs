@@ -11280,7 +11280,7 @@ final class MarkdownReader
         ];
 
         if ($source !== null) {
-            $caption = $this->parseMarkdownTableCaptionSource($source);
+            $caption = $this->parseMarkdownTableCaptionSource($source, $this->tableAttributeExtensionEnabled());
             $sourceAttributes = $this->markdownAttributeAstAttrs($caption['id'], $caption['classes'], $caption['attributes']);
             if ($sourceAttributes !== []) {
                 $captionSource['sourceAttributes'] = $sourceAttributes;
@@ -11296,7 +11296,7 @@ final class MarkdownReader
      */
     private function markdownTableCaptionAttrs(array $attrs, string $source): array
     {
-        $caption = $this->parseMarkdownTableCaptionSource($source);
+        $caption = $this->parseMarkdownTableCaptionSource($source, $this->tableAttributeExtensionEnabled());
         $attrs['caption'] = $caption['caption'];
         if ($caption['caption'] !== '') {
             $attrs['captionInlines'] = $caption['captionInlines'];
@@ -11329,9 +11329,16 @@ final class MarkdownReader
      *     attributes:array<string, string>
      * }
      */
-    private function parseMarkdownTableCaptionSource(string $source): array
+    private function parseMarkdownTableCaptionSource(string $source, bool $attributeExtensionEnabled = true): array
     {
-        [$source, $id, $classes, $attributes] = $this->splitTrailingMarkdownTableCaptionAttributes($source);
+        if ($attributeExtensionEnabled) {
+            [$source, $id, $classes, $attributes] = $this->splitTrailingMarkdownTableCaptionAttributes($source);
+        } else {
+            $source = rtrim($source);
+            $id = null;
+            $classes = [];
+            $attributes = [];
+        }
         $source = trim($source);
         $shortCaption = null;
         $shortCaptionInlines = [];
@@ -18398,6 +18405,14 @@ final class MarkdownReader
         $options['format'] = $this->markdownFormatWithExtensionOption();
 
         return MarkdownFormatProfile::multilineTablesEnabled($options, true);
+    }
+
+    private function tableAttributeExtensionEnabled(): bool
+    {
+        $options = $this->options;
+        $options['format'] = $this->markdownFormatWithExtensionOption();
+
+        return MarkdownFormatProfile::tableAttributesEnabled($options, true);
     }
 
     private function listsWithoutPrecedingBlanklineExtensionEnabled(): bool

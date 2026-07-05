@@ -12,9 +12,9 @@ final class MarkdownUpstreamReaderEvidence
     public const STATUS_COMPLETED = 'completed-upstream-markdown-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-markdown-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
-    public const EXPECTED_SELECTED_FIXTURE_COUNT = 130;
-    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 130;
-    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = '7d89d59b5af80c43c6b2723af5a9b7642d13974c5a695f1a22dc6966e62b13a4';
+    public const EXPECTED_SELECTED_FIXTURE_COUNT = 131;
+    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 131;
+    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = '2981d5a1604628f089364ce56fa973de70d741409258fd5109fce6bf891ae601';
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/Markdown.hs',
@@ -1671,6 +1671,19 @@ final class MarkdownUpstreamReaderEvidence
             ],
             'sha256' => '282158ee0bdffa838c1e2db62edabde2e8a594b423aae721ee9ad9b5383e8ac4',
             'bytes' => 230,
+        ],
+        'upstream-markdown-table-attributes-disabled-profile.md' => [
+            'role' => 'markdown-table-attributes-disabled-profile-fixture',
+            'sourceKind' => 'selected-upstream-markdown-reader-case',
+            'sourceReference' => 'Pandoc 3.10 markdown-table_attributes table caption attribute literal profile',
+            'formatProfile' => 'markdown-table_attributes table caption attributes remain literal',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-markdown-table-attributes-disabled-profile.md',
+            'coverageTests' => [
+                'lanes/pandoc/tests/MarkdownReaderTableAttributeProfileFixtureCompletionTest.php',
+                'lanes/pandoc/tests/MarkdownNativeAstComparisonHarnessTest.php',
+            ],
+            'sha256' => 'a7bcfe06e2566f9297ee294e5496fadb2760658d6ed58c53e069cdc2097bc06f',
+            'bytes' => 127,
         ],
     ];
 

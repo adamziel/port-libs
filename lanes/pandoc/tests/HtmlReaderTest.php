@@ -1247,6 +1247,30 @@ $tests['imports direct pandoc html template content as visible blocks'] =
         $t->same('After template.', $after->attr('text'));
     };
 
+$tests['imports direct pandoc html xmp rawtext fallback as parsed blocks'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-xmp-rawtext-fallback.html'));
+        $before = $document->children[0];
+        $fallback = $document->children[1];
+        $list = $document->children[2];
+        $after = $document->children[3];
+
+        $t->same('html', $document->attr('sourceFormat'));
+        $t->same('HTML XMP Rawtext Fallback Import', $document->attr('meta')['title']);
+        $t->same(
+            ['paragraph', 'paragraph', 'bullet_list', 'paragraph'],
+            array_map(static fn ($node): string => $node->type, $document->children)
+        );
+        $t->same('Before legacy literal.', $before->attr('text'));
+        $t->same('Escaped source becomes parsed fallback.', $fallback->attr('text'));
+        $t->same(['strong', 'text'], array_map(static fn ($node): string => $node->type, $fallback->children));
+        $t->same('Escaped source', $fallback->children[0]->children[0]->attr('text'));
+        $t->same(' becomes parsed fallback.', $fallback->children[1]->attr('text'));
+        $t->same('alpha', $list->children[0]->attr('text'));
+        $t->same('beta', $list->children[1]->attr('text'));
+        $t->same('After legacy literal.', $after->attr('text'));
+    };
+
 $tests['extracts html reader microdata item metadata with itemref and nested item scopes'] =
     static function (TestRunner $t): void {
         $html = '<!doctype html><html><head><title>Microdata Dispatch</title></head><body>'

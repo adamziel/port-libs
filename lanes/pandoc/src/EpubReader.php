@@ -2087,15 +2087,33 @@ final class EpubReader
         foreach ($html as $index => $raw) {
             $blocks[] = new AstNode('raw_html', ['html' => $raw]);
             if (
-                $this->isEpubOpeningRawHtmlTag($raw, 'track')
-                && !$this->rawHtmlTagClosesElement($raw, 'track')
-                && !$this->nextRawHtmlIsClosingTag($html, $index, 'track')
+                $this->epubMediaRawHtmlTagNeedsExplicitClose($raw, ['source', 'track'])
+                && !$this->nextRawHtmlClosesSameMediaTag($html, $index, ['source', 'track'])
             ) {
-                $blocks[] = new AstNode('raw_html', ['html' => '</track>']);
+                $blocks[] = new AstNode('raw_html', ['html' => '</' . $this->epubOpeningRawHtmlTagName($raw) . '>']);
             }
         }
 
         return $blocks;
+    }
+
+    /**
+     * @param list<string> $tags
+     */
+    private function epubMediaRawHtmlTagNeedsExplicitClose(string $html, array $tags): bool
+    {
+        $tag = $this->epubOpeningRawHtmlTagName($html);
+
+        return $tag !== null
+            && in_array($tag, $tags, true)
+            && !$this->rawHtmlTagClosesElement($html, $tag);
+    }
+
+    private function epubOpeningRawHtmlTagName(string $html): ?string
+    {
+        $opening = Html5Dom::rawHtmlOpeningTagAt($html);
+
+        return $opening === null ? null : $opening['name'];
     }
 
     private function isEpubMediaRawHtmlTag(string $html): bool
@@ -2119,11 +2137,15 @@ final class EpubReader
             return [];
         }
 
-        $attributes = $this->rawHtmlAttributes($opening['source']);
+        $element = $this->rawHtmlOpeningElement($opening['source'], $opening['name']);
+        if (!$element instanceof \DOMElement) {
+            return [];
+        }
+
         $names = $opening['name'] === 'video' ? ['src', 'poster'] : ['src'];
         $urls = [];
         foreach ($names as $name) {
-            $url = trim($attributes[$name] ?? '');
+            $url = trim((string) (XmlHtmlDom::attribute($element, $name) ?? ''));
             if ($url !== '' && !in_array($url, $urls, true)) {
                 $urls[] = $url;
             }
@@ -2132,29 +2154,21 @@ final class EpubReader
         return $urls;
     }
 
-    /**
-     * @return array<string, string>
-     */
-    private function rawHtmlAttributes(string $source): array
+    private function rawHtmlOpeningElement(string $source, string $name): ?\DOMElement
     {
-        preg_match_all(
-            '/([A-Za-z_:][A-Za-z0-9:_.-]*)\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s"\'=<>`]+))/',
-            $source,
-            $matches,
-            PREG_SET_ORDER
-        );
-
-        $attributes = [];
-        foreach ($matches as $match) {
-            $name = strtolower($match[1]);
-            $doubleQuoted = $match[2] ?? '';
-            $singleQuoted = $match[3] ?? '';
-            $unquoted = $match[4] ?? '';
-            $value = $doubleQuoted !== '' ? $doubleQuoted : ($singleQuoted !== '' ? $singleQuoted : $unquoted);
-            $attributes[$name] = html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        try {
+            $body = Html5Dom::parseHtmlFragment($source);
+        } catch (\Throwable) {
+            return null;
         }
 
-        return $attributes;
+        foreach ($body->getElementsByTagName('*') as $element) {
+            if ($element instanceof \DOMElement && strtolower($element->localName) === $name) {
+                return $element;
+            }
+        }
+
+        return null;
     }
 
     private function isEpubOpeningRawHtmlTag(string $html, string $tag): bool
@@ -2179,8 +2193,13 @@ final class EpubReader
     /**
      * @param list<string> $html
      */
-    private function nextRawHtmlIsClosingTag(array $html, int $index, string $tag): bool
+    private function nextRawHtmlClosesSameMediaTag(array $html, int $index, array $tags): bool
     {
+        $tag = $this->epubOpeningRawHtmlTagName($html[$index] ?? '');
+        if ($tag === null || !in_array($tag, $tags, true)) {
+            return false;
+        }
+
         $next = $html[$index + 1] ?? null;
 
         return is_string($next) && $this->isEpubClosingRawHtmlTag($next, $tag);
