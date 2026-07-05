@@ -12,9 +12,9 @@ final class MarkdownUpstreamReaderEvidence
     public const STATUS_COMPLETED = 'completed-upstream-markdown-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-markdown-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
-    public const EXPECTED_SELECTED_FIXTURE_COUNT = 100;
-    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 100;
-    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = 'f05d22412519fca55991f637f7019db566e48d1d4ecf969aee99537e5a1d97f6';
+    public const EXPECTED_SELECTED_FIXTURE_COUNT = 101;
+    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 101;
+    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = '126e96f840df8298fb8e1b5b3fca30e07993b6730573c79b014b99a01a1d5e3b';
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/Markdown.hs',
@@ -1285,6 +1285,19 @@ final class MarkdownUpstreamReaderEvidence
             ],
             'sha256' => '5bd2d9572cd5b3956d61c659cb060d34616c0194c620762c064f2784cae2eeb0',
             'bytes' => 14,
+        ],
+        'upstream-command-11589-attributed-superscript.md' => [
+            'role' => 'command-markdown-attributed-superscript-fixture',
+            'sourceKind' => 'upstream-command-fixture',
+            'sourceReference' => 'test/command/11589.md',
+            'formatProfile' => 'markdown superscript/bracketed_spans/inline attributes',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-command-11589-attributed-superscript.md',
+            'coverageTests' => [
+                'lanes/pandoc/tests/MarkdownReaderAttributedSuperscriptFixtureCompletionTest.php',
+                'lanes/pandoc/tests/MarkdownNativeAstComparisonHarnessTest.php',
+            ],
+            'sha256' => '7e6fca282949f7571d555d7c58cc85d7434874a7b7774807cec0f03cb8623df4',
+            'bytes' => 44,
         ],
     ];
 

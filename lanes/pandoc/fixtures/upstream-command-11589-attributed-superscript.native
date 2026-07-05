@@ -1,0 +1,14 @@
+[ Para
+    [ Str "t"
+    , Superscript
+        [ Span ( "" , [ "cb" ] , [] ) [ Str "a" ] , Str "\160b" ]
+    , SoftBreak
+    , Str "t"
+    , Superscript
+        [ Span
+            ( "" , [] , [ ( "fg" , "yellow" ) , ( "bg" , "blue" ) ] )
+            [ Str "a" ]
+        , Str "\160b"
+        ]
+    ]
+]

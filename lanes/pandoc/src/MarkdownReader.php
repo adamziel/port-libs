@@ -15332,10 +15332,25 @@ final class MarkdownReader
             return null;
         }
 
+        $next = $end + 1;
+        if ($this->inlineNoteFollowedBySuperscriptContinuation($text, $next)) {
+            return null;
+        }
+
         return [
             'node' => new AstNode('note', [], $this->parseFootnoteBlocks(substr($text, $offset + 2, $end - $offset - 2), true)),
-            'next' => $end + 1,
+            'next' => $next,
         ];
+    }
+
+    private function inlineNoteFollowedBySuperscriptContinuation(string $text, int $offset): bool
+    {
+        $next = $text[$offset] ?? '';
+        if ($next === '(' || $next === '[') {
+            return true;
+        }
+
+        return $this->tryParseInlineAttributeSpec($text, $offset) !== null;
     }
 
     /**
@@ -19878,12 +19893,29 @@ final class MarkdownReader
                 $offset++;
                 continue;
             }
+            $attributeEnd = $this->scriptAttributeSpecAt($text, $offset);
+            if ($attributeEnd !== null) {
+                $offset = $attributeEnd - 1;
+                continue;
+            }
             if (ctype_space($text[$offset])) {
                 return true;
             }
         }
 
         return false;
+    }
+
+    private function scriptAttributeSpecAt(string $text, int $offset): ?int
+    {
+        $previous = $offset > 0 ? $text[$offset - 1] : '';
+        if ($previous !== ']' && $previous !== '`') {
+            return null;
+        }
+
+        $attribute = $this->tryParseInlineAttributeSpec($text, $offset);
+
+        return $attribute['next'] ?? null;
     }
 
     private function normalizeScriptContent(string $text): string
