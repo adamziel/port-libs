@@ -53,4 +53,27 @@ return [
             $t->same("Foo bar\n=", $cases[2]);
             $t->same(" Foo bar 2 \n=", $cases[3]);
         },
+
+    'maps selected upstream markdown atx heading trim fixture' =>
+        static function (TestRunner $t): void {
+            $root = dirname(__DIR__) . '/fixtures';
+            $source = (string) file_get_contents($root . '/upstream-markdown-atx-heading-trim.md');
+            $document = (new MarkdownReader(['format' => 'markdown']))->read($source);
+
+            $t->true(is_file($root . '/upstream-markdown-atx-heading-trim.native'));
+            $t->same(2, count($document->children));
+
+            $first = $document->children[0] ?? new AstNode('missing');
+            $second = $document->children[1] ?? new AstNode('missing');
+
+            $t->same('heading', $first->type);
+            $t->same(1, $first->attr('level'));
+            $t->same('Foo bar', $first->attr('text'));
+            $t->same('foo-bar', $first->attr('id'));
+
+            $t->same('heading', $second->type);
+            $t->same(1, $second->attr('level'));
+            $t->same('Foo bar with #', $second->attr('text'));
+            $t->same('foo-bar-with', $second->attr('id'));
+        },
 ];

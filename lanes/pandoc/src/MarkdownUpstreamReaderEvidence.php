@@ -12,9 +12,9 @@ final class MarkdownUpstreamReaderEvidence
     public const STATUS_COMPLETED = 'completed-upstream-markdown-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-markdown-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
-    public const EXPECTED_SELECTED_FIXTURE_COUNT = 114;
-    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 114;
-    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = 'de83bc61dc80447e3722e37ec1db352319090a9a8075d07a84cba2184105affb';
+    public const EXPECTED_SELECTED_FIXTURE_COUNT = 115;
+    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 115;
+    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = '0c07dfc954ebf2d71737875d78d30fb0907e6a71768e82dae1d68db34f554bc9';
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/Markdown.hs',
@@ -1467,6 +1467,19 @@ final class MarkdownUpstreamReaderEvidence
             ],
             'sha256' => '364d8e077c23a77f992daf4832db292ad7cebac235f122181e8800b091c4cfa2',
             'bytes' => 421,
+        ],
+        'upstream-markdown-atx-heading-trim.md' => [
+            'role' => 'markdown-atx-heading-trim-reader-fixture',
+            'sourceKind' => 'selected-upstream-markdown-reader-case',
+            'sourceReference' => 'Tests.Readers.Markdown Headers/ATX header without trailing #s',
+            'formatProfile' => 'markdown ATX heading closing-hash trim and implicit identifiers',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-markdown-atx-heading-trim.md',
+            'coverageTests' => [
+                'lanes/pandoc/tests/MarkdownReaderHeadingBoundaryFixtureCompletionTest.php',
+                'lanes/pandoc/tests/MarkdownNativeAstComparisonHarnessTest.php',
+            ],
+            'sha256' => 'd5701e4da7f3e023137f9c6376210ec6a6a1593faf7c563471111e9c287f72f3',
+            'bytes' => 30,
         ],
     ];
 
