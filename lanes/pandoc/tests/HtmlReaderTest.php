@@ -197,7 +197,7 @@ $tests['keeps html tree construction centralized through Html5Dom'] =
             $t->true(!str_contains($source, '->loadHTML('), "{$file} must not bypass Html5Dom with DOMDocument::loadHTML");
             $t->true(!str_contains($source, 'HTMLDocument::createFromString'), "{$file} must not bypass Html5Dom with Dom\\HTMLDocument");
         }
-        foreach (['preg_', 'rawHtmlOpeningTagAt', 'rawHtmlClosingTagAt', 'markdownRawHtml'] as $parserFragment) {
+        foreach (['preg_', 'parseXmlFragment(', 'rawHtmlOpeningTagAt', 'rawHtmlClosingTagAt', 'markdownRawHtml'] as $parserFragment) {
             $t->true(!str_contains($htmlReaderSource, $parserFragment), "HtmlReader must not parse HTML source via {$parserFragment}");
         }
 
@@ -228,7 +228,7 @@ $tests['keeps html tree construction centralized through Html5Dom'] =
             'MarkdownReader::parseHtmlFragmentBodyElement' => $methodBody($markdownReaderSource, 'parseHtmlFragmentBodyElement'),
             'MarkdownReader::parseHtmlFullDocumentDom' => $methodBody($markdownReaderSource, 'parseHtmlFullDocumentDom'),
         ] as $method => $body) {
-            foreach (['preg_', 'rawHtmlOpeningTagAt', 'rawHtmlClosingTagAt', 'markdownRawHtml'] as $parserFragment) {
+            foreach (['preg_', 'parseXmlFragment(', 'rawHtmlOpeningTagAt', 'rawHtmlClosingTagAt', 'markdownRawHtml'] as $parserFragment) {
                 $t->true(!str_contains($body, $parserFragment), "{$method} must not parse HTML source via {$parserFragment}");
             }
         }
@@ -284,7 +284,7 @@ $tests['keeps html tree construction centralized through Html5Dom'] =
             foreach ($entrypoint['delegates'] as $delegate) {
                 $t->contains($delegate, $entrypoint['body']);
             }
-            foreach (['preg_', 'rawHtmlOpeningTagAt', 'rawHtmlClosingTagAt', 'markdownRawHtml', '->loadHTML(', 'HTMLDocument::createFromString'] as $parserFragment) {
+            foreach (['preg_', 'parseXmlFragment(', 'rawHtmlOpeningTagAt', 'rawHtmlClosingTagAt', 'markdownRawHtml', '->loadHTML(', 'HTMLDocument::createFromString'] as $parserFragment) {
                 $t->true(!str_contains($entrypoint['body'], $parserFragment), "{$method} must delegate HTML parsing instead of using {$parserFragment}");
             }
         }
@@ -309,6 +309,7 @@ $tests['keeps html tree construction centralized through Html5Dom'] =
         foreach ($html5TreeConstructionBodies as $method => $body) {
             foreach ([
                 'preg_',
+                'parseXmlFragment(',
                 'rawHtmlOpeningTagAt',
                 'rawHtmlClosingTagAt',
                 'markdownRawHtml',
@@ -357,6 +358,11 @@ $tests['keeps html tree construction centralized through Html5Dom'] =
             'htmlTagSourceEndOffset',
             'htmlClosingTagSourceName',
             'isHtmlTagNameChar',
+            'flattenInvalidTableChildrenSourceOrder',
+            'serializeInvalidTableRepair',
+            'invalidTableSourceOrder',
+            'invalidTableModelElementBlockSources',
+            'isInvalidTableAllowedDirectChildName',
         ] as $removedScanner) {
             $t->true(!str_contains($htmlReaderSource, $removedScanner), "HtmlReader must not restore source-scanned HTML tree construction via {$removedScanner}");
             $t->true(!str_contains($html5DomFragmentSource, $removedScanner), "Html5DomFragment must not restore source-scanned HTML tree construction via {$removedScanner}");
