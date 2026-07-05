@@ -583,6 +583,25 @@ $tests['imports direct pandoc html standalone keyboard fragment as plain'] =
         $t->same('Cmd', $kbd->children[0]->attr('text'));
     };
 
+$tests['imports upstream html standalone code aliases as plain code inlines'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-standalone-code-aliases-inline.html'));
+        $plain = $document->children[0];
+
+        $t->same('html', $document->attr('sourceFormat'));
+        $t->same('Dom\\HTMLDocument', $document->attr('meta')['htmlTreeConstruction'] ?? null);
+        $t->same(['plain'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same(['code', 'code', 'code', 'code'], array_map(static fn ($node): string => $node->type, $plain->children));
+        $t->same(
+            ['Answer is 42', 'Answer is 43', 'Missing alt text', 'result'],
+            array_map(static fn ($node): string => $node->attr('text'), $plain->children)
+        );
+        $t->same([], $plain->children[0]->attr('classes', []));
+        $t->same([], $plain->children[1]->attr('classes', []));
+        $t->same(['sample'], $plain->children[2]->attr('classes'));
+        $t->same(['variable'], $plain->children[3]->attr('classes'));
+    };
+
 $tests['imports direct pandoc html standalone output fragment as plain'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-standalone-output-inline.html'));

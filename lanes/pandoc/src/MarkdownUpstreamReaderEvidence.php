@@ -12,9 +12,9 @@ final class MarkdownUpstreamReaderEvidence
     public const STATUS_COMPLETED = 'completed-upstream-markdown-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-markdown-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
-    public const EXPECTED_SELECTED_FIXTURE_COUNT = 121;
-    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 121;
-    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = 'f88875b11d47bccbfbf52caff922fde507797076736df9c6a549ed84f74cd7da';
+    public const EXPECTED_SELECTED_FIXTURE_COUNT = 122;
+    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 122;
+    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = '51f41c61a0d13f3c32dcbae21f74ca55ee7b2ccdc9f19ef4ab8d9c7b1120a140';
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/Markdown.hs',
@@ -1558,6 +1558,19 @@ final class MarkdownUpstreamReaderEvidence
             ],
             'sha256' => '18c3fdd8cbfc1d201a11c2bd212e02f4fd48f243011c6f3ad0015f0efe654d66',
             'bytes' => 78,
+        ],
+        'upstream-markdown-bare-uri-path-punctuation.md' => [
+            'role' => 'markdown-bare-uri-path-punctuation-reader-fixture',
+            'sourceKind' => 'selected-upstream-markdown-reader-case',
+            'sourceReference' => 'Tests.Readers.Markdown bareLinkTests selected parenthesized, semicolon path, percent-encoded space, and path-period cases',
+            'formatProfile' => 'markdown+autolink_bare_uris+raw_html bare URI path punctuation boundaries',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-markdown-bare-uri-path-punctuation.md',
+            'coverageTests' => [
+                'lanes/pandoc/tests/MarkdownReaderBareUriPathPunctuationFixtureCompletionTest.php',
+                'lanes/pandoc/tests/MarkdownNativeAstComparisonHarnessTest.php',
+            ],
+            'sha256' => 'd48891d00c0184a1eec42834d4a928035dd3480b8aafe11a54790071c6e8a20d',
+            'bytes' => 190,
         ],
     ];
 

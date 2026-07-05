@@ -45,6 +45,7 @@ jobs:
           php -l lanes/pandoc/src/NativeWriter.php
           php -l lanes/pandoc/tests/MarkdownNativeAstComparisonHarnessTest.php
           php -l lanes/pandoc/tests/MarkdownReaderBareUriGitFileSchemesFixtureCompletionTest.php
+          php -l lanes/pandoc/tests/MarkdownReaderBareUriPathPunctuationFixtureCompletionTest.php
           php -l lanes/pandoc/tests/MarkdownReaderBareUriRawHtmlAnchorFixtureCompletionTest.php
           php -l lanes/pandoc/tests/MarkdownReaderBlankBeforeBlockBoundaryProfileTest.php
           php -l lanes/pandoc/tests/MarkdownReaderDestinationValidationCompletionTest.php
@@ -92,9 +93,9 @@ jobs:
           php tools/pandoc-markdown-reader-evidence.php \
             --upstream-root=.upstream-cache/pandoc-current \
             --json \
-            --require-selected-fixture-count=121 \
+            --require-selected-fixture-count=122 \
             --require-static-current-evidence \
-            --require-native-mapped-parity=121 \
+            --require-native-mapped-parity=122 \
             --require-runner-not-run \
             --require-runner-plan \
             --require-no-validation-issues
@@ -105,7 +106,7 @@ jobs:
             --markdown-dir=lanes/pandoc/fixtures \
             --json \
             summary \
-            --require-mapped-parity=121
+            --require-mapped-parity=122
 
       - name: Run focused Markdown parity tests
         run: |
@@ -115,6 +116,7 @@ jobs:
             lanes/pandoc/tests/MarkdownReaderAttributedSuperscriptFixtureCompletionTest.php \
             lanes/pandoc/tests/MarkdownReaderAtxHeadingSpaceProfileSurgeTest.php \
             lanes/pandoc/tests/MarkdownReaderBareUriGitFileSchemesFixtureCompletionTest.php \
+            lanes/pandoc/tests/MarkdownReaderBareUriPathPunctuationFixtureCompletionTest.php \
             lanes/pandoc/tests/MarkdownReaderBareUriRawHtmlAnchorFixtureCompletionTest.php \
             lanes/pandoc/tests/MarkdownReaderBareUriQueryBoundaryFixtureCompletionTest.php \
             lanes/pandoc/tests/MarkdownReaderBareUriSchemeBoundaryFixtureCompletionTest.php \
