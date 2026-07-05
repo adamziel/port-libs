@@ -10,6 +10,8 @@ final class PptxReader
     private const MISSING_RELATIONSHIP_TYPE = 'urn:port-libs:pandoc:pptx:missing-relationship-type';
     private const RELATIONSHIP_NAMESPACE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
     private const PRESENTATION_NAMESPACE = 'http://schemas.openxmlformats.org/presentationml/2006/main';
+    private const PRESENTATION14_NAMESPACE = 'http://schemas.microsoft.com/office/powerpoint/2010/main';
+    private const PRESENTATION14_SECTION_LIST_EXTENSION_URI = '{521415D9-36F7-43E2-AB2F-B90AF26B5E84}';
     private const DRAWING_NAMESPACE = 'http://schemas.openxmlformats.org/drawingml/2006/main';
     private const DIAGRAM_NAMESPACE = 'http://schemas.openxmlformats.org/drawingml/2006/diagram';
     private const COMMENT_AUTHORS_PART = '/ppt/commentAuthors.xml';
@@ -44,6 +46,8 @@ final class PptxReader
         $slides = $this->parsePresentationSlides($presentation);
         $slideSize = $this->presentationSlideSize($presentation);
         $presentationRelationships = $this->relationshipsOrEmpty($package, $presentationPart);
+        $presentationSections = $this->presentationSections($presentation, $slides);
+        $customShows = $this->presentationCustomShows($presentation, $slides, $presentationRelationships);
         $tableStyles = $this->presentationTableStyles($package, $presentationRelationships);
         $commentAuthors = $this->commentAuthors($package);
         $documentProperties = $this->documentProperties($package, $rootRelationships);
@@ -83,6 +87,7 @@ final class PptxReader
             $links = $this->collectLinkReviews($slideBlocks);
             $slideReviews[] = [
                 'index' => $slide['index'],
+                'slideId' => $slide['slideId'],
                 'relationshipId' => $slide['relationshipId'],
                 'partName' => ltrim($slidePart, '/'),
                 'blockCount' => count($slideBlocks),
@@ -123,6 +128,8 @@ final class PptxReader
                 'slideCount' => count($slides),
                 'slideSize' => $slideSize,
                 'slides' => $slideReviews,
+                'presentationSections' => $presentationSections,
+                'customShows' => $customShows,
                 'documentProperties' => $documentProperties,
                 'commentAuthors' => $commentAuthors,
                 'tableStyles' => $tableStyles,
@@ -539,7 +546,7 @@ final class PptxReader
     }
 
     /**
-     * @return list<array{index:int, relationshipId:string}>
+     * @return list<array{index:int, slideId:string, relationshipId:string}>
      */
     private function parsePresentationSlides(\DOMDocument $document): array
     {
@@ -558,16 +565,233 @@ final class PptxReader
         $slides = [];
         $index = 1;
         foreach ($this->childElementsForPrefix($slideIdList, 'p', 'sldId', $presentationNamespace) as $slideIdElement) {
+            $slideId = trim($slideIdElement->getAttribute('id'));
             $relationshipId = $this->relationshipAttributeForPrefix($slideIdElement, 'r', 'id', $relationshipNamespace);
             if ($relationshipId === null) {
                 throw new \RuntimeException('Missing r:id in slide ' . $index);
             }
 
-            $slides[] = ['index' => $index, 'relationshipId' => $relationshipId];
+            $slides[] = ['index' => $index, 'slideId' => $slideId, 'relationshipId' => $relationshipId];
             $index++;
         }
 
         return $slides;
+    }
+
+    /**
+     * @param list<array{index:int, slideId:string, relationshipId:string}> $slides
+     * @return array<string, mixed>
+     */
+    private function presentationSections(\DOMDocument $document, array $slides): array
+    {
+        $root = XmlHtmlDom::rootElement($document);
+        if (!$root instanceof \DOMElement) {
+            return ['sectionCount' => 0, 'sections' => [], 'issues' => ['missing-presentation-root']];
+        }
+
+        $presentationNamespace = $this->localNamespaceForPrefix($root, 'p');
+        $slideById = [];
+        foreach ($slides as $slide) {
+            if ($slide['slideId'] !== '') {
+                $slideById[$slide['slideId']] = $slide;
+            }
+        }
+
+        $sections = [];
+        $issues = [];
+        $extList = $this->firstChildElementForPrefix($root, 'p', 'extLst', $presentationNamespace);
+        if (!$extList instanceof \DOMElement) {
+            return ['sectionCount' => 0, 'sections' => [], 'issues' => []];
+        }
+
+        foreach ($this->childElementsForPrefix($extList, 'p', 'ext', $presentationNamespace) as $extension) {
+            if (trim($extension->getAttribute('uri')) !== self::PRESENTATION14_SECTION_LIST_EXTENSION_URI) {
+                continue;
+            }
+
+            foreach ($this->childElementsInNamespace($extension, self::PRESENTATION14_NAMESPACE, 'sectionLst') as $sectionList) {
+                foreach ($this->childElementsInNamespace($sectionList, self::PRESENTATION14_NAMESPACE, 'section') as $sectionElement) {
+                    $section = [
+                        'name' => trim($sectionElement->getAttribute('name')),
+                        'id' => trim($sectionElement->getAttribute('id')),
+                        'slideCount' => 0,
+                        'slides' => [],
+                        'issues' => [],
+                    ];
+                    if ($section['name'] === '') {
+                        $section['issues'][] = 'missing-section-name';
+                    }
+                    if ($section['id'] === '') {
+                        $section['issues'][] = 'missing-section-id';
+                    }
+
+                    $slideIdList = $this->firstChildElementInNamespace($sectionElement, self::PRESENTATION14_NAMESPACE, 'sldIdLst');
+                    if ($slideIdList instanceof \DOMElement) {
+                        foreach ($this->childElementsInNamespace($slideIdList, self::PRESENTATION14_NAMESPACE, 'sldId') as $slideRef) {
+                            $slideId = trim($slideRef->getAttribute('id'));
+                            if ($slideId === '') {
+                                $section['issues'][] = 'missing-section-slide-id';
+                                $section['slides'][] = ['slideId' => '', 'resolved' => false];
+                                continue;
+                            }
+                            if (!ctype_digit($slideId)) {
+                                $section['issues'][] = 'non-integer-section-slide-id:' . $slideId;
+                            }
+
+                            $resolved = $slideById[$slideId] ?? null;
+                            if ($resolved === null) {
+                                $section['issues'][] = 'unknown-section-slide-id:' . $slideId;
+                                $section['slides'][] = [
+                                    'slideId' => $slideId,
+                                    'resolved' => false,
+                                ];
+                                continue;
+                            }
+
+                            $section['slides'][] = [
+                                'slideId' => $slideId,
+                                'resolved' => true,
+                                'slideIndex' => $resolved['index'],
+                                'relationshipId' => $resolved['relationshipId'],
+                            ];
+                        }
+                    }
+
+                    $section['slideCount'] = count($section['slides']);
+                    foreach ($section['issues'] as $issue) {
+                        $issues[] = 'section:' . (count($sections) + 1) . ':' . $issue;
+                    }
+                    $sections[] = $section;
+                }
+            }
+        }
+
+        return [
+            'sectionCount' => count($sections),
+            'sections' => $sections,
+            'issues' => $issues,
+        ];
+    }
+
+    /**
+     * @param list<array{index:int, slideId:string, relationshipId:string}> $slides
+     * @return array<string, mixed>
+     */
+    private function presentationCustomShows(\DOMDocument $document, array $slides, OpcRelationships $presentationRelationships): array
+    {
+        $root = XmlHtmlDom::rootElement($document);
+        if (!$root instanceof \DOMElement) {
+            return ['customShowCount' => 0, 'shows' => [], 'issues' => ['missing-presentation-root']];
+        }
+
+        $presentationNamespace = $this->localNamespaceForPrefix($root, 'p');
+        $relationshipNamespace = $this->localNamespaceForPrefix($root, 'r');
+        $slideByRelationshipId = [];
+        foreach ($slides as $slide) {
+            $slideByRelationshipId[$slide['relationshipId']] = $slide;
+        }
+
+        $shows = [];
+        $issues = [];
+        $ids = [];
+        $names = [];
+        $customShowList = $this->firstChildElementForPrefix($root, 'p', 'custShowLst', $presentationNamespace);
+        if ($customShowList instanceof \DOMElement) {
+            foreach ($this->childElementsForPrefix($customShowList, 'p', 'custShow', $presentationNamespace) as $showElement) {
+                $show = [
+                    'name' => trim($showElement->getAttribute('name')),
+                    'id' => trim($showElement->getAttribute('id')),
+                    'slideCount' => 0,
+                    'slides' => [],
+                    'issues' => [],
+                ];
+                if ($show['name'] === '') {
+                    $show['issues'][] = 'missing-custom-show-name';
+                } elseif (isset($names[$show['name']])) {
+                    $show['issues'][] = 'duplicate-custom-show-name:' . $show['name'];
+                }
+                if ($show['name'] !== '') {
+                    $names[$show['name']] = true;
+                }
+                if ($show['id'] === '') {
+                    $show['issues'][] = 'missing-custom-show-id';
+                } elseif (isset($ids[$show['id']])) {
+                    $show['issues'][] = 'duplicate-custom-show-id:' . $show['id'];
+                }
+                if ($show['id'] !== '') {
+                    $ids[$show['id']] = true;
+                }
+
+                $slideList = $this->firstChildElementForPrefix($showElement, 'p', 'sldLst', $presentationNamespace);
+                if ($slideList instanceof \DOMElement) {
+                    foreach ($this->childElementsForPrefix($slideList, 'p', 'sld', $presentationNamespace) as $slideRef) {
+                        $relationshipId = $this->relationshipAttributeForPrefix($slideRef, 'r', 'id', $relationshipNamespace);
+                        if ($relationshipId === null || trim($relationshipId) === '') {
+                            $show['issues'][] = 'missing-custom-show-slide-relationship-id';
+                            $show['slides'][] = ['relationshipId' => '', 'resolved' => false];
+                            continue;
+                        }
+                        $relationshipId = trim($relationshipId);
+                        $relationship = $presentationRelationships->byId($relationshipId);
+                        $resolved = $slideByRelationshipId[$relationshipId] ?? null;
+                        if (!$relationship instanceof OpcRelationship || $resolved === null) {
+                            $show['issues'][] = 'unknown-custom-show-slide-relationship:' . $relationshipId;
+                            $show['slides'][] = [
+                                'relationshipId' => $relationshipId,
+                                'relationshipFound' => $relationship instanceof OpcRelationship,
+                                'resolved' => false,
+                            ];
+                            continue;
+                        }
+
+                        $slide = [
+                            'relationshipId' => $relationshipId,
+                            'relationshipFound' => true,
+                            'resolved' => true,
+                            'slideIndex' => $resolved['index'],
+                            'slideId' => $resolved['slideId'],
+                            'target' => $relationship->target,
+                        ];
+                        if (!$relationship->isExternal()) {
+                            $partName = $this->reviewRelationshipPart($presentationRelationships, $relationship);
+                            if ($partName !== null) {
+                                $slide['partName'] = ltrim($partName, '/');
+                            }
+                        }
+                        $show['slides'][] = $slide;
+                    }
+                }
+
+                $show['slideCount'] = count($show['slides']);
+                foreach ($show['issues'] as $issue) {
+                    $issues[] = 'customShow:' . (count($shows) + 1) . ':' . $issue;
+                }
+                $shows[] = $show;
+            }
+        }
+
+        $summary = [
+            'customShowCount' => count($shows),
+            'shows' => $shows,
+            'issues' => $issues,
+        ];
+
+        $showProperties = $this->firstChildElementForPrefix($root, 'p', 'showPr', $presentationNamespace);
+        if ($showProperties instanceof \DOMElement) {
+            $activeCustomShow = $this->firstChildElementForPrefix($showProperties, 'p', 'custShow', $presentationNamespace);
+            if ($activeCustomShow instanceof \DOMElement) {
+                $activeId = trim($activeCustomShow->getAttribute('id'));
+                $summary['activeCustomShowId'] = $activeId;
+                $summary['activeCustomShowResolved'] = $activeId !== '' && isset($ids[$activeId]);
+                if ($activeId === '') {
+                    $summary['issues'][] = 'active-custom-show-missing-id';
+                } elseif (!isset($ids[$activeId])) {
+                    $summary['issues'][] = 'active-custom-show-unknown-id:' . $activeId;
+                }
+            }
+        }
+
+        return $summary;
     }
 
     /**
@@ -5911,6 +6135,26 @@ final class PptxReader
             $this->childElements($parent, $localName),
             static fn (\DOMElement $child): bool => $child->namespaceURI === $namespace
                 && ($namespace !== null || $child->prefix === $prefix)
+        ));
+    }
+
+    private function firstChildElementInNamespace(\DOMElement $parent, string $namespace, string $localName): ?\DOMElement
+    {
+        foreach ($this->childElementsInNamespace($parent, $namespace, $localName) as $child) {
+            return $child;
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private function childElementsInNamespace(\DOMElement $parent, string $namespace, string $localName): array
+    {
+        return array_values(array_filter(
+            $this->childElements($parent, $localName),
+            static fn (\DOMElement $child): bool => $child->namespaceURI === $namespace
         ));
     }
 

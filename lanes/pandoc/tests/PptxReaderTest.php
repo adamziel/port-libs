@@ -670,6 +670,122 @@ XML);
     }
 };
 
+$buildPresentationReviewMetadataPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-presentation-review-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdPresentation" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+                xmlns:p14="http://schemas.microsoft.com/office/powerpoint/2010/main">
+  <p:sldIdLst>
+    <p:sldId id="101" r:id="rIdAlpha"/>
+    <p:sldId id="102" r:id="rIdBeta"/>
+    <p:sldId id="103" r:id="rIdGamma"/>
+  </p:sldIdLst>
+  <p:custShowLst>
+    <p:custShow name="Review path" id="10">
+      <p:sldLst>
+        <p:sld r:id="rIdGamma"/>
+        <p:sld r:id="rIdAlpha"/>
+        <p:sld r:id="rIdMissing"/>
+        <p:sld/>
+      </p:sldLst>
+    </p:custShow>
+    <p:custShow name="Review path" id="10">
+      <p:sldLst>
+        <p:sld r:id="rIdBeta"/>
+      </p:sldLst>
+    </p:custShow>
+  </p:custShowLst>
+  <p:showPr><p:custShow id="10"/></p:showPr>
+  <p:extLst>
+    <p:ext uri="{521415D9-36F7-43E2-AB2F-B90AF26B5E84}">
+      <p14:sectionLst>
+        <p14:section name="Opening" id="{sec-opening}">
+          <p14:sldIdLst>
+            <p14:sldId id="101"/>
+            <p14:sldId id="103"/>
+          </p14:sldIdLst>
+        </p14:section>
+        <p14:section name="Broken refs" id="{sec-bad}">
+          <p14:sldIdLst>
+            <p14:sldId id="999"/>
+            <p14:sldId id="not-numeric"/>
+            <p14:sldId/>
+          </p14:sldIdLst>
+        </p14:section>
+      </p14:sectionLst>
+    </p:ext>
+    <p:ext uri="{ignored-extension}">
+      <p14:sectionLst>
+        <p14:section name="Ignored section" id="{ignored}">
+          <p14:sldIdLst><p14:sldId id="102"/></p14:sldIdLst>
+        </p14:section>
+      </p14:sectionLst>
+    </p:ext>
+  </p:extLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdAlpha" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+  <Relationship Id="rIdBeta" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide2.xml"/>
+  <Relationship Id="rIdGamma" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide3.xml"/>
+</Relationships>
+XML);
+
+    $slideXml = static fn (string $title, string $body): string => <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>{$title}</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="3" name="Body"/><p:cNvSpPr/><p:nvPr><p:ph idx="1"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>{$body}</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+  </p:spTree></p:cSld>
+</p:sld>
+XML;
+    $zip->addFromString('ppt/slides/slide1.xml', $slideXml('Alpha', 'Visible alpha body'));
+    $zip->addFromString('ppt/slides/slide2.xml', $slideXml('Beta', 'Visible beta body'));
+    $zip->addFromString('ppt/slides/slide3.xml', $slideXml('Gamma', 'Visible gamma body'));
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildEmptyTablePptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-empty-table-');
     if ($path === false) {
@@ -17905,6 +18021,110 @@ XML);
         }
 
         throw new RuntimeException('Expected external slide relationship Target to stay a ppt-prefixed literal archive entry lookup like upstream');
+    },
+
+    'captures pptx presentation sections and custom shows as review metadata only' => static function (TestRunner $t) use ($buildPresentationReviewMetadataPptxPackage): void {
+        $document = (new PptxReader())->read($buildPresentationReviewMetadataPptxPackage());
+        $review = $document->attr('pptx');
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same(3, $review['slideCount'] ?? null);
+        $t->same(['101', '102', '103'], array_map(static fn (array $slide): string => (string) ($slide['slideId'] ?? ''), $review['slides'] ?? []));
+        $t->same(['rIdAlpha', 'rIdBeta', 'rIdGamma'], array_map(static fn (array $slide): string => (string) ($slide['relationshipId'] ?? ''), $review['slides'] ?? []));
+        $t->same('Alpha', $document->children[0]->attr('text'));
+        $t->same('Visible alpha body', $document->children[1]->attr('text'));
+        $t->same('Beta', $document->children[2]->attr('text'));
+        $t->same('Visible beta body', $document->children[3]->attr('text'));
+        $t->same('Gamma', $document->children[4]->attr('text'));
+        $t->same('Visible gamma body', $document->children[5]->attr('text'));
+
+        $sections = $review['presentationSections'] ?? [];
+        $t->same(2, $sections['sectionCount'] ?? null);
+        $t->same('Opening', $sections['sections'][0]['name'] ?? null);
+        $t->same('{sec-opening}', $sections['sections'][0]['id'] ?? null);
+        $t->same([
+            [
+                'slideId' => '101',
+                'resolved' => true,
+                'slideIndex' => 1,
+                'relationshipId' => 'rIdAlpha',
+            ],
+            [
+                'slideId' => '103',
+                'resolved' => true,
+                'slideIndex' => 3,
+                'relationshipId' => 'rIdGamma',
+            ],
+        ], $sections['sections'][0]['slides'] ?? null);
+        $t->same([
+            'unknown-section-slide-id:999',
+            'non-integer-section-slide-id:not-numeric',
+            'unknown-section-slide-id:not-numeric',
+            'missing-section-slide-id',
+        ], $sections['sections'][1]['issues'] ?? null);
+        $t->same([
+            'section:2:unknown-section-slide-id:999',
+            'section:2:non-integer-section-slide-id:not-numeric',
+            'section:2:unknown-section-slide-id:not-numeric',
+            'section:2:missing-section-slide-id',
+        ], $sections['issues'] ?? null);
+
+        $customShows = $review['customShows'] ?? [];
+        $t->same(2, $customShows['customShowCount'] ?? null);
+        $t->same('10', $customShows['activeCustomShowId'] ?? null);
+        $t->same(true, $customShows['activeCustomShowResolved'] ?? null);
+        $t->same('Review path', $customShows['shows'][0]['name'] ?? null);
+        $t->same('10', $customShows['shows'][0]['id'] ?? null);
+        $t->same([
+            [
+                'relationshipId' => 'rIdGamma',
+                'relationshipFound' => true,
+                'resolved' => true,
+                'slideIndex' => 3,
+                'slideId' => '103',
+                'target' => 'slides/slide3.xml',
+                'partName' => 'ppt/slides/slide3.xml',
+            ],
+            [
+                'relationshipId' => 'rIdAlpha',
+                'relationshipFound' => true,
+                'resolved' => true,
+                'slideIndex' => 1,
+                'slideId' => '101',
+                'target' => 'slides/slide1.xml',
+                'partName' => 'ppt/slides/slide1.xml',
+            ],
+            [
+                'relationshipId' => 'rIdMissing',
+                'relationshipFound' => false,
+                'resolved' => false,
+            ],
+            [
+                'relationshipId' => '',
+                'resolved' => false,
+            ],
+        ], $customShows['shows'][0]['slides'] ?? null);
+        $t->same([
+            'unknown-custom-show-slide-relationship:rIdMissing',
+            'missing-custom-show-slide-relationship-id',
+        ], $customShows['shows'][0]['issues'] ?? null);
+        $t->same([
+            'duplicate-custom-show-name:Review path',
+            'duplicate-custom-show-id:10',
+        ], $customShows['shows'][1]['issues'] ?? null);
+        $t->same([
+            'customShow:1:unknown-custom-show-slide-relationship:rIdMissing',
+            'customShow:1:missing-custom-show-slide-relationship-id',
+            'customShow:2:duplicate-custom-show-name:Review path',
+            'customShow:2:duplicate-custom-show-id:10',
+        ], $customShows['issues'] ?? null);
+
+        foreach (['Opening', 'Broken refs', 'Review path', '{sec-opening}', '{sec-bad}', 'rIdMissing', 'Ignored section'] as $metadataOnlyText) {
+            $t->true(!str_contains($native, $metadataOnlyText), "{$metadataOnlyText} should stay out of native visible output");
+        }
+        foreach (['Alpha', 'Beta', 'Gamma'] as $visibleText) {
+            $t->contains($visibleText, $native);
+        }
     },
 
     'keeps invalid pptx review sidecar targets non-fatal like upstream' => static function (TestRunner $t) use ($buildInvalidReviewSidecarTargetsPptxPackage, $nodesOfType): void {
