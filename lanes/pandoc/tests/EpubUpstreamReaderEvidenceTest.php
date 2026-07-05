@@ -102,10 +102,17 @@ HS);
     $writeFile($root, 'src/Text/Pandoc/Readers/EPUB.hs', "module Text.Pandoc.Readers.EPUB where\n");
 };
 
-$writeRunnerTranscripts = static function (string $root, array $paths, string $label = 'epub') use ($writeFile): array {
+$writeRunnerTranscripts = static function (string $root, array $paths, string $label = 'epub', array $testNames = []) use ($writeFile): array {
     $records = [];
     foreach (array_values($paths) as $index => $path) {
         $contents = $label . " runner transcript " . (string) ($index + 1) . "\n" . $path . "\n";
+        if (str_ends_with($path, '-targeted-list-tests.txt')) {
+            $contents .= implode("\n", $testNames) . "\n";
+        }
+        if (str_ends_with($path, '-targeted-run.txt')) {
+            $contents .= implode("\n", array_map(static fn (string $name): string => $name . ': OK', $testNames)) . "\n";
+        }
+        $contents .= "exitCode: 0\n";
         $writeFile($root, $path, $contents);
         $absolutePath = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $path);
         $records[] = [
@@ -785,7 +792,11 @@ HS);
                 $fixtureRoot
             ))->report();
             $runnerPlan = $baseReport['runnerEvidence'];
-            $writeRunnerTranscripts($root, $runnerPlan['requiredTranscripts']);
+            $testNames = array_map(
+                static fn (array $case): string => $case['name'],
+                $baseReport['denominator']['readerCases']
+            );
+            $writeRunnerTranscripts($root, $runnerPlan['requiredTranscripts'], 'epub', $testNames);
 
             $artifactPath = '.port-libs/pandoc-runner/artifacts/epub-targeted-run/result.json';
             $command = escapeshellarg(PHP_BINARY)
@@ -818,6 +829,7 @@ HS);
             $t->same(6, $payload['testCount']);
             $t->same(6, $payload['passedCount']);
             $t->same(0, $payload['failedCount']);
+            $t->same('valid-targeted-runner-transcripts', $payload['transcriptEvidence']['status']);
             $t->same($runnerPlan['futureCommands'][2], $payload['command']);
             $t->same($runnerPlan['requiredTranscripts'], $payload['transcriptPaths']);
         } finally {

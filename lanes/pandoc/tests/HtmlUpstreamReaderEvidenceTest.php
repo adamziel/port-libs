@@ -59,10 +59,17 @@ $writeGitHead = static function (string $upstreamRoot, string $commit): void {
     file_put_contents($gitDirectory . DIRECTORY_SEPARATOR . 'HEAD', $commit . "\n");
 };
 
-$writeRunnerTranscripts = static function (string $root, array $paths) use ($writeFile): array {
+$writeRunnerTranscripts = static function (string $root, array $paths, array $testNames = []) use ($writeFile): array {
     $records = [];
     foreach (array_values($paths) as $index => $path) {
         $contents = 'html runner transcript ' . (string) ($index + 1) . "\n" . $path . "\n";
+        if (str_ends_with($path, '-targeted-list-tests.txt')) {
+            $contents .= implode("\n", $testNames) . "\n";
+        }
+        if (str_ends_with($path, '-targeted-run.txt')) {
+            $contents .= implode("\n", array_map(static fn (string $name): string => $name . ': OK', $testNames)) . "\n";
+        }
+        $contents .= "exitCode: 0\n";
         $writeFile($root, $path, $contents);
         $absolutePath = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $path);
         $records[] = [
@@ -927,11 +934,11 @@ return [
             $writeHtmlEvidenceTree($root);
             $baseReport = (new HtmlUpstreamReaderEvidence($root, $root))->report();
             $runnerPlan = $baseReport['runnerEvidence'];
-            $writeRunnerTranscripts($root, $runnerPlan['requiredTranscripts']);
             $testNames = array_map(
                 static fn (array $fixture): string => $fixture['name'],
                 $baseReport['denominator']['selectedFixtures']
             );
+            $writeRunnerTranscripts($root, $runnerPlan['requiredTranscripts'], $testNames);
 
             $artifactPath = '.port-libs/pandoc-runner/artifacts/html-targeted-run/result.json';
             $command = escapeshellarg(PHP_BINARY)
@@ -966,6 +973,7 @@ return [
             $t->same(count($testNames), $payload['testCount']);
             $t->same(count($testNames), $payload['passedCount']);
             $t->same(0, $payload['failedCount']);
+            $t->same('valid-targeted-runner-transcripts', $payload['transcriptEvidence']['status']);
             $t->same(count($testNames), $decoded['resultArtifact']['payload']['testCount']);
             $t->same(count($testNames), $decoded['resultArtifact']['payload']['passedCount']);
             $t->same(0, $decoded['resultArtifact']['payload']['failedCount']);

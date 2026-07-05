@@ -60,10 +60,17 @@ $writeDelimitedTextEvidenceTree = static function (string $upstreamRoot, string 
     $writeFile($upstreamRoot, 'src/Text/Pandoc/Readers/CSV.hs', "module Text.Pandoc.Readers.CSV where\n");
 };
 
-$writeRunnerTranscripts = static function (string $root, array $paths) use ($writeFile): array {
+$writeRunnerTranscripts = static function (string $root, array $paths, array $testNames = []) use ($writeFile): array {
     $records = [];
     foreach (array_values($paths) as $index => $path) {
         $contents = 'delimited text runner transcript ' . (string) ($index + 1) . "\n" . $path . "\n";
+        if (str_ends_with($path, '-targeted-list-tests.txt')) {
+            $contents .= implode("\n", $testNames) . "\n";
+        }
+        if (str_ends_with($path, '-targeted-run.txt')) {
+            $contents .= implode("\n", array_map(static fn (string $name): string => $name . ': OK', $testNames)) . "\n";
+        }
+        $contents .= "exitCode: 0\n";
         $writeFile($root, $path, $contents);
         $absolutePath = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $path);
         $records[] = [
@@ -2281,7 +2288,8 @@ return [
             $writeDelimitedTextEvidenceTree($root, $repoRoot);
             $baseReport = (new DelimitedTextUpstreamReaderEvidence($root, '.'))->report();
             $runnerPlan = $baseReport['runnerEvidence'];
-            $writeRunnerTranscripts($root, $runnerPlan['requiredTranscripts']);
+            $testNames = ['Command: csv.md #1'];
+            $writeRunnerTranscripts($root, $runnerPlan['requiredTranscripts'], $testNames);
 
             $artifactPath = '.port-libs/pandoc-runner/artifacts/delimited-text-targeted-run/result.json';
             $command = escapeshellarg(PHP_BINARY)
@@ -2316,8 +2324,16 @@ return [
             $t->same(1, $payload['testCount']);
             $t->same(1, $payload['passedCount']);
             $t->same(0, $payload['failedCount']);
+            $t->same('valid-targeted-runner-transcripts', $payload['transcriptEvidence']['status']);
             $t->same($runnerPlan['futureCommands'][2], $payload['command']);
             $t->same($runnerPlan['requiredTranscripts'], $payload['transcriptPaths']);
+
+            $writeRunnerTranscripts($root, $runnerPlan['requiredTranscripts'], []);
+            $failingCommand = str_replace($artifactPath, '.port-libs/pandoc-runner/artifacts/delimited-text-targeted-run/bad-result.json', $command) . ' 2>/dev/null';
+            $failingOutput = [];
+            $failingExitCode = 0;
+            exec($failingCommand, $failingOutput, $failingExitCode);
+            $t->same(1, $failingExitCode);
         } finally {
             $removeTree($root);
         }

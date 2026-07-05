@@ -126,10 +126,17 @@ try {
             throw new InvalidArgumentException('--result-finished-at-utc is required with --write-result-artifact');
         }
 
+        $transcriptEvidence = transcriptEvidence($repoRoot, $logRoot, $runnerPlan, $testNames);
+        if (($transcriptEvidence['status'] ?? null) !== 'valid-targeted-runner-transcripts') {
+            $issues = implode(', ', stringList($transcriptEvidence['issues'] ?? []));
+            throw new RuntimeException('Runner transcripts do not prove the targeted tests: ' . $issues);
+        }
+
         $resultArtifact = buildResultArtifact(
             $runnerPlan,
             $testNames,
             transcriptRecords($repoRoot, $logRoot, $transcriptPaths),
+            $transcriptEvidence,
             $resultStartedAtUtc,
             $resultFinishedAtUtc
         );
@@ -301,7 +308,7 @@ function absoluteTranscriptPath(string $repoRoot, string $absoluteLogRoot, strin
     return rtrim($absoluteLogRoot, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . basename($requiredPath);
 }
 
-function buildResultArtifact(array $runnerPlan, array $testNames, array $transcripts, string $startedAtUtc, string $finishedAtUtc): array
+function buildResultArtifact(array $runnerPlan, array $testNames, array $transcripts, array $transcriptEvidence, string $startedAtUtc, string $finishedAtUtc): array
 {
     $binding = is_array($runnerPlan['upstreamBinding'] ?? null) ? $runnerPlan['upstreamBinding'] : [];
     $futureCommands = is_array($runnerPlan['futureCommands'] ?? null) ? $runnerPlan['futureCommands'] : [];
@@ -328,9 +335,113 @@ function buildResultArtifact(array $runnerPlan, array $testNames, array $transcr
         'testNames' => array_values($testNames),
         'transcriptPaths' => stringList($runnerPlan['requiredTranscripts'] ?? []),
         'transcripts' => $transcripts,
+        'transcriptEvidence' => $transcriptEvidence,
         'startedAtUtc' => $startedAtUtc,
         'finishedAtUtc' => $finishedAtUtc,
     ];
+}
+
+function transcriptEvidence(string $repoRoot, string $logRoot, array $runnerPlan, array $testNames): array
+{
+    $paths = stringList($runnerPlan['requiredTranscripts'] ?? []);
+    $absoluteLogRoot = absolutePath($logRoot, $repoRoot);
+    $dependencyPath = requiredTranscriptBySuffix($paths, 'runner-test-dependencies.txt');
+    $listPath = requiredTranscriptBySuffix($paths, '-targeted-list-tests.txt');
+    $runPath = requiredTranscriptBySuffix($paths, '-targeted-run.txt');
+    $issues = [];
+
+    $dependency = $dependencyPath === null ? null : transcriptText($repoRoot, $absoluteLogRoot, $dependencyPath);
+    $list = $listPath === null ? null : transcriptText($repoRoot, $absoluteLogRoot, $listPath);
+    $run = $runPath === null ? null : transcriptText($repoRoot, $absoluteLogRoot, $runPath);
+
+    if ($dependencyPath === null || $dependency === null) {
+        $issues[] = 'missing-dependency-transcript';
+    }
+    if ($listPath === null || $list === null) {
+        $issues[] = 'missing-list-tests-transcript';
+    }
+    if ($runPath === null || $run === null) {
+        $issues[] = 'missing-targeted-run-transcript';
+    }
+    if ($testNames === []) {
+        $issues[] = 'missing-expected-test-names';
+    }
+
+    $missingFromList = $list === null ? $testNames : missingTranscriptTestNames($list, $testNames);
+    $missingFromRun = $run === null ? $testNames : missingTranscriptTestNames($run, $testNames);
+    if ($missingFromList !== []) {
+        $issues[] = 'expected-test-names-missing-from-list-transcript';
+    }
+    if ($missingFromRun !== []) {
+        $issues[] = 'expected-test-names-missing-from-run-transcript';
+    }
+
+    $dependencyExitCodeZero = $dependency !== null && str_contains($dependency, 'exitCode: 0');
+    $listExitCodeZero = $list !== null && str_contains($list, 'exitCode: 0');
+    $runExitCodeZero = $run !== null && str_contains($run, 'exitCode: 0');
+    if (!$dependencyExitCodeZero) {
+        $issues[] = 'dependency-transcript-missing-zero-exit-marker';
+    }
+    if (!$listExitCodeZero) {
+        $issues[] = 'list-transcript-missing-zero-exit-marker';
+    }
+    if (!$runExitCodeZero) {
+        $issues[] = 'run-transcript-missing-zero-exit-marker';
+    }
+
+    return [
+        'status' => $issues === [] ? 'valid-targeted-runner-transcripts' : 'invalid-targeted-runner-transcripts',
+        'issues' => array_values(array_unique($issues)),
+        'expectedTestCount' => count($testNames),
+        'listTranscriptPath' => $listPath,
+        'runTranscriptPath' => $runPath,
+        'dependencyTranscriptPath' => $dependencyPath,
+        'expectedNamesObservedInListCount' => count($testNames) - count($missingFromList),
+        'expectedNamesObservedInRunCount' => count($testNames) - count($missingFromRun),
+        'missingFromList' => $missingFromList,
+        'missingFromRun' => $missingFromRun,
+        'exitMarkers' => [
+            'dependency' => $dependencyExitCodeZero,
+            'list' => $listExitCodeZero,
+            'run' => $runExitCodeZero,
+        ],
+    ];
+}
+
+function requiredTranscriptBySuffix(array $paths, string $suffix): ?string
+{
+    foreach ($paths as $path) {
+        if (str_ends_with($path, $suffix)) {
+            return $path;
+        }
+    }
+
+    return null;
+}
+
+function transcriptText(string $repoRoot, string $absoluteLogRoot, string $path): ?string
+{
+    $absolutePath = absoluteTranscriptPath($repoRoot, $absoluteLogRoot, $path);
+    if (!is_file($absolutePath)) {
+        return null;
+    }
+
+    return (string) file_get_contents($absolutePath);
+}
+
+function missingTranscriptTestNames(string $transcript, array $testNames): array
+{
+    $missing = [];
+    foreach ($testNames as $testName) {
+        if (!is_string($testName) || $testName === '') {
+            continue;
+        }
+        if (!str_contains($transcript, $testName)) {
+            $missing[] = $testName;
+        }
+    }
+
+    return $missing;
 }
 
 function writeJsonFile(string $repoRoot, string $path, array $payload): void

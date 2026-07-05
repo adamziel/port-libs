@@ -144,11 +144,18 @@ jobs:
             --upstream-root "$PANDOC_READER_RUNNER_UPSTREAM_ROOT" \
             --artifact-root "$artifact_root" \
             > "$artifact_root/preflight-runner-plan.json"
-          jq -e '
-            .runner.futureCommandLines | length == 3
-          ' "$artifact_root/preflight-runner-plan.json"
-          jq -e '
-            .runner.requiredTranscripts | length == 3
+          jq -e --arg format "${{ matrix.format }}" --arg stem "${{ matrix.artifact_stem }}" '
+            .format == $format
+            and (.runner.futureCommandLines | length == 3)
+            and (.runner.requiredTranscripts == [
+              ".port-libs/pandoc-runner/logs/runner-test-dependencies.txt",
+              ".port-libs/pandoc-runner/logs/" + $stem + "-targeted-list-tests.txt",
+              ".port-libs/pandoc-runner/logs/" + $stem + "-targeted-run.txt"
+            ])
+            and (.runner.requiredArtifacts == [
+              ".port-libs/pandoc-runner/artifacts/" + $stem + "-targeted-run/result.json"
+            ])
+            and (.runner.target.testSuite == "test:test-pandoc")
           ' "$artifact_root/preflight-runner-plan.json"
 
       - name: Set up Haskell for targeted reader runner
