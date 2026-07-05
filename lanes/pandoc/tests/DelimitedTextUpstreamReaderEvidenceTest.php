@@ -144,7 +144,7 @@ return [
         $t->true(in_array('.port-libs/pandoc-runner/artifacts/delimited-text-targeted-run/result.json', $report['runnerEvidence']['requiredArtifacts'], true));
         $t->contains('Pandoc delimited text reader evidence', $text);
         $t->contains('Static current evidence: valid-checked-in-current-delimited-text-reader-evidence checkedInFixtures=2', $text);
-        $t->contains('Generated CSV native parity: 63/63 status=generated-csv-native-parity-observed-not-upstream-fixture', $text);
+        $t->contains('Generated CSV native parity: 64/64 status=generated-csv-native-parity-observed-not-upstream-fixture', $text);
         $t->contains('Generated TSV native parity: 36/36 status=generated-tsv-native-parity-observed-not-upstream-fixture', $text);
         $t->contains('Runner plan: planned-not-run', $text);
         $t->contains('Runner target: Command:/csv.md/#1', $text);
@@ -670,6 +670,14 @@ return [
         $t->same(1867, $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][125]['checkedInFile']['bytes']);
         $t->same('quoted-trailing-empty-field', $evidence['generatedCsvNativeStaticEvidence']['samples'][62]['name']);
         $t->same([], $evidence['generatedCsvNativeStaticEvidence']['samples'][62]['readerOptions']);
+        $t->same('quoted-unicode-doubled-quotes.csv', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][126]['name']);
+        $t->same('b1848c5b9322e05db0b79fc3079f973f485c1aef8d4a8797623ba67a71c63623', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][126]['checkedInFile']['sha256']);
+        $t->same(127, $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][126]['checkedInFile']['bytes']);
+        $t->same('quoted-unicode-doubled-quotes.native', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][127]['name']);
+        $t->same('497470323a734ce0b6344c5d0d5f8bb01a197c5fd6fdfd466d08957613649b42', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][127]['checkedInFile']['sha256']);
+        $t->same(2773, $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][127]['checkedInFile']['bytes']);
+        $t->same('quoted-unicode-doubled-quotes', $evidence['generatedCsvNativeStaticEvidence']['samples'][63]['name']);
+        $t->same([], $evidence['generatedCsvNativeStaticEvidence']['samples'][63]['readerOptions']);
         $t->same('static-checked-in-generated-tsv-native-parity-fixture-evidence', $evidence['generatedTsvNativeStaticEvidence']['kind']);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $evidence['generatedTsvNativeStaticEvidence']['sampleCount']);
         $t->same(2 * DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtureCount']);
@@ -1593,6 +1601,18 @@ return [
         $t->same('lanes/pandoc/fixtures/generated-current-csv-reader/quoted-trailing-empty-field.native', $evidence['samples'][62]['staticFixtureBinding']['expectedNativeFixture']['checkedInPath']);
         $t->same(4, $evidence['samples'][62]['rowCount']);
         $t->same(4, $evidence['samples'][62]['columnCount']);
+        $t->same('matched', $evidence['samples'][63]['status']);
+        $t->same('quoted-unicode-doubled-quotes', $evidence['samples'][63]['name']);
+        $t->same('lanes/pandoc/fixtures/generated-current-csv-reader/quoted-unicode-doubled-quotes.csv', $evidence['samples'][63]['inputPath']);
+        $t->same(['sourcePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/quoted-unicode-doubled-quotes.csv'], $evidence['samples'][63]['readerOptions']);
+        $t->same('generated-csv-native-sample-static-fixture-binding', $evidence['samples'][63]['staticFixtureBinding']['kind']);
+        $t->same('quoted-unicode-doubled-quotes', $evidence['samples'][63]['staticFixtureBinding']['sample']);
+        $t->same('valid-static-fixture-snapshot', $evidence['samples'][63]['staticFixtureBinding']['inputFixture']['status']);
+        $t->same('valid-static-fixture-snapshot', $evidence['samples'][63]['staticFixtureBinding']['expectedNativeFixture']['status']);
+        $t->same('lanes/pandoc/fixtures/generated-current-csv-reader/quoted-unicode-doubled-quotes.csv', $evidence['samples'][63]['staticFixtureBinding']['inputFixture']['checkedInPath']);
+        $t->same('lanes/pandoc/fixtures/generated-current-csv-reader/quoted-unicode-doubled-quotes.native', $evidence['samples'][63]['staticFixtureBinding']['expectedNativeFixture']['checkedInPath']);
+        $t->same(3, $evidence['samples'][63]['rowCount']);
+        $t->same(3, $evidence['samples'][63]['columnCount']);
         $t->same(true, DelimitedTextUpstreamReaderEvidence::hasRequiredGeneratedCsvNativeParity($evidence));
         $t->true(in_array('that the generated CSV samples are upstream command fixtures', $evidence['claimBoundaries']['doesNotAssert'], true));
     },
@@ -2096,6 +2116,7 @@ return [
             'quoted-delimiter-blank-short-row',
             'delimiter-only-row',
             'quoted-delimiter-boundaries',
+            'quoted-unicode-doubled-quotes',
         ], array_column($csv['samples'], 'name'));
         $t->same(array_fill(0, DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT, 'matched'), array_column($csv['samples'], 'status'));
         $t->same(array_fill(0, DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT, 'valid-generated-csv-native-sample-static-binding'), array_column($csv['samples'], 'staticFixtureBindingStatus'));

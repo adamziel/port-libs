@@ -3031,6 +3031,50 @@ NATIVE;
         $t->contains('Plain [ Str "\"quoted\"" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
+    'matches generated csv quoted unicode doubled quotes native parity fixture' => static function (TestRunner $t) use ($generatedCsvNativeFixture, $nativeTokenStream): void {
+        $fixture = $generatedCsvNativeFixture('quoted-unicode-doubled-quotes');
+        $document = (new DelimitedTextReader())->readCsv($fixture['input'], [
+            'sourcePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/quoted-unicode-doubled-quotes.csv',
+        ]);
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+        $native = PandocConverter::write($document, 'native');
+        $generatedEvidence = $packet['upstreamEvidence']['generatedNativeParityEvidence'] ?? [];
+        $body = $table->children[1];
+
+        $t->same('csv', $packet['format'] ?? null);
+        $t->same(',', $packet['delimiter'] ?? null);
+        $t->same(2, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
+        $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
+        $t->same(2 * DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['checkedInFixtureCount'] ?? null);
+        $t->same('quoted-unicode-doubled-quotes.csv', $generatedEvidence['checkedInFixtures'][126]['name'] ?? null);
+        $t->same('b1848c5b9322e05db0b79fc3079f973f485c1aef8d4a8797623ba67a71c63623', $generatedEvidence['checkedInFixtures'][126]['checkedInFile']['sha256'] ?? null);
+        $t->same('quoted-unicode-doubled-quotes.native', $generatedEvidence['checkedInFixtures'][127]['name'] ?? null);
+        $t->same('497470323a734ce0b6344c5d0d5f8bb01a197c5fd6fdfd466d08957613649b42', $generatedEvidence['checkedInFixtures'][127]['checkedInFile']['sha256'] ?? null);
+        $t->same('quoted-unicode-doubled-quotes', $generatedEvidence['samples'][63]['name'] ?? null);
+        $t->same([], $generatedEvidence['samples'][63]['readerOptions'] ?? null);
+        $t->same(['id', 'city "name, local"', 'note'], $table->attr('columnNames'));
+        $t->same(3, $packet['rowCount'] ?? null);
+        $t->same(2, $packet['bodyRowCount'] ?? null);
+        $t->same(3, $packet['columnCount'] ?? null);
+        $t->same(9, $packet['fieldCount'] ?? null);
+        $t->same(7, $packet['quotedFieldCount'] ?? null);
+        $t->same(6, $packet['doubledQuoteEscapeCount'] ?? null);
+        $t->same(0, $packet['quotedLineBreakCount'] ?? null);
+        $t->same(0, $packet['raggedRowCount'] ?? null);
+        $t->same(0, $packet['diagnosticCount'] ?? null);
+        $t->same('München, "Altstadt"', $body->children[0]->children[1]->attr('text'));
+        $t->same('Café, crème', $body->children[0]->children[2]->attr('text'));
+        $t->same('東京, "中央"', $body->children[1]->children[1]->attr('text'));
+        $t->same('emoji 🚀, snowman ☃', $body->children[1]->children[2]->attr('text'));
+        $t->contains('Plain [ Str "city" , Space , Str "\\"name," , Space , Str "local\\"" ]', $native);
+        $t->contains('Plain [ Str "M\\252nchen," , Space , Str "\\"Altstadt\\"" ]', $native);
+        $t->contains('Plain [ Str "\\26481\\20140," , Space , Str "\\"\\20013\\22830\\"" ]', $native);
+        $t->contains('Plain [ Str "emoji" , Space , Str "\\128640," , Space , Str "snowman" , Space , Str "\\9731" ]', $native);
+        $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
+    },
     'matches generated tsv native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture();
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
@@ -4819,6 +4863,8 @@ NATIVE;
         $t->same(['keepSpace' => true], $csvEvidence['generatedNativeParityEvidence']['samples'][61]['readerOptions'] ?? null);
         $t->same('quoted-trailing-empty-field', $csvEvidence['generatedNativeParityEvidence']['samples'][62]['name'] ?? null);
         $t->same([], $csvEvidence['generatedNativeParityEvidence']['samples'][62]['readerOptions'] ?? null);
+        $t->same('quoted-unicode-doubled-quotes', $csvEvidence['generatedNativeParityEvidence']['samples'][63]['name'] ?? null);
+        $t->same([], $csvEvidence['generatedNativeParityEvidence']['samples'][63]['readerOptions'] ?? null);
         $t->true(in_array('direct-csv-command-reader', $csvEvidence['closedGaps'] ?? [], true));
         $t->true(in_array('csv-closing-quote-record-whitespace-strictness', $csvEvidence['closedGaps'] ?? [], true));
         $t->true(in_array('generated-csv-native-parity-sample', $csvEvidence['closedGaps'] ?? [], true));
