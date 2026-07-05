@@ -298,6 +298,10 @@ foreach ($standardFormats as $formatName => $format) {
     foreach ($standardMarkers as $markerName => $case) {
         $tests["keeps upstream markdown reader standard ordered marker enabled {$formatName} {$markerName}"] =
             static function (TestRunner $t) use ($read, $assertOrdered, $format, $case, $formatName, $markerName): void {
+                if ($format === 'markdown_strict') {
+                    $case['start'] = 1;
+                }
+
                 $assertOrdered($t, $read($format, $case['markdown']), $case, "{$formatName} {$markerName}");
             };
     }

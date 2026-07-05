@@ -446,6 +446,7 @@ final class MarkdownFormatProfile
                 'smart',
                 'space_in_atx_header',
                 'spaced_reference_links',
+                'startnum',
                 'strikeout',
                 'subscript',
                 'superscript',

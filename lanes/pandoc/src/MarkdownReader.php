@@ -13246,7 +13246,7 @@ final class MarkdownReader
 
         $attrs = ['loose' => $listLoose];
         if ($ordered) {
-            $attrs['start'] = $start ?? 1;
+            $attrs['start'] = $this->startNumberExtensionEnabled() ? ($start ?? 1) : 1;
             $attrs['style'] = $style ?? 'decimal';
             $attrs['delimiter'] = $delimiter ?? 'period';
         } else {
@@ -18258,6 +18258,23 @@ final class MarkdownReader
         $options['format'] = $this->markdownFormatWithExtensionOption();
 
         return MarkdownFormatProfile::listsWithoutPrecedingBlanklineEnabled($options, false);
+    }
+
+    private function startNumberExtensionEnabled(): bool
+    {
+        $overrides = $this->markdownExtensionOverrides();
+        if (array_key_exists('startnum', $overrides)) {
+            return $overrides['startnum'];
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        if ($this->deprecatedGithubMarkdownAlias($format)) {
+            return false;
+        }
+
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['markdown', 'commonmark', 'commonmark_x', 'gfm'], true);
     }
 
     private function rawAttributeFormatEnabled(string $format): bool
