@@ -1606,6 +1606,7 @@ final class EpubReader
             'htmlPreserveSoftBreaks' => true,
             'htmlConsumeFootnoteContainers' => false,
             'htmlStripRawInlineWrappers' => false,
+            'htmlFlattenDetailsSummaryContainers' => false,
         ]);
     }
 

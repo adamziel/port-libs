@@ -5932,9 +5932,18 @@ final class MarkdownReader
 
     private function isHtmlEpubRawBlockWrapper(\DOMElement $element): bool
     {
-        return $this->htmlEpubExtensionsEnabled()
-            && $this->htmlRawHtmlEnabled()
-            && strtolower($element->localName) === 'address';
+        if (!$this->htmlEpubExtensionsEnabled() || !$this->htmlRawHtmlEnabled()) {
+            return false;
+        }
+
+        $name = strtolower($element->localName);
+        if (in_array($name, ['address', 'details'], true)) {
+            return true;
+        }
+
+        return $name === 'summary'
+            && $element->parentNode instanceof \DOMElement
+            && strtolower($element->parentNode->localName) === 'details';
     }
 
     /**

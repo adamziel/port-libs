@@ -2054,4 +2054,34 @@ HTML);
         $t->contains('( "images/note.png" , "" )', $native);
         $t->contains('Link ( "" , [  ] , [ ( "role" , "doc-backlink" ) ] ) [ Str "back" ] ( "#chapter.xhtml_fnref1" , "" )', $native);
     },
+    'preserves epub details and summary raw block wrappers from html document dom' => static function (TestRunner $t): void {
+        $fixture = __DIR__ . '/../fixtures/upstream-current-epub-reader/epub/xhtml-details-summary-spine.epub';
+
+        $document = (new EpubReader())->readEpubFile($fixture);
+        $native = (new NativeWriter(['blocksOnly' => true]))->write($document);
+
+        $t->same([
+            'paragraph',
+            'heading',
+            'raw_html',
+            'raw_html',
+            'paragraph',
+            'raw_html',
+            'paragraph',
+            'bullet_list',
+            'raw_html',
+            'paragraph',
+        ], array_map(static fn (PortLibs\Pandoc\AstNode $node): string => $node->type, $document->children));
+        $t->same('<details open="open">', $document->children[2]->attr('html'));
+        $t->same('<summary>', $document->children[3]->attr('html'));
+        $t->same('</summary>', $document->children[5]->attr('html'));
+        $t->same('</details>', $document->children[8]->attr('html'));
+        $t->same('Review summary', $document->children[4]->attr('text'));
+        $t->same('After disclosure.', $document->children[9]->attr('text'));
+        $t->contains('RawBlock (Format "html") "<details open=\\"open\\">"', $native);
+        $t->contains('RawBlock (Format "html") "<summary>"', $native);
+        $t->contains('RawBlock (Format "html") "</summary>"', $native);
+        $t->contains('BulletList [ [ Plain [ Str "Nested" , Space , Str "disclosure" , Space , Str "item." ]', $native);
+        $t->contains('RawBlock (Format "html") "</details>"', $native);
+    },
 ];

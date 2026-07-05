@@ -39,7 +39,9 @@ final class HtmlReader
             $attrs = [];
         } else {
             $readerBytes = self::flattenHtmlTemplateContainers($structuralBytes);
-            $readerBytes = self::flattenHtmlDetailsSummaryContainers($readerBytes);
+            if ($this->shouldFlattenHtmlDetailsSummaryContainers()) {
+                $readerBytes = self::flattenHtmlDetailsSummaryContainers($readerBytes);
+            }
             $readerBytes = self::flattenOrphanTableFragmentContainers($readerBytes);
             $segmentedDocument = $this->readInlineTopLevelSourceSegments($readerBytes);
             if ($segmentedDocument !== null) {
@@ -104,6 +106,11 @@ final class HtmlReader
     private function stripRawInlineWrappers(): bool
     {
         return ($this->options['htmlStripRawInlineWrappers'] ?? true) !== false;
+    }
+
+    private function shouldFlattenHtmlDetailsSummaryContainers(): bool
+    {
+        return ($this->options['htmlFlattenDetailsSummaryContainers'] ?? true) !== false;
     }
 
     private static function flattenHtmlPictureContainers(string $bytes): string
