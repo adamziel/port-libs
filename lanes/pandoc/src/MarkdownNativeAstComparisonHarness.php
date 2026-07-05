@@ -15,6 +15,7 @@ final class MarkdownNativeAstComparisonHarness
         'upstream-markdown-angle-autolinks' => ['format' => 'markdown+autolink_bare_uris'],
         'upstream-markdown-alerts' => ['format' => 'gfm'],
         'upstream-markdown-ascii-identifiers' => ['format' => 'markdown+ascii_identifiers'],
+        'upstream-markdown-reader-more-grid-table-spans' => ['format' => 'markdown+grid_tables'],
         'upstream-markdown-z-commonmark-x-grid-table-default' => ['format' => 'commonmark_x'],
         'upstream-markdown-definition-list-html-div' => ['format' => 'markdown+definition_lists+raw_html'],
         'upstream-markdown-definition-list-nested-list' => ['format' => 'markdown+definition_lists'],

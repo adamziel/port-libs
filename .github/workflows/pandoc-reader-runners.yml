@@ -330,9 +330,9 @@ jobs:
               php tools/pandoc-markdown-reader-evidence.php \
                 --upstream-root "$PANDOC_READER_RUNNER_UPSTREAM_ROOT" \
                 --json \
-                --require-selected-fixture-count=101 \
+                --require-selected-fixture-count=102 \
                 --require-static-current-evidence \
-                --require-native-mapped-parity=101 \
+                --require-native-mapped-parity=102 \
                 --runner-result-artifact "$artifact_root/result.json" \
                 --require-runner-result-artifact \
                 --require-no-validation-issues \

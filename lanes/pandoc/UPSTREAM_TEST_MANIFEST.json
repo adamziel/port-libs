@@ -1676,6 +1676,8 @@
         "mappedHtmlReaderFootnoteCodeBlockCases": 1,
         "mappedHtmlReaderFootnoteEmphasisSpacingCases": 4,
         "mappedHtmlReaderTableSectionRowAttributeOutputCases": 5,
+        "markdownReaderMoreGridTableSpanSliceMarkdownLines": 24,
+        "markdownReaderMoreGridTableSpanSliceNativeAstLines": 231,
         "mappedMarkdownReaderMoreGridTableSpanCases": 1,
         "mappedMarkdownReaderMoreGridTableComplexHeaderCases": 1,
         "markdownReaderMoreEntityParenthesesSliceMarkdownLines": 21,
