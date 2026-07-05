@@ -624,6 +624,22 @@ $tests['imports direct pandoc html inline-only main body as plain'] =
         $t->same('hello', $explicitParagraph->children[0]->attr('text'));
     };
 
+$tests['imports direct pandoc html main that closes paragraph through HTML5 tree construction'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $html = $fixture('upstream-html-main-closes-paragraph.html');
+        $body = Html5Dom::parseHtmlFragment($html);
+        $document = (new HtmlReader())->read($html);
+        $meta = $document->attr('meta');
+        $plain = $document->children[0];
+
+        $t->same('<p>hello</p><main>main content</main>', trim(Html5Dom::serializeHtmlChildren($body)));
+        $t->same(Html5Dom::htmlFragmentTreeConstructionBackend($html), $meta['htmlTreeConstruction'] ?? null);
+        $t->same(['plain'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same('main content', $plain->attr('text'));
+        $t->same(['text'], array_map(static fn ($node): string => $node->type, $plain->children));
+        $t->same('main content', $plain->children[0]->attr('text'));
+    };
+
 $tests['imports upstream html main explicit role as native div'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-main-role-native-divs.html'));
