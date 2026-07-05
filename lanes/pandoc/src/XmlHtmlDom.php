@@ -1386,16 +1386,67 @@ final class XmlHtmlDom
         bool $protectTemplateContent = false,
         bool $protectIframeContent = false,
         bool $protectRawTextContent = false,
-        bool $protectNoscriptContent = false
+        bool $protectNoscriptContent = false,
+        ?array $onlyElementNames = null
     ): string
     {
         $offset = 0;
         $protected = '';
-        $rawTextNames = 'script|style|xmp|noembed|noframes|title|textarea|plaintext'
-            . ($protectNoscriptContent ? '|noscript' : '')
-            . ($protectIframeContent ? '|iframe' : '')
-            . ($protectTemplateContent ? '|template' : '');
-        $pattern = '~<(?P<name>' . $rawTextNames . ')(?=[\s/>])(?:[^>"\']+|"[^"]*"|\'[^\']*\')*>~is';
+        $rawTextNames = $onlyElementNames === null
+            ? [
+                'script' => true,
+                'style' => true,
+                'xmp' => true,
+                'noembed' => true,
+                'noframes' => true,
+                'title' => true,
+                'textarea' => true,
+                'plaintext' => true,
+            ]
+            : [];
+        if ($onlyElementNames !== null) {
+            $supportedNames = [
+                'script' => true,
+                'style' => true,
+                'xmp' => true,
+                'noembed' => true,
+                'noframes' => true,
+                'title' => true,
+                'textarea' => true,
+                'plaintext' => true,
+                'noscript' => true,
+                'iframe' => true,
+                'template' => true,
+            ];
+            foreach ($onlyElementNames as $name) {
+                if (!is_string($name)) {
+                    continue;
+                }
+                $name = strtolower($name);
+                if (isset($supportedNames[$name])) {
+                    $rawTextNames[$name] = true;
+                }
+            }
+        }
+        if ($protectNoscriptContent && $onlyElementNames === null) {
+            $rawTextNames['noscript'] = true;
+        }
+        if ($protectIframeContent && $onlyElementNames === null) {
+            $rawTextNames['iframe'] = true;
+        }
+        if ($protectTemplateContent && $onlyElementNames === null) {
+            $rawTextNames['template'] = true;
+        }
+        if ($rawTextNames === []) {
+            return $onlyElementNames === null
+                ? self::normalizeHtml5NamedCharacterReferences(self::protectHtmlCdataSections($html))
+                : $html;
+        }
+        $patternNames = implode('|', array_map(
+            static fn (string $name): string => preg_quote($name, '~'),
+            array_keys($rawTextNames)
+        ));
+        $pattern = '~<(?P<name>' . $patternNames . ')(?=[\s/>])(?:[^>"\']+|"[^"]*"|\'[^\']*\')*>~is';
 
         while (preg_match($pattern, $html, $matches, PREG_OFFSET_CAPTURE, $offset) === 1) {
             $startTag = (string) $matches[0][0];
@@ -1403,9 +1454,10 @@ final class XmlHtmlDom
             $name = strtolower((string) $matches['name'][0]);
             $contentStart = $startOffset + strlen($startTag);
 
-            $protected .= self::normalizeHtml5NamedCharacterReferences(
-                self::protectHtmlCdataSections(substr($html, $offset, $startOffset - $offset))
-            ) . $startTag;
+            $unprotectedPrefix = substr($html, $offset, $startOffset - $offset);
+            $protected .= ($onlyElementNames === null
+                ? self::normalizeHtml5NamedCharacterReferences(self::protectHtmlCdataSections($unprotectedPrefix))
+                : $unprotectedPrefix) . $startTag;
 
             if ($name === 'title' && self::isHtmlTitleStartInSvgContext($html, $startOffset)) {
                 $offset = $contentStart;
@@ -1433,9 +1485,11 @@ final class XmlHtmlDom
             $offset = $endOffset + strlen($endTag);
         }
 
-        return $protected . self::normalizeHtml5NamedCharacterReferences(
-            self::protectHtmlCdataSections(substr($html, $offset))
-        );
+        $tail = substr($html, $offset);
+
+        return $protected . ($onlyElementNames === null
+            ? self::normalizeHtml5NamedCharacterReferences(self::protectHtmlCdataSections($tail))
+            : $tail);
     }
 
     /**

@@ -83,8 +83,14 @@ final class Html5Dom
         self::assertNoHtmlFragmentDeclarations($preflight, 'HTML fragment');
         self::requireNativeHtmlDocument('HTML fragment');
 
-        $fragment = self::html5TreeConstructedFragment(
+        $treeInput = self::html5ProtectedLiteralTreeInput(
             $html,
+            protectTemplateContent: $protectTemplateContentForParse,
+            protectRawTextContent: $protectRawTextContentForParse,
+            protectNoscriptContent: $protectNoscriptContentForParse
+        );
+        $fragment = self::html5TreeConstructedFragment(
+            $treeInput,
             protectTemplateContentForBridge: $protectTemplateContentForParse,
             protectIframeContentForBridge: $protectIframeContentForParse,
             protectRawTextContentForBridge: $protectRawTextContentForParse,
@@ -116,7 +122,13 @@ final class Html5Dom
         self::assertNoHtmlFragmentDeclarations($preflight, 'HTML fragment');
         self::requireNativeHtmlDocument('HTML fragment');
 
-        $fragment = self::html5TreeConstructedFragment($html);
+        $treeInput = self::html5ProtectedLiteralTreeInput(
+            $html,
+            protectTemplateContent: true,
+            protectRawTextContent: false,
+            protectNoscriptContent: true
+        );
+        $fragment = self::html5TreeConstructedFragment($treeInput);
         if ($fragment === null) {
             throw new \RuntimeException('Unable to parse HTML fragment through Dom\\HTMLDocument');
         }
@@ -574,7 +586,13 @@ final class Html5Dom
     ): \DOMDocument
     {
         self::requireNativeHtmlDocument($label);
-        $html5 = self::html5TreeConstructedBridgeSource($html);
+        $treeInput = self::html5ProtectedLiteralTreeInput(
+            $html,
+            protectTemplateContent: true,
+            protectRawTextContent: false,
+            protectNoscriptContent: true
+        );
+        $html5 = self::html5TreeConstructedBridgeSource($treeInput);
         if ($html5 === null) {
             throw new \RuntimeException('Unable to parse ' . $label . ' through Dom\\HTMLDocument');
         }
@@ -584,6 +602,34 @@ final class Html5Dom
         } catch (\Throwable $exception) {
             throw new \RuntimeException('Unable to bridge Dom\\HTMLDocument output for ' . $label, 0, $exception);
         }
+    }
+
+    private static function html5ProtectedLiteralTreeInput(
+        string $html,
+        bool $protectTemplateContent,
+        bool $protectRawTextContent,
+        bool $protectNoscriptContent
+    ): string {
+        $names = [];
+        if ($protectTemplateContent) {
+            $names[] = 'template';
+        }
+        if ($protectNoscriptContent) {
+            $names[] = 'noscript';
+        }
+        if ($protectRawTextContent) {
+            $names[] = 'script';
+            $names[] = 'style';
+        }
+        if ($names === []) {
+            return $html;
+        }
+
+        return XmlHtmlDom::protectHtmlRcdataElements(
+            $html,
+            protectRawTextContent: $protectRawTextContent,
+            onlyElementNames: $names
+        );
     }
 
     private static function loadLegacyHtml(string $html, string $label, bool $prependEncodingDeclaration = true): \DOMDocument
@@ -1151,12 +1197,8 @@ final class Html5Dom
         }
 
         if (isset($literalPayloadElements[$name])) {
-            $content = self::html5ElementPayloadUsesInnerHtml($name) && property_exists($node, 'innerHTML')
-                ? (string) $node->innerHTML
-                : (string) $node->textContent;
-
             return self::html5ElementStartTagForLegacyBridge($node, $name)
-                . self::escapeHtmlTextForLegacyBridge($content)
+                . self::escapeHtmlTextForLegacyBridge(self::html5LiteralPayloadForLegacyBridge($node, $name))
                 . '</' . $name . '>';
         }
 
@@ -1193,17 +1235,19 @@ final class Html5Dom
         return $element->namespaceURI === null || $element->namespaceURI === 'http://www.w3.org/1999/xhtml';
     }
 
-    private static function html5ElementPayloadUsesInnerHtml(string $name): bool
+    private static function html5LiteralPayloadForLegacyBridge(\Dom\Element $element, string $name): string
     {
-        return in_array($name, [
-            'iframe',
-            'noembed',
-            'noframes',
-            'noscript',
-            'plaintext',
-            'template',
-            'xmp',
-        ], true);
+        if ($name === 'template' && property_exists($element, 'innerHTML')) {
+            return html_entity_decode((string) $element->innerHTML, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        }
+        if ($name === 'script' || $name === 'style') {
+            return html_entity_decode((string) $element->textContent, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        }
+        if (in_array($name, ['iframe', 'noembed', 'noframes', 'plaintext', 'xmp'], true) && property_exists($element, 'innerHTML')) {
+            return (string) $element->innerHTML;
+        }
+
+        return (string) $element->textContent;
     }
 
     private static function html5ElementStartTagForLegacyBridge(\Dom\Element $element, string $name): string

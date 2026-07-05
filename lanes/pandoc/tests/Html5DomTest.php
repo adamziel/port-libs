@@ -386,7 +386,7 @@ return [
             '<script type="application/json">{"doctype":"<!DOCTYPE html>","pi":"<?review href=\"file\"?>"}</script>'
                 . '<style>body:before{content:"<!ENTITY reviewer SYSTEM file>"}</style>'
                 . '<textarea>&lt;!ENTITY reviewer SYSTEM "file:///etc/passwd"&gt;</textarea>'
-                . '<template>]&amp;gt;</template>'
+                . '<template>&lt;!DOCTYPE html [&lt;!ENTITY reviewer SYSTEM "file:///etc/passwd"&gt;]&gt;</template>'
                 . '<iframe>&lt;?xml-stylesheet href="file"?&gt;</iframe>',
             $serialized
         );
@@ -657,14 +657,14 @@ return [
         $t->true($noscript instanceof DOMElement, 'Expected noscript fallback container to survive DOM parsing');
         $t->same(['data-source' => 'legacy'], $noscript instanceof DOMElement ? Html5Dom::attributes($noscript) : []);
         $t->same(
-            'Fallback <script>alert(1)</script> &amp; source <img src="x">',
+            'Fallback <script>alert(1)</script> & source <img src=x>',
             $noscript instanceof DOMElement ? $noscript->textContent : null
         );
         $t->same([], $noscript instanceof DOMElement ? Html5Dom::childElements($noscript) : []);
         $t->true($paragraph instanceof DOMElement, 'Expected following paragraph to stay outside noscript text');
         $t->same('after', $paragraph instanceof DOMElement ? Html5Dom::normalizedText($paragraph) : null);
         $t->same(
-            '<noscript data-source="legacy">Fallback &lt;script&gt;alert(1)&lt;/script&gt; &amp;amp; source &lt;img src="x"&gt;</noscript><p>after</p>',
+            '<noscript data-source="legacy">Fallback &lt;script&gt;alert(1)&lt;/script&gt; &amp; source &lt;img src=x&gt;</noscript><p>after</p>',
             $serialized
         );
         $t->true(!str_contains($serialized, '<script>alert(1)</script>'), 'Expected noscript script-looking source to stay escaped');
