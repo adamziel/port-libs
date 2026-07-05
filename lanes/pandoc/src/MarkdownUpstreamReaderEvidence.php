@@ -12,9 +12,9 @@ final class MarkdownUpstreamReaderEvidence
     public const STATUS_COMPLETED = 'completed-upstream-markdown-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-markdown-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
-    public const EXPECTED_SELECTED_FIXTURE_COUNT = 102;
-    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 102;
-    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = 'fb11983d32056abc4c0f86d472f957cb2a47d082f6d6778afd2906e826175b47';
+    public const EXPECTED_SELECTED_FIXTURE_COUNT = 103;
+    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 103;
+    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = '920d4a80d97e7083f060a8e26c373c4fff79122449c9f458a7367c14ed0971b7';
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/Markdown.hs',
@@ -1311,6 +1311,19 @@ final class MarkdownUpstreamReaderEvidence
             ],
             'sha256' => 'd83277252dd4c4da6a66b08dc096b30d47afbf50823e9abf3db0e0f313aae727',
             'bytes' => 880,
+        ],
+        'upstream-markdown-destination-bare-space.md' => [
+            'role' => 'markdown-destination-bare-space-fixture',
+            'sourceKind' => 'selected-upstream-markdown-reader-case',
+            'sourceReference' => 'Tests.Readers.Markdown selected default bare destination space compatibility coverage',
+            'formatProfile' => 'markdown bare link destination with space percent-encoding',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-markdown-destination-bare-space.md',
+            'coverageTests' => [
+                'lanes/pandoc/tests/MarkdownReaderDestinationValidationCompletionTest.php',
+                'lanes/pandoc/tests/MarkdownNativeAstComparisonHarnessTest.php',
+            ],
+            'sha256' => 'f997c375eea7aaf978d159a6999a0abbe35fd9decff7850accd52da1fa0063ec',
+            'bytes' => 25,
         ],
     ];
 

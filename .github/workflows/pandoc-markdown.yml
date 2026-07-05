@@ -45,6 +45,7 @@ jobs:
           php -l lanes/pandoc/src/NativeWriter.php
           php -l lanes/pandoc/tests/MarkdownNativeAstComparisonHarnessTest.php
           php -l lanes/pandoc/tests/MarkdownReaderBlankBeforeBlockBoundaryProfileTest.php
+          php -l lanes/pandoc/tests/MarkdownReaderDestinationValidationCompletionTest.php
           php -l lanes/pandoc/tests/MarkdownReaderInlineCodeListMarkerCompletionTest.php
           php -l lanes/pandoc/tests/MarkdownUpstreamReaderEvidenceTest.php
           php -l tools/pandoc-markdown-native-ast.php
@@ -86,9 +87,9 @@ jobs:
           php tools/pandoc-markdown-reader-evidence.php \
             --upstream-root=.upstream-cache/pandoc-current \
             --json \
-            --require-selected-fixture-count=102 \
+            --require-selected-fixture-count=103 \
             --require-static-current-evidence \
-            --require-native-mapped-parity=102 \
+            --require-native-mapped-parity=103 \
             --require-runner-not-run \
             --require-runner-plan \
             --require-no-validation-issues
@@ -99,7 +100,7 @@ jobs:
             --markdown-dir=lanes/pandoc/fixtures \
             --json \
             summary \
-            --require-mapped-parity=102
+            --require-mapped-parity=103
 
       - name: Run focused Markdown parity tests
         run: |
@@ -111,6 +112,7 @@ jobs:
             lanes/pandoc/tests/MarkdownReaderBareUriQueryBoundaryFixtureCompletionTest.php \
             lanes/pandoc/tests/MarkdownReaderBareUriSchemeBoundaryFixtureCompletionTest.php \
             lanes/pandoc/tests/MarkdownReaderBlankBeforeBlockBoundaryProfileTest.php \
+            lanes/pandoc/tests/MarkdownReaderDestinationValidationCompletionTest.php \
             lanes/pandoc/tests/MarkdownReaderGfmNestedListContinuationFixtureCompletionTest.php \
             lanes/pandoc/tests/MarkdownReaderGfmRawHtmlSplitAngleBoundaryFixtureCompletionTest.php \
             lanes/pandoc/tests/MarkdownReaderGridTableSpanFixtureTest.php \

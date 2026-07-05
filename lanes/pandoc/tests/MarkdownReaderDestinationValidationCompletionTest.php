@@ -103,6 +103,8 @@ $validCases = [
     ],
 ];
 
+$nativeFixtureName = 'upstream-markdown-destination-bare-space.md';
+
 return [
     'rejects upstream markdown destination validation boundary cases' => static function (TestRunner $t) use ($invalidCases, $collectNodesOfType): void {
         foreach ($invalidCases as $name => $case) {
@@ -127,5 +129,11 @@ return [
 
     'records markdown destination validation completion mapped-case count' => static function (TestRunner $t) use ($invalidCases, $validCases): void {
         $t->same(12, count($invalidCases) + count($validCases));
+    },
+
+    'binds default bare-space destination native parity fixture' => static function (TestRunner $t) use ($nativeFixtureName): void {
+        $source = (string) file_get_contents(dirname(__DIR__) . '/fixtures/' . $nativeFixtureName);
+
+        $t->same('[ok](docs/review packet)', trim($source));
     },
 ];
