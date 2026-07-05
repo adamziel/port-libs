@@ -242,7 +242,7 @@ final class TagSoupParser
         }
 
         $name = $prefix . substr($this->source, $nameStart, $cursor - $nameStart);
-        [$attributes, $cursor, $selfClosing] = $this->parseAttributes($cursor, $xml);
+        [$attributes, $cursor, $selfClosing] = $this->parseAttributes($cursor, $xml, $prefix !== '');
         $this->advance($cursor - $this->offset);
         $this->emit(TagSoupTag::open($name, $attributes), $row, $column);
         if ($selfClosing) {
@@ -258,7 +258,7 @@ final class TagSoupParser
     /**
      * @return array{0:list<array{name:string,value:string}>,1:int,2:bool}
      */
-    private function parseAttributes(int $cursor, bool $xml): array
+    private function parseAttributes(int $cursor, bool $xml, bool $allowEmptyNameAttributes): array
     {
         $attributes = [];
         while ($cursor < $this->length) {
@@ -282,6 +282,15 @@ final class TagSoupParser
 
             if ($xml && $char === '?' && $cursor + 1 < $this->length && $this->source[$cursor + 1] === '>') {
                 return [$attributes, $cursor + 2, false];
+            }
+
+            if ($allowEmptyNameAttributes && ($char === '"' || $char === "'")) {
+                [$value, $cursor] = $this->parseAttributeValue($cursor);
+                $attributes[] = [
+                    'name' => '',
+                    'value' => $this->options->decodeEntities ? $this->decodeEntities($value) : $value,
+                ];
+                continue;
             }
 
             $nameStart = $cursor;

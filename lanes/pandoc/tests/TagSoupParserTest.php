@@ -52,6 +52,17 @@ return [
         ], tokenSummary($tokens));
     },
 
+    'parses declaration attributes without names like tagsoup' => static function (TestRunner $t): void {
+        $tokens = (new TagSoupParser())->parse('<!review "loose" value=yes>');
+
+        $t->same([
+            ['open', '!review', '', [
+                ['name' => '', 'value' => 'loose'],
+                ['name' => 'value', 'value' => 'yes'],
+            ]],
+        ], tokenSummary($tokens));
+    },
+
     'emits optional position and warning tokens' => static function (TestRunner $t): void {
         $options = (new TagSoupParseOptions(includePositions: true, includeWarnings: true));
         $tokens = (new TagSoupParser())->parse("x\n<>", $options);

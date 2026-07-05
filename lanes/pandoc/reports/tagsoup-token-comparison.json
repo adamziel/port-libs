@@ -1,0 +1,416 @@
+{
+    "schemaVersion": 1,
+    "tool": "pandoc-tagsoup-token-report.php",
+    "upstream": {
+        "project": ".upstream-cache/pandoc-current",
+        "package": "tagsoup",
+        "version": "0.14.8"
+    },
+    "total": 7,
+    "matched": 7,
+    "mismatched": 0,
+    "status": "passed",
+    "comparisons": [
+        {
+            "name": "malformed-formatting-source-order",
+            "source": "<p><b>one<i>two</b>three</i>",
+            "matched": true,
+            "php": [
+                {
+                    "type": "open",
+                    "name": "p",
+                    "text": "",
+                    "attributes": []
+                },
+                {
+                    "type": "open",
+                    "name": "b",
+                    "text": "",
+                    "attributes": []
+                },
+                {
+                    "type": "text",
+                    "name": "",
+                    "text": "one",
+                    "attributes": []
+                },
+                {
+                    "type": "open",
+                    "name": "i",
+                    "text": "",
+                    "attributes": []
+                },
+                {
+                    "type": "text",
+                    "name": "",
+                    "text": "two",
+                    "attributes": []
+                },
+                {
+                    "type": "close",
+                    "name": "b",
+                    "text": "",
+                    "attributes": []
+                },
+                {
+                    "type": "text",
+                    "name": "",
+                    "text": "three",
+                    "attributes": []
+                },
+                {
+                    "type": "close",
+                    "name": "i",
+                    "text": "",
+                    "attributes": []
+                }
+            ],
+            "haskell": [
+                {
+                    "type": "open",
+                    "name": "p",
+                    "text": "",
+                    "attributes": []
+                },
+                {
+                    "type": "open",
+                    "name": "b",
+                    "text": "",
+                    "attributes": []
+                },
+                {
+                    "type": "text",
+                    "name": "",
+                    "text": "one",
+                    "attributes": []
+                },
+                {
+                    "type": "open",
+                    "name": "i",
+                    "text": "",
+                    "attributes": []
+                },
+                {
+                    "type": "text",
+                    "name": "",
+                    "text": "two",
+                    "attributes": []
+                },
+                {
+                    "type": "close",
+                    "name": "b",
+                    "text": "",
+                    "attributes": []
+                },
+                {
+                    "type": "text",
+                    "name": "",
+                    "text": "three",
+                    "attributes": []
+                },
+                {
+                    "type": "close",
+                    "name": "i",
+                    "text": "",
+                    "attributes": []
+                }
+            ]
+        },
+        {
+            "name": "attributes-entities-self-closing",
+            "source": "<BR class=x disabled data-v=\"A&amp;B\"/>",
+            "matched": true,
+            "php": [
+                {
+                    "type": "open",
+                    "name": "BR",
+                    "text": "",
+                    "attributes": [
+                        {
+                            "name": "class",
+                            "value": "x"
+                        },
+                        {
+                            "name": "disabled",
+                            "value": ""
+                        },
+                        {
+                            "name": "data-v",
+                            "value": "A&B"
+                        }
+                    ]
+                },
+                {
+                    "type": "close",
+                    "name": "BR",
+                    "text": "",
+                    "attributes": []
+                }
+            ],
+            "haskell": [
+                {
+                    "type": "open",
+                    "name": "BR",
+                    "text": "",
+                    "attributes": [
+                        {
+                            "name": "class",
+                            "value": "x"
+                        },
+                        {
+                            "name": "disabled",
+                            "value": ""
+                        },
+                        {
+                            "name": "data-v",
+                            "value": "A&B"
+                        }
+                    ]
+                },
+                {
+                    "type": "close",
+                    "name": "BR",
+                    "text": "",
+                    "attributes": []
+                }
+            ]
+        },
+        {
+            "name": "declaration-comment-cdata-script",
+            "source": "<!doctype html><!--c--><![CDATA[x<y]]><script>a < b && c</script>",
+            "matched": true,
+            "php": [
+                {
+                    "type": "open",
+                    "name": "!doctype",
+                    "text": "",
+                    "attributes": [
+                        {
+                            "name": "html",
+                            "value": ""
+                        }
+                    ]
+                },
+                {
+                    "type": "comment",
+                    "name": "",
+                    "text": "c",
+                    "attributes": []
+                },
+                {
+                    "type": "text",
+                    "name": "",
+                    "text": "x<y",
+                    "attributes": []
+                },
+                {
+                    "type": "open",
+                    "name": "script",
+                    "text": "",
+                    "attributes": []
+                },
+                {
+                    "type": "text",
+                    "name": "",
+                    "text": "a < b && c",
+                    "attributes": []
+                },
+                {
+                    "type": "close",
+                    "name": "script",
+                    "text": "",
+                    "attributes": []
+                }
+            ],
+            "haskell": [
+                {
+                    "type": "open",
+                    "name": "!doctype",
+                    "text": "",
+                    "attributes": [
+                        {
+                            "name": "html",
+                            "value": ""
+                        }
+                    ]
+                },
+                {
+                    "type": "comment",
+                    "name": "",
+                    "text": "c",
+                    "attributes": []
+                },
+                {
+                    "type": "text",
+                    "name": "",
+                    "text": "x<y",
+                    "attributes": []
+                },
+                {
+                    "type": "open",
+                    "name": "script",
+                    "text": "",
+                    "attributes": []
+                },
+                {
+                    "type": "text",
+                    "name": "",
+                    "text": "a < b && c",
+                    "attributes": []
+                },
+                {
+                    "type": "close",
+                    "name": "script",
+                    "text": "",
+                    "attributes": []
+                }
+            ]
+        },
+        {
+            "name": "processing-instruction-and-declaration",
+            "source": "<?xml version=\"1.0\"?><!review value=yes>",
+            "matched": true,
+            "php": [
+                {
+                    "type": "open",
+                    "name": "?xml",
+                    "text": "",
+                    "attributes": [
+                        {
+                            "name": "version",
+                            "value": "1.0"
+                        }
+                    ]
+                },
+                {
+                    "type": "open",
+                    "name": "!review",
+                    "text": "",
+                    "attributes": [
+                        {
+                            "name": "value",
+                            "value": "yes"
+                        }
+                    ]
+                }
+            ],
+            "haskell": [
+                {
+                    "type": "open",
+                    "name": "?xml",
+                    "text": "",
+                    "attributes": [
+                        {
+                            "name": "version",
+                            "value": "1.0"
+                        }
+                    ]
+                },
+                {
+                    "type": "open",
+                    "name": "!review",
+                    "text": "",
+                    "attributes": [
+                        {
+                            "name": "value",
+                            "value": "yes"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "entity-resolution",
+            "source": "A&nbsp;B &copy and &NotEqualTilde; &#x41;",
+            "matched": true,
+            "php": [
+                {
+                    "type": "text",
+                    "name": "",
+                    "text": "A B © and ≂̸ A",
+                    "attributes": []
+                }
+            ],
+            "haskell": [
+                {
+                    "type": "text",
+                    "name": "",
+                    "text": "A B © and ≂̸ A",
+                    "attributes": []
+                }
+            ]
+        },
+        {
+            "name": "bogus-angle-markup",
+            "source": "<> <3 </> </$funky>",
+            "matched": true,
+            "php": [
+                {
+                    "type": "text",
+                    "name": "",
+                    "text": "<> <3 </> ",
+                    "attributes": []
+                },
+                {
+                    "type": "comment",
+                    "name": "",
+                    "text": "$funky",
+                    "attributes": []
+                }
+            ],
+            "haskell": [
+                {
+                    "type": "text",
+                    "name": "",
+                    "text": "<> <3 </> ",
+                    "attributes": []
+                },
+                {
+                    "type": "comment",
+                    "name": "",
+                    "text": "$funky",
+                    "attributes": []
+                }
+            ]
+        },
+        {
+            "name": "attribute-without-name",
+            "source": "<!review \"loose\" value=yes>",
+            "matched": true,
+            "php": [
+                {
+                    "type": "open",
+                    "name": "!review",
+                    "text": "",
+                    "attributes": [
+                        {
+                            "name": "",
+                            "value": "loose"
+                        },
+                        {
+                            "name": "value",
+                            "value": "yes"
+                        }
+                    ]
+                }
+            ],
+            "haskell": [
+                {
+                    "type": "open",
+                    "name": "!review",
+                    "text": "",
+                    "attributes": [
+                        {
+                            "name": "",
+                            "value": "loose"
+                        },
+                        {
+                            "name": "value",
+                            "value": "yes"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
