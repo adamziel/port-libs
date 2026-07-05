@@ -94,9 +94,9 @@ return [
         $t->same('not-evaluated-missing-upstream-root', $report['validation']['status']);
         $t->same(['missing-upstream-root'], $report['validation']['issues']);
         $t->same('valid-checked-in-current-html-reader-evidence', $report['staticCurrentEvidence']['validation']['status']);
-        $t->same(true, HtmlUpstreamReaderEvidence::hasRequiredSelectedFixtureCount($report, 113));
+        $t->same(true, HtmlUpstreamReaderEvidence::hasRequiredSelectedFixtureCount($report, 114));
         $t->same(true, HtmlUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($report));
-        $t->same(true, HtmlUpstreamReaderEvidence::hasRequiredNativeMappedParity($report, 113));
+        $t->same(true, HtmlUpstreamReaderEvidence::hasRequiredNativeMappedParity($report, 114));
         $t->same(true, HtmlUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
         $t->same(true, HtmlUpstreamReaderEvidence::hasRunnerPlanEvidence($report));
         $t->same(false, HtmlUpstreamReaderEvidence::hasNoValidationIssues($report));
@@ -109,9 +109,9 @@ return [
         $t->true(in_array('.port-libs/pandoc-runner/logs/html-targeted-run.txt', $report['runnerEvidence']['requiredTranscripts'], true));
         $t->true(in_array('.port-libs/pandoc-runner/artifacts/html-targeted-run/result.json', $report['runnerEvidence']['requiredArtifacts'], true));
         $t->contains('Pandoc HTML reader evidence', $text);
-        $t->contains('Static current evidence: valid-checked-in-current-html-reader-evidence checkedInFixtures=113 nativePairs=113', $text);
-        $t->contains('Native AST mapped parity: 113/113', $text);
-        $t->contains('Native AST fixture inventory: html=113 native=113 paired=113 unpairedHtml=0 unpairedNative=0', $text);
+        $t->contains('Static current evidence: valid-checked-in-current-html-reader-evidence checkedInFixtures=114 nativePairs=114', $text);
+        $t->contains('Native AST mapped parity: 114/114', $text);
+        $t->contains('Native AST fixture inventory: html=114 native=114 paired=114 unpairedHtml=0 unpairedNative=0', $text);
         $t->contains('Runner plan: planned-not-run', $text);
     },
 
@@ -121,11 +121,11 @@ return [
 
         $t->same('static-checked-in-current-upstream-html-reader-fixture-evidence', $evidence['kind']);
         $t->same(HtmlUpstreamReaderEvidence::EXPECTED_UPSTREAM_COMMIT, $evidence['upstream']['commit']);
-        $t->same(113, $evidence['readerDenominator']['selectedFixtureCount']);
+        $t->same(114, $evidence['readerDenominator']['selectedFixtureCount']);
         $t->same('selected checked-in upstream-derived and generated-current HTML reader fixtures', $evidence['readerDenominator']['fixtureScope']);
-        $t->same(113, $evidence['readerDenominator']['nativeMappedPairCount']);
-        $t->same(113, $evidence['checkedInFixtureCount']);
-        $t->same(113, $evidence['checkedInNativePairCount']);
+        $t->same(114, $evidence['readerDenominator']['nativeMappedPairCount']);
+        $t->same(114, $evidence['checkedInFixtureCount']);
+        $t->same(114, $evidence['checkedInNativePairCount']);
         $t->same('upstream-html-anchor-image-attrs.html', $evidence['checkedInFixtures'][0]['name']);
         $t->same('27073f93fc90c5a85361723faad6fa6e1e44a891b344680476c41f9a4df3be74', $evidence['checkedInFixtures'][0]['checkedInFile']['sha256']);
         $t->same(363, $evidence['checkedInFixtures'][0]['checkedInFile']['bytes']);
@@ -687,6 +687,16 @@ return [
         $t->same('729dc04964094411a3064bdd4d544375c95a285218afb1f60f9113d0179d049a', $evidence['checkedInFixtures'][112]['checkedInNativePairFile']['sha256']);
         $t->same(49, $evidence['checkedInFixtures'][112]['checkedInNativePairFile']['bytes']);
         $t->true($evidence['checkedInFixtures'][112]['localTestReferenceCount'] >= 1);
+        $t->same('upstream-html-paragraph-article-tree-construction.html', $evidence['checkedInFixtures'][113]['name']);
+        $t->same('ddb92874e0d138288a79fdcaef96c22bcf7f22d11af9009e4abd30e97207465f', $evidence['checkedInFixtures'][113]['checkedInFile']['sha256']);
+        $t->same(113, $evidence['checkedInFixtures'][113]['checkedInFile']['bytes']);
+        $t->same('direct-pandoc-3.10-native-probe', $evidence['readerDenominator']['selectedFixtures'][113]['sourceKind']);
+        $t->same('block-structure', $evidence['readerDenominator']['selectedFixtures'][113]['category']);
+        $t->same('lanes/pandoc/fixtures/upstream-html-paragraph-article-tree-construction.native', $evidence['checkedInFixtures'][113]['checkedInNativePairFile']['path']);
+        $t->same(true, $evidence['checkedInFixtures'][113]['checkedInNativePairFile']['present']);
+        $t->same('b3be40b63cdccee749d97cdb9ddd08e6746cf5cdb369c016fb8bf669b8818e53', $evidence['checkedInFixtures'][113]['checkedInNativePairFile']['sha256']);
+        $t->same(108, $evidence['checkedInFixtures'][113]['checkedInNativePairFile']['bytes']);
+        $t->true($evidence['checkedInFixtures'][113]['localTestReferenceCount'] >= 1);
         $t->same('valid-checked-in-current-html-reader-evidence', $evidence['validation']['status']);
         $t->same([], $evidence['validation']['issues']);
         $t->true(in_array('each pinned HTML fixture has a same-basename checked-in native expectation file', $evidence['claimBoundaries']['doesAssert'], true));
@@ -704,11 +714,11 @@ return [
             $t->same(null, $report['upstream']['commit']);
             $t->same('invalid-upstream-html-reader-evidence', $report['validation']['status']);
             $t->same(['upstream-html-reader-commit-mismatch'], $report['validation']['issues']);
-            $t->same(113, $report['denominator']['selectedFixtureCount']);
+            $t->same(114, $report['denominator']['selectedFixtureCount']);
             $t->same(2, $report['sourceInventory']['presentFileCount']);
             $t->same(0, $report['sourceInventory']['missingFileCount']);
             $t->same(true, HtmlUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($report));
-            $t->same(true, HtmlUpstreamReaderEvidence::hasRequiredNativeMappedParity($report, 113));
+            $t->same(true, HtmlUpstreamReaderEvidence::hasRequiredNativeMappedParity($report, 114));
             $t->same(true, HtmlUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
             $t->same(true, HtmlUpstreamReaderEvidence::hasRunnerPlanEvidence($report));
             $t->same(false, HtmlUpstreamReaderEvidence::hasNoValidationIssues($report));
@@ -729,11 +739,11 @@ return [
             $t->same(HtmlUpstreamReaderEvidence::EXPECTED_UPSTREAM_COMMIT, $report['upstream']['commit']);
             $t->same('valid-upstream-html-reader-evidence', $report['validation']['status']);
             $t->same([], $report['validation']['issues']);
-            $t->same(113, $report['denominator']['selectedFixtureCount']);
+            $t->same(114, $report['denominator']['selectedFixtureCount']);
             $t->same(2, $report['sourceInventory']['presentFileCount']);
             $t->same(0, $report['sourceInventory']['missingFileCount']);
             $t->same(true, HtmlUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($report));
-            $t->same(true, HtmlUpstreamReaderEvidence::hasRequiredNativeMappedParity($report, 113));
+            $t->same(true, HtmlUpstreamReaderEvidence::hasRequiredNativeMappedParity($report, 114));
             $t->same(true, HtmlUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
             $t->same(true, HtmlUpstreamReaderEvidence::hasRunnerPlanEvidence($report));
             $t->same(true, HtmlUpstreamReaderEvidence::hasNoValidationIssues($report));
@@ -839,9 +849,9 @@ return [
             . ' --repo-root=' . escapeshellarg($repoRoot)
             . ' --checked-in-fixtures'
             . ' --json'
-            . ' --require-selected-fixture-count=113'
+            . ' --require-selected-fixture-count=114'
             . ' --require-static-current-evidence'
-            . ' --require-native-mapped-parity=113'
+            . ' --require-native-mapped-parity=114'
             . ' --require-runner-not-run'
             . ' --require-runner-plan';
         $output = [];
@@ -851,15 +861,15 @@ return [
 
         $t->same(0, $exitCode);
         $t->same(HtmlUpstreamReaderEvidence::STATUS_SKIPPED_MISSING_SOURCE, $decoded['status']);
-        $t->same(113, $decoded['staticCurrentEvidence']['readerDenominator']['selectedFixtureCount']);
+        $t->same(114, $decoded['staticCurrentEvidence']['readerDenominator']['selectedFixtureCount']);
         $t->same('valid-checked-in-current-html-reader-evidence', $decoded['staticCurrentEvidence']['validation']['status']);
-        $t->same(113, $decoded['staticCurrentEvidence']['checkedInNativePairCount']);
-        $t->same(113, $decoded['nativeAstEvidence']['normalizedAstMatchCount']);
+        $t->same(114, $decoded['staticCurrentEvidence']['checkedInNativePairCount']);
+        $t->same(114, $decoded['nativeAstEvidence']['normalizedAstMatchCount']);
         $t->same('not-run', $decoded['runnerEvidence']['status']);
         $t->same('planned-not-run', $decoded['runnerEvidence']['commandPlanStatus']);
         $t->same('$2 == "Readers" && $3 == "HTML"', $decoded['runnerEvidence']['target']['tastyPattern']);
 
-        $failingCommand = str_replace('--require-selected-fixture-count=113', '--require-selected-fixture-count=85', $command) . ' 2>/dev/null';
+        $failingCommand = str_replace('--require-selected-fixture-count=114', '--require-selected-fixture-count=85', $command) . ' 2>/dev/null';
         $failingOutput = [];
         $failingExitCode = 0;
         exec($failingCommand, $failingOutput, $failingExitCode);
@@ -1001,15 +1011,15 @@ return [
             throw new RuntimeException('Unable to read pandoc-html-delimited workflow');
         }
 
-        $t->contains('--require-selected-fixture-count=113', $workflow);
-        $t->contains('--require-native-mapped-parity=113', $workflow);
-        $t->contains('--require-mapped-parity=113', $workflow);
+        $t->contains('--require-selected-fixture-count=114', $workflow);
+        $t->contains('--require-native-mapped-parity=114', $workflow);
+        $t->contains('--require-mapped-parity=114', $workflow);
         $flags = [
             '--require-selected-fixture-count=',
             '--require-native-mapped-parity=',
             '--require-mapped-parity=',
         ];
-        foreach ([107, 103, 102, 88, 62] as $staleCount) {
+        foreach ([113, 107, 103, 102, 88, 62] as $staleCount) {
             foreach ($flags as $flag) {
                 $t->true(!str_contains($workflow, $flag . (string) $staleCount));
             }

@@ -1352,6 +1352,25 @@ $tests['imports direct pandoc html paragraph section tree construction as repair
         $t->same('three', $document->children[2]->attr('text'));
     };
 
+$tests['imports direct pandoc html paragraph article tree construction as repaired blocks'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-paragraph-article-tree-construction.html'));
+        $inside = $document->children[1];
+
+        $t->same('html', $document->attr('sourceFormat'));
+        $t->same(Html5Dom::htmlDocumentTreeConstructionBackend(), $document->attr('meta')['htmlTreeConstruction'] ?? null);
+        $t->same(
+            ['paragraph', 'paragraph', 'paragraph'],
+            array_map(static fn ($node): string => $node->type, $document->children)
+        );
+        $t->same('Before', $document->children[0]->attr('text'));
+        $t->same('Inside article', $inside->attr('text'));
+        $t->same(['text', 'strong'], array_map(static fn ($node): string => $node->type, $inside->children));
+        $t->same('Inside ', $inside->children[0]->attr('text'));
+        $t->same('article', $inside->children[1]->children[0]->attr('text'));
+        $t->same('After', $document->children[2]->attr('text'));
+    };
+
 $tests['imports direct pandoc html paragraph aside tree construction as repaired native div'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-paragraph-aside-tree-construction.html'));
