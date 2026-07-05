@@ -12,9 +12,9 @@ final class MarkdownUpstreamReaderEvidence
     public const STATUS_COMPLETED = 'completed-upstream-markdown-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-markdown-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
-    public const EXPECTED_SELECTED_FIXTURE_COUNT = 117;
-    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 117;
-    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = 'c7ed6bfba054c4e23970b59a3bae16f5e47c2157a4002f670248d0e74a3bf415';
+    public const EXPECTED_SELECTED_FIXTURE_COUNT = 119;
+    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 119;
+    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = '9b59870975bfa48de7346d997a8c511df1e35212108babe95d37c148d3e8c57a';
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/Markdown.hs',
@@ -1506,6 +1506,32 @@ final class MarkdownUpstreamReaderEvidence
             ],
             'sha256' => '47b47e2c929efc0802ff53535df1f0ae9df8464cd7546841fed95e37f917bc8c',
             'bytes' => 62,
+        ],
+        'upstream-markdown-implicit-header-reference-atx.md' => [
+            'role' => 'markdown-implicit-header-reference-atx-reader-fixture',
+            'sourceKind' => 'selected-upstream-markdown-reader-case',
+            'sourceReference' => 'Tests.Readers.Markdown implicit header references/ATX header without trailing #s',
+            'formatProfile' => 'markdown implicit_header_references atx heading label-trim behavior',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-markdown-implicit-header-reference-atx.md',
+            'coverageTests' => [
+                'lanes/pandoc/tests/MarkdownReaderImplicitHeaderReferenceFixtureCompletionTest.php',
+                'lanes/pandoc/tests/MarkdownNativeAstComparisonHarnessTest.php',
+            ],
+            'sha256' => '1a2161ad2b56bac8e8772ffe2116c591358493457ec60fde2d91f23591a62aaa',
+            'bytes' => 40,
+        ],
+        'upstream-markdown-implicit-header-reference-setext.md' => [
+            'role' => 'markdown-implicit-header-reference-setext-reader-fixture',
+            'sourceKind' => 'selected-upstream-markdown-reader-case',
+            'sourceReference' => 'Tests.Readers.Markdown implicit header references/setext header',
+            'formatProfile' => 'markdown implicit_header_references setext heading label-trim behavior',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-markdown-implicit-header-reference-setext.md',
+            'coverageTests' => [
+                'lanes/pandoc/tests/MarkdownReaderImplicitHeaderReferenceFixtureCompletionTest.php',
+                'lanes/pandoc/tests/MarkdownNativeAstComparisonHarnessTest.php',
+            ],
+            'sha256' => '857c91bec5b62052733b64dc3319f9223892c49e3fb617b841f629f7995878de',
+            'bytes' => 42,
         ],
     ];
 

@@ -16430,6 +16430,7 @@ final class MarkdownReader
      */
     private function parseLinkLabelInlines(string $label): array
     {
+        $label = trim($label);
         $label = $this->protectWhitespaceFlankedLinkLabelDelimiters($label);
 
         $previousMark = $this->forceLinkLabelMark;
