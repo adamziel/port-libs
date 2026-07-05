@@ -1538,6 +1538,20 @@ $tests['imports direct pandoc html invalid table children as visible blocks'] =
         $assertBlocks((new HtmlReader())->read('<!doctype html><html><body>' . $html . '</body></html>'), 'document');
     };
 
+$tests['imports direct pandoc html foster-parented table text in source order'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-foster-parent-table-text.html'));
+
+        $t->same(
+            ['paragraph', 'paragraph', 'paragraph'],
+            array_map(static fn ($node): string => $node->type, $document->children)
+        );
+        $t->same(
+            ['A', 'loose', 'tail'],
+            array_map(static fn ($node): string => $node->attr('text'), $document->children)
+        );
+    };
+
 $tests['imports direct pandoc html orphan table fragment tree construction as visible blocks'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-orphan-table-fragment-tree-construction.html'));

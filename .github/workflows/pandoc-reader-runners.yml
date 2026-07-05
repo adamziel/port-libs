@@ -321,9 +321,9 @@ jobs:
               php tools/pandoc-html-reader-evidence.php \
                 --upstream-root "$PANDOC_READER_RUNNER_UPSTREAM_ROOT" \
                 --json \
-                --require-selected-fixture-count=117 \
+                --require-selected-fixture-count=118 \
                 --require-static-current-evidence \
-                --require-native-mapped-parity=117 \
+                --require-native-mapped-parity=118 \
                 --runner-result-artifact "$artifact_root/result.json" \
                 --require-runner-result-artifact \
                 --require-no-validation-issues \
@@ -333,9 +333,9 @@ jobs:
               php tools/pandoc-markdown-reader-evidence.php \
                 --upstream-root "$PANDOC_READER_RUNNER_UPSTREAM_ROOT" \
                 --json \
-                --require-selected-fixture-count=122 \
+                --require-selected-fixture-count=123 \
                 --require-static-current-evidence \
-                --require-native-mapped-parity=122 \
+                --require-native-mapped-parity=123 \
                 --runner-result-artifact "$artifact_root/result.json" \
                 --require-runner-result-artifact \
                 --require-no-validation-issues \

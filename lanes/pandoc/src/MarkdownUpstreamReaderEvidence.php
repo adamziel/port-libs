@@ -12,9 +12,9 @@ final class MarkdownUpstreamReaderEvidence
     public const STATUS_COMPLETED = 'completed-upstream-markdown-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-markdown-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
-    public const EXPECTED_SELECTED_FIXTURE_COUNT = 122;
-    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 122;
-    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = '51f41c61a0d13f3c32dcbae21f74ca55ee7b2ccdc9f19ef4ab8d9c7b1120a140';
+    public const EXPECTED_SELECTED_FIXTURE_COUNT = 123;
+    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 123;
+    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = 'a171435e20575bfe1de1d040d5fb7a28686f0846ed5246e24b0bc8e17794eed4';
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/Markdown.hs',
@@ -1571,6 +1571,18 @@ final class MarkdownUpstreamReaderEvidence
             ],
             'sha256' => 'd48891d00c0184a1eec42834d4a928035dd3480b8aafe11a54790071c6e8a20d',
             'bytes' => 190,
+        ],
+        'upstream-markdown-link-nested-inline-boundary.md' => [
+            'role' => 'markdown-link-nested-inline-boundary-reader-fixture',
+            'sourceKind' => 'selected-upstream-markdown-reader-case',
+            'sourceReference' => 'Tests.Readers.Markdown links/no inline link inside link',
+            'formatProfile' => 'markdown nested inline link boundary',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-markdown-link-nested-inline-boundary.md',
+            'coverageTests' => [
+                'lanes/pandoc/tests/MarkdownReaderNestedInlineLinkBoundaryFixtureCompletionTest.php',
+            ],
+            'sha256' => 'f42eca9798982cf81787d133e54cc52a08bf79046320b63747528f0715b891fa',
+            'bytes' => 17,
         ],
     ];
 
