@@ -374,11 +374,13 @@ final class Html5DomFragment
         $source = '<html><head><meta charset="UTF-8"></head><body><div data-pandoc-fragment-root="1">'
             . XmlHtmlDom::protectHtmlRcdataElements($html)
             . '</div></body></html>';
-        // PHP exposes HTML5 tree construction for full documents, not
-        // context-aware table fragments; multiline sanitizer fragments keep
-        // the provenance-preserving path for source-line diagnostics.
-        if (!self::hasHtmlTableScopeElement($html) && !self::hasLineBreak($html)) {
-            $source = Html5Dom::treeConstructedHtmlSource($source) ?? $source;
+        if (
+            Html5Dom::nativeHtmlDocumentAvailable()
+            && !self::hasLineBreak($html)
+            && !self::htmlFragmentContainsTableStructure($html)
+        ) {
+            $source = Html5Dom::treeConstructedHtmlSource($source)
+                ?? throw new \InvalidArgumentException('Unable to parse HTML fragment through Dom\\HTMLDocument');
         }
         $loaded = $dom->loadHTML($source, $flags);
         $errors = libxml_get_errors();
@@ -406,13 +408,16 @@ final class Html5DomFragment
         return $dom;
     }
 
-    private static function hasHtmlTableScopeElement(string $html): bool
+    private static function htmlFragmentContainsTableStructure(string $html): bool
     {
-        foreach (self::htmlStartTagNames($html) as $name) {
-            if (isset(self::HTML5_TABLE_ALLOWED_CHILDREN[$name])) {
-                return true;
-            }
-            if (in_array($name, ['caption', 'col', 'td', 'th'], true)) {
+        try {
+            $body = Html5Dom::parseHtmlFragment($html);
+        } catch (\Throwable) {
+            return false;
+        }
+
+        foreach (Html5Dom::descendantElements($body) as $element) {
+            if (self::isHtmlTableStructureElementName(strtolower($element->localName))) {
                 return true;
             }
         }
@@ -420,82 +425,9 @@ final class Html5DomFragment
         return false;
     }
 
-    /**
-     * @return list<string>
-     */
-    private static function htmlStartTagNames(string $html): array
+    private static function isHtmlTableStructureElementName(string $name): bool
     {
-        $names = [];
-        $offset = 0;
-        $length = strlen($html);
-        while ($offset < $length) {
-            $tagStart = strpos($html, '<', $offset);
-            if ($tagStart === false || $tagStart + 1 >= $length) {
-                break;
-            }
-
-            if (str_starts_with(substr($html, $tagStart, 4), '<!--')) {
-                $commentEnd = strpos($html, '-->', $tagStart + 4);
-                $offset = $commentEnd === false ? $length : $commentEnd + 3;
-                continue;
-            }
-
-            if (str_starts_with(substr($html, $tagStart, 9), '<![CDATA[')) {
-                $cdataEnd = strpos($html, ']]>', $tagStart + 9);
-                $offset = $cdataEnd === false ? $length : $cdataEnd + 3;
-                continue;
-            }
-
-            $next = $html[$tagStart + 1];
-            if ($next === '/' || $next === '!' || $next === '?') {
-                $offset = $tagStart + 2;
-                continue;
-            }
-
-            $nameEnd = $tagStart + 1;
-            while ($nameEnd < $length && self::isHtmlTagNameChar($html[$nameEnd])) {
-                ++$nameEnd;
-            }
-            if ($nameEnd > $tagStart + 1) {
-                $names[] = strtolower(substr($html, $tagStart + 1, $nameEnd - $tagStart - 1));
-            }
-
-            $tagEnd = self::htmlTagSourceEndOffset($html, $tagStart);
-            $offset = $tagEnd === null ? $nameEnd : $tagEnd + 1;
-        }
-
-        return $names;
-    }
-
-    private static function htmlTagSourceEndOffset(string $html, int $start): ?int
-    {
-        $quote = null;
-        $length = strlen($html);
-        for ($offset = $start + 1; $offset < $length; ++$offset) {
-            $char = $html[$offset];
-            if ($quote !== null) {
-                if ($char === $quote) {
-                    $quote = null;
-                }
-                continue;
-            }
-
-            if ($char === '"' || $char === "'") {
-                $quote = $char;
-                continue;
-            }
-
-            if ($char === '>') {
-                return $offset;
-            }
-        }
-
-        return null;
-    }
-
-    private static function isHtmlTagNameChar(string $char): bool
-    {
-        return ctype_alpha($char) || ctype_digit($char) || in_array($char, ['-', ':'], true);
+        return in_array($name, ['caption', 'col', 'colgroup', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'tr'], true);
     }
 
     private static function hasLineBreak(string $source): bool
@@ -6380,15 +6312,13 @@ final class Html5DomFragment
             return [];
         }
 
-        $previous = libxml_use_internal_errors(true);
-        libxml_clear_errors();
+        try {
+            $dom = Html5Dom::parseHtmlDocumentPreservingSourceLines($documentSource, 'HTML document metadata');
+        } catch (\Throwable) {
+            return [];
+        }
 
-        $dom = new \DOMDocument('1.0', 'UTF-8');
-        $loaded = $dom->loadHTML($documentSource, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING | LIBXML_HTML_NODEFDTD | LIBXML_HTML_NOIMPLIED);
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-
-        $htmlElement = $loaded ? $dom->documentElement : null;
+        $htmlElement = $dom->getElementsByTagName('html')->item(0);
         if (!$htmlElement instanceof \DOMElement || strtolower($htmlElement->tagName) !== 'html') {
             return [];
         }
@@ -6406,7 +6336,11 @@ final class Html5DomFragment
 
         $bodyElement = $dom->getElementsByTagName('body')->item(0);
         if ($bodyElement instanceof \DOMElement) {
-            array_push($nodes, ...self::htmlBodyElementMetadataNodes($bodyElement, $diagnostics));
+            array_push($nodes, ...self::htmlBodyElementMetadataNodes(
+                $bodyElement,
+                $diagnostics,
+                self::htmlDocumentBodySourceLine($documentSource)
+            ));
         }
 
         return $nodes;
@@ -6416,30 +6350,31 @@ final class Html5DomFragment
      * @param list<array<string, mixed>> $diagnostics
      * @return list<array<string, mixed>>
      */
-    private static function htmlBodyElementMetadataNodes(\DOMElement $bodyElement, array &$diagnostics): array
+    private static function htmlBodyElementMetadataNodes(\DOMElement $bodyElement, array &$diagnostics, ?int $sourceLine = null): array
     {
         $nodes = [];
         $languageAttribute = $bodyElement->hasAttribute('lang') ? 'lang' : ($bodyElement->hasAttribute('xml:lang') ? 'xml:lang' : '');
         if ($languageAttribute !== '') {
             $language = self::normalizeHtmlLanguageTag($bodyElement->getAttribute($languageAttribute));
             if ($language === null) {
-                $diagnostics[] = self::diagnosticWithSourceLine([
+                $diagnostics[] = self::metadataDiagnosticWithSourceLine([
                     'code' => 'unsafe-attribute',
                     'tag' => 'body',
                     'attribute' => $languageAttribute,
                     'reason' => 'invalid-body-language-metadata',
-                ], $bodyElement);
+                ], $bodyElement, $sourceLine);
             } else {
-                $diagnostics[] = self::diagnosticWithSourceLine([
+                $diagnostics[] = self::metadataDiagnosticWithSourceLine([
                     'code' => 'document-metadata-review',
                     'tag' => 'body',
                     'attribute' => $languageAttribute,
                     'name' => 'body-language',
                     'reason' => 'body-language-preserved-as-metadata',
-                ], $bodyElement);
-                $nodes[] = self::nodeWithSourceLine(
+                ], $bodyElement, $sourceLine);
+                $nodes[] = self::metadataNodeWithSourceLine(
                     self::htmlSourceMetadataSpan('body-language', 'body', $language, 'Body language'),
-                    $bodyElement
+                    $bodyElement,
+                    $sourceLine
                 );
             }
         }
@@ -6452,31 +6387,62 @@ final class Html5DomFragment
         if ($direction === null) {
             $sourceDirection = strtolower(self::cleanHtmlMetadataAttribute($bodyElement->getAttribute('dir')));
             if ($sourceDirection !== '') {
-                $diagnostics[] = self::diagnosticWithSourceLine([
+                $diagnostics[] = self::metadataDiagnosticWithSourceLine([
                     'code' => 'unsafe-attribute',
                     'tag' => 'body',
                     'attribute' => 'dir',
                     'value' => $sourceDirection,
                     'reason' => 'invalid-body-direction-metadata',
-                ], $bodyElement);
+                ], $bodyElement, $sourceLine);
             }
 
             return $nodes;
         }
 
-        $diagnostics[] = self::diagnosticWithSourceLine([
+        $diagnostics[] = self::metadataDiagnosticWithSourceLine([
             'code' => 'document-metadata-review',
             'tag' => 'body',
             'attribute' => 'dir',
             'name' => 'body-direction',
             'reason' => 'body-direction-preserved-as-metadata',
-        ], $bodyElement);
-        $nodes[] = self::nodeWithSourceLine(
+        ], $bodyElement, $sourceLine);
+        $nodes[] = self::metadataNodeWithSourceLine(
             self::htmlSourceMetadataSpan('body-direction', 'body', $direction, 'Body direction'),
-            $bodyElement
+            $bodyElement,
+            $sourceLine
         );
 
         return $nodes;
+    }
+
+    /**
+     * @param array<string, mixed> $diagnostic
+     * @return array<string, mixed>
+     */
+    private static function metadataDiagnosticWithSourceLine(array $diagnostic, \DOMElement $element, ?int $sourceLine): array
+    {
+        if ($sourceLine !== null) {
+            $diagnostic['line'] = $sourceLine;
+
+            return $diagnostic;
+        }
+
+        return self::diagnosticWithSourceLine($diagnostic, $element);
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     * @return array<string, mixed>
+     */
+    private static function metadataNodeWithSourceLine(array $node, \DOMElement $element, ?int $sourceLine): array
+    {
+        if ($sourceLine !== null) {
+            $node['line'] = $sourceLine;
+
+            return $node;
+        }
+
+        return self::nodeWithSourceLine($node, $element);
     }
 
     private static function htmlDocumentElementSource(string $html): ?string
@@ -6511,6 +6477,16 @@ final class Html5DomFragment
         }
 
         return substr($html, $offset);
+    }
+
+    private static function htmlDocumentBodySourceLine(string $html): ?int
+    {
+        $offset = stripos($html, '<body');
+        if ($offset === false) {
+            return null;
+        }
+
+        return substr_count(substr($html, 0, $offset), "\n") + 1;
     }
 
     /**

@@ -8,6 +8,8 @@ final class Html5Dom
 {
     public const HTML_TREE_CONSTRUCTION_HTML_DOCUMENT = 'Dom\\HTMLDocument';
     public const HTML_TREE_CONSTRUCTION_LEGACY_COMPAT = 'DOMDocument-loadHTML-compat';
+    public const HTML_FRAGMENT_CONTEXT_BODY = 'html-body-fragment-context';
+    public const HTML_FRAGMENT_CONTEXT_TABLE = 'html-table-fragment-context';
 
     public static function htmlDocumentTreeConstructionBackend(): string
     {
@@ -31,7 +33,13 @@ final class Html5Dom
     /**
      * Parse a bounded HTML fragment under a synthetic body element.
      */
-    public static function parseHtmlFragment(string $html): \DOMElement
+    public static function parseHtmlFragment(
+        string $html,
+        bool $protectRawTextContentForParse = false,
+        bool $protectTemplateContentForParse = true,
+        bool $protectIframeContentForParse = true,
+        bool $protectNoscriptContentForParse = true
+    ): \DOMElement
     {
         self::assertNoNullByte($html, 'HTML fragment');
         $preflight = XmlHtmlDom::protectHtmlRcdataElements(
@@ -44,19 +52,20 @@ final class Html5Dom
         self::assertNoHtmlFragmentDeclarations($preflight, 'HTML fragment');
         $html = XmlHtmlDom::protectHtmlRcdataElements(
             $html,
-            protectTemplateContent: true,
-            protectIframeContent: true,
-            protectNoscriptContent: true
+            protectTemplateContent: $protectTemplateContentForParse,
+            protectIframeContent: $protectIframeContentForParse,
+            protectRawTextContent: $protectRawTextContentForParse,
+            protectNoscriptContent: $protectNoscriptContentForParse
         );
 
         if (self::nativeHtmlDocumentAvailable()) {
-            $html5 = self::html5TreeConstructedFragmentSource($html);
-            if ($html5 === null) {
+            $fragment = self::html5TreeConstructedFragment($html);
+            if ($fragment === null) {
                 throw new \RuntimeException('Unable to parse HTML fragment through Dom\\HTMLDocument');
             }
 
             try {
-                $dom = self::loadLegacyHtml('<!doctype html><html><body>' . $html5 . '</body></html>', 'HTML fragment');
+                $dom = self::loadLegacyHtml('<!doctype html><html><body>' . $fragment['source'] . '</body></html>', 'HTML fragment');
             } catch (\Throwable $exception) {
                 throw new \RuntimeException('Unable to bridge Dom\\HTMLDocument output for HTML fragment', 0, $exception);
             }
@@ -74,6 +83,36 @@ final class Html5Dom
         return self::requireBody($dom, 'HTML fragment');
     }
 
+    public static function htmlFragmentTreeConstructionContext(string $html): string
+    {
+        self::assertNoNullByte($html, 'HTML fragment');
+        $preflight = XmlHtmlDom::protectHtmlRcdataElements(
+            $html,
+            protectTemplateContent: true,
+            protectIframeContent: true,
+            protectRawTextContent: true,
+            protectNoscriptContent: true
+        );
+        self::assertNoHtmlFragmentDeclarations($preflight, 'HTML fragment');
+        $html = XmlHtmlDom::protectHtmlRcdataElements(
+            $html,
+            protectTemplateContent: true,
+            protectIframeContent: true,
+            protectNoscriptContent: true
+        );
+
+        if (!self::nativeHtmlDocumentAvailable()) {
+            return self::HTML_FRAGMENT_CONTEXT_BODY;
+        }
+
+        $fragment = self::html5TreeConstructedFragment($html);
+        if ($fragment === null) {
+            throw new \RuntimeException('Unable to parse HTML fragment through Dom\\HTMLDocument');
+        }
+
+        return $fragment['context'];
+    }
+
     /**
      * Parse a complete HTML document while keeping libxml network access off.
      */
@@ -82,6 +121,13 @@ final class Html5Dom
         self::assertSafeHtmlDocumentSource($html, 'HTML document');
 
         return self::loadHtml($html, 'HTML document');
+    }
+
+    public static function parseHtmlDocumentPreservingSourceLines(string $html, string $label = 'HTML document'): \DOMDocument
+    {
+        self::assertSafeHtmlDocumentSource($html, $label);
+
+        return self::loadHtml($html, $label, prependEncodingDeclaration: false);
     }
 
     public static function treeConstructedHtmlSource(string $html): ?string
@@ -227,7 +273,8 @@ final class Html5Dom
         string $html,
         string $label,
         bool $protectRcdata = true,
-        bool $preferHtml5TreeConstruction = true
+        bool $preferHtml5TreeConstruction = true,
+        bool $prependEncodingDeclaration = true
     ): \DOMDocument
     {
         if ($protectRcdata) {
@@ -246,7 +293,7 @@ final class Html5Dom
             }
 
             try {
-                return self::loadLegacyHtml($html5, $label);
+                return self::loadLegacyHtml($html5, $label, $prependEncodingDeclaration);
             } catch (\Throwable $exception) {
                 throw new \RuntimeException('Unable to bridge Dom\\HTMLDocument output for ' . $label, 0, $exception);
             }
@@ -254,17 +301,17 @@ final class Html5Dom
 
         // PHP < 8.4 has no Dom\HTMLDocument, so it uses the legacy libxml
         // parser with network access disabled.
-        return self::loadLegacyHtml($html, $label);
+        return self::loadLegacyHtml($html, $label, $prependEncodingDeclaration);
     }
 
-    private static function loadLegacyHtml(string $html, string $label): \DOMDocument
+    private static function loadLegacyHtml(string $html, string $label, bool $prependEncodingDeclaration = true): \DOMDocument
     {
         $previous = libxml_use_internal_errors(true);
         $dom = new \DOMDocument('1.0', 'UTF-8');
         $dom->resolveExternals = false;
         $dom->substituteEntities = false;
         $loaded = $dom->loadHTML(
-            '<?xml encoding="UTF-8">' . $html,
+            ($prependEncodingDeclaration ? '<?xml encoding="UTF-8">' : '') . $html,
             LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
         );
         libxml_clear_errors();
@@ -302,6 +349,16 @@ final class Html5Dom
 
     private static function html5TreeConstructedFragmentSource(string $html): ?string
     {
+        $fragment = self::html5TreeConstructedFragment($html);
+
+        return $fragment['source'] ?? null;
+    }
+
+    /**
+     * @return array{source:string, context:string}|null
+     */
+    private static function html5TreeConstructedFragment(string $html): ?array
+    {
         if (!self::nativeHtmlDocumentAvailable()) {
             return null;
         }
@@ -319,10 +376,16 @@ final class Html5Dom
                 && !self::html5ElementHasTableStructure($normal['body'])
                 && self::html5ElementChildrenHaveTableStructure($table['table'])
             ) {
-                return $table['source'];
+                return [
+                    'source' => $table['source'],
+                    'context' => self::HTML_FRAGMENT_CONTEXT_TABLE,
+                ];
             }
 
-            return $normal['source'];
+            return [
+                'source' => $normal['source'],
+                'context' => self::HTML_FRAGMENT_CONTEXT_BODY,
+            ];
         } catch (\Throwable) {
             return null;
         } finally {

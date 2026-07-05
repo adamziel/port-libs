@@ -105,24 +105,13 @@ final class XmlHtmlDomFragment
     {
         self::assertSafeHtmlSource($html, 'HTML fragment');
         $html = self::escapeHtmlTextSyntax($html);
-        $html = XmlHtmlDom::protectHtmlRcdataElements($html);
 
-        $previous = libxml_use_internal_errors(true);
-        $dom = new \DOMDocument('1.0', 'UTF-8');
-        $dom->resolveExternals = false;
-        $dom->substituteEntities = false;
-        $loaded = $dom->loadHTML(
-            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
-            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING | LIBXML_COMPACT
+        $body = Html5Dom::parseHtmlFragment(
+            $html,
+            protectTemplateContentForParse: false,
+            protectIframeContentForParse: false,
+            protectNoscriptContentForParse: false
         );
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-
-        if (!$loaded) {
-            throw new \InvalidArgumentException('Unable to parse HTML fragment');
-        }
-
-        $body = $dom->getElementsByTagName('body')->item(0);
         if (!$body instanceof \DOMElement) {
             throw new \InvalidArgumentException('Parsed HTML fragment did not contain a body element');
         }

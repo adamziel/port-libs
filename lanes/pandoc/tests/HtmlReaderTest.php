@@ -76,6 +76,8 @@ $tests['keeps html tree construction centralized through Html5Dom'] =
         $htmlReaderSource = (string) file_get_contents($sourceRoot . '/HtmlReader.php');
         $markdownReaderSource = (string) file_get_contents($sourceRoot . '/MarkdownReader.php');
         $html5DomSource = (string) file_get_contents($sourceRoot . '/Html5Dom.php');
+        $xmlHtmlDomFragmentSource = (string) file_get_contents($sourceRoot . '/XmlHtmlDomFragment.php');
+        $html5DomFragmentSource = (string) file_get_contents($sourceRoot . '/Html5DomFragment.php');
 
         foreach ([
             'HtmlReader.php' => $htmlReaderSource,
@@ -87,11 +89,15 @@ $tests['keeps html tree construction centralized through Html5Dom'] =
             $t->true(!str_contains($source, 'new DOMDocument'), "{$file} must not construct DOMDocument directly for HTML parsing");
         }
 
+        $t->true(!str_contains($xmlHtmlDomFragmentSource, '->loadHTML('), 'XmlHtmlDomFragment.php must route HTML fragment parsing through Html5Dom');
+
         $t->contains('HTMLDocument::createFromString', $html5DomSource);
         $t->contains('insertAdjacentHTML', $html5DomSource);
         $t->contains('AdjacentPosition::BeforeEnd', $html5DomSource);
         $t->contains('function parseHtmlFragment', $html5DomSource);
         $t->contains('function parseHtmlDocument', $html5DomSource);
+        $t->contains('function htmlFragmentTreeConstructionContext', $html5DomSource);
+        $t->contains('treeConstructedHtmlSource($source)', $html5DomFragmentSource);
         foreach ([
             'htmlTagTokens',
             'wrapOrphanTableScopeRuns',
@@ -99,6 +105,15 @@ $tests['keeps html tree construction centralized through Html5Dom'] =
             'isOrphanTableScopeElementName',
         ] as $removedScanner) {
             $t->true(!str_contains($html5DomSource, $removedScanner), "Html5Dom must not restore source-scanned HTML tree construction via {$removedScanner}");
+        }
+        foreach ([
+            'htmlSourceContainsAnyStartTagName',
+            'orphanTableFragmentSourceElementNames',
+            'hasHtmlTableScopeElement',
+            'htmlStartTagNames',
+        ] as $removedScanner) {
+            $t->true(!str_contains($htmlReaderSource, $removedScanner), "HtmlReader must not restore source-scanned HTML tree construction via {$removedScanner}");
+            $t->true(!str_contains($html5DomFragmentSource, $removedScanner), "Html5DomFragment must not restore source-scanned HTML tree construction via {$removedScanner}");
         }
     };
 

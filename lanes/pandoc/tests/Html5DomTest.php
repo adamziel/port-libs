@@ -42,6 +42,33 @@ return [
             $body instanceof DOMElement ? Html5Dom::serializeHtmlChildren($body) : ''
         );
     },
+    'reports HTMLDocument fragment context without source tag scanning' => static function (TestRunner $t): void {
+        if (!class_exists('Dom\\HTMLDocument')) {
+            $t->true(true, 'Dom\\HTMLDocument is unavailable on this PHP runtime');
+
+            return;
+        }
+
+        $orphan = Html5Dom::parseHtmlFragment('<td>A</td><td>B</td><tr><td>C</td></tr><p>after</p>');
+        $explicit = Html5Dom::parseHtmlFragment('<table><tr><td>A</td></tr></table><p>after</p>');
+
+        $t->same(
+            Html5Dom::HTML_FRAGMENT_CONTEXT_TABLE,
+            Html5Dom::htmlFragmentTreeConstructionContext('<td>A</td><td>B</td><tr><td>C</td></tr><p>after</p>')
+        );
+        $t->same(
+            Html5Dom::HTML_FRAGMENT_CONTEXT_BODY,
+            Html5Dom::htmlFragmentTreeConstructionContext('<table><tr><td>A</td></tr></table><p>after</p>')
+        );
+        $t->same(
+            '<table><tbody><tr><td>A</td><td>B</td></tr><tr><td>C</td></tr></tbody></table><p>after</p>',
+            Html5Dom::serializeHtmlChildren($orphan)
+        );
+        $t->same(
+            '<table><tbody><tr><td>A</td></tr></tbody></table><p>after</p>',
+            Html5Dom::serializeHtmlChildren($explicit)
+        );
+    },
     'uses HTMLDocument tree construction for adoption agency and foster parenting repairs' => static function (TestRunner $t): void {
         if (!class_exists('Dom\\HTMLDocument')) {
             $t->true(true, 'Dom\\HTMLDocument is unavailable on this PHP runtime');
