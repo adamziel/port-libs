@@ -9,7 +9,9 @@ use PortLibs\Pandoc\PandocJsonWriter;
 use PortLibs\Pandoc\PptxReader;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
-$buildPptxPackage = static function (): string {
+$pptxEmbeddedWorkbookBytes = "PK\x03\x04embedded-workbook-package-bytes";
+
+$buildPptxPackage = static function () use ($pptxEmbeddedWorkbookBytes): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-');
     if ($path === false) {
         throw new RuntimeException('Unable to create temporary PPTX path');
@@ -21,6 +23,16 @@ $buildPptxPackage = static function (): string {
         throw new RuntimeException('Unable to create temporary PPTX package');
     }
 
+    $zip->addFromString('[Content_Types].xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Default Extension="mp4" ContentType="video/mp4"/>
+  <Override PartName="/ppt/embeddings/Microsoft_Excel_Worksheet1.xlsx" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"/>
+</Types>
+XML);
     $zip->addFromString('_rels/.rels', <<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
@@ -421,6 +433,7 @@ XML);
   <Relationship Id="rIdWorkbook" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="../embeddings/Microsoft_Excel_Worksheet1.xlsx"/>
 </Relationships>
 XML);
+    $zip->addFromString('ppt/embeddings/Microsoft_Excel_Worksheet1.xlsx', $pptxEmbeddedWorkbookBytes);
 
     $zip->addFromString('ppt/slides/slide4.xml', $slideOpen . $titleShape('Smart Art') . <<<'XML'
     <p:graphicFrame>
@@ -15011,7 +15024,7 @@ $pandocReaderContentSignature = static function (AstNode $node) use (&$pandocRea
 };
 
 return [
-    'matches pinned upstream pptx reader basic fixture semantics' => static function (TestRunner $t) use ($buildPptxPackage, $nodesOfType, $nodesWithClass): void {
+    'matches pinned upstream pptx reader basic fixture semantics' => static function (TestRunner $t) use ($buildPptxPackage, $nodesOfType, $nodesWithClass, $pptxEmbeddedWorkbookBytes): void {
         $document = (new PptxReader())->read($buildPptxPackage());
         $review = $document->attr('pptx');
         $native = PandocConverter::write($document, 'native');
@@ -15345,7 +15358,20 @@ return [
         $t->same('$#,##0', $chartParagraphs[0]->attr('pptxChart')['axes'][1]['numberFormat'] ?? null);
         $t->same(false, $chartParagraphs[0]->attr('pptxChart')['axes'][1]['sourceLinked'] ?? null);
         $t->same(['rIdWorkbook'], $chartParagraphs[0]->attr('pptxChart')['externalDataRelationshipIds'] ?? null);
-        $t->same('ppt/embeddings/Microsoft_Excel_Worksheet1.xlsx', $chartParagraphs[0]->attr('pptxChart')['externalDataRelationships'][0]['partName'] ?? null);
+        $embeddedWorkbook = $chartParagraphs[0]->attr('pptxChart')['externalDataRelationships'][0] ?? [];
+        $t->same('rIdWorkbook', $embeddedWorkbook['relationshipId'] ?? null);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/package', $embeddedWorkbook['relationshipType'] ?? null);
+        $t->same('../embeddings/Microsoft_Excel_Worksheet1.xlsx', $embeddedWorkbook['target'] ?? null);
+        $t->same(false, $embeddedWorkbook['external'] ?? null);
+        $t->same('ppt/embeddings/Microsoft_Excel_Worksheet1.xlsx', $embeddedWorkbook['partName'] ?? null);
+        $t->same(true, $embeddedWorkbook['exists'] ?? null);
+        $t->same('ppt/embeddings/Microsoft_Excel_Worksheet1.xlsx', $embeddedWorkbook['zipEntry'] ?? null);
+        $t->same('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', $embeddedWorkbook['contentType'] ?? null);
+        $t->same('embedded-workbook', $embeddedWorkbook['packageRelationshipRole'] ?? null);
+        $t->same(true, $embeddedWorkbook['embeddedWorkbook'] ?? null);
+        $t->same(strlen($pptxEmbeddedWorkbookBytes), $embeddedWorkbook['byteLength'] ?? null);
+        $t->same(hash('sha256', $pptxEmbeddedWorkbookBytes), $embeddedWorkbook['sha256'] ?? null);
+        $t->same('package-part-bytes-hashed-not-exposed', $embeddedWorkbook['byteExposurePolicy'] ?? null);
 
         $t->same(1, count($smartArtDivs));
         $t->same(['smartart', 'chevron2'], $smartArtDivs[0]->attr('classes'));

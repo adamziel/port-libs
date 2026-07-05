@@ -19,6 +19,7 @@ final class PptxReader
     private const EXTENDED_PROPERTIES_RELATIONSHIP_SUFFIX = '/extended-properties';
     private const CUSTOM_PROPERTIES_RELATIONSHIP_SUFFIX = '/custom-properties';
     private const MAX_XML_PART_BYTES = 8_388_608;
+    private const MAX_EMBEDDED_PACKAGE_PROVENANCE_BYTES = 16_777_216;
     private const EMUS_PER_INCH = 914_400;
     private const DEFAULT_SLIDE_WIDTH_EMU = 9_144_000;
     private const DEFAULT_SLIDE_HEIGHT_EMU = 6_858_000;
@@ -462,6 +463,19 @@ final class PptxReader
             return $this->relationshipsOrEmpty($package, $sourcePart);
         } catch (\InvalidArgumentException | \RuntimeException) {
             return new OpcRelationships($sourcePart);
+        }
+    }
+
+    private function optionalContentTypes(ZipPackage $package): ?OpcContentTypes
+    {
+        if (!$package->has('[Content_Types].xml')) {
+            return null;
+        }
+
+        try {
+            return OpcContentTypes::fromXml($package->read('[Content_Types].xml', self::MAX_XML_PART_BYTES));
+        } catch (\InvalidArgumentException | \RuntimeException) {
+            return null;
         }
     }
 
@@ -4122,8 +4136,9 @@ final class PptxReader
         }
 
         $chartRelationships = $this->optionalRelationshipsOrEmpty($package, $chartPart);
+        $contentTypes = $this->optionalContentTypes($package);
 
-        return $this->chartReviewNode(array_replace($chart, $this->chartSummary($root, $chartRelationships)));
+        return $this->chartReviewNode(array_replace($chart, $this->chartSummary($root, $chartRelationships, $package, $contentTypes)));
     }
 
     /**
@@ -4142,7 +4157,12 @@ final class PptxReader
     /**
      * @return array<string, mixed>
      */
-    private function chartSummary(\DOMElement $chartSpace, OpcRelationships $chartRelationships): array
+    private function chartSummary(
+        \DOMElement $chartSpace,
+        OpcRelationships $chartRelationships,
+        ZipPackage $package,
+        ?OpcContentTypes $contentTypes
+    ): array
     {
         $chartElement = $this->firstDescendantElement($chartSpace, 'chart');
         if (!$chartElement instanceof \DOMElement) {
@@ -4241,7 +4261,12 @@ final class PptxReader
                 $externalDataRelationshipIds[] = $relationshipId;
                 $relationship = $chartRelationships->byId($relationshipId);
                 if ($relationship instanceof OpcRelationship) {
-                    $externalDataRelationships[] = $this->chartRelationshipMetadata($relationship, $chartRelationships);
+                    $externalDataRelationships[] = $this->chartRelationshipMetadata(
+                        $relationship,
+                        $chartRelationships,
+                        $package,
+                        $contentTypes
+                    );
                 }
             }
         }
@@ -4605,7 +4630,12 @@ final class PptxReader
     /**
      * @return array<string, mixed>
      */
-    private function chartRelationshipMetadata(OpcRelationship $relationship, OpcRelationships $chartRelationships): array
+    private function chartRelationshipMetadata(
+        OpcRelationship $relationship,
+        OpcRelationships $chartRelationships,
+        ZipPackage $package,
+        ?OpcContentTypes $contentTypes
+    ): array
     {
         $metadata = [
             'relationshipId' => $relationship->id,
@@ -4623,11 +4653,77 @@ final class PptxReader
         $partName = $this->reviewRelationshipPart($chartRelationships, $relationship);
         if ($partName !== null && $partName !== '') {
             $metadata['partName'] = ltrim($partName, '/');
+            $metadata += $this->chartRelationshipPackagePartMetadata($package, $partName, $relationship, $contentTypes);
         } elseif ($partName === null) {
             $metadata['targetIssue'] = 'invalid-chart-relationship-target';
         }
 
         return $metadata;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function chartRelationshipPackagePartMetadata(
+        ZipPackage $package,
+        string $partName,
+        OpcRelationship $relationship,
+        ?OpcContentTypes $contentTypes
+    ): array {
+        $metadata = [
+            'exists' => $package->has($partName),
+            'byteExposurePolicy' => 'package-part-bytes-hashed-not-exposed',
+        ];
+        $contentType = $contentTypes?->contentTypeForPart($partName);
+        if ($contentType !== null) {
+            $metadata['contentType'] = $contentType;
+        }
+        if ($this->isPptxEmbeddedWorkbookRelationship($relationship, $partName, $contentType)) {
+            $metadata['packageRelationshipRole'] = 'embedded-workbook';
+            $metadata['embeddedWorkbook'] = true;
+        }
+
+        if (!$metadata['exists']) {
+            return $metadata;
+        }
+
+        $entry = $package->entry($partName);
+        $metadata['zipEntry'] = $entry->name;
+        $metadata['byteLength'] = $entry->uncompressedSize;
+        $metadata['compressedByteLength'] = $entry->compressedSize;
+        $metadata['compressionMethod'] = $entry->compressionMethod;
+        if ($entry->uncompressedSize > self::MAX_EMBEDDED_PACKAGE_PROVENANCE_BYTES) {
+            $metadata['byteHashPolicy'] = 'skipped-over-embedded-package-provenance-byte-limit';
+
+            return $metadata;
+        }
+
+        $bytes = $package->read($partName, self::MAX_EMBEDDED_PACKAGE_PROVENANCE_BYTES);
+        $metadata['sha256'] = hash('sha256', $bytes);
+
+        return $metadata;
+    }
+
+    private function isPptxEmbeddedWorkbookRelationship(
+        OpcRelationship $relationship,
+        string $partName,
+        ?string $contentType
+    ): bool {
+        $partName = ltrim($partName, '/');
+        if (
+            !str_ends_with($relationship->type, '/package')
+            || !str_starts_with($partName, 'ppt/embeddings/')
+        ) {
+            return false;
+        }
+
+        $extension = strtolower(pathinfo($partName, PATHINFO_EXTENSION));
+        if (in_array($extension, ['xlsx', 'xlsm', 'xlsb', 'xls'], true)) {
+            return true;
+        }
+
+        return $contentType !== null
+            && str_contains(strtolower($contentType), 'spreadsheet');
     }
 
     private function chartTypeName(\DOMElement $chartTypeElement): string
