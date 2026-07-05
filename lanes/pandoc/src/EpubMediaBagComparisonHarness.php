@@ -13,8 +13,8 @@ final class EpubMediaBagComparisonHarness
     private const CLAIM = 'Compares local PHP EPUB reader media-bag directory output with upstream Tests.Readers.EPUB media-bag expectations by normalized media path, MIME type, and byte size; this harness does not execute upstream Haskell runners, and no AST parity, writer parity, or full EPUB feature parity is asserted.';
     private const CURRENT_MEDIA_BAG_SIGNATURE_KIND = 'checked-in-current-epub-media-bag-signature';
     private const CURRENT_MEDIA_BAG_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
-    private const CURRENT_MEDIA_BAG_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-6-case-media-bag-snapshot';
-    private const CHECKED_IN_CURRENT_MEDIA_BAG_SIGNATURE_SHA256 = '48e9d4d6c7478aa213f3d75fc4cd1a2be58e2617d468d30d9027728d0258ce9d';
+    private const CURRENT_MEDIA_BAG_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-7-case-media-bag-snapshot';
+    private const CHECKED_IN_CURRENT_MEDIA_BAG_SIGNATURE_SHA256 = '75598e277308c339ae55dda320e0a7747eec6353d1e5e15ee21d093553cb3f0d';
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/epub-targeted-run';
     private const RUNNER_NAME = 'Cabal/Tasty Pandoc EPUB reader suite';
@@ -33,92 +33,238 @@ final class EpubMediaBagComparisonHarness
     private const RUNNER_REQUIRED_ARTIFACTS = [
         '.port-libs/pandoc-runner/artifacts/epub-targeted-run/result.json',
     ];
-    private const CHECKED_IN_CURRENT_MEDIA_BAG_SIGNATURES = [
-        [
-            'case' => 'features bag',
-            'fixture' => 'epub/img.epub',
-            'expectedItemCount' => 4,
-            'actualItemCount' => 4,
-            'matchesExpected' => true,
-            'expectedBag' => [
-                ['path' => 'img/check.gif', 'mime' => 'image/gif', 'size' => 1340],
-                ['path' => 'img/check.jpg', 'mime' => 'image/jpeg', 'size' => 2661],
-                ['path' => 'img/check.png', 'mime' => 'image/png', 'size' => 2815],
-                ['path' => 'img/multiscripts_and_greek_alphabet.png', 'mime' => 'image/png', 'size' => 10060],
-            ],
-            'actualBag' => [
-                ['path' => 'img/check.gif', 'mime' => 'image/gif', 'size' => 1340],
-                ['path' => 'img/check.jpg', 'mime' => 'image/jpeg', 'size' => 2661],
-                ['path' => 'img/check.png', 'mime' => 'image/png', 'size' => 2815],
-                ['path' => 'img/multiscripts_and_greek_alphabet.png', 'mime' => 'image/png', 'size' => 10060],
-            ],
-        ],
-        [
-            'case' => 'EPUB3 cover bag',
-            'fixture' => 'epub/wasteland.epub',
-            'expectedItemCount' => 1,
-            'actualItemCount' => 1,
-            'matchesExpected' => true,
-            'expectedBag' => [
-                ['path' => 'wasteland-cover.jpg', 'mime' => 'image/jpeg', 'size' => 16586],
-            ],
-            'actualBag' => [
-                ['path' => 'wasteland-cover.jpg', 'mime' => 'image/jpeg', 'size' => 16586],
-            ],
-        ],
-        [
-            'case' => 'EPUB3 no cover bag',
-            'fixture' => 'epub/img_no_cover.epub',
-            'expectedItemCount' => 3,
-            'actualItemCount' => 3,
-            'matchesExpected' => true,
-            'expectedBag' => [
-                ['path' => 'img/check.gif', 'mime' => 'image/gif', 'size' => 1340],
-                ['path' => 'img/check.jpg', 'mime' => 'image/jpeg', 'size' => 2661],
-                ['path' => 'img/check.png', 'mime' => 'image/png', 'size' => 2815],
-            ],
-            'actualBag' => [
-                ['path' => 'img/check.gif', 'mime' => 'image/gif', 'size' => 1340],
-                ['path' => 'img/check.jpg', 'mime' => 'image/jpeg', 'size' => 2661],
-                ['path' => 'img/check.png', 'mime' => 'image/png', 'size' => 2815],
-            ],
-        ],
-        [
-            'case' => 'EPUB2 picture bag',
-            'fixture' => 'epub/epub2_picture.epub',
-            'expectedItemCount' => 1,
-            'actualItemCount' => 1,
-            'matchesExpected' => true,
-            'expectedBag' => [
-                ['path' => 'image/image.jpg', 'mime' => 'image/jpeg', 'size' => 9713],
-            ],
-            'actualBag' => [
-                ['path' => 'image/image.jpg', 'mime' => 'image/jpeg', 'size' => 9713],
-            ],
-        ],
-        [
-            'case' => 'EPUB2 cover bag',
-            'fixture' => 'epub/epub2_cover.epub',
-            'expectedItemCount' => 1,
-            'actualItemCount' => 1,
-            'matchesExpected' => true,
-            'expectedBag' => [
-                ['path' => 'image/cover.jpg', 'mime' => 'image/jpeg', 'size' => 9713],
-            ],
-            'actualBag' => [
-                ['path' => 'image/cover.jpg', 'mime' => 'image/jpeg', 'size' => 9713],
-            ],
-        ],
-        [
-            'case' => 'EPUB2 no cover bag',
-            'fixture' => 'epub/epub2_no_cover.epub',
-            'expectedItemCount' => 0,
-            'actualItemCount' => 0,
-            'matchesExpected' => true,
-            'expectedBag' => [],
-            'actualBag' => [],
-        ],
-    ];
+    private const CHECKED_IN_CURRENT_MEDIA_BAG_SIGNATURES = array (
+  0 =>
+  array (
+    'case' => 'features bag',
+    'fixture' => 'epub/img.epub',
+    'expectedItemCount' => 4,
+    'actualItemCount' => 4,
+    'matchesExpected' => true,
+    'expectedBag' =>
+    array (
+      0 =>
+      array (
+        'path' => 'img/check.gif',
+        'mime' => 'image/gif',
+        'size' => 1340,
+      ),
+      1 =>
+      array (
+        'path' => 'img/check.jpg',
+        'mime' => 'image/jpeg',
+        'size' => 2661,
+      ),
+      2 =>
+      array (
+        'path' => 'img/check.png',
+        'mime' => 'image/png',
+        'size' => 2815,
+      ),
+      3 =>
+      array (
+        'path' => 'img/multiscripts_and_greek_alphabet.png',
+        'mime' => 'image/png',
+        'size' => 10060,
+      ),
+    ),
+    'actualBag' =>
+    array (
+      0 =>
+      array (
+        'path' => 'img/check.gif',
+        'mime' => 'image/gif',
+        'size' => 1340,
+      ),
+      1 =>
+      array (
+        'path' => 'img/check.jpg',
+        'mime' => 'image/jpeg',
+        'size' => 2661,
+      ),
+      2 =>
+      array (
+        'path' => 'img/check.png',
+        'mime' => 'image/png',
+        'size' => 2815,
+      ),
+      3 =>
+      array (
+        'path' => 'img/multiscripts_and_greek_alphabet.png',
+        'mime' => 'image/png',
+        'size' => 10060,
+      ),
+    ),
+  ),
+  1 =>
+  array (
+    'case' => 'EPUB3 cover bag',
+    'fixture' => 'epub/wasteland.epub',
+    'expectedItemCount' => 1,
+    'actualItemCount' => 1,
+    'matchesExpected' => true,
+    'expectedBag' =>
+    array (
+      0 =>
+      array (
+        'path' => 'wasteland-cover.jpg',
+        'mime' => 'image/jpeg',
+        'size' => 16586,
+      ),
+    ),
+    'actualBag' =>
+    array (
+      0 =>
+      array (
+        'path' => 'wasteland-cover.jpg',
+        'mime' => 'image/jpeg',
+        'size' => 16586,
+      ),
+    ),
+  ),
+  2 =>
+  array (
+    'case' => 'EPUB3 no cover bag',
+    'fixture' => 'epub/img_no_cover.epub',
+    'expectedItemCount' => 3,
+    'actualItemCount' => 3,
+    'matchesExpected' => true,
+    'expectedBag' =>
+    array (
+      0 =>
+      array (
+        'path' => 'img/check.gif',
+        'mime' => 'image/gif',
+        'size' => 1340,
+      ),
+      1 =>
+      array (
+        'path' => 'img/check.jpg',
+        'mime' => 'image/jpeg',
+        'size' => 2661,
+      ),
+      2 =>
+      array (
+        'path' => 'img/check.png',
+        'mime' => 'image/png',
+        'size' => 2815,
+      ),
+    ),
+    'actualBag' =>
+    array (
+      0 =>
+      array (
+        'path' => 'img/check.gif',
+        'mime' => 'image/gif',
+        'size' => 1340,
+      ),
+      1 =>
+      array (
+        'path' => 'img/check.jpg',
+        'mime' => 'image/jpeg',
+        'size' => 2661,
+      ),
+      2 =>
+      array (
+        'path' => 'img/check.png',
+        'mime' => 'image/png',
+        'size' => 2815,
+      ),
+    ),
+  ),
+  3 =>
+  array (
+    'case' => 'EPUB2 picture bag',
+    'fixture' => 'epub/epub2_picture.epub',
+    'expectedItemCount' => 1,
+    'actualItemCount' => 1,
+    'matchesExpected' => true,
+    'expectedBag' =>
+    array (
+      0 =>
+      array (
+        'path' => 'image/image.jpg',
+        'mime' => 'image/jpeg',
+        'size' => 9713,
+      ),
+    ),
+    'actualBag' =>
+    array (
+      0 =>
+      array (
+        'path' => 'image/image.jpg',
+        'mime' => 'image/jpeg',
+        'size' => 9713,
+      ),
+    ),
+  ),
+  4 =>
+  array (
+    'case' => 'EPUB2 cover bag',
+    'fixture' => 'epub/epub2_cover.epub',
+    'expectedItemCount' => 1,
+    'actualItemCount' => 1,
+    'matchesExpected' => true,
+    'expectedBag' =>
+    array (
+      0 =>
+      array (
+        'path' => 'image/cover.jpg',
+        'mime' => 'image/jpeg',
+        'size' => 9713,
+      ),
+    ),
+    'actualBag' =>
+    array (
+      0 =>
+      array (
+        'path' => 'image/cover.jpg',
+        'mime' => 'image/jpeg',
+        'size' => 9713,
+      ),
+    ),
+  ),
+  5 =>
+  array (
+    'case' => 'EPUB2 no cover bag',
+    'fixture' => 'epub/epub2_no_cover.epub',
+    'expectedItemCount' => 0,
+    'actualItemCount' => 0,
+    'matchesExpected' => true,
+    'expectedBag' =>
+    array (
+    ),
+    'actualBag' =>
+    array (
+    ),
+  ),
+  6 =>
+  array (
+    'case' => 'encoded image media bag',
+    'fixture' => 'epub/encoded-image-media-bag.epub',
+    'expectedItemCount' => 1,
+    'actualItemCount' => 1,
+    'matchesExpected' => true,
+    'expectedBag' =>
+    array (
+      0 =>
+      array (
+        'path' => 'images/cover art.png',
+        'mime' => 'image/png',
+        'size' => 68,
+      ),
+    ),
+    'actualBag' =>
+    array (
+      0 =>
+      array (
+        'path' => 'images/cover art.png',
+        'mime' => 'image/png',
+        'size' => 68,
+      ),
+    ),
+  ),
+);
 
     /**
      * @param array{limit?: int, maxExamples?: int, readerCases?: list<array<string, mixed>>, fixtureBase?: string, repoRoot?: string, runnerResultArtifact?: string} $options

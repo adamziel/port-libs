@@ -1,0 +1,19 @@
+[ Para [ Span ( "chapter%201.xhtml" , [] , [] ) [] ]
+, Header
+    1
+    ( "" , [] , [] )
+    [ Str "Encoded"
+    , Space
+    , Str "Image"
+    , Space
+    , Str "Media"
+    , Space
+    , Str "Bag"
+    ]
+, Para
+    [ Image
+        ( "" , [] , [] )
+        [ Str "Cover" , Space , Str "art" ]
+        ( "images/cover%20art.png#preview" , "" )
+    ]
+]

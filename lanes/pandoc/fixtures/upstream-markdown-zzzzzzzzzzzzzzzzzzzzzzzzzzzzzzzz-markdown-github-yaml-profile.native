@@ -1,0 +1,7 @@
+[ HorizontalRule
+, Header
+    2
+    ( "title-github-yaml" , [] , [] )
+    [ Str "title:" , Space , Str "Github" , Space , Str "YAML" ]
+, Para [ Str "body" ]
+]

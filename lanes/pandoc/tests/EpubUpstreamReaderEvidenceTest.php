@@ -47,33 +47,44 @@ $writeFile = static function (string $root, string $relativePath, string $conten
 
 $repoRoot = static fn (): string => dirname(__DIR__, 3);
 $checkedInFixtureRoot = static fn (): string => 'lanes/pandoc/fixtures/upstream-current-epub-reader';
-$expectedCurrentReaderStaticSignatureSha256 = 'c3551818c84a8100f79266b00b653f14baa5d4ee4ae1d22db36eb8c19844e22c';
-$expectedReferencedFixtureIdentity = [
-    'epub/epub2_cover.epub' => [
-        'sha256' => '4af73a135aa632cbf0c00b2889a5fc1d39a59a77fa294fdeff5ede72ff6ffed1',
-        'bytes' => 11794,
-    ],
-    'epub/epub2_no_cover.epub' => [
-        'sha256' => '8369dbe5cf315f1fe00f9dd1bf7c500cc663d7648edbf0d7b6a9b4d785fedf4e',
-        'bytes' => 3584,
-    ],
-    'epub/epub2_picture.epub' => [
-        'sha256' => '6049dde9e1d0ebcd175a8c5b937984f349af996e293310eafbce09e4c7384495',
-        'bytes' => 11742,
-    ],
-    'epub/img.epub' => [
-        'sha256' => 'f2c25e0e0612b7ac33a8d6a1c9719a86e7d2a0290472fc7d8b5068de781a822f',
-        'bytes' => 20478,
-    ],
-    'epub/img_no_cover.epub' => [
-        'sha256' => '3063f5e9b9610df1ddcc682ce49c293bcf681f1958700a5b6c3eda344383cf2a',
-        'bytes' => 10602,
-    ],
-    'epub/wasteland.epub' => [
-        'sha256' => '151ec5dbca33e39a4e3f6894e92fa5a101290bdeaaa792e0700595971456a278',
-        'bytes' => 25840,
-    ],
-];
+$expectedCurrentReaderStaticSignatureSha256 = '5cc23a2823aac0b77e2e3150da0761011927f93fa34094e490ca137280e5342d';
+$expectedReferencedFixtureIdentity = array (
+  'epub/encoded-image-media-bag.epub' =>
+  array (
+    'sha256' => '38642e1a951ac69c1f8ff3874e2cb7d9b752310406efd42bb0109a6fd4c0f329',
+    'bytes' => 1302,
+  ),
+  'epub/epub2_cover.epub' =>
+  array (
+    'sha256' => '4af73a135aa632cbf0c00b2889a5fc1d39a59a77fa294fdeff5ede72ff6ffed1',
+    'bytes' => 11794,
+  ),
+  'epub/epub2_no_cover.epub' =>
+  array (
+    'sha256' => '8369dbe5cf315f1fe00f9dd1bf7c500cc663d7648edbf0d7b6a9b4d785fedf4e',
+    'bytes' => 3584,
+  ),
+  'epub/epub2_picture.epub' =>
+  array (
+    'sha256' => '6049dde9e1d0ebcd175a8c5b937984f349af996e293310eafbce09e4c7384495',
+    'bytes' => 11742,
+  ),
+  'epub/img.epub' =>
+  array (
+    'sha256' => 'f2c25e0e0612b7ac33a8d6a1c9719a86e7d2a0290472fc7d8b5068de781a822f',
+    'bytes' => 20478,
+  ),
+  'epub/img_no_cover.epub' =>
+  array (
+    'sha256' => '3063f5e9b9610df1ddcc682ce49c293bcf681f1958700a5b6c3eda344383cf2a',
+    'bytes' => 10602,
+  ),
+  'epub/wasteland.epub' =>
+  array (
+    'sha256' => '151ec5dbca33e39a4e3f6894e92fa5a101290bdeaaa792e0700595971456a278',
+    'bytes' => 25840,
+  ),
+);
 
 $writeEpubEvidenceTree = static function (string $root) use ($writeFile): void {
     $writeFile($root, 'test/Tests/Readers/EPUB.hs', <<<'HS'
@@ -181,8 +192,8 @@ return [
             $t->contains('Pandoc EPUB reader evidence', $text);
             $t->contains('Referenced fixture identity: not-evaluated-source-directory-unavailable', $text);
             $t->contains('Static current signature: not-evaluated-source-directory-unavailable', $text);
-            $t->contains('Native/package parity: package=0/75 nativeAst=0/75 status=not-evaluated-source-directory-unavailable', $text);
-            $t->contains('Executable/native parity: localPandoc=0/75 checkedNative=0/75 status=not-evaluated-not-requested version=not-evaluated', $text);
+            $t->contains('Native/package parity: package=0/76 nativeAst=0/76 status=not-evaluated-source-directory-unavailable', $text);
+            $t->contains('Executable/native parity: localPandoc=0/76 checkedNative=0/76 status=not-evaluated-not-requested version=not-evaluated', $text);
             $t->contains('Runner status: not-run', $text);
             $t->contains('Runner plan: planned-not-run', $text);
         } finally {
@@ -261,9 +272,9 @@ return [
         $t->same($checkedInFixtureRoot(), $report['upstream']['resolvedFixtureBase']);
         $t->same('epub', $report['upstream']['resolvedFixtureDirectory']);
         $t->same(false, $report['upstream']['readerSourceRequired']);
-        $t->same(6, $report['denominator']['mediaBagTestCount']);
-        $t->same(6, $report['denominator']['fixtureReferenceCount']);
-        $t->same(10, $report['denominator']['expectedMediaItemCount']);
+        $t->same(7, $report['denominator']['mediaBagTestCount']);
+        $t->same(7, $report['denominator']['fixtureReferenceCount']);
+        $t->same(11, $report['denominator']['expectedMediaItemCount']);
         $t->same([], $report['denominator']['missingReferencedFiles']);
         $t->same([
             'epub/accessibility-metadata-package.epub',
@@ -340,18 +351,18 @@ return [
         $t->same(1, $report['sourceInventory']['presentFileCount']);
         $t->same(1, $report['sourceInventory']['missingFileCount']);
         $t->same('checked-in-current-epub-reader-referenced-fixture-identity', $report['referencedFixtureIdentity']['kind']);
-        $t->same('checked-in-current-upstream-epub-reader-6-referenced-epub-fixture-snapshot', $report['referencedFixtureIdentity']['scope']);
+        $t->same('checked-in-current-upstream-epub-reader-7-referenced-epub-fixture-snapshot', $report['referencedFixtureIdentity']['scope']);
         $t->same('sha256', $report['referencedFixtureIdentity']['hashAlgorithm']);
-        $t->same(6, $report['referencedFixtureIdentity']['expectedFileCount']);
-        $t->same(6, $report['referencedFixtureIdentity']['observedFileCount']);
-        $t->same(6, $report['referencedFixtureIdentity']['presentFileCount']);
+        $t->same(7, $report['referencedFixtureIdentity']['expectedFileCount']);
+        $t->same(7, $report['referencedFixtureIdentity']['observedFileCount']);
+        $t->same(7, $report['referencedFixtureIdentity']['presentFileCount']);
         $t->same(0, $report['referencedFixtureIdentity']['missingFileCount']);
         $t->same(array_keys($expectedReferencedFixtureIdentity), $report['referencedFixtureIdentity']['expectedPaths']);
         $t->same(array_keys($expectedReferencedFixtureIdentity), $report['referencedFixtureIdentity']['observedPaths']);
         $t->same([], $report['referencedFixtureIdentity']['missingExpectedPaths']);
         $t->same([], $report['referencedFixtureIdentity']['unexpectedObservedPaths']);
-        $t->same(84040, $report['referencedFixtureIdentity']['totalBytes']);
-        $t->same(84040, $report['referencedFixtureIdentity']['expectedTotalBytes']);
+        $t->same(85342, $report['referencedFixtureIdentity']['totalBytes']);
+        $t->same(85342, $report['referencedFixtureIdentity']['expectedTotalBytes']);
         $observedReferencedFixtureIdentity = [];
         foreach ($report['referencedFixtureIdentity']['files'] as $file) {
             $observedReferencedFixtureIdentity[$file['path']] = [
@@ -368,7 +379,7 @@ return [
         $t->same(true, EpubUpstreamReaderEvidence::hasRequiredReferencedFixtureIdentity($report));
         $t->same('checked-in-current-epub-reader-static-signature', $report['currentReaderStaticSignature']['kind']);
         $t->same('sha256-canonical-json-v1', $report['currentReaderStaticSignature']['algorithm']);
-        $t->same('checked-in-current-upstream-epub-reader-static-6-case-media-expectation-and-fixture-identity-snapshot', $report['currentReaderStaticSignature']['scope']);
+        $t->same('checked-in-current-upstream-epub-reader-static-7-case-media-expectation-and-fixture-identity-snapshot', $report['currentReaderStaticSignature']['scope']);
         $t->same($expectedCurrentReaderStaticSignatureSha256, $report['currentReaderStaticSignature']['sha256']);
         $t->same($expectedCurrentReaderStaticSignatureSha256, $report['currentReaderStaticSignature']['expectedSha256']);
         $t->same(true, $report['currentReaderStaticSignature']['hashMatchesExpected']);
@@ -380,21 +391,21 @@ return [
         $t->same('checked-in-current-epub-native-ast-package-parity', $nativePackageParity['kind']);
         $t->same('completed', $nativePackageParity['status']);
         $t->same(false, $nativePackageParity['skipped']);
-        $t->same(75, $nativePackageParity['requiredEpubCount']);
-        $t->same(75, $nativePackageParity['requiredPairCount']);
-        $t->same(75, $nativePackageParity['totalEpubCount']);
-        $t->same(75, $nativePackageParity['comparedEpubCount']);
-        $t->same(75, $nativePackageParity['packageParsedCount']);
-        $t->same(75, $nativePackageParity['readerParsedCount']);
+        $t->same(76, $nativePackageParity['requiredEpubCount']);
+        $t->same(76, $nativePackageParity['requiredPairCount']);
+        $t->same(76, $nativePackageParity['totalEpubCount']);
+        $t->same(76, $nativePackageParity['comparedEpubCount']);
+        $t->same(76, $nativePackageParity['packageParsedCount']);
+        $t->same(76, $nativePackageParity['readerParsedCount']);
         $t->same(0, $nativePackageParity['packageParseFailureCount']);
         $t->same(0, $nativePackageParity['readerParseFailureCount']);
         $t->same('package-and-reader-acceptance-observed-not-full-epub-parity', $nativePackageParity['packageAcceptanceStatus']);
-        $t->same(75, $nativePackageParity['totalPairCount']);
-        $t->same(75, $nativePackageParity['comparedPairCount']);
-        $t->same(75, $nativePackageParity['bothParsedCount']);
+        $t->same(76, $nativePackageParity['totalPairCount']);
+        $t->same(76, $nativePackageParity['comparedPairCount']);
+        $t->same(76, $nativePackageParity['bothParsedCount']);
         $t->same(0, $nativePackageParity['astParseFailureCount']);
         $t->same(0, $nativePackageParity['nativeParseFailureCount']);
-        $t->same(75, $nativePackageParity['normalizedAstMatchCount']);
+        $t->same(76, $nativePackageParity['normalizedAstMatchCount']);
         $t->same(0, $nativePackageParity['normalizedAstMismatchCount']);
         $t->same('normalized-ast-equality-observed-not-runner-parity', $nativePackageParity['astParityStatus']);
         $t->same('valid-checked-in-current-epub-fixture-identity', $nativePackageParity['fixtureIdentityStatus']);
@@ -409,7 +420,7 @@ return [
         $t->same(true, $nativePackageParity['hasRequiredCurrentNativeAstSignature']);
         $t->same(true, $nativePackageParity['hasRunnerPlanEvidence']);
         $t->same(true, EpubUpstreamReaderEvidence::hasRequiredNativeAstPackageParity($report));
-        $t->contains('Native/package parity: package=75/75 nativeAst=75/75 status=normalized-ast-equality-observed-not-runner-parity', $text);
+        $t->contains('Native/package parity: package=76/76 nativeAst=76/76 status=normalized-ast-equality-observed-not-runner-parity', $text);
         $t->same('not-evaluated', $report['executableNativeAstParity']['status']);
         $t->same('not-requested', $report['executableNativeAstParity']['reason']);
         $t->same(false, EpubUpstreamReaderEvidence::hasRequiredExecutableNativeAstParity($report));
@@ -436,21 +447,21 @@ return [
             $t->same('checked-in-current-epub-pandoc-executable-native-ast-parity', $executableParity['kind']);
             $t->same('completed', $executableParity['status']);
             $t->same(false, $executableParity['skipped']);
-            $t->same(75, $executableParity['requiredEpubCount']);
-            $t->same(75, $executableParity['totalEpubCount']);
-            $t->same(75, $executableParity['comparedEpubCount']);
-            $t->same(75, $executableParity['localParsedCount']);
-            $t->same(75, $executableParity['pandocParsedCount']);
-            $t->same(75, $executableParity['nativeFixtureParsedCount']);
-            $t->same(75, $executableParity['bothParsedCount']);
+            $t->same(76, $executableParity['requiredEpubCount']);
+            $t->same(76, $executableParity['totalEpubCount']);
+            $t->same(76, $executableParity['comparedEpubCount']);
+            $t->same(76, $executableParity['localParsedCount']);
+            $t->same(76, $executableParity['pandocParsedCount']);
+            $t->same(76, $executableParity['nativeFixtureParsedCount']);
+            $t->same(76, $executableParity['bothParsedCount']);
             $t->same(0, $executableParity['parseFailureCount']);
-            $t->same(75, $executableParity['normalizedAstMatchCount']);
+            $t->same(76, $executableParity['normalizedAstMatchCount']);
             $t->same(0, $executableParity['normalizedAstMismatchCount']);
-            $t->same(75, $executableParity['pandocNativeFixtureComparedCount']);
-            $t->same(75, $executableParity['pandocNativeFixtureMatchCount']);
+            $t->same(76, $executableParity['pandocNativeFixtureComparedCount']);
+            $t->same(76, $executableParity['pandocNativeFixtureMatchCount']);
             $t->same(0, $executableParity['pandocNativeFixtureMismatchCount']);
-            $t->same(75, $executableParity['pandocNativeFixtureByteComparedCount']);
-            $t->same(75, $executableParity['pandocNativeFixtureByteMatchCount']);
+            $t->same(76, $executableParity['pandocNativeFixtureByteComparedCount']);
+            $t->same(76, $executableParity['pandocNativeFixtureByteMatchCount']);
             $t->same(0, $executableParity['pandocNativeFixtureByteMismatchCount']);
             $t->same('normalized-ast-equality-observed-against-pandoc-executable', $executableParity['astParityStatus']);
             $t->same('pandoc fake 3.10', $executableParity['pandocVersion']);
@@ -459,7 +470,7 @@ return [
             $t->same(true, EpubUpstreamReaderEvidence::hasRequiredExecutableNativeAstParity($report));
             $t->same(true, EpubUpstreamReaderEvidence::hasRequiredExecutableNativeAstParity($report, 'pandoc fake 3.10'));
             $t->same(false, EpubUpstreamReaderEvidence::hasRequiredExecutableNativeAstParity($report, 'pandoc fake 3.9'));
-            $t->contains('Executable/native parity: localPandoc=75/75 checkedNative=75/75 status=normalized-ast-equality-observed-against-pandoc-executable version=pandoc fake 3.10', $text);
+            $t->contains('Executable/native parity: localPandoc=76/76 checkedNative=76/76 status=normalized-ast-equality-observed-against-pandoc-executable version=pandoc fake 3.10', $text);
             $t->true(in_array('the checked-in current EPUB local pandoc executable/native AST parity snapshot when explicitly requested and gated', $report['claimBoundaries']['doesAssert'], true));
             $t->true(in_array('that local pandoc executable evidence was evaluated unless explicitly requested or a pandoc binary was supplied', $report['claimBoundaries']['doesNotAssert'], true));
         } finally {
@@ -493,8 +504,8 @@ return [
                 'target' => $runnerPlan['target'],
                 'command' => $runnerPlan['futureCommands'][2],
                 'exitCode' => 0,
-                'testCount' => 6,
-                'passedCount' => 6,
+                'testCount' => 7,
+                'passedCount' => 7,
                 'failedCount' => 0,
                 'skippedCount' => 0,
                 'testNames' => $testNames,
@@ -652,9 +663,9 @@ HS);
                 . ' --checked-in-fixtures'
                 . ' --pandoc-bin=' . escapeshellarg($fakePandoc)
                 . ' --json'
-                . ' --require-test-count=6'
-                . ' --require-fixture-reference-count=6'
-                . ' --require-expected-media-item-count=10'
+                . ' --require-test-count=7'
+                . ' --require-fixture-reference-count=7'
+                . ' --require-expected-media-item-count=11'
                 . ' --require-referenced-fixture-identity'
                 . ' --require-static-current-signature'
                 . ' --require-native-ast-package-parity'
@@ -669,9 +680,9 @@ HS);
             $decoded = json_decode(implode("\n", $output), true, 512, JSON_THROW_ON_ERROR);
 
             $t->same(0, $exitCode);
-            $t->same(6, $decoded['denominator']['mediaBagTestCount']);
-            $t->same(6, $decoded['denominator']['fixtureReferenceCount']);
-            $t->same(10, $decoded['denominator']['expectedMediaItemCount']);
+            $t->same(7, $decoded['denominator']['mediaBagTestCount']);
+            $t->same(7, $decoded['denominator']['fixtureReferenceCount']);
+            $t->same(11, $decoded['denominator']['expectedMediaItemCount']);
             $t->same([], $decoded['denominator']['missingReferencedFiles']);
             $t->same('valid-upstream-epub-reader-mediabag-denominator', $decoded['validation']['status']);
             $t->same($checkedInFixtureRoot(), $decoded['upstream']['root']);
@@ -683,7 +694,7 @@ HS);
             $t->same(false, $decoded['upstream']['readerSourceRequired']);
             $t->same('valid-checked-in-current-epub-reader-referenced-fixture-identity', $decoded['referencedFixtureIdentity']['validation']['status']);
             $t->same(true, $decoded['referencedFixtureIdentity']['matchesExpected']);
-            $t->same(84040, $decoded['referencedFixtureIdentity']['totalBytes']);
+            $t->same(85342, $decoded['referencedFixtureIdentity']['totalBytes']);
             $decodedReferencedFixtureIdentity = [];
             foreach ($decoded['referencedFixtureIdentity']['files'] as $file) {
                 $decodedReferencedFixtureIdentity[$file['path']] = [
@@ -699,11 +710,11 @@ HS);
             $t->same('valid-checked-in-current-epub-reader-static-signature', $decoded['currentReaderStaticSignature']['validation']['status']);
             $t->same(true, EpubUpstreamReaderEvidence::hasRequiredStaticCurrentSignature($decoded));
             $t->same('normalized-ast-equality-observed-not-runner-parity', $decoded['nativeAstPackageParity']['astParityStatus']);
-            $t->same(75, $decoded['nativeAstPackageParity']['normalizedAstMatchCount']);
+            $t->same(76, $decoded['nativeAstPackageParity']['normalizedAstMatchCount']);
             $t->same(true, EpubUpstreamReaderEvidence::hasRequiredNativeAstPackageParity($decoded));
             $t->same('normalized-ast-equality-observed-against-pandoc-executable', $decoded['executableNativeAstParity']['astParityStatus']);
-            $t->same(75, $decoded['executableNativeAstParity']['normalizedAstMatchCount']);
-            $t->same(75, $decoded['executableNativeAstParity']['pandocNativeFixtureMatchCount']);
+            $t->same(76, $decoded['executableNativeAstParity']['normalizedAstMatchCount']);
+            $t->same(76, $decoded['executableNativeAstParity']['pandocNativeFixtureMatchCount']);
             $t->same(0, $decoded['executableNativeAstParity']['pandocNativeFixtureMismatchCount']);
             $t->same('pandoc fake 3.10', $decoded['executableNativeAstParity']['pandocVersion']);
             $t->same(true, EpubUpstreamReaderEvidence::hasRequiredExecutableNativeAstParity($decoded, 'pandoc fake 3.10'));
@@ -744,8 +755,8 @@ HS);
                 'target' => $runnerPlan['target'],
                 'command' => $runnerPlan['futureCommands'][2],
                 'exitCode' => 0,
-                'testCount' => 6,
-                'passedCount' => 6,
+                'testCount' => 7,
+                'passedCount' => 7,
                 'failedCount' => 0,
                 'skippedCount' => 0,
                 'testNames' => $testNames,
@@ -762,7 +773,7 @@ HS);
                 . ' --fixture-base=' . escapeshellarg($fixtureRoot)
                 . ' --runner-result-artifact=' . escapeshellarg($root . '/result.json')
                 . ' --json'
-                . ' --require-test-count=6'
+                . ' --require-test-count=7'
                 . ' --require-referenced-fixture-identity'
                 . ' --require-static-current-signature'
                 . ' --require-runner-result-artifact'
@@ -836,8 +847,8 @@ HS);
             $t->same(true, $decoded['resultArtifact']['written']);
             $t->same($artifactPath, $decoded['resultArtifact']['path']);
             $t->same(true, $payload['runnerExecuted']);
-            $t->same(6, $payload['testCount']);
-            $t->same(6, $payload['passedCount']);
+            $t->same(7, $payload['testCount']);
+            $t->same(7, $payload['passedCount']);
             $t->same(0, $payload['failedCount']);
             $t->same('valid-targeted-runner-transcripts', $payload['transcriptEvidence']['status']);
             $t->same($runnerPlan['futureCommands'][2], $payload['command']);

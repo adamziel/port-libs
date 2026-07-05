@@ -321,9 +321,9 @@ jobs:
               php tools/pandoc-html-reader-evidence.php \
                 --upstream-root "$PANDOC_READER_RUNNER_UPSTREAM_ROOT" \
                 --json \
-                --require-selected-fixture-count=126 \
+                --require-selected-fixture-count=127 \
                 --require-static-current-evidence \
-                --require-native-mapped-parity=126 \
+                --require-native-mapped-parity=127 \
                 --runner-result-artifact "$artifact_root/result.json" \
                 --require-runner-result-artifact \
                 --require-no-validation-issues \
@@ -333,9 +333,9 @@ jobs:
               php tools/pandoc-markdown-reader-evidence.php \
                 --upstream-root "$PANDOC_READER_RUNNER_UPSTREAM_ROOT" \
                 --json \
-                --require-selected-fixture-count=132 \
+                --require-selected-fixture-count=133 \
                 --require-static-current-evidence \
-                --require-native-mapped-parity=132 \
+                --require-native-mapped-parity=133 \
                 --runner-result-artifact "$artifact_root/result.json" \
                 --require-runner-result-artifact \
                 --require-no-validation-issues \
@@ -377,7 +377,7 @@ jobs:
                 --require-honest-denominators \
                 --require-parser-option-fixture-count=9 \
                 --require-generated-csv-native-parity=67 \
-                --require-generated-tsv-native-parity=43 \
+                --require-generated-tsv-native-parity=44 \
                 --require-current-csv-direct-native-parity=2 \
                 --require-current-tsv-direct-native-parity=2 \
                 --runner-result-artifact "$artifact_root/result.json" \

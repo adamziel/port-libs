@@ -23,6 +23,9 @@ epub2CoverBag = [("image/cover.jpg","image/jpeg",9713)]
 epub2NoCoverBag :: [(String, String, Int)]
 epub2NoCoverBag = []
 
+encodedImageMediaBag :: [(String, String, Int)]
+encodedImageMediaBag = [("images/cover art.png","image/png",68)]
+
 tests :: [TestTree]
 tests =
   [ testGroup "EPUB Mediabag"
@@ -37,6 +40,8 @@ tests =
       testCase "EPUB2 cover bag"
       (testMediaBag "epub/epub2_cover.epub" epub2CoverBag),
       testCase "EPUB2 no cover bag"
-      (testMediaBag "epub/epub2_no_cover.epub" epub2NoCoverBag)
+      (testMediaBag "epub/epub2_no_cover.epub" epub2NoCoverBag),
+      testCase "encoded image media bag"
+      (testMediaBag "epub/encoded-image-media-bag.epub" encodedImageMediaBag)
     ]
   ]

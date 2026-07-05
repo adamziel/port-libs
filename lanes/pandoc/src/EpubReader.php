@@ -2634,7 +2634,6 @@ final class EpubReader
         }
 
         [$path, $query, $fragment] = $this->splitUrlSuffix($url);
-        $path = $this->decodePackagePathPercentEscapes($path);
         $normalized = $this->normalizeZipPath($content_dir . '/' . $path);
 
         return $this->appendUrlSuffix($normalized, $query, $fragment);

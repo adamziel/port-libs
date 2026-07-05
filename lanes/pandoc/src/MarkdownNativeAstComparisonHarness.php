@@ -85,6 +85,7 @@ final class MarkdownNativeAstComparisonHarness
         'upstream-markdown-zzzzzzzzzzzzzzzzzzzzzzzzzzzzz-startnum-disabled-profile' => ['format' => 'markdown-startnum+fancy_lists'],
         'upstream-markdown-zzzzzzzzzzzzzzzzzzzzzzzzzzz-markdown-in-html-blocks-profile' => ['format' => 'markdown+markdown_in_html_blocks'],
         'upstream-markdown-zzzzzzzzzzzzzzzzzzzzzzzzzzzz-markdown-attribute-profile' => ['format' => 'markdown_phpextra'],
+        'upstream-markdown-zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-markdown-github-yaml-profile' => ['format' => 'markdown_github'],
     ];
 
     /** @var array<string, true> */

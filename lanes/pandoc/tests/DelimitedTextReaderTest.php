@@ -5120,6 +5120,55 @@ NATIVE;
         $t->contains('Plain [ Str "blank" , Space , Str "spaces" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
+    'matches generated tsv consecutive tab empty field native parity fixture with pandoc executable backing' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+        $fixture = $generatedTsvNativeFixture('consecutive-tab-empty-field');
+        $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
+            'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/consecutive-tab-empty-field.tsv',
+        ]);
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+        $body = $table->children[1];
+        $native = PandocConverter::write($document, 'native');
+        $generatedEvidence = $packet['upstreamEvidence']['generatedNativeParityEvidence'] ?? [];
+
+        $t->same('tsv', $packet['format'] ?? null);
+        $t->same('tab', $packet['delimiter'] ?? null);
+        $t->same(null, $packet['quote'] ?? null);
+        $t->same('literal', $packet['dialect']['quoteMode'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
+        $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
+        $t->same(2 * DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['checkedInFixtureCount'] ?? null);
+        $t->same('consecutive-tab-empty-field.tsv', $generatedEvidence['checkedInFixtures'][86]['name'] ?? null);
+        $t->same('9d017e09daf50ea87f98311daa05e5e27b6175262d731732ae384a96dbe3b5ac', $generatedEvidence['checkedInFixtures'][86]['checkedInFile']['sha256'] ?? null);
+        $t->same('consecutive-tab-empty-field.native', $generatedEvidence['checkedInFixtures'][87]['name'] ?? null);
+        $t->same('d038f31032b5c3870f5912fc99686f7372595f30412ff45f7a4827ef6de70902', $generatedEvidence['checkedInFixtures'][87]['checkedInFile']['sha256'] ?? null);
+        $t->same('consecutive-tab-empty-field', $generatedEvidence['samples'][43]['name'] ?? null);
+        $t->same([], $generatedEvidence['samples'][43]['readerOptions'] ?? null);
+        $t->same(['id', 'note', 'status', 'flag'], $table->attr('columnNames'));
+        $t->same(3, $packet['rowCount'] ?? null);
+        $t->same(2, $packet['bodyRowCount'] ?? null);
+        $t->same(4, $packet['columnCount'] ?? null);
+        $t->same(12, $packet['fieldCount'] ?? null);
+        $t->same(0, $packet['quotedFieldCount'] ?? null);
+        $t->same(0, $packet['raggedRowCount'] ?? null);
+        $t->same(0, $packet['blankRowCount'] ?? null);
+        $t->same(0, $packet['diagnosticCount'] ?? null);
+        $t->same('1', $body->children[0]->children[0]->attr('text'));
+        $t->same('', $body->children[0]->children[1]->attr('text'));
+        $t->same([], $body->children[0]->children[1]->children);
+        $t->same('alpha', $body->children[0]->children[2]->attr('text'));
+        $t->same('ok', $body->children[0]->children[3]->attr('text'));
+        $t->same('2', $body->children[1]->children[0]->attr('text'));
+        $t->same('beta', $body->children[1]->children[1]->attr('text'));
+        $t->same('done', $body->children[1]->children[2]->attr('text'));
+        $t->same('yes', $body->children[1]->children[3]->attr('text'));
+        $t->contains('Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) []', $native);
+        $t->contains('Plain [ Str "beta" ]', $native);
+        $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
+    },
     'matches pinned upstream csv parser option fixtures' => static function (TestRunner $t): void {
         $reader = new DelimitedTextReader();
         $commaDocument = $reader->readCsv(

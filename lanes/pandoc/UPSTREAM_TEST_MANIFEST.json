@@ -114,11 +114,11 @@
             "csvSampleCount": 67,
             "csvMatchCount": 67,
             "csvMismatchCount": 0,
-            "tsvSampleCount": 43,
-            "tsvMatchCount": 43,
+            "tsvSampleCount": 44,
+            "tsvMatchCount": 44,
             "tsvMismatchCount": 0,
-            "totalSampleCount": 110,
-            "totalMatchCount": 110
+            "totalSampleCount": 111,
+            "totalMatchCount": 111
         },
         "currentCsvDirectNativeParity": {
             "sampleCount": 2,
@@ -135,11 +135,11 @@
             "csvSampleCount": 48,
             "csvMatchCount": 48,
             "csvMismatchCount": 0,
-            "tsvSampleCount": 30,
-            "tsvMatchCount": 30,
+            "tsvSampleCount": 31,
+            "tsvMatchCount": 31,
             "tsvMismatchCount": 0,
-            "totalSampleCount": 78,
-            "totalMatchCount": 78
+            "totalSampleCount": 79,
+            "totalMatchCount": 79
         },
         "runnerEvidence": {
             "status": "not-run",
@@ -502,9 +502,9 @@
             "mappedJatsFigureNestedImageCases": 4,
             "mappedJatsFigureRoundTripCases": 2,
             "mappedJatsFigureWordPressCases": 5,
-            "epubDirectoryArtifacts": 150,
-            "epubNativeExpectedArtifacts": 75,
-            "epubEpubInputArtifacts": 75,
+            "epubDirectoryArtifacts": 152,
+            "epubNativeExpectedArtifacts": 76,
+            "epubEpubInputArtifacts": 76,
             "epubWastelandNativeFixtures": 1,
             "epubFeaturesNativeFixtures": 1,
             "epubFormattingNativeFixtures": 1,
@@ -951,9 +951,9 @@
             "sharedZipPackageNameLengthBucketAssertions": 26,
             "mappedOdfZipSourceRecordPackagePartExtensionCases": 1,
             "odfZipSourceRecordPackagePartExtensionAssertions": 65,
-            "epubDirectoryArtifacts": 150,
-            "epubNativeExpectedArtifacts": 75,
-            "epubEpubInputArtifacts": 75
+            "epubDirectoryArtifacts": 152,
+            "epubNativeExpectedArtifacts": 76,
+            "epubEpubInputArtifacts": 76
         }
     },
     "benchmarkDenominatorLatestNote": "2026-07-01 plib-jty4i: Shared ZIP package preflights now carry package-manifest entry-name byte length bucket rollups with 1 mapped case and 26 focused assertions, preserving metadata-only name-length provenance without external ZIP tools. 2026-07-01 plib-auoi4: MarkdownWriter now preserves the upstream citation-span boundary fixture for author-in-text citations followed by bracketed spans, marked spans, and note-style suffixes, while rendering citation locators separately from suffixes and escaping braced citation ids without invoking upstream Pandoc or external validators. Direct-format parity remains active in UPSTREAM_TEST_MANIFEST. 2026-07-01 plib-5hhdb: XmlHtmlDom form summaries now carry metadata-only html-form-successful-control-review records for successful name/value candidates, skipped controls, selected option exclusions, file input no-read handoff, and remote form-owned controls while preserving raw HTML and WordPress handoff without browser submission or external validators. Direct-format parity remains active in blocker notes. 2026-07-01 plib-x3jgx: BibtexCslProcessor and CitationCslProcessor now carry legacy BibLaTeX original DOI/URL aliases into original-doi and original-url CSL review metadata, fallback bibliography text, CSL style variables, and WordPress bibliography handoff without external citeproc, BibTeX, Biber, Pandoc, or validators. Direct-format parity remains active in blocker notes. 2026-07-01 plib-1hblv: DOCX/OpenXML package ingestion now carries metadata-only ZIP Unix UID/GID owner extra-field provenance through packageProvenance summary, zipPackage metadata, part inventory, and packageIdentity entries, including central/local owner records, mismatch diagnostics, issue-code rollups, and byte-exposure policy while preserving package payload bytes and avoiding external tools. Direct-format parity remains active in blocker notes. 2026-07-01 plib-wazxm: ODF/ODT package ingestion now carries metadata-only XML root element provenance through compact OpenDocumentPackage and rich OdfReader package inventories, including per-part root qualified/local names, prefixes, namespace URIs, root attribute names, namespace declaration names, package-level root-name/namespace buckets, and invalid XML exclusion without exposing root attribute/text values or invoking external tools. Direct-format parity remains active in blocker notes. 2026-07-01 plib-a5ipn: ODF/ODT package ingestion now carries package path byte-length bucket rollups through compact OpenDocumentPackage inventory/identity and rich OdfReader packageProvenance/packageIdentity/document metadata, exposing ordered bucket names, counts, entry-name maps, role/policy rollups, and longest-entry summaries without exposing package bytes or invoking external tools. Direct-format parity remains active in blocker notes. 2026-07-01 plib-i10iv: ODF/ODT package ingestion now carries ZIP extra-field id role and manifest media-family provenance through compact package inventories, rich packageProvenance, and packageIdentity, including entry-name maps for shared, central-only, local-only, and mismatched-value extra-field ids without exposing package bytes or invoking external ZIP tools. Direct-format parity remains active in blocker notes. 2026-07-01 plib-m0g2h: BibtexCslProcessor now carries legacy BibLaTeX seriescreator/series-creator names into the CSL series-creator variable, fallback bibliography text, CitationCslProcessor style rendering, and WordPress bibliography handoff without external citeproc, BibTeX, Biber, Pandoc, or validators. 2026-07-01 plib-0v0uy: ODF/ODT package ingestion now carries ZIP package-manifest expansion-ratio bucket rollups through compact OpenDocumentPackage inventory/identity and rich OdfReader packageProvenance/packageIdentity metadata, exposing bucket counts, ordered bucket names, bucket summaries, entry names, directory roots, compression methods, byte/source-record totals, unknown-entry counts, and largest-ratio metadata without exposing package bytes or invoking external tools. Direct-format parity remains active in blocker notes.",
@@ -1209,9 +1209,9 @@
         "mappedDocxTaskListRoundTripCases": 2,
         "mappedDocxTaskListDefaultWordPressCases": 1,
         "mappedDocxTaskListOptInWordPressCases": 4,
-        "epubDirectoryArtifacts": 150,
-        "epubNativeExpectedArtifacts": 75,
-        "epubEpubInputArtifacts": 75,
+        "epubDirectoryArtifacts": 152,
+        "epubNativeExpectedArtifacts": 76,
+        "epubEpubInputArtifacts": 76,
         "epubWastelandNativeFixtures": 1,
         "epubFeaturesNativeFixtures": 1,
         "epubFormattingNativeFixtures": 1,

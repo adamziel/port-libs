@@ -1869,7 +1869,7 @@ HTML);
         $t->same('heading', $document->children[1]->type);
         $t->same('chapter%201.xhtml_opening', $document->children[1]->attr('id'));
         $t->same('Percent Path EPUB', $document->children[1]->attr('text'));
-        $t->contains('src="images/cover art.png"', $blocks);
+        $t->contains('src="images/cover%20art.png"', $blocks);
         $t->contains('id="chapter%201.xhtml_opening"', $blocks);
         $t->contains('href="#chapter%201.xhtml_opening"', $blocks);
         $t->same(false, str_contains($blocks, 'chapter%25201.xhtml'));

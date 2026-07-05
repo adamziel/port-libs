@@ -795,6 +795,14 @@ return [
         $t->same(2514, $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][85]['checkedInFile']['bytes']);
         $t->same('space-only-fields', $evidence['generatedTsvNativeStaticEvidence']['samples'][42]['name']);
         $t->same([], $evidence['generatedTsvNativeStaticEvidence']['samples'][42]['readerOptions']);
+        $t->same('consecutive-tab-empty-field.tsv', $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][86]['name']);
+        $t->same('9d017e09daf50ea87f98311daa05e5e27b6175262d731732ae384a96dbe3b5ac', $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][86]['checkedInFile']['sha256']);
+        $t->same(49, $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][86]['checkedInFile']['bytes']);
+        $t->same('consecutive-tab-empty-field.native', $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][87]['name']);
+        $t->same('d038f31032b5c3870f5912fc99686f7372595f30412ff45f7a4827ef6de70902', $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][87]['checkedInFile']['sha256']);
+        $t->same(2592, $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][87]['checkedInFile']['bytes']);
+        $t->same('consecutive-tab-empty-field', $evidence['generatedTsvNativeStaticEvidence']['samples'][43]['name']);
+        $t->same([], $evidence['generatedTsvNativeStaticEvidence']['samples'][43]['readerOptions']);
         $t->same('cd7a0f7e2c4737a1884c0ff3ec73bf6a5990fbdfb6ba1b588b6a6d9202ab3e02', $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][4]['checkedInFile']['sha256']);
         $t->same(91, $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][4]['checkedInFile']['bytes']);
         $t->same('unicode-safe.native', $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][5]['name']);
@@ -2497,6 +2505,7 @@ return [
             'numeric-looking-literals',
             'literal-quote-space-boundaries',
             'space-only-fields',
+            'consecutive-tab-empty-field',
         ], array_column($tsv['samples'], 'name'));
         $t->same(array_fill(0, DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT, 'matched'), array_column($tsv['samples'], 'status'));
         $t->same(array_fill(0, DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT, 'valid-generated-tsv-native-sample-static-binding'), array_column($tsv['samples'], 'staticFixtureBindingStatus'));

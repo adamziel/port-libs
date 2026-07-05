@@ -1835,6 +1835,10 @@ final class MarkdownReader
             }
 
             $line = $lines[$index];
+            if ($this->isHorizontalRule($line)) {
+                continue;
+            }
+
             $previousLine = $lines[$index - 1] ?? '';
             $heading = $this->tryParseMarkdownHeading($line);
             if ($heading !== null && !$this->canAtxHeadingLineInterruptPreviousLine($previousLine)) {
@@ -4858,6 +4862,31 @@ final class MarkdownReader
         return strtolower($type);
     }
 
+    private function isHtmlTitlePageElement(\DOMElement $element): bool
+    {
+        if (!str_contains($this->htmlSemanticType($element), 'titlepage')) {
+            return false;
+        }
+
+        return in_array(strtolower($element->localName), [
+            'section',
+            'p',
+            'hr',
+            'pre',
+            'blockquote',
+            'ol',
+            'ul',
+            'li',
+            'dl',
+            'dt',
+            'dd',
+            'figure',
+            'figcaption',
+            'div',
+            'main',
+        ], true);
+    }
+
     private function removeHtmlFootnoteBacklinks(\DOMElement $root): void
     {
         $links = [];
@@ -5065,12 +5094,12 @@ final class MarkdownReader
 
     private function firstHtmlMainElement(\DOMElement $root): ?\DOMElement
     {
-        if (strtolower($root->localName) === 'main') {
+        if (strtolower($root->localName) === 'main' && !$this->isHtmlTitlePageElement($root)) {
             return $root;
         }
 
         foreach ($root->getElementsByTagName('main') as $main) {
-            if ($main instanceof \DOMElement) {
+            if ($main instanceof \DOMElement && !$this->isHtmlTitlePageElement($main)) {
                 return $main;
             }
         }
@@ -6198,6 +6227,10 @@ final class MarkdownReader
     private function parseHtmlBlockElement(\DOMElement $element): ?AstNode
     {
         $name = strtolower($element->localName);
+        if ($this->isHtmlTitlePageElement($element)) {
+            return null;
+        }
+
         if ($this->htmlEpubExtensionsEnabled()) {
             $semanticType = $this->htmlSemanticType($element);
             if (in_array($semanticType, ['footnotes', 'rearnotes'], true)) {
@@ -6206,9 +6239,6 @@ final class MarkdownReader
                 return $children === [] ? null : new AstNode('div', $this->htmlElementPandocAttrs($element), $children);
             }
             if ($semanticType === 'toc' || in_array($semanticType, ['footnote', 'rearnote'], true)) {
-                return null;
-            }
-            if (str_contains($semanticType, 'titlepage') && in_array($name, ['aside', 'div', 'header', 'main', 'section'], true)) {
                 return null;
             }
             if ($name === 'switch') {

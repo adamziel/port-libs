@@ -14,45 +14,56 @@ final class EpubUpstreamReaderEvidence
 
     private const CURRENT_READER_STATIC_SIGNATURE_KIND = 'checked-in-current-epub-reader-static-signature';
     private const CURRENT_READER_STATIC_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
-    private const CURRENT_READER_STATIC_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-static-6-case-media-expectation-and-fixture-identity-snapshot';
-    private const CHECKED_IN_CURRENT_STATIC_SIGNATURE_SHA256 = 'c3551818c84a8100f79266b00b653f14baa5d4ee4ae1d22db36eb8c19844e22c';
-    private const CHECKED_IN_CURRENT_STATIC_MEDIA_BAG_TEST_COUNT = 6;
-    private const CHECKED_IN_CURRENT_STATIC_FIXTURE_REFERENCE_COUNT = 6;
-    private const CHECKED_IN_CURRENT_STATIC_EXPECTED_MEDIA_ITEM_COUNT = 10;
+    private const CURRENT_READER_STATIC_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-static-7-case-media-expectation-and-fixture-identity-snapshot';
+    private const CHECKED_IN_CURRENT_STATIC_SIGNATURE_SHA256 = '5cc23a2823aac0b77e2e3150da0761011927f93fa34094e490ca137280e5342d';
+    private const CHECKED_IN_CURRENT_STATIC_MEDIA_BAG_TEST_COUNT = 7;
+    private const CHECKED_IN_CURRENT_STATIC_FIXTURE_REFERENCE_COUNT = 7;
+    private const CHECKED_IN_CURRENT_STATIC_EXPECTED_MEDIA_ITEM_COUNT = 11;
     private const CHECKED_IN_CURRENT_READER_FIXTURE_ROOT = 'lanes/pandoc/fixtures/upstream-current-epub-reader';
     private const CHECKED_IN_CURRENT_NATIVE_PACKAGE_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-epub-reader/epub';
-    private const CHECKED_IN_CURRENT_NATIVE_PACKAGE_EPUB_COUNT = 75;
-    private const CHECKED_IN_CURRENT_NATIVE_PACKAGE_PAIR_COUNT = 75;
+    private const CHECKED_IN_CURRENT_NATIVE_PACKAGE_EPUB_COUNT = 76;
+    private const CHECKED_IN_CURRENT_NATIVE_PACKAGE_PAIR_COUNT = 76;
     private const EXECUTABLE_NATIVE_AST_PARITY_KIND = 'checked-in-current-epub-pandoc-executable-native-ast-parity';
     private const REFERENCED_FIXTURE_IDENTITY_KIND = 'checked-in-current-epub-reader-referenced-fixture-identity';
-    private const REFERENCED_FIXTURE_IDENTITY_SCOPE = 'checked-in-current-upstream-epub-reader-6-referenced-epub-fixture-snapshot';
+    private const REFERENCED_FIXTURE_IDENTITY_SCOPE = 'checked-in-current-upstream-epub-reader-7-referenced-epub-fixture-snapshot';
     private const REFERENCED_FIXTURE_IDENTITY_HASH_ALGORITHM = 'sha256';
-    private const CHECKED_IN_CURRENT_REFERENCED_FIXTURE_IDENTITIES = [
-        'epub/epub2_cover.epub' => [
-            'sha256' => '4af73a135aa632cbf0c00b2889a5fc1d39a59a77fa294fdeff5ede72ff6ffed1',
-            'bytes' => 11794,
-        ],
-        'epub/epub2_no_cover.epub' => [
-            'sha256' => '8369dbe5cf315f1fe00f9dd1bf7c500cc663d7648edbf0d7b6a9b4d785fedf4e',
-            'bytes' => 3584,
-        ],
-        'epub/epub2_picture.epub' => [
-            'sha256' => '6049dde9e1d0ebcd175a8c5b937984f349af996e293310eafbce09e4c7384495',
-            'bytes' => 11742,
-        ],
-        'epub/img.epub' => [
-            'sha256' => 'f2c25e0e0612b7ac33a8d6a1c9719a86e7d2a0290472fc7d8b5068de781a822f',
-            'bytes' => 20478,
-        ],
-        'epub/img_no_cover.epub' => [
-            'sha256' => '3063f5e9b9610df1ddcc682ce49c293bcf681f1958700a5b6c3eda344383cf2a',
-            'bytes' => 10602,
-        ],
-        'epub/wasteland.epub' => [
-            'sha256' => '151ec5dbca33e39a4e3f6894e92fa5a101290bdeaaa792e0700595971456a278',
-            'bytes' => 25840,
-        ],
-    ];
+    private const CHECKED_IN_CURRENT_REFERENCED_FIXTURE_IDENTITIES = array (
+  'epub/encoded-image-media-bag.epub' =>
+  array (
+    'sha256' => '38642e1a951ac69c1f8ff3874e2cb7d9b752310406efd42bb0109a6fd4c0f329',
+    'bytes' => 1302,
+  ),
+  'epub/epub2_cover.epub' =>
+  array (
+    'sha256' => '4af73a135aa632cbf0c00b2889a5fc1d39a59a77fa294fdeff5ede72ff6ffed1',
+    'bytes' => 11794,
+  ),
+  'epub/epub2_no_cover.epub' =>
+  array (
+    'sha256' => '8369dbe5cf315f1fe00f9dd1bf7c500cc663d7648edbf0d7b6a9b4d785fedf4e',
+    'bytes' => 3584,
+  ),
+  'epub/epub2_picture.epub' =>
+  array (
+    'sha256' => '6049dde9e1d0ebcd175a8c5b937984f349af996e293310eafbce09e4c7384495',
+    'bytes' => 11742,
+  ),
+  'epub/img.epub' =>
+  array (
+    'sha256' => 'f2c25e0e0612b7ac33a8d6a1c9719a86e7d2a0290472fc7d8b5068de781a822f',
+    'bytes' => 20478,
+  ),
+  'epub/img_no_cover.epub' =>
+  array (
+    'sha256' => '3063f5e9b9610df1ddcc682ce49c293bcf681f1958700a5b6c3eda344383cf2a',
+    'bytes' => 10602,
+  ),
+  'epub/wasteland.epub' =>
+  array (
+    'sha256' => '151ec5dbca33e39a4e3f6894e92fa5a101290bdeaaa792e0700595971456a278',
+    'bytes' => 25840,
+  ),
+);
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/epub-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'EPUB', 'EPUB Mediabag'];

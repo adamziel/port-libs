@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 103;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 104;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'dfa038a99eaf51e9ea0397005536ab088bcca0748f2a815193d3804e8193e5f8';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 44533;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '3012ab1700349a19ad30b3ad426b616efd3b153b73b7028324bad053723c8444';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 44928;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -1194,6 +1194,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => '17bc3c608870f832f4e2f72c1da296d9895562e415ec1ee0ab593ffa222897b3',
             'pptxBytes' => 2540,
             'nativeBytes' => 94,
+        ],
+        'ragged-body-row-table' => [
+            'name' => 'generated ragged body row table parity',
+            'pptx' => 'pptx-reader/ragged-body-row-table.pptx',
+            'native' => 'pptx-reader/ragged-body-row-table.native',
+            'pairKey' => 'pptx-reader/ragged-body-row-table.pptx|pptx-reader/ragged-body-row-table.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/ragged-body-row-table.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/ragged-body-row-table.native',
+            'pptxSha256' => '1e88d253ef7c8cc42179427fb2cb5097f74fa0cda88bdfba44caaf3d244c6583',
+            'nativeSha256' => '3b3d5b70017c80bf39d4cc6d3f77139c2694216030fa481c8d6710d6b4807991',
+            'pptxBytes' => 1475,
+            'nativeBytes' => 1636,
         ],
         'rel-prefix-image-skip' => [
             'name' => 'generated noncanonical relationship prefix image skip parity',

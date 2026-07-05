@@ -985,6 +985,22 @@ $tests['imports direct pandoc html main that closes paragraph through HTML5 tree
         $t->same('main content', $trailingText->children[0]->attr('text'));
     };
 
+$tests['imports upstream html titlepage blocks as skipped content'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-titlepage-skip.html'));
+        $meta = $document->attr('meta');
+
+        $t->same('html', $document->attr('sourceFormat'));
+        $t->same('HTML Titlepage Skip Import', $meta['title']);
+        $t->same(Html5Dom::htmlDocumentTreeConstructionBackend(), $meta['htmlTreeConstruction'] ?? null);
+        $t->same(['paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same('Real main.', $document->children[0]->attr('text'));
+
+        $paragraphTitlepage = (new HtmlReader())->read('<p type="titlepage">Skip.</p><p>Body.</p>');
+        $t->same(['paragraph'], array_map(static fn ($node): string => $node->type, $paragraphTitlepage->children));
+        $t->same('Body.', $paragraphTitlepage->children[0]->attr('text'));
+    };
+
 $tests['imports upstream html main explicit role as native div'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-main-role-native-divs.html'));
