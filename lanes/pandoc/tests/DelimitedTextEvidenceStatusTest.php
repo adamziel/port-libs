@@ -30,6 +30,7 @@ return [
     'keeps delimited text reader parity rollup synced with live gates' =>
         static function (TestRunner $t) use ($repoRoot, $readJson, $readText): void {
             $manifest = $readJson('lanes/pandoc/UPSTREAM_TEST_MANIFEST.json');
+            $laneStatus = $readJson('lanes/pandoc/lane-status.json');
             $workflow = $readText('.github/workflows/pandoc-html-delimited.yml');
             $runnerWorkflow = $readText('.github/workflows/pandoc-reader-runners.yml');
 
@@ -37,8 +38,18 @@ return [
             $t->true(is_array($rollup), 'UPSTREAM_TEST_MANIFEST.json must carry delimited text reader evidence');
             $t->same('tracked-current-delimited-text-reader-parity-rollup', $rollup['status'] ?? null);
             $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_UPSTREAM_COMMIT, $rollup['upstreamCommit'] ?? null);
+            $t->contains('test/command/8661.md', (string) ($rollup['claim'] ?? ''));
+            $t->contains('does not claim GFM pipe-table writer output', (string) ($rollup['claim'] ?? ''));
             $t->contains('not an upstream Haskell/Cabal/Tasty runner result', (string) ($rollup['claim'] ?? ''));
             $t->contains('does not claim full CSV/TSV parity', (string) ($rollup['claim'] ?? ''));
+
+            $statusRollup = $laneStatus['delimitedTextReaderEvidenceStatus'] ?? null;
+            $t->true(is_array($statusRollup), 'lane-status.json must carry delimited text reader evidence status');
+            $t->same('first-direct-tsv-command-fixture-promoted', $statusRollup['status'] ?? null);
+            $t->same('test/command/8661.md', $statusRollup['upstreamFixture'] ?? null);
+            $t->same('lanes/pandoc/fixtures/upstream-current-tsv-reader/8661.md', $statusRollup['checkedInFixture'] ?? null);
+            $t->true(in_array('GFM pipe-table writer output for test/command/8661.md', $statusRollup['doesNotAssert'] ?? [], true));
+            $t->true(in_array('upstream Haskell/Cabal/Tasty runner parity', $statusRollup['doesNotAssert'] ?? [], true));
 
             $static = DelimitedTextUpstreamReaderEvidence::checkedInCurrentEvidence($repoRoot);
             $csvPacket = (new DelimitedTextReader())->readCsv("Fruit,Price\nApple,25 cents\n")->children[0]->attr('delimitedText');
@@ -54,6 +65,8 @@ return [
             $denominator = $static['readerDenominator'] ?? [];
             $t->same($denominator['csvDirectFixtureCount'] ?? null, $direct['csvDirectFixtureCount'] ?? null);
             $t->same($denominator['tsvDirectFixtureCount'] ?? null, $direct['tsvDirectFixtureCount'] ?? null);
+            $t->same(DelimitedTextUpstreamReaderEvidence::tsvDirectFixturePaths(), $direct['tsvDirectFixtures'] ?? null);
+            $t->same($direct['tsvDirectFixtureCount'] ?? null, $statusRollup['tsvDirectFixtureCount'] ?? null);
             $t->same($denominator['currentCsvDirectNativePairCount'] ?? null, $direct['currentCsvDirectNativePairCount'] ?? null);
             $t->same($denominator['currentTsvDirectNativePairCount'] ?? null, $direct['currentTsvDirectNativePairCount'] ?? null);
             $t->same($denominator['csvAdjacentRstFixtureCount'] ?? null, $direct['csvAdjacentRstFixtureCount'] ?? null);
@@ -107,6 +120,9 @@ return [
             $t->same('not-run', $runner['status'] ?? null);
             $t->same('planned-not-run', $runner['commandPlanStatus'] ?? null);
             $t->same('Command:/csv.md/#1', $runner['target'] ?? null);
+            $t->same(true, $runner['tsvDirectFixtureAvailable'] ?? null);
+            $t->same('test/command/8661.md', $runner['tsvDirectCommandFixture'] ?? null);
+            $t->same('gfm', $runner['tsvDirectOutputFormat'] ?? null);
             $t->same(false, $runner['upstreamRunnerParityClaimed'] ?? null);
 
             foreach ([

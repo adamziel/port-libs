@@ -35,6 +35,18 @@ $upstreamCsvMultilineCommandFixture = static function (): array {
     ];
 };
 
+$upstreamTsvGfmCommandFixture = static function (): array {
+    $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-current-tsv-reader/8661.md');
+    if (preg_match('/% pandoc -f tsv -t gfm\n(?P<input>.*?)\n\^D\n(?P<gfm>\|.*?)\n```/s', $fixture, $matches) !== 1) {
+        throw new RuntimeException('Unable to parse checked-in upstream TSV GFM command fixture');
+    }
+
+    return [
+        'input' => $matches['input'] . "\n",
+        'gfm' => $matches['gfm'],
+    ];
+};
+
 $generatedTsvNativeFixture = static function (string $name = 'simple'): array {
     $root = dirname(__DIR__) . '/fixtures/generated-current-tsv-reader';
 
@@ -187,7 +199,7 @@ return [
         $t->same(',', $packet['delimiter'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
         $t->same(2 * DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['checkedInFixtureCount'] ?? null);
@@ -231,7 +243,7 @@ return [
         $t->same(',', $packet['delimiter'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
         $t->same(2 * DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['checkedInFixtureCount'] ?? null);
@@ -273,7 +285,7 @@ return [
         $t->same(',', $packet['delimiter'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
         $t->same(2 * DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['checkedInFixtureCount'] ?? null);
@@ -320,7 +332,7 @@ return [
         $t->same('escape-character', $packet['dialect']['escapeMode'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -359,7 +371,7 @@ return [
         $t->same(',', $packet['delimiter'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -532,7 +544,7 @@ NATIVE;
         $t->contains('Plain [ Str "alpha" , LineBreak , LineBreak , Str "beta" ]', $native);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same(2 * DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['checkedInFixtureCount'] ?? null);
         $t->same('quoted-blank-line-cell.csv', $generatedEvidence['checkedInFixtures'][78]['name'] ?? null);
@@ -558,7 +570,7 @@ NATIVE;
         $t->same(',', $packet['delimiter'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -606,7 +618,7 @@ NATIVE;
         $t->same(',', $packet['delimiter'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -656,7 +668,7 @@ NATIVE;
         $t->same(',', $packet['delimiter'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -701,7 +713,7 @@ NATIVE;
         $t->same(',', $packet['delimiter'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -753,7 +765,7 @@ NATIVE;
         $t->same(',', $packet['delimiter'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -795,7 +807,7 @@ NATIVE;
         $t->same(',', $packet['delimiter'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -840,7 +852,7 @@ NATIVE;
         $t->same(',', $packet['delimiter'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -885,7 +897,7 @@ NATIVE;
         $t->same(',', $packet['delimiter'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -948,7 +960,7 @@ NATIVE;
         $t->same('none', $packet['dialect']['escapeMode'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -995,7 +1007,7 @@ NATIVE;
         $t->same('semicolon', $packet['dialect']['delimiterName'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -1044,7 +1056,7 @@ NATIVE;
         $t->same(',', $packet['delimiter'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -1088,7 +1100,7 @@ NATIVE;
         $t->same(',', $packet['delimiter'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -1153,7 +1165,7 @@ NATIVE;
         $t->same(',', $packet['delimiter'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -1197,7 +1209,7 @@ NATIVE;
         $t->same(true, $packet['dialect']['keepSpace'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -1245,7 +1257,7 @@ NATIVE;
         $t->same('quoted-fields', $packet['dialect']['quoteMode'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -1289,7 +1301,7 @@ NATIVE;
         $t->same(',', $packet['delimiter'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -1340,7 +1352,7 @@ NATIVE;
         $t->same('escape-character', $packet['dialect']['escapeMode'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -1385,7 +1397,7 @@ NATIVE;
         $t->same('escape-character', $packet['dialect']['escapeMode'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -1430,7 +1442,7 @@ NATIVE;
         $t->same('quoted-fields', $packet['dialect']['quoteMode'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -1478,7 +1490,7 @@ NATIVE;
         $t->same('"', $packet['quote'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -1526,7 +1538,7 @@ NATIVE;
         $t->same('pipe', $packet['dialect']['delimiterName'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -1574,7 +1586,7 @@ NATIVE;
         $t->same('literal', $packet['dialect']['quoteMode'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(9, $packet['upstreamEvidence']['parserOptionFixtureCount'] ?? null);
         $t->true(in_array('quote-disabled-literal', $packet['upstreamEvidence']['parserOptionFixtures'] ?? [], true));
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
@@ -1637,7 +1649,7 @@ NATIVE;
         $t->same(2, $packet['inputPrefix']['firstContentLine'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -1665,7 +1677,7 @@ NATIVE;
         $t->same(',', $packet['delimiter'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -1705,7 +1717,7 @@ NATIVE;
         $t->same(',', $packet['delimiter'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -1746,7 +1758,7 @@ NATIVE;
         $t->same(',', $packet['delimiter'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -1788,7 +1800,7 @@ NATIVE;
         $t->same(',', $packet['delimiter'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -2200,7 +2212,7 @@ NATIVE;
         $t->contains('Plain [ Space , Str "\"tab" , Space , Str "lead\"" ]', $native);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -2227,7 +2239,7 @@ NATIVE;
         $t->same(',', $packet['delimiter'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(['', 'name', 'status'], $table->attr('columnNames'));
         $t->same('', $table->children[0]->children[0]->children[0]->attr('text'));
         $t->same([], $table->children[0]->children[0]->children[0]->children);
@@ -2274,7 +2286,7 @@ NATIVE;
         $t->same(',', $packet['delimiter'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(['id ', 'name ', 'note'], $table->attr('columnNames'));
         $t->same('id ', $table->children[0]->children[0]->children[0]->attr('text'));
         $t->same('name ', $table->children[0]->children[0]->children[1]->attr('text'));
@@ -2321,7 +2333,7 @@ NATIVE;
         $t->same(',', $packet['delimiter'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(['id', 'note', 'status'], $table->attr('columnNames'));
         $t->same('**bold** and `code`', $table->children[1]->children[0]->children[1]->attr('text'));
         $t->same('[link](https://example.com)', $table->children[1]->children[1]->children[1]->attr('text'));
@@ -2361,7 +2373,7 @@ NATIVE;
         $t->same(',', $packet['delimiter'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(['id', 'formula', 'note'], $table->attr('columnNames'));
         $t->same('=SUM(A1:A2)', $table->children[1]->children[0]->children[1]->attr('text'));
         $t->same('literal formula', $table->children[1]->children[0]->children[2]->attr('text'));
@@ -2404,7 +2416,7 @@ NATIVE;
         $t->same(',', $packet['delimiter'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['csvDirectFixtureDenominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(['id', 'quote', 'note'], $table->attr('columnNames'));
         $t->same('"', $table->children[1]->children[0]->children[1]->attr('text'));
         $t->same('single quote char', $table->children[1]->children[0]->children[2]->attr('text'));
@@ -3104,7 +3116,7 @@ NATIVE;
         $t->contains('Plain [ Str "emoji" , Space , Str "\\128640," , Space , Str "snowman" , Space , Str "\\9731" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
-    'matches generated tsv native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+    'matches generated tsv native parity fixture without inflating upstream tsv direct denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture();
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/simple.tsv',
@@ -3116,8 +3128,8 @@ NATIVE;
 
         $t->same('tsv', $packet['format'] ?? null);
         $t->same('tab', $packet['delimiter'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['denominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -3132,7 +3144,7 @@ NATIVE;
         $t->contains('Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) []', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
-    'matches generated tsv quote trailing native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+    'matches generated tsv quote trailing native parity fixture without inflating upstream tsv direct denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture('quote-trailing');
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/quote-trailing.tsv',
@@ -3144,8 +3156,8 @@ NATIVE;
 
         $t->same('tsv', $packet['format'] ?? null);
         $t->same('tab', $packet['delimiter'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['denominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -3173,7 +3185,7 @@ NATIVE;
         $t->contains('Plain [ Str "comma," , Space , Str "pipe" , Space , Str "|" , Space , Str "stay" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
-    'matches generated tsv unicode safe native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+    'matches generated tsv unicode safe native parity fixture without inflating upstream tsv direct denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture('unicode-safe');
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/unicode-safe.tsv',
@@ -3185,8 +3197,8 @@ NATIVE;
 
         $t->same('tsv', $packet['format'] ?? null);
         $t->same('tab', $packet['delimiter'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['denominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -3208,7 +3220,7 @@ NATIVE;
         $t->contains('Plain [ Str "\26481\20140" , Space , Str "and" , Space , Str "rocket" , Space , Str "\128640" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
-    'matches generated tsv ragged blank fields native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+    'matches generated tsv ragged blank fields native parity fixture without inflating upstream tsv direct denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture('ragged-blank-fields');
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/ragged-blank-fields.tsv',
@@ -3220,8 +3232,8 @@ NATIVE;
 
         $t->same('tsv', $packet['format'] ?? null);
         $t->same('tab', $packet['delimiter'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['denominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -3252,7 +3264,7 @@ NATIVE;
         $t->true(!str_contains($native, 'Str "extra"'));
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
-    'matches generated tsv no header native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+    'matches generated tsv no header native parity fixture without inflating upstream tsv direct denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture('no-header');
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/no-header.tsv',
@@ -3265,8 +3277,8 @@ NATIVE;
 
         $t->same('tsv', $packet['format'] ?? null);
         $t->same('tab', $packet['delimiter'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['denominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -3296,7 +3308,7 @@ NATIVE;
         $t->contains('Plain [ Str "needs" , Space , Str "review" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
-    'matches generated tsv bom leading whitespace native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+    'matches generated tsv bom leading whitespace native parity fixture without inflating upstream tsv direct denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture('bom-leading-whitespace');
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/bom-leading-whitespace.tsv',
@@ -3310,8 +3322,8 @@ NATIVE;
 
         $t->same('tsv', $packet['format'] ?? null);
         $t->same('tab', $packet['delimiter'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['denominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -3345,7 +3357,7 @@ NATIVE;
         $t->contains('Plain [ Str "BOM" , Space , Str "stripped" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
-    'matches generated tsv blank row literal punctuation native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+    'matches generated tsv blank row literal punctuation native parity fixture without inflating upstream tsv direct denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture('blank-row-literal-punctuation');
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/blank-row-literal-punctuation.tsv',
@@ -3358,8 +3370,8 @@ NATIVE;
 
         $t->same('tsv', $packet['format'] ?? null);
         $t->same('tab', $packet['delimiter'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['denominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -3389,7 +3401,7 @@ NATIVE;
         $t->contains('Plain [ Str "comma," , Space , Str "pipe" , Space , Str "|" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
-    'matches generated tsv comment looking data native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+    'matches generated tsv comment looking data native parity fixture without inflating upstream tsv direct denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture('comment-looking-data');
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/comment-looking-data.tsv',
@@ -3401,8 +3413,8 @@ NATIVE;
 
         $t->same('tsv', $packet['format'] ?? null);
         $t->same('tab', $packet['delimiter'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['denominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -3431,7 +3443,7 @@ NATIVE;
         $t->contains('Plain [ Str "\"quoted\"" , Space , Str "hash" , Space , Str "#" , Space , Str "stays" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
-    'matches generated tsv no header edge delimiters native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+    'matches generated tsv no header edge delimiters native parity fixture without inflating upstream tsv direct denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture('no-header-edge-delimiters');
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/no-header-edge-delimiters.tsv',
@@ -3444,8 +3456,8 @@ NATIVE;
 
         $t->same('tsv', $packet['format'] ?? null);
         $t->same('tab', $packet['delimiter'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['denominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -3487,7 +3499,7 @@ NATIVE;
         $t->contains('Plain [ Str "trailing" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
-    'matches generated tsv csv quoted literal native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+    'matches generated tsv csv quoted literal native parity fixture without inflating upstream tsv direct denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture('csv-quoted-literal');
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/csv-quoted-literal.tsv',
@@ -3499,8 +3511,8 @@ NATIVE;
 
         $t->same('tsv', $packet['format'] ?? null);
         $t->same('tab', $packet['delimiter'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['denominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -3532,7 +3544,7 @@ NATIVE;
         $t->contains('Plain [ Str "backslash" , Space , Str "\\\\\"" , Space , Str "stay" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
-    'matches generated tsv keep space after tab native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+    'matches generated tsv keep space after tab native parity fixture without inflating upstream tsv direct denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture('keep-space-after-tab');
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/keep-space-after-tab.tsv',
@@ -3547,8 +3559,8 @@ NATIVE;
         $t->same('tab', $packet['delimiter'] ?? null);
         $t->same(true, $packet['dialect']['keepSpace'] ?? null);
         $t->same('literal', $packet['dialect']['quoteMode'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['denominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -3579,7 +3591,7 @@ NATIVE;
         $t->contains('Plain [ Space , Str "lead" , Space , Str "and" , Space , Str "trail" , Space ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
-    'matches generated tsv crlf rows native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+    'matches generated tsv crlf rows native parity fixture without inflating upstream tsv direct denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture('crlf-rows');
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/crlf-rows.tsv',
@@ -3592,8 +3604,8 @@ NATIVE;
         $t->true(str_contains($fixture['input'], "\r\n"));
         $t->same('tsv', $packet['format'] ?? null);
         $t->same('tab', $packet['delimiter'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['denominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -3619,7 +3631,7 @@ NATIVE;
         $t->contains('Plain [ Str "done" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
-    'matches generated tsv quoted tabs and newlines native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+    'matches generated tsv quoted tabs and newlines native parity fixture without inflating upstream tsv direct denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture('quoted-tabs-and-newlines');
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/quoted-tabs-and-newlines.tsv',
@@ -3634,8 +3646,8 @@ NATIVE;
         $t->same('tab', $packet['delimiter'] ?? null);
         $t->same('"', $packet['quote'] ?? null);
         $t->same('quoted-fields', $packet['dialect']['quoteMode'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['denominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -3670,7 +3682,7 @@ NATIVE;
         $t->contains('Plain [ Str "embedded" , Space , Str "\"quote\"" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
-    'matches generated tsv blank leading header native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+    'matches generated tsv blank leading header native parity fixture without inflating upstream tsv direct denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture('blank-leading-header');
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/blank-leading-header.tsv',
@@ -3682,8 +3694,8 @@ NATIVE;
 
         $t->same('tsv', $packet['format'] ?? null);
         $t->same('tab', $packet['delimiter'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['denominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -3712,7 +3724,7 @@ NATIVE;
         $t->contains('Plain [ Str "Alpha" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
-    'matches generated tsv basic status native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+    'matches generated tsv basic status native parity fixture without inflating upstream tsv direct denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture('basic-status');
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/basic-status.tsv',
@@ -3724,8 +3736,8 @@ NATIVE;
 
         $t->same('tsv', $packet['format'] ?? null);
         $t->same('tab', $packet['delimiter'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['denominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -3753,7 +3765,7 @@ NATIVE;
         $t->contains('Plain [ Str "final" , Space , Str "check" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
-    'matches generated tsv header only native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+    'matches generated tsv header only native parity fixture without inflating upstream tsv direct denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture('header-only');
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/header-only.tsv',
@@ -3765,8 +3777,8 @@ NATIVE;
 
         $t->same('tsv', $packet['format'] ?? null);
         $t->same('tab', $packet['delimiter'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['denominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -3790,7 +3802,7 @@ NATIVE;
         $t->contains('TableBody ( "" , [  ] , [  ] ) (RowHeadColumns 0) [  ] [  ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
-    'matches generated tsv no header internal trailing empty native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+    'matches generated tsv no header internal trailing empty native parity fixture without inflating upstream tsv direct denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture('no-header-internal-trailing-empty');
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/no-header-internal-trailing-empty.tsv',
@@ -3804,8 +3816,8 @@ NATIVE;
         $t->same('tsv', $packet['format'] ?? null);
         $t->same('tab', $packet['delimiter'] ?? null);
         $t->same(false, $packet['headerRow'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['denominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -3841,7 +3853,7 @@ NATIVE;
         $t->contains('Plain [ Str "solo" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
-    'matches generated tsv blank input native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+    'matches generated tsv blank input native parity fixture without inflating upstream tsv direct denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture('blank-input');
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/blank-input.tsv',
@@ -3867,8 +3879,8 @@ NATIVE;
         $t->same(1, $packet['inputPrefix']['leadingWhitespaceByteCount'] ?? null);
         $t->same(1, $packet['inputPrefix']['leadingWhitespaceLineCount'] ?? null);
         $t->same(2, $packet['inputPrefix']['firstContentLine'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['denominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -3882,7 +3894,7 @@ NATIVE;
         $t->same('[]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
-    'matches generated tsv duplicate header labels native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+    'matches generated tsv duplicate header labels native parity fixture without inflating upstream tsv direct denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture('duplicate-header-labels');
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/duplicate-header-labels.tsv',
@@ -3894,8 +3906,8 @@ NATIVE;
 
         $t->same('tsv', $packet['format'] ?? null);
         $t->same('tab', $packet['delimiter'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['denominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -3923,7 +3935,7 @@ NATIVE;
         $t->contains('Plain [ Str "queued" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
-    'matches generated tsv escaped quote dialect native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+    'matches generated tsv escaped quote dialect native parity fixture without inflating upstream tsv direct denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture('escaped-quote-dialect');
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/escaped-quote-dialect.tsv',
@@ -3939,8 +3951,8 @@ NATIVE;
         $t->same('tab', $packet['delimiter'] ?? null);
         $t->same('"', $packet['quote'] ?? null);
         $t->same('\\', $packet['escape'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['denominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -3966,7 +3978,7 @@ NATIVE;
         $t->contains('Plain [ Str "left" , Space , Str "\\"quote\\"" , Space , Str "right" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
-    'matches generated tsv literal quote tab split native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+    'matches generated tsv literal quote tab split native parity fixture without inflating upstream tsv direct denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture('literal-quote-tab-split');
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/literal-quote-tab-split.tsv',
@@ -3980,8 +3992,8 @@ NATIVE;
         $t->same('tab', $packet['delimiter'] ?? null);
         $t->same(null, $packet['quote'] ?? null);
         $t->same('literal', $packet['dialect']['quoteMode'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['denominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -4018,7 +4030,7 @@ NATIVE;
         $t->true(!str_contains($native, 'Str "wide"'));
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
-    'matches generated tsv literal quote newline split native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+    'matches generated tsv literal quote newline split native parity fixture without inflating upstream tsv direct denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture('literal-quote-newline-split');
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/literal-quote-newline-split.tsv',
@@ -4032,8 +4044,8 @@ NATIVE;
         $t->same('tab', $packet['delimiter'] ?? null);
         $t->same(null, $packet['quote'] ?? null);
         $t->same('literal', $packet['dialect']['quoteMode'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['denominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -4067,7 +4079,7 @@ NATIVE;
         $t->contains('Plain [ Str "b\\"" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
-    'matches generated tsv leading blank whitespace native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+    'matches generated tsv leading blank whitespace native parity fixture without inflating upstream tsv direct denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture('leading-blank-whitespace');
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/leading-blank-whitespace.tsv',
@@ -4097,7 +4109,7 @@ NATIVE;
         $t->same([], $generatedEvidence['samples'][21]['readerOptions'] ?? null);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
-    'matches generated tsv unquoted final form feed native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+    'matches generated tsv unquoted final form feed native parity fixture without inflating upstream tsv direct denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture('unquoted-final-formfeed');
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/unquoted-final-formfeed.tsv',
@@ -4132,7 +4144,7 @@ NATIVE;
         $t->same([], $generatedEvidence['samples'][22]['readerOptions'] ?? null);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
-    'matches generated tsv leading empty fields native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+    'matches generated tsv leading empty fields native parity fixture without inflating upstream tsv direct denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture('leading-empty-fields');
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/leading-empty-fields.tsv',
@@ -4144,8 +4156,8 @@ NATIVE;
 
         $t->same('tsv', $packet['format'] ?? null);
         $t->same('tab', $packet['delimiter'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['denominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(['', 'note', 'status'], $table->attr('columnNames'));
         $t->same(3, $packet['rowCount'] ?? null);
         $t->same(2, $packet['bodyRowCount'] ?? null);
@@ -4167,7 +4179,7 @@ NATIVE;
         $t->same([], $generatedEvidence['samples'][24]['readerOptions'] ?? null);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
-    'matches generated tsv trailing empty fields native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+    'matches generated tsv trailing empty fields native parity fixture without inflating upstream tsv direct denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture('trailing-empty-fields');
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/trailing-empty-fields.tsv',
@@ -4179,8 +4191,8 @@ NATIVE;
 
         $t->same('tsv', $packet['format'] ?? null);
         $t->same('tab', $packet['delimiter'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['denominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(['name', 'note', 'flag'], $table->attr('columnNames'));
         $t->same(4, $packet['rowCount'] ?? null);
         $t->same(3, $packet['bodyRowCount'] ?? null);
@@ -4214,7 +4226,7 @@ NATIVE;
         $t->same([], $generatedEvidence['samples'][25]['readerOptions'] ?? null);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
-    'matches generated tsv literal quote header native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+    'matches generated tsv literal quote header native parity fixture without inflating upstream tsv direct denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture('literal-quote-header');
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/literal-quote-header.tsv',
@@ -4228,8 +4240,8 @@ NATIVE;
         $t->same('tab', $packet['delimiter'] ?? null);
         $t->same(null, $packet['quote'] ?? null);
         $t->same('literal', $packet['dialect']['quoteMode'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['denominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(2 * DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['checkedInFixtureCount'] ?? null);
@@ -4254,7 +4266,7 @@ NATIVE;
         $t->contains('Plain [ Str "\"done\"" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
-    'matches generated tsv markdown syntax literal native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+    'matches generated tsv markdown syntax literal native parity fixture without inflating upstream tsv direct denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture('markdown-syntax-literal');
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/markdown-syntax-literal.tsv',
@@ -4266,8 +4278,8 @@ NATIVE;
 
         $t->same('tsv', $packet['format'] ?? null);
         $t->same('tab', $packet['delimiter'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['denominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(['id', 'note', 'status'], $table->attr('columnNames'));
         $t->same('**bold** and `code`', $table->children[1]->children[0]->children[1]->attr('text'));
         $t->same('[link](https://example.com)', $table->children[1]->children[1]->children[1]->attr('text'));
@@ -4292,7 +4304,7 @@ NATIVE;
         $t->contains('Plain [ Str "[link](https://example.com)" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
-    'matches generated tsv interior empty header native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+    'matches generated tsv interior empty header native parity fixture without inflating upstream tsv direct denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture('interior-empty-header');
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/interior-empty-header.tsv',
@@ -4304,8 +4316,8 @@ NATIVE;
 
         $t->same('tsv', $packet['format'] ?? null);
         $t->same('tab', $packet['delimiter'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['denominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(['id', '', 'status'], $table->attr('columnNames'));
         $t->same('', $table->children[0]->children[0]->children[1]->attr('text'));
         $t->same([], $table->children[0]->children[0]->children[1]->children);
@@ -4339,7 +4351,7 @@ NATIVE;
         $t->contains('Plain [ Str "gamma" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
-    'matches generated tsv trailing empty header native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+    'matches generated tsv trailing empty header native parity fixture without inflating upstream tsv direct denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture('trailing-empty-header');
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/trailing-empty-header.tsv',
@@ -4351,8 +4363,8 @@ NATIVE;
 
         $t->same('tsv', $packet['format'] ?? null);
         $t->same('tab', $packet['delimiter'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['denominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(['id', 'status', ''], $table->attr('columnNames'));
         $t->same('', $table->children[0]->children[0]->children[2]->attr('text'));
         $t->same([], $table->children[0]->children[0]->children[2]->children);
@@ -4385,7 +4397,7 @@ NATIVE;
         $t->contains('Plain [ Str "closed" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
-    'matches generated tsv quoted softbreak native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+    'matches generated tsv quoted softbreak native parity fixture without inflating upstream tsv direct denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture('quoted-softbreak');
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/quoted-softbreak.tsv',
@@ -4401,8 +4413,8 @@ NATIVE;
         $t->same('tab', $packet['delimiter'] ?? null);
         $t->same('"', $packet['quote'] ?? null);
         $t->same('quoted-fields', $packet['dialect']['quoteMode'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['denominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(2 * DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['checkedInFixtureCount'] ?? null);
@@ -4429,7 +4441,7 @@ NATIVE;
         $t->contains('Plain [ Str "alpha" , Space , Str "beta" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
-    'matches generated tsv post delimiter space native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+    'matches generated tsv post delimiter space native parity fixture without inflating upstream tsv direct denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture('post-delimiter-space');
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/post-delimiter-space.tsv',
@@ -4444,8 +4456,8 @@ NATIVE;
         $t->same(null, $packet['quote'] ?? null);
         $t->same(false, $packet['dialect']['keepSpace'] ?? null);
         $t->same('literal', $packet['dialect']['quoteMode'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['denominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(2 * DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['checkedInFixtureCount'] ?? null);
@@ -4465,7 +4477,7 @@ NATIVE;
         $t->contains('Plain [ Str "alpha" , Space , Str "beta" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
-    'matches generated tsv delimiter only row native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+    'matches generated tsv delimiter only row native parity fixture without inflating upstream tsv direct denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture('delimiter-only-row');
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/delimiter-only-row.tsv',
@@ -4479,8 +4491,8 @@ NATIVE;
         $t->same('tsv', $packet['format'] ?? null);
         $t->same('tab', $packet['delimiter'] ?? null);
         $t->same(null, $packet['quote'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['denominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(2 * DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['checkedInFixtureCount'] ?? null);
@@ -4505,7 +4517,7 @@ NATIVE;
         $t->same([], $body->children[1]->children[1]->children);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
-    'matches generated tsv single quote dialect native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+    'matches generated tsv single quote dialect native parity fixture without inflating upstream tsv direct denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture('single-quote-dialect');
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/single-quote-dialect.tsv',
@@ -4521,8 +4533,8 @@ NATIVE;
         $t->same('tab', $packet['delimiter'] ?? null);
         $t->same('\'', $packet['quote'] ?? null);
         $t->same('quoted-fields', $packet['dialect']['quoteMode'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['denominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -4551,7 +4563,7 @@ NATIVE;
         $t->contains('Plain [ Str "embedded" , Space , Str "\'quote\'" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
-    'matches generated tsv escaped tab dialect native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+    'matches generated tsv escaped tab dialect native parity fixture without inflating upstream tsv direct denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture('escaped-tab-dialect');
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/escaped-tab-dialect.tsv',
@@ -4570,8 +4582,8 @@ NATIVE;
         $t->same('\\', $packet['escape'] ?? null);
         $t->same('quoted-fields', $packet['dialect']['quoteMode'] ?? null);
         $t->same('escape-character', $packet['dialect']['escapeMode'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['denominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -4598,7 +4610,7 @@ NATIVE;
         $t->contains('Plain [ Str "escaped\\\\slash" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
-    'matches generated tsv pipe delimiter quoted field native parity fixture without upstream tsv denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+    'matches generated tsv pipe delimiter quoted field native parity fixture without inflating upstream tsv direct denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture('pipe-delimiter-quoted-field');
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
             'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/pipe-delimiter-quoted-field.tsv',
@@ -4616,8 +4628,8 @@ NATIVE;
         $t->same('"', $packet['quote'] ?? null);
         $t->same('pipe', $packet['dialect']['delimiterName'] ?? null);
         $t->same('quoted-fields', $packet['dialect']['quoteMode'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['denominator'] ?? null);
-        $t->same(0, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
@@ -4776,7 +4788,7 @@ NATIVE;
         ], $csvEvidence['directFixtures'] ?? null);
         $t->same($csvEvidence['directFixtures'] ?? null, $csvEvidence['fixtures'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $csvEvidence['csvDirectFixtureDenominator'] ?? null);
-        $t->same(0, $csvEvidence['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $csvEvidence['tsvDirectFixtureDenominator'] ?? null);
         $t->same(9, $csvEvidence['parserOptionFixtureCount'] ?? null);
         $t->same([
             'no-header-ragged',
@@ -4918,7 +4930,9 @@ NATIVE;
         $t->same(['Command:', 'csv.md', '#1'], $csvEvidence['runnerEvidence']['target']['tastyGroupPath'] ?? null);
         $t->same('$2 == "Command:" && $3 == "csv.md" && $4 == "#1"', $csvEvidence['runnerEvidence']['target']['tastyPattern'] ?? null);
         $t->same('csv', $csvEvidence['runnerEvidence']['target']['selectedDirectFixtureFormat'] ?? null);
-        $t->same(false, $csvEvidence['runnerEvidence']['target']['tsvDirectFixtureAvailable'] ?? null);
+        $t->same(true, $csvEvidence['runnerEvidence']['target']['tsvDirectFixtureAvailable'] ?? null);
+        $t->same('test/command/8661.md', $csvEvidence['runnerEvidence']['target']['tsvDirectCommandFixture'] ?? null);
+        $t->same('gfm', $csvEvidence['runnerEvidence']['target']['tsvDirectOutputFormat'] ?? null);
         $t->same('$2 == "Command:" && $3 == "csv.md" && $4 == "#1"', $csvEvidence['runnerEvidence']['futureCommands'][1]['arguments'][8] ?? null);
         $t->same('$2 == "Command:" && $3 == "csv.md" && $4 == "#1"', $csvEvidence['runnerEvidence']['futureCommands'][2]['arguments'][7] ?? null);
         $t->same('hydrated Pandoc upstream checkout root', $csvEvidence['runnerEvidence']['futureCommands'][2]['workingDirectory'] ?? null);
@@ -4931,26 +4945,27 @@ NATIVE;
         $t->same('valid-checked-in-current-delimited-text-reader-evidence', $csvStatic['validation']['status'] ?? null);
         $t->same([], $csvStatic['validation']['issues'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $csvStatic['readerDenominator']['csvDirectFixtureCount'] ?? null);
-        $t->same(0, $csvStatic['readerDenominator']['tsvDirectFixtureCount'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $csvStatic['readerDenominator']['tsvDirectFixtureCount'] ?? null);
+        $t->same(['test/command/8661.md'], $csvStatic['readerDenominator']['tsvDirectFixtures'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $csvStatic['checkedInFixtureCount'] ?? null);
         $t->same('test/command/csv.md', $csvStatic['checkedInFixtures'][0]['upstreamPath'] ?? null);
         $t->same('42a8bc56612d061388889a10d73b1d34fb870595785ee550ef43c6a065a77ad6', $csvStatic['checkedInFixtures'][0]['checkedInFile']['sha256'] ?? null);
         $t->same(2719, $csvStatic['checkedInFixtures'][0]['checkedInFile']['bytes'] ?? null);
         $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $csvStatic['generatedTsvNativeStaticEvidence']['validation']['status'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $csvStatic['generatedTsvNativeStaticEvidence']['sampleCount'] ?? null);
-        $t->same(0, $csvStatic['generatedTsvNativeStaticEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $csvStatic['generatedTsvNativeStaticEvidence']['tsvDirectFixtureDenominator'] ?? null);
         $t->same(true, DelimitedTextUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence(['staticCurrentEvidence' => $csvStatic]));
 
         $t->same('tsv', $tsvEvidence['reader'] ?? null);
-        $t->same(0, $tsvEvidence['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $tsvEvidence['denominator'] ?? null);
         $t->same('direct-reader-fixtures', $tsvEvidence['denominatorScope'] ?? null);
-        $t->same([], $tsvEvidence['fixtures'] ?? null);
+        $t->same(['test/command/8661.md'], $tsvEvidence['fixtures'] ?? null);
         $t->same('tsv', $tsvEvidence['selectedDirectFixtureFormat'] ?? null);
-        $t->same(0, $tsvEvidence['directFixtureDenominator'] ?? null);
-        $t->same(0, $tsvEvidence['directFixtureCount'] ?? null);
-        $t->same([], $tsvEvidence['directFixtures'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $tsvEvidence['directFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $tsvEvidence['directFixtureCount'] ?? null);
+        $t->same(['test/command/8661.md'], $tsvEvidence['directFixtures'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $tsvEvidence['csvDirectFixtureDenominator'] ?? null);
-        $t->same(0, $tsvEvidence['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $tsvEvidence['tsvDirectFixtureDenominator'] ?? null);
         $t->same(0, $tsvEvidence['parserOptionFixtureCount'] ?? null);
         $t->same([], $tsvEvidence['adjacentFixtureEvidence'] ?? null);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $tsvEvidence['generatedNativeParitySampleCount'] ?? null);
@@ -5024,8 +5039,9 @@ NATIVE;
         $t->same('pipe-delimiter-quoted-field', $tsvEvidence['generatedNativeParityEvidence']['samples'][35]['name'] ?? null);
         $t->same(['delimiter' => 'pipe', 'quote' => '"'], $tsvEvidence['generatedNativeParityEvidence']['samples'][35]['readerOptions'] ?? null);
         $t->true(in_array('tsv-tab-delimiter-reader', $tsvEvidence['closedGaps'] ?? [], true));
+        $t->true(in_array('direct-tsv-command-reader', $tsvEvidence['closedGaps'] ?? [], true));
         $t->true(in_array('generated-tsv-native-parity-sample', $tsvEvidence['closedGaps'] ?? [], true));
-        $t->true(in_array('no-dedicated-upstream-tsv-command-fixture-in-pinned-corpus', $tsvEvidence['openGaps'] ?? [], true));
+        $t->true(in_array('tsv-gfm-pipe-table-writer-output-not-claimed', $tsvEvidence['openGaps'] ?? [], true));
         $t->true(in_array('upstream-runner-not-run', $tsvEvidence['openGaps'] ?? [], true));
         $t->same('not-run', $tsvEvidence['runnerEvidence']['status'] ?? null);
         $t->same(false, $tsvEvidence['runnerEvidence']['executed'] ?? null);
@@ -5040,11 +5056,51 @@ NATIVE;
         $t->same(false, $tsvEvidence['runnerEvidence']['executionBoundary']['upstreamRunnerParityClaimed'] ?? null);
         $t->same(['Command:', 'csv.md', '#1'], $tsvEvidence['runnerEvidence']['target']['tastyGroupPath'] ?? null);
         $t->same('$2 == "Command:" && $3 == "csv.md" && $4 == "#1"', $tsvEvidence['runnerEvidence']['target']['tastyPattern'] ?? null);
-        $t->same(false, $tsvEvidence['runnerEvidence']['target']['tsvDirectFixtureAvailable'] ?? null);
+        $t->same(true, $tsvEvidence['runnerEvidence']['target']['tsvDirectFixtureAvailable'] ?? null);
+        $t->same('test/command/8661.md', $tsvEvidence['runnerEvidence']['target']['tsvDirectCommandFixture'] ?? null);
+        $t->same('gfm', $tsvEvidence['runnerEvidence']['target']['tsvDirectOutputFormat'] ?? null);
         $t->same(true, DelimitedTextUpstreamReaderEvidence::hasRunnerPlanEvidence($tsvEvidence['runnerEvidence'] ?? []));
         $t->same('upstream-haskell-runner', $tsvEvidence['notRunEvidence'][0]['scope'] ?? null);
-        $t->true(in_array('TSV is an upstream input token but the pinned command corpus evidence is CSV-only.', $tsvEvidence['claimBoundaries'] ?? [], true));
+        $t->true(in_array('TSV direct command evidence includes test/command/8661.md from the pinned upstream corpus.', $tsvEvidence['claimBoundaries'] ?? [], true));
         $t->same($csvEvidence['staticCurrentEvidence'] ?? null, $tsvEvidence['staticCurrentEvidence'] ?? null);
+    },
+    'matches upstream tsv command fixture reader ast without claiming gfm writer output' => static function (TestRunner $t) use ($upstreamTsvGfmCommandFixture): void {
+        $fixture = $upstreamTsvGfmCommandFixture();
+        $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
+            'sourcePath' => 'test/command/8661.md',
+        ]);
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+        $body = $table->children[1];
+
+        $t->same('tsv', $document->attr('sourceFormat'));
+        $t->same('table', $table->type);
+        $t->same(['a', 'b', 'c'], $table->attr('columnNames'));
+        $t->same(['a', 'b', 'c'], $packet['columnNames'] ?? null);
+        $t->same('tsv', $packet['format'] ?? null);
+        $t->same('tab', $packet['delimiter'] ?? null);
+        $t->same(2, $packet['rowCount'] ?? null);
+        $t->same(1, $packet['bodyRowCount'] ?? null);
+        $t->same(3, $packet['columnCount'] ?? null);
+        $t->same(6, $packet['fieldCount'] ?? null);
+        $t->same(0, $packet['raggedRowCount'] ?? null);
+        $t->same(0, $packet['diagnosticCount'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['directFixtureCount'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(['test/command/8661.md'], $packet['upstreamEvidence']['directFixtures'] ?? null);
+        $t->same(['test/command/8661.md'], $packet['upstreamEvidence']['fixtures'] ?? null);
+        $t->true(in_array('direct-tsv-command-reader', $packet['upstreamEvidence']['closedGaps'] ?? [], true));
+        $t->true(in_array('tsv-gfm-pipe-table-writer-output-not-claimed', $packet['upstreamEvidence']['openGaps'] ?? [], true));
+        $t->contains('|     |     | 6   |', $fixture['gfm']);
+        $t->same('', $body->children[0]->children[0]->attr('text'));
+        $t->same('', $body->children[0]->children[1]->attr('text'));
+        $t->same('6', $body->children[0]->children[2]->attr('text'));
+        $t->same([], $body->children[0]->children[0]->children);
+        $t->same([], $body->children[0]->children[1]->children);
+        $t->same('plain', $body->children[0]->children[2]->children[0]->type ?? null);
+        $t->same('text', $body->children[0]->children[2]->children[0]->children[0]->type ?? null);
+        $t->same('6', $body->children[0]->children[2]->children[0]->children[0]->attr('text') ?? null);
     },
     'maps tsv input into a native table ast and pads ragged rows' => static function (TestRunner $t): void {
         $document = (new DelimitedTextReader())->readTsv(implode("\n", [

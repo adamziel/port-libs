@@ -18242,6 +18242,23 @@ XML);
         $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Repeated" , Space , Str "slash" , Space , Str "presentation" , Space , Str "target" ]', $native);
     },
 
+    'keeps pptx root officeDocument target query and fragment bytes literal like pandoc executable' => static function (TestRunner $t): void {
+        $path = dirname(__DIR__) . '/fixtures/upstream-current-pptx-reader/query-fragment-presentation-target.pptx';
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read query/fragment presentation target fixture');
+        }
+
+        $document = (new PptxReader())->read($bytes);
+        $review = $document->attr('pptx');
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same('ppt/presentation.xml?literal#deck', $review['presentationPart'] ?? null);
+        $t->same('Query fragment presentation target', $document->children[0]->attr('text'));
+        $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Query" , Space , Str "fragment" , Space , Str "presentation" , Space , Str "target" ]', $native);
+        $t->true(!str_contains($native, 'Normal presentation target should stay hidden'), 'Root officeDocument target query/fragment bytes should not be stripped before package lookup');
+    },
+
     'uses upstream literal pptx slide targets instead of normalizing root-relative paths' => static function (TestRunner $t) use ($buildRootRelativeSlideTargetPptxPackage): void {
         try {
             (new PptxReader())->read($buildRootRelativeSlideTargetPptxPackage());

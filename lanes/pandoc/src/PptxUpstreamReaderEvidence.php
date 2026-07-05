@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 96;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 97;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '287e626a2046f1a2acc98afb91cc765a947f3d009b3348999c6df7bc2f033d59';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 41630;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '3fe701bc07cce993c07699fe2c94e2c1fbda636e4ae4961852a29a25c0edcfcf';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 42077;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -1110,6 +1110,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => '19bd88efcd70aee87a078b7070ac1909f9c8ba2cb6b05b81e63bc9fcaccc179c',
             'pptxBytes' => 1936,
             'nativeBytes' => 207,
+        ],
+        'query-fragment-presentation-target' => [
+            'name' => 'generated literal query/fragment presentation target parity',
+            'pptx' => 'pptx-reader/query-fragment-presentation-target.pptx',
+            'native' => 'pptx-reader/query-fragment-presentation-target.native',
+            'pairKey' => 'pptx-reader/query-fragment-presentation-target.pptx|pptx-reader/query-fragment-presentation-target.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/query-fragment-presentation-target.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/query-fragment-presentation-target.native',
+            'pptxSha256' => 'ab5d9267694ea958a26c5f18262481400b7b4b5ab5ae821cb8ce05e1f1494eae',
+            'nativeSha256' => '17bc3c608870f832f4e2f72c1da296d9895562e415ec1ee0ab593ffa222897b3',
+            'pptxBytes' => 2540,
+            'nativeBytes' => 94,
         ],
         'rel-prefix-image-skip' => [
             'name' => 'generated noncanonical relationship prefix image skip parity',

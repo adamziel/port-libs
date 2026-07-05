@@ -418,13 +418,14 @@ final class PptxReader
     private function relationshipsOrEmpty(ZipPackage $package, string $sourcePart): OpcRelationships
     {
         $relationshipPart = $this->upstreamRelationshipPart($sourcePart);
+        $relationshipSourcePart = $this->upstreamRelationshipResolutionSourcePart($sourcePart);
         if (!in_array($relationshipPart, $package->names(), true)) {
-            return new OpcRelationships($sourcePart);
+            return new OpcRelationships($relationshipSourcePart);
         }
 
         $document = $this->loadPackageXml($package, $relationshipPart, 'PPTX relationships');
         $root = XmlHtmlDom::rootElement($document);
-        $relationships = new OpcRelationships($sourcePart);
+        $relationships = new OpcRelationships($relationshipSourcePart);
         if (!$root instanceof \DOMElement) {
             return $relationships;
         }
@@ -490,6 +491,15 @@ final class PptxReader
         $file = basename($path);
 
         return ($directory === '.' ? '/' : $directory . '/') . '_rels/' . $file . '.rels';
+    }
+
+    private function upstreamRelationshipResolutionSourcePart(string $sourcePart): string
+    {
+        if ($sourcePart === '/' || $sourcePart === '') {
+            return '/';
+        }
+
+        return OpcPackagePath::stripQueryAndFragment($sourcePart);
     }
 
     private function upstreamPresentationPart(string $target): string

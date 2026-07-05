@@ -1,0 +1,5 @@
+[ Para [ Span ( "chapter.xhtml" , [  ] , [  ] ) [  ] ]
+, Div ( "chapter.xhtml_start" , [ "section" ] , [  ] ) [ Header 1 ( "" , [  ] , [  ] ) [ Str "Measurement" , Space , Str "inlines" ]
+  , Para [ Str "Answer" , Space , Strong [ Str "forty" , Space , Str "two" ] , Str "," , Space , Str "load" , Space , Strong [ Str "sixty" , Space , Str "percent" ] , Str "," , Space , Str "progress" , Space , RawInline (Format "html") "<progress value=\"7\" max=\"10\">" , Str "seven" , Space , Str "of" , Space , Str "ten" , RawInline (Format "html") "</progress>" , Str "." ]
+  ]
+]

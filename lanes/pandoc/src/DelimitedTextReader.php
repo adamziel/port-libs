@@ -1443,6 +1443,7 @@ final class DelimitedTextReader
             'test/command/01.csv',
             'test/command/9797.md',
         ];
+        $tsvCommandFixtures = DelimitedTextUpstreamReaderEvidence::tsvDirectFixturePaths();
         $rstCsvAdjacentEvidence = DelimitedTextUpstreamReaderEvidence::csvAdjacentRstFixtureEvidence();
         $rstCsvFixtures = array_values(array_map(
             static fn (array $fixture): string => (string) $fixture['path'],
@@ -1469,17 +1470,17 @@ final class DelimitedTextReader
 
         if ($format === 'tsv') {
             return [
-                'denominator' => 0,
+                'denominator' => count($tsvCommandFixtures),
                 'denominatorScope' => 'direct-reader-fixtures',
-                'fixtures' => [],
+                'fixtures' => $tsvCommandFixtures,
                 'source' => 'Pandoc 4f5226df4faa0d66dd2c089465b13886360ab3c2 src/Text/Pandoc/CSV.hs and src/Text/Pandoc/Readers/CSV.hs',
                 'reader' => 'tsv',
                 'selectedDirectFixtureFormat' => 'tsv',
-                'directFixtureDenominator' => 0,
-                'directFixtureCount' => 0,
-                'directFixtures' => [],
+                'directFixtureDenominator' => count($tsvCommandFixtures),
+                'directFixtureCount' => count($tsvCommandFixtures),
+                'directFixtures' => $tsvCommandFixtures,
                 'csvDirectFixtureDenominator' => count($csvCommandFixtures),
-                'tsvDirectFixtureDenominator' => 0,
+                'tsvDirectFixtureDenominator' => count($tsvCommandFixtures),
                 'parserOptionFixtureCount' => 0,
                 'parserOptionFixtures' => [],
                 'integrationFixtureCount' => 0,
@@ -1495,15 +1496,16 @@ final class DelimitedTextReader
                     'tsv-literal-quote-policy',
                     'tsv-trailing-empty-field-preservation',
                     'tsv-row-repair-and-control-character-provenance',
+                    'direct-tsv-command-reader',
                     'generated-tsv-native-parity-sample',
                 ],
                 'openGaps' => [
-                    'no-dedicated-upstream-tsv-command-fixture-in-pinned-corpus',
+                    'tsv-gfm-pipe-table-writer-output-not-claimed',
                     'upstream-runner-not-run',
                 ],
                 'claimBoundaries' => [
-                    'TSV is an upstream input token but the pinned command corpus evidence is CSV-only.',
-                    'TSV parity is covered by native tab-delimited reader semantics, not by a dedicated upstream TSV golden fixture.',
+                    'TSV direct command evidence includes test/command/8661.md from the pinned upstream corpus.',
+                    'The 8661.md GFM pipe-table output is tracked as upstream command context, but this packet only asserts local TSV reader AST semantics.',
                     'Generated TSV-to-native sample evidence is local executable evidence and is not counted as an upstream TSV fixture.',
                     'This packet does not claim upstream Haskell runner parity.',
                 ],
@@ -1521,7 +1523,7 @@ final class DelimitedTextReader
             'directFixtureCount' => count($csvCommandFixtures),
             'directFixtures' => $csvCommandFixtures,
             'csvDirectFixtureDenominator' => count($csvCommandFixtures),
-            'tsvDirectFixtureDenominator' => 0,
+            'tsvDirectFixtureDenominator' => count($tsvCommandFixtures),
             'parserOptionFixtureCount' => count($parserOptionFixtures),
             'parserOptionFixtures' => $parserOptionFixtures,
             'integrationFixtureCount' => count($rstCsvFixtures),

@@ -81,6 +81,7 @@ jobs:
             /test/Tests/Readers/HTML.hs \
             /test/command/csv.md \
             /test/command/01.csv \
+            /test/command/8661.md \
             /test/command/3533-rst-csv-tables.csv \
             /test/command/3533-rst-csv-tables.md \
             /src/Text/Pandoc/Readers/HTML.hs \
@@ -97,6 +98,7 @@ jobs:
           test -f "$target/test/Tests/Readers/HTML.hs"
           test -f "$target/test/command/csv.md"
           test -f "$target/test/command/01.csv"
+          test -f "$target/test/command/8661.md"
           test -f "$target/test/command/3533-rst-csv-tables.csv"
           test -f "$target/test/command/3533-rst-csv-tables.md"
           test -f "$target/src/Text/Pandoc/Readers/HTML.hs"

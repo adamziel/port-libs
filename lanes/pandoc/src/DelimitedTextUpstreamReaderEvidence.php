@@ -12,12 +12,13 @@ final class DelimitedTextUpstreamReaderEvidence
     public const STATUS_COMPLETED = 'completed-upstream-delimited-text-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-delimited-text-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-csv-reader';
+    public const CHECKED_IN_CURRENT_TSV_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-tsv-reader';
     public const CHECKED_IN_CURRENT_TSV_NATIVE_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/current-tsv-reader';
     public const CHECKED_IN_GENERATED_CSV_NATIVE_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/generated-current-csv-reader';
     public const CHECKED_IN_GENERATED_TSV_NATIVE_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/generated-current-tsv-reader';
     public const EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT = 3;
     public const EXPECTED_STATIC_CURRENT_CSV_DIRECT_NATIVE_PAIR_COUNT = 2;
-    public const EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT = 0;
+    public const EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT = 1;
     public const EXPECTED_STATIC_CURRENT_TSV_DIRECT_NATIVE_PAIR_COUNT = 1;
     public const EXPECTED_STATIC_CSV_ADJACENT_RST_FIXTURE_COUNT = 2;
     public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 64;
@@ -93,6 +94,16 @@ final class DelimitedTextUpstreamReaderEvidence
             'fixtureName' => '9797.md',
             'transcriptPath' => 'lanes/pandoc/fixtures/upstream-current-csv-reader/9797.md',
             'upstreamPath' => 'test/command/9797.md',
+        ],
+    ];
+
+    private const CHECKED_IN_CURRENT_TSV_FIXTURES = [
+        '8661.md' => [
+            'role' => 'direct-tsv-command-reader-gfm-output',
+            'upstreamPath' => 'test/command/8661.md',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-current-tsv-reader/8661.md',
+            'sha256' => '86ceedf9c34dff9b22b36220a7712a0fcd7d831f2f5d740eb44dce1d10ab8f72',
+            'bytes' => 104,
         ],
     ];
 
@@ -2201,12 +2212,12 @@ final class DelimitedTextUpstreamReaderEvidence
             'denominator' => [
                 'csvDirectFixtureCount' => count(self::CHECKED_IN_CURRENT_CSV_FIXTURES),
                 'tsvDirectFixtureCount' => self::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT,
-                'fixtureScope' => 'direct CSV command reader fixtures in test/command',
+                'fixtureScope' => 'direct CSV and TSV command reader fixtures in test/command',
                 'csvDirectFixtures' => array_values(array_map(
                     static fn (array $fixture): string => (string) $fixture['upstreamPath'],
                     self::CHECKED_IN_CURRENT_CSV_FIXTURES
                 )),
-                'tsvDirectFixtures' => [],
+                'tsvDirectFixtures' => self::tsvDirectFixturePaths(),
                 'csvAdjacentRstFixtureCount' => self::EXPECTED_STATIC_CSV_ADJACENT_RST_FIXTURE_COUNT,
                 'csvAdjacentRstFixtures' => self::csvAdjacentRstFixturePaths(),
                 'adjacentFixtureDenominatorImpact' => 0,
@@ -2248,6 +2259,7 @@ final class DelimitedTextUpstreamReaderEvidence
     {
         $root = rtrim($repoRoot, DIRECTORY_SEPARATOR);
         $fixtureDirectory = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, self::CHECKED_IN_CURRENT_FIXTURE_DIRECTORY);
+        $tsvFixtureDirectory = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, self::CHECKED_IN_CURRENT_TSV_FIXTURE_DIRECTORY);
         $generatedCsvNativeStaticEvidence = self::checkedInGeneratedCsvNativeEvidence($root);
         $generatedTsvNativeStaticEvidence = self::checkedInGeneratedTsvNativeEvidence($root);
         $currentCsvDirectNativeStaticEvidence = self::checkedInCurrentCsvDirectNativeEvidence($root);
@@ -2256,6 +2268,9 @@ final class DelimitedTextUpstreamReaderEvidence
         $issues = [];
         if (!is_dir($fixtureDirectory)) {
             $issues[] = 'missing-checked-in-current-fixture-directory';
+        }
+        if (!is_dir($tsvFixtureDirectory)) {
+            $issues[] = 'missing-checked-in-current-tsv-fixture-directory';
         }
 
         $fixtures = [];
@@ -2279,6 +2294,30 @@ final class DelimitedTextUpstreamReaderEvidence
                 $issues[] = 'checked-in-current-csv-fixture-sha256-mismatch';
             } elseif ((int) ($file['bytes'] ?? -1) !== (int) $snapshot['bytes']) {
                 $issues[] = 'checked-in-current-csv-fixture-byte-count-mismatch';
+            }
+        }
+
+        $tsvFixtures = [];
+        foreach (self::CHECKED_IN_CURRENT_TSV_FIXTURES as $name => $snapshot) {
+            $file = self::snapshotFileEvidence(
+                $root,
+                (string) $snapshot['checkedInPath'],
+                (string) $snapshot['sha256'],
+                (int) $snapshot['bytes']
+            );
+            $tsvFixtures[] = [
+                'name' => (string) $name,
+                'role' => (string) $snapshot['role'],
+                'upstreamPath' => (string) $snapshot['upstreamPath'],
+                'checkedInFile' => $file,
+            ];
+
+            if (($file['present'] ?? false) !== true) {
+                $issues[] = 'missing-checked-in-current-tsv-fixture';
+            } elseif (($file['sha256'] ?? null) !== $snapshot['sha256']) {
+                $issues[] = 'checked-in-current-tsv-fixture-sha256-mismatch';
+            } elseif ((int) ($file['bytes'] ?? -1) !== (int) $snapshot['bytes']) {
+                $issues[] = 'checked-in-current-tsv-fixture-byte-count-mismatch';
             }
         }
 
@@ -2313,12 +2352,12 @@ final class DelimitedTextUpstreamReaderEvidence
             'readerDenominator' => [
                 'csvDirectFixtureCount' => count(self::CHECKED_IN_CURRENT_CSV_FIXTURES),
                 'tsvDirectFixtureCount' => self::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT,
-                'fixtureScope' => 'direct CSV command reader fixtures in test/command',
+                'fixtureScope' => 'direct CSV and TSV command reader fixtures in test/command',
                 'csvDirectFixtures' => array_values(array_map(
                     static fn (array $fixture): string => (string) $fixture['upstreamPath'],
                     self::CHECKED_IN_CURRENT_CSV_FIXTURES
                 )),
-                'tsvDirectFixtures' => [],
+                'tsvDirectFixtures' => self::tsvDirectFixturePaths(),
                 'csvAdjacentRstFixtureCount' => self::EXPECTED_STATIC_CSV_ADJACENT_RST_FIXTURE_COUNT,
                 'csvAdjacentRstFixtures' => self::csvAdjacentRstFixturePaths(),
                 'adjacentFixtureDenominatorImpact' => 0,
@@ -2338,6 +2377,9 @@ final class DelimitedTextUpstreamReaderEvidence
             'checkedInFixtureDirectory' => self::CHECKED_IN_CURRENT_FIXTURE_DIRECTORY,
             'checkedInFixtureCount' => count($fixtures),
             'checkedInFixtures' => $fixtures,
+            'checkedInTsvFixtureDirectory' => self::CHECKED_IN_CURRENT_TSV_FIXTURE_DIRECTORY,
+            'checkedInTsvFixtureCount' => count($tsvFixtures),
+            'checkedInTsvFixtures' => $tsvFixtures,
             'adjacentFixtureEvidence' => $adjacentFixtureEvidence,
             'generatedCsvNativeStaticEvidence' => $generatedCsvNativeStaticEvidence,
             'generatedTsvNativeStaticEvidence' => $generatedTsvNativeStaticEvidence,
@@ -2347,21 +2389,22 @@ final class DelimitedTextUpstreamReaderEvidence
                 'status' => $issues === [] ? 'valid-checked-in-current-delimited-text-reader-evidence' : 'invalid-checked-in-current-delimited-text-reader-evidence',
                 'issues' => array_values(array_unique($issues)),
             ],
-            'claim' => 'Static gate binding Pandoc current CSV command-reader fixtures, two embedded CSV command transcript native probes, one current TSV direct native probe, and generated CSV/TSV native sample fixtures to checked-in SHA-256 and byte-count snapshots.',
+            'claim' => 'Static gate binding Pandoc current CSV command-reader fixtures, the first direct TSV command fixture, two embedded CSV command transcript native probes, one current TSV direct native probe, and generated CSV/TSV native sample fixtures to checked-in SHA-256 and byte-count snapshots.',
             'claimBoundaries' => [
                 'doesAssert' => [
                     'the checked-in csv.md, 01.csv, and 9797.md snapshots match the pinned upstream command fixture hashes',
                     'the upstream command corpus has three CSV direct-reader fixtures tracked by this PHP reader',
+                    'the checked-in 8661.md snapshot matches the pinned upstream TSV command fixture hash and counts as one TSV direct fixture',
                     'the checked-in csv.md and 9797.md command transcripts expose two embedded CSV input/native pairs for local reader comparison',
                     'the RST csv-table fixture pair is tracked as CSV-adjacent evidence with zero direct-reader denominator impact',
                     'the CSV parser-option fixture names are pinned as local generated native parity samples',
                     'the generated CSV-to-native parity fixture pairs are present as local evidence and are not counted as extra upstream CSV direct fixtures',
-                    'there is no dedicated upstream TSV command fixture in this pinned corpus',
                     'the current TSV direct native probe fixture pair is present and separate from the generated TSV sample corpus',
                     'the generated TSV-to-native parity fixture pairs are present as local evidence and are not counted as upstream TSV direct fixtures',
                 ],
                 'doesNotAssert' => [
                     'that upstream Haskell/Cabal/Tasty tests were executed',
+                    'that the TSV 8661.md GFM pipe-table output is implemented by the local writer',
                     'full CSV/TSV feature parity beyond the direct reader fixtures and local parser-option cases',
                 ],
             ],
@@ -2494,6 +2537,17 @@ final class DelimitedTextUpstreamReaderEvidence
     }
 
     /**
+     * @return list<string>
+     */
+    public static function tsvDirectFixturePaths(): array
+    {
+        return array_values(array_map(
+            static fn (array $fixture): string => (string) $fixture['upstreamPath'],
+            self::CHECKED_IN_CURRENT_TSV_FIXTURES
+        ));
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public static function checkedInGeneratedTsvNativeEvidence(string $repoRoot): array
@@ -2569,7 +2623,7 @@ final class DelimitedTextUpstreamReaderEvidence
                     'the generated TSV native sample count is separate from the upstream TSV direct fixture denominator',
                 ],
                 'doesNotAssert' => [
-                    'that upstream provides dedicated TSV command fixtures',
+                    'that generated TSV native samples are upstream TSV command fixtures',
                     'that upstream Haskell/Cabal/Tasty tests were executed',
                     'full CSV/TSV feature parity beyond these generated TSV-to-native samples',
                 ],
@@ -2729,14 +2783,14 @@ final class DelimitedTextUpstreamReaderEvidence
                 'status' => $issues === [] ? 'valid-checked-in-current-tsv-direct-native-fixture-evidence' : 'invalid-checked-in-current-tsv-direct-native-fixture-evidence',
                 'issues' => array_values(array_unique($issues)),
             ],
-            'claim' => 'Static current TSV direct native fixture evidence; this local probe is separate from the upstream TSV command denominator, which remains zero.',
+            'claim' => 'Static current TSV direct native fixture evidence; this local native-output probe is separate from the upstream TSV command denominator.',
             'claimBoundaries' => [
                 'doesAssert' => [
                     'one current TSV direct input/native fixture pair is checked in with pinned SHA-256 and byte-count snapshots',
                     'the pair is not counted as an upstream TSV command fixture',
                 ],
                 'doesNotAssert' => [
-                    'that upstream provides dedicated TSV command fixtures',
+                    'that the current TSV native-output probe is an upstream command fixture',
                     'that upstream Haskell/Cabal/Tasty tests were executed',
                     'full TSV feature parity beyond this current direct probe and the generated TSV sample corpus',
                 ],
@@ -3037,7 +3091,7 @@ final class DelimitedTextUpstreamReaderEvidence
                     'the local TSV reader can read the checked-in generated TSV samples',
                     'the generated native output matches the checked-in expected native fixtures by normalized native token stream',
                     'each executable generated TSV sample is bound to valid checked-in input and native snapshot evidence',
-                    'the upstream TSV direct fixture denominator remains zero',
+                    'the generated TSV native sample corpus is separate from the upstream TSV direct fixture denominator',
                 ],
                 'doesNotAssert' => [
                     'that the generated TSV samples are upstream command fixtures',
@@ -3319,10 +3373,10 @@ final class DelimitedTextUpstreamReaderEvidence
                 'doesAssert' => [
                     'the local TSV reader can read the checked-in current TSV direct probe',
                     'the generated native output matches the checked-in expected native fixture by normalized native token stream',
-                    'the upstream TSV direct fixture denominator remains zero',
+                    'the current TSV native-output probe is separate from the upstream TSV direct fixture denominator',
                 ],
                 'doesNotAssert' => [
-                    'that upstream provides dedicated TSV command fixtures',
+                    'that the current TSV native-output probe is an upstream command fixture',
                     'that upstream Haskell/Cabal/Tasty tests were executed',
                     'full TSV feature parity beyond this direct probe and the generated TSV sample corpus',
                 ],
@@ -3394,7 +3448,8 @@ final class DelimitedTextUpstreamReaderEvidence
             'CSV direct fixtures: ' . (int) ($denominator['csvDirectFixtureCount'] ?? 0),
             'TSV direct fixtures: ' . (int) ($denominator['tsvDirectFixtureCount'] ?? 0),
             'Static current evidence: ' . (string) ($staticValidation['status'] ?? 'unknown')
-                . ' checkedInFixtures=' . (int) ($staticEvidence['checkedInFixtureCount'] ?? 0),
+                . ' checkedInFixtures=' . (int) ($staticEvidence['checkedInFixtureCount'] ?? 0)
+                . ' checkedInTsvFixtures=' . (int) ($staticEvidence['checkedInTsvFixtureCount'] ?? 0),
             'Generated CSV native parity: ' . (int) ($generatedCsvNative['generatedNativeMatchCount'] ?? 0)
                 . '/' . (int) ($generatedCsvNative['sampleCount'] ?? 0)
                 . ' status=' . (string) ($generatedCsvNative['parityStatus'] ?? 'unknown'),
@@ -3698,6 +3753,8 @@ final class DelimitedTextUpstreamReaderEvidence
                 'directCommandFixture' => is_string($target['directCommandFixture'] ?? null) ? $target['directCommandFixture'] : null,
                 'directInputFixture' => is_string($target['directInputFixture'] ?? null) ? $target['directInputFixture'] : null,
                 'tsvDirectFixtureAvailable' => is_bool($target['tsvDirectFixtureAvailable'] ?? null) ? $target['tsvDirectFixtureAvailable'] : null,
+                'tsvDirectCommandFixture' => is_string($target['tsvDirectCommandFixture'] ?? null) ? $target['tsvDirectCommandFixture'] : null,
+                'tsvDirectOutputFormat' => is_string($target['tsvDirectOutputFormat'] ?? null) ? $target['tsvDirectOutputFormat'] : null,
             ],
             'expected' => [
                 'schemaVersion' => self::RUNNER_RESULT_ARTIFACT_SCHEMA_VERSION,
@@ -3796,7 +3853,7 @@ final class DelimitedTextUpstreamReaderEvidence
     }
 
     /**
-     * @return array{testSuite: string, tastyGroupPath: list<string>, tastyPattern: string, selectedDirectFixtureFormat: string, directCommandFixture: string, directInputFixture: string, tsvDirectFixtureAvailable: bool}
+     * @return array{testSuite: string, tastyGroupPath: list<string>, tastyPattern: string, selectedDirectFixtureFormat: string, directCommandFixture: string, directInputFixture: string, tsvDirectFixtureAvailable: bool, tsvDirectCommandFixture: string, tsvDirectOutputFormat: string}
      */
     private static function runnerTarget(): array
     {
@@ -3807,7 +3864,9 @@ final class DelimitedTextUpstreamReaderEvidence
             'selectedDirectFixtureFormat' => 'csv',
             'directCommandFixture' => self::RUNNER_DIRECT_COMMAND_FIXTURE,
             'directInputFixture' => self::RUNNER_DIRECT_INPUT_FIXTURE,
-            'tsvDirectFixtureAvailable' => false,
+            'tsvDirectFixtureAvailable' => true,
+            'tsvDirectCommandFixture' => 'test/command/8661.md',
+            'tsvDirectOutputFormat' => 'gfm',
         ];
     }
 
@@ -3819,7 +3878,9 @@ final class DelimitedTextUpstreamReaderEvidence
         return ($target['selectedDirectFixtureFormat'] ?? null) === 'csv'
             && ($target['directCommandFixture'] ?? null) === self::RUNNER_DIRECT_COMMAND_FIXTURE
             && ($target['directInputFixture'] ?? null) === self::RUNNER_DIRECT_INPUT_FIXTURE
-            && ($target['tsvDirectFixtureAvailable'] ?? null) === false;
+            && ($target['tsvDirectFixtureAvailable'] ?? null) === true
+            && ($target['tsvDirectCommandFixture'] ?? null) === 'test/command/8661.md'
+            && ($target['tsvDirectOutputFormat'] ?? null) === 'gfm';
     }
 
     /**
@@ -4561,7 +4622,7 @@ final class DelimitedTextUpstreamReaderEvidence
 
     private static function claim(): string
     {
-        return 'Tracks the current upstream direct CSV command-reader fixtures, two embedded CSV command transcript native probes, the adjacent RST csv-table fixture pair with zero direct-reader denominator impact, sixty-four generated CSV-to-native evidence samples, the absence of dedicated upstream TSV command fixtures, one current TSV direct native probe, and thirty-six generated TSV-to-native evidence samples for the delimited text reader.';
+        return 'Tracks the current upstream direct CSV command-reader fixtures, the first upstream direct TSV command fixture, two embedded CSV command transcript native probes, the adjacent RST csv-table fixture pair with zero direct-reader denominator impact, sixty-four generated CSV-to-native evidence samples, one current TSV direct native probe, and thirty-six generated TSV-to-native evidence samples for the delimited text reader.';
     }
 
     /**
@@ -4575,8 +4636,9 @@ final class DelimitedTextUpstreamReaderEvidence
                 'that the current pinned upstream CSV reader source files are present when an upstream checkout is inspected',
                 'that the RST csv-table fixture pair is CSV-adjacent evidence and not part of the direct CSV/TSV reader denominator',
                 'that RST csv-table directives are exercised through the native RST reader integration path',
-                'that no dedicated TSV command fixture is available in the pinned direct-reader evidence set',
+                'that test/command/8661.md is available in the pinned direct-reader evidence set as a TSV-to-GFM command fixture',
                 'static checked-in current csv.md, 01.csv, and 9797.md fixture identity when staticCurrentEvidence is valid',
+                'static checked-in current 8661.md fixture identity when staticCurrentEvidence is valid',
                 'two current CSV embedded command transcript native probes when currentCsvDirectNativeParityEvidence is valid',
                 'nine CSV parser-option generated native fixture names covering delimiter, quote, escape, keep-space, multiline, pipe, and no-header variants',
                 'sixty-four generated CSV-to-native local samples when generatedCsvNativeParityEvidence is valid',
@@ -4592,7 +4654,7 @@ final class DelimitedTextUpstreamReaderEvidence
                 'that local PHP output matches every upstream CSV-adjacent command fixture',
                 'that the generated CSV samples are upstream command fixtures',
                 'that 01.csv has an embedded native-output transcript',
-                'that the current TSV direct native probe is an upstream command fixture',
+                'that the TSV 8661.md GFM writer pipe-table output is implemented by this slice',
                 'that the generated TSV samples are upstream command fixtures',
                 'full CSV/TSV feature parity beyond the direct reader fixture evidence',
             ],
@@ -4607,7 +4669,7 @@ final class DelimitedTextUpstreamReaderEvidence
         return [
             'csvDirectFixtureCount' => 0,
             'tsvDirectFixtureCount' => 0,
-            'fixtureScope' => 'direct CSV command reader fixtures in test/command',
+            'fixtureScope' => 'direct CSV and TSV command reader fixtures in test/command',
             'csvDirectFixtures' => [],
             'tsvDirectFixtures' => [],
             'upstreamFixtures' => [],
@@ -4639,7 +4701,7 @@ final class DelimitedTextUpstreamReaderEvidence
     private function upstreamFixtureEvidence(string $root): array
     {
         $fixtures = [];
-        foreach (self::CHECKED_IN_CURRENT_CSV_FIXTURES as $name => $snapshot) {
+        foreach ([...self::CHECKED_IN_CURRENT_CSV_FIXTURES, ...self::CHECKED_IN_CURRENT_TSV_FIXTURES] as $name => $snapshot) {
             $file = self::snapshotFileEvidence(
                 $root,
                 (string) $snapshot['upstreamPath'],
@@ -4700,11 +4762,11 @@ final class DelimitedTextUpstreamReaderEvidence
         $issues = [];
         foreach ($upstreamFixtures as $fixture) {
             if (($fixture['present'] ?? false) !== true) {
-                $issues[] = 'missing-upstream-csv-command-fixture';
+                $issues[] = 'missing-upstream-delimited-text-command-fixture';
             } elseif (($fixture['sha256'] ?? null) !== ($fixture['expectedSha256'] ?? null)) {
-                $issues[] = 'upstream-csv-command-fixture-sha256-mismatch';
+                $issues[] = 'upstream-delimited-text-command-fixture-sha256-mismatch';
             } elseif ((int) ($fixture['bytes'] ?? -1) !== (int) ($fixture['expectedBytes'] ?? -2)) {
-                $issues[] = 'upstream-csv-command-fixture-byte-count-mismatch';
+                $issues[] = 'upstream-delimited-text-command-fixture-byte-count-mismatch';
             }
         }
 

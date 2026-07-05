@@ -26,15 +26,15 @@ $readJson = static function (string $relativePath) use ($readText): array {
 return [
     'keeps EPUB current fixture status counters in sync' => static function (TestRunner $t) use ($repoRoot, $readText, $readJson): void {
         $manifest = $readJson('lanes/pandoc/UPSTREAM_TEST_MANIFEST.json');
-        $note = $readText('lanes/pandoc/notes/pandoc-epub-xhtml-del-edit-mark-spine-20260705.md');
+        $note = $readText('lanes/pandoc/notes/pandoc-epub-measurement-inline-spine-20260705.md');
         $fixtureDirectory = $repoRoot . '/lanes/pandoc/fixtures/upstream-current-epub-reader/epub';
         $epubFiles = glob($fixtureDirectory . '/*.epub') ?: [];
         $nativeFiles = glob($fixtureDirectory . '/*.native') ?: [];
         $totalFiles = count($epubFiles) + count($nativeFiles);
 
-        $t->same(70, count($epubFiles));
-        $t->same(70, count($nativeFiles));
-        $t->same(140, $totalFiles);
+        $t->same(71, count($epubFiles));
+        $t->same(71, count($nativeFiles));
+        $t->same(142, $totalFiles);
 
         foreach ([
             'benchmarkDenominator.breakdown' => $manifest['benchmarkDenominator']['breakdown'] ?? null,
@@ -54,12 +54,13 @@ return [
             $t->same($integrated, $observed, "{$label} EPUB counters must match local checked-in fixture state");
         }
 
-        $t->true(str_contains($note, '- Package/native fixture parity: 69/69 -> 70/70'));
-        $t->true(str_contains($note, '- Checked-in EPUB/native identity files: 138 -> 140'));
-        $t->true(str_contains($note, '- Normalized native AST matches: 69 -> 70'));
-        $t->true(str_contains($note, 'xhtml-del-edit-mark-spine.epub'));
-        $t->true(str_contains($note, '--require-package-parity=70'));
-        $t->true(str_contains($note, '--require-native-readiness=70'));
-        $t->true(str_contains($note, '--require-mapped-parity=70'));
+        $t->true(str_contains($note, '- Package/native fixture parity: 70/70 -> 71/71'));
+        $t->true(str_contains($note, '- Checked-in EPUB/native identity files: 140 -> 142'));
+        $t->true(str_contains($note, '- Package feature fixture count: 70 -> 71'));
+        $t->true(str_contains($note, '- Normalized native AST matches: 70 -> 71'));
+        $t->true(str_contains($note, 'measurement-inline-spine.epub'));
+        $t->true(str_contains($note, '--require-package-parity=71'));
+        $t->true(str_contains($note, '--require-native-readiness=71'));
+        $t->true(str_contains($note, '--require-mapped-parity=71'));
     },
 ];

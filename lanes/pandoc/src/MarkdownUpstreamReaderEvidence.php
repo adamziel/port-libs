@@ -12,9 +12,9 @@ final class MarkdownUpstreamReaderEvidence
     public const STATUS_COMPLETED = 'completed-upstream-markdown-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-markdown-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
-    public const EXPECTED_SELECTED_FIXTURE_COUNT = 110;
-    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 110;
-    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = '432828dff4abc6d4272514936ade61286ceae8e865446a3dc306459661bd0a70';
+    public const EXPECTED_SELECTED_FIXTURE_COUNT = 111;
+    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 111;
+    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = 'bd1fe65f94b0d983c50748a405748d375cef7ab95e8136b4dd3c811f7146107a';
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/Markdown.hs',
@@ -1415,6 +1415,19 @@ final class MarkdownUpstreamReaderEvidence
             ],
             'sha256' => 'ae8e7928a750fece03f479ade0e1d6d7998fd804c186b9d0dcf93e503adbac86',
             'bytes' => 328,
+        ],
+        'upstream-markdown-reader-more-code-spans.md' => [
+            'role' => 'markdown-reader-more-code-span-fixture',
+            'sourceKind' => 'selected-upstream-markdown-reader-case',
+            'sourceReference' => 'test/markdown-reader-more.txt code spans',
+            'formatProfile' => 'markdown code span multiline whitespace and delimiter boundary',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-markdown-reader-more-code-spans.md',
+            'coverageTests' => [
+                'lanes/pandoc/tests/MarkdownReaderCodeSpanFixtureCompletionTest.php',
+                'lanes/pandoc/tests/MarkdownNativeAstComparisonHarnessTest.php',
+            ],
+            'sha256' => '8dc499f98165df54885e4909cc5808645174597006f8c1d2d95b6f6e16850809',
+            'bytes' => 65,
         ],
     ];
 
