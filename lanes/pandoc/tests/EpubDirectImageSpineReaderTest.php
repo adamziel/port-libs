@@ -376,6 +376,64 @@ XML);
         $t->contains('( "images/chart.png?view=print#panel" , "" )', $native);
     },
 
+    'emits direct image spine blocks even when the package image part is missing' => static function (TestRunner $t) use ($containerXml): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-missing-direct-image-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary EPUB package');
+        }
+        $zip->addFromString('META-INF/container.xml', $containerXml);
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="book-id">
+  <metadata>
+    <dc:identifier id="book-id">book-missing-direct-image-spine</dc:identifier>
+    <dc:title>Missing Direct Image Spine EPUB</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="missing" href="images/missing.png" media-type="image/png"/>
+  </manifest>
+  <spine>
+    <itemref idref="missing"/>
+  </spine>
+</package>
+XML);
+        $zip->close();
+
+        try {
+            $document = (new EpubReader())->readEpubFile($path);
+            $meta = $document->attr('meta');
+            $native = (new NativeWriter(['blocksOnly' => true]))->write($document);
+        } finally {
+            @unlink($path);
+        }
+
+        $t->same('Missing Direct Image Spine EPUB', $meta['title']);
+        $t->same(['paragraph', 'paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same(['span', 'image'], array_map(static fn ($node): ?string => $node->children[0]->type ?? null, $document->children));
+        $t->same('missing.png', $document->children[0]->children[0]->attr('id'));
+        $t->same('images/missing.png', $document->children[1]->children[0]->attr('url'));
+        $t->same(['OPS/images/missing.png'], $meta['epubReadableResources']);
+        $t->same(['OPS/images/missing.png'], $meta['epubReferencedResources']);
+        $t->same(['OPS/images/missing.png'], $meta['epubImageResources']);
+        $t->same(['OPS/images/missing.png'], $meta['epubMediaBagResources']);
+        $t->same(0, $meta['epubMediaResourceCount']);
+        $t->same([], $meta['epubMediaResourceDirectory']);
+        $t->same(['epub-media-resource-missing:OPS/images/missing.png'], $meta['epubMediaResourceDiagnostics']);
+        $t->same(true, $meta['epubManifestItems'][0]['readable'] ?? null);
+        $t->same(true, $meta['epubSpineItemRefs'][0]['readable'] ?? null);
+        $t->contains('Span ( "missing.png"', $native);
+        $t->contains('( "images/missing.png" , "" )', $native);
+    },
+
     'matches upstream-style media bag evidence for direct image spine items' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile, $writeDirectImageEpub, $imageBytes): void {
         $root = $makeTempDir('pandoc-epub-direct-image-bag-');
         try {

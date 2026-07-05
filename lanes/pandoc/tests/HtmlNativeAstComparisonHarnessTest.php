@@ -224,6 +224,8 @@ return [
         $paragraphHrTreeConstructionNative = $root . '/upstream-html-paragraph-hr-tree-construction.native';
         $paragraphPreTreeConstructionHtml = $root . '/upstream-html-paragraph-pre-tree-construction.html';
         $paragraphPreTreeConstructionNative = $root . '/upstream-html-paragraph-pre-tree-construction.native';
+        $paragraphFieldsetTreeConstructionHtml = $root . '/upstream-html-paragraph-fieldset-tree-construction.html';
+        $paragraphFieldsetTreeConstructionNative = $root . '/upstream-html-paragraph-fieldset-tree-construction.native';
         $paragraphBlockTreeConstructionHtml = $root . '/upstream-html-paragraph-block-tree-construction.html';
         $paragraphBlockTreeConstructionNative = $root . '/upstream-html-paragraph-block-tree-construction.native';
         $paragraphAsideTreeConstructionHtml = $root . '/upstream-html-paragraph-aside-tree-construction.html';
@@ -464,6 +466,8 @@ return [
         $t->true(is_file($paragraphHrTreeConstructionNative), 'Native paragraph hr tree-construction fixture must be checked in');
         $t->true(is_file($paragraphPreTreeConstructionHtml), 'HTML paragraph pre tree-construction fixture must be checked in');
         $t->true(is_file($paragraphPreTreeConstructionNative), 'Native paragraph pre tree-construction fixture must be checked in');
+        $t->true(is_file($paragraphFieldsetTreeConstructionHtml), 'HTML paragraph fieldset tree-construction fixture must be checked in');
+        $t->true(is_file($paragraphFieldsetTreeConstructionNative), 'Native paragraph fieldset tree-construction fixture must be checked in');
         $t->true(is_file($paragraphBlockTreeConstructionHtml), 'HTML paragraph block tree-construction fixture must be checked in');
         $t->true(is_file($paragraphBlockTreeConstructionNative), 'Native paragraph block tree-construction fixture must be checked in');
         $t->true(is_file($paragraphAsideTreeConstructionHtml), 'HTML paragraph aside tree-construction fixture must be checked in');
@@ -506,48 +510,48 @@ return [
         $text = $harness->formatReport($report);
 
         $t->same('completed', $report['status']);
-        $t->same(123, $report['htmlFixtureCount']);
-        $t->same(123, $report['nativeFixtureCount']);
-        $t->same(123, $report['pairedFixtureCount']);
+        $t->same(124, $report['htmlFixtureCount']);
+        $t->same(124, $report['nativeFixtureCount']);
+        $t->same(124, $report['pairedFixtureCount']);
         $t->same(0, $report['unpairedHtmlFixtureCount']);
         $t->same(0, $report['unpairedNativeFixtureCount']);
         $t->same($expectedUnpairedHtmlFixtureNames, $report['unpairedHtmlFixtureNames']);
         $t->same([], $report['unpairedNativeFixtureNames']);
         $t->same([], $report['unpairedHtmlFixtureExamples']);
-        $t->same(123, $report['totalPairCount']);
-        $t->same(123, $report['comparedPairCount']);
+        $t->same(124, $report['totalPairCount']);
+        $t->same(124, $report['comparedPairCount']);
         $t->same(0, $report['excludedMappedPairCount']);
         $t->same([], $report['excludedMappedPairs']);
-        $t->same(123, $report['htmlParsedCount']);
-        $t->same(123, $report['nativeParsedCount']);
-        $t->same(123, $report['bothParsedCount']);
+        $t->same(124, $report['htmlParsedCount']);
+        $t->same(124, $report['nativeParsedCount']);
+        $t->same(124, $report['bothParsedCount']);
         $t->same(0, $report['parseFailureCount']);
-        $t->same(123, $report['normalizedAstMatchCount']);
+        $t->same(124, $report['normalizedAstMatchCount']);
         $t->same(0, $report['normalizedAstMismatchCount']);
         $t->same('normalized-ast-equality-observed-not-runner-parity', $report['astParityStatus']);
         $t->same(true, HtmlNativeAstComparisonHarness::hasValidCheckedInFixtureInventorySignature($report));
-        $t->same(true, HtmlNativeAstComparisonHarness::hasRequiredMappedParity($report, 123));
+        $t->same(true, HtmlNativeAstComparisonHarness::hasRequiredMappedParity($report, 124));
         $signature = $report['checkedInFixtureInventorySignature'];
         $t->same('valid-checked-in-html-fixture-inventory', $signature['status'] ?? null);
         $t->same(true, $signature['matchesExpected'] ?? null);
-        $t->same('d8019c9b5b939b55e3b9081d3ffaad90bbfebdd9adb7773522f44b948e442a95', $signature['sha256'] ?? null);
-        $t->same('d8019c9b5b939b55e3b9081d3ffaad90bbfebdd9adb7773522f44b948e442a95', $signature['expectedSha256'] ?? null);
-        $t->same(123, $signature['htmlFixtureCount'] ?? null);
-        $t->same(123, $signature['nativeFixtureCount'] ?? null);
-        $t->same(123, $signature['pairedFixtureCount'] ?? null);
-        $t->same(246, $signature['recordCount'] ?? null);
+        $t->same('9466e039bdd09d786dd74dda89cc1af6bff897b52f32d233398bd3bc867ea501', $signature['sha256'] ?? null);
+        $t->same('9466e039bdd09d786dd74dda89cc1af6bff897b52f32d233398bd3bc867ea501', $signature['expectedSha256'] ?? null);
+        $t->same(124, $signature['htmlFixtureCount'] ?? null);
+        $t->same(124, $signature['nativeFixtureCount'] ?? null);
+        $t->same(124, $signature['pairedFixtureCount'] ?? null);
+        $t->same(248, $signature['recordCount'] ?? null);
         $t->same('upstream-html-address-block.html', $signature['sampleRecords'][0]['fixture'] ?? null);
         $t->same('8108f7532e80e46c24c47d11ea212837f7cc3123d5dfbafa03af9187a0b50fcf', $signature['sampleRecords'][0]['sha256'] ?? null);
         $t->same(['htmlRawHtml' => false], $report['htmlReaderFixtureOptionOverrides']['upstream-html-raw-disabled-skip.html'] ?? null);
         $t->same('covered-by-current-normalized-ast-evidence', $report['orderedRemainingGaps'][0]['status']);
         $t->same('checked-in-html-fixtures-without-native-pairs', $report['orderedRemainingGaps'][1]['id']);
         $t->same('covered-by-current-normalized-ast-evidence', $report['orderedRemainingGaps'][1]['status']);
-        $t->same('HTML fixtures=123; native fixtures=123; same-basename pairs=123; HTML fixtures without native pairs=0', $report['orderedRemainingGaps'][1]['currentEvidence']);
-        $t->same('The current checked-in gate covers 123 HTMLDocument-backed paired fixture(s) out of 123 HTML fixture(s); 0 source-preservation fixture(s) are tracked but excluded from the mapped gate.', $report['orderedRemainingGaps'][3]['currentEvidence']);
-        $t->contains('fixtureInventory: html=123 native=123 paired=123 unpairedHtml=0 unpairedNative=0', $text);
-        $t->contains('fixtureInventorySignature: status=valid-checked-in-html-fixture-inventory matchesExpected=yes sha256=d8019c9b5b939b55e3b9081d3ffaad90bbfebdd9adb7773522f44b948e442a95', $text);
-        $t->contains('pairs: total=123 compared=123 excluded=0 parsedBoth=123 parseFailures=0', $text);
-        $t->contains('normalizedAst: matches=123 (100.00%) mismatches=0', $text);
+        $t->same('HTML fixtures=124; native fixtures=124; same-basename pairs=124; HTML fixtures without native pairs=0', $report['orderedRemainingGaps'][1]['currentEvidence']);
+        $t->same('The current checked-in gate covers 124 HTMLDocument-backed paired fixture(s) out of 124 HTML fixture(s); 0 source-preservation fixture(s) are tracked but excluded from the mapped gate.', $report['orderedRemainingGaps'][3]['currentEvidence']);
+        $t->contains('fixtureInventory: html=124 native=124 paired=124 unpairedHtml=0 unpairedNative=0', $text);
+        $t->contains('fixtureInventorySignature: status=valid-checked-in-html-fixture-inventory matchesExpected=yes sha256=9466e039bdd09d786dd74dda89cc1af6bff897b52f32d233398bd3bc867ea501', $text);
+        $t->contains('pairs: total=124 compared=124 excluded=0 parsedBoth=124 parseFailures=0', $text);
+        $t->contains('normalizedAst: matches=124 (100.00%) mismatches=0', $text);
 
         $command = escapeshellarg(PHP_BINARY)
             . ' '
@@ -555,24 +559,24 @@ return [
             . ' --html-dir=' . escapeshellarg($root)
             . ' --json'
             . ' summary'
-            . ' --require-mapped-parity=123';
+            . ' --require-mapped-parity=124';
         $output = [];
         $exitCode = 0;
         exec($command, $output, $exitCode);
         $decoded = json_decode(implode("\n", $output), true, 512, JSON_THROW_ON_ERROR);
 
         $t->same(0, $exitCode);
-        $t->same(123, $decoded['htmlFixtureCount']);
-        $t->same(123, $decoded['comparedPairCount']);
+        $t->same(124, $decoded['htmlFixtureCount']);
+        $t->same(124, $decoded['comparedPairCount']);
         $t->same(0, $decoded['excludedMappedPairCount']);
         $t->same(0, $decoded['unpairedHtmlFixtureCount']);
         $t->same($expectedUnpairedHtmlFixtureNames, $decoded['unpairedHtmlFixtureNames']);
         $t->same([], $decoded['unpairedNativeFixtureNames']);
         $t->same('valid-checked-in-html-fixture-inventory', $decoded['checkedInFixtureInventorySignature']['status'] ?? null);
         $t->same(true, $decoded['checkedInFixtureInventorySignature']['matchesExpected'] ?? null);
-        $t->same('d8019c9b5b939b55e3b9081d3ffaad90bbfebdd9adb7773522f44b948e442a95', $decoded['checkedInFixtureInventorySignature']['sha256'] ?? null);
+        $t->same('9466e039bdd09d786dd74dda89cc1af6bff897b52f32d233398bd3bc867ea501', $decoded['checkedInFixtureInventorySignature']['sha256'] ?? null);
         $t->same(['htmlRawHtml' => false], $decoded['htmlReaderFixtureOptionOverrides']['upstream-html-raw-disabled-skip.html'] ?? null);
-        $t->same(123, $decoded['normalizedAstMatchCount']);
+        $t->same(124, $decoded['normalizedAstMatchCount']);
         $t->same(0, $decoded['normalizedAstMismatchCount']);
     },
 ];

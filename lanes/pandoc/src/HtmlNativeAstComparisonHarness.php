@@ -10,7 +10,7 @@ final class HtmlNativeAstComparisonHarness
     private const VERDICT = 'normalized-ast-comparison-not-full-html-parity';
     private const CLAIM = 'Compares local PHP HTML reader output with paired .native fixtures by normalized AST shape; reader provenance, table review metadata, and NativeReader constructor provenance are excluded, but no upstream Haskell runner or full HTML5 tree-construction parity is asserted.';
     private const FIXTURE_INVENTORY_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
-    private const CHECKED_IN_FIXTURE_INVENTORY_SIGNATURE_SHA256 = 'd8019c9b5b939b55e3b9081d3ffaad90bbfebdd9adb7773522f44b948e442a95';
+    private const CHECKED_IN_FIXTURE_INVENTORY_SIGNATURE_SHA256 = '9466e039bdd09d786dd74dda89cc1af6bff897b52f32d233398bd3bc867ea501';
     private const HTML_READER_OPTIONS_BY_BASENAME = [
         'upstream-html-raw-disabled-skip' => ['htmlRawHtml' => false],
     ];

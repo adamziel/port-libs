@@ -158,7 +158,7 @@ return [
                 . ' status=generated-csv-native-parity-observed-not-upstream-fixture',
             $text
         );
-        $t->contains('Generated TSV native parity: 40/40 status=generated-tsv-native-parity-observed-not-upstream-fixture', $text);
+        $t->contains('Generated TSV native parity: 41/41 status=generated-tsv-native-parity-observed-not-upstream-fixture', $text);
         $t->contains('Current TSV direct native parity: 2/2 status=current-tsv-direct-native-parity-observed', $text);
         $t->contains('Runner plan: planned-not-run', $text);
         $t->contains('Runner target: Command:/csv.md/#1', $text);

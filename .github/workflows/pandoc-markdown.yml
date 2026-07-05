@@ -48,6 +48,7 @@ jobs:
           php -l lanes/pandoc/tests/MarkdownReaderBareUriPathPunctuationFixtureCompletionTest.php
           php -l lanes/pandoc/tests/MarkdownReaderBareUriRawHtmlAnchorFixtureCompletionTest.php
           php -l lanes/pandoc/tests/MarkdownReaderBlankBeforeBlockBoundaryProfileTest.php
+          php -l lanes/pandoc/tests/MarkdownReaderDefinitionListFixtureCompletionTest.php
           php -l lanes/pandoc/tests/MarkdownReaderDestinationValidationCompletionTest.php
           php -l lanes/pandoc/tests/MarkdownReaderGfmDefinitionListProfileFixtureCompletionTest.php
           php -l lanes/pandoc/tests/MarkdownReaderImplicitHeaderReferenceFixtureCompletionTest.php
@@ -95,9 +96,9 @@ jobs:
           php tools/pandoc-markdown-reader-evidence.php \
             --upstream-root=.upstream-cache/pandoc-current \
             --json \
-            --require-selected-fixture-count=128 \
+            --require-selected-fixture-count=129 \
             --require-static-current-evidence \
-            --require-native-mapped-parity=128 \
+            --require-native-mapped-parity=129 \
             --require-runner-not-run \
             --require-runner-plan \
             --require-no-validation-issues
@@ -108,7 +109,7 @@ jobs:
             --markdown-dir=lanes/pandoc/fixtures \
             --json \
             summary \
-            --require-mapped-parity=128
+            --require-mapped-parity=129
 
       - name: Run focused Markdown parity tests
         run: |
@@ -124,6 +125,7 @@ jobs:
             lanes/pandoc/tests/MarkdownReaderBareUriSchemeBoundaryFixtureCompletionTest.php \
             lanes/pandoc/tests/MarkdownReaderBlankBeforeBlockBoundaryProfileTest.php \
             lanes/pandoc/tests/MarkdownReaderCodeSpanFixtureCompletionTest.php \
+            lanes/pandoc/tests/MarkdownReaderDefinitionListFixtureCompletionTest.php \
             lanes/pandoc/tests/MarkdownReaderDestinationValidationCompletionTest.php \
             lanes/pandoc/tests/MarkdownReaderGfmDefinitionListProfileFixtureCompletionTest.php \
             lanes/pandoc/tests/MarkdownReaderGfmNestedListContinuationFixtureCompletionTest.php \

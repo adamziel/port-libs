@@ -1680,6 +1680,22 @@ $tests['imports direct pandoc html paragraph pre tree construction as repaired b
         $t->same('After', $document->children[2]->attr('text'));
     };
 
+$tests['imports direct pandoc html paragraph fieldset tree construction as repaired blocks'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-paragraph-fieldset-tree-construction.html'));
+
+        $t->same('html', $document->attr('sourceFormat'));
+        $t->same(Html5Dom::htmlDocumentTreeConstructionBackend(), $document->attr('meta')['htmlTreeConstruction'] ?? null);
+        $t->same(
+            ['paragraph', 'paragraph', 'paragraph', 'paragraph'],
+            array_map(static fn ($node): string => $node->type, $document->children)
+        );
+        $t->same(
+            ['one', 'Legend', 'body', 'tail'],
+            array_map(static fn ($node): string => $node->attr('text'), $document->children)
+        );
+    };
+
 $tests['imports direct pandoc html paragraph list tree construction as repaired blocks'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-paragraph-block-tree-construction.html'));

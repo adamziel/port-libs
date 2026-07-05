@@ -127,9 +127,6 @@ final class EpubReader
             }
             $href = $this->packagePartPath($item['href'], $base_path);
             if ($this->isDirectSpineImageMediaType($media_type)) {
-                if (!$this->zipEntryExists($zip, $href)) {
-                    continue;
-                }
                 $resources[] = $href;
                 $this->recordReferencedResource($item['href'], '', $base_path, $referenced_resources);
                 $media_bag_resources[] = $href;
@@ -2796,11 +2793,6 @@ final class EpubReader
     private function mediaTypeBase(string $media_type): string
     {
         return strtolower(trim(explode(';', $media_type, 2)[0]));
-    }
-
-    private function zipEntryExists(ZipPackage $zip, string $path): bool
-    {
-        return $zip->has($path);
     }
 
     private function zipEntryContents(ZipPackage $zip, string $path): ?string

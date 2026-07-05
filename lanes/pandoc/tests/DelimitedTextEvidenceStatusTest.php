@@ -129,7 +129,7 @@ return [
                 '--require-honest-denominators',
                 '--require-parser-option-fixture-count=9',
                 '--require-generated-csv-native-parity=66',
-                '--require-generated-tsv-native-parity=40',
+                '--require-generated-tsv-native-parity=41',
                 '--require-current-csv-direct-native-parity=2',
                 '--require-current-tsv-direct-native-parity=2',
                 '--require-pandoc-executable-csv-native-parity=47',
@@ -143,7 +143,7 @@ return [
             foreach ([
                 '--require-generated-csv-native-parity=66',
                 '--require-parser-option-fixture-count=9',
-                '--require-generated-tsv-native-parity=40',
+                '--require-generated-tsv-native-parity=41',
                 '--require-current-csv-direct-native-parity=2',
                 '--require-current-tsv-direct-native-parity=2',
                 '--require-runner-result-artifact',

@@ -67,6 +67,24 @@ return [
         $t->same('bar3', $secondSecondDefinition->children[0]->attr('text'));
     },
 
+    'maps checked-in upstream markdown laziness definition-list fixture' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-markdown-definition-list-laziness.md');
+        $document = (new MarkdownReader(['format' => 'markdown+definition_lists']))->read($source);
+        $list = $document->children[0] ?? new AstNode('missing');
+        $item = $list->children[0] ?? new AstNode('missing');
+        $firstDefinition = $item->children[1] ?? new AstNode('missing');
+        $secondDefinition = $item->children[2] ?? new AstNode('missing');
+        $firstPlain = $firstDefinition->children[0] ?? new AstNode('missing');
+
+        $t->same('definition_list', $list->type);
+        $t->same(1, count($list->children));
+        $t->same('foo1', $item->attr('term'));
+        $t->same('plain', $firstPlain->type);
+        $t->same('bar baz', $firstPlain->attr('text'));
+        $t->same('softbreak', ($firstPlain->children[1] ?? new AstNode('missing'))->type);
+        $t->same('bar2', $secondDefinition->children[0]->attr('text'));
+    },
+
     'maps checked-in upstream markdown nested-list definition-list fixture' => static function (TestRunner $t): void {
         $source = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-markdown-definition-list-nested-list.md');
         $document = (new MarkdownReader(['format' => 'markdown']))->read($source);

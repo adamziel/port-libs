@@ -114,11 +114,11 @@
             "csvSampleCount": 66,
             "csvMatchCount": 66,
             "csvMismatchCount": 0,
-            "tsvSampleCount": 40,
-            "tsvMatchCount": 40,
+            "tsvSampleCount": 41,
+            "tsvMatchCount": 41,
             "tsvMismatchCount": 0,
-            "totalSampleCount": 106,
-            "totalMatchCount": 106
+            "totalSampleCount": 107,
+            "totalMatchCount": 107
         },
         "currentCsvDirectNativeParity": {
             "sampleCount": 2,

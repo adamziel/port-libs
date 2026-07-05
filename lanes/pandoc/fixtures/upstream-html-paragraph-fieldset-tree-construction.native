@@ -1,0 +1,5 @@
+[ Para [ Str "one" ]
+, Para [ Str "Legend" ]
+, Para [ Str "body" ]
+, Para [ Str "tail" ]
+]

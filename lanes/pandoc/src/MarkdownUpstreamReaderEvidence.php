@@ -12,9 +12,9 @@ final class MarkdownUpstreamReaderEvidence
     public const STATUS_COMPLETED = 'completed-upstream-markdown-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-markdown-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
-    public const EXPECTED_SELECTED_FIXTURE_COUNT = 128;
-    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 128;
-    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = '2e454c9f00a77bcefbf0a74d452929eccf28f9d7708f6f4f42b264adff0941a1';
+    public const EXPECTED_SELECTED_FIXTURE_COUNT = 129;
+    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 129;
+    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = 'ee4240eb848e4e87c70ac1786a5a37f76b081efbf4707a9ff7362a1c465cd091';
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/Markdown.hs',
@@ -1647,6 +1647,18 @@ final class MarkdownUpstreamReaderEvidence
             ],
             'sha256' => '15f9f02ecd616b4b847d7dacf103790e57bc41a850121c98abface8f3130a756',
             'bytes' => 33,
+        ],
+        'upstream-markdown-definition-list-laziness.md' => [
+            'role' => 'markdown-definition-list-laziness-reader-fixture',
+            'sourceKind' => 'selected-upstream-markdown-reader-case',
+            'sourceReference' => 'Tests.Readers.Markdown definition lists/laziness',
+            'formatProfile' => 'markdown definition_lists',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-markdown-definition-list-laziness.md',
+            'coverageTests' => [
+                'lanes/pandoc/tests/MarkdownReaderDefinitionListFixtureCompletionTest.php',
+            ],
+            'sha256' => 'b6f3202ad2d01afe0c33e061b2dfd6b022611a0bd2ad30eac9bfad6b49228664',
+            'bytes' => 27,
         ],
     ];
 

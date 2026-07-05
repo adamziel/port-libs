@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 99;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 100;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '360511d9471bbf97ca7dd2864e440883963981e1624d2082b7e8f0139c19c1d2';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 37345;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '0e4dbe1de518f6c8c791f30470cddf132748db3a7f77d0725d95863d2f974392';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 43348;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -882,6 +882,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => 'd170e15f31fa6600cd7fa3eb9560e48ebcc5caaff8ce207d43c48c9fe2b49317',
             'pptxBytes' => 2240,
             'nativeBytes' => 118,
+        ],
+        'literal-image-targets' => [
+            'name' => 'generated literal image target skip parity',
+            'pptx' => 'pptx-reader/literal-image-targets.pptx',
+            'native' => 'pptx-reader/literal-image-targets.native',
+            'pairKey' => 'pptx-reader/literal-image-targets.pptx|pptx-reader/literal-image-targets.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/literal-image-targets.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/literal-image-targets.native',
+            'pptxSha256' => 'ff432a5190dfade93799e6ded4985fab28230a1ccccf7f3f272fbd9d326b2b24',
+            'nativeSha256' => '709139da441ee326f9627fed2515a80ffffd0e231c3a16e5bce6a8864b5d5d3b',
+            'pptxBytes' => 2088,
+            'nativeBytes' => 73,
         ],
         'picture-shape-hyperlink' => [
             'name' => 'generated picture shape hyperlink ignore parity',
