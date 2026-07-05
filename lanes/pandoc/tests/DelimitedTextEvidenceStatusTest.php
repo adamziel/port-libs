@@ -132,7 +132,7 @@ return [
                 '--require-generated-tsv-native-parity=40',
                 '--require-current-csv-direct-native-parity=2',
                 '--require-current-tsv-direct-native-parity=2',
-                '--require-pandoc-executable-csv-native-parity=46',
+                '--require-pandoc-executable-csv-native-parity=47',
                 '--require-pandoc-executable-tsv-native-parity=28',
                 '--require-runner-not-run',
                 '--require-runner-plan',

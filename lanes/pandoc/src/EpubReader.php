@@ -206,7 +206,7 @@ final class EpubReader
         $metadata['epubImageResources'] = $image_resources;
         $metadata['epubMediaBagResources'] = array_values(array_unique($media_bag_resources));
         $media_bag = $this->readEpubMediaBag($zip, $base_path, $manifest, $media_bag_sources);
-        $metadata['epubMediaResourcePolicy'] = 'reader-media-bag-from-emitted-image-resources';
+        $metadata['epubMediaResourcePolicy'] = 'reader-media-bag-from-emitted-local-media-resources';
         $metadata['epubMediaResourceDirectory'] = $media_bag['directory'];
         $metadata['epubMediaResourceCount'] = count($media_bag['directory']);
         $metadata['epubMediaResourceDiagnostics'] = $media_bag['diagnostics'];
@@ -2264,6 +2264,10 @@ final class EpubReader
         } elseif ($node->type === 'raw_html') {
             foreach ($this->epubRawHtmlMediaResourceUrls((string) ($attrs['html'] ?? '')) as $url) {
                 $this->recordReferencedResource($url, $content_dir, $package_base_path, $referenced_resources);
+                $resource = $this->recordMediaBagResource($url, $content_dir, $package_base_path, $media_bag_resources);
+                if ($resource !== null) {
+                    $this->recordMediaBagSource($this->fixEpubImageUrl($url, $content_dir), $resource, $media_bag_sources);
+                }
             }
         }
 

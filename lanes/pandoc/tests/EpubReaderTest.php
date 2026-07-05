@@ -1437,7 +1437,7 @@ HTML);
             'OPS/images/unused.jpg',
         ], $meta['epubImageResources']);
         $t->same(['OPS/images/used.png'], $meta['epubMediaBagResources']);
-        $t->same('reader-media-bag-from-emitted-image-resources', $meta['epubMediaResourcePolicy']);
+        $t->same('reader-media-bag-from-emitted-local-media-resources', $meta['epubMediaResourcePolicy']);
         $t->same(1, $meta['epubMediaResourceCount']);
         $t->same(['epub-media-resource-loaded:OPS/images/used.png'], $meta['epubMediaResourceDiagnostics']);
         $t->same([
@@ -1518,10 +1518,28 @@ HTML);
         $t->same([], $meta['epubMediaResourceDiagnostics']);
         $t->same([], $meta['epubMediaResourceDirectory']);
     },
-    'records raw epub video and text track resources without adding them to the image media bag' => static function (TestRunner $t): void {
+    'loads raw epub video and text track resources into the local media bag' => static function (TestRunner $t): void {
         $fixture = dirname(__DIR__) . '/fixtures/upstream-current-epub-reader/epub/text-track-captions.epub';
+        $fixtureEntryBytes = static function (string $entry) use ($fixture): string {
+            $zip = new ZipArchive();
+            if ($zip->open($fixture) !== true) {
+                throw new RuntimeException('Unable to open text-track captions fixture');
+            }
+            try {
+                $bytes = $zip->getFromName($entry);
+                if (!is_string($bytes)) {
+                    throw new RuntimeException('Unable to read fixture entry: ' . $entry);
+                }
+
+                return $bytes;
+            } finally {
+                $zip->close();
+            }
+        };
         $document = (new EpubReader())->readEpubFile($fixture);
         $meta = $document->attr('meta');
+        $videoBytes = $fixtureEntryBytes('EPUB/video/demo.mp4');
+        $captionsBytes = $fixtureEntryBytes('EPUB/video/captions.vtt');
         $rawHtml = array_values(array_map(
             static fn (AstNode $node): string => (string) $node->attr('html'),
             array_filter(
@@ -1534,10 +1552,35 @@ HTML);
         $t->same(['EPUB/chapter.xhtml'], $meta['epubReadableResources']);
         $t->same(['EPUB/video/demo.mp4', 'EPUB/video/captions.vtt'], $meta['epubReferencedResources']);
         $t->same([], $meta['epubImageResources']);
-        $t->same([], $meta['epubMediaBagResources']);
-        $t->same(0, $meta['epubMediaResourceCount']);
-        $t->same([], $meta['epubMediaResourceDiagnostics']);
-        $t->same([], $meta['epubMediaResourceDirectory']);
+        $t->same(['EPUB/video/demo.mp4', 'EPUB/video/captions.vtt'], $meta['epubMediaBagResources']);
+        $t->same('reader-media-bag-from-emitted-local-media-resources', $meta['epubMediaResourcePolicy']);
+        $t->same(2, $meta['epubMediaResourceCount']);
+        $t->same([
+            'epub-media-resource-loaded:EPUB/video/demo.mp4',
+            'epub-media-resource-loaded:EPUB/video/captions.vtt',
+        ], $meta['epubMediaResourceDiagnostics']);
+        $t->same([
+            [
+                'path' => 'video/captions.vtt',
+                'zipEntry' => 'EPUB/video/captions.vtt',
+                'mimeType' => 'text/vtt',
+                'byteLength' => strlen($captionsBytes),
+                'sha1' => sha1($captionsBytes),
+            ],
+            [
+                'path' => 'video/demo.mp4',
+                'zipEntry' => 'EPUB/video/demo.mp4',
+                'mimeType' => 'video/mp4',
+                'byteLength' => strlen($videoBytes),
+                'sha1' => sha1($videoBytes),
+            ],
+        ], array_map(static fn (array $entry): array => [
+            'path' => (string) $entry['path'],
+            'zipEntry' => (string) $entry['zipEntry'],
+            'mimeType' => (string) $entry['mimeType'],
+            'byteLength' => (int) $entry['byteLength'],
+            'sha1' => (string) $entry['sha1'],
+        ], $meta['epubMediaResourceDirectory']));
         $t->same([
             '<video controls="controls" src="video/demo.mp4">',
             '<track kind="captions" src="video/captions.vtt" srclang="en" label="English captions">',

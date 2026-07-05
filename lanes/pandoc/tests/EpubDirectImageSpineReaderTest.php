@@ -156,7 +156,7 @@ return [
         $t->same($fullPaths, $meta['epubReferencedResources']);
         $t->same($fullPaths, $meta['epubImageResources']);
         $t->same($fullPaths, $meta['epubMediaBagResources']);
-        $t->same('reader-media-bag-from-emitted-image-resources', $meta['epubMediaResourcePolicy']);
+        $t->same('reader-media-bag-from-emitted-local-media-resources', $meta['epubMediaResourcePolicy']);
         $t->same(3, $meta['epubMediaResourceCount']);
         $t->same([
             'epub-media-resource-loaded:OPS/images/check.gif',

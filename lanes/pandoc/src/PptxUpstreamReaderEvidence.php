@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 98;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 99;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'af3810fafe772015d0bd99a017ee537337b43f5a123ad1fc1e5c2504bc17f57a';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 42484;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '360511d9471bbf97ca7dd2864e440883963981e1624d2082b7e8f0139c19c1d2';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 37345;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -234,6 +234,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => 'fcd4183bbfebc6ecd4118786cf7bbc1fb760f2e385d6bbb9bab6031851557763',
             'pptxBytes' => 1533,
             'nativeBytes' => 103,
+        ],
+        'non-relationship-child-relationships' => [
+            'name' => 'generated non-Relationship child relationship parity',
+            'pptx' => 'pptx-reader/non-relationship-child-relationships.pptx',
+            'native' => 'pptx-reader/non-relationship-child-relationships.native',
+            'pairKey' => 'pptx-reader/non-relationship-child-relationships.pptx|pptx-reader/non-relationship-child-relationships.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/non-relationship-child-relationships.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/non-relationship-child-relationships.native',
+            'pptxSha256' => 'f528a1f1d7a380770ac34c583c0a9eb3279e895871d01bf1d707f3255c88addc',
+            'nativeSha256' => '2f44281be9a23ee4bcac11b033ee74320071e1ac1733d479051beffd19d49124',
+            'pptxBytes' => 1867,
+            'nativeBytes' => 247,
         ],
         'paragraphless-textbox' => [
             'name' => 'generated paragraphless text box skip parity',

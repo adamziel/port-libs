@@ -23,7 +23,7 @@ final class DelimitedTextUpstreamReaderEvidence
     public const EXPECTED_STATIC_CSV_ADJACENT_RST_FIXTURE_COUNT = 2;
     public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 66;
     public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 40;
-    public const EXPECTED_GENERATED_CSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT = 46;
+    public const EXPECTED_GENERATED_CSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT = 47;
     public const EXPECTED_GENERATED_TSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT = 28;
     public const EXPECTED_CSV_PARSER_OPTION_FIXTURE_COUNT = 9;
     public const REQUIRED_PANDOC_EXECUTABLE_VERSION = 'pandoc 3.10';
@@ -2207,6 +2207,7 @@ final class DelimitedTextUpstreamReaderEvidence
         'quoted-delimiter-boundaries',
         'quoted-unicode-doubled-quotes',
         'quoted-trailing-empty-field',
+        'partial-final-record',
         'quoted-final-space-whitespace',
     ];
 

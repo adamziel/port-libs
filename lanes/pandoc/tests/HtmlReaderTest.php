@@ -1635,6 +1635,22 @@ $tests['imports direct pandoc html paragraph blockquote tree construction as rep
         $t->same('After', $document->children[2]->attr('text'));
     };
 
+$tests['imports direct pandoc html nested paragraph tree construction as repaired paragraphs'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-nested-paragraph-tree-construction.html'));
+
+        $t->same('html', $document->attr('sourceFormat'));
+        $t->same(Html5Dom::htmlDocumentTreeConstructionBackend(), $document->attr('meta')['htmlTreeConstruction'] ?? null);
+        $t->same(
+            ['paragraph', 'paragraph', 'paragraph'],
+            array_map(static fn ($node): string => $node->type, $document->children)
+        );
+        $t->same(
+            ['one', 'two', 'three'],
+            array_map(static fn ($node): string => $node->attr('text'), $document->children)
+        );
+    };
+
 $tests['imports direct pandoc html paragraph hr tree construction as repaired blocks'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-paragraph-hr-tree-construction.html'));
