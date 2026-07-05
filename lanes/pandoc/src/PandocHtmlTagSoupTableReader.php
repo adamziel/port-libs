@@ -191,9 +191,11 @@ final class PandocHtmlTagSoupTableReader
         $this->index++;
         $captionInlines = [];
         $columnRecords = [];
+        $headAttrs = [];
         $headRows = [];
         $bodies = [];
         $implicitRows = [];
+        $footAttrs = [];
         $footRows = [];
         $invalid = false;
 
@@ -232,17 +234,20 @@ final class PandocHtmlTagSoupTableReader
                 continue;
             }
             if ($token->name === 'thead') {
+                $headAttrs = $this->pandocAttrs($token);
                 $headRows = $this->parseSectionRows('thead', true, $limit);
                 continue;
             }
             if ($token->name === 'tbody') {
                 $rows = $this->parseSectionRows('tbody', false, $limit);
                 if ($rows !== []) {
-                    $bodies[] = $this->tableBody($token, $rows);
+                    [$bodyHeadRows, $bodyRows] = $this->splitLeadingHeaderRows($rows);
+                    $bodies[] = $this->tableBody($token, $bodyRows, $bodyHeadRows);
                 }
                 continue;
             }
             if ($token->name === 'tfoot') {
+                $footAttrs = $this->pandocAttrs($token);
                 $footRows = $this->parseSectionRows('tfoot', false, $limit);
                 continue;
             }
@@ -263,8 +268,17 @@ final class PandocHtmlTagSoupTableReader
             return ['node' => null, 'invalid' => true];
         }
 
+        if ($headRows === [] && $implicitRows !== [] && $this->rowContainsOnlyHeaderCells($implicitRows[0])) {
+            $headRows[] = array_shift($implicitRows);
+        }
+
         if ($implicitRows !== []) {
-            $bodies[] = new AstNode('table_body', $this->tableBodyAttrs($implicitRows), $implicitRows);
+            [$bodyHeadRows, $bodyRows] = $this->splitLeadingHeaderRows($implicitRows);
+            $bodyAttrs = $this->tableBodyAttrs($bodyRows);
+            if ($bodyHeadRows !== []) {
+                $bodyAttrs['headRows'] = $bodyHeadRows;
+            }
+            $bodies[] = new AstNode('table_body', $bodyAttrs, $bodyRows);
         }
 
         $maxColumns = $this->tableColumnCount($headRows, $bodies, $footRows);
@@ -286,11 +300,11 @@ final class PandocHtmlTagSoupTableReader
         }
 
         $children = [
-            new AstNode('table_head', [], $headRows),
+            new AstNode('table_head', $headAttrs, $headRows),
             ...$bodies,
         ];
         if ($footRows !== []) {
-            $children[] = new AstNode('table_foot', [], $footRows);
+            $children[] = new AstNode('table_foot', $footAttrs, $footRows);
         }
 
         return ['node' => new AstNode('table', $attrs, $children), 'invalid' => false];
@@ -459,7 +473,10 @@ final class PandocHtmlTagSoupTableReader
             $this->index++;
         }
 
-        return $cells === [] ? null : new AstNode('table_row', ['header' => $header], $cells);
+        $attrs = $this->pandocAttrs($row);
+        $attrs['header'] = $header;
+
+        return $cells === [] ? null : new AstNode('table_row', $attrs, $cells);
     }
 
     private function parseCell(bool $header, int $limit, string $rowAlign, string $rowValign): AstNode
@@ -481,14 +498,6 @@ final class PandocHtmlTagSoupTableReader
             $attrs['align'] = $alignment;
         }
 
-        $valign = $this->tableVerticalAlignment($cell);
-        if ($valign === 'default') {
-            $valign = $rowValign;
-        }
-        if ($valign !== 'default') {
-            $attrs['valign'] = $valign;
-        }
-
         $colspan = $this->positiveSpan($this->attribute($cell, 'colspan'));
         if ($colspan > 1) {
             $attrs['colspan'] = $colspan;
@@ -506,14 +515,73 @@ final class PandocHtmlTagSoupTableReader
         }
 
         $this->index++;
-        $children = $this->parseInlinesUntil([$name], $limit);
+        $children = $this->parseCellChildren($name, $limit);
         $this->consumeClose($name);
-        $text = $this->plainTextFromInlines($children);
+        $text = $this->plainTextFromNodes($children);
         if ($text !== '') {
             $attrs['text'] = $text;
         }
 
         return new AstNode('table_cell', $attrs, $children);
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function parseCellChildren(string $cellName, int $limit): array
+    {
+        $blocks = [];
+        $pendingInlines = [];
+
+        while ($this->index < $limit && ($token = $this->current()) instanceof TagSoupTag) {
+            if ($token->type === TagSoupTag::CLOSE && $token->name === $cellName) {
+                break;
+            }
+            if ($this->skipIgnorableOrWhitespace($token)) {
+                continue;
+            }
+            if ($token->type === TagSoupTag::OPEN && $token->name === 'p') {
+                $this->flushPendingCellInlines($blocks, $pendingInlines);
+                $this->index++;
+                $inlines = $this->parseInlinesUntil(['p'], $limit);
+                $this->consumeClose('p');
+                $blocks[] = new AstNode('paragraph', ['text' => $this->plainTextFromInlines($inlines)], $inlines);
+                continue;
+            }
+            if ($token->type === TagSoupTag::TEXT) {
+                $this->appendInlines($pendingInlines, $this->textInlines($token->text));
+                $this->index++;
+                continue;
+            }
+            if ($token->type === TagSoupTag::OPEN) {
+                $this->appendInlines($pendingInlines, $this->parseOpenInline($token, $limit));
+                continue;
+            }
+
+            $this->index++;
+        }
+
+        if ($blocks === []) {
+            return $pendingInlines;
+        }
+
+        $this->flushPendingCellInlines($blocks, $pendingInlines);
+
+        return $blocks;
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @param list<AstNode> $inlines
+     */
+    private function flushPendingCellInlines(array &$blocks, array &$inlines): void
+    {
+        if ($inlines === []) {
+            return;
+        }
+
+        $blocks[] = new AstNode('paragraph', ['text' => $this->plainTextFromInlines($inlines)], $inlines);
+        $inlines = [];
     }
 
     /**
@@ -547,9 +615,43 @@ final class PandocHtmlTagSoupTableReader
     /**
      * @param list<AstNode> $rows
      */
-    private function tableBody(TagSoupTag $tbody, array $rows): AstNode
+    private function tableBody(TagSoupTag $tbody, array $rows, array $headRows = []): AstNode
     {
-        return new AstNode('table_body', array_merge($this->pandocAttrs($tbody), $this->tableBodyAttrs($rows)), $rows);
+        $attrs = array_merge($this->pandocAttrs($tbody), $this->tableBodyAttrs($rows));
+        if ($headRows !== []) {
+            $attrs['headRows'] = $headRows;
+        }
+
+        return new AstNode('table_body', $attrs, $rows);
+    }
+
+    /**
+     * @param list<AstNode> $rows
+     * @return array{0:list<AstNode>,1:list<AstNode>}
+     */
+    private function splitLeadingHeaderRows(array $rows): array
+    {
+        $headRows = [];
+        while ($rows !== [] && $this->rowContainsOnlyHeaderCells($rows[0])) {
+            $headRows[] = array_shift($rows);
+        }
+
+        return [$headRows, array_values($rows)];
+    }
+
+    private function rowContainsOnlyHeaderCells(AstNode $row): bool
+    {
+        if ($row->type !== 'table_row' || $row->children === []) {
+            return false;
+        }
+
+        foreach ($row->children as $cell) {
+            if ($cell->type !== 'table_cell' || $cell->attr('header') !== true) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -939,7 +1041,7 @@ final class PandocHtmlTagSoupTableReader
             $children = $this->parseInlinesUntil(['a'], $limit);
             $this->consumeClose('a');
             $href = $this->attribute($token, 'href');
-            if ($href !== '') {
+            if ($this->hasAttribute($token, 'href')) {
                 return [new AstNode('link', ['url' => $href, 'title' => $this->attribute($token, 'title')], $children)];
             }
 
@@ -1054,6 +1156,27 @@ final class PandocHtmlTagSoupTableReader
                 continue;
             }
             $text .= $this->plainTextFromInlines($inline->children);
+        }
+
+        return trim(preg_replace('/[ \t\f\v]+/', ' ', $text) ?? $text);
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function plainTextFromNodes(array $nodes): string
+    {
+        $text = '';
+        foreach ($nodes as $node) {
+            if ($node->type === 'text' || $node->type === 'code') {
+                $text .= (string) $node->attr('text', '');
+                continue;
+            }
+            if ($node->type === 'linebreak') {
+                $text .= "\n";
+                continue;
+            }
+            $text .= ' ' . $this->plainTextFromNodes($node->children);
         }
 
         return trim(preg_replace('/[ \t\f\v]+/', ' ', $text) ?? $text);
@@ -1187,6 +1310,17 @@ final class PandocHtmlTagSoupTableReader
         }
 
         return '';
+    }
+
+    private function hasAttribute(TagSoupTag $tag, string $name): bool
+    {
+        foreach ($tag->attributes as $attribute) {
+            if (strtolower($attribute['name']) === $name) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

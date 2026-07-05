@@ -135,6 +135,80 @@ return [
         $t->same('/x', $document->children[1]->children[3]->attr('url'));
     },
 
+    'opt-in html reader backend imports upstream document metadata through tagsoup token stream' => static function (TestRunner $t): void {
+        $document = (new HtmlReader(['htmlReaderBackend' => 'tagsoup-pandoc-port']))->read(<<<'HTML'
+<html lang="es"><head>
+<title> HTML   Metadata </title>
+<meta name="keywords" content="one">
+<meta name="keywords" content="two">
+<meta name="Empty" content="">
+<meta name="spaced" content="  keep  ">
+</head><body xml:lang="pt-BR"><p>ola</p></body></html>
+HTML);
+        $meta = $document->attr('meta');
+
+        $t->same('pt-BR', $meta['lang'] ?? null);
+        $t->same('HTML Metadata', $meta['title'] ?? null);
+        $t->same(['one', 'two'], $meta['keywords'] ?? null);
+        $t->same('', $meta['Empty'] ?? null);
+        $t->same('  keep  ', $meta['spaced'] ?? null);
+        $t->true(!array_key_exists('empty', $meta));
+        $t->same('ola', $document->children[0]->attr('text'));
+    },
+
+    'opt-in html reader backend imports ordered list style sources through tagsoup token stream' => static function (TestRunner $t): void {
+        $document = (new HtmlReader(['htmlReaderBackend' => 'tagsoup-pandoc-port']))->read(
+            '<ol></ol><ol type="i"></ol><ol type="A"></ol><ol type="1"></ol>'
+            . '<ol class="lower-roman"></ol><ol style="lower-roman"></ol>'
+            . '<ol style="list-style: upper-alpha;"></ol><ol style="list-style-type: upper-roman;"></ol>'
+        );
+
+        $t->same([
+            'default',
+            'lower_roman',
+            'upper_alpha',
+            'decimal',
+            'lower_roman',
+            'default',
+            'upper_alpha',
+            'upper_roman',
+        ], array_map(static fn (AstNode $node): mixed => $node->attr('style'), $document->children));
+    },
+
+    'opt-in html reader backend preserves present empty href anchors as links' => static function (TestRunner $t): void {
+        $document = (new HtmlReader(['htmlReaderBackend' => 'tagsoup-pandoc-port']))->read(
+            '<p><a href="">Empty</a>.</p><table><tbody><tr><td><a href="">Cell</a></td></tr></tbody></table>'
+        );
+
+        $paragraphLink = $document->children[0]->children[0];
+        $tableLink = $document->children[1]->children[1]->children[0]->children[0]->children[0];
+
+        $t->same('link', $paragraphLink->type);
+        $t->same('', $paragraphLink->attr('url'));
+        $t->same('Empty', $paragraphLink->children[0]->attr('text'));
+        $t->same('link', $tableLink->type);
+        $t->same('', $tableLink->attr('url'));
+        $t->same('Cell', $tableLink->children[0]->attr('text'));
+    },
+
+    'opt-in html reader backend moves inline wrapper boundary whitespace like upstream' => static function (TestRunner $t): void {
+        $document = (new HtmlReader(['htmlReaderBackend' => 'tagsoup-pandoc-port']))->read(
+            '<p>text<em> Leading space</em></p>'
+            . '<p><em>Trailing space </em>text</p>'
+            . '<p>Empty <strong></strong> and <em></em>.</p>'
+        );
+
+        $t->same('text ', $document->children[0]->children[0]->attr('text'));
+        $t->same('emph', $document->children[0]->children[1]->type);
+        $t->same('Leading space', $document->children[0]->children[1]->children[0]->attr('text'));
+        $t->same('Trailing space', $document->children[1]->children[0]->children[0]->attr('text'));
+        $t->same(' text', $document->children[1]->children[1]->attr('text'));
+        $t->same('strong', $document->children[2]->children[1]->type);
+        $t->same([], $document->children[2]->children[1]->children);
+        $t->same('emph', $document->children[2]->children[3]->type);
+        $t->same([], $document->children[2]->children[3]->children);
+    },
+
     'opt-in tagsoup backend matches every checked-in html native fixture pair' => static function (TestRunner $t): void {
         $root = dirname(__DIR__) . '/fixtures';
         $harness = new HtmlNativeAstComparisonHarness();

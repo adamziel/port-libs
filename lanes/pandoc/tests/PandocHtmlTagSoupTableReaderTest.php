@@ -50,6 +50,77 @@ return [
         $t->same([], $reader->parseTableBlocks($tokens), 'empty tables should not emit AST blocks');
     },
 
+    'promotes first implicit all-th row to table head like upstream' => static function (TestRunner $t): void {
+        $reader = new PandocHtmlTagSoupTableReader();
+        $result = $reader->parseFirstTable($reader->tokenize(
+            '<table><tr><th>X</th><th>Y</th></tr><tr><td>1</td><td>2</td></tr></table>'
+        ));
+
+        $t->true(is_array($result));
+        $table = $result['table'] ?? null;
+        $t->true($table instanceof AstNode);
+        $t->same('table_head', $table->children[0]->type);
+        $t->same(1, count($table->children[0]->children));
+        $t->same('X', $table->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('table_body', $table->children[1]->type);
+        $t->same(1, count($table->children[1]->children));
+        $t->same('1', $table->children[1]->children[0]->children[0]->attr('text'));
+    },
+
+    'stores leading tbody all-th rows as body head rows like upstream' => static function (TestRunner $t): void {
+        $reader = new PandocHtmlTagSoupTableReader();
+        $result = $reader->parseFirstTable($reader->tokenize(
+            '<table><tbody><tr><th>X</th><th>Y</th></tr><tr><td>1</td><td>2</td></tr></tbody></table>'
+        ));
+
+        $t->true(is_array($result));
+        $table = $result['table'] ?? null;
+        $t->true($table instanceof AstNode);
+        $body = $table->children[1];
+        $t->same('table_body', $body->type);
+        $t->same(1, count($body->attr('headRows')));
+        $t->same('X', $body->attr('headRows')[0]->children[0]->attr('text'));
+        $t->same(1, count($body->children));
+        $t->same('1', $body->children[0]->children[0]->attr('text'));
+    },
+
+    'preserves explicit paragraph blocks inside table cells like upstream' => static function (TestRunner $t): void {
+        $reader = new PandocHtmlTagSoupTableReader();
+        $result = $reader->parseFirstTable($reader->tokenize(
+            '<table><tr><td>1</td><td><p>2</p></td><td>3</td></tr></table>'
+        ));
+
+        $t->true(is_array($result));
+        $table = $result['table'] ?? null;
+        $t->true($table instanceof AstNode);
+        $cell = $table->children[1]->children[0]->children[1];
+        $t->same('table_cell', $cell->type);
+        $t->same('paragraph', $cell->children[0]->type);
+        $t->same('2', $cell->children[0]->children[0]->attr('text'));
+    },
+
+    'preserves table section row and cell attributes like upstream' => static function (TestRunner $t): void {
+        $reader = new PandocHtmlTagSoupTableReader();
+        $result = $reader->parseFirstTable($reader->tokenize(<<<'HTML'
+<table id="attrib-test-table">
+  <thead class="table-head"><tr class="table-head-row"><th abbr="x" colspan="3">Cat X</th></tr></thead>
+  <tbody data-part="body" class="main"><tr data-part="row"><td data-part="cell">1</td><td valign="bottom">2</td><td style="color: #151950">3</td></tr></tbody>
+  <tfoot class="summary"><tr bgcolor="#ccc"><td data-square="true">4</td><td>5</td><td>6</td></tr></tfoot>
+</table>
+HTML));
+
+        $t->true(is_array($result));
+        $table = $result['table'] ?? null;
+        $t->true($table instanceof AstNode);
+        $t->same(['table-head'], $table->children[0]->attr('classes'));
+        $t->same(['table-head-row'], $table->children[0]->children[0]->attr('classes'));
+        $t->same(['part' => 'row'], $table->children[1]->children[0]->attr('attributes'));
+        $t->same(['valign' => 'bottom'], $table->children[1]->children[0]->children[1]->attr('attributes'));
+        $t->same(null, $table->children[1]->children[0]->children[1]->attr('valign'));
+        $t->same(['summary'], $table->children[2]->attr('classes'));
+        $t->same(['bgcolor' => '#ccc'], $table->children[2]->children[0]->attr('attributes'));
+    },
+
     'degrades invalid table children and foster-parent text fixtures to paragraphs' => static function (TestRunner $t): void {
         $reader = new PandocHtmlTagSoupTableReader();
         $harness = new HtmlNativeAstComparisonHarness();

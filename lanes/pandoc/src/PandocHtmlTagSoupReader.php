@@ -30,6 +30,7 @@ final class PandocHtmlTagSoupReader
         $parser = new TagSoupParser();
         $tokens = TagSoupParser::canonicalizeTags($parser->parse($html));
         $this->htmlBaseHref = $this->firstBaseHref($tokens);
+        $documentMeta = $this->documentMetadataFromTokens($tokens);
         $this->footnotes = (new PandocHtmlTagSoupTableReader())->footnoteDefinitionsFromTokens($tokens);
         $this->tokens = $this->focusFirstMainElement($tokens);
         $this->index = 0;
@@ -41,14 +42,14 @@ final class PandocHtmlTagSoupReader
 
         return new AstNode('document', [
             'sourceFormat' => 'html',
-            'meta' => [
+            'meta' => array_replace($documentMeta, [
                 'sourceFormat' => 'html',
                 'reader' => self::class,
                 'readerScope' => 'tagsoup-pandoc-html-reader-port-in-progress',
                 'htmlTokenizer' => TagSoupParser::class,
                 'sourceBytes' => strlen($html),
                 'sourceSha256' => hash('sha256', $html),
-            ],
+            ]),
         ], $blocks);
     }
 
@@ -334,7 +335,7 @@ final class PandocHtmlTagSoupReader
         $attrs = $ordered
             ? [
                 'start' => (int) ($this->attribute($list, 'start') ?: 1),
-                'style' => $this->orderedListStyle($this->attribute($list, 'type')),
+                'style' => $this->orderedListStyle($list),
                 'delimiter' => 'default',
             ]
             : [];
@@ -423,15 +424,76 @@ final class PandocHtmlTagSoupReader
         return [];
     }
 
-    private function orderedListStyle(string $type): string
+    private function orderedListStyle(TagSoupTag $list): string
+    {
+        $type = $this->orderedListStyleFromType($this->attribute($list, 'type'));
+        if ($type !== 'default') {
+            return $type;
+        }
+
+        foreach ($this->classes($list) as $class) {
+            $style = $this->orderedListStyleFromCssValue($class);
+            if ($style !== 'default') {
+                return $style;
+            }
+        }
+
+        foreach ($this->orderedListStyleDeclarations($this->attribute($list, 'style')) as $value) {
+            $style = $this->orderedListStyleFromCssValue($value);
+            if ($style !== 'default') {
+                return $style;
+            }
+        }
+
+        return 'default';
+    }
+
+    private function orderedListStyleFromType(string $type): string
     {
         return match ($type) {
             'A' => 'upper_alpha',
             'a' => 'lower_alpha',
             'I' => 'upper_roman',
             'i' => 'lower_roman',
+            '1' => 'decimal',
             default => 'default',
         };
+    }
+
+    private function orderedListStyleFromCssValue(string $value): string
+    {
+        return match (strtolower(trim($value))) {
+            'decimal' => 'decimal',
+            'lower-alpha' => 'lower_alpha',
+            'upper-alpha' => 'upper_alpha',
+            'lower-roman' => 'lower_roman',
+            'upper-roman' => 'upper_roman',
+            default => 'default',
+        };
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function orderedListStyleDeclarations(string $style): array
+    {
+        $values = [];
+        foreach (explode(';', $style) as $declaration) {
+            $declaration = trim($declaration);
+            if ($declaration === '') {
+                continue;
+            }
+            if (!str_contains($declaration, ':')) {
+                continue;
+            }
+
+            [$property, $value] = array_map('trim', explode(':', $declaration, 2));
+            if ($property === 'list-style-type' || $property === 'list-style') {
+                $values[] = $value;
+            }
+        }
+
+        return $values;
     }
 
     private function parseDefinitionListBlock(TagSoupTag $list): AstNode
@@ -626,7 +688,7 @@ final class PandocHtmlTagSoupReader
      * @param list<string> $stopTags
      * @return list<AstNode>
      */
-    private function parseInlinesUntil(array $stopTags, bool $stopBeforeBlock = false): array
+    private function parseInlinesUntil(array $stopTags, bool $stopBeforeBlock = false, bool $trimBoundary = true): array
     {
         $inlines = [];
         while (($token = $this->current()) instanceof TagSoupTag) {
@@ -693,7 +755,7 @@ final class PandocHtmlTagSoupReader
             $this->index++;
         }
 
-        return $this->normalizeInlineText($inlines);
+        return $this->normalizeInlineText($inlines, $trimBoundary);
     }
 
     /**
@@ -710,18 +772,18 @@ final class PandocHtmlTagSoupReader
 
         if ($name === 'em' || $name === 'i') {
             $this->index++;
-            $children = $this->parseInlinesUntil([$name]);
+            $children = $this->parseInlinesUntil([$name], trimBoundary: false);
             $this->consumeClose($name);
 
-            return [new AstNode('emph', [], $children)];
+            return $this->inlineWrapperWithBoundaryWhitespace('emph', [], $children);
         }
 
         if ($name === 'strong' || $name === 'b') {
             $this->index++;
-            $children = $this->parseInlinesUntil([$name]);
+            $children = $this->parseInlinesUntil([$name], trimBoundary: false);
             $this->consumeClose($name);
 
-            return [new AstNode('strong', [], $children)];
+            return $this->inlineWrapperWithBoundaryWhitespace('strong', [], $children);
         }
 
         if ($name === 'code' || $name === 'tt') {
@@ -745,10 +807,10 @@ final class PandocHtmlTagSoupReader
 
         if ($name === 'kbd') {
             $this->index++;
-            $children = $this->parseInlinesUntil(['kbd']);
+            $children = $this->parseInlinesUntil(['kbd'], trimBoundary: false);
             $this->consumeClose('kbd');
 
-            return [new AstNode('span', $this->withPrependedClass($this->pandocAttrs($token), 'kbd'), $children)];
+            return $this->inlineWrapperWithBoundaryWhitespace('span', $this->withPrependedClass($this->pandocAttrs($token), 'kbd'), $children);
         }
 
         if ($name === 'a') {
@@ -761,10 +823,10 @@ final class PandocHtmlTagSoupReader
                 return [new AstNode('note', [], $this->footnotes[$id] ?? [])];
             }
             $this->index++;
-            $children = $this->parseInlinesUntil(['a']);
+            $children = $this->parseInlinesUntil(['a'], trimBoundary: false);
             $this->consumeClose('a');
             $url = $this->attribute($token, 'href');
-            if ($url === '') {
+            if (!$this->hasAttribute($token, 'href')) {
                 $attrs = $this->pandocAttrs($token, ['name']);
                 $nameAttr = trim($this->attribute($token, 'name'));
                 if ($nameAttr !== '' && !isset($attrs['id'])) {
@@ -777,13 +839,13 @@ final class PandocHtmlTagSoupReader
                     $attrs['htmlAttributes'] = $htmlAttributes;
                 }
                 if ($attrs !== []) {
-                    return [new AstNode('span', $attrs, $children)];
+                    return $this->inlineWrapperWithBoundaryWhitespace('span', $attrs, $children);
                 }
 
-                return $children;
+                return $this->normalizeInlineText($children);
             }
 
-            return [new AstNode('link', ['url' => $this->resolveHtmlUrl($url), 'title' => $this->attribute($token, 'title')], $children)];
+            return $this->inlineWrapperWithBoundaryWhitespace('link', ['url' => $this->resolveHtmlUrl($url), 'title' => $this->attribute($token, 'title')], $children);
         }
 
         if ($name === 'img') {
@@ -825,14 +887,14 @@ final class PandocHtmlTagSoupReader
 
         if ($name === 'bdo') {
             $this->index++;
-            $children = $this->parseInlinesUntil(['bdo']);
+            $children = $this->parseInlinesUntil(['bdo'], trimBoundary: false);
             $this->consumeClose('bdo');
             $dir = strtolower(trim($this->attribute($token, 'dir')));
             if ($dir === 'rtl' || $dir === 'ltr') {
-                return [new AstNode('span', ['attributes' => ['dir' => $dir]], $children)];
+                return $this->inlineWrapperWithBoundaryWhitespace('span', ['attributes' => ['dir' => $dir]], $children);
             }
 
-            return $children;
+            return $this->normalizeInlineText($children);
         }
 
         if ($name === 'cite' && $this->hasAnyAttribute($token)) {
@@ -895,33 +957,33 @@ final class PandocHtmlTagSoupReader
                 return $children;
             }
             $this->index++;
-            $children = $this->parseInlinesUntil(['span']);
+            $children = $this->parseInlinesUntil(['span'], trimBoundary: false);
             $this->consumeClose('span');
             if ($this->isSmallCapsSpan($token)) {
-                return [new AstNode('small_caps', [], $children)];
+                return $this->inlineWrapperWithBoundaryWhitespace('small_caps', [], $children);
             }
             $attrs = $this->pandocAttrs($token);
             if ($attrs !== []) {
-                return [new AstNode('span', $attrs, $children)];
+                return $this->inlineWrapperWithBoundaryWhitespace('span', $attrs, $children);
             }
 
-            return $children;
+            return $this->normalizeInlineText($children);
         }
 
         if ($name === 'small') {
             $this->index++;
-            $children = $this->parseInlinesUntil(['small']);
+            $children = $this->parseInlinesUntil(['small'], trimBoundary: false);
             $this->consumeClose('small');
 
-            return [new AstNode('span', ['classes' => ['small']], $children)];
+            return $this->inlineWrapperWithBoundaryWhitespace('span', ['classes' => ['small']], $children);
         }
 
         if ($name === 'mark' || $name === 'abbr' || $name === 'dfn') {
             $this->index++;
-            $children = $this->parseInlinesUntil([$name]);
+            $children = $this->parseInlinesUntil([$name], trimBoundary: false);
             $this->consumeClose($name);
 
-            return [new AstNode('span', $this->withPrependedClass($this->pandocAttrs($token), $name), $children)];
+            return $this->inlineWrapperWithBoundaryWhitespace('span', $this->withPrependedClass($this->pandocAttrs($token), $name), $children);
         }
 
         if ($name === 'q') {
@@ -930,26 +992,26 @@ final class PandocHtmlTagSoupReader
 
         if ($name === 'sub' || $name === 'sup') {
             $this->index++;
-            $children = $this->parseInlinesUntil([$name]);
+            $children = $this->parseInlinesUntil([$name], trimBoundary: false);
             $this->consumeClose($name);
 
-            return [new AstNode($name === 'sub' ? 'subscript' : 'superscript', $this->pandocAttrs($token), $children)];
+            return $this->inlineWrapperWithBoundaryWhitespace($name === 'sub' ? 'subscript' : 'superscript', $this->pandocAttrs($token), $children);
         }
 
         if ($name === 'u' || $name === 'ins') {
             $this->index++;
-            $children = $this->parseInlinesUntil([$name]);
+            $children = $this->parseInlinesUntil([$name], trimBoundary: false);
             $this->consumeClose($name);
 
-            return [new AstNode('underline', $this->pandocAttrs($token, ['cite', 'datetime']), $children)];
+            return $this->inlineWrapperWithBoundaryWhitespace('underline', $this->pandocAttrs($token, ['cite', 'datetime']), $children);
         }
 
         if ($name === 's' || $name === 'del' || $name === 'strike') {
             $this->index++;
-            $children = $this->parseInlinesUntil([$name]);
+            $children = $this->parseInlinesUntil([$name], trimBoundary: false);
             $this->consumeClose($name);
 
-            return [new AstNode('strikeout', $this->pandocAttrs($token, ['cite', 'datetime']), $children)];
+            return $this->inlineWrapperWithBoundaryWhitespace('strikeout', $this->pandocAttrs($token, ['cite', 'datetime']), $children);
         }
 
         if ($name === 'script') {
@@ -1161,6 +1223,110 @@ final class PandocHtmlTagSoupReader
     private function resolveHtmlUrl(string $url): string
     {
         return XmlHtmlDom::resolveHtmlResourceUrlReference($url, $this->htmlBaseHref) ?? $url;
+    }
+
+    /**
+     * @param list<TagSoupTag> $tokens
+     * @return array<string, mixed>
+     */
+    private function documentMetadataFromTokens(array $tokens): array
+    {
+        $meta = [];
+        $insideHead = false;
+        $titleDepth = 0;
+        $titleText = '';
+
+        foreach ($tokens as $token) {
+            if (!$token instanceof TagSoupTag) {
+                continue;
+            }
+
+            if ($token->type === TagSoupTag::OPEN && ($token->name === 'html' || $token->name === 'body')) {
+                $lang = $this->tagLanguage($token);
+                if ($lang !== '') {
+                    $meta['lang'] = $lang;
+                }
+            }
+
+            if ($insideHead && $titleDepth > 0) {
+                if ($token->type === TagSoupTag::TEXT) {
+                    $titleText .= $token->text;
+                    continue;
+                }
+                if ($token->type === TagSoupTag::OPEN && $token->name === 'title') {
+                    ++$titleDepth;
+                    continue;
+                }
+                if ($token->type === TagSoupTag::CLOSE && $token->name === 'title') {
+                    --$titleDepth;
+                    if ($titleDepth <= 0) {
+                        $title = trim(preg_replace('/\s+/', ' ', $titleText) ?? $titleText);
+                        if ($title !== '') {
+                            $meta['title'] = $title;
+                        }
+                        $titleText = '';
+                    }
+                    continue;
+                }
+            }
+
+            if ($token->type === TagSoupTag::OPEN && $token->name === 'head') {
+                $insideHead = true;
+                continue;
+            }
+            if ($token->type === TagSoupTag::CLOSE && $token->name === 'head') {
+                $insideHead = false;
+                continue;
+            }
+            if (!$insideHead || $token->type !== TagSoupTag::OPEN) {
+                continue;
+            }
+
+            if ($token->name === 'title') {
+                $titleDepth = 1;
+                $titleText = '';
+                continue;
+            }
+
+            if ($token->name === 'meta') {
+                $name = $this->attribute($token, 'name');
+                if ($name !== '') {
+                    $this->appendDocumentMetadataField($meta, $name, $this->attribute($token, 'content'));
+                }
+            }
+        }
+
+        return $meta;
+    }
+
+    private function tagLanguage(TagSoupTag $token): string
+    {
+        $lang = $this->attribute($token, 'lang');
+        if ($lang !== '') {
+            return $lang;
+        }
+
+        return $this->attribute($token, 'xml:lang');
+    }
+
+    /**
+     * @param array<string, mixed> $meta
+     */
+    private function appendDocumentMetadataField(array &$meta, string $name, string $content): void
+    {
+        if (!array_key_exists($name, $meta)) {
+            $meta[$name] = $content;
+            return;
+        }
+
+        $existing = $meta[$name];
+        if (is_array($existing) && array_is_list($existing)) {
+            $existing[] = $content;
+            $meta[$name] = $existing;
+            return;
+        }
+
+        $meta[$name] = [$existing, $content];
     }
 
     private function rawHtmlInline(string $html): AstNode
@@ -1989,7 +2155,7 @@ final class PandocHtmlTagSoupReader
      * @param list<AstNode> $inlines
      * @return list<AstNode>
      */
-    private function normalizeInlineText(array $inlines): array
+    private function normalizeInlineText(array $inlines, bool $trimBoundary = true): array
     {
         $normalized = [];
         foreach ($inlines as $inline) {
@@ -2014,21 +2180,50 @@ final class PandocHtmlTagSoupReader
             $normalized[] = $inline;
         }
 
-        if ($normalized !== [] && $normalized[0]->type === 'text') {
-            $normalized[0] = new AstNode('text', ['text' => ltrim((string) $normalized[0]->attr('text', ''))]);
-            if ($normalized[0]->attr('text', '') === '') {
-                array_shift($normalized);
+        if ($trimBoundary) {
+            if ($normalized !== [] && $normalized[0]->type === 'text') {
+                $normalized[0] = new AstNode('text', ['text' => ltrim((string) $normalized[0]->attr('text', ''))]);
+                if ($normalized[0]->attr('text', '') === '') {
+                    array_shift($normalized);
+                }
             }
-        }
-        $lastIndex = array_key_last($normalized);
-        if ($lastIndex !== null && $normalized[$lastIndex]->type === 'text') {
-            $normalized[$lastIndex] = new AstNode('text', ['text' => rtrim((string) $normalized[$lastIndex]->attr('text', ''))]);
-            if ($normalized[$lastIndex]->attr('text', '') === '') {
-                array_pop($normalized);
+            $lastIndex = array_key_last($normalized);
+            if ($lastIndex !== null && $normalized[$lastIndex]->type === 'text') {
+                $normalized[$lastIndex] = new AstNode('text', ['text' => rtrim((string) $normalized[$lastIndex]->attr('text', ''))]);
+                if ($normalized[$lastIndex]->attr('text', '') === '') {
+                    array_pop($normalized);
+                }
             }
         }
 
         return array_values($normalized);
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     * @param list<AstNode> $children
+     * @return list<AstNode>
+     */
+    private function inlineWrapperWithBoundaryWhitespace(string $type, array $attrs, array $children): array
+    {
+        $first = $children[0] ?? null;
+        $last = $children === [] ? null : $children[array_key_last($children)];
+        $hasLeadingSpace = $first instanceof AstNode
+            && $first->type === 'text'
+            && preg_match('/^\s/u', (string) $first->attr('text', '')) === 1;
+        $hasTrailingSpace = $last instanceof AstNode
+            && $last->type === 'text'
+            && preg_match('/\s$/u', (string) $last->attr('text', '')) === 1;
+        $result = [];
+        if ($hasLeadingSpace) {
+            $result[] = new AstNode('text', ['text' => ' ']);
+        }
+        $result[] = new AstNode($type, $attrs, $this->normalizeInlineText($children));
+        if ($hasTrailingSpace) {
+            $result[] = new AstNode('text', ['text' => ' ']);
+        }
+
+        return $result;
     }
 
     /**
