@@ -160,6 +160,18 @@ $tests['does not route public html input through markdown raw html tokenization'
         );
     };
 
+$tests['maps invalid html input c1 bytes like pandoc text parsing'] =
+    static function (TestRunner $t): void {
+        $bytes = '<p>A' . chr(0x80) . 'B' . chr(0x81) . 'C' . chr(0x82) . 'D' . chr(0x85) . 'E' . chr(0x8d) . 'F' . chr(0x9f) . 'G</p>';
+        $document = (new HtmlReader())->read($bytes);
+        $paragraph = $document->children[0];
+
+        $t->same('Dom\\HTMLDocument', $document->attr('meta')['htmlTreeConstruction'] ?? null);
+        $t->same(['paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same('A€B?C‚D…E?FŸG', $paragraph->attr('text'));
+        $t->same('A€B?C‚D…E?FŸG', $paragraph->children[0]->attr('text'));
+    };
+
 $tests['keeps html tree construction centralized through Html5Dom'] =
     static function (TestRunner $t) use ($methodBody): void {
         $sourceRoot = dirname(__DIR__) . '/src';
@@ -623,7 +635,7 @@ $tests['imports direct pandoc html inline fallback content containers without ra
 
 $tests['can preserve html inline raw wrappers for epub-compatible content reads'] =
     static function (TestRunner $t): void {
-        $document = (new HtmlReader(['htmlStripRawInlineWrappers' => false]))
+        $document = (new HtmlReader(['htmlRawHtml' => true, 'htmlStripRawInlineWrappers' => false]))
             ->read('<p>At <time class="release">TBD</time>.</p>');
         $paragraph = $document->children[0];
 
@@ -639,7 +651,7 @@ $tests['can preserve html inline raw wrappers for epub-compatible content reads'
 
 $tests['preserves textarea raw block source newline after HTMLDocument tree construction'] =
     static function (TestRunner $t) use ($fixture): void {
-        $document = (new HtmlReader())->read($fixture('upstream-html-textarea-raw-block.html'));
+        $document = (new HtmlReader(['htmlRawHtml' => true]))->read($fixture('upstream-html-textarea-raw-block.html'));
         $rawBlock = $document->children[1];
         $expected = '<textarea id="legacy-packet" class="source-payload" data-source="batch-42">'
             . "\n"
@@ -896,10 +908,12 @@ $tests['imports html figure with single image body in pandoc native shape'] =
             '<figure id="chart-figure"><img src="images/chart.png" alt="Quarterly chart"><figcaption>Quarterly chart caption.</figcaption></figure>'
         );
         $figure = $document->children[0];
-        $image = $figure->children[0];
+        $plain = $figure->children[0];
+        $image = $plain->children[0];
 
         $t->same(['figure'], array_map(static fn ($node): string => $node->type, $document->children));
-        $t->same(['image'], array_map(static fn ($node): string => $node->type, $figure->children));
+        $t->same(['plain'], array_map(static fn ($node): string => $node->type, $figure->children));
+        $t->same(['image'], array_map(static fn ($node): string => $node->type, $plain->children));
         $t->same('chart-figure', $figure->attr('id'));
         $t->same('Quarterly chart caption.', $figure->attr('caption'));
         $t->same('images/chart.png', $image->attr('url'));

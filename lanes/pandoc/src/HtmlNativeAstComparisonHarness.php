@@ -10,9 +10,23 @@ final class HtmlNativeAstComparisonHarness
     private const VERDICT = 'normalized-ast-comparison-not-full-html-parity';
     private const CLAIM = 'Compares local PHP HTML reader output with paired .native fixtures by normalized AST shape; reader provenance, table review metadata, and NativeReader constructor provenance are excluded, but no upstream Haskell runner or full HTML5 tree-construction parity is asserted.';
     private const FIXTURE_INVENTORY_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
-    private const CHECKED_IN_FIXTURE_INVENTORY_SIGNATURE_SHA256 = '4a3ff0c6a8d20ad403d6d200c352a21b813dc6bb98399136f1625588776ecd11';
+    private const CHECKED_IN_FIXTURE_INVENTORY_SIGNATURE_SHA256 = '1e060214695c37e94ae32c93feed595683fda66e2e11546ed5147a4231d731a4';
     private const HTML_READER_OPTIONS_BY_BASENAME = [
+        'upstream-html-cite-wbr-raw-inline' => ['htmlRawHtml' => true],
+        'upstream-html-generic-raw-inline' => ['htmlRawHtml' => true],
         'upstream-html-raw-disabled-skip' => ['htmlRawHtml' => false],
+        'upstream-html-script-raw-block' => ['htmlRawHtml' => true],
+        'upstream-html-standalone-applet-inline' => ['htmlRawHtml' => true],
+        'upstream-html-standalone-button-inline' => ['htmlRawHtml' => true],
+        'upstream-html-standalone-inline-flow' => ['htmlRawHtml' => true],
+        'upstream-html-standalone-map-inline' => ['htmlRawHtml' => true],
+        'upstream-html-standalone-noscript-inline' => ['htmlRawHtml' => true],
+        'upstream-html-standalone-object-embed-inline' => ['htmlRawHtml' => true],
+        'upstream-html-standalone-svg-inline' => ['htmlRawHtml' => true],
+        'upstream-html-standalone-void-inline' => ['htmlRawHtml' => true],
+        'upstream-html-svg-disabled-raw-html' => ['htmlRawHtml' => true],
+        'upstream-html-svg-raw-html' => ['htmlRawHtml' => true],
+        'upstream-html-textarea-raw-block' => ['htmlRawHtml' => true],
     ];
     private const HTMLDOCUMENT_MAPPED_PAIR_EXCLUSIONS = [];
 

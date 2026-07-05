@@ -3907,7 +3907,7 @@ return [
 );
 
         $expectedPackageFeatureSignatureSha256 = '5a3753f72c22cbcd34bb3024bed0b648ece3ec5d366dde320f83d27e98800c9b';
-        $expectedCurrentNativeAstSignatureSha256 = '4a7f61ae9b40489c66917acfd7da890fa0b7824b2560306c8f02793e5a08ebcf';
+        $expectedCurrentNativeAstSignatureSha256 = 'febb26d07147f5ed01e222cb31995c6b444e382d41fa8ab8bdb236ff2786eecf';
         $expectedCurrentNativeAstFixtures = array (
   0 => 'accessibility-metadata-package',
   1 => 'all-nonlinear-spine',

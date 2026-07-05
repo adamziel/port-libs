@@ -1,4 +1,31 @@
-[ Para [ Str "Inline" , Space , Str "style" , Space , Str "and" , Space , Str "script" , Space , Str "text" , Space , Str "remains." ]
-, Plain [ Math DisplayMath "\\alpha + \\omega" ]
-, Para [ Str "After" , Space , Str "raw" , Space , Str "payloads." ]
+[ Para
+    [ Str "Inline"
+    , Space
+    , RawInline
+        (Format "html")
+        "<style>.legacy-inline { color: red; }</style>"
+    , Str "style"
+    , Space
+    , Str "and"
+    ]
+, Para
+    [ Str "script"
+    , Space
+    , Str "text"
+    , Space
+    , Str "remains."
+    ]
+, Para
+    [ RawInline
+        (Format "html")
+        "<style id=\"legacy-theme-css\" data-source=\"batch-42\">\n.legacy-card { border: 1px solid #ddd; }\n</style>"
+    ]
+, Para [ Math DisplayMath "\\alpha + \\omega" ]
+, Para
+    [ Str "After"
+    , Space
+    , Str "raw"
+    , Space
+    , Str "payloads."
+    ]
 ]

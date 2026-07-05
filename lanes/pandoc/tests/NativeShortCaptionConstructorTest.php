@@ -32,8 +32,8 @@ NATIVE;
         $t->same('Legacy short', $legacy->attr('shortCaption'));
         $t->same('Legacy caption', $legacy->attr('caption'));
 
-        $t->contains('(Just (ShortCaption [ Str "Queue" , Space , Str "short" ]))', $nativeText);
-        $t->contains('(Just (ShortCaption [ Str "Legacy" , Space , Str "short" ]))', $nativeText);
+        $t->contains('(Just [ Str "Queue" , Space , Str "short" ])', $nativeText);
+        $t->contains('(Just [ Str "Legacy" , Space , Str "short" ])', $nativeText);
         $t->same('Queue short', $roundTrip->children[0]->attr('shortCaption'));
         $t->same('Legacy short', $roundTrip->children[1]->attr('shortCaption'));
 

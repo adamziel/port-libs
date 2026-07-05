@@ -1733,6 +1733,7 @@ final class EpubReader
             'htmlImplicitHeadingIds' => false,
             'htmlPlainInlineBlocks' => true,
             'htmlPreserveSoftBreaks' => true,
+            'htmlRawHtml' => true,
             'htmlConsumeFootnoteContainers' => false,
             'htmlStripRawInlineWrappers' => false,
             'htmlFlattenDetailsSummaryContainers' => false,

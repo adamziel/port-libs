@@ -135,6 +135,8 @@ final class MarkdownReader
     /** @var array<string, list<string>> */
     private array $htmlRawElementSourceQueues = [];
 
+    private bool $htmlScriptMathBlockAsParagraph = false;
+
     /**
      * @var \SplObjectStorage<\DOMElement, array{blocks:list<AstNode>, fosteredBlocks:list<AstNode>}>|null
      */
@@ -6063,11 +6065,24 @@ final class MarkdownReader
 
             if ($child instanceof \DOMElement && $this->isHtmlBlockElement($child)) {
                 $this->flushHtmlInlineParagraph($inlines, $blocks);
+                if (strtolower($child->localName) === 'p') {
+                    $splitParagraphBlocks = $this->htmlParagraphBlocksSplitByDisabledRawScript($child);
+                    if ($splitParagraphBlocks !== null) {
+                        array_push($blocks, ...$splitParagraphBlocks);
+                        continue;
+                    }
+                }
                 if ($this->htmlEpubExtensionsEnabled() && strtolower($child->localName) === 'switch') {
                     array_push($blocks, ...$this->parseHtmlEpubSwitchBlocks($child));
                     continue;
                 }
-                $block = $this->parseHtmlBlockElement($child);
+                $previousHtmlScriptMathBlockAsParagraph = $this->htmlScriptMathBlockAsParagraph;
+                $this->htmlScriptMathBlockAsParagraph = $this->htmlScriptMathBlockHasBlockSibling($child);
+                try {
+                    $block = $this->parseHtmlBlockElement($child);
+                } finally {
+                    $this->htmlScriptMathBlockAsParagraph = $previousHtmlScriptMathBlockAsParagraph;
+                }
                 if ($block instanceof AstNode && !$this->isIgnorableHtmlDomRepairBlock($block)) {
                     $blocks[] = $block;
                 }
@@ -6080,6 +6095,35 @@ final class MarkdownReader
         $this->flushHtmlInlineParagraph($inlines, $blocks);
 
         return $blocks;
+    }
+
+    private function htmlScriptMathBlockHasBlockSibling(\DOMElement $element): bool
+    {
+        if (strtolower($element->localName) !== 'script' || $this->buildHtmlScriptMathNode($element) === null) {
+            return false;
+        }
+
+        $parent = $element->parentNode;
+        if (!$parent instanceof \DOMNode) {
+            return false;
+        }
+
+        foreach ($parent->childNodes as $sibling) {
+            if ($sibling === $element) {
+                continue;
+            }
+            if ($sibling instanceof \DOMText || $sibling instanceof \DOMCdataSection) {
+                if (trim($sibling->wholeText) !== '') {
+                    return true;
+                }
+                continue;
+            }
+            if ($sibling instanceof \DOMElement) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -6302,7 +6346,11 @@ final class MarkdownReader
         if ($name === 'script') {
             $math = $this->buildHtmlScriptMathNode($element);
             if ($math instanceof AstNode) {
-                return new AstNode('plain', ['text' => (string) $math->attr('text', '')], [$math]);
+                return new AstNode(
+                    $this->htmlScriptMathBlockAsParagraph ? 'paragraph' : 'plain',
+                    ['text' => (string) $math->attr('text', '')],
+                    [$math]
+                );
             }
 
             if (!$this->htmlRawHtmlEnabled()) {
@@ -6319,10 +6367,6 @@ final class MarkdownReader
             return $this->buildHtmlRawBlockNode($element);
         }
         if ($name === 'style') {
-            if (!$this->htmlRawHtmlEnabled()) {
-                return null;
-            }
-
             return new AstNode('paragraph', ['text' => ''], [$this->buildHtmlRawInlineNode($element)]);
         }
         if ($name === 'div' && $this->isHtmlLineBlockDiv($element)) {
@@ -6362,6 +6406,54 @@ final class MarkdownReader
             ['text' => $this->plainTextFromInlines($children)],
             $children
         );
+    }
+
+    /**
+     * @return list<AstNode>|null
+     */
+    private function htmlParagraphBlocksSplitByDisabledRawScript(\DOMElement $paragraph): ?array
+    {
+        if ($this->htmlRawHtmlEnabled()) {
+            return null;
+        }
+
+        $segments = [[]];
+        $split = false;
+        foreach ($paragraph->childNodes as $child) {
+            if (
+                $child instanceof \DOMElement
+                && strtolower($child->localName) === 'script'
+                && $this->buildHtmlScriptMathNode($child) === null
+            ) {
+                $split = true;
+                $lastIndex = count($segments) - 1;
+                $segments[$lastIndex] = $this->trimHtmlBoundarySoftBreaks($segments[$lastIndex]);
+                $segments[] = [];
+                continue;
+            }
+
+            $lastIndex = count($segments) - 1;
+            $this->appendHtmlInlineNodes($segments[$lastIndex], $this->parseHtmlInlineNode($child));
+        }
+
+        if (!$split) {
+            return null;
+        }
+
+        $blocks = [];
+        foreach ($segments as $segment) {
+            $segment = $this->trimHtmlBoundarySoftBreaks($segment);
+            if (!$this->htmlInlineNodesHaveVisibleContent($segment)) {
+                continue;
+            }
+            $blocks[] = new AstNode(
+                'paragraph',
+                ['text' => $this->plainTextFromInlines($segment)],
+                $segment
+            );
+        }
+
+        return $blocks;
     }
 
     private function isIgnorableHtmlDomRepairBlock(AstNode $block): bool
@@ -6553,17 +6645,7 @@ final class MarkdownReader
      */
     private function htmlFigureChildrenFromBlocks(array $blocks): array
     {
-        $children = [];
-        foreach ($blocks as $block) {
-            if ($block->type === 'plain' && count($block->children) === 1 && $block->children[0]->type === 'image') {
-                $children[] = $block->children[0];
-                continue;
-            }
-
-            $children[] = $block;
-        }
-
-        return $children;
+        return array_values($blocks);
     }
 
     private function buildHtmlIframeNode(\DOMElement $iframe): ?AstNode
@@ -9257,7 +9339,7 @@ final class MarkdownReader
     private function parseHtmlInlineNode(\DOMNode $node): array
     {
         if ($node instanceof \DOMText || $node instanceof \DOMCdataSection) {
-            $raw = $node->wholeText;
+            $raw = self::pandocHtmlTextFromDomText($node->wholeText);
             $trimmed = trim($raw);
             if ($trimmed === '') {
                 if (($this->options['htmlPreserveSoftBreaks'] ?? false) === true && preg_match('/\R/u', $raw) === 1) {
@@ -9304,7 +9386,7 @@ final class MarkdownReader
             return [$this->buildHtmlRawInlineNode($node)];
         }
         if ($name === 'style') {
-            return $this->htmlRawHtmlEnabled() ? [$this->buildHtmlRawInlineNode($node)] : [];
+            return [$this->buildHtmlRawInlineNode($node)];
         }
         if ($name === 'script') {
             $math = $this->buildHtmlScriptMathNode($node);
@@ -9451,6 +9533,44 @@ final class MarkdownReader
         }
 
         return $children;
+    }
+
+    private static function pandocHtmlTextFromDomText(string $text): string
+    {
+        return strtr($text, [
+            "\u{0080}" => "\u{20AC}",
+            "\u{0081}" => '?',
+            "\u{0082}" => "\u{201A}",
+            "\u{0083}" => "\u{0192}",
+            "\u{0084}" => "\u{201E}",
+            "\u{0085}" => "\u{2026}",
+            "\u{0086}" => "\u{2020}",
+            "\u{0087}" => "\u{2021}",
+            "\u{0088}" => "\u{02C6}",
+            "\u{0089}" => "\u{2030}",
+            "\u{008A}" => "\u{0160}",
+            "\u{008B}" => "\u{2039}",
+            "\u{008C}" => "\u{0152}",
+            "\u{008D}" => '?',
+            "\u{008E}" => "\u{017D}",
+            "\u{008F}" => '?',
+            "\u{0090}" => '?',
+            "\u{0091}" => "\u{2018}",
+            "\u{0092}" => "\u{2019}",
+            "\u{0093}" => "\u{201C}",
+            "\u{0094}" => "\u{201D}",
+            "\u{0095}" => "\u{2022}",
+            "\u{0096}" => "\u{2013}",
+            "\u{0097}" => "\u{2014}",
+            "\u{0098}" => "\u{02DC}",
+            "\u{0099}" => "\u{2122}",
+            "\u{009A}" => "\u{0161}",
+            "\u{009B}" => "\u{203A}",
+            "\u{009C}" => "\u{0153}",
+            "\u{009D}" => '?',
+            "\u{009E}" => "\u{017E}",
+            "\u{009F}" => "\u{0178}",
+        ]);
     }
 
     /**

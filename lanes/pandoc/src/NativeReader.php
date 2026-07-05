@@ -1008,7 +1008,7 @@ final class NativeReader
             );
         }
 
-        return new AstNode('figure', $attrs, $this->figureChildrenFromNativeBlocks($blocks));
+        return new AstNode('figure', $attrs, $blocks);
     }
 
     private function parseTable(): AstNode
@@ -2268,25 +2268,6 @@ final class NativeReader
             'SuppressAuthor' => 'suppress_author',
             default => 'normal',
         };
-    }
-
-    /**
-     * @param list<AstNode> $blocks
-     * @return list<AstNode>
-     */
-    private function figureChildrenFromNativeBlocks(array $blocks): array
-    {
-        $children = [];
-        foreach ($blocks as $block) {
-            if ($block->type === 'plain' && count($block->children) === 1 && $block->children[0]->type === 'image') {
-                $children[] = $block->children[0];
-                continue;
-            }
-
-            $children[] = $block;
-        }
-
-        return $children;
     }
 
     /**

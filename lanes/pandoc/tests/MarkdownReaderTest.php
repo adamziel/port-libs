@@ -13854,32 +13854,40 @@ HTML);
         $t->contains('<p>Migration note <span class="strikeout">remove the legacy shortcode</span> before publish.</p>', $fixtureBlocks);
         $t->contains('<p>Explicit markup <del>old caption</del> and <u>new caption</u> remain reviewable.</p>', $fixtureBlocks);
     },
-    'maps upstream html reader disabled raw html skip for style script and textarea' => static function (TestRunner $t): void {
+    'maps upstream html reader disabled raw html skip for scripts and textarea' => static function (TestRunner $t): void {
         $reader = new MarkdownReader(['htmlRawHtml' => false]);
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-html-raw-disabled-skip.html');
         $document = $reader->read($fixture);
-        $paragraph = $document->children[0] ?? new AstNode('missing');
-        $mathBlock = $document->children[1] ?? new AstNode('missing');
+        $beforeScript = $document->children[0] ?? new AstNode('missing');
+        $afterScript = $document->children[1] ?? new AstNode('missing');
+        $styleBlock = $document->children[2] ?? new AstNode('missing');
+        $mathBlock = $document->children[3] ?? new AstNode('missing');
         $math = $mathBlock->children[0] ?? new AstNode('missing');
-        $after = $document->children[2] ?? new AstNode('missing');
+        $after = $document->children[4] ?? new AstNode('missing');
         $native = (new NativeWriter(['blocksOnly' => true]))->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $t->same('HTML Raw Disabled Import', $document->attr('meta')['title'] ?? '');
-        $t->same(['paragraph', 'plain', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
-        $t->same('Inline style and script text remains.', $paragraph->attr('text'));
-        $t->same('plain', $mathBlock->type);
+        $t->same(['paragraph', 'paragraph', 'paragraph', 'paragraph', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
+        $t->same('Inline <style>.legacy-inline { color: red; }</style>style and', $beforeScript->attr('text'));
+        $t->same(['text', 'raw_html_inline', 'text'], array_map(static fn (AstNode $node): string => $node->type, $beforeScript->children));
+        $t->same('script text remains.', $afterScript->attr('text'));
+        $t->same(['raw_html_inline'], array_map(static fn (AstNode $node): string => $node->type, $styleBlock->children));
+        $t->contains('.legacy-card { border: 1px solid #ddd; }', $styleBlock->children[0]->attr('html'));
+        $t->same('paragraph', $mathBlock->type);
         $t->same('math', $math->type);
         $t->same(true, $math->attr('display'));
         $t->same('\alpha + \omega', $math->attr('text'));
         $t->same('After raw payloads.', $after->attr('text'));
         $t->true(!str_contains($native, 'RawBlock (Format "html")'), 'Disabled raw HTML import should not keep raw HTML blocks');
-        $t->true(!str_contains($native, 'RawInline (Format "html")'), 'Disabled raw HTML import should not keep raw HTML inlines');
+        $t->contains('RawInline (Format "html") "<style>.legacy-inline { color: red; }</style>"', $native);
+        $t->contains('RawInline (Format "html") "<style id=\\"legacy-theme-css\\" data-source=\\"batch-42\\">', $native);
         $t->contains('Math DisplayMath "\\\\alpha + \\\\omega"', $native);
-        $t->contains('<p>Inline style and script text remains.</p>', $blocks);
+        $t->contains('<p>Inline <style>.legacy-inline { color: red; }</style>style and</p>', $blocks);
+        $t->contains('<p>script text remains.</p>', $blocks);
+        $t->contains('<p><style id="legacy-theme-css" data-source="batch-42">', $blocks);
         $t->contains('<p><span class="math display">\[\alpha + \omega\]</span></p>', $blocks);
         $t->contains('<p>After raw payloads.</p>', $blocks);
-        $t->true(!str_contains($blocks, '<style'), 'Disabled raw HTML WordPress handoff should not emit style tags');
         $t->true(!str_contains($blocks, '<script'), 'Disabled raw HTML WordPress handoff should not emit generic script tags');
         $t->true(!str_contains($blocks, '<textarea'), 'Disabled raw HTML WordPress handoff should not emit textarea tags');
     },

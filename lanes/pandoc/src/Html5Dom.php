@@ -73,6 +73,7 @@ final class Html5Dom
     ): \DOMElement
     {
         self::assertNoNullByte($html, 'HTML fragment');
+        $html = self::normalizePandocHtmlInputEncoding($html);
         $preflight = XmlHtmlDom::protectHtmlRcdataElements(
             $html,
             protectTemplateContent: true,
@@ -112,6 +113,7 @@ final class Html5Dom
     public static function htmlFragmentTreeConstructionContext(string $html): string
     {
         self::assertNoNullByte($html, 'HTML fragment');
+        $html = self::normalizePandocHtmlInputEncoding($html);
         $preflight = XmlHtmlDom::protectHtmlRcdataElements(
             $html,
             protectTemplateContent: true,
@@ -142,6 +144,7 @@ final class Html5Dom
     public static function parseHtmlDocument(string $html): \DOMDocument
     {
         self::assertSafeHtmlDocumentSource($html, 'HTML document');
+        $html = self::normalizePandocHtmlInputEncoding($html);
 
         return self::loadHtml($html, 'HTML document');
     }
@@ -149,13 +152,26 @@ final class Html5Dom
     public static function parseHtmlDocumentPreservingSourceLines(string $html, string $label = 'HTML document'): \DOMDocument
     {
         self::assertSafeHtmlDocumentSource($html, $label);
+        $html = self::normalizePandocHtmlInputEncoding($html);
 
         return self::loadHtml($html, $label, prependEncodingDeclaration: false);
     }
 
     public static function treeConstructedHtmlSource(string $html): ?string
     {
+        self::assertNoNullByte($html, 'HTML document');
+        $html = self::normalizePandocHtmlInputEncoding($html);
+
         return self::html5TreeConstructedSource($html);
+    }
+
+    public static function normalizePandocHtmlInputEncoding(string $html): string
+    {
+        if (preg_match('//u', $html) === 1) {
+            return $html;
+        }
+
+        return self::latin1BytesToUtf8($html);
     }
 
     /**
@@ -586,6 +602,7 @@ final class Html5Dom
     ): \DOMDocument
     {
         self::requireNativeHtmlDocument($label);
+        $html = self::normalizePandocHtmlInputEncoding($html);
         $treeInput = self::html5ProtectedLiteralTreeInput(
             $html,
             protectTemplateContent: true,
@@ -611,6 +628,35 @@ final class Html5Dom
         bool $protectNoscriptContent
     ): string {
         return $html;
+    }
+
+    private static function latin1BytesToUtf8(string $bytes): string
+    {
+        $result = '';
+        $length = strlen($bytes);
+        for ($offset = 0; $offset < $length; ++$offset) {
+            $result .= self::unicodeCodepointToUtf8(ord($bytes[$offset]));
+        }
+
+        return $result;
+    }
+
+    private static function unicodeCodepointToUtf8(int $codepoint): string
+    {
+        if ($codepoint <= 0x7f) {
+            return chr($codepoint);
+        }
+        if ($codepoint <= 0x7ff) {
+            return chr(0xc0 | ($codepoint >> 6))
+                . chr(0x80 | ($codepoint & 0x3f));
+        }
+        if ($codepoint <= 0xffff) {
+            return chr(0xe0 | ($codepoint >> 12))
+                . chr(0x80 | (($codepoint >> 6) & 0x3f))
+                . chr(0x80 | ($codepoint & 0x3f));
+        }
+
+        return "\u{FFFD}";
     }
 
     private static function loadLegacyHtml(string $html, string $label, bool $prependEncodingDeclaration = true): \DOMDocument
