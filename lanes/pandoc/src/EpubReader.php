@@ -70,6 +70,15 @@ final class EpubReader
         $metadata = $this->metadata($package);
         $manifest = $this->manifest($package);
         $package_links = $this->packageLinks($package, $rootfile, $base_path, $manifest);
+        $package_link_vocabulary = null;
+        $package_model = $this->packageModel($zip);
+        if ($package_model instanceof EpubPackage) {
+            $package_links = $this->withPackageLinkVocabulary($package_links, $package_model->packageLinks());
+            $package_metadata = $package_model->metadata();
+            if (is_array($package_metadata['linkVocabulary'] ?? null)) {
+                $package_link_vocabulary = $package_metadata['linkVocabulary'];
+            }
+        }
         $spine_items = $this->spineItems($package, $base_path, $manifest);
         $guide_references = $this->guideReferences($package, $base_path, $manifest);
         $accessibility = $this->accessibilityMetadata($package, $package_links);
@@ -168,6 +177,12 @@ final class EpubReader
         $metadata['epubPackageLinkCount'] = count($package_links);
         $metadata['epubPackageLinkRelCounts'] = $this->packageLinkRelCounts($package_links);
         $metadata['epubPackageLinkTargets'] = $this->packageLinkTargets($package_links);
+        if ($package_link_vocabulary !== null) {
+            $metadata['epubPackageLinkVocabulary'] = $package_link_vocabulary;
+            if (is_array($package_link_vocabulary['diagnostics'] ?? null)) {
+                $metadata['epubPackageLinkVocabularyDiagnostics'] = $package_link_vocabulary['diagnostics'];
+            }
+        }
         if ($package_links !== []) {
             $metadata['epubPackageLinks'] = $package_links;
         }
@@ -548,7 +563,7 @@ final class EpubReader
 
     /**
      * @param array<string, array{href: string, media-type: string, properties: list<string>}> $manifest
-     * @return list<array{index: int, id: ?string, rel: list<string>, href: string, target: string, path: string, external: bool, mediaType: ?string, properties: list<string>, title: ?string, hreflang: ?string, refines: ?string, subjectId: ?string, hrefHasQuery: bool, hrefQuery: ?string, hrefHasFragment: bool, hrefFragment: ?string, manifestId: ?string, manifestMediaType: ?string, manifestProperties: list<string>}>
+     * @return list<array<string, mixed>>
      */
     private function packageLinks(\DOMElement $package, string $rootfile, string $base_path, array $manifest): array
     {
@@ -620,6 +635,77 @@ final class EpubReader
         }
 
         return $links;
+    }
+
+    private function packageModel(ZipPackage $zip): ?EpubPackage
+    {
+        try {
+            return EpubPackage::fromPackage($zip);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $readerLinks
+     * @param list<array<string, mixed>> $packageLinks
+     * @return list<array<string, mixed>>
+     */
+    private function withPackageLinkVocabulary(array $readerLinks, array $packageLinks): array
+    {
+        if (count($readerLinks) !== count($packageLinks)) {
+            return $readerLinks;
+        }
+
+        foreach ($readerLinks as $index => $readerLink) {
+            $packageLink = $packageLinks[$index] ?? null;
+            if (!is_array($packageLink) || !$this->samePackageLinkVocabularySubject($readerLink, $packageLink)) {
+                return $readerLinks;
+            }
+        }
+
+        foreach ($readerLinks as $index => $readerLink) {
+            $packageLink = $packageLinks[$index];
+            foreach (['relVocabulary', 'propertyVocabulary'] as $field) {
+                if (is_array($packageLink[$field] ?? null)) {
+                    $readerLink[$field] = $packageLink[$field];
+                }
+            }
+            $readerLinks[$index] = $readerLink;
+        }
+
+        return $readerLinks;
+    }
+
+    /**
+     * @param array<string, mixed> $readerLink
+     * @param array<string, mixed> $packageLink
+     */
+    private function samePackageLinkVocabularySubject(array $readerLink, array $packageLink): bool
+    {
+        return (int) ($readerLink['index'] ?? -1) === (int) ($packageLink['index'] ?? -2)
+            && (string) ($readerLink['href'] ?? '') === (string) ($packageLink['href'] ?? '')
+            && $this->stringListValue($readerLink['rel'] ?? []) === $this->stringListValue($packageLink['rel'] ?? [])
+            && $this->stringListValue($readerLink['properties'] ?? []) === $this->stringListValue($packageLink['properties'] ?? []);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function stringListValue(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $strings = [];
+        foreach ($value as $item) {
+            if (is_string($item)) {
+                $strings[] = $item;
+            }
+        }
+
+        return $strings;
     }
 
     /**

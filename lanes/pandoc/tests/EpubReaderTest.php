@@ -683,6 +683,41 @@ XML);
         );
         $t->same(['2012-01-18T12:47:00Z'], $meta['epubProperties']['dcterms:modified']);
     },
+    'surfaces OPF metadata link vocabulary through epub reader metadata' => static function (TestRunner $t): void {
+        $searchFixture = __DIR__ . '/../fixtures/upstream-current-epub-reader/epub/metadata-search-link-semantics.epub';
+        $searchMeta = (new EpubReader())->readEpubFile($searchFixture)->attr('meta');
+        $searchVocabulary = $searchMeta['epubPackageLinkVocabulary'];
+        $searchLink = $searchMeta['epubPackageLinks'][0];
+
+        $t->same(true, $searchVocabulary['present']);
+        $t->same(1, $searchVocabulary['linkCount']);
+        $t->same(2, $searchVocabulary['relTokenCount']);
+        $t->same(0, $searchVocabulary['propertyTokenCount']);
+        $t->same(['record' => 1, 'search' => 1], $searchVocabulary['rels']);
+        $t->same([], $searchVocabulary['properties']);
+        $t->same(0, $searchVocabulary['diagnosticCount']);
+        $t->same(['record', 'search'], $searchLink['relVocabulary']['raw']);
+        $t->same(2, $searchLink['relVocabulary']['validCount']);
+        $t->same('nmtoken', $searchLink['relVocabulary']['items'][1]['kind']);
+        $t->same('search', $searchLink['relVocabulary']['items'][1]['value']);
+        $t->same([], $searchLink['propertyVocabulary']['items']);
+
+        $accessibilityFixture = __DIR__ . '/../fixtures/upstream-current-epub-reader/epub/accessibility-metadata-package.epub';
+        $accessibilityMeta = (new EpubReader())->readEpubFile($accessibilityFixture)->attr('meta');
+        $accessibilityVocabulary = $accessibilityMeta['epubPackageLinkVocabulary'];
+        $accessibilityLink = $accessibilityMeta['epubPackageLinks'][0];
+
+        $t->same(true, $accessibilityVocabulary['present']);
+        $t->same(2, $accessibilityVocabulary['relTokenCount']);
+        $t->same(1, $accessibilityVocabulary['propertyTokenCount']);
+        $t->same(['accessibility-summary' => 1, 'record' => 1], $accessibilityVocabulary['rels']);
+        $t->same(['accessibility-metadata' => 1], $accessibilityVocabulary['properties']);
+        $t->same([], $accessibilityMeta['epubPackageLinkVocabularyDiagnostics']);
+        $t->same(['record', 'accessibility-summary'], $accessibilityLink['relVocabulary']['raw']);
+        $t->same(['accessibility-metadata'], $accessibilityLink['propertyVocabulary']['raw']);
+        $t->same(1, $accessibilityLink['propertyVocabulary']['validCount']);
+        $t->same('accessibility-metadata', $accessibilityLink['propertyVocabulary']['items'][0]['value']);
+    },
     'uses epub2 meta cover content as upstream cover path fallback' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-meta-cover-path-');
         if ($path === false) {
