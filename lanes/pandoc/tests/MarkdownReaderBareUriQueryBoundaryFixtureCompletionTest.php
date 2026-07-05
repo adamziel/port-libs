@@ -14,6 +14,10 @@ $hyphenFixture = static fn (): string => (string) file_get_contents(
     dirname(__DIR__) . '/fixtures/upstream-markdown-bare-uri-query-hyphen-boundaries.md'
 );
 
+$portPathFixture = static fn (): string => (string) file_get_contents(
+    dirname(__DIR__) . '/fixtures/upstream-markdown-bare-uri-port-path-boundaries.md'
+);
+
 $collectLinks = static function (AstNode $node) use (&$collectLinks): array {
     $links = [];
     if ($node->type === 'link') {
@@ -85,5 +89,23 @@ return [
             $t->same(['uri'], $links[1]->attr('classes'));
             $t->contains('https://example.org/?anchor=lala-', $native);
             $t->contains('https://example.org/?anchor=-lala', $native);
+        },
+
+    'maps selected upstream markdown bare URI port path boundary fixture' =>
+        static function (TestRunner $t) use ($portPathFixture, $collectLinks): void {
+            $document = (new MarkdownReader(['format' => 'markdown+autolink_bare_uris']))->read($portPathFixture());
+            $links = $collectLinks($document);
+            $native = (new NativeWriter())->write($document);
+
+            $t->same(2, count($document->children));
+            $t->same(2, count($links));
+            $t->same('http://www.rubyonrails.com:80', $links[0]->attr('url'));
+            $t->same('http://www.rubyonrails.com:80', ($links[0]->children[0] ?? new AstNode('missing'))->attr('text'));
+            $t->same(['uri'], $links[0]->attr('classes'));
+            $t->same('http://foo.example.com:3000/controller/action+pack', $links[1]->attr('url'));
+            $t->same('http://foo.example.com:3000/controller/action+pack', ($links[1]->children[0] ?? new AstNode('missing'))->attr('text'));
+            $t->same(['uri'], $links[1]->attr('classes'));
+            $t->contains('http://www.rubyonrails.com:80', $native);
+            $t->contains('http://foo.example.com:3000/controller/action+pack', $native);
         },
 ];

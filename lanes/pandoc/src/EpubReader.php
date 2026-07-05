@@ -2751,6 +2751,7 @@ final class EpubReader
     private function isPackageRelativeResourceUrl(string $url): bool
     {
         return !$this->isAbsoluteUrl($url)
+            && !str_starts_with($url, '/')
             && !str_starts_with($url, '#')
             && !str_starts_with(strtolower($url), 'data:')
             && !str_starts_with(strtolower($url), 'mailto:');

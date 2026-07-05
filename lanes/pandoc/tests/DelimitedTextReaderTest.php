@@ -4777,6 +4777,51 @@ NATIVE;
         $t->contains('Plain [ Str "embedded" , Space , Str "\\"quote\\"" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
+    'matches generated tsv formula-looking literal native parity fixture without inflating upstream tsv direct denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+        $fixture = $generatedTsvNativeFixture('formula-looking-literals');
+        $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
+            'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/formula-looking-literals.tsv',
+        ]);
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+        $body = $table->children[1];
+        $native = PandocConverter::write($document, 'native');
+        $generatedEvidence = $packet['upstreamEvidence']['generatedNativeParityEvidence'] ?? [];
+
+        $t->same('tsv', $packet['format'] ?? null);
+        $t->same('tab', $packet['delimiter'] ?? null);
+        $t->same(null, $packet['quote'] ?? null);
+        $t->same('literal', $packet['dialect']['quoteMode'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
+        $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
+        $t->same(2 * DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['checkedInFixtureCount'] ?? null);
+        $t->same('formula-looking-literals.tsv', $generatedEvidence['checkedInFixtures'][74]['name'] ?? null);
+        $t->same('4d7c559919b0d5ae6fb444f02400addda086cd7d2e0a2db7d1f135049962a5e3', $generatedEvidence['checkedInFixtures'][74]['checkedInFile']['sha256'] ?? null);
+        $t->same('formula-looking-literals.native', $generatedEvidence['checkedInFixtures'][75]['name'] ?? null);
+        $t->same('cd5252c5c890122ababd2e5566f4ae9a02fcf1d23d6c718c6bf77cb72e42ffa5', $generatedEvidence['checkedInFixtures'][75]['checkedInFile']['sha256'] ?? null);
+        $t->same('formula-looking-literals', $generatedEvidence['samples'][37]['name'] ?? null);
+        $t->same([], $generatedEvidence['samples'][37]['readerOptions'] ?? null);
+        $t->same(['id', 'formula', 'note'], $table->attr('columnNames'));
+        $t->same(3, $packet['rowCount'] ?? null);
+        $t->same(2, $packet['bodyRowCount'] ?? null);
+        $t->same(3, $packet['columnCount'] ?? null);
+        $t->same(9, $packet['fieldCount'] ?? null);
+        $t->same(0, $packet['quotedFieldCount'] ?? null);
+        $t->same(0, $packet['raggedRowCount'] ?? null);
+        $t->same(0, $packet['blankRowCount'] ?? null);
+        $t->same(0, $packet['diagnosticCount'] ?? null);
+        $t->same('=SUM(A1:A2)', $body->children[0]->children[1]->attr('text'));
+        $t->same('literal formula', $body->children[0]->children[2]->attr('text'));
+        $t->same('@lookup(value)', $body->children[1]->children[1]->attr('text'));
+        $t->same('+prefix preserved', $body->children[1]->children[2]->attr('text'));
+        $t->contains('Plain [ Str "=SUM(A1:A2)" ]', $native);
+        $t->contains('Plain [ Str "@lookup(value)" ]', $native);
+        $t->contains('Plain [ Str "+prefix" , Space , Str "preserved" ]', $native);
+        $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
+    },
     'matches pinned upstream csv parser option fixtures' => static function (TestRunner $t): void {
         $reader = new DelimitedTextReader();
         $commaDocument = $reader->readCsv(

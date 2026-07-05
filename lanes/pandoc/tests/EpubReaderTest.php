@@ -1381,6 +1381,68 @@ HTML);
             'sha1' => (string) $entry['sha1'],
         ], $meta['epubMediaResourceDirectory']));
     },
+    'does not load path-absolute epub image urls into the local media bag' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-path-absolute-image-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $imageBytes = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=');
+        if (!is_string($imageBytes)) {
+            throw new RuntimeException('Unable to decode path-absolute EPUB image bytes');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary EPUB package');
+        }
+        $zip->addFromString('META-INF/container.xml', '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="book-id">
+  <metadata>
+    <dc:identifier id="book-id">book-path-absolute-media</dc:identifier>
+    <dc:title>Path Absolute Media EPUB</dc:title>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="text/chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="root-image" href="images/root.png" media-type="image/png"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('OPS/text/chapter.xhtml', <<<'HTML'
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <body><p><img src="/images/root.png" alt="Root absolute image"/></p></body>
+</html>
+HTML);
+        $zip->addFromString('OPS/images/root.png', $imageBytes);
+        $zip->close();
+
+        try {
+            $document = (new EpubReader())->readEpubFile($path);
+            $meta = $document->attr('meta');
+        } finally {
+            @unlink($path);
+        }
+
+        $image = $document->children[1]->children[0] ?? null;
+
+        $t->same('Path Absolute Media EPUB', $meta['title']);
+        $t->same('/images/root.png', $image instanceof AstNode ? $image->attr('url') : null);
+        $t->same(['OPS/text/chapter.xhtml'], $meta['epubReadableResources']);
+        $t->same([], $meta['epubReferencedResources']);
+        $t->same(['OPS/images/root.png'], $meta['epubImageResources']);
+        $t->same([], $meta['epubMediaBagResources']);
+        $t->same(0, $meta['epubMediaResourceCount']);
+        $t->same([], $meta['epubMediaResourceDiagnostics']);
+        $t->same([], $meta['epubMediaResourceDirectory']);
+    },
     'records raw epub video and text track resources without adding them to the image media bag' => static function (TestRunner $t): void {
         $fixture = dirname(__DIR__) . '/fixtures/upstream-current-epub-reader/epub/text-track-captions.epub';
         $document = (new EpubReader())->readEpubFile($fixture);

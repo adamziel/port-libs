@@ -12,9 +12,9 @@ final class MarkdownUpstreamReaderEvidence
     public const STATUS_COMPLETED = 'completed-upstream-markdown-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-markdown-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
-    public const EXPECTED_SELECTED_FIXTURE_COUNT = 124;
-    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 124;
-    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = 'e0f4d67663b852c3ba656e2f123efdb3158c01801704180d04894bdea02a473c';
+    public const EXPECTED_SELECTED_FIXTURE_COUNT = 125;
+    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 125;
+    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = 'd5b9f042fc7e0eb1ee4485c5f00464627da33659508c43089c114043bf9bfd8d';
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/Markdown.hs',
@@ -1285,6 +1285,19 @@ final class MarkdownUpstreamReaderEvidence
             ],
             'sha256' => '161499a458db1013329ddd59fe20e37cafa71947c55beb3a7adffc99a7eb7309',
             'bytes' => 69,
+        ],
+        'upstream-markdown-bare-uri-port-path-boundaries.md' => [
+            'role' => 'markdown-bare-uri-port-path-boundary-reader-fixture',
+            'sourceKind' => 'selected-upstream-markdown-reader-case',
+            'sourceReference' => 'Tests.Readers.Markdown bare URIs/port and plus-in-path cases',
+            'formatProfile' => 'markdown+autolink_bare_uris port and plus path boundaries',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-markdown-bare-uri-port-path-boundaries.md',
+            'coverageTests' => [
+                'lanes/pandoc/tests/MarkdownReaderBareUriQueryBoundaryFixtureCompletionTest.php',
+                'lanes/pandoc/tests/MarkdownNativeAstComparisonHarnessTest.php',
+            ],
+            'sha256' => '2785c81b2106589d4e877f6ddd13157c9035fc2a8c6b1e757073e555bc85a852',
+            'bytes' => 82,
         ],
         'upstream-markdown-smart-inline-note-double-quotes.md' => [
             'role' => 'markdown-smart-inline-note-double-quote-reader-fixture',

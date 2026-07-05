@@ -1,0 +1,15 @@
+[ Para
+    [ Link
+        ( "" , [ "uri" ] , [] )
+        [ Str "http://www.rubyonrails.com:80" ]
+        ( "http://www.rubyonrails.com:80" , "" )
+    ]
+, Para
+    [ Link
+        ( "" , [ "uri" ] , [] )
+        [ Str "http://foo.example.com:3000/controller/action+pack" ]
+        ( "http://foo.example.com:3000/controller/action+pack"
+        , ""
+        )
+    ]
+]
