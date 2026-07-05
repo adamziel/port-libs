@@ -15,6 +15,31 @@ $fixture = static function (string $name): string {
     return $bytes;
 };
 
+$tests['routes public html reader parsing through HTMLDocument when available'] =
+    static function (TestRunner $t): void {
+        $document = (new HtmlReader())->read(
+            '<!doctype html><html><body><p>one<section><p>two</section>three</body></html>'
+        );
+        $meta = $document->attr('meta');
+        $expectedParser = class_exists('Dom\\HTMLDocument')
+            ? 'Dom\\HTMLDocument'
+            : 'DOMDocument-loadHTML-compat';
+
+        $t->same($expectedParser, $meta['htmlTreeConstruction'] ?? null);
+        if (!class_exists('Dom\\HTMLDocument')) {
+            return;
+        }
+
+        $t->same(
+            ['paragraph', 'div', 'paragraph'],
+            array_map(static fn ($node): string => $node->type, $document->children)
+        );
+        $t->same('one', $document->children[0]->attr('text'));
+        $t->same(['section'], $document->children[1]->attr('classes'));
+        $t->same('two', $document->children[1]->children[0]->attr('text'));
+        $t->same('three', $document->children[2]->attr('text'));
+    };
+
 $tests['imports upstream html xml lang metadata from root element'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-xml-lang-metadata.html'));

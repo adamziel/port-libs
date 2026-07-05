@@ -12,9 +12,9 @@ final class MarkdownUpstreamReaderEvidence
     public const STATUS_COMPLETED = 'completed-upstream-markdown-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-markdown-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
-    public const EXPECTED_SELECTED_FIXTURE_COUNT = 95;
-    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 95;
-    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = '1cbf8e0f2e0b415ab3bba0e816b6b612c0f84056e6a98fa8e0b8569f79f597c4';
+    public const EXPECTED_SELECTED_FIXTURE_COUNT = 97;
+    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 97;
+    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = '2bd67de2ca98976be7d4e093629e52acfbe8e5a5f04277fb9019c221a3cc6d0e';
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/Markdown.hs',
@@ -1220,6 +1220,32 @@ final class MarkdownUpstreamReaderEvidence
             ],
             'sha256' => '8556aa8110eadfdde51dbf8e8e2afb293acf254118b27ef3b099453d0ee2f74f',
             'bytes' => 681,
+        ],
+        'upstream-markdown-zzzzzzzzzzzzzzzzzzzzzzzzzzz-markdown-in-html-blocks-profile.md' => [
+            'role' => 'markdown-in-html-blocks-profile-reader-fixture',
+            'sourceKind' => 'selected-upstream-markdown-reader-case',
+            'sourceReference' => 'Tests.Readers.Markdown selected markdown_in_html_blocks coverage',
+            'formatProfile' => 'markdown+markdown_in_html_blocks container block with nested Markdown content',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-markdown-zzzzzzzzzzzzzzzzzzzzzzzzzzz-markdown-in-html-blocks-profile.md',
+            'coverageTests' => [
+                'lanes/pandoc/tests/MarkdownReaderMarkdownInHtmlBlocksFixtureCompletionTest.php',
+                'lanes/pandoc/tests/MarkdownNativeAstComparisonHarnessTest.php',
+            ],
+            'sha256' => 'eea6a5f1a4b9fef9e314a6c18a1edee0bbc2cfc66b01186d61414bc7248d938d',
+            'bytes' => 108,
+        ],
+        'upstream-markdown-zzzzzzzzzzzzzzzzzzzzzzzzzzzz-markdown-attribute-profile.md' => [
+            'role' => 'markdown-attribute-html-block-profile-reader-fixture',
+            'sourceKind' => 'selected-upstream-markdown-reader-case',
+            'sourceReference' => 'Tests.Readers.Markdown selected markdown_attribute coverage',
+            'formatProfile' => 'markdown_phpextra markdown_attribute container block with nested Markdown content',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-markdown-zzzzzzzzzzzzzzzzzzzzzzzzzzzz-markdown-attribute-profile.md',
+            'coverageTests' => [
+                'lanes/pandoc/tests/MarkdownReaderMarkdownInHtmlBlocksFixtureCompletionTest.php',
+                'lanes/pandoc/tests/MarkdownNativeAstComparisonHarnessTest.php',
+            ],
+            'sha256' => 'dfe0b021428a827a66dcb79aab83ba4ecdfbdebc6aebdd5f28aab915911057b9',
+            'bytes' => 121,
         ],
     ];
 

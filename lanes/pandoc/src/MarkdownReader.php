@@ -281,6 +281,11 @@ final class MarkdownReader
                 $blocks[] = $fencedDivBlock;
                 continue;
             }
+            $markdownInHtmlBlock = $paragraph === [] && $listStack === [] ? $this->tryReadMarkdownInHtmlBlock($lines, $index) : null;
+            if ($markdownInHtmlBlock !== null) {
+                array_push($blocks, ...$markdownInHtmlBlock);
+                continue;
+            }
             $divBlock = $paragraph === [] && $listStack === [] ? $this->tryReadDivBlock($lines, $index) : null;
             if ($divBlock !== null) {
                 $blocks[] = $divBlock;
@@ -3036,6 +3041,193 @@ final class MarkdownReader
         }
 
         return null;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return list<AstNode>|null
+     */
+    private function tryReadMarkdownInHtmlBlock(array $lines, int &$index): ?array
+    {
+        $line = $lines[$index] ?? '';
+        $tag = $this->htmlBlockStartTagName($line);
+        if ($tag === null) {
+            return null;
+        }
+
+        $collected = $this->collectMarkdownHtmlElementBlockBySourceBounds($lines, $index, $tag);
+        if ($collected === null) {
+            return null;
+        }
+
+        if ($this->isMarkdownInHtmlVerbatimTag($tag)) {
+            return $this->rawHtmlBlockFromCollectedHtml($collected, $index);
+        }
+
+        if (!$this->isMarkdownInHtmlBlockContainerTag($tag)) {
+            return null;
+        }
+
+        [$html, $endIndex, $bounds] = $collected;
+        $openingSource = substr($html, $bounds['openStart'], $bounds['openEnd'] - $bounds['openStart'] + 1);
+        $closingSource = substr($html, $bounds['closeStart'], $bounds['closeEnd'] - $bounds['closeStart'] + 1);
+        $inner = substr($html, $bounds['openEnd'] + 1, $bounds['closeStart'] - $bounds['openEnd'] - 1);
+        $element = $this->htmlElementFromOpeningTag($openingSource, $tag);
+        $markdownAttribute = $element instanceof \DOMElement ? $this->htmlMarkdownAttributeValue($element) : null;
+
+        $enabledByAttribute = $markdownAttribute !== null
+            && $this->markdownAttributeExtensionEnabled()
+            && $this->htmlMarkdownAttributeEnablesMarkdown($markdownAttribute);
+        $htmlBlocksOverride = $this->markdownInHtmlBlocksExtensionOverride();
+        $enabledByHtmlBlocks = $markdownAttribute === null
+            && $this->markdownInHtmlBlocksExtensionEnabled()
+            && ($tag !== 'div' || $htmlBlocksOverride === true);
+        if (!$enabledByAttribute && !$enabledByHtmlBlocks) {
+            if ($tag === 'div' && $markdownAttribute === null && $htmlBlocksOverride === null) {
+                return null;
+            }
+
+            return $this->rawHtmlBlockFromCollectedHtml($collected, $index);
+        }
+
+        $opening = $element instanceof \DOMElement
+            ? $this->renderHtmlOpeningTag($element, $enabledByAttribute ? ['markdown'] : [])
+            : $openingSource;
+        $closing = strtolower($closingSource);
+        $innerDocument = (new self($this->options))->read(trim($inner, "\r\n"));
+
+        $blocks = [];
+        if ($this->htmlRawHtmlEnabled()) {
+            $blocks[] = new AstNode('raw_html', ['format' => 'html', 'html' => $opening, 'text' => $opening]);
+        } else {
+            $blocks[] = new AstNode('paragraph', ['text' => $opening], $this->parseInlines($opening));
+        }
+        array_push($blocks, ...$innerDocument->children);
+        if ($this->htmlRawHtmlEnabled()) {
+            $blocks[] = new AstNode('raw_html', ['format' => 'html', 'html' => $closing, 'text' => $closing]);
+        } else {
+            $blocks[] = new AstNode('paragraph', ['text' => $closing], $this->parseInlines($closing));
+        }
+
+        $index = $endIndex;
+
+        return $blocks;
+    }
+
+    /**
+     * @param array{0:string, 1:int, 2:array{openStart:int, openEnd:int, closeStart:int, closeEnd:int}} $collected
+     * @return list<AstNode>|null
+     */
+    private function rawHtmlBlockFromCollectedHtml(array $collected, int &$index): ?array
+    {
+        if (!$this->htmlRawHtmlEnabled()) {
+            return null;
+        }
+
+        [$html, $endIndex] = $collected;
+        $index = $endIndex;
+
+        return [new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'text' => $html])];
+    }
+
+    private function htmlBlockStartTagName(string $line): ?string
+    {
+        $line = $this->expandTabsToSpaces($line);
+        $offset = 0;
+        $length = strlen($line);
+        while ($offset < $length && $offset < 4 && $line[$offset] === ' ') {
+            ++$offset;
+        }
+        if ($offset > 3 || ($line[$offset] ?? '') !== '<') {
+            return null;
+        }
+
+        $nameOffset = $offset + 1;
+        if ($nameOffset >= $length || !$this->htmlSourceNameStart($line[$nameOffset])) {
+            return null;
+        }
+
+        $nameEnd = $nameOffset + 1;
+        while ($nameEnd < $length && $this->htmlSourceNameChar($line[$nameEnd])) {
+            ++$nameEnd;
+        }
+
+        return strtolower(substr($line, $nameOffset, $nameEnd - $nameOffset));
+    }
+
+    private function isMarkdownInHtmlBlockContainerTag(string $tag): bool
+    {
+        return in_array($tag, [
+            'address',
+            'article',
+            'aside',
+            'blockquote',
+            'center',
+            'dialog',
+            'div',
+            'fieldset',
+            'figure',
+            'footer',
+            'form',
+            'header',
+            'hgroup',
+            'main',
+            'nav',
+            'section',
+        ], true);
+    }
+
+    private function isMarkdownInHtmlVerbatimTag(string $tag): bool
+    {
+        return in_array($tag, ['script', 'style', 'pre', 'textarea', 'xmp'], true);
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{0:string, 1:int, 2:array{openStart:int, openEnd:int, closeStart:int, closeEnd:int}}|null
+     */
+    private function collectMarkdownHtmlElementBlockBySourceBounds(array $lines, int $index, string $tag): ?array
+    {
+        $content = [];
+        $count = count($lines);
+
+        for ($cursor = $index; $cursor < $count; ++$cursor) {
+            $content[] = $this->normalizeRawHtmlLine($lines[$cursor]);
+            $html = implode("\n", $content);
+            // Markdown needs the original byte range so it can parse the
+            // element body as Markdown. HTML element validation and attribute
+            // handling still go through Html5Dom/HTMLDocument below.
+            $bounds = $this->htmlSourceElementBounds($html, $tag);
+            if ($bounds !== null) {
+                return [$html, $cursor, $bounds];
+            }
+        }
+
+        return null;
+    }
+
+    private function htmlElementFromOpeningTag(string $openingTag, string $tag): ?\DOMElement
+    {
+        $body = $this->parseHtmlFragmentBodyElement($openingTag . '</' . $tag . '>');
+        if (!$body instanceof \DOMElement) {
+            return null;
+        }
+
+        return $this->firstChildElement($body, $tag);
+    }
+
+    private function htmlMarkdownAttributeValue(\DOMElement $element): ?string
+    {
+        if (!$element->hasAttribute('markdown')) {
+            return null;
+        }
+
+        return strtolower(trim($element->getAttribute('markdown')));
+    }
+
+    private function htmlMarkdownAttributeEnablesMarkdown(string $value): bool
+    {
+        return !in_array($value, ['', '0', 'false', 'off', 'no'], true);
     }
 
     /**
@@ -9093,15 +9285,24 @@ final class MarkdownReader
         ], true);
     }
 
-    private function renderHtmlOpeningTag(\DOMElement $element): string
+    /**
+     * @param list<string> $skipAttributes
+     */
+    private function renderHtmlOpeningTag(\DOMElement $element, array $skipAttributes = []): string
     {
         $tag = '<' . strtolower($element->localName);
+        $skip = array_fill_keys(array_map('strtolower', $skipAttributes), true);
         foreach ($element->attributes as $attribute) {
             if (!$attribute instanceof \DOMAttr) {
                 continue;
             }
 
-            $tag .= ' ' . strtolower($attribute->name) . '="' . htmlspecialchars($attribute->value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
+            $name = strtolower($attribute->name);
+            if (isset($skip[$name])) {
+                continue;
+            }
+
+            $tag .= ' ' . $name . '="' . htmlspecialchars($attribute->value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
         }
 
         return $tag . '>';
@@ -16874,6 +17075,35 @@ final class MarkdownReader
         $canonical = MarkdownFormatProfile::canonicalFormat($format);
 
         return in_array($canonical, ['markdown', 'commonmark_x'], true);
+    }
+
+    private function markdownInHtmlBlocksExtensionEnabled(): bool
+    {
+        $override = $this->markdownInHtmlBlocksExtensionOverride();
+
+        return $override === true;
+    }
+
+    private function markdownInHtmlBlocksExtensionOverride(): ?bool
+    {
+        $overrides = $this->markdownExtensionOverrides();
+
+        return array_key_exists('markdown_in_html_blocks', $overrides)
+            ? $overrides['markdown_in_html_blocks']
+            : null;
+    }
+
+    private function markdownAttributeExtensionEnabled(): bool
+    {
+        $overrides = $this->markdownExtensionOverrides();
+        if (array_key_exists('markdown_attribute', $overrides)) {
+            return $overrides['markdown_attribute'];
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['markdown_phpextra', 'markdown_mmd'], true);
     }
 
     private function inlineCodeAttributeExtensionEnabled(): bool

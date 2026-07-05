@@ -63,6 +63,8 @@ final class MarkdownNativeAstComparisonHarness
         'upstream-markdown-zzzzzzzzzzzzzzzzzzzzzzz-bare-uri-scheme-boundaries' => ['format' => 'markdown+autolink_bare_uris'],
         'upstream-markdown-zzzzzzzzzzzzzzzzzzzzzzzzzz-raw-html-inline-commonmark-profile' => ['format' => 'commonmark+raw_attribute'],
         'upstream-markdown-zzzzzzzzzzzzzzzzzzzzzzzzz-atx-heading-space-disabled-profile' => ['format' => 'markdown-space_in_atx_header'],
+        'upstream-markdown-zzzzzzzzzzzzzzzzzzzzzzzzzzz-markdown-in-html-blocks-profile' => ['format' => 'markdown+markdown_in_html_blocks'],
+        'upstream-markdown-zzzzzzzzzzzzzzzzzzzzzzzzzzzz-markdown-attribute-profile' => ['format' => 'markdown_phpextra'],
     ];
 
     /** @var array<string, true> */

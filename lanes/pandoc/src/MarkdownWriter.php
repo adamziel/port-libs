@@ -10062,7 +10062,7 @@ final class MarkdownWriter
             return (bool) $this->options['linkAttributes'];
         }
 
-        $override = $this->markdownExtensionOverrideAny(['link_attributes', 'inline_attributes', 'attributes']);
+        $override = $this->markdownExtensionOverrideAny(['link_attributes', 'inline_attributes', 'markdown_attribute', 'attributes']);
         if ($override !== null) {
             return $override;
         }
