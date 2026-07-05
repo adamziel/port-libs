@@ -305,6 +305,14 @@ return [
             $t->same(1, $summary['metadataCreatorCount']);
             $t->same(1, $summary['packageLinkCount']);
             $t->same(['accessibility-summary' => 1, 'record' => 1], $summary['packageLinkRelCounts']);
+            $t->same(2, $summary['packageLinkVocabularyRelTokenCount']);
+            $t->same(1, $summary['packageLinkVocabularyPropertyTokenCount']);
+            $t->same(0, $summary['packageLinkVocabularyResolvedTokenCount']);
+            $t->same(0, $summary['packageLinkVocabularyAbsoluteUrlTokenCount']);
+            $t->same(0, $summary['packageLinkVocabularyDuplicateTokenCount']);
+            $t->same(0, $summary['packageLinkVocabularyDiagnosticCount']);
+            $t->same(['accessibility-summary' => 1, 'record' => 1], $summary['packageLinkVocabularyRelCounts']);
+            $t->same(['accessibility-metadata' => 1], $summary['packageLinkVocabularyPropertyCounts']);
             $t->same(1, $summary['packageLinkMediaTypeCount']);
             $t->same(['application/ld+json' => 1], $summary['packageLinkMediaTypeCounts']);
             $t->same(1, $summary['packageLinkMediaTypeParameterCount']);
@@ -382,6 +390,8 @@ return [
             $t->same(['landmarks', 'loi', 'page-list', 'toc'], $coverage['navigationSectionTypes']);
             $t->same(['text' => 1], $coverage['guideReferenceTypeCounts']);
             $t->same(['accessibility-summary' => 1, 'record' => 1], $coverage['packageLinkRelCounts']);
+            $t->same(['accessibility-summary' => 1, 'record' => 1], $coverage['packageLinkVocabularyRelCounts']);
+            $t->same(['accessibility-metadata' => 1], $coverage['packageLinkVocabularyPropertyCounts']);
             $t->same(['application/ld+json' => 1], $coverage['packageLinkMediaTypeCounts']);
             $t->same(['profile' => 1], $coverage['packageLinkMediaTypeParameterNameCounts']);
             $t->same(['package-link' => 1], $coverage['linkHrefSuffixSourceCounts']);
@@ -404,6 +414,8 @@ return [
                     ],
                     'guideReferenceTypeCounts' => ['text' => 1],
                     'packageLinkRelCounts' => ['accessibility-summary' => 1, 'record' => 1],
+                    'packageLinkVocabularyRelCounts' => ['accessibility-summary' => 1, 'record' => 1],
+                    'packageLinkVocabularyPropertyCounts' => ['accessibility-metadata' => 1],
                     'accessibilityPropertyCounts' => [
                         'accessMode' => 2,
                         'accessibilityFeature' => 1,
@@ -417,6 +429,8 @@ return [
             ], $coverage['fixtureFeatureSignatures']);
             $t->same(['generated-navigation'], $coverage['fixturesWithGuideReferences']);
             $t->same(['generated-navigation'], $coverage['fixturesWithPackageLinks']);
+            $t->same(['generated-navigation'], $coverage['fixturesWithPackageLinkVocabulary']);
+            $t->same([], $coverage['fixturesWithPackageLinkVocabularyDiagnostics']);
             $t->same(['generated-navigation'], $coverage['fixturesWithPackageLinkMediaTypeParameters']);
             $t->same(['generated-navigation'], $coverage['fixturesWithLinkHrefSuffixes']);
             $t->same(['generated-navigation'], $coverage['fixturesWithAccessibilityMetadata']);
@@ -457,6 +471,12 @@ return [
                 'pageListCfiTargets' => 0,
                 'auxiliaryNavigationEntries' => 1,
                 'packageLinks' => 1,
+                'packageLinkVocabularyRelTokens' => 2,
+                'packageLinkVocabularyPropertyTokens' => 1,
+                'packageLinkVocabularyResolvedTokens' => 0,
+                'packageLinkVocabularyAbsoluteUrlTokens' => 0,
+                'packageLinkVocabularyDuplicateTokens' => 0,
+                'packageLinkVocabularyDiagnostics' => 0,
                 'packageLinkMediaTypeItems' => 1,
                 'packageLinkMediaTypeParameters' => 1,
                 'linkHrefSuffixes' => 1,
@@ -539,6 +559,14 @@ return [
                 $decoded['packageFeatureCoverage']['packageLinkRelCounts']
             );
             $t->same(
+                ['accessibility-summary' => 1, 'record' => 1],
+                $decoded['packageFeatureCoverage']['packageLinkVocabularyRelCounts']
+            );
+            $t->same(
+                ['accessibility-metadata' => 1],
+                $decoded['packageFeatureCoverage']['packageLinkVocabularyPropertyCounts']
+            );
+            $t->same(
                 ['application/ld+json' => 1],
                 $decoded['packageFeatureCoverage']['packageLinkMediaTypeCounts']
             );
@@ -561,6 +589,8 @@ return [
                 $decoded['packageFeatureCoverage']['accessibilityPropertyCounts']
             );
             $t->same(['generated-navigation'], $decoded['packageFeatureCoverage']['fixturesWithAccessibilityMetadata']);
+            $t->same(['generated-navigation'], $decoded['packageFeatureCoverage']['fixturesWithPackageLinkVocabulary']);
+            $t->same([], $decoded['packageFeatureCoverage']['fixturesWithPackageLinkVocabularyDiagnostics']);
             $t->same(['generated-navigation'], $decoded['packageFeatureCoverage']['fixturesWithPackageLinkMediaTypeParameters']);
             $t->same(['generated-navigation'], $decoded['packageFeatureCoverage']['fixturesWithLinkHrefSuffixes']);
             $t->same(['generated-navigation'], $decoded['packageFeatureCoverage']['fixturesWithManifestFallbackItems']);
@@ -580,6 +610,10 @@ return [
             );
             $t->same(['generated-navigation'], $decoded['packageFeatureCoverage']['fixturesWithCreators']);
             $t->same(1, $decoded['packageFeatureCoverage']['totals']['metadataCreators']);
+            $t->same(2, $decoded['packageFeatureCoverage']['totals']['packageLinkVocabularyRelTokens']);
+            $t->same(1, $decoded['packageFeatureCoverage']['totals']['packageLinkVocabularyPropertyTokens']);
+            $t->same(0, $decoded['packageFeatureCoverage']['totals']['packageLinkVocabularyResolvedTokens']);
+            $t->same(0, $decoded['packageFeatureCoverage']['totals']['packageLinkVocabularyDiagnostics']);
             $t->same(1, $decoded['packageFeatureCoverage']['totals']['packageLinkMediaTypeParameters']);
             $t->same(1, $decoded['packageFeatureCoverage']['totals']['linkHrefSuffixes']);
             $t->same(6, $decoded['packageFeatureCoverage']['totals']['accessibilityEntries']);
@@ -1551,6 +1585,20 @@ return [
             'record' => 9,
             'search' => 1,
           ),
+          'packageLinkVocabularyRelCounts' =>
+          array (
+            'accessibility-summary' => 1,
+            'alternate' => 2,
+            'cc:attributionURL' => 1,
+            'cc:license' => 2,
+            'preview' => 3,
+            'record' => 9,
+            'search' => 1,
+          ),
+          'packageLinkVocabularyPropertyCounts' =>
+          array (
+            'accessibility-metadata' => 1,
+          ),
           'packageLinkMediaTypeCounts' =>
           array (
             'application/json' => 8,
@@ -1624,6 +1672,15 @@ return [
               array (
                 'accessibility-summary' => 1,
                 'record' => 1,
+              ),
+              'packageLinkVocabularyRelCounts' =>
+              array (
+                'accessibility-summary' => 1,
+                'record' => 1,
+              ),
+              'packageLinkVocabularyPropertyCounts' =>
+              array (
+                'accessibility-metadata' => 1,
               ),
               'accessibilityPropertyCounts' =>
               array (
@@ -1740,6 +1797,10 @@ return [
               array (
               ),
               'packageLinkRelCounts' =>
+              array (
+                'record' => 1,
+              ),
+              'packageLinkVocabularyRelCounts' =>
               array (
                 'record' => 1,
               ),
@@ -2342,6 +2403,10 @@ return [
               array (
                 'record' => 1,
               ),
+              'packageLinkVocabularyRelCounts' =>
+              array (
+                'record' => 1,
+              ),
               'coverImagePartPresent' => false,
             ),
             'mathml-spine' =>
@@ -2453,6 +2518,11 @@ return [
                 'alternate' => 1,
                 'record' => 1,
               ),
+              'packageLinkVocabularyRelCounts' =>
+              array (
+                'alternate' => 1,
+                'record' => 1,
+              ),
               'coverImagePartPresent' => false,
             ),
             'metadata-record-remote-nav' =>
@@ -2482,6 +2552,12 @@ return [
                 'preview' => 1,
                 'record' => 1,
               ),
+              'packageLinkVocabularyRelCounts' =>
+              array (
+                'alternate' => 1,
+                'preview' => 1,
+                'record' => 1,
+              ),
               'coverImagePartPresent' => false,
             ),
             'metadata-search-link-semantics' =>
@@ -2500,6 +2576,11 @@ return [
               array (
               ),
               'packageLinkRelCounts' =>
+              array (
+                'record' => 1,
+                'search' => 1,
+              ),
+              'packageLinkVocabularyRelCounts' =>
               array (
                 'record' => 1,
                 'search' => 1,
@@ -2592,6 +2673,10 @@ return [
               array (
                 'record' => 1,
               ),
+              'packageLinkVocabularyRelCounts' =>
+              array (
+                'record' => 1,
+              ),
               'coverImagePartPresent' => false,
             ),
             'nested-path-media-metadata' =>
@@ -2620,6 +2705,10 @@ return [
                 'text' => 1,
               ),
               'packageLinkRelCounts' =>
+              array (
+                'record' => 1,
+              ),
+              'packageLinkVocabularyRelCounts' =>
               array (
                 'record' => 1,
               ),
@@ -2932,6 +3021,10 @@ return [
               array (
                 'preview' => 1,
               ),
+              'packageLinkVocabularyRelCounts' =>
+              array (
+                'preview' => 1,
+              ),
               'coverImagePartPresent' => false,
             ),
             'video-manifest-resource' =>
@@ -3000,6 +3093,11 @@ return [
                 'cc:attributionURL' => 1,
                 'cc:license' => 2,
               ),
+              'packageLinkVocabularyRelCounts' =>
+              array (
+                'cc:attributionURL' => 1,
+                'cc:license' => 2,
+              ),
               'coverImagePartPresent' => true,
             ),
             'xhtml-address-spine' =>
@@ -3061,6 +3159,11 @@ return [
                 'text' => 1,
               ),
               'packageLinkRelCounts' =>
+              array (
+                'preview' => 1,
+                'record' => 1,
+              ),
+              'packageLinkVocabularyRelCounts' =>
               array (
                 'preview' => 1,
                 'record' => 1,
@@ -3133,6 +3236,23 @@ return [
             8 => 'title-page-guide-media-metadata',
             9 => 'wasteland',
             10 => 'xhtml-ruby-table-mark',
+          ),
+          'fixturesWithPackageLinkVocabulary' =>
+          array (
+            0 => 'accessibility-metadata-package',
+            1 => 'bindings-collections-sidecars',
+            2 => 'manifest-href-encoding',
+            3 => 'metadata-link-page-list-image',
+            4 => 'metadata-record-remote-nav',
+            5 => 'metadata-search-link-semantics',
+            6 => 'nav-ncx-linear-guide',
+            7 => 'nested-path-media-metadata',
+            8 => 'title-page-guide-media-metadata',
+            9 => 'wasteland',
+            10 => 'xhtml-ruby-table-mark',
+          ),
+          'fixturesWithPackageLinkVocabularyDiagnostics' =>
+          array (
           ),
           'fixturesWithPackageLinkMediaTypeParameters' =>
           array (
@@ -3406,6 +3526,12 @@ return [
             'pageListCfiTargets' => 2,
             'auxiliaryNavigationEntries' => 8,
             'packageLinks' => 14,
+            'packageLinkVocabularyRelTokens' => 19,
+            'packageLinkVocabularyPropertyTokens' => 1,
+            'packageLinkVocabularyResolvedTokens' => 3,
+            'packageLinkVocabularyAbsoluteUrlTokens' => 0,
+            'packageLinkVocabularyDuplicateTokens' => 0,
+            'packageLinkVocabularyDiagnostics' => 0,
             'packageLinkMediaTypeItems' => 11,
             'packageLinkMediaTypeParameters' => 1,
             'linkHrefSuffixes' => 3,
@@ -3449,7 +3575,7 @@ return [
             'ocfSidecars' => 4,
           ),
         );
-        $expectedPackageFeatureSignatureSha256 = '6327a8a62bc7efc7a2c74873338cc862d1e987b95410175d91e7b3270f71bec8';
+        $expectedPackageFeatureSignatureSha256 = '69fccaad2c2b5f0dcfbac9a0b901e3de48d18a95c8ca1fd2e93e5c11e877cb5b';
         $expectedCurrentNativeAstSignatureSha256 = 'aa83117d17cb687973cf31452508692a94e8480f0b8d281e586ede04b8e541ad';
         $expectedCurrentNativeAstFixtures =         array (
           0 => 'accessibility-metadata-package',
@@ -3939,6 +4065,11 @@ return [
                 'preview' => 1,
                 'record' => 1,
             ],
+            'packageLinkVocabularyRelCounts' => [
+                'alternate' => 1,
+                'preview' => 1,
+                'record' => 1,
+            ],
             'coverImagePartPresent' => false,
         ], $report['packageFeatureCoverage']['fixtureFeatureSignatures']['metadata-record-remote-nav']);
         $t->same(true, $report['currentNativeAstSignature']['fixtureSignatures']['metadata-record-remote-nav']['normalizedAstMatches']);
@@ -3960,6 +4091,10 @@ return [
             ],
             'guideReferenceTypeCounts' => [],
             'packageLinkRelCounts' => [
+                'record' => 1,
+                'search' => 1,
+            ],
+            'packageLinkVocabularyRelCounts' => [
                 'record' => 1,
                 'search' => 1,
             ],
@@ -3986,6 +4121,10 @@ return [
             ],
             'guideReferenceTypeCounts' => [],
             'packageLinkRelCounts' => [
+                'cc:attributionURL' => 1,
+                'cc:license' => 2,
+            ],
+            'packageLinkVocabularyRelCounts' => [
                 'cc:attributionURL' => 1,
                 'cc:license' => 2,
             ],
@@ -4036,6 +4175,7 @@ return [
             ],
             'guideReferenceTypeCounts' => ['title-page' => 1],
             'packageLinkRelCounts' => ['preview' => 1],
+            'packageLinkVocabularyRelCounts' => ['preview' => 1],
             'coverImagePartPresent' => false,
         ], $report['packageFeatureCoverage']['fixtureFeatureSignatures']['title-page-guide-media-metadata']);
         $t->same(true, $report['currentNativeAstSignature']['fixtureSignatures']['title-page-guide-media-metadata']['normalizedAstMatches']);
@@ -4120,6 +4260,7 @@ return [
             ],
             'guideReferenceTypeCounts' => ['text' => 1],
             'packageLinkRelCounts' => ['record' => 1],
+            'packageLinkVocabularyRelCounts' => ['record' => 1],
             'coverImagePartPresent' => false,
         ], $report['packageFeatureCoverage']['fixtureFeatureSignatures']['nav-ncx-linear-guide']);
         $t->same(true, $report['currentNativeAstSignature']['fixtureSignatures']['nav-ncx-linear-guide']['normalizedAstMatches']);

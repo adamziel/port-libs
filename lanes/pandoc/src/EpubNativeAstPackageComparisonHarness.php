@@ -14,7 +14,7 @@ final class EpubNativeAstPackageComparisonHarness
     private const PACKAGE_FEATURE_SIGNATURE_KIND = 'checked-in-current-epub-package-feature-signature';
     private const PACKAGE_FEATURE_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
     private const PACKAGE_FEATURE_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-67-fixture-snapshot';
-    private const CHECKED_IN_CURRENT_PACKAGE_FEATURE_SIGNATURE_SHA256 = '6327a8a62bc7efc7a2c74873338cc862d1e987b95410175d91e7b3270f71bec8';
+    private const CHECKED_IN_CURRENT_PACKAGE_FEATURE_SIGNATURE_SHA256 = '69fccaad2c2b5f0dcfbac9a0b901e3de48d18a95c8ca1fd2e93e5c11e877cb5b';
     private const CURRENT_NATIVE_AST_SIGNATURE_KIND = 'checked-in-current-epub-normalized-native-ast-signature';
     private const CURRENT_NATIVE_AST_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
     private const CURRENT_NATIVE_AST_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-67-fixture-normalized-ast-snapshot';
@@ -908,6 +908,20 @@ final class EpubNativeAstPackageComparisonHarness
         'record' => 9,
         'search' => 1,
       ),
+      'packageLinkVocabularyRelCounts' =>
+      array (
+        'accessibility-summary' => 1,
+        'alternate' => 2,
+        'cc:attributionURL' => 1,
+        'cc:license' => 2,
+        'preview' => 3,
+        'record' => 9,
+        'search' => 1,
+      ),
+      'packageLinkVocabularyPropertyCounts' =>
+      array (
+        'accessibility-metadata' => 1,
+      ),
       'packageLinkMediaTypeCounts' =>
       array (
         'application/json' => 8,
@@ -981,6 +995,15 @@ final class EpubNativeAstPackageComparisonHarness
           array (
             'accessibility-summary' => 1,
             'record' => 1,
+          ),
+          'packageLinkVocabularyRelCounts' =>
+          array (
+            'accessibility-summary' => 1,
+            'record' => 1,
+          ),
+          'packageLinkVocabularyPropertyCounts' =>
+          array (
+            'accessibility-metadata' => 1,
           ),
           'accessibilityPropertyCounts' =>
           array (
@@ -1097,6 +1120,10 @@ final class EpubNativeAstPackageComparisonHarness
           array (
           ),
           'packageLinkRelCounts' =>
+          array (
+            'record' => 1,
+          ),
+          'packageLinkVocabularyRelCounts' =>
           array (
             'record' => 1,
           ),
@@ -1699,6 +1726,10 @@ final class EpubNativeAstPackageComparisonHarness
           array (
             'record' => 1,
           ),
+          'packageLinkVocabularyRelCounts' =>
+          array (
+            'record' => 1,
+          ),
           'coverImagePartPresent' => false,
         ),
         'mathml-spine' =>
@@ -1810,6 +1841,11 @@ final class EpubNativeAstPackageComparisonHarness
             'alternate' => 1,
             'record' => 1,
           ),
+          'packageLinkVocabularyRelCounts' =>
+          array (
+            'alternate' => 1,
+            'record' => 1,
+          ),
           'coverImagePartPresent' => false,
         ),
         'metadata-record-remote-nav' =>
@@ -1839,6 +1875,12 @@ final class EpubNativeAstPackageComparisonHarness
             'preview' => 1,
             'record' => 1,
           ),
+          'packageLinkVocabularyRelCounts' =>
+          array (
+            'alternate' => 1,
+            'preview' => 1,
+            'record' => 1,
+          ),
           'coverImagePartPresent' => false,
         ),
         'metadata-search-link-semantics' =>
@@ -1857,6 +1899,11 @@ final class EpubNativeAstPackageComparisonHarness
           array (
           ),
           'packageLinkRelCounts' =>
+          array (
+            'record' => 1,
+            'search' => 1,
+          ),
+          'packageLinkVocabularyRelCounts' =>
           array (
             'record' => 1,
             'search' => 1,
@@ -1949,6 +1996,10 @@ final class EpubNativeAstPackageComparisonHarness
           array (
             'record' => 1,
           ),
+          'packageLinkVocabularyRelCounts' =>
+          array (
+            'record' => 1,
+          ),
           'coverImagePartPresent' => false,
         ),
         'nested-path-media-metadata' =>
@@ -1977,6 +2028,10 @@ final class EpubNativeAstPackageComparisonHarness
             'text' => 1,
           ),
           'packageLinkRelCounts' =>
+          array (
+            'record' => 1,
+          ),
+          'packageLinkVocabularyRelCounts' =>
           array (
             'record' => 1,
           ),
@@ -2289,6 +2344,10 @@ final class EpubNativeAstPackageComparisonHarness
           array (
             'preview' => 1,
           ),
+          'packageLinkVocabularyRelCounts' =>
+          array (
+            'preview' => 1,
+          ),
           'coverImagePartPresent' => false,
         ),
         'video-manifest-resource' =>
@@ -2357,6 +2416,11 @@ final class EpubNativeAstPackageComparisonHarness
             'cc:attributionURL' => 1,
             'cc:license' => 2,
           ),
+          'packageLinkVocabularyRelCounts' =>
+          array (
+            'cc:attributionURL' => 1,
+            'cc:license' => 2,
+          ),
           'coverImagePartPresent' => true,
         ),
         'xhtml-address-spine' =>
@@ -2418,6 +2482,11 @@ final class EpubNativeAstPackageComparisonHarness
             'text' => 1,
           ),
           'packageLinkRelCounts' =>
+          array (
+            'preview' => 1,
+            'record' => 1,
+          ),
+          'packageLinkVocabularyRelCounts' =>
           array (
             'preview' => 1,
             'record' => 1,
@@ -2490,6 +2559,23 @@ final class EpubNativeAstPackageComparisonHarness
         8 => 'title-page-guide-media-metadata',
         9 => 'wasteland',
         10 => 'xhtml-ruby-table-mark',
+      ),
+      'fixturesWithPackageLinkVocabulary' =>
+      array (
+        0 => 'accessibility-metadata-package',
+        1 => 'bindings-collections-sidecars',
+        2 => 'manifest-href-encoding',
+        3 => 'metadata-link-page-list-image',
+        4 => 'metadata-record-remote-nav',
+        5 => 'metadata-search-link-semantics',
+        6 => 'nav-ncx-linear-guide',
+        7 => 'nested-path-media-metadata',
+        8 => 'title-page-guide-media-metadata',
+        9 => 'wasteland',
+        10 => 'xhtml-ruby-table-mark',
+      ),
+      'fixturesWithPackageLinkVocabularyDiagnostics' =>
+      array (
       ),
       'fixturesWithPackageLinkMediaTypeParameters' =>
       array (
@@ -2763,6 +2849,12 @@ final class EpubNativeAstPackageComparisonHarness
         'pageListCfiTargets' => 2,
         'auxiliaryNavigationEntries' => 8,
         'packageLinks' => 14,
+        'packageLinkVocabularyRelTokens' => 19,
+        'packageLinkVocabularyPropertyTokens' => 1,
+        'packageLinkVocabularyResolvedTokens' => 3,
+        'packageLinkVocabularyAbsoluteUrlTokens' => 0,
+        'packageLinkVocabularyDuplicateTokens' => 0,
+        'packageLinkVocabularyDiagnostics' => 0,
         'packageLinkMediaTypeItems' => 11,
         'packageLinkMediaTypeParameters' => 1,
         'linkHrefSuffixes' => 3,
@@ -3134,6 +3226,15 @@ final class EpubNativeAstPackageComparisonHarness
             $packageLinkRelCounts = is_array($featureCoverage['packageLinkRelCounts'] ?? null)
                 ? $featureCoverage['packageLinkRelCounts']
                 : [];
+            $packageLinkVocabularyRelCounts = is_array($featureCoverage['packageLinkVocabularyRelCounts'] ?? null)
+                ? $featureCoverage['packageLinkVocabularyRelCounts']
+                : [];
+            $packageLinkVocabularyPropertyCounts = is_array($featureCoverage['packageLinkVocabularyPropertyCounts'] ?? null)
+                ? $featureCoverage['packageLinkVocabularyPropertyCounts']
+                : [];
+            $packageLinkVocabularyFixtures = is_array($featureCoverage['fixturesWithPackageLinkVocabulary'] ?? null)
+                ? $featureCoverage['fixturesWithPackageLinkVocabulary']
+                : [];
             $packageLinkMediaTypeCounts = is_array($featureCoverage['packageLinkMediaTypeCounts'] ?? null)
                 ? $featureCoverage['packageLinkMediaTypeCounts']
                 : [];
@@ -3210,7 +3311,7 @@ final class EpubNativeAstPackageComparisonHarness
                 ? $featureCoverage['ocfSidecarKindCounts']
                 : [];
             $lines[] = sprintf(
-                'packageFeatureCoverage: fixtures=%d nav=%d ncx=%d covers=%d landmarks=%d pageLists=%d pageListCfiFixtures=%d pageListCfiTargets=%d auxiliaryNav=%d metadataCreators=%d accessibilityFixtures=%d accessibilityEntries=%d accessibilityLinkedRecords=%d accessibilityProperties=%s manifestItems=%d readingOrderItems=%d spineLinear=%s nonLinearSpineFixtures=%d spinePageSpread=%s pageSpreadFixtures=%d imageAssets=%d stylesheetAssets=%d resourceKinds=%s guideRefTypes=%s packageLinkRels=%s packageLinkMediaTypes=%s packageLinkParamFixtures=%d packageLinkParams=%d packageLinkParamNames=%s linkHrefSuffixFixtures=%d linkHrefSuffixes=%d linkHrefSuffixSources=%s linkHrefQueries=%d linkHrefFragments=%d remoteManifest=%d externalManifest=%d missingLocalManifest=%d manifestFallbackItems=%d manifestFallbacks=%d resolvedFallbacks=%d usableFallbacks=%d missingFallbacks=%d mediaOverlayFixtures=%d resolvedMediaOverlayFixtures=%d mediaOverlays=%d resolvedMediaOverlays=%d mediaOverlayTimelineItems=%d mediaOverlayClipTimings=%d mediaOverlayValidClipTimings=%d mediaOverlayInvalidClipTimings=%d mediaOverlayTextTargets=%d mediaOverlayAudioTargets=%d mediaOverlayDurations=%d encryptionFixtures=%d obfuscatedFontFixtures=%d blockedEncryptedByteExposureFixtures=%d encryptionItems=%d obfuscatedFonts=%d blockedEncryptedByteExposures=%d encryptionDiagnostics=%d encryptionRoles=%s collectionFixtures=%d collections=%d collectionLinks=%d collectionRoles=%s collectionLinkRels=%s bindingFixtures=%d bindings=%d bindingResolvedHandlers=%d bindingParams=%d bindingMediaTypes=%s ocfSidecarFixtures=%d ocfSidecars=%d ocfSidecarKinds=%s opfParts=%s',
+                'packageFeatureCoverage: fixtures=%d nav=%d ncx=%d covers=%d landmarks=%d pageLists=%d pageListCfiFixtures=%d pageListCfiTargets=%d auxiliaryNav=%d metadataCreators=%d accessibilityFixtures=%d accessibilityEntries=%d accessibilityLinkedRecords=%d accessibilityProperties=%s manifestItems=%d readingOrderItems=%d spineLinear=%s nonLinearSpineFixtures=%d spinePageSpread=%s pageSpreadFixtures=%d imageAssets=%d stylesheetAssets=%d resourceKinds=%s guideRefTypes=%s packageLinkRels=%s packageLinkVocabFixtures=%d packageLinkVocabRels=%s packageLinkVocabProps=%s packageLinkVocabRelTokens=%d packageLinkVocabPropertyTokens=%d packageLinkVocabResolvedTokens=%d packageLinkVocabAbsoluteUrlTokens=%d packageLinkVocabDuplicateTokens=%d packageLinkVocabDiagnostics=%d packageLinkMediaTypes=%s packageLinkParamFixtures=%d packageLinkParams=%d packageLinkParamNames=%s linkHrefSuffixFixtures=%d linkHrefSuffixes=%d linkHrefSuffixSources=%s linkHrefQueries=%d linkHrefFragments=%d remoteManifest=%d externalManifest=%d missingLocalManifest=%d manifestFallbackItems=%d manifestFallbacks=%d resolvedFallbacks=%d usableFallbacks=%d missingFallbacks=%d mediaOverlayFixtures=%d resolvedMediaOverlayFixtures=%d mediaOverlays=%d resolvedMediaOverlays=%d mediaOverlayTimelineItems=%d mediaOverlayClipTimings=%d mediaOverlayValidClipTimings=%d mediaOverlayInvalidClipTimings=%d mediaOverlayTextTargets=%d mediaOverlayAudioTargets=%d mediaOverlayDurations=%d encryptionFixtures=%d obfuscatedFontFixtures=%d blockedEncryptedByteExposureFixtures=%d encryptionItems=%d obfuscatedFonts=%d blockedEncryptedByteExposures=%d encryptionDiagnostics=%d encryptionRoles=%s collectionFixtures=%d collections=%d collectionLinks=%d collectionRoles=%s collectionLinkRels=%s bindingFixtures=%d bindings=%d bindingResolvedHandlers=%d bindingParams=%d bindingMediaTypes=%s ocfSidecarFixtures=%d ocfSidecars=%d ocfSidecarKinds=%s opfParts=%s',
                 (int) ($featureCoverage['fixtureCount'] ?? 0),
                 (int) ($navigationTypeCounts['nav'] ?? 0),
                 (int) ($navigationTypeCounts['ncx'] ?? 0),
@@ -3242,6 +3343,15 @@ final class EpubNativeAstPackageComparisonHarness
                     : []),
                 self::formatCounts($guideReferenceTypeCounts),
                 self::formatCounts($packageLinkRelCounts),
+                count($packageLinkVocabularyFixtures),
+                self::formatCounts($packageLinkVocabularyRelCounts),
+                self::formatCounts($packageLinkVocabularyPropertyCounts),
+                (int) ($totals['packageLinkVocabularyRelTokens'] ?? 0),
+                (int) ($totals['packageLinkVocabularyPropertyTokens'] ?? 0),
+                (int) ($totals['packageLinkVocabularyResolvedTokens'] ?? 0),
+                (int) ($totals['packageLinkVocabularyAbsoluteUrlTokens'] ?? 0),
+                (int) ($totals['packageLinkVocabularyDuplicateTokens'] ?? 0),
+                (int) ($totals['packageLinkVocabularyDiagnostics'] ?? 0),
                 self::formatCounts($packageLinkMediaTypeCounts),
                 count($packageLinkMediaTypeParameterFixtures),
                 (int) ($totals['packageLinkMediaTypeParameters'] ?? 0),
@@ -4209,6 +4319,8 @@ final class EpubNativeAstPackageComparisonHarness
             'navigationSectionTypes' => [],
             'guideReferenceTypeCounts' => [],
             'packageLinkRelCounts' => [],
+            'packageLinkVocabularyRelCounts' => [],
+            'packageLinkVocabularyPropertyCounts' => [],
             'packageLinkMediaTypeCounts' => [],
             'packageLinkMediaTypeParameterNameCounts' => [],
             'linkHrefSuffixSourceCounts' => [],
@@ -4221,6 +4333,8 @@ final class EpubNativeAstPackageComparisonHarness
             'fixtureFeatureSignatures' => [],
             'fixturesWithGuideReferences' => [],
             'fixturesWithPackageLinks' => [],
+            'fixturesWithPackageLinkVocabulary' => [],
+            'fixturesWithPackageLinkVocabularyDiagnostics' => [],
             'fixturesWithPackageLinkMediaTypeParameters' => [],
             'fixturesWithLinkHrefSuffixes' => [],
             'fixturesWithAccessibilityMetadata' => [],
@@ -4265,6 +4379,12 @@ final class EpubNativeAstPackageComparisonHarness
                 'pageListCfiTargets' => 0,
                 'auxiliaryNavigationEntries' => 0,
                 'packageLinks' => 0,
+                'packageLinkVocabularyRelTokens' => 0,
+                'packageLinkVocabularyPropertyTokens' => 0,
+                'packageLinkVocabularyResolvedTokens' => 0,
+                'packageLinkVocabularyAbsoluteUrlTokens' => 0,
+                'packageLinkVocabularyDuplicateTokens' => 0,
+                'packageLinkVocabularyDiagnostics' => 0,
                 'packageLinkMediaTypeItems' => 0,
                 'packageLinkMediaTypeParameters' => 0,
                 'linkHrefSuffixes' => 0,
@@ -4855,6 +4975,7 @@ final class EpubNativeAstPackageComparisonHarness
         $encryption = $package->encryption();
         $encryptionExposure = is_array($encryption['exposure'] ?? null) ? $encryption['exposure'] : [];
         $packageLinkMediaTypes = $package->packageLinkMediaTypes();
+        $packageLinkVocabulary = is_array($metadata['linkVocabulary'] ?? null) ? $metadata['linkVocabulary'] : [];
         $linkHrefSuffixes = $package->linkHrefSuffixes();
         $accessibility = is_array($metadata['accessibility'] ?? null) ? $metadata['accessibility'] : [];
         $accessibilityPropertyCounts = self::accessibilityPropertyCounts($accessibility);
@@ -4909,6 +5030,14 @@ final class EpubNativeAstPackageComparisonHarness
                 : 0,
             'packageLinkCount' => count($package->packageLinks()),
             'packageLinkRelCounts' => self::packageLinkRelCounts($package->packageLinks()),
+            'packageLinkVocabularyRelTokenCount' => (int) ($packageLinkVocabulary['relTokenCount'] ?? 0),
+            'packageLinkVocabularyPropertyTokenCount' => (int) ($packageLinkVocabulary['propertyTokenCount'] ?? 0),
+            'packageLinkVocabularyResolvedTokenCount' => (int) ($packageLinkVocabulary['resolvedTokenCount'] ?? 0),
+            'packageLinkVocabularyAbsoluteUrlTokenCount' => (int) ($packageLinkVocabulary['absoluteUrlTokenCount'] ?? 0),
+            'packageLinkVocabularyDuplicateTokenCount' => (int) ($packageLinkVocabulary['duplicateTokenCount'] ?? 0),
+            'packageLinkVocabularyDiagnosticCount' => (int) ($packageLinkVocabulary['diagnosticCount'] ?? 0),
+            'packageLinkVocabularyRelCounts' => self::intCountMap($packageLinkVocabulary['rels'] ?? []),
+            'packageLinkVocabularyPropertyCounts' => self::intCountMap($packageLinkVocabulary['properties'] ?? []),
             'packageLinkMediaTypeCount' => (int) ($packageLinkMediaTypes['itemCount'] ?? 0),
             'packageLinkMediaTypeCounts' => self::packageLinkMediaTypeCounts($packageLinkMediaTypes),
             'packageLinkMediaTypeParameterCount' => (int) ($packageLinkMediaTypes['parameterCount'] ?? 0),
@@ -5239,6 +5368,8 @@ final class EpubNativeAstPackageComparisonHarness
         $manifestResourceKindCounts = [];
         $guideReferenceTypeCounts = [];
         $packageLinkRelCounts = [];
+        $packageLinkVocabularyRelCounts = [];
+        $packageLinkVocabularyPropertyCounts = [];
         $packageLinkMediaTypeCounts = [];
         $packageLinkMediaTypeParameterNameCounts = [];
         $linkHrefSuffixSourceCounts = [];
@@ -5314,6 +5445,16 @@ final class EpubNativeAstPackageComparisonHarness
                     $packageLinkRelCounts[$rel] = (int) ($packageLinkRelCounts[$rel] ?? 0) + (int) $count;
                 }
             }
+            foreach (is_array($summary['packageLinkVocabularyRelCounts'] ?? null) ? $summary['packageLinkVocabularyRelCounts'] : [] as $rel => $count) {
+                if (is_string($rel) && $rel !== '') {
+                    $packageLinkVocabularyRelCounts[$rel] = (int) ($packageLinkVocabularyRelCounts[$rel] ?? 0) + (int) $count;
+                }
+            }
+            foreach (is_array($summary['packageLinkVocabularyPropertyCounts'] ?? null) ? $summary['packageLinkVocabularyPropertyCounts'] : [] as $property => $count) {
+                if (is_string($property) && $property !== '') {
+                    $packageLinkVocabularyPropertyCounts[$property] = (int) ($packageLinkVocabularyPropertyCounts[$property] ?? 0) + (int) $count;
+                }
+            }
             foreach (is_array($summary['packageLinkMediaTypeCounts'] ?? null) ? $summary['packageLinkMediaTypeCounts'] : [] as $mediaType => $count) {
                 if (is_string($mediaType) && $mediaType !== '') {
                     $packageLinkMediaTypeCounts[$mediaType] = (int) ($packageLinkMediaTypeCounts[$mediaType] ?? 0) + (int) $count;
@@ -5368,6 +5509,18 @@ final class EpubNativeAstPackageComparisonHarness
             }
             if ($fixture !== '' && (int) ($summary['packageLinkCount'] ?? 0) > 0) {
                 $coverage['fixturesWithPackageLinks'][] = $fixture;
+            }
+            if (
+                $fixture !== ''
+                && (
+                    (int) ($summary['packageLinkVocabularyRelTokenCount'] ?? 0)
+                    + (int) ($summary['packageLinkVocabularyPropertyTokenCount'] ?? 0)
+                ) > 0
+            ) {
+                $coverage['fixturesWithPackageLinkVocabulary'][] = $fixture;
+            }
+            if ($fixture !== '' && (int) ($summary['packageLinkVocabularyDiagnosticCount'] ?? 0) > 0) {
+                $coverage['fixturesWithPackageLinkVocabularyDiagnostics'][] = $fixture;
             }
             if ($fixture !== '' && (int) ($summary['packageLinkMediaTypeParameterCount'] ?? 0) > 0) {
                 $coverage['fixturesWithPackageLinkMediaTypeParameters'][] = $fixture;
@@ -5477,6 +5630,12 @@ final class EpubNativeAstPackageComparisonHarness
             $coverage['totals']['pageListCfiTargets'] += (int) ($summary['pageListCfiTargetCount'] ?? 0);
             $coverage['totals']['auxiliaryNavigationEntries'] += (int) ($summary['auxiliaryNavigationEntryCount'] ?? 0);
             $coverage['totals']['packageLinks'] += (int) ($summary['packageLinkCount'] ?? 0);
+            $coverage['totals']['packageLinkVocabularyRelTokens'] += (int) ($summary['packageLinkVocabularyRelTokenCount'] ?? 0);
+            $coverage['totals']['packageLinkVocabularyPropertyTokens'] += (int) ($summary['packageLinkVocabularyPropertyTokenCount'] ?? 0);
+            $coverage['totals']['packageLinkVocabularyResolvedTokens'] += (int) ($summary['packageLinkVocabularyResolvedTokenCount'] ?? 0);
+            $coverage['totals']['packageLinkVocabularyAbsoluteUrlTokens'] += (int) ($summary['packageLinkVocabularyAbsoluteUrlTokenCount'] ?? 0);
+            $coverage['totals']['packageLinkVocabularyDuplicateTokens'] += (int) ($summary['packageLinkVocabularyDuplicateTokenCount'] ?? 0);
+            $coverage['totals']['packageLinkVocabularyDiagnostics'] += (int) ($summary['packageLinkVocabularyDiagnosticCount'] ?? 0);
             $coverage['totals']['packageLinkMediaTypeItems'] += (int) ($summary['packageLinkMediaTypeCount'] ?? 0);
             $coverage['totals']['packageLinkMediaTypeParameters'] += (int) ($summary['packageLinkMediaTypeParameterCount'] ?? 0);
             $coverage['totals']['linkHrefSuffixes'] += (int) ($summary['linkHrefSuffixCount'] ?? 0);
@@ -5540,6 +5699,10 @@ final class EpubNativeAstPackageComparisonHarness
         $coverage['guideReferenceTypeCounts'] = $guideReferenceTypeCounts;
         ksort($packageLinkRelCounts, SORT_STRING);
         $coverage['packageLinkRelCounts'] = $packageLinkRelCounts;
+        ksort($packageLinkVocabularyRelCounts, SORT_STRING);
+        $coverage['packageLinkVocabularyRelCounts'] = $packageLinkVocabularyRelCounts;
+        ksort($packageLinkVocabularyPropertyCounts, SORT_STRING);
+        $coverage['packageLinkVocabularyPropertyCounts'] = $packageLinkVocabularyPropertyCounts;
         ksort($packageLinkMediaTypeCounts, SORT_STRING);
         $coverage['packageLinkMediaTypeCounts'] = $packageLinkMediaTypeCounts;
         ksort($packageLinkMediaTypeParameterNameCounts, SORT_STRING);
@@ -5579,6 +5742,18 @@ final class EpubNativeAstPackageComparisonHarness
             'guideReferenceTypeCounts' => self::intCountMap($summary['guideReferenceTypeCounts'] ?? []),
             'packageLinkRelCounts' => self::intCountMap($summary['packageLinkRelCounts'] ?? []),
         ];
+        $packageLinkVocabularyRelCounts = self::intCountMap($summary['packageLinkVocabularyRelCounts'] ?? []);
+        if ($packageLinkVocabularyRelCounts !== []) {
+            $signature['packageLinkVocabularyRelCounts'] = $packageLinkVocabularyRelCounts;
+        }
+        $packageLinkVocabularyPropertyCounts = self::intCountMap($summary['packageLinkVocabularyPropertyCounts'] ?? []);
+        if ($packageLinkVocabularyPropertyCounts !== []) {
+            $signature['packageLinkVocabularyPropertyCounts'] = $packageLinkVocabularyPropertyCounts;
+        }
+        $packageLinkVocabularyDiagnosticCount = (int) ($summary['packageLinkVocabularyDiagnosticCount'] ?? 0);
+        if ($packageLinkVocabularyDiagnosticCount > 0) {
+            $signature['packageLinkVocabularyDiagnosticCount'] = $packageLinkVocabularyDiagnosticCount;
+        }
         $accessibilityPropertyCounts = self::intCountMap($summary['accessibilityPropertyCounts'] ?? []);
         if ($accessibilityPropertyCounts !== []) {
             $signature['accessibilityPropertyCounts'] = $accessibilityPropertyCounts;
