@@ -99,7 +99,7 @@ final class MarkdownReader
         'vs.' => true,
     ];
 
-    /** @var array<string, array{url:string, title:string}> */
+    /** @var array<string, array{url:string, title:string, attrs?:array<string, mixed>}> */
     private array $referenceLinks = [];
 
     /** @var array<string, string> */
@@ -1100,7 +1100,7 @@ final class MarkdownReader
 
     /**
      * @param list<string> $lines
-     * @return array{0:list<string>, 1:array<string, array{url:string, title:string}>, 2:array<string, string>, 3:array<string, string>}
+     * @return array{0:list<string>, 1:array<string, array{url:string, title:string, attrs?:array<string, mixed>}>, 2:array<string, string>, 3:array<string, string>}
      */
     private function extractReferenceDefinitions(array $lines, bool $footnotesEnabled): array
     {
@@ -1147,6 +1147,9 @@ final class MarkdownReader
                         'url' => $target['url'],
                         'title' => $target['title'],
                     ];
+                    if (isset($target['attrs']) && is_array($target['attrs'])) {
+                        $references[$normalizedLabel]['attrs'] = $target['attrs'];
+                    }
                     $index = $nextIndex - 1;
                     continue;
                 }
@@ -2164,7 +2167,7 @@ final class MarkdownReader
     }
 
     /**
-     * @return array{label:string, url:string, title:string}|null
+     * @return array{label:string, url:string, title:string, attrs?:array<string, mixed>}|null
      */
     private function tryParseReferenceDefinition(string $line, bool $allowFootnoteLabel = false): ?array
     {
@@ -2178,11 +2181,16 @@ final class MarkdownReader
             return null;
         }
 
-        return [
+        $result = [
             'label' => $reference['label'],
             'url' => $target['url'],
             'title' => $target['title'],
         ];
+        if (isset($target['attrs']) && is_array($target['attrs'])) {
+            $result['attrs'] = $target['attrs'];
+        }
+
+        return $result;
     }
 
     /**
@@ -14685,7 +14693,7 @@ final class MarkdownReader
         }
 
         $plainText = $this->paragraphTextFromInlines($children);
-        if (count($children) === 1 && $children[0]->type === 'image') {
+        if (count($children) === 1 && $children[0]->type === 'image' && $children[0]->children !== []) {
             $image = $children[0];
             $captionInlines = $image->children;
             $explicitAlt = $this->markdownImageAttributeAlt($image);
@@ -16078,12 +16086,14 @@ final class MarkdownReader
             return null;
         }
 
+        $targetAttrs = is_array($target['attrs'] ?? null) ? $target['attrs'] : [];
         [$node, $next] = $this->buildImageNodeWithTrailingAttributes(
             $text,
             $label['text'],
             $target['url'],
             $target['title'],
-            $next
+            $next,
+            $targetAttrs
         );
 
         return [
@@ -16100,12 +16110,13 @@ final class MarkdownReader
         string $label,
         string $url,
         string $title,
-        int $offset
+        int $offset,
+        array $baseAttrs = []
     ): array {
-        $attrs = [];
+        $attrs = $baseAttrs;
         $attribute = $this->linkAttributeExtensionEnabled() ? $this->tryParseInlineAttributeSpec($source, $offset) : null;
         if ($attribute !== null) {
-            $attrs = $attribute['attrs'];
+            $attrs = array_replace_recursive($attrs, $attribute['attrs']);
             $offset = $attribute['next'];
         }
 
@@ -16949,6 +16960,13 @@ final class MarkdownReader
         $canonical = MarkdownFormatProfile::canonicalFormat($format);
 
         return in_array($canonical, ['markdown', 'commonmark_x', 'markdown_phpextra'], true);
+    }
+
+    private function mmdReferenceImageAttributesEnabled(): bool
+    {
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+
+        return MarkdownFormatProfile::canonicalFormat($format) === 'markdown_mmd';
     }
 
     private function numberedExampleExtensionEnabled(): bool
@@ -18843,7 +18861,7 @@ final class MarkdownReader
     }
 
     /**
-     * @return array{url:string, title:string}|null
+     * @return array{url:string, title:string, attrs?:array<string, mixed>}|null
      */
     private function parseLinkDestinationAndTitle(string $content): ?array
     {
@@ -18884,6 +18902,11 @@ final class MarkdownReader
             ];
         }
 
+        $mmd = $this->parseMmdReferenceDestinationAndAttributes($content);
+        if ($mmd !== null) {
+            return $mmd;
+        }
+
         [$destination, $titleSource] = $this->splitBareLinkDestinationAndTitle($content);
         $destination = trim($destination);
         if ($destination === '') {
@@ -18905,6 +18928,121 @@ final class MarkdownReader
             'url' => $this->normalizeLinkDestination($destination),
             'title' => $title,
         ];
+    }
+
+    /**
+     * @return array{url:string, title:string, attrs:array<string, mixed>}|null
+     */
+    private function parseMmdReferenceDestinationAndAttributes(string $content): ?array
+    {
+        if (!$this->mmdReferenceImageAttributesEnabled()) {
+            return null;
+        }
+
+        $tokens = preg_split('/[ \t\r\n]+/', trim($content), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        if (count($tokens) < 2) {
+            return null;
+        }
+
+        $firstAttribute = count($tokens);
+        for ($index = count($tokens) - 1; $index >= 1; --$index) {
+            if ($this->parseMmdReferenceAttributeToken($tokens[$index]) === null) {
+                break;
+            }
+            $firstAttribute = $index;
+        }
+        if ($firstAttribute === count($tokens)) {
+            return null;
+        }
+
+        $destinationSource = implode(' ', array_slice($tokens, 0, $firstAttribute));
+        if ($destinationSource === '') {
+            return null;
+        }
+
+        [$destination, $titleSource] = $this->splitBareLinkDestinationAndTitle($destinationSource);
+        $destination = trim($destination);
+        if ($destination === '' || !$this->isValidBareLinkDestination($destination)) {
+            return null;
+        }
+
+        $title = '';
+        if ($titleSource !== null) {
+            $title = $this->parseLinkTitle($titleSource);
+            if ($title === null) {
+                return null;
+            }
+        }
+
+        $attributes = [];
+        foreach (array_slice($tokens, $firstAttribute) as $token) {
+            $attribute = $this->parseMmdReferenceAttributeToken($token);
+            if ($attribute === null) {
+                return null;
+            }
+            $attributes[$attribute['name']] = $this->decodeHtmlEntities(
+                $this->unescapeLinkComponent($attribute['value'])
+            );
+        }
+        if ($attributes === []) {
+            return null;
+        }
+
+        return [
+            'url' => $this->normalizeLinkDestination($destination),
+            'title' => $title,
+            'attrs' => $this->markdownAttributeAstAttrs(null, [], $attributes),
+        ];
+    }
+
+    /**
+     * @return array{name:string, value:string}|null
+     */
+    private function parseMmdReferenceAttributeToken(string $token): ?array
+    {
+        $equals = strpos($token, '=');
+        if ($equals === false || $equals === 0 || $equals === strlen($token) - 1) {
+            return null;
+        }
+
+        $name = substr($token, 0, $equals);
+        if (!$this->isMmdReferenceAttributeName($name)) {
+            return null;
+        }
+
+        return [
+            'name' => $name,
+            'value' => substr($token, $equals + 1),
+        ];
+    }
+
+    private function isMmdReferenceAttributeName(string $name): bool
+    {
+        $length = strlen($name);
+        if ($length === 0 || !$this->isMmdReferenceAttributeNameStart($name[0])) {
+            return false;
+        }
+
+        for ($offset = 1; $offset < $length; $offset++) {
+            if (!$this->isMmdReferenceAttributeNameChar($name[$offset])) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function isMmdReferenceAttributeNameStart(string $char): bool
+    {
+        return ctype_alpha($char) || $char === '_' || $char === ':';
+    }
+
+    private function isMmdReferenceAttributeNameChar(string $char): bool
+    {
+        return $this->isMmdReferenceAttributeNameStart($char)
+            || ctype_digit($char)
+            || $char === '.'
+            || $char === '-';
     }
 
     /**
