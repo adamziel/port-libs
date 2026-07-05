@@ -168,6 +168,7 @@ $tests['keeps html tree construction centralized through Html5Dom'] =
         $t->contains('HTMLDocument::createFromString', $html5DomSource);
         $t->contains('insertAdjacentHTML', $html5DomSource);
         $t->contains('AdjacentPosition::BeforeEnd', $html5DomSource);
+        $t->contains('public const HTML_DOCUMENT_PARSE_OPTIONS = LIBXML_NOERROR | LIBXML_COMPACT;', $html5DomSource);
         $t->contains('function parseHtmlFragment', $html5DomSource);
         $t->contains('function parseHtmlDocument', $html5DomSource);
         $t->contains('function htmlFragmentTreeConstructionContext', $html5DomSource);
@@ -196,6 +197,11 @@ $tests['keeps html tree construction centralized through Html5Dom'] =
         $t->contains('self::requireNativeHtmlDocument(', $methodBody($html5DomSource, 'loadHtml'));
         $t->contains('self::html5TreeConstructedBridgeSource(', $methodBody($html5DomSource, 'loadHtml'));
         $t->contains('HTMLDocument::createFromString', $methodBody($html5DomSource, 'html5TreeConstructedBridgeSource'));
+        $t->same(
+            substr_count($html5DomSource, 'HTMLDocument::createFromString'),
+            substr_count($html5DomSource, 'self::HTML_DOCUMENT_PARSE_OPTIONS'),
+            'Every native HTMLDocument parse must use the centralized native parse options'
+        );
 
         $delegatingHtmlParserEntrypoints = [
             'HtmlReader::parseHtmlFragmentBody' => [

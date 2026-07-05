@@ -9,6 +9,7 @@ final class Html5Dom
     public const HTML_TREE_CONSTRUCTION_HTML_DOCUMENT = 'Dom\\HTMLDocument';
     public const HTML_FRAGMENT_CONTEXT_BODY = 'html-body-fragment-context';
     public const HTML_FRAGMENT_CONTEXT_TABLE = 'html-table-fragment-context';
+    public const HTML_DOCUMENT_PARSE_OPTIONS = LIBXML_NOERROR | LIBXML_COMPACT;
 
     /** @var array<string, true> */
     private const HTML5_VOID_ELEMENTS = [
@@ -768,7 +769,7 @@ final class Html5Dom
         try {
             \Dom\HTMLDocument::createFromString(
                 '<!doctype html><html><body>' . $candidate . '</body></html>',
-                LIBXML_NOERROR | LIBXML_COMPACT,
+                self::HTML_DOCUMENT_PARSE_OPTIONS,
                 'UTF-8'
             );
 
@@ -841,7 +842,7 @@ final class Html5Dom
         try {
             $document = \Dom\HTMLDocument::createFromString(
                 $html,
-                LIBXML_NOERROR | LIBXML_COMPACT,
+                self::HTML_DOCUMENT_PARSE_OPTIONS,
                 'UTF-8'
             );
 
@@ -864,7 +865,7 @@ final class Html5Dom
         try {
             $document = \Dom\HTMLDocument::createFromString(
                 $html,
-                LIBXML_NOERROR | LIBXML_COMPACT,
+                self::HTML_DOCUMENT_PARSE_OPTIONS,
                 'UTF-8'
             );
 
@@ -947,7 +948,7 @@ final class Html5Dom
     {
         $document = \Dom\HTMLDocument::createFromString(
             '<!doctype html><html><body></body></html>',
-            LIBXML_NOERROR | LIBXML_COMPACT,
+            self::HTML_DOCUMENT_PARSE_OPTIONS,
             'UTF-8'
         );
         $body = self::html5FirstElementByTagName($document, 'body');
@@ -970,7 +971,7 @@ final class Html5Dom
     {
         $document = \Dom\HTMLDocument::createFromString(
             '<!doctype html><html><body><table id="pandoc-html-fragment-context"></table></body></html>',
-            LIBXML_NOERROR | LIBXML_COMPACT,
+            self::HTML_DOCUMENT_PARSE_OPTIONS,
             'UTF-8'
         );
         $table = $document->getElementById('pandoc-html-fragment-context');

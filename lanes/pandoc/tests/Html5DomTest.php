@@ -133,7 +133,7 @@ return [
         $source = '<!doctype html><html><body><p><a><b>one</a>two</b><table>loose<tr><td>A<td>B</table><select><option>One<option>Two</select><p>tail</body></html>';
         $previous = libxml_use_internal_errors(true);
         try {
-            $native = \Dom\HTMLDocument::createFromString($source, LIBXML_NOERROR | LIBXML_COMPACT, 'UTF-8')->saveHtml();
+            $native = \Dom\HTMLDocument::createFromString($source, Html5Dom::HTML_DOCUMENT_PARSE_OPTIONS, 'UTF-8')->saveHtml();
         } finally {
             libxml_clear_errors();
             libxml_use_internal_errors($previous);
