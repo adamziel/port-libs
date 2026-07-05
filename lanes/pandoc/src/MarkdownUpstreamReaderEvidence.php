@@ -12,9 +12,9 @@ final class MarkdownUpstreamReaderEvidence
     public const STATUS_COMPLETED = 'completed-upstream-markdown-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-markdown-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
-    public const EXPECTED_SELECTED_FIXTURE_COUNT = 103;
-    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 103;
-    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = '920d4a80d97e7083f060a8e26c373c4fff79122449c9f458a7367c14ed0971b7';
+    public const EXPECTED_SELECTED_FIXTURE_COUNT = 104;
+    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 104;
+    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = '6c53f4af550f71dd22eea833543dcc966fbcd8ecb38b96590d850ee7bd4a02e8';
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/Markdown.hs',
@@ -1324,6 +1324,19 @@ final class MarkdownUpstreamReaderEvidence
             ],
             'sha256' => 'f997c375eea7aaf978d159a6999a0abbe35fd9decff7850accd52da1fa0063ec',
             'bytes' => 25,
+        ],
+        'upstream-markdown-smart-french-apostrophe.md' => [
+            'role' => 'markdown-smart-french-apostrophe-reader-fixture',
+            'sourceKind' => 'selected-upstream-markdown-reader-case',
+            'sourceReference' => 'Tests.Readers.Markdown smart punctuation/apostrophe in French',
+            'formatProfile' => 'markdown+smart French apostrophe and guillemet boundary',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-markdown-smart-french-apostrophe.md',
+            'coverageTests' => [
+                'lanes/pandoc/tests/MarkdownReaderSmartPunctuationFixtureCompletionTest.php',
+                'lanes/pandoc/tests/MarkdownNativeAstComparisonHarnessTest.php',
+            ],
+            'sha256' => 'f1a577d502c60ea42b20146a305234d7dbeface9f317244dd448e4561f3af3f5',
+            'bytes' => 76,
         ],
     ];
 

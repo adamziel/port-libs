@@ -16,6 +16,9 @@ $smartInlineNoteQuotesFixture = static fn (): string =>
 $smartInlineNoteDoubleQuotesFixture = static fn (): string =>
     (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-markdown-smart-inline-note-double-quotes.md');
 
+$smartFrenchApostropheFixture = static fn (): string =>
+    (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-markdown-smart-french-apostrophe.md');
+
 $inlineTypes = static fn (AstNode $node): array => array_map(
     static fn (AstNode $child): string => $child->type,
     $node->children
@@ -117,6 +120,23 @@ return [
             $t->same(' c.', $firstChild($quote, 2)->attr('text'));
             $t->contains('Quoted DoubleQuote [ Str "a" , Note [ Para [ Quoted DoubleQuote [ Str "b" ] , Str "." ]', $native);
             $t->contains(', Space , Str "c." ]', $native);
+        },
+
+    'maps isolated upstream markdown smart French apostrophe fixture' =>
+        static function (TestRunner $t) use ($smartFrenchApostropheFixture, $inlineTypes, $firstChild): void {
+            $document = (new MarkdownReader(['format' => 'markdown+smart']))->read($smartFrenchApostropheFixture());
+            $paragraph = $firstChild($document, 0);
+            $native = (new NativeWriter())->write($document);
+
+            $t->same(1, count($document->children));
+            $t->same(['text'], $inlineTypes($paragraph));
+            $t->same(
+                "À l’arrivée de la guerre, le thème de l’«impossibilité du socialisme»",
+                $firstChild($paragraph, 0)->attr('text')
+            );
+            $t->contains('Str "l\\8217arriv\\233e"', $native);
+            $t->contains('Str "l\\8217\\171impossibilit\\233"', $native);
+            $t->contains('Str "socialisme\\187"', $native);
         },
 
     'records upstream markdown smart punctuation fixture mapped-case count' =>
