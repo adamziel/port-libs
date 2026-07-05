@@ -12,9 +12,9 @@ final class MarkdownUpstreamReaderEvidence
     public const STATUS_COMPLETED = 'completed-upstream-markdown-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-markdown-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
-    public const EXPECTED_SELECTED_FIXTURE_COUNT = 107;
-    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 107;
-    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = '184f70c2c4e51571d2e28c1062b0c2b2418df8c8b5b191aec0deaf45b310ee00';
+    public const EXPECTED_SELECTED_FIXTURE_COUNT = 108;
+    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 108;
+    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = '69583a613f9666b08ac4c52d8b52db6935ee96b6428bcdb21cb7f3c63a11d447';
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/Markdown.hs',
@@ -1376,6 +1376,19 @@ final class MarkdownUpstreamReaderEvidence
             ],
             'sha256' => '111f6bfc28a9b9aefb6e0e2a06752b55bcac4ebf550708c8b0ec2b51862595f9',
             'bytes' => 293,
+        ],
+        'upstream-markdown-citation-link-following.md' => [
+            'role' => 'markdown-citation-link-following-reader-fixture',
+            'sourceKind' => 'selected-upstream-markdown-reader-case',
+            'sourceReference' => 'Tests.Readers.Markdown footnote/link following citation group',
+            'formatProfile' => 'markdown citations followed by footnote, inline link, reference link, implicit header link, and suffix fallback',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-markdown-citation-link-following.md',
+            'coverageTests' => [
+                'lanes/pandoc/tests/MarkdownReaderCitationLinkFollowingFixtureCompletionTest.php',
+                'lanes/pandoc/tests/MarkdownNativeAstComparisonHarnessTest.php',
+            ],
+            'sha256' => '59149a056667d4bc32cd387324e59104f8ef85541130db1d9f86b4514b770e98',
+            'bytes' => 154,
         ],
     ];
 
