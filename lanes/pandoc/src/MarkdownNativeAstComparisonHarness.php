@@ -69,6 +69,7 @@ final class MarkdownNativeAstComparisonHarness
         'upstream-markdown-zzzzzzzzzzzzzzzzzzzzzz-gfm-raw-html-split-angle-boundary' => ['format' => 'gfm'],
         'upstream-markdown-zzzzzzzzzzzzzzzzzzzzzzz-bare-uri-scheme-boundaries' => ['format' => 'markdown+autolink_bare_uris'],
         'upstream-markdown-zzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-bare-uri-query-boundaries' => ['format' => 'markdown+autolink_bare_uris'],
+        'upstream-markdown-bare-uri-query-hyphen-boundaries' => ['format' => 'markdown+autolink_bare_uris'],
         'upstream-markdown-bare-uri-raw-html-anchor' => ['format' => 'markdown+autolink_bare_uris+raw_html'],
         'upstream-markdown-bare-uri-git-file-schemes' => ['format' => 'markdown+autolink_bare_uris'],
         'upstream-markdown-bare-uri-path-punctuation' => ['format' => 'markdown+autolink_bare_uris+raw_html'],

@@ -12,9 +12,9 @@ final class MarkdownUpstreamReaderEvidence
     public const STATUS_COMPLETED = 'completed-upstream-markdown-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-markdown-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
-    public const EXPECTED_SELECTED_FIXTURE_COUNT = 123;
-    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 123;
-    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = 'a171435e20575bfe1de1d040d5fb7a28686f0846ed5246e24b0bc8e17794eed4';
+    public const EXPECTED_SELECTED_FIXTURE_COUNT = 124;
+    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 124;
+    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = 'e0f4d67663b852c3ba656e2f123efdb3158c01801704180d04894bdea02a473c';
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/Markdown.hs',
@@ -1272,6 +1272,19 @@ final class MarkdownUpstreamReaderEvidence
             ],
             'sha256' => '2d251db0ec3147f60db5580984f4c7dc5a18eedc8f03f6e8814f4e7c2d4e3e57',
             'bytes' => 183,
+        ],
+        'upstream-markdown-bare-uri-query-hyphen-boundaries.md' => [
+            'role' => 'markdown-bare-uri-query-hyphen-boundary-reader-fixture',
+            'sourceKind' => 'selected-upstream-markdown-reader-case',
+            'sourceReference' => 'Tests.Readers.Markdown bare URIs/trailing and leading hyphen query anchor cases',
+            'formatProfile' => 'markdown+autolink_bare_uris query values ending and beginning with hyphen',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-markdown-bare-uri-query-hyphen-boundaries.md',
+            'coverageTests' => [
+                'lanes/pandoc/tests/MarkdownReaderBareUriQueryBoundaryFixtureCompletionTest.php',
+                'lanes/pandoc/tests/MarkdownNativeAstComparisonHarnessTest.php',
+            ],
+            'sha256' => '161499a458db1013329ddd59fe20e37cafa71947c55beb3a7adffc99a7eb7309',
+            'bytes' => 69,
         ],
         'upstream-markdown-smart-inline-note-double-quotes.md' => [
             'role' => 'markdown-smart-inline-note-double-quote-reader-fixture',

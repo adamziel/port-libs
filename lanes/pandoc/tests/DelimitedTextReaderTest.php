@@ -1906,6 +1906,40 @@ NATIVE;
         $t->same([], $generatedEvidence['samples'][29]['readerOptions'] ?? null);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
+    'matches generated csv quoted final ordinary spaces native parity fixture without inflating csv denominator' => static function (TestRunner $t) use ($generatedCsvNativeFixture, $nativeTokenStream): void {
+        $fixture = $generatedCsvNativeFixture('quoted-final-space-whitespace');
+        $document = (new DelimitedTextReader())->readCsv($fixture['input'], [
+            'sourcePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/quoted-final-space-whitespace.csv',
+        ]);
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+        $native = PandocConverter::write($document, 'native');
+        $generatedEvidence = $packet['upstreamEvidence']['generatedNativeParityEvidence'] ?? [];
+
+        $t->same('csv', $packet['format'] ?? null);
+        $t->same(['id', 'note'], $table->attr('columnNames'));
+        $t->same(2, $packet['rowCount'] ?? null);
+        $t->same(1, $packet['bodyRowCount'] ?? null);
+        $t->same(2, $packet['columnCount'] ?? null);
+        $t->same(4, $packet['fieldCount'] ?? null);
+        $t->same(1, $packet['quotedFieldCount'] ?? null);
+        $t->same(0, $packet['textAfterClosingQuoteCount'] ?? null);
+        $t->same(0, $packet['closingQuoteTrailingWhitespaceCount'] ?? null);
+        $t->same(0, $packet['closingQuoteTrailingRecordWhitespaceCount'] ?? null);
+        $t->same(0, $packet['diagnosticCount'] ?? null);
+        $t->same('1', $table->children[1]->children[0]->children[0]->attr('text'));
+        $t->same('ok', $table->children[1]->children[0]->children[1]->attr('text'));
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
+        $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
+        $t->same(2 * DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['checkedInFixtureCount'] ?? null);
+        $t->same('quoted-final-space-whitespace.csv', $generatedEvidence['checkedInFixtures'][130]['name'] ?? null);
+        $t->same('d30d086405286d4569dcaac5f727e57861b98319788c5b950f1ee2f42d6c6507', $generatedEvidence['checkedInFixtures'][130]['checkedInFile']['sha256'] ?? null);
+        $t->same('quoted-final-space-whitespace.native', $generatedEvidence['checkedInFixtures'][131]['name'] ?? null);
+        $t->same('e1aeed0b50260073654fdc92ec94b201f5d9678112837250f7f36d47692504e6', $generatedEvidence['checkedInFixtures'][131]['checkedInFile']['sha256'] ?? null);
+        $t->same('quoted-final-space-whitespace', $generatedEvidence['samples'][65]['name'] ?? null);
+        $t->same([], $generatedEvidence['samples'][65]['readerOptions'] ?? null);
+        $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
+    },
     'matches generated csv unquoted final form feed native parity fixture without inflating csv denominator' => static function (TestRunner $t) use ($generatedCsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedCsvNativeFixture('unquoted-final-formfeed');
         $document = (new DelimitedTextReader())->readCsv($fixture['input'], [

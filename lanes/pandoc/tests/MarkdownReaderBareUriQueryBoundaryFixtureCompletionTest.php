@@ -10,6 +10,10 @@ $fixture = static fn (): string => (string) file_get_contents(
     dirname(__DIR__) . '/fixtures/upstream-markdown-zzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-bare-uri-query-boundaries.md'
 );
 
+$hyphenFixture = static fn (): string => (string) file_get_contents(
+    dirname(__DIR__) . '/fixtures/upstream-markdown-bare-uri-query-hyphen-boundaries.md'
+);
+
 $collectLinks = static function (AstNode $node) use (&$collectLinks): array {
     $links = [];
     if ($node->type === 'link') {
@@ -63,5 +67,23 @@ return [
             $t->same('Try this query: http://google.com?search=fish&time=hour.', $cases[0]);
             $t->same('http://en.wikipedia.org/wiki/Sprite_(computer_graphics)', $cases[1]);
             $t->same('http://foo.example.com/controller/action?parm=value&p2=v2#anchor123', $cases[2]);
+        },
+
+    'maps selected upstream markdown bare URI query hyphen boundary fixture' =>
+        static function (TestRunner $t) use ($hyphenFixture, $collectLinks): void {
+            $document = (new MarkdownReader(['format' => 'markdown+autolink_bare_uris']))->read($hyphenFixture());
+            $links = $collectLinks($document);
+            $native = (new NativeWriter())->write($document);
+
+            $t->same(2, count($document->children));
+            $t->same(2, count($links));
+            $t->same('https://example.org/?anchor=lala-', $links[0]->attr('url'));
+            $t->same('https://example.org/?anchor=lala-', ($links[0]->children[0] ?? new AstNode('missing'))->attr('text'));
+            $t->same(['uri'], $links[0]->attr('classes'));
+            $t->same('https://example.org/?anchor=-lala', $links[1]->attr('url'));
+            $t->same('https://example.org/?anchor=-lala', ($links[1]->children[0] ?? new AstNode('missing'))->attr('text'));
+            $t->same(['uri'], $links[1]->attr('classes'));
+            $t->contains('https://example.org/?anchor=lala-', $native);
+            $t->contains('https://example.org/?anchor=-lala', $native);
         },
 ];

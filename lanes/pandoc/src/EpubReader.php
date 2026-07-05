@@ -2074,6 +2074,54 @@ final class EpubReader
         return false;
     }
 
+    /**
+     * @return list<string>
+     */
+    private function epubRawHtmlMediaResourceUrls(string $html): array
+    {
+        $opening = Html5Dom::rawHtmlOpeningTagAt($html);
+        if ($opening === null || !in_array($opening['name'], ['audio', 'source', 'track', 'video'], true)) {
+            return [];
+        }
+
+        $attributes = $this->rawHtmlAttributes($opening['source']);
+        $names = $opening['name'] === 'video' ? ['src', 'poster'] : ['src'];
+        $urls = [];
+        foreach ($names as $name) {
+            $url = trim($attributes[$name] ?? '');
+            if ($url !== '' && !in_array($url, $urls, true)) {
+                $urls[] = $url;
+            }
+        }
+
+        return $urls;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function rawHtmlAttributes(string $source): array
+    {
+        preg_match_all(
+            '/([A-Za-z_:][A-Za-z0-9:_.-]*)\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s"\'=<>`]+))/',
+            $source,
+            $matches,
+            PREG_SET_ORDER
+        );
+
+        $attributes = [];
+        foreach ($matches as $match) {
+            $name = strtolower($match[1]);
+            $doubleQuoted = $match[2] ?? '';
+            $singleQuoted = $match[3] ?? '';
+            $unquoted = $match[4] ?? '';
+            $value = $doubleQuoted !== '' ? $doubleQuoted : ($singleQuoted !== '' ? $singleQuoted : $unquoted);
+            $attributes[$name] = html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        }
+
+        return $attributes;
+    }
+
     private function isEpubOpeningRawHtmlTag(string $html, string $tag): bool
     {
         $opening = Html5Dom::rawHtmlOpeningTagAt($html);
@@ -2210,6 +2258,10 @@ final class EpubReader
                 if ($resource !== null) {
                     $this->recordMediaBagSource($this->mediaBagSourceUrl($attrs['url']), $resource, $media_bag_sources);
                 }
+            }
+        } elseif ($node->type === 'raw_html') {
+            foreach ($this->epubRawHtmlMediaResourceUrls((string) ($attrs['html'] ?? '')) as $url) {
+                $this->recordReferencedResource($url, $content_dir, $package_base_path, $referenced_resources);
             }
         }
 

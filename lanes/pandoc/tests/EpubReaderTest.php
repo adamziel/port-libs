@@ -1381,6 +1381,33 @@ HTML);
             'sha1' => (string) $entry['sha1'],
         ], $meta['epubMediaResourceDirectory']));
     },
+    'records raw epub video and text track resources without adding them to the image media bag' => static function (TestRunner $t): void {
+        $fixture = dirname(__DIR__) . '/fixtures/upstream-current-epub-reader/epub/text-track-captions.epub';
+        $document = (new EpubReader())->readEpubFile($fixture);
+        $meta = $document->attr('meta');
+        $rawHtml = array_values(array_map(
+            static fn (AstNode $node): string => (string) $node->attr('html'),
+            array_filter(
+                $document->children,
+                static fn (AstNode $node): bool => $node->type === 'raw_html'
+            )
+        ));
+
+        $t->same('Text Track Captions', $meta['title']);
+        $t->same(['EPUB/chapter.xhtml'], $meta['epubReadableResources']);
+        $t->same(['EPUB/video/demo.mp4', 'EPUB/video/captions.vtt'], $meta['epubReferencedResources']);
+        $t->same([], $meta['epubImageResources']);
+        $t->same([], $meta['epubMediaBagResources']);
+        $t->same(0, $meta['epubMediaResourceCount']);
+        $t->same([], $meta['epubMediaResourceDiagnostics']);
+        $t->same([], $meta['epubMediaResourceDirectory']);
+        $t->same([
+            '<video controls="controls" src="video/demo.mp4">',
+            '<track kind="captions" src="video/captions.vtt" srclang="en" label="English captions">',
+            '</track>',
+            '</video>',
+        ], $rawHtml);
+    },
     'loads package parts while preserving epub href query and fragment provenance' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-href-suffix-');
         if ($path === false) {

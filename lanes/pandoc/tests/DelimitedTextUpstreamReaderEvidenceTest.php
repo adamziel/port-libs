@@ -999,6 +999,14 @@ return [
         $t->same(2535, $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][59]['checkedInFile']['bytes']);
         $t->same('trailing-empty-header', $evidence['generatedTsvNativeStaticEvidence']['samples'][29]['name']);
         $t->same([], $evidence['generatedTsvNativeStaticEvidence']['samples'][29]['readerOptions']);
+        $t->same('quoted-final-space-whitespace.csv', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][130]['name']);
+        $t->same('d30d086405286d4569dcaac5f727e57861b98319788c5b950f1ee2f42d6c6507', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][130]['checkedInFile']['sha256']);
+        $t->same(17, $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][130]['checkedInFile']['bytes']);
+        $t->same('quoted-final-space-whitespace.native', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][131]['name']);
+        $t->same('e1aeed0b50260073654fdc92ec94b201f5d9678112837250f7f36d47692504e6', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][131]['checkedInFile']['sha256']);
+        $t->same(1128, $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][131]['checkedInFile']['bytes']);
+        $t->same('quoted-final-space-whitespace', $evidence['generatedCsvNativeStaticEvidence']['samples'][65]['name']);
+        $t->same([], $evidence['generatedCsvNativeStaticEvidence']['samples'][65]['readerOptions']);
         $t->same(true, DelimitedTextUpstreamReaderEvidence::hasRequiredGeneratedCsvNativeStaticEvidence($evidence['generatedCsvNativeStaticEvidence']));
         $t->same(true, DelimitedTextUpstreamReaderEvidence::hasRequiredGeneratedTsvNativeStaticEvidence($evidence['generatedTsvNativeStaticEvidence']));
         $t->same('static-checked-in-current-csv-direct-native-transcript-evidence', $evidence['currentCsvDirectNativeStaticEvidence']['kind']);
@@ -1698,6 +1706,18 @@ return [
         $t->same('lanes/pandoc/fixtures/generated-current-csv-reader/quoted-unicode-doubled-quotes.native', $evidence['samples'][63]['staticFixtureBinding']['expectedNativeFixture']['checkedInPath']);
         $t->same(3, $evidence['samples'][63]['rowCount']);
         $t->same(3, $evidence['samples'][63]['columnCount']);
+        $t->same('matched', $evidence['samples'][65]['status']);
+        $t->same('quoted-final-space-whitespace', $evidence['samples'][65]['name']);
+        $t->same('lanes/pandoc/fixtures/generated-current-csv-reader/quoted-final-space-whitespace.csv', $evidence['samples'][65]['inputPath']);
+        $t->same(['sourcePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/quoted-final-space-whitespace.csv'], $evidence['samples'][65]['readerOptions']);
+        $t->same('generated-csv-native-sample-static-fixture-binding', $evidence['samples'][65]['staticFixtureBinding']['kind']);
+        $t->same('quoted-final-space-whitespace', $evidence['samples'][65]['staticFixtureBinding']['sample']);
+        $t->same('valid-static-fixture-snapshot', $evidence['samples'][65]['staticFixtureBinding']['inputFixture']['status']);
+        $t->same('valid-static-fixture-snapshot', $evidence['samples'][65]['staticFixtureBinding']['expectedNativeFixture']['status']);
+        $t->same('lanes/pandoc/fixtures/generated-current-csv-reader/quoted-final-space-whitespace.csv', $evidence['samples'][65]['staticFixtureBinding']['inputFixture']['checkedInPath']);
+        $t->same('lanes/pandoc/fixtures/generated-current-csv-reader/quoted-final-space-whitespace.native', $evidence['samples'][65]['staticFixtureBinding']['expectedNativeFixture']['checkedInPath']);
+        $t->same(2, $evidence['samples'][65]['rowCount']);
+        $t->same(2, $evidence['samples'][65]['columnCount']);
         $t->same(true, DelimitedTextUpstreamReaderEvidence::hasRequiredGeneratedCsvNativeParity($evidence));
         $t->true(in_array('that the generated CSV samples are upstream command fixtures', $evidence['claimBoundaries']['doesNotAssert'], true));
     },
@@ -2289,6 +2309,7 @@ return [
             'quoted-delimiter-boundaries',
             'quoted-unicode-doubled-quotes',
             'quoted-trailing-empty-field',
+            'quoted-final-space-whitespace',
         ], array_column($csv['samples'], 'name'));
         $t->same(array_fill(0, DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT, 'matched'), array_column($csv['samples'], 'status'));
         $t->same(array_fill(0, DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT, 'valid-generated-csv-native-sample-static-binding'), array_column($csv['samples'], 'staticFixtureBindingStatus'));
