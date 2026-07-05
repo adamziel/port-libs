@@ -12,9 +12,9 @@ final class MarkdownUpstreamReaderEvidence
     public const STATUS_COMPLETED = 'completed-upstream-markdown-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-markdown-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
-    public const EXPECTED_SELECTED_FIXTURE_COUNT = 119;
-    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 119;
-    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = '9b59870975bfa48de7346d997a8c511df1e35212108babe95d37c148d3e8c57a';
+    public const EXPECTED_SELECTED_FIXTURE_COUNT = 121;
+    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 121;
+    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = 'f88875b11d47bccbfbf52caff922fde507797076736df9c6a549ed84f74cd7da';
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/Markdown.hs',
@@ -1532,6 +1532,32 @@ final class MarkdownUpstreamReaderEvidence
             ],
             'sha256' => '857c91bec5b62052733b64dc3319f9223892c49e3fb617b841f629f7995878de',
             'bytes' => 42,
+        ],
+        'upstream-command-11253-latex-macros.md' => [
+            'role' => 'command-11253-latex-macros-default-fixture',
+            'sourceKind' => 'upstream-command-fixture',
+            'sourceReference' => 'test/command/11253.md markdown default latex_macros enabled case',
+            'formatProfile' => 'markdown latex_macros ifstrequal expansion',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-command-11253-latex-macros.md',
+            'coverageTests' => [
+                'lanes/pandoc/tests/MarkdownReaderLatexMacrosIfstrequalFixtureCompletionTest.php',
+                'lanes/pandoc/tests/MarkdownNativeAstComparisonHarnessTest.php',
+            ],
+            'sha256' => '18c3fdd8cbfc1d201a11c2bd212e02f4fd48f243011c6f3ad0015f0efe654d66',
+            'bytes' => 78,
+        ],
+        'upstream-command-11253-latex-macros-disabled.md' => [
+            'role' => 'command-11253-latex-macros-disabled-fixture',
+            'sourceKind' => 'upstream-command-fixture',
+            'sourceReference' => 'test/command/11253.md markdown-latex_macros disabled case',
+            'formatProfile' => 'markdown-latex_macros raw_tex preserved without latex macro expansion',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-command-11253-latex-macros-disabled.md',
+            'coverageTests' => [
+                'lanes/pandoc/tests/MarkdownReaderLatexMacrosIfstrequalFixtureCompletionTest.php',
+                'lanes/pandoc/tests/MarkdownNativeAstComparisonHarnessTest.php',
+            ],
+            'sha256' => '18c3fdd8cbfc1d201a11c2bd212e02f4fd48f243011c6f3ad0015f0efe654d66',
+            'bytes' => 78,
         ],
     ];
 

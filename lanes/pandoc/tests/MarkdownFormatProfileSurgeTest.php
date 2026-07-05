@@ -141,7 +141,7 @@ foreach ($profileCases as $case) {
             );
             $types = $inlineTypes($document);
 
-            $t->same($case['rawTex'], in_array('raw_tex', $types, true));
+            $t->same($case['rawTex'], in_array('raw_tex_inline', $types, true));
             if (!$case['rawTex']) {
                 $t->same(false, in_array('raw_inline', $types, true));
             }

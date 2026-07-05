@@ -96,7 +96,6 @@ final class MarkdownFormatProfile
         'literate_haskell' => 'lhs',
         'multimarkdown_title_block' => 'mmd_title_block',
         'raw_latex' => 'raw_tex',
-        'latex_macros' => 'raw_tex',
         'subscripts' => 'subscript',
         'superscripts' => 'superscript',
         'task_list' => 'task_lists',
@@ -121,7 +120,7 @@ final class MarkdownFormatProfile
         'yaml_metadata_blocks' => 'yaml_metadata_block',
     ];
 
-    /** @var array<string, array{yamlMetadata:bool, titleBlock:bool, rawAttribute:bool, rawHtml:bool, rawTex:bool, rawMarkdown:bool, definitionLists:bool, footnotes:bool, citations:bool, taskLists:bool, pipeTables:bool, simpleTables:bool, gridTables:bool, multilineTables:bool, listsWithoutPrecedingBlankline:bool}> */
+    /** @var array<string, array{yamlMetadata:bool, titleBlock:bool, rawAttribute:bool, rawHtml:bool, rawTex:bool, latexMacros:bool, rawMarkdown:bool, definitionLists:bool, footnotes:bool, citations:bool, taskLists:bool, pipeTables:bool, simpleTables:bool, gridTables:bool, multilineTables:bool, listsWithoutPrecedingBlankline:bool}> */
     private const DEFAULTS = [
         'markdown' => [
             'yamlMetadata' => true,
@@ -129,6 +128,7 @@ final class MarkdownFormatProfile
             'rawAttribute' => true,
             'rawHtml' => true,
             'rawTex' => true,
+            'latexMacros' => true,
             'rawMarkdown' => true,
             'definitionLists' => true,
             'footnotes' => true,
@@ -146,6 +146,7 @@ final class MarkdownFormatProfile
             'rawAttribute' => false,
             'rawHtml' => true,
             'rawTex' => false,
+            'latexMacros' => false,
             'rawMarkdown' => true,
             'definitionLists' => false,
             'footnotes' => false,
@@ -163,6 +164,7 @@ final class MarkdownFormatProfile
             'rawAttribute' => true,
             'rawHtml' => true,
             'rawTex' => false,
+            'latexMacros' => false,
             'rawMarkdown' => true,
             'definitionLists' => true,
             'footnotes' => true,
@@ -180,6 +182,7 @@ final class MarkdownFormatProfile
             'rawAttribute' => false,
             'rawHtml' => true,
             'rawTex' => false,
+            'latexMacros' => false,
             'rawMarkdown' => true,
             'definitionLists' => false,
             'footnotes' => true,
@@ -197,6 +200,7 @@ final class MarkdownFormatProfile
             'rawAttribute' => true,
             'rawHtml' => true,
             'rawTex' => false,
+            'latexMacros' => false,
             'rawMarkdown' => true,
             'definitionLists' => true,
             'footnotes' => true,
@@ -214,6 +218,7 @@ final class MarkdownFormatProfile
             'rawAttribute' => false,
             'rawHtml' => true,
             'rawTex' => false,
+            'latexMacros' => false,
             'rawMarkdown' => true,
             'definitionLists' => true,
             'footnotes' => true,
@@ -231,6 +236,7 @@ final class MarkdownFormatProfile
             'rawAttribute' => false,
             'rawHtml' => true,
             'rawTex' => false,
+            'latexMacros' => false,
             'rawMarkdown' => true,
             'definitionLists' => false,
             'footnotes' => false,
@@ -440,6 +446,7 @@ final class MarkdownFormatProfile
                 'raw_html',
                 'raw_markdown',
                 'raw_tex',
+                'latex_macros',
                 'short_subsuperscripts',
                 'shortcut_reference_links',
                 'simple_tables',
@@ -567,6 +574,14 @@ final class MarkdownFormatProfile
     public static function rawTexEnabled(array $options, bool $defaultWithoutFormat): bool
     {
         return self::enabled($options, 'rawTex', $defaultWithoutFormat, 'raw_tex');
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     */
+    public static function latexMacrosEnabled(array $options, bool $defaultWithoutFormat): bool
+    {
+        return self::enabled($options, 'latexMacros', $defaultWithoutFormat, 'latex_macros');
     }
 
     /**

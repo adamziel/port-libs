@@ -10631,10 +10631,12 @@ final class MarkdownReader
         $line = $lines[$index] ?? '';
         $macro = $this->tryReadRawTexMacroDefinition($line);
         if ($macro !== null) {
-            $this->rawTexMacros[$macro['name']] = [
-                'arity' => $macro['arity'],
-                'template' => $macro['template'],
-            ];
+            if ($this->latexMacrosEnabled()) {
+                $this->rawTexMacros[$macro['name']] = [
+                    'arity' => $macro['arity'],
+                    'template' => $macro['template'],
+                ];
+            }
 
             return new AstNode('raw_tex', $this->rawTexAttrs(trim($line), [
                 'command' => $macro['command'],
@@ -18332,6 +18334,14 @@ final class MarkdownReader
         return MarkdownFormatProfile::rawTexEnabled($options, true);
     }
 
+    private function latexMacrosEnabled(): bool
+    {
+        $options = $this->options;
+        $options['format'] = $this->markdownFormatWithExtensionOption();
+
+        return MarkdownFormatProfile::latexMacrosEnabled($options, true);
+    }
+
     private function rawMarkdownEnabled(): bool
     {
         $options = $this->options;
@@ -19996,7 +20006,7 @@ final class MarkdownReader
 
     private function expandRawTexMathMacros(string $math): string
     {
-        if ($this->rawTexMacros === []) {
+        if ($this->rawTexMacros === [] || !$this->latexMacrosEnabled()) {
             return $math;
         }
 
@@ -20154,6 +20164,11 @@ final class MarkdownReader
             ];
         }
 
+        $ifstrequal = $this->latexMacrosEnabled() ? $this->tryParseIfstrequalRawTexInline($text, $offset) : null;
+        if ($ifstrequal !== null) {
+            return $ifstrequal;
+        }
+
         // Pandoc leaves bare environment commands such as "\begin" as text.
         if (preg_match('/\G\\\\(?:begin|end)\b/', $text, $m, 0, $offset) === 1) {
             $next = $text[$offset + strlen($m[0])] ?? '';
@@ -20182,6 +20197,35 @@ final class MarkdownReader
         return [
             'node' => new AstNode('raw_tex_inline', $this->rawTexAttrs($m[0], ['command' => $m[1]])),
             'next' => $offset + strlen($m[0]),
+        ];
+    }
+
+    /**
+     * @return array{node: AstNode, next: int}|null
+     */
+    private function tryParseIfstrequalRawTexInline(string $text, int $offset): ?array
+    {
+        $command = '\\ifstrequal';
+        if (substr($text, $offset, strlen($command)) !== $command) {
+            return null;
+        }
+
+        $cursor = $offset + strlen($command);
+        $arguments = [];
+        for ($index = 0; $index < 4; $index++) {
+            $argument = $this->readTexBraceArgument($text, $cursor);
+            if ($argument === null) {
+                return null;
+            }
+            $arguments[] = $argument['value'];
+            $cursor = $argument['next'];
+        }
+
+        $selected = $arguments[0] === $arguments[1] ? $arguments[2] : $arguments[3];
+
+        return [
+            'node' => new AstNode('raw_tex_inline', $this->rawTexAttrs($selected)),
+            'next' => $cursor,
         ];
     }
 
