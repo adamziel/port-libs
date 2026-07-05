@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 106;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 107;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '27d990e2fa865c1c094454755be1c40b6bde2387254543fd93c34a02a2246e8d';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 45746;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'f963beb64009bf1e478351924a96f5a7e0d854a9a79c8ee7019da7869bee55c9';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 46137;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -930,6 +930,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => '709139da441ee326f9627fed2515a80ffffd0e231c3a16e5bce6a8864b5d5d3b',
             'pptxBytes' => 2088,
             'nativeBytes' => 73,
+        ],
+        'picture-bullet-plain' => [
+            'name' => 'generated picture bullet marker stays plain parity',
+            'pptx' => 'pptx-reader/picture-bullet-plain.pptx',
+            'native' => 'pptx-reader/picture-bullet-plain.native',
+            'pairKey' => 'pptx-reader/picture-bullet-plain.pptx|pptx-reader/picture-bullet-plain.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/picture-bullet-plain.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/picture-bullet-plain.native',
+            'pptxSha256' => 'bdead04f7e3e5f820e45f3a377dc8e8532e14d6a206690cfe3359472825d645d',
+            'nativeSha256' => '6364a606bfa373aae9fd8ac687ea9bb0859a0bd718cd3149af16a0d76a5daf2f',
+            'pptxBytes' => 2177,
+            'nativeBytes' => 159,
         ],
         'picture-shape-hyperlink' => [
             'name' => 'generated picture shape hyperlink ignore parity',

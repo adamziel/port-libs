@@ -21,11 +21,11 @@ final class DelimitedTextUpstreamReaderEvidence
     public const EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT = 1;
     public const EXPECTED_STATIC_CURRENT_TSV_DIRECT_NATIVE_PAIR_COUNT = 2;
     public const EXPECTED_STATIC_CSV_ADJACENT_RST_FIXTURE_COUNT = 2;
-    public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 69;
+    public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 70;
     public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 44;
     public const EXPECTED_GENERATED_CSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT = 50;
     public const EXPECTED_GENERATED_TSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT = 31;
-    public const EXPECTED_CSV_PARSER_OPTION_FIXTURE_COUNT = 9;
+    public const EXPECTED_CSV_PARSER_OPTION_FIXTURE_COUNT = 10;
     public const REQUIRED_PANDOC_EXECUTABLE_VERSION = 'pandoc 3.10';
 
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
@@ -53,6 +53,7 @@ final class DelimitedTextUpstreamReaderEvidence
         'space-delimiter-single-quote',
         'backslash-escaped-quote',
         'backslash-escaped-nonquote',
+        'backslash-escaped-escape',
         'bang-escaped-csv-options',
         'keep-space-after-comma',
         'semicolon-delimiter-multiline-cell',
@@ -1102,6 +1103,20 @@ final class DelimitedTextUpstreamReaderEvidence
             'sha256' => '8b44069d6379ccbb9ca71d673127f56b9f40f5853a6773efa82dffde5a6ffa34',
             'bytes' => 2152,
         ],
+        'backslash-escaped-escape.csv' => [
+            'role' => 'generated-csv-native-parity-input-fixture',
+            'sample' => 'backslash-escaped-escape',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/backslash-escaped-escape.csv',
+            'sha256' => 'c329e8a7695787738350288ab268d4f56824923a6c47fc0746d59235dee37e13',
+            'bytes' => 46,
+        ],
+        'backslash-escaped-escape.native' => [
+            'role' => 'generated-csv-native-parity-expected-native-output',
+            'sample' => 'backslash-escaped-escape',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/backslash-escaped-escape.native',
+            'sha256' => '70c73e8c5d2241f187f718ee94420980edfd7c955bc06076c0166ead19ffd6e0',
+            'bytes' => 977,
+        ],
         'backslash-before-closing-quote.csv' => [
             'role' => 'generated-csv-native-parity-input-fixture',
             'sample' => 'backslash-before-closing-quote',
@@ -2067,6 +2082,13 @@ final class DelimitedTextUpstreamReaderEvidence
         'quoted-tab-cell' => [
             'inputPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/quoted-tab-cell.csv',
             'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/quoted-tab-cell.native',
+        ],
+        'backslash-escaped-escape' => [
+            'inputPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/backslash-escaped-escape.csv',
+            'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/backslash-escaped-escape.native',
+            'options' => [
+                'escape' => '\\',
+            ],
         ],
         'backslash-before-closing-quote' => [
             'inputPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/backslash-before-closing-quote.csv',

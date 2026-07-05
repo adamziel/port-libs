@@ -44,6 +44,7 @@ final class HtmlReader
         } else {
             $readerBytes = self::flattenHtmlTemplateContainers($structuralBytes);
             $readerBytes = self::flattenHtmlRawTextFallbackContainers($readerBytes);
+            $readerBytes = self::flattenHtmlAttributeLessButtonContainers($readerBytes);
             if ($this->shouldFlattenHtmlDetailsSummaryContainers()) {
                 $readerBytes = self::flattenHtmlDetailsSummaryContainers($readerBytes);
             }
@@ -300,6 +301,43 @@ final class HtmlReader
     private static function htmlRawTextFallbackElementNames(): array
     {
         return ['noembed', 'noframes', 'plaintext', 'xmp'];
+    }
+
+    private static function flattenHtmlAttributeLessButtonContainers(string $bytes): string
+    {
+        try {
+            $source = self::parseHtmlRewriteSource($bytes);
+        } catch (\Throwable) {
+            return $bytes;
+        }
+        if ($source === null || !self::flattenHtmlAttributeLessButtonElements($source['dom'])) {
+            return $bytes;
+        }
+
+        return self::serializeHtmlRewriteSource($source) ?? $bytes;
+    }
+
+    private static function flattenHtmlAttributeLessButtonElements(\DOMDocument $dom): bool
+    {
+        $changed = false;
+        foreach (self::htmlElementsByName($dom, 'button') as $button) {
+            if ($button->attributes->length > 0 || !self::htmlElementHasOnlyInlineContent($button)) {
+                continue;
+            }
+
+            $parent = $button->parentNode;
+            if (!$parent instanceof \DOMNode) {
+                continue;
+            }
+
+            while ($button->firstChild instanceof \DOMNode) {
+                $parent->insertBefore($button->firstChild, $button);
+            }
+            $parent->removeChild($button);
+            $changed = true;
+        }
+
+        return $changed;
     }
 
     private static function flattenHtmlDetailsSummaryContainers(string $bytes): string

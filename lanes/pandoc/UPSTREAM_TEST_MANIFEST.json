@@ -96,12 +96,13 @@
             "csvAdjacentRstDirectDenominatorImpact": 0
         },
         "parserOptionFixtureEvidence": {
-            "csvFixtureCount": 9,
+            "csvFixtureCount": 10,
             "csvFixtures": [
                 "no-header-ragged",
                 "space-delimiter-single-quote",
                 "backslash-escaped-quote",
                 "backslash-escaped-nonquote",
+                "backslash-escaped-escape",
                 "bang-escaped-csv-options",
                 "keep-space-after-comma",
                 "semicolon-delimiter-multiline-cell",
@@ -111,14 +112,14 @@
             "generatedNativeParityRequired": true
         },
         "generatedNativeParity": {
-            "csvSampleCount": 69,
-            "csvMatchCount": 69,
+            "csvSampleCount": 70,
+            "csvMatchCount": 70,
             "csvMismatchCount": 0,
             "tsvSampleCount": 44,
             "tsvMatchCount": 44,
             "tsvMismatchCount": 0,
-            "totalSampleCount": 113,
-            "totalMatchCount": 113
+            "totalSampleCount": 114,
+            "totalMatchCount": 114
         },
         "currentCsvDirectNativeParity": {
             "sampleCount": 2,

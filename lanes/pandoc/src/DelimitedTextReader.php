@@ -681,7 +681,7 @@ final class DelimitedTextReader
 
                 if ($quote !== null && $this->matchesTokenAt($text, $offset, $quote)) {
                     $nextQuoteOffset = $offset + strlen($quote);
-                    if ($this->matchesTokenAt($text, $nextQuoteOffset, $quote)) {
+                    if ($escape === null && $this->matchesTokenAt($text, $nextQuoteOffset, $quote)) {
                         $field .= $quote;
                         $metrics['doubledQuoteEscapeCount']++;
                         $offset = $nextQuoteOffset + strlen($quote) - 1;

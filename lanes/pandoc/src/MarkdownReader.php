@@ -17759,6 +17759,14 @@ final class MarkdownReader
         return in_array($canonical, ['markdown', 'commonmark_x', 'markdown_mmd'], true);
     }
 
+    private function oldDashesExtensionEnabled(): bool
+    {
+        $overrides = $this->markdownExtensionOverrides();
+
+        return ($overrides['old_dashes'] ?? null) === true
+            || ($overrides['old-dashes'] ?? null) === true;
+    }
+
     private function citationExtensionEnabled(): bool
     {
         $overrides = $this->markdownExtensionOverrides();
@@ -20554,6 +20562,10 @@ final class MarkdownReader
     {
         if (substr($text, $offset, 3) === '...') {
             return ['text' => "\u{2026}", 'next' => $offset + 3];
+        }
+
+        if ($this->oldDashesExtensionEnabled() && substr($text, $offset, 2) === '--') {
+            return ['text' => "\u{2014}", 'next' => $offset + 2];
         }
 
         if (substr($text, $offset, 3) === '---') {

@@ -2070,6 +2070,109 @@ HTML);
             $native
         );
     },
+    'resolves document scoped epub xhtml xml base before native reference rewriting' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-xml-base-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $imageBytes = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=');
+        if (!is_string($imageBytes)) {
+            throw new RuntimeException('Unable to decode xml base image fixture bytes');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary EPUB package');
+        }
+        $zip->addFromString('META-INF/container.xml', '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="book-id">
+  <metadata>
+    <dc:identifier id="book-id">urn:uuid:xhtml-xml-base</dc:identifier>
+    <dc:title>XHTML XML Base</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="text/chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="pixel" href="assets/pixel.png" media-type="image/png"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('OPS/text/chapter.xhtml', <<<'HTML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:base="../assets/">
+  <body>
+    <p>See <a id="xref" class="tracked" epub:type="biblioref" role="doc-biblioref" href="refs.xhtml#r1">reference</a> and <img id="pixel" class="inline-art" src="pixel.png" alt="Pixel"/>.</p>
+  </body>
+</html>
+HTML);
+        $zip->addFromString('OPS/assets/pixel.png', $imageBytes);
+        $zip->close();
+
+        try {
+            $document = (new EpubReader())->readEpubFile($path);
+            $meta = $document->attr('meta');
+            $native = (new NativeWriter(['blocksOnly' => true]))->write($document);
+        } finally {
+            @unlink($path);
+        }
+
+        $paragraph = $document->children[1] ?? new AstNode('missing');
+        $links = array_values(array_filter(
+            $paragraph->children,
+            static fn (AstNode $child): bool => $child->type === 'link'
+        ));
+        $images = array_values(array_filter(
+            $paragraph->children,
+            static fn (AstNode $child): bool => $child->type === 'image'
+        ));
+        $link = $links[0] ?? new AstNode('missing');
+        $image = $images[0] ?? new AstNode('missing');
+
+        $t->same('link', $link->type);
+        $t->same('chapter.xhtml_xref', $link->attr('id'));
+        $t->same(['tracked', 'biblioref'], $link->attr('classes'));
+        $t->same('refs.xhtml_r1', $link->attr('url'));
+        $t->same(['role' => 'doc-biblioref'], $link->attr('attributes'));
+
+        $t->same('image', $image->type);
+        $t->same('pixel', $image->attr('id'));
+        $t->same(['inline-art'], $image->attr('classes'));
+        $t->same('assets/pixel.png', $image->attr('url'));
+        $t->same('Pixel', $image->attr('alt'));
+
+        $t->same(['OPS/assets/refs.xhtml#r1', 'OPS/assets/pixel.png'], $meta['epubReferencedResources']);
+        $t->same(['OPS/assets/pixel.png'], $meta['epubMediaBagResources']);
+        $t->same(1, $meta['epubMediaResourceCount']);
+        $t->same(['epub-media-resource-loaded:OPS/assets/pixel.png'], $meta['epubMediaResourceDiagnostics']);
+        $t->same([
+            [
+                'path' => 'assets/pixel.png',
+                'zipEntry' => 'OPS/assets/pixel.png',
+                'mimeType' => 'image/png',
+                'byteLength' => strlen($imageBytes),
+                'sha1' => sha1($imageBytes),
+            ],
+        ], array_map(static fn (array $entry): array => [
+            'path' => (string) $entry['path'],
+            'zipEntry' => (string) $entry['zipEntry'],
+            'mimeType' => (string) $entry['mimeType'],
+            'byteLength' => (int) $entry['byteLength'],
+            'sha1' => (string) $entry['sha1'],
+        ], $meta['epubMediaResourceDirectory']));
+        $t->contains(
+            'Link ( "chapter.xhtml_xref" , [ "tracked" , "biblioref" ] , [ ( "role" , "doc-biblioref" ) ] ) [ Str "reference" ] ( "refs.xhtml_r1" , "" )',
+            $native
+        );
+        $t->contains('Image ( "pixel" , [ "inline-art" ] , [  ] ) [ Str "Pixel" ] ( "assets/pixel.png" , "" )', $native);
+    },
     'preserves epub footnote definition link attributes without body href overlay collision' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-footnote-link-attrs-');
         if ($path === false) {

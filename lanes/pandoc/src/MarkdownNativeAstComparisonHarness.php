@@ -48,6 +48,7 @@ final class MarkdownNativeAstComparisonHarness
         'upstream-markdown-z-fancy-list-markers' => ['format' => 'markdown+fancy_lists'],
         'upstream-markdown-z-hard-line-break-profile' => ['format' => 'markdown+hard_line_breaks'],
         'upstream-markdown-z-lists-without-preceding-blankline-profile' => ['format' => 'markdown+lists_without_preceding_blankline'],
+        'upstream-markdown-z-old-dashes-profile' => ['format' => 'markdown+old_dashes+smart'],
         'upstream-markdown-z-phpextra-profile' => ['format' => 'markdown_phpextra'],
         'upstream-markdown-z-simple-table-profile' => ['format' => 'markdown+simple_tables'],
         'upstream-markdown-z-short-subsuperscript-profile' => ['format' => 'markdown+short_subsuperscripts'],

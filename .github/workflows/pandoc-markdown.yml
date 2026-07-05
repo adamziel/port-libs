@@ -100,9 +100,9 @@ jobs:
           php tools/pandoc-markdown-reader-evidence.php \
             --upstream-root=.upstream-cache/pandoc-current \
             --json \
-            --require-selected-fixture-count=134 \
+            --require-selected-fixture-count=135 \
             --require-static-current-evidence \
-            --require-native-mapped-parity=134 \
+            --require-native-mapped-parity=135 \
             --require-runner-not-run \
             --require-runner-plan \
             --require-no-validation-issues
@@ -113,7 +113,7 @@ jobs:
             --markdown-dir=lanes/pandoc/fixtures \
             --json \
             summary \
-            --require-mapped-parity=134
+            --require-mapped-parity=135
 
       - name: Run focused Markdown parity tests
         run: |
@@ -145,6 +145,7 @@ jobs:
             lanes/pandoc/tests/MarkdownReaderMmdReferenceImageAttributeFixtureCompletionTest.php \
             lanes/pandoc/tests/MarkdownReaderMultipleMetadataBlockFixtureCompletionTest.php \
             lanes/pandoc/tests/MarkdownReaderNestedInlineLinkBoundaryFixtureCompletionTest.php \
+            lanes/pandoc/tests/MarkdownReaderOldDashesProfileFixtureCompletionTest.php \
             lanes/pandoc/tests/MarkdownReaderRawCodeProfileOverrideSurgeTest.php \
             lanes/pandoc/tests/MarkdownReaderStartnumProfileFixtureCompletionTest.php \
             lanes/pandoc/tests/MarkdownReaderTableAttributeProfileFixtureCompletionTest.php \

@@ -18890,6 +18890,22 @@ XML);
         $t->true(!str_contains($native, 'OrderedList'), 'PPTX buAutoNum should not become a native OrderedList with the current upstream reader');
     },
 
+    'keeps pptx picture bullet markers plain like upstream' => static function (TestRunner $t) use ($nodesOfType): void {
+        $fixturePath = dirname(__DIR__) . '/fixtures/upstream-current-pptx-reader/picture-bullet-plain.pptx';
+        $document = (new PptxReader())->read((string) file_get_contents($fixturePath));
+        $paragraphs = $nodesOfType($document, 'paragraph');
+        $bulletLists = $nodesOfType($document, 'bullet_list');
+        $native = PandocConverter::write($document, 'native');
+        $paragraphTexts = array_map(static fn (AstNode $paragraph): string => (string) $paragraph->attr('text'), $paragraphs);
+        $firstBulletText = $bulletLists[0]->children[0]->children[0]->children[0] ?? null;
+
+        $t->same(true, in_array('Image bullet one', $paragraphTexts, true));
+        $t->same(1, count($bulletLists));
+        $t->same('Char bullet two', $firstBulletText instanceof AstNode ? $firstBulletText->attr('text') : null);
+        $t->contains('Para [ Str "Image" , Space , Str "bullet" , Space , Str "one" ]', $native);
+        $t->contains('BulletList [ [ Plain [ Str "Char" , Space , Str "bullet" , Space , Str "two"', $native);
+    },
+
     'uses only the first pptx paragraph properties child like upstream' => static function (TestRunner $t) use ($buildMultipleParagraphPropertiesPptxPackage, $nodesOfType): void {
         $document = (new PptxReader())->read($buildMultipleParagraphPropertiesPptxPackage());
         $bulletLists = $nodesOfType($document, 'bullet_list');

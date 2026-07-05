@@ -149,10 +149,14 @@ final class EpubReader
             $content_base_href = $content_dom instanceof \DOMDocument
                 ? $this->epubContentDocumentBaseHref($content_dom)
                 : null;
+            $content_xml_base_href = $content_base_href === null && $content_dom instanceof \DOMDocument
+                ? $this->epubContentDocumentXmlBaseHref($content_dom)
+                : null;
+            $active_content_base_href = $content_base_href ?? $content_xml_base_href;
             $footnote_definitions = $this->epubFootnoteDefinitionsInReferenceOrder($content_dom, $item['href']);
-            $note_reference_hrefs = $this->epubNoteReferenceHrefs($content_dom, $content_base_href);
-            $link_attribute_overlays_by_href = $this->epubBodyLinkAttributeOverlaysByHref($content_dom, $content_base_href);
-            $document = $this->epubContentHtmlReader()->read($this->contentDocumentMarkup($xhtml));
+            $note_reference_hrefs = $this->epubNoteReferenceHrefs($content_dom, $active_content_base_href);
+            $link_attribute_overlays_by_href = $this->epubBodyLinkAttributeOverlaysByHref($content_dom, $active_content_base_href);
+            $document = $this->epubContentHtmlReader()->read($this->contentDocumentMarkupForHtmlReader($xhtml, $content_dom, $content_xml_base_href));
             $document = $this->normalizeEpubMediaRawBlocks($document);
             $document = $this->normalizeEpubRawInlineVoidElements($document);
             if ($footnote_definitions !== []) {
@@ -1694,6 +1698,36 @@ final class EpubReader
         return Html5Dom::stripContentDocumentPreamble($xhtml);
     }
 
+    private function contentDocumentMarkupForHtmlReader(string $xhtml, ?\DOMDocument $dom, ?string $xml_base_href): string
+    {
+        $markup = $this->contentDocumentMarkup($xhtml);
+        if (!$dom instanceof \DOMDocument || $xml_base_href === null || $xml_base_href === '') {
+            return $markup;
+        }
+
+        $document = $dom->cloneNode(true);
+        if (!$document instanceof \DOMDocument || !$document->documentElement instanceof \DOMElement) {
+            return $markup;
+        }
+
+        $head = $this->firstHtmlElement($document, 'head');
+        if (!$head instanceof \DOMElement) {
+            $head = $document->createElement('head');
+            $body = $this->firstHtmlElement($document, 'body');
+            if ($body instanceof \DOMElement) {
+                $document->documentElement->insertBefore($head, $body);
+            } else {
+                $document->documentElement->insertBefore($head, $document->documentElement->firstChild);
+            }
+        }
+
+        $base = $document->createElement('base');
+        $base->setAttribute('href', $xml_base_href);
+        $head->insertBefore($base, $head->firstChild);
+
+        return XmlHtmlDom::serializeHtmlNode($document->documentElement);
+    }
+
     private function contentDocumentDom(string $xhtml): ?\DOMDocument
     {
         try {
@@ -1839,6 +1873,53 @@ final class EpubReader
             $href = trim($node->getAttribute('href'));
             if ($href !== '') {
                 return $href;
+            }
+        }
+
+        return null;
+    }
+
+    private function epubContentDocumentXmlBaseHref(\DOMDocument $dom): ?string
+    {
+        $body = $this->firstHtmlElement($dom, 'body');
+        $body_base = $body instanceof \DOMElement ? $this->xmlBaseAttribute($body) : '';
+        if ($body_base !== '') {
+            return $body_base;
+        }
+
+        $root = $dom->documentElement;
+        $root_base = $root instanceof \DOMElement ? $this->xmlBaseAttribute($root) : '';
+
+        return $root_base === '' ? null : $root_base;
+    }
+
+    private function xmlBaseAttribute(\DOMElement $element): string
+    {
+        if ($element->hasAttributeNS('http://www.w3.org/XML/1998/namespace', 'base')) {
+            return trim($element->getAttributeNS('http://www.w3.org/XML/1998/namespace', 'base'));
+        }
+
+        foreach ($element->attributes ?? [] as $attribute) {
+            if (!$attribute instanceof \DOMAttr) {
+                continue;
+            }
+
+            if (
+                strtolower($attribute->nodeName) === 'xml:base'
+                || ($attribute->localName === 'base' && ($attribute->prefix === 'xml' || $attribute->namespaceURI === 'http://www.w3.org/XML/1998/namespace'))
+            ) {
+                return trim($attribute->value);
+            }
+        }
+
+        return '';
+    }
+
+    private function firstHtmlElement(\DOMDocument $dom, string $name): ?\DOMElement
+    {
+        foreach ($dom->getElementsByTagName($name) as $element) {
+            if ($element instanceof \DOMElement && strtolower($element->localName) === strtolower($name)) {
+                return $element;
             }
         }
 
