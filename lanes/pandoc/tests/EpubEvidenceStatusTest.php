@@ -32,9 +32,9 @@ return [
         $nativeFiles = glob($fixtureDirectory . '/*.native') ?: [];
         $totalFiles = count($epubFiles) + count($nativeFiles);
 
-        $t->same(66, count($epubFiles));
-        $t->same(66, count($nativeFiles));
-        $t->same(132, $totalFiles);
+        $t->same(67, count($epubFiles));
+        $t->same(67, count($nativeFiles));
+        $t->same(134, $totalFiles);
 
         foreach ([
             'benchmarkDenominator.breakdown' => $manifest['benchmarkDenominator']['breakdown'] ?? null,

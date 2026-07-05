@@ -1,0 +1,23 @@
+[ Para [ Span ( "chapter.xhtml" , [] , [] ) [] ]
+, Div
+    ( "chapter.xhtml_start" , [ "section" ] , [] )
+    [ Header
+        1 ( "" , [] , [] ) [ Str "Computer" , Space , Str "text" ]
+    , Para
+        [ Str "Press"
+        , Space
+        , Span ( "" , [ "kbd" ] , [] ) [ Str "Ctrl" ]
+        , Space
+        , Str "and"
+        , Space
+        , Str "inspect"
+        , Space
+        , Code ( "" , [ "sample" ] , [] ) "output"
+        , Space
+        , Str "for"
+        , Space
+        , Code ( "" , [ "variable" ] , [] ) "name"
+        , Str "."
+        ]
+    ]
+]
