@@ -4763,7 +4763,8 @@ final class MarkdownReader
             return true;
         }
 
-        return in_array($this->htmlSemanticType($element), ['footnotes', 'rearnotes'], true);
+        return in_array($this->htmlSemanticType($element), ['footnotes', 'rearnotes'], true)
+            || $this->htmlElementHasClass($element, 'footnotes');
     }
 
     /**
@@ -4799,7 +4800,8 @@ final class MarkdownReader
             return true;
         }
 
-        return in_array($this->htmlNodeSemanticType($node), ['footnotes', 'rearnotes'], true);
+        return in_array($this->htmlNodeSemanticType($node), ['footnotes', 'rearnotes'], true)
+            || $this->htmlNodeHasClass($node, 'footnotes');
     }
 
     private function htmlNodeSemanticType(AstNode $node): string
@@ -4827,6 +4829,23 @@ final class MarkdownReader
         }
 
         return '';
+    }
+
+    private function htmlNodeHasClass(AstNode $node, string $class): bool
+    {
+        $classes = $node->attr('classes', []);
+        if (is_array($classes) && in_array($class, array_map('strval', $classes), true)) {
+            return true;
+        }
+
+        $classAttribute = $this->htmlNodeAttributeValue($node, 'class');
+        if ($classAttribute === '') {
+            return false;
+        }
+
+        $tokens = preg_split('/\s+/', $classAttribute, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+        return in_array($class, $tokens, true);
     }
 
     private function isHtmlFootnoteItemElement(\DOMElement $element): bool

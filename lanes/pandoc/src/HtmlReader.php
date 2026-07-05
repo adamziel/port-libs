@@ -2207,7 +2207,8 @@ final class HtmlReader
             return true;
         }
 
-        return in_array(self::htmlNodeSemanticType($node), ['footnotes', 'rearnotes'], true);
+        return in_array(self::htmlNodeSemanticType($node), ['footnotes', 'rearnotes'], true)
+            || self::htmlNodeHasClass($node, 'footnotes');
     }
 
     private static function htmlNodeSemanticType(AstNode $node): string
@@ -2235,6 +2236,24 @@ final class HtmlReader
         }
 
         return '';
+    }
+
+    private static function htmlNodeHasClass(AstNode $node, string $class): bool
+    {
+        $classes = $node->attrs['classes'] ?? [];
+        if (is_array($classes) && in_array($class, array_map('strval', $classes), true)) {
+            return true;
+        }
+
+        $classAttribute = self::htmlNodeAttributeValue($node, 'class');
+        if ($classAttribute === '') {
+            return false;
+        }
+
+        $normalized = str_replace(["\t", "\n", "\r", "\f"], ' ', $classAttribute);
+        $tokens = array_values(array_filter(explode(' ', $normalized), static fn (string $token): bool => $token !== ''));
+
+        return in_array($class, $tokens, true);
     }
 
     /**
