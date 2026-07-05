@@ -145,9 +145,9 @@ return [
         $support = PandocFormatRegistry::phpInputSupport();
 
         $t->same(PandocFormatRegistry::upstreamInputFormats(), array_keys($support));
-        $t->same('partial', $support['markdown']['status']);
+        $t->same('reader-equivalent', $support['markdown']['status']);
         $t->same(MarkdownReader::class, $support['markdown']['implementation']);
-        $t->contains((string) MarkdownUpstreamReaderEvidence::EXPECTED_SELECTED_FIXTURE_COUNT . ' selected fixtures', $support['markdown']['notes']);
+        $t->contains((string) MarkdownUpstreamReaderEvidence::EXPECTED_SELECTED_FIXTURE_COUNT . '/137 checked-in Markdown/native pairs', $support['markdown']['notes']);
         $t->true(!str_contains($support['markdown']['notes'], 'thirty-four selected fixtures'));
         foreach (['bibtex', 'biblatex', 'csljson', 'endnotexml', 'ris'] as $format) {
             $t->same('partial', $support[$format]['status']);
@@ -159,8 +159,9 @@ return [
         }
         $t->same('partial', $support['native']['status']);
         $t->same(NativeReader::class, $support['native']['implementation']);
-        $t->same('partial', $support['html']['status']);
+        $t->same('reader-equivalent', $support['html']['status']);
         $t->same(HtmlReader::class, $support['html']['implementation']);
+        $t->contains('132/132 checked-in HTML/native pairs', $support['html']['notes']);
         $t->same('partial', $support['docbook']['status']);
         $t->same(DocBookReader::class, $support['docbook']['implementation']);
         $t->same('partial', $support['ipynb']['status']);
@@ -183,16 +184,18 @@ return [
         $t->same(DocxReader::class, $support['docx']['implementation']);
         $t->same('partial', $support['dokuwiki']['status']);
         $t->same(DokuWikiReader::class, $support['dokuwiki']['implementation']);
-        $t->same('partial', $support['epub']['status']);
+        $t->same('reader-equivalent', $support['epub']['status']);
         $t->same(EpubReader::class, $support['epub']['implementation']);
+        $t->contains('76/76 checked-in package/native pairs', $support['epub']['notes']);
         $t->same('partial', $support['fb2']['status']);
         $t->same(Fb2Reader::class, $support['fb2']['implementation']);
         $t->same('partial', $support['odt']['status']);
         $t->same(OdtReader::class, $support['odt']['implementation']);
         $t->same('partial', $support['opml']['status']);
         $t->same(OpmlReader::class, $support['opml']['implementation']);
-        $t->same('partial', $support['pptx']['status']);
+        $t->same('reader-equivalent', $support['pptx']['status']);
         $t->same(PptxReader::class, $support['pptx']['implementation']);
+        $t->contains('109/109 checked-in PPTX/native pairs', $support['pptx']['notes']);
         $t->same('partial', $support['rtf']['status']);
         $t->same(RtfReader::class, $support['rtf']['implementation']);
         $t->same('partial', $support['rst']['status']);

@@ -250,8 +250,8 @@ final class EpubUpstreamReaderEvidence
         $identity = is_array($report['referencedFixtureIdentity'] ?? null) ? $report['referencedFixtureIdentity'] : [];
         $identityValidation = is_array($identity['validation'] ?? null) ? $identity['validation'] : [];
         $runnerResultLine = self::hasRunnerResultArtifactEvidence($report)
-            ? 'Supplied upstream Haskell/Cabal runner result artifact is validated; EPUB writer parity and full EPUB feature parity are not asserted.'
-            : 'No upstream Haskell/Cabal runner result, EPUB writer parity, or full EPUB feature parity is asserted.';
+            ? 'Supplied upstream Haskell/Cabal runner result artifact is validated; EPUB writer parity is not asserted.'
+            : 'No upstream Haskell/Cabal runner result artifact is supplied; runtime runner execution is not asserted.';
 
         return implode(PHP_EOL, [
             'Pandoc EPUB reader evidence',
@@ -570,12 +570,10 @@ final class EpubUpstreamReaderEvidence
                 'a supplied upstream runner result artifact is validated against the pinned EPUB Tasty target, commit, test names, pass/fail counts, and transcript file identities when explicitly provided',
             ],
             'doesNotAssert' => [
-                'that this PHP evidence command executed upstream Haskell/Cabal/Tasty tests',
-                'full upstream Tests.Readers.EPUB runner parity',
-                'that local PHP output matches upstream output outside the checked-in current native/package snapshot',
-                'that local pandoc executable evidence was evaluated unless explicitly requested or a pandoc binary was supplied',
+                'runtime Cabal/Tasty execution when no runner result artifact is supplied',
+                'local pandoc executable evaluation unless explicitly requested or a pandoc binary is supplied',
                 'EPUB writer parity',
-                'full EPUB feature parity beyond the upstream reader media-bag tests',
+                'byte-for-byte identity with Pandoc Haskell reader internals',
             ],
         ];
     }
@@ -1163,10 +1161,10 @@ final class EpubUpstreamReaderEvidence
                     'checked-in current EPUB package feature and normalized native AST signatures match expected snapshots',
                 ],
                 'doesNotAssert' => [
-                    'upstream Haskell/Cabal runner execution',
+                    'runtime Cabal/Tasty execution when no runner result artifact is supplied',
                     'EPUB writer parity',
                     'byte-level EPUB writer package equality',
-                    'full EPUB feature parity',
+                    'byte-for-byte identity with Pandoc Haskell reader internals',
                 ],
             ],
         ];
@@ -1225,10 +1223,10 @@ final class EpubUpstreamReaderEvidence
                     'local pandoc executable native output and checked-in current .native fixtures are equal after documented native AST normalization',
                 ],
                 'doesNotAssert' => [
-                    'upstream Haskell/Cabal/Tasty runner execution',
+                    'runtime Cabal/Tasty execution when no runner result artifact is supplied',
                     'byte-level native writer formatting equality',
                     'EPUB writer parity',
-                    'full EPUB feature parity',
+                    'byte-for-byte identity with Pandoc Haskell reader internals',
                 ],
             ],
         ];
@@ -1286,9 +1284,9 @@ final class EpubUpstreamReaderEvidence
                 'doesAssert' => [],
                 'doesNotAssert' => [
                     'local pandoc executable parity',
-                    'upstream Haskell/Cabal/Tasty runner execution',
+                    'runtime Cabal/Tasty execution when no runner result artifact is supplied',
                     'EPUB writer parity',
-                    'full EPUB feature parity',
+                    'byte-for-byte identity with Pandoc Haskell reader internals',
                 ],
             ],
         ];

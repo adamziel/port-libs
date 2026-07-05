@@ -402,9 +402,9 @@ final class HtmlNativeAstComparisonHarness
                 'redundant raw HTML format attrs and duplicate raw HTML text attrs; raw HTML payload remains compared',
             ],
             'doesNotAssert' => [
-                'upstream Haskell/Cabal runner execution',
-                'full HTML5 tree construction parity',
-                'browser DOM repair behavior',
+                'runtime Cabal/Tasty execution when no runner result artifact is supplied',
+                'HTML writer parity',
+                'byte-for-byte identity with Pandoc Haskell reader internals',
             ],
         ];
     }

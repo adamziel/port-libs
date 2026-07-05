@@ -174,7 +174,7 @@ return [
             $mutatedReport = $report;
             $mutatedReport['runnerEvidence']['target']['tastyPattern'] = '$2 == "Readers" && $3 == "HTML"';
             $t->same(false, PptxUpstreamReaderEvidence::hasRunnerPlanEvidence($mutatedReport));
-            $t->true(in_array('that this PHP evidence command executed upstream Haskell/Cabal/Tasty tests', $report['claimBoundaries']['doesNotAssert'], true));
+            $t->true(in_array('runtime Cabal/Tasty execution when no runner result artifact is supplied', $report['claimBoundaries']['doesNotAssert'], true));
             $t->true(in_array('that upstream Haskell runner evidence is explicitly not-run', $report['claimBoundaries']['doesAssert'], true));
             $t->true(in_array('the future upstream runner command plan targets test:test-pandoc Readers/Pptx at the pinned upstream commit without execution', $report['claimBoundaries']['doesAssert'], true));
         } finally {
@@ -1385,7 +1385,7 @@ return [
         $t->same('$2 == "Readers" && $3 == "Pptx"', $report['runnerEvidence']['target']['tastyPattern']);
         $t->true(in_array('.port-libs/pandoc-runner/logs/pptx-targeted-list-tests.txt', $report['runnerEvidence']['requiredTranscripts'], true));
         $t->true(in_array('.port-libs/pandoc-runner/artifacts/pptx-targeted-run/result.json', $report['runnerEvidence']['requiredArtifacts'], true));
-        $t->true(in_array('that upstream Haskell/Cabal/Tasty tests were executed', $static['claimBoundaries']['doesNotAssert'], true));
+        $t->true(in_array('runtime Cabal/Tasty execution when no runner result artifact is supplied', $static['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('local PHP PPTX reader output matches all 109 checked-in current PPTX/native pairs by normalized AST shape', $static['claimBoundaries']['doesAssert'], true));
         $t->true(in_array('checked-in executable native AST evidence shows pandoc 3.10, local PHP output, and paired .native fixtures match all 109 checked-in current PPTX fixtures by normalized AST shape', $static['claimBoundaries']['doesAssert'], true));
         $t->true(in_array('additional PPTX fixture discovery outside the checked-in 109-pair corpus', $static['claimBoundaries']['doesNotAssert'], true));

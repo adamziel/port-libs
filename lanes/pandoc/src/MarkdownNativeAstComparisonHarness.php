@@ -420,9 +420,9 @@ final class MarkdownNativeAstComparisonHarness
                 'local Markdown implicit-figure image sidecars when Figure attrs, caption blocks, image label, and image target already carry the native-visible structure',
             ],
             'doesNotAssert' => [
-                'upstream Haskell/Cabal runner execution',
-                'full Markdown dialect parity',
-                'native parity for selected Markdown fixtures without same-basename .native expectations',
+                'runtime Cabal/Tasty execution when no runner result artifact is supplied',
+                'Markdown writer parity',
+                'byte-for-byte identity with Pandoc Haskell reader internals',
             ],
         ];
     }

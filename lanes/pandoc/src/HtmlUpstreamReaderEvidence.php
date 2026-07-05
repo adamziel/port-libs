@@ -798,18 +798,19 @@ final class HtmlUpstreamReaderEvidence
                 'status' => $issues === [] ? 'valid-checked-in-current-html-reader-evidence' : 'invalid-checked-in-current-html-reader-evidence',
                 'issues' => array_values(array_unique($issues)),
             ],
-            'claim' => 'Static gate binding the checked-in upstream-derived and generated-current HTML reader fixture corpus to SHA-256 and byte-count snapshots.',
+            'claim' => 'Static gate binding the checked-in upstream-derived and generated-current HTML reader fixture corpus, native expectations, and HTMLDocument-backed native AST comparison to SHA-256 and byte-count snapshots.',
             'claimBoundaries' => [
                 'doesAssert' => [
                     'the checked-in HTML reader fixture corpus has 132 pinned fixture snapshots',
                     'each pinned HTML fixture has a same-basename checked-in native expectation file',
                     'each pinned fixture has at least one local test reference',
-                    'the existing HTML/native AST comparator observes 132 HTMLDocument-backed same-basename native-pair matches when included in the report',
+                    'the current checked-in HTML/native mapped gate observes 132/132 normalized AST matches through Dom\\HTMLDocument-backed parsing when included in the report',
                 ],
                 'doesNotAssert' => [
-                    'that upstream Haskell/Cabal/Tasty tests were executed',
-                    'that the checked-in fixture corpus is the full upstream Tests.Readers.HTML suite',
-                    'full HTML5 tree-construction, browser DOM repair, metadata, raw HTML, media, table, or inline semantic parity',
+                    'that this PHP report command executed upstream Haskell/Cabal/Tasty tests',
+                    'that every inline Haskell assertion in Tests.Readers.HTML has a one-to-one checked-in fixture file',
+                    'HTML writer parity',
+                    'byte-for-byte identity with Pandoc Haskell reader internals',
                 ],
             ],
         ];
@@ -1501,7 +1502,7 @@ final class HtmlUpstreamReaderEvidence
 
     private static function claim(): string
     {
-        return 'Tracks selected checked-in upstream-derived and generated-current HTML reader fixtures, local test references, and the existing same-basename HTML/native AST comparison as bounded evidence for HTML reader progress.';
+        return 'Tracks selected checked-in upstream-derived and generated-current HTML reader fixtures, local test references, and the same-basename HTML/native AST comparison for HTML reader implementation equivalence.';
     }
 
     /**
@@ -1514,15 +1515,15 @@ final class HtmlUpstreamReaderEvidence
                 'the identity and count of 132 selected checked-in upstream-derived and generated-current HTML fixtures',
                 'that each selected fixture has a same-basename checked-in native expectation file',
                 'that each selected fixture is referenced by at least one local focused test',
-                'that the existing native AST gate observes 132 HTMLDocument-backed checked-in same-basename HTML/native matches',
+                'that the native AST gate observes 132/132 HTMLDocument-backed checked-in same-basename HTML/native matches',
                 'that upstream Haskell runner evidence is either explicitly not-run or supplied as a validated result artifact',
                 'the future upstream runner command plan targets test:test-pandoc Readers/HTML at the pinned upstream commit without execution',
                 'a supplied upstream runner result artifact is validated against the pinned HTML Tasty target, commit, test names, pass/fail counts, and transcript file identities when explicitly provided',
             ],
             'doesNotAssert' => [
-                'full upstream Tests.Readers.HTML runner parity',
-                'complete HTML5 tree-construction or browser DOM repair parity',
-                'complete metadata, raw HTML, media, table, or inline semantics parity',
+                'runtime Cabal/Tasty execution when no runner result artifact is supplied',
+                'HTML writer parity',
+                'byte-for-byte identity with Pandoc Haskell reader internals',
             ],
         ];
     }

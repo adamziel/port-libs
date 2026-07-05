@@ -1943,9 +1943,10 @@ final class MarkdownUpstreamReaderEvidence
                 'the fixture set covers selected command, raw-attribute, abbreviation, details/summary, GFM, autolink, angle-autolink attribute attachment, spaced-literal behavior, Unicode dash boundary behavior, partial www autolink literal boundary behavior, and GFM split angle raw-HTML literal paragraph boundary behavior, footnote/citation, inline TeX math, standalone dollar display math, footnote recursive-reference, continuation/termination, and same-line fenced-div boundary behavior, citation/span boundary, empty-paragraph, definition-list spacing, nested-list body, html-div body, tight Plain body blocks, lazy SoftBreak continuation, column-zero marker behavior, and marker-line indented code-block body behavior, GitHub wiki-link, inline-code list-marker, attribute, and spaced-attribute literal behavior, backslash-escaped link, link-label boundary, unbalanced-bracket literal, link-title entity decoding, reference link/image multiline title folding, plain character-reference decoding, strikeout-with-nested-emphasis, GitHub emoji-shortcode, superscript/subscript escaped-space boundary behavior, smart punctuation quotes/apostrophes/ellipsis behavior, pipe-table alignment with escaped-pipe cell behavior, fenced-div nested container behavior, header-attribute explicit id/class/key behavior, numbered-example labeled cross-reference behavior, mark nested inline behavior, markdown+mark highlighted inline Span behavior, bracketed-span generic Span plus smallcaps behavior, fenced-code attribute tuple behavior, MultiMarkdown short superscript/subscript delimiter boundary behavior, numeric character-reference decoding, escaped-line-break and default trailing two-space hard break behavior, implicit-header-reference ATX trailing-hash behavior, emph/strong delimiter nesting plus intraword underscore behavior, raw-LaTeX bare environment command literal behavior, implicit-figure latex-placement plus alt boundary behavior, GitHub raw email address strong-boundary behavior, raw-HTML technically invalid comment preservation behavior, raw-HTML invalid tag literal behavior, raw-HTML nested tag split behavior, raw-HTML list continuation with native Div and raw button block boundaries, GFM nested-list continuation under the prior bullet item, gfm+definition_lists definition-list profile behavior, gfm tex_math_gfm fenced display-math behavior, markdown_github YAML-looking front matter literal Setext heading behavior, ordered task-list marker behavior with loose continuation paragraphs, YAML metadata scalar/list/block body-boundary behavior, consecutive YAML metadata blocks with later duplicate-field override behavior, LHS bird/inverse code with implicit HTML div close behavior, Pandoc 3.10 alert blockquote profile behavior, markdown_strict compact ATX heading profile behavior, markdown-space_in_atx_header compact attributed heading behavior, commonmark_x grid-table-looking block paragraph behavior when grid_tables is disabled by default, markdown+grid_tables row-span/column-span/complex-header table behavior, markdown+fancy_lists ordered marker and two-parenthesis Roman/alpha marker profile behavior, markdown-startnum+fancy_lists ordered start-number suppression behavior, markdown+hard_line_breaks physical-newline LineBreak profile behavior, markdown+lists_without_preceding_blankline paragraph-interrupting list profile behavior, markdown+old_dashes+smart paired dash-run behavior, markdown_phpextra header/link-attribute plus definition-list/footnote profile behavior, markdown+simple_tables header/body table constructor profile behavior, markdown+short_subsuperscripts short script profile behavior, markdown-shortcut_reference_links+spaced_reference_links reference-link profile behavior, markdown+tex_math_double_backslash inline/display math delimiter profile behavior, markdown+tex_math_single_backslash inline/display math delimiter profile behavior, markdown-intraword_underscores intraword emphasis/strong profile behavior, markdown-all_symbols_escapable+angle_brackets_escapable angle-only escape profile behavior, markdown+wikilinks_title_after_pipe target-before-pipe/title-after-pipe profile behavior, markdown+ignore_line_breaks physical-newline suppression with explicit hard-break preservation behavior, markdown-auto_identifiers generated heading ID suppression behavior, markdown-blank_before_header paragraph-interrupting heading plus top-level and blockquote-contained implicit-reference behavior, markdown-blank_before_blockquote top-level and nested paragraph-interrupting block quote behavior, digit-leading citation key behavior, markdown+autolink_bare_uris square/curly bracket target encoding, query-string and fragment retention, parenthesized path retention, Unicode path preservation, uppercase, doi, mailto, trailing punctuation, and literal http-token boundary behavior, markdown_mmd mmd_title_block metadata stripping behavior, markdown_mmd reference image attribute behavior, and commonmark+gfm_auto_identifiers+ascii_identifiers punctuation stripping, ASCII folding, dash fallback, and duplicate suffixing behavior',
                 ],
                 'doesNotAssert' => [
-                    'that upstream Haskell/Cabal/Tasty tests were executed',
-                    'that the selected fixture set is the full upstream Markdown reader corpus',
-                    'full Markdown dialect parity across every extension combination',
+                    'that this PHP report command executed upstream Haskell/Cabal/Tasty tests',
+                    'that every inline Haskell assertion in Tests.Readers.Markdown has a one-to-one checked-in fixture file',
+                    'Markdown writer parity',
+                    'byte-for-byte identity with Pandoc Haskell reader internals',
                 ],
             ],
         ];
@@ -1971,8 +1972,8 @@ final class MarkdownUpstreamReaderEvidence
                 : ($staticDenominator['selectedFixtureCount'] ?? 0)
         );
         $runnerResultLine = self::hasRunnerResultArtifactEvidence($report)
-            ? 'Supplied upstream Haskell/Cabal runner result artifact is validated; full Markdown dialect parity and writer parity are not asserted.'
-            : 'No upstream Haskell/Cabal runner result or full Markdown dialect parity is asserted.';
+            ? 'Supplied upstream Haskell/Cabal runner result artifact is validated; Markdown writer parity is not asserted.'
+            : 'No upstream Haskell/Cabal runner result artifact is supplied; runtime runner execution is not asserted.';
 
         return implode(PHP_EOL, [
             'Pandoc Markdown reader evidence',
@@ -2635,7 +2636,7 @@ final class MarkdownUpstreamReaderEvidence
 
     private static function claim(): string
     {
-        return 'Tracks selected checked-in current upstream-derived Markdown reader fixtures and their local coverage as evidence for Markdown dialect reader progress.';
+        return 'Tracks selected checked-in current upstream-derived Markdown reader fixtures, dialect profiles, and same-basename native AST comparison for Markdown reader implementation equivalence.';
     }
 
     /**
@@ -2645,19 +2646,18 @@ final class MarkdownUpstreamReaderEvidence
     {
         return [
             'doesAssert' => [
-                'the identity and count of selected checked-in upstream-derived Markdown fixtures',
+                'the identity and count of 137 selected checked-in upstream-derived Markdown fixtures',
                 'that focused local tests cover those selected fixture files',
-                'that checked-in Markdown/native fixture pairs have normalized AST equality through the local PHP reader harness',
+                'that 137/137 checked-in Markdown/native fixture pairs have normalized AST equality through the local PHP reader harness',
                 'that the upstream Markdown reader source inventory is present when a hydrated upstream checkout is inspected',
                 'that upstream Haskell runner evidence is either explicitly not-run or supplied as a validated result artifact',
                 'the future upstream runner command plan targets test:test-pandoc Readers/Markdown at the pinned upstream commit without execution',
                 'a supplied upstream runner result artifact is validated against the pinned Markdown Tasty target, commit, test names, pass/fail counts, and transcript file identities when explicitly provided',
             ],
             'doesNotAssert' => [
-                'full upstream Tests.Readers.Markdown runner parity',
-                'native AST parity for selected Markdown fixtures without same-basename .native expectations',
-                'complete Markdown dialect parity across every Pandoc extension profile',
-                'writer parity beyond the local tests that happen to round-trip selected fixtures',
+                'runtime Cabal/Tasty execution when no runner result artifact is supplied',
+                'Markdown writer parity',
+                'byte-for-byte identity with Pandoc Haskell reader internals',
             ],
         ];
     }

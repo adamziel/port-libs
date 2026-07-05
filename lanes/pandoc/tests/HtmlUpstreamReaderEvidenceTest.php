@@ -862,7 +862,8 @@ return [
         $t->same('valid-checked-in-current-html-reader-evidence', $evidence['validation']['status']);
         $t->same([], $evidence['validation']['issues']);
         $t->true(in_array('each pinned HTML fixture has a same-basename checked-in native expectation file', $evidence['claimBoundaries']['doesAssert'], true));
-        $t->true(in_array('that upstream Haskell/Cabal/Tasty tests were executed', $evidence['claimBoundaries']['doesNotAssert'], true));
+        $t->true(in_array('the current checked-in HTML/native mapped gate observes 132/132 normalized AST matches through Dom\\HTMLDocument-backed parsing when included in the report', $evidence['claimBoundaries']['doesAssert'], true));
+        $t->true(in_array('that this PHP report command executed upstream Haskell/Cabal/Tasty tests', $evidence['claimBoundaries']['doesNotAssert'], true));
     },
 
     'rejects hydrated upstream html reader source evidence without pinned git head' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeHtmlEvidenceTree): void {
@@ -909,7 +910,7 @@ return [
             $t->same(true, HtmlUpstreamReaderEvidence::hasRunnerNotRunEvidence($report));
             $t->same(true, HtmlUpstreamReaderEvidence::hasRunnerPlanEvidence($report));
             $t->same(true, HtmlUpstreamReaderEvidence::hasNoValidationIssues($report));
-            $t->true(in_array('full upstream Tests.Readers.HTML runner parity', $report['claimBoundaries']['doesNotAssert'], true));
+            $t->true(in_array('runtime Cabal/Tasty execution when no runner result artifact is supplied', $report['claimBoundaries']['doesNotAssert'], true));
             $t->true(in_array('the future upstream runner command plan targets test:test-pandoc Readers/HTML at the pinned upstream commit without execution', $report['claimBoundaries']['doesAssert'], true));
         } finally {
             $removeTree($root);

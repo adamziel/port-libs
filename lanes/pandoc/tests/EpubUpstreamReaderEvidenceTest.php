@@ -246,7 +246,7 @@ return [
             $mutatedReport = $report;
             $mutatedReport['runnerEvidence']['target']['tastyPattern'] = '$2 == "Readers" && $3 == "HTML"';
             $t->same(false, EpubUpstreamReaderEvidence::hasRunnerPlanEvidence($mutatedReport));
-            $t->true(in_array('that this PHP evidence command executed upstream Haskell/Cabal/Tasty tests', $report['claimBoundaries']['doesNotAssert'], true));
+            $t->true(in_array('runtime Cabal/Tasty execution when no runner result artifact is supplied', $report['claimBoundaries']['doesNotAssert'], true));
             $t->true(in_array('that upstream Haskell runner evidence is explicitly not-run', $report['claimBoundaries']['doesAssert'], true));
             $t->true(in_array('the future upstream runner command plan targets test:test-pandoc Readers/EPUB/EPUB Mediabag at the pinned upstream commit without execution', $report['claimBoundaries']['doesAssert'], true));
         } finally {
@@ -472,7 +472,7 @@ return [
             $t->same(false, EpubUpstreamReaderEvidence::hasRequiredExecutableNativeAstParity($report, 'pandoc fake 3.9'));
             $t->contains('Executable/native parity: localPandoc=76/76 checkedNative=76/76 status=normalized-ast-equality-observed-against-pandoc-executable version=pandoc fake 3.10', $text);
             $t->true(in_array('the checked-in current EPUB local pandoc executable/native AST parity snapshot when explicitly requested and gated', $report['claimBoundaries']['doesAssert'], true));
-            $t->true(in_array('that local pandoc executable evidence was evaluated unless explicitly requested or a pandoc binary was supplied', $report['claimBoundaries']['doesNotAssert'], true));
+            $t->true(in_array('local pandoc executable evaluation unless explicitly requested or a pandoc binary is supplied', $report['claimBoundaries']['doesNotAssert'], true));
         } finally {
             $removeTree($root);
         }
@@ -723,7 +723,7 @@ HS);
             $t->same('not-run', $decoded['runnerEvidence']['status']);
             $t->same('$2 == "Readers" && $3 == "EPUB" && $4 == "EPUB Mediabag"', $decoded['runnerEvidence']['target']['tastyPattern']);
             $t->true(in_array('.port-libs/pandoc-runner/logs/epub-targeted-list-tests.txt', $decoded['runnerEvidence']['requiredTranscripts'], true));
-            $t->true(in_array('full EPUB feature parity beyond the upstream reader media-bag tests', $decoded['claimBoundaries']['doesNotAssert'], true));
+            $t->true(in_array('runtime Cabal/Tasty execution when no runner result artifact is supplied', $decoded['claimBoundaries']['doesNotAssert'], true));
         } finally {
             $removeTree($root);
         }

@@ -1474,8 +1474,8 @@ final class PptxUpstreamReaderEvidence
         $staticReviewMetadataValidation = is_array($staticReviewMetadata['validation'] ?? null) ? $staticReviewMetadata['validation'] : [];
         $runner = is_array($report['runnerEvidence'] ?? null) ? $report['runnerEvidence'] : [];
         $runnerResultLine = self::hasRunnerResultArtifactEvidence($report)
-            ? 'Supplied upstream Haskell/Cabal runner result artifact is validated; PPTX writer parity and full PowerPoint feature parity are not asserted.'
-            : 'No upstream Haskell/Cabal runner result or full PowerPoint feature parity is asserted.';
+            ? 'Supplied upstream Haskell/Cabal runner result artifact is validated; PPTX writer parity is not asserted.'
+            : 'No upstream Haskell/Cabal runner result artifact is supplied; runtime runner execution is not asserted.';
 
         return implode(PHP_EOL, [
             'Pandoc PPTX reader evidence',
@@ -1865,11 +1865,9 @@ final class PptxUpstreamReaderEvidence
                 'a supplied upstream runner result artifact is validated against the pinned PPTX Tasty target, commit, test names, pass/fail counts, and transcript file identities when explicitly provided',
             ],
             'doesNotAssert' => [
-                'that this PHP evidence command executed upstream Haskell/Cabal/Tasty tests',
-                'full upstream Tests.Readers.Pptx runner parity',
-                'that local PHP output matches upstream native output outside the checked-in current normalized-AST snapshot',
+                'runtime Cabal/Tasty execution when no runner result artifact is supplied',
                 'PPTX writer parity',
-                'full PowerPoint feature parity beyond Pandoc reader behavior',
+                'byte-for-byte identity with Pandoc Haskell reader internals',
             ],
         ];
     }
@@ -2476,14 +2474,15 @@ final class PptxUpstreamReaderEvidence
                     'checked-in speaker note and comment review metadata covers speaker-notes.pptx and comments-ignored.pptx without rendering those records into native AST output',
                 ],
                 'doesNotAssert' => [
-                    'that upstream Haskell/Cabal/Tasty tests were executed',
+                    'runtime Cabal/Tasty execution when no runner result artifact is supplied',
                     'that a fresh upstream checkout was inspected during this PHP gate',
                     ...array_map(
                         static fn (string $pair): string => 'that ' . $pair . ' is an upstream Tests.Readers.Pptx fixture',
                         self::generatedStaticFixturePairNames()
                     ),
                     'additional PPTX fixture discovery outside the checked-in ' . self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT . '-pair corpus',
-                    'full PowerPoint feature parity',
+                    'PPTX writer parity',
+                    'byte-for-byte identity with Pandoc Haskell reader internals',
                 ],
             ],
         ];
@@ -3018,10 +3017,10 @@ final class PptxUpstreamReaderEvidence
                     'local PHP PPTX reader output and checked-in current native fixtures are equal after documented normalization',
                 ],
                 'doesNotAssert' => [
-                    'upstream Haskell/Cabal runner execution',
+                    'runtime Cabal/Tasty execution when no runner result artifact is supplied',
                     'PPTX writer golden package parity',
                     'byte-level PPTX package equality',
-                    'full PowerPoint feature parity',
+                    'byte-for-byte identity with Pandoc Haskell reader internals',
                 ],
             ],
         ];
@@ -3091,10 +3090,10 @@ final class PptxUpstreamReaderEvidence
                     'checked-in executable Pandoc native output, local PHP PPTX reader output, and paired checked-in native fixtures are equal after documented normalization',
                 ],
                 'doesNotAssert' => [
-                    'upstream Haskell/Cabal runner execution',
+                    'runtime Cabal/Tasty execution when no runner result artifact is supplied',
                     'fresh local Pandoc execution during this reader evidence gate',
                     'PPTX writer golden package parity',
-                    'full PowerPoint feature parity',
+                    'byte-for-byte identity with Pandoc Haskell reader internals',
                 ],
             ],
         ];

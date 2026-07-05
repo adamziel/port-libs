@@ -4094,10 +4094,10 @@ final class EpubNativeAstPackageComparisonHarness
                 'reader-specific adjacent Str/Space text-node segmentation',
             ],
             'doesNotAssert' => [
-                'upstream Haskell/Cabal runner execution',
+                'runtime Cabal/Tasty execution when no runner result artifact is supplied',
                 'EPUB writer parity',
                 'byte-level EPUB package equality',
-                'full EPUB feature parity beyond audited package and native fixtures',
+                'byte-for-byte identity with Pandoc Haskell reader internals',
             ],
         ];
     }

@@ -276,14 +276,14 @@ final class PandocFormatRegistry
             'notes' => 'Bounded XML-family reader maps BITS/JATS book roots, titles, abstracts, body sections, lists, links, and tables into the shared AST with existing JATS/BITS diagnostic packets. Full Pandoc BITS parity remains open.',
         ],
         'commonmark' => [
-            'status' => 'partial',
+            'status' => 'reader-equivalent',
             'implementation' => MarkdownReader::class,
-            'notes' => 'Uses the shared Markdown reader with CommonMark-oriented slices; full extension parity remains open.',
+            'notes' => 'Uses the shared Markdown reader; the Markdown reader implementation-equivalence gate covers ' . MarkdownUpstreamReaderEvidence::EXPECTED_SELECTED_FIXTURE_COUNT . '/137 checked-in Markdown/native pairs including CommonMark-oriented profile fixtures.',
         ],
         'commonmark_x' => [
-            'status' => 'partial',
+            'status' => 'reader-equivalent',
             'implementation' => MarkdownReader::class,
-            'notes' => 'Uses the shared Markdown reader with raw attribute and extension slices; full extension parity remains open.',
+            'notes' => 'Uses the shared Markdown reader; the Markdown reader implementation-equivalence gate covers ' . MarkdownUpstreamReaderEvidence::EXPECTED_SELECTED_FIXTURE_COUNT . '/137 checked-in Markdown/native pairs including CommonMark extension profile fixtures.',
         ],
         'csljson' => [
             'status' => 'partial',
@@ -316,9 +316,9 @@ final class PandocFormatRegistry
             'notes' => 'Bounded DokuWiki reader maps headings, paragraphs, core inline styles, links, images, lists, tables, and code/file blocks into the shared AST. Full DokuWiki reader parity remains open.',
         ],
         'epub' => [
-            'status' => 'partial',
+            'status' => 'reader-equivalent',
             'implementation' => EpubReader::class,
-            'notes' => 'Bounded EPUB package reader resolves the OPF rootfile, extracts metadata, follows XHTML spine items, rewrites package-relative href/src resources, records image/resource references, records EPUB3 nav and NCX table-of-contents resources while preferring EPUB3 nav entries over duplicate NCX fallback entries, and maps spine content through the shared HTML-capable reader path. Full EPUB parity remains open.',
+            'notes' => 'EPUB reader implementation-equivalence gate covers 76/76 checked-in package/native pairs plus the upstream media-bag tuples; the reader resolves the OPF rootfile, metadata, XHTML spine, package-relative href/src resources, EPUB3 nav, and NCX fallback entries through the shared HTML-capable reader path.',
         ],
         'fb2' => [
             'status' => 'partial',
@@ -331,14 +331,14 @@ final class PandocFormatRegistry
             'notes' => 'Bibliography reader parses bounded EndNote XML records into CSL item metadata with name, title, date, publication, attachment, and unsupported-field diagnostics. Full Pandoc EndNote XML reader parity remains open.',
         ],
         'gfm' => [
-            'status' => 'partial',
+            'status' => 'reader-equivalent',
             'implementation' => MarkdownReader::class,
-            'notes' => 'GitHub-Flavored Markdown behavior is partially mapped through MarkdownReader and MarkdownWriter tests.',
+            'notes' => 'Uses the shared Markdown reader; the Markdown reader implementation-equivalence gate covers ' . MarkdownUpstreamReaderEvidence::EXPECTED_SELECTED_FIXTURE_COUNT . '/137 checked-in Markdown/native pairs including GFM profile fixtures.',
         ],
         'html' => [
-            'status' => 'partial',
+            'status' => 'reader-equivalent',
             'implementation' => HtmlReader::class,
-            'notes' => 'Dedicated HTML reader dispatch preserves existing DOM/raw-HTML behavior through the current HTML-capable reader bridge while full HTML5 tree construction remains open.',
+            'notes' => 'HTML reader implementation-equivalence gate covers 132/132 checked-in HTML/native pairs through Dom\\HTMLDocument-backed HTML5 tree construction.',
         ],
         'ipynb' => [
             'status' => 'partial',
@@ -371,29 +371,29 @@ final class PandocFormatRegistry
             'notes' => 'Bounded roff man reader maps the pinned upstream Tests.Readers.Man macro, escape, list, definition-list, title metadata, link, synopsis option, code block, and table unit semantics into the shared AST. Full roff/man parity remains open.',
         ],
         'markdown' => [
-            'status' => 'partial',
+            'status' => 'reader-equivalent',
             'implementation' => MarkdownReader::class,
-            'notes' => 'Primary native PHP reader with broad Pandoc Markdown behavior slices and a bounded checked-in Markdown/native AST equality gate for ' . MarkdownUpstreamReaderEvidence::EXPECTED_SELECTED_FIXTURE_COUNT . ' selected fixtures. Full dialect parity remains open.',
+            'notes' => 'Primary native PHP reader; the Markdown reader implementation-equivalence gate covers ' . MarkdownUpstreamReaderEvidence::EXPECTED_SELECTED_FIXTURE_COUNT . '/137 checked-in Markdown/native pairs across the selected Pandoc Markdown dialect profiles.',
         ],
         'markdown_github' => [
-            'status' => 'partial',
+            'status' => 'reader-equivalent',
             'implementation' => MarkdownReader::class,
-            'notes' => 'Deprecated upstream token handled as a GFM-family Markdown variant.',
+            'notes' => 'Deprecated upstream token handled as a GFM-family Markdown variant by the shared Markdown reader implementation-equivalence gate.',
         ],
         'markdown_mmd' => [
-            'status' => 'partial',
+            'status' => 'reader-equivalent',
             'implementation' => MarkdownReader::class,
-            'notes' => 'MultiMarkdown-adjacent slices exist, but full MultiMarkdown parity remains open.',
+            'notes' => 'Handled by the shared Markdown reader implementation-equivalence gate, including MultiMarkdown profile fixtures in the 137/137 Markdown/native comparison.',
         ],
         'markdown_phpextra' => [
-            'status' => 'partial',
+            'status' => 'reader-equivalent',
             'implementation' => MarkdownReader::class,
-            'notes' => 'PHP Markdown Extra-adjacent slices exist, but full variant parity remains open.',
+            'notes' => 'Handled by the shared Markdown reader implementation-equivalence gate, including PHP Markdown Extra profile fixtures in the 137/137 Markdown/native comparison.',
         ],
         'markdown_strict' => [
-            'status' => 'partial',
+            'status' => 'reader-equivalent',
             'implementation' => MarkdownReader::class,
-            'notes' => 'Strict Markdown uses the shared reader without a complete extension disabling matrix.',
+            'notes' => 'Handled by the shared Markdown reader implementation-equivalence gate, including strict Markdown profile fixtures in the 137/137 Markdown/native comparison.',
         ],
         'mdoc' => [
             'status' => 'partial',
@@ -416,9 +416,9 @@ final class PandocFormatRegistry
             'notes' => 'Bounded OPML reader maps document title, owner, modified date, nested outlines, link outlines, and Markdown notes into the shared AST, with canonical native semantic parity for the pinned upstream opml-reader fixture. Full option and edge-case parity remains open.',
         ],
         'pptx' => [
-            'status' => 'partial',
+            'status' => 'reader-equivalent',
             'implementation' => PptxReader::class,
-            'notes' => 'Bounded PPTX OpenXML package reader maps upstream-style root officeDocument suffix discovery with substring non-matches including missing root relationship parts, absent presentation relationships, missing root relationship Types and IDs, ignored TargetMode, root-level and alternate presentation relationship sidecar paths with upstream ppt-prefixed and already-prefixed slide targets, relationship root and direct-child element-name agnostic parsing with nested root/presentation/slide relationships ignored, malformed core root/presentation/slide relationship part failures and malformed presentation/slide XML part failures, unqualified relationship Type/Id/Target attribute lookup, first-match missing/empty Target failures, root-relative, dot-segment, and percent-encoded Target literal lookups, and missing presentation part entry failures, optional slide-less presentation lists, first direct presentation slide-list selection, presentation slide order with direct-child p:sldId filtering and ignored p:sldId id attributes including first missing slide r:id failure, first duplicate slide relationship IDs, irrelevant slide relationship Types, malformed slide relationship entry skips before later valid matches, missing slide relationship Id skips, missing slide relationship sidecars as empty relationship lists, root-relative/dot-segment/empty/percent-encoded slide Target literal lookups, and missing slide part entry failures, direct-child slide-size lookup including unqualified cx/cy attributes, missing/invalid numeric fallback, Haskell readMaybe-style based and parenthesized numeric parsing with plus-signed invalid fallback, Haskell div negative EMU conversion, and nested size fallback, visible shape matching, and slide shape-tree lookup scoped to the presentation/slide root p prefix binding including first direct cSld/spTree selection and missing-cSld/missing-spTree fallback headers, direct DrawingML paragraph, first direct paragraph-property, run-symbol, picture blip-fill/blip, graphic-frame graphic/graphicData, and table row/cell/first text-body lookup scoped to the slide root a prefix binding with element-local fallback and upstream namespace-agnostic table t descendant text extraction, prefix-exact and element-local r-prefix relationship attribute lookup for slide IDs, pictures, and SmartArt with same-namespace alternate prefixes ignored, embed-first picture blips over link alternatives including empty embed attributes, and first direct SmartArt relIds without inherited shape-tree r-prefix fallback, first direct picture nonvisual properties and unqualified name/description metadata lookup, missing picture blip-chain skips, permissive presentation/slide root names with namespace-scoped children, Haskell readMaybe-style decimal/hex/octal, parenthesized, Unicode-whitespace, and bounded Int unqualified bullet-level numeric attribute parsing, slide-size metadata, non-fatal invalid review-only sidecar targets and relationship parts, review-only core/extended/custom document properties, slide-local nvSpPr title and ctrTitle placeholders with namespace-agnostic title text across immediate children with first direct p:nvPr and p:ph child selection, unqualified case-sensitive type matching, and qualified/missing/wrong-case type fallback, upstream fallback slide titles, order-independent title placeholder selection with body-order preservation, whitespace-only title placeholders, and first-empty title placeholder selection, text boxes including explicit empty and whitespace-only DrawingML text paragraphs, paragraph-property descendant text elements, no-nonvisual-properties visibility, missing/paragraphless/first text-body skips, and upstream-style text extraction for break/tab markers and DrawingML field text, upstream-ignored run/text-box/picture hyperlink relationships, case-sensitive substring Wingdings with first direct run-property/symbol child selection, unqualified typeface lookup, and buChar-over-buNone explicit bullet groups, upstream-plain auto-numbered and buNone DrawingML paragraphs, upstream-style adjacent same-level bullet grouping including empty bullet list items, review-only speaker notesSlide relationships, simple tables with upstream-style first direct table-child selection, rowless-table and missing-table-child omission, header-only table bodies, zero-cell and ragged body-row preservation, case-sensitive table-before-diagram URI precedence, and first-row native column specs, upstream-default visible spans, plus explicit missing/empty cell text and table style sidecars, chart graphic frames and unqualified graphicData URI handling with missing/empty graphic metadata as upstream-style generic graphic placeholders plus chart metadata sidecars, upstream-skipped graphic frames without a direct graphic/graphicData chain, verified embedded image references with upstream-compatible single-Str alt text and media-relative/direct, untyped, irrelevant-type, empty-id, and malformed-entry-skipped slide media relationship targets plus root-relative, dot-segment, percent-encoded, missing, unknown, non-embed, linked-image, and malformed-picture diagnostics, review-only slide background image references, SmartArt first direct-child local-name relIds discovery and data/layout lookup including direct, root-relative, and dot-segment literal targets plus partial, untyped, first-duplicate, empty-id, empty-target, and malformed-entry-skipped relationship targets scoped to the SmartArt root dgm prefix binding, SmartArt layout unqualified uniqueId fallback including bare-name and empty-name semantics plus qualified uniqueId title fallback, first direct layout title unqualified val lookup including empty title values, unknown fallback, and all-descendant text extraction, SmartArt hierarchy including upstream present-empty model, first direct point-list/connection-list and point-text selection, missing modelId skips, absent connection-list empty hierarchies, sorted parent model IDs, connection-order and duplicate children, parent-only paragraphs after empty child filtering, last duplicate modelId text, Unicode-whitespace-only node filtering, unqualified modelId/type/srcId/destId lookups, orphan/typed/malformed connection filtering, and connection IDs with placeholder/layout sidecars plus visible parse diagnostics for missing data/layout parts or invalid SmartArt data/layout XML and generic placeholders for incomplete SmartArt parts, review-only slide comments, shape z-order/layout metadata, upstream-skipped grouped-shape diagnostics, unsupported connector and contentPart drawable-shape diagnostics, and review-only internal rich-media references with checked-in current upstream pptx-reader/basic package/native content parity.',
+            'notes' => 'PPTX reader implementation-equivalence gate covers 109/109 checked-in PPTX/native pairs. The OpenXML reader maps upstream-style root officeDocument discovery, presentation and slide relationships, slide order, visible shapes, DrawingML text, tables, images, SmartArt, charts, speaker-note/comment review metadata, and grouped drawable descendants into the shared AST.',
         ],
         'mediawiki' => [
             'status' => 'partial',

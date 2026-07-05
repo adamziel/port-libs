@@ -1235,7 +1235,8 @@ return [
         $t->same([], $evidence['validation']['issues']);
         $t->true(in_array('each selected fixture has at least one local PHP test reference', $evidence['claimBoundaries']['doesAssert'], true));
         $t->true(in_array('the selected checked-in Markdown native expectation snapshots match the expected deterministic manifest hash', $evidence['claimBoundaries']['doesAssert'], true));
-        $t->true(in_array('full Markdown dialect parity across every extension combination', $evidence['claimBoundaries']['doesNotAssert'], true));
+        $t->true(in_array('that this PHP report command executed upstream Haskell/Cabal/Tasty tests', $evidence['claimBoundaries']['doesNotAssert'], true));
+        $t->true(in_array('Markdown writer parity', $evidence['claimBoundaries']['doesNotAssert'], true));
     },
 
     'validates hydrated upstream markdown reader source evidence' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeMarkdownEvidenceTree): void {
@@ -1257,8 +1258,8 @@ return [
             $t->same(true, MarkdownUpstreamReaderEvidence::hasRunnerPlanEvidence($report));
             $t->same(true, MarkdownUpstreamReaderEvidence::hasNoValidationIssues($report));
             $t->true(in_array('the future upstream runner command plan targets test:test-pandoc Readers/Markdown at the pinned upstream commit without execution', $report['claimBoundaries']['doesAssert'], true));
-            $t->true(in_array('full upstream Tests.Readers.Markdown runner parity', $report['claimBoundaries']['doesNotAssert'], true));
-            $t->true(in_array('native AST parity for selected Markdown fixtures without same-basename .native expectations', $report['claimBoundaries']['doesNotAssert'], true));
+            $t->true(in_array('runtime Cabal/Tasty execution when no runner result artifact is supplied', $report['claimBoundaries']['doesNotAssert'], true));
+            $t->true(in_array('Markdown writer parity', $report['claimBoundaries']['doesNotAssert'], true));
         } finally {
             $removeTree($root);
         }
@@ -1381,7 +1382,7 @@ return [
         $t->same('planned-not-run', $decoded['runnerEvidence']['commandPlanStatus']);
         $t->same('test:test-pandoc', $decoded['runnerEvidence']['target']['testSuite']);
         $t->same(['Readers', 'Markdown'], $decoded['runnerEvidence']['target']['tastyGroupPath']);
-        $t->true(in_array('complete Markdown dialect parity across every Pandoc extension profile', $decoded['claimBoundaries']['doesNotAssert'], true));
+        $t->true(in_array('runtime Cabal/Tasty execution when no runner result artifact is supplied', $decoded['claimBoundaries']['doesNotAssert'], true));
 
         $failingCommand = str_replace('--require-selected-fixture-count=137', '--require-selected-fixture-count=138', $command) . ' 2>/dev/null';
         $failingOutput = [];
