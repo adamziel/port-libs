@@ -1,0 +1,23 @@
+[ Para [ Span ( "chapter.xhtml" , [] , [] ) [] ]
+, Header
+    1
+    ( "" , [] , [] )
+    [ Str "XHTML"
+    , Space
+    , Str "Del"
+    , Space
+    , Str "Edit"
+    , Space
+    , Str "Mark"
+    , Space
+    , Str "Spine"
+    ]
+, Para
+    [ Strikeout [ Str "removed" , Space , Str "text" ]
+    , Space
+    , Str "and"
+    , Space
+    , Underline [ Str "inserted" , Space , Str "text" ]
+    , Str "."
+    ]
+]

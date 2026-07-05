@@ -13,12 +13,12 @@ final class EpubNativeAstPackageComparisonHarness
     private const CLAIM = 'Compares local PHP EPUB package parsing and reader output with a supplied checked-in current EPUB fixture directory and same-basename .native goldens. Package parsing/reader acceptance, fixture identity, package feature coverage, and native AST equality are reported separately; no upstream Haskell runner, writer parity, or full EPUB feature parity is asserted.';
     private const PACKAGE_FEATURE_SIGNATURE_KIND = 'checked-in-current-epub-package-feature-signature';
     private const PACKAGE_FEATURE_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
-    private const PACKAGE_FEATURE_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-69-fixture-snapshot';
-    private const CHECKED_IN_CURRENT_PACKAGE_FEATURE_SIGNATURE_SHA256 = '35490d8e6f7e28419b8aad59f772cd35161cdfbea67380a536bebbea11ff9511';
+    private const PACKAGE_FEATURE_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-70-fixture-snapshot';
+    private const CHECKED_IN_CURRENT_PACKAGE_FEATURE_SIGNATURE_SHA256 = '92c4703e52216023f982fc7ab7d7112ab7bcdaa6dd73c8fbfc9c39b64036f588';
     private const CURRENT_NATIVE_AST_SIGNATURE_KIND = 'checked-in-current-epub-normalized-native-ast-signature';
     private const CURRENT_NATIVE_AST_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
-    private const CURRENT_NATIVE_AST_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-69-fixture-normalized-ast-snapshot';
-    private const CHECKED_IN_CURRENT_NATIVE_AST_SIGNATURE_SHA256 = '46c74f9be9c8345c9837393d60b4de002887f9e05c7e6c1585e5d1412cdf677e';
+    private const CURRENT_NATIVE_AST_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-70-fixture-normalized-ast-snapshot';
+    private const CHECKED_IN_CURRENT_NATIVE_AST_SIGNATURE_SHA256 = '82cf287405870c575d18c29d0f4a2f24577ba964f78200cc3c911463fb5d85a9';
     private const RUNNER_CABAL_TARGET = 'exe:pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/epub-native-package-run';
     private const RUNNER_FIXTURE_DIRECTORY = 'test/epub';
@@ -720,6 +720,16 @@ final class EpubNativeAstPackageComparisonHarness
     'sha256' => '9685f832a8124ad9cf13b68083218e1a5e6ac2b448edee388b4c6bfcff08dbb8',
     'bytes' => 636,
   ),
+  'xhtml-del-edit-mark-spine.epub' =>
+  array (
+    'sha256' => 'd671033f47969f9de481b2ff9a7a0effa55cc69869868215e9206be947cc7f39',
+    'bytes' => 1408,
+  ),
+  'xhtml-del-edit-mark-spine.native' =>
+  array (
+    'sha256' => '14299e1d878ef72e19b86795da7d53cef6e42765ba831d13c4c6751891fb3fb6',
+    'bytes' => 405,
+  ),
   'xhtml-details-summary-spine.epub' =>
   array (
     'sha256' => '8742d0b94103c01e4f2ebe6fdf6b2efb183c138c409268352a225cc9b67c51e5',
@@ -767,10 +777,10 @@ final class EpubNativeAstPackageComparisonHarness
      */
     private const CHECKED_IN_CURRENT_PACKAGE_FEATURE_COVERAGE = array (
   'kind' => 'epub-package-feature-coverage',
-  'fixtureCount' => 69,
+  'fixtureCount' => 70,
   'opfPartNameCounts' =>
   array (
-    '/EPUB/package.opf' => 54,
+    '/EPUB/package.opf' => 55,
     '/EPUB/wasteland.opf' => 1,
     '/OEBPS/content.opf' => 3,
     '/OPS/book/package.opf' => 4,
@@ -779,7 +789,7 @@ final class EpubNativeAstPackageComparisonHarness
   'metadataLanguageCounts' =>
   array (
     'de-DE' => 3,
-    'en' => 62,
+    'en' => 63,
     'en-GB' => 1,
     'en-US' => 2,
     'fr' => 1,
@@ -832,12 +842,12 @@ final class EpubNativeAstPackageComparisonHarness
   ),
   'navigationTypeCounts' =>
   array (
-    'nav' => 63,
+    'nav' => 64,
     'ncx' => 4,
   ),
   'spineLinearStateCounts' =>
   array (
-    'linear' => 85,
+    'linear' => 86,
     'non-linear' => 15,
   ),
   'spinePageSpreadPlacementCounts' =>
@@ -856,7 +866,7 @@ final class EpubNativeAstPackageComparisonHarness
     'application/x-bound-widget' => 1,
     'application/x-dtbncx+xml' => 6,
     'application/x-fallback-demo' => 3,
-    'application/xhtml+xml' => 159,
+    'application/xhtml+xml' => 161,
     'audio/mpeg' => 5,
     'font/woff2' => 1,
     'image/gif' => 5,
@@ -872,7 +882,7 @@ final class EpubNativeAstPackageComparisonHarness
     'accessibility-metadata' => 1,
     'cover-image' => 3,
     'mathml' => 3,
-    'nav' => 63,
+    'nav' => 64,
     'remote-resources' => 4,
     'rendition:layout-pre-paginated' => 1,
     'scripted' => 2,
@@ -887,13 +897,13 @@ final class EpubNativeAstPackageComparisonHarness
     'font' => 1,
     'image' => 18,
     'media-overlay' => 2,
-    'navigation' => 69,
+    'navigation' => 70,
     'script' => 1,
     'style' => 24,
     'svg' => 2,
     'text-track' => 1,
     'video' => 3,
-    'xhtml' => 96,
+    'xhtml' => 97,
   ),
   'navigationSectionTypes' =>
   array (
@@ -2482,6 +2492,26 @@ final class EpubNativeAstPackageComparisonHarness
       ),
       'coverImagePartPresent' => false,
     ),
+    'xhtml-del-edit-mark-spine' =>
+    array (
+      'navigationType' => 'nav',
+      'navigationSectionTypes' =>
+      array (
+        0 => 'toc',
+      ),
+      'manifestResourceKindCounts' =>
+      array (
+        'navigation' => 1,
+        'xhtml' => 1,
+      ),
+      'guideReferenceTypeCounts' =>
+      array (
+      ),
+      'packageLinkRelCounts' =>
+      array (
+      ),
+      'coverImagePartPresent' => false,
+    ),
     'xhtml-details-summary-spine' =>
     array (
       'navigationType' => 'nav',
@@ -2897,13 +2927,13 @@ final class EpubNativeAstPackageComparisonHarness
   'totals' =>
   array (
     'metadataCreators' => 63,
-    'manifestItems' => 238,
-    'readingOrderItems' => 100,
+    'manifestItems' => 240,
+    'readingOrderItems' => 101,
     'spinePageSpreadItems' => 5,
-    'xhtmlAssets' => 159,
+    'xhtmlAssets' => 161,
     'imageAssets' => 23,
     'stylesheetAssets' => 21,
-    'navigationEntries' => 158,
+    'navigationEntries' => 159,
     'landmarkEntries' => 24,
     'pageListEntries' => 16,
     'pageListCfiTargets' => 2,
@@ -2958,6 +2988,7 @@ final class EpubNativeAstPackageComparisonHarness
     'ocfSidecars' => 4,
   ),
 );
+
 
     public function run(string $epubDirectory, array $options = []): array
     {

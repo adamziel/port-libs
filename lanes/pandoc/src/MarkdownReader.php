@@ -8888,7 +8888,10 @@ final class MarkdownReader
         if ($name === 'u') {
             return $this->wrapHtmlInlineWithBoundaryWhitespace('underline', $this->htmlElementPandocAttrs($node), $children);
         }
-        if (in_array($name, ['s', 'strike', 'del'], true)) {
+        if ($name === 'del') {
+            return $this->wrapHtmlInlineWithBoundaryWhitespace('strikeout', $this->htmlElementPandocAttrs($node, ['cite', 'datetime']), $children);
+        }
+        if (in_array($name, ['s', 'strike'], true)) {
             return $this->wrapHtmlInlineWithBoundaryWhitespace('strikeout', $this->htmlElementPandocAttrs($node), $children);
         }
         if (in_array($name, ['code', 'tt', 'samp', 'var'], true)) {
