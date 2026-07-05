@@ -679,21 +679,6 @@ final class DelimitedTextReader
                     }
                 }
 
-                if ($escape === null && $quote !== null && $char === '\\' && $this->matchesTokenAt($text, $offset + 1, $quote)) {
-                    $field .= '\\' . $quote;
-                    $metrics['escapedQuoteSequenceCount']++;
-                    $diagnostics[] = $this->diagnostic(
-                        'delimited-text-backslash-quote-preserved',
-                        'info',
-                        'Backslash before a quote was preserved; this dialect only recognizes doubled quote escapes.',
-                        $rowIndex,
-                        $columnIndex,
-                        $offset
-                    );
-                    $offset += strlen($quote);
-                    continue;
-                }
-
                 if ($quote !== null && $this->matchesTokenAt($text, $offset, $quote)) {
                     $nextQuoteOffset = $offset + strlen($quote);
                     if ($this->matchesTokenAt($text, $nextQuoteOffset, $quote)) {
@@ -893,13 +878,6 @@ final class DelimitedTextReader
             $column = $diagnostic === null ? null : ((int) $diagnostic['column'] + 1);
             $location = $row === null ? '' : " at line {$row}, column {$column}";
             throw new \InvalidArgumentException("Malformed {$format} input: whitespace after a closing quote before a line break{$location}; Pandoc only accepts trailing whitespace after the final record.");
-        }
-
-        $diagnostic = $this->firstParseDiagnostic($parse, 'delimited-text-backslash-quote-preserved');
-        if ($diagnostic !== null) {
-            $row = (int) $diagnostic['row'] + 1;
-            $column = (int) $diagnostic['column'] + 1;
-            throw new \InvalidArgumentException("Malformed {$format} input: backslash before a quote at line {$row}, column {$column}; this dialect only recognizes doubled quote escapes.");
         }
 
         if ((int) ($metrics['unclosedQuoteCount'] ?? 0) > 0) {

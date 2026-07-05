@@ -357,6 +357,47 @@ return [
         $t->contains('Plain [ Str "left" , Space , Str "\"" , Space , Str "right" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
+    'matches generated csv default backslash before closing quote native parity fixture without inflating csv denominator' => static function (TestRunner $t) use ($generatedCsvNativeFixture, $nativeTokenStream): void {
+        $fixture = $generatedCsvNativeFixture('backslash-before-closing-quote');
+        $document = (new DelimitedTextReader())->readCsv($fixture['input'], [
+            'sourcePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/backslash-before-closing-quote.csv',
+        ]);
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+        $native = PandocConverter::write($document, 'native');
+        $generatedEvidence = $packet['upstreamEvidence']['generatedNativeParityEvidence'] ?? [];
+        $inputFixtureIndex = (2 * DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT) - 2;
+        $nativeFixtureIndex = $inputFixtureIndex + 1;
+        $sampleIndex = DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT - 1;
+
+        $t->same('csv', $packet['format'] ?? null);
+        $t->same(',', $packet['delimiter'] ?? null);
+        $t->same(null, $packet['escape'] ?? null);
+        $t->same('none', $packet['dialect']['escapeMode'] ?? null);
+        $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
+        $t->same(2 * DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['checkedInFixtureCount'] ?? null);
+        $t->same('backslash-before-closing-quote.csv', $generatedEvidence['checkedInFixtures'][$inputFixtureIndex]['name'] ?? null);
+        $t->same('2f9f98b142122454bcc94d2e6e24840c9b5e42984998392f0c79689b42851ee1', $generatedEvidence['checkedInFixtures'][$inputFixtureIndex]['checkedInFile']['sha256'] ?? null);
+        $t->same(63, $generatedEvidence['checkedInFixtures'][$inputFixtureIndex]['checkedInFile']['bytes'] ?? null);
+        $t->same('backslash-before-closing-quote.native', $generatedEvidence['checkedInFixtures'][$nativeFixtureIndex]['name'] ?? null);
+        $t->same('99018bb1d759f850fb5957c080a5f2ee36c8d73fbee50c9e6a7f94db80b4f4f9', $generatedEvidence['checkedInFixtures'][$nativeFixtureIndex]['checkedInFile']['sha256'] ?? null);
+        $t->same(1310, $generatedEvidence['checkedInFixtures'][$nativeFixtureIndex]['checkedInFile']['bytes'] ?? null);
+        $t->same('backslash-before-closing-quote', $generatedEvidence['samples'][$sampleIndex]['name'] ?? null);
+        $t->same([], $generatedEvidence['samples'][$sampleIndex]['readerOptions'] ?? null);
+        $t->same(['id', 'title', 'note'], $table->attr('columnNames'));
+        $t->same(3, $packet['rowCount'] ?? null);
+        $t->same(2, $packet['bodyRowCount'] ?? null);
+        $t->same(3, $packet['columnCount'] ?? null);
+        $t->same(9, $packet['fieldCount'] ?? null);
+        $t->same(2, $packet['quotedFieldCount'] ?? null);
+        $t->same(0, $packet['escapedQuoteSequenceCount'] ?? null);
+        $t->same(0, $packet['doubledQuoteEscapeCount'] ?? null);
+        $t->same(0, $packet['diagnosticCount'] ?? null);
+        $t->same('path ends with \\', $table->children[1]->children[0]->children[1]->attr('text'));
+        $t->same('literal \\ slash', $table->children[1]->children[1]->children[1]->attr('text'));
+        $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
+    },
     'matches generated csv quoted linebreak native parity fixture without inflating csv denominator' => static function (TestRunner $t) use ($generatedCsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedCsvNativeFixture('quoted-linebreak');
         $document = (new DelimitedTextReader())->readCsv($fixture['input'], [
@@ -6001,10 +6042,10 @@ NATIVE;
             'delimited-text-control-characters',
         ], $codes);
     },
-    'records csv quote and escape diagnostics in explicit recovery mode' => static function (TestRunner $t): void {
+    'records csv quote diagnostics in explicit recovery mode while keeping default backslashes literal' => static function (TestRunner $t): void {
         $document = (new DelimitedTextReader())->readCsv(implode("\n", [
             'id,title,note',
-            '1,"Doubled ""quote"" value","Backslash \"quote\" marker"',
+            '1,"Doubled ""quote"" value","Backslash \"',
             '2,unquoted "literal" quote,ok',
             '',
         ]), ['strictParsing' => false]);
@@ -6016,34 +6057,27 @@ NATIVE;
         $t->same(2, $packet['bodyRowCount'] ?? null);
         $t->same(2, $packet['quotedFieldCount'] ?? null);
         $t->same(2, $packet['doubledQuoteEscapeCount'] ?? null);
-        $t->same(2, $packet['escapedQuoteSequenceCount'] ?? null);
+        $t->same(0, $packet['escapedQuoteSequenceCount'] ?? null);
         $t->same(2, $packet['quoteInUnquotedFieldCount'] ?? null);
         $t->same(0, $packet['unclosedQuoteCount'] ?? null);
         $t->same(0, $packet['partialRecordCount'] ?? null);
-        $t->same(4, $packet['diagnosticCount'] ?? null);
+        $t->same(2, $packet['diagnosticCount'] ?? null);
         $t->same([
-            'delimited-text-backslash-quote-preserved',
-            'delimited-text-backslash-quote-preserved',
             'delimited-text-quote-in-unquoted-field',
             'delimited-text-quote-in-unquoted-field',
         ], $codes);
-        $t->same(1, $packet['diagnostics'][0]['sourceLine'] ?? null);
-        $t->same(2, $packet['diagnostics'][0]['sourceLineNumber'] ?? null);
-        $t->same(2, $packet['diagnostics'][0]['column'] ?? null);
-        $t->same(
-            strpos('1,"Doubled ""quote"" value","Backslash \"quote\" marker"', '\\"'),
-            $packet['diagnostics'][0]['sourceByteColumn'] ?? null
-        );
+        $t->same('Backslash \\', $table->children[1]->children[0]->children[2]->attr('text'));
+        $t->same(2, $packet['diagnostics'][0]['sourceLine'] ?? null);
+        $t->same(3, $packet['diagnostics'][0]['sourceLineNumber'] ?? null);
+        $t->same(1, $packet['diagnostics'][0]['column'] ?? null);
+        $t->same(strpos('2,unquoted "literal" quote,ok', '"'), $packet['diagnostics'][0]['sourceByteColumn'] ?? null);
         $t->same('byte-column', $packet['diagnostics'][0]['sourceLocationUnit'] ?? null);
-        $t->same(2, $packet['diagnostics'][2]['sourceLine'] ?? null);
-        $t->same(3, $packet['diagnostics'][2]['sourceLineNumber'] ?? null);
-        $t->same(1, $packet['diagnostics'][2]['column'] ?? null);
-        $t->same(
-            strpos('2,unquoted "literal" quote,ok', '"'),
-            $packet['diagnostics'][2]['sourceByteColumn'] ?? null
-        );
+        $t->same(2, $packet['diagnostics'][1]['sourceLine'] ?? null);
+        $t->same(3, $packet['diagnostics'][1]['sourceLineNumber'] ?? null);
+        $t->same(1, $packet['diagnostics'][1]['column'] ?? null);
+        $t->same(strrpos('2,unquoted "literal" quote,ok', '"'), $packet['diagnostics'][1]['sourceByteColumn'] ?? null);
         $t->same('Doubled "quote" value', $table->children[1]->children[0]->children[1]->attr('text'));
-        $t->same('Backslash \"quote\" marker', $table->children[1]->children[0]->children[2]->attr('text'));
+        $t->same('Backslash \\', $table->children[1]->children[0]->children[2]->attr('text'));
         $t->same('unquoted "literal" quote', $table->children[1]->children[1]->children[1]->attr('text'));
     },
     'keeps tsv quotes literal and isolates tab delimiter behavior' => static function (TestRunner $t): void {
@@ -6161,6 +6195,20 @@ NATIVE;
         $t->same('x', $validTable->children[1]->children[0]->children[1]->attr('text'));
         $t->same('y', $validTable->children[1]->children[0]->children[2]->attr('text'));
 
+        $backslashBeforeClosingQuoteDocument = $reader->readCsv("a,b\n1,\"x\\\"\n");
+        $backslashBeforeClosingQuotePacket = $backslashBeforeClosingQuoteDocument->children[0]->attr('delimitedText');
+        $t->same('x\\', $backslashBeforeClosingQuoteDocument->children[0]->children[1]->children[0]->children[1]->attr('text'));
+        $t->same(0, $backslashBeforeClosingQuotePacket['escapedQuoteSequenceCount'] ?? null);
+        $t->same(0, $backslashBeforeClosingQuotePacket['diagnosticCount'] ?? null);
+
+        $backslashBeforeClosingQuoteWithTextMessage = '';
+        try {
+            $reader->readCsv("a,b\n1,\"x\\\"y\"\n");
+        } catch (InvalidArgumentException $exception) {
+            $backslashBeforeClosingQuoteWithTextMessage = $exception->getMessage();
+        }
+        $t->contains('expected delimiter, line break, or end of input', $backslashBeforeClosingQuoteWithTextMessage);
+
         $trailingWhitespaceDocument = $reader->readCsv("a,b\n1,\"x\"  \n");
         $trailingWhitespacePacket = $trailingWhitespaceDocument->children[0]->attr('delimitedText');
         $t->same('x', $trailingWhitespaceDocument->children[0]->children[1]->children[0]->children[1]->attr('text'));
@@ -6270,7 +6318,7 @@ NATIVE;
             ['csv', "a,b\n\n1,2\n", 'blank record'],
             ['csv', "\xEF\xBB\xBF\n a,b\n1,2\n", 'blank record'],
             ['csv', "a,b\n\"x\"tail,2\n", 'text after a closing quote'],
-            ['csv', "a,b\n1,\"x\\\"y\"\n", 'backslash before a quote'],
+            ['csv', "a,b\n1,\"x\\\"y\"\n", 'text after a closing quote'],
             ['csv', "a,b\n\"x\n", 'quoted field reaches end of input'],
             ['tsv', "a\tb\n\n1\t2\n", 'blank record'],
         ];

@@ -209,6 +209,14 @@ $bodyCases = [
             'loose' => false,
         ]]]],
     ],
+    'upstream command 11542 marker-line indented code body keeps nested marker literal' => [
+        'markdown' => "Input\n\n:     Term\n\n        : Def",
+        'items' => [['term' => 'Input', 'definitions' => [[
+            'blocks' => ['code_block'],
+            'text' => 'Term : Def',
+            'loose' => true,
+        ]]]],
+    ],
     'continuation blockquote body after paragraph' => [
         'markdown' => "Term\n: first\n\n    > quoted",
         'items' => [['term' => 'Term', 'definitions' => [[
@@ -396,7 +404,26 @@ $tests['records markdown reader definition-list final harvest mapped-case count'
             + (count($disabledProfiles) * count($profileFixtures))
             + count($nonDefinitionCases);
 
-        $t->same(103, $mapped);
+        $t->same(104, $mapped);
+    };
+
+$tests['maps upstream command 11542 definition indented code block fixture exactly'] =
+    static function (TestRunner $t): void {
+        $source = (string) file_get_contents(
+            dirname(__DIR__) . '/fixtures/upstream-command-11542-definition-code-block.md'
+        );
+        $document = (new MarkdownReader())->read($source);
+        $definitionList = $document->children[0] ?? new AstNode('missing');
+        $item = $definitionList->children[0] ?? new AstNode('missing');
+        $definition = $item->children[1] ?? new AstNode('missing');
+        $codeBlock = $definition->children[0] ?? new AstNode('missing');
+
+        $t->same('definition_list', $definitionList->type);
+        $t->same('definition_item', $item->type);
+        $t->same('Input', $item->attr('term'));
+        $t->same('definition', $definition->type);
+        $t->same(['code_block'], array_map(static fn (AstNode $node): string => $node->type, $definition->children));
+        $t->same("Term\n\n  : Def", $codeBlock->attr('text'));
     };
 
 return $tests;

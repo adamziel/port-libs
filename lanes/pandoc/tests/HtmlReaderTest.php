@@ -1311,6 +1311,37 @@ $tests['imports direct pandoc html xmp rawtext fallback as parsed blocks'] =
         $t->same('After legacy literal.', $after->attr('text'));
     };
 
+$tests['imports direct pandoc html rawtext fallback containers as parsed blocks'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-rawtext-fallback-containers.html'));
+
+        $t->same('html', $document->attr('sourceFormat'));
+        $t->same(Html5Dom::htmlDocumentTreeConstructionBackend(), $document->attr('meta')['htmlTreeConstruction'] ?? null);
+        $t->same(
+            ['paragraph', 'paragraph', 'paragraph', 'paragraph', 'paragraph'],
+            array_map(static fn ($node): string => $node->type, $document->children)
+        );
+        $t->same(
+            [
+                'Before raw fallback.',
+                'Noembed fallback',
+                'Noframes fallback',
+                'Plain fallback',
+                'After plaintext.',
+            ],
+            array_map(static fn ($node): string => $node->attr('text'), $document->children)
+        );
+        $t->same(['text', 'strong'], array_map(static fn ($node): string => $node->type, $document->children[1]->children));
+        $t->same('Noembed ', $document->children[1]->children[0]->attr('text'));
+        $t->same('fallback', $document->children[1]->children[1]->children[0]->attr('text'));
+        $t->same(['text', 'emph'], array_map(static fn ($node): string => $node->type, $document->children[2]->children));
+        $t->same('Noframes ', $document->children[2]->children[0]->attr('text'));
+        $t->same('fallback', $document->children[2]->children[1]->children[0]->attr('text'));
+        $t->same(['text', 'code'], array_map(static fn ($node): string => $node->type, $document->children[3]->children));
+        $t->same('Plain ', $document->children[3]->children[0]->attr('text'));
+        $t->same('fallback', $document->children[3]->children[1]->attr('text'));
+    };
+
 $tests['extracts html reader microdata item metadata with itemref and nested item scopes'] =
     static function (TestRunner $t): void {
         $html = '<!doctype html><html><head><title>Microdata Dispatch</title></head><body>'

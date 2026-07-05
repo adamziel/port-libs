@@ -299,7 +299,7 @@ final class HtmlReader
      */
     private static function htmlRawTextFallbackElementNames(): array
     {
-        return ['xmp'];
+        return ['noembed', 'noframes', 'plaintext', 'xmp'];
     }
 
     private static function flattenHtmlDetailsSummaryContainers(string $bytes): string

@@ -15102,11 +15102,21 @@ final class MarkdownReader
         $blankBeforeNextDefinition = false;
         $marker = $this->matchDefinitionMarker($lines[$cursor]);
         $markerIndent = $this->definitionMarkerIndent($lines[$cursor]);
+        $initialCodeContinuationIndent = $marker !== null && $this->definitionMarkerStartsInitialCodeBlock($marker['content'])
+            ? $markerIndent + 6
+            : null;
         $blocks = $marker === null ? [] : $this->parseDefinitionBlocks($marker['content'], $loose);
         $cursor++;
         $count = count($lines);
 
         while ($cursor < $count) {
+            if (
+                $initialCodeContinuationIndent !== null
+                && $this->tryAppendDefinitionInitialCodeContinuation($blocks, $lines, $cursor, $initialCodeContinuationIndent)
+            ) {
+                continue;
+            }
+
             $line = $lines[$cursor];
             if (trim($line) === '') {
                 $next = $cursor + 1;
@@ -15149,6 +15159,84 @@ final class MarkdownReader
         }
 
         return new AstNode('definition', ['loose' => $loose], $blocks);
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @param list<string> $lines
+     */
+    private function tryAppendDefinitionInitialCodeContinuation(
+        array &$blocks,
+        array $lines,
+        int &$cursor,
+        int $contentIndent
+    ): bool {
+        $lastIndex = array_key_last($blocks);
+        if ($lastIndex === null || $blocks[$lastIndex]->type !== 'code_block') {
+            return false;
+        }
+
+        $count = count($lines);
+        $scan = $cursor;
+        $content = [];
+        if ($scan >= $count) {
+            return false;
+        }
+
+        if (trim($lines[$scan]) === '') {
+            while ($scan < $count && trim($lines[$scan]) === '') {
+                $content[] = '';
+                $scan++;
+            }
+            if ($scan >= $count || $this->countIndentColumns($lines[$scan]) < $contentIndent) {
+                return false;
+            }
+        } elseif ($this->countIndentColumns($lines[$scan]) < $contentIndent) {
+            return false;
+        }
+
+        while ($scan < $count) {
+            $line = $lines[$scan];
+            if (trim($line) === '') {
+                $content[] = '';
+                $scan++;
+                continue;
+            }
+            if ($this->countIndentColumns($line) < $contentIndent) {
+                break;
+            }
+
+            $content[] = rtrim($this->stripIndentColumns($line, $contentIndent), " \t");
+            $scan++;
+        }
+
+        while ($content !== [] && end($content) === '') {
+            array_pop($content);
+        }
+        if ($content === []) {
+            return false;
+        }
+
+        $blocks[$lastIndex] = $this->definitionCodeBlockWithAppendedContent($blocks[$lastIndex], $content);
+        $cursor = $scan;
+
+        return true;
+    }
+
+    /**
+     * @param list<string> $content
+     */
+    private function definitionCodeBlockWithAppendedContent(AstNode $codeBlock, array $content): AstNode
+    {
+        $text = (string) $codeBlock->attr('text', '');
+        $suffix = implode("\n", $content);
+        $text = $text === '' ? $suffix : $text . "\n" . $suffix;
+
+        return new AstNode(
+            $codeBlock->type,
+            array_merge($codeBlock->attrs, ['text' => $text]),
+            $codeBlock->children
+        );
     }
 
     /**
@@ -15243,8 +15331,18 @@ final class MarkdownReader
             return [];
         }
 
-        $leadingSpaces = strspn($content, ' ');
-        $afterMarkerPadding = substr($content, min(3, $leadingSpaces));
+        if ($this->definitionMarkerStartsInitialCodeBlock($content)) {
+            return [
+                new AstNode('code_block', [
+                    'classes' => [],
+                    'attributes' => [],
+                    'text' => rtrim($this->stripIndentColumns($content, 5), " \t"),
+                ]),
+            ];
+        }
+
+        $leadingSpaces = $this->countIndentColumns($content);
+        $afterMarkerPadding = $this->stripIndentColumns($content, min(3, $leadingSpaces));
         if (preg_match('/^(?: {4,}|\t)/', $afterMarkerPadding) === 1) {
             $children = $this->read($afterMarkerPadding)->children;
 
@@ -15261,6 +15359,11 @@ final class MarkdownReader
         }
 
         return [$this->definitionTextBlock($loose ? 'paragraph' : 'plain', $trimmed)];
+    }
+
+    private function definitionMarkerStartsInitialCodeBlock(string $content): bool
+    {
+        return trim($content) !== '' && $this->countIndentColumns($content) >= 5;
     }
 
     /**

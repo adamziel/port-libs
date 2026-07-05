@@ -111,14 +111,14 @@
             "generatedNativeParityRequired": true
         },
         "generatedNativeParity": {
-            "csvSampleCount": 68,
-            "csvMatchCount": 68,
+            "csvSampleCount": 69,
+            "csvMatchCount": 69,
             "csvMismatchCount": 0,
             "tsvSampleCount": 44,
             "tsvMatchCount": 44,
             "tsvMismatchCount": 0,
-            "totalSampleCount": 112,
-            "totalMatchCount": 112
+            "totalSampleCount": 113,
+            "totalMatchCount": 113
         },
         "currentCsvDirectNativeParity": {
             "sampleCount": 2,
@@ -132,14 +132,14 @@
         },
         "pandocExecutableNativeParity": {
             "requiredPandocVersion": "pandoc 3.10",
-            "csvSampleCount": 49,
-            "csvMatchCount": 49,
+            "csvSampleCount": 50,
+            "csvMatchCount": 50,
             "csvMismatchCount": 0,
             "tsvSampleCount": 31,
             "tsvMatchCount": 31,
             "tsvMismatchCount": 0,
-            "totalSampleCount": 80,
-            "totalMatchCount": 80
+            "totalSampleCount": 81,
+            "totalMatchCount": 81
         },
         "runnerEvidence": {
             "status": "not-run",

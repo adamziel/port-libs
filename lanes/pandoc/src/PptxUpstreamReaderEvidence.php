@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 105;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 106;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'a70f983234aef465bfcc8e2ba318bd239eb3e8bfb5c9423434c63b037b04ef02';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 45331;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '27d990e2fa865c1c094454755be1c40b6bde2387254543fd93c34a02a2246e8d';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 45746;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -378,6 +378,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => '4aba0d35d612be97b9dcdc36293d4bd244c9c2fa43d3da270fc873c9930c831d',
             'pptxBytes' => 1417,
             'nativeBytes' => 251,
+        ],
+        'first-table-cell-text-body' => [
+            'name' => 'generated first table cell text body parity',
+            'pptx' => 'pptx-reader/first-table-cell-text-body.pptx',
+            'native' => 'pptx-reader/first-table-cell-text-body.native',
+            'pairKey' => 'pptx-reader/first-table-cell-text-body.pptx|pptx-reader/first-table-cell-text-body.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/first-table-cell-text-body.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/first-table-cell-text-body.native',
+            'pptxSha256' => '3c922321649bbabb5a9676f354ca2ef62abcefb0c7006501ae1c2010edc3e629',
+            'nativeSha256' => '7813fdec7fde0ca32e37328577f91cfc0b0518a72d9a2c6084e2fb3e41e4e7e3',
+            'pptxBytes' => 1510,
+            'nativeBytes' => 1229,
         ],
         'break-tab-field' => [
             'name' => 'generated break, tab, and field text boundary parity',

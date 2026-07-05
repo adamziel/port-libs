@@ -2006,6 +2006,70 @@ HTML);
             $native
         );
     },
+    'preserves epub body link attributes after xhtml base href resolution' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-base-link-attrs-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary EPUB package');
+        }
+        $zip->addFromString('META-INF/container.xml', '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="book-id">
+  <metadata>
+    <dc:identifier id="book-id">urn:uuid:base-link-attrs</dc:identifier>
+    <dc:title>Base Link Attrs</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="text/chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('OPS/text/chapter.xhtml', <<<'HTML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <head><base href="../refs/"/></head>
+  <body><p>See <a id="xref" class="tracked" epub:type="biblioref" role="doc-biblioref" href="notes.xhtml#n1">note</a>.</p></body>
+</html>
+HTML);
+        $zip->close();
+
+        try {
+            $document = (new EpubReader())->readEpubFile($path);
+            $meta = $document->attr('meta');
+            $native = (new NativeWriter(['blocksOnly' => true]))->write($document);
+        } finally {
+            @unlink($path);
+        }
+
+        $paragraph = $document->children[1] ?? new PortLibs\Pandoc\AstNode('missing');
+        $links = array_values(array_filter(
+            $paragraph->children,
+            static fn (PortLibs\Pandoc\AstNode $child): bool => $child->type === 'link'
+        ));
+        $link = $links[0] ?? new PortLibs\Pandoc\AstNode('missing');
+
+        $t->same('link', $link->type);
+        $t->same('chapter.xhtml_xref', $link->attr('id'));
+        $t->same(['tracked', 'biblioref'], $link->attr('classes'));
+        $t->same('notes.xhtml_n1', $link->attr('url'));
+        $t->same(['role' => 'doc-biblioref'], $link->attr('attributes'));
+        $t->same(['OPS/refs/notes.xhtml#n1'], $meta['epubReferencedResources']);
+        $t->contains(
+            'Link ( "chapter.xhtml_xref" , [ "tracked" , "biblioref" ] , [ ( "role" , "doc-biblioref" ) ] ) [ Str "note" ] ( "notes.xhtml_n1" , "" )',
+            $native
+        );
+    },
     'preserves epub footnote definition link attributes without body href overlay collision' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-footnote-link-attrs-');
         if ($path === false) {

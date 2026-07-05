@@ -145,9 +145,13 @@ final class EpubReader
                 continue;
             }
             $resources[] = $href;
-            $footnote_definitions = $this->epubFootnoteDefinitionsInReferenceOrder($xhtml, $item['href']);
-            $note_reference_hrefs = $this->epubNoteReferenceHrefs($xhtml);
-            $link_attribute_overlays_by_href = $this->epubBodyLinkAttributeOverlaysByHref($xhtml);
+            $content_dom = $this->contentDocumentDom($xhtml);
+            $content_base_href = $content_dom instanceof \DOMDocument
+                ? $this->epubContentDocumentBaseHref($content_dom)
+                : null;
+            $footnote_definitions = $this->epubFootnoteDefinitionsInReferenceOrder($content_dom, $item['href']);
+            $note_reference_hrefs = $this->epubNoteReferenceHrefs($content_dom, $content_base_href);
+            $link_attribute_overlays_by_href = $this->epubBodyLinkAttributeOverlaysByHref($content_dom, $content_base_href);
             $document = $this->epubContentHtmlReader()->read($this->contentDocumentMarkup($xhtml));
             $document = $this->normalizeEpubMediaRawBlocks($document);
             $document = $this->normalizeEpubRawInlineVoidElements($document);
@@ -1716,9 +1720,8 @@ final class EpubReader
     /**
      * @return list<list<AstNode>>
      */
-    private function epubFootnoteDefinitionsInReferenceOrder(string $xhtml, string $content_path): array
+    private function epubFootnoteDefinitionsInReferenceOrder(?\DOMDocument $dom, string $content_path): array
     {
-        $dom = $this->contentDocumentDom($xhtml);
         if (!$dom instanceof \DOMDocument) {
             return [];
         }
@@ -1767,9 +1770,8 @@ final class EpubReader
     /**
      * @return array<string, true>
      */
-    private function epubNoteReferenceHrefs(string $xhtml): array
+    private function epubNoteReferenceHrefs(?\DOMDocument $dom, ?string $base_href): array
     {
-        $dom = $this->contentDocumentDom($xhtml);
         if (!$dom instanceof \DOMDocument) {
             return [];
         }
@@ -1782,7 +1784,9 @@ final class EpubReader
 
             $href = html_entity_decode($element->getAttribute('href'), ENT_QUOTES | ENT_XML1, 'UTF-8');
             if ($href !== '') {
-                $hrefs[$href] = true;
+                foreach ($this->epubContentHrefKeys($href, $base_href) as $key) {
+                    $hrefs[$key] = true;
+                }
             }
         }
 
@@ -1792,9 +1796,8 @@ final class EpubReader
     /**
      * @return array<string, list<array{id: string, classes: list<string>, attributes: array<string, string>}>>
      */
-    private function epubBodyLinkAttributeOverlaysByHref(string $xhtml): array
+    private function epubBodyLinkAttributeOverlaysByHref(?\DOMDocument $dom, ?string $base_href): array
     {
-        $dom = $this->contentDocumentDom($xhtml);
         if (!$dom instanceof \DOMDocument) {
             return [];
         }
@@ -1818,10 +1821,42 @@ final class EpubReader
             if ($overlay['id'] !== '' || $overlay['classes'] !== [] || $overlay['attributes'] !== []) {
                 $has_attributes = true;
             }
-            $overlays_by_href[$href][] = $overlay;
+            foreach ($this->epubContentHrefKeys($href, $base_href) as $key) {
+                $overlays_by_href[$key][] = $overlay;
+            }
         }
 
         return $has_attributes ? $overlays_by_href : [];
+    }
+
+    private function epubContentDocumentBaseHref(\DOMDocument $dom): ?string
+    {
+        foreach ($dom->getElementsByTagName('base') as $node) {
+            if (!$node instanceof \DOMElement) {
+                continue;
+            }
+
+            $href = trim($node->getAttribute('href'));
+            if ($href !== '') {
+                return $href;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function epubContentHrefKeys(string $href, ?string $base_href): array
+    {
+        $keys = [$href];
+        $resolved = XmlHtmlDom::resolveHtmlResourceUrlReference($href, $base_href);
+        if ($resolved !== null && $resolved !== '' && !in_array($resolved, $keys, true)) {
+            $keys[] = $resolved;
+        }
+
+        return $keys;
     }
 
     /**
