@@ -6445,7 +6445,26 @@ final class MarkdownReader
             }
         }
 
-        return new AstNode('figure', $attrs, $bodyBlocks);
+        return new AstNode('figure', $attrs, $this->htmlFigureChildrenFromBlocks($bodyBlocks));
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @return list<AstNode>
+     */
+    private function htmlFigureChildrenFromBlocks(array $blocks): array
+    {
+        $children = [];
+        foreach ($blocks as $block) {
+            if ($block->type === 'plain' && count($block->children) === 1 && $block->children[0]->type === 'image') {
+                $children[] = $block->children[0];
+                continue;
+            }
+
+            $children[] = $block;
+        }
+
+        return $children;
     }
 
     private function buildHtmlIframeNode(\DOMElement $iframe): ?AstNode

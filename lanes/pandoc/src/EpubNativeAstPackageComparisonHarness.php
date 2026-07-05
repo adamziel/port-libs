@@ -13,12 +13,12 @@ final class EpubNativeAstPackageComparisonHarness
     private const CLAIM = 'Compares local PHP EPUB package parsing and reader output with a supplied checked-in current EPUB fixture directory and same-basename .native goldens. Package parsing/reader acceptance, fixture identity, package feature coverage, and native AST equality are reported separately; no upstream Haskell runner, writer parity, or full EPUB feature parity is asserted.';
     private const PACKAGE_FEATURE_SIGNATURE_KIND = 'checked-in-current-epub-package-feature-signature';
     private const PACKAGE_FEATURE_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
-    private const PACKAGE_FEATURE_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-71-fixture-snapshot';
-    private const CHECKED_IN_CURRENT_PACKAGE_FEATURE_SIGNATURE_SHA256 = 'cb60f25c450d9183301e9259e30d7120d820e61c7a93636e4fad2378f1be529a';
+    private const PACKAGE_FEATURE_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-72-fixture-snapshot';
+    private const CHECKED_IN_CURRENT_PACKAGE_FEATURE_SIGNATURE_SHA256 = '5c1fc5244659cafa70093ec6db2c8d442ebbea3bc575656904650e82d14a50a6';
     private const CURRENT_NATIVE_AST_SIGNATURE_KIND = 'checked-in-current-epub-normalized-native-ast-signature';
     private const CURRENT_NATIVE_AST_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
-    private const CURRENT_NATIVE_AST_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-71-fixture-normalized-ast-snapshot';
-    private const CHECKED_IN_CURRENT_NATIVE_AST_SIGNATURE_SHA256 = 'afcd30aeb3a0f9d6fcbdb925e05610f5a722c4c363898fd06232fdc1ab7cdc7c';
+    private const CURRENT_NATIVE_AST_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-72-fixture-normalized-ast-snapshot';
+    private const CHECKED_IN_CURRENT_NATIVE_AST_SIGNATURE_SHA256 = 'bdaf329c062c0b4583fe29fc3d182a04fd96e8633cc79b7cdd19d243bd7098df';
     private const RUNNER_CABAL_TARGET = 'exe:pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/epub-native-package-run';
     private const RUNNER_FIXTURE_DIRECTORY = 'test/epub';
@@ -269,6 +269,16 @@ final class EpubNativeAstPackageComparisonHarness
   array (
     'sha256' => 'a9019153ea883dccd5d67af2008079fa8daa763a8f4a0796d44026f67675043b',
     'bytes' => 43996,
+  ),
+  'figure-caption-spine.epub' =>
+  array (
+    'sha256' => 'ff953ce2bdaee8786620ea8deb2473c7886334d862112fc520a76658726e8c07',
+    'bytes' => 1581,
+  ),
+  'figure-caption-spine.native' =>
+  array (
+    'sha256' => 'b470cb9f3fc84d90dda902de611d93b57b6090c2447a2e8a9637c3c97a56d50e',
+    'bytes' => 616,
   ),
   'font-manifest-resource.epub' =>
   array (
@@ -787,10 +797,10 @@ final class EpubNativeAstPackageComparisonHarness
      */
     private const CHECKED_IN_CURRENT_PACKAGE_FEATURE_COVERAGE = array (
   'kind' => 'epub-package-feature-coverage',
-  'fixtureCount' => 71,
+  'fixtureCount' => 72,
   'opfPartNameCounts' =>
   array (
-    '/EPUB/package.opf' => 56,
+    '/EPUB/package.opf' => 57,
     '/EPUB/wasteland.opf' => 1,
     '/OEBPS/content.opf' => 3,
     '/OPS/book/package.opf' => 4,
@@ -799,7 +809,7 @@ final class EpubNativeAstPackageComparisonHarness
   'metadataLanguageCounts' =>
   array (
     'de-DE' => 3,
-    'en' => 64,
+    'en' => 65,
     'en-GB' => 1,
     'en-US' => 2,
     'fr' => 1,
@@ -820,45 +830,46 @@ final class EpubNativeAstPackageComparisonHarness
     11 => 'epub3-ncx-toc-fallback',
     12 => 'external-footnote-reference',
     13 => 'features',
-    14 => 'formatting',
-    15 => 'img',
-    16 => 'img_no_cover',
-    17 => 'inline-abbr-subscript-superscript',
-    18 => 'language-french-metadata',
-    19 => 'main-section-spine',
-    20 => 'manifest-fallback-style',
-    21 => 'manifest-href-encoding',
-    22 => 'mathml-spine',
-    23 => 'measurement-inline-spine',
-    24 => 'media-manifest-mix',
-    25 => 'media-overlay-invalid-clips',
-    26 => 'metadata-link-page-list-image',
-    27 => 'metadata-record-remote-nav',
-    28 => 'metadata-search-link-semantics',
-    29 => 'missing-media-overlay',
-    30 => 'multi-rootfile-nested-nav',
-    31 => 'nested-path-media-metadata',
-    32 => 'nested-rootfile-nonlinear-spine',
-    33 => 'package-spine-nav-media-metadata',
-    34 => 'parent-relative-nav',
-    35 => 'spine-fallback-resource',
-    36 => 'text-track-captions',
-    37 => 'title-page-guide-media-metadata',
-    38 => 'wasteland',
-    39 => 'xhtml-address-spine',
-    40 => 'xhtml-details-summary-spine',
-    41 => 'xhtml-kbd-samp-var-spine',
-    42 => 'xhtml-ruby-table-mark',
-    43 => 'xhtml-semantics-spine',
+    14 => 'figure-caption-spine',
+    15 => 'formatting',
+    16 => 'img',
+    17 => 'img_no_cover',
+    18 => 'inline-abbr-subscript-superscript',
+    19 => 'language-french-metadata',
+    20 => 'main-section-spine',
+    21 => 'manifest-fallback-style',
+    22 => 'manifest-href-encoding',
+    23 => 'mathml-spine',
+    24 => 'measurement-inline-spine',
+    25 => 'media-manifest-mix',
+    26 => 'media-overlay-invalid-clips',
+    27 => 'metadata-link-page-list-image',
+    28 => 'metadata-record-remote-nav',
+    29 => 'metadata-search-link-semantics',
+    30 => 'missing-media-overlay',
+    31 => 'multi-rootfile-nested-nav',
+    32 => 'nested-path-media-metadata',
+    33 => 'nested-rootfile-nonlinear-spine',
+    34 => 'package-spine-nav-media-metadata',
+    35 => 'parent-relative-nav',
+    36 => 'spine-fallback-resource',
+    37 => 'text-track-captions',
+    38 => 'title-page-guide-media-metadata',
+    39 => 'wasteland',
+    40 => 'xhtml-address-spine',
+    41 => 'xhtml-details-summary-spine',
+    42 => 'xhtml-kbd-samp-var-spine',
+    43 => 'xhtml-ruby-table-mark',
+    44 => 'xhtml-semantics-spine',
   ),
   'navigationTypeCounts' =>
   array (
-    'nav' => 65,
+    'nav' => 66,
     'ncx' => 4,
   ),
   'spineLinearStateCounts' =>
   array (
-    'linear' => 87,
+    'linear' => 88,
     'non-linear' => 15,
   ),
   'spinePageSpreadPlacementCounts' =>
@@ -877,12 +888,12 @@ final class EpubNativeAstPackageComparisonHarness
     'application/x-bound-widget' => 1,
     'application/x-dtbncx+xml' => 6,
     'application/x-fallback-demo' => 3,
-    'application/xhtml+xml' => 163,
+    'application/xhtml+xml' => 165,
     'audio/mpeg' => 5,
     'font/woff2' => 1,
     'image/gif' => 5,
     'image/jpeg' => 7,
-    'image/png' => 9,
+    'image/png' => 10,
     'image/svg+xml' => 2,
     'text/css' => 24,
     'text/vtt' => 1,
@@ -893,7 +904,7 @@ final class EpubNativeAstPackageComparisonHarness
     'accessibility-metadata' => 1,
     'cover-image' => 3,
     'mathml' => 3,
-    'nav' => 65,
+    'nav' => 66,
     'remote-resources' => 4,
     'rendition:layout-pre-paginated' => 1,
     'scripted' => 2,
@@ -906,15 +917,15 @@ final class EpubNativeAstPackageComparisonHarness
     'audio' => 5,
     'cover-image' => 3,
     'font' => 1,
-    'image' => 18,
+    'image' => 19,
     'media-overlay' => 2,
-    'navigation' => 71,
+    'navigation' => 72,
     'script' => 1,
     'style' => 24,
     'svg' => 2,
     'text-track' => 1,
     'video' => 3,
-    'xhtml' => 98,
+    'xhtml' => 99,
   ),
   'navigationSectionTypes' =>
   array (
@@ -1454,6 +1465,27 @@ final class EpubNativeAstPackageComparisonHarness
         'navigation' => 1,
         'style' => 2,
         'xhtml' => 3,
+      ),
+      'guideReferenceTypeCounts' =>
+      array (
+      ),
+      'packageLinkRelCounts' =>
+      array (
+      ),
+      'coverImagePartPresent' => false,
+    ),
+    'figure-caption-spine' =>
+    array (
+      'navigationType' => 'nav',
+      'navigationSectionTypes' =>
+      array (
+        0 => 'toc',
+      ),
+      'manifestResourceKindCounts' =>
+      array (
+        'image' => 1,
+        'navigation' => 1,
+        'xhtml' => 1,
       ),
       'guideReferenceTypeCounts' =>
       array (
@@ -2744,15 +2776,16 @@ final class EpubNativeAstPackageComparisonHarness
     2 => 'direct-svg-spine',
     3 => 'epub2_cover',
     4 => 'epub2_picture',
-    5 => 'formatting',
-    6 => 'img',
-    7 => 'img_no_cover',
-    8 => 'metadata-link-page-list-image',
-    9 => 'nested-path-media-metadata',
-    10 => 'package-spine-nav-media-metadata',
-    11 => 'scripted-svg-manifest',
-    12 => 'title-page-guide-media-metadata',
-    13 => 'wasteland',
+    5 => 'figure-caption-spine',
+    6 => 'formatting',
+    7 => 'img',
+    8 => 'img_no_cover',
+    9 => 'metadata-link-page-list-image',
+    10 => 'nested-path-media-metadata',
+    11 => 'package-spine-nav-media-metadata',
+    12 => 'scripted-svg-manifest',
+    13 => 'title-page-guide-media-metadata',
+    14 => 'wasteland',
   ),
   'fixturesWithStylesheets' =>
   array (
@@ -2957,14 +2990,14 @@ final class EpubNativeAstPackageComparisonHarness
   ),
   'totals' =>
   array (
-    'metadataCreators' => 64,
-    'manifestItems' => 242,
-    'readingOrderItems' => 102,
+    'metadataCreators' => 65,
+    'manifestItems' => 245,
+    'readingOrderItems' => 103,
     'spinePageSpreadItems' => 5,
-    'xhtmlAssets' => 163,
-    'imageAssets' => 23,
+    'xhtmlAssets' => 165,
+    'imageAssets' => 24,
     'stylesheetAssets' => 21,
-    'navigationEntries' => 160,
+    'navigationEntries' => 161,
     'landmarkEntries' => 24,
     'pageListEntries' => 16,
     'pageListCfiTargets' => 2,

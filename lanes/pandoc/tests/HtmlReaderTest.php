@@ -754,6 +754,24 @@ $tests['imports upstream html standalone image fragments as plain images'] =
         $t->same([], $titledImage->children);
     };
 
+$tests['imports html figure with single image body in pandoc native shape'] =
+    static function (TestRunner $t): void {
+        $document = (new HtmlReader())->read(
+            '<figure id="chart-figure"><img src="images/chart.png" alt="Quarterly chart"><figcaption>Quarterly chart caption.</figcaption></figure>'
+        );
+        $figure = $document->children[0];
+        $image = $figure->children[0];
+
+        $t->same(['figure'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same(['image'], array_map(static fn ($node): string => $node->type, $figure->children));
+        $t->same('chart-figure', $figure->attr('id'));
+        $t->same('Quarterly chart caption.', $figure->attr('caption'));
+        $t->same('images/chart.png', $image->attr('url'));
+        $t->same('Quarterly chart', $image->attr('alt'));
+        $t->same(['text'], array_map(static fn ($node): string => $node->type, $image->children));
+        $t->same('Quarterly chart', $image->children[0]->attr('text'));
+    };
+
 $tests['imports upstream html picture fallback images without source text leakage'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-picture-fallback-image.html'));
