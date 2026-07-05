@@ -68,6 +68,7 @@ final class MarkdownNativeAstComparisonHarness
         'upstream-markdown-zzzzzzzzzzzzzzzzzzzzzz-gfm-raw-html-split-angle-boundary' => ['format' => 'gfm'],
         'upstream-markdown-zzzzzzzzzzzzzzzzzzzzzzz-bare-uri-scheme-boundaries' => ['format' => 'markdown+autolink_bare_uris'],
         'upstream-markdown-zzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-bare-uri-query-boundaries' => ['format' => 'markdown+autolink_bare_uris'],
+        'upstream-markdown-bare-uri-raw-html-anchor' => ['format' => 'markdown+autolink_bare_uris+raw_html'],
         'upstream-markdown-zzzzzzzzzzzzzzzzzzzzzzzzzz-raw-html-inline-commonmark-profile' => ['format' => 'commonmark+raw_attribute'],
         'upstream-markdown-zzzzzzzzzzzzzzzzzzzzzzzzz-atx-heading-space-disabled-profile' => ['format' => 'markdown-space_in_atx_header'],
         'upstream-markdown-zzzzzzzzzzzzzzzzzzzzzzzzzzzzz-startnum-disabled-profile' => ['format' => 'markdown-startnum+fancy_lists'],
@@ -536,7 +537,7 @@ final class MarkdownNativeAstComparisonHarness
             if ($key === 'renderCaptionInlines') {
                 continue;
             }
-            if ($node->type === 'raw_html' && ($key === 'format' || $key === 'text')) {
+            if (($node->type === 'raw_html' || $node->type === 'raw_html_inline') && ($key === 'format' || $key === 'text')) {
                 continue;
             }
             if ($key === 'loose' && self::isListShapeMetadataNode($node)) {

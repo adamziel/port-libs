@@ -12,9 +12,9 @@ final class MarkdownUpstreamReaderEvidence
     public const STATUS_COMPLETED = 'completed-upstream-markdown-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-markdown-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
-    public const EXPECTED_SELECTED_FIXTURE_COUNT = 115;
-    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 115;
-    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = '0c07dfc954ebf2d71737875d78d30fb0907e6a71768e82dae1d68db34f554bc9';
+    public const EXPECTED_SELECTED_FIXTURE_COUNT = 116;
+    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 116;
+    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = '3b6c9462626c25858ad4f908aa9ae896d3a076a98385402ed1d6a5c5ef9e51e9';
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/Markdown.hs',
@@ -1480,6 +1480,19 @@ final class MarkdownUpstreamReaderEvidence
             ],
             'sha256' => 'd5701e4da7f3e023137f9c6376210ec6a6a1593faf7c563471111e9c287f72f3',
             'bytes' => 30,
+        ],
+        'upstream-markdown-bare-uri-raw-html-anchor.md' => [
+            'role' => 'markdown-bare-uri-raw-html-anchor-reader-fixture',
+            'sourceKind' => 'selected-upstream-markdown-reader-case',
+            'sourceReference' => 'Tests.Readers.Markdown bare URIs/raw HTML anchor',
+            'formatProfile' => 'markdown+autolink_bare_uris+raw_html bare URI inside raw HTML anchor text',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-markdown-bare-uri-raw-html-anchor.md',
+            'coverageTests' => [
+                'lanes/pandoc/tests/MarkdownReaderBareUriRawHtmlAnchorFixtureCompletionTest.php',
+                'lanes/pandoc/tests/MarkdownNativeAstComparisonHarnessTest.php',
+            ],
+            'sha256' => 'e868024c9897fc6a1ddce46228d4e96f28682f269d8e3a4b6d07995fdca1f5a7',
+            'bytes' => 52,
         ],
     ];
 
