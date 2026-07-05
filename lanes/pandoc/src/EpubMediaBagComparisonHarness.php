@@ -17,9 +17,12 @@ final class EpubMediaBagComparisonHarness
     private const CHECKED_IN_CURRENT_MEDIA_BAG_SIGNATURE_SHA256 = '48e9d4d6c7478aa213f3d75fc4cd1a2be58e2617d468d30d9027728d0258ce9d';
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/epub-targeted-run';
-    private const RUNNER_RESULT_ARTIFACT_KIND = 'upstream-epub-media-bag-runner-result-artifact';
-    private const RUNNER_TRANSCRIPT_KIND = 'upstream-epub-media-bag-runner-transcript';
+    private const RUNNER_NAME = 'Cabal/Tasty Pandoc EPUB reader suite';
+    private const RUNNER_RESULT_ARTIFACT_KIND = 'upstream-epub-reader-runner-result-artifact';
+    private const RUNNER_TRANSCRIPT_KIND = 'upstream-epub-reader-runner-transcript';
     private const RUNNER_RESULT_ARTIFACT_SCHEMA_VERSION = 2;
+    private const RUNNER_VALIDATION_STATUS = 'valid-upstream-epub-reader-runner-result-artifact';
+    private const RUNNER_INVALID_VALIDATION_STATUS = 'invalid-upstream-epub-reader-runner-result-artifact';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'EPUB', 'EPUB Mediabag'];
     private const RUNNER_TASTY_PATTERN = '$2 == "Readers" && $3 == "EPUB" && $4 == "EPUB Mediabag"';
     private const RUNNER_REQUIRED_TRANSCRIPTS = [
@@ -469,14 +472,14 @@ final class EpubMediaBagComparisonHarness
 
         return self::runnerResultArtifactEvidenceIsValid($runner)
             && ($runner['scope'] ?? null) === 'upstream-haskell-runner'
-            && ($runner['runner'] ?? null) === 'Cabal/Tasty Pandoc EPUB reader media-bag suite'
+            && ($runner['runner'] ?? null) === self::RUNNER_NAME
             && is_array($runner['command'] ?? null)
             && self::canonicalValue($runner['command'] ?? null) === self::canonicalValue(self::runnerFutureCommands()[2])
             && ($artifact['kind'] ?? null) === self::RUNNER_RESULT_ARTIFACT_KIND
             && ($artifact['present'] ?? null) === true
             && is_string($artifact['sha256'] ?? null)
             && is_int($artifact['bytes'] ?? null)
-            && ($validation['status'] ?? null) === 'valid-upstream-epub-media-bag-runner-result-artifact'
+            && ($validation['status'] ?? null) === self::RUNNER_VALIDATION_STATUS
             && ($validation['issues'] ?? null) === []
             && self::hasValidRunnerTranscriptEvidence($transcripts);
     }
@@ -891,7 +894,7 @@ final class EpubMediaBagComparisonHarness
             if (($payload['schemaVersion'] ?? null) !== self::RUNNER_RESULT_ARTIFACT_SCHEMA_VERSION) {
                 $issues[] = 'runner-result-schema-version-mismatch';
             }
-            if (($payload['runner'] ?? null) !== 'Cabal/Tasty Pandoc EPUB reader media-bag suite') {
+            if (($payload['runner'] ?? null) !== self::RUNNER_NAME) {
                 $issues[] = 'runner-result-runner-name-mismatch';
             }
             if (!$runnerExecuted) {
@@ -935,7 +938,7 @@ final class EpubMediaBagComparisonHarness
         $issues = array_values(array_unique($issues));
 
         return [
-            'runner' => 'Cabal/Tasty Pandoc EPUB reader media-bag suite',
+            'runner' => self::RUNNER_NAME,
             'scope' => 'upstream-haskell-runner',
             'status' => $issues === [] ? 'completed' : 'invalid',
             'executed' => $runnerExecuted,
@@ -957,7 +960,7 @@ final class EpubMediaBagComparisonHarness
             ],
             'expected' => [
                 'schemaVersion' => self::RUNNER_RESULT_ARTIFACT_SCHEMA_VERSION,
-                'runner' => 'Cabal/Tasty Pandoc EPUB reader media-bag suite',
+                'runner' => self::RUNNER_NAME,
                 'testCount' => count($expectedTestNames),
                 'passedCount' => count($expectedTestNames),
                 'failedCount' => 0,
@@ -985,13 +988,13 @@ final class EpubMediaBagComparisonHarness
             'transcripts' => $transcripts,
             'validation' => [
                 'status' => $issues === []
-                    ? 'valid-upstream-epub-media-bag-runner-result-artifact'
-                    : 'invalid-upstream-epub-media-bag-runner-result-artifact',
+                    ? self::RUNNER_VALIDATION_STATUS
+                    : self::RUNNER_INVALID_VALIDATION_STATUS,
                 'issues' => $issues,
             ],
             'claim' => $issues === []
-                ? 'A supplied upstream EPUB media-bag runner result artifact matches the pinned targeted Tasty runner evidence contract.'
-                : 'The supplied upstream EPUB media-bag runner result artifact did not satisfy the pinned targeted Tasty runner evidence contract.',
+                ? 'A supplied upstream EPUB reader runner result artifact matches the pinned targeted Tasty runner evidence contract.'
+                : 'The supplied upstream EPUB reader runner result artifact did not satisfy the pinned targeted Tasty runner evidence contract.',
         ];
     }
 
@@ -1001,7 +1004,7 @@ final class EpubMediaBagComparisonHarness
     private static function runnerNotRunEvidence(): array
     {
         return [
-            'runner' => 'Cabal/Tasty Pandoc EPUB reader media-bag suite',
+            'runner' => self::RUNNER_NAME,
             'scope' => 'upstream-haskell-runner',
             'status' => 'not-run',
             'executed' => false,
@@ -1021,7 +1024,7 @@ final class EpubMediaBagComparisonHarness
                 'tastyPattern' => self::RUNNER_TASTY_PATTERN,
             ],
             'blockers' => [
-                'no committed upstream test:test-pandoc EPUB media-bag runner transcript or result artifact is present',
+                'no committed upstream test:test-pandoc EPUB reader runner transcript or result artifact is present',
                 'this PHP media-bag comparison gate intentionally does not invoke Cabal/Tasty or hydrate Haskell build dependencies',
                 'a future runner claim must be bound to the pinned upstream commit and exact targeted EPUB media-bag Tasty pattern',
             ],
@@ -1342,7 +1345,7 @@ final class EpubMediaBagComparisonHarness
         return ($runner['status'] ?? null) === 'completed'
             && ($runner['executed'] ?? null) === true
             && ($runner['commandPlanStatus'] ?? null) === 'runner-result-artifact-validated'
-            && ($validation['status'] ?? null) === 'valid-upstream-epub-media-bag-runner-result-artifact'
+            && ($validation['status'] ?? null) === self::RUNNER_VALIDATION_STATUS
             && ($validation['issues'] ?? null) === [];
     }
 

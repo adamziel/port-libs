@@ -336,7 +336,7 @@ return [
             $testNames = array_column($baseReport['mediaBagSignatures'], 'case');
             $payload = [
                 'schemaVersion' => 2,
-                'runner' => 'Cabal/Tasty Pandoc EPUB reader media-bag suite',
+                'runner' => 'Cabal/Tasty Pandoc EPUB reader suite',
                 'runnerExecuted' => true,
                 'upstream' => [
                     'name' => 'jgm/pandoc',
@@ -366,9 +366,9 @@ return [
             $t->same('completed', $report['runnerEvidence']['status']);
             $t->same(true, $report['runnerEvidence']['executed']);
             $t->same('runner-result-artifact-validated', $report['runnerEvidence']['commandPlanStatus']);
-            $t->same('valid-upstream-epub-media-bag-runner-result-artifact', $report['runnerEvidence']['validation']['status']);
+            $t->same('valid-upstream-epub-reader-runner-result-artifact', $report['runnerEvidence']['validation']['status']);
             $t->same([], $report['runnerEvidence']['validation']['issues']);
-            $t->same('upstream-epub-media-bag-runner-result-artifact', $report['runnerEvidence']['resultArtifact']['kind']);
+            $t->same('upstream-epub-reader-runner-result-artifact', $report['runnerEvidence']['resultArtifact']['kind']);
             $t->same(hash_file('sha256', $artifactPath), $report['runnerEvidence']['resultArtifact']['sha256']);
             $t->same(filesize($artifactPath), $report['runnerEvidence']['resultArtifact']['bytes']);
             $t->same(EpubMediaBagComparisonHarness::EXPECTED_UPSTREAM_COMMIT, $report['runnerEvidence']['upstreamBinding']['observedCommit']);
@@ -378,7 +378,7 @@ return [
             $t->same($runnerPlan['requiredTranscripts'], $report['runnerEvidence']['observed']['transcriptPaths']);
             $t->same($transcripts, $report['runnerEvidence']['observed']['transcripts']);
             $t->same($transcripts, $report['runnerEvidence']['expected']['transcripts']);
-            $t->same('upstream-epub-media-bag-runner-transcript', $report['runnerEvidence']['transcripts'][0]['kind']);
+            $t->same('upstream-epub-reader-runner-transcript', $report['runnerEvidence']['transcripts'][0]['kind']);
             $t->same(true, EpubMediaBagComparisonHarness::hasRunnerResultArtifactEvidence($report));
             $t->same(false, EpubMediaBagComparisonHarness::hasRunnerPlanEvidence($report));
             $t->same('covered-by-validated-runner-result-artifact', $report['orderedRemainingGaps'][1]['status']);
@@ -425,7 +425,7 @@ return [
             ]);
 
             $t->same('invalid', $badReport['runnerEvidence']['status']);
-            $t->same('invalid-upstream-epub-media-bag-runner-result-artifact', $badReport['runnerEvidence']['validation']['status']);
+            $t->same('invalid-upstream-epub-reader-runner-result-artifact', $badReport['runnerEvidence']['validation']['status']);
             $t->true(in_array('runner-result-exit-code-nonzero', $badReport['runnerEvidence']['validation']['issues'], true));
             $t->true(in_array('runner-result-counts-mismatch', $badReport['runnerEvidence']['validation']['issues'], true));
             $t->same(false, EpubMediaBagComparisonHarness::hasRunnerResultArtifactEvidence($badReport));
@@ -442,6 +442,68 @@ return [
             $t->same('invalid', $badTranscriptReport['runnerEvidence']['status']);
             $t->true(in_array('runner-result-transcript-sha256-mismatch', $badTranscriptReport['runnerEvidence']['validation']['issues'], true));
             $t->same(false, EpubMediaBagComparisonHarness::hasRunnerResultArtifactEvidence($badTranscriptReport));
+        } finally {
+            $removeTree($root);
+        }
+    },
+
+    'accepts the same epub reader runner result artifact as the upstream reader evidence gate' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile, $writeRunnerTranscripts, $fixtureRoot): void {
+        $root = $makeTempDir();
+        try {
+            $readerBaseReport = (new EpubUpstreamReaderEvidence(
+                $root,
+                $fixtureRoot(),
+                $fixtureRoot()
+            ))->report();
+            $runnerPlan = $readerBaseReport['runnerEvidence'];
+            $transcripts = $writeRunnerTranscripts($root, $runnerPlan['requiredTranscripts']);
+            $testNames = array_map(
+                static fn (array $case): string => $case['name'],
+                $readerBaseReport['denominator']['readerCases']
+            );
+            $payload = [
+                'schemaVersion' => 2,
+                'runner' => 'Cabal/Tasty Pandoc EPUB reader suite',
+                'runnerExecuted' => true,
+                'upstream' => [
+                    'name' => 'jgm/pandoc',
+                    'commit' => EpubUpstreamReaderEvidence::EXPECTED_UPSTREAM_COMMIT,
+                ],
+                'target' => $runnerPlan['target'],
+                'command' => $runnerPlan['futureCommands'][2],
+                'exitCode' => 0,
+                'testCount' => count($testNames),
+                'passedCount' => count($testNames),
+                'failedCount' => 0,
+                'skippedCount' => 0,
+                'testNames' => $testNames,
+                'transcriptPaths' => $runnerPlan['requiredTranscripts'],
+                'transcripts' => $transcripts,
+            ];
+            $writeFile($root, 'result.json', json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+            $artifactPath = $root . '/result.json';
+            $readerReport = (new EpubUpstreamReaderEvidence(
+                $root,
+                $fixtureRoot(),
+                $fixtureRoot(),
+                $artifactPath
+            ))->report();
+            $mediaBagReport = (new EpubMediaBagComparisonHarness())->run($fixtureRoot(), [
+                'fixtureBase' => $fixtureRoot(),
+                'repoRoot' => $root,
+                'runnerResultArtifact' => $artifactPath,
+            ]);
+
+            $t->same('valid-upstream-epub-reader-runner-result-artifact', $readerReport['runnerEvidence']['validation']['status']);
+            $t->same('valid-upstream-epub-reader-runner-result-artifact', $mediaBagReport['runnerEvidence']['validation']['status']);
+            $t->same('upstream-epub-reader-runner-result-artifact', $readerReport['runnerEvidence']['resultArtifact']['kind']);
+            $t->same('upstream-epub-reader-runner-result-artifact', $mediaBagReport['runnerEvidence']['resultArtifact']['kind']);
+            $t->same($readerReport['runnerEvidence']['target'], $mediaBagReport['runnerEvidence']['target']);
+            $t->same($readerReport['runnerEvidence']['command'], $mediaBagReport['runnerEvidence']['command']);
+            $t->same($readerReport['runnerEvidence']['observed']['testNames'], $mediaBagReport['runnerEvidence']['observed']['testNames']);
+            $t->same($readerReport['runnerEvidence']['observed']['transcripts'], $mediaBagReport['runnerEvidence']['observed']['transcripts']);
+            $t->same(true, EpubUpstreamReaderEvidence::hasRunnerResultArtifactEvidence($readerReport));
+            $t->same(true, EpubMediaBagComparisonHarness::hasRunnerResultArtifactEvidence($mediaBagReport));
         } finally {
             $removeTree($root);
         }
@@ -546,7 +608,7 @@ return [
             $testNames = array_column($baseReport['mediaBagSignatures'], 'case');
             $payload = [
                 'schemaVersion' => 2,
-                'runner' => 'Cabal/Tasty Pandoc EPUB reader media-bag suite',
+                'runner' => 'Cabal/Tasty Pandoc EPUB reader suite',
                 'runnerExecuted' => true,
                 'upstream' => [
                     'name' => 'jgm/pandoc',
@@ -582,7 +644,7 @@ return [
 
             $t->same(0, $exitCode);
             $t->same('completed', $decoded['runnerEvidence']['status']);
-            $t->same('valid-upstream-epub-media-bag-runner-result-artifact', $decoded['runnerEvidence']['validation']['status']);
+            $t->same('valid-upstream-epub-reader-runner-result-artifact', $decoded['runnerEvidence']['validation']['status']);
             $t->same(true, EpubMediaBagComparisonHarness::hasRunnerResultArtifactEvidence($decoded));
             $t->same('covered-by-validated-runner-result-artifact', $decoded['orderedRemainingGaps'][1]['status']);
 
