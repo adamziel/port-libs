@@ -590,6 +590,7 @@ final class EpubReader
         $ncx_entries = [];
         $landmark_entries = [];
         $page_list_entries = [];
+        $ncx_page_list_entries = [];
         $auxiliary_entries = [];
         $navigation_sections = [];
         $section_types = [];
@@ -627,6 +628,7 @@ final class EpubReader
                 }
                 if ($is_ncx) {
                     array_push($ncx_entries, ...$this->ncxTocEntries($xml, $this->dirname($href)));
+                    array_push($ncx_page_list_entries, ...$this->ncxPageListEntries($xml, $this->dirname($href)));
                 }
             } catch (\InvalidArgumentException) {
                 continue;
@@ -639,7 +641,7 @@ final class EpubReader
             'resources' => array_values(array_unique($resources)),
             'entries' => $nav_entries !== [] ? $nav_entries : $ncx_entries,
             'landmarks' => $landmark_entries,
-            'pageList' => $page_list_entries,
+            'pageList' => $page_list_entries !== [] ? $page_list_entries : $ncx_page_list_entries,
             'auxiliary' => $auxiliary_entries,
             'sections' => $navigation_sections,
             'sectionTypes' => $section_types,
@@ -923,6 +925,23 @@ final class EpubReader
     /**
      * @return list<array{text: string, href: string, level: int}>
      */
+    private function ncxPageListEntries(string $xml, string $base_path): array
+    {
+        $dom = $this->loadXml($xml, 'EPUB NCX page list');
+        $pageList = null;
+        foreach ($dom->getElementsByTagName('*') as $element) {
+            if ($element instanceof \DOMElement && $element->localName === 'pageList') {
+                $pageList = $element;
+                break;
+            }
+        }
+
+        return $pageList instanceof \DOMElement ? $this->ncxPageTargetEntries($pageList, $base_path, 1) : [];
+    }
+
+    /**
+     * @return list<array{text: string, href: string, level: int}>
+     */
     private function ncxNavPointEntries(\DOMNode $parent, string $base_path, int $level): array
     {
         $entries = [];
@@ -942,6 +961,33 @@ final class EpubReader
                 ];
             }
             array_push($entries, ...$this->ncxNavPointEntries($child, $base_path, $level + 1));
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @return list<array{text: string, href: string, level: int}>
+     */
+    private function ncxPageTargetEntries(\DOMNode $parent, string $base_path, int $level): array
+    {
+        $entries = [];
+        foreach ($parent->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->localName !== 'pageTarget') {
+                continue;
+            }
+
+            $text = trim(preg_replace('/\s+/u', ' ', $this->firstDescendantText($child, 'text')) ?? $this->firstDescendantText($child, 'text'));
+            $content = $this->firstDescendantElement($child, 'content');
+            $href = $content instanceof \DOMElement ? html_entity_decode($content->getAttribute('src'), ENT_QUOTES | ENT_XML1, 'UTF-8') : '';
+            if ($text !== '' && $href !== '') {
+                $entries[] = [
+                    'text' => $text,
+                    'href' => $this->rewriteRelativeResourceUrl($href, $base_path),
+                    'level' => $level,
+                ];
+            }
+            array_push($entries, ...$this->ncxPageTargetEntries($child, $base_path, $level + 1));
         }
 
         return $entries;

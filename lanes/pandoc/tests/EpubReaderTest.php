@@ -1313,7 +1313,7 @@ HTML);
         $zip->addFromString('META-INF/container.xml', '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
         $zip->addFromString('OPS/package.opf', '<?xml version="1.0"?><package xmlns="http://www.idpf.org/2007/opf" xmlns:dc="http://purl.org/dc/elements/1.1/"><metadata><dc:title>NCX EPUB</dc:title></metadata><manifest><item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/><item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/></manifest><spine toc="toc"><itemref idref="chapter"/></spine></package>');
         $zip->addFromString('OPS/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>NCX EPUB</h1><p>Body.</p></body></html>');
-        $zip->addFromString('OPS/toc.ncx', '<?xml version="1.0"?><ncx xmlns="http://www.daisy.org/z3986/2005/ncx/"><navMap><navPoint id="n1"><navLabel><text>Chapter One</text></navLabel><content src="chapter.xhtml"/><navPoint id="n1-1"><navLabel><text>Section A</text></navLabel><content src="chapter.xhtml#section-a"/></navPoint></navPoint></navMap></ncx>');
+        $zip->addFromString('OPS/toc.ncx', '<?xml version="1.0"?><ncx xmlns="http://www.daisy.org/z3986/2005/ncx/"><navMap><navPoint id="n1"><navLabel><text>Chapter One</text></navLabel><content src="chapter.xhtml"/><navPoint id="n1-1"><navLabel><text>Section A</text></navLabel><content src="chapter.xhtml#section-a"/></navPoint></navPoint></navMap><pageList><pageTarget id="p1" type="normal" value="1"><navLabel><text>1</text></navLabel><content src="chapter.xhtml#page-1"/></pageTarget><pageTarget id="p2" type="normal" value="2"><navLabel><text>2</text></navLabel><content src="chapter.xhtml#page-2"/></pageTarget></pageList></ncx>');
         $zip->close();
 
         try {
@@ -1329,6 +1329,11 @@ HTML);
             ['text' => 'Chapter One', 'href' => 'OPS/chapter.xhtml', 'level' => 1],
             ['text' => 'Section A', 'href' => 'OPS/chapter.xhtml#section-a', 'level' => 2],
         ], $meta['epubTocEntries']);
+        $t->same(2, $meta['epubPageListEntryCount']);
+        $t->same([
+            ['text' => '1', 'href' => 'OPS/chapter.xhtml#page-1', 'level' => 1],
+            ['text' => '2', 'href' => 'OPS/chapter.xhtml#page-2', 'level' => 1],
+        ], $meta['epubPageListEntries']);
     },
     'selects parameterized opf rootfile over earlier non-opf rootfile' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-rootfile-media-type-');
