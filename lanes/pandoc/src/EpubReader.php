@@ -29,52 +29,36 @@ final class EpubReader
 
     public function read(string $bytes): AstNode
     {
-        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-');
-        if ($path === false) {
-            throw new \RuntimeException('Unable to create temporary EPUB path.');
-        }
-
-        try {
-            if (file_put_contents($path, $bytes) === false) {
-                throw new \RuntimeException('Unable to write temporary EPUB package.');
-            }
-
-            return $this->readEpubFile($path);
-        } finally {
-            @unlink($path);
-        }
+        return $this->readZipPackage(ZipPackage::fromString($bytes));
     }
 
     public function readEpubFile(string $path): AstNode
     {
-        if (!class_exists(\ZipArchive::class)) {
-            throw new \RuntimeException('EPUB analysis needs PHP ZipArchive, which is unavailable in this runtime.');
-        }
-
-        $zip = new \ZipArchive();
-        if ($zip->open($path) !== true) {
+        $bytes = @file_get_contents($path);
+        if ($bytes === false) {
             throw new \InvalidArgumentException("Unable to open EPUB package '{$path}'.");
         }
 
-        try {
-            $container_xml = $zip->getFromName('META-INF/container.xml');
-            if (!is_string($container_xml)) {
-                throw new \InvalidArgumentException('EPUB package is missing META-INF/container.xml.');
-            }
-
-            $rootfile = $this->rootfilePath($container_xml);
-            $opf_xml = $zip->getFromName($rootfile);
-            if (!is_string($opf_xml)) {
-                throw new \InvalidArgumentException("EPUB package is missing OPF rootfile '{$rootfile}'.");
-            }
-
-            return $this->readPackage($zip, $rootfile, $opf_xml);
-        } finally {
-            $zip->close();
-        }
+        return $this->read($bytes);
     }
 
-    private function readPackage(\ZipArchive $zip, string $rootfile, string $opf_xml): AstNode
+    private function readZipPackage(ZipPackage $zip): AstNode
+    {
+        $container_xml = $this->zipEntryContents($zip, 'META-INF/container.xml');
+        if (!is_string($container_xml)) {
+            throw new \InvalidArgumentException('EPUB package is missing META-INF/container.xml.');
+        }
+
+        $rootfile = $this->rootfilePath($container_xml);
+        $opf_xml = $this->zipEntryContents($zip, $rootfile);
+        if (!is_string($opf_xml)) {
+            throw new \InvalidArgumentException("EPUB package is missing OPF rootfile '{$rootfile}'.");
+        }
+
+        return $this->readPackage($zip, $rootfile, $opf_xml);
+    }
+
+    private function readPackage(ZipPackage $zip, string $rootfile, string $opf_xml): AstNode
     {
         $dom = $this->loadXml($opf_xml, 'EPUB OPF package');
         $package = $dom->documentElement;
@@ -146,7 +130,7 @@ final class EpubReader
                 $children[] = $this->spineMarker($this->spineFilename($item['href']));
                 continue;
             }
-            $xhtml = $zip->getFromName($href);
+            $xhtml = $this->zipEntryContents($zip, $href);
             if (!is_string($xhtml)) {
                 continue;
             }
@@ -599,7 +583,7 @@ final class EpubReader
      * @param array<string, array{href: string, media-type: string, properties: list<string>}> $manifest
      * @return array{resources: list<string>, entries: list<array{text: string, href: string, level: int}>, landmarks: list<array{text: string, href: string, level: int, epubTypes: list<string>}>, pageList: list<array{text: string, href: string, level: int}>, auxiliary: list<array{text: string, href: string, level: int, sectionType: string}>, sections: list<array{type: string, types: list<string>, label: string, resource: string, entryCount: int, entries: list<array<string, mixed>>}>, sectionTypes: list<string>}
      */
-    private function toc(\ZipArchive $zip, string $base_path, array $manifest, string $spine_toc_id): array
+    private function toc(ZipPackage $zip, string $base_path, array $manifest, string $spine_toc_id): array
     {
         $resources = [];
         $nav_entries = [];
@@ -622,7 +606,7 @@ final class EpubReader
                 continue;
             }
 
-            $xml = $zip->getFromName($href);
+            $xml = $this->zipEntryContents($zip, $href);
             if (!is_string($xml)) {
                 continue;
             }
@@ -1898,14 +1882,14 @@ final class EpubReader
      * @param array<string, string> $media_bag_sources
      * @return array{directory: list<array<string, mixed>>, diagnostics: list<string>}
      */
-    private function readEpubMediaBag(\ZipArchive $zip, string $base_path, array $manifest, array $media_bag_sources): array
+    private function readEpubMediaBag(ZipPackage $zip, string $base_path, array $manifest, array $media_bag_sources): array
     {
         $bag = new MediaBag();
         $diagnostics = [];
         $media_types = $this->manifestMediaTypesByResourcePath($base_path, $manifest);
 
         foreach ($media_bag_sources as $source => $resource) {
-            $bytes = $zip->getFromName($resource);
+            $bytes = $this->zipEntryContents($zip, $resource);
             if (!is_string($bytes)) {
                 $diagnostics[] = 'epub-media-resource-missing:' . $resource;
                 continue;
@@ -2103,9 +2087,18 @@ final class EpubReader
         return strtolower(trim(explode(';', $media_type, 2)[0]));
     }
 
-    private function zipEntryExists(\ZipArchive $zip, string $path): bool
+    private function zipEntryExists(ZipPackage $zip, string $path): bool
     {
-        return $zip->statName($path) !== false;
+        return $zip->has($path);
+    }
+
+    private function zipEntryContents(ZipPackage $zip, string $path): ?string
+    {
+        if (!$zip->has($path)) {
+            return null;
+        }
+
+        return $zip->read($path);
     }
 
     private function isAbsoluteUrl(string $url): bool

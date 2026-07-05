@@ -25,25 +25,26 @@ final class EpubPackageMetadataReader
 
     public function readEpubFile(string $path): AstNode
     {
-        $zip = new \ZipArchive();
-        $opened = $zip->open($path);
-        if ($opened !== true) {
+        $bytes = @file_get_contents($path);
+        if ($bytes === false) {
             throw new \InvalidArgumentException("Unable to open EPUB package '{$path}'");
         }
 
-        try {
-            $containerXml = $zip->getFromName('META-INF/container.xml');
-            if (!is_string($containerXml)) {
-                throw new \InvalidArgumentException('EPUB package is missing META-INF/container.xml');
-            }
+        return $this->read($bytes);
+    }
 
-            $rootfilePath = $this->rootfilePath($containerXml);
-            $packageXml = $zip->getFromName($rootfilePath);
-            if (!is_string($packageXml)) {
-                throw new \InvalidArgumentException("EPUB package is missing rootfile '{$rootfilePath}'");
-            }
-        } finally {
-            $zip->close();
+    public function read(string $bytes): AstNode
+    {
+        $zip = ZipPackage::fromString($bytes);
+        $containerXml = $this->zipEntryContents($zip, 'META-INF/container.xml');
+        if (!is_string($containerXml)) {
+            throw new \InvalidArgumentException('EPUB package is missing META-INF/container.xml');
+        }
+
+        $rootfilePath = $this->rootfilePath($containerXml);
+        $packageXml = $this->zipEntryContents($zip, $rootfilePath);
+        if (!is_string($packageXml)) {
+            throw new \InvalidArgumentException("EPUB package is missing rootfile '{$rootfilePath}'");
         }
 
         return $this->readPackageXml($packageXml);
@@ -306,6 +307,15 @@ final class EpubPackageMetadataReader
         }
 
         return implode('/', $parts);
+    }
+
+    private function zipEntryContents(ZipPackage $zip, string $path): ?string
+    {
+        if (!$zip->has($path)) {
+            return null;
+        }
+
+        return $zip->read($path);
     }
 
     private function loadXml(string $xml, string $context): \DOMDocument
