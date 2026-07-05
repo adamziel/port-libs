@@ -166,6 +166,10 @@ final class Html5Dom
     }
 
     /**
+     * Lex a single raw HTML start tag for Markdown raw-HTML boundaries.
+     * HtmlReader tree construction must go through parseHtmlDocument() or
+     * parseHtmlFragment(), which route to Dom\HTMLDocument when available.
+     *
      * @return array{name:string,selfClosing:bool,source:string,next:int,attributeNames:list<string>}|null
      */
     public static function rawHtmlOpeningTagAt(string $source, int $offset = 0): ?array
@@ -268,6 +272,10 @@ final class Html5Dom
     }
 
     /**
+     * Lex a single raw HTML end tag for Markdown raw-HTML boundaries.
+     * This helper is intentionally not used as an HTML tree-construction
+     * parser.
+     *
      * @return array{name:string,source:string,next:int}|null
      */
     public static function rawHtmlClosingTagAt(string $source, int $offset = 0): ?array

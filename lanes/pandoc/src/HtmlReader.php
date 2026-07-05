@@ -668,7 +668,7 @@ final class HtmlReader
             }
 
             if ($name === 'class') {
-                $classes = preg_split('/\s+/', $value, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+                $classes = self::spaceSeparatedTokens($value);
                 if ($classes !== []) {
                     $htmlAttributes['class'] = implode(' ', $classes);
                 }
@@ -2066,9 +2066,25 @@ final class HtmlReader
             return [];
         }
 
-        $tokens = preg_split('/\s+/u', $value) ?: [];
+        $tokens = [];
+        $length = strlen($value);
+        $offset = 0;
+        while ($offset < $length) {
+            while ($offset < $length && ctype_space($value[$offset])) {
+                ++$offset;
+            }
+            if ($offset >= $length) {
+                break;
+            }
 
-        return array_values(array_filter($tokens, static fn (string $token): bool => $token !== ''));
+            $start = $offset;
+            while ($offset < $length && !ctype_space($value[$offset])) {
+                ++$offset;
+            }
+            $tokens[] = substr($value, $start, $offset - $start);
+        }
+
+        return $tokens;
     }
 
     private static function hasAncestorItemScope(\DOMElement $element): bool

@@ -89,7 +89,7 @@ $tests['keeps html tree construction centralized through Html5Dom'] =
             $t->true(!str_contains($source, 'new \\DOMDocument'), "{$file} must not construct DOMDocument directly for HTML parsing");
             $t->true(!str_contains($source, 'new DOMDocument'), "{$file} must not construct DOMDocument directly for HTML parsing");
         }
-        foreach (['preg_match(', 'preg_match_all(', 'preg_replace(', 'rawHtmlOpeningTagAt', 'rawHtmlClosingTagAt', 'markdownRawHtml'] as $parserFragment) {
+        foreach (['preg_', 'rawHtmlOpeningTagAt', 'rawHtmlClosingTagAt', 'markdownRawHtml'] as $parserFragment) {
             $t->true(!str_contains($htmlReaderSource, $parserFragment), "HtmlReader must not parse HTML source via {$parserFragment}");
         }
 
