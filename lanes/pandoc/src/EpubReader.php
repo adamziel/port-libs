@@ -1596,6 +1596,15 @@ final class EpubReader
         return Html5Dom::stripContentDocumentPreamble($xhtml);
     }
 
+    private function contentDocumentDom(string $xhtml): ?\DOMDocument
+    {
+        try {
+            return Html5Dom::parseHtmlDocument($this->contentDocumentMarkup($xhtml));
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
     private function epubContentHtmlReader(): HtmlReader
     {
         return new HtmlReader([
@@ -1615,9 +1624,8 @@ final class EpubReader
      */
     private function epubFootnoteDefinitionsInReferenceOrder(string $xhtml, string $content_path): array
     {
-        try {
-            $dom = $this->loadXml($this->contentDocumentMarkup($xhtml), 'EPUB XHTML footnote scan');
-        } catch (\InvalidArgumentException) {
+        $dom = $this->contentDocumentDom($xhtml);
+        if (!$dom instanceof \DOMDocument) {
             return [];
         }
 
@@ -1667,9 +1675,8 @@ final class EpubReader
      */
     private function epubNoteReferenceHrefs(string $xhtml): array
     {
-        try {
-            $dom = $this->loadXml($this->contentDocumentMarkup($xhtml), 'EPUB XHTML note reference scan');
-        } catch (\InvalidArgumentException) {
+        $dom = $this->contentDocumentDom($xhtml);
+        if (!$dom instanceof \DOMDocument) {
             return [];
         }
 
@@ -1693,9 +1700,8 @@ final class EpubReader
      */
     private function epubBodyLinkAttributeOverlaysByHref(string $xhtml): array
     {
-        try {
-            $dom = $this->loadXml($this->contentDocumentMarkup($xhtml), 'EPUB XHTML body link attribute scan');
-        } catch (\InvalidArgumentException) {
+        $dom = $this->contentDocumentDom($xhtml);
+        if (!$dom instanceof \DOMDocument) {
             return [];
         }
 
@@ -1758,7 +1764,7 @@ final class EpubReader
                 }
                 continue;
             }
-            if ($attribute->localName === 'type' && ($attribute->prefix === 'epub' || $attribute->namespaceURI === 'http://www.idpf.org/2007/ops')) {
+            if ($this->isEpubTypeAttribute($attribute)) {
                 foreach ($this->tokenList($value) as $epub_type) {
                     if (!in_array($epub_type, $classes, true)) {
                         $classes[] = $epub_type;
@@ -1862,7 +1868,7 @@ final class EpubReader
         }
 
         $link_attribute_overlays = $this->epubFootnoteLinkAttributeOverlays($clone);
-        $body = $this->serializeXmlChildren($clone);
+        $body = Html5Dom::serializeHtmlChildren($clone);
         if (trim($body) === '') {
             return [];
         }
@@ -1957,19 +1963,6 @@ final class EpubReader
         }
 
         return $changed ? new AstNode($node->type, $attrs, $children) : $node;
-    }
-
-    private function serializeXmlChildren(\DOMElement $element): string
-    {
-        $xml = '';
-        foreach ($element->childNodes as $child) {
-            $serialized = $element->ownerDocument?->saveXML($child);
-            if (is_string($serialized)) {
-                $xml .= $serialized;
-            }
-        }
-
-        return $xml;
     }
 
     /**
@@ -2785,15 +2778,20 @@ final class EpubReader
     private function epubTypeAttribute(\DOMElement $element): string
     {
         foreach ($element->attributes ?? [] as $attribute) {
-            if (!$attribute instanceof \DOMAttr || $attribute->localName !== 'type') {
+            if (!$attribute instanceof \DOMAttr || !$this->isEpubTypeAttribute($attribute)) {
                 continue;
             }
-            if ($attribute->prefix === 'epub' || $attribute->namespaceURI === 'http://www.idpf.org/2007/ops') {
-                return $attribute->value;
-            }
+
+            return $attribute->value;
         }
 
         return $this->attributeByLocalName($element, 'type');
+    }
+
+    private function isEpubTypeAttribute(\DOMAttr $attribute): bool
+    {
+        return ($attribute->localName === 'type' && ($attribute->prefix === 'epub' || $attribute->namespaceURI === 'http://www.idpf.org/2007/ops'))
+            || strtolower($attribute->nodeName) === 'epub:type';
     }
 
     /**

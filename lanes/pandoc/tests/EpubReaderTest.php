@@ -1952,7 +1952,7 @@ HTML);
         $t->same(false, str_contains($native, 'Note ['));
         $t->same(false, str_contains($native, 'Separate note body'));
     },
-    'fills standalone epub footnote note bodies before media bag extraction' => static function (TestRunner $t): void {
+    'fills html5 recovered standalone epub footnote note bodies before media bag extraction' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-standalone-footnote-');
         if ($path === false) {
             throw new RuntimeException('Unable to create temporary EPUB path');
@@ -1993,7 +1993,7 @@ XML);
   <body>
     <p>Body text <a epub:type="noteref" href="#fn1">1</a>.</p>
     <aside epub:type="footnote" id="fn1">
-      <p>Footnote body <img src="images/note.png" alt="Note art"/>.</p>
+      <p>Footnote body <img src="images/note.png" alt="Note art">.</p>
       <p><a role="doc-backlink" href="#fnref1">back</a></p>
     </aside>
   </body>
