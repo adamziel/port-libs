@@ -72,6 +72,7 @@ $writeDelimitedTextEvidenceTree = static function (string $upstreamRoot, string 
     foreach ([
         'csv.md',
         '01.csv',
+        '9797.md',
     ] as $name) {
         $writeFile(
             $upstreamRoot,
@@ -143,7 +144,7 @@ return [
         $t->true(in_array('.port-libs/pandoc-runner/logs/delimited-text-targeted-run.txt', $report['runnerEvidence']['requiredTranscripts'], true));
         $t->true(in_array('.port-libs/pandoc-runner/artifacts/delimited-text-targeted-run/result.json', $report['runnerEvidence']['requiredArtifacts'], true));
         $t->contains('Pandoc delimited text reader evidence', $text);
-        $t->contains('Static current evidence: valid-checked-in-current-delimited-text-reader-evidence checkedInFixtures=2', $text);
+        $t->contains('Static current evidence: valid-checked-in-current-delimited-text-reader-evidence checkedInFixtures=3', $text);
         $t->contains('Generated CSV native parity: 64/64 status=generated-csv-native-parity-observed-not-upstream-fixture', $text);
         $t->contains('Generated TSV native parity: 36/36 status=generated-tsv-native-parity-observed-not-upstream-fixture', $text);
         $t->contains('Runner plan: planned-not-run', $text);
@@ -160,13 +161,14 @@ return [
             'src/Text/Pandoc/CSV.hs',
             'src/Text/Pandoc/Readers/CSV.hs',
         ], $evidence['upstream']['readerSources']);
-        $t->same(2, $evidence['readerDenominator']['csvDirectFixtureCount']);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $evidence['readerDenominator']['csvDirectFixtureCount']);
         $t->same(0, $evidence['readerDenominator']['tsvDirectFixtureCount']);
         $t->same(2, $evidence['readerDenominator']['csvAdjacentRstFixtureCount']);
         $t->same(0, $evidence['readerDenominator']['adjacentFixtureDenominatorImpact']);
         $t->same([
             'test/command/csv.md',
             'test/command/01.csv',
+            'test/command/9797.md',
         ], $evidence['readerDenominator']['csvDirectFixtures']);
         $t->same([
             'test/command/3533-rst-csv-tables.csv',
@@ -182,17 +184,20 @@ return [
         $t->same(0, $adjacent['tsvDirectFixtureDenominatorImpact'] ?? null);
         $t->same([false, false], array_column($adjacent['fixtures'] ?? [], 'directDelimitedTextReaderFixture'));
         $t->same(true, DelimitedTextUpstreamReaderEvidence::hasRequiredCsvAdjacentRstFixtureEvidence($adjacent));
-        $t->same(2, $evidence['checkedInFixtureCount']);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $evidence['checkedInFixtureCount']);
         $t->same('csv.md', $evidence['checkedInFixtures'][0]['name']);
         $t->same('42a8bc56612d061388889a10d73b1d34fb870595785ee550ef43c6a065a77ad6', $evidence['checkedInFixtures'][0]['checkedInFile']['sha256']);
         $t->same(2719, $evidence['checkedInFixtures'][0]['checkedInFile']['bytes']);
         $t->same('01.csv', $evidence['checkedInFixtures'][1]['name']);
         $t->same('257c619e19786fddf7685a31a45f6495446a5213083540d09ecba6ce7f1e62cd', $evidence['checkedInFixtures'][1]['checkedInFile']['sha256']);
         $t->same(47, $evidence['checkedInFixtures'][1]['checkedInFile']['bytes']);
+        $t->same('9797.md', $evidence['checkedInFixtures'][2]['name']);
+        $t->same('5ef0f665c3f0f8eb0982c269d86cdaf9e8f0be4130bf767e2cb871a9102c6c40', $evidence['checkedInFixtures'][2]['checkedInFile']['sha256']);
+        $t->same(857, $evidence['checkedInFixtures'][2]['checkedInFile']['bytes']);
         $t->same('static-checked-in-generated-csv-native-parity-fixture-evidence', $evidence['generatedCsvNativeStaticEvidence']['kind']);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $evidence['generatedCsvNativeStaticEvidence']['sampleCount']);
         $t->same(2 * DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtureCount']);
-        $t->same(2, $evidence['generatedCsvNativeStaticEvidence']['csvDirectFixtureDenominator']);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $evidence['generatedCsvNativeStaticEvidence']['csvDirectFixtureDenominator']);
         $t->same([], $evidence['generatedCsvNativeStaticEvidence']['samples'][0]['readerOptions']);
         $t->same('quoted-multiline.csv', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][0]['name']);
         $t->same('a038fe6edd54cf98e2b3afaf14dd4e5cbdbbdb86ab2b62d9bd60cd783ce3324e', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][0]['checkedInFile']['sha256']);
@@ -1017,7 +1022,7 @@ return [
         $t->same('executable-generated-csv-native-parity-evidence', $evidence['kind']);
         $t->same('generated-csv-native-parity', $evidence['evidenceKind']);
         $t->same('csv', $evidence['reader']);
-        $t->same(2, $evidence['csvDirectFixtureDenominator']);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $evidence['csvDirectFixtureDenominator']);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $evidence['sampleCount']);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $evidence['comparedSampleCount']);
         $t->same(0, $evidence['parseFailureCount']);
@@ -2025,7 +2030,7 @@ return [
             $t->same(DelimitedTextUpstreamReaderEvidence::STATUS_COMPLETED, $report['status']);
             $t->same('valid-upstream-delimited-text-reader-evidence', $report['validation']['status']);
             $t->same([], $report['validation']['issues']);
-            $t->same(2, $report['denominator']['csvDirectFixtureCount']);
+            $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $report['denominator']['csvDirectFixtureCount']);
             $t->same(0, $report['denominator']['tsvDirectFixtureCount']);
             $t->same(2, $report['denominator']['csvAdjacentRstFixtureCount']);
             $t->same(0, $report['denominator']['adjacentFixtureDenominatorImpact']);
@@ -2057,7 +2062,7 @@ return [
         $t->same('pandoc-executable-generated-csv-native-parity-evidence', $csv['kind']);
         $t->same('generated-csv-pandoc-executable-native-parity', $csv['evidenceKind']);
         $t->same('csv', $csv['reader']);
-        $t->same(2, $csv['csvDirectFixtureDenominator']);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $csv['csvDirectFixtureDenominator']);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $csv['generatedNativeCorpusSampleCount']);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT, $csv['sampleCount']);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT, $csv['comparedSampleCount']);

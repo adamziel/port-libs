@@ -55,11 +55,12 @@ $validateHonestDenominators = static function (array $csv, array $tsv): array {
     $expect(($csv['reader'] ?? null) === 'csv', 'CSV evidence reader must be csv');
     $expect(str_contains((string) ($csv['source'] ?? ''), DelimitedTextUpstreamReaderEvidence::EXPECTED_UPSTREAM_COMMIT), 'CSV evidence source must identify the pinned current upstream commit');
     $expect(($csv['denominatorScope'] ?? null) === 'direct-reader-fixtures', 'CSV denominator scope must be direct-reader-fixtures');
-    $expect(($csv['denominator'] ?? null) === 2, 'CSV direct denominator must be 2');
-    $expect(($csv['directFixtureDenominator'] ?? null) === 2, 'CSV direct fixture denominator must be 2');
-    $expect(($csv['directFixtureCount'] ?? null) === 2, 'CSV direct fixture count must be 2');
+    $csvDirectFixtureCount = DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT;
+    $expect(($csv['denominator'] ?? null) === $csvDirectFixtureCount, "CSV direct denominator must be {$csvDirectFixtureCount}");
+    $expect(($csv['directFixtureDenominator'] ?? null) === $csvDirectFixtureCount, "CSV direct fixture denominator must be {$csvDirectFixtureCount}");
+    $expect(($csv['directFixtureCount'] ?? null) === $csvDirectFixtureCount, "CSV direct fixture count must be {$csvDirectFixtureCount}");
     $expect(($csv['fixtures'] ?? null) === ($csv['directFixtures'] ?? null), 'CSV fixtures must be direct fixtures');
-    $expect(($csv['csvDirectFixtureDenominator'] ?? null) === 2, 'CSV direct fixture split denominator must be 2');
+    $expect(($csv['csvDirectFixtureDenominator'] ?? null) === $csvDirectFixtureCount, "CSV direct fixture split denominator must be {$csvDirectFixtureCount}");
     $expect(($csv['tsvDirectFixtureDenominator'] ?? null) === 0, 'TSV direct fixture split denominator must be 0');
     $expect(($csv['integrationFixtureCount'] ?? null) === 2, 'CSV-adjacent RST integration fixture count must stay separate at 2');
     $adjacent = is_array($csv['adjacentFixtureEvidence'] ?? null) ? $csv['adjacentFixtureEvidence'] : [];
@@ -84,7 +85,7 @@ $validateHonestDenominators = static function (array $csv, array $tsv): array {
     $expect(($tsv['directFixtureCount'] ?? null) === 0, 'TSV direct fixture count must be 0');
     $expect(($tsv['fixtures'] ?? null) === [], 'TSV fixtures must not borrow CSV fixtures');
     $expect(($tsv['directFixtures'] ?? null) === [], 'TSV direct fixtures must be empty');
-    $expect(($tsv['csvDirectFixtureDenominator'] ?? null) === 2, 'CSV direct fixture split denominator must remain visible from TSV evidence');
+    $expect(($tsv['csvDirectFixtureDenominator'] ?? null) === $csvDirectFixtureCount, 'CSV direct fixture split denominator must remain visible from TSV evidence');
     $expect(($tsv['tsvDirectFixtureDenominator'] ?? null) === 0, 'TSV direct fixture split denominator must be 0');
     $expect(($tsv['integrationFixtureCount'] ?? null) === 0, 'TSV integration fixture count must be 0');
     $expect(($tsv['adjacentFixtureEvidence'] ?? null) === [], 'TSV adjacent fixture evidence must be empty');
@@ -134,7 +135,7 @@ $validateGeneratedCsvNativeParity = static function (array $evidence, ?int $requ
     $samples = is_array($evidence['samples'] ?? null) ? $evidence['samples'] : [];
 
     $expect(($evidence['reader'] ?? null) === 'csv', 'Generated CSV native parity evidence reader must be csv');
-    $expect(($evidence['csvDirectFixtureDenominator'] ?? null) === DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, 'Generated CSV native parity must keep CSV direct denominator at 2');
+    $expect(($evidence['csvDirectFixtureDenominator'] ?? null) === DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, 'Generated CSV native parity must keep the current CSV direct denominator');
     $expect(($evidence['sampleCount'] ?? null) === $expectedSampleCount, 'Generated CSV native parity sample count must match expected generated sample count');
     $expect(count($samples) === $expectedSampleCount, 'Generated CSV native parity sample result count must match expected generated sample count');
     $expect(($evidence['comparedSampleCount'] ?? null) === $expectedSampleCount, 'Generated CSV native parity compared sample count must match expected generated sample count');
@@ -166,7 +167,7 @@ $validateGeneratedCsvPandocExecutableNativeParity = static function (array $evid
     $expect(($evidence['requiredPandocVersion'] ?? null) === DelimitedTextUpstreamReaderEvidence::REQUIRED_PANDOC_EXECUTABLE_VERSION, 'Pandoc executable CSV native parity must require pandoc 3.10');
     $expect(($evidence['pandocVersion'] ?? null) === DelimitedTextUpstreamReaderEvidence::REQUIRED_PANDOC_EXECUTABLE_VERSION, 'Pandoc executable CSV native parity must observe pandoc 3.10');
     $expect(($evidence['pandocExecutableStatus'] ?? null) === 'available', 'Pandoc executable CSV native parity must have an available pandoc executable');
-    $expect(($evidence['csvDirectFixtureDenominator'] ?? null) === DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, 'Pandoc executable CSV native parity must keep CSV direct denominator at 2');
+    $expect(($evidence['csvDirectFixtureDenominator'] ?? null) === DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, 'Pandoc executable CSV native parity must keep the current CSV direct denominator');
     $expect(($evidence['sampleCount'] ?? null) === $expectedSampleCount, 'Pandoc executable CSV native parity sample count must match expected generated subset count');
     $expect(count($samples) === $expectedSampleCount, 'Pandoc executable CSV native parity sample result count must match expected generated subset count');
     $expect(($evidence['comparedSampleCount'] ?? null) === $expectedSampleCount, 'Pandoc executable CSV native parity compared sample count must match expected generated subset count');

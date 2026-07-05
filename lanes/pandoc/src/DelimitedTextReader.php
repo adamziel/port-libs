@@ -1441,6 +1441,7 @@ final class DelimitedTextReader
         $csvCommandFixtures = [
             'test/command/csv.md',
             'test/command/01.csv',
+            'test/command/9797.md',
         ];
         $rstCsvAdjacentEvidence = DelimitedTextUpstreamReaderEvidence::csvAdjacentRstFixtureEvidence();
         $rstCsvFixtures = array_values(array_map(

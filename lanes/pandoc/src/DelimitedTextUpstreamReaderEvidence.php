@@ -14,7 +14,7 @@ final class DelimitedTextUpstreamReaderEvidence
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-csv-reader';
     public const CHECKED_IN_GENERATED_CSV_NATIVE_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/generated-current-csv-reader';
     public const CHECKED_IN_GENERATED_TSV_NATIVE_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/generated-current-tsv-reader';
-    public const EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT = 2;
+    public const EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT = 3;
     public const EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT = 0;
     public const EXPECTED_STATIC_CSV_ADJACENT_RST_FIXTURE_COUNT = 2;
     public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 64;
@@ -57,6 +57,13 @@ final class DelimitedTextUpstreamReaderEvidence
             'checkedInPath' => 'lanes/pandoc/fixtures/upstream-current-csv-reader/01.csv',
             'sha256' => '257c619e19786fddf7685a31a45f6495446a5213083540d09ecba6ce7f1e62cd',
             'bytes' => 47,
+        ],
+        '9797.md' => [
+            'role' => 'direct-csv-command-reader-multiline-cell-native-output',
+            'upstreamPath' => 'test/command/9797.md',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-current-csv-reader/9797.md',
+            'sha256' => '5ef0f665c3f0f8eb0982c269d86cdaf9e8f0be4130bf767e2cb871a9102c6c40',
+            'bytes' => 857,
         ],
     ];
 
@@ -2259,8 +2266,8 @@ final class DelimitedTextUpstreamReaderEvidence
             'claim' => 'Static gate binding Pandoc current CSV command-reader fixtures and generated CSV/TSV native sample fixtures to checked-in SHA-256 and byte-count snapshots.',
             'claimBoundaries' => [
                 'doesAssert' => [
-                    'the checked-in csv.md and 01.csv snapshots match the pinned upstream command fixture hashes',
-                    'the upstream command corpus has two CSV direct-reader fixtures tracked by this PHP reader',
+                    'the checked-in csv.md, 01.csv, and 9797.md snapshots match the pinned upstream command fixture hashes',
+                    'the upstream command corpus has three CSV direct-reader fixtures tracked by this PHP reader',
                     'the RST csv-table fixture pair is tracked as CSV-adjacent evidence with zero direct-reader denominator impact',
                     'the generated CSV-to-native parity fixture pairs are present as local evidence and are not counted as extra upstream CSV direct fixtures',
                     'there is no dedicated upstream TSV command fixture in this pinned corpus',
@@ -2624,7 +2631,7 @@ final class DelimitedTextUpstreamReaderEvidence
                     'the local CSV reader can read the checked-in generated CSV samples',
                     'the generated native output matches the checked-in expected native fixtures by normalized native token stream',
                     'each executable generated CSV sample is bound to valid checked-in input and native snapshot evidence',
-                    'the upstream CSV direct fixture denominator remains two',
+                    'the upstream CSV direct fixture denominator remains three',
                 ],
                 'doesNotAssert' => [
                     'that the generated CSV samples are upstream command fixtures',
@@ -3869,7 +3876,7 @@ final class DelimitedTextUpstreamReaderEvidence
                 'that the RST csv-table fixture pair is CSV-adjacent evidence and not part of the direct CSV/TSV reader denominator',
                 'that RST csv-table directives are exercised through the native RST reader integration path',
                 'that no dedicated TSV command fixture is available in the pinned direct-reader evidence set',
-                'static checked-in current csv.md and 01.csv fixture identity when staticCurrentEvidence is valid',
+                'static checked-in current csv.md, 01.csv, and 9797.md fixture identity when staticCurrentEvidence is valid',
                 'sixty-four generated CSV-to-native local samples when generatedCsvNativeParityEvidence is valid',
                 'thirty-six generated TSV-to-native local samples when generatedTsvNativeParityEvidence is valid',
                 'the non-executed upstream command-test runner plan for the pinned csv.md command fixture',
