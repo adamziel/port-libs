@@ -32,6 +32,8 @@ final class DelimitedTextUpstreamReaderEvidence
     private const RUNNER_TASTY_GROUP_PATH = ['Command:', 'csv.md', '#1'];
     private const RUNNER_TASTY_PATTERN = '$2 == "Command:" && $3 == "csv.md" && $4 == "#1"';
     private const RUNNER_EXPECTED_TEST_NAMES = ['Command: csv.md #1'];
+    private const RUNNER_DIRECT_COMMAND_FIXTURE = 'test/command/csv.md';
+    private const RUNNER_DIRECT_INPUT_FIXTURE = 'test/command/01.csv';
     private const RUNNER_REQUIRED_TRANSCRIPTS = [
         '.port-libs/pandoc-runner/logs/runner-test-dependencies.txt',
         '.port-libs/pandoc-runner/logs/delimited-text-targeted-list-tests.txt',
@@ -2885,13 +2887,12 @@ final class DelimitedTextUpstreamReaderEvidence
             && ($binding['expectedCommit'] ?? null) === self::EXPECTED_UPSTREAM_COMMIT
             && ($binding['entryPoint'] ?? null) === 'test/test-pandoc.hs'
             && ($binding['commandTestModule'] ?? null) === 'test/Tests/Command.hs'
-            && ($binding['commandFixture'] ?? null) === 'test/command/csv.md'
-            && ($binding['directInputFixture'] ?? null) === 'test/command/01.csv'
+            && ($binding['commandFixture'] ?? null) === self::RUNNER_DIRECT_COMMAND_FIXTURE
+            && ($binding['directInputFixture'] ?? null) === self::RUNNER_DIRECT_INPUT_FIXTURE
             && ($target['testSuite'] ?? null) === self::RUNNER_TEST_SUITE
             && ($target['tastyGroupPath'] ?? null) === self::RUNNER_TASTY_GROUP_PATH
             && ($target['tastyPattern'] ?? null) === self::RUNNER_TASTY_PATTERN
-            && ($target['selectedDirectFixtureFormat'] ?? null) === 'csv'
-            && ($target['tsvDirectFixtureAvailable'] ?? null) === false
+            && self::runnerTargetProvesDirectCsvCommandFixture($target)
             && ($commandPlan['kind'] ?? null) === 'upstream-runner-command-plan'
             && ($commandPlan['status'] ?? null) === 'planned-not-run'
             && ($commandPlan['workingDirectory'] ?? null) === self::RUNNER_WORKING_DIRECTORY
@@ -3041,10 +3042,11 @@ final class DelimitedTextUpstreamReaderEvidence
                 ($target['testSuite'] ?? null) !== self::RUNNER_TEST_SUITE
                 || ($target['tastyGroupPath'] ?? null) !== self::RUNNER_TASTY_GROUP_PATH
                 || ($target['tastyPattern'] ?? null) !== self::RUNNER_TASTY_PATTERN
-                || ($target['selectedDirectFixtureFormat'] ?? null) !== 'csv'
-                || ($target['tsvDirectFixtureAvailable'] ?? null) !== false
             ) {
                 $issues[] = 'runner-result-target-mismatch';
+            }
+            if (!self::runnerTargetProvesDirectCsvCommandFixture($target)) {
+                $issues[] = 'runner-result-target-direct-csv-command-fixture-mismatch';
             }
             if ($command !== $expectedCommand) {
                 $issues[] = 'runner-result-command-mismatch';
@@ -3087,19 +3089,22 @@ final class DelimitedTextUpstreamReaderEvidence
                 'observedCommit' => is_string($upstream['commit'] ?? null) ? $upstream['commit'] : null,
                 'entryPoint' => 'test/test-pandoc.hs',
                 'commandTestModule' => 'test/Tests/Command.hs',
-                'commandFixture' => 'test/command/csv.md',
-                'directInputFixture' => 'test/command/01.csv',
+                'commandFixture' => self::RUNNER_DIRECT_COMMAND_FIXTURE,
+                'directInputFixture' => self::RUNNER_DIRECT_INPUT_FIXTURE,
             ],
             'target' => [
                 'testSuite' => is_string($target['testSuite'] ?? null) ? $target['testSuite'] : null,
                 'tastyGroupPath' => is_array($target['tastyGroupPath'] ?? null) ? $target['tastyGroupPath'] : null,
                 'tastyPattern' => is_string($target['tastyPattern'] ?? null) ? $target['tastyPattern'] : null,
                 'selectedDirectFixtureFormat' => is_string($target['selectedDirectFixtureFormat'] ?? null) ? $target['selectedDirectFixtureFormat'] : null,
+                'directCommandFixture' => is_string($target['directCommandFixture'] ?? null) ? $target['directCommandFixture'] : null,
+                'directInputFixture' => is_string($target['directInputFixture'] ?? null) ? $target['directInputFixture'] : null,
                 'tsvDirectFixtureAvailable' => is_bool($target['tsvDirectFixtureAvailable'] ?? null) ? $target['tsvDirectFixtureAvailable'] : null,
             ],
             'expected' => [
                 'schemaVersion' => self::RUNNER_RESULT_ARTIFACT_SCHEMA_VERSION,
                 'runner' => 'Cabal/Tasty Pandoc command reader suite',
+                'target' => self::runnerTarget(),
                 'testCount' => count($expectedTestNames),
                 'passedCount' => count($expectedTestNames),
                 'failedCount' => 0,
@@ -3112,6 +3117,7 @@ final class DelimitedTextUpstreamReaderEvidence
             'observed' => [
                 'schemaVersion' => $payload['schemaVersion'] ?? null,
                 'runner' => $payload['runner'] ?? null,
+                'target' => $target,
                 'exitCode' => $exitCode,
                 'testCount' => $testCount,
                 'passedCount' => $passedCount,
@@ -3155,16 +3161,10 @@ final class DelimitedTextUpstreamReaderEvidence
                 'expectedCommit' => self::EXPECTED_UPSTREAM_COMMIT,
                 'entryPoint' => 'test/test-pandoc.hs',
                 'commandTestModule' => 'test/Tests/Command.hs',
-                'commandFixture' => 'test/command/csv.md',
-                'directInputFixture' => 'test/command/01.csv',
+                'commandFixture' => self::RUNNER_DIRECT_COMMAND_FIXTURE,
+                'directInputFixture' => self::RUNNER_DIRECT_INPUT_FIXTURE,
             ],
-            'target' => [
-                'testSuite' => self::RUNNER_TEST_SUITE,
-                'tastyGroupPath' => self::RUNNER_TASTY_GROUP_PATH,
-                'tastyPattern' => self::RUNNER_TASTY_PATTERN,
-                'selectedDirectFixtureFormat' => 'csv',
-                'tsvDirectFixtureAvailable' => false,
-            ],
+            'target' => self::runnerTarget(),
             'futureCommands' => self::runnerFutureCommands(),
             'commandPlan' => [
                 'kind' => 'upstream-runner-command-plan',
@@ -3195,6 +3195,33 @@ final class DelimitedTextUpstreamReaderEvidence
             'reason' => 'This native PHP evidence packet is generated without executing the upstream Haskell runner.',
             'claim' => 'No upstream Haskell runner parity is claimed.',
         ];
+    }
+
+    /**
+     * @return array{testSuite: string, tastyGroupPath: list<string>, tastyPattern: string, selectedDirectFixtureFormat: string, directCommandFixture: string, directInputFixture: string, tsvDirectFixtureAvailable: bool}
+     */
+    private static function runnerTarget(): array
+    {
+        return [
+            'testSuite' => self::RUNNER_TEST_SUITE,
+            'tastyGroupPath' => self::RUNNER_TASTY_GROUP_PATH,
+            'tastyPattern' => self::RUNNER_TASTY_PATTERN,
+            'selectedDirectFixtureFormat' => 'csv',
+            'directCommandFixture' => self::RUNNER_DIRECT_COMMAND_FIXTURE,
+            'directInputFixture' => self::RUNNER_DIRECT_INPUT_FIXTURE,
+            'tsvDirectFixtureAvailable' => false,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $target
+     */
+    private static function runnerTargetProvesDirectCsvCommandFixture(array $target): bool
+    {
+        return ($target['selectedDirectFixtureFormat'] ?? null) === 'csv'
+            && ($target['directCommandFixture'] ?? null) === self::RUNNER_DIRECT_COMMAND_FIXTURE
+            && ($target['directInputFixture'] ?? null) === self::RUNNER_DIRECT_INPUT_FIXTURE
+            && ($target['tsvDirectFixtureAvailable'] ?? null) === false;
     }
 
     /**

@@ -112,6 +112,8 @@ return [
         $t->same(false, $report['runnerEvidence']['executionBoundary']['upstreamRunnerParityClaimed']);
         $t->same(['Command:', 'csv.md', '#1'], $report['runnerEvidence']['target']['tastyGroupPath']);
         $t->same('$2 == "Command:" && $3 == "csv.md" && $4 == "#1"', $report['runnerEvidence']['target']['tastyPattern']);
+        $t->same('test/command/csv.md', $report['runnerEvidence']['target']['directCommandFixture']);
+        $t->same('test/command/01.csv', $report['runnerEvidence']['target']['directInputFixture']);
         $t->same('$2 == "Command:" && $3 == "csv.md" && $4 == "#1"', $report['runnerEvidence']['futureCommands'][1]['arguments'][8]);
         $t->same('$2 == "Command:" && $3 == "csv.md" && $4 == "#1"', $report['runnerEvidence']['futureCommands'][2]['arguments'][7]);
         $t->same('hydrated Pandoc upstream checkout root', $report['runnerEvidence']['futureCommands'][2]['workingDirectory']);
@@ -131,6 +133,10 @@ return [
 
         $t->same('static-checked-in-current-upstream-delimited-text-reader-fixture-evidence', $evidence['kind']);
         $t->same('4f5226df4faa0d66dd2c089465b13886360ab3c2', $evidence['upstream']['commit']);
+        $t->same([
+            'src/Text/Pandoc/CSV.hs',
+            'src/Text/Pandoc/Readers/CSV.hs',
+        ], $evidence['upstream']['readerSources']);
         $t->same(2, $evidence['readerDenominator']['csvDirectFixtureCount']);
         $t->same(0, $evidence['readerDenominator']['tsvDirectFixtureCount']);
         $t->same(2, $evidence['readerDenominator']['csvAdjacentRstFixtureCount']);
@@ -1943,6 +1949,10 @@ return [
             $t->same('42a8bc56612d061388889a10d73b1d34fb870595785ee550ef43c6a065a77ad6', $report['denominator']['upstreamFixtures'][0]['sha256']);
             $t->same(2, $report['sourceInventory']['presentFileCount']);
             $t->same(0, $report['sourceInventory']['missingFileCount']);
+            $t->same([
+                'src/Text/Pandoc/CSV.hs',
+                'src/Text/Pandoc/Readers/CSV.hs',
+            ], array_column($report['sourceInventory']['files'], 'path'));
             $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $report['generatedCsvNativeParityEvidence']['generatedNativeMatchCount']);
             $t->same('generated-csv-native-parity-observed-not-upstream-fixture', $report['generatedCsvNativeParityEvidence']['parityStatus']);
             $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $report['generatedTsvNativeParityEvidence']['generatedNativeMatchCount']);
@@ -2125,6 +2135,9 @@ return [
             $t->same(filesize($artifactPath), $report['runnerEvidence']['resultArtifact']['bytes']);
             $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_UPSTREAM_COMMIT, $report['runnerEvidence']['upstreamBinding']['observedCommit']);
             $t->same($runnerPlan['target'], $report['runnerEvidence']['target']);
+            $t->same('test/command/csv.md', $report['runnerEvidence']['target']['directCommandFixture']);
+            $t->same('test/command/01.csv', $report['runnerEvidence']['target']['directInputFixture']);
+            $t->same($runnerPlan['target'], $report['runnerEvidence']['expected']['target']);
             $t->same($runnerPlan['futureCommands'][2], $report['runnerEvidence']['command']);
             $t->same($testNames, $report['runnerEvidence']['observed']['testNames']);
             $t->same($runnerPlan['requiredTranscripts'], $report['runnerEvidence']['observed']['transcriptPaths']);
@@ -2159,6 +2172,15 @@ return [
             $t->same('invalid', $badTranscriptReport['runnerEvidence']['status']);
             $t->true(in_array('runner-result-transcript-bytes-mismatch', $badTranscriptReport['runnerEvidence']['validation']['issues'], true));
             $t->same(false, DelimitedTextUpstreamReaderEvidence::hasRunnerResultArtifactEvidence($badTranscriptReport));
+
+            $badDirectFixturePayload = $validPayload;
+            $badDirectFixturePayload['target']['directCommandFixture'] = 'test/command/3533-rst-csv-tables.csv';
+            $writeFile($root, 'bad-direct-fixture-result.json', json_encode($badDirectFixturePayload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+            $badDirectFixtureReport = (new DelimitedTextUpstreamReaderEvidence($root, '.', $root . '/bad-direct-fixture-result.json'))->report();
+
+            $t->same('invalid', $badDirectFixtureReport['runnerEvidence']['status']);
+            $t->true(in_array('runner-result-target-direct-csv-command-fixture-mismatch', $badDirectFixtureReport['runnerEvidence']['validation']['issues'], true));
+            $t->same(false, DelimitedTextUpstreamReaderEvidence::hasRunnerResultArtifactEvidence($badDirectFixtureReport));
         } finally {
             $removeTree($root);
         }
@@ -2216,6 +2238,8 @@ return [
         $t->same(false, $decoded['csv']['runnerEvidence']['executionBoundary']['upstreamRunnerParityClaimed']);
         $t->same(['Command:', 'csv.md', '#1'], $decoded['csv']['runnerEvidence']['target']['tastyGroupPath']);
         $t->same('$2 == "Command:" && $3 == "csv.md" && $4 == "#1"', $decoded['csv']['runnerEvidence']['target']['tastyPattern']);
+        $t->same('test/command/csv.md', $decoded['csv']['runnerEvidence']['target']['directCommandFixture']);
+        $t->same('test/command/01.csv', $decoded['csv']['runnerEvidence']['target']['directInputFixture']);
         $t->same(false, $decoded['tsv']['runnerEvidence']['target']['tsvDirectFixtureAvailable']);
         $t->same('plan-only-not-run', $decoded['tsv']['runnerEvidence']['executionBoundary']['status']);
         $t->same([], $decoded['validationIssues']);
@@ -2266,6 +2290,8 @@ return [
             $t->same(true, $decoded['validation']['runnerResultArtifact']);
             $t->same('completed', $decoded['runnerResultArtifactEvidence']['status']);
             $t->same('valid-upstream-delimited-text-reader-runner-result-artifact', $decoded['runnerResultArtifactEvidence']['validation']['status']);
+            $t->same('test/command/csv.md', $decoded['runnerResultArtifactEvidence']['target']['directCommandFixture']);
+            $t->same('test/command/01.csv', $decoded['runnerResultArtifactEvidence']['target']['directInputFixture']);
             $t->same(true, DelimitedTextUpstreamReaderEvidence::hasRunnerResultArtifactEvidence($decoded['runnerResultArtifactEvidence']));
 
             $payload = $validPayload;
@@ -2321,6 +2347,8 @@ return [
             $t->same(2, $payload['schemaVersion']);
             $t->same('Cabal/Tasty Pandoc command reader suite', $payload['runner']);
             $t->same(true, $payload['runnerExecuted']);
+            $t->same('test/command/csv.md', $payload['target']['directCommandFixture']);
+            $t->same('test/command/01.csv', $payload['target']['directInputFixture']);
             $t->same(1, $payload['testCount']);
             $t->same(1, $payload['passedCount']);
             $t->same(0, $payload['failedCount']);

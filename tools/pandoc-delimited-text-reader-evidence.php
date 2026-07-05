@@ -259,6 +259,8 @@ $validateRunnerPlan = static function (array $csv, array $tsv): array {
         $expect(($runner['commandPlanStatus'] ?? null) === 'planned-not-run', "{$label} runner command plan must be planned-not-run");
         $expect(($target['tastyGroupPath'] ?? null) === ['Command:', 'csv.md', '#1'], "{$label} runner target must be Command:/csv.md/#1");
         $expect(($target['tastyPattern'] ?? null) === '$2 == "Command:" && $3 == "csv.md" && $4 == "#1"', "{$label} runner pattern must target the csv.md command fixture");
+        $expect(($target['directCommandFixture'] ?? null) === 'test/command/csv.md', "{$label} runner target must name the direct csv.md command fixture");
+        $expect(($target['directInputFixture'] ?? null) === 'test/command/01.csv', "{$label} runner target must name the direct 01.csv input fixture");
         $expect(($commandPlan['kind'] ?? null) === 'upstream-runner-command-plan', "{$label} runner command plan kind must be explicit");
         $expect(($commandPlan['status'] ?? null) === 'planned-not-run', "{$label} runner command plan status must be planned-not-run");
         $expect(($commandPlan['workingDirectory'] ?? null) === 'hydrated Pandoc upstream checkout root', "{$label} runner command plan must identify the upstream checkout working directory");

@@ -128,6 +128,7 @@ jobs:
             delimited-text)
               test -f "$target/test/command/csv.md"
               test -f "$target/test/command/01.csv"
+              test -f "$target/src/Text/Pandoc/CSV.hs"
               test -f "$target/src/Text/Pandoc/Readers/CSV.hs"
               ;;
           esac
@@ -156,6 +157,17 @@ jobs:
               ".port-libs/pandoc-runner/artifacts/" + $stem + "-targeted-run/result.json"
             ])
             and (.runner.target.testSuite == "test:test-pandoc")
+            and (
+              $format != "delimited-text"
+              or (
+                .runner.target.tastyGroupPath == ["Command:", "csv.md", "#1"]
+                and .runner.target.tastyPattern == "$2 == \"Command:\" && $3 == \"csv.md\" && $4 == \"#1\""
+                and .runner.target.selectedDirectFixtureFormat == "csv"
+                and .runner.target.directCommandFixture == "test/command/csv.md"
+                and .runner.target.directInputFixture == "test/command/01.csv"
+                and .runner.target.tsvDirectFixtureAvailable == false
+              )
+            )
           ' "$artifact_root/preflight-runner-plan.json"
 
       - name: Set up Haskell for targeted reader runner
