@@ -114,11 +114,11 @@
             "csvSampleCount": 64,
             "csvMatchCount": 64,
             "csvMismatchCount": 0,
-            "tsvSampleCount": 36,
-            "tsvMatchCount": 36,
+            "tsvSampleCount": 37,
+            "tsvMatchCount": 37,
             "tsvMismatchCount": 0,
-            "totalSampleCount": 100,
-            "totalMatchCount": 100
+            "totalSampleCount": 101,
+            "totalMatchCount": 101
         },
         "currentCsvDirectNativeParity": {
             "sampleCount": 2,
@@ -135,11 +135,11 @@
             "csvSampleCount": 45,
             "csvMatchCount": 45,
             "csvMismatchCount": 0,
-            "tsvSampleCount": 24,
-            "tsvMatchCount": 24,
+            "tsvSampleCount": 25,
+            "tsvMatchCount": 25,
             "tsvMismatchCount": 0,
-            "totalSampleCount": 69,
-            "totalMatchCount": 69
+            "totalSampleCount": 70,
+            "totalMatchCount": 70
         },
         "runnerEvidence": {
             "status": "not-run",

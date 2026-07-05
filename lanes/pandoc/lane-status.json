@@ -62,7 +62,7 @@
     "validation": [
       "php -l DelimitedText source/test/tool files passed",
       "php tools/run-tests.php lanes/pandoc/tests/DelimitedTextEvidenceStatusTest.php lanes/pandoc/tests/DelimitedTextReaderTest.php lanes/pandoc/tests/DelimitedTextUpstreamReaderEvidenceTest.php passed with 3 files, 6302 assertions, 0 failures",
-      "php tools/pandoc-delimited-text-reader-evidence.php --repo-root=. --json --require-honest-denominators --require-parser-option-fixture-count=9 --require-generated-csv-native-parity=64 --require-generated-tsv-native-parity=36 --require-current-csv-direct-native-parity=2 --require-current-tsv-direct-native-parity=2 --require-pandoc-executable-csv-native-parity=45 --require-pandoc-executable-tsv-native-parity=24 --require-runner-not-run --require-runner-plan --require-no-validation-issues passed with validationIssues=[]"
+      "php tools/pandoc-delimited-text-reader-evidence.php --repo-root=. --json --require-honest-denominators --require-parser-option-fixture-count=9 --require-generated-csv-native-parity=64 --require-generated-tsv-native-parity=37 --require-current-csv-direct-native-parity=2 --require-current-tsv-direct-native-parity=2 --require-pandoc-executable-csv-native-parity=45 --require-pandoc-executable-tsv-native-parity=25 --require-runner-not-run --require-runner-plan --require-no-validation-issues passed with validationIssues=[]"
     ]
   },
   "docxParityAudit": {
