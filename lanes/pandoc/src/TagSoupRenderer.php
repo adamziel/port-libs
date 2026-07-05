@@ -95,7 +95,7 @@ final class TagSoupRenderer
 
     private function rawTag(string $name): bool
     {
-        return $name === 'script';
+        return in_array($name, ['script', 'style', 'textarea', 'xmp'], true);
     }
 
     private function escapeComment(string $comment): string

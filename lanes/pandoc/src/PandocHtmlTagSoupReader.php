@@ -22,9 +22,10 @@ final class PandocHtmlTagSoupReader
     public function read(string $html): AstNode
     {
         $parser = new TagSoupParser();
-        $this->tokens = TagSoupParser::canonicalizeTags($parser->parse($html));
+        $tokens = TagSoupParser::canonicalizeTags($parser->parse($html));
+        $this->htmlBaseHref = $this->firstBaseHref($tokens);
+        $this->tokens = $this->focusFirstMainElement($tokens);
         $this->index = 0;
-        $this->htmlBaseHref = $this->firstBaseHref($this->tokens);
         $this->listItemDepth = 0;
         $blocks = $this->parseBlocksUntil([]);
 
@@ -60,6 +61,13 @@ final class PandocHtmlTagSoupReader
             if ($token->type === TagSoupTag::CLOSE && in_array($token->name, $stopTags, true)) {
                 break;
             }
+            if ($token->type === TagSoupTag::OPEN && $this->openTagImpliesClose($token->name, $stopTags)) {
+                break;
+            }
+            if ($token->type === TagSoupTag::TEXT && trim($token->text) === '') {
+                $this->index++;
+                continue;
+            }
 
             if ($this->skipIgnorable($token)) {
                 continue;
@@ -92,14 +100,16 @@ final class PandocHtmlTagSoupReader
                     $blocks[] = $block;
                     continue;
                 }
+                if (is_array($block)) {
+                    array_push($blocks, ...$block);
+                    continue;
+                }
             }
 
             $beforeInlineIndex = $this->index;
             $inlines = $this->parseInlinesUntil($stopTags, stopBeforeBlock: true);
             if ($inlines !== []) {
-                $type = $this->inlineFallbackBlockType($inlines);
-                $attrs = $type === 'paragraph' ? ['text' => $this->plainTextFromInlines($inlines)] : [];
-                $blocks[] = new AstNode($type, $attrs, $inlines);
+                array_push($blocks, ...$this->inlineFallbackBlocks($inlines, $stopTags === [] && $blocks === []));
                 continue;
             }
 
@@ -113,21 +123,30 @@ final class PandocHtmlTagSoupReader
 
     /**
      * @param list<string> $outerStopTags
+     * @return AstNode|list<AstNode>|null
      */
-    private function parseOpenBlock(TagSoupTag $token, array $outerStopTags): ?AstNode
+    private function parseOpenBlock(TagSoupTag $token, array $outerStopTags): AstNode|array|null
     {
         $name = $token->name;
         if (in_array($name, ['main', 'section', 'article', 'header', 'footer', 'aside'], true)) {
             $this->index++;
             $children = $this->parseBlocksUntil([$name]);
             $this->consumeClose($name);
+            $attrs = $this->nativeContainerAttrs($token);
+            if ($name === 'main') {
+                if ($attrs === []) {
+                    return $this->flattenPlainMainChildren($children);
+                }
 
-            return new AstNode('div', $this->pandocAttrs($token), $children);
+                $children = $this->flattenSingleParagraphBlock($children);
+            }
+
+            return new AstNode('div', $attrs, $children);
         }
 
         if ($name === 'p' || $name === 'address') {
             $this->index++;
-            $inlines = $this->parseInlinesUntil([$name]);
+            $inlines = $this->parseInlinesUntil([$name, ...$outerStopTags], stopBeforeBlock: true);
             $this->consumeClose($name);
 
             return new AstNode('paragraph', ['text' => $this->plainTextFromInlines($inlines)], $inlines);
@@ -135,13 +154,22 @@ final class PandocHtmlTagSoupReader
 
         if (preg_match('/^h([1-6])$/', $name, $m) === 1) {
             $this->index++;
-            $inlines = $this->parseInlinesUntil([$name]);
+            $inlines = $this->parseInlinesUntil([$name], stopBeforeBlock: true);
             $this->consumeClose($name);
+            $text = $this->plainTextFromInlines($inlines);
+            $attrs = $this->pandocAttrs($token);
+            $attrs['level'] = (int) $m[1];
+            $attrs['text'] = $text;
+            if ($this->hasAttribute($token, 'id')) {
+                unset($attrs['id']);
+            } else {
+                $identifier = $this->htmlHeadingIdentifier($text);
+                if ($identifier !== '') {
+                    $attrs['id'] = $identifier;
+                }
+            }
 
-            return new AstNode('heading', [
-                'level' => (int) $m[1],
-                'text' => $this->plainTextFromInlines($inlines),
-            ], $inlines);
+            return new AstNode('heading', $attrs, $inlines);
         }
 
         if ($name === 'blockquote') {
@@ -164,16 +192,27 @@ final class PandocHtmlTagSoupReader
             return $this->parseFigureBlock($token);
         }
 
+        if (in_array($name, ['form', 'noscript', 'object', 'iframe', 'template', 'noembed', 'noframes', 'plaintext'], true)) {
+            if ($this->rawHtmlEnabled() && in_array($name, ['noscript', 'object', 'iframe'], true) && !$this->balancedElementHasBlockChild($name)) {
+                return $this->parseRawInlineWrapperBlock($token, $outerStopTags);
+            }
+            $this->index++;
+            $children = $this->parseBlocksUntil([$name, ...$outerStopTags]);
+            $this->consumeClose($name);
+
+            return $children;
+        }
+
+        if ($name === 'menu') {
+            return $this->parseMenuBlock($token);
+        }
+
         if ($name === 'div' && in_array('line-block', $this->classes($token), true)) {
             return $this->parseLineBlock($token);
         }
 
         if ($name === 'pre') {
-            $this->index++;
-            $text = $this->collectTextUntilClose('pre');
-            $this->consumeClose('pre');
-
-            return new AstNode('code_block', ['text' => rtrim($text, "\n")]);
+            return $this->parsePreBlock($token);
         }
 
         if ($name === 'hr') {
@@ -185,6 +224,10 @@ final class PandocHtmlTagSoupReader
             $raw = $this->renderBalancedTokenSource($name);
 
             return new AstNode('raw_html', ['format' => 'html', 'html' => $raw, 'text' => $raw]);
+        }
+
+        if (in_array($name, ['script', 'style', 'textarea', 'xmp'], true)) {
+            return $this->parseRawTextBlock($token);
         }
 
         if ($this->isBlockElement($name)) {
@@ -273,12 +316,22 @@ final class PandocHtmlTagSoupReader
                 continue;
             }
             if ($token->type === TagSoupTag::OPEN && $token->name === 'dt') {
-                if ($currentTerm instanceof AstNode && $definitions !== []) {
-                    $flush();
-                }
                 $this->index++;
                 $inlines = $this->parseInlinesUntil(['dt']);
                 $this->consumeClose('dt');
+                if ($currentTerm instanceof AstNode && $definitions === []) {
+                    $currentTerm = new AstNode('term', [
+                        'text' => $this->plainTextFromInlines($currentTerm->children) . "\n" . $this->plainTextFromInlines($inlines),
+                    ], [
+                        ...$currentTerm->children,
+                        new AstNode('linebreak'),
+                        ...$inlines,
+                    ]);
+                    continue;
+                }
+                if ($currentTerm instanceof AstNode) {
+                    $flush();
+                }
                 $currentTerm = new AstNode('term', ['text' => $this->plainTextFromInlines($inlines)], $inlines);
                 continue;
             }
@@ -305,12 +358,55 @@ final class PandocHtmlTagSoupReader
     {
         $token = $this->current();
         if ($token instanceof TagSoupTag && $token->type === TagSoupTag::OPEN && $this->isBlockElement($token->name)) {
-            return $this->parseBlocksUntil(['dd']);
+            return $this->parseBlocksUntil(['dd', 'dl']);
         }
 
-        $inlines = $this->parseInlinesUntil(['dd']);
+        $inlines = $this->parseInlinesUntil(['dd', 'dl']);
 
         return $inlines === [] ? [] : [new AstNode('plain', [], $inlines)];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function parseMenuBlock(TagSoupTag $menu): array
+    {
+        $blocks = [];
+        $this->index++;
+        while (($token = $this->current()) instanceof TagSoupTag) {
+            if ($token->type === TagSoupTag::CLOSE && $token->name === 'menu') {
+                break;
+            }
+            if ($this->skipIgnorable($token)) {
+                continue;
+            }
+            if ($token->type === TagSoupTag::OPEN && $token->name === 'li') {
+                $this->index++;
+                array_push($blocks, ...$this->parseBlocksUntil(['li']));
+                $this->consumeClose('li');
+                continue;
+            }
+            if ($token->type === TagSoupTag::OPEN) {
+                $block = $this->parseOpenBlock($token, ['menu']);
+                if ($block instanceof AstNode) {
+                    $blocks[] = $block;
+                    continue;
+                }
+                if (is_array($block)) {
+                    array_push($blocks, ...$block);
+                    continue;
+                }
+            }
+            $inlines = $this->parseInlinesUntil(['menu'], stopBeforeBlock: true);
+            if ($inlines !== []) {
+                array_push($blocks, ...$this->inlineFallbackBlocks($inlines));
+                continue;
+            }
+            $this->index++;
+        }
+        $this->consumeClose('menu');
+
+        return $blocks;
     }
 
     private function parseLineBlock(TagSoupTag $div): AstNode
@@ -363,12 +459,14 @@ final class PandocHtmlTagSoupReader
                     $bodyBlocks[] = $block;
                     continue;
                 }
+                if (is_array($block)) {
+                    array_push($bodyBlocks, ...$block);
+                    continue;
+                }
             }
             $inlines = $this->parseInlinesUntil(['figure'], stopBeforeBlock: true);
             if ($inlines !== []) {
-                $type = $this->inlineFallbackBlockType($inlines);
-                $attrs = $type === 'paragraph' ? ['text' => $this->plainTextFromInlines($inlines)] : [];
-                $bodyBlocks[] = new AstNode($type, $attrs, $inlines);
+                array_push($bodyBlocks, ...$this->inlineFallbackBlocks($inlines));
                 continue;
             }
             $this->index++;
@@ -393,6 +491,9 @@ final class PandocHtmlTagSoupReader
         $inlines = [];
         while (($token = $this->current()) instanceof TagSoupTag) {
             if ($token->type === TagSoupTag::CLOSE && in_array($token->name, $stopTags, true)) {
+                break;
+            }
+            if ($token->type === TagSoupTag::OPEN && $this->openTagImpliesClose($token->name, $stopTags)) {
                 break;
             }
             if ($token->type === TagSoupTag::OPEN && $stopBeforeBlock && $this->isBlockElement($token->name)) {
@@ -473,7 +574,7 @@ final class PandocHtmlTagSoupReader
             $children = $this->parseInlinesUntil(['kbd']);
             $this->consumeClose('kbd');
 
-            return [new AstNode('span', ['classes' => ['kbd']], $children)];
+            return [new AstNode('span', $this->withPrependedClass($this->pandocAttrs($token), 'kbd'), $children)];
         }
 
         if ($name === 'a') {
@@ -530,6 +631,16 @@ final class PandocHtmlTagSoupReader
             return [];
         }
 
+        if (in_array($name, ['area', 'base', 'col', 'embed', 'link', 'meta', 'param', 'source', 'track'], true)) {
+            $this->index++;
+            $this->consumeClose($name);
+            if ($this->rawHtmlEnabled()) {
+                return [$this->rawHtmlInline($this->renderOpenToken($token))];
+            }
+
+            return [];
+        }
+
         if ($name === 'bdo') {
             $this->index++;
             $children = $this->parseInlinesUntil(['bdo']);
@@ -558,6 +669,9 @@ final class PandocHtmlTagSoupReader
             $this->index++;
             $children = $this->parseInlinesUntil(['button']);
             $this->consumeClose('button');
+            if (!$this->rawHtmlEnabled()) {
+                return $children;
+            }
 
             return [
                 $this->rawHtmlInline($this->renderOpenToken($token)),
@@ -576,6 +690,9 @@ final class PandocHtmlTagSoupReader
             $this->index++;
             $children = $this->parseInlinesUntil(['span']);
             $this->consumeClose('span');
+            if ($this->isSmallCapsSpan($token)) {
+                return [new AstNode('small_caps', [], $children)];
+            }
             $attrs = $this->pandocAttrs($token);
             if ($attrs !== []) {
                 return [new AstNode('span', $attrs, $children)];
@@ -584,7 +701,70 @@ final class PandocHtmlTagSoupReader
             return $children;
         }
 
-        if (in_array($name, ['small', 'cite', 'label', 'sub', 'sup', 'u', 's', 'del', 'ins', 'mark', 'q'], true)) {
+        if ($name === 'small') {
+            $this->index++;
+            $children = $this->parseInlinesUntil(['small']);
+            $this->consumeClose('small');
+
+            return [new AstNode('span', ['classes' => ['small']], $children)];
+        }
+
+        if ($name === 'mark' || $name === 'abbr' || $name === 'dfn') {
+            $this->index++;
+            $children = $this->parseInlinesUntil([$name]);
+            $this->consumeClose($name);
+
+            return [new AstNode('span', $this->withPrependedClass($this->pandocAttrs($token), $name), $children)];
+        }
+
+        if ($name === 'sub' || $name === 'sup') {
+            $this->index++;
+            $children = $this->parseInlinesUntil([$name]);
+            $this->consumeClose($name);
+
+            return [new AstNode($name === 'sub' ? 'subscript' : 'superscript', $this->pandocAttrs($token), $children)];
+        }
+
+        if ($name === 'u' || $name === 'ins') {
+            $this->index++;
+            $children = $this->parseInlinesUntil([$name]);
+            $this->consumeClose($name);
+
+            return [new AstNode('underline', $this->pandocAttrs($token, ['cite', 'datetime']), $children)];
+        }
+
+        if ($name === 's' || $name === 'del' || $name === 'strike') {
+            $this->index++;
+            $children = $this->parseInlinesUntil([$name]);
+            $this->consumeClose($name);
+
+            return [new AstNode('strikeout', $this->pandocAttrs($token, ['cite', 'datetime']), $children)];
+        }
+
+        if ($name === 'script') {
+            $this->index++;
+            $text = $this->collectTextUntilClose('script');
+            $this->consumeClose('script');
+            $math = $this->mathNodeFromScriptText($token, $text);
+            if ($math instanceof AstNode) {
+                return [$math];
+            }
+            if (!$this->rawHtmlEnabled()) {
+                return [];
+            }
+
+            return [$this->rawHtmlInline($this->renderRawTextElement($token, $text))];
+        }
+
+        if ($name === 'style') {
+            $this->index++;
+            $text = $this->collectTextUntilClose('style');
+            $this->consumeClose('style');
+
+            return [$this->rawHtmlInline($this->renderRawTextElement($token, $text))];
+        }
+
+        if (in_array($name, ['cite', 'label', 'q', 'time', 'output'], true)) {
             $this->index++;
             $children = $this->parseInlinesUntil([$name]);
             $this->consumeClose($name);
@@ -723,6 +903,379 @@ final class PandocHtmlTagSoupReader
     private function renderOpenToken(TagSoupTag $token): string
     {
         return (new TagSoupRenderer())->render([$token]);
+    }
+
+    /**
+     * @param list<TagSoupTag> $tokens
+     * @return list<TagSoupTag>
+     */
+    private function focusFirstMainElement(array $tokens): array
+    {
+        foreach ($tokens as $index => $token) {
+            if ($token instanceof TagSoupTag && $token->type === TagSoupTag::OPEN && $token->name === 'main') {
+                return $this->balancedTokenSlice($tokens, $index, 'main');
+            }
+        }
+
+        return $tokens;
+    }
+
+    /**
+     * @param list<TagSoupTag> $tokens
+     * @return list<TagSoupTag>
+     */
+    private function balancedTokenSlice(array $tokens, int $start, string $name): array
+    {
+        $depth = 0;
+        $count = count($tokens);
+        for ($index = $start; $index < $count; ++$index) {
+            $token = $tokens[$index];
+            if (!$token instanceof TagSoupTag) {
+                continue;
+            }
+            if ($token->type === TagSoupTag::OPEN && $token->name === $name) {
+                ++$depth;
+            } elseif ($token->type === TagSoupTag::CLOSE && $token->name === $name) {
+                --$depth;
+                if ($depth <= 0) {
+                    return array_slice($tokens, $start, $index - $start + 1);
+                }
+            }
+        }
+
+        return array_slice($tokens, $start);
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function flattenPlainMainChildren(array $children): array
+    {
+        if (count($children) === 1 && in_array($children[0]->type, ['paragraph', 'plain'], true)) {
+            return $children[0]->children;
+        }
+
+        return $children;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function flattenSingleParagraphBlock(array $children): array
+    {
+        if (count($children) === 1 && $children[0]->type === 'paragraph') {
+            return $children[0]->children;
+        }
+
+        return $children;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function nativeContainerAttrs(TagSoupTag $token): array
+    {
+        $attrs = $this->pandocAttrs($token);
+        if ($token->name === 'main') {
+            $attributes = is_array($attrs['attributes'] ?? null) ? $attrs['attributes'] : [];
+            if ($attrs !== [] && !array_key_exists('role', $attributes)) {
+                $attributes = ['role' => 'main'] + $attributes;
+                $attrs['attributes'] = $attributes;
+            }
+
+            return $attrs;
+        }
+
+        return $this->withPrependedClass($attrs, $token->name);
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     * @return array<string, mixed>
+     */
+    private function withPrependedClass(array $attrs, string $class): array
+    {
+        $classes = is_array($attrs['classes'] ?? null) ? $attrs['classes'] : [];
+        $classes = array_values(array_filter($classes, 'is_string'));
+        if (!in_array($class, $classes, true)) {
+            array_unshift($classes, $class);
+        }
+        $attrs['classes'] = $classes;
+
+        return $attrs;
+    }
+
+    private function parsePreBlock(TagSoupTag $pre): AstNode
+    {
+        $this->index++;
+        $leading = '';
+        while (($token = $this->current()) instanceof TagSoupTag && $token->type === TagSoupTag::TEXT && trim($token->text) === '') {
+            $leading .= $token->text;
+            $this->index++;
+        }
+
+        $code = null;
+        if (($token = $this->current()) instanceof TagSoupTag && $token->type === TagSoupTag::OPEN && $token->name === 'code') {
+            $code = $token;
+            $this->index++;
+            $text = $this->collectPreTextUntilClose('code');
+            $this->consumeClose('code');
+            $this->skipUntilClose('pre');
+        } else {
+            $text = $leading . $this->collectPreTextUntilClose('pre');
+        }
+        $this->consumeClose('pre');
+
+        return new AstNode('code_block', $this->codeBlockAttrs($pre, $code) + ['text' => rtrim($text, "\n")]);
+    }
+
+    private function parseRawTextBlock(TagSoupTag $token): AstNode|array|null
+    {
+        $this->index++;
+        $text = $this->collectTextUntilClose($token->name);
+        $this->consumeClose($token->name);
+        if ($token->name === 'script') {
+            $math = $this->mathNodeFromScriptText($token, $text);
+            if ($math instanceof AstNode) {
+                return new AstNode('paragraph', ['text' => $math->attr('text', '')], [$math]);
+            }
+            if (!$this->rawHtmlEnabled()) {
+                return [];
+            }
+
+            $raw = $this->renderRawTextElement($token, $text);
+            return new AstNode('raw_html', ['format' => 'html', 'html' => $raw, 'text' => $raw]);
+        }
+
+        if ($token->name === 'style') {
+            $raw = $this->renderRawTextElement($token, $text);
+            return new AstNode('paragraph', [], [$this->rawHtmlInline($raw)]);
+        }
+
+        if ($token->name === 'xmp') {
+            return $this->readFallbackHtmlBlocks($text);
+        }
+
+        if (!$this->rawHtmlEnabled()) {
+            return [];
+        }
+
+        $raw = $this->renderRawTextElement($token, $text);
+        return new AstNode('raw_html', ['format' => 'html', 'html' => $raw, 'text' => $raw]);
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function inlineFallbackBlocks(array $inlines, bool $topLevelInlineFragment = false): array
+    {
+        if (
+            count($inlines) >= 2
+            && $inlines[0]->type === 'linebreak'
+            && $inlines[1]->type === 'linebreak'
+        ) {
+            return [
+                new AstNode('paragraph', [], [$inlines[0]]),
+                new AstNode('paragraph', ['text' => $this->plainTextFromInlines(array_slice($inlines, 1))], array_slice($inlines, 1)),
+            ];
+        }
+        if ($topLevelInlineFragment && !$this->containsRawHtmlInline($inlines)) {
+            return $inlines;
+        }
+
+        $type = $this->inlineFallbackBlockType($inlines);
+        $attrs = $type === 'paragraph' ? ['text' => $this->plainTextFromInlines($inlines)] : [];
+
+        return [new AstNode($type, $attrs, $inlines)];
+    }
+
+    private function collectPreTextUntilClose(string $name): string
+    {
+        $text = '';
+        while (($token = $this->current()) instanceof TagSoupTag) {
+            if ($token->type === TagSoupTag::CLOSE && $token->name === $name) {
+                break;
+            }
+            if ($token->type === TagSoupTag::TEXT) {
+                $text .= $token->text;
+                $this->index++;
+                continue;
+            }
+            if ($token->type === TagSoupTag::OPEN && $token->name === 'br') {
+                $text .= "\n";
+                $this->index++;
+                $this->consumeClose('br');
+                continue;
+            }
+            $this->index++;
+        }
+
+        return $text;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function codeBlockAttrs(TagSoupTag $pre, ?TagSoupTag $code): array
+    {
+        $preAttrs = $this->pandocAttrs($pre);
+        if ($preAttrs !== [] || !$code instanceof TagSoupTag) {
+            return $preAttrs;
+        }
+
+        $attrs = $this->pandocAttrs($code);
+        if (isset($attrs['classes']) && is_array($attrs['classes'])) {
+            $attrs['classes'] = array_values(array_map(
+                static fn (mixed $class): string => is_string($class) && str_starts_with($class, 'language-')
+                    ? substr($class, 9)
+                    : (string) $class,
+                $attrs['classes']
+            ));
+        }
+
+        return $attrs;
+    }
+
+    private function rawHtmlEnabled(): bool
+    {
+        return ($this->options['htmlRawHtml'] ?? false) !== false;
+    }
+
+    private function mathNodeFromScriptText(TagSoupTag $token, string $text): ?AstNode
+    {
+        $type = strtolower($this->attribute($token, 'type'));
+        if (!str_starts_with($type, 'math/tex')) {
+            return null;
+        }
+
+        return new AstNode('math', [
+            'display' => str_contains($type, 'mode=display'),
+            'text' => $text,
+        ]);
+    }
+
+    private function renderRawTextElement(TagSoupTag $token, string $text): string
+    {
+        return (new TagSoupRenderer())->render([
+            $token,
+            TagSoupTag::text($text),
+            TagSoupTag::close($token->name),
+        ]);
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    /**
+     * @param list<string> $outerStopTags
+     * @return list<AstNode>
+     */
+    private function parseRawInlineWrapperBlock(TagSoupTag $token, array $outerStopTags): array
+    {
+        $this->index++;
+        $children = $this->parseInlinesUntil([$token->name]);
+        $this->consumeClose($token->name);
+        $tail = $this->parseInlinesUntil($outerStopTags, stopBeforeBlock: true);
+
+        return $this->inlineFallbackBlocks([
+            $this->rawHtmlInline($this->renderOpenToken($token)),
+            ...$children,
+            $this->rawHtmlInline('</' . $token->name . '>'),
+            ...$tail,
+        ]);
+    }
+
+    private function balancedElementHasBlockChild(string $name): bool
+    {
+        $depth = 0;
+        $count = count($this->tokens);
+        for ($index = $this->index; $index < $count; ++$index) {
+            $token = $this->tokens[$index] ?? null;
+            if (!$token instanceof TagSoupTag) {
+                continue;
+            }
+            if ($token->type === TagSoupTag::OPEN && $token->name === $name) {
+                ++$depth;
+                continue;
+            }
+            if ($token->type === TagSoupTag::CLOSE && $token->name === $name) {
+                --$depth;
+                if ($depth <= 0) {
+                    return false;
+                }
+                continue;
+            }
+            if ($depth === 1 && $token->type === TagSoupTag::OPEN && $this->isBlockElement($token->name)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function readFallbackHtmlBlocks(string $html): array
+    {
+        $document = (new self($this->options))->read(trim($html));
+
+        return $document->children;
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     */
+    private function containsRawHtmlInline(array $inlines): bool
+    {
+        foreach ($inlines as $inline) {
+            if ($inline->type === 'raw_html_inline' || $this->containsRawHtmlInline($inline->children)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function htmlHeadingIdentifier(string $text): string
+    {
+        $identifier = strtolower($text);
+        $identifier = preg_replace('/[^a-z0-9]+/', '-', $identifier) ?? '';
+
+        return trim($identifier, '-');
+    }
+
+    private function isSmallCapsSpan(TagSoupTag $token): bool
+    {
+        $classes = $this->classes($token);
+        if (array_intersect($classes, ['smallcaps', 'small-caps']) !== []) {
+            return true;
+        }
+
+        return preg_match('/font-variant(?:-caps)?\s*:\s*small-caps/i', $this->attribute($token, 'style')) === 1;
+    }
+
+    /**
+     * @param list<string> $stopTags
+     */
+    private function openTagImpliesClose(string $openName, array $stopTags): bool
+    {
+        if (in_array('li', $stopTags, true) && $openName === 'li') {
+            return true;
+        }
+        if ((in_array('dt', $stopTags, true) || in_array('dd', $stopTags, true)) && in_array($openName, ['dt', 'dd'], true)) {
+            return true;
+        }
+        if (in_array('p', $stopTags, true) && $this->isBlockElement($openName)) {
+            return true;
+        }
+        foreach ($stopTags as $stopTag) {
+            if (preg_match('/^h[1-6]$/', $stopTag) === 1 && preg_match('/^h[1-6]$/', $openName) === 1) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

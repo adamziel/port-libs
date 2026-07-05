@@ -39,9 +39,9 @@ return [
         ], tokenSummary($tokens));
     },
 
-    'parses comments declarations cdata and script source-order content' => static function (TestRunner $t): void {
+    'parses comments declarations cdata and raw text source-order content' => static function (TestRunner $t): void {
         $tokens = TagSoupParser::canonicalizeTags((new TagSoupParser())->parse(
-            '<!doctype html><!--c--><![CDATA[x<y]]><script>a < b && c</script>'
+            '<!doctype html><!--c--><![CDATA[x<y]]><script>a < b && c</script><style>x < y</style>'
         ));
 
         $t->same([
@@ -51,6 +51,9 @@ return [
             ['open', 'script', '', []],
             ['text', '', 'a < b && c', []],
             ['close', 'script', '', []],
+            ['open', 'style', '', []],
+            ['text', '', 'x < y', []],
+            ['close', 'style', '', []],
         ], tokenSummary($tokens));
     },
 
@@ -121,14 +124,36 @@ return [
             'upstream-html-anchor-image-attrs',
             'upstream-html-base-relative-image',
             'upstream-html-blockquote',
+            'upstream-html-button-inline-fallback',
             'upstream-html-definition-list',
+            'upstream-html-fallback-content-containers',
             'upstream-html-figure-caption',
+            'upstream-html-form-controls',
             'upstream-html-generic-raw-inline',
+            'upstream-html-header-native-divs',
             'upstream-html-inline-code-aliases',
+            'upstream-html-inline-fallback-content-containers',
             'upstream-html-line-block',
             'upstream-html-list-item-id',
+            'upstream-html-main-native-divs',
+            'upstream-html-main-inline-plain',
+            'upstream-html-multi-term-definition-list',
+            'upstream-html-optional-definition-list-tree-construction',
             'upstream-html-ordered-list-type-start',
+            'upstream-html-paragraph-blockquote-tree-construction',
+            'upstream-html-paragraph-heading-tree-construction',
+            'upstream-html-pre-code-attributes',
+            'upstream-html-pre-code-br',
+            'upstream-html-rawtext-fallback-containers',
+            'upstream-html-script-raw-block',
+            'upstream-html-section-aside-native-divs',
+            'upstream-html-smallcaps-class',
+            'upstream-html-standalone-button-inline',
+            'upstream-html-style-raw-block',
+            'upstream-html-template-raw-boundary',
+            'upstream-html-textarea-raw-block',
             'upstream-html-thematic-break',
+            'upstream-html-xmp-rawtext-fallback',
         ] as $basename) {
             $options = HtmlNativeAstComparisonHarness::readerOptionsForFixtureBasename($basename);
             $options['htmlReaderBackend'] = 'tagsoup-pandoc-port';

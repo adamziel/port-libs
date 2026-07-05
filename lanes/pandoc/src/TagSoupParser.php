@@ -250,8 +250,9 @@ final class TagSoupParser
             return;
         }
 
-        if (strcasecmp($name, 'script') === 0) {
-            $this->parseScriptBody();
+        $rawTextName = strtolower($name);
+        if (in_array($rawTextName, ['script', 'style', 'textarea', 'xmp'], true)) {
+            $this->parseRawTextBody($rawTextName);
         }
     }
 
@@ -395,14 +396,14 @@ final class TagSoupParser
         $this->emit(TagSoupTag::close($name), $row, $column);
     }
 
-    private function parseScriptBody(): void
+    private function parseRawTextBody(string $name): void
     {
         if ($this->offset >= $this->length) {
             return;
         }
 
         $lower = strtolower($this->source);
-        $close = strpos($lower, '</script', $this->offset);
+        $close = strpos($lower, '</' . $name, $this->offset);
         if ($close === false) {
             $row = $this->row;
             $column = $this->column;
