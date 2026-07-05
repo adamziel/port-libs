@@ -294,10 +294,10 @@ final class EpubReader
         }
 
         $meta = [];
-        $title = $this->firstMetadataValue($dc_values, 'title');
-        if ($title !== null) {
-            $meta['title'] = $title;
-            $meta['titleInlines'] = $this->metadataTextInlines($title);
+        $titles = $this->metadataValueList($dc_values, 'title');
+        if ($titles !== []) {
+            $meta['title'] = $this->metadataScalarOrRepeatedInlineMetaValue($titles);
+            $meta['titleInlines'] = $this->metadataTextInlines($titles[0]);
         }
 
         $creators = $this->metadataValueList($dc_values, 'creator');
@@ -309,24 +309,28 @@ final class EpubReader
             $meta['authorInlines'] = array_map(fn (string $author): array => $this->metadataTextInlines($author), $creators);
         }
 
-        $date = $this->firstMetadataValue($dc_values, 'date');
-        if ($date !== null) {
-            $meta['date'] = $date;
-            $meta['dateInlines'] = $this->metadataTextInlines($date);
+        $dates = $this->metadataValueList($dc_values, 'date');
+        if ($dates !== []) {
+            $meta['date'] = $this->metadataScalarOrRepeatedInlineMetaValue($dates);
+            $meta['dateInlines'] = $this->metadataTextInlines($dates[0]);
         }
 
         $languages = $this->metadataValueList($dc_values, 'language');
         if ($languages !== []) {
             $meta['lang'] = $languages[0];
-            $meta['language'] = $languages[0];
+            $meta['language'] = $this->metadataScalarOrRepeatedInlineMetaValue($languages);
             if (count($languages) > 1) {
                 $meta['languages'] = $languages;
             }
         }
 
-        $identifier = $this->selectedMetadataIdentifier($dc_values['identifier'] ?? [], trim($package->getAttribute('unique-identifier')));
-        if ($identifier !== null) {
-            $meta['identifier'] = $identifier;
+        $identifiers = $this->metadataValueList($dc_values, 'identifier');
+        if ($identifiers !== []) {
+            $meta['identifier'] = $this->metadataScalarOrRepeatedInlineMetaValue($identifiers);
+        }
+        $selected_identifier = $this->selectedMetadataIdentifier($dc_values['identifier'] ?? [], trim($package->getAttribute('unique-identifier')));
+        if ($selected_identifier !== null) {
+            $meta['epubSelectedIdentifier'] = $selected_identifier;
         }
 
         foreach (self::DC_METADATA_FIELD_KEYS as $dc_name => $meta_key) {
@@ -360,14 +364,6 @@ final class EpubReader
     private function isDublinCoreMetadataElement(\DOMElement $element): bool
     {
         return $element->namespaceURI === self::DC_NAMESPACE && $element->prefix === 'dc';
-    }
-
-    /**
-     * @param array<string, list<array{value: string, id: string}>> $values
-     */
-    private function firstMetadataValue(array $values, string $name): ?string
-    {
-        return $values[$name][0]['value'] ?? null;
     }
 
     /**

@@ -168,7 +168,7 @@ XML),
             }
         }
     },
-    'maps epub opf core metadata with selected identifier and modified timestamp' => static function (TestRunner $t): void {
+    'maps epub opf core metadata with accumulated identifiers and modified timestamp' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-');
         if ($path === false) {
             throw new RuntimeException('Unable to create temporary EPUB path');
@@ -238,7 +238,11 @@ XML);
         $t->same('en-US', $meta['language']);
         $t->same('2026-04-05', $meta['date']);
         $t->same('2026-04-05', $meta['dateInlines'][0]->attr('text'));
-        $t->same('urn:uuid:12345678-1234-1234-1234-123456789abc', $meta['identifier']);
+        $identifier = $meta['identifier'] ?? null;
+        $t->same('MetaList', $identifier['type'] ?? null);
+        $t->same('urn:uuid:12345678-1234-1234-1234-123456789abc', $identifier['value'][0]['value'][0]->attr('text') ?? null);
+        $t->same('urn:isbn:9780000000000', $identifier['value'][1]['value'][0]->attr('text') ?? null);
+        $t->same('urn:uuid:12345678-1234-1234-1234-123456789abc', $meta['epubSelectedIdentifier']);
         $t->same('Example Press', $meta['publisher']);
         $subject = $meta['subject'] ?? null;
         $t->same('MetaList', $subject['type'] ?? null);
@@ -256,6 +260,84 @@ XML);
         $t->same('2026-04-06T07:08:09Z', $meta['modified']);
         $t->same(['2026-04-06T07:08:09Z'], $meta['epubProperties']['dcterms:modified']);
         $t->same(['pre-paginated'], $meta['epubProperties']['rendition:layout']);
+    },
+    'accumulates repeated upstream dublin core title date language and identifiers' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-dc-accumulation-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary EPUB package');
+        }
+        $zip->addFromString('META-INF/container.xml', '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="pub-id">
+  <metadata>
+    <dc:identifier id="isbn">urn:isbn:9780000000002</dc:identifier>
+    <dc:identifier id="pub-id">urn:uuid:dc-accumulation</dc:identifier>
+    <dc:title>Main Accumulated Title</dc:title>
+    <dc:title>Alternate Accumulated Title</dc:title>
+    <dc:creator>Accumulation Author</dc:creator>
+    <dc:language>en-US</dc:language>
+    <dc:language>fr-CA</dc:language>
+    <dc:date>2026-07-01</dc:date>
+    <dc:date>2026-07-02</dc:date>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('OPS/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Body.</p></body></html>');
+        $zip->close();
+
+        try {
+            $document = (new EpubReader())->readEpubFile($path);
+            $meta = $document->attr('meta');
+            $native = (new NativeWriter())->write($document);
+        } finally {
+            @unlink($path);
+        }
+
+        $title = $meta['title'] ?? null;
+        $date = $meta['date'] ?? null;
+        $language = $meta['language'] ?? null;
+        $identifier = $meta['identifier'] ?? null;
+
+        $t->same('MetaList', $title['type'] ?? null);
+        $t->same('Alternate Accumulated Title', $title['value'][0]['value'][0]->attr('text') ?? null);
+        $t->same('Main Accumulated Title', $title['value'][1]['value'][0]->attr('text') ?? null);
+        $t->same('Main Accumulated Title', $meta['titleInlines'][0]->attr('text'));
+        $t->same('MetaList', $date['type'] ?? null);
+        $t->same('2026-07-02', $date['value'][0]['value'][0]->attr('text') ?? null);
+        $t->same('2026-07-01', $date['value'][1]['value'][0]->attr('text') ?? null);
+        $t->same('2026-07-01', $meta['dateInlines'][0]->attr('text'));
+        $t->same('en-US', $meta['lang']);
+        $t->same(['en-US', 'fr-CA'], $meta['languages']);
+        $t->same('MetaList', $language['type'] ?? null);
+        $t->same('fr-CA', $language['value'][0]['value'][0]->attr('text') ?? null);
+        $t->same('en-US', $language['value'][1]['value'][0]->attr('text') ?? null);
+        $t->same('MetaList', $identifier['type'] ?? null);
+        $t->same('urn:uuid:dc-accumulation', $identifier['value'][0]['value'][0]->attr('text') ?? null);
+        $t->same('urn:isbn:9780000000002', $identifier['value'][1]['value'][0]->attr('text') ?? null);
+        $t->same('urn:uuid:dc-accumulation', $meta['epubSelectedIdentifier']);
+        $t->contains(
+            '( "language" , MetaList [ MetaInlines [ Str "fr-CA" ] , MetaInlines [ Str "en-US" ] ] )',
+            $native
+        );
+        $t->contains(
+            '( "identifier" , MetaList [ MetaInlines [ Str "urn:uuid:dc-accumulation" ] , MetaInlines [ Str "urn:isbn:9780000000002" ] ] )',
+            $native
+        );
     },
     'retains upstream dublin core contributor metadata as pandoc meta values' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-contributor-');
