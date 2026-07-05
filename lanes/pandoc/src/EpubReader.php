@@ -480,7 +480,7 @@ final class EpubReader
     }
 
     /**
-     * @return array<string, array{href: string, media-type: string, properties: list<string>}>
+     * @return array<string, array<string, mixed>>
      */
     private function manifest(\DOMElement $package): array
     {
@@ -501,6 +501,9 @@ final class EpubReader
                     preg_split('/\s+/', trim($element->getAttribute('properties'))) ?: [],
                     static fn (string $property): bool => $property !== ''
                 )),
+                'fallback' => $this->nullableManifestReferenceId($element, 'fallback'),
+                'fallback-style' => $this->nullableManifestReferenceId($element, 'fallback-style'),
+                'media-overlay' => $this->nullableManifestReferenceId($element, 'media-overlay'),
             ];
         }
 
@@ -508,18 +511,19 @@ final class EpubReader
     }
 
     /**
-     * @param array<string, array{href: string, media-type: string, properties: list<string>}> $manifest
+     * @param array<string, array<string, mixed>> $manifest
      * @return list<string>
      */
     private function imageResources(string $base_path, array $manifest): array
     {
         $resources = [];
         foreach ($manifest as $item) {
-            if ($this->isAbsoluteUrl($item['href'])) {
+            $item_href = (string) ($item['href'] ?? '');
+            if ($this->isAbsoluteUrl($item_href)) {
                 continue;
             }
-            $href = $this->packagePartPath($item['href'], $base_path);
-            $media_type = strtolower($item['media-type']);
+            $href = $this->packagePartPath($item_href, $base_path);
+            $media_type = strtolower((string) ($item['media-type'] ?? ''));
             if (str_starts_with($media_type, 'image/') || $this->pathLooksLikeImage($href)) {
                 $resources[] = $href;
             }
@@ -529,26 +533,26 @@ final class EpubReader
     }
 
     /**
-     * @param array<string, array{href: string, media-type: string, properties: list<string>}> $manifest
-     * @return list<array{id: string, href: string, path: string, mediaType: string, properties: list<string>, external: bool, readable: bool, navigation: bool, ncx: bool, coverImage: bool}>
+     * @param array<string, array<string, mixed>> $manifest
+     * @return list<array<string, mixed>>
      */
     private function manifestItemsMetadata(string $base_path, array $manifest): array
     {
         $items = [];
         foreach ($manifest as $id => $item) {
-            $href = $item['href'];
+            $href = (string) ($item['href'] ?? '');
             $path = $this->rewriteRelativeResourceUrl($href, $base_path);
             $part_path = $this->isAbsoluteUrl($href) ? $path : $this->packagePartPath($href, $base_path);
-            $media_type = $item['media-type'];
-            $properties = $item['properties'];
+            $media_type = (string) ($item['media-type'] ?? '');
+            $properties = is_array($item['properties'] ?? null) ? array_values($item['properties']) : [];
             $lower_properties = array_map('strtolower', $properties);
             $media_type_lower = strtolower($media_type);
 
-            $items[] = [
+            $metadata = [
                 'id' => $id,
                 'href' => $href,
                 'path' => $path,
-                'mediaType' => $item['media-type'],
+                'mediaType' => $media_type,
                 'properties' => $properties,
                 'external' => $this->isAbsoluteUrl($href),
                 'readable' => !$this->isAbsoluteUrl($href) && $this->isReadableSpineItem($media_type),
@@ -556,13 +560,73 @@ final class EpubReader
                 'ncx' => str_contains($media_type_lower, 'x-dtbncx') || str_ends_with(strtolower($part_path), '.ncx'),
                 'coverImage' => in_array('cover-image', $lower_properties, true),
             ];
+            $metadata += $this->manifestItemReferenceMetadata(
+                'fallback',
+                is_string($item['fallback'] ?? null) ? $item['fallback'] : null,
+                $base_path,
+                $manifest
+            );
+            $metadata += $this->manifestItemReferenceMetadata(
+                'fallbackStyle',
+                is_string($item['fallback-style'] ?? null) ? $item['fallback-style'] : null,
+                $base_path,
+                $manifest
+            );
+            $metadata += $this->manifestItemReferenceMetadata(
+                'mediaOverlay',
+                is_string($item['media-overlay'] ?? null) ? $item['media-overlay'] : null,
+                $base_path,
+                $manifest
+            );
+            $items[] = $metadata;
         }
 
         return $items;
     }
 
     /**
-     * @param array<string, array{href: string, media-type: string, properties: list<string>}> $manifest
+     * @param array<string, array<string, mixed>> $manifest
+     * @return array<string, mixed>
+     */
+    private function manifestItemReferenceMetadata(string $prefix, ?string $id, string $base_path, array $manifest): array
+    {
+        if ($id === null || $id === '') {
+            return [];
+        }
+
+        $metadata = [
+            $prefix . 'Id' => $id,
+            $prefix . 'Missing' => !isset($manifest[$id]),
+        ];
+        $target = $manifest[$id] ?? null;
+        if (!is_array($target)) {
+            return $metadata;
+        }
+
+        $href = (string) ($target['href'] ?? '');
+        $media_type = (string) ($target['media-type'] ?? '');
+        $properties = is_array($target['properties'] ?? null) ? array_values($target['properties']) : [];
+        $external = $href !== '' && $this->isAbsoluteUrl($href);
+
+        return $metadata + [
+            $prefix . 'Href' => $href,
+            $prefix . 'Path' => $href === '' ? '' : $this->rewriteRelativeResourceUrl($href, $base_path),
+            $prefix . 'MediaType' => $media_type,
+            $prefix . 'Properties' => $properties,
+            $prefix . 'External' => $external,
+            $prefix . 'Readable' => !$external && $this->isReadableSpineItem($media_type),
+        ];
+    }
+
+    private function nullableManifestReferenceId(\DOMElement $element, string $attribute): ?string
+    {
+        $id = trim($element->getAttribute($attribute));
+
+        return $id === '' ? null : $id;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifest
      * @return list<array<string, mixed>>
      */
     private function packageLinks(\DOMElement $package, string $rootfile, string $base_path, array $manifest): array
@@ -580,7 +644,7 @@ final class EpubReader
 
         $manifest_by_path = [];
         foreach ($manifest as $id => $item) {
-            $href = $item['href'];
+            $href = (string) ($item['href'] ?? '');
             if ($this->isAbsoluteUrl($href)) {
                 continue;
             }
@@ -589,8 +653,8 @@ final class EpubReader
             if ($path !== '' && !isset($manifest_by_path[$path])) {
                 $manifest_by_path[$path] = [
                     'id' => $id,
-                    'media-type' => $item['media-type'],
-                    'properties' => $item['properties'],
+                    'media-type' => (string) ($item['media-type'] ?? ''),
+                    'properties' => is_array($item['properties'] ?? null) ? array_values($item['properties']) : [],
                 ];
             }
         }
@@ -777,8 +841,8 @@ final class EpubReader
     }
 
     /**
-     * @param array<string, array{href: string, media-type: string, properties: list<string>}> $manifest
-     * @return list<array{index: int, id: ?string, idref: string, href: string, path: string, mediaType: string, linear: bool, properties: list<string>, manifestProperties: list<string>, missingManifestItem: bool, external: bool, readable: bool}>
+     * @param array<string, array<string, mixed>> $manifest
+     * @return list<array<string, mixed>>
      */
     private function spineItems(\DOMElement $package, string $base_path, array $manifest): array
     {
@@ -792,14 +856,17 @@ final class EpubReader
                 continue;
             }
             $manifest_item = $manifest[$idref] ?? null;
-            $href = is_array($manifest_item) ? $manifest_item['href'] : '';
+            $href = is_array($manifest_item) ? (string) ($manifest_item['href'] ?? '') : '';
             $path = $href === '' ? '' : $this->rewriteRelativeResourceUrl($href, $base_path);
             $part_path = $href === '' || $this->isAbsoluteUrl($href) ? $path : $this->packagePartPath($href, $base_path);
-            $media_type = is_array($manifest_item) ? $manifest_item['media-type'] : '';
+            $media_type = is_array($manifest_item) ? (string) ($manifest_item['media-type'] ?? '') : '';
+            $manifest_properties = is_array($manifest_item) && is_array($manifest_item['properties'] ?? null)
+                ? array_values($manifest_item['properties'])
+                : [];
             $external = $href !== '' && $this->isAbsoluteUrl($href);
             $linear = !$element->hasAttribute('linear') || $element->getAttribute('linear') === 'yes';
 
-            $items[] = [
+            $item = [
                 'index' => count($items),
                 'id' => trim($element->getAttribute('id')) !== '' ? trim($element->getAttribute('id')) : null,
                 'idref' => $idref,
@@ -808,11 +875,32 @@ final class EpubReader
                 'mediaType' => $media_type,
                 'linear' => $linear,
                 'properties' => $this->tokenList($element->getAttribute('properties')),
-                'manifestProperties' => is_array($manifest_item) ? $manifest_item['properties'] : [],
+                'manifestProperties' => $manifest_properties,
                 'missingManifestItem' => !is_array($manifest_item),
                 'external' => $external,
                 'readable' => is_array($manifest_item) && !$external && $this->isReadableSpineItem($media_type),
             ];
+            if (is_array($manifest_item)) {
+                $item += $this->manifestItemReferenceMetadata(
+                    'fallback',
+                    is_string($manifest_item['fallback'] ?? null) ? $manifest_item['fallback'] : null,
+                    $base_path,
+                    $manifest
+                );
+                $item += $this->manifestItemReferenceMetadata(
+                    'fallbackStyle',
+                    is_string($manifest_item['fallback-style'] ?? null) ? $manifest_item['fallback-style'] : null,
+                    $base_path,
+                    $manifest
+                );
+                $item += $this->manifestItemReferenceMetadata(
+                    'mediaOverlay',
+                    is_string($manifest_item['media-overlay'] ?? null) ? $manifest_item['media-overlay'] : null,
+                    $base_path,
+                    $manifest
+                );
+            }
+            $items[] = $item;
         }
 
         return $items;
@@ -832,7 +920,7 @@ final class EpubReader
     }
 
     /**
-     * @param array<string, array{href: string, media-type: string, properties: list<string>}> $manifest
+     * @param array<string, array<string, mixed>> $manifest
      * @return list<array{index: int, type: string, typeRaw: string, types: list<string>, title: string, href: string, target: string, path: string, fragment: ?string, hrefHasQuery: bool, hrefQuery: ?string, hrefHasFragment: bool, hrefFragment: ?string, external: bool, manifestId: ?string, manifestMediaType: ?string, manifestProperties: list<string>}>
      */
     private function guideReferences(\DOMElement $package, string $base_path, array $manifest): array
@@ -850,7 +938,7 @@ final class EpubReader
 
         $manifest_by_path = [];
         foreach ($manifest as $id => $item) {
-            $href = $item['href'];
+            $href = (string) ($item['href'] ?? '');
             if ($this->isAbsoluteUrl($href)) {
                 continue;
             }
@@ -859,8 +947,8 @@ final class EpubReader
             if ($path !== '' && !isset($manifest_by_path[$path])) {
                 $manifest_by_path[$path] = [
                     'id' => $id,
-                    'media-type' => $item['media-type'],
-                    'properties' => $item['properties'],
+                    'media-type' => (string) ($item['media-type'] ?? ''),
+                    'properties' => is_array($item['properties'] ?? null) ? array_values($item['properties']) : [],
                 ];
             }
         }
@@ -1178,7 +1266,7 @@ final class EpubReader
     }
 
     /**
-     * @param array<string, array{href: string, media-type: string, properties: list<string>}> $manifest
+     * @param array<string, array<string, mixed>> $manifest
      * @return array{resources: list<string>, entries: list<array{text: string, href: string, level: int}>, landmarks: list<array{text: string, href: string, level: int, epubTypes: list<string>}>, pageList: list<array{text: string, href: string, level: int}>, auxiliary: list<array{text: string, href: string, level: int, sectionType: string}>, sections: list<array{type: string, types: list<string>, label: string, resource: string, entryCount: int, entries: list<array<string, mixed>>}>, sectionTypes: list<string>}
      */
     private function toc(ZipPackage $zip, string $base_path, array $manifest, string $spine_toc_id): array
@@ -1193,12 +1281,16 @@ final class EpubReader
         $navigation_sections = [];
         $section_types = [];
         foreach ($manifest as $id => $item) {
-            if ($this->isAbsoluteUrl($item['href'])) {
+            $item_href = (string) ($item['href'] ?? '');
+            if ($this->isAbsoluteUrl($item_href)) {
                 continue;
             }
-            $href = $this->packagePartPath($item['href'], $base_path);
-            $media_type = strtolower($item['media-type']);
-            $properties = array_map('strtolower', $item['properties']);
+            $href = $this->packagePartPath($item_href, $base_path);
+            $media_type = strtolower((string) ($item['media-type'] ?? ''));
+            $properties = array_map(
+                'strtolower',
+                is_array($item['properties'] ?? null) ? array_values($item['properties']) : []
+            );
             $is_nav = in_array('nav', $properties, true);
             $is_ncx = $id === $spine_toc_id || str_contains($media_type, 'x-dtbncx') || str_ends_with(strtolower($href), '.ncx');
             if (!$is_nav && !$is_ncx) {
@@ -2230,7 +2322,7 @@ final class EpubReader
     }
 
     /**
-     * @param array<string, array{href: string, media-type: string, properties: list<string>}> $manifest
+     * @param array<string, array<string, mixed>> $manifest
      */
     private function coverImageHref(\DOMElement $package, array $manifest): ?string
     {
@@ -2246,9 +2338,12 @@ final class EpubReader
         }
 
         foreach ($manifest as $id => $item) {
-            $properties = array_map('strtolower', $item['properties']);
+            $properties = array_map(
+                'strtolower',
+                is_array($item['properties'] ?? null) ? array_values($item['properties']) : []
+            );
             if ($id === $cover_id || in_array('cover-image', $properties, true)) {
-                return $item['href'];
+                return (string) ($item['href'] ?? '');
             }
         }
 
@@ -2710,7 +2805,7 @@ final class EpubReader
     }
 
     /**
-     * @param array<string, array{href: string, media-type: string, properties: list<string>}> $manifest
+     * @param array<string, array<string, mixed>> $manifest
      * @param array<string, string> $media_bag_sources
      * @return array{directory: list<array<string, mixed>>, diagnostics: list<string>}
      */
@@ -2738,19 +2833,19 @@ final class EpubReader
     }
 
     /**
-     * @param array<string, array{href: string, media-type: string, properties: list<string>}> $manifest
+     * @param array<string, array<string, mixed>> $manifest
      * @return array<string, string>
      */
     private function manifestMediaTypesByResourcePath(string $base_path, array $manifest): array
     {
         $media_types = [];
         foreach ($manifest as $item) {
-            $href = $item['href'];
+            $href = (string) ($item['href'] ?? '');
             if ($this->isAbsoluteUrl($href)) {
                 continue;
             }
             $path = $this->packagePartPath($href, $base_path);
-            $media_type = $this->mediaTypeBase($item['media-type']);
+            $media_type = $this->mediaTypeBase((string) ($item['media-type'] ?? ''));
             if ($path !== '' && $media_type !== '') {
                 $media_types[$path] = $media_type;
             }

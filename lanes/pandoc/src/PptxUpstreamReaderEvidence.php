@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 104;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 105;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '3012ab1700349a19ad30b3ad426b616efd3b153b73b7028324bad053723c8444';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 44928;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'a70f983234aef465bfcc8e2ba318bd239eb3e8bfb5c9423434c63b037b04ef02';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 45331;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -1218,6 +1218,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => '346a3a5c5484f21810c5745c41db13a68de5c20a87fe3332bc7da5688fa6ea6b',
             'pptxBytes' => 2380,
             'nativeBytes' => 90,
+        ],
+        'relationship-root-alias' => [
+            'name' => 'generated relationship root alias parity',
+            'pptx' => 'pptx-reader/relationship-root-alias.pptx',
+            'native' => 'pptx-reader/relationship-root-alias.native',
+            'pairKey' => 'pptx-reader/relationship-root-alias.pptx|pptx-reader/relationship-root-alias.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/relationship-root-alias.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/relationship-root-alias.native',
+            'pptxSha256' => 'b5e36f9e43595a72fa9c07a5ddcfaf1761263336313da07d698bbb1656052d8a',
+            'nativeSha256' => '2b98f648ad9ddf52271c4d333091a599b5d43a9a28396b64952677f658f26641',
+            'pptxBytes' => 2182,
+            'nativeBytes' => 249,
         ],
         'repeated-slash-slide-target' => [
             'name' => 'generated repeated-slash slide target parity',

@@ -47,6 +47,7 @@ final class HtmlReader
             if ($this->shouldFlattenHtmlDetailsSummaryContainers()) {
                 $readerBytes = self::flattenHtmlDetailsSummaryContainers($readerBytes);
             }
+            $readerBytes = self::flattenHtmlMenuContainers($readerBytes);
             $readerBytes = self::flattenOrphanTableFragmentContainers($readerBytes);
             $segmentedDocument = $this->readInlineTopLevelSourceSegments($readerBytes);
             if ($segmentedDocument !== null) {
@@ -349,6 +350,131 @@ final class HtmlReader
         }
 
         return self::serializeHtmlRewriteSource($source) ?? $bytes;
+    }
+
+    private static function flattenHtmlMenuContainers(string $bytes): string
+    {
+        try {
+            $source = self::parseHtmlRewriteSource($bytes);
+        } catch (\Throwable) {
+            return $bytes;
+        }
+        if ($source === null || !self::flattenHtmlMenuElements($source['dom'])) {
+            return $bytes;
+        }
+
+        return self::serializeHtmlRewriteSource($source) ?? $bytes;
+    }
+
+    private static function flattenHtmlMenuElements(\DOMDocument $dom): bool
+    {
+        $changed = false;
+        for ($pass = 0; $pass < 8; ++$pass) {
+            $menus = self::htmlElementsByName($dom, 'menu');
+            if ($menus === []) {
+                return $changed;
+            }
+
+            foreach (array_reverse($menus) as $menu) {
+                $parent = $menu->parentNode;
+                if (!$parent instanceof \DOMNode) {
+                    continue;
+                }
+
+                foreach (self::htmlMenuReplacementNodes($dom, $menu) as $replacement) {
+                    $parent->insertBefore($replacement, $menu);
+                }
+                $parent->removeChild($menu);
+                $changed = true;
+            }
+        }
+
+        return $changed;
+    }
+
+    /**
+     * @return list<\DOMNode>
+     */
+    private static function htmlMenuReplacementNodes(\DOMDocument $dom, \DOMElement $menu): array
+    {
+        $replacementNodes = [];
+        foreach (iterator_to_array($menu->childNodes) as $child) {
+            if ($child instanceof \DOMText && trim($child->wholeText) === '') {
+                continue;
+            }
+
+            if (!$child instanceof \DOMElement || strtolower($child->localName) !== 'li') {
+                $replacementNodes[] = $child->cloneNode(true);
+                continue;
+            }
+
+            array_push($replacementNodes, ...self::htmlMenuItemBlockNodes($dom, $child));
+        }
+
+        return $replacementNodes;
+    }
+
+    /**
+     * @return list<\DOMNode>
+     */
+    private static function htmlMenuItemBlockNodes(\DOMDocument $dom, \DOMElement $item): array
+    {
+        $blocks = [];
+        $pendingInlineNodes = [];
+        foreach (iterator_to_array($item->childNodes) as $child) {
+            if ($child instanceof \DOMElement && self::isHtmlBlockContainerName(strtolower($child->localName))) {
+                self::flushHtmlMenuInlineNodes($dom, $pendingInlineNodes, $blocks);
+                $blocks[] = $child->cloneNode(true);
+                continue;
+            }
+
+            $pendingInlineNodes[] = $child->cloneNode(true);
+        }
+
+        self::flushHtmlMenuInlineNodes($dom, $pendingInlineNodes, $blocks);
+
+        return $blocks;
+    }
+
+    /**
+     * @param list<\DOMNode> $pendingInlineNodes
+     * @param list<\DOMNode> $blocks
+     */
+    private static function flushHtmlMenuInlineNodes(\DOMDocument $dom, array &$pendingInlineNodes, array &$blocks): void
+    {
+        if (!self::htmlNodesContainMeaningfulContent($pendingInlineNodes)) {
+            $pendingInlineNodes = [];
+
+            return;
+        }
+
+        $paragraph = $dom->createElement('p');
+        foreach ($pendingInlineNodes as $node) {
+            $paragraph->appendChild($node);
+        }
+        $blocks[] = $paragraph;
+        $pendingInlineNodes = [];
+    }
+
+    /**
+     * @param list<\DOMNode> $nodes
+     */
+    private static function htmlNodesContainMeaningfulContent(array $nodes): bool
+    {
+        foreach ($nodes as $node) {
+            if ($node instanceof \DOMText || $node instanceof \DOMCdataSection) {
+                if (trim($node->nodeValue ?? '') !== '') {
+                    return true;
+                }
+                continue;
+            }
+
+            if ($node instanceof \DOMElement) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static function flattenOrphanTableFragmentContainers(string $bytes): string

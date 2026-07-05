@@ -3260,6 +3260,45 @@ NATIVE;
         $t->true(!str_contains($native, 'Str "extra"'));
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
+    'matches generated csv quoted tab cell native parity fixture with pandoc executable backing' => static function (TestRunner $t) use ($generatedCsvNativeFixture, $nativeTokenStream): void {
+        $fixture = $generatedCsvNativeFixture('quoted-tab-cell');
+        $document = (new DelimitedTextReader())->readCsv($fixture['input'], [
+            'sourcePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/quoted-tab-cell.csv',
+        ]);
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+        $native = PandocConverter::write($document, 'native');
+        $generatedEvidence = $packet['upstreamEvidence']['generatedNativeParityEvidence'] ?? [];
+        $body = $table->children[1];
+
+        $t->same('csv', $packet['format'] ?? null);
+        $t->same(',', $packet['delimiter'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
+        $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
+        $t->same(2 * DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['checkedInFixtureCount'] ?? null);
+        $t->same('quoted-tab-cell.csv', $generatedEvidence['checkedInFixtures'][134]['name'] ?? null);
+        $t->same('a38d027bb7d8a6ccd8007f09bb6e4ea2fe891a654c99d2ae94340b425815be3e', $generatedEvidence['checkedInFixtures'][134]['checkedInFile']['sha256'] ?? null);
+        $t->same('quoted-tab-cell.native', $generatedEvidence['checkedInFixtures'][135]['name'] ?? null);
+        $t->same('8b44069d6379ccbb9ca71d673127f56b9f40f5853a6773efa82dffde5a6ffa34', $generatedEvidence['checkedInFixtures'][135]['checkedInFile']['sha256'] ?? null);
+        $t->same('quoted-tab-cell', $generatedEvidence['samples'][67]['name'] ?? null);
+        $t->same([], $generatedEvidence['samples'][67]['readerOptions'] ?? null);
+        $t->same(['id', 'note', 'status'], $table->attr('columnNames'));
+        $t->same(3, $packet['rowCount'] ?? null);
+        $t->same(2, $packet['bodyRowCount'] ?? null);
+        $t->same(3, $packet['columnCount'] ?? null);
+        $t->same(9, $packet['fieldCount'] ?? null);
+        $t->same(2, $packet['quotedFieldCount'] ?? null);
+        $t->same(0, $packet['raggedRowCount'] ?? null);
+        $t->same(0, $packet['diagnosticCount'] ?? null);
+        $t->same("alpha\tomega", $body->children[0]->children[1]->attr('text'));
+        $t->same("two\ttabs", $body->children[1]->children[1]->attr('text'));
+        $t->same('done', $body->children[1]->children[2]->attr('text'));
+        $t->contains('Plain [ Str "alpha" , Space , Str "omega" ]', $native);
+        $t->contains('Plain [ Str "two" , Space , Str "tabs" ]', $native);
+        $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
+    },
     'matches generated tsv native parity fixture without inflating upstream tsv direct denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture();
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [

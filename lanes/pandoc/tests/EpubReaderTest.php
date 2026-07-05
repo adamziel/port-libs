@@ -2405,6 +2405,77 @@ HTML);
         $t->true(!str_contains($native, 'Div ( "semantic.xhtml_semantic-chapter"'));
         $t->true(!str_contains($native, '_epubSemanticTypes'));
     },
+    'preserves checked-in manifest fallback and media overlay relationships' => static function (TestRunner $t): void {
+        $fixtureRoot = __DIR__ . '/../fixtures/upstream-current-epub-reader/epub';
+        $reader = new EpubReader();
+        $itemsById = static function (array $items): array {
+            $indexed = [];
+            foreach ($items as $item) {
+                if (is_array($item) && is_string($item['id'] ?? null)) {
+                    $indexed[$item['id']] = $item;
+                }
+            }
+
+            return $indexed;
+        };
+
+        $fallbackDocument = $reader->readEpubFile($fixtureRoot . '/spine-fallback-resource.epub');
+        $fallbackMeta = $fallbackDocument->attr('meta');
+        $fallbackItems = $itemsById($fallbackMeta['epubManifestItems']);
+        $fallbackSource = $fallbackItems['source'];
+        $fallbackSpine = $fallbackMeta['epubSpineItemRefs'][0];
+        $fallbackMarker = $fallbackDocument->children[0]->children[0] ?? new AstNode('missing');
+
+        $t->same('source.fbk', $fallbackMarker->attr('id'));
+        $t->same(false, $fallbackSource['readable']);
+        $t->same('fallback', $fallbackSource['fallbackId']);
+        $t->same(false, $fallbackSource['fallbackMissing']);
+        $t->same('fallback.xhtml', $fallbackSource['fallbackHref']);
+        $t->same('EPUB/fallback.xhtml', $fallbackSource['fallbackPath']);
+        $t->same('application/xhtml+xml', $fallbackSource['fallbackMediaType']);
+        $t->same([], $fallbackSource['fallbackProperties']);
+        $t->same(false, $fallbackSource['fallbackExternal']);
+        $t->same(true, $fallbackSource['fallbackReadable']);
+        $t->same('source', $fallbackSpine['idref']);
+        $t->same(false, $fallbackSpine['readable']);
+        $t->same('fallback', $fallbackSpine['fallbackId']);
+        $t->same('EPUB/fallback.xhtml', $fallbackSpine['fallbackPath']);
+        $t->same(true, $fallbackSpine['fallbackReadable']);
+
+        $fallbackStyleDocument = $reader->readEpubFile($fixtureRoot . '/manifest-fallback-style.epub');
+        $fallbackStyleItems = $itemsById($fallbackStyleDocument->attr('meta')['epubManifestItems']);
+        $widget = $fallbackStyleItems['widget'];
+
+        $t->same('fallback', $widget['fallbackId']);
+        $t->same('EPUB/fallback.xhtml', $widget['fallbackPath']);
+        $t->same(true, $widget['fallbackReadable']);
+        $t->same('style', $widget['fallbackStyleId']);
+        $t->same(false, $widget['fallbackStyleMissing']);
+        $t->same('styles/fallback.css', $widget['fallbackStyleHref']);
+        $t->same('EPUB/styles/fallback.css', $widget['fallbackStylePath']);
+        $t->same('text/css', $widget['fallbackStyleMediaType']);
+        $t->same(false, $widget['fallbackStyleExternal']);
+        $t->same(false, $widget['fallbackStyleReadable']);
+
+        $overlayDocument = $reader->readEpubFile($fixtureRoot . '/media-overlay-package.epub');
+        $overlayMeta = $overlayDocument->attr('meta');
+        $overlayItems = $itemsById($overlayMeta['epubManifestItems']);
+        $overlayChapter = $overlayItems['chapter'];
+        $overlaySpine = $overlayMeta['epubSpineItemRefs'][0];
+
+        $t->same('mo', $overlayChapter['mediaOverlayId']);
+        $t->same(false, $overlayChapter['mediaOverlayMissing']);
+        $t->same('overlays/chapter.smil', $overlayChapter['mediaOverlayHref']);
+        $t->same('EPUB/overlays/chapter.smil', $overlayChapter['mediaOverlayPath']);
+        $t->same('application/smil+xml', $overlayChapter['mediaOverlayMediaType']);
+        $t->same([], $overlayChapter['mediaOverlayProperties']);
+        $t->same(false, $overlayChapter['mediaOverlayExternal']);
+        $t->same(false, $overlayChapter['mediaOverlayReadable']);
+        $t->same('chapter', $overlaySpine['idref']);
+        $t->same(true, $overlaySpine['readable']);
+        $t->same('mo', $overlaySpine['mediaOverlayId']);
+        $t->same('EPUB/overlays/chapter.smil', $overlaySpine['mediaOverlayPath']);
+    },
     'preserves epub details and summary raw block wrappers from html document dom' => static function (TestRunner $t): void {
         $fixture = __DIR__ . '/../fixtures/upstream-current-epub-reader/epub/xhtml-details-summary-spine.epub';
 

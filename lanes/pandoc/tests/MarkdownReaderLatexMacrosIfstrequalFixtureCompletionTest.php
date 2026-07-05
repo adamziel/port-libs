@@ -61,8 +61,27 @@ return [
             $t->same('\\foo{x}', ($disabled->children[1]->children[0] ?? new AstNode('missing'))->attr('text'));
         },
 
+    'maps latex macro command-space separately from raw tex preservation' =>
+        static function (TestRunner $t) use ($inlineTypes): void {
+            $source = '\\ifstrequal {hello}{hello}{TRUE}{FALSE}';
+            $enabled = (new MarkdownReader(['format' => 'markdown']))->read($source);
+            $disabled = (new MarkdownReader(['format' => 'markdown-latex_macros']))->read($source);
+            $rawTexDisabled = (new MarkdownReader(['format' => 'markdown-raw_tex']))->read($source);
+
+            $enabledParagraph = $enabled->children[0] ?? new AstNode('missing');
+            $disabledParagraph = $disabled->children[0] ?? new AstNode('missing');
+            $literalParagraph = $rawTexDisabled->children[0] ?? new AstNode('missing');
+
+            $t->same(['raw_tex_inline'], $inlineTypes($enabledParagraph));
+            $t->same('TRUE', ($enabledParagraph->children[0] ?? new AstNode('missing'))->attr('tex'));
+            $t->same(['raw_tex_inline'], $inlineTypes($disabledParagraph));
+            $t->same($source, ($disabledParagraph->children[0] ?? new AstNode('missing'))->attr('tex'));
+            $t->same(['text'], $inlineTypes($literalParagraph));
+            $t->same($source, $literalParagraph->attr('text'));
+        },
+
     'records markdown reader latex macro ifstrequal fixture completion mapped-case count' =>
         static function (TestRunner $t): void {
-            $t->same(6, 2 + 2 + 2);
+            $t->same(9, 2 + 2 + 2 + 3);
         },
 ];

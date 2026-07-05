@@ -1,0 +1,11 @@
+[ Header
+    2 ( "slide-1" , [] , [] ) [ Str "Relationship root names" ]
+, Para
+    [ Image
+        ( "" , [] , [] )
+        [ Str "Root alias alt" ]
+        ( "ppt/media/relationship-root-alias.png"
+        , "Root Alias Picture"
+        )
+    ]
+]

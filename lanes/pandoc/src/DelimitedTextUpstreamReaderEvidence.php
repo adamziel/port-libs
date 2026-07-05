@@ -21,9 +21,9 @@ final class DelimitedTextUpstreamReaderEvidence
     public const EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT = 1;
     public const EXPECTED_STATIC_CURRENT_TSV_DIRECT_NATIVE_PAIR_COUNT = 2;
     public const EXPECTED_STATIC_CSV_ADJACENT_RST_FIXTURE_COUNT = 2;
-    public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 67;
+    public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 68;
     public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 44;
-    public const EXPECTED_GENERATED_CSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT = 48;
+    public const EXPECTED_GENERATED_CSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT = 49;
     public const EXPECTED_GENERATED_TSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT = 31;
     public const EXPECTED_CSV_PARSER_OPTION_FIXTURE_COUNT = 9;
     public const REQUIRED_PANDOC_EXECUTABLE_VERSION = 'pandoc 3.10';
@@ -1088,6 +1088,20 @@ final class DelimitedTextUpstreamReaderEvidence
             'sha256' => '4515da292e71e03feb07e21c19d7d7a9966086ef0ce1bd0f8888e2041a87d04e',
             'bytes' => 1585,
         ],
+        'quoted-tab-cell.csv' => [
+            'role' => 'generated-csv-native-parity-input-fixture',
+            'sample' => 'quoted-tab-cell',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/quoted-tab-cell.csv',
+            'sha256' => 'a38d027bb7d8a6ccd8007f09bb6e4ea2fe891a654c99d2ae94340b425815be3e',
+            'bytes' => 52,
+        ],
+        'quoted-tab-cell.native' => [
+            'role' => 'generated-csv-native-parity-expected-native-output',
+            'sample' => 'quoted-tab-cell',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/quoted-tab-cell.native',
+            'sha256' => '8b44069d6379ccbb9ca71d673127f56b9f40f5853a6773efa82dffde5a6ffa34',
+            'bytes' => 2152,
+        ],
     ];
 
     private const CHECKED_IN_GENERATED_TSV_NATIVE_FIXTURES = [
@@ -2036,6 +2050,10 @@ final class DelimitedTextUpstreamReaderEvidence
             'inputPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/quoted-doubled-linebreak-ragged.csv',
             'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/quoted-doubled-linebreak-ragged.native',
         ],
+        'quoted-tab-cell' => [
+            'inputPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/quoted-tab-cell.csv',
+            'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/quoted-tab-cell.native',
+        ],
     ];
 
     private const GENERATED_TSV_NATIVE_SAMPLES = [
@@ -2300,6 +2318,7 @@ final class DelimitedTextUpstreamReaderEvidence
         'partial-final-record',
         'quoted-final-space-whitespace',
         'quoted-doubled-linebreak-ragged',
+        'quoted-tab-cell',
     ];
 
     private const PANDOC_EXECUTABLE_TSV_NATIVE_SAMPLE_NAMES = [
@@ -4851,7 +4870,7 @@ final class DelimitedTextUpstreamReaderEvidence
 
     private static function claim(): string
     {
-        return 'Tracks the current upstream direct CSV command-reader fixtures, the first upstream direct TSV command fixture, two embedded CSV command transcript native probes, the adjacent RST csv-table fixture pair with zero direct-reader denominator impact, sixty-seven generated CSV-to-native evidence samples, two current TSV direct native probes, and forty-four generated TSV-to-native evidence samples for the delimited text reader.';
+        return 'Tracks the current upstream direct CSV command-reader fixtures, the first upstream direct TSV command fixture, two embedded CSV command transcript native probes, the adjacent RST csv-table fixture pair with zero direct-reader denominator impact, sixty-eight generated CSV-to-native evidence samples, two current TSV direct native probes, and forty-four generated TSV-to-native evidence samples for the delimited text reader.';
     }
 
     /**
@@ -4870,7 +4889,7 @@ final class DelimitedTextUpstreamReaderEvidence
                 'static checked-in current 8661.md fixture identity when staticCurrentEvidence is valid',
                 'two current CSV embedded command transcript native probes when currentCsvDirectNativeParityEvidence is valid',
                 'nine CSV parser-option generated native fixture names covering delimiter, quote, escape, keep-space, multiline, pipe, and no-header variants',
-                'sixty-seven generated CSV-to-native local samples when generatedCsvNativeParityEvidence is valid',
+                'sixty-eight generated CSV-to-native local samples when generatedCsvNativeParityEvidence is valid',
                 'two current TSV direct native probes when currentTsvDirectNativeParityEvidence is valid',
                 'forty-four generated TSV-to-native local samples when generatedTsvNativeParityEvidence is valid',
                 'the non-executed upstream command-test runner plan for the pinned csv.md command fixture',

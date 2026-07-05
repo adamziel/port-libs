@@ -20274,7 +20274,7 @@ final class MarkdownReader
             ];
         }
 
-        $ifstrequal = $this->latexMacrosEnabled() ? $this->tryParseIfstrequalRawTexInline($text, $offset) : null;
+        $ifstrequal = $this->tryParseIfstrequalRawTexInline($text, $offset);
         if ($ifstrequal !== null) {
             return $ifstrequal;
         }
@@ -20321,6 +20321,7 @@ final class MarkdownReader
         }
 
         $cursor = $offset + strlen($command);
+        $cursor += strspn($text, " \t", $cursor);
         $arguments = [];
         for ($index = 0; $index < 4; $index++) {
             $argument = $this->readTexBraceArgument($text, $cursor);
@@ -20329,6 +20330,15 @@ final class MarkdownReader
             }
             $arguments[] = $argument['value'];
             $cursor = $argument['next'];
+        }
+
+        if (!$this->latexMacrosEnabled()) {
+            $source = substr($text, $offset, $cursor - $offset);
+
+            return [
+                'node' => new AstNode('raw_tex_inline', $this->rawTexAttrs($source, ['command' => 'ifstrequal'])),
+                'next' => $cursor,
+            ];
         }
 
         $selected = $arguments[0] === $arguments[1] ? $arguments[2] : $arguments[3];

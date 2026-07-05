@@ -1795,6 +1795,28 @@ $tests['imports direct pandoc html paragraph list tree construction as repaired 
         $t->same('After', $document->children[2]->attr('text'));
     };
 
+$tests['imports direct pandoc html menu item tree construction as repaired blocks'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-menu-item-tree-construction.html'));
+
+        $t->same('html', $document->attr('sourceFormat'));
+        $t->same(Html5Dom::htmlDocumentTreeConstructionBackend(), $document->attr('meta')['htmlTreeConstruction'] ?? null);
+        $t->same(
+            ['paragraph', 'paragraph', 'paragraph', 'paragraph'],
+            array_map(static fn ($node): string => $node->type, $document->children)
+        );
+        $t->same(
+            ['Before', 'Alpha one', 'Beta two', 'After'],
+            array_map(static fn ($node): string => $node->attr('text'), $document->children)
+        );
+        $t->same(['text', 'emph'], array_map(static fn ($node): string => $node->type, $document->children[1]->children));
+        $t->same('Alpha ', $document->children[1]->children[0]->attr('text'));
+        $t->same('one', $document->children[1]->children[1]->children[0]->attr('text'));
+        $t->same(['text', 'strong'], array_map(static fn ($node): string => $node->type, $document->children[2]->children));
+        $t->same('Beta ', $document->children[2]->children[0]->attr('text'));
+        $t->same('two', $document->children[2]->children[1]->children[0]->attr('text'));
+    };
+
 $tests['imports direct pandoc html paragraph section tree construction as repaired blocks'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-paragraph-section-tree-construction.html'));
