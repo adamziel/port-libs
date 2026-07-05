@@ -42,6 +42,40 @@ return [
             $body instanceof DOMElement ? Html5Dom::serializeHtmlChildren($body) : ''
         );
     },
+    'uses HTMLDocument tree construction for adoption agency and foster parenting repairs' => static function (TestRunner $t): void {
+        if (!class_exists('Dom\\HTMLDocument')) {
+            $t->true(true, 'Dom\\HTMLDocument is unavailable on this PHP runtime');
+
+            return;
+        }
+
+        $source = '<!doctype html><html><body><p><b>one<p>two</b>three<table>loose<tr><td>A</td></tr></table>tail</body></html>';
+        $document = Html5Dom::parseHtmlDocument($source);
+        $body = $document->getElementsByTagName('body')->item(0);
+        $serialized = $body instanceof DOMElement ? Html5Dom::serializeHtmlChildren($body) : '';
+
+        $legacyPrevious = libxml_use_internal_errors(true);
+        $legacy = new DOMDocument('1.0', 'UTF-8');
+        $legacy->loadHTML('<?xml encoding="UTF-8">' . $source, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
+        $legacyBody = $legacy->getElementsByTagName('body')->item(0);
+        $legacySerialized = '';
+        if ($legacyBody instanceof DOMElement) {
+            foreach ($legacyBody->childNodes as $child) {
+                $legacySerialized .= (string) $legacy->saveHTML($child);
+            }
+        }
+        libxml_clear_errors();
+        libxml_use_internal_errors($legacyPrevious);
+
+        $t->same(
+            '<p><b>one</b></p><p><b>two</b>three</p>loose<table><tbody><tr><td>A</td></tr></tbody></table>tail',
+            $serialized
+        );
+        $t->true(str_contains($serialized, '<p><b>two</b>three</p>'), 'Expected adoption-agency formatting repair from HTMLDocument');
+        $t->true(str_contains($serialized, '</p>loose<table>'), 'Expected table foster parenting repair from HTMLDocument');
+        $t->true($legacySerialized !== $serialized, 'Legacy DOMDocument must not produce the accepted HTML5 tree');
+        $t->true(!str_contains($legacySerialized, '<p><b>two</b>three</p>'), 'Legacy DOMDocument should not satisfy the HTML5 formatting repair');
+    },
     'decodes HTML entities once and keeps comparison text safe on serialization' => static function (TestRunner $t): void {
         $body = Html5Dom::parseHtmlFragment('<p>AT&amp;T &lt;source&gt; &copy;</p><p>AT&amp;amp;T</p>');
         $paragraphs = Html5Dom::childElements($body, 'p');

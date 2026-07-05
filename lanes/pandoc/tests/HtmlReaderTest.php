@@ -41,6 +41,35 @@ $tests['routes public html reader parsing through HTMLDocument when available'] 
         $t->same('three', $document->children[2]->attr('text'));
     };
 
+$tests['routes public html reader HTML5 repairs through HTMLDocument when available'] =
+    static function (TestRunner $t): void {
+        $document = (new HtmlReader())->read(
+            '<!doctype html><html><body><p><b>one<p>two</b>three<table>loose<tr><td>A</td></tr></table>tail</body></html>'
+        );
+        $meta = $document->attr('meta');
+        $expectedParser = class_exists('Dom\\HTMLDocument')
+            ? 'Dom\\HTMLDocument'
+            : 'DOMDocument-loadHTML-compat';
+
+        $t->same($expectedParser, $meta['htmlTreeConstruction'] ?? null);
+        if (!class_exists('Dom\\HTMLDocument')) {
+            return;
+        }
+
+        $t->same(
+            ['paragraph', 'paragraph', 'paragraph', 'paragraph', 'paragraph'],
+            array_map(static fn ($node): string => $node->type, $document->children)
+        );
+        $t->same(
+            ['one', 'twothree', 'loose', 'A', 'tail'],
+            array_map(static fn ($node): string => $node->attr('text'), $document->children)
+        );
+        $t->same(['strong'], array_map(static fn ($node): string => $node->type, $document->children[0]->children));
+        $t->same(['strong', 'text'], array_map(static fn ($node): string => $node->type, $document->children[1]->children));
+        $t->same('two', $document->children[1]->children[0]->children[0]->attr('text'));
+        $t->same('three', $document->children[1]->children[1]->attr('text'));
+    };
+
 $tests['keeps html tree construction centralized through Html5Dom'] =
     static function (TestRunner $t): void {
         $sourceRoot = dirname(__DIR__) . '/src';
@@ -54,6 +83,8 @@ $tests['keeps html tree construction centralized through Html5Dom'] =
         ] as $file => $source) {
             $t->true(!str_contains($source, '->loadHTML('), "{$file} must not bypass Html5Dom with DOMDocument::loadHTML");
             $t->true(!str_contains($source, 'HTMLDocument::createFromString'), "{$file} must not bypass Html5Dom with Dom\\HTMLDocument");
+            $t->true(!str_contains($source, 'new \\DOMDocument'), "{$file} must not construct DOMDocument directly for HTML parsing");
+            $t->true(!str_contains($source, 'new DOMDocument'), "{$file} must not construct DOMDocument directly for HTML parsing");
         }
 
         $t->contains('HTMLDocument::createFromString', $html5DomSource);
