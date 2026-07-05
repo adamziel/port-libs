@@ -90,6 +90,21 @@
             "csvAdjacentRstFixtureCount": 2,
             "csvAdjacentRstDirectDenominatorImpact": 0
         },
+        "parserOptionFixtureEvidence": {
+            "csvFixtureCount": 9,
+            "csvFixtures": [
+                "no-header-ragged",
+                "space-delimiter-single-quote",
+                "backslash-escaped-quote",
+                "backslash-escaped-nonquote",
+                "bang-escaped-csv-options",
+                "keep-space-after-comma",
+                "semicolon-delimiter-multiline-cell",
+                "pipe-delimiter-quoted-field",
+                "quote-disabled-literal"
+            ],
+            "generatedNativeParityRequired": true
+        },
         "generatedNativeParity": {
             "csvSampleCount": 64,
             "csvMatchCount": 64,
@@ -117,7 +132,7 @@
             "target": "Command:/csv.md/#1",
             "upstreamRunnerParityClaimed": false
         },
-        "claim": "Tracks current direct CSV/TSV reader fixture denominators, generated CSV/TSV-to-native parity, and installed pandoc executable subsets. This is not an upstream Haskell/Cabal/Tasty runner result and does not claim full CSV/TSV parity beyond these direct/generated samples."
+        "claim": "Tracks current direct CSV/TSV reader fixture denominators, nine CSV parser-option fixtures, generated CSV/TSV-to-native parity, and installed pandoc executable subsets. This is not an upstream Haskell/Cabal/Tasty runner result and does not claim full CSV/TSV parity beyond these direct/generated samples."
     },
     "benchmarkDenominator": {
         "status": "cloned-static-inventory",

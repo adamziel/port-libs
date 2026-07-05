@@ -1448,17 +1448,7 @@ final class DelimitedTextReader
             static fn (array $fixture): string => (string) $fixture['path'],
             is_array($rstCsvAdjacentEvidence['fixtures'] ?? null) ? $rstCsvAdjacentEvidence['fixtures'] : []
         ));
-        $parserOptionFixtures = [
-            'comma-delimiter-no-header',
-            'space-delimiter-single-quote',
-            'backslash-escaped-quote',
-            'backslash-escaped-nonquote',
-            'bang-escaped-csv-options',
-            'keep-space-after-delimiter',
-            'semicolon-delimiter-multiline-cell',
-            'pipe-delimiter-quoted-field',
-            'quote-disabled-literal',
-        ];
+        $parserOptionFixtures = DelimitedTextUpstreamReaderEvidence::csvParserOptionFixtureNames();
         $staticCurrentEvidence = DelimitedTextUpstreamReaderEvidence::checkedInCurrentEvidence(dirname(__DIR__, 3));
         $generatedCsvNativeStaticEvidence = is_array($staticCurrentEvidence['generatedCsvNativeStaticEvidence'] ?? null)
             ? $staticCurrentEvidence['generatedCsvNativeStaticEvidence']

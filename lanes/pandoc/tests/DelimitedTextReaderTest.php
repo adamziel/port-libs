@@ -4779,12 +4779,12 @@ NATIVE;
         $t->same(0, $csvEvidence['tsvDirectFixtureDenominator'] ?? null);
         $t->same(9, $csvEvidence['parserOptionFixtureCount'] ?? null);
         $t->same([
-            'comma-delimiter-no-header',
+            'no-header-ragged',
             'space-delimiter-single-quote',
             'backslash-escaped-quote',
             'backslash-escaped-nonquote',
             'bang-escaped-csv-options',
-            'keep-space-after-delimiter',
+            'keep-space-after-comma',
             'semicolon-delimiter-multiline-cell',
             'pipe-delimiter-quoted-field',
             'quote-disabled-literal',

@@ -21,6 +21,7 @@ final class DelimitedTextUpstreamReaderEvidence
     public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 36;
     public const EXPECTED_GENERATED_CSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT = 44;
     public const EXPECTED_GENERATED_TSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT = 24;
+    public const EXPECTED_CSV_PARSER_OPTION_FIXTURE_COUNT = 9;
     public const REQUIRED_PANDOC_EXECUTABLE_VERSION = 'pandoc 3.10';
 
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
@@ -41,6 +42,18 @@ final class DelimitedTextUpstreamReaderEvidence
     ];
     private const RUNNER_REQUIRED_ARTIFACTS = [
         '.port-libs/pandoc-runner/artifacts/delimited-text-targeted-run/result.json',
+    ];
+
+    private const CSV_PARSER_OPTION_FIXTURES = [
+        'no-header-ragged',
+        'space-delimiter-single-quote',
+        'backslash-escaped-quote',
+        'backslash-escaped-nonquote',
+        'bang-escaped-csv-options',
+        'keep-space-after-comma',
+        'semicolon-delimiter-multiline-cell',
+        'pipe-delimiter-quoted-field',
+        'quote-disabled-literal',
     ];
 
     private const CHECKED_IN_CURRENT_CSV_FIXTURES = [
@@ -2154,18 +2167,8 @@ final class DelimitedTextUpstreamReaderEvidence
                 'adjacentFixtureDenominatorImpact' => 0,
                 'adjacentFixtureEvidence' => self::csvAdjacentRstFixtureEvidence(),
                 'upstreamFixtures' => $upstreamFixtures,
-                'parserOptionFixtureCount' => 9,
-                'parserOptionFixtures' => [
-                    'comma-delimiter-no-header',
-                    'space-delimiter-single-quote',
-                    'backslash-escaped-quote',
-                    'backslash-escaped-nonquote',
-                    'bang-escaped-csv-options',
-                    'keep-space-after-delimiter',
-                    'semicolon-delimiter-multiline-cell',
-                    'pipe-delimiter-quoted-field',
-                    'quote-disabled-literal',
-                ],
+                'parserOptionFixtureCount' => self::EXPECTED_CSV_PARSER_OPTION_FIXTURE_COUNT,
+                'parserOptionFixtures' => self::csvParserOptionFixtureNames(),
             ],
             'sourceInventory' => $sourceInventory,
             'staticCurrentEvidence' => self::checkedInCurrentEvidence($this->repoRoot),
@@ -2252,6 +2255,8 @@ final class DelimitedTextUpstreamReaderEvidence
                 'csvAdjacentRstFixtureCount' => self::EXPECTED_STATIC_CSV_ADJACENT_RST_FIXTURE_COUNT,
                 'csvAdjacentRstFixtures' => self::csvAdjacentRstFixturePaths(),
                 'adjacentFixtureDenominatorImpact' => 0,
+                'parserOptionFixtureCount' => self::EXPECTED_CSV_PARSER_OPTION_FIXTURE_COUNT,
+                'parserOptionFixtures' => self::csvParserOptionFixtureNames(),
             ],
             'checkedInFixtureDirectory' => self::CHECKED_IN_CURRENT_FIXTURE_DIRECTORY,
             'checkedInFixtureCount' => count($fixtures),
@@ -2269,6 +2274,7 @@ final class DelimitedTextUpstreamReaderEvidence
                     'the checked-in csv.md, 01.csv, and 9797.md snapshots match the pinned upstream command fixture hashes',
                     'the upstream command corpus has three CSV direct-reader fixtures tracked by this PHP reader',
                     'the RST csv-table fixture pair is tracked as CSV-adjacent evidence with zero direct-reader denominator impact',
+                    'the CSV parser-option fixture names are pinned as local generated native parity samples',
                     'the generated CSV-to-native parity fixture pairs are present as local evidence and are not counted as extra upstream CSV direct fixtures',
                     'there is no dedicated upstream TSV command fixture in this pinned corpus',
                     'the generated TSV-to-native parity fixture pairs are present as local evidence and are not counted as upstream TSV direct fixtures',
@@ -3570,6 +3576,59 @@ final class DelimitedTextUpstreamReaderEvidence
     }
 
     /**
+     * @return list<string>
+     */
+    public static function csvParserOptionFixtureNames(): array
+    {
+        return self::CSV_PARSER_OPTION_FIXTURES;
+    }
+
+    /**
+     * @param array<string, mixed> $evidence
+     */
+    public static function hasRequiredCsvParserOptionFixtureEvidence(array $evidence, ?int $expectedCount = null): bool
+    {
+        $expectedCount ??= self::EXPECTED_CSV_PARSER_OPTION_FIXTURE_COUNT;
+
+        return ($evidence['reader'] ?? null) === 'csv'
+            && (int) ($evidence['parserOptionFixtureCount'] ?? -1) === $expectedCount
+            && ($evidence['parserOptionFixtures'] ?? null) === self::CSV_PARSER_OPTION_FIXTURES
+            && count(self::CSV_PARSER_OPTION_FIXTURES) === $expectedCount;
+    }
+
+    /**
+     * @param array<string, mixed> $evidence
+     */
+    public static function hasRequiredGeneratedCsvParserOptionNativeParity(array $evidence, ?int $expectedCount = null): bool
+    {
+        $expectedCount ??= self::EXPECTED_CSV_PARSER_OPTION_FIXTURE_COUNT;
+        $samples = is_array($evidence['samples'] ?? null) ? $evidence['samples'] : [];
+        if (count(self::CSV_PARSER_OPTION_FIXTURES) !== $expectedCount) {
+            return false;
+        }
+
+        $samplesByName = [];
+        foreach ($samples as $sample) {
+            if (is_array($sample) && is_string($sample['name'] ?? null)) {
+                $samplesByName[$sample['name']] = $sample;
+            }
+        }
+
+        foreach (self::CSV_PARSER_OPTION_FIXTURES as $name) {
+            $sample = is_array($samplesByName[$name] ?? null) ? $samplesByName[$name] : [];
+            if (
+                ($sample['status'] ?? null) !== 'matched'
+                || ($sample['reader'] ?? null) !== 'csv'
+                || ($sample['staticFixtureBindingStatus'] ?? null) !== self::validGeneratedNativeSampleStaticBindingStatus('csv')
+            ) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * @param array<string, mixed> $evidence
      */
     public static function hasRequiredGeneratedCsvNativeParity(array $evidence, int $requiredSampleCount = self::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT): bool
@@ -3877,6 +3936,7 @@ final class DelimitedTextUpstreamReaderEvidence
                 'that RST csv-table directives are exercised through the native RST reader integration path',
                 'that no dedicated TSV command fixture is available in the pinned direct-reader evidence set',
                 'static checked-in current csv.md, 01.csv, and 9797.md fixture identity when staticCurrentEvidence is valid',
+                'nine CSV parser-option generated native fixture names covering delimiter, quote, escape, keep-space, multiline, pipe, and no-header variants',
                 'sixty-four generated CSV-to-native local samples when generatedCsvNativeParityEvidence is valid',
                 'thirty-six generated TSV-to-native local samples when generatedTsvNativeParityEvidence is valid',
                 'the non-executed upstream command-test runner plan for the pinned csv.md command fixture',

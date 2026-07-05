@@ -372,6 +372,7 @@ jobs:
                 --repo-root=. \
                 --json \
                 --require-honest-denominators \
+                --require-parser-option-fixture-count=9 \
                 --require-generated-csv-native-parity=64 \
                 --require-generated-tsv-native-parity=36 \
                 --runner-result-artifact "$artifact_root/result.json" \

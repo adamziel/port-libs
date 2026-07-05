@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use PortLibs\Pandoc\DelimitedTextReader;
 use PortLibs\Pandoc\DelimitedTextUpstreamReaderEvidence;
 
 $repoRoot = dirname(__DIR__, 3);
@@ -40,6 +41,8 @@ return [
             $t->contains('does not claim full CSV/TSV parity', (string) ($rollup['claim'] ?? ''));
 
             $static = DelimitedTextUpstreamReaderEvidence::checkedInCurrentEvidence($repoRoot);
+            $csvPacket = (new DelimitedTextReader())->readCsv("Fruit,Price\nApple,25 cents\n")->children[0]->attr('delimitedText');
+            $csvEvidence = is_array($csvPacket['upstreamEvidence'] ?? null) ? $csvPacket['upstreamEvidence'] : [];
             $csv = DelimitedTextUpstreamReaderEvidence::generatedCsvNativeParityEvidence($repoRoot);
             $tsv = DelimitedTextUpstreamReaderEvidence::generatedTsvNativeParityEvidence($repoRoot);
             $pandocCsv = DelimitedTextUpstreamReaderEvidence::generatedCsvPandocExecutableNativeParityEvidence($repoRoot);
@@ -52,6 +55,12 @@ return [
             $t->same($denominator['csvAdjacentRstFixtureCount'] ?? null, $direct['csvAdjacentRstFixtureCount'] ?? null);
             $t->same($denominator['adjacentFixtureDenominatorImpact'] ?? null, $direct['csvAdjacentRstDirectDenominatorImpact'] ?? null);
             $t->same(true, DelimitedTextUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence(['staticCurrentEvidence' => $static]));
+
+            $parserOptions = $rollup['parserOptionFixtureEvidence'] ?? [];
+            $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_CSV_PARSER_OPTION_FIXTURE_COUNT, $parserOptions['csvFixtureCount'] ?? null);
+            $t->same(DelimitedTextUpstreamReaderEvidence::csvParserOptionFixtureNames(), $parserOptions['csvFixtures'] ?? null);
+            $t->same(true, DelimitedTextUpstreamReaderEvidence::hasRequiredCsvParserOptionFixtureEvidence($csvEvidence));
+            $t->same(true, DelimitedTextUpstreamReaderEvidence::hasRequiredGeneratedCsvParserOptionNativeParity($csv));
 
             $generated = $rollup['generatedNativeParity'] ?? [];
             $t->same($csv['sampleCount'] ?? null, $generated['csvSampleCount'] ?? null);
@@ -86,6 +95,7 @@ return [
 
             foreach ([
                 '--require-honest-denominators',
+                '--require-parser-option-fixture-count=9',
                 '--require-generated-csv-native-parity=64',
                 '--require-generated-tsv-native-parity=36',
                 '--require-pandoc-executable-csv-native-parity=44',
@@ -98,6 +108,7 @@ return [
             }
             foreach ([
                 '--require-generated-csv-native-parity=64',
+                '--require-parser-option-fixture-count=9',
                 '--require-generated-tsv-native-parity=36',
                 '--require-runner-result-artifact',
                 '--require-no-validation-issues',

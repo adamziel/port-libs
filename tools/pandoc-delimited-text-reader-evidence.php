@@ -17,6 +17,9 @@ Options:
   --repo-root PATH                Repository root. Defaults to the parent of tools/.
   --require-honest-denominators   Exit 1 unless CSV/TSV direct fixture
                                   denominators are split honestly.
+  --require-parser-option-fixture-count[=N]
+                                  Exit 1 unless the CSV parser-option fixture
+                                  names and generated native matches are present.
   --require-generated-tsv-native-parity[=N]
                                   Exit 1 unless the generated TSV-to-native
                                   samples match their native fixtures.
@@ -89,6 +92,50 @@ $validateHonestDenominators = static function (array $csv, array $tsv): array {
     $expect(($tsv['tsvDirectFixtureDenominator'] ?? null) === 0, 'TSV direct fixture split denominator must be 0');
     $expect(($tsv['integrationFixtureCount'] ?? null) === 0, 'TSV integration fixture count must be 0');
     $expect(($tsv['adjacentFixtureEvidence'] ?? null) === [], 'TSV adjacent fixture evidence must be empty');
+
+    return $issues;
+};
+
+$validateParserOptionFixtures = static function (array $csv, array $tsv, array $generatedCsvNativeParity, ?int $requiredFixtureCount = null): array {
+    $issues = [];
+    $expect = static function (bool $condition, string $message) use (&$issues): void {
+        if (!$condition) {
+            $issues[] = $message;
+        }
+    };
+    $expectedFixtureCount = $requiredFixtureCount ?? DelimitedTextUpstreamReaderEvidence::EXPECTED_CSV_PARSER_OPTION_FIXTURE_COUNT;
+    $expectedFixtures = DelimitedTextUpstreamReaderEvidence::csvParserOptionFixtureNames();
+    $samples = is_array($generatedCsvNativeParity['samples'] ?? null) ? $generatedCsvNativeParity['samples'] : [];
+    $samplesByName = [];
+    foreach ($samples as $sample) {
+        if (is_array($sample) && is_string($sample['name'] ?? null)) {
+            $samplesByName[$sample['name']] = $sample;
+        }
+    }
+
+    $expect(($csv['reader'] ?? null) === 'csv', 'CSV parser-option fixture evidence reader must be csv');
+    $expect(($csv['parserOptionFixtureCount'] ?? null) === $expectedFixtureCount, "CSV parser-option fixture count must be {$expectedFixtureCount}");
+    $expect(($csv['parserOptionFixtures'] ?? null) === $expectedFixtures, 'CSV parser-option fixture names must match the pinned generated fixture list');
+    $expect(count($expectedFixtures) === $expectedFixtureCount, "Pinned CSV parser-option fixture list must contain {$expectedFixtureCount} fixture names");
+    $expect(($tsv['parserOptionFixtureCount'] ?? null) === 0, 'TSV parser-option fixture count must remain 0 because the current option fixture set is CSV-scoped');
+    $expect(($tsv['parserOptionFixtures'] ?? null) === [], 'TSV parser-option fixtures must remain empty');
+    $expect(($generatedCsvNativeParity['reader'] ?? null) === 'csv', 'Generated parser-option native parity evidence reader must be csv');
+    $expect(
+        DelimitedTextUpstreamReaderEvidence::hasRequiredCsvParserOptionFixtureEvidence($csv, $expectedFixtureCount),
+        'CSV parser-option fixture helper must recognize required evidence'
+    );
+    $expect(
+        DelimitedTextUpstreamReaderEvidence::hasRequiredGeneratedCsvParserOptionNativeParity($generatedCsvNativeParity, $expectedFixtureCount),
+        'Generated CSV parser-option native parity helper must recognize required evidence'
+    );
+
+    foreach ($expectedFixtures as $fixture) {
+        $sample = is_array($samplesByName[$fixture] ?? null) ? $samplesByName[$fixture] : [];
+        $expect($sample !== [], "CSV parser-option fixture {$fixture} must have a generated native parity sample");
+        $expect(($sample['status'] ?? null) === 'matched', "CSV parser-option fixture {$fixture} must match its native fixture");
+        $expect(($sample['reader'] ?? null) === 'csv', "CSV parser-option fixture {$fixture} must be read as csv");
+        $expect(($sample['staticFixtureBindingStatus'] ?? null) === 'valid-generated-csv-native-sample-static-binding', "CSV parser-option fixture {$fixture} must have a valid static fixture binding");
+    }
 
     return $issues;
 };
@@ -311,6 +358,8 @@ $formatTextReport = static function (array $report): string {
         'Generated TSV native parity: ' . $generatedTsvNative['generatedNativeMatchCount']
             . '/' . $generatedTsvNative['sampleCount']
             . ' (' . $generatedTsvNative['parityStatus'] . ')',
+        'CSV parser-option fixtures: ' . $csv['parserOptionFixtureCount']
+            . '/' . DelimitedTextUpstreamReaderEvidence::EXPECTED_CSV_PARSER_OPTION_FIXTURE_COUNT,
         'CSV runner status: ' . $csv['runnerEvidence']['status'] . ' (executed: ' . ($csv['runnerEvidence']['executed'] ? 'yes' : 'no') . ')',
         'CSV runner plan: ' . ($csv['runnerEvidence']['commandPlanStatus'] ?? 'unknown'),
         'CSV runner boundary: ' . ($csv['runnerEvidence']['executionBoundary']['status'] ?? 'unknown'),
@@ -348,12 +397,14 @@ try {
     $repoRoot = dirname(__DIR__);
     $json = false;
     $requireHonestDenominators = false;
+    $requireParserOptionFixtures = false;
     $requireGeneratedCsvNativeParity = false;
     $requireGeneratedTsvNativeParity = false;
     $requireGeneratedCsvPandocExecutableNativeParity = false;
     $requireGeneratedTsvPandocExecutableNativeParity = false;
     $requiredGeneratedCsvNativeParityCount = null;
     $requiredGeneratedTsvNativeParityCount = null;
+    $requiredParserOptionFixtureCount = null;
     $requiredGeneratedCsvPandocExecutableNativeParityCount = null;
     $requiredGeneratedTsvPandocExecutableNativeParityCount = null;
     $requireRunnerNotRun = false;
@@ -391,6 +442,18 @@ try {
         }
         if ($arg === '--require-honest-denominators') {
             $requireHonestDenominators = true;
+            continue;
+        }
+        if ($arg === '--require-parser-option-fixture-count') {
+            $requireParserOptionFixtures = true;
+            continue;
+        }
+        if (str_starts_with($arg, '--require-parser-option-fixture-count=')) {
+            $requireParserOptionFixtures = true;
+            $requiredParserOptionFixtureCount = $parseNonNegativeInt(
+                '--require-parser-option-fixture-count',
+                substr($arg, strlen('--require-parser-option-fixture-count='))
+            );
             continue;
         }
         if ($arg === '--require-generated-tsv-native-parity') {
@@ -492,6 +555,7 @@ try {
     $runnerIssues = $validateRunnerNotRun($csvEvidence, $tsvEvidence);
     $generatedCsvNativeParity = DelimitedTextUpstreamReaderEvidence::generatedCsvNativeParityEvidence($repoRoot);
     $generatedCsvNativeIssues = $validateGeneratedCsvNativeParity($generatedCsvNativeParity, $requiredGeneratedCsvNativeParityCount);
+    $parserOptionFixtureIssues = $validateParserOptionFixtures($csvEvidence, $tsvEvidence, $generatedCsvNativeParity, $requiredParserOptionFixtureCount);
     $generatedTsvNativeParity = DelimitedTextUpstreamReaderEvidence::generatedTsvNativeParityEvidence($repoRoot);
     $generatedTsvNativeIssues = $validateGeneratedTsvNativeParity($generatedTsvNativeParity, $requiredGeneratedTsvNativeParityCount);
     $generatedCsvPandocExecutableNativeParity = null;
@@ -545,6 +609,7 @@ try {
         'runnerResultArtifactEvidence' => $runnerResultArtifactEvidence,
         'validation' => [
             'honestDenominators' => $denominatorIssues === [],
+            'parserOptionFixtures' => $parserOptionFixtureIssues === [],
             'generatedCsvNativeParity' => $generatedCsvNativeIssues === [],
             'generatedTsvNativeParity' => $generatedTsvNativeIssues === [],
             'generatedCsvPandocExecutableNativeParity' => $requireGeneratedCsvPandocExecutableNativeParity ? $generatedCsvPandocExecutableNativeIssues === [] : null,
@@ -555,6 +620,7 @@ try {
         ],
         'validationIssues' => [
             ...$denominatorIssues,
+            ...$parserOptionFixtureIssues,
             ...$generatedCsvNativeIssues,
             ...$generatedTsvNativeIssues,
             ...$generatedCsvPandocExecutableNativeIssues,
@@ -573,6 +639,10 @@ try {
 
     if ($requireHonestDenominators && $denominatorIssues !== []) {
         fwrite(STDERR, "pandoc-delimited-text-reader-evidence: honest denominator validation reported issues\n");
+        exit(1);
+    }
+    if ($requireParserOptionFixtures && $parserOptionFixtureIssues !== []) {
+        fwrite(STDERR, "pandoc-delimited-text-reader-evidence: parser-option fixture validation reported issues\n");
         exit(1);
     }
     if ($requireGeneratedCsvNativeParity && $generatedCsvNativeIssues !== []) {

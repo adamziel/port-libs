@@ -2284,6 +2284,7 @@ return [
             . ' --repo-root=' . escapeshellarg($repoRoot)
             . ' --json'
             . ' --require-honest-denominators'
+            . ' --require-parser-option-fixture-count=' . DelimitedTextUpstreamReaderEvidence::EXPECTED_CSV_PARSER_OPTION_FIXTURE_COUNT
             . ' --require-generated-csv-native-parity=' . DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT
             . ' --require-generated-tsv-native-parity=' . DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT
             . ' --require-pandoc-executable-csv-native-parity=' . DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT
@@ -2305,6 +2306,11 @@ return [
         $t->same(2, $decoded['csv']['adjacentFixtureEvidence']['fixtureCount']);
         $t->same(0, $decoded['csv']['adjacentFixtureEvidence']['csvDirectFixtureDenominatorImpact']);
         $t->same('rst', $decoded['csv']['adjacentFixtureEvidence']['reader']);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_CSV_PARSER_OPTION_FIXTURE_COUNT, $decoded['csv']['parserOptionFixtureCount']);
+        $t->same(DelimitedTextUpstreamReaderEvidence::csvParserOptionFixtureNames(), $decoded['csv']['parserOptionFixtures']);
+        $t->same(true, $decoded['validation']['parserOptionFixtures']);
+        $t->same(true, DelimitedTextUpstreamReaderEvidence::hasRequiredCsvParserOptionFixtureEvidence($decoded['csv']));
+        $t->same(true, DelimitedTextUpstreamReaderEvidence::hasRequiredGeneratedCsvParserOptionNativeParity($decoded['generatedCsvNativeParity']));
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $decoded['tsv']['generatedNativeParitySampleCount']);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $decoded['generatedTsvNativeParity']['generatedNativeMatchCount']);
         $t->same('generated-tsv-native-parity-observed-not-upstream-fixture', $decoded['generatedTsvNativeParity']['parityStatus']);
@@ -2334,6 +2340,39 @@ return [
         $t->same(false, $decoded['tsv']['runnerEvidence']['target']['tsvDirectFixtureAvailable']);
         $t->same('plan-only-not-run', $decoded['tsv']['runnerEvidence']['executionBoundary']['status']);
         $t->same([], $decoded['validationIssues']);
+    },
+    'cli gates parser option fixture count against generated csv native samples' => static function (TestRunner $t): void {
+        $repoRoot = dirname(__DIR__, 3);
+        $passingCommand = escapeshellarg(PHP_BINARY)
+            . ' '
+            . escapeshellarg($repoRoot . '/tools/pandoc-delimited-text-reader-evidence.php')
+            . ' --repo-root=' . escapeshellarg($repoRoot)
+            . ' --json'
+            . ' --require-parser-option-fixture-count=' . DelimitedTextUpstreamReaderEvidence::EXPECTED_CSV_PARSER_OPTION_FIXTURE_COUNT;
+        $passingOutput = [];
+        $passingExitCode = 0;
+        exec($passingCommand, $passingOutput, $passingExitCode);
+        $passing = json_decode(implode("\n", $passingOutput), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same(0, $passingExitCode);
+        $t->same(true, $passing['validation']['parserOptionFixtures']);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_CSV_PARSER_OPTION_FIXTURE_COUNT, $passing['csv']['parserOptionFixtureCount']);
+
+        $failingCommand = escapeshellarg(PHP_BINARY)
+            . ' '
+            . escapeshellarg($repoRoot . '/tools/pandoc-delimited-text-reader-evidence.php')
+            . ' --repo-root=' . escapeshellarg($repoRoot)
+            . ' --json'
+            . ' --require-parser-option-fixture-count=8'
+            . ' 2>/dev/null';
+        $failingOutput = [];
+        $failingExitCode = 0;
+        exec($failingCommand, $failingOutput, $failingExitCode);
+        $failing = json_decode(implode("\n", $failingOutput), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same(1, $failingExitCode);
+        $t->same(false, $failing['validation']['parserOptionFixtures']);
+        $t->true(in_array('CSV parser-option fixture count must be 8', $failing['validationIssues'], true));
     },
     'cli gates supplied delimited text reader upstream runner result artifact' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile, $writeDelimitedTextEvidenceTree, $writeRunnerTranscripts): void {
         $repoRoot = dirname(__DIR__, 3);
