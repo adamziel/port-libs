@@ -666,16 +666,20 @@ final class DelimitedTextReader
                     continue;
                 }
 
-                if ($escape !== null && $char === $escape && $next !== '' && !$this->isLineBreak($next)) {
-                    $field .= $next;
-                    if ($quote !== null && $next === $quote) {
-                        $metrics['escapedQuoteSequenceCount']++;
+                if ($escape !== null && $this->matchesTokenAt($text, $offset, $escape)) {
+                    $nextOffset = $offset + strlen($escape);
+                    if ($nextOffset < $length && !$this->isLineBreak($text[$nextOffset])) {
+                        $escaped = $this->textCharacterAt($text, $nextOffset);
+                        $field .= $escaped;
+                        if ($quote !== null && $this->matchesTokenAt($text, $nextOffset, $quote)) {
+                            $metrics['escapedQuoteSequenceCount']++;
+                        }
+                        $offset = $nextOffset + strlen($escaped) - 1;
+                        continue;
                     }
-                    $offset++;
-                    continue;
                 }
 
-                if ($escape === null && $quote !== null && $char === '\\' && $next === $quote) {
+                if ($escape === null && $quote !== null && $char === '\\' && $this->matchesTokenAt($text, $offset + 1, $quote)) {
                     $field .= '\\' . $quote;
                     $metrics['escapedQuoteSequenceCount']++;
                     $diagnostics[] = $this->diagnostic(
@@ -686,21 +690,23 @@ final class DelimitedTextReader
                         $columnIndex,
                         $offset
                     );
-                    $offset++;
+                    $offset += strlen($quote);
                     continue;
                 }
 
-                if ($quote !== null && $char === $quote) {
-                    if ($next === $quote) {
+                if ($quote !== null && $this->matchesTokenAt($text, $offset, $quote)) {
+                    $nextQuoteOffset = $offset + strlen($quote);
+                    if ($this->matchesTokenAt($text, $nextQuoteOffset, $quote)) {
                         $field .= $quote;
                         $metrics['doubledQuoteEscapeCount']++;
-                        $offset++;
+                        $offset = $nextQuoteOffset + strlen($quote) - 1;
                         continue;
                     }
 
                     $inQuotedField = false;
                     $afterClosingQuote = true;
                     $afterClosingQuoteWhitespace = false;
+                    $offset += strlen($quote) - 1;
                     continue;
                 }
 
@@ -709,11 +715,13 @@ final class DelimitedTextReader
             }
 
             if ($afterClosingQuote) {
-                if ($char === $delimiter) {
+                if ($this->matchesTokenAt($text, $offset, $delimiter)) {
+                    $delimiterEndOffset = $offset + strlen($delimiter);
                     if ($afterClosingQuoteWhitespace) {
                         $metrics['closingQuoteTrailingWhitespaceCount']++;
                     }
                     $finishField($offset);
+                    $fieldStartOffset = $delimiterEndOffset;
                     $this->skipPostDelimiterWhitespace($text, $offset, $delimiter, $keepSpace);
                     continue;
                 }
@@ -760,8 +768,10 @@ final class DelimitedTextReader
                 continue;
             }
 
-            if ($char === $delimiter) {
+            if ($this->matchesTokenAt($text, $offset, $delimiter)) {
+                $delimiterEndOffset = $offset + strlen($delimiter);
                 $finishField($offset);
+                $fieldStartOffset = $delimiterEndOffset;
                 $this->skipPostDelimiterWhitespace($text, $offset, $delimiter, $keepSpace);
                 continue;
             }
@@ -775,7 +785,7 @@ final class DelimitedTextReader
                 continue;
             }
 
-            if ($quote !== null && $char === $quote) {
+            if ($quote !== null && $this->matchesTokenAt($text, $offset, $quote)) {
                 if (!$fieldStarted && $field === '') {
                     $fieldStartOffset = $offset;
                     $fieldStarted = true;
@@ -785,10 +795,11 @@ final class DelimitedTextReader
                     $quotedFieldStartColumn = $columnIndex;
                     $quotedFieldStartOffset = $offset;
                     $metrics['quotedFieldCount']++;
+                    $offset += strlen($quote) - 1;
                     continue;
                 }
 
-                $field .= $char;
+                $field .= $quote;
                 $fieldStarted = true;
                 $metrics['quoteInUnquotedFieldCount']++;
                 $diagnostics[] = $this->diagnostic(
@@ -799,6 +810,7 @@ final class DelimitedTextReader
                     $columnIndex,
                     $offset
                 );
+                $offset += strlen($quote) - 1;
                 continue;
             }
 
@@ -1052,16 +1064,32 @@ final class DelimitedTextReader
 
     private function skipPostDelimiterWhitespace(string $text, int &$offset, string $delimiter, bool $keepSpace): void
     {
+        $index = $offset + strlen($delimiter);
         if ($keepSpace) {
+            $offset = $index - 1;
             return;
         }
 
         $length = strlen($text);
-        $index = $offset + 1;
         while ($index < $length && $this->isPostDelimiterWhitespace($text[$index], $delimiter)) {
             $index++;
         }
         $offset = $index - 1;
+    }
+
+    private function matchesTokenAt(string $text, int $offset, string $token): bool
+    {
+        return $offset >= 0 && substr($text, $offset, strlen($token)) === $token;
+    }
+
+    private function textCharacterAt(string $text, int $offset): string
+    {
+        $slice = substr($text, $offset);
+        if ($slice !== '' && preg_match('/\A./us', $slice, $matches) === 1) {
+            return $matches[0];
+        }
+
+        return $text[$offset] ?? '';
     }
 
     private function isPostDelimiterWhitespace(string $char, string $delimiter): bool
@@ -1582,14 +1610,18 @@ final class DelimitedTextReader
             $next = $offset + 1 < $length ? $text[$offset + 1] : null;
 
             if ($inQuotes) {
-                if ($escape !== null && $char === $escape && $next !== null && !$this->isLineBreak($next)) {
-                    $offset++;
+                if ($escape !== null && $this->matchesTokenAt($text, $offset, $escape)) {
+                    $nextOffset = $offset + strlen($escape);
+                    if ($nextOffset < $length && !$this->isLineBreak($text[$nextOffset])) {
+                        $offset = $nextOffset + strlen($this->textCharacterAt($text, $nextOffset)) - 1;
+                    }
                     continue;
                 }
 
-                if ($quote !== null && $char === $quote) {
-                    if ($escape === null && $next === $quote) {
-                        $offset++;
+                if ($quote !== null && $this->matchesTokenAt($text, $offset, $quote)) {
+                    $nextQuoteOffset = $offset + strlen($quote);
+                    if ($escape === null && $this->matchesTokenAt($text, $nextQuoteOffset, $quote)) {
+                        $offset = $nextQuoteOffset + strlen($quote) - 1;
                         continue;
                     }
 
@@ -1599,6 +1631,7 @@ final class DelimitedTextReader
                     }
                     $inQuotes = false;
                     $atFieldStart = false;
+                    $offset += strlen($quote) - 1;
                     continue;
                 }
 
@@ -1629,8 +1662,9 @@ final class DelimitedTextReader
 
             $recordHasContent = true;
 
-            if ($char === $delimiter) {
-                if ($next === null || $this->isLineBreak($next)) {
+            if ($this->matchesTokenAt($text, $offset, $delimiter)) {
+                $nextOffset = $offset + strlen($delimiter);
+                if ($nextOffset >= $length || $this->isLineBreak($text[$nextOffset])) {
                     $trailingDelimiterRows[$recordIndex] = true;
                 }
                 $atFieldStart = true;
@@ -1638,9 +1672,10 @@ final class DelimitedTextReader
                 continue;
             }
 
-            if ($quote !== null && $char === $quote && $atFieldStart) {
+            if ($quote !== null && $atFieldStart && $this->matchesTokenAt($text, $offset, $quote)) {
                 $inQuotes = true;
                 $currentQuotedFieldHasNewline = false;
+                $offset += strlen($quote) - 1;
                 continue;
             }
 

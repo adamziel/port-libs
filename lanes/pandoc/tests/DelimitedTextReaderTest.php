@@ -4653,6 +4653,36 @@ NATIVE;
         $t->same("- data1\n\n- data2", $semicolonCell->attr('text'));
         $t->same(['text', 'linebreak', 'linebreak', 'text'], array_map(static fn (AstNode $node): string => $node->type, $semicolonCell->children[0]->children));
     },
+    'matches upstream csv parser unicode delimiter and quote option surface' => static function (TestRunner $t): void {
+        $document = (new DelimitedTextReader())->readCsv(implode("\n", [
+            'name§note§flag',
+            '«alpha§beta«§plain§',
+            '«doubled «« quote«§tail§yes',
+            '',
+        ]), [
+            'delimiter' => '§',
+            'quote' => '«',
+        ]);
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+        $body = $table->children[1];
+
+        $t->same('§', $packet['delimiter'] ?? null);
+        $t->same('§', $packet['delimiterName'] ?? null);
+        $t->same('«', $packet['quote'] ?? null);
+        $t->same(['name', 'note', 'flag'], $table->attr('columnNames'));
+        $t->same(3, $packet['columnCount'] ?? null);
+        $t->same(9, $packet['fieldCount'] ?? null);
+        $t->same(2, $packet['quotedFieldCount'] ?? null);
+        $t->same(1, $packet['doubledQuoteEscapeCount'] ?? null);
+        $t->same([1], $packet['trailingDelimiterRows'] ?? null);
+        $t->same('alpha§beta', $body->children[0]->children[0]->attr('text'));
+        $t->same('plain', $body->children[0]->children[1]->attr('text'));
+        $t->same('', $body->children[0]->children[2]->attr('text'));
+        $t->same('doubled « quote', $body->children[1]->children[0]->attr('text'));
+        $t->same('tail', $body->children[1]->children[1]->attr('text'));
+        $t->same('yes', $body->children[1]->children[2]->attr('text'));
+    },
     'records csv and tsv upstream evidence boundaries separately' => static function (TestRunner $t): void {
         $reader = new DelimitedTextReader();
         $csvPacket = $reader->readCsv("Fruit,Price\nApple,25 cents\n")->children[0]->attr('delimitedText');
