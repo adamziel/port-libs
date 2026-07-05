@@ -117,9 +117,9 @@ jobs:
             --upstream-root=.upstream-cache/pandoc-current \
             --pandoc-bin=/usr/local/bin/pandoc \
             --json \
-            --require-test-count=6 \
-            --require-fixture-reference-count=6 \
-            --require-expected-media-item-count=10 \
+            --require-test-count=7 \
+            --require-fixture-reference-count=7 \
+            --require-expected-media-item-count=11 \
             --require-referenced-fixture-identity \
             --require-static-current-signature \
             --require-native-ast-package-parity \
