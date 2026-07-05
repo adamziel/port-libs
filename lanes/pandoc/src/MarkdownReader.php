@@ -16761,7 +16761,10 @@ final class MarkdownReader
         if ($content === '') {
             return null;
         }
-        if ($this->wikiLinkContentHasUnescapedCloseBracket($content)) {
+        if (
+            !$this->wikiLinkContentAllowsSingleCloseBracket()
+            && $this->wikiLinkContentHasUnescapedCloseBracket($content)
+        ) {
             return null;
         }
 
@@ -16840,6 +16843,15 @@ final class MarkdownReader
         }
 
         return false;
+    }
+
+    private function wikiLinkContentAllowsSingleCloseBracket(): bool
+    {
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return !in_array($canonical, ['commonmark', 'commonmark_x', 'gfm'], true)
+            || $this->deprecatedGithubMarkdownAlias($format);
     }
 
     /**

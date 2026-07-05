@@ -15,7 +15,7 @@ $cases = [
     ['link', 'https://example.org', 'title'],
     ['link', 'random string', 'title'],
     ['link', 'Name of page', 'Name of page'],
-    ['text', null, '[[Name of ]page]]'],
+    ['link', 'Name of ]page', 'Name of ]page'],
     ['link', 'https://example.org', 't`i*t_le'],
 ];
 
@@ -43,6 +43,16 @@ return [
             }
         },
 
+    'keeps gfm embedded close bracket wikilinks literal like upstream pandoc' =>
+        static function (TestRunner $t): void {
+            $document = (new MarkdownReader(['format' => 'gfm+wikilinks_title_before_pipe']))->read("[[Name of ]page]]\n");
+            $paragraph = $document->children[0] ?? new AstNode('missing');
+
+            $t->same('paragraph', $paragraph->type);
+            $t->same(['text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+            $t->same('[[Name of ]page]]', $paragraph->children[0]->attr('text'));
+        },
+
     'renders upstream markdown github wikilink fixture through wordpress handoff' =>
         static function (TestRunner $t): void {
             $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-markdown-github-wikilinks.md');
@@ -52,7 +62,7 @@ return [
             $t->contains('<a href="https://example.org" class="wikilink">https://example.org</a>', $blocks);
             $t->contains('<a href="https://example.org" class="wikilink">title</a>', $blocks);
             $t->contains('<a href="random string" class="wikilink">title</a>', $blocks);
-            $t->contains('<p>[[Name of ]page]]</p>', $blocks);
+            $t->contains('<a href="Name of ]page" class="wikilink">Name of ]page</a>', $blocks);
             $t->contains('<a href="https://example.org" class="wikilink">t`i*t_le</a>', $blocks);
         },
 

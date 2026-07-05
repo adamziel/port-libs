@@ -23,7 +23,7 @@ final class MarkdownNativeAstComparisonHarness
         'upstream-markdown-fenced-div' => ['format' => 'markdown+fenced_divs+native_divs'],
         'upstream-markdown-footnote-continuation-boundaries' => ['format' => 'markdown+footnotes'],
         'upstream-markdown-footnote-definitions' => ['format' => 'markdown+footnotes'],
-        'upstream-markdown-github-wikilinks' => ['format' => 'gfm+wikilinks_title_before_pipe'],
+        'upstream-markdown-github-wikilinks' => ['format' => 'markdown_github+wikilinks_title_before_pipe'],
         'upstream-markdown-header-attributes' => ['format' => 'markdown+header_attributes+implicit_header_references'],
         'upstream-markdown-line-blocks' => ['format' => 'markdown+line_blocks'],
         'upstream-markdown-lhs-inverse-bird-html' => ['format' => 'markdown+lhs'],

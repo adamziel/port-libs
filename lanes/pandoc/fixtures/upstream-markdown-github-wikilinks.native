@@ -23,7 +23,11 @@
         ( "Name of page" , "" )
     ]
 , Para
-    [ Str "[[Name" , Space , Str "of" , Space , Str "]page]]" ]
+    [ Link
+        ( "" , [ "wikilink" ] , [] )
+        [ Str "Name" , Space , Str "of" , Space , Str "]page" ]
+        ( "Name of ]page" , "" )
+    ]
 , Para
     [ Link
         ( "" , [ "wikilink" ] , [] )
