@@ -504,7 +504,7 @@ final class HtmlReader
             $this->options,
             ['htmlRawHtml' => false]
         ));
-        $document = $reader->read($inlineSource);
+        $document = $reader->readHtml($inlineSource);
         if (count($document->children) !== 1) {
             return null;
         }
@@ -594,7 +594,7 @@ final class HtmlReader
             $this->options,
             ['htmlRawHtml' => false]
         ));
-        $document = $reader->read($bytes);
+        $document = $reader->readHtml($bytes);
         if (count($document->children) !== 1 || $document->children[0]->type !== 'paragraph') {
             return null;
         }

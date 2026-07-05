@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\Html5Dom;
 use PortLibs\Pandoc\HtmlReader;
+use PortLibs\Pandoc\MarkdownReader;
 
 $tests = [];
 
@@ -116,6 +117,27 @@ $tests['routes public html reader HTML5 repairs through HTMLDocument when availa
         $t->same(['strong', 'text'], array_map(static fn ($node): string => $node->type, $document->children[1]->children));
         $t->same('two', $document->children[1]->children[0]->children[0]->attr('text'));
         $t->same('three', $document->children[1]->children[1]->attr('text'));
+    };
+
+$tests['does not route public html input through markdown raw html tokenization'] =
+    static function (TestRunner $t): void {
+        $source = '<!doctype html><html><body><p><b>one<p>two</b>three<table>loose<tr><td>A</td></tr></table>tail</body></html>';
+        $document = (new HtmlReader())->read($source);
+        $markdownDocument = (new MarkdownReader())->read($source);
+
+        $t->same('Dom\\HTMLDocument', $document->attr('meta')['htmlTreeConstruction'] ?? null);
+        $t->same(
+            ['paragraph', 'paragraph', 'paragraph', 'paragraph', 'paragraph'],
+            array_map(static fn ($node): string => $node->type, $document->children)
+        );
+        $t->same(
+            ['one', 'twothree', 'loose', 'A', 'tail'],
+            array_map(static fn ($node): string => $node->attr('text'), $document->children)
+        );
+        $t->true(
+            in_array('table', array_map(static fn ($node): string => $node->type, $markdownDocument->children), true),
+            'The Markdown source reader must remain distinguishable from the HTMLDocument-backed HTML reader'
+        );
     };
 
 $tests['keeps html tree construction centralized through Html5Dom'] =
@@ -240,6 +262,13 @@ $tests['keeps html tree construction centralized through Html5Dom'] =
             foreach (['preg_', 'rawHtmlOpeningTagAt', 'rawHtmlClosingTagAt', 'markdownRawHtml', '->loadHTML(', 'HTMLDocument::createFromString'] as $parserFragment) {
                 $t->true(!str_contains($entrypoint['body'], $parserFragment), "{$method} must delegate HTML parsing instead of using {$parserFragment}");
             }
+        }
+        foreach ([
+            'HtmlReader::plainBlockFromHtmlInlineSource' => $methodBody($htmlReaderSource, 'plainBlockFromHtmlInlineSource'),
+            'HtmlReader::standaloneTransparentInlineFragmentChildren' => $methodBody($htmlReaderSource, 'standaloneTransparentInlineFragmentChildren'),
+        ] as $method => $body) {
+            $t->contains('->readHtml(', $body);
+            $t->true(!str_contains($body, '->read('), "{$method} must parse HTML fragments through MarkdownReader::readHtml, not MarkdownReader::read");
         }
 
         $html5TreeConstructionBodies = [
