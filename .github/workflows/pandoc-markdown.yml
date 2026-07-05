@@ -48,6 +48,7 @@ jobs:
           php -l lanes/pandoc/tests/MarkdownReaderDestinationValidationCompletionTest.php
           php -l lanes/pandoc/tests/MarkdownReaderInlineCodeListMarkerCompletionTest.php
           php -l lanes/pandoc/tests/MarkdownReaderMmdReferenceImageAttributeFixtureCompletionTest.php
+          php -l lanes/pandoc/tests/MarkdownReaderMultipleMetadataBlockFixtureCompletionTest.php
           php -l lanes/pandoc/tests/MarkdownUpstreamReaderEvidenceTest.php
           php -l tools/pandoc-markdown-native-ast.php
           php -l tools/pandoc-markdown-reader-evidence.php
@@ -88,9 +89,9 @@ jobs:
           php tools/pandoc-markdown-reader-evidence.php \
             --upstream-root=.upstream-cache/pandoc-current \
             --json \
-            --require-selected-fixture-count=108 \
+            --require-selected-fixture-count=109 \
             --require-static-current-evidence \
-            --require-native-mapped-parity=108 \
+            --require-native-mapped-parity=109 \
             --require-runner-not-run \
             --require-runner-plan \
             --require-no-validation-issues
@@ -101,7 +102,7 @@ jobs:
             --markdown-dir=lanes/pandoc/fixtures \
             --json \
             summary \
-            --require-mapped-parity=108
+            --require-mapped-parity=109
 
       - name: Run focused Markdown parity tests
         run: |
@@ -121,6 +122,7 @@ jobs:
             lanes/pandoc/tests/MarkdownReaderInlineMathFixtureCompletionTest.php \
             lanes/pandoc/tests/MarkdownReaderMarkExtensionProfileCompletionTest.php \
             lanes/pandoc/tests/MarkdownReaderMmdReferenceImageAttributeFixtureCompletionTest.php \
+            lanes/pandoc/tests/MarkdownReaderMultipleMetadataBlockFixtureCompletionTest.php \
             lanes/pandoc/tests/MarkdownReaderRawCodeProfileOverrideSurgeTest.php \
             lanes/pandoc/tests/MarkdownReaderStartnumProfileFixtureCompletionTest.php \
             lanes/pandoc/tests/MarkdownReaderTaskListProfileSurgeTest.php \

@@ -770,12 +770,26 @@ final class MarkdownReader
      */
     private function extractYamlMetadataBlock(array $lines): array
     {
-        $block = $this->leadingYamlMetadataBlock($lines);
-        if ($block === null) {
-            return [$lines, []];
+        $attrs = [];
+        $remainder = $lines;
+        while (($block = $this->leadingYamlMetadataBlock($remainder)) !== null) {
+            $review = YamlMetadataReview::fromMarkdown(implode("\n", $block['block']));
+            $attrs = self::mergeYamlMetadataAttrs($attrs, self::yamlMetadataReviewAttrs($review));
+            $remainder = array_slice($remainder, $block['next']);
+            while ($remainder !== [] && trim($remainder[0]) === '') {
+                array_shift($remainder);
+            }
         }
 
-        $review = YamlMetadataReview::fromMarkdown(implode("\n", $block['block']));
+        return [$remainder, $attrs];
+    }
+
+    /**
+     * @param array<string, mixed> $review
+     * @return array<string, mixed>
+     */
+    private static function yamlMetadataReviewAttrs(array $review): array
+    {
         $attrs = [];
         if (is_array($review['meta'] ?? null) && $review['meta'] !== []) {
             $attrs['meta'] = $review['meta'];
@@ -793,12 +807,24 @@ final class MarkdownReader
             $attrs['yamlMetadataDiagnosticsByPath'] = $review['diagnosticsByPath'];
         }
 
-        $remainder = array_slice($lines, $block['next']);
-        while ($remainder !== [] && trim($remainder[0]) === '') {
-            array_shift($remainder);
+        return $attrs;
+    }
+
+    /**
+     * @param array<string, mixed> $current
+     * @param array<string, mixed> $next
+     * @return array<string, mixed>
+     */
+    private static function mergeYamlMetadataAttrs(array $current, array $next): array
+    {
+        $merged = array_replace_recursive($current, $next);
+        foreach (['meta', 'yamlMetadataProvenanceByPath', 'metaConstructorProvenance', 'yamlMetadataDiagnosticsByPath'] as $key) {
+            if (is_array($current[$key] ?? null) && is_array($next[$key] ?? null)) {
+                $merged[$key] = array_replace($current[$key], $next[$key]);
+            }
         }
 
-        return [$remainder, $attrs];
+        return $merged;
     }
 
     /**
