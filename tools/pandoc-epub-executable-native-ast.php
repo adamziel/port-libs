@@ -125,6 +125,8 @@ if ($summary) {
         'pandocNativeFixtureByteComparedCount',
         'pandocNativeFixtureByteMatchCount',
         'pandocNativeFixtureByteMismatchCount',
+        'pandocNativeFixtureByteOnlyMismatchCount',
+        'pandocNativeFixtureSemanticByteMismatchCount',
         'pandocNativeFixtureByteMatchPercent',
         'astParityStatus',
         'mismatchCategories',

@@ -46,6 +46,8 @@ final class EpubExecutableNativeAstComparisonHarness
         $pandocNativeFixtureMatchCount = 0;
         $pandocNativeFixtureByteComparedCount = 0;
         $pandocNativeFixtureByteMatchCount = 0;
+        $pandocNativeFixtureByteOnlyMismatchCount = 0;
+        $pandocNativeFixtureSemanticByteMismatchCount = 0;
         $parseFailures = [];
         $mismatches = [];
         $nativeFixtureMismatches = [];
@@ -109,6 +111,7 @@ final class EpubExecutableNativeAstComparisonHarness
                 }
             }
 
+            $nativeFixtureAstMatchesPandoc = null;
             if ($nativeFixtureResult['ok'] && $pandocResult['ok']) {
                 /** @var AstNode $nativeFixtureDocument */
                 $nativeFixtureDocument = $nativeFixtureResult['document'];
@@ -120,7 +123,9 @@ final class EpubExecutableNativeAstComparisonHarness
                 $pandocAst = $normalizer->normalizedDocument($pandocDocument);
                 if ($nativeFixtureAst === $pandocAst) {
                     ++$pandocNativeFixtureMatchCount;
+                    $nativeFixtureAstMatchesPandoc = true;
                 } else {
+                    $nativeFixtureAstMatchesPandoc = false;
                     $difference = $this->firstDifference($nativeFixtureAst, $pandocAst) ?? 'unknown-checked-in-native-fixture-difference';
                     $categories = $this->mismatchCategories($difference);
                     $this->addCategory($categoryCounts, 'checked-in-native-fixture-drift', $fixtureName, $maxExamples);
@@ -145,9 +150,23 @@ final class EpubExecutableNativeAstComparisonHarness
 
                 if ($nativeFixtureResult['native'] === $pandocResult['native']) {
                     ++$pandocNativeFixtureByteMatchCount;
-                } elseif (count($nativeFixtureByteMismatches) < $maxExamples) {
+                    continue;
+                }
+
+                $byteDriftKind = $nativeFixtureAstMatchesPandoc === true
+                    ? 'native-byte-only-drift'
+                    : 'native-semantic-drift';
+                if ($byteDriftKind === 'native-byte-only-drift') {
+                    ++$pandocNativeFixtureByteOnlyMismatchCount;
+                } else {
+                    ++$pandocNativeFixtureSemanticByteMismatchCount;
+                }
+
+                if (count($nativeFixtureByteMismatches) < $maxExamples) {
                     $nativeFixtureByteMismatches[] = [
                         'fixture' => $fixtureName,
+                        'byteDriftKind' => $byteDriftKind,
+                        'normalizedAstEqual' => $nativeFixtureAstMatchesPandoc,
                         'nativeFixtureSha256' => hash('sha256', $nativeFixtureResult['native']),
                         'pandocNativeSha256' => hash('sha256', $pandocResult['native']),
                         'nativeFixtureBytes' => strlen($nativeFixtureResult['native']),
@@ -193,6 +212,8 @@ final class EpubExecutableNativeAstComparisonHarness
             'pandocNativeFixtureByteComparedCount' => $pandocNativeFixtureByteComparedCount,
             'pandocNativeFixtureByteMatchCount' => $pandocNativeFixtureByteMatchCount,
             'pandocNativeFixtureByteMismatchCount' => $nativeFixtureByteMismatchCount,
+            'pandocNativeFixtureByteOnlyMismatchCount' => $pandocNativeFixtureByteOnlyMismatchCount,
+            'pandocNativeFixtureSemanticByteMismatchCount' => $pandocNativeFixtureSemanticByteMismatchCount,
             'pandocNativeFixtureByteMatchPercent' => self::percent($pandocNativeFixtureByteMatchCount, $comparedEpubCount),
             'astParityStatus' => self::astParityStatus(count($parseFailures), $mismatchCount, $nativeFixtureMismatchCount, $comparedEpubCount),
             'parseFailures' => array_slice($parseFailures, 0, $maxExamples),
@@ -210,7 +231,9 @@ final class EpubExecutableNativeAstComparisonHarness
                 $pandocNativeFixtureMatchCount,
                 $nativeFixtureMismatchCount,
                 $pandocNativeFixtureByteMatchCount,
-                $nativeFixtureByteMismatchCount
+                $nativeFixtureByteMismatchCount,
+                $pandocNativeFixtureByteOnlyMismatchCount,
+                $pandocNativeFixtureSemanticByteMismatchCount
             ),
         ];
     }
@@ -258,11 +281,13 @@ final class EpubExecutableNativeAstComparisonHarness
             (int) ($report['pandocNativeFixtureMismatchCount'] ?? 0),
         );
         $lines[] = sprintf(
-            'checkedInNativeFixtureBytes: pandocCompared=%d pandocByteMatches=%d (%s) pandocByteMismatches=%d',
+            'checkedInNativeFixtureBytes: pandocCompared=%d pandocByteMatches=%d (%s) pandocByteMismatches=%d byteOnly=%d semantic=%d',
             (int) ($report['pandocNativeFixtureByteComparedCount'] ?? 0),
             (int) ($report['pandocNativeFixtureByteMatchCount'] ?? 0),
             self::formatPercent($report['pandocNativeFixtureByteMatchPercent'] ?? null),
             (int) ($report['pandocNativeFixtureByteMismatchCount'] ?? 0),
+            (int) ($report['pandocNativeFixtureByteOnlyMismatchCount'] ?? 0),
+            (int) ($report['pandocNativeFixtureSemanticByteMismatchCount'] ?? 0),
         );
 
         $mismatches = $report['mismatchComparisons'] ?? [];
@@ -295,8 +320,10 @@ final class EpubExecutableNativeAstComparisonHarness
                     continue;
                 }
                 $lines[] = sprintf(
-                    '- %s: fixtureBytes=%d pandocBytes=%d fixtureSha256=%s pandocSha256=%s',
+                    '- %s: kind=%s normalizedAstEqual=%s fixtureBytes=%d pandocBytes=%d fixtureSha256=%s pandocSha256=%s',
                     (string) ($mismatch['fixture'] ?? 'unknown'),
+                    (string) ($mismatch['byteDriftKind'] ?? 'unknown'),
+                    array_key_exists('normalizedAstEqual', $mismatch) ? self::formatBoolish($mismatch['normalizedAstEqual']) : 'unknown',
                     (int) ($mismatch['nativeFixtureBytes'] ?? 0),
                     (int) ($mismatch['pandocNativeBytes'] ?? 0),
                     (string) ($mismatch['nativeFixtureSha256'] ?? ''),
@@ -389,6 +416,8 @@ final class EpubExecutableNativeAstComparisonHarness
             'pandocNativeFixtureByteComparedCount' => 0,
             'pandocNativeFixtureByteMatchCount' => 0,
             'pandocNativeFixtureByteMismatchCount' => 0,
+            'pandocNativeFixtureByteOnlyMismatchCount' => 0,
+            'pandocNativeFixtureSemanticByteMismatchCount' => 0,
             'pandocNativeFixtureByteMatchPercent' => null,
             'astParityStatus' => $reason === 'pandoc-executable-missing'
                 ? 'not-evaluated-pandoc-executable-missing'
@@ -660,14 +689,16 @@ final class EpubExecutableNativeAstComparisonHarness
         int $nativeFixtureMatchCount = 0,
         int $nativeFixtureMismatchCount = 0,
         int $nativeFixtureByteMatchCount = 0,
-        int $nativeFixtureByteMismatchCount = 0
+        int $nativeFixtureByteMismatchCount = 0,
+        int $nativeFixtureByteOnlyMismatchCount = 0,
+        int $nativeFixtureSemanticByteMismatchCount = 0
     ): array {
         if (!$directoryPresent) {
             $sourceEvidence = 'EPUB directory absent; executable comparison did not run';
         } elseif (!$executablePresent) {
             $sourceEvidence = 'pandoc executable absent; executable comparison did not run';
         } else {
-            $sourceEvidence = "compared epubs={$comparedEpubCount}; parse failures={$parseFailureCount}; local/executable normalized AST matches={$matchCount}; local/executable normalized AST mismatches={$mismatchCount}; executable/checked-in-native matches={$nativeFixtureMatchCount}; executable/checked-in-native mismatches={$nativeFixtureMismatchCount}; executable/checked-in-native byte matches={$nativeFixtureByteMatchCount}; executable/checked-in-native byte mismatches={$nativeFixtureByteMismatchCount}";
+            $sourceEvidence = "compared epubs={$comparedEpubCount}; parse failures={$parseFailureCount}; local/executable normalized AST matches={$matchCount}; local/executable normalized AST mismatches={$mismatchCount}; executable/checked-in-native matches={$nativeFixtureMatchCount}; executable/checked-in-native mismatches={$nativeFixtureMismatchCount}; executable/checked-in-native byte matches={$nativeFixtureByteMatchCount}; executable/checked-in-native byte mismatches={$nativeFixtureByteMismatchCount}; byte-only native fixture drifts={$nativeFixtureByteOnlyMismatchCount}; semantic native fixture byte drifts={$nativeFixtureSemanticByteMismatchCount}";
         }
 
         $executableEvidenceCovered = $parseFailureCount === 0
@@ -689,6 +720,15 @@ final class EpubExecutableNativeAstComparisonHarness
             ],
             [
                 'rank' => 2,
+                'id' => 'checked-in-native-fixture-byte-for-byte-freshness',
+                'status' => (!$directoryPresent || !$executablePresent)
+                    ? 'not-evaluated'
+                    : ($nativeFixtureByteMismatchCount === 0 ? 'covered-by-current-executable-evidence' : 'open'),
+                'currentEvidence' => $sourceEvidence,
+                'evidenceRequired' => 'Regenerate checked-in .native fixtures from the pinned pandoc executable when byte-for-byte freshness is required; byte-only drift is tracked separately from normalized AST drift.',
+            ],
+            [
+                'rank' => 3,
                 'id' => 'upstream-haskell-epub-reader-runner-results',
                 'status' => 'open',
                 'currentEvidence' => 'This harness invokes a pandoc executable and checks the same checked-in native fixtures, but it does not run the upstream Haskell/Tasty process itself.',
@@ -754,5 +794,20 @@ final class EpubExecutableNativeAstComparisonHarness
         }
 
         return strlen($json) > 180 ? substr($json, 0, 177) . '...' : $json;
+    }
+
+    private static function formatBoolish(mixed $value): string
+    {
+        if ($value === true) {
+            return 'true';
+        }
+        if ($value === false) {
+            return 'false';
+        }
+        if ($value === null) {
+            return 'null';
+        }
+
+        return gettype($value);
     }
 }
