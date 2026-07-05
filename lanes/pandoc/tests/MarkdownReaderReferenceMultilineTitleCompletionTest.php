@@ -22,13 +22,23 @@ $findFirstNode = static function (AstNode $node, string $type) use (&$findFirstN
     return new AstNode('missing');
 };
 
+$collectNodes = null;
+$collectNodes = static function (AstNode $node, string $type) use (&$collectNodes): array {
+    $nodes = $node->type === $type ? [$node] : [];
+    foreach ($node->children as $child) {
+        array_push($nodes, ...$collectNodes($child, $type));
+    }
+
+    return $nodes;
+};
+
 $cases = [
     'full link destination-line double title' => [
         'markdown' => "[visible][alpha]\n\n[alpha]: /alpha \"First title line\nsecond title line\"",
         'type' => 'link',
         'label' => 'alpha',
         'url' => '/alpha',
-        'title' => "First title line\nsecond title line",
+        'title' => 'First title line second title line',
         'text' => 'visible',
     ],
     'shortcut link continuation-line single title' => [
@@ -36,7 +46,7 @@ $cases = [
         'type' => 'link',
         'label' => 'beta',
         'url' => '/beta',
-        'title' => "Shortcut title line\nsecond shortcut line",
+        'title' => 'Shortcut title line second shortcut line',
         'text' => 'beta',
     ],
     'collapsed link continuation-line paren title' => [
@@ -44,7 +54,7 @@ $cases = [
         'type' => 'link',
         'label' => 'gamma',
         'url' => '/gamma',
-        'title' => "Paren title line\nsecond paren line",
+        'title' => 'Paren title line second paren line',
         'text' => 'gamma',
     ],
     'reference image destination-line paren title' => [
@@ -52,7 +62,7 @@ $cases = [
         'type' => 'image',
         'label' => 'delta',
         'url' => 'media/diagram.png',
-        'title' => "Figure title line\nsecond figure line",
+        'title' => 'Figure title line second figure line',
         'alt' => 'diagram',
     ],
 ];
@@ -78,6 +88,28 @@ foreach ($cases as $name => $case) {
             $t->same($case['text'], $node->children[0]->attr('text'), $name . ' text');
         };
 }
+
+$tests['maps checked-in markdown reference multiline title fixture'] =
+    static function (TestRunner $t) use ($collectNodes): void {
+        $fixture = (string) file_get_contents(
+            dirname(__DIR__) . '/fixtures/upstream-markdown-reference-multiline-title.md'
+        );
+        $document = (new MarkdownReader())->read($fixture);
+        $links = $collectNodes($document, 'link');
+        $images = $collectNodes($document, 'image');
+
+        $t->same(3, count($document->children));
+        $t->same(2, count($links));
+        $t->same('visible', $links[0]->children[0]->attr('text'));
+        $t->same('/alpha', $links[0]->attr('url'));
+        $t->same('First title line second title line', $links[0]->attr('title'));
+        $t->same('beta', $links[1]->children[0]->attr('text'));
+        $t->same('/beta', $links[1]->attr('url'));
+        $t->same('Shortcut title line second shortcut line', $links[1]->attr('title'));
+        $t->same(1, count($images));
+        $t->same('media/diagram.png', $images[0]->attr('url'));
+        $t->same('Figure title line second figure line', $images[0]->attr('title'));
+    };
 
 $tests['records markdown reference multiline title mapped-case count'] =
     static function (TestRunner $t) use ($cases): void {

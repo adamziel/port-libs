@@ -149,6 +149,7 @@ final class EpubReader
             $link_attribute_overlays_by_href = $this->epubBodyLinkAttributeOverlaysByHref($xhtml);
             $document = $this->epubContentHtmlReader()->read($this->contentDocumentMarkup($xhtml));
             $document = $this->normalizeEpubMediaRawBlocks($document);
+            $document = $this->normalizeEpubRawInlineVoidElements($document);
             if ($footnote_definitions !== []) {
                 $footnote_index = 0;
                 $document = $this->fillEmptyEpubFootnoteNotes($document, $footnote_definitions, $footnote_index);
@@ -2004,6 +2005,41 @@ final class EpubReader
         return $changed ? new AstNode($node->type, $node->attrs, $children) : $node;
     }
 
+    private function normalizeEpubRawInlineVoidElements(AstNode $node): AstNode
+    {
+        $children = [];
+        $changed = false;
+        foreach ($node->children as $index => $child) {
+            $normalized = $this->normalizeEpubRawInlineVoidElements($child);
+            $children[] = $normalized;
+            if ($normalized !== $child) {
+                $changed = true;
+            }
+
+            if (
+                $this->epubRawInlineNeedsExplicitClose($normalized, 'wbr')
+                && !$this->nextAstNodeIsClosingRawHtml($node->children, $index, 'wbr')
+            ) {
+                $children[] = new AstNode('raw_html_inline', ['html' => '</wbr>']);
+                $changed = true;
+            }
+        }
+
+        return $changed ? new AstNode($node->type, $node->attrs, $children) : $node;
+    }
+
+    private function epubRawInlineNeedsExplicitClose(AstNode $node, string $tag): bool
+    {
+        if ($node->type !== 'raw_html_inline') {
+            return false;
+        }
+
+        $html = trim((string) $node->attr('html', $node->attr('text', '')));
+
+        return $this->isEpubOpeningRawHtmlTag($html, $tag)
+            && !$this->rawHtmlTagClosesElement($html, $tag);
+    }
+
     /**
      * @return list<AstNode>
      */
@@ -2148,6 +2184,21 @@ final class EpubReader
         $next = $html[$index + 1] ?? null;
 
         return is_string($next) && $this->isEpubClosingRawHtmlTag($next, $tag);
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function nextAstNodeIsClosingRawHtml(array $nodes, int $index, string $tag): bool
+    {
+        $next = $nodes[$index + 1] ?? null;
+        if (!$next instanceof AstNode || $next->type !== 'raw_html_inline') {
+            return false;
+        }
+
+        $html = trim((string) $next->attr('html', $next->attr('text', '')));
+
+        return $this->isEpubClosingRawHtmlTag($html, $tag);
     }
 
     private function spineMarker(string $filename): AstNode

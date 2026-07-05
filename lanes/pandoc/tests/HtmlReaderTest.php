@@ -1651,6 +1651,24 @@ $tests['imports direct pandoc html nested paragraph tree construction as repaire
         );
     };
 
+$tests['imports direct pandoc html paragraph heading tree construction as repaired blocks'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-paragraph-heading-tree-construction.html'));
+        $heading = $document->children[1];
+
+        $t->same('html', $document->attr('sourceFormat'));
+        $t->same(Html5Dom::htmlDocumentTreeConstructionBackend(), $document->attr('meta')['htmlTreeConstruction'] ?? null);
+        $t->same(
+            ['paragraph', 'heading', 'paragraph'],
+            array_map(static fn ($node): string => $node->type, $document->children)
+        );
+        $t->same('Before', $document->children[0]->attr('text'));
+        $t->same(2, $heading->attr('level'));
+        $t->same('title', $heading->attr('id'));
+        $t->same('Title', $heading->attr('text'));
+        $t->same('After', $document->children[2]->attr('text'));
+    };
+
 $tests['imports direct pandoc html paragraph hr tree construction as repaired blocks'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-paragraph-hr-tree-construction.html'));

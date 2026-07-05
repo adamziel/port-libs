@@ -2266,6 +2266,59 @@ HTML);
         $t->contains('( "images/note.png" , "" )', $native);
         $t->contains('Link ( "" , [  ] , [ ( "role" , "doc-backlink" ) ] ) [ Str "back" ] ( "#chapter.xhtml_fnref1" , "" )', $native);
     },
+    'preserves epub xhtml wbr raw inline close in native output' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-wbr-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary EPUB package');
+        }
+        $zip->addFromString('META-INF/container.xml', '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="book-id">
+  <metadata>
+    <dc:identifier id="book-id">book-wbr</dc:identifier>
+    <dc:title>WBR EPUB</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('OPS/chapter.xhtml', <<<'HTML'
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <body>
+    <p>Soft<wbr/>break remains readable.</p>
+  </body>
+</html>
+HTML);
+        $zip->close();
+
+        try {
+            $document = (new EpubReader())->readEpubFile($path);
+            $native = (new NativeWriter(['blocksOnly' => true]))->write($document);
+        } finally {
+            @unlink($path);
+        }
+
+        $paragraph = $document->children[1] ?? new AstNode('missing');
+
+        $t->same('paragraph', $paragraph->type);
+        $t->contains('RawInline (Format "html") "<wbr>"', $native);
+        $t->contains('RawInline (Format "html") "</wbr>"', $native);
+        $t->contains('Str "Soft" , RawInline (Format "html") "<wbr>" , RawInline (Format "html") "</wbr>" , Str "break"', $native);
+    },
     'preserves epub details and summary raw block wrappers from html document dom' => static function (TestRunner $t): void {
         $fixture = __DIR__ . '/../fixtures/upstream-current-epub-reader/epub/xhtml-details-summary-spine.epub';
 

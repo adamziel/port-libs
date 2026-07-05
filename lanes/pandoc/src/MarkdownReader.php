@@ -19789,7 +19789,7 @@ final class MarkdownReader
             return null;
         }
 
-        return $this->decodeHtmlEntities($this->unescapeLinkComponent($content));
+        return $this->normalizeLinkTitleText($this->decodeHtmlEntities($this->unescapeLinkComponent($content)));
     }
 
     private function startsWithLinkTitleDelimiter(string $text): bool
@@ -19797,6 +19797,11 @@ final class MarkdownReader
         $text = ltrim($text);
 
         return $text !== '' && in_array($text[0], ['"', "'", '('], true);
+    }
+
+    private function normalizeLinkTitleText(string $text): string
+    {
+        return preg_replace('/[ \t\r\n]+/u', ' ', $text) ?? $text;
     }
 
     private function unescapeLinkComponent(string $text): string
