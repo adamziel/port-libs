@@ -480,6 +480,7 @@ final class DelimitedTextReader
      *         textAfterClosingQuoteCount:int,
      *         closingQuoteTrailingWhitespaceCount:int,
      *         closingQuoteTrailingRecordWhitespaceCount:int,
+     *         escapeBeforeLineBreakCount:int,
      *         unclosedQuoteCount:int,
      *         quotedLineBreakCount:int,
      *         multilineFieldCount:int,
@@ -512,6 +513,7 @@ final class DelimitedTextReader
             'textAfterClosingQuoteCount' => 0,
             'closingQuoteTrailingWhitespaceCount' => 0,
             'closingQuoteTrailingRecordWhitespaceCount' => 0,
+            'escapeBeforeLineBreakCount' => 0,
             'unclosedQuoteCount' => 0,
             'quotedLineBreakCount' => 0,
             'multilineFieldCount' => 0,
@@ -677,6 +679,16 @@ final class DelimitedTextReader
                         $offset = $nextOffset + strlen($escaped) - 1;
                         continue;
                     }
+
+                    $metrics['escapeBeforeLineBreakCount']++;
+                    $diagnostics[] = $this->diagnostic(
+                        'delimited-text-escape-before-linebreak',
+                        'warning',
+                        'An explicit escape character was followed by a line break or end of input inside a quoted field; Pandoc only escapes non-line-break characters.',
+                        $rowIndex,
+                        $columnIndex,
+                        $offset
+                    );
                 }
 
                 if ($quote !== null && $this->matchesTokenAt($text, $offset, $quote)) {
@@ -878,6 +890,14 @@ final class DelimitedTextReader
             $column = $diagnostic === null ? null : ((int) $diagnostic['column'] + 1);
             $location = $row === null ? '' : " at line {$row}, column {$column}";
             throw new \InvalidArgumentException("Malformed {$format} input: whitespace after a closing quote before a line break{$location}; Pandoc only accepts trailing whitespace after the final record.");
+        }
+
+        if ((int) ($metrics['escapeBeforeLineBreakCount'] ?? 0) > 0) {
+            $diagnostic = $this->firstParseDiagnostic($parse, 'delimited-text-escape-before-linebreak');
+            $row = $diagnostic === null ? null : ((int) $diagnostic['row'] + 1);
+            $column = $diagnostic === null ? null : ((int) $diagnostic['column'] + 1);
+            $location = $row === null ? '' : " at line {$row}, column {$column}";
+            throw new \InvalidArgumentException("Malformed {$format} input: escape character before a line break or end of input{$location}; Pandoc escape characters only escape non-line-break characters.");
         }
 
         if ((int) ($metrics['unclosedQuoteCount'] ?? 0) > 0) {
@@ -1276,6 +1296,7 @@ final class DelimitedTextReader
      *     textAfterClosingQuoteCount:int,
      *     closingQuoteTrailingWhitespaceCount:int,
      *     closingQuoteTrailingRecordWhitespaceCount:int,
+     *     escapeBeforeLineBreakCount:int,
      *     unclosedQuoteCount:int,
      *     quotedLineBreakCount:int,
      *     multilineFieldCount:int,
@@ -1371,6 +1392,7 @@ final class DelimitedTextReader
             'textAfterClosingQuoteCount' => $parseMetrics['textAfterClosingQuoteCount'],
             'closingQuoteTrailingWhitespaceCount' => $parseMetrics['closingQuoteTrailingWhitespaceCount'] ?? 0,
             'closingQuoteTrailingRecordWhitespaceCount' => $parseMetrics['closingQuoteTrailingRecordWhitespaceCount'] ?? 0,
+            'escapeBeforeLineBreakCount' => $parseMetrics['escapeBeforeLineBreakCount'] ?? 0,
             'unclosedQuoteCount' => $parseMetrics['unclosedQuoteCount'],
             'quotedLineBreakCount' => $parseMetrics['quotedLineBreakCount'],
             'multilineFieldCount' => $parseMetrics['multilineFieldCount'],

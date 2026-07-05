@@ -149,14 +149,10 @@ final class EpubReader
             $content_base_href = $content_dom instanceof \DOMDocument
                 ? $this->epubContentDocumentBaseHref($content_dom)
                 : null;
-            $content_xml_base_href = $content_base_href === null && $content_dom instanceof \DOMDocument
-                ? $this->epubContentDocumentXmlBaseHref($content_dom)
-                : null;
-            $active_content_base_href = $content_base_href ?? $content_xml_base_href;
             $footnote_definitions = $this->epubFootnoteDefinitionsInReferenceOrder($content_dom, $item['href']);
-            $note_reference_hrefs = $this->epubNoteReferenceHrefs($content_dom, $active_content_base_href);
-            $link_attribute_overlays_by_href = $this->epubBodyLinkAttributeOverlaysByHref($content_dom, $active_content_base_href);
-            $document = $this->epubContentHtmlReader()->read($this->contentDocumentMarkupForHtmlReader($xhtml, $content_dom, $content_xml_base_href));
+            $note_reference_hrefs = $this->epubNoteReferenceHrefs($content_dom, $content_base_href);
+            $link_attribute_overlays_by_href = $this->epubBodyLinkAttributeOverlaysByHref($content_dom, $content_base_href);
+            $document = $this->epubContentHtmlReader()->read($this->contentDocumentMarkupForHtmlReader($xhtml, $content_dom, $content_base_href));
             $document = $this->normalizeEpubMediaRawBlocks($document);
             $document = $this->normalizeEpubRawInlineVoidElements($document);
             if ($footnote_definitions !== []) {
@@ -1698,10 +1694,10 @@ final class EpubReader
         return Html5Dom::stripContentDocumentPreamble($xhtml);
     }
 
-    private function contentDocumentMarkupForHtmlReader(string $xhtml, ?\DOMDocument $dom, ?string $xml_base_href): string
+    private function contentDocumentMarkupForHtmlReader(string $xhtml, ?\DOMDocument $dom, ?string $html_base_href): string
     {
         $markup = $this->contentDocumentMarkup($xhtml);
-        if (!$dom instanceof \DOMDocument || $xml_base_href === null || $xml_base_href === '') {
+        if (!$dom instanceof \DOMDocument || $html_base_href !== null || !$this->epubContentDocumentHasXmlBase($dom)) {
             return $markup;
         }
 
@@ -1710,20 +1706,7 @@ final class EpubReader
             return $markup;
         }
 
-        $head = $this->firstHtmlElement($document, 'head');
-        if (!$head instanceof \DOMElement) {
-            $head = $document->createElement('head');
-            $body = $this->firstHtmlElement($document, 'body');
-            if ($body instanceof \DOMElement) {
-                $document->documentElement->insertBefore($head, $body);
-            } else {
-                $document->documentElement->insertBefore($head, $document->documentElement->firstChild);
-            }
-        }
-
-        $base = $document->createElement('base');
-        $base->setAttribute('href', $xml_base_href);
-        $head->insertBefore($base, $head->firstChild);
+        $this->resolveEpubContentXmlBaseReferences($document->documentElement, null);
 
         return XmlHtmlDom::serializeHtmlNode($document->documentElement);
     }
@@ -1818,7 +1801,7 @@ final class EpubReader
 
             $href = html_entity_decode($element->getAttribute('href'), ENT_QUOTES | ENT_XML1, 'UTF-8');
             if ($href !== '') {
-                foreach ($this->epubContentHrefKeys($href, $base_href) as $key) {
+                foreach ($this->epubContentHrefKeys($href, $this->epubContentElementBaseHref($element, $base_href)) as $key) {
                     $hrefs[$key] = true;
                 }
             }
@@ -1855,7 +1838,7 @@ final class EpubReader
             if ($overlay['id'] !== '' || $overlay['classes'] !== [] || $overlay['attributes'] !== []) {
                 $has_attributes = true;
             }
-            foreach ($this->epubContentHrefKeys($href, $base_href) as $key) {
+            foreach ($this->epubContentHrefKeys($href, $this->epubContentElementBaseHref($link, $base_href)) as $key) {
                 $overlays_by_href[$key][] = $overlay;
             }
         }
@@ -1879,18 +1862,15 @@ final class EpubReader
         return null;
     }
 
-    private function epubContentDocumentXmlBaseHref(\DOMDocument $dom): ?string
+    private function epubContentDocumentHasXmlBase(\DOMDocument $dom): bool
     {
-        $body = $this->firstHtmlElement($dom, 'body');
-        $body_base = $body instanceof \DOMElement ? $this->xmlBaseAttribute($body) : '';
-        if ($body_base !== '') {
-            return $body_base;
+        foreach ($dom->getElementsByTagName('*') as $element) {
+            if ($element instanceof \DOMElement && $this->xmlBaseAttribute($element) !== '') {
+                return true;
+            }
         }
 
-        $root = $dom->documentElement;
-        $root_base = $root instanceof \DOMElement ? $this->xmlBaseAttribute($root) : '';
-
-        return $root_base === '' ? null : $root_base;
+        return false;
     }
 
     private function xmlBaseAttribute(\DOMElement $element): string
@@ -1913,6 +1893,104 @@ final class EpubReader
         }
 
         return '';
+    }
+
+    private function epubContentElementBaseHref(\DOMElement $element, ?string $html_base_href): ?string
+    {
+        if ($html_base_href !== null && $html_base_href !== '') {
+            return $html_base_href;
+        }
+
+        $ancestors = [];
+        for ($node = $element; $node instanceof \DOMElement; $node = $node->parentNode) {
+            array_unshift($ancestors, $node);
+        }
+
+        $base_href = null;
+        foreach ($ancestors as $ancestor) {
+            $xml_base = $this->xmlBaseAttribute($ancestor);
+            if ($xml_base === '') {
+                continue;
+            }
+
+            $base_href = $this->resolveEpubXmlBaseHref($xml_base, $base_href);
+        }
+
+        return $base_href;
+    }
+
+    private function resolveEpubXmlBaseHref(string $xml_base, ?string $base_href): string
+    {
+        $xml_base = trim($xml_base);
+        if ($xml_base === '') {
+            return $base_href ?? '';
+        }
+
+        return XmlHtmlDom::resolveHtmlResourceUrlReference($xml_base, $base_href) ?? $xml_base;
+    }
+
+    private function resolveEpubContentXmlBaseReferences(\DOMElement $element, ?string $base_href): void
+    {
+        $xml_base = $this->xmlBaseAttribute($element);
+        $effective_base_href = $xml_base === '' ? $base_href : $this->resolveEpubXmlBaseHref($xml_base, $base_href);
+
+        if ($effective_base_href !== null && $effective_base_href !== '') {
+            foreach ($this->epubContentXmlBaseResourceAttributes($element) as $attribute) {
+                $this->resolveEpubContentXmlBaseAttribute($element, $attribute, $effective_base_href);
+            }
+        }
+
+        $this->removeEpubXmlBaseAttribute($element);
+
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMElement) {
+                $this->resolveEpubContentXmlBaseReferences($child, $effective_base_href);
+            }
+        }
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function epubContentXmlBaseResourceAttributes(\DOMElement $element): array
+    {
+        return match (strtolower($element->localName)) {
+            'a', 'area', 'link' => ['href'],
+            'audio', 'embed', 'iframe', 'img', 'script', 'source', 'track' => ['src'],
+            'blockquote', 'del', 'ins', 'q' => ['cite'],
+            'object' => ['data'],
+            'video' => ['poster', 'src'],
+            default => [],
+        };
+    }
+
+    private function resolveEpubContentXmlBaseAttribute(\DOMElement $element, string $attribute, string $base_href): void
+    {
+        if (!$element->hasAttribute($attribute)) {
+            return;
+        }
+
+        $value = html_entity_decode(trim($element->getAttribute($attribute)), ENT_QUOTES | ENT_XML1, 'UTF-8');
+        if ($value === '') {
+            return;
+        }
+
+        $resolved = XmlHtmlDom::resolveHtmlResourceUrlReference($value, $base_href);
+        if ($resolved === null || $resolved === $value) {
+            return;
+        }
+
+        $element->setAttribute($attribute, $resolved);
+    }
+
+    private function removeEpubXmlBaseAttribute(\DOMElement $element): void
+    {
+        if ($element->hasAttributeNS('http://www.w3.org/XML/1998/namespace', 'base')) {
+            $element->removeAttributeNS('http://www.w3.org/XML/1998/namespace', 'base');
+        }
+        if ($element->hasAttribute('xml:base')) {
+            $element->removeAttribute('xml:base');
+        }
     }
 
     private function firstHtmlElement(\DOMDocument $dom, string $name): ?\DOMElement

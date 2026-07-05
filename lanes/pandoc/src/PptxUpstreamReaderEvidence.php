@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 107;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 108;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'f963beb64009bf1e478351924a96f5a7e0d854a9a79c8ee7019da7869bee55c9';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 46137;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '1c53e6af2ebd64c631b9e56a4e6c993d710cf83be0cdf76007b7c1421da9bc5a';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 46588;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -1026,6 +1026,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => '3b55757f406ad3bfc31c5928c6e978536cef7bf81e575cf9308ae092172b6c28',
             'pptxBytes' => 1642,
             'nativeBytes' => 143,
+        ],
+        'unqualified-relationship-attributes' => [
+            'name' => 'generated unqualified relationship attribute parity',
+            'pptx' => 'pptx-reader/unqualified-relationship-attributes.pptx',
+            'native' => 'pptx-reader/unqualified-relationship-attributes.native',
+            'pairKey' => 'pptx-reader/unqualified-relationship-attributes.pptx|pptx-reader/unqualified-relationship-attributes.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/unqualified-relationship-attributes.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/unqualified-relationship-attributes.native',
+            'pptxSha256' => '4cbabcf0bac36cd9c06d688b82173633062c89121296ecceff0b5ecbd2206449',
+            'nativeSha256' => '1d8281f7e359f99a495b4f9ccb2012dd67309f8fe5df83c6e22a52227c9d79c6',
+            'pptxBytes' => 2099,
+            'nativeBytes' => 302,
         ],
         'speaker-notes' => [
             'name' => 'generated speaker notes visibility parity',

@@ -46,6 +46,7 @@ final class MarkdownNativeAstComparisonHarness
         'upstream-markdown-table-attributes-disabled-profile' => ['format' => 'markdown-table_attributes'],
         'upstream-markdown-task-list' => ['format' => 'markdown+task_lists'],
         'upstream-markdown-z-fancy-list-markers' => ['format' => 'markdown+fancy_lists'],
+        'upstream-markdown-z-fancy-list-parenthesized-profile' => ['format' => 'markdown+fancy_lists'],
         'upstream-markdown-z-hard-line-break-profile' => ['format' => 'markdown+hard_line_breaks'],
         'upstream-markdown-z-lists-without-preceding-blankline-profile' => ['format' => 'markdown+lists_without_preceding_blankline'],
         'upstream-markdown-z-old-dashes-profile' => ['format' => 'markdown+old_dashes+smart'],

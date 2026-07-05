@@ -14725,6 +14725,27 @@ final class MarkdownReader
             return null;
         }
 
+        if ($delimiter === 'two_parens') {
+            $roman = $this->romanToInt($token);
+            if ($roman !== null && (strlen($token) > 1 || strcasecmp($token, 'i') === 0)) {
+                return [
+                    'start' => $roman,
+                    'style' => ctype_upper($token) ? 'upper_roman' : 'lower_roman',
+                ];
+            }
+
+            if (strlen($token) === 1) {
+                $start = ord(strtolower($token)) - ord('a') + 1;
+
+                return [
+                    'start' => $start,
+                    'style' => ctype_upper($token) ? 'upper_alpha' : 'lower_alpha',
+                ];
+            }
+
+            return null;
+        }
+
         $roman = $delimiter === 'period' ? $this->romanToInt($token) : null;
         if ($roman !== null && (strlen($token) > 1 || $spacesAfterMarker >= 2 || $indent > 0)) {
             return [

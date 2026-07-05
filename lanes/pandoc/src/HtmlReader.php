@@ -43,6 +43,7 @@ final class HtmlReader
             $attrs = [];
         } else {
             $readerBytes = self::flattenHtmlTemplateContainers($structuralBytes);
+            $readerBytes = self::flattenHtmlFallbackContentContainers($readerBytes);
             $readerBytes = self::flattenHtmlRawTextFallbackContainers($readerBytes);
             $readerBytes = self::flattenHtmlAttributeLessButtonContainers($readerBytes);
             if ($this->shouldFlattenHtmlDetailsSummaryContainers()) {
@@ -238,6 +239,110 @@ final class HtmlReader
         }
 
         return $changed;
+    }
+
+    private static function flattenHtmlFallbackContentContainers(string $bytes): string
+    {
+        try {
+            $source = self::parseHtmlRewriteSource($bytes);
+            if ($source === null || !self::flattenHtmlFallbackContentElements($source['dom'])) {
+                return $bytes;
+            }
+
+            return self::serializeHtmlRewriteSource($source) ?? $bytes;
+        } catch (\Throwable) {
+            return $bytes;
+        }
+    }
+
+    private static function flattenHtmlFallbackContentElements(?\DOMDocument $dom): bool
+    {
+        if (!$dom instanceof \DOMDocument) {
+            return false;
+        }
+
+        $changed = false;
+        for ($pass = 0; $pass < 8; ++$pass) {
+            $elements = [];
+            foreach (self::htmlFallbackContentElementNames() as $name) {
+                foreach ($dom->getElementsByTagName($name) as $element) {
+                    if ($element instanceof \DOMElement && strtolower($element->localName) === $name) {
+                        $elements[] = $element;
+                    }
+                }
+            }
+
+            if ($elements === []) {
+                return $changed;
+            }
+
+            foreach ($elements as $element) {
+                $parent = $element->parentNode;
+                if (!$parent instanceof \DOMNode) {
+                    continue;
+                }
+
+                $replacementNodes = self::htmlFallbackContentReplacementNodes($dom, $element);
+                if ($replacementNodes === null) {
+                    continue;
+                }
+
+                foreach ($replacementNodes as $replacement) {
+                    $parent->insertBefore($replacement, $element);
+                }
+                $parent->removeChild($element);
+                $changed = true;
+            }
+        }
+
+        return $changed;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function htmlFallbackContentElementNames(): array
+    {
+        return ['iframe', 'noscript', 'object'];
+    }
+
+    /**
+     * @return list<\DOMNode>|null
+     */
+    private static function htmlFallbackContentReplacementNodes(\DOMDocument $dom, \DOMElement $element): ?array
+    {
+        $name = strtolower($element->localName);
+        if (in_array($name, ['iframe', 'noscript'], true)) {
+            $fragment = Html5Dom::parseHtmlFragment($element->textContent);
+            if (!self::htmlElementContainsBlockContainer($fragment)) {
+                return null;
+            }
+
+            $nodes = [];
+            foreach (iterator_to_array($fragment->childNodes) as $child) {
+                if ($child instanceof \DOMNode) {
+                    $nodes[] = $dom->importNode($child, true);
+                }
+            }
+
+            return $nodes;
+        }
+
+        if (!self::htmlElementContainsBlockContainer($element)) {
+            return null;
+        }
+
+        $nodes = [];
+        foreach (iterator_to_array($element->childNodes) as $child) {
+            if ($child instanceof \DOMElement && strtolower($child->localName) === 'param') {
+                continue;
+            }
+            if ($child instanceof \DOMNode) {
+                $nodes[] = $child->cloneNode(true);
+            }
+        }
+
+        return $nodes;
     }
 
     private static function flattenHtmlRawTextFallbackContainers(string $bytes): string

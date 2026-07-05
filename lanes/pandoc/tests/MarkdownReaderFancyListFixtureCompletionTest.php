@@ -9,6 +9,9 @@ use PortLibs\Pandoc\NativeWriter;
 $fixture = static fn (): string => (string) file_get_contents(
     dirname(__DIR__) . '/fixtures/upstream-markdown-z-fancy-list-markers.md'
 );
+$parenthesizedFixture = static fn (): string => (string) file_get_contents(
+    dirname(__DIR__) . '/fixtures/upstream-markdown-z-fancy-list-parenthesized-profile.md'
+);
 
 return [
     'maps selected upstream markdown fancy-list marker fixture' =>
@@ -67,5 +70,45 @@ return [
             $t->same('A.  alpha', $rows[0]);
             $t->same('IV.  roman four', $rows[2]);
             $t->same('(3) three', $rows[4]);
+        },
+
+    'maps selected upstream markdown fancy-list parenthesized marker fixture' =>
+        static function (TestRunner $t) use ($parenthesizedFixture): void {
+            $document = (new MarkdownReader(['format' => 'markdown+fancy_lists']))->read($parenthesizedFixture());
+            $roman = $document->children[0] ?? new AstNode('missing');
+            $alpha = $document->children[1] ?? new AstNode('missing');
+            $native = (new NativeWriter())->write($document);
+
+            $t->same(['ordered_list', 'ordered_list'], array_map(
+                static fn (AstNode $node): string => $node->type,
+                $document->children
+            ));
+
+            $t->same(1, $roman->attr('start'));
+            $t->same('lower_roman', $roman->attr('style'));
+            $t->same('two_parens', $roman->attr('delimiter'));
+            $t->same('roman one', ($roman->children[0] ?? new AstNode('missing'))->attr('text'));
+            $t->same('roman two', ($roman->children[1] ?? new AstNode('missing'))->attr('text'));
+
+            $t->same(1, $alpha->attr('start'));
+            $t->same('lower_alpha', $alpha->attr('style'));
+            $t->same('two_parens', $alpha->attr('delimiter'));
+            $t->same('alpha one', ($alpha->children[0] ?? new AstNode('missing'))->attr('text'));
+            $t->same('alpha two', ($alpha->children[1] ?? new AstNode('missing'))->attr('text'));
+
+            $t->contains('OrderedList ( 1 , LowerRoman , TwoParens )', $native);
+            $t->contains('OrderedList ( 1 , LowerAlpha , TwoParens )', $native);
+        },
+
+    'keeps selected upstream markdown fancy-list parenthesized marker fixture behind extension gate' =>
+        static function (TestRunner $t) use ($parenthesizedFixture): void {
+            $document = (new MarkdownReader(['format' => 'markdown-fancy_lists']))->read($parenthesizedFixture());
+
+            $t->same(['paragraph', 'paragraph'], array_map(
+                static fn (AstNode $node): string => $node->type,
+                $document->children
+            ));
+            $t->same('(i) roman one (ii) roman two', ($document->children[0] ?? new AstNode('missing'))->attr('text'));
+            $t->same('(a) alpha one (b) alpha two', ($document->children[1] ?? new AstNode('missing'))->attr('text'));
         },
 ];

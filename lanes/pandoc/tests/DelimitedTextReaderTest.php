@@ -6316,6 +6316,66 @@ NATIVE;
         $t->same('tsv', $autoTsvDocument->attr('sourceFormat'));
         $t->same('"x"z', $autoTsvDocument->children[0]->children[0]->children[0]->children[0]->attr('text'));
     },
+    'rejects explicit escape before quoted line break like upstream parser options' => static function (TestRunner $t): void {
+        $reader = new DelimitedTextReader();
+        $cases = [
+            [
+                'csv',
+                "a,b\n1,\"x\\\ny\"\n",
+                ['escape' => '\\'],
+            ],
+            [
+                'csv',
+                "a,b\n1,\"x\\",
+                ['escape' => '\\'],
+            ],
+            [
+                'tsv',
+                "a\tb\n1\t\"x\\\ny\"\n",
+                ['quote' => '"', 'escape' => '\\'],
+            ],
+        ];
+
+        foreach ($cases as [$format, $input, $options]) {
+            $message = '';
+            try {
+                $format === 'tsv'
+                    ? $reader->readTsv($input, $options)
+                    : $reader->readCsv($input, $options);
+            } catch (InvalidArgumentException $exception) {
+                $message = $exception->getMessage();
+            }
+            $t->contains('escape character before a line break or end of input', $message);
+        }
+
+        $recoveredDocument = $reader->readCsv("a,b\n1,\"x\\\ny\"\n", [
+            'escape' => '\\',
+            'strictParsing' => false,
+        ]);
+        $recoveredTable = $recoveredDocument->children[0];
+        $recoveredPacket = $recoveredTable->attr('delimitedText');
+        $recoveredDiagnostics = $recoveredPacket['diagnostics'] ?? [];
+        $recoveredEscapeDiagnostic = $recoveredDiagnostics[1] ?? [];
+
+        $t->same("x\\\ny", $recoveredTable->children[1]->children[0]->children[1]->attr('text'));
+        $t->same(1, $recoveredPacket['escapeBeforeLineBreakCount'] ?? null);
+        $t->same(2, $recoveredPacket['diagnosticCount'] ?? null);
+        $t->same([
+            'delimited-text-multiline-quoted-field',
+            'delimited-text-escape-before-linebreak',
+        ], array_column($recoveredDiagnostics, 'code'));
+        $t->same(1, $recoveredEscapeDiagnostic['row'] ?? null);
+        $t->same(1, $recoveredEscapeDiagnostic['column'] ?? null);
+        $t->same(2, $recoveredEscapeDiagnostic['sourceLineNumber'] ?? null);
+        $t->same(5, $recoveredEscapeDiagnostic['sourceByteColumnNumber'] ?? null);
+
+        $defaultBackslashDocument = $reader->readCsv("a,b\n1,\"x\\\ny\"\n");
+        $defaultBackslashPacket = $defaultBackslashDocument->children[0]->attr('delimitedText');
+        $t->same("x\\\ny", $defaultBackslashDocument->children[0]->children[1]->children[0]->children[1]->attr('text'));
+        $t->same(0, $defaultBackslashPacket['escapeBeforeLineBreakCount'] ?? null);
+        $t->same(1, $defaultBackslashPacket['diagnosticCount'] ?? null);
+        $t->same(['delimited-text-multiline-quoted-field'], array_column($defaultBackslashPacket['diagnostics'] ?? [], 'code'));
+    },
     'records tsv diagnostics for trailing delimiters and partial literal quote records' => static function (TestRunner $t): void {
         $document = (new DelimitedTextReader())->readTsv(implode("\n", [
             "id\tnote\tstatus\t",

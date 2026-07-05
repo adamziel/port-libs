@@ -1,0 +1,13 @@
+[ Header
+    2
+    ( "slide-1" , [] , [] )
+    [ Str "Unqualified relationship attributes" ]
+, Para
+    [ Image
+        ( "" , [] , [] )
+        [ Str "Unqualified attribute alt" ]
+        ( "ppt/media/unqualified-relationship-attribute.png"
+        , "Unqualified Attribute Picture"
+        )
+    ]
+]

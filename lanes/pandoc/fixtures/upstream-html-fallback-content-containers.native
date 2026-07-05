@@ -1,0 +1,23 @@
+[ Para
+    [ Str "Script"
+    , Space
+    , Str "fallback"
+    , Space
+    , Strong [ Str "bold" ]
+    ]
+, Para
+    [ Str "Object"
+    , Space
+    , Str "fallback"
+    , Space
+    , Emph [ Str "content" ]
+    ]
+, Para
+    [ Str "Frame"
+    , Space
+    , Str "fallback"
+    , Space
+    , Code ( "" , [] , [] ) "code"
+    ]
+, Para [ Str "After" , Space , Str "fallback." ]
+]
