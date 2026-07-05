@@ -21,7 +21,7 @@ final class DelimitedTextUpstreamReaderEvidence
     public const EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT = 1;
     public const EXPECTED_STATIC_CURRENT_TSV_DIRECT_NATIVE_PAIR_COUNT = 2;
     public const EXPECTED_STATIC_CSV_ADJACENT_RST_FIXTURE_COUNT = 2;
-    public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 64;
+    public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 65;
     public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 37;
     public const EXPECTED_GENERATED_CSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT = 45;
     public const EXPECTED_GENERATED_TSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT = 25;
@@ -1046,6 +1046,20 @@ final class DelimitedTextUpstreamReaderEvidence
             'sha256' => '497470323a734ce0b6344c5d0d5f8bb01a197c5fd6fdfd466d08957613649b42',
             'bytes' => 2773,
         ],
+        'partial-final-record.csv' => [
+            'role' => 'generated-csv-native-parity-input-fixture',
+            'sample' => 'partial-final-record',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/partial-final-record.csv',
+            'sha256' => 'a988403d02b32de83283cd2cbde2840b2397dab1c1556973ed64a41fdc13e2df',
+            'bytes' => 35,
+        ],
+        'partial-final-record.native' => [
+            'role' => 'generated-csv-native-parity-expected-native-output',
+            'sample' => 'partial-final-record',
+            'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/partial-final-record.native',
+            'sha256' => 'd3f75a9ea6c00e79fa3a015b6464280ae354392c705335651e71fd8e34eb4ea5',
+            'bytes' => 1185,
+        ],
     ];
 
     private const CHECKED_IN_GENERATED_TSV_NATIVE_FIXTURES = [
@@ -1880,6 +1894,13 @@ final class DelimitedTextUpstreamReaderEvidence
         'quoted-unicode-doubled-quotes' => [
             'inputPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/quoted-unicode-doubled-quotes.csv',
             'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/quoted-unicode-doubled-quotes.native',
+        ],
+        'partial-final-record' => [
+            'inputPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/partial-final-record.csv',
+            'expectedNativePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/partial-final-record.native',
+            'options' => [
+                'strictParsing' => false,
+            ],
         ],
     ];
 

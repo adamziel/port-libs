@@ -3116,6 +3116,59 @@ NATIVE;
         $t->contains('Plain [ Str "emoji" , Space , Str "\\128640," , Space , Str "snowman" , Space , Str "\\9731" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
+    'matches generated csv partial final record native parity fixture' => static function (TestRunner $t) use ($generatedCsvNativeFixture, $nativeTokenStream): void {
+        $fixture = $generatedCsvNativeFixture('partial-final-record');
+        $document = (new DelimitedTextReader())->readCsv($fixture['input'], [
+            'sourcePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/partial-final-record.csv',
+            'strictParsing' => false,
+        ]);
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+        $native = PandocConverter::write($document, 'native');
+        $generatedEvidence = $packet['upstreamEvidence']['generatedNativeParityEvidence'] ?? [];
+        $body = $table->children[1];
+
+        $t->same('csv', $packet['format'] ?? null);
+        $t->same(',', $packet['delimiter'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
+        $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
+        $t->same(2 * DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['checkedInFixtureCount'] ?? null);
+        $t->same('partial-final-record.csv', $generatedEvidence['checkedInFixtures'][128]['name'] ?? null);
+        $t->same('a988403d02b32de83283cd2cbde2840b2397dab1c1556973ed64a41fdc13e2df', $generatedEvidence['checkedInFixtures'][128]['checkedInFile']['sha256'] ?? null);
+        $t->same('partial-final-record.native', $generatedEvidence['checkedInFixtures'][129]['name'] ?? null);
+        $t->same('d3f75a9ea6c00e79fa3a015b6464280ae354392c705335651e71fd8e34eb4ea5', $generatedEvidence['checkedInFixtures'][129]['checkedInFile']['sha256'] ?? null);
+        $t->same('partial-final-record', $generatedEvidence['samples'][64]['name'] ?? null);
+        $t->same(['strictParsing' => false], $generatedEvidence['samples'][64]['readerOptions'] ?? null);
+        $t->same(['id', 'note', 'status'], $table->attr('columnNames'));
+        $t->same(3, $packet['rowCount'] ?? null);
+        $t->same(2, $packet['bodyRowCount'] ?? null);
+        $t->same(3, $packet['columnCount'] ?? null);
+        $t->same(8, $packet['fieldCount'] ?? null);
+        $t->same(false, $packet['finalRecordTerminated'] ?? null);
+        $t->same(true, $packet['partialFinalRecord'] ?? null);
+        $t->same(2, $packet['partialFinalRecordRow'] ?? null);
+        $t->same(1, $packet['raggedRowCount'] ?? null);
+        $t->same([2], $packet['raggedRows'] ?? null);
+        $t->same(1, $packet['rowRepairSummary']['changedRowCount'] ?? null);
+        $t->same(1, $packet['rowRepairSummary']['paddedRowCount'] ?? null);
+        $t->same(4, $packet['diagnosticCount'] ?? null);
+        $t->same([
+            'delimited-text-partial-final-record',
+            'delimited-text-strict-row-width-mismatch',
+            'delimited-text-row-widths-uneven',
+            'delimited-text-header-width-mismatch',
+        ], array_column($packet['diagnostics'] ?? [], 'code'));
+        $t->same('1', $body->children[0]->children[0]->attr('text'));
+        $t->same('ready', $body->children[0]->children[2]->attr('text'));
+        $t->same('2', $body->children[1]->children[0]->attr('text'));
+        $t->same('beta', $body->children[1]->children[1]->attr('text'));
+        $t->same('', $body->children[1]->children[2]->attr('text'));
+        $t->same([], $body->children[1]->children[2]->children);
+        $t->contains('Plain [ Str "beta" ]', $native);
+        $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
+    },
     'matches generated tsv native parity fixture without inflating upstream tsv direct denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedTsvNativeFixture();
         $document = (new DelimitedTextReader())->readTsv($fixture['input'], [

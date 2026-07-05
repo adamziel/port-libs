@@ -128,7 +128,7 @@ return [
             foreach ([
                 '--require-honest-denominators',
                 '--require-parser-option-fixture-count=9',
-                '--require-generated-csv-native-parity=64',
+                '--require-generated-csv-native-parity=65',
                 '--require-generated-tsv-native-parity=37',
                 '--require-current-csv-direct-native-parity=2',
                 '--require-current-tsv-direct-native-parity=2',
@@ -141,7 +141,7 @@ return [
                 $t->contains($gate, $workflow);
             }
             foreach ([
-                '--require-generated-csv-native-parity=64',
+                '--require-generated-csv-native-parity=65',
                 '--require-parser-option-fixture-count=9',
                 '--require-generated-tsv-native-parity=37',
                 '--require-current-csv-direct-native-parity=2',

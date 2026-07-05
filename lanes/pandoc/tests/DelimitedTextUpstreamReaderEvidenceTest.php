@@ -150,7 +150,14 @@ return [
         $t->true(in_array('.port-libs/pandoc-runner/artifacts/delimited-text-targeted-run/result.json', $report['runnerEvidence']['requiredArtifacts'], true));
         $t->contains('Pandoc delimited text reader evidence', $text);
         $t->contains('Static current evidence: valid-checked-in-current-delimited-text-reader-evidence checkedInFixtures=3 checkedInTsvFixtures=1', $text);
-        $t->contains('Generated CSV native parity: 64/64 status=generated-csv-native-parity-observed-not-upstream-fixture', $text);
+        $t->contains(
+            'Generated CSV native parity: '
+                . DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT
+                . '/'
+                . DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT
+                . ' status=generated-csv-native-parity-observed-not-upstream-fixture',
+            $text
+        );
         $t->contains('Generated TSV native parity: 37/37 status=generated-tsv-native-parity-observed-not-upstream-fixture', $text);
         $t->contains('Current TSV direct native parity: 2/2 status=current-tsv-direct-native-parity-observed', $text);
         $t->contains('Runner plan: planned-not-run', $text);

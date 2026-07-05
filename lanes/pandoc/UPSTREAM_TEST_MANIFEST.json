@@ -111,14 +111,14 @@
             "generatedNativeParityRequired": true
         },
         "generatedNativeParity": {
-            "csvSampleCount": 64,
-            "csvMatchCount": 64,
+            "csvSampleCount": 65,
+            "csvMatchCount": 65,
             "csvMismatchCount": 0,
             "tsvSampleCount": 37,
             "tsvMatchCount": 37,
             "tsvMismatchCount": 0,
-            "totalSampleCount": 101,
-            "totalMatchCount": 101
+            "totalSampleCount": 102,
+            "totalMatchCount": 102
         },
         "currentCsvDirectNativeParity": {
             "sampleCount": 2,
