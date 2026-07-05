@@ -16,7 +16,6 @@ final class HtmlNativeAstComparisonHarness
     ];
     private const HTMLDOCUMENT_MAPPED_PAIR_EXCLUSIONS = [
         'upstream-html-invalid-table-children' => 'upstream pandoc preserves source order inside malformed table content; Dom\\HTMLDocument exposes the browser DOM after foster parenting without source positions',
-        'upstream-html-textarea-raw-block' => 'upstream pandoc preserves raw textarea source bytes; Dom\\HTMLDocument applies textarea initial-newline preprocessing and serializes the DOM value',
     ];
 
     /** @var array<string, true> */

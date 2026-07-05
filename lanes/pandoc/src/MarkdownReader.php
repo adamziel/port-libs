@@ -132,6 +132,9 @@ final class MarkdownReader
 
     private int $htmlQuoteDepth = 0;
 
+    /** @var array<string, list<string>> */
+    private array $htmlRawElementSourceQueues = [];
+
     private int $markdownBlockQuoteDepth = 0;
 
     private string $metadataMarkdownExtensionSuffix = '';
@@ -4318,9 +4321,11 @@ final class MarkdownReader
         $previousHtmlBaseHref = $this->htmlBaseHref;
         $previousHtmlFootnoteDefinitions = $this->htmlFootnoteDefinitions;
         $previousHtmlResolvedFootnoteReference = $this->htmlResolvedFootnoteReference;
+        $previousHtmlRawElementSourceQueues = $this->htmlRawElementSourceQueues;
         $this->htmlBaseHref = $this->htmlDocumentBaseHref($dom);
         $this->htmlFootnoteDefinitions = $this->collectHtmlFootnoteDefinitions($body);
         $this->htmlResolvedFootnoteReference = false;
+        $this->htmlRawElementSourceQueues = self::htmlRawElementSourceQueues($html);
         try {
             $attrs = $this->htmlDocumentAttrs($dom);
             $nativeDivs = $this->htmlNativeDivsEnabled();
@@ -4341,6 +4346,7 @@ final class MarkdownReader
             $this->htmlBaseHref = $previousHtmlBaseHref;
             $this->htmlFootnoteDefinitions = $previousHtmlFootnoteDefinitions;
             $this->htmlResolvedFootnoteReference = $previousHtmlResolvedFootnoteReference;
+            $this->htmlRawElementSourceQueues = $previousHtmlRawElementSourceQueues;
         }
     }
 
@@ -9102,9 +9108,10 @@ final class MarkdownReader
 
     private function buildHtmlRawInlineNode(\DOMElement $element): AstNode
     {
-        $raw = $element->ownerDocument instanceof \DOMDocument
+        $raw = $this->takeHtmlRawElementSource($element);
+        $raw = $raw ?? ($element->ownerDocument instanceof \DOMDocument
             ? $element->ownerDocument->saveHTML($element)
-            : '';
+            : '');
         if (!is_string($raw) || $raw === '') {
             $raw = '<' . strtolower($element->localName) . '></' . strtolower($element->localName) . '>';
         }
@@ -9116,6 +9123,117 @@ final class MarkdownReader
             'html' => $html,
             'text' => $html,
         ]);
+    }
+
+    private function takeHtmlRawElementSource(\DOMElement $element): ?string
+    {
+        $name = strtolower($element->localName);
+        if (!isset($this->htmlRawElementSourceQueues[$name]) || $this->htmlRawElementSourceQueues[$name] === []) {
+            return null;
+        }
+
+        $source = array_shift($this->htmlRawElementSourceQueues[$name]);
+
+        return is_string($source) && $source !== '' ? $source : null;
+    }
+
+    /**
+     * @return array<string, list<string>>
+     */
+    private static function htmlRawElementSourceQueues(string $source): array
+    {
+        $queues = [];
+        $length = strlen($source);
+        $cursor = 0;
+        while (($offset = strpos($source, '<', $cursor)) !== false) {
+            $commentEnd = self::htmlCommentEndOffset($source, $offset);
+            if ($commentEnd !== null) {
+                $cursor = $commentEnd;
+                continue;
+            }
+
+            $cdataEnd = self::htmlCdataEndOffset($source, $offset);
+            if ($cdataEnd !== null) {
+                $cursor = $cdataEnd;
+                continue;
+            }
+
+            $opening = Html5Dom::rawHtmlOpeningTagAt($source, $offset);
+            if ($opening === null || $opening['selfClosing']) {
+                $cursor = $offset + 1;
+                continue;
+            }
+
+            $name = $opening['name'];
+            if (!self::htmlElementPreservesRawSource($name)) {
+                $cursor = max($offset + 1, (int) $opening['next']);
+                continue;
+            }
+
+            if ($name === 'plaintext') {
+                $queues[$name][] = substr($source, $offset);
+                break;
+            }
+
+            $closing = self::htmlRawElementClosingTagAfter($source, (int) $opening['next'], $name);
+            if ($closing === null) {
+                $cursor = max($offset + 1, (int) $opening['next']);
+                continue;
+            }
+
+            $queues[$name][] = substr($source, $offset, (int) $closing['next'] - $offset);
+            $cursor = (int) $closing['next'];
+            if ($cursor >= $length) {
+                break;
+            }
+        }
+
+        return $queues;
+    }
+
+    private static function htmlElementPreservesRawSource(string $name): bool
+    {
+        return in_array($name, ['script', 'style', 'textarea', 'xmp', 'noembed', 'noframes', 'noscript', 'plaintext'], true);
+    }
+
+    /**
+     * @return array{name:string, source:string, next:int}|null
+     */
+    private static function htmlRawElementClosingTagAfter(string $source, int $offset, string $name): ?array
+    {
+        $cursor = $offset;
+        while (($candidateOffset = strpos($source, '<', $cursor)) !== false) {
+            $closing = Html5Dom::rawHtmlClosingTagAt($source, $candidateOffset);
+            if ($closing !== null && $closing['name'] === $name) {
+                return $closing;
+            }
+
+            $cursor = $candidateOffset + 1;
+        }
+
+        return null;
+    }
+
+    private static function htmlCommentEndOffset(string $source, int $offset): ?int
+    {
+        if (!str_starts_with(substr($source, $offset, 4), '<!--')) {
+            return null;
+        }
+
+        $end = strpos($source, '-->', $offset + 4);
+
+        return $end === false ? strlen($source) : $end + 3;
+    }
+
+    private static function htmlCdataEndOffset(string $source, int $offset): ?int
+    {
+        if (!str_starts_with(strtolower(substr($source, $offset, 9)), '<![cdata[')) {
+            return null;
+        }
+
+        $end = strpos($source, ']]>', $offset + 9);
+
+        return $end === false ? strlen($source) : $end + 3;
     }
 
     private function buildHtmlRawBlockNode(\DOMElement $element): AstNode

@@ -395,6 +395,22 @@ $tests['can preserve html inline raw wrappers for epub-compatible content reads'
         $t->same('</time>', $paragraph->children[3]->attr('html'));
     };
 
+$tests['preserves textarea raw block source newline after HTMLDocument tree construction'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-textarea-raw-block.html'));
+        $rawBlock = $document->children[1];
+        $expected = '<textarea id="legacy-packet" class="source-payload" data-source="batch-42">'
+            . "\n"
+            . 'Legacy shortcode [gallery ids="10,11"] and review notes stay literal.'
+            . "\n"
+            . '</textarea>';
+
+        $t->same('Dom\\HTMLDocument', $document->attr('meta')['htmlTreeConstruction'] ?? null);
+        $t->same(['paragraph', 'raw_html', 'paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same($expected, $rawBlock->attr('html'));
+        $t->same($expected, $rawBlock->attr('text'));
+    };
+
 $tests['imports direct pandoc html standalone keyboard fragment as plain'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-standalone-kbd-inline.html'));

@@ -13,7 +13,7 @@ final class HtmlUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-html-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
     public const EXPECTED_SELECTED_FIXTURE_COUNT = 114;
-    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 112;
+    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 113;
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/HTML.hs',
@@ -36,7 +36,6 @@ final class HtmlUpstreamReaderEvidence
     private const RUNNER_RESULT_ARTIFACT_SCHEMA_VERSION = 2;
     private const HTMLDOCUMENT_MAPPED_PAIR_EXCLUSIONS = [
         'upstream-html-invalid-table-children.html' => 'upstream pandoc preserves source order inside malformed table content; Dom\\HTMLDocument exposes the browser DOM after foster parenting without source positions',
-        'upstream-html-textarea-raw-block.html' => 'upstream pandoc preserves raw textarea source bytes; Dom\\HTMLDocument applies textarea initial-newline preprocessing and serializes the DOM value',
     ];
 
     private const CHECKED_IN_HTML_FIXTURES = [
@@ -717,7 +716,7 @@ final class HtmlUpstreamReaderEvidence
                     'the checked-in HTML reader fixture corpus has 114 pinned fixture snapshots',
                     'each pinned HTML fixture has a same-basename checked-in native expectation file',
                     'each pinned fixture has at least one local test reference',
-                    'the existing HTML/native AST comparator observes 112 HTMLDocument-backed same-basename native-pair matches when included in the report',
+                    'the existing HTML/native AST comparator observes 113 HTMLDocument-backed same-basename native-pair matches when included in the report',
                 ],
                 'doesNotAssert' => [
                     'that upstream Haskell/Cabal/Tasty tests were executed',
@@ -1427,7 +1426,7 @@ final class HtmlUpstreamReaderEvidence
                 'the identity and count of 114 selected checked-in upstream-derived and generated-current HTML fixtures',
                 'that each selected fixture has a same-basename checked-in native expectation file',
                 'that each selected fixture is referenced by at least one local focused test',
-                'that the existing native AST gate observes 112 HTMLDocument-backed checked-in same-basename HTML/native matches',
+                'that the existing native AST gate observes 113 HTMLDocument-backed checked-in same-basename HTML/native matches',
                 'that upstream Haskell runner evidence is either explicitly not-run or supplied as a validated result artifact',
                 'the future upstream runner command plan targets test:test-pandoc Readers/HTML at the pinned upstream commit without execution',
                 'a supplied upstream runner result artifact is validated against the pinned HTML Tasty target, commit, test names, pass/fail counts, and transcript file identities when explicitly provided',
