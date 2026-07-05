@@ -11,6 +11,7 @@ final class PandocHtmlTagSoupReader
     private int $index = 0;
     private ?string $htmlBaseHref = null;
     private int $listItemDepth = 0;
+    private int $quoteDepth = 0;
 
     /**
      * @param array<string, mixed> $options
@@ -27,6 +28,7 @@ final class PandocHtmlTagSoupReader
         $this->tokens = $this->focusFirstMainElement($tokens);
         $this->index = 0;
         $this->listItemDepth = 0;
+        $this->quoteDepth = 0;
         $blocks = $this->parseBlocksUntil([]);
 
         return new AstNode('document', [
@@ -129,16 +131,25 @@ final class PandocHtmlTagSoupReader
     {
         $name = $token->name;
         if (in_array($name, ['main', 'section', 'article', 'header', 'footer', 'aside'], true)) {
+            if ($this->isTitlepageElement($token)) {
+                $this->index++;
+                $this->skipUntilClose($name);
+
+                return [];
+            }
+            $hasExplicitParagraph = $name === 'main' && $this->balancedElementContainsOpenTag('main', 'p');
             $this->index++;
             $children = $this->parseBlocksUntil([$name]);
             $this->consumeClose($name);
             $attrs = $this->nativeContainerAttrs($token);
             if ($name === 'main') {
                 if ($attrs === []) {
-                    return $this->flattenPlainMainChildren($children);
+                    return $hasExplicitParagraph ? $children : $this->flattenPlainMainChildren($children);
                 }
 
-                $children = $this->flattenSingleParagraphBlock($children);
+                if (!$hasExplicitParagraph) {
+                    $children = $this->flattenSingleParagraphBlock($children);
+                }
             }
 
             return new AstNode('div', $attrs, $children);
@@ -686,7 +697,24 @@ final class PandocHtmlTagSoupReader
             return [$this->rawHtmlInline($this->renderOpenToken($token))];
         }
 
+        if ($name === 'math') {
+            return $this->parseMathElementInline($token);
+        }
+
         if ($name === 'span') {
+            if ($this->hasAnyClass($token, ['mjx-chtml', 'katex-html', 'MathJax_Preview', 'MathJax_CHTML'])) {
+                $this->index++;
+                $this->skipBalancedElement('span');
+
+                return [];
+            }
+            if ($this->hasAnyClass($token, ['MJX_Assistive_MathML'])) {
+                $this->index++;
+                $children = $this->parseInlinesUntil(['span']);
+                $this->consumeClose('span');
+
+                return $children;
+            }
             $this->index++;
             $children = $this->parseInlinesUntil(['span']);
             $this->consumeClose('span');
@@ -715,6 +743,10 @@ final class PandocHtmlTagSoupReader
             $this->consumeClose($name);
 
             return [new AstNode('span', $this->withPrependedClass($this->pandocAttrs($token), $name), $children)];
+        }
+
+        if ($name === 'q') {
+            return $this->parseQuotedInline($token);
         }
 
         if ($name === 'sub' || $name === 'sup') {
@@ -764,7 +796,7 @@ final class PandocHtmlTagSoupReader
             return [$this->rawHtmlInline($this->renderRawTextElement($token, $text))];
         }
 
-        if (in_array($name, ['cite', 'label', 'q', 'time', 'output'], true)) {
+        if (in_array($name, ['cite', 'label', 'time', 'output'], true)) {
             $this->index++;
             $children = $this->parseInlinesUntil([$name]);
             $this->consumeClose($name);
@@ -802,6 +834,26 @@ final class PandocHtmlTagSoupReader
         return preg_split('/\s+/', trim($this->attribute($tag, 'class')), -1, PREG_SPLIT_NO_EMPTY) ?: [];
     }
 
+    /**
+     * @param list<string> $classes
+     */
+    private function hasAnyClass(TagSoupTag $tag, array $classes): bool
+    {
+        return array_intersect($this->classes($tag), $classes) !== [];
+    }
+
+    private function isTitlepageElement(TagSoupTag $tag): bool
+    {
+        foreach (['type', 'epub:type'] as $name) {
+            $tokens = preg_split('/\s+/', trim($this->attribute($tag, $name)), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            if (in_array('titlepage', $tokens, true)) {
+                return true;
+            }
+        }
+
+        return in_array('titlepage', $this->classes($tag), true);
+    }
+
     private function consumeClose(string $name): void
     {
         $token = $this->current();
@@ -816,6 +868,22 @@ final class PandocHtmlTagSoupReader
             $this->index++;
             if ($token->type === TagSoupTag::CLOSE && $token->name === $name) {
                 return;
+            }
+        }
+    }
+
+    private function skipBalancedElement(string $name): void
+    {
+        $depth = 1;
+        while (($token = $this->current()) instanceof TagSoupTag) {
+            $this->index++;
+            if ($token->type === TagSoupTag::OPEN && $token->name === $name) {
+                $depth++;
+            } elseif ($token->type === TagSoupTag::CLOSE && $token->name === $name) {
+                $depth--;
+                if ($depth <= 0) {
+                    return;
+                }
             }
         }
     }
@@ -913,6 +981,10 @@ final class PandocHtmlTagSoupReader
     {
         foreach ($tokens as $index => $token) {
             if ($token instanceof TagSoupTag && $token->type === TagSoupTag::OPEN && $token->name === 'main') {
+                if ($this->isTitlepageElement($token)) {
+                    continue;
+                }
+
                 return $this->balancedTokenSlice($tokens, $index, 'main');
             }
         }
@@ -1003,6 +1075,120 @@ final class PandocHtmlTagSoupReader
         $attrs['classes'] = $classes;
 
         return $attrs;
+    }
+
+    private function parseQuotedInline(TagSoupTag $quote): array
+    {
+        $kind = $this->quoteDepth % 2 === 0 ? 'double' : 'single';
+        $this->quoteDepth++;
+        $this->index++;
+        $children = $this->parseInlinesUntil(['q']);
+        $this->consumeClose('q');
+        $this->quoteDepth--;
+
+        $cite = trim($this->attribute($quote, 'cite'));
+        if ($cite !== '') {
+            $children = [
+                new AstNode('span', ['attributes' => ['cite' => $this->resolveHtmlUrl($cite)]], $children),
+            ];
+        }
+
+        return [new AstNode('quoted', ['kind' => $kind], $children)];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function parseMathElementInline(TagSoupTag $math): array
+    {
+        $tokens = $this->balancedTokenSlice($this->tokens, $this->index, 'math');
+        $this->index += count($tokens);
+        $annotation = $this->texAnnotationFromTokens($tokens);
+        if ($annotation !== null) {
+            return [new AstNode('math', [
+                'display' => strtolower($this->attribute($math, 'display')) === 'block',
+                'text' => $annotation,
+            ])];
+        }
+
+        $text = $this->plainTextFromTokens($tokens, ['annotation']);
+        $children = $text === '' ? [] : [new AstNode('text', ['text' => $text])];
+
+        return [new AstNode('span', $this->withPrependedClass($this->pandocAttrs($math), 'math'), $children)];
+    }
+
+    /**
+     * @param list<TagSoupTag> $tokens
+     */
+    private function texAnnotationFromTokens(array $tokens): ?string
+    {
+        $depth = 0;
+        $text = '';
+        foreach ($tokens as $token) {
+            if (!$token instanceof TagSoupTag) {
+                continue;
+            }
+            if ($token->type === TagSoupTag::OPEN && $token->name === 'annotation') {
+                if (str_contains(strtolower($this->attribute($token, 'encoding')), 'tex')) {
+                    $depth = 1;
+                    $text = '';
+                }
+                continue;
+            }
+            if ($depth > 0) {
+                if ($token->type === TagSoupTag::OPEN) {
+                    $depth++;
+                    continue;
+                }
+                if ($token->type === TagSoupTag::CLOSE) {
+                    $depth--;
+                    if ($depth === 0) {
+                        $trimmed = trim($text);
+                        if ($trimmed !== '') {
+                            return $trimmed;
+                        }
+                    }
+                    continue;
+                }
+                if ($token->type === TagSoupTag::TEXT) {
+                    $text .= $token->text;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<TagSoupTag> $tokens
+     * @param list<string> $skipElementNames
+     */
+    private function plainTextFromTokens(array $tokens, array $skipElementNames = []): string
+    {
+        $skipDepth = 0;
+        $text = '';
+        foreach ($tokens as $token) {
+            if (!$token instanceof TagSoupTag) {
+                continue;
+            }
+            if ($token->type === TagSoupTag::OPEN && in_array($token->name, $skipElementNames, true)) {
+                $skipDepth = 1;
+                continue;
+            }
+            if ($skipDepth > 0) {
+                if ($token->type === TagSoupTag::OPEN) {
+                    $skipDepth++;
+                } elseif ($token->type === TagSoupTag::CLOSE) {
+                    $skipDepth--;
+                }
+                continue;
+            }
+            if ($token->type === TagSoupTag::TEXT) {
+                $text .= $token->text;
+            }
+        }
+
+        return trim(preg_replace('/\s+/', ' ', $text) ?? $text);
     }
 
     private function parsePreBlock(TagSoupTag $pre): AstNode
@@ -1164,9 +1350,6 @@ final class PandocHtmlTagSoupReader
     }
 
     /**
-     * @return list<AstNode>
-     */
-    /**
      * @param list<string> $outerStopTags
      * @return list<AstNode>
      */
@@ -1206,6 +1389,34 @@ final class PandocHtmlTagSoupReader
                 continue;
             }
             if ($depth === 1 && $token->type === TagSoupTag::OPEN && $this->isBlockElement($token->name)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function balancedElementContainsOpenTag(string $name, string $target): bool
+    {
+        $depth = 0;
+        $count = count($this->tokens);
+        for ($index = $this->index; $index < $count; ++$index) {
+            $token = $this->tokens[$index] ?? null;
+            if (!$token instanceof TagSoupTag) {
+                continue;
+            }
+            if ($token->type === TagSoupTag::OPEN && $token->name === $name) {
+                ++$depth;
+                continue;
+            }
+            if ($token->type === TagSoupTag::CLOSE && $token->name === $name) {
+                --$depth;
+                if ($depth <= 0) {
+                    return false;
+                }
+                continue;
+            }
+            if ($depth > 0 && $token->type === TagSoupTag::OPEN && $token->name === $target) {
                 return true;
             }
         }
