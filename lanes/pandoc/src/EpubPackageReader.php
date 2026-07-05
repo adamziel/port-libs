@@ -7,6 +7,7 @@ namespace PortLibs\Pandoc;
 final class EpubPackageReader
 {
     private const OPF_MEDIA_TYPE = 'application/oebps-package+xml';
+    private const DC_NAMESPACE = 'http://purl.org/dc/elements/1.1/';
     private const EPUB_TYPE_NS = 'http://www.idpf.org/2007/ops';
     private const OCF_CONTAINER_NAMESPACE = 'urn:oasis:names:tc:opendocument:xmlns:container';
     private const EPUB_METADATA_NAMESPACE = 'http://www.idpf.org/2013/metadata';
@@ -540,21 +541,23 @@ final class EpubPackageReader
                     continue;
                 }
 
-                $metadataItems[] = $this->metadataItem($node, $metadataItemIndex, $value);
-                ++$metadataItemIndex;
+                if ($this->isDublinCoreMetadataElement($node)) {
+                    $metadataItems[] = $this->metadataItem($node, $metadataItemIndex, $value);
+                    ++$metadataItemIndex;
 
-                if ($name === 'title' && $metadata['title'] === '') {
-                    $metadata['title'] = $value;
-                } elseif ($name === 'creator') {
-                    $metadata['creators'][] = $value;
-                } elseif ($name === 'language' && $metadata['language'] === '') {
-                    $metadata['language'] = $value;
-                } elseif ($name === 'identifier' && $metadata['identifier'] === '') {
-                    $metadata['identifier'] = $value;
-                } elseif ($name === 'date' && $metadata['date'] === '') {
-                    $metadata['date'] = $value;
-                } elseif ($name === 'publisher' && $metadata['publisher'] === '') {
-                    $metadata['publisher'] = $value;
+                    if ($name === 'title' && $metadata['title'] === '') {
+                        $metadata['title'] = $value;
+                    } elseif ($name === 'creator') {
+                        $metadata['creators'][] = $value;
+                    } elseif ($name === 'language' && $metadata['language'] === '') {
+                        $metadata['language'] = $value;
+                    } elseif ($name === 'identifier' && $metadata['identifier'] === '') {
+                        $metadata['identifier'] = $value;
+                    } elseif ($name === 'date' && $metadata['date'] === '') {
+                        $metadata['date'] = $value;
+                    } elseif ($name === 'publisher' && $metadata['publisher'] === '') {
+                        $metadata['publisher'] = $value;
+                    }
                 }
             }
         }
@@ -1833,6 +1836,11 @@ final class EpubPackageReader
             'role' => $this->nullableAttribute($element, 'role'),
             'fileAs' => $this->nullableAttribute($element, 'file-as'),
         ];
+    }
+
+    private function isDublinCoreMetadataElement(\DOMElement $element): bool
+    {
+        return $element->namespaceURI === self::DC_NAMESPACE && $element->prefix === 'dc';
     }
 
     /**

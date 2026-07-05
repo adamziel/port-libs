@@ -580,6 +580,78 @@ XML);
             $removeDirectory($root);
         }
     },
+    'ignores non dc-prefixed package metadata items for pandoc parity' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-reader-metadata-dc-prefix-' . str_replace('.', '', uniqid('', true));
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         xmlns:dcx="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="bookid">
+  <metadata>
+    <dc:identifier id="bookid">urn:uuid:reader-dc-prefix-parity</dc:identifier>
+    <dc:title id="dc-title">DC Prefix Package Title</dc:title>
+    <dc:creator>DC Prefix Author</dc:creator>
+    <dc:language>en</dc:language>
+    <dcx:title id="alternate-title">Alternate Prefix Title</dcx:title>
+    <title id="bare-title">Bare OPF Title</title>
+    <meta property="dcterms:modified">2026-07-05T00:00:00Z</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/nav.xhtml', <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <ol>
+        <li><a href="chapter.xhtml">Chapter</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML);
+            $writePackageFile($root, 'EPUB/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Readable DC prefix package.</p></body></html>');
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $meta = $document->attr('meta');
+            $epub = $document->attr('epub');
+            $report = $epub['metadataReport'];
+
+            $t->same('DC Prefix Package Title', $meta['title']);
+            $t->same(['DC Prefix Author'], $meta['creators']);
+            $t->same('en', $meta['language']);
+            $t->same('urn:uuid:reader-dc-prefix-parity', $meta['identifier']);
+            $t->same(4, $report['itemCount']);
+            $t->same([
+                'creator' => 1,
+                'identifier' => 1,
+                'language' => 1,
+                'title' => 1,
+            ], $report['kindCounts']);
+            $t->same(false, array_key_exists('alternate-title', $report['itemsById']));
+            $t->same(false, array_key_exists('bare-title', $report['itemsById']));
+            $t->same(1, $report['propertyCount']);
+            $t->same('2026-07-05T00:00:00Z', $epub['metadataProperties'][0]['value']);
+        } finally {
+            $removeDirectory($root);
+        }
+    },
     'reports epub opf metadata link target policy for direct package review' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
         $root = sys_get_temp_dir() . '/port-libs-epub-reader-metadata-links-' . str_replace('.', '', uniqid('', true));
         mkdir($root, 0777, true);
