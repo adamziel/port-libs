@@ -153,7 +153,7 @@ return [
         $t->same(0, $report['parseFailureCount']);
         $t->same(137, $report['normalizedAstMatchCount']);
         $t->same(0, $report['normalizedAstMismatchCount']);
-        $t->same('normalized-ast-equality-observed-not-runner-parity', $report['astParityStatus']);
+        $t->same('normalized-ast-implementation-equivalence-observed', $report['astParityStatus']);
         $t->same(true, MarkdownNativeAstComparisonHarness::hasRequiredMappedParity($report, 137));
         $t->same(false, MarkdownNativeAstComparisonHarness::hasRequiredMappedParity($report, 138));
         $t->same(['format' => 'markdown-latex_macros'], $report['markdownReaderFixtureOptionOverrides']['upstream-command-11253-latex-macros-disabled.md'] ?? null);
@@ -222,6 +222,8 @@ return [
         $t->same('checked-in-markdown-fixtures-without-native-pairs', $report['orderedRemainingGaps'][1]['id']);
         $t->same('covered-by-current-normalized-ast-evidence', $report['orderedRemainingGaps'][1]['status']);
         $t->same('Markdown fixtures=137; native fixtures=137; same-basename pairs=137; Markdown fixtures without native pairs=0', $report['orderedRemainingGaps'][1]['currentEvidence']);
+        $t->same('selected-markdown-dialect-profile-coverage', $report['orderedRemainingGaps'][3]['id']);
+        $t->same('covered-by-current-normalized-ast-evidence', $report['orderedRemainingGaps'][3]['status']);
         $t->same('The current checked-in gate covers 137 paired fixture(s) out of 137 selected Markdown fixture(s).', $report['orderedRemainingGaps'][3]['currentEvidence']);
         $t->contains('fixtureInventory: markdown=137 native=137 paired=137 unpairedMarkdown=0 unpairedNative=0', $text);
         $t->contains('pairs: total=137 compared=137 parsedBoth=137 parseFailures=0', $text);

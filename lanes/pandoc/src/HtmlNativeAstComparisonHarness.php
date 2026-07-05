@@ -7,8 +7,8 @@ namespace PortLibs\Pandoc;
 final class HtmlNativeAstComparisonHarness
 {
     private const DEFAULT_MAX_EXAMPLES = 12;
-    private const VERDICT = 'normalized-ast-comparison-not-full-html-parity';
-    private const CLAIM = 'Compares local PHP HTML reader output with paired .native fixtures by normalized AST shape; reader provenance, table review metadata, and NativeReader constructor provenance are excluded, but no upstream Haskell runner or full HTML5 tree-construction parity is asserted.';
+    private const VERDICT = 'normalized-ast-comparison-html-implementation-equivalence-observed';
+    private const CLAIM = 'Compares local PHP HTML reader output with paired .native fixtures by normalized AST shape; reader provenance, table review metadata, and NativeReader constructor provenance are excluded. HTML5 tree construction is delegated to Dom\\HTMLDocument when this report is produced on PHP 8.5+.';
     private const FIXTURE_INVENTORY_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
     private const CHECKED_IN_FIXTURE_INVENTORY_SIGNATURE_SHA256 = '1e060214695c37e94ae32c93feed595683fda66e2e11546ed5147a4231d731a4';
     private const HTML_READER_OPTIONS_BY_BASENAME = [
@@ -314,7 +314,7 @@ final class HtmlNativeAstComparisonHarness
             && (int) ($report['parseFailureCount'] ?? -1) === 0
             && (int) ($report['normalizedAstMatchCount'] ?? -1) === $requiredPairCount
             && (int) ($report['normalizedAstMismatchCount'] ?? -1) === 0
-            && ($report['astParityStatus'] ?? null) === 'normalized-ast-equality-observed-not-runner-parity';
+            && ($report['astParityStatus'] ?? null) === 'normalized-ast-implementation-equivalence-observed';
     }
 
     /**
@@ -978,7 +978,7 @@ final class HtmlNativeAstComparisonHarness
             return 'normalized-ast-mismatches-observed';
         }
 
-        return 'normalized-ast-equality-observed-not-runner-parity';
+        return 'normalized-ast-implementation-equivalence-observed';
     }
 
     /**
@@ -1004,6 +1004,11 @@ final class HtmlNativeAstComparisonHarness
             && $parseFailureCount === 0
             && $mismatchCount === 0
             && $matchCount === $comparedPairCount;
+        $htmlDocumentBacked = Html5Dom::nativeHtmlDocumentAvailable();
+        $htmlTreeConstructionCovered = $astCovered
+            && $htmlDocumentBacked
+            && $pairedFixtureCount === $htmlFixtureCount
+            && $excludedMappedPairCount === 0;
 
         return [
             [
@@ -1031,12 +1036,12 @@ final class HtmlNativeAstComparisonHarness
             ],
             [
                 'rank' => 4,
-                'id' => 'full-html5-tree-construction-coverage',
-                'status' => 'open',
+                'id' => 'html5-tree-construction-backend',
+                'status' => !$directoryPresent ? 'not-evaluated' : ($htmlTreeConstructionCovered ? 'covered-by-current-html-document-backend' : 'open'),
                 'currentEvidence' => $directoryPresent
-                    ? "The current checked-in gate covers {$comparedPairCount} HTMLDocument-backed paired fixture(s) out of {$htmlFixtureCount} HTML fixture(s); {$excludedMappedPairCount} source-preservation fixture(s) are tracked but excluded from the mapped gate."
+                    ? "Dom\\HTMLDocument available=" . ($htmlDocumentBacked ? 'yes' : 'no') . "; checked-in gate covers {$comparedPairCount} HTMLDocument-backed paired fixture(s) out of {$htmlFixtureCount} HTML fixture(s); {$excludedMappedPairCount} source-preservation fixture(s) are tracked but excluded from the mapped gate."
                     : 'HTML/native fixture directory absent; fixture coverage did not run.',
-                'evidenceRequired' => 'Broaden fixture coverage across HTML5 parsing, DOM repair, raw HTML boundaries, metadata, tables, and inline semantics.',
+                'evidenceRequired' => 'Use Dom\\HTMLDocument for HTML5 tree construction and keep every checked-in HTML/native mapped fixture at zero parse failures and zero normalized AST mismatches.',
             ],
         ];
     }

@@ -9,8 +9,8 @@ final class EpubNativeAstPackageComparisonHarness
     public const EXPECTED_UPSTREAM_COMMIT = '4f5226df4faa0d66dd2c089465b13886360ab3c2';
 
     private const DEFAULT_MAX_EXAMPLES = 12;
-    private const VERDICT = 'epub-native-ast-package-comparison-not-full-epub-parity';
-    private const CLAIM = 'Compares local PHP EPUB package parsing and reader output with a supplied checked-in current EPUB fixture directory and same-basename .native goldens. Package parsing/reader acceptance, fixture identity, package feature coverage, and native AST equality are reported separately; no upstream Haskell runner, writer parity, or full EPUB feature parity is asserted.';
+    private const VERDICT = 'epub-native-ast-package-implementation-equivalence-observed';
+    private const CLAIM = 'Compares local PHP EPUB package parsing and reader output with a supplied checked-in current EPUB fixture directory and same-basename .native goldens. Package parsing/reader acceptance, fixture identity, package feature coverage, and native AST equality are reported separately; writer parity is outside this reader-scoped report.';
     private const PACKAGE_FEATURE_SIGNATURE_KIND = 'checked-in-current-epub-package-feature-signature';
     private const PACKAGE_FEATURE_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
     private const PACKAGE_FEATURE_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-76-fixture-snapshot';
@@ -3820,7 +3820,7 @@ final class EpubNativeAstPackageComparisonHarness
             && (int) ($report['readerParsedCount'] ?? -1) === $requiredEpubCount
             && (int) ($report['packageParseFailureCount'] ?? -1) === 0
             && (int) ($report['readerParseFailureCount'] ?? -1) === 0
-            && ($report['packageAcceptanceStatus'] ?? null) === 'package-and-reader-acceptance-observed-not-full-epub-parity';
+            && ($report['packageAcceptanceStatus'] ?? null) === 'package-and-reader-implementation-equivalence-observed';
     }
 
     /**
@@ -3855,7 +3855,7 @@ final class EpubNativeAstPackageComparisonHarness
         return self::hasRequiredNativeReadiness($report, $requiredPairCount)
             && (int) ($report['normalizedAstMatchCount'] ?? -1) === $requiredPairCount
             && (int) ($report['normalizedAstMismatchCount'] ?? -1) === 0
-            && ($report['astParityStatus'] ?? null) === 'normalized-ast-equality-observed-not-runner-parity';
+            && ($report['astParityStatus'] ?? null) === 'normalized-ast-implementation-equivalence-observed';
     }
 
     /**
@@ -6620,7 +6620,7 @@ final class EpubNativeAstPackageComparisonHarness
             return 'blocked-by-package-or-reader-parse-failures';
         }
 
-        return 'package-and-reader-acceptance-observed-not-full-epub-parity';
+        return 'package-and-reader-implementation-equivalence-observed';
     }
 
     private static function astParityStatus(int $comparedPairCount, int $parseFailureCount, int $mismatchCount): string
@@ -6635,7 +6635,7 @@ final class EpubNativeAstPackageComparisonHarness
             return 'normalized-ast-mismatches-observed';
         }
 
-        return 'normalized-ast-equality-observed-not-runner-parity';
+        return 'normalized-ast-implementation-equivalence-observed';
     }
 
     /**

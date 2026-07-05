@@ -254,7 +254,7 @@ return [
             $t->same(3, $report['readerParsedCount']);
             $t->same(0, $report['packageParseFailureCount']);
             $t->same(0, $report['readerParseFailureCount']);
-            $t->same('package-and-reader-acceptance-observed-not-full-epub-parity', $report['packageAcceptanceStatus']);
+            $t->same('package-and-reader-implementation-equivalence-observed', $report['packageAcceptanceStatus']);
             $t->same(2, $report['totalPairCount']);
             $t->same(2, $report['comparedPairCount']);
             $t->same(2, $report['epubPairParsedCount']);

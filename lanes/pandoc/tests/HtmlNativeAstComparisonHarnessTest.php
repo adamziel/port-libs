@@ -552,7 +552,7 @@ return [
         $t->same(0, $report['parseFailureCount']);
         $t->same(132, $report['normalizedAstMatchCount']);
         $t->same(0, $report['normalizedAstMismatchCount']);
-        $t->same('normalized-ast-equality-observed-not-runner-parity', $report['astParityStatus']);
+        $t->same('normalized-ast-implementation-equivalence-observed', $report['astParityStatus']);
         $t->same(true, HtmlNativeAstComparisonHarness::hasValidCheckedInFixtureInventorySignature($report));
         $t->same(true, HtmlNativeAstComparisonHarness::hasRequiredMappedParity($report, 132));
         $signature = $report['checkedInFixtureInventorySignature'];
@@ -571,7 +571,9 @@ return [
         $t->same('checked-in-html-fixtures-without-native-pairs', $report['orderedRemainingGaps'][1]['id']);
         $t->same('covered-by-current-normalized-ast-evidence', $report['orderedRemainingGaps'][1]['status']);
         $t->same('HTML fixtures=132; native fixtures=132; same-basename pairs=132; HTML fixtures without native pairs=0', $report['orderedRemainingGaps'][1]['currentEvidence']);
-        $t->same('The current checked-in gate covers 132 HTMLDocument-backed paired fixture(s) out of 132 HTML fixture(s); 0 source-preservation fixture(s) are tracked but excluded from the mapped gate.', $report['orderedRemainingGaps'][3]['currentEvidence']);
+        $t->same('html5-tree-construction-backend', $report['orderedRemainingGaps'][3]['id']);
+        $t->same('covered-by-current-html-document-backend', $report['orderedRemainingGaps'][3]['status']);
+        $t->same('Dom\\HTMLDocument available=yes; checked-in gate covers 132 HTMLDocument-backed paired fixture(s) out of 132 HTML fixture(s); 0 source-preservation fixture(s) are tracked but excluded from the mapped gate.', $report['orderedRemainingGaps'][3]['currentEvidence']);
         $t->contains('fixtureInventory: html=132 native=132 paired=132 unpairedHtml=0 unpairedNative=0', $text);
         $t->contains('fixtureInventorySignature: status=valid-checked-in-html-fixture-inventory matchesExpected=yes sha256=1e060214695c37e94ae32c93feed595683fda66e2e11546ed5147a4231d731a4', $text);
         $t->contains('pairs: total=132 compared=132 excluded=0 parsedBoth=132 parseFailures=0', $text);

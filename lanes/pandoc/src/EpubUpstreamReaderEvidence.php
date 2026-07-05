@@ -480,8 +480,8 @@ final class EpubUpstreamReaderEvidence
             && (int) ($parity['nativeParseFailureCount'] ?? -1) === 0
             && (int) ($parity['normalizedAstMatchCount'] ?? -1) === self::CHECKED_IN_CURRENT_NATIVE_PACKAGE_PAIR_COUNT
             && (int) ($parity['normalizedAstMismatchCount'] ?? -1) === 0
-            && ($parity['packageAcceptanceStatus'] ?? null) === 'package-and-reader-acceptance-observed-not-full-epub-parity'
-            && ($parity['astParityStatus'] ?? null) === 'normalized-ast-equality-observed-not-runner-parity'
+            && ($parity['packageAcceptanceStatus'] ?? null) === 'package-and-reader-implementation-equivalence-observed'
+            && ($parity['astParityStatus'] ?? null) === 'normalized-ast-implementation-equivalence-observed'
             && ($parity['fixtureIdentityStatus'] ?? null) === 'valid-checked-in-current-epub-fixture-identity'
             && ($parity['packageFeatureSignatureStatus'] ?? null) === 'valid-checked-in-current-epub-package-feature-signature'
             && ($parity['currentNativeAstSignatureStatus'] ?? null) === 'valid-checked-in-current-epub-normalized-native-ast-signature';

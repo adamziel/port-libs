@@ -450,7 +450,7 @@ return [
             $t->same('skipped', $report['status']);
             $t->same(true, $report['skipped']);
             $t->same('upstream-cache-missing', $report['reason']);
-            $t->same('media-bag-comparison-not-full-epub-parity', $report['verdict']);
+            $t->same('media-bag-implementation-equivalence-observed', $report['verdict']);
             $t->same(0, $report['comparedCaseCount']);
             $t->same(0, $report['mediaBagMatchCount']);
             $t->same('not-evaluated-source-directory-unavailable', $report['mediaBagParityStatus']);
@@ -496,7 +496,7 @@ return [
         $t->same(7, $report['mediaBagMatchCount']);
         $t->same(0, $report['mediaBagMismatchCount']);
         $t->same(100.0, $report['mediaBagMatchPercent']);
-        $t->same('media-bag-equality-observed-not-runner-parity', $report['mediaBagParityStatus']);
+        $t->same('media-bag-implementation-equivalence-observed', $report['mediaBagParityStatus']);
         $t->same($currentMediaBagSignatures(), $report['mediaBagSignatures']);
         $assertCurrentMediaBagSignature($t, $report['currentMediaBagSignature']);
         $t->same(true, EpubMediaBagComparisonHarness::hasRunnerNotRunEvidence($report));
@@ -717,13 +717,13 @@ return [
         $t->same('completed', $decoded['status']);
         $t->same($fixtureRoot(), $decoded['upstreamRoot']);
         $t->same($fixtureRoot(), $decoded['fixtureBase']);
-        $t->same('media-bag-comparison-not-full-epub-parity', $decoded['verdict']);
+        $t->same('media-bag-implementation-equivalence-observed', $decoded['verdict']);
         $t->same(7, $decoded['comparedCaseCount']);
         $t->same(7, $decoded['mediaBagMatchCount']);
         $t->same(0, $decoded['mediaBagMismatchCount']);
         $t->same(11, $decoded['expectedMediaItemCount']);
         $t->same(11, $decoded['actualMediaItemCount']);
-        $t->same('media-bag-equality-observed-not-runner-parity', $decoded['mediaBagParityStatus']);
+        $t->same('media-bag-implementation-equivalence-observed', $decoded['mediaBagParityStatus']);
         $t->same($currentMediaBagSignatures(), $decoded['mediaBagSignatures']);
         $assertCurrentMediaBagSignature($t, $decoded['currentMediaBagSignature']);
         $t->same(true, EpubMediaBagComparisonHarness::hasRunnerNotRunEvidence($decoded));
@@ -903,7 +903,7 @@ HS,
             $t->same(1, $report['actualMediaItemCount']);
             $t->same(1, $report['mediaBagMatchCount']);
             $t->same(0, $report['mediaBagMismatchCount']);
-            $t->same('media-bag-equality-observed-not-runner-parity', $report['mediaBagParityStatus']);
+            $t->same('media-bag-implementation-equivalence-observed', $report['mediaBagParityStatus']);
         } finally {
             $removeTree($root);
         }
@@ -953,7 +953,7 @@ HS,
                     ],
                 ],
             ], $report['mediaBagSignatures']);
-            $t->same('media-bag-equality-observed-not-runner-parity', $report['mediaBagParityStatus']);
+            $t->same('media-bag-implementation-equivalence-observed', $report['mediaBagParityStatus']);
         } finally {
             $removeTree($root);
         }

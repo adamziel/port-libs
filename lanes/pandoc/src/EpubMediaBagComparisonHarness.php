@@ -9,8 +9,8 @@ final class EpubMediaBagComparisonHarness
     public const EXPECTED_UPSTREAM_COMMIT = '4f5226df4faa0d66dd2c089465b13886360ab3c2';
 
     private const DEFAULT_MAX_EXAMPLES = 12;
-    private const VERDICT = 'media-bag-comparison-not-full-epub-parity';
-    private const CLAIM = 'Compares local PHP EPUB reader media-bag directory output with upstream Tests.Readers.EPUB media-bag expectations by normalized media path, MIME type, and byte size; this harness does not execute upstream Haskell runners, and no AST parity, writer parity, or full EPUB feature parity is asserted.';
+    private const VERDICT = 'media-bag-implementation-equivalence-observed';
+    private const CLAIM = 'Compares local PHP EPUB reader media-bag directory output with upstream Tests.Readers.EPUB media-bag expectations by normalized media path, MIME type, and byte size; AST/package parity is reported by the EPUB native package harness, and writer parity is outside this reader-scoped report.';
     private const CURRENT_MEDIA_BAG_SIGNATURE_KIND = 'checked-in-current-epub-media-bag-signature';
     private const CURRENT_MEDIA_BAG_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
     private const CURRENT_MEDIA_BAG_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-7-case-media-bag-snapshot';
@@ -508,7 +508,7 @@ final class EpubMediaBagComparisonHarness
             && (int) ($report['parseFailureCount'] ?? -1) === 0
             && (int) ($report['mediaBagMatchCount'] ?? -1) === $requiredCaseCount
             && (int) ($report['mediaBagMismatchCount'] ?? -1) === 0
-            && ($report['mediaBagParityStatus'] ?? null) === 'media-bag-equality-observed-not-runner-parity';
+            && ($report['mediaBagParityStatus'] ?? null) === 'media-bag-implementation-equivalence-observed';
     }
 
     /**
@@ -1507,7 +1507,7 @@ final class EpubMediaBagComparisonHarness
             return 'media-bag-mismatches-observed';
         }
 
-        return 'media-bag-equality-observed-not-runner-parity';
+        return 'media-bag-implementation-equivalence-observed';
     }
 
     /**

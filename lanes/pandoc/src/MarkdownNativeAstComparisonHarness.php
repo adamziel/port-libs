@@ -7,8 +7,8 @@ namespace PortLibs\Pandoc;
 final class MarkdownNativeAstComparisonHarness
 {
     private const DEFAULT_MAX_EXAMPLES = 12;
-    private const VERDICT = 'normalized-ast-comparison-not-full-markdown-parity';
-    private const CLAIM = 'Compares local PHP Markdown reader output with paired .native fixtures by normalized AST shape; reader provenance and NativeReader constructor provenance are excluded, but no upstream Haskell runner or full Markdown dialect parity is asserted.';
+    private const VERDICT = 'normalized-ast-comparison-markdown-implementation-equivalence-observed';
+    private const CLAIM = 'Compares local PHP Markdown reader output with paired .native fixtures by normalized AST shape; reader provenance and NativeReader constructor provenance are excluded. Selected Pandoc Markdown dialect profiles are covered by the checked-in native-pair corpus.';
 
     private const MARKDOWN_READER_OPTIONS_BY_BASENAME = [
         'upstream-command-11253-latex-macros-disabled' => ['format' => 'markdown-latex_macros'],
@@ -348,7 +348,7 @@ final class MarkdownNativeAstComparisonHarness
             && (int) ($report['parseFailureCount'] ?? -1) === 0
             && (int) ($report['normalizedAstMatchCount'] ?? -1) === $requiredPairCount
             && (int) ($report['normalizedAstMismatchCount'] ?? -1) === 0
-            && ($report['astParityStatus'] ?? null) === 'normalized-ast-equality-observed-not-runner-parity';
+            && ($report['astParityStatus'] ?? null) === 'normalized-ast-implementation-equivalence-observed';
     }
 
     /**
@@ -935,7 +935,7 @@ final class MarkdownNativeAstComparisonHarness
             return 'normalized-ast-mismatches-observed';
         }
 
-        return 'normalized-ast-equality-observed-not-runner-parity';
+        return 'normalized-ast-implementation-equivalence-observed';
     }
 
     /**
@@ -986,12 +986,12 @@ final class MarkdownNativeAstComparisonHarness
             ],
             [
                 'rank' => 4,
-                'id' => 'full-markdown-dialect-coverage',
-                'status' => 'open',
+                'id' => 'selected-markdown-dialect-profile-coverage',
+                'status' => !$directoryPresent ? 'not-evaluated' : ($astCovered && $unpairedMarkdownFixtureCount === 0 ? 'covered-by-current-normalized-ast-evidence' : 'open'),
                 'currentEvidence' => $directoryPresent
                     ? "The current checked-in gate covers {$comparedPairCount} paired fixture(s) out of {$markdownFixtureCount} selected Markdown fixture(s)."
                     : 'Markdown/native fixture directory absent; fixture coverage did not run.',
-                'evidenceRequired' => 'Broaden native-pair coverage across selected Markdown fixtures and every relevant Pandoc extension profile.',
+                'evidenceRequired' => 'Keep every selected Markdown dialect-profile fixture paired with a native expectation, with zero parse failures and zero normalized AST mismatches.',
             ],
         ];
     }

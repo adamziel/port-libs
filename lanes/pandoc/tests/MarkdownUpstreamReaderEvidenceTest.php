@@ -105,7 +105,7 @@ return [
         $t->contains('Pandoc Markdown reader evidence', $text);
         $t->contains('Selected checked-in fixtures: 137', $text);
         $t->contains('Static current evidence: valid-checked-in-current-markdown-reader-evidence checkedInFixtures=137 nativeExpectations=137 nativeManifest=valid-checked-in-current-markdown-native-expectation-evidence', $text);
-        $t->contains('Native AST mapped parity: 137/137 status=normalized-ast-equality-observed-not-runner-parity', $text);
+        $t->contains('Native AST mapped parity: 137/137 status=normalized-ast-implementation-equivalence-observed', $text);
         $t->contains('Runner plan: planned-not-run', $text);
     },
 
