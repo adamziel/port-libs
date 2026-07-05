@@ -97,6 +97,7 @@ $tests['keeps html tree construction centralized through Html5Dom'] =
         $t->contains('function parseHtmlFragment', $html5DomSource);
         $t->contains('function parseHtmlDocument', $html5DomSource);
         $t->contains('function htmlFragmentTreeConstructionContext', $html5DomSource);
+        $t->contains('function htmlTreeConstructionInput', $html5DomSource);
         $t->contains('treeConstructedHtmlSource($source)', $html5DomFragmentSource);
         foreach ([
             'htmlTagTokens',

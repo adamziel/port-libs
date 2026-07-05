@@ -49,6 +49,7 @@ jobs:
           php -l lanes/pandoc/tests/MarkdownUpstreamReaderEvidenceTest.php
           php -l tools/pandoc-markdown-native-ast.php
           php -l tools/pandoc-markdown-reader-evidence.php
+          php -l tools/pandoc-reader-runner-artifact.php
 
       - name: Restore pinned Pandoc Markdown upstream cache
         id: pandoc-markdown-upstream-cache

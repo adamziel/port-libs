@@ -31,6 +31,36 @@ final class Html5Dom
     }
 
     /**
+     * Keep HTML5 tree construction on Dom\HTMLDocument while preserving
+     * Pandoc-visible literal payloads such as template and textarea bodies.
+     */
+    public static function htmlTreeConstructionInput(
+        string $html,
+        bool $protectTemplateContent = true,
+        bool $protectIframeContent = true,
+        bool $protectRawTextContent = false,
+        bool $protectNoscriptContent = true
+    ): string {
+        if (!self::htmlSourceNeedsLiteralPayloadProtection(
+            $html,
+            protectTemplateContent: $protectTemplateContent,
+            protectIframeContent: $protectIframeContent,
+            protectRawTextContent: $protectRawTextContent,
+            protectNoscriptContent: $protectNoscriptContent
+        )) {
+            return $html;
+        }
+
+        return XmlHtmlDom::protectHtmlRcdataElements(
+            $html,
+            protectTemplateContent: $protectTemplateContent,
+            protectIframeContent: $protectIframeContent,
+            protectRawTextContent: $protectRawTextContent,
+            protectNoscriptContent: $protectNoscriptContent
+        );
+    }
+
+    /**
      * Parse a bounded HTML fragment under a synthetic body element.
      */
     public static function parseHtmlFragment(
@@ -50,16 +80,15 @@ final class Html5Dom
             protectNoscriptContent: true
         );
         self::assertNoHtmlFragmentDeclarations($preflight, 'HTML fragment');
-        $html = XmlHtmlDom::protectHtmlRcdataElements(
-            $html,
-            protectTemplateContent: $protectTemplateContentForParse,
-            protectIframeContent: $protectIframeContentForParse,
-            protectRawTextContent: $protectRawTextContentForParse,
-            protectNoscriptContent: $protectNoscriptContentForParse
-        );
 
         if (self::nativeHtmlDocumentAvailable()) {
-            $fragment = self::html5TreeConstructedFragment($html);
+            $fragment = self::html5TreeConstructedFragment(self::htmlTreeConstructionInput(
+                $html,
+                protectTemplateContent: $protectTemplateContentForParse,
+                protectIframeContent: $protectIframeContentForParse,
+                protectRawTextContent: $protectRawTextContentForParse,
+                protectNoscriptContent: $protectNoscriptContentForParse
+            ));
             if ($fragment === null) {
                 throw new \RuntimeException('Unable to parse HTML fragment through Dom\\HTMLDocument');
             }
@@ -73,6 +102,13 @@ final class Html5Dom
             return self::requireBody($dom, 'HTML fragment');
         }
 
+        $html = XmlHtmlDom::protectHtmlRcdataElements(
+            $html,
+            protectTemplateContent: $protectTemplateContentForParse,
+            protectIframeContent: $protectIframeContentForParse,
+            protectRawTextContent: $protectRawTextContentForParse,
+            protectNoscriptContent: $protectNoscriptContentForParse
+        );
         $dom = self::loadHtml(
             '<!doctype html><html><body>' . $html . '</body></html>',
             'HTML fragment',
@@ -94,18 +130,11 @@ final class Html5Dom
             protectNoscriptContent: true
         );
         self::assertNoHtmlFragmentDeclarations($preflight, 'HTML fragment');
-        $html = XmlHtmlDom::protectHtmlRcdataElements(
-            $html,
-            protectTemplateContent: true,
-            protectIframeContent: true,
-            protectNoscriptContent: true
-        );
-
         if (!self::nativeHtmlDocumentAvailable()) {
             return self::HTML_FRAGMENT_CONTEXT_BODY;
         }
 
-        $fragment = self::html5TreeConstructedFragment($html);
+        $fragment = self::html5TreeConstructedFragment(self::htmlTreeConstructionInput($html));
         if ($fragment === null) {
             throw new \RuntimeException('Unable to parse HTML fragment through Dom\\HTMLDocument');
         }
@@ -277,17 +306,8 @@ final class Html5Dom
         bool $prependEncodingDeclaration = true
     ): \DOMDocument
     {
-        if ($protectRcdata) {
-            $html = XmlHtmlDom::protectHtmlRcdataElements(
-                $html,
-                protectTemplateContent: true,
-                protectIframeContent: true,
-                protectNoscriptContent: true
-            );
-        }
-
         if ($preferHtml5TreeConstruction && self::nativeHtmlDocumentAvailable()) {
-            $html5 = self::treeConstructedHtmlSource($html);
+            $html5 = self::treeConstructedHtmlSource($protectRcdata ? self::htmlTreeConstructionInput($html) : $html);
             if ($html5 === null) {
                 throw new \RuntimeException('Unable to parse ' . $label . ' through Dom\\HTMLDocument');
             }
@@ -297,6 +317,15 @@ final class Html5Dom
             } catch (\Throwable $exception) {
                 throw new \RuntimeException('Unable to bridge Dom\\HTMLDocument output for ' . $label, 0, $exception);
             }
+        }
+
+        if ($protectRcdata) {
+            $html = XmlHtmlDom::protectHtmlRcdataElements(
+                $html,
+                protectTemplateContent: true,
+                protectIframeContent: true,
+                protectNoscriptContent: true
+            );
         }
 
         // PHP < 8.4 has no Dom\HTMLDocument, so it uses the legacy libxml
@@ -322,6 +351,54 @@ final class Html5Dom
         }
 
         return $dom;
+    }
+
+    private static function htmlSourceNeedsLiteralPayloadProtection(
+        string $html,
+        bool $protectTemplateContent,
+        bool $protectIframeContent,
+        bool $protectRawTextContent,
+        bool $protectNoscriptContent
+    ): bool {
+        $names = ['title', 'textarea', 'xmp', 'noembed', 'noframes', 'plaintext'];
+        if ($protectTemplateContent) {
+            $names[] = 'template';
+        }
+        if ($protectIframeContent) {
+            $names[] = 'iframe';
+        }
+        if ($protectNoscriptContent) {
+            $names[] = 'noscript';
+        }
+        if ($protectRawTextContent) {
+            $names[] = 'script';
+            $names[] = 'style';
+        }
+
+        foreach ($names as $name) {
+            if (self::htmlSourceContainsElementStart($html, $name)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function htmlSourceContainsElementStart(string $html, string $name): bool
+    {
+        $source = strtolower($html);
+        $needle = '<' . $name;
+        $offset = 0;
+        while (($offset = strpos($source, $needle, $offset)) !== false) {
+            $afterName = $offset + strlen($needle);
+            $next = $source[$afterName] ?? '';
+            if ($next === '' || in_array($next, ["\t", "\n", "\f", "\r", ' ', '/', '>'], true)) {
+                return true;
+            }
+            $offset = $afterName;
+        }
+
+        return false;
     }
 
     private static function html5TreeConstructedSource(string $html): ?string

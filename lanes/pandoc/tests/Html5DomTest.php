@@ -103,6 +103,37 @@ return [
         $t->true($legacySerialized !== $serialized, 'Legacy DOMDocument must not produce the accepted HTML5 tree');
         $t->true(!str_contains($legacySerialized, '<p><b>two</b>three</p>'), 'Legacy DOMDocument should not satisfy the HTML5 formatting repair');
     },
+    'passes ordinary malformed html raw to HTMLDocument tree construction' => static function (TestRunner $t): void {
+        if (!class_exists('Dom\\HTMLDocument')) {
+            $t->true(true, 'Dom\\HTMLDocument is unavailable on this PHP runtime');
+
+            return;
+        }
+
+        $source = '<p><b>one<p>two</b>three<table>loose<tr><td>A</td></tr></table>tail';
+        $body = Html5Dom::parseHtmlFragment($source);
+
+        $t->same($source, Html5Dom::htmlTreeConstructionInput($source));
+        $t->same(
+            '<p><b>one</b></p><p><b>two</b>three</p>loose<table><tbody><tr><td>A</td></tr></tbody></table>tail',
+            Html5Dom::serializeHtmlChildren($body)
+        );
+    },
+    'limits pre-tree literal payload protection to inert source payload elements' => static function (TestRunner $t): void {
+        $ordinary = '<p><b>one<p>two</b>three</p>';
+        $template = '<template><p><strong>visible</strong></p></template>';
+        $textarea = '<textarea><b>literal</b></textarea>';
+
+        $t->same($ordinary, Html5Dom::htmlTreeConstructionInput($ordinary));
+        $t->same(
+            '<template>&lt;p&gt;&lt;strong&gt;visible&lt;/strong&gt;&lt;/p&gt;</template>',
+            Html5Dom::htmlTreeConstructionInput($template)
+        );
+        $t->same(
+            '<textarea>&lt;b&gt;literal&lt;/b&gt;</textarea>',
+            Html5Dom::htmlTreeConstructionInput($textarea)
+        );
+    },
     'decodes HTML entities once and keeps comparison text safe on serialization' => static function (TestRunner $t): void {
         $body = Html5Dom::parseHtmlFragment('<p>AT&amp;T &lt;source&gt; &copy;</p><p>AT&amp;amp;T</p>');
         $paragraphs = Html5Dom::childElements($body, 'p');
