@@ -24,6 +24,10 @@ final class PptxReader
     private const HASKELL_INT_MIN_ABS_HEX = '8000000000000000';
     private const HASKELL_INT_MIN_ABS_OCTAL = '1000000000000000000000';
 
+    public function __construct(private readonly array $options = [])
+    {
+    }
+
     public function read(string $bytes): AstNode
     {
         $package = ZipPackage::fromString($bytes);
@@ -2595,6 +2599,10 @@ final class PptxReader
      */
     private function shapeToBlocks(ZipPackage $package, \DOMElement $shapeElement, OpcRelationships $slideRelationships, array $slideContext, array $tableStyles, ?string $presentationNamespace, ?string $relationshipNamespace, ?string $drawingNamespace, int $zOrder, array &$imageIssues, array &$shapeIssues, array &$richMedia): array
     {
+        if ($shapeElement->localName === 'grpSp' && $this->readGroupedDrawableDescendants()) {
+            return $this->groupShapeToBlocks($package, $shapeElement, $slideRelationships, $slideContext, $tableStyles, $presentationNamespace, $relationshipNamespace, $drawingNamespace, $zOrder, $imageIssues, $shapeIssues, $richMedia);
+        }
+
         if ($shapeElement->localName === 'sp') {
             $this->appendRichMediaReviews($richMedia, $shapeElement, $slideRelationships, $zOrder);
             $textBody = $this->firstChildElementForOuterPrefix($shapeElement, 'p', 'txBody', $presentationNamespace);
@@ -2650,6 +2658,41 @@ final class PptxReader
         }
 
         return $this->withShapeMetadata([$this->paragraph('[Graphic: other: ' . $uri . ']')], $shapeElement, $zOrder);
+    }
+
+    /**
+     * @param array<string, mixed> $slideContext
+     * @param array<string, mixed> $tableStyles
+     * @param list<array<string, mixed>> $imageIssues
+     * @param list<array<string, mixed>> $shapeIssues
+     * @param list<array<string, string|bool|array<string, mixed>>> $richMedia
+     * @return list<AstNode>
+     */
+    private function groupShapeToBlocks(ZipPackage $package, \DOMElement $groupShape, OpcRelationships $slideRelationships, array $slideContext, array $tableStyles, ?string $presentationNamespace, ?string $relationshipNamespace, ?string $drawingNamespace, int $zOrder, array &$imageIssues, array &$shapeIssues, array &$richMedia): array
+    {
+        $shapeIssueCountBefore = count($shapeIssues);
+        $richMediaCountBefore = count($richMedia);
+        $blocks = [];
+        foreach ($this->childElements($groupShape, null) as $child) {
+            if (!$this->isDrawableShapeElement($child, $presentationNamespace)) {
+                continue;
+            }
+
+            foreach ($this->shapeToBlocks($package, $child, $slideRelationships, $slideContext, $tableStyles, $presentationNamespace, $relationshipNamespace, $drawingNamespace, $zOrder, $imageIssues, $shapeIssues, $richMedia) as $block) {
+                $blocks[] = $block;
+            }
+        }
+
+        if ($blocks === [] && count($shapeIssues) === $shapeIssueCountBefore && count($richMedia) === $richMediaCountBefore) {
+            return $this->unsupportedDrawableShapeBlocks($groupShape, $slideRelationships, $zOrder, $shapeIssues, $richMedia);
+        }
+
+        return $blocks;
+    }
+
+    private function readGroupedDrawableDescendants(): bool
+    {
+        return ($this->options['pptxReadGroupedDrawableDescendants'] ?? false) === true;
     }
 
     /**

@@ -16452,6 +16452,38 @@ return [
         $t->true(!str_contains($native, 'Grouped Picture'), 'Grouped child picture should stay out of upstream-compatible output');
     },
 
+    'can read grouped pptx shape descendants in slide order when enabled' => static function (TestRunner $t) use ($buildGroupedShapesPptxPackage, $nodesOfType): void {
+        $document = (new PptxReader(['pptxReadGroupedDrawableDescendants' => true]))->read($buildGroupedShapesPptxPackage());
+        $review = $document->attr('pptx');
+        $paragraphs = $nodesOfType($document, 'paragraph');
+        $images = $nodesOfType($document, 'image');
+        $texts = array_map(static fn (AstNode $paragraph): string => (string) $paragraph->attr('text'), $paragraphs);
+        $native = PandocConverter::write($document, 'native');
+        $slideChildren = array_slice($document->children, 1);
+
+        $t->same('heading', $document->children[0]->type);
+        $t->same('Grouped slide', $document->children[0]->attr('text'));
+        $t->same(['paragraph', 'paragraph', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $slideChildren));
+        $t->same('Grouped body', $slideChildren[0]->attr('text'));
+        $t->same('image', $slideChildren[1]->children[0]->type ?? null);
+        $t->same('Nested grouped body', $slideChildren[2]->attr('text'));
+        $t->same(true, in_array('Grouped body', $texts, true));
+        $t->same(true, in_array('Nested grouped body', $texts, true));
+        $t->same(1, count($images));
+        $t->same('ppt/media/grouped.png', $images[0]->attr('url'));
+        $t->same('Grouped Picture', $images[0]->attr('title'));
+        $t->same('Grouped alt', $images[0]->attr('alt'));
+        $t->same('pic', $images[0]->attr('pptxShape')['element'] ?? null);
+        $t->same('Grouped Picture', $images[0]->attr('pptxShape')['name'] ?? null);
+        $t->same(0, $review['slides'][0]['imageIssueCount'] ?? null);
+        $t->same([], $review['slides'][0]['imageIssues'] ?? null);
+        $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
+        $t->same(1, $review['mediaBag']['itemCount'] ?? null);
+        $t->contains('Para [ Str "Grouped" , Space , Str "body" ]', $native);
+        $t->contains('Image ( "" , [  ] , [  ] ) [ Str "Grouped alt" ] ( "ppt/media/grouped.png" , "Grouped Picture" )', $native);
+        $t->contains('Para [ Str "Nested" , Space , Str "grouped" , Space , Str "body" ]', $native);
+    },
+
     'records checked-in grouped pptx media review while preserving executable native parity' => static function (TestRunner $t) use ($nodesOfType): void {
         $path = dirname(__DIR__) . '/fixtures/upstream-current-pptx-reader/grouped-shape-media-review.pptx';
         $document = (new PptxReader())->read((string) file_get_contents($path));
@@ -16492,6 +16524,37 @@ return [
         $t->true(!str_contains($native, 'Grouped Image'), 'Grouped child image metadata should stay out of upstream-compatible output');
         $t->true(!str_contains($native, 'Nested Video'), 'Grouped child media metadata should stay out of upstream-compatible output');
         $t->true(!str_contains($native, 'Image'), 'Grouped child images should not emit native Image nodes');
+    },
+
+    'can read checked-in grouped pptx media descendants while keeping rich-media review metadata' => static function (TestRunner $t) use ($nodesOfType): void {
+        $path = dirname(__DIR__) . '/fixtures/upstream-current-pptx-reader/grouped-shape-media-review.pptx';
+        $document = (new PptxReader(['pptxReadGroupedDrawableDescendants' => true]))->read((string) file_get_contents($path));
+        $review = $document->attr('pptx');
+        $paragraphs = $nodesOfType($document, 'paragraph');
+        $images = $nodesOfType($document, 'image');
+        $texts = array_map(static fn (AstNode $paragraph): string => (string) $paragraph->attr('text'), $paragraphs);
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same('Grouped media review', $document->children[0]->attr('text'));
+        $t->same(true, in_array('Grouped callout text', $texts, true));
+        $t->same(true, in_array('Visible after grouped content', $texts, true));
+        $t->same(1, count($images));
+        $t->same('ppt/media/grouped-review.png', $images[0]->attr('url'));
+        $t->same('Grouped Image', $images[0]->attr('title'));
+        $t->same('Grouped image alt', $images[0]->attr('alt'));
+        $t->same('Grouped Image', $images[0]->attr('pptxShape')['name'] ?? null);
+        $t->same(0, $review['slides'][0]['imageIssueCount'] ?? null);
+        $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
+        $t->same(1, $review['slides'][0]['richMediaCount'] ?? null);
+        $t->same('video', $review['slides'][0]['richMedia'][0]['kind'] ?? null);
+        $t->same('pic', $review['slides'][0]['richMedia'][0]['shape']['element'] ?? null);
+        $t->same('Nested Video', $review['slides'][0]['richMedia'][0]['shape']['name'] ?? null);
+        $t->same('ppt/media/grouped-review.mp4', $review['slides'][0]['richMedia'][0]['partName'] ?? null);
+        $t->same(2, $review['mediaBag']['itemCount'] ?? null);
+        $t->contains('Para [ Str "Visible" , Space , Str "after" , Space , Str "grouped" , Space , Str "content" ]', $native);
+        $t->contains('Para [ Str "Grouped" , Space , Str "callout" , Space , Str "text" ]', $native);
+        $t->contains('Image ( "" , [  ] , [  ] ) [ Str "Grouped image alt" ] ( "ppt/media/grouped-review.png" , "Grouped Image" )', $native);
+        $t->true(!str_contains($native, 'Nested Video'), 'Grouped child rich-media review metadata should not become visible native content');
     },
 
     'records unsupported pptx connector shapes without fabricating content' => static function (TestRunner $t) use ($buildUnsupportedConnectorPptxPackage, $nodesOfType): void {
