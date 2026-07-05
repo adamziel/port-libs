@@ -18985,6 +18985,40 @@ XML);
         $t->true(!str_contains($native, 'Audio Shape'), 'Audio placeholder metadata should stay out of visible native output');
     },
 
+    'keeps checked-in pptx external rich media placeholders out of visible output with review metadata' => static function (TestRunner $t) use ($nodesOfType): void {
+        $path = dirname(__DIR__) . '/fixtures/upstream-current-pptx-reader/external-rich-media-skip.pptx';
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException("Unable to read {$path}");
+        }
+
+        $document = (new PptxReader())->read($bytes);
+        $review = $document->attr('pptx');
+        $native = PandocConverter::write($document, 'native');
+        $paragraphTexts = array_map(static fn (AstNode $paragraph): string => (string) $paragraph->attr('text'), $nodesOfType($document, 'paragraph'));
+        $media = $review['slides'][0]['richMedia'] ?? [];
+
+        $t->same('External rich media skip', $document->children[0]->attr('text'));
+        $t->same(['Visible after external media placeholders'], $paragraphTexts);
+        $t->same(2, $review['slides'][0]['blockCount'] ?? null);
+        $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
+        $t->same(2, $review['slides'][0]['richMediaCount'] ?? null);
+        $t->same(['video', 'audio'], array_map(static fn (array $item): string => (string) ($item['kind'] ?? ''), $media));
+        $t->same(['rIdExternalVideo', 'rIdExternalAudio'], array_map(static fn (array $item): string => (string) ($item['relationshipId'] ?? ''), $media));
+        $t->same([true, true], array_map(static fn (array $item): bool => ($item['external'] ?? false) === true, $media));
+        $t->same(['', ''], array_map(static fn (array $item): string => (string) ($item['partName'] ?? ''), $media));
+        $t->same(['External Video Placeholder', 'External Audio Shape'], array_map(static fn (array $item): string => (string) ($item['shape']['name'] ?? ''), $media));
+        $t->same(['https://media.example.test/training.mp4', 'https://media.example.test/narration.wav'], array_map(static fn (array $item): string => (string) ($item['target'] ?? ''), $media));
+        $t->same(0, $review['mediaBag']['itemCount'] ?? null);
+        $t->same([], $review['mediaBag']['directory'] ?? null);
+        $t->same([], $review['mediaBag']['diagnostics'] ?? null);
+        $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "External" , Space , Str "rich" , Space , Str "media" , Space , Str "skip" ]', $native);
+        $t->contains('Para [ Str "Visible" , Space , Str "after" , Space , Str "external" , Space , Str "media" , Space , Str "placeholders" ]', $native);
+        $t->true(!str_contains($native, 'External Video Placeholder'), 'External video placeholder metadata should stay out of visible native output');
+        $t->true(!str_contains($native, 'External Audio Shape'), 'External audio placeholder metadata should stay out of visible native output');
+        $t->true(!str_contains($native, 'https://media.example.test'), 'External media targets should stay out of visible native output');
+    },
+
     'keeps checked-in pptx transitions and animations out of visible output with metadata' => static function (TestRunner $t) use ($nodesOfType): void {
         $path = dirname(__DIR__) . '/fixtures/upstream-current-pptx-reader/transition-animation-metadata.pptx';
         $bytes = file_get_contents($path);

@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 93;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 94;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'ed3d2f8a4c149776d41715fcac68fc60007f7c0c8255f099fa2852e13fca6c09';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 40421;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'a44e16f5b22e093136ccb56e8cbcbd5a1e7470ff4b5a09ac4b92c45b73a86948';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 40828;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -294,6 +294,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => '7f8c73a728f91c0142c503e40e06a3fa5bf76c1d931d63ffbcf3ffacf205c918',
             'pptxBytes' => 1707,
             'nativeBytes' => 110,
+        ],
+        'external-rich-media-skip' => [
+            'name' => 'generated external rich media placeholder skip parity',
+            'pptx' => 'pptx-reader/external-rich-media-skip.pptx',
+            'native' => 'pptx-reader/external-rich-media-skip.native',
+            'pairKey' => 'pptx-reader/external-rich-media-skip.pptx|pptx-reader/external-rich-media-skip.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/external-rich-media-skip.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/external-rich-media-skip.native',
+            'pptxSha256' => '26b4f782fcb6aa221cc33495d5635b52c536ada9f4a6a116f4e06c927f38d86b',
+            'nativeSha256' => '600f69ab626db820ccdbdbd28f0d8e3f43dde299bf35d82eb77dab031f229b20',
+            'pptxBytes' => 2340,
+            'nativeBytes' => 135,
         ],
         'first-text-body' => [
             'name' => 'generated first text body child parity',
@@ -2273,7 +2285,7 @@ final class PptxUpstreamReaderEvidence
             ]) {
                 $issues[] = 'checked-in-current-pptx-executable-native-ast-source-command-mismatch';
             }
-            if (($payload['capturedDate'] ?? null) !== '2026-07-04') {
+            if (($payload['capturedDate'] ?? null) !== '2026-07-05') {
                 $issues[] = 'checked-in-current-pptx-executable-native-ast-captured-date-mismatch';
             }
             if (($payload['pptxDirectory'] ?? null) !== self::CHECKED_IN_CURRENT_FIXTURE_DIRECTORY) {

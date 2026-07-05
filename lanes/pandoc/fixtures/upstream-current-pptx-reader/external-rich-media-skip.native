@@ -1,0 +1,4 @@
+[ Header
+    2 ( "slide-1" , [] , [] ) [ Str "External rich media skip" ]
+, Para [ Str "Visible after external media placeholders" ]
+]
