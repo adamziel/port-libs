@@ -404,6 +404,50 @@ $tests['maps upstream markdown reader commonmark x grid table default fixture as
         $t->same('table', $firstTable((new MarkdownReader(['format' => 'markdown']))->read($markdown))->type);
     };
 
+$tests['imports selected upstream markdown multiline table fixtures'] =
+    static function (TestRunner $t) use ($firstTable, $cellText): void {
+        $root = dirname(__DIR__) . '/fixtures';
+        $fixtures = [
+            'upstream-markdown-multiline-table-caption.md' => [
+                'caption' => "Here's the caption. It may span multiple lines.",
+                'alignments' => ['center', 'left', 'right', 'left'],
+                'headRows' => 1,
+            ],
+            'upstream-markdown-multiline-table-no-caption.md' => [
+                'caption' => '',
+                'alignments' => ['center', 'left', 'right', 'left'],
+                'headRows' => 1,
+            ],
+            'upstream-markdown-multiline-table-no-header.md' => [
+                'caption' => '',
+                'alignments' => ['center', 'left', 'right', 'default'],
+                'headRows' => 0,
+            ],
+        ];
+
+        foreach ($fixtures as $fixtureName => $expected) {
+            $nativeFixtureName = substr($fixtureName, 0, -3) . '.native';
+            $markdown = file_get_contents($root . '/' . $fixtureName);
+            if (!is_string($markdown)) {
+                throw new RuntimeException("Unable to read {$fixtureName}");
+            }
+
+            $t->true(is_file($root . '/' . $nativeFixtureName), "{$nativeFixtureName} must be checked in");
+            $document = (new MarkdownReader())->read($markdown);
+            $table = $firstTable($document);
+
+            $t->same('table', $table->type, $fixtureName);
+            $t->same($expected['caption'], $table->attr('caption'), $fixtureName);
+            $t->same($expected['alignments'], $table->attr('alignments'), $fixtureName);
+            $t->same($expected['headRows'], count($table->children[0]->children), $fixtureName);
+            $t->same('First', $cellText($table, 'body', 0, 0), $fixtureName);
+            $t->same('row', $cellText($table, 'body', 0, 1), $fixtureName);
+            $t->same('12.0', $cellText($table, 'body', 0, 2), $fixtureName);
+            $t->same("Example of a row that spans\nmultiple lines.", $cellText($table, 'body', 0, 3), $fixtureName);
+            $t->same("Here\u{2019}s another one. Note\nthe blank line between\nrows.", $cellText($table, 'body', 1, 3), $fixtureName);
+        }
+    };
+
 $tests['records upstream markdown reader table profile surge mapped-case count'] =
     static function (TestRunner $t) use ($caseCount): void {
         $t->same(208, $caseCount);

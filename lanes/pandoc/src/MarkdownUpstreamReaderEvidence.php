@@ -12,9 +12,9 @@ final class MarkdownUpstreamReaderEvidence
     public const STATUS_COMPLETED = 'completed-upstream-markdown-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-markdown-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
-    public const EXPECTED_SELECTED_FIXTURE_COUNT = 111;
-    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 111;
-    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = 'bd1fe65f94b0d983c50748a405748d375cef7ab95e8136b4dd3c811f7146107a';
+    public const EXPECTED_SELECTED_FIXTURE_COUNT = 114;
+    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 114;
+    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = 'de83bc61dc80447e3722e37ec1db352319090a9a8075d07a84cba2184105affb';
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/Markdown.hs',
@@ -1428,6 +1428,45 @@ final class MarkdownUpstreamReaderEvidence
             ],
             'sha256' => '8dc499f98165df54885e4909cc5808645174597006f8c1d2d95b6f6e16850809',
             'bytes' => 65,
+        ],
+        'upstream-markdown-multiline-table-caption.md' => [
+            'role' => 'markdown-multiline-table-caption-reader-fixture',
+            'sourceKind' => 'selected-upstream-markdown-reader-case',
+            'sourceReference' => 'test/tables.markdown lines 31-43',
+            'formatProfile' => 'markdown multiline_tables captioned table',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-markdown-multiline-table-caption.md',
+            'coverageTests' => [
+                'lanes/pandoc/tests/MarkdownReaderTableProfileSurgeTest.php',
+                'lanes/pandoc/tests/MarkdownNativeAstComparisonHarnessTest.php',
+            ],
+            'sha256' => 'df28b87c50d6e18bb03759d2668569ec27e628a021d15197a36fcc3adcb81403',
+            'bytes' => 633,
+        ],
+        'upstream-markdown-multiline-table-no-caption.md' => [
+            'role' => 'markdown-multiline-table-no-caption-reader-fixture',
+            'sourceKind' => 'selected-upstream-markdown-reader-case',
+            'sourceReference' => 'test/tables.markdown lines 47-57',
+            'formatProfile' => 'markdown multiline_tables table without caption',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-markdown-multiline-table-no-caption.md',
+            'coverageTests' => [
+                'lanes/pandoc/tests/MarkdownReaderTableProfileSurgeTest.php',
+                'lanes/pandoc/tests/MarkdownNativeAstComparisonHarnessTest.php',
+            ],
+            'sha256' => '673bcf64942d9e85c766f6daf19abca138d0073a48558732578b5681541f93bc',
+            'bytes' => 580,
+        ],
+        'upstream-markdown-multiline-table-no-header.md' => [
+            'role' => 'markdown-multiline-table-no-header-reader-fixture',
+            'sourceKind' => 'selected-upstream-markdown-reader-case',
+            'sourceReference' => 'test/tables.markdown lines 69-76',
+            'formatProfile' => 'markdown multiline_tables table without column headers',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-markdown-multiline-table-no-header.md',
+            'coverageTests' => [
+                'lanes/pandoc/tests/MarkdownReaderTableProfileSurgeTest.php',
+                'lanes/pandoc/tests/MarkdownNativeAstComparisonHarnessTest.php',
+            ],
+            'sha256' => '364d8e077c23a77f992daf4832db292ad7cebac235f122181e8800b091c4cfa2',
+            'bytes' => 421,
         ],
     ];
 
