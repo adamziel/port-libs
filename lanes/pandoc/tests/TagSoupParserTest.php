@@ -118,7 +118,16 @@ return [
         $harness = new HtmlNativeAstComparisonHarness();
         foreach ([
             'upstream-html-address-block',
+            'upstream-html-anchor-image-attrs',
+            'upstream-html-base-relative-image',
             'upstream-html-blockquote',
+            'upstream-html-definition-list',
+            'upstream-html-figure-caption',
+            'upstream-html-generic-raw-inline',
+            'upstream-html-inline-code-aliases',
+            'upstream-html-line-block',
+            'upstream-html-list-item-id',
+            'upstream-html-ordered-list-type-start',
             'upstream-html-thematic-break',
         ] as $basename) {
             $options = HtmlNativeAstComparisonHarness::readerOptionsForFixtureBasename($basename);
