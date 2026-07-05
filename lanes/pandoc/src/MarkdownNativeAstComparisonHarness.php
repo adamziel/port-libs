@@ -441,10 +441,18 @@ final class MarkdownNativeAstComparisonHarness
         return $files;
     }
 
-    private static function isMarkdownReaderFixtureBasename(string $basename): bool
+    public static function isMarkdownReaderFixtureBasename(string $basename): bool
     {
         return str_starts_with($basename, 'upstream-markdown-')
             || str_starts_with($basename, 'upstream-command-');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function readerOptionsForFixtureBasename(string $basename): array
+    {
+        return self::MARKDOWN_READER_OPTIONS_BY_BASENAME[$basename] ?? [];
     }
 
     /**

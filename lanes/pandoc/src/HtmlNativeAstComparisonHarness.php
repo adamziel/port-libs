@@ -423,10 +423,18 @@ final class HtmlNativeAstComparisonHarness
         return $files;
     }
 
-    private static function isHtmlReaderFixtureBasename(string $basename): bool
+    public static function isHtmlReaderFixtureBasename(string $basename): bool
     {
         return str_starts_with($basename, 'upstream-html-')
             || str_starts_with($basename, 'upstream-native-html-');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function readerOptionsForFixtureBasename(string $basename): array
+    {
+        return self::HTML_READER_OPTIONS_BY_BASENAME[$basename] ?? [];
     }
 
     /**

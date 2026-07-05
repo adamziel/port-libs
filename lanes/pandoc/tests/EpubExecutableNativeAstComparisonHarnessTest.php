@@ -69,6 +69,7 @@ return [
             $t->same(0, $report['pandocNativeFixtureByteMismatchCount']);
             $t->same(0, $report['pandocNativeFixtureByteOnlyMismatchCount']);
             $t->same(0, $report['pandocNativeFixtureSemanticByteMismatchCount']);
+            $t->same([], $report['fixtureComparisons']);
             $t->same('not-evaluated-pandoc-executable-missing', $report['astParityStatus']);
             $t->same('not-evaluated', $report['orderedRemainingGaps'][0]['status']);
             $t->contains('Pandoc EPUB executable/native AST comparison: skipped', $text);
@@ -106,6 +107,12 @@ return [
             $t->same(0, $report['pandocNativeFixtureByteMismatchCount']);
             $t->same(0, $report['pandocNativeFixtureByteOnlyMismatchCount']);
             $t->same(0, $report['pandocNativeFixtureSemanticByteMismatchCount']);
+            $t->same(1, count($report['fixtureComparisons']));
+            $t->same('audio-navigation', $report['fixtureComparisons'][0]['fixture']);
+            $t->same('matched', $report['fixtureComparisons'][0]['status']);
+            $t->same('matched', $report['fixtureComparisons'][0]['localPandocStatus']);
+            $t->same('matched', $report['fixtureComparisons'][0]['pandocNativeFixtureStatus']);
+            $t->same('matched', $report['fixtureComparisons'][0]['pandocNativeFixtureByteStatus']);
             $t->same('pandoc fake 1.0', $report['pandocVersion']);
             $t->same('normalized-ast-equality-observed-against-pandoc-executable', $report['astParityStatus']);
             $t->same(true, EpubExecutableNativeAstComparisonHarness::hasRequiredExecutableParity($report, 1));
@@ -142,6 +149,10 @@ return [
             $t->same(1, $report['pandocNativeFixtureByteMismatchCount']);
             $t->same(1, $report['pandocNativeFixtureByteOnlyMismatchCount']);
             $t->same(0, $report['pandocNativeFixtureSemanticByteMismatchCount']);
+            $t->same('matched', $report['fixtureComparisons'][0]['status']);
+            $t->same('mismatched', $report['fixtureComparisons'][0]['pandocNativeFixtureByteStatus']);
+            $t->same('native-byte-only-drift', $report['fixtureComparisons'][0]['pandocNativeFixtureByteDriftKind']);
+            $t->same(true, $report['fixtureComparisons'][0]['pandocNativeFixtureByteNormalizedAstEqual']);
             $t->same('audio-navigation', $report['pandocNativeFixtureByteMismatchComparisons'][0]['fixture']);
             $t->same('native-byte-only-drift', $report['pandocNativeFixtureByteMismatchComparisons'][0]['byteDriftKind']);
             $t->same(true, $report['pandocNativeFixtureByteMismatchComparisons'][0]['normalizedAstEqual']);
