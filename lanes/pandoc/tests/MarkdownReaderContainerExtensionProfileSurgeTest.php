@@ -309,4 +309,97 @@ $tests['records upstream markdown reader container extension profile surge mappe
         $t->same(98, count($profileCases) * count($featureCases));
     };
 
+$tests['maps same-level fenced div section as peer section with folded wrapper attributes'] =
+    static function (TestRunner $t): void {
+        $document = (new MarkdownReader([
+            'format' => 'markdown+fenced_divs+native_divs+header_attributes',
+            'sectionDivs' => true,
+        ]))->read(implode("\n", [
+            '# Outer',
+            '',
+            '::: {.callout data-kind="note"}',
+            '# Inner {#inner .inside data-kind="heading"}',
+            '',
+            'Inside.',
+            ':::',
+            '',
+            'After.',
+        ]));
+        $outer = $document->children[0] ?? new AstNode('missing');
+        $inner = $document->children[1] ?? new AstNode('missing');
+        $after = $document->children[2] ?? new AstNode('missing');
+        $heading = $inner->children[0] ?? new AstNode('missing');
+
+        $t->same(['div', 'div', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
+        $t->same('outer', $outer->attr('id'));
+        $t->same(['heading'], array_map(static fn (AstNode $node): string => $node->type, $outer->children));
+        $t->same('inner', $inner->attr('id'));
+        $t->same(['section', 'level1', 'inside', 'callout'], $inner->attr('classes'));
+        $t->same(['data-kind' => 'heading'], $inner->attr('attributes'));
+        $t->same('heading', $heading->type);
+        $t->same('', $heading->attr('id', ''));
+        $t->same('After.', $after->attr('text'));
+    };
+
+$tests['keeps explicit-id fenced div wrapper while closing same-level section boundary'] =
+    static function (TestRunner $t): void {
+        $document = (new MarkdownReader([
+            'format' => 'markdown+fenced_divs+native_divs+header_attributes',
+            'sectionDivs' => true,
+        ]))->read(implode("\n", [
+            '# Outer',
+            '',
+            '::: {#wrap .callout data-kind="note"}',
+            '# Inner',
+            '',
+            'Inside.',
+            ':::',
+            '',
+            'After.',
+        ]));
+        $outer = $document->children[0] ?? new AstNode('missing');
+        $wrapper = $document->children[1] ?? new AstNode('missing');
+        $inner = $wrapper->children[0] ?? new AstNode('missing');
+        $after = $document->children[2] ?? new AstNode('missing');
+
+        $t->same(['div', 'div', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
+        $t->same('outer', $outer->attr('id'));
+        $t->same(['heading'], array_map(static fn (AstNode $node): string => $node->type, $outer->children));
+        $t->same('wrap', $wrapper->attr('id'));
+        $t->same(['callout'], $wrapper->attr('classes'));
+        $t->same(['data-kind' => 'note'], $wrapper->attr('attributes'));
+        $t->same('inner', $inner->attr('id'));
+        $t->same(['section', 'level1'], $inner->attr('classes'));
+        $t->same('After.', $after->attr('text'));
+    };
+
+$tests['nests lower-level fenced div section and folds class-only wrapper attributes'] =
+    static function (TestRunner $t): void {
+        $document = (new MarkdownReader([
+            'format' => 'markdown+fenced_divs+native_divs+header_attributes',
+            'sectionDivs' => true,
+        ]))->read(implode("\n", [
+            '# Outer',
+            '',
+            '::: {.callout data-kind="note"}',
+            '## Inner',
+            '',
+            'Inside.',
+            ':::',
+            '',
+            'After.',
+        ]));
+        $outer = $document->children[0] ?? new AstNode('missing');
+        $inner = $outer->children[1] ?? new AstNode('missing');
+        $after = $outer->children[2] ?? new AstNode('missing');
+
+        $t->same(['div'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
+        $t->same('outer', $outer->attr('id'));
+        $t->same(['heading', 'div', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $outer->children));
+        $t->same('inner', $inner->attr('id'));
+        $t->same(['section', 'level2', 'callout'], $inner->attr('classes'));
+        $t->same(['data-kind' => 'note'], $inner->attr('attributes'));
+        $t->same('After.', $after->attr('text'));
+    };
+
 return $tests;

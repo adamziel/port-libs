@@ -570,6 +570,16 @@ final class MarkdownReader
         $stack = [];
 
         foreach ($blocks as $block) {
+            $sectionizedDiv = $this->sectionizedDivBoundaryBlock($block);
+            if ($sectionizedDiv !== null) {
+                while ($stack !== [] && (int) $stack[array_key_last($stack)]['level'] >= $sectionizedDiv['level']) {
+                    $this->closeSectionizedBlock($result, $stack);
+                }
+
+                $this->appendSectionizedBlock($result, $stack, $sectionizedDiv['block']);
+                continue;
+            }
+
             if ($block->type !== 'heading') {
                 $this->appendSectionizedBlock($result, $stack, $block);
                 continue;
@@ -593,6 +603,94 @@ final class MarkdownReader
         }
 
         return $result;
+    }
+
+    /**
+     * @return array{level:int, block:AstNode}|null
+     */
+    private function sectionizedDivBoundaryBlock(AstNode $block): ?array
+    {
+        if ($block->type !== 'div') {
+            return null;
+        }
+
+        $firstChild = $block->children[0] ?? null;
+        if (!$firstChild instanceof AstNode || $firstChild->type !== 'div') {
+            return null;
+        }
+
+        $level = $this->sectionDivLevel($firstChild);
+        if ($level === null) {
+            return null;
+        }
+
+        return [
+            'level' => $level,
+            'block' => $this->foldSingleSectionDivWrapper($block, $firstChild),
+        ];
+    }
+
+    private function sectionDivLevel(AstNode $block): ?int
+    {
+        if ($block->type !== 'div') {
+            return null;
+        }
+
+        $classes = $block->attr('classes', []);
+        if (!is_array($classes) || !in_array('section', $classes, true)) {
+            return null;
+        }
+
+        foreach ($classes as $class) {
+            $class = (string) $class;
+            if (preg_match('/^level([1-6])$/', $class, $match) === 1) {
+                return (int) $match[1];
+            }
+        }
+
+        return null;
+    }
+
+    private function foldSingleSectionDivWrapper(AstNode $wrapper, AstNode $section): AstNode
+    {
+        if (
+            count($wrapper->children) !== 1
+            || (string) $wrapper->attr('id', '') !== ''
+            || $this->sectionDivLevel($wrapper) !== null
+        ) {
+            return $wrapper;
+        }
+
+        $wrapperClasses = $wrapper->attr('classes', []);
+        $sectionClasses = $section->attr('classes', []);
+        if (!is_array($wrapperClasses)) {
+            $wrapperClasses = [];
+        }
+        if (!is_array($sectionClasses)) {
+            $sectionClasses = [];
+        }
+
+        $classes = [];
+        foreach ([...$sectionClasses, ...$wrapperClasses] as $class) {
+            $class = (string) $class;
+            if ($class !== '' && !in_array($class, $classes, true)) {
+                $classes[] = $class;
+            }
+        }
+
+        $wrapperAttributes = $wrapper->attr('attributes', []);
+        $sectionAttributes = $section->attr('attributes', []);
+        if (!is_array($wrapperAttributes)) {
+            $wrapperAttributes = [];
+        }
+        if (!is_array($sectionAttributes)) {
+            $sectionAttributes = [];
+        }
+
+        $id = (string) $section->attr('id', '');
+        $attrs = $this->markdownAttributeAstAttrs($id === '' ? null : $id, $classes, array_merge($wrapperAttributes, $sectionAttributes));
+
+        return new AstNode('div', $attrs, $section->children);
     }
 
     /**
