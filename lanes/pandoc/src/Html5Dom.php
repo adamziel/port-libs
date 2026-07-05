@@ -18,7 +18,7 @@ final class Html5Dom
 
     public static function htmlFragmentTreeConstructionBackend(string $html): string
     {
-        return self::nativeHtmlDocumentAvailable() && !self::hasOrphanTableScopeFragment($html)
+        return self::nativeHtmlDocumentAvailable()
             ? self::HTML_TREE_CONSTRUCTION_HTML_DOCUMENT
             : self::HTML_TREE_CONSTRUCTION_LEGACY_COMPAT;
     }
@@ -52,8 +52,7 @@ final class Html5Dom
         $dom = self::loadHtml(
             '<!doctype html><html><body>' . $html . '</body></html>',
             'HTML fragment',
-            protectRcdata: false,
-            preferHtml5TreeConstruction: !self::hasOrphanTableScopeFragment($html)
+            protectRcdata: false
         );
 
         return self::requireBody($dom, 'HTML fragment');
@@ -224,6 +223,10 @@ final class Html5Dom
             );
         }
 
+        if ($preferHtml5TreeConstruction) {
+            $html = self::htmlSourceForHtmlDocumentTreeConstruction($html);
+        }
+
         if ($preferHtml5TreeConstruction && self::nativeHtmlDocumentAvailable()) {
             $html5 = self::treeConstructedHtmlSource($html);
             if ($html5 === null) {
@@ -241,6 +244,18 @@ final class Html5Dom
         // use this compatibility path because PHP exposes document parsing, not
         // context-fragment parsing for table rows/cells.
         return self::loadLegacyHtml($html, $label);
+    }
+
+    private static function htmlSourceForHtmlDocumentTreeConstruction(string $html): string
+    {
+        if (!self::nativeHtmlDocumentAvailable() || !self::hasOrphanTableScopeFragment($html)) {
+            return $html;
+        }
+
+        // PHP exposes HTMLDocument document parsing, but no table-cell
+        // fragment context. Synthesize that context; HTMLDocument still builds
+        // the tree.
+        return self::wrapOrphanTableScopeRuns($html);
     }
 
     private static function loadLegacyHtml(string $html, string $label): \DOMDocument
@@ -265,25 +280,32 @@ final class Html5Dom
 
     private static function hasOrphanTableScopeFragment(string $html): bool
     {
-        $hasTableScopeElement = false;
-        foreach (self::htmlStartTagNames($html) as $name) {
+        $tableDepth = 0;
+        foreach (self::htmlTagTokens($html) as $token) {
+            $name = $token['name'];
             if ($name === 'table') {
-                return false;
+                if ($token['closing']) {
+                    $tableDepth = max(0, $tableDepth - 1);
+                } elseif (!$token['selfClosing']) {
+                    ++$tableDepth;
+                }
+                continue;
             }
-            if (in_array($name, ['caption', 'col', 'colgroup', 'tbody', 'td', 'tfoot', 'th', 'thead', 'tr'], true)) {
-                $hasTableScopeElement = true;
+
+            if ($tableDepth === 0 && !$token['closing'] && self::isOrphanTableScopeElementName($name)) {
+                return true;
             }
         }
 
-        return $hasTableScopeElement;
+        return false;
     }
 
     /**
-     * @return list<string>
+     * @return list<array{name: string, closing: bool, selfClosing: bool, start: int, end: int}>
      */
-    private static function htmlStartTagNames(string $html): array
+    private static function htmlTagTokens(string $html): array
     {
-        $names = [];
+        $tokens = [];
         $offset = 0;
         $length = strlen($html);
         while ($offset < $length) {
@@ -292,24 +314,131 @@ final class Html5Dom
                 break;
             }
 
-            $next = $html[$tagStart + 1];
-            if ($next === '/' || $next === '!' || $next === '?') {
-                $offset = $tagStart + 2;
+            if (str_starts_with(substr($html, $tagStart, 4), '<!--')) {
+                $commentEnd = strpos($html, '-->', $tagStart + 4);
+                $offset = $commentEnd === false ? $length : $commentEnd + 3;
+                continue;
+            }
+            if (str_starts_with(strtolower(substr($html, $tagStart, 9)), '<![cdata[')) {
+                $cdataEnd = strpos($html, ']]>', $tagStart + 9);
+                $offset = $cdataEnd === false ? $length : $cdataEnd + 3;
                 continue;
             }
 
-            $nameEnd = $tagStart + 1;
+            $cursor = $tagStart + 1;
+            $closing = false;
+            if ($html[$cursor] === '/') {
+                $closing = true;
+                ++$cursor;
+            }
+            if ($cursor >= $length || !self::isHtmlTagNameChar($html[$cursor])) {
+                $tagEnd = self::htmlTagSourceEndOffset($html, $tagStart);
+                $offset = $tagEnd === null ? $cursor + 1 : $tagEnd + 1;
+                continue;
+            }
+
+            $nameEnd = $cursor;
             while ($nameEnd < $length && self::isHtmlTagNameChar($html[$nameEnd])) {
                 $nameEnd++;
             }
-            if ($nameEnd > $tagStart + 1) {
-                $names[] = strtolower(substr($html, $tagStart + 1, $nameEnd - $tagStart - 1));
-            }
             $tagEnd = self::htmlTagSourceEndOffset($html, $tagStart);
-            $offset = $tagEnd === null ? $nameEnd : $tagEnd + 1;
+            if ($tagEnd === null) {
+                break;
+            }
+
+            $source = substr($html, $tagStart, $tagEnd - $tagStart + 1);
+            $tokens[] = [
+                'name' => strtolower(substr($html, $cursor, $nameEnd - $cursor)),
+                'closing' => $closing,
+                'selfClosing' => str_ends_with(rtrim($source), '/>'),
+                'start' => $tagStart,
+                'end' => $tagEnd,
+            ];
+            $offset = $tagEnd + 1;
         }
 
-        return $names;
+        return $tokens;
+    }
+
+    private static function wrapOrphanTableScopeRuns(string $html): string
+    {
+        $result = '';
+        $offset = 0;
+        $tableDepth = 0;
+        $orphanDepth = 0;
+        $wrapping = false;
+
+        foreach (self::htmlTagTokens($html) as $token) {
+            $before = substr($html, $offset, $token['start'] - $offset);
+            if ($wrapping && $orphanDepth === 0 && trim($before) !== '') {
+                $result .= '</table>';
+                $wrapping = false;
+            }
+            $result .= $before;
+
+            $name = $token['name'];
+            $source = substr($html, $token['start'], $token['end'] - $token['start'] + 1);
+            if ($name === 'table') {
+                if ($wrapping) {
+                    $result .= '</table>';
+                    $wrapping = false;
+                    $orphanDepth = 0;
+                }
+                $result .= $source;
+                if ($token['closing']) {
+                    $tableDepth = max(0, $tableDepth - 1);
+                } elseif (!$token['selfClosing']) {
+                    ++$tableDepth;
+                }
+                $offset = $token['end'] + 1;
+                continue;
+            }
+
+            if ($tableDepth === 0 && self::isOrphanTableScopeElementName($name)) {
+                if (!$wrapping) {
+                    $result .= '<table>';
+                    $wrapping = true;
+                }
+                $result .= $source;
+                if ($token['closing']) {
+                    $orphanDepth = max(0, $orphanDepth - 1);
+                } elseif (!$token['selfClosing'] && !self::isHtmlVoidElementName($name)) {
+                    ++$orphanDepth;
+                }
+                $offset = $token['end'] + 1;
+                continue;
+            }
+
+            if ($wrapping) {
+                $result .= '</table>';
+                $wrapping = false;
+                $orphanDepth = 0;
+            }
+            $result .= $source;
+            $offset = $token['end'] + 1;
+        }
+
+        $tail = substr($html, $offset);
+        if ($wrapping && $orphanDepth === 0 && trim($tail) !== '') {
+            $result .= '</table>';
+            $wrapping = false;
+        }
+        $result .= $tail;
+        if ($wrapping) {
+            $result .= '</table>';
+        }
+
+        return $result;
+    }
+
+    private static function isOrphanTableScopeElementName(string $name): bool
+    {
+        return in_array($name, ['caption', 'col', 'colgroup', 'tbody', 'td', 'tfoot', 'th', 'thead', 'tr'], true);
+    }
+
+    private static function isHtmlVoidElementName(string $name): bool
+    {
+        return in_array($name, ['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr'], true);
     }
 
     private static function htmlTagSourceEndOffset(string $html, int $start): ?int

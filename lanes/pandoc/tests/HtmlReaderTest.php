@@ -61,7 +61,7 @@ $tests['keeps html tree construction centralized through Html5Dom'] =
         $t->contains('function parseHtmlDocument', $html5DomSource);
     };
 
-$tests['reports actual html tree construction backend for table-scope fragment gap'] =
+$tests['reports html document tree construction backend for table-scope fragments'] =
     static function (TestRunner $t): void {
         $t->same(
             Html5Dom::htmlDocumentTreeConstructionBackend(),
@@ -71,7 +71,7 @@ $tests['reports actual html tree construction backend for table-scope fragment g
         $document = (new HtmlReader())->read('<td>A</td><td>B</td><tr><td>C</td></tr><p>after</p>');
         $meta = $document->attr('meta');
 
-        $t->same(Html5Dom::HTML_TREE_CONSTRUCTION_LEGACY_COMPAT, $meta['htmlTreeConstruction'] ?? null);
+        $t->same(Html5Dom::htmlDocumentTreeConstructionBackend(), $meta['htmlTreeConstruction'] ?? null);
         $t->same(
             ['A', 'B', 'C', 'after'],
             array_map(static fn ($node): string => $node->attr('text'), $document->children)

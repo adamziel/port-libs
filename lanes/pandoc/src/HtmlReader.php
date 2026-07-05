@@ -284,8 +284,8 @@ final class HtmlReader
             return $bytes;
         }
         if (
-            self::htmlElementContainsElementName($body, 'table')
-            || !self::htmlElementContainsAnyElementName($body, self::orphanTableFragmentElementNames())
+            self::htmlSourceContainsStartTagName($bytes, 'table')
+            || !self::htmlSourceContainsAnyStartTagName($bytes, self::orphanTableFragmentSourceElementNames())
             || !self::htmlElementContainsBlockContainer($body)
         ) {
             return $bytes;
@@ -327,6 +327,14 @@ final class HtmlReader
     private static function orphanTableFragmentElementNames(): array
     {
         return ['caption', 'col', 'colgroup', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'tr'];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function orphanTableFragmentSourceElementNames(): array
+    {
+        return ['caption', 'col', 'colgroup', 'tbody', 'td', 'tfoot', 'th', 'thead', 'tr'];
     }
 
     /**
@@ -1461,6 +1469,53 @@ final class HtmlReader
         }
 
         return null;
+    }
+
+    /**
+     * @param list<string> $names
+     */
+    private static function htmlSourceContainsAnyStartTagName(string $html, array $names): bool
+    {
+        $lookup = array_fill_keys($names, true);
+        $offset = 0;
+        $length = strlen($html);
+        while (($tagStart = strpos($html, '<', $offset)) !== false) {
+            if (str_starts_with(substr($html, $tagStart, 4), '<!--')) {
+                $commentEnd = strpos($html, '-->', $tagStart + 4);
+                $offset = $commentEnd === false ? $length : $commentEnd + 3;
+                continue;
+            }
+            if (str_starts_with(strtolower(substr($html, $tagStart, 9)), '<![cdata[')) {
+                $cdataEnd = strpos($html, ']]>', $tagStart + 9);
+                $offset = $cdataEnd === false ? $length : $cdataEnd + 3;
+                continue;
+            }
+
+            $cursor = $tagStart + 1;
+            if ($cursor >= $length || $html[$cursor] === '/' || !self::isHtmlTagNameChar($html[$cursor])) {
+                $tagEnd = self::htmlTagSourceEndOffset($html, $tagStart);
+                $offset = $tagEnd === null ? $cursor + 1 : $tagEnd + 1;
+                continue;
+            }
+
+            $nameEnd = $cursor;
+            while ($nameEnd < $length && self::isHtmlTagNameChar($html[$nameEnd])) {
+                ++$nameEnd;
+            }
+            if (isset($lookup[strtolower(substr($html, $cursor, $nameEnd - $cursor))])) {
+                return true;
+            }
+
+            $tagEnd = self::htmlTagSourceEndOffset($html, $tagStart);
+            $offset = $tagEnd === null ? $nameEnd : $tagEnd + 1;
+        }
+
+        return false;
+    }
+
+    private static function htmlSourceContainsStartTagName(string $html, string $name): bool
+    {
+        return self::htmlSourceContainsAnyStartTagName($html, [$name]);
     }
 
     /**

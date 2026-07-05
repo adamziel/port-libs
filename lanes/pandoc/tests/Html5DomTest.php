@@ -614,7 +614,7 @@ return [
 
         $t->same('ABCafter', Html5Dom::normalizedText($body));
         $t->same(
-            '<table><tr><td>A</td><td>B</td></tr><tr><td>C</td></tr><colgroup><col span="2"></colgroup></table><p>after</p>',
+            '<table><tbody><tr><td>A</td><td>B</td></tr><tr><td>C</td></tr></tbody><colgroup><col span="2"></colgroup></table><p>after</p>',
             $serialized
         );
         $t->true(!str_starts_with($serialized, '<td>'), 'Expected orphan table cells to be wrapped before raw handoff');
