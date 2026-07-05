@@ -73,6 +73,7 @@ final class PptxReader
             $slideBlocks = $this->slideToBlocks($package, $slide['index'], $slideDocument, $slideRelationships, $slideContext, $slideComments, $slideSpeakerNotes, $tableStyles, $imageIssues, $shapeIssues, $richMedia);
             $this->recordPptxAstMediaBagSources($slideBlocks, $mediaBagSources, $slide['index']);
             $this->recordPptxBackgroundMediaBagSources($slideBackgrounds, $mediaBagSources, $slide['index']);
+            $this->recordPptxTransitionMediaBagSources($slideTransition, $mediaBagSources, $slide['index']);
             $this->recordPptxRichMediaBagSources($richMedia, $mediaBagSources, $slide['index']);
             foreach ($slideBlocks as $block) {
                 $blocks[] = $block;
@@ -201,6 +202,34 @@ final class PptxReader
                 'target' => (string) ($background['target'] ?? ''),
             ]);
         }
+    }
+
+    /**
+     * @param array<string, mixed> $transition
+     * @param array<string, list<array<string, mixed>>> $mediaBagSources
+     */
+    private function recordPptxTransitionMediaBagSources(array $transition, array &$mediaBagSources, int $slideIndex): void
+    {
+        $sound = is_array($transition['sound'] ?? null) ? $transition['sound'] : [];
+        if ($sound === [] || ($sound['external'] ?? false) === true) {
+            return;
+        }
+
+        $partName = ltrim((string) ($sound['partName'] ?? ''), '/');
+        if (!$this->isPptxMediaPart($partName)) {
+            return;
+        }
+
+        $this->recordPptxMediaBagSource($mediaBagSources, $partName, [
+            'role' => 'transition-sound',
+            'slideIndex' => $slideIndex,
+            'action' => (string) ($sound['action'] ?? ''),
+            'name' => (string) ($sound['name'] ?? ''),
+            'relationshipId' => (string) ($sound['relationshipId'] ?? ''),
+            'relationshipAttribute' => (string) ($sound['relationshipAttribute'] ?? ''),
+            'relationshipType' => (string) ($sound['relationshipType'] ?? ''),
+            'target' => (string) ($sound['target'] ?? ''),
+        ]);
     }
 
     /**

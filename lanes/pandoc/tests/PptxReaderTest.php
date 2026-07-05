@@ -19016,6 +19016,102 @@ XML);
         $t->true(!str_contains($native, 'Animated body'), 'Animation target shape names should stay out of visible native output');
     },
 
+    'records pptx transition sound media in the review media bag' => static function (TestRunner $t) use ($nodesOfType): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-transition-sound-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary PPTX path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            @unlink($path);
+            throw new RuntimeException('Unable to create transition sound PPTX package');
+        }
+
+        $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+        $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst><p:sldId id="256" r:id="rIdSlide"/></p:sldIdLst>
+</p:presentation>
+XML);
+        $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+        $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Transition sound deck</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="3" name="Visible Body"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Visible transition body</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+  </p:spTree></p:cSld>
+  <p:transition spd="med" advClick="1">
+    <p:sndAc><p:stSnd loop="1"><p:snd r:embed="rIdSound" name="Transition Sound"/></p:stSnd></p:sndAc>
+  </p:transition>
+</p:sld>
+XML);
+        $zip->addFromString('ppt/slides/_rels/slide1.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSound" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/audio" Target="../media/transition.wav"/>
+</Relationships>
+XML);
+        $zip->addFromString('ppt/media/transition.wav', 'RIFF....WAVEfmt ');
+        $zip->close();
+
+        try {
+            $bytes = file_get_contents($path);
+            if (!is_string($bytes)) {
+                throw new RuntimeException("Unable to read {$path}");
+            }
+
+            $document = (new PptxReader())->read($bytes);
+        } finally {
+            @unlink($path);
+        }
+
+        $review = $document->attr('pptx');
+        $slide = $review['slides'][0] ?? [];
+        $mediaDirectory = $review['mediaBag']['directory'] ?? [];
+        $native = PandocConverter::write($document, 'native');
+        $paragraphTexts = array_map(static fn (AstNode $paragraph): string => (string) $paragraph->attr('text'), $nodesOfType($document, 'paragraph'));
+
+        $t->same('Transition sound deck', $document->children[0]->attr('text'));
+        $t->same(['Visible transition body'], $paragraphTexts);
+        $t->same('start', $slide['transition']['sound']['action'] ?? null);
+        $t->same(true, $slide['transition']['sound']['loop'] ?? null);
+        $t->same('Transition Sound', $slide['transition']['sound']['name'] ?? null);
+        $t->same('ppt/media/transition.wav', $slide['transition']['sound']['partName'] ?? null);
+        $t->same(1, $review['mediaBag']['itemCount'] ?? null);
+        $t->same('ppt/media/transition.wav', $mediaDirectory[0]['path'] ?? null);
+        $t->same('audio/wav', $mediaDirectory[0]['mimeType'] ?? null);
+        $t->same(['transition-sound'], $mediaDirectory[0]['sourceRoles'] ?? null);
+        $t->same(['rIdSound'], $mediaDirectory[0]['relationshipIds'] ?? null);
+        $t->same('transition-sound', $mediaDirectory[0]['sources'][0]['role'] ?? null);
+        $t->same('embed', $mediaDirectory[0]['sources'][0]['relationshipAttribute'] ?? null);
+        $t->contains('Para [ Str "Visible" , Space , Str "transition" , Space , Str "body" ]', $native);
+        $t->true(!str_contains($native, 'Transition Sound'), 'Transition sound metadata should stay out of visible native output');
+    },
+
     'reads pptx bytes through the converter input path' => static function (TestRunner $t) use ($buildPptxPackage): void {
         $document = PandocConverter::read($buildPptxPackage(), 'pptx');
         $html = PandocConverter::write($document, 'html');
