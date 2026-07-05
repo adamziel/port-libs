@@ -1,0 +1,17 @@
+[ RawBlock (Format "tex") "\\placeformula \\startformula"
+, Para
+    [ Str "L_{1}"
+    , Space
+    , Str "="
+    , Space
+    , Str "L_{2}"
+    , SoftBreak
+    , RawInline (Format "tex") "\\stopformula"
+    ]
+, RawBlock
+    (Format "tex")
+    "\\start[a2]\n\\start[a2]\n\\stop[a2]\n\\stop[a2]"
+, RawBlock
+    (Format "tex")
+    "\\begin{center}\n\\begin{tikzpicture}[baseline={([yshift=+-.5ex]current bounding box.center)}, level distance=24pt]\n\\Tree [.{S} [.NP John\\index{i} ] [.VP [.V likes ] [.NP himself\\index{i,*j} ]]]\n\\end{tikzpicture}\n\\end{center}"
+]

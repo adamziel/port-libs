@@ -9,7 +9,7 @@ $inlineText = static function (AstNode $node) use (&$inlineText): string {
     if ($node->type === 'text' || $node->type === 'code' || $node->type === 'math') {
         return (string) $node->attr('text', '');
     }
-    if ($node->type === 'raw_tex') {
+    if ($node->type === 'raw_tex' || $node->type === 'raw_tex_inline') {
         return (string) $node->attr('tex', '');
     }
     if ($node->type === 'raw_inline') {
@@ -124,7 +124,7 @@ $featureProbes = [
     'raw tex' => [
         'markdown' => 'TeX \\textbf{raw} done.',
         'literal' => 'TeX \\textbf{raw} done.',
-        'match' => static fn (AstNode $node): bool => $node->type === 'raw_tex',
+        'match' => static fn (AstNode $node): bool => $node->type === 'raw_tex_inline',
         'assert' => static function (TestRunner $t, AstNode $node): void {
             $t->same('\\textbf{raw}', $node->attr('tex'));
             $t->same('textbf', $node->attr('command'));
@@ -371,10 +371,10 @@ return [
         static function (TestRunner $t) use ($rawTexAliasCases, $findInline, $inlineText): void {
             foreach ($rawTexAliasCases as $label => $case) {
                 $document = (new MarkdownReader($case['options']))->read('TeX \textbf{alias} done.');
-                $match = $findInline($document, static fn (AstNode $node): bool => $node->type === 'raw_tex');
+                $match = $findInline($document, static fn (AstNode $node): bool => $node->type === 'raw_tex_inline');
 
                 if ($case['expected']) {
-                    $t->same('raw_tex', $match->type, $label);
+                    $t->same('raw_tex_inline', $match->type, $label);
                     $t->same('\textbf{alias}', $match->attr('tex'), $label . ' tex payload');
                     $t->same('textbf', $match->attr('command'), $label . ' command');
                     continue;

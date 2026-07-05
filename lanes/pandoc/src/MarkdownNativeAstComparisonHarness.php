@@ -503,6 +503,9 @@ final class MarkdownNativeAstComparisonHarness
             if (self::isIgnoredAttrKey($key)) {
                 continue;
             }
+            if (($node->type === 'raw_tex' || $node->type === 'raw_tex_inline') && in_array($key, ['command', 'environment'], true)) {
+                continue;
+            }
             if ($key === 'text' && in_array($node->type, ['paragraph', 'plain', 'table_cell'], true)) {
                 continue;
             }

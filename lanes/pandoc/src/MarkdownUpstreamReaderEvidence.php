@@ -12,9 +12,9 @@ final class MarkdownUpstreamReaderEvidence
     public const STATUS_COMPLETED = 'completed-upstream-markdown-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-markdown-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
-    public const EXPECTED_SELECTED_FIXTURE_COUNT = 109;
-    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 109;
-    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = '1c9b3d0dc568ae70cbcf22c4db2867b50eea77021d5909d8bfe877ff8e527a73';
+    public const EXPECTED_SELECTED_FIXTURE_COUNT = 110;
+    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 110;
+    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = '432828dff4abc6d4272514936ade61286ceae8e865446a3dc306459661bd0a70';
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/Markdown.hs',
@@ -1402,6 +1402,19 @@ final class MarkdownUpstreamReaderEvidence
             ],
             'sha256' => '92289834d3f1d0322739ceb063bc39014e5c928b995f95f95da653de9e16670a',
             'bytes' => 35,
+        ],
+        'upstream-markdown-reader-more-raw-tex-environments.md' => [
+            'role' => 'markdown-reader-more-raw-tex-environments-fixture',
+            'sourceKind' => 'selected-upstream-markdown-reader-case',
+            'sourceReference' => 'test/markdown-reader-more.txt raw ConTeXt and LaTeX environments',
+            'formatProfile' => 'markdown raw_tex raw ConTeXt/LaTeX environments',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-markdown-reader-more-raw-tex-environments.md',
+            'coverageTests' => [
+                'lanes/pandoc/tests/MarkdownNativeAstComparisonHarnessTest.php',
+                'lanes/pandoc/tests/MarkdownUpstreamReaderEvidenceTest.php',
+            ],
+            'sha256' => 'ae8e7928a750fece03f479ade0e1d6d7998fd804c186b9d0dcf93e503adbac86',
+            'bytes' => 328,
         ],
     ];
 

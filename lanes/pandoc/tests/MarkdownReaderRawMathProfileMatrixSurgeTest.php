@@ -26,7 +26,7 @@ $inlineText = static function (AstNode $node) use (&$inlineText): string {
     if ($node->type === 'text' || $node->type === 'code' || $node->type === 'math') {
         return (string) $node->attr('text', '');
     }
-    if ($node->type === 'raw_tex') {
+    if ($node->type === 'raw_tex' || $node->type === 'raw_tex_inline') {
         return (string) $node->attr('tex', '');
     }
     if ($node->type === 'raw_inline') {
@@ -76,7 +76,7 @@ $rawProfileCases = [
         'disabledExtensions' => ['raw_tex' => false],
         'enabledOptions' => ['rawTex' => true],
         'disabledOptions' => ['rawTex' => false],
-        'match' => static fn (AstNode $node): bool => $node->type === 'raw_tex'
+        'match' => static fn (AstNode $node): bool => $node->type === 'raw_tex_inline'
             && $node->attr('command') === 'textbf'
             && $node->attr('tex') === '\textbf{raw}',
     ],

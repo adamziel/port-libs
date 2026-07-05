@@ -348,7 +348,7 @@ return [
         $list = $document->children[0];
 
         $t->same('bullet_list', $list->type);
-        $t->same('raw_tex', $list->children[0]->children[0]->type);
+        $t->same('raw_tex_inline', $list->children[0]->children[0]->type);
         $t->same('\cite[22-23]{smith.1899}', $list->children[0]->children[0]->attr('tex'));
         $t->same('math', $list->children[1]->children[0]->type);
         $t->same('2+2=4', $list->children[1]->children[0]->attr('text'));
@@ -380,7 +380,7 @@ return [
 
         foreach ($cases as $source => [$tex, $command, $tail]) {
             $paragraph = (new MarkdownReader())->read($source)->children[0];
-            $expectedTypes = $tail === null ? ['text', 'raw_tex'] : ['text', 'raw_tex', 'text'];
+            $expectedTypes = $tail === null ? ['text', 'raw_tex_inline'] : ['text', 'raw_tex_inline', 'text'];
 
             $t->same($expectedTypes, array_map(static fn (AstNode $node): string => $node->type, $paragraph->children), $source);
             $t->same('A ', $paragraph->children[0]->attr('text'), $source);
@@ -577,7 +577,7 @@ return [
         $t->same(['paragraph'], array_map(static fn (AstNode $node): string => $node->type, $escaped->children));
         $t->same('A \section{Intro} B', $escaped->children[0]->attr('text'));
         $t->same(['paragraph'], array_map(static fn (AstNode $node): string => $node->type, $macro->children));
-        $t->same(['text', 'raw_tex', 'text'], array_map(static fn (AstNode $node): string => $node->type, $macro->children[0]->children));
+        $t->same(['text', 'raw_tex_inline', 'text'], array_map(static fn (AstNode $node): string => $node->type, $macro->children[0]->children));
     },
     'maps upstream markdown reader more raw tex environments and macros' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
@@ -619,7 +619,7 @@ return [
         $t->same('paragraph', $contextParagraph->type);
         $t->same('L_{1} = L_{2} \stopformula', $contextParagraph->attr('text'));
         $t->same('softbreak', $contextParagraph->children[1]->type);
-        $t->same('raw_tex', $contextParagraph->children[2]->type);
+        $t->same('raw_tex_inline', $contextParagraph->children[2]->type);
         $t->same('\stopformula', $contextParagraph->children[2]->attr('tex'));
         $t->same('raw_tex', $contextStartStop->type);
         $t->same('context:a2', $contextStartStop->attr('environment'));
@@ -1001,7 +1001,7 @@ return [
         $t->same('backslashes-in-link-references', $document->children[0]->attr('id'));
         $t->same('link', $backslashLink->type);
         $t->same('b', $backslashLink->attr('url'));
-        $t->same(['text', 'raw_tex'], array_map(static fn (AstNode $node): string => $node->type, $backslashLink->children));
+        $t->same(['text', 'raw_tex_inline'], array_map(static fn (AstNode $node): string => $node->type, $backslashLink->children));
         $t->same('*', $backslashLink->children[0]->attr('text'));
         $t->same('\a', $backslashLink->children[1]->attr('tex'));
         $t->same('reference-link-fallbacks', $document->children[2]->attr('id'));

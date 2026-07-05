@@ -70,6 +70,7 @@ return [
             'upstream-markdown-destination-bare-space',
             'upstream-markdown-smart-french-apostrophe',
             'upstream-markdown-citation-link-following',
+            'upstream-markdown-reader-more-raw-tex-environments',
         ];
         foreach ($paired as $basename) {
             $t->true(is_file($root . '/' . $basename . '.md'), "{$basename}.md must be checked in");
@@ -87,28 +88,36 @@ return [
             is_file($root . '/upstream-markdown-zzzzzzzzzzzzzzzzzzzzzzzz-tex-math-dollar-display-boundary.md'),
             'upstream-markdown-zzzzzzzzzzzzzzzzzzzzzzzz-tex-math-dollar-display-boundary.md must be checked in'
         );
+        $t->true(
+            is_file($root . '/upstream-markdown-reader-more-raw-tex-environments.md'),
+            'upstream-markdown-reader-more-raw-tex-environments.md must be checked in'
+        );
+        $t->true(
+            is_file($root . '/upstream-markdown-reader-more-raw-tex-environments.native'),
+            'upstream-markdown-reader-more-raw-tex-environments.native must be checked in'
+        );
 
         $harness = new MarkdownNativeAstComparisonHarness();
         $report = $harness->run($root);
         $text = $harness->formatReport($report);
 
         $t->same('completed', $report['status']);
-        $t->same(109, $report['markdownFixtureCount']);
-        $t->same(109, $report['nativeFixtureCount']);
-        $t->same(109, $report['pairedFixtureCount']);
+        $t->same(110, $report['markdownFixtureCount']);
+        $t->same(110, $report['nativeFixtureCount']);
+        $t->same(110, $report['pairedFixtureCount']);
         $t->same(0, $report['unpairedMarkdownFixtureCount']);
         $t->same(0, $report['unpairedNativeFixtureCount']);
-        $t->same(109, $report['totalPairCount']);
-        $t->same(109, $report['comparedPairCount']);
-        $t->same(109, $report['markdownParsedCount']);
-        $t->same(109, $report['nativeParsedCount']);
-        $t->same(109, $report['bothParsedCount']);
+        $t->same(110, $report['totalPairCount']);
+        $t->same(110, $report['comparedPairCount']);
+        $t->same(110, $report['markdownParsedCount']);
+        $t->same(110, $report['nativeParsedCount']);
+        $t->same(110, $report['bothParsedCount']);
         $t->same(0, $report['parseFailureCount']);
-        $t->same(109, $report['normalizedAstMatchCount']);
+        $t->same(110, $report['normalizedAstMatchCount']);
         $t->same(0, $report['normalizedAstMismatchCount']);
         $t->same('normalized-ast-equality-observed-not-runner-parity', $report['astParityStatus']);
-        $t->same(true, MarkdownNativeAstComparisonHarness::hasRequiredMappedParity($report, 109));
-        $t->same(false, MarkdownNativeAstComparisonHarness::hasRequiredMappedParity($report, 110));
+        $t->same(true, MarkdownNativeAstComparisonHarness::hasRequiredMappedParity($report, 110));
+        $t->same(false, MarkdownNativeAstComparisonHarness::hasRequiredMappedParity($report, 111));
         $t->same(['format' => 'markdown_mmd'], $report['markdownReaderFixtureOptionOverrides']['upstream-command-7080-mmd-reference-image-attributes.md'] ?? null);
         $t->same(['format' => 'gfm'], $report['markdownReaderFixtureOptionOverrides']['upstream-command-gfm-adjacent-emoji.md'] ?? null);
         $t->same(['format' => 'markdown+ascii_identifiers'], $report['markdownReaderFixtureOptionOverrides']['upstream-markdown-ascii-identifiers.md'] ?? null);
@@ -160,11 +169,11 @@ return [
         $t->same('covered-by-current-normalized-ast-evidence', $report['orderedRemainingGaps'][0]['status']);
         $t->same('checked-in-markdown-fixtures-without-native-pairs', $report['orderedRemainingGaps'][1]['id']);
         $t->same('covered-by-current-normalized-ast-evidence', $report['orderedRemainingGaps'][1]['status']);
-        $t->same('Markdown fixtures=109; native fixtures=109; same-basename pairs=109; Markdown fixtures without native pairs=0', $report['orderedRemainingGaps'][1]['currentEvidence']);
-        $t->same('The current checked-in gate covers 109 paired fixture(s) out of 109 selected Markdown fixture(s).', $report['orderedRemainingGaps'][3]['currentEvidence']);
-        $t->contains('fixtureInventory: markdown=109 native=109 paired=109 unpairedMarkdown=0 unpairedNative=0', $text);
-        $t->contains('pairs: total=109 compared=109 parsedBoth=109 parseFailures=0', $text);
-        $t->contains('normalizedAst: matches=109 (100.00%) mismatches=0', $text);
+        $t->same('Markdown fixtures=110; native fixtures=110; same-basename pairs=110; Markdown fixtures without native pairs=0', $report['orderedRemainingGaps'][1]['currentEvidence']);
+        $t->same('The current checked-in gate covers 110 paired fixture(s) out of 110 selected Markdown fixture(s).', $report['orderedRemainingGaps'][3]['currentEvidence']);
+        $t->contains('fixtureInventory: markdown=110 native=110 paired=110 unpairedMarkdown=0 unpairedNative=0', $text);
+        $t->contains('pairs: total=110 compared=110 parsedBoth=110 parseFailures=0', $text);
+        $t->contains('normalizedAst: matches=110 (100.00%) mismatches=0', $text);
 
         $command = escapeshellarg(PHP_BINARY)
             . ' '
@@ -172,16 +181,16 @@ return [
             . ' --markdown-dir=' . escapeshellarg($root)
             . ' --json'
             . ' summary'
-            . ' --require-mapped-parity=109';
+            . ' --require-mapped-parity=110';
         $output = [];
         $exitCode = 0;
         exec($command, $output, $exitCode);
         $decoded = json_decode(implode("\n", $output), true, 512, JSON_THROW_ON_ERROR);
 
         $t->same(0, $exitCode);
-        $t->same(109, $decoded['markdownFixtureCount']);
+        $t->same(110, $decoded['markdownFixtureCount']);
         $t->same(0, $decoded['unpairedMarkdownFixtureCount']);
-        $t->same(109, $decoded['normalizedAstMatchCount']);
+        $t->same(110, $decoded['normalizedAstMatchCount']);
         $t->same(0, $decoded['normalizedAstMismatchCount']);
     },
 ];

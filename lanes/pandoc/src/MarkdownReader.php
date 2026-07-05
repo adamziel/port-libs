@@ -10236,17 +10236,15 @@ final class MarkdownReader
                 'template' => $macro['template'],
             ];
 
-            return new AstNode('raw_tex', [
-                'tex' => trim($line),
+            return new AstNode('raw_tex', $this->rawTexAttrs(trim($line), [
                 'command' => $macro['command'],
-            ]);
+            ]));
         }
 
         if (preg_match('/^ {0,3}\\\\placeformula\s+\\\\startformula(?:\s.*)?$/', $line) === 1) {
-            return new AstNode('raw_tex', [
-                'tex' => trim($line),
+            return new AstNode('raw_tex', $this->rawTexAttrs(trim($line), [
                 'environment' => 'context-formula',
-            ]);
+            ]));
         }
 
         $sectioningBlock = $this->tryReadRawTexSectioningBlock($lines, $index);
@@ -10274,15 +10272,27 @@ final class MarkdownReader
             if (preg_match($closingPattern, $lines[$cursor]) === 1) {
                 $index = $cursor;
 
-                return new AstNode('raw_tex', [
-                    'tex' => implode("\n", $content),
+                return new AstNode('raw_tex', $this->rawTexAttrs(implode("\n", $content), [
                     'environment' => $environment,
-                ]);
+                ]));
             }
             $cursor++;
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     * @return array<string, mixed>
+     */
+    private function rawTexAttrs(string $tex, array $attrs = []): array
+    {
+        return array_merge([
+            'format' => 'tex',
+            'text' => $tex,
+            'tex' => $tex,
+        ], $attrs);
     }
 
     /**
@@ -10310,10 +10320,9 @@ final class MarkdownReader
 
         $index = $cursor - 1;
 
-        return new AstNode('raw_tex', [
-            'tex' => implode("\n", $content),
+        return new AstNode('raw_tex', $this->rawTexAttrs(implode("\n", $content), [
             'command' => 'sectioning',
-        ]);
+        ]));
     }
 
     private function isRawTexSectioningCommandLine(string $line): bool
@@ -10741,10 +10750,9 @@ final class MarkdownReader
                 if ($depth === 0) {
                     $index = $cursor;
 
-                    return new AstNode('raw_tex', [
-                        'tex' => implode("\n", $content),
+                    return new AstNode('raw_tex', $this->rawTexAttrs(implode("\n", $content), [
                         'environment' => 'context:' . $environment,
-                    ]);
+                    ]));
                 }
             }
 
@@ -14891,10 +14899,10 @@ final class MarkdownReader
                 $this->appendRawTexSectioningSegmentBlock($blocks, $segment, 'plain');
                 $segment = [];
                 $found = true;
-                $blocks[] = new AstNode('raw_tex', [
-                    'tex' => (string) $child->attr('tex', $child->attr('text', '')),
+                $tex = (string) $child->attr('tex', $child->attr('text', ''));
+                $blocks[] = new AstNode('raw_tex', $this->rawTexAttrs($tex, [
                     'command' => (string) $child->attr('command', 'sectioning'),
-                ]);
+                ]));
                 continue;
             }
 
@@ -19740,7 +19748,7 @@ final class MarkdownReader
 
         if (preg_match('/\G\\\\(stopformula)\b/', $text, $m, 0, $offset) === 1) {
             return [
-                'node' => new AstNode('raw_tex', ['tex' => $m[0], 'command' => $m[1]]),
+                'node' => new AstNode('raw_tex_inline', $this->rawTexAttrs($m[0], ['command' => $m[1]])),
                 'next' => $offset + strlen($m[0]),
             ];
         }
@@ -19761,7 +19769,7 @@ final class MarkdownReader
             $offset
         ) === 1) {
             return [
-                'node' => new AstNode('raw_tex', ['tex' => $m[0], 'command' => $m[1]]),
+                'node' => new AstNode('raw_tex_inline', $this->rawTexAttrs($m[0], ['command' => $m[1]])),
                 'next' => $offset + strlen($m[0]),
             ];
         }
@@ -19771,7 +19779,7 @@ final class MarkdownReader
         }
 
         return [
-            'node' => new AstNode('raw_tex', ['tex' => $m[0], 'command' => $m[1]]),
+            'node' => new AstNode('raw_tex_inline', $this->rawTexAttrs($m[0], ['command' => $m[1]])),
             'next' => $offset + strlen($m[0]),
         ];
     }
