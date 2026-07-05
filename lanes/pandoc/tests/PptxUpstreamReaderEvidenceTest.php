@@ -1298,6 +1298,8 @@ HS);
             . ' --repo-root=' . escapeshellarg($repoRoot)
             . ' --checked-in-fixtures'
             . ' --json'
+            . ' --require-test-count=1'
+            . ' --require-fixture-pair-count=93'
             . ' --require-static-current-evidence'
             . ' --require-static-native-mapped-parity'
             . ' --require-static-executable-native-ast-parity'
@@ -1312,6 +1314,8 @@ HS);
         $t->same(PptxUpstreamReaderEvidence::STATUS_SKIPPED_MISSING_SOURCE, $decoded['status']);
         $t->same('not-evaluated-missing-upstream-root', $decoded['validation']['status']);
         $t->same('valid-checked-in-current-pptx-reader-evidence', $decoded['staticCurrentEvidence']['validation']['status']);
+        $t->same(true, PptxUpstreamReaderEvidence::hasRequiredCheckedInReaderTestCount($decoded, 1));
+        $t->same(true, PptxUpstreamReaderEvidence::hasRequiredCheckedInFixturePairCount($decoded, 93));
         $t->same(true, PptxUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($decoded));
         $t->same(true, PptxUpstreamReaderEvidence::hasRequiredStaticNativeMappedParity($decoded));
         $t->same(true, PptxUpstreamReaderEvidence::hasRequiredStaticExecutableNativeAstParity($decoded));
@@ -1375,6 +1379,13 @@ HS);
         exec($conflictingCommand, $conflictingOutput, $conflictingExitCode);
 
         $t->same(2, $conflictingExitCode);
+
+        $wrongCountCommand = str_replace('--require-fixture-pair-count=93', '--require-fixture-pair-count=92', $command) . ' 2>/dev/null';
+        $wrongCountOutput = [];
+        $wrongCountExitCode = 0;
+        exec($wrongCountCommand, $wrongCountOutput, $wrongCountExitCode);
+
+        $t->same(1, $wrongCountExitCode);
     },
     'workflow gates checked-in pptx native and executable parity corpora' => static function (TestRunner $t): void {
         $workflow = (string) file_get_contents(dirname(__DIR__, 3) . '/.github/workflows/pandoc-pptx.yml');

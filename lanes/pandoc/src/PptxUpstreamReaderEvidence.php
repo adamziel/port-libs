@@ -1336,6 +1336,27 @@ final class PptxUpstreamReaderEvidence
     /**
      * @param array<string, mixed> $report
      */
+    public static function hasRequiredCheckedInReaderTestCount(array $report, int $requiredCount): bool
+    {
+        $evidence = is_array($report['staticCurrentEvidence'] ?? null) ? $report['staticCurrentEvidence'] : [];
+        $denominator = is_array($evidence['readerDenominator'] ?? null) ? $evidence['readerDenominator'] : [];
+
+        return (int) ($denominator['expectedCompareCount'] ?? -1) === $requiredCount;
+    }
+
+    /**
+     * @param array<string, mixed> $report
+     */
+    public static function hasRequiredCheckedInFixturePairCount(array $report, int $requiredCount): bool
+    {
+        $evidence = is_array($report['staticCurrentEvidence'] ?? null) ? $report['staticCurrentEvidence'] : [];
+
+        return (int) ($evidence['checkedInFixturePairCount'] ?? -1) === $requiredCount;
+    }
+
+    /**
+     * @param array<string, mixed> $report
+     */
     public static function hasNoValidationIssues(array $report): bool
     {
         $validation = is_array($report['validation'] ?? null) ? $report['validation'] : [];

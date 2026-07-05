@@ -19,7 +19,9 @@ Options:
   --upstream-root PATH            Optional upstream Pandoc checkout root.
                                   Defaults to .upstream-cache/pandoc-current.
   --require-test-count N          Exit 1 unless Tests.Readers.Pptx has exactly N comparisons.
+                                  With --checked-in-fixtures, checks the static snapshot count.
   --require-fixture-pair-count N  Exit 1 unless test/pptx-reader has exactly N PPTX/native pairs.
+                                  With --checked-in-fixtures, checks the checked-in pair count.
   --require-no-validation-issues  Exit 1 when denominator validation reports any issue.
   --require-static-current-evidence
                                   Exit 1 unless the pinned static Tests.Readers.Pptx
@@ -278,7 +280,11 @@ try {
 
     if (
         $requiredTestCount !== null
-        && !PptxUpstreamReaderEvidence::hasRequiredReaderTestCount($report, $requiredTestCount)
+        && !(
+            $useCheckedInFixtures
+                ? PptxUpstreamReaderEvidence::hasRequiredCheckedInReaderTestCount($report, $requiredTestCount)
+                : PptxUpstreamReaderEvidence::hasRequiredReaderTestCount($report, $requiredTestCount)
+        )
     ) {
         fwrite(STDERR, "pandoc-pptx-reader-evidence: reader test comparison count did not match {$requiredTestCount}\n");
         exit(1);
@@ -286,7 +292,11 @@ try {
 
     if (
         $requiredFixturePairCount !== null
-        && !PptxUpstreamReaderEvidence::hasRequiredFixturePairCount($report, $requiredFixturePairCount)
+        && !(
+            $useCheckedInFixtures
+                ? PptxUpstreamReaderEvidence::hasRequiredCheckedInFixturePairCount($report, $requiredFixturePairCount)
+                : PptxUpstreamReaderEvidence::hasRequiredFixturePairCount($report, $requiredFixturePairCount)
+        )
     ) {
         fwrite(STDERR, "pandoc-pptx-reader-evidence: fixture pair count did not match {$requiredFixturePairCount}\n");
         exit(1);
