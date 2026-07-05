@@ -12,6 +12,7 @@ final class PandocHtmlTagSoupReader
     private ?string $htmlBaseHref = null;
     private int $listItemDepth = 0;
     private int $quoteDepth = 0;
+    private bool $inlineRunEndedAtTextBoundary = false;
 
     /**
      * @param array<string, mixed> $options
@@ -109,9 +110,14 @@ final class PandocHtmlTagSoupReader
             }
 
             $beforeInlineIndex = $this->index;
+            $this->inlineRunEndedAtTextBoundary = false;
             $inlines = $this->parseInlinesUntil($stopTags, stopBeforeBlock: true);
             if ($inlines !== []) {
-                array_push($blocks, ...$this->inlineFallbackBlocks($inlines, $stopTags === [] && $blocks === []));
+                array_push($blocks, ...$this->inlineFallbackBlocks(
+                    $inlines,
+                    $stopTags === [] && $blocks === [] && !$this->inlineRunEndedAtTextBoundary,
+                    $this->inlineRunEndedAtTextBoundary
+                ));
                 continue;
             }
 
@@ -201,6 +207,10 @@ final class PandocHtmlTagSoupReader
 
         if ($name === 'figure') {
             return $this->parseFigureBlock($token);
+        }
+
+        if (in_array($name, ['audio', 'video', 'progress'], true)) {
+            return $this->parseTopLevelMediaFallback($token, $outerStopTags);
         }
 
         if (in_array($name, ['form', 'noscript', 'object', 'iframe', 'template', 'noembed', 'noframes', 'plaintext'], true)) {
@@ -510,6 +520,20 @@ final class PandocHtmlTagSoupReader
             if ($token->type === TagSoupTag::OPEN && $stopBeforeBlock && $this->isBlockElement($token->name)) {
                 break;
             }
+            if (
+                $token->type === TagSoupTag::OPEN
+                && $stopBeforeBlock
+                && !in_array('p', $stopTags, true)
+                && in_array($token->name, ['script', 'style', 'textarea', 'xmp'], true)
+            ) {
+                break;
+            }
+            if ($token->type === TagSoupTag::OPEN && $this->rawDisabledScriptBreaksParagraph($token)) {
+                $this->index++;
+                $this->collectTextUntilClose('script');
+                $this->consumeClose('script');
+                break;
+            }
             if ($this->skipIgnorable($token)) {
                 continue;
             }
@@ -519,6 +543,17 @@ final class PandocHtmlTagSoupReader
                 continue;
             }
             if ($token->type === TagSoupTag::TEXT) {
+                if (($split = $this->topLevelInlineTextBoundary($token->text, $inlines, $stopTags, $stopBeforeBlock)) !== null) {
+                    [$before, $after] = $split;
+                    if ($before !== '') {
+                        $inlines[] = new AstNode('text', ['text' => $before]);
+                    }
+                    $this->index++;
+                    if ($after !== '') {
+                        array_splice($this->tokens, $this->index, 0, [TagSoupTag::text($after)]);
+                    }
+                    break;
+                }
                 $inlines[] = new AstNode('text', ['text' => $token->text]);
                 $this->index++;
                 continue;
@@ -695,6 +730,14 @@ final class PandocHtmlTagSoupReader
             $this->index++;
 
             return [$this->rawHtmlInline($this->renderOpenToken($token))];
+        }
+
+        if (in_array($name, ['applet', 'map'], true) && $this->rawHtmlEnabled()) {
+            return $this->parseRawInlineWrapper($token);
+        }
+
+        if ($name === 'svg') {
+            return [$this->rawHtmlInline($this->renderBalancedInlineSource('svg'))];
         }
 
         if ($name === 'math') {
@@ -1253,7 +1296,7 @@ final class PandocHtmlTagSoupReader
     /**
      * @return list<AstNode>
      */
-    private function inlineFallbackBlocks(array $inlines, bool $topLevelInlineFragment = false): array
+    private function inlineFallbackBlocks(array $inlines, bool $topLevelInlineFragment = false, bool $forceParagraph = false): array
     {
         if (
             count($inlines) >= 2
@@ -1269,7 +1312,7 @@ final class PandocHtmlTagSoupReader
             return $inlines;
         }
 
-        $type = $this->inlineFallbackBlockType($inlines);
+        $type = $forceParagraph ? 'paragraph' : $this->inlineFallbackBlockType($inlines);
         $attrs = $type === 'paragraph' ? ['text' => $this->plainTextFromInlines($inlines)] : [];
 
         return [new AstNode($type, $attrs, $inlines)];
@@ -1353,12 +1396,104 @@ final class PandocHtmlTagSoupReader
      * @param list<string> $outerStopTags
      * @return list<AstNode>
      */
-    private function parseRawInlineWrapperBlock(TagSoupTag $token, array $outerStopTags): array
+    private function parseTopLevelMediaFallback(TagSoupTag $token, array $outerStopTags): array
     {
         $this->index++;
         $children = $this->parseInlinesUntil([$token->name]);
         $this->consumeClose($token->name);
         $tail = $this->parseInlinesUntil($outerStopTags, stopBeforeBlock: true);
+
+        return [...$children, ...$tail];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function parseRawInlineWrapper(TagSoupTag $token): array
+    {
+        $this->index++;
+        $children = $this->parseInlinesUntil([$token->name]);
+        $this->consumeClose($token->name);
+
+        return [
+            $this->rawHtmlInline($this->renderOpenToken($token)),
+            ...$children,
+            $this->rawHtmlInline('</' . $token->name . '>'),
+        ];
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     * @param list<string> $stopTags
+     * @return array{0:string,1:string}|null
+     */
+    private function topLevelInlineTextBoundary(string $text, array $inlines, array $stopTags, bool $stopBeforeBlock): ?array
+    {
+        if (!$stopBeforeBlock || $inlines === [] || $stopTags !== [] || !str_contains($text, "\n")) {
+            return null;
+        }
+
+        $position = strcspn($text, "\r\n");
+        $before = substr($text, 0, $position);
+        $after = substr($text, $position);
+        $after = ltrim($after, "\r\n\t ");
+        if ($after === '' && !$this->hasMeaningfulTokenAfterCurrentTextBoundary()) {
+            return null;
+        }
+        $this->inlineRunEndedAtTextBoundary = true;
+
+        return [$before, $after];
+    }
+
+    private function hasMeaningfulTokenAfterCurrentTextBoundary(): bool
+    {
+        $count = count($this->tokens);
+        for ($index = $this->index + 1; $index < $count; ++$index) {
+            $token = $this->tokens[$index] ?? null;
+            if (!$token instanceof TagSoupTag) {
+                continue;
+            }
+            if ($token->type === TagSoupTag::TEXT && trim($token->text) === '') {
+                continue;
+            }
+            if (in_array($token->type, [TagSoupTag::POSITION, TagSoupTag::WARNING, TagSoupTag::COMMENT], true)) {
+                continue;
+            }
+
+            return $token->type !== TagSoupTag::CLOSE;
+        }
+
+        return false;
+    }
+
+    private function renderBalancedInlineSource(string $name): string
+    {
+        $raw = $this->renderBalancedTokenSource($name);
+
+        return $raw;
+    }
+
+    /**
+     * @param list<string> $outerStopTags
+     * @return list<AstNode>
+     */
+    private function parseRawInlineWrapperBlock(TagSoupTag $token, array $outerStopTags): array
+    {
+        $this->index++;
+        $children = $this->parseInlinesUntil([$token->name]);
+        $this->consumeClose($token->name);
+        $preserveLeadingSpace = false;
+        $next = $this->current();
+        if ($next instanceof TagSoupTag && $next->type === TagSoupTag::TEXT && preg_match('/^\s/', $next->text) === 1) {
+            $preserveLeadingSpace = true;
+        }
+        $tail = $this->parseInlinesUntil($outerStopTags, stopBeforeBlock: true);
+        if ($preserveLeadingSpace && $tail !== [] && $tail[0]->type === 'text') {
+            $text = (string) $tail[0]->attr('text', '');
+            if ($text !== '' && preg_match('/^\s/', $text) !== 1) {
+                $tail[0] = new AstNode('text', ['text' => ' ' . $text]);
+            }
+        }
 
         return $this->inlineFallbackBlocks([
             $this->rawHtmlInline($this->renderOpenToken($token)),
@@ -1366,6 +1501,13 @@ final class PandocHtmlTagSoupReader
             $this->rawHtmlInline('</' . $token->name . '>'),
             ...$tail,
         ]);
+    }
+
+    private function rawDisabledScriptBreaksParagraph(TagSoupTag $token): bool
+    {
+        return $token->name === 'script'
+            && !$this->rawHtmlEnabled()
+            && !str_starts_with(strtolower($this->attribute($token, 'type')), 'math/tex');
     }
 
     private function balancedElementHasBlockChild(string $name): bool
@@ -1642,7 +1784,7 @@ final class PandocHtmlTagSoupReader
     private function inlineFallbackBlockType(array $inlines): string
     {
         foreach ($inlines as $inline) {
-            if ($inline->type === 'text' || $inline->type === 'linebreak') {
+            if ($inline->type === 'text' || $inline->type === 'linebreak' || $inline->type === 'raw_html_inline') {
                 return 'paragraph';
             }
         }
