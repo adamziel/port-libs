@@ -1,7 +1,7 @@
 {
     "schemaVersion": 1,
     "tool": "pandoc-reader-executable-sample-report",
-    "generatedAt": "2026-07-05T20:45:35+00:00",
+    "generatedAt": "2026-07-05T20:58:03+00:00",
     "repoRoot": "/private/tmp/port-libs-trunk-audit",
     "pandocExecutable": "/opt/homebrew/bin/pandoc",
     "pandocVersion": "pandoc 3.10",

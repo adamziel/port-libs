@@ -4,12 +4,16 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\EpubExecutableNativeAstComparisonHarness;
+use PortLibs\Pandoc\EpubNativeAstPackageComparisonHarness;
+use PortLibs\Pandoc\EpubReader;
 use PortLibs\Pandoc\HtmlNativeAstComparisonHarness;
 use PortLibs\Pandoc\HtmlReader;
 use PortLibs\Pandoc\MarkdownNativeAstComparisonHarness;
 use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\NativeReader;
 use PortLibs\Pandoc\PptxExecutableNativeAstComparisonHarness;
+use PortLibs\Pandoc\PptxNativeAstComparisonHarness;
+use PortLibs\Pandoc\PptxReader;
 
 require __DIR__ . '/bootstrap.php';
 
@@ -18,6 +22,7 @@ $limitPerFormat = 20;
 $pandocBin = getenv('PANDOC_BIN') ?: 'pandoc';
 $outputHtml = $repoRoot . '/lanes/pandoc/reports/haskell-pandoc-sample-comparison.html';
 $outputJson = $repoRoot . '/lanes/pandoc/reports/haskell-pandoc-sample-comparison.json';
+$manifestPath = null;
 $jsonToStdout = false;
 $htmlToStdout = false;
 $requireMatches = false;
@@ -25,13 +30,17 @@ $requireMatches = false;
 foreach (array_slice($argv, 1) as $argument) {
     if ($argument === '--help' || $argument === '-h') {
         fwrite(STDOUT, <<<'TXT'
-Usage: php tools/pandoc-reader-executable-sample-report.php [--limit-per-format=N] [--pandoc-bin=PATH] [--output-html=PATH] [--output-json=PATH] [--json] [--html] [--require-matches]
+Usage: php tools/pandoc-reader-executable-sample-report.php [--limit-per-format=N] [--manifest=PATH] [--pandoc-bin=PATH] [--output-html=PATH] [--output-json=PATH] [--json] [--html] [--require-matches]
 
 Compares local PHP readers against a Haskell pandoc executable for a fixed-size
 sample from the hardened HTML, Markdown, EPUB, and PPTX reader fixture corpora.
 The default sample size is 20 documents per format. HTML/Markdown are compared
 directly against `pandoc -t native`; EPUB/PPTX reuse the existing executable
 native AST comparison harnesses.
+
+With --manifest, compares the exact files listed in a JSON manifest. Manifest
+entries can include sourceKind, sourceUrl, description, features, readerOptions,
+and pandocFormat metadata for the generated HTML report.
 
 TXT);
         exit(0);
@@ -71,6 +80,11 @@ TXT);
         continue;
     }
 
+    if (str_starts_with($argument, '--manifest=')) {
+        $manifestPath = normalizeOutputPath($repoRoot, substr($argument, strlen('--manifest=')));
+        continue;
+    }
+
     if (str_starts_with($argument, '--output-html=')) {
         $outputHtml = normalizeOutputPath($repoRoot, substr($argument, strlen('--output-html=')));
         continue;
@@ -91,7 +105,9 @@ if ($resolvedPandoc === null) {
     exit(1);
 }
 
-$report = buildReport($repoRoot, $resolvedPandoc, $limitPerFormat);
+$report = $manifestPath === null
+    ? buildReport($repoRoot, $resolvedPandoc, $limitPerFormat)
+    : buildManifestReport($repoRoot, $resolvedPandoc, $manifestPath);
 $json = json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
 $html = renderHtmlReport($report);
 
@@ -108,8 +124,8 @@ if ($jsonToStdout) {
     fwrite(STDOUT, summaryLine($report) . "\n");
 }
 
-if ($requireMatches && !reportHasRequiredMatches($report, $limitPerFormat)) {
-    fwrite(STDERR, "pandoc-reader-executable-sample-report: sample comparison did not match {$limitPerFormat}/{$limitPerFormat} for every format\n");
+if ($requireMatches && !reportHasRequiredMatches($report, $manifestPath === null ? $limitPerFormat : null)) {
+    fwrite(STDERR, "pandoc-reader-executable-sample-report: sample comparison did not satisfy required matches\n");
     exit(1);
 }
 
@@ -170,6 +186,178 @@ function buildReport(string $repoRoot, string $pandoc, int $limitPerFormat): arr
             'pptx' => compactExecutableHarnessReport($pptx),
         ],
         'status' => formatsHaveRequiredMatches($formats, $limitPerFormat) ? 'passed' : 'failed',
+    ];
+}
+
+/**
+ * @return array<string, mixed>
+ */
+function buildManifestReport(string $repoRoot, string $pandoc, string $manifestPath): array
+{
+    if (!is_file($manifestPath)) {
+        throw new RuntimeException("Manifest not found: {$manifestPath}");
+    }
+    $manifest = json_decode((string) file_get_contents($manifestPath), true, 512, JSON_THROW_ON_ERROR);
+    if (!is_array($manifest)) {
+        throw new RuntimeException("Manifest must decode to an object: {$manifestPath}");
+    }
+    $entries = $manifest['entries'] ?? null;
+    if (!is_array($entries)) {
+        throw new RuntimeException("Manifest must contain an entries array: {$manifestPath}");
+    }
+
+    $rowsByFormat = [];
+    foreach ($entries as $entry) {
+        if (!is_array($entry)) {
+            continue;
+        }
+        $row = runManifestEntry($repoRoot, $pandoc, $entry);
+        $rowsByFormat[(string) ($row['format'] ?? 'unknown')][] = $row;
+    }
+
+    $formats = [];
+    foreach ($rowsByFormat as $format => $rows) {
+        $formats[$format] = summarizeManifestFormat($rows);
+    }
+    ksort($formats, SORT_STRING);
+
+    return [
+        'schemaVersion' => 1,
+        'tool' => 'pandoc-reader-executable-sample-report',
+        'mode' => 'manifest',
+        'title' => (string) ($manifest['title'] ?? 'Diverse Haskell Pandoc Reader Comparison'),
+        'description' => (string) ($manifest['description'] ?? ''),
+        'generatedAt' => gmdate('c'),
+        'repoRoot' => $repoRoot,
+        'manifestPath' => $manifestPath,
+        'pandocExecutable' => $pandoc,
+        'pandocVersion' => pandocVersion($pandoc),
+        'limitPerFormat' => null,
+        'formats' => $formats,
+        'rawReports' => $formats,
+        'status' => formatsHaveRequiredMatches($formats, null) ? 'passed' : 'failed',
+    ];
+}
+
+/**
+ * @param array<string, mixed> $entry
+ * @return array<string, mixed>
+ */
+function runManifestEntry(string $repoRoot, string $pandoc, array $entry): array
+{
+    $format = (string) ($entry['format'] ?? '');
+    if (!in_array($format, ['html', 'markdown', 'epub', 'pptx'], true)) {
+        throw new RuntimeException("Unsupported manifest format: {$format}");
+    }
+    $path = normalizeOutputPath($repoRoot, (string) ($entry['path'] ?? ''));
+    $readerOptions = is_array($entry['readerOptions'] ?? null) ? $entry['readerOptions'] : [];
+    $pandocFormat = (string) (
+        $entry['pandocFormat']
+        ?? match ($format) {
+            'html' => htmlPandocFormat($readerOptions),
+            'markdown' => markdownPandocFormat($readerOptions),
+            default => $format,
+        }
+    );
+    $label = (string) ($entry['id'] ?? pathinfo($path, PATHINFO_FILENAME));
+
+    $localResult = readLocalManifestFixture($format, $path, $readerOptions);
+    $pandocResult = readPandocNative($pandoc, $pandocFormat, $path);
+
+    $row = [
+        'fixture' => $label,
+        'format' => $format,
+        'sourceFile' => relativePath($repoRoot, $path),
+        'pandocFormat' => $pandocFormat,
+        'readerOptions' => $readerOptions,
+        'sourceKind' => (string) ($entry['sourceKind'] ?? 'unknown'),
+        'sourceUrl' => isset($entry['sourceUrl']) && is_string($entry['sourceUrl']) ? $entry['sourceUrl'] : null,
+        'description' => (string) ($entry['description'] ?? ''),
+        'features' => is_array($entry['features'] ?? null) ? array_values(array_map('strval', $entry['features'])) : [],
+        'localParsed' => (bool) $localResult['ok'],
+        'pandocParsed' => (bool) $pandocResult['ok'],
+        'nativeFixtureParsed' => false,
+        'localPandocStatus' => 'not-compared',
+        'pandocNativeFixtureStatus' => 'not-required',
+        'status' => 'parse-failure',
+    ];
+
+    if (!$localResult['ok']) {
+        $row['localError'] = $localResult['error'];
+    }
+    if (!$pandocResult['ok']) {
+        $row['pandocError'] = $pandocResult['error'];
+    }
+
+    if ($localResult['ok'] && $pandocResult['ok']) {
+        /** @var AstNode $localDocument */
+        $localDocument = $localResult['document'];
+        /** @var AstNode $pandocDocument */
+        $pandocDocument = $pandocResult['document'];
+        $normalizer = normalizerForFormat($format);
+        $localAst = $normalizer->normalizedDocument($localDocument);
+        $pandocAst = $normalizer->normalizedDocument($pandocDocument);
+        if ($localAst === $pandocAst) {
+            $row['localPandocStatus'] = 'matched';
+            $row['status'] = 'matched';
+        } else {
+            $row['localPandocStatus'] = 'mismatched';
+            $row['status'] = 'mismatched';
+            $row['localPandocFirstDifference'] = firstDifference($localAst, $pandocAst) ?? 'unknown-normalized-ast-difference';
+        }
+    }
+
+    return $row;
+}
+
+/**
+ * @param list<array<string, mixed>> $rows
+ * @return array<string, mixed>
+ */
+function summarizeManifestFormat(array $rows): array
+{
+    $compared = count($rows);
+    $localParsed = count(array_filter($rows, static fn (array $row): bool => ($row['localParsed'] ?? false) === true));
+    $pandocParsed = count(array_filter($rows, static fn (array $row): bool => ($row['pandocParsed'] ?? false) === true));
+    $matches = count(array_filter($rows, static fn (array $row): bool => ($row['localPandocStatus'] ?? null) === 'matched'));
+    $parseFailures = count(array_filter(
+        $rows,
+        static fn (array $row): bool => ($row['localParsed'] ?? false) !== true || ($row['pandocParsed'] ?? false) !== true
+    ));
+    $features = [];
+    $sourceKinds = [];
+    foreach ($rows as $row) {
+        $sourceKinds[(string) ($row['sourceKind'] ?? 'unknown')] = true;
+        foreach (($row['features'] ?? []) as $feature) {
+            if (is_scalar($feature)) {
+                $features[(string) $feature] = true;
+            }
+        }
+    }
+    ksort($features, SORT_STRING);
+    ksort($sourceKinds, SORT_STRING);
+
+    return [
+        'status' => 'completed',
+        'totalAvailableCount' => $compared,
+        'candidateScannedCount' => $compared,
+        'skippedCandidateCount' => 0,
+        'comparedCount' => $compared,
+        'localParsedCount' => $localParsed,
+        'pandocParsedCount' => $pandocParsed,
+        'nativeFixtureParsedCount' => 0,
+        'parseFailureCount' => $parseFailures,
+        'localPandocMatchCount' => $matches,
+        'localPandocMismatchCount' => $compared - $matches,
+        'pandocNativeFixtureMatchCount' => 0,
+        'pandocNativeFixtureMismatchCount' => 0,
+        'nativeFixtureRequired' => false,
+        'matchPercent' => percent($matches, $compared),
+        'result' => $compared > 0 && $parseFailures === 0 && $matches === $compared ? 'passed' : 'failed',
+        'features' => array_keys($features),
+        'sourceKinds' => array_keys($sourceKinds),
+        'fixtureComparisons' => $rows,
+        'skippedCandidateComparisons' => [],
     ];
 }
 
@@ -492,6 +680,43 @@ function readLocalInlineFixture(string $format, string $path, array $options): a
 }
 
 /**
+ * @param array<string, mixed> $options
+ * @return array{ok: bool, document: ?AstNode, error: ?string}
+ */
+function readLocalManifestFixture(string $format, string $path, array $options): array
+{
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException("Unable to read fixture '{$path}'.");
+        }
+
+        $document = match ($format) {
+            'html' => (new HtmlReader($options))->read($bytes),
+            'markdown' => (new MarkdownReader($options))->read($bytes),
+            'epub' => (new EpubReader($options))->read($bytes),
+            'pptx' => (new PptxReader($options))->read($bytes),
+            default => throw new RuntimeException("Unsupported format '{$format}'."),
+        };
+
+        return ['ok' => true, 'document' => $document, 'error' => null];
+    } catch (Throwable $exception) {
+        return ['ok' => false, 'document' => null, 'error' => $exception::class . ': ' . $exception->getMessage()];
+    }
+}
+
+function normalizerForFormat(string $format): object
+{
+    return match ($format) {
+        'html' => new HtmlNativeAstComparisonHarness(),
+        'markdown' => new MarkdownNativeAstComparisonHarness(),
+        'epub' => new EpubNativeAstPackageComparisonHarness(),
+        'pptx' => new PptxNativeAstComparisonHarness(),
+        default => throw new RuntimeException("Unsupported format '{$format}'."),
+    };
+}
+
+/**
  * @return array{ok: bool, document: ?AstNode, native: ?string, error: ?string}
  */
 function readPandocNative(string $pandoc, string $format, string $path): array
@@ -681,13 +906,16 @@ function percent(int $part, int $whole): ?float
 /**
  * @param array<string, mixed> $formats
  */
-function formatsHaveRequiredMatches(array $formats, int $limitPerFormat): bool
+function formatsHaveRequiredMatches(array $formats, ?int $limitPerFormat): bool
 {
     foreach ($formats as $summary) {
         if (!is_array($summary)) {
             return false;
         }
-        if ((int) ($summary['comparedCount'] ?? -1) !== $limitPerFormat) {
+        if ($limitPerFormat !== null && (int) ($summary['comparedCount'] ?? -1) !== $limitPerFormat) {
+            return false;
+        }
+        if ($limitPerFormat === null && (int) ($summary['comparedCount'] ?? 0) <= 0) {
             return false;
         }
         if (($summary['result'] ?? null) !== 'passed') {
@@ -701,7 +929,7 @@ function formatsHaveRequiredMatches(array $formats, int $limitPerFormat): bool
 /**
  * @param array<string, mixed> $report
  */
-function reportHasRequiredMatches(array $report, int $limitPerFormat): bool
+function reportHasRequiredMatches(array $report, ?int $limitPerFormat): bool
 {
     $formats = $report['formats'] ?? null;
 
@@ -747,7 +975,7 @@ function renderHtmlReport(array $report): string
             . '<th>' . h((string) $name) . '</th>'
             . '<td>' . h((string) ($summary['result'] ?? 'unknown')) . '</td>'
             . '<td>' . h((string) ($summary['localPandocMatchCount'] ?? 0)) . ' / ' . h((string) ($summary['comparedCount'] ?? 0)) . '</td>'
-            . '<td>' . h((string) ($summary['pandocNativeFixtureMatchCount'] ?? 0)) . ' / ' . h((string) ($summary['comparedCount'] ?? 0)) . '</td>'
+            . '<td>' . summaryNativeCell($summary) . '</td>'
             . '<td>' . h((string) ($summary['parseFailureCount'] ?? 0)) . '</td>'
             . '<td>' . h((string) ($summary['skippedCandidateCount'] ?? 0)) . '</td>'
             . '<td>' . h((string) ($summary['totalAvailableCount'] ?? 0)) . '</td>'
@@ -774,8 +1002,14 @@ function renderHtmlReport(array $report): string
             if ($detail === '') {
                 $detail = '<span class="muted">matched</span>';
             }
+            $features = is_array($row['features'] ?? null) ? implode(', ', array_map('strval', $row['features'])) : '';
+            $sourceUrl = isset($row['sourceUrl']) && is_string($row['sourceUrl']) && $row['sourceUrl'] !== ''
+                ? '<a href="' . h($row['sourceUrl']) . '">' . h((string) ($row['sourceKind'] ?? 'source')) . '</a>'
+                : h((string) ($row['sourceKind'] ?? ''));
             $rows .= '<tr>'
                 . '<td>' . h((string) ($row['fixture'] ?? 'unknown')) . '</td>'
+                . '<td>' . $sourceUrl . '</td>'
+                . '<td>' . h($features) . '</td>'
                 . '<td><code>' . h((string) ($row['pandocFormat'] ?? (($name === 'epub' || $name === 'pptx') ? $name : 'unknown'))) . '</code></td>'
                 . '<td>' . statusBadge((string) ($row['status'] ?? 'unknown')) . '</td>'
                 . '<td>' . h((string) ($row['localPandocStatus'] ?? 'unknown')) . '</td>'
@@ -791,7 +1025,7 @@ function renderHtmlReport(array $report): string
             . h((string) ($summary['comparedCount'] ?? 0))
             . ' local reader outputs matched Haskell pandoc normalized native AST.'
             . '</p>'
-            . '<table><thead><tr><th>Fixture</th><th>Pandoc format</th><th>Overall</th><th>Local vs Haskell</th><th>Haskell vs checked-in native</th><th>Details</th></tr></thead><tbody>'
+            . '<table><thead><tr><th>Fixture</th><th>Source</th><th>Features</th><th>Pandoc format</th><th>Overall</th><th>Local vs Haskell</th><th>Haskell vs checked-in native</th><th>Details</th></tr></thead><tbody>'
             . $rows
             . '</tbody></table>'
             . skippedCandidateDetails($summary)
@@ -799,9 +1033,12 @@ function renderHtmlReport(array $report): string
             . '</section>';
     }
 
+    $title = (string) ($report['title'] ?? 'Haskell Pandoc Reader Sample Comparison');
+    $description = (string) ($report['description'] ?? '');
+
     return '<!doctype html>'
         . '<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
-        . '<title>Haskell Pandoc Reader Sample Comparison</title>'
+        . '<title>' . h($title) . '</title>'
         . '<style>'
         . 'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;background:#f7f7f4;color:#20211f;}'
         . 'main{max-width:1180px;margin:0 auto;padding:32px 20px 56px;}'
@@ -813,11 +1050,12 @@ function renderHtmlReport(array $report): string
         . 'code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;}pre{white-space:pre-wrap;overflow:auto;background:#20211f;color:#f6f6ef;padding:12px;border-radius:6px;font-size:12px;}'
         . 'section{margin-top:26px;}.metric{font-weight:700;}.muted{color:#74776f;}details{margin-bottom:22px;}'
         . '</style></head><body><main>'
-        . '<h1>Haskell Pandoc Reader Sample Comparison</h1>'
+        . '<h1>' . h($title) . '</h1>'
         . '<p class="meta">Generated ' . h((string) ($report['generatedAt'] ?? 'unknown'))
         . ' with ' . h((string) ($report['pandocVersion'] ?? 'unknown'))
         . ' at <code>' . h((string) ($report['pandocExecutable'] ?? '')) . '</code>. '
-        . 'Sample size: ' . h((string) ($report['limitPerFormat'] ?? '')) . ' documents per format.</p>'
+        . sampleSizeText($report) . '</p>'
+        . ($description !== '' ? '<p>' . h($description) . '</p>' : '')
         . '<p>Overall status: ' . statusBadge($status) . '</p>'
         . '<table><thead><tr><th>Format</th><th>Result</th><th>Local vs Haskell</th><th>Haskell vs checked-in native</th><th>Parse failures</th><th>Skipped candidates</th><th>Available fixtures</th></tr></thead><tbody>'
         . $summaryRows
@@ -869,6 +1107,32 @@ function statusBadge(string $status): string
     return '<span class="status ' . h($class) . '">' . h($status) . '</span>';
 }
 
+/**
+ * @param array<string, mixed> $summary
+ */
+function summaryNativeCell(array $summary): string
+{
+    if (($summary['nativeFixtureRequired'] ?? true) === false) {
+        return '<span class="muted">not required</span>';
+    }
+
+    return h((string) ($summary['pandocNativeFixtureMatchCount'] ?? 0))
+        . ' / '
+        . h((string) ($summary['comparedCount'] ?? 0));
+}
+
+/**
+ * @param array<string, mixed> $report
+ */
+function sampleSizeText(array $report): string
+{
+    if (($report['mode'] ?? null) === 'manifest') {
+        return 'Manifest: <code>' . h((string) ($report['manifestPath'] ?? '')) . '</code>.';
+    }
+
+    return 'Sample size: ' . h((string) ($report['limitPerFormat'] ?? '')) . ' documents per format.';
+}
+
 function h(string $value): string
 {
     return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
@@ -892,4 +1156,11 @@ function writeFileWithDirectory(string $path, string $contents): void
     if (file_put_contents($path, $contents) === false) {
         throw new RuntimeException("Unable to write '{$path}'.");
     }
+}
+
+function relativePath(string $base, string $path): string
+{
+    $base = rtrim($base, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+
+    return str_starts_with($path, $base) ? substr($path, strlen($base)) : $path;
 }
