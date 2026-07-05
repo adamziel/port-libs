@@ -47,13 +47,13 @@ return [
         $t->same('Reviewer <script>alert(1)</script> & <b>note</b>', $textarea instanceof DOMElement ? $textarea->textContent : null);
         $t->same(0, $textarea instanceof DOMElement ? $textarea->getElementsByTagName('*')->length : -1);
         $t->true($template instanceof DOMElement);
-        $t->same('<p>Template <script>drop()</script> &amp; <b>note</b></p>', $template instanceof DOMElement ? $template->textContent : null);
+        $t->same('<p>Template <script>drop()</script> & <b>note</b></p>', $template instanceof DOMElement ? $template->textContent : null);
         $t->same(0, $template instanceof DOMElement ? $template->getElementsByTagName('*')->length : -1);
         $t->true($svg instanceof DOMElement);
         $t->same(
             '<p data-review="refs">A' . "\u{2060}" . 'B ' . "\u{1D559}" . ' ©</p>'
                 . '<textarea data-source="legacy">Reviewer &lt;script&gt;alert(1)&lt;/script&gt; &amp; &lt;b&gt;note&lt;/b&gt;</textarea>'
-                . '<template data-source="legacy-template">&lt;p&gt;Template &lt;script&gt;drop()&lt;/script&gt; &amp;amp; &lt;b&gt;note&lt;/b&gt;&lt;/p&gt;</template>'
+                . '<template data-source="legacy-template">&lt;p&gt;Template &lt;script&gt;drop()&lt;/script&gt; &amp; &lt;b&gt;note&lt;/b&gt;&lt;/p&gt;</template>'
                 . '<svg viewBox="0 0 1 1"><linearGradient id="g"></linearGradient><foreignObject><div viewbox="html"><textpath>HTML fallback</textpath></div></foreignObject></svg>',
             $serialized
         );

@@ -610,26 +610,7 @@ final class Html5Dom
         bool $protectRawTextContent,
         bool $protectNoscriptContent
     ): string {
-        $names = [];
-        if ($protectTemplateContent) {
-            $names[] = 'template';
-        }
-        if ($protectNoscriptContent) {
-            $names[] = 'noscript';
-        }
-        if ($protectRawTextContent) {
-            $names[] = 'script';
-            $names[] = 'style';
-        }
-        if ($names === []) {
-            return $html;
-        }
-
-        return XmlHtmlDom::protectHtmlRcdataElements(
-            $html,
-            protectRawTextContent: $protectRawTextContent,
-            onlyElementNames: $names
-        );
+        return $html;
     }
 
     private static function loadLegacyHtml(string $html, string $label, bool $prependEncodingDeclaration = true): \DOMDocument
@@ -1243,7 +1224,7 @@ final class Html5Dom
         if ($name === 'script' || $name === 'style') {
             return html_entity_decode((string) $element->textContent, ENT_QUOTES | ENT_HTML5, 'UTF-8');
         }
-        if (in_array($name, ['iframe', 'noembed', 'noframes', 'plaintext', 'xmp'], true) && property_exists($element, 'innerHTML')) {
+        if (in_array($name, ['iframe', 'noembed', 'noframes', 'noscript', 'plaintext', 'xmp'], true) && property_exists($element, 'innerHTML')) {
             return (string) $element->innerHTML;
         }
 

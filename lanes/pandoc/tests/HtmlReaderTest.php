@@ -239,6 +239,11 @@ $tests['keeps html tree construction centralized through Html5Dom'] =
         $t->contains('self::requireNativeHtmlDocument(', $methodBody($html5DomSource, 'loadHtml'));
         $t->contains('self::html5TreeConstructedBridgeSource(', $methodBody($html5DomSource, 'loadHtml'));
         $t->contains('HTMLDocument::createFromString', $methodBody($html5DomSource, 'html5TreeConstructedBridgeSource'));
+        $t->same('return $html;', trim($methodBody($html5DomSource, 'html5ProtectedLiteralTreeInput')));
+        $t->true(
+            !str_contains($methodBody($html5DomSource, 'html5ProtectedLiteralTreeInput'), 'protectHtmlRcdataElements'),
+            'Html5Dom must pass original source bytes into HTMLDocument tree construction'
+        );
         $t->same(
             substr_count($html5DomSource, 'HTMLDocument::createFromString'),
             substr_count($html5DomSource, 'self::HTML_DOCUMENT_PARSE_OPTIONS'),
@@ -299,6 +304,7 @@ $tests['keeps html tree construction centralized through Html5Dom'] =
             'Html5Dom::html5TreeConstructedFragment' => $methodBody($html5DomSource, 'html5TreeConstructedFragment'),
             'Html5Dom::html5BodyContextFragment' => $methodBody($html5DomSource, 'html5BodyContextFragment'),
             'Html5Dom::html5TableContextFragment' => $methodBody($html5DomSource, 'html5TableContextFragment'),
+            'Html5Dom::html5ProtectedLiteralTreeInput' => $methodBody($html5DomSource, 'html5ProtectedLiteralTreeInput'),
         ];
         foreach ($html5TreeConstructionBodies as $method => $body) {
             foreach ([

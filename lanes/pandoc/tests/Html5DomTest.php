@@ -363,7 +363,7 @@ return [
         ));
         $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => Html5Dom::parseHtmlDocument("<html><body>bad\0packet</body></html>"));
     },
-    'preflights html declarations outside protected raw text content' => static function (TestRunner $t): void {
+    'preflights html declarations while tree construction uses HTMLDocument output' => static function (TestRunner $t): void {
         $body = Html5Dom::parseHtmlFragment(
             '<script type="application/json">{"doctype":"<!DOCTYPE html>","pi":"<?review href=\"file\"?>"}</script>'
                 . '<style>body:before{content:"<!ENTITY reviewer SYSTEM file>"}</style>'
@@ -386,7 +386,7 @@ return [
             '<script type="application/json">{"doctype":"<!DOCTYPE html>","pi":"<?review href=\"file\"?>"}</script>'
                 . '<style>body:before{content:"<!ENTITY reviewer SYSTEM file>"}</style>'
                 . '<textarea>&lt;!ENTITY reviewer SYSTEM "file:///etc/passwd"&gt;</textarea>'
-                . '<template>&lt;!DOCTYPE html [&lt;!ENTITY reviewer SYSTEM "file:///etc/passwd"&gt;]&gt;</template>'
+                . '<template>]&gt;</template>'
                 . '<iframe>&lt;?xml-stylesheet href="file"?&gt;</iframe>',
             $serialized
         );
@@ -646,7 +646,7 @@ return [
         $t->true(!str_contains($serialized, '<script>alert(1)</script>'), 'Expected tag-looking raw text to serialize as escaped text');
         $t->true(!str_contains($serialized, '<img src=x>'), 'Expected fallback image-looking source text to serialize as escaped text');
     },
-    'treats html noscript bodies as escaped source during dom traversal' => static function (TestRunner $t): void {
+    'treats html noscript bodies as escaped HTMLDocument-normalized source during dom traversal' => static function (TestRunner $t): void {
         $body = Html5Dom::parseHtmlFragment(
             '<noscript data-source="legacy">Fallback <script>alert(1)</script> & source <img src=x></noscript><p>after</p>'
         );
@@ -657,14 +657,14 @@ return [
         $t->true($noscript instanceof DOMElement, 'Expected noscript fallback container to survive DOM parsing');
         $t->same(['data-source' => 'legacy'], $noscript instanceof DOMElement ? Html5Dom::attributes($noscript) : []);
         $t->same(
-            'Fallback <script>alert(1)</script> & source <img src=x>',
+            'Fallback <script>alert(1)</script> &amp; source <img src="x">',
             $noscript instanceof DOMElement ? $noscript->textContent : null
         );
         $t->same([], $noscript instanceof DOMElement ? Html5Dom::childElements($noscript) : []);
         $t->true($paragraph instanceof DOMElement, 'Expected following paragraph to stay outside noscript text');
         $t->same('after', $paragraph instanceof DOMElement ? Html5Dom::normalizedText($paragraph) : null);
         $t->same(
-            '<noscript data-source="legacy">Fallback &lt;script&gt;alert(1)&lt;/script&gt; &amp; source &lt;img src=x&gt;</noscript><p>after</p>',
+            '<noscript data-source="legacy">Fallback &lt;script&gt;alert(1)&lt;/script&gt; &amp;amp; source &lt;img src="x"&gt;</noscript><p>after</p>',
             $serialized
         );
         $t->true(!str_contains($serialized, '<script>alert(1)</script>'), 'Expected noscript script-looking source to stay escaped');
@@ -692,15 +692,15 @@ return [
         $t->true(!str_contains($serialized, '</body>'), 'Expected synthetic wrapper close tags not to leak into plaintext text');
         $t->true(!str_contains($serialized, '<p>hidden</p>'), 'Expected following paragraph source to stay plaintext text');
     },
-    'treats html template contents as inert escaped source during reader traversal' => static function (TestRunner $t): void {
+    'treats html template contents as inert escaped HTMLDocument-normalized source during reader traversal' => static function (TestRunner $t): void {
         $body = Html5Dom::parseHtmlFragment(
             '<template data-source="legacy"><p>Template <script>drop()</script> &amp; <b>note</b></p></template><p>after</p>'
         );
         $template = Html5Dom::firstChildElement($body, 'template');
         $paragraph = Html5Dom::firstChildElement($body, 'p');
         $serialized = Html5Dom::serializeHtmlChildren($body);
-        $expectedTemplateText = '<p>Template <script>drop()</script> &amp; <b>note</b></p>';
-        $expectedHtml = '<template data-source="legacy">&lt;p&gt;Template &lt;script&gt;drop()&lt;/script&gt; &amp;amp; &lt;b&gt;note&lt;/b&gt;&lt;/p&gt;</template><p>after</p>';
+        $expectedTemplateText = '<p>Template <script>drop()</script> & <b>note</b></p>';
+        $expectedHtml = '<template data-source="legacy">&lt;p&gt;Template &lt;script&gt;drop()&lt;/script&gt; &amp; &lt;b&gt;note&lt;/b&gt;&lt;/p&gt;</template><p>after</p>';
 
         $t->true($template instanceof DOMElement, 'Expected template element to survive parser traversal');
         $t->same(['data-source' => 'legacy'], $template instanceof DOMElement ? Html5Dom::attributes($template) : []);

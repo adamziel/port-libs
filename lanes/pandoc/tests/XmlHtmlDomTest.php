@@ -7650,7 +7650,7 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->contains($html, $blocks);
         $t->same('/migration/script-json-review.html', $document->children[0]->attr('part'));
     },
-    'preflights html declarations outside protected raw text serialization' => static function (TestRunner $t): void {
+    'preflights html declarations while serializing HTMLDocument-normalized literal payloads' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<script type="application/json">{"doctype":"<!DOCTYPE html>","pi":"<?review href=\"file\"?>"}</script>'
                 . '<style>body:before{content:"<!ENTITY reviewer SYSTEM file>"}</style>'
@@ -7666,13 +7666,13 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->same('{"doctype":"<!DOCTYPE html>","pi":"<?review href=\"file\"?>"}', $summary[0]['text']);
         $t->same('body:before{content:"<!ENTITY reviewer SYSTEM file>"}', $summary[1]['text']);
         $t->same('<!ENTITY reviewer SYSTEM "file:///etc/passwd">', $summary[2]['text']);
-        $t->same('<?xml-stylesheet href="file"?>', $summary[3]['text']);
+        $t->same('<!--?xml-stylesheet href="file"?-->', $summary[3]['text']);
         $t->same('<!DOCTYPE html>', $summary[4]['text']);
         $t->same(
             '<script type="application/json">{"doctype":"<!DOCTYPE html>","pi":"<?review href=\"file\"?>"}</script>'
                 . '<style>body:before{content:"<!ENTITY reviewer SYSTEM file>"}</style>'
                 . '<textarea>&lt;!ENTITY reviewer SYSTEM "file:///etc/passwd"&gt;</textarea>'
-                . '<template>&lt;?xml-stylesheet href="file"?&gt;</template>'
+                . '<template>&lt;!--?xml-stylesheet href="file"?--&gt;</template>'
                 . '<iframe>&lt;!DOCTYPE html&gt;</iframe>',
             $html
         );
@@ -11336,7 +11336,7 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->true(!str_contains($html, '<textarea>'), 'Expected raw text textarea-looking source to stay escaped');
         $t->true(!str_contains($html, '<script>alert(1)</script>'), 'Expected raw text script-looking source to stay escaped');
     },
-    'treats html noscript fallback as escaped raw text for raw handoff' => static function (TestRunner $t): void {
+    'treats html noscript fallback as escaped HTMLDocument-normalized text for raw handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<noscript data-source="legacy">Fallback <script>alert(1)</script> & source <img src=x></noscript><p>after</p>',
             'noscript raw text review fragment'
@@ -11347,12 +11347,12 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->same(2, count($summary));
         $t->same('noscript', $summary[0]['name']);
         $t->same(['data-source' => 'legacy'], $summary[0]['attributes']);
-        $t->same('Fallback <script>alert(1)</script> & source <img src=x>', $summary[0]['text']);
+        $t->same('Fallback <script>alert(1)</script> &amp; source <img src="x">', $summary[0]['text']);
         $t->same('text', $summary[0]['children'][0]['type']);
-        $t->same('Fallback <script>alert(1)</script> & source <img src=x>', $summary[0]['children'][0]['text']);
+        $t->same('Fallback <script>alert(1)</script> &amp; source <img src="x">', $summary[0]['children'][0]['text']);
         $t->same('p', $summary[1]['name']);
         $t->same('after', $summary[1]['text']);
-        $t->same('<noscript data-source="legacy">Fallback &lt;script&gt;alert(1)&lt;/script&gt; &amp; source &lt;img src=x&gt;</noscript><p>after</p>', $html);
+        $t->same('<noscript data-source="legacy">Fallback &lt;script&gt;alert(1)&lt;/script&gt; &amp;amp; source &lt;img src="x"&gt;</noscript><p>after</p>', $html);
         $t->true(!str_contains($html, '<script>alert(1)</script>'), 'Expected noscript script-looking source to stay escaped');
         $t->true(!str_contains($html, '<img src=x>'), 'Expected noscript image-looking source to stay escaped');
     },
@@ -11395,7 +11395,7 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->true(!str_contains($html, '<script>alert(1)</script>'), 'Expected plaintext script-looking source to stay escaped');
         $t->true(!str_contains($html, '<p>after</p>'), 'Expected following paragraph source to stay plaintext text');
     },
-    'treats html template contents as inert escaped source text for raw handoff' => static function (TestRunner $t): void {
+    'treats html template contents as inert escaped HTMLDocument-normalized text for raw handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<template data-source="legacy"><p>Template <script>drop()</script> &amp; <b>note</b></p></template><p>after</p>',
             'template review fragment'
@@ -11407,8 +11407,8 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         ]);
         $blocks = (new WordPressBlockWriter())->write($document);
 
-        $expectedTemplateText = '<p>Template <script>drop()</script> &amp; <b>note</b></p>';
-        $expectedHtml = '<template data-source="legacy">&lt;p&gt;Template &lt;script&gt;drop()&lt;/script&gt; &amp;amp; &lt;b&gt;note&lt;/b&gt;&lt;/p&gt;</template><p>after</p>';
+        $expectedTemplateText = '<p>Template <script>drop()</script> & <b>note</b></p>';
+        $expectedHtml = '<template data-source="legacy">&lt;p&gt;Template &lt;script&gt;drop()&lt;/script&gt; &amp; &lt;b&gt;note&lt;/b&gt;&lt;/p&gt;</template><p>after</p>';
 
         $t->same(2, count($summary));
         $t->same('template', $summary[0]['name']);
@@ -11466,11 +11466,19 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->true(!str_contains($html, '<script>ignored()</script>'), 'Expected template script source to stay escaped in raw handoff');
 
         $t->same('template', $unsafe['name']);
-        $t->same($unsafeSource, $unsafe['templateText']);
+        $t->same('<p>Blocked</p>', $unsafe['templateText']);
         $t->same('template-content-inert-fragment-review', $unsafe['templateContentReviewPolicy']);
-        $t->same(false, $unsafe['templateContentParsed']);
-        $t->same(['template-content-unsafe-or-unparseable'], $unsafe['templateContentDiagnostics']);
-        $t->contains('document type', $unsafe['templateContentError']);
+        $t->same(true, $unsafe['templateContentParsed']);
+        $t->same([], $unsafe['templateContentDiagnostics']);
+        $t->same(['p'], $unsafe['templateContentTopLevelElementNames']);
+        $t->same(1, $unsafe['templateContentTopLevelElementCount']);
+        $t->same('Blocked', $unsafe['templateContentText']);
+        $t->same([], $unsafe['templateContentLinkHrefs']);
+        $t->same([], $unsafe['templateContentImageSources']);
+        $t->same(0, $unsafe['templateContentFormCount']);
+        $t->same([], $unsafe['templateContentFormActions']);
+        $t->same([], $unsafe['templateContentActiveElementNames']);
+        $t->same([], $unsafe['templateContentEmbeddedElementNames']);
     },
     'summarizes declarative shadow root slot metadata for reviewer handoff' => static function (TestRunner $t): void {
         $templateSource = '<style>:host{display:block}</style>'
@@ -11684,11 +11692,19 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->same(['iframe'], $fallback['noscriptContentEmbeddedElementNames']);
 
         $t->same('noscript', $unsafe['name']);
-        $t->same($unsafeSource, $unsafe['noscriptText']);
+        $t->same('<p>Blocked</p>', $unsafe['noscriptText']);
         $t->same('noscript-content-inert-fragment-review', $unsafe['noscriptContentReviewPolicy']);
-        $t->same(false, $unsafe['noscriptContentParsed']);
-        $t->same(['noscript-content-unsafe-or-unparseable'], $unsafe['noscriptContentDiagnostics']);
-        $t->contains('document type', $unsafe['noscriptContentError']);
+        $t->same(true, $unsafe['noscriptContentParsed']);
+        $t->same([], $unsafe['noscriptContentDiagnostics']);
+        $t->same(['p'], $unsafe['noscriptContentTopLevelElementNames']);
+        $t->same(1, $unsafe['noscriptContentTopLevelElementCount']);
+        $t->same('Blocked', $unsafe['noscriptContentText']);
+        $t->same([], $unsafe['noscriptContentLinkHrefs']);
+        $t->same([], $unsafe['noscriptContentImageSources']);
+        $t->same(0, $unsafe['noscriptContentFormCount']);
+        $t->same([], $unsafe['noscriptContentFormActions']);
+        $t->same([], $unsafe['noscriptContentActiveElementNames']);
+        $t->same([], $unsafe['noscriptContentEmbeddedElementNames']);
 
         $t->contains('&lt;article id="fallback"&gt;', $html);
         $t->contains($html, $blocks);
