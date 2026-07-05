@@ -14,11 +14,11 @@ final class EpubNativeAstPackageComparisonHarness
     private const PACKAGE_FEATURE_SIGNATURE_KIND = 'checked-in-current-epub-package-feature-signature';
     private const PACKAGE_FEATURE_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
     private const PACKAGE_FEATURE_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-65-fixture-snapshot';
-    private const CHECKED_IN_CURRENT_PACKAGE_FEATURE_SIGNATURE_SHA256 = 'f8e7b30e1179b9bd13ce3d09f782eb49fd65d907792585424e8093cd46a3d9cd';
+    private const CHECKED_IN_CURRENT_PACKAGE_FEATURE_SIGNATURE_SHA256 = 'dff62d4975565fdf0f8a862b4cfc9b09c488c32c21a7afa142ba10fea003edfc';
     private const CURRENT_NATIVE_AST_SIGNATURE_KIND = 'checked-in-current-epub-normalized-native-ast-signature';
     private const CURRENT_NATIVE_AST_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
     private const CURRENT_NATIVE_AST_SIGNATURE_SCOPE = 'checked-in-current-upstream-epub-reader-65-fixture-normalized-ast-snapshot';
-    private const CHECKED_IN_CURRENT_NATIVE_AST_SIGNATURE_SHA256 = '11deed6d7cd3c4f120e11abf2cfa3e0fdae350866afffccd20cd7717f38c9569';
+    private const CHECKED_IN_CURRENT_NATIVE_AST_SIGNATURE_SHA256 = '532a621bab4829f24ce87eeef98de5f8b59c1f8bd5ff35862d11bb9362a8d9b5';
     private const RUNNER_CABAL_TARGET = 'exe:pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/epub-native-package-run';
     private const RUNNER_FIXTURE_DIRECTORY = 'test/epub';
@@ -117,8 +117,8 @@ final class EpubNativeAstPackageComparisonHarness
       ),
       'auxiliary-lot-guide-index.native' =>
       array (
-        'sha256' => '0cdecc48fd17c19b93fe001e19aac7fb7f4a09e04c80a4d833e55c1828485995',
-        'bytes' => 211,
+        'sha256' => 'b472ccfd6ed29dd2b8f26da6da27509abd6a2c3b0964fddda31519a75a205ee2',
+        'bytes' => 331,
       ),
       'bindings-collections-sidecars.epub' =>
       array (
@@ -187,8 +187,8 @@ final class EpubNativeAstPackageComparisonHarness
       ),
       'direct-image-spine.native' =>
       array (
-        'sha256' => '122dde0a14358daeea4987bdf7a378eb97e59f125bfecbadb404129fd58b2269',
-        'bytes' => 4270,
+        'sha256' => '8fe089bfca1066f7d76935f553392c35991256fd50fe0ae24fa302793db766e2',
+        'bytes' => 344,
       ),
       'duplicate-spine-idref.epub' =>
       array (
@@ -207,8 +207,8 @@ final class EpubNativeAstPackageComparisonHarness
       ),
       'epub2_cover.native' =>
       array (
-        'sha256' => '4107c44d7711b63dac21745139f9cfb6dd99288b38ecf0d43e07b5ecd2493618',
-        'bytes' => 1314,
+        'sha256' => '501e5182f6b213cb9482669ae4d9f506c8ece71f8aea29ab4abb014e57d8344a',
+        'bytes' => 390,
       ),
       'epub2_no_cover.epub' =>
       array (
@@ -217,8 +217,8 @@ final class EpubNativeAstPackageComparisonHarness
       ),
       'epub2_no_cover.native' =>
       array (
-        'sha256' => '48808c2e009669341a887a3c23adf033744aa652b0f69c319f0058396b59c6b8',
-        'bytes' => 1242,
+        'sha256' => '6063e77cc1d1ce4feeaa110b43f6c8c452403a464951c36c156f41dbef269402',
+        'bytes' => 322,
       ),
       'epub2_picture.epub' =>
       array (
@@ -227,8 +227,8 @@ final class EpubNativeAstPackageComparisonHarness
       ),
       'epub2_picture.native' =>
       array (
-        'sha256' => 'fa1cc897a5172b6f66411f2b61156a86669654e0338d137f543e069d4f73fb39',
-        'bytes' => 1314,
+        'sha256' => '1c13430b583a0b9df6b98d7a285a5400571e8bc512acb4ea46d37acafbbac7da',
+        'bytes' => 390,
       ),
       'epub3-ncx-toc-fallback.epub' =>
       array (
@@ -257,8 +257,8 @@ final class EpubNativeAstPackageComparisonHarness
       ),
       'features.native' =>
       array (
-        'sha256' => 'c384a314081ecc860bb0f8a9ffb5273976ed56341e4f16e05dd448126e85c41f',
-        'bytes' => 48453,
+        'sha256' => 'a9019153ea883dccd5d67af2008079fa8daa763a8f4a0796d44026f67675043b',
+        'bytes' => 43996,
       ),
       'font-manifest-resource.epub' =>
       array (
@@ -267,8 +267,8 @@ final class EpubNativeAstPackageComparisonHarness
       ),
       'font-manifest-resource.native' =>
       array (
-        'sha256' => 'f1f123f4ab0d1a612523707a09504a1e3e9b61194f6cbe1338dcb5d920c089d1',
-        'bytes' => 177,
+        'sha256' => 'd8dddfa841becc2b7bf6e730f790cb283396aec3444365a4e74177ef8843f7c3',
+        'bytes' => 273,
       ),
       'formatting.epub' =>
       array (
@@ -277,8 +277,8 @@ final class EpubNativeAstPackageComparisonHarness
       ),
       'formatting.native' =>
       array (
-        'sha256' => '9041b6aa23827579a4db45074bd9b26077337defc26ec62ab3b57f676f4eeb21',
-        'bytes' => 172999,
+        'sha256' => '3353ae64eee933d28caab426803ef61deb2ce26923beef703f3028148ffc419d',
+        'bytes' => 160079,
       ),
       'fragment-nav-spine.epub' =>
       array (
@@ -297,8 +297,8 @@ final class EpubNativeAstPackageComparisonHarness
       ),
       'guide-bibliography-reference.native' =>
       array (
-        'sha256' => 'de4ce57368f4f73e70c2f2018c52548ccbe7dcc275fcf50cab0b05277191ec9d',
-        'bytes' => 188,
+        'sha256' => 'e42b3f67d1340493874064c45bb93147b467d1a91f06121655188b6b7640bfa2',
+        'bytes' => 284,
       ),
       'guide-glossary-reference.epub' =>
       array (
@@ -307,8 +307,8 @@ final class EpubNativeAstPackageComparisonHarness
       ),
       'guide-glossary-reference.native' =>
       array (
-        'sha256' => 'bd285d34bd9a24f860fb1f398ad291957f68189468858f15192d9823b6f06279',
-        'bytes' => 181,
+        'sha256' => 'c40a968d5df5756cbb0aa48cddad780ac399470754e73f6b0b3e55b7e4c24e80',
+        'bytes' => 277,
       ),
       'guide-notes-reference.epub' =>
       array (
@@ -317,8 +317,8 @@ final class EpubNativeAstPackageComparisonHarness
       ),
       'guide-notes-reference.native' =>
       array (
-        'sha256' => '53f14b3a3553b8ba92832a2736b8c08dc75218ebf60c92585c4c0056875ac75d',
-        'bytes' => 174,
+        'sha256' => '22f8995379eaa6108f1eb658468b1c3075047a0d4d4448d3d573137fb04bf500',
+        'bytes' => 270,
       ),
       'guide-preface-reference.epub' =>
       array (
@@ -327,8 +327,8 @@ final class EpubNativeAstPackageComparisonHarness
       ),
       'guide-preface-reference.native' =>
       array (
-        'sha256' => '521b247130c5f4e5d561857912fb378bbf6305108ccc0f3700bad8847ee9e9e9',
-        'bytes' => 178,
+        'sha256' => '7e5c20fc82802f8f019f7de05fd6e38a96a961f0abc98905cb1581b808ce0077',
+        'bytes' => 274,
       ),
       'img.epub' =>
       array (
@@ -337,8 +337,8 @@ final class EpubNativeAstPackageComparisonHarness
       ),
       'img.native' =>
       array (
-        'sha256' => '817c691f8fab94b1ed9092b9cc23a2299771af8df99c8b0a8dded51ce63baf91',
-        'bytes' => 6762,
+        'sha256' => 'd23803b0e2ce59892cad94c660e093375847a08ed856739ca7dda50d2ac4e3a7',
+        'bytes' => 5311,
       ),
       'img_no_cover.epub' =>
       array (
@@ -347,8 +347,8 @@ final class EpubNativeAstPackageComparisonHarness
       ),
       'img_no_cover.native' =>
       array (
-        'sha256' => '0e0152ba08256f6926bb9e9bba1892b673aa994ddbc8ab369d36f0abeab0b2b2',
-        'bytes' => 6630,
+        'sha256' => 'f2c48a5ac5a84d3bab0091ca2dfc7af9877bb06dbfb286e7bb40b4d4e9740b8f',
+        'bytes' => 5191,
       ),
       'inline-abbr-subscript-superscript.epub' =>
       array (
@@ -387,8 +387,8 @@ final class EpubNativeAstPackageComparisonHarness
       ),
       'manifest-fallback-chain.native' =>
       array (
-        'sha256' => '54fe7e8b655152d47863121ec647bddd468e69bfab601a05af54fc00f07893d3',
-        'bytes' => 180,
+        'sha256' => '1f5d434d455f5b92592e929f598bf1fc07a229969912675419be70ad034d31b8',
+        'bytes' => 276,
       ),
       'manifest-fallback-style.epub' =>
       array (
@@ -427,8 +427,8 @@ final class EpubNativeAstPackageComparisonHarness
       ),
       'media-manifest-mix.native' =>
       array (
-        'sha256' => 'aa1c71ce01bcc9a0a893188663f1c381fad780371edd17ac791c60c183ae5f85',
-        'bytes' => 415,
+        'sha256' => '73f358ea83264cdf33658f481e03264f515f8d810b01d0b04f0496be8c2f8895',
+        'bytes' => 513,
       ),
       'media-overlay-package.epub' =>
       array (
@@ -437,8 +437,8 @@ final class EpubNativeAstPackageComparisonHarness
       ),
       'media-overlay-package.native' =>
       array (
-        'sha256' => '2083a3e8168ce9f47a3f6e8574fb8917a29b0760736a6123e238fc5681eef5e7',
-        'bytes' => 192,
+        'sha256' => '4e229ee5d0053c02d5ee8aaa425e800991bdcd5d3efad788043346f68cad1421',
+        'bytes' => 300,
       ),
       'metadata-link-page-list-image.epub' =>
       array (
@@ -477,8 +477,8 @@ final class EpubNativeAstPackageComparisonHarness
       ),
       'missing-local-manifest-resource.native' =>
       array (
-        'sha256' => '2eaad3b88904dc836c7d9993ccba2894946df1bb91d59524b63346c5ea24921c',
-        'bytes' => 200,
+        'sha256' => '1d2219a57a0cd610c1835c392e0819c4866f91082e92f4015b079f5539a3f1c8',
+        'bytes' => 308,
       ),
       'missing-media-overlay.epub' =>
       array (
@@ -487,8 +487,8 @@ final class EpubNativeAstPackageComparisonHarness
       ),
       'missing-media-overlay.native' =>
       array (
-        'sha256' => 'fb2b6d05c5d95f316dd8f73f4898ec493f509bc287084e81427c5617e182d252',
-        'bytes' => 213,
+        'sha256' => 'fe3aa9b18f5365ca6b16ecafd7b640aa4d64158b7c5c2bc2892b3d02359564b5',
+        'bytes' => 334,
       ),
       'multi-rootfile-nested-nav.epub' =>
       array (
@@ -507,8 +507,8 @@ final class EpubNativeAstPackageComparisonHarness
       ),
       'nav-ncx-linear-guide.native' =>
       array (
-        'sha256' => '0e44bc8507ce00254743af59dbdc8ab96508730543ae0fd19f8a1a26b97cc95f',
-        'bytes' => 202,
+        'sha256' => 'abee3ec4119924923d8d1c96ababc92bc0aa9ad38646e198e5d0b384ee0c0dd4',
+        'bytes' => 322,
       ),
       'nested-path-media-metadata.epub' =>
       array (
@@ -527,8 +527,8 @@ final class EpubNativeAstPackageComparisonHarness
       ),
       'nested-rootfile-nonlinear-spine.native' =>
       array (
-        'sha256' => '9f857344d02b81e87d3643b01fc7a98e2ed1504d5c61da8a116d4bd3e725222e',
-        'bytes' => 200,
+        'sha256' => '49135d70c19c11588f6a316fa00787463ce195aefaf5372a8840d955943dc53c',
+        'bytes' => 219,
       ),
       'package-spine-nav-media-metadata.epub' =>
       array (
@@ -547,8 +547,8 @@ final class EpubNativeAstPackageComparisonHarness
       ),
       'page-list-cfi-navigation.native' =>
       array (
-        'sha256' => '2ae9e1947ee8146d7d007041d4bfff8d8ca8dbfc99ced96851cade2160046500',
-        'bytes' => 206,
+        'sha256' => '36bc594058d69b633756e9080b826be908e244b852647bf8a888e22c770b26d1',
+        'bytes' => 327,
       ),
       'page-list-navigation.epub' =>
       array (
@@ -557,8 +557,8 @@ final class EpubNativeAstPackageComparisonHarness
       ),
       'page-list-navigation.native' =>
       array (
-        'sha256' => '3b5fb7863f0df2ba4875092b369aa2b5f8e6797ec0a1edc17232d594ee1047c6',
-        'bytes' => 175,
+        'sha256' => 'f565404556ec3487d55c3610b56882cebc0662d85e3c1135cf4c05a971544cfa',
+        'bytes' => 271,
       ),
       'parent-relative-nav.epub' =>
       array (
@@ -577,8 +577,8 @@ final class EpubNativeAstPackageComparisonHarness
       ),
       'remote-manifest-resource.native' =>
       array (
-        'sha256' => '96cafe1fc0398a6f41e4ec352d52f961e6bdb1206bfcc5637505f4cd5ebc2c2b',
-        'bytes' => 181,
+        'sha256' => 'a2b15395968495a5376a60e63ae21b0c0a079f02ee447c1ef2063ec87a613c13',
+        'bytes' => 277,
       ),
       'rendition-layout-property.epub' =>
       array (
@@ -587,8 +587,8 @@ final class EpubNativeAstPackageComparisonHarness
       ),
       'rendition-layout-property.native' =>
       array (
-        'sha256' => '3147a4f4255f778f5419ea67d411038c008173a08ca94a8b5fefc37e4bb668e5',
-        'bytes' => 206,
+        'sha256' => '8b595c803ae40a3dedbbff2a9cb6632daf17916e8a72c3788beff91f12033855',
+        'bytes' => 314,
       ),
       'scripted-svg-manifest.epub' =>
       array (
@@ -597,8 +597,8 @@ final class EpubNativeAstPackageComparisonHarness
       ),
       'scripted-svg-manifest.native' =>
       array (
-        'sha256' => 'c4c89cc198ed6aab17f1f6c417e9b4bb919ba704af09eb508f5805d2077c193e',
-        'bytes' => 180,
+        'sha256' => 'c46fe3dd878f6709fc7dc4db9ce94b4f813924acd40de064614ac5a2eb90caa4',
+        'bytes' => 276,
       ),
       'scripted-xhtml-resource.epub' =>
       array (
@@ -607,8 +607,8 @@ final class EpubNativeAstPackageComparisonHarness
       ),
       'scripted-xhtml-resource.native' =>
       array (
-        'sha256' => '0da002a70192ef1d75d04151403344c1f5fce75769ed97bf335b4a316545b85d',
-        'bytes' => 177,
+        'sha256' => 'e84a35411c739bc6a1d8a54f122eff6fcb3e2552df597ee4c08c3ad178e654f4',
+        'bytes' => 273,
       ),
       'spine-fallback-resource.epub' =>
       array (
@@ -667,8 +667,8 @@ final class EpubNativeAstPackageComparisonHarness
       ),
       'video-manifest-resource.native' =>
       array (
-        'sha256' => '844b189a6f0de4d43e260e07766cdc0329db17c0963024d9fd866c80a73d2f6b',
-        'bytes' => 179,
+        'sha256' => 'd71b066f5fc0e0a1bef32649948e217373159694ed179af794914b6732618f68',
+        'bytes' => 275,
       ),
       'video-navigation.epub' =>
       array (
@@ -687,8 +687,8 @@ final class EpubNativeAstPackageComparisonHarness
       ),
       'wasteland.native' =>
       array (
-        'sha256' => '0a268af28518f063604659adb2ff27b123c771f8312b60fb40445bb2c551bbac',
-        'bytes' => 150477,
+        'sha256' => 'c000ec1960f46c87039eef9cf256fd8dcaeb7a739dfe335d093d50174f2b1efd',
+        'bytes' => 139698,
       ),
       'xhtml-address-spine.epub' =>
       array (
@@ -697,8 +697,8 @@ final class EpubNativeAstPackageComparisonHarness
       ),
       'xhtml-address-spine.native' =>
       array (
-        'sha256' => 'efd99a7ad2c49eca7935013ced77add45c426b4ed2bd6dafdb2532d9e90ccd02',
-        'bytes' => 518,
+        'sha256' => '9685f832a8124ad9cf13b68083218e1a5e6ac2b448edee388b4c6bfcff08dbb8',
+        'bytes' => 636,
       ),
       'xhtml-ruby-table-mark.epub' =>
       array (

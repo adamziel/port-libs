@@ -1,39 +1,13 @@
-Pandoc
-  Meta
-    { unMeta =
-        fromList
-          [ ( "author" , MetaInlines [ Str "Fran\231ois Martin" ] )
-          , ( "coverage" , MetaInlines [ Str "" ] )
-          , ( "date" , MetaInlines [ Str "2019-06-22T15:01:38Z" ] )
-          , ( "description" , MetaInlines [ Str "" ] )
-          , ( "identifier"
-            , MetaInlines
-                [ Str "urn:uuid:bf73ac09-2ce7-4a11-8982-3a93f28a21dd" ]
-            )
-          , ( "language" , MetaInlines [ Str "de-DE" ] )
-          , ( "publisher" , MetaInlines [ Str "" ] )
-          , ( "relation" , MetaInlines [ Str "" ] )
-          , ( "rights" , MetaInlines [ Str "" ] )
-          , ( "source" , MetaInlines [ Str "" ] )
-          , ( "subject" , MetaInlines [ Str "" ] )
-          , ( "title" , MetaInlines [ Str "Pandoc EPUB Test" ] )
-          ]
-    }
-  [ Para [ Span ( "EPUB_Pandoc_Test.xhtml" , [] , [] ) [] ]
-  , Div
-      ( "EPUB_Pandoc_Test.xhtml__idContainer000"
-      , [ "Einfacher-Textrahmen" ]
-      , []
-      )
-      [ Para
-          [ Span
-              ( "" , [ "CharOverride-1" ] , [] )
-              [ Str "Pandoc"
-              , Space
-              , Str "EPUB2"
-              , Space
-              , Str "Test"
-              ]
-          ]
-      ]
-  ]
+[ Para [ Span ( "EPUB_Pandoc_Test.xhtml" , [] , [] ) [] ]
+, Div
+    ( "EPUB_Pandoc_Test.xhtml__idContainer000"
+    , [ "Einfacher-Textrahmen" ]
+    , []
+    )
+    [ Para
+        [ Span
+            ( "" , [ "CharOverride-1" ] , [] )
+            [ Str "Pandoc" , Space , Str "EPUB2" , Space , Str "Test" ]
+        ]
+    ]
+]

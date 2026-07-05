@@ -1,4 +1,11 @@
-[ Para [ Span ( "chapter.xhtml" , [  ] , [  ] ) [  ] ]
-, Header 1 ( "" , [  ] , [  ] ) [ Str "Nested" , Space , Str "Rootfile" ]
-, Para [ Str "Linear" , Space , Str "chapter" , Space , Str "text." ]
+[ Para [ Span ( "chapter.xhtml" , [] , [] ) [] ]
+, Header
+    1 ( "" , [] , [] ) [ Str "Nested" , Space , Str "Rootfile" ]
+, Para
+    [ Str "Linear"
+    , Space
+    , Str "chapter"
+    , Space
+    , Str "text."
+    ]
 ]

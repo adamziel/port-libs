@@ -1,1 +1,18 @@
-[Para [Span ("chapter.xhtml",[],[]) []],Header 1 ("",[],[]) [Str "Scripted",Space,Str "SVG",Space,Str "Manifest"],Para [Str "Manifest",Space,Str "property",Space,Str "coverage."]]
+[ Para [ Span ( "chapter.xhtml" , [] , [] ) [] ]
+, Header
+    1
+    ( "" , [] , [] )
+    [ Str "Scripted"
+    , Space
+    , Str "SVG"
+    , Space
+    , Str "Manifest"
+    ]
+, Para
+    [ Str "Manifest"
+    , Space
+    , Str "property"
+    , Space
+    , Str "coverage."
+    ]
+]

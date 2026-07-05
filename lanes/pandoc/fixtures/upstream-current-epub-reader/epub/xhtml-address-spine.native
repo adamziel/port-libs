@@ -1,7 +1,39 @@
-[ Para [ Span ( "chapter.xhtml" , [  ] , [  ] ) [  ] ]
-, Header 1 ( "" , [  ] , [  ] ) [ Str "XHTML" , Space , Str "Address" , Space , Str "Spine" ]
-, Para [ Str "The" , Space , Str "EPUB" , Space , Str "reader" , Space , Str "keeps" , Space , Str "contact" , Space , Str "blocks" , Space , Str "in" , Space , Str "reading" , Space , Str "order." ]
+[ Para [ Span ( "chapter.xhtml" , [] , [] ) [] ]
+, Header
+    1
+    ( "" , [] , [] )
+    [ Str "XHTML"
+    , Space
+    , Str "Address"
+    , Space
+    , Str "Spine"
+    ]
+, Para
+    [ Str "The"
+    , Space
+    , Str "EPUB"
+    , Space
+    , Str "reader"
+    , Space
+    , Str "keeps"
+    , Space
+    , Str "contact"
+    , Space
+    , Str "blocks"
+    , Space
+    , Str "in"
+    , Space
+    , Str "reading"
+    , Space
+    , Str "order."
+    ]
 , RawBlock (Format "html") "<address>"
-, Para [ Str "Migration" , Space , Str "Desk" , LineBreak , Str "review@example.test" ]
+, Para
+    [ Str "Migration"
+    , Space
+    , Str "Desk"
+    , LineBreak
+    , Str "review@example.test"
+    ]
 , RawBlock (Format "html") "</address>"
 ]
