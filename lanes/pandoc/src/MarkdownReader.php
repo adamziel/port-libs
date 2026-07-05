@@ -9063,7 +9063,7 @@ final class MarkdownReader
             return true;
         }
 
-        return in_array($name, ['applet', 'area', 'audio', 'blink', 'button', 'cite', 'embed', 'map', 'noscript', 'object', 'progress', 'source', 'time', 'track', 'video', 'wbr'], true);
+        return in_array($name, ['applet', 'area', 'audio', 'blink', 'button', 'cite', 'data', 'embed', 'map', 'meter', 'noscript', 'object', 'progress', 'source', 'time', 'track', 'video', 'wbr'], true);
     }
 
     /**

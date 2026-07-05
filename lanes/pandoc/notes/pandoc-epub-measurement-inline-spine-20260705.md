@@ -20,6 +20,6 @@ The fixture is a compact EPUB 3 package with one linear XHTML spine item contain
 
 ## Verification
 
-Updated checked-in identity, package feature coverage, package feature signature, native AST signature, workflow gates, manifest counters, and EPUB reader evidence counts. The new package feature signature is `de8d3a420fcd7fa840bf1941e84cf52489bb8ac091dd0b26fdd202e583099a95`; the new current native AST signature is `fda88d6b1255eb7261ce9e31df4b2e409467b4a8ea714ba39f5fc7be65fc62cd`.
+Updated checked-in identity, package feature coverage, package feature signature, native AST signature, workflow gates, manifest counters, and EPUB reader evidence counts. The new package feature signature is `cb60f25c450d9183301e9259e30d7120d820e61c7a93636e4fad2378f1be529a`; the new current native AST signature is `afcd30aeb3a0f9d6fcbdb925e05610f5a722c4c363898fd06232fdc1ab7cdc7c`.
 
 The checked-in package/native gate is expected to run with `--require-package-parity=71`, `--require-native-readiness=71`, and `--require-mapped-parity=71`.

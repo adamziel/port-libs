@@ -1487,7 +1487,7 @@ final class HtmlReader
      */
     private static function htmlRawInlineWrapperTagNames(array $extraWrapperTags = []): array
     {
-        $tags = ['progress', 'time'];
+        $tags = ['data', 'meter', 'progress', 'time'];
         foreach ($extraWrapperTags as $tag) {
             $normalized = strtolower($tag);
             if (self::isSafeHtmlTagName($normalized) && !in_array($normalized, $tags, true)) {

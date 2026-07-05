@@ -1118,8 +1118,8 @@ return [
   ),
   'measurement-inline-spine.native' =>
   array (
-    'sha256' => '38f83ed8b58e068317994124e3b1e328605879ad322859de4d1a1581de24de9a',
-    'bytes' => 572,
+    'sha256' => 'af0f1eb46b1768445f0ebb45e879ac928326d14835396fefaef91dbc52e0b496',
+    'bytes' => 1020,
   ),
   'media-manifest-mix.epub' =>
   array (
@@ -3698,8 +3698,8 @@ return [
   ),
 );
 
-        $expectedPackageFeatureSignatureSha256 = 'de8d3a420fcd7fa840bf1941e84cf52489bb8ac091dd0b26fdd202e583099a95';
-        $expectedCurrentNativeAstSignatureSha256 = 'fda88d6b1255eb7261ce9e31df4b2e409467b4a8ea714ba39f5fc7be65fc62cd';
+        $expectedPackageFeatureSignatureSha256 = 'cb60f25c450d9183301e9259e30d7120d820e61c7a93636e4fad2378f1be529a';
+        $expectedCurrentNativeAstSignatureSha256 = 'afcd30aeb3a0f9d6fcbdb925e05610f5a722c4c363898fd06232fdc1ab7cdc7c';
         $expectedCurrentNativeAstFixtures = array (
   0 => 'accessibility-metadata-package',
   1 => 'all-nonlinear-spine',

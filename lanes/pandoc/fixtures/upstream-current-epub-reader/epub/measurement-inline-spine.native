@@ -1,5 +1,37 @@
-[ Para [ Span ( "chapter.xhtml" , [  ] , [  ] ) [  ] ]
-, Div ( "chapter.xhtml_start" , [ "section" ] , [  ] ) [ Header 1 ( "" , [  ] , [  ] ) [ Str "Measurement" , Space , Str "inlines" ]
-  , Para [ Str "Answer" , Space , Strong [ Str "forty" , Space , Str "two" ] , Str "," , Space , Str "load" , Space , Strong [ Str "sixty" , Space , Str "percent" ] , Str "," , Space , Str "progress" , Space , RawInline (Format "html") "<progress value=\"7\" max=\"10\">" , Str "seven" , Space , Str "of" , Space , Str "ten" , RawInline (Format "html") "</progress>" , Str "." ]
-  ]
+[ Para [ Span ( "chapter.xhtml" , [] , [] ) [] ]
+, Div
+    ( "chapter.xhtml_start" , [ "section" ] , [] )
+    [ Header
+        1
+        ( "" , [] , [] )
+        [ Str "Measurement" , Space , Str "inlines" ]
+    , Para
+        [ Str "Answer"
+        , Space
+        , RawInline (Format "html") "<data value=\"42\">"
+        , Strong [ Str "forty" , Space , Str "two" ]
+        , RawInline (Format "html") "</data>"
+        , Str ","
+        , Space
+        , Str "load"
+        , Space
+        , RawInline
+            (Format "html") "<meter min=\"0\" max=\"1\" value=\"0.6\">"
+        , Strong [ Str "sixty" , Space , Str "percent" ]
+        , RawInline (Format "html") "</meter>"
+        , Str ","
+        , Space
+        , Str "progress"
+        , Space
+        , RawInline
+            (Format "html") "<progress value=\"7\" max=\"10\">"
+        , Str "seven"
+        , Space
+        , Str "of"
+        , Space
+        , Str "ten"
+        , RawInline (Format "html") "</progress>"
+        , Str "."
+        ]
+    ]
 ]
