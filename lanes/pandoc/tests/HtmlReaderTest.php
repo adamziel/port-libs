@@ -397,6 +397,27 @@ $tests['imports upstream html xml lang metadata from root element'] =
         $t->same('hola', $document->children[0]->attr('text'));
     };
 
+$tests['imports html body lang metadata with pandoc body precedence'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-body-lang-overrides-html.html'));
+        $meta = $document->attr('meta');
+
+        $t->same('fr', $meta['lang'] ?? null);
+        $t->same('html', $meta['sourceFormat']);
+        $t->same(['paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same('bonjour', $document->children[0]->attr('text'));
+
+        $bodyOnly = (new HtmlReader())->read('<!doctype html><html><body lang="de"><p>hallo</p></body></html>');
+        $bodyOnlyMeta = $bodyOnly->attr('meta');
+        $t->same('de', $bodyOnlyMeta['lang'] ?? null);
+        $t->same('hallo', $bodyOnly->children[0]->attr('text'));
+
+        $bodyXmlLang = (new HtmlReader())->read('<!doctype html><html lang="es"><body xml:lang="pt-BR"><p>ola</p></body></html>');
+        $bodyXmlLangMeta = $bodyXmlLang->attr('meta');
+        $t->same('pt-BR', $bodyXmlLangMeta['lang'] ?? null);
+        $t->same('ola', $bodyXmlLang->children[0]->attr('text'));
+    };
+
 $tests['appends html meta name fields without trimming or lowercasing like upstream pandoc'] =
     static function (TestRunner $t): void {
         $document = (new HtmlReader())->read(<<<'HTML'

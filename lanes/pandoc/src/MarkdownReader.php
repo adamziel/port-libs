@@ -4479,7 +4479,7 @@ final class MarkdownReader
         $this->htmlRawElementSourceQueues = self::htmlRawElementSourceQueues($html);
         $this->htmlSourceOrderInvalidTableBlocks = $this->buildHtmlSourceOrderInvalidTableBlockMap($body, $html);
         try {
-            $attrs = $this->htmlDocumentAttrs($dom);
+            $attrs = $this->htmlDocumentAttrs($dom, $body);
             $nativeDivs = $this->htmlNativeDivsEnabled();
             if ($nativeDivs) {
                 $main = $this->firstHtmlMainElement($body);
@@ -5084,10 +5084,10 @@ final class MarkdownReader
     /**
      * @return array<string, mixed>
      */
-    private function htmlDocumentAttrs(\DOMDocument $dom): array
+    private function htmlDocumentAttrs(\DOMDocument $dom, \DOMElement $body): array
     {
         $meta = [];
-        $lang = $this->htmlDocumentLang($dom);
+        $lang = $this->htmlDocumentLang($dom, $body);
         if ($lang !== '') {
             $meta['lang'] = $lang;
         }
@@ -5137,19 +5137,29 @@ final class MarkdownReader
         $meta[$name] = [$existing, $content];
     }
 
-    private function htmlDocumentLang(\DOMDocument $dom): string
+    private function htmlDocumentLang(\DOMDocument $dom, \DOMElement $body): string
     {
+        $bodyLang = $this->htmlElementLang($body);
+        if ($bodyLang !== '') {
+            return $bodyLang;
+        }
+
         $html = $dom->getElementsByTagName('html')->item(0);
         if (!$html instanceof \DOMElement) {
             return '';
         }
 
-        $lang = trim($html->getAttribute('lang'));
+        return $this->htmlElementLang($html);
+    }
+
+    private function htmlElementLang(\DOMElement $element): string
+    {
+        $lang = trim($element->getAttribute('lang'));
         if ($lang !== '') {
             return $lang;
         }
 
-        $xmlLang = $html->attributes?->getNamedItem('xml:lang');
+        $xmlLang = $element->attributes?->getNamedItem('xml:lang');
         if ($xmlLang instanceof \DOMNode) {
             return trim($xmlLang->nodeValue ?? '');
         }
