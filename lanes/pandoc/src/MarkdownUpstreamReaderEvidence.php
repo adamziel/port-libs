@@ -12,9 +12,9 @@ final class MarkdownUpstreamReaderEvidence
     public const STATUS_COMPLETED = 'completed-upstream-markdown-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-markdown-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
-    public const EXPECTED_SELECTED_FIXTURE_COUNT = 126;
-    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 126;
-    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = '2c926459535a68e698be040f45ba2fe7c1b2a02ebe22fd1ba417f26e472d9b6c';
+    public const EXPECTED_SELECTED_FIXTURE_COUNT = 127;
+    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 127;
+    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = '37eb89a62bfa33aeac34af4cd039162578a68d89e59d464d9dfbfbc15ee7f04a';
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/Markdown.hs',
@@ -1622,6 +1622,18 @@ final class MarkdownUpstreamReaderEvidence
             ],
             'sha256' => '3d28e9f4f4dbc355b43c1d205778926a1480acad2e7b10290ed7391c8bb15369',
             'bytes' => 51,
+        ],
+        'upstream-markdown-citation-simple-baseline.md' => [
+            'role' => 'markdown-citation-simple-baseline-reader-fixture',
+            'sourceKind' => 'selected-upstream-markdown-reader-case',
+            'sourceReference' => 'Tests.Readers.Markdown citations/simple',
+            'formatProfile' => 'markdown+citations AuthorInText baseline citation',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-markdown-citation-simple-baseline.md',
+            'coverageTests' => [
+                'lanes/pandoc/tests/MarkdownNativeAstComparisonHarnessTest.php',
+            ],
+            'sha256' => 'bc4f311dfc4cec47a0db605bae407fa3fee60201e3b25eaa36654299959d027b',
+            'bytes' => 7,
         ],
     ];
 

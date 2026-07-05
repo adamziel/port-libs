@@ -158,7 +158,7 @@ return [
                 . ' status=generated-csv-native-parity-observed-not-upstream-fixture',
             $text
         );
-        $t->contains('Generated TSV native parity: 39/39 status=generated-tsv-native-parity-observed-not-upstream-fixture', $text);
+        $t->contains('Generated TSV native parity: 40/40 status=generated-tsv-native-parity-observed-not-upstream-fixture', $text);
         $t->contains('Current TSV direct native parity: 2/2 status=current-tsv-direct-native-parity-observed', $text);
         $t->contains('Runner plan: planned-not-run', $text);
         $t->contains('Runner target: Command:/csv.md/#1', $text);
@@ -1015,6 +1015,14 @@ return [
         $t->same(1447, $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][77]['checkedInFile']['bytes']);
         $t->same('header-width-truncates-extra-fields', $evidence['generatedTsvNativeStaticEvidence']['samples'][38]['name']);
         $t->same([], $evidence['generatedTsvNativeStaticEvidence']['samples'][38]['readerOptions']);
+        $t->same('numeric-looking-literals.tsv', $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][78]['name']);
+        $t->same('e325f72f9fcf4ef9d835392ec483f86e7b6938fb85fe5425aecfe4163e7e4f16', $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][78]['checkedInFile']['sha256']);
+        $t->same(85, $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][78]['checkedInFile']['bytes']);
+        $t->same('numeric-looking-literals.native', $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][79]['name']);
+        $t->same('d0b13fbe3429d44deb210a7c1f5f3f6723efae3110b837a2542692ffc48c94ae', $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][79]['checkedInFile']['sha256']);
+        $t->same(3265, $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][79]['checkedInFile']['bytes']);
+        $t->same('numeric-looking-literals', $evidence['generatedTsvNativeStaticEvidence']['samples'][39]['name']);
+        $t->same([], $evidence['generatedTsvNativeStaticEvidence']['samples'][39]['readerOptions']);
         $t->same('quoted-final-space-whitespace.csv', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][130]['name']);
         $t->same('d30d086405286d4569dcaac5f727e57861b98319788c5b950f1ee2f42d6c6507', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][130]['checkedInFile']['sha256']);
         $t->same(17, $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][130]['checkedInFile']['bytes']);
@@ -1803,6 +1811,18 @@ return [
         $t->same('lanes/pandoc/fixtures/generated-current-tsv-reader/header-width-truncates-extra-fields.native', $evidence['samples'][38]['staticFixtureBinding']['expectedNativeFixture']['checkedInPath']);
         $t->same(3, $evidence['samples'][38]['rowCount']);
         $t->same(2, $evidence['samples'][38]['columnCount']);
+        $t->same('matched', $evidence['samples'][39]['status']);
+        $t->same('numeric-looking-literals', $evidence['samples'][39]['name']);
+        $t->same('lanes/pandoc/fixtures/generated-current-tsv-reader/numeric-looking-literals.tsv', $evidence['samples'][39]['inputPath']);
+        $t->same(['sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/numeric-looking-literals.tsv'], $evidence['samples'][39]['readerOptions']);
+        $t->same('generated-tsv-native-sample-static-fixture-binding', $evidence['samples'][39]['staticFixtureBinding']['kind']);
+        $t->same('numeric-looking-literals', $evidence['samples'][39]['staticFixtureBinding']['sample']);
+        $t->same('valid-static-fixture-snapshot', $evidence['samples'][39]['staticFixtureBinding']['inputFixture']['status']);
+        $t->same('valid-static-fixture-snapshot', $evidence['samples'][39]['staticFixtureBinding']['expectedNativeFixture']['status']);
+        $t->same('lanes/pandoc/fixtures/generated-current-tsv-reader/numeric-looking-literals.tsv', $evidence['samples'][39]['staticFixtureBinding']['inputFixture']['checkedInPath']);
+        $t->same('lanes/pandoc/fixtures/generated-current-tsv-reader/numeric-looking-literals.native', $evidence['samples'][39]['staticFixtureBinding']['expectedNativeFixture']['checkedInPath']);
+        $t->same(3, $evidence['samples'][39]['rowCount']);
+        $t->same(5, $evidence['samples'][39]['columnCount']);
         $t->same('matched', $evidence['samples'][4]['status']);
         $t->same('no-header', $evidence['samples'][4]['name']);
         $t->same('lanes/pandoc/fixtures/generated-current-tsv-reader/no-header.tsv', $evidence['samples'][4]['inputPath']);
@@ -2404,6 +2424,7 @@ return [
             'cr-only-rows',
             'formula-looking-literals',
             'header-width-truncates-extra-fields',
+            'numeric-looking-literals',
         ], array_column($tsv['samples'], 'name'));
         $t->same(array_fill(0, DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT, 'matched'), array_column($tsv['samples'], 'status'));
         $t->same(array_fill(0, DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT, 'valid-generated-tsv-native-sample-static-binding'), array_column($tsv['samples'], 'staticFixtureBindingStatus'));

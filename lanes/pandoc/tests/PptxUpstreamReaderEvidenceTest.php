@@ -1511,6 +1511,16 @@ HS);
         $t->same(true, PptxUpstreamReaderEvidence::hasRunnerPlanEvidence($summary));
         $t->true(!isset($summary['staticCurrentEvidence']['checkedInFixturePairs']), 'Reader evidence summary should omit bulky checked-in fixture rows');
 
+        $unpairedNativeParitySummary = $summary;
+        $unpairedNativeParitySummary['staticCurrentEvidence']['nativeAstMappedParity']['unpairedNativeCount'] = 1;
+        $unpairedNativeParitySummary['staticCurrentEvidence']['nativeAstMappedParity']['unpairedNativeFixtures'] = ['orphan.native'];
+        $t->same(false, PptxUpstreamReaderEvidence::hasRequiredStaticNativeMappedParity($unpairedNativeParitySummary));
+        $t->same(false, PptxUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($unpairedNativeParitySummary));
+
+        $unpairedStaticSummary = $summary;
+        $unpairedStaticSummary['staticCurrentEvidence']['checkedInUnpairedPptxFixtureCount'] = 1;
+        $t->same(false, PptxUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($unpairedStaticSummary));
+
         $missingRoot = $makeTempDir();
         try {
             $failingCommand = escapeshellarg(PHP_BINARY)

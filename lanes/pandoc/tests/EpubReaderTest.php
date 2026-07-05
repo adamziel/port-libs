@@ -924,6 +924,81 @@ HTML);
             $t->same([$expected['entry']], $meta['epubAuxiliaryNavigationEntries']);
         }
     },
+    'uses direct epub nav item labels before nested descendant anchors' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-direct-nav-label-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary EPUB package');
+        }
+        $zip->addFromString('META-INF/container.xml', '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="book-id">
+  <metadata>
+    <dc:identifier id="book-id">book-direct-nav-label</dc:identifier>
+    <dc:title>Direct Nav Label EPUB</dc:title>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('OPS/nav.xhtml', <<<'HTML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <h1>Contents</h1>
+      <ol>
+        <li><span>Part I</span>
+          <ol>
+            <li><a href="chapter.xhtml">Chapter One</a></li>
+          </ol>
+        </li>
+      </ol>
+    </nav>
+  </body>
+</html>
+HTML);
+        $zip->addFromString('OPS/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Chapter One</h1><p>Body.</p></body></html>');
+        $zip->close();
+
+        try {
+            $meta = (new EpubReader())->readEpubFile($path)->attr('meta');
+        } finally {
+            @unlink($path);
+        }
+
+        $entries = [
+            ['text' => 'Part I', 'href' => '', 'level' => 1],
+            ['text' => 'Chapter One', 'href' => 'OPS/chapter.xhtml', 'level' => 2],
+        ];
+
+        $t->same('Direct Nav Label EPUB', $meta['title']);
+        $t->same(2, $meta['epubTocEntryCount']);
+        $t->same($entries, $meta['epubTocEntries']);
+        $t->same(1, $meta['epubNavigationSectionCount']);
+        $t->same([
+            [
+                'type' => 'toc',
+                'types' => ['toc'],
+                'label' => 'Contents',
+                'resource' => 'OPS/nav.xhtml',
+                'entryCount' => 2,
+                'entries' => $entries,
+            ],
+        ], $meta['epubNavigationSections']);
+    },
     'preserves epub manifest and spine metadata without fetching remote targets' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-');
         if ($path === false) {

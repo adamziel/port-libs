@@ -4872,6 +4872,56 @@ NATIVE;
         $t->true(!str_contains($native, 'Str "3"'));
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
+    'matches generated tsv numeric looking literals native parity fixture without inflating upstream tsv direct denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+        $fixture = $generatedTsvNativeFixture('numeric-looking-literals');
+        $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
+            'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/numeric-looking-literals.tsv',
+        ]);
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+        $body = $table->children[1];
+        $native = PandocConverter::write($document, 'native');
+        $generatedEvidence = $packet['upstreamEvidence']['generatedNativeParityEvidence'] ?? [];
+
+        $t->same('tsv', $packet['format'] ?? null);
+        $t->same('tab', $packet['delimiter'] ?? null);
+        $t->same(null, $packet['quote'] ?? null);
+        $t->same('literal', $packet['dialect']['quoteMode'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
+        $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
+        $t->same(2 * DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['checkedInFixtureCount'] ?? null);
+        $t->same('numeric-looking-literals.tsv', $generatedEvidence['checkedInFixtures'][78]['name'] ?? null);
+        $t->same('e325f72f9fcf4ef9d835392ec483f86e7b6938fb85fe5425aecfe4163e7e4f16', $generatedEvidence['checkedInFixtures'][78]['checkedInFile']['sha256'] ?? null);
+        $t->same('numeric-looking-literals.native', $generatedEvidence['checkedInFixtures'][79]['name'] ?? null);
+        $t->same('d0b13fbe3429d44deb210a7c1f5f3f6723efae3110b837a2542692ffc48c94ae', $generatedEvidence['checkedInFixtures'][79]['checkedInFile']['sha256'] ?? null);
+        $t->same('numeric-looking-literals', $generatedEvidence['samples'][39]['name'] ?? null);
+        $t->same([], $generatedEvidence['samples'][39]['readerOptions'] ?? null);
+        $t->same(['id', 'code', 'amount', 'flag', 'date'], $table->attr('columnNames'));
+        $t->same(3, $packet['rowCount'] ?? null);
+        $t->same(2, $packet['bodyRowCount'] ?? null);
+        $t->same(5, $packet['columnCount'] ?? null);
+        $t->same(15, $packet['fieldCount'] ?? null);
+        $t->same(0, $packet['quotedFieldCount'] ?? null);
+        $t->same(0, $packet['raggedRowCount'] ?? null);
+        $t->same(0, $packet['blankRowCount'] ?? null);
+        $t->same(0, $packet['diagnosticCount'] ?? null);
+        $t->same('00123', $body->children[0]->children[1]->attr('text'));
+        $t->same('003.140', $body->children[0]->children[2]->attr('text'));
+        $t->same('TRUE', $body->children[0]->children[3]->attr('text'));
+        $t->same('2026-07-05', $body->children[0]->children[4]->attr('text'));
+        $t->same('00000', $body->children[1]->children[1]->attr('text'));
+        $t->same('-0007', $body->children[1]->children[2]->attr('text'));
+        $t->same('false', $body->children[1]->children[3]->attr('text'));
+        $t->same('2026-07', $body->children[1]->children[4]->attr('text'));
+        $t->contains('Plain [ Str "00123" ]', $native);
+        $t->contains('Plain [ Str "003.140" ]', $native);
+        $t->contains('Plain [ Str "TRUE" ]', $native);
+        $t->contains('Plain [ Str "2026-07-05" ]', $native);
+        $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
+    },
     'matches pinned upstream csv parser option fixtures' => static function (TestRunner $t): void {
         $reader = new DelimitedTextReader();
         $commaDocument = $reader->readCsv(

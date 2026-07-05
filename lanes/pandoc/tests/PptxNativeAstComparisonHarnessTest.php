@@ -209,6 +209,7 @@ return [
             $t->same('selected-pptx-native-fixture-corpus-coverage', $report['orderedRemainingGaps'][2]['id']);
             $t->same('open', $report['orderedRemainingGaps'][2]['status']);
             $t->contains('unpaired pptx=1; unpaired native=1', $report['orderedRemainingGaps'][2]['currentEvidence']);
+            $t->same(false, PptxNativeAstComparisonHarness::hasRequiredMappedParity($report, 1));
         } finally {
             $removeTree($root);
         }

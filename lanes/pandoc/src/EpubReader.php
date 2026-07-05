@@ -1416,19 +1416,21 @@ final class EpubReader
      */
     private function xhtmlNavListItemEntry(\DOMElement $item, string $base_path, int $level): ?array
     {
-        foreach ($item->getElementsByTagName('*') as $element) {
-            if (!$element instanceof \DOMElement || $element->localName !== 'a') {
+        foreach ($item->childNodes as $element) {
+            if (!$element instanceof \DOMElement || !in_array($element->localName, ['a', 'span'], true)) {
                 continue;
             }
-            $href = html_entity_decode($element->getAttribute('href'), ENT_QUOTES | ENT_XML1, 'UTF-8');
             $text = trim(preg_replace('/\s+/u', ' ', $element->textContent) ?? $element->textContent);
-            if ($href === '' || $text === '') {
+            if ($text === '') {
                 return null;
             }
+            $href = $element->localName === 'a'
+                ? html_entity_decode($element->getAttribute('href'), ENT_QUOTES | ENT_XML1, 'UTF-8')
+                : '';
 
             return [
                 'text' => $text,
-                'href' => $this->rewriteRelativeResourceUrl($href, $base_path),
+                'href' => $href === '' ? '' : $this->rewriteRelativeResourceUrl($href, $base_path),
                 'level' => $level,
             ];
         }

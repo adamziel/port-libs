@@ -305,10 +305,40 @@ final class PptxNativeAstComparisonHarness
             && (int) ($report['pptxParsedCount'] ?? -1) === $requiredPairCount
             && (int) ($report['nativeParsedCount'] ?? -1) === $requiredPairCount
             && (int) ($report['bothParsedCount'] ?? -1) === $requiredPairCount
+            && self::hasSelectedCorpusCoverage($report)
             && (int) ($report['parseFailureCount'] ?? -1) === 0
             && (int) ($report['normalizedAstMatchCount'] ?? -1) === $requiredPairCount
             && (int) ($report['normalizedAstMismatchCount'] ?? -1) === 0
             && ($report['astParityStatus'] ?? null) === 'normalized-ast-equality-observed-not-runner-parity';
+    }
+
+    /**
+     * @param array<string, mixed> $report
+     */
+    private static function hasSelectedCorpusCoverage(array $report): bool
+    {
+        if (array_key_exists('unpairedPptxCount', $report) && (int) $report['unpairedPptxCount'] !== 0) {
+            return false;
+        }
+        if (array_key_exists('unpairedNativeCount', $report) && (int) $report['unpairedNativeCount'] !== 0) {
+            return false;
+        }
+
+        $gaps = $report['orderedRemainingGaps'] ?? null;
+        if (is_array($gaps)) {
+            foreach ($gaps as $gap) {
+                if (!is_array($gap) || ($gap['id'] ?? null) !== 'selected-pptx-native-fixture-corpus-coverage') {
+                    continue;
+                }
+
+                return ($gap['status'] ?? null) === 'covered-by-current-selected-corpus-evidence';
+            }
+
+            return false;
+        }
+
+        return array_key_exists('unpairedPptxCount', $report)
+            && array_key_exists('unpairedNativeCount', $report);
     }
 
     /**

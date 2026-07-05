@@ -1447,6 +1447,8 @@ final class PptxUpstreamReaderEvidence
             && ($validation['issues'] ?? null) === []
             && (int) ($denominator['expectedCompareCount'] ?? -1) === self::EXPECTED_STATIC_READER_TEST_COMPARE_COUNT
             && (int) ($evidence['checkedInFixturePairCount'] ?? -1) === self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT
+            && (int) ($evidence['checkedInUnpairedPptxFixtureCount'] ?? -1) === 0
+            && (int) ($evidence['checkedInUnpairedNativeFixtureCount'] ?? -1) === 0
             && self::hasRequiredStaticNativeMappedParity($report)
             && self::hasRequiredStaticReviewMetadata($report)
             && self::hasRequiredStaticExecutableNativeAstParity($report);
@@ -1464,7 +1466,13 @@ final class PptxUpstreamReaderEvidence
             && (int) ($parity['requiredPairCount'] ?? -1) === self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT
             && (int) ($parity['totalPairCount'] ?? -1) === self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT
             && (int) ($parity['comparedPairCount'] ?? -1) === self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT
+            && (!array_key_exists('pptxParsedCount', $parity) || (int) $parity['pptxParsedCount'] === self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT)
+            && (!array_key_exists('nativeParsedCount', $parity) || (int) $parity['nativeParsedCount'] === self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT)
             && (int) ($parity['bothParsedCount'] ?? -1) === self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT
+            && (!array_key_exists('unpairedPptxCount', $parity) || (int) $parity['unpairedPptxCount'] === 0)
+            && (!array_key_exists('unpairedNativeCount', $parity) || (int) $parity['unpairedNativeCount'] === 0)
+            && (!array_key_exists('unpairedPptxFixtures', $parity) || $parity['unpairedPptxFixtures'] === [])
+            && (!array_key_exists('unpairedNativeFixtures', $parity) || $parity['unpairedNativeFixtures'] === [])
             && (int) ($parity['parseFailureCount'] ?? -1) === 0
             && (int) ($parity['normalizedAstMatchCount'] ?? -1) === self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT
             && (int) ($parity['normalizedAstMismatchCount'] ?? -1) === 0
