@@ -468,6 +468,7 @@ final class MarkdownFormatProfile
                 'table_attributes',
                 'task_lists',
                 'tex_math_dollars',
+                'tex_math_gfm',
                 'grid_tables',
                 'multiline_tables',
                 'wikilinks',

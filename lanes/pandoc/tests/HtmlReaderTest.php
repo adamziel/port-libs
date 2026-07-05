@@ -509,6 +509,30 @@ $tests['imports direct pandoc html standalone progress fragment as plain blocks'
         $t->same(['text'], array_map(static fn ($node): string => $node->type, $after->children));
     };
 
+$tests['imports direct pandoc html standalone media fallback fragments as plain blocks'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $video = (new HtmlReader())->read($fixture('upstream-html-standalone-video-inline.html'));
+        $audio = (new HtmlReader())->read($fixture('upstream-html-standalone-audio-inline.html'));
+
+        $t->same('html', $video->attr('sourceFormat'));
+        $t->same(['plain', 'plain'], array_map(static fn ($node): string => $node->type, $video->children));
+        $t->same('Video fallback', $video->children[0]->attr('text'));
+        $t->same('remains visible after import.', $video->children[1]->attr('text'));
+        $t->same(['text'], array_map(static fn ($node): string => $node->type, $video->children[0]->children));
+
+        $t->same('html', $audio->attr('sourceFormat'));
+        $t->same(['plain', 'plain'], array_map(static fn ($node): string => $node->type, $audio->children));
+        $t->same('Audio fallback', $audio->children[0]->attr('text'));
+        $t->same('remains playable after import.', $audio->children[1]->attr('text'));
+
+        $paragraph = (new HtmlReader())->read(
+            '<p><video><source src="movie.mp4"><track src="captions.vtt">fallback</video> remains visible.</p>'
+        )->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same('fallback remains visible.', $paragraph->attr('text'));
+        $t->same(['text', 'text'], array_map(static fn ($node): string => $node->type, $paragraph->children));
+    };
+
 $tests['imports direct pandoc html progress in paragraph as fallback text'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-progress-in-paragraph.html'));

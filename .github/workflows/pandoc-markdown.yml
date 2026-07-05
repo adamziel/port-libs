@@ -52,6 +52,7 @@ jobs:
           php -l lanes/pandoc/tests/MarkdownReaderDefinitionListFixtureCompletionTest.php
           php -l lanes/pandoc/tests/MarkdownReaderDestinationValidationCompletionTest.php
           php -l lanes/pandoc/tests/MarkdownReaderGfmDefinitionListProfileFixtureCompletionTest.php
+          php -l lanes/pandoc/tests/MarkdownReaderGfmMathFenceProfileCompletionTest.php
           php -l lanes/pandoc/tests/MarkdownReaderImplicitHeaderReferenceFixtureCompletionTest.php
           php -l lanes/pandoc/tests/MarkdownReaderInlineCodeListMarkerCompletionTest.php
           php -l lanes/pandoc/tests/MarkdownReaderMmdReferenceImageAttributeFixtureCompletionTest.php
@@ -98,9 +99,9 @@ jobs:
           php tools/pandoc-markdown-reader-evidence.php \
             --upstream-root=.upstream-cache/pandoc-current \
             --json \
-            --require-selected-fixture-count=131 \
+            --require-selected-fixture-count=132 \
             --require-static-current-evidence \
-            --require-native-mapped-parity=131 \
+            --require-native-mapped-parity=132 \
             --require-runner-not-run \
             --require-runner-plan \
             --require-no-validation-issues
@@ -111,7 +112,7 @@ jobs:
             --markdown-dir=lanes/pandoc/fixtures \
             --json \
             summary \
-            --require-mapped-parity=131
+            --require-mapped-parity=132
 
       - name: Run focused Markdown parity tests
         run: |
@@ -130,6 +131,7 @@ jobs:
             lanes/pandoc/tests/MarkdownReaderDefinitionListFixtureCompletionTest.php \
             lanes/pandoc/tests/MarkdownReaderDestinationValidationCompletionTest.php \
             lanes/pandoc/tests/MarkdownReaderGfmDefinitionListProfileFixtureCompletionTest.php \
+            lanes/pandoc/tests/MarkdownReaderGfmMathFenceProfileCompletionTest.php \
             lanes/pandoc/tests/MarkdownReaderGfmNestedListContinuationFixtureCompletionTest.php \
             lanes/pandoc/tests/MarkdownReaderGfmRawHtmlSplitAngleBoundaryFixtureCompletionTest.php \
             lanes/pandoc/tests/MarkdownReaderGridTableSpanFixtureTest.php \

@@ -33,6 +33,10 @@ final class HtmlReader
             $children = $standaloneProgressChildren;
             $consumedFootnoteContainerCount = 0;
             $attrs = [];
+        } elseif (($standaloneMediaFallbackChildren = $this->standaloneMediaFallbackFragmentChildren($structuralBytes)) !== null) {
+            $children = $standaloneMediaFallbackChildren;
+            $consumedFootnoteContainerCount = 0;
+            $attrs = [];
         } elseif (($standaloneTransparentChildren = $this->standaloneTransparentInlineFragmentChildren($structuralBytes)) !== null) {
             $children = $standaloneTransparentChildren;
             $consumedFootnoteContainerCount = 0;
@@ -529,9 +533,9 @@ final class HtmlReader
         $sawTopLevelProgress = false;
         foreach ($body->childNodes as $child) {
             if ($child instanceof \DOMElement && strtolower($child->localName) === 'progress') {
-                $this->appendStandaloneProgressPlainBlock($children, $pendingInlineSource);
+                $this->appendStandalonePlainBlock($children, $pendingInlineSource);
                 $pendingInlineSource = '';
-                $this->appendStandaloneProgressPlainBlock($children, self::htmlChildNodesSource($child));
+                $this->appendStandalonePlainBlock($children, self::htmlChildNodesSource($child));
                 $sawTopLevelProgress = true;
                 continue;
             }
@@ -547,7 +551,7 @@ final class HtmlReader
             return null;
         }
 
-        $this->appendStandaloneProgressPlainBlock($children, $pendingInlineSource);
+        $this->appendStandalonePlainBlock($children, $pendingInlineSource);
 
         return $children;
     }
@@ -555,7 +559,7 @@ final class HtmlReader
     /**
      * @param list<AstNode> $children
      */
-    private function appendStandaloneProgressPlainBlock(array &$children, string $inlineSource): void
+    private function appendStandalonePlainBlock(array &$children, string $inlineSource): void
     {
         $plain = $this->plainBlockFromHtmlInlineSource($inlineSource);
         if ($plain instanceof AstNode) {
@@ -623,6 +627,66 @@ final class HtmlReader
             'var',
             'wbr',
         ], true);
+    }
+
+    /**
+     * @return list<AstNode>|null
+     */
+    private function standaloneMediaFallbackFragmentChildren(string $bytes): ?array
+    {
+        $body = self::parseHtmlFragmentBody($bytes);
+        if (!$body instanceof \DOMElement) {
+            return null;
+        }
+
+        $children = [];
+        $pendingInlineSource = '';
+        $sawTopLevelMedia = false;
+        foreach ($body->childNodes as $child) {
+            if ($child instanceof \DOMElement && self::isHtmlMediaFallbackContainerName(strtolower($child->localName))) {
+                $this->appendStandalonePlainBlock($children, $pendingInlineSource);
+                $pendingInlineSource = '';
+                $this->appendStandalonePlainBlock($children, self::htmlMediaFallbackChildNodesSource($child));
+                $sawTopLevelMedia = true;
+                continue;
+            }
+
+            if ($child instanceof \DOMElement && !self::isStandaloneProgressInlineSiblingName(strtolower($child->localName))) {
+                return null;
+            }
+
+            $pendingInlineSource .= self::htmlNodeSource($child);
+        }
+
+        if (!$sawTopLevelMedia) {
+            return null;
+        }
+
+        $this->appendStandalonePlainBlock($children, $pendingInlineSource);
+
+        return $children;
+    }
+
+    private static function isHtmlMediaFallbackContainerName(string $name): bool
+    {
+        return in_array($name, ['audio', 'video'], true);
+    }
+
+    private static function htmlMediaFallbackChildNodesSource(\DOMElement $element): string
+    {
+        $source = '';
+        foreach ($element->childNodes as $child) {
+            if (
+                $child instanceof \DOMElement
+                && in_array(strtolower($child->localName), ['source', 'track'], true)
+            ) {
+                continue;
+            }
+
+            $source .= self::htmlNodeSource($child);
+        }
+
+        return $source;
     }
 
     private static function htmlChildNodesSource(\DOMElement $element): string
@@ -1312,7 +1376,27 @@ final class HtmlReader
     private static function stripHtmlRawInlineWrappers(array $children, array $extraWrapperTags = []): array
     {
         $stripped = [];
+        $activeMediaWrapperDepth = 0;
         foreach ($children as $child) {
+            $rawHtml = self::htmlRawInlineSource($child);
+            $wrapperName = $rawHtml === null ? null : self::htmlRawInlineWrapperSourceName($rawHtml, $extraWrapperTags);
+            if ($wrapperName !== null && self::isHtmlMediaFallbackContainerName($wrapperName)) {
+                if (str_starts_with(ltrim($rawHtml), '</')) {
+                    $activeMediaWrapperDepth = max(0, $activeMediaWrapperDepth - 1);
+                } else {
+                    ++$activeMediaWrapperDepth;
+                }
+                continue;
+            }
+            if (
+                $activeMediaWrapperDepth > 0
+                && $rawHtml !== null
+                && self::isHtmlMediaRawInlineAuxiliaryName(
+                    self::htmlRawInlineWrapperSourceName($rawHtml, ['source', 'track'])
+                )
+            ) {
+                continue;
+            }
             if (self::isHtmlRawInlineWrapper($child, $extraWrapperTags)) {
                 continue;
             }
@@ -1325,6 +1409,17 @@ final class HtmlReader
         }
 
         return $stripped;
+    }
+
+    private static function htmlRawInlineSource(AstNode $node): ?string
+    {
+        if ($node->type !== 'raw_html_inline') {
+            return null;
+        }
+
+        $html = trim((string) ($node->attrs['html'] ?? $node->attrs['text'] ?? ''));
+
+        return $html === '' ? null : $html;
     }
 
     /**
@@ -1387,6 +1482,25 @@ final class HtmlReader
             $unwrapped = false;
             foreach (iterator_to_array($root->getElementsByTagName('*')) as $element) {
                 if (
+                    $element instanceof \DOMElement
+                    && self::isHtmlMediaRawInlineAuxiliaryName(strtolower($element->localName))
+                    && self::htmlElementHasMediaFallbackContainerAncestor($element)
+                ) {
+                    $parent = $element->parentNode;
+                    if ($parent instanceof \DOMNode) {
+                        $parent->removeChild($element);
+                        $changed = true;
+                        $unwrapped = true;
+                        break;
+                    }
+                }
+            }
+            if ($unwrapped) {
+                continue;
+            }
+
+            foreach (iterator_to_array($root->getElementsByTagName('*')) as $element) {
+                if (
                     !$element instanceof \DOMElement
                     || !in_array(strtolower($element->localName), self::htmlRawInlineWrapperTagNames($extraWrapperTags), true)
                 ) {
@@ -1409,6 +1523,24 @@ final class HtmlReader
         } while ($unwrapped);
 
         return $changed;
+    }
+
+    private static function isHtmlMediaRawInlineAuxiliaryName(?string $name): bool
+    {
+        return $name !== null && in_array($name, ['source', 'track'], true);
+    }
+
+    private static function htmlElementHasMediaFallbackContainerAncestor(\DOMElement $element): bool
+    {
+        $parent = $element->parentNode;
+        while ($parent instanceof \DOMElement) {
+            if (self::isHtmlMediaFallbackContainerName(strtolower($parent->localName))) {
+                return true;
+            }
+            $parent = $parent->parentNode;
+        }
+
+        return false;
     }
 
     /**
@@ -1551,7 +1683,7 @@ final class HtmlReader
      */
     private static function htmlRawInlineWrapperTagNames(array $extraWrapperTags = []): array
     {
-        $tags = ['data', 'meter', 'progress', 'time'];
+        $tags = ['audio', 'data', 'meter', 'progress', 'time', 'video'];
         foreach ($extraWrapperTags as $tag) {
             $normalized = strtolower($tag);
             if (self::isSafeHtmlTagName($normalized) && !in_array($normalized, $tags, true)) {

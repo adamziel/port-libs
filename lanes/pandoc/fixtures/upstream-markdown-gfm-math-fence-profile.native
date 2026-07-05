@@ -1,0 +1,4 @@
+[ Para [ Math DisplayMath "x+1\n\ny^2" ]
+, Para
+    [ Str "After" , Space , Math InlineMath "z+1" , Str "." ]
+]

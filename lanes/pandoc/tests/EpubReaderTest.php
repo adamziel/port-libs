@@ -2319,6 +2319,92 @@ HTML);
         $t->contains('RawInline (Format "html") "</wbr>"', $native);
         $t->contains('Str "Soft" , RawInline (Format "html") "<wbr>" , RawInline (Format "html") "</wbr>" , Str "break"', $native);
     },
+    'unwraps epub chapter sectioning content but preserves ordinary chapter class sections' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-chapter-section-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary EPUB package');
+        }
+        $zip->addFromString('META-INF/container.xml', '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="book-id">
+  <metadata>
+    <dc:identifier id="book-id">book-chapter-section</dc:identifier>
+    <dc:title>Chapter Section EPUB</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="semantic" href="semantic.xhtml" media-type="application/xhtml+xml"/>
+    <item id="classed" href="classed.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="semantic"/>
+    <itemref idref="classed"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('OPS/semantic.xhtml', <<<'HTML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <section id="semantic-chapter" epub:type="bodymatter chapter">
+      <h1>Semantic Chapter</h1>
+      <p>Unwrapped chapter section.</p>
+    </section>
+  </body>
+</html>
+HTML);
+        $zip->addFromString('OPS/classed.xhtml', <<<'HTML'
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <body>
+    <section id="classed-chapter" class="chapter">
+      <h1>Classed Chapter</h1>
+      <p>Still wrapped section.</p>
+    </section>
+  </body>
+</html>
+HTML);
+        $zip->close();
+
+        try {
+            $document = (new EpubReader())->readEpubFile($path);
+            $native = (new NativeWriter(['blocksOnly' => true]))->write($document);
+        } finally {
+            @unlink($path);
+        }
+
+        $semanticHeading = $document->children[1] ?? new AstNode('missing');
+        $semanticParagraph = $document->children[2] ?? new AstNode('missing');
+        $classedDiv = $document->children[4] ?? new AstNode('missing');
+        $classedHeading = $classedDiv->children[0] ?? new AstNode('missing');
+        $classedParagraph = $classedDiv->children[1] ?? new AstNode('missing');
+
+        $t->same([
+            'paragraph',
+            'heading',
+            'paragraph',
+            'paragraph',
+            'div',
+        ], array_map(static fn (AstNode $node): string => $node->type, $document->children));
+        $t->same('Semantic Chapter', $semanticHeading->attr('text'));
+        $t->same('Unwrapped chapter section.', $semanticParagraph->attr('text'));
+        $t->same('div', $classedDiv->type);
+        $t->same('classed.xhtml_classed-chapter', $classedDiv->attr('id'));
+        $t->same(['section', 'chapter'], $classedDiv->attr('classes'));
+        $t->same('Classed Chapter', $classedHeading->attr('text'));
+        $t->same('Still wrapped section.', $classedParagraph->attr('text'));
+        $t->contains('Header 1 ( "" , [  ] , [  ] ) [ Str "Semantic" , Space , Str "Chapter" ]', $native);
+        $t->contains('Div ( "classed.xhtml_classed-chapter" , [ "section" , "chapter" ] , [  ] )', $native);
+        $t->true(!str_contains($native, 'Div ( "semantic.xhtml_semantic-chapter"'));
+        $t->true(!str_contains($native, '_epubSemanticTypes'));
+    },
     'preserves epub details and summary raw block wrappers from html document dom' => static function (TestRunner $t): void {
         $fixture = __DIR__ . '/../fixtures/upstream-current-epub-reader/epub/xhtml-details-summary-spine.epub';
 

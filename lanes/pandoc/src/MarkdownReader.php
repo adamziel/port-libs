@@ -2710,6 +2710,12 @@ final class MarkdownReader
 
                     return $this->rawBlockNode($rawAttribute['format'], $attrs['text']);
                 }
+                $mathBlock = $this->tryBuildTexMathGfmFencedCodeBlock($attrs);
+                if ($mathBlock !== null) {
+                    $index = $cursor;
+
+                    return $mathBlock;
+                }
                 if ($info !== '') {
                     $attrs['info'] = $info;
                 }
@@ -2734,12 +2740,42 @@ final class MarkdownReader
 
             return $this->rawBlockNode($rawAttribute['format'], $attrs['text']);
         }
+        $mathBlock = $this->tryBuildTexMathGfmFencedCodeBlock($attrs);
+        if ($mathBlock !== null) {
+            $index = $cursor - 1;
+
+            return $mathBlock;
+        }
         if ($info !== '') {
             $attrs['info'] = $info;
         }
         $index = $cursor - 1;
 
         return new AstNode('code_block', $attrs);
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     */
+    private function tryBuildTexMathGfmFencedCodeBlock(array $attrs): ?AstNode
+    {
+        if (!$this->texMathGfmExtensionEnabled()) {
+            return null;
+        }
+
+        $classes = $attrs['classes'] ?? [];
+        if (!is_array($classes) || ($classes[0] ?? null) !== 'math') {
+            return null;
+        }
+
+        $text = (string) ($attrs['text'] ?? '');
+
+        return new AstNode('paragraph', ['text' => $text], [
+            new AstNode('math', [
+                'display' => true,
+                'text' => $text,
+            ]),
+        ]);
     }
 
     /**
@@ -17622,6 +17658,20 @@ final class MarkdownReader
 
         return in_array($canonical, ['markdown', 'commonmark_x', 'markdown_mmd'], true)
             || ($canonical === 'gfm' && !$this->deprecatedGithubMarkdownAlias($format));
+    }
+
+    private function texMathGfmExtensionEnabled(): bool
+    {
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+        $overrides = $this->markdownExtensionOverrides();
+
+        if (array_key_exists('tex_math_gfm', $overrides)) {
+            return $overrides['tex_math_gfm']
+                && in_array($canonical, ['commonmark', 'commonmark_x', 'gfm'], true);
+        }
+
+        return $canonical === 'gfm' && !$this->deprecatedGithubMarkdownAlias($format);
     }
 
     private function deprecatedGithubMarkdownAlias(mixed $format): bool

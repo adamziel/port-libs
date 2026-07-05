@@ -9,6 +9,7 @@ final class EpubReader
     private const OPF_MEDIA_TYPE = 'application/oebps-package+xml';
     private const DC_NAMESPACE = 'http://purl.org/dc/elements/1.1/';
     private const EPUB_FOOTNOTE_DEFINITION_LINK_ATTR = '_epubFootnoteDefinitionLink';
+    private const EPUB_SEMANTIC_TYPES_ATTR = '_epubSemanticTypes';
     /**
      * @var array<string, string>
      */
@@ -165,6 +166,7 @@ final class EpubReader
                 $media_bag_resources,
                 $media_bag_sources
             );
+            $document = $this->normalizeEpubChapterSectioningContent($document);
             $children[] = $this->spineMarker($this->spineFilename($item['href']));
             array_push($children, ...$document->children);
         }
@@ -2458,6 +2460,66 @@ final class EpubReader
         return array_values($children);
     }
 
+    private function normalizeEpubChapterSectioningContent(AstNode $node): AstNode
+    {
+        $children = [];
+        $changed = false;
+        foreach ($node->children as $child) {
+            $updated = $this->normalizeEpubChapterSectioningContent($child);
+            if ($this->isEpubChapterSectioningDiv($child)) {
+                array_push($children, ...$updated->children);
+                $changed = true;
+                continue;
+            }
+
+            $children[] = $updated;
+            if ($updated !== $child) {
+                $changed = true;
+            }
+        }
+
+        $attrs = $node->attrs;
+        if (array_key_exists(self::EPUB_SEMANTIC_TYPES_ATTR, $attrs)) {
+            unset($attrs[self::EPUB_SEMANTIC_TYPES_ATTR]);
+            $changed = true;
+        }
+
+        return $changed ? new AstNode($node->type, $attrs, $children) : $node;
+    }
+
+    private function isEpubChapterSectioningDiv(AstNode $node): bool
+    {
+        if ($node->type !== 'div') {
+            return false;
+        }
+
+        $classes = isset($node->attrs['classes']) && is_array($node->attrs['classes'])
+            ? array_values(array_map('strval', $node->attrs['classes']))
+            : [];
+        $is_sectioning = in_array('section', $classes, true) || in_array('aside', $classes, true);
+        if (!$is_sectioning) {
+            return false;
+        }
+
+        $semantic_types = isset($node->attrs[self::EPUB_SEMANTIC_TYPES_ATTR]) && is_array($node->attrs[self::EPUB_SEMANTIC_TYPES_ATTR])
+            ? array_values(array_map('strval', $node->attrs[self::EPUB_SEMANTIC_TYPES_ATTR]))
+            : [];
+        $attributes = isset($node->attrs['attributes']) && is_array($node->attrs['attributes'])
+            ? $node->attrs['attributes']
+            : [];
+        if (isset($attributes['type']) && is_scalar($attributes['type'])) {
+            $semantic_types[] = strtolower((string) $attributes['type']);
+        }
+
+        foreach ($semantic_types as $semantic_type) {
+            if (str_contains(strtolower($semantic_type), 'chapter')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -2467,11 +2529,16 @@ final class EpubReader
         unset($attrs[self::EPUB_FOOTNOTE_DEFINITION_LINK_ATTR]);
 
         $attributes = [];
+        $epub_semantic_types = [];
         if (isset($attrs['attributes']) && is_array($attrs['attributes'])) {
             foreach ($attrs['attributes'] as $name => $value) {
                 $name = (string) $name;
                 if (str_starts_with($name, 'epub:')) {
-                    foreach ($this->tokenList((string) $value) as $epub_type) {
+                    $epub_types = $this->tokenList((string) $value);
+                    if ($name === 'epub:type') {
+                        $epub_semantic_types = array_values(array_unique([...$epub_semantic_types, ...$epub_types]));
+                    }
+                    foreach ($epub_types as $epub_type) {
                         $attrs['classes'][] = $epub_type;
                     }
                     continue;
@@ -2486,6 +2553,9 @@ final class EpubReader
             unset($attrs['attributes']);
         } else {
             $attrs['attributes'] = $attributes;
+        }
+        if ($epub_semantic_types !== []) {
+            $attrs[self::EPUB_SEMANTIC_TYPES_ATTR] = $epub_semantic_types;
         }
 
         if ($prefix_id && isset($attrs['id']) && is_string($attrs['id']) && $attrs['id'] !== '') {
