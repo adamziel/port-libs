@@ -6,6 +6,28 @@ namespace PortLibs\Pandoc;
 
 final class Html5Dom
 {
+    public const HTML_TREE_CONSTRUCTION_HTML_DOCUMENT = 'Dom\\HTMLDocument';
+    public const HTML_TREE_CONSTRUCTION_LEGACY_COMPAT = 'DOMDocument-loadHTML-compat';
+
+    public static function htmlDocumentTreeConstructionBackend(): string
+    {
+        return self::nativeHtmlDocumentAvailable()
+            ? self::HTML_TREE_CONSTRUCTION_HTML_DOCUMENT
+            : self::HTML_TREE_CONSTRUCTION_LEGACY_COMPAT;
+    }
+
+    public static function htmlFragmentTreeConstructionBackend(string $html): string
+    {
+        return self::nativeHtmlDocumentAvailable() && !self::hasOrphanTableScopeFragment($html)
+            ? self::HTML_TREE_CONSTRUCTION_HTML_DOCUMENT
+            : self::HTML_TREE_CONSTRUCTION_LEGACY_COMPAT;
+    }
+
+    public static function nativeHtmlDocumentAvailable(): bool
+    {
+        return class_exists('Dom\\HTMLDocument');
+    }
+
     /**
      * Parse a bounded HTML fragment under a synthetic body element.
      */
@@ -202,7 +224,7 @@ final class Html5Dom
             );
         }
 
-        if ($preferHtml5TreeConstruction && class_exists('Dom\\HTMLDocument')) {
+        if ($preferHtml5TreeConstruction && self::nativeHtmlDocumentAvailable()) {
             $html5 = self::treeConstructedHtmlSource($html);
             if ($html5 === null) {
                 throw new \RuntimeException('Unable to parse ' . $label . ' through Dom\\HTMLDocument');
@@ -323,7 +345,7 @@ final class Html5Dom
 
     private static function html5TreeConstructedSource(string $html): ?string
     {
-        if (!class_exists('Dom\\HTMLDocument')) {
+        if (!self::nativeHtmlDocumentAvailable()) {
             return null;
         }
 

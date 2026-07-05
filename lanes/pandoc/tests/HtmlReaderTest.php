@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use PortLibs\Pandoc\Html5Dom;
 use PortLibs\Pandoc\HtmlReader;
 
 $tests = [];
@@ -38,6 +39,43 @@ $tests['routes public html reader parsing through HTMLDocument when available'] 
         $t->same(['section'], $document->children[1]->attr('classes'));
         $t->same('two', $document->children[1]->children[0]->attr('text'));
         $t->same('three', $document->children[2]->attr('text'));
+    };
+
+$tests['keeps html tree construction centralized through Html5Dom'] =
+    static function (TestRunner $t): void {
+        $sourceRoot = dirname(__DIR__) . '/src';
+        $htmlReaderSource = (string) file_get_contents($sourceRoot . '/HtmlReader.php');
+        $markdownReaderSource = (string) file_get_contents($sourceRoot . '/MarkdownReader.php');
+        $html5DomSource = (string) file_get_contents($sourceRoot . '/Html5Dom.php');
+
+        foreach ([
+            'HtmlReader.php' => $htmlReaderSource,
+            'MarkdownReader.php' => $markdownReaderSource,
+        ] as $file => $source) {
+            $t->true(!str_contains($source, '->loadHTML('), "{$file} must not bypass Html5Dom with DOMDocument::loadHTML");
+            $t->true(!str_contains($source, 'HTMLDocument::createFromString'), "{$file} must not bypass Html5Dom with Dom\\HTMLDocument");
+        }
+
+        $t->contains('HTMLDocument::createFromString', $html5DomSource);
+        $t->contains('function parseHtmlFragment', $html5DomSource);
+        $t->contains('function parseHtmlDocument', $html5DomSource);
+    };
+
+$tests['reports actual html tree construction backend for table-scope fragment gap'] =
+    static function (TestRunner $t): void {
+        $t->same(
+            Html5Dom::htmlDocumentTreeConstructionBackend(),
+            Html5Dom::htmlFragmentTreeConstructionBackend('<p>one<section><p>two</section>three')
+        );
+
+        $document = (new HtmlReader())->read('<td>A</td><td>B</td><tr><td>C</td></tr><p>after</p>');
+        $meta = $document->attr('meta');
+
+        $t->same(Html5Dom::HTML_TREE_CONSTRUCTION_LEGACY_COMPAT, $meta['htmlTreeConstruction'] ?? null);
+        $t->same(
+            ['A', 'B', 'C', 'after'],
+            array_map(static fn ($node): string => $node->attr('text'), $document->children)
+        );
     };
 
 $tests['imports upstream html xml lang metadata from root element'] =

@@ -22,6 +22,7 @@ final class HtmlReader
 
     public function read(string $bytes): AstNode
     {
+        $htmlTreeConstructionBackend = self::htmlTreeConstructionBackendForSource($bytes);
         $structuralBytes = self::flattenHtmlPictureContainers($bytes);
         $standaloneImageChildren = self::standaloneImageFragmentChildren($structuralBytes);
         if ($standaloneImageChildren !== null) {
@@ -76,7 +77,7 @@ final class HtmlReader
             'reader' => self::class,
             'readerScope' => 'bounded-html-reader',
             'htmlReaderDelegate' => MarkdownReader::class . '::readHtml',
-            'htmlTreeConstruction' => class_exists('Dom\\HTMLDocument') ? 'Dom\\HTMLDocument' : 'DOMDocument-loadHTML-compat',
+            'htmlTreeConstruction' => $htmlTreeConstructionBackend,
             'htmlNativeDivs' => (bool) (($this->options['htmlNativeDivs'] ?? true)),
             'sourceBytes' => strlen($bytes),
             'sourceSha256' => hash('sha256', $bytes),
@@ -86,6 +87,13 @@ final class HtmlReader
         ], $this->microdataMetadata($bytes));
 
         return new AstNode('document', $attrs, $children);
+    }
+
+    private static function htmlTreeConstructionBackendForSource(string $bytes): string
+    {
+        return self::htmlSourceLooksLikeWholeDocument($bytes)
+            ? Html5Dom::htmlDocumentTreeConstructionBackend()
+            : Html5Dom::htmlFragmentTreeConstructionBackend($bytes);
     }
 
     private function consumeFootnoteContainers(): bool
