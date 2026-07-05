@@ -12,9 +12,9 @@ final class MarkdownUpstreamReaderEvidence
     public const STATUS_COMPLETED = 'completed-upstream-markdown-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-markdown-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
-    public const EXPECTED_SELECTED_FIXTURE_COUNT = 116;
-    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 116;
-    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = '3b6c9462626c25858ad4f908aa9ae896d3a076a98385402ed1d6a5c5ef9e51e9';
+    public const EXPECTED_SELECTED_FIXTURE_COUNT = 117;
+    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 117;
+    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = 'c7ed6bfba054c4e23970b59a3bae16f5e47c2157a4002f670248d0e74a3bf415';
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/Markdown.hs',
@@ -1493,6 +1493,19 @@ final class MarkdownUpstreamReaderEvidence
             ],
             'sha256' => 'e868024c9897fc6a1ddce46228d4e96f28682f269d8e3a4b6d07995fdca1f5a7',
             'bytes' => 52,
+        ],
+        'upstream-markdown-bare-uri-git-file-schemes.md' => [
+            'role' => 'markdown-bare-uri-git-file-scheme-reader-fixture',
+            'sourceKind' => 'selected-upstream-markdown-reader-case',
+            'sourceReference' => 'Tests.Readers.Markdown bare URIs/git and file scheme cases',
+            'formatProfile' => 'markdown+autolink_bare_uris git:// and file:// bare URI schemes',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-markdown-bare-uri-git-file-schemes.md',
+            'coverageTests' => [
+                'lanes/pandoc/tests/MarkdownReaderBareUriGitFileSchemesFixtureCompletionTest.php',
+                'lanes/pandoc/tests/MarkdownNativeAstComparisonHarnessTest.php',
+            ],
+            'sha256' => '47b47e2c929efc0802ff53535df1f0ae9df8464cd7546841fed95e37f917bc8c',
+            'bytes' => 62,
         ],
     ];
 

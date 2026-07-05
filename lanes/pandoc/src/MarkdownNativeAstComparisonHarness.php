@@ -69,6 +69,7 @@ final class MarkdownNativeAstComparisonHarness
         'upstream-markdown-zzzzzzzzzzzzzzzzzzzzzzz-bare-uri-scheme-boundaries' => ['format' => 'markdown+autolink_bare_uris'],
         'upstream-markdown-zzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-bare-uri-query-boundaries' => ['format' => 'markdown+autolink_bare_uris'],
         'upstream-markdown-bare-uri-raw-html-anchor' => ['format' => 'markdown+autolink_bare_uris+raw_html'],
+        'upstream-markdown-bare-uri-git-file-schemes' => ['format' => 'markdown+autolink_bare_uris'],
         'upstream-markdown-zzzzzzzzzzzzzzzzzzzzzzzzzz-raw-html-inline-commonmark-profile' => ['format' => 'commonmark+raw_attribute'],
         'upstream-markdown-zzzzzzzzzzzzzzzzzzzzzzzzz-atx-heading-space-disabled-profile' => ['format' => 'markdown-space_in_atx_header'],
         'upstream-markdown-zzzzzzzzzzzzzzzzzzzzzzzzzzzzz-startnum-disabled-profile' => ['format' => 'markdown-startnum+fancy_lists'],
