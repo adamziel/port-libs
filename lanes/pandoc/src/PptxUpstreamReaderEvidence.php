@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 108;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 109;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '1c53e6af2ebd64c631b9e56a4e6c993d710cf83be0cdf76007b7c1421da9bc5a';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 46588;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'c69de62705d1c19ec24f9e8366b1881fe0cf32a780d35bf3a443d7ef133b3598';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 47011;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -318,6 +318,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => 'f14cb1439bde326803f0428b5ef451c49d557a66e9d3594a1c3b6e1b3ab6905f',
             'pptxBytes' => 1679,
             'nativeBytes' => 75,
+        ],
+        'root-relationship-root-alias' => [
+            'name' => 'generated root officeDocument relationship root alias parity',
+            'pptx' => 'pptx-reader/root-relationship-root-alias.pptx',
+            'native' => 'pptx-reader/root-relationship-root-alias.native',
+            'pairKey' => 'pptx-reader/root-relationship-root-alias.pptx|pptx-reader/root-relationship-root-alias.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/root-relationship-root-alias.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/root-relationship-root-alias.native',
+            'pptxSha256' => '1b9177525b9c4361cb1ffab8bdef35c25f20ffaef38348cc2dbb53059f5e1b3f',
+            'nativeSha256' => '7246e1485a5e1d1ce805ca0e3655966f4894be3eafee0ea90936f97fa869c31b',
+            'pptxBytes' => 1509,
+            'nativeBytes' => 97,
         ],
         'external-rich-media-skip' => [
             'name' => 'generated external rich media placeholder skip parity',

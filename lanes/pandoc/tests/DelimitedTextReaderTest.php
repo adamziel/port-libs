@@ -367,9 +367,12 @@ return [
         $packet = $table->attr('delimitedText');
         $native = PandocConverter::write($document, 'native');
         $generatedEvidence = $packet['upstreamEvidence']['generatedNativeParityEvidence'] ?? [];
-        $inputFixtureIndex = (2 * DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT) - 4;
-        $nativeFixtureIndex = $inputFixtureIndex + 1;
-        $sampleIndex = DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT - 2;
+        $inputFixtureIndex = array_search('backslash-escaped-escape.csv', array_column($generatedEvidence['checkedInFixtures'] ?? [], 'name'), true);
+        $nativeFixtureIndex = array_search('backslash-escaped-escape.native', array_column($generatedEvidence['checkedInFixtures'] ?? [], 'name'), true);
+        $sampleIndex = array_search('backslash-escaped-escape', array_column($generatedEvidence['samples'] ?? [], 'name'), true);
+        $t->true(is_int($inputFixtureIndex));
+        $t->true(is_int($nativeFixtureIndex));
+        $t->true(is_int($sampleIndex));
 
         $t->same('csv', $packet['format'] ?? null);
         $t->same('\\', $packet['escape'] ?? null);
@@ -416,9 +419,12 @@ return [
         $packet = $table->attr('delimitedText');
         $native = PandocConverter::write($document, 'native');
         $generatedEvidence = $packet['upstreamEvidence']['generatedNativeParityEvidence'] ?? [];
-        $inputFixtureIndex = (2 * DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT) - 2;
-        $nativeFixtureIndex = $inputFixtureIndex + 1;
-        $sampleIndex = DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT - 1;
+        $inputFixtureIndex = array_search('backslash-before-closing-quote.csv', array_column($generatedEvidence['checkedInFixtures'] ?? [], 'name'), true);
+        $nativeFixtureIndex = array_search('backslash-before-closing-quote.native', array_column($generatedEvidence['checkedInFixtures'] ?? [], 'name'), true);
+        $sampleIndex = array_search('backslash-before-closing-quote', array_column($generatedEvidence['samples'] ?? [], 'name'), true);
+        $t->true(is_int($inputFixtureIndex));
+        $t->true(is_int($nativeFixtureIndex));
+        $t->true(is_int($sampleIndex));
 
         $t->same('csv', $packet['format'] ?? null);
         $t->same(',', $packet['delimiter'] ?? null);
@@ -447,6 +453,58 @@ return [
         $t->same('path ends with \\', $table->children[1]->children[0]->children[1]->attr('text'));
         $t->same('literal \\ slash', $table->children[1]->children[1]->children[1]->attr('text'));
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
+    },
+    'matches generated csv closing quote record whitespace recovery native parity fixture' => static function (TestRunner $t) use ($generatedCsvNativeFixture, $nativeTokenStream): void {
+        $fixture = $generatedCsvNativeFixture('closing-quote-record-whitespace-recovery');
+        $document = (new DelimitedTextReader())->readCsv($fixture['input'], [
+            'sourcePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/closing-quote-record-whitespace-recovery.csv',
+            'strictParsing' => false,
+        ]);
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+        $native = PandocConverter::write($document, 'native');
+        $generatedEvidence = $packet['upstreamEvidence']['generatedNativeParityEvidence'] ?? [];
+        $inputFixtureIndex = array_search('closing-quote-record-whitespace-recovery.csv', array_column($generatedEvidence['checkedInFixtures'] ?? [], 'name'), true);
+        $nativeFixtureIndex = array_search('closing-quote-record-whitespace-recovery.native', array_column($generatedEvidence['checkedInFixtures'] ?? [], 'name'), true);
+        $sampleIndex = array_search('closing-quote-record-whitespace-recovery', array_column($generatedEvidence['samples'] ?? [], 'name'), true);
+
+        $t->true(is_int($inputFixtureIndex));
+        $t->true(is_int($nativeFixtureIndex));
+        $t->true(is_int($sampleIndex));
+        $t->same('csv', $packet['format'] ?? null);
+        $t->same(',', $packet['delimiter'] ?? null);
+        $t->same('valid-checked-in-generated-csv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
+        $t->same(2 * DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['checkedInFixtureCount'] ?? null);
+        $t->same('closing-quote-record-whitespace-recovery.csv', $generatedEvidence['checkedInFixtures'][$inputFixtureIndex]['name'] ?? null);
+        $t->same('a35426e2b6bee17b9acbdefcc48444c4dfa892ef50b13212d3568c48ae17450a', $generatedEvidence['checkedInFixtures'][$inputFixtureIndex]['checkedInFile']['sha256'] ?? null);
+        $t->same(30, $generatedEvidence['checkedInFixtures'][$inputFixtureIndex]['checkedInFile']['bytes'] ?? null);
+        $t->same('closing-quote-record-whitespace-recovery.native', $generatedEvidence['checkedInFixtures'][$nativeFixtureIndex]['name'] ?? null);
+        $t->same('9e35a55dad3bae7fcddfa18a3e2c26493569ef1b5fe184967aa1b2120b1e4489', $generatedEvidence['checkedInFixtures'][$nativeFixtureIndex]['checkedInFile']['sha256'] ?? null);
+        $t->same(897, $generatedEvidence['checkedInFixtures'][$nativeFixtureIndex]['checkedInFile']['bytes'] ?? null);
+        $t->same('closing-quote-record-whitespace-recovery', $generatedEvidence['samples'][$sampleIndex]['name'] ?? null);
+        $t->same(['strictParsing' => false], $generatedEvidence['samples'][$sampleIndex]['readerOptions'] ?? null);
+        $t->same(['id', 'note'], $table->attr('columnNames'));
+        $t->same(3, $packet['rowCount'] ?? null);
+        $t->same(2, $packet['bodyRowCount'] ?? null);
+        $t->same(2, $packet['columnCount'] ?? null);
+        $t->same(6, $packet['fieldCount'] ?? null);
+        $t->same(1, $packet['quotedFieldCount'] ?? null);
+        $t->same(1, $packet['closingQuoteTrailingRecordWhitespaceCount'] ?? null);
+        $t->same(1, $packet['diagnosticCount'] ?? null);
+        $t->same(['delimited-text-closing-quote-trailing-record-whitespace'], array_column($packet['diagnostics'] ?? [], 'code'));
+        $t->same('trimmed', $table->children[1]->children[0]->children[1]->attr('text'));
+        $t->same('plain', $table->children[1]->children[1]->children[1]->attr('text'));
+        $t->contains('Plain [ Str "trimmed" ]', $native);
+        $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
+
+        $message = '';
+        try {
+            (new DelimitedTextReader())->readCsv($fixture['input']);
+        } catch (InvalidArgumentException $exception) {
+            $message = $exception->getMessage();
+        }
+        $t->contains('whitespace after a closing quote before a line break', $message);
     },
     'matches generated csv quoted linebreak native parity fixture without inflating csv denominator' => static function (TestRunner $t) use ($generatedCsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedCsvNativeFixture('quoted-linebreak');
@@ -5550,6 +5608,8 @@ NATIVE;
         $t->same(['escape' => '\\'], $csvEvidence['generatedNativeParityEvidence']['samples'][68]['readerOptions'] ?? null);
         $t->same('backslash-before-closing-quote', $csvEvidence['generatedNativeParityEvidence']['samples'][69]['name'] ?? null);
         $t->same([], $csvEvidence['generatedNativeParityEvidence']['samples'][69]['readerOptions'] ?? null);
+        $t->same('closing-quote-record-whitespace-recovery', $csvEvidence['generatedNativeParityEvidence']['samples'][70]['name'] ?? null);
+        $t->same(['strictParsing' => false], $csvEvidence['generatedNativeParityEvidence']['samples'][70]['readerOptions'] ?? null);
         $t->true(in_array('direct-csv-command-reader', $csvEvidence['closedGaps'] ?? [], true));
         $t->true(in_array('csv-closing-quote-record-whitespace-strictness', $csvEvidence['closedGaps'] ?? [], true));
         $t->true(in_array('generated-csv-native-parity-sample', $csvEvidence['closedGaps'] ?? [], true));

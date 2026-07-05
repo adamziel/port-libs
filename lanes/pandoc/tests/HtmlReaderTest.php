@@ -598,6 +598,29 @@ $tests['imports direct pandoc html block fallback content containers without raw
         $t->same('code', $document->children[2]->children[1]->attr('text'));
     };
 
+$tests['imports direct pandoc html inline fallback content containers without raw wrappers'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-inline-fallback-content-containers.html'));
+        $paragraph = $document->children[0];
+
+        $t->same('html', $document->attr('sourceFormat'));
+        $t->same(Html5Dom::htmlDocumentTreeConstructionBackend(), $document->attr('meta')['htmlTreeConstruction'] ?? null);
+        $t->same(['paragraph', 'paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same('Before Frame fallback, script fallback, and object fallback.', $paragraph->attr('text'));
+        $t->same('After fallback.', $document->children[1]->attr('text'));
+        $t->same(
+            ['text', 'strong', 'text', 'emph', 'text', 'code', 'text'],
+            array_map(static fn ($node): string => $node->type, $paragraph->children)
+        );
+        $t->same('Before Frame ', $paragraph->children[0]->attr('text'));
+        $t->same('fallback', $paragraph->children[1]->children[0]->attr('text'));
+        $t->same(', script ', $paragraph->children[2]->attr('text'));
+        $t->same('fallback', $paragraph->children[3]->children[0]->attr('text'));
+        $t->same(', and ', $paragraph->children[4]->attr('text'));
+        $t->same('object', $paragraph->children[5]->attr('text'));
+        $t->same(' fallback.', $paragraph->children[6]->attr('text'));
+    };
+
 $tests['can preserve html inline raw wrappers for epub-compatible content reads'] =
     static function (TestRunner $t): void {
         $document = (new HtmlReader(['htmlStripRawInlineWrappers' => false]))

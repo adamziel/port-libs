@@ -1086,6 +1086,14 @@ return [
         $t->same(977, $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][137]['checkedInFile']['bytes']);
         $t->same('backslash-escaped-escape', $evidence['generatedCsvNativeStaticEvidence']['samples'][68]['name']);
         $t->same(['escape' => '\\'], $evidence['generatedCsvNativeStaticEvidence']['samples'][68]['readerOptions']);
+        $t->same('closing-quote-record-whitespace-recovery.csv', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][140]['name']);
+        $t->same('a35426e2b6bee17b9acbdefcc48444c4dfa892ef50b13212d3568c48ae17450a', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][140]['checkedInFile']['sha256']);
+        $t->same(30, $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][140]['checkedInFile']['bytes']);
+        $t->same('closing-quote-record-whitespace-recovery.native', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][141]['name']);
+        $t->same('9e35a55dad3bae7fcddfa18a3e2c26493569ef1b5fe184967aa1b2120b1e4489', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][141]['checkedInFile']['sha256']);
+        $t->same(897, $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][141]['checkedInFile']['bytes']);
+        $t->same('closing-quote-record-whitespace-recovery', $evidence['generatedCsvNativeStaticEvidence']['samples'][70]['name']);
+        $t->same(['strictParsing' => false], $evidence['generatedCsvNativeStaticEvidence']['samples'][70]['readerOptions']);
         $t->same(true, DelimitedTextUpstreamReaderEvidence::hasRequiredGeneratedCsvNativeStaticEvidence($evidence['generatedCsvNativeStaticEvidence']));
         $t->same(true, DelimitedTextUpstreamReaderEvidence::hasRequiredGeneratedTsvNativeStaticEvidence($evidence['generatedTsvNativeStaticEvidence']));
         $t->same('static-checked-in-current-csv-direct-native-transcript-evidence', $evidence['currentCsvDirectNativeStaticEvidence']['kind']);

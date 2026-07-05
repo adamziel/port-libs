@@ -314,7 +314,10 @@ final class HtmlReader
         $name = strtolower($element->localName);
         if (in_array($name, ['iframe', 'noscript'], true)) {
             $fragment = Html5Dom::parseHtmlFragment($element->textContent);
-            if (!self::htmlElementContainsBlockContainer($fragment)) {
+            if (
+                !self::htmlElementContainsBlockContainer($fragment)
+                && self::isTopLevelHtmlBodyChild($element)
+            ) {
                 return null;
             }
 
@@ -328,7 +331,10 @@ final class HtmlReader
             return $nodes;
         }
 
-        if (!self::htmlElementContainsBlockContainer($element)) {
+        if (
+            !self::htmlElementContainsBlockContainer($element)
+            && self::isTopLevelHtmlBodyChild($element)
+        ) {
             return null;
         }
 
@@ -343,6 +349,13 @@ final class HtmlReader
         }
 
         return $nodes;
+    }
+
+    private static function isTopLevelHtmlBodyChild(\DOMElement $element): bool
+    {
+        $parent = $element->parentNode;
+
+        return $parent instanceof \DOMElement && strtolower($parent->localName) === 'body';
     }
 
     private static function flattenHtmlRawTextFallbackContainers(string $bytes): string

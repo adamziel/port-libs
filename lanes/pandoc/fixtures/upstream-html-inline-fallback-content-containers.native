@@ -1,0 +1,21 @@
+[ Para
+    [ Str "Before"
+    , Space
+    , Str "Frame"
+    , Space
+    , Strong [ Str "fallback" ]
+    , Str ","
+    , Space
+    , Str "script"
+    , Space
+    , Emph [ Str "fallback" ]
+    , Str ","
+    , Space
+    , Str "and"
+    , Space
+    , Code ( "" , [] , [] ) "object"
+    , Space
+    , Str "fallback."
+    ]
+, Para [ Str "After" , Space , Str "fallback." ]
+]

@@ -152,9 +152,14 @@ final class EpubReader
             $footnote_definitions = $this->epubFootnoteDefinitionsInReferenceOrder($content_dom, $item['href']);
             $note_reference_hrefs = $this->epubNoteReferenceHrefs($content_dom, $content_base_href);
             $link_attribute_overlays_by_href = $this->epubBodyLinkAttributeOverlaysByHref($content_dom, $content_base_href);
+            $picture_raw_html_overlays = $this->epubPictureRawHtmlOverlaysInImageOrder($content_dom, $content_base_href);
             $document = $this->epubContentHtmlReader()->read($this->contentDocumentMarkupForHtmlReader($xhtml, $content_dom, $content_base_href));
             $document = $this->normalizeEpubMediaRawBlocks($document);
             $document = $this->normalizeEpubRawInlineVoidElements($document);
+            if ($picture_raw_html_overlays !== []) {
+                $picture_image_index = 0;
+                $document = $this->restoreEpubPictureRawHtml($document, $picture_raw_html_overlays, $picture_image_index);
+            }
             if ($footnote_definitions !== []) {
                 $footnote_index = 0;
                 $document = $this->fillEmptyEpubFootnoteNotes($document, $footnote_definitions, $footnote_index);
@@ -2016,6 +2021,199 @@ final class EpubReader
         }
 
         return $keys;
+    }
+
+    /**
+     * @return list<array{keys: list<string>, picture: string, sources: list<string>, block: bool}|null>
+     */
+    private function epubPictureRawHtmlOverlaysInImageOrder(?\DOMDocument $dom, ?string $base_href): array
+    {
+        if (!$dom instanceof \DOMDocument) {
+            return [];
+        }
+
+        $overlays = [];
+        $has_picture_overlay = false;
+        $seen_pictures = new \SplObjectStorage();
+        foreach ($dom->getElementsByTagName('*') as $element) {
+            if (!$element instanceof \DOMElement || strtolower($element->localName) !== 'img') {
+                continue;
+            }
+
+            $picture = $this->nearestAncestorElementByName($element, 'picture');
+            if (!$picture instanceof \DOMElement || $seen_pictures->offsetExists($picture)) {
+                $overlays[] = null;
+                continue;
+            }
+
+            $seen_pictures->offsetSet($picture);
+            $keys = [];
+            $src = html_entity_decode($element->getAttribute('src'), ENT_QUOTES | ENT_XML1, 'UTF-8');
+            if ($src !== '') {
+                $keys = $this->epubContentHrefKeys($src, $this->epubContentElementBaseHref($element, $base_href));
+            }
+
+            $sources = [];
+            foreach ($picture->childNodes as $child) {
+                if ($child instanceof \DOMElement && strtolower($child->localName) === 'source') {
+                    $sources[] = $this->epubRawHtmlStartTag($child);
+                }
+            }
+
+            $overlays[] = [
+                'keys' => $keys,
+                'picture' => $this->epubRawHtmlStartTag($picture),
+                'sources' => $sources,
+                'block' => !$this->nearestAncestorElementByName($picture, 'p') instanceof \DOMElement,
+            ];
+            $has_picture_overlay = true;
+        }
+
+        return $has_picture_overlay ? $overlays : [];
+    }
+
+    private function nearestAncestorElementByName(\DOMElement $element, string $name): ?\DOMElement
+    {
+        $name = strtolower($name);
+        for ($node = $element->parentNode; $node instanceof \DOMElement; $node = $node->parentNode) {
+            if (strtolower($node->localName) === $name) {
+                return $node;
+            }
+        }
+
+        return null;
+    }
+
+    private function epubRawHtmlStartTag(\DOMElement $element): string
+    {
+        $html = '<' . strtolower($element->localName);
+        foreach ($element->attributes ?? [] as $attribute) {
+            if (!$attribute instanceof \DOMAttr || str_starts_with(strtolower($attribute->nodeName), 'xmlns')) {
+                continue;
+            }
+
+            $html .= ' ' . strtolower($attribute->nodeName) . '="'
+                . htmlspecialchars($attribute->value, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8')
+                . '"';
+        }
+
+        return $html . '>';
+    }
+
+    /**
+     * @param list<array{keys: list<string>, picture: string, sources: list<string>, block: bool}|null> $picture_overlays
+     */
+    private function restoreEpubPictureRawHtml(AstNode $node, array $picture_overlays, int &$image_index): AstNode
+    {
+        $children = [];
+        $changed = false;
+        foreach ($node->children as $child) {
+            $restored_block_nodes = $this->restoreEpubPictureRawHtmlWholeBlock($child, $picture_overlays, $image_index);
+            if ($restored_block_nodes !== null) {
+                array_push($children, ...$restored_block_nodes);
+                if (count($restored_block_nodes) !== 1 || $restored_block_nodes[0] !== $child) {
+                    $changed = true;
+                }
+                continue;
+            }
+
+            if ($child->type === 'image') {
+                $overlay = $picture_overlays[$image_index] ?? null;
+                ++$image_index;
+                if (is_array($overlay) && $this->epubPictureOverlayMatchesImage($overlay, (string) $child->attr('url', ''))) {
+                    array_push($children, ...$this->epubPictureRawHtmlInlineOpenNodes($overlay));
+                    $children[] = $child;
+                    $children[] = new AstNode('raw_html_inline', ['html' => '</picture>']);
+                    $changed = true;
+                    continue;
+                }
+            }
+
+            $updated = $this->restoreEpubPictureRawHtml($child, $picture_overlays, $image_index);
+            $children[] = $updated;
+            if ($updated !== $child) {
+                $changed = true;
+            }
+        }
+
+        return $changed ? new AstNode($node->type, $node->attrs, $children) : $node;
+    }
+
+    /**
+     * @param list<array{keys: list<string>, picture: string, sources: list<string>, block: bool}|null> $picture_overlays
+     * @return list<AstNode>|null
+     */
+    private function restoreEpubPictureRawHtmlWholeBlock(AstNode $node, array $picture_overlays, int &$image_index): ?array
+    {
+        if (!in_array($node->type, ['paragraph', 'plain'], true) || count($node->children) !== 1) {
+            return null;
+        }
+
+        $image = $node->children[0];
+        if (!$image instanceof AstNode || $image->type !== 'image') {
+            return null;
+        }
+
+        $overlay = $picture_overlays[$image_index] ?? null;
+        if (!is_array($overlay) || !$this->epubPictureOverlayMatchesImage($overlay, (string) $image->attr('url', ''))) {
+            return null;
+        }
+
+        ++$image_index;
+        if (($overlay['block'] ?? false) === true && $overlay['sources'] !== []) {
+            $blocks = [
+                new AstNode($node->type, $node->attrs, [
+                    new AstNode('raw_html_inline', ['html' => $overlay['picture']]),
+                ]),
+            ];
+            foreach ($overlay['sources'] as $source) {
+                $blocks[] = new AstNode('raw_html', ['html' => $source]);
+                $blocks[] = new AstNode('raw_html', ['html' => '</source>']);
+            }
+            $blocks[] = new AstNode($node->type, $node->attrs, [
+                $image,
+                new AstNode('raw_html_inline', ['html' => '</picture>']),
+            ]);
+
+            return $blocks;
+        }
+
+        return [
+            new AstNode(
+                $node->type,
+                $node->attrs,
+                [
+                    ...$this->epubPictureRawHtmlInlineOpenNodes($overlay),
+                    $image,
+                    new AstNode('raw_html_inline', ['html' => '</picture>']),
+                ]
+            ),
+        ];
+    }
+
+    /**
+     * @param array{keys: list<string>, picture: string, sources: list<string>, block: bool} $overlay
+     */
+    private function epubPictureOverlayMatchesImage(array $overlay, string $url): bool
+    {
+        $keys = $overlay['keys'];
+
+        return $keys === [] ? $url === '' : in_array($url, $keys, true);
+    }
+
+    /**
+     * @param array{keys: list<string>, picture: string, sources: list<string>, block: bool} $overlay
+     * @return list<AstNode>
+     */
+    private function epubPictureRawHtmlInlineOpenNodes(array $overlay): array
+    {
+        $nodes = [new AstNode('raw_html_inline', ['html' => $overlay['picture']])];
+        foreach ($overlay['sources'] as $source) {
+            $nodes[] = new AstNode('raw_html_inline', ['html' => $source]);
+            $nodes[] = new AstNode('raw_html_inline', ['html' => '</source>']);
+        }
+
+        return $nodes;
     }
 
     /**

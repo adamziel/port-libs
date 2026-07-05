@@ -1588,6 +1588,153 @@ HTML);
             '</video>',
         ], $rawHtml);
     },
+    'preserves epub picture source wrappers while loading fallback image media' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-picture-source-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $fallbackBytes = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=');
+        if (!is_string($fallbackBytes)) {
+            throw new RuntimeException('Unable to decode picture fallback image bytes');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary EPUB package');
+        }
+        $zip->addFromString('META-INF/container.xml', '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="book-id">
+  <metadata>
+    <dc:identifier id="book-id">book-picture-source</dc:identifier>
+    <dc:title>Picture Source EPUB</dc:title>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="fallback" href="images/fallback.png" media-type="image/png"/>
+    <item id="responsive" href="images/fallback.webp" media-type="image/webp"/>
+    <item id="block-fallback" href="images/block.png" media-type="image/png"/>
+    <item id="block-responsive" href="images/block.webp" media-type="image/webp"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('OPS/chapter.xhtml', <<<'HTML'
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <body>
+    <h1>Picture Source EPUB</h1>
+    <p>Before <picture class="responsive"><source srcset="images/fallback.webp 1x" type="image/webp"/><img src="images/fallback.png" alt="Fallback art"/></picture> after.</p>
+    <picture class="block-responsive"><source srcset="images/block.webp 1x" type="image/webp"/><img src="images/block.png" alt="Block art"/></picture>
+  </body>
+</html>
+HTML);
+        $zip->addFromString('OPS/images/fallback.png', $fallbackBytes);
+        $zip->addFromString('OPS/images/fallback.webp', 'WEBP');
+        $zip->addFromString('OPS/images/block.png', $fallbackBytes);
+        $zip->addFromString('OPS/images/block.webp', 'WEBP-BLOCK');
+        $zip->close();
+
+        try {
+            $document = (new EpubReader())->readEpubFile($path);
+            $meta = $document->attr('meta');
+            $native = (new NativeWriter(['blocksOnly' => true]))->write($document);
+        } finally {
+            @unlink($path);
+        }
+
+        $paragraph = $document->children[2] ?? new AstNode('missing');
+        $pictureOpen = $paragraph->children[1] ?? new AstNode('missing');
+        $sourceOpen = $paragraph->children[2] ?? new AstNode('missing');
+        $sourceClose = $paragraph->children[3] ?? new AstNode('missing');
+        $image = $paragraph->children[4] ?? new AstNode('missing');
+        $pictureClose = $paragraph->children[5] ?? new AstNode('missing');
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Before ', $paragraph->children[0]->attr('text') ?? null);
+        $t->same('raw_html_inline', $pictureOpen->type);
+        $t->same('<picture class="responsive">', $pictureOpen->attr('html'));
+        $t->same('raw_html_inline', $sourceOpen->type);
+        $t->same('<source srcset="images/fallback.webp 1x" type="image/webp">', $sourceOpen->attr('html'));
+        $t->same('raw_html_inline', $sourceClose->type);
+        $t->same('</source>', $sourceClose->attr('html'));
+        $t->same('image', $image->type);
+        $t->same('images/fallback.png', $image->attr('url'));
+        $t->same('Fallback art', $image->attr('alt'));
+        $t->same('raw_html_inline', $pictureClose->type);
+        $t->same('</picture>', $pictureClose->attr('html'));
+        $t->same(' after.', $paragraph->children[6]->attr('text') ?? null);
+
+        $blockPictureOpen = $document->children[3] ?? new AstNode('missing');
+        $blockSourceOpen = $document->children[4] ?? new AstNode('missing');
+        $blockSourceClose = $document->children[5] ?? new AstNode('missing');
+        $blockImagePlain = $document->children[6] ?? new AstNode('missing');
+        $blockImage = $blockImagePlain->children[0] ?? new AstNode('missing');
+        $blockPictureClose = $blockImagePlain->children[1] ?? new AstNode('missing');
+
+        $t->same('plain', $blockPictureOpen->type);
+        $t->same('raw_html_inline', $blockPictureOpen->children[0]->type ?? null);
+        $t->same('<picture class="block-responsive">', $blockPictureOpen->children[0]->attr('html') ?? null);
+        $t->same('raw_html', $blockSourceOpen->type);
+        $t->same('<source srcset="images/block.webp 1x" type="image/webp">', $blockSourceOpen->attr('html'));
+        $t->same('raw_html', $blockSourceClose->type);
+        $t->same('</source>', $blockSourceClose->attr('html'));
+        $t->same('plain', $blockImagePlain->type);
+        $t->same('image', $blockImage->type);
+        $t->same('images/block.png', $blockImage->attr('url'));
+        $t->same('Block art', $blockImage->attr('alt'));
+        $t->same('raw_html_inline', $blockPictureClose->type);
+        $t->same('</picture>', $blockPictureClose->attr('html'));
+
+        $t->same(['OPS/images/fallback.png', 'OPS/images/block.png'], $meta['epubReferencedResources']);
+        $t->same([
+            'OPS/images/fallback.png',
+            'OPS/images/fallback.webp',
+            'OPS/images/block.png',
+            'OPS/images/block.webp',
+        ], $meta['epubImageResources']);
+        $t->same(['OPS/images/fallback.png', 'OPS/images/block.png'], $meta['epubMediaBagResources']);
+        $t->same(2, $meta['epubMediaResourceCount']);
+        $t->same([
+            'epub-media-resource-loaded:OPS/images/fallback.png',
+            'epub-media-resource-loaded:OPS/images/block.png',
+        ], $meta['epubMediaResourceDiagnostics']);
+        $t->same([
+            [
+                'path' => 'images/block.png',
+                'zipEntry' => 'OPS/images/block.png',
+                'mimeType' => 'image/png',
+                'byteLength' => strlen($fallbackBytes),
+                'sha1' => sha1($fallbackBytes),
+            ],
+            [
+                'path' => 'images/fallback.png',
+                'zipEntry' => 'OPS/images/fallback.png',
+                'mimeType' => 'image/png',
+                'byteLength' => strlen($fallbackBytes),
+                'sha1' => sha1($fallbackBytes),
+            ],
+        ], array_map(static fn (array $entry): array => [
+            'path' => (string) $entry['path'],
+            'zipEntry' => (string) $entry['zipEntry'],
+            'mimeType' => (string) $entry['mimeType'],
+            'byteLength' => (int) $entry['byteLength'],
+            'sha1' => (string) $entry['sha1'],
+        ], $meta['epubMediaResourceDirectory']));
+        $t->contains('RawInline (Format "html") "<picture class=\\"responsive\\">"', $native);
+        $t->contains('RawInline (Format "html") "<source srcset=\\"images/fallback.webp 1x\\" type=\\"image/webp\\">"', $native);
+        $t->contains('Image ( "" , [  ] , [  ] ) [ Str "Fallback" , Space , Str "art" ] ( "images/fallback.png" , "" )', $native);
+        $t->contains('RawInline (Format "html") "</picture>"', $native);
+        $t->contains('Plain [ RawInline (Format "html") "<picture class=\\"block-responsive\\">" ]', $native);
+        $t->contains('RawBlock (Format "html") "<source srcset=\\"images/block.webp 1x\\" type=\\"image/webp\\">"', $native);
+        $t->contains('Plain [ Image ( "" , [  ] , [  ] ) [ Str "Block" , Space , Str "art" ] ( "images/block.png" , "" )', $native);
+    },
     'loads package parts while preserving epub href query and fragment provenance' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-href-suffix-');
         if ($path === false) {

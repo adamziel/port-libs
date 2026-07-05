@@ -1,0 +1,3 @@
+[ Header 2 ( "slide-1" , [] , [] ) [ Str "Minimal deck" ]
+, Para [ Str "Second checked pair" ]
+]
