@@ -247,6 +247,47 @@ HTML);
     ];
 };
 
+$writeEncodedImageMediaBagEpub = static function (string $path): array {
+    $coverArt = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=');
+    if (!is_string($coverArt)) {
+        throw new RuntimeException('Unable to decode encoded media-bag fixture image');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+        throw new RuntimeException('Unable to create encoded media-bag EPUB package');
+    }
+    $zip->addFromString('META-INF/container.xml', '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+    $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="book-id">
+  <metadata>
+    <dc:identifier id="book-id">book-encoded-image-media-bag</dc:identifier>
+    <dc:title>Encoded Image Media Bag</dc:title>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="text/chapter%201.xhtml" media-type="application/xhtml+xml"/>
+    <item id="cover-art" href="images/cover%20art.png" media-type="image/png"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+    $zip->addFromString('OPS/text/chapter 1.xhtml', <<<'HTML'
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <body><p><img src="../images/cover%20art.png#preview" alt="Cover art"/></p></body>
+</html>
+HTML);
+    $zip->addFromString('OPS/images/cover art.png', $coverArt);
+    $zip->close();
+
+    return ['coverArtBytes' => strlen($coverArt)];
+};
+
 return [
     'skips epub media bag comparison when cache is absent' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $root = $makeTempDir();
@@ -715,6 +756,56 @@ HS,
             $t->same(1, $report['actualMediaItemCount']);
             $t->same(1, $report['mediaBagMatchCount']);
             $t->same(0, $report['mediaBagMismatchCount']);
+            $t->same('media-bag-equality-observed-not-runner-parity', $report['mediaBagParityStatus']);
+        } finally {
+            $removeTree($root);
+        }
+    },
+
+    'compares percent encoded emitted image media bag paths' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile, $writeEncodedImageMediaBagEpub): void {
+        $root = $makeTempDir();
+        try {
+            $epubPath = $root . '/test/epub/encoded-image-media-bag.epub';
+            if (!is_dir(dirname($epubPath)) && !mkdir(dirname($epubPath), 0777, true) && !is_dir(dirname($epubPath))) {
+                throw new RuntimeException('Unable to create encoded media-bag fixture tree');
+            }
+            $fixture = $writeEncodedImageMediaBagEpub($epubPath);
+            $writeFile($root, 'test/Tests/Readers/EPUB.hs', sprintf(
+                <<<'HS'
+encodedImageMediaBag = [("images/cover art.png","image/png",%d)]
+
+tests = [ testCase "encoded image media bag"
+          (testMediaBag "epub/encoded-image-media-bag.epub" encodedImageMediaBag) ]
+HS,
+                $fixture['coverArtBytes']
+            ));
+            $writeFile($root, 'src/Text/Pandoc/Readers/EPUB.hs', "module Text.Pandoc.Readers.EPUB where\n");
+
+            $report = (new EpubMediaBagComparisonHarness())->run($root);
+
+            $t->same('completed', $report['status']);
+            $t->same(1, $report['comparedCaseCount']);
+            $t->same(1, $report['epubParsedCount']);
+            $t->same(0, $report['parseFailureCount']);
+            $t->same(1, $report['expectedMediaItemCount']);
+            $t->same(1, $report['actualMediaItemCount']);
+            $t->same(1, $report['mediaBagMatchCount']);
+            $t->same(0, $report['mediaBagMismatchCount']);
+            $t->same([
+                [
+                    'case' => 'encoded image media bag',
+                    'fixture' => 'epub/encoded-image-media-bag.epub',
+                    'expectedItemCount' => 1,
+                    'actualItemCount' => 1,
+                    'matchesExpected' => true,
+                    'expectedBag' => [
+                        ['path' => 'images/cover art.png', 'mime' => 'image/png', 'size' => $fixture['coverArtBytes']],
+                    ],
+                    'actualBag' => [
+                        ['path' => 'images/cover art.png', 'mime' => 'image/png', 'size' => $fixture['coverArtBytes']],
+                    ],
+                ],
+            ], $report['mediaBagSignatures']);
             $t->same('media-bag-equality-observed-not-runner-parity', $report['mediaBagParityStatus']);
         } finally {
             $removeTree($root);
