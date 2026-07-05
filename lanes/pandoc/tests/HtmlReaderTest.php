@@ -197,6 +197,77 @@ $tests['keeps html tree construction centralized through Html5Dom'] =
         $t->contains('self::html5TreeConstructedBridgeSource(', $methodBody($html5DomSource, 'loadHtml'));
         $t->contains('HTMLDocument::createFromString', $methodBody($html5DomSource, 'html5TreeConstructedBridgeSource'));
 
+        $delegatingHtmlParserEntrypoints = [
+            'HtmlReader::parseHtmlFragmentBody' => [
+                'body' => $methodBody($htmlReaderSource, 'parseHtmlFragmentBody'),
+                'delegates' => ['Html5Dom::parseHtmlFragment('],
+            ],
+            'HtmlReader::parseHtmlRewriteSource' => [
+                'body' => $methodBody($htmlReaderSource, 'parseHtmlRewriteSource'),
+                'delegates' => ['Html5Dom::parseHtmlDocument(', 'Html5Dom::parseHtmlFragment('],
+            ],
+            'MarkdownReader::parseHtmlFragmentBodyElement' => [
+                'body' => $methodBody($markdownReaderSource, 'parseHtmlFragmentBodyElement'),
+                'delegates' => ['Html5Dom::parseHtmlFragment('],
+            ],
+            'MarkdownReader::parseHtmlFullDocumentDom' => [
+                'body' => $methodBody($markdownReaderSource, 'parseHtmlFullDocumentDom'),
+                'delegates' => ['Html5Dom::parseHtmlDocument('],
+            ],
+            'Html5DomFragment::loadHtmlFragmentRoot' => [
+                'body' => $methodBody($html5DomFragmentSource, 'loadHtmlFragmentRoot'),
+                'delegates' => ['Html5Dom::parseHtmlFragment('],
+            ],
+            'XmlHtmlDom::loadHtmlFragment' => [
+                'body' => $methodBody($xmlHtmlDomSource, 'loadHtmlFragment'),
+                'delegates' => ['Html5Dom::parseHtmlFragment('],
+            ],
+            'XmlHtmlDomFragment::parseHtml' => [
+                'body' => $methodBody($xmlHtmlDomFragmentSource, 'parseHtml'),
+                'delegates' => ['Html5Dom::parseHtmlFragment('],
+            ],
+        ];
+        foreach ($delegatingHtmlParserEntrypoints as $method => $entrypoint) {
+            foreach ($entrypoint['delegates'] as $delegate) {
+                $t->contains($delegate, $entrypoint['body']);
+            }
+            foreach (['preg_', 'rawHtmlOpeningTagAt', 'rawHtmlClosingTagAt', 'markdownRawHtml', '->loadHTML(', 'HTMLDocument::createFromString'] as $parserFragment) {
+                $t->true(!str_contains($entrypoint['body'], $parserFragment), "{$method} must delegate HTML parsing instead of using {$parserFragment}");
+            }
+        }
+
+        $html5TreeConstructionBodies = [
+            'Html5Dom::parseHtmlFragment' => $methodBody($html5DomSource, 'parseHtmlFragment'),
+            'Html5Dom::parseHtmlDocument' => $methodBody($html5DomSource, 'parseHtmlDocument'),
+            'Html5Dom::loadHtml' => $methodBody($html5DomSource, 'loadHtml'),
+            'Html5Dom::html5TreeConstructedBridgeSource' => $methodBody($html5DomSource, 'html5TreeConstructedBridgeSource'),
+            'Html5Dom::html5TreeConstructedFragment' => $methodBody($html5DomSource, 'html5TreeConstructedFragment'),
+            'Html5Dom::html5BodyContextFragment' => $methodBody($html5DomSource, 'html5BodyContextFragment'),
+            'Html5Dom::html5TableContextFragment' => $methodBody($html5DomSource, 'html5TableContextFragment'),
+        ];
+        foreach ($html5TreeConstructionBodies as $method => $body) {
+            foreach ([
+                'preg_',
+                'rawHtmlOpeningTagAt',
+                'rawHtmlClosingTagAt',
+                'markdownRawHtml',
+                'htmlDoctypeHtmlAt',
+                'xmlDeclarationEndAt',
+                'isHtmlAttributeName',
+                'isHtmlUnquotedAttributeValueChar',
+                'isHtmlTagNameChar',
+            ] as $parserFragment) {
+                $t->true(!str_contains($body, $parserFragment), "{$method} must not rebuild HTML parsing with {$parserFragment}");
+            }
+        }
+
+        $loadHtmlBody = $html5TreeConstructionBodies['Html5Dom::loadHtml'];
+        $bridgeOffset = strpos($loadHtmlBody, 'self::html5TreeConstructedBridgeSource(');
+        $legacyOffset = strpos($loadHtmlBody, 'self::loadLegacyHtml(');
+        $t->true($bridgeOffset !== false, 'Html5Dom::loadHtml must start from HTMLDocument tree construction');
+        $t->true($legacyOffset !== false, 'Html5Dom::loadHtml may only use legacy DOMDocument as a post-HTMLDocument bridge');
+        $t->true($bridgeOffset !== false && $legacyOffset !== false && $bridgeOffset < $legacyOffset, 'Html5Dom::loadHtml must tree-construct through HTMLDocument before the legacy bridge');
+
         foreach ([
             "preg_match('/^ {0,3}<",
             '[A-Za-z_:][A-Za-z0-9_.:-]',

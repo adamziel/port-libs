@@ -131,12 +131,18 @@ $featureProbes = [
         },
     ],
     'bare uri' => [
-        'markdown' => 'Visit www.example.test/docs now.',
-        'literal' => 'Visit www.example.test/docs now.',
+        'markdown' => 'Visit http://example.test/docs now.',
+        'literal' => 'Visit http://example.test/docs now.',
+        'literalByFormat' => [
+            'markdown_mmd' => '',
+            'markdown-mmd' => '',
+            'markdown+mmd' => '',
+            'markdown+multimarkdown' => '',
+        ],
         'match' => static fn (AstNode $node): bool => $node->type === 'link' && $node->attr('classes') === ['uri'],
         'assert' => static function (TestRunner $t, AstNode $node) use ($inlineText): void {
-            $t->same('http://www.example.test/docs', $node->attr('url'));
-            $t->same('www.example.test/docs', $inlineText($node));
+            $t->same('http://example.test/docs', $node->attr('url'));
+            $t->same('http://example.test/docs', $inlineText($node));
         },
     ],
     'bracketed span' => [
@@ -191,17 +197,19 @@ $assertAbsent = static function (TestRunner $t, ?string $format, string $feature
     $match = $findInline($document, $probe['match']);
     $paragraph = $document->children[0] ?? new AstNode('missing');
     $label = ($format ?? 'default') . ' disables ' . $feature;
+    $literalByFormat = is_array($probe['literalByFormat'] ?? null) ? $probe['literalByFormat'] : [];
+    $literal = $literalByFormat[$format ?? 'default'] ?? $probe['literal'];
 
     $t->same('missing', $match->type, $label);
-    $t->same($probe['literal'], $inlineText($paragraph), $label . ' literal text');
+    $t->same($literal, $inlineText($paragraph), $label . ' literal text');
 };
 
 $allFeatureFormats = [
-    'default' => ['format' => null, 'disabled' => ['mark', 'wikilink']],
-    'markdown' => ['format' => 'markdown', 'disabled' => ['mark', 'wikilink']],
-    'pandoc' => ['format' => 'pandoc', 'disabled' => ['mark', 'wikilink']],
-    'commonmark_x' => ['format' => 'commonmark_x', 'disabled' => ['mark', 'citation', 'wikilink', 'raw tex']],
-    'commonmark-x' => ['format' => 'commonmark-x', 'disabled' => ['mark', 'citation', 'wikilink', 'raw tex']],
+    'default' => ['format' => null, 'disabled' => ['mark', 'wikilink', 'bare uri']],
+    'markdown' => ['format' => 'markdown', 'disabled' => ['mark', 'wikilink', 'bare uri']],
+    'pandoc' => ['format' => 'pandoc', 'disabled' => ['mark', 'wikilink', 'bare uri']],
+    'commonmark_x' => ['format' => 'commonmark_x', 'disabled' => ['mark', 'citation', 'wikilink', 'raw tex', 'bare uri']],
+    'commonmark-x' => ['format' => 'commonmark-x', 'disabled' => ['mark', 'citation', 'wikilink', 'raw tex', 'bare uri']],
 ];
 
 $strictFormats = ['markdown_strict', 'markdown-strict', 'markdown+strict', 'commonmark'];
