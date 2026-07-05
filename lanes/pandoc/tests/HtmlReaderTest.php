@@ -1470,7 +1470,7 @@ $tests['imports direct pandoc html invalid table children as visible blocks'] =
                 $label
             );
             $t->same(
-                ['loose', 'tail', 'A', 'B', 'after'],
+                ['loose', 'A', 'tail', 'B', 'after'],
                 array_map(static fn ($node): string => $node->attr('text'), $document->children),
                 $label
             );

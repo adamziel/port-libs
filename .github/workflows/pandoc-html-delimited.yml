@@ -112,7 +112,7 @@ jobs:
             --json \
             --require-selected-fixture-count=114 \
             --require-static-current-evidence \
-            --require-native-mapped-parity=113 \
+            --require-native-mapped-parity=114 \
             --require-runner-not-run \
             --require-runner-plan \
             --require-no-validation-issues
@@ -123,7 +123,7 @@ jobs:
             --html-dir=lanes/pandoc/fixtures \
             --json \
             summary \
-            --require-mapped-parity=113
+            --require-mapped-parity=114
 
       - name: Install pandoc executable
         run: |

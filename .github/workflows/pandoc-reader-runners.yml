@@ -323,7 +323,7 @@ jobs:
                 --json \
                 --require-selected-fixture-count=114 \
                 --require-static-current-evidence \
-                --require-native-mapped-parity=113 \
+                --require-native-mapped-parity=114 \
                 --runner-result-artifact "$artifact_root/result.json" \
                 --require-runner-result-artifact \
                 --require-no-validation-issues \

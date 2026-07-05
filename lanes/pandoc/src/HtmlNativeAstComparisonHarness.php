@@ -14,9 +14,7 @@ final class HtmlNativeAstComparisonHarness
     private const HTML_READER_OPTIONS_BY_BASENAME = [
         'upstream-html-raw-disabled-skip' => ['htmlRawHtml' => false],
     ];
-    private const HTMLDOCUMENT_MAPPED_PAIR_EXCLUSIONS = [
-        'upstream-html-invalid-table-children' => 'upstream pandoc preserves source order inside malformed table content; Dom\\HTMLDocument exposes the browser DOM after foster parenting without source positions',
-    ];
+    private const HTMLDOCUMENT_MAPPED_PAIR_EXCLUSIONS = [];
 
     /** @var array<string, true> */
     private const IGNORED_ATTRS = [

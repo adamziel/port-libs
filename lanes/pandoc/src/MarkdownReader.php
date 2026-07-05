@@ -135,6 +135,11 @@ final class MarkdownReader
     /** @var array<string, list<string>> */
     private array $htmlRawElementSourceQueues = [];
 
+    /**
+     * @var \SplObjectStorage<\DOMElement, array{blocks:list<AstNode>, fosteredBlocks:list<AstNode>}>|null
+     */
+    private ?\SplObjectStorage $htmlSourceOrderInvalidTableBlocks = null;
+
     private int $markdownBlockQuoteDepth = 0;
 
     private string $metadataMarkdownExtensionSuffix = '';
@@ -4467,10 +4472,12 @@ final class MarkdownReader
         $previousHtmlFootnoteDefinitions = $this->htmlFootnoteDefinitions;
         $previousHtmlResolvedFootnoteReference = $this->htmlResolvedFootnoteReference;
         $previousHtmlRawElementSourceQueues = $this->htmlRawElementSourceQueues;
+        $previousHtmlSourceOrderInvalidTableBlocks = $this->htmlSourceOrderInvalidTableBlocks;
         $this->htmlBaseHref = $this->htmlDocumentBaseHref($dom);
         $this->htmlFootnoteDefinitions = $this->collectHtmlFootnoteDefinitions($body);
         $this->htmlResolvedFootnoteReference = false;
         $this->htmlRawElementSourceQueues = self::htmlRawElementSourceQueues($html);
+        $this->htmlSourceOrderInvalidTableBlocks = $this->buildHtmlSourceOrderInvalidTableBlockMap($body, $html);
         try {
             $attrs = $this->htmlDocumentAttrs($dom);
             $nativeDivs = $this->htmlNativeDivsEnabled();
@@ -4492,6 +4499,7 @@ final class MarkdownReader
             $this->htmlFootnoteDefinitions = $previousHtmlFootnoteDefinitions;
             $this->htmlResolvedFootnoteReference = $previousHtmlResolvedFootnoteReference;
             $this->htmlRawElementSourceQueues = $previousHtmlRawElementSourceQueues;
+            $this->htmlSourceOrderInvalidTableBlocks = $previousHtmlSourceOrderInvalidTableBlocks;
         }
     }
 
@@ -5934,6 +5942,19 @@ final class MarkdownReader
                 continue;
             }
 
+            $sourceOrderTableBlocks = $child instanceof \DOMElement
+                ? $this->htmlSourceOrderInvalidTableBlocksForDomTable($child)
+                : null;
+            if ($sourceOrderTableBlocks !== null) {
+                $this->replaceHtmlFosteredBlocksBeforeTable(
+                    $blocks,
+                    $inlines,
+                    $sourceOrderTableBlocks['fosteredBlocks']
+                );
+                array_push($blocks, ...$sourceOrderTableBlocks['blocks']);
+                continue;
+            }
+
             if (
                 $child instanceof \DOMElement
                 && (
@@ -5988,6 +6009,19 @@ final class MarkdownReader
             if ($child instanceof \DOMElement && $this->isHtmlTransparentBlockContainer($child)) {
                 $this->flushHtmlInlineParagraph($inlines, $blocks);
                 array_push($blocks, ...$this->parseHtmlBlockChildren($child));
+                continue;
+            }
+
+            $sourceOrderTableBlocks = $child instanceof \DOMElement
+                ? $this->htmlSourceOrderInvalidTableBlocksForDomTable($child)
+                : null;
+            if ($sourceOrderTableBlocks !== null) {
+                $this->replaceHtmlFosteredBlocksBeforeTable(
+                    $blocks,
+                    $inlines,
+                    $sourceOrderTableBlocks['fosteredBlocks']
+                );
+                array_push($blocks, ...$sourceOrderTableBlocks['blocks']);
                 continue;
             }
 
@@ -7848,6 +7882,264 @@ final class MarkdownReader
         $normalized = trim(preg_replace('/\s+/', ' ', $text) ?? $text);
 
         return $normalized !== '' || $this->htmlInlineParagraphHasStructuralContent($inlines);
+    }
+
+    /**
+     * @return \SplObjectStorage<\DOMElement, array{blocks:list<AstNode>, fosteredBlocks:list<AstNode>}>|null
+     */
+    private function buildHtmlSourceOrderInvalidTableBlockMap(\DOMElement $body, string $html): ?\SplObjectStorage
+    {
+        if (!$this->htmlReaderModeEnabled()) {
+            return null;
+        }
+
+        $sourceRoot = self::parseHtmlSourceOrderXmlRoot($html);
+        if (!$sourceRoot instanceof \DOMElement) {
+            return null;
+        }
+
+        $sourceTables = $this->htmlTableElementsInDocumentOrder($sourceRoot);
+        $domTables = $this->htmlTableElementsInDocumentOrder($body);
+        if ($sourceTables === [] || $domTables === []) {
+            return null;
+        }
+
+        $map = new \SplObjectStorage();
+        $count = min(count($sourceTables), count($domTables));
+        for ($index = 0; $index < $count; ++$index) {
+            $sourceTable = $sourceTables[$index];
+            if (!$this->htmlTableShouldFallBackToBlocks($sourceTable)) {
+                continue;
+            }
+
+            $fosteredBlocks = $this->parseHtmlSourceOrderFosteredTableBlocks($sourceTable);
+            if ($fosteredBlocks === []) {
+                continue;
+            }
+
+            $blocks = $this->parseHtmlInvalidTableBlocks($sourceTable);
+            if ($blocks === []) {
+                continue;
+            }
+
+            $map[$domTables[$index]] = [
+                'blocks' => $blocks,
+                'fosteredBlocks' => $fosteredBlocks,
+            ];
+        }
+
+        return count($map) > 0 ? $map : null;
+    }
+
+    private static function parseHtmlSourceOrderXmlRoot(string $html): ?\DOMElement
+    {
+        $source = self::htmlSourceWithoutLeadingDoctype($html);
+        if (str_contains($source, '<?xml')) {
+            return null;
+        }
+
+        try {
+            return Html5Dom::parseXmlFragment($source, 'pandoc-html-source-order-root');
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private static function htmlSourceWithoutLeadingDoctype(string $html): string
+    {
+        $offset = strspn($html, " \t\r\n\f");
+        if (strncasecmp(substr($html, $offset, 9), '<!doctype', 9) !== 0) {
+            return $html;
+        }
+
+        $declarationEnd = strpos($html, '>', $offset + 9);
+        $subsetStart = strpos($html, '[', $offset + 9);
+        if ($subsetStart !== false && ($declarationEnd === false || $subsetStart < $declarationEnd)) {
+            $subsetEnd = strpos($html, ']>', $subsetStart + 1);
+            if ($subsetEnd === false) {
+                return $html;
+            }
+            $declarationEnd = $subsetEnd + 1;
+        }
+        if ($declarationEnd === false) {
+            return $html;
+        }
+
+        return substr($html, 0, $offset) . substr($html, $declarationEnd + 1);
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private function htmlTableElementsInDocumentOrder(\DOMElement $root): array
+    {
+        $tables = [];
+        if (strtolower($root->localName) === 'table') {
+            $tables[] = $root;
+        }
+
+        foreach ($root->childNodes as $child) {
+            if ($child instanceof \DOMElement) {
+                array_push($tables, ...$this->htmlTableElementsInDocumentOrder($child));
+            }
+        }
+
+        return $tables;
+    }
+
+    /**
+     * @return array{blocks:list<AstNode>, fosteredBlocks:list<AstNode>}|null
+     */
+    private function htmlSourceOrderInvalidTableBlocksForDomTable(\DOMElement $table): ?array
+    {
+        if (
+            !$this->htmlSourceOrderInvalidTableBlocks instanceof \SplObjectStorage
+            || strtolower($table->localName) !== 'table'
+            || !$this->htmlSourceOrderInvalidTableBlocks->offsetExists($table)
+        ) {
+            return null;
+        }
+
+        /** @var array{blocks:list<AstNode>, fosteredBlocks:list<AstNode>} $blocks */
+        $blocks = $this->htmlSourceOrderInvalidTableBlocks[$table];
+
+        return $blocks;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function parseHtmlSourceOrderFosteredTableBlocks(\DOMElement $table): array
+    {
+        $blocks = [];
+        $inlines = [];
+        foreach ($table->childNodes as $child) {
+            if ($child instanceof \DOMText || $child instanceof \DOMCdataSection || $child instanceof \DOMComment) {
+                $this->appendHtmlInlineNodes($inlines, $this->parseHtmlInlineNode($child));
+                continue;
+            }
+
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            if ($this->isHtmlTableSourceOrderChildKeptInTable($child)) {
+                $this->flushHtmlInlineParagraph($inlines, $blocks);
+                continue;
+            }
+
+            $this->flushHtmlInlineParagraph($inlines, $blocks);
+            array_push($blocks, ...$this->parseHtmlInvalidTableChildBlocks($child));
+        }
+        $this->flushHtmlInlineParagraph($inlines, $blocks);
+
+        return $blocks;
+    }
+
+    private function isHtmlTableSourceOrderChildKeptInTable(\DOMElement $element): bool
+    {
+        return in_array(strtolower($element->localName), ['caption', 'colgroup', 'thead', 'tbody', 'tfoot', 'tr'], true);
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @param list<AstNode> $inlines
+     * @param list<AstNode> $fosteredBlocks
+     */
+    private function replaceHtmlFosteredBlocksBeforeTable(array &$blocks, array &$inlines, array $fosteredBlocks): void
+    {
+        if ($fosteredBlocks === []) {
+            $this->flushHtmlInlineParagraph($inlines, $blocks);
+            return;
+        }
+
+        $pendingBlock = $this->htmlInlineParagraphBlock($inlines);
+        $tailBlocks = $blocks;
+        if ($pendingBlock instanceof AstNode) {
+            $tailBlocks[] = $pendingBlock;
+        }
+
+        $fosteredCount = count($fosteredBlocks);
+        if (count($tailBlocks) < $fosteredCount) {
+            $this->flushHtmlInlineParagraph($inlines, $blocks);
+            return;
+        }
+
+        $tailOffset = count($tailBlocks) - $fosteredCount;
+        for ($index = 0; $index < $fosteredCount; ++$index) {
+            if (!$this->htmlAstNodesEquivalent($tailBlocks[$tailOffset + $index], $fosteredBlocks[$index])) {
+                $this->flushHtmlInlineParagraph($inlines, $blocks);
+                return;
+            }
+        }
+
+        if ($pendingBlock instanceof AstNode) {
+            $inlines = [];
+            --$fosteredCount;
+        } else {
+            $this->flushHtmlInlineParagraph($inlines, $blocks);
+        }
+
+        while ($fosteredCount > 0 && $blocks !== []) {
+            array_pop($blocks);
+            --$fosteredCount;
+        }
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     */
+    private function htmlInlineParagraphBlock(array $inlines): ?AstNode
+    {
+        $inlines = $this->trimHtmlBoundarySoftBreaks($inlines);
+        $text = $this->plainTextFromInlines($inlines);
+        $normalized = trim(preg_replace('/\s+/', ' ', $text) ?? $text);
+        if (
+            $normalized === ''
+            && !$this->htmlInlineParagraphHasLineBreak($inlines)
+            && !$this->htmlInlineParagraphHasStructuralContent($inlines)
+        ) {
+            return null;
+        }
+
+        return new AstNode(
+            $this->htmlPlainInlineBlocksEnabled() ? 'plain' : 'paragraph',
+            ['text' => $normalized],
+            $inlines
+        );
+    }
+
+    private function htmlAstNodesEquivalent(AstNode $left, AstNode $right): bool
+    {
+        return self::htmlAstNodeComparisonKey($left) === self::htmlAstNodeComparisonKey($right);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function htmlAstNodeComparisonKey(AstNode $node): array
+    {
+        return [
+            'type' => $node->type,
+            'attrs' => self::sortHtmlAstComparisonValue($node->attrs),
+            'children' => array_map(self::htmlAstNodeComparisonKey(...), $node->children),
+        ];
+    }
+
+    private static function sortHtmlAstComparisonValue(mixed $value): mixed
+    {
+        if (!is_array($value)) {
+            return $value;
+        }
+
+        foreach ($value as $key => $child) {
+            $value[$key] = self::sortHtmlAstComparisonValue($child);
+        }
+        if (!array_is_list($value)) {
+            ksort($value, SORT_STRING);
+        }
+
+        return $value;
     }
 
     /**
