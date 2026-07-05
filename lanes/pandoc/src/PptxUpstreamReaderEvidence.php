@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 94;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 95;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = 'a44e16f5b22e093136ccb56e8cbcbd5a1e7470ff4b5a09ac4b92c45b73a86948';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 40828;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '51a8214b7dd3b00f3331b5ebede8e3277f100354ac1364fbff64ac3053207b86';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 41227;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -882,6 +882,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => 'e3ffd5e45e2cd8d69c94af6bedfeeb6f5e96e5056aa33999de0033fd00ba5e64',
             'pptxBytes' => 1994,
             'nativeBytes' => 128,
+        ],
+        'transition-sound-media' => [
+            'name' => 'generated transition sound media review parity',
+            'pptx' => 'pptx-reader/transition-sound-media.pptx',
+            'native' => 'pptx-reader/transition-sound-media.native',
+            'pairKey' => 'pptx-reader/transition-sound-media.pptx|pptx-reader/transition-sound-media.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/transition-sound-media.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/transition-sound-media.native',
+            'pptxSha256' => '2975b41855f4c46d214aee4586851a861012370d934fe2b8edc5366b40f70fb1',
+            'nativeSha256' => 'c2b9096c98cb64a9497b4284f156e75dea1547d26a860d1b40570380c3798fcb',
+            'pptxBytes' => 1883,
+            'nativeBytes' => 114,
         ],
         'two-slides' => [
             'name' => 'generated two-slide ordering parity',
