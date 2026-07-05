@@ -11865,14 +11865,16 @@ HTML;
         $t->same('title', $badTarget->children[0]->attr('text'));
         $t->same('Name of page', $pageName->attr('url'));
         $t->same('Name of page', $pageName->children[0]->attr('text'));
-        $t->same('text', $bracketPageName->type);
-        $t->same('[[Name of ]page]]', $bracketPageName->attr('text'));
+        $t->same('link', $bracketPageName->type);
+        $t->same(['wikilink'], $bracketPageName->attr('classes'));
+        $t->same('Name of ]page', $bracketPageName->attr('url'));
+        $t->same('Name of ]page', $bracketPageName->children[0]->attr('text'));
         $t->same('https://example.org', $literalTitle->attr('url'));
         $t->same('t`i*t_le', $literalTitle->children[0]->attr('text'));
         $t->contains('<a href="https://example.org" class="wikilink">https://example.org</a>', $blocks);
         $t->contains('<a href="https://example.org" class="wikilink">title</a>', $blocks);
         $t->contains('<a href="random string" class="wikilink">title</a>', $blocks);
-        $t->contains('<p>[[Name of ]page]]</p>', $blocks);
+        $t->contains('<a href="Name of ]page" class="wikilink">Name of ]page</a>', $blocks);
         $t->contains('<a href="https://example.org" class="wikilink">t`i*t_le</a>', $blocks);
     },
     'writes wordpress structured html table sections from import notes' => static function (TestRunner $t): void {

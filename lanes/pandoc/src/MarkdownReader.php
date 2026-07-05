@@ -3193,6 +3193,16 @@ final class MarkdownReader
         }
 
         if ($this->isMarkdownInHtmlVerbatimTag($tag)) {
+            if ($tag === 'pre') {
+                [$html, $endIndex] = $collected;
+                $codeBlock = $this->parseHtmlPreCodeBlock($html, false);
+                if ($codeBlock instanceof AstNode) {
+                    $index = $endIndex;
+
+                    return [$codeBlock];
+                }
+            }
+
             return $this->rawHtmlBlockFromCollectedHtml($collected, $index);
         }
 
@@ -5737,7 +5747,7 @@ final class MarkdownReader
         return $codeBlock;
     }
 
-    private function parseHtmlPreCodeBlock(string $html): ?AstNode
+    private function parseHtmlPreCodeBlock(string $html, bool $allowBarePre = true): ?AstNode
     {
         $body = $this->parseHtmlFragmentBodyElement($html);
         if (!$body instanceof \DOMElement) {
@@ -5749,7 +5759,17 @@ final class MarkdownReader
             return null;
         }
 
+        if (!$allowBarePre && !$this->htmlPreHasCodeChildOrAttrs($pre)) {
+            return null;
+        }
+
         return $this->buildHtmlPreCodeBlock($pre);
+    }
+
+    private function htmlPreHasCodeChildOrAttrs(\DOMElement $pre): bool
+    {
+        return $this->firstChildElement($pre, 'code') instanceof \DOMElement
+            || $this->htmlElementPandocAttrs($pre) !== [];
     }
 
     private function buildHtmlPreCodeBlock(\DOMElement $pre): ?AstNode
@@ -7541,7 +7561,50 @@ final class MarkdownReader
             return null;
         }
 
-        return $this->parseHtmlTableElement($table);
+        return $this->parseHtmlTableElement($table, !$this->htmlFirstTableSourceHasDirectOpeningTag($html, 'tbody'));
+    }
+
+    private function htmlFirstTableSourceHasDirectOpeningTag(string $html, string $tag): bool
+    {
+        $tableOffset = $this->findRawHtmlOpeningTagStart($html, 0, 'table');
+        if ($tableOffset === null) {
+            return false;
+        }
+
+        $opening = Html5Dom::rawHtmlOpeningTagAt($html, $tableOffset);
+        if ($opening === null || $opening['selfClosing']) {
+            return false;
+        }
+
+        $tag = strtolower($tag);
+        $depth = 1;
+        $cursor = (int) $opening['next'];
+        while (($offset = strpos($html, '<', $cursor)) !== false) {
+            $closing = Html5Dom::rawHtmlClosingTagAt($html, $offset);
+            if ($closing !== null && $closing['name'] === 'table') {
+                --$depth;
+                if ($depth === 0) {
+                    return false;
+                }
+                $cursor = (int) $closing['next'];
+                continue;
+            }
+
+            $child = Html5Dom::rawHtmlOpeningTagAt($html, $offset);
+            if ($child !== null) {
+                if ($child['name'] === 'table' && !$child['selfClosing']) {
+                    ++$depth;
+                } elseif ($depth === 1 && $child['name'] === $tag) {
+                    return true;
+                }
+                $cursor = (int) $child['next'];
+                continue;
+            }
+
+            $cursor = $offset + 1;
+        }
+
+        return false;
     }
 
     /**
@@ -7879,7 +7942,7 @@ final class MarkdownReader
         return $blocks;
     }
 
-    private function parseHtmlTableElement(\DOMElement $table): AstNode
+    private function parseHtmlTableElement(\DOMElement $table, bool $allowImplicitBodyHeaderPromotion = true): AstNode
     {
         $maxColumns = 0;
         $caption = $this->firstChildElement($table, 'caption');
@@ -7898,7 +7961,8 @@ final class MarkdownReader
             : [];
         $bodyNodes = [];
         if ($bodySections !== []) {
-            $promoteImplicitBodyHead = !$thead instanceof \DOMElement
+            $promoteImplicitBodyHead = $allowImplicitBodyHeaderPromotion
+                && !$thead instanceof \DOMElement
                 && count($bodySections) === 1;
             foreach ($bodySections as $bodyIndex => $tbody) {
                 $rows = $this->readHtmlTableRows(
