@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\HtmlReader;
+use PortLibs\Pandoc\HtmlNativeAstComparisonHarness;
+use PortLibs\Pandoc\NativeReader;
 use PortLibs\Pandoc\TagSoupParseOptions;
 use PortLibs\Pandoc\TagSoupParser;
 use PortLibs\Pandoc\TagSoupRenderer;
@@ -109,6 +111,29 @@ return [
         $t->same('strong', $document->children[1]->children[1]->type);
         $t->same('link', $document->children[1]->children[3]->type);
         $t->same('/x', $document->children[1]->children[3]->attr('url'));
+    },
+
+    'opt-in tagsoup backend matches initial html native fixture slice' => static function (TestRunner $t): void {
+        $root = dirname(__DIR__) . '/fixtures';
+        $harness = new HtmlNativeAstComparisonHarness();
+        foreach ([
+            'upstream-html-address-block',
+            'upstream-html-blockquote',
+            'upstream-html-thematic-break',
+        ] as $basename) {
+            $options = HtmlNativeAstComparisonHarness::readerOptionsForFixtureBasename($basename);
+            $options['htmlReaderBackend'] = 'tagsoup-pandoc-port';
+            $html = file_get_contents($root . '/' . $basename . '.html');
+            $native = file_get_contents($root . '/' . $basename . '.native');
+            if (!is_string($html) || !is_string($native)) {
+                throw new RuntimeException('Missing fixture pair for ' . $basename);
+            }
+
+            $local = $harness->normalizedDocument((new HtmlReader($options))->read($html));
+            $expected = $harness->normalizedDocument((new NativeReader())->read($native));
+
+            $t->same($expected, $local, $basename . ' should match through the TagSoup backend');
+        }
     },
 ];
 

@@ -62,6 +62,21 @@ final class PandocHtmlTagSoupReader
             }
 
             if ($token->type === TagSoupTag::OPEN) {
+                if (str_starts_with($token->name, '!') || str_starts_with($token->name, '?')) {
+                    $this->index++;
+                    continue;
+                }
+                if ($token->name === 'html' || $token->name === 'body') {
+                    $this->index++;
+                    array_push($blocks, ...$this->parseBlocksUntil([$token->name]));
+                    $this->consumeClose($token->name);
+                    continue;
+                }
+                if ($token->name === 'head') {
+                    $this->index++;
+                    $this->skipUntilClose('head');
+                    continue;
+                }
                 $block = $this->parseOpenBlock($token, $stopTags);
                 if ($block instanceof AstNode) {
                     $blocks[] = $block;
@@ -69,13 +84,16 @@ final class PandocHtmlTagSoupReader
                 }
             }
 
+            $beforeInlineIndex = $this->index;
             $inlines = $this->parseInlinesUntil($stopTags, stopBeforeBlock: true);
             if ($inlines !== []) {
                 $blocks[] = new AstNode('paragraph', ['text' => $this->plainTextFromInlines($inlines)], $inlines);
                 continue;
             }
 
-            $this->index++;
+            if ($this->index === $beforeInlineIndex) {
+                $this->index++;
+            }
         }
 
         return $blocks;
@@ -87,7 +105,7 @@ final class PandocHtmlTagSoupReader
     private function parseOpenBlock(TagSoupTag $token, array $outerStopTags): ?AstNode
     {
         $name = $token->name;
-        if (in_array($name, ['html', 'body', 'main', 'section', 'article', 'header', 'footer', 'aside'], true)) {
+        if (in_array($name, ['main', 'section', 'article', 'header', 'footer', 'aside'], true)) {
             $this->index++;
             $children = $this->parseBlocksUntil([$name]);
             $this->consumeClose($name);
@@ -95,16 +113,10 @@ final class PandocHtmlTagSoupReader
             return new AstNode('div', $this->pandocAttrs($token), $children);
         }
 
-        if ($name === 'head') {
+        if ($name === 'p' || $name === 'address') {
             $this->index++;
-            $this->skipUntilClose('head');
-            return null;
-        }
-
-        if ($name === 'p') {
-            $this->index++;
-            $inlines = $this->parseInlinesUntil(['p']);
-            $this->consumeClose('p');
+            $inlines = $this->parseInlinesUntil([$name]);
+            $this->consumeClose($name);
 
             return new AstNode('paragraph', ['text' => $this->plainTextFromInlines($inlines)], $inlines);
         }
@@ -419,11 +431,14 @@ final class PandocHtmlTagSoupReader
         foreach ($inlines as $inline) {
             if ($inline->type === 'text') {
                 $text = preg_replace('/\s+/', ' ', (string) $inline->attr('text', '')) ?? '';
+                $lastIndex = array_key_last($normalized);
+                $last = $lastIndex === null ? null : $normalized[$lastIndex];
+                if ($last instanceof AstNode && $last->type === 'linebreak') {
+                    $text = ltrim($text);
+                }
                 if ($text === '') {
                     continue;
                 }
-                $lastIndex = array_key_last($normalized);
-                $last = $lastIndex === null ? null : $normalized[$lastIndex];
                 if ($last instanceof AstNode && $last->type === 'text') {
                     $normalized[$lastIndex] = new AstNode('text', ['text' => (string) $last->attr('text', '') . $text]);
                     continue;
@@ -437,6 +452,9 @@ final class PandocHtmlTagSoupReader
 
         if ($normalized !== [] && $normalized[0]->type === 'text') {
             $normalized[0] = new AstNode('text', ['text' => ltrim((string) $normalized[0]->attr('text', ''))]);
+            if ($normalized[0]->attr('text', '') === '') {
+                array_shift($normalized);
+            }
         }
         $lastIndex = array_key_last($normalized);
         if ($lastIndex !== null && $normalized[$lastIndex]->type === 'text') {
