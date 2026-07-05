@@ -22,6 +22,26 @@ return [
             Html5Dom::serializeHtmlChildren($body)
         );
     },
+    'keeps void element siblings when bridging HTMLDocument output' => static function (TestRunner $t): void {
+        if (!class_exists('Dom\\HTMLDocument')) {
+            $t->true(true, 'Dom\\HTMLDocument is unavailable on this PHP runtime');
+
+            return;
+        }
+
+        $body = Html5Dom::parseHtmlFragment(
+            '<embed src="plugin.swf" type="application/x-shockwave-flash"></embed><object data="diagram.svg"><param name="quality" value="high">Fallback</object>'
+        );
+        $children = Html5Dom::childElements($body);
+
+        $t->same(['embed', 'object'], array_map(static fn (DOMElement $element): string => strtolower($element->localName), $children));
+        $t->same(0, $children[0]->childNodes->length);
+        $t->same('Fallback', $children[1]->textContent);
+        $t->same(
+            '<embed src="plugin.swf" type="application/x-shockwave-flash"><object data="diagram.svg"><param name="quality" value="high"></param>Fallback</object>',
+            Html5Dom::serializeHtmlChildren($body)
+        );
+    },
     'bridges HTML5 tree construction through legacy DOMDocument helpers' => static function (TestRunner $t): void {
         if (!class_exists('Dom\\HTMLDocument')) {
             $t->true(true, 'Dom\\HTMLDocument is unavailable on this PHP runtime');

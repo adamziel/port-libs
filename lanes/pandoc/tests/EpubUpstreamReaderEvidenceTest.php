@@ -775,6 +775,56 @@ HS);
         }
     },
 
+    'generic reader runner artifact tool writes and validates epub result artifact' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeRunnerTranscripts, $repoRoot): void {
+        $root = $makeTempDir();
+        try {
+            $fixtureRoot = $repoRoot() . '/lanes/pandoc/fixtures/upstream-current-epub-reader';
+            $baseReport = (new EpubUpstreamReaderEvidence(
+                $root,
+                $fixtureRoot,
+                $fixtureRoot
+            ))->report();
+            $runnerPlan = $baseReport['runnerEvidence'];
+            $writeRunnerTranscripts($root, $runnerPlan['requiredTranscripts']);
+
+            $artifactPath = '.port-libs/pandoc-runner/artifacts/epub-targeted-run/result.json';
+            $command = escapeshellarg(PHP_BINARY)
+                . ' '
+                . escapeshellarg(dirname(__DIR__, 3) . '/tools/pandoc-reader-runner-artifact.php')
+                . ' --repo-root=' . escapeshellarg($root)
+                . ' --upstream-root=' . escapeshellarg($fixtureRoot)
+                . ' --fixture-base=' . escapeshellarg($fixtureRoot)
+                . ' --format=epub'
+                . ' --write-result-artifact=' . escapeshellarg($artifactPath)
+                . ' --result-started-at-utc=2026-07-05T00:00:00Z'
+                . ' --result-finished-at-utc=2026-07-05T00:00:01Z'
+                . ' --require-valid-result-artifact'
+                . ' --json';
+            $output = [];
+            $exitCode = 0;
+            exec($command, $output, $exitCode);
+            $decoded = json_decode(implode("\n", $output), true, 512, JSON_THROW_ON_ERROR);
+            $writtenArtifact = $root . '/' . $artifactPath;
+            $payload = json_decode((string) file_get_contents($writtenArtifact), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same(0, $exitCode);
+            $t->same('pandoc-reader-runner-artifact', $decoded['tool']);
+            $t->same('epub', $decoded['format']);
+            $t->same('runner-result-artifact-valid', $decoded['status']);
+            $t->same('valid-upstream-epub-reader-runner-result-artifact', $decoded['validation']['status']);
+            $t->same(true, $decoded['resultArtifact']['written']);
+            $t->same($artifactPath, $decoded['resultArtifact']['path']);
+            $t->same(true, $payload['runnerExecuted']);
+            $t->same(6, $payload['testCount']);
+            $t->same(6, $payload['passedCount']);
+            $t->same(0, $payload['failedCount']);
+            $t->same($runnerPlan['futureCommands'][2], $payload['command']);
+            $t->same($runnerPlan['requiredTranscripts'], $payload['transcriptPaths']);
+        } finally {
+            $removeTree($root);
+        }
+    },
+
     'cli gates epub reader evidence counts and validation issues' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeEpubEvidenceTree): void {
         $root = $makeTempDir();
         try {

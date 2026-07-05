@@ -76,6 +76,7 @@ $tests['keeps html tree construction centralized through Html5Dom'] =
         $htmlReaderSource = (string) file_get_contents($sourceRoot . '/HtmlReader.php');
         $markdownReaderSource = (string) file_get_contents($sourceRoot . '/MarkdownReader.php');
         $html5DomSource = (string) file_get_contents($sourceRoot . '/Html5Dom.php');
+        $xmlHtmlDomSource = (string) file_get_contents($sourceRoot . '/XmlHtmlDom.php');
         $xmlHtmlDomFragmentSource = (string) file_get_contents($sourceRoot . '/XmlHtmlDomFragment.php');
         $html5DomFragmentSource = (string) file_get_contents($sourceRoot . '/Html5DomFragment.php');
 
@@ -89,7 +90,11 @@ $tests['keeps html tree construction centralized through Html5Dom'] =
             $t->true(!str_contains($source, 'new DOMDocument'), "{$file} must not construct DOMDocument directly for HTML parsing");
         }
 
+        $t->true(!str_contains($xmlHtmlDomSource, '->loadHTML('), 'XmlHtmlDom.php must route HTML fragment parsing through Html5Dom');
         $t->true(!str_contains($xmlHtmlDomFragmentSource, '->loadHTML('), 'XmlHtmlDomFragment.php must route HTML fragment parsing through Html5Dom');
+        $t->true(!str_contains($html5DomFragmentSource, '->loadHTML('), 'Html5DomFragment.php must route HTML fragment parsing through Html5Dom');
+        $t->true(!str_contains($html5DomFragmentSource, 'HTMLDocument::createFromString'), 'Html5DomFragment.php must not bypass Html5Dom with Dom\\HTMLDocument');
+        $t->true(!str_contains($html5DomFragmentSource, 'treeConstructedHtmlSource($source)'), 'Html5DomFragment.php must not preparse fragments before Html5Dom');
 
         $t->contains('HTMLDocument::createFromString', $html5DomSource);
         $t->contains('insertAdjacentHTML', $html5DomSource);
@@ -98,7 +103,7 @@ $tests['keeps html tree construction centralized through Html5Dom'] =
         $t->contains('function parseHtmlDocument', $html5DomSource);
         $t->contains('function htmlFragmentTreeConstructionContext', $html5DomSource);
         $t->contains('function htmlTreeConstructionInput', $html5DomSource);
-        $t->contains('treeConstructedHtmlSource($source)', $html5DomFragmentSource);
+        $t->contains('Html5Dom::parseHtmlFragment(', $html5DomFragmentSource);
         foreach ([
             'htmlTagTokens',
             'wrapOrphanTableScopeRuns',

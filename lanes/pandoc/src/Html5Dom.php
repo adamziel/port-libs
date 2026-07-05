@@ -11,6 +11,23 @@ final class Html5Dom
     public const HTML_FRAGMENT_CONTEXT_BODY = 'html-body-fragment-context';
     public const HTML_FRAGMENT_CONTEXT_TABLE = 'html-table-fragment-context';
 
+    /** @var array<string, true> */
+    private const HTML5_VOID_ELEMENTS = [
+        'area' => true,
+        'base' => true,
+        'br' => true,
+        'col' => true,
+        'embed' => true,
+        'hr' => true,
+        'img' => true,
+        'input' => true,
+        'link' => true,
+        'meta' => true,
+        'source' => true,
+        'track' => true,
+        'wbr' => true,
+    ];
+
     public static function htmlDocumentTreeConstructionBackend(): string
     {
         return self::nativeHtmlDocumentAvailable()
@@ -350,7 +367,42 @@ final class Html5Dom
             throw new \RuntimeException('Unable to parse ' . $label);
         }
 
+        self::repairLegacyVoidElementChildren($dom);
+
         return $dom;
+    }
+
+    private static function repairLegacyVoidElementChildren(\DOMDocument $dom): void
+    {
+        do {
+            $moved = false;
+            $elements = iterator_to_array($dom->getElementsByTagName('*'));
+            foreach ($elements as $element) {
+                if (!$element instanceof \DOMElement || !$element->hasChildNodes()) {
+                    continue;
+                }
+
+                $name = strtolower($element->localName);
+                if (!isset(self::HTML5_VOID_ELEMENTS[$name])) {
+                    continue;
+                }
+
+                $parent = $element->parentNode;
+                if (!$parent instanceof \DOMNode) {
+                    continue;
+                }
+
+                $reference = $element->nextSibling;
+                foreach (iterator_to_array($element->childNodes) as $child) {
+                    if (!$child instanceof \DOMNode) {
+                        continue;
+                    }
+
+                    $parent->insertBefore($child, $reference);
+                    $moved = true;
+                }
+            }
+        } while ($moved);
     }
 
     private static function htmlSourceNeedsLiteralPayloadProtection(

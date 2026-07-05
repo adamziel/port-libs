@@ -921,6 +921,61 @@ return [
         }
     },
 
+    'generic reader runner artifact tool writes and validates html result artifact' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeHtmlEvidenceTree, $writeRunnerTranscripts): void {
+        $root = $makeTempDir();
+        try {
+            $writeHtmlEvidenceTree($root);
+            $baseReport = (new HtmlUpstreamReaderEvidence($root, $root))->report();
+            $runnerPlan = $baseReport['runnerEvidence'];
+            $writeRunnerTranscripts($root, $runnerPlan['requiredTranscripts']);
+            $testNames = array_map(
+                static fn (array $fixture): string => $fixture['name'],
+                $baseReport['denominator']['selectedFixtures']
+            );
+
+            $artifactPath = '.port-libs/pandoc-runner/artifacts/html-targeted-run/result.json';
+            $command = escapeshellarg(PHP_BINARY)
+                . ' '
+                . escapeshellarg(dirname(__DIR__, 3) . '/tools/pandoc-reader-runner-artifact.php')
+                . ' --repo-root=' . escapeshellarg($root)
+                . ' --upstream-root=' . escapeshellarg($root)
+                . ' --format=html'
+                . ' --write-result-artifact=' . escapeshellarg($artifactPath)
+                . ' --result-started-at-utc=2026-07-05T00:00:00Z'
+                . ' --result-finished-at-utc=2026-07-05T00:00:01Z'
+                . ' --require-valid-result-artifact'
+                . ' --json';
+            $output = [];
+            $exitCode = 0;
+            exec($command, $output, $exitCode);
+            $decoded = json_decode(implode("\n", $output), true, 512, JSON_THROW_ON_ERROR);
+            $writtenArtifact = $root . '/' . $artifactPath;
+            $payload = json_decode((string) file_get_contents($writtenArtifact), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same(0, $exitCode);
+            $t->same('pandoc-reader-runner-artifact', $decoded['tool']);
+            $t->same('html', $decoded['format']);
+            $t->same('runner-result-artifact-valid', $decoded['status']);
+            $t->same('valid-upstream-html-reader-runner-result-artifact', $decoded['validation']['status']);
+            $t->same(true, $decoded['resultArtifact']['written']);
+            $t->same($artifactPath, $decoded['resultArtifact']['path']);
+            $t->same($testNames, $decoded['expectedTestNames']);
+            $t->same(2, $payload['schemaVersion']);
+            $t->same('Cabal/Tasty Pandoc HTML reader suite', $payload['runner']);
+            $t->same(true, $payload['runnerExecuted']);
+            $t->same(count($testNames), $payload['testCount']);
+            $t->same(count($testNames), $payload['passedCount']);
+            $t->same(0, $payload['failedCount']);
+            $t->same(count($testNames), $decoded['resultArtifact']['payload']['testCount']);
+            $t->same(count($testNames), $decoded['resultArtifact']['payload']['passedCount']);
+            $t->same(0, $decoded['resultArtifact']['payload']['failedCount']);
+            $t->same($runnerPlan['futureCommands'][2], $payload['command']);
+            $t->same($runnerPlan['requiredTranscripts'], $payload['transcriptPaths']);
+        } finally {
+            $removeTree($root);
+        }
+    },
+
     'workflow gate keeps html fixture denominator wiring' => static function (TestRunner $t): void {
         $repoRoot = dirname(__DIR__, 3);
         $workflow = file_get_contents($repoRoot . '/.github/workflows/pandoc-html-delimited.yml');

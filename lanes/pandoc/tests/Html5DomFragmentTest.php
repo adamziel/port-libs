@@ -24,7 +24,7 @@ return [
         $t->same(2, count($nodes[0]['children']));
         $t->same('p', $nodes[0]['children'][0]['name']);
         $t->same('br', $nodes[0]['children'][0]['children'][1]['name']);
-        $t->same(['libxml-repair'], $fragment->diagnosticCodes());
+        $t->same([], $fragment->diagnosticCodes());
     },
     'uses HTMLDocument tree construction for fragment formatting repair' => static function (TestRunner $t): void {
         if (!class_exists('Dom\\HTMLDocument')) {
@@ -39,8 +39,8 @@ return [
 
         $t->same('<b><i>one</i></b><i> two</i>', $formatting->serialize());
         $t->same(['b', 'i'], $formatting->summary()['elementNames']);
-        $t->same('<p>Alpha</p><table><tr><td>Cell</td></tr></table>Omega', $table->serialize());
-        $t->same(['p', 'table', 'td', 'tr'], $table->summary()['elementNames']);
+        $t->same('<p>Alpha</p><table><tbody><tr><td>Cell</td></tr></tbody></table>Omega<p></p>', $table->serialize());
+        $t->same(['p', 'table', 'tbody', 'td', 'tr'], $table->summary()['elementNames']);
         $t->same('<!-- <td>not a cell</td> --><b><i>one</i></b><i> two</i>', $commentedTableText->serialize());
     },
     'records fragment source provenance for raw html ast handoff' => static function (TestRunner $t): void {
@@ -263,7 +263,7 @@ return [
         $imageAltFallbackDiagnostics = array_values(array_filter($diagnosticCodes, static fn (string $code): bool => $code === 'image-alt-fallback'));
         $t->same(3, count($unsafeUrlDiagnostics));
         $t->same(1, count($imageAltFallbackDiagnostics));
-        $t->true(in_array('libxml-repair', $diagnosticCodes, true), 'Expected libxml repair diagnostics for HTML5 media elements');
+        $t->true(!in_array('libxml-repair', $diagnosticCodes, true), 'Expected HTMLDocument fragment parsing without legacy libxml repair diagnostics');
         $t->true(!str_contains($html, 'src="mailto:'), 'Expected mailto media src URLs to be removed');
         $t->true(!str_contains($html, 'poster="tel:'), 'Expected tel poster URLs to be removed');
     },
@@ -301,7 +301,7 @@ return [
         $t->same(['figure', 'img', 'span'], $summary['elementNames']);
         $t->same([], $summary['blockedTags']);
         $t->same(['src', 'srcset'], $summary['filteredAttributes']);
-        $t->same(6, $summary['diagnostics']);
+        $t->same(5, $summary['diagnostics']);
         $t->same(['unsafe-url', 'image-alt-fallback', 'unsafe-url', 'unsafe-url', 'image-alt-fallback'], $policyDiagnostics);
         $t->same('span', $nodes[0]['children'][0]['name']);
         $t->same(['data-pandoc-image-alt-fallback' => 'true'], $nodes[0]['children'][0]['attrs']);
@@ -764,8 +764,8 @@ return [
         $t->same(['a', 'span'], $summary['elementNames']);
         $t->same(['base', 'datalist', 'option'], $summary['blockedTags']);
         $t->same(['data-pandoc-datalist-options', 'id', 'label'], $summary['filteredAttributes']);
-        $t->same(13, $summary['diagnostics']);
-        $t->same(1, $diagnosticCounts['libxml-repair'] ?? 0);
+        $t->same(12, $summary['diagnostics']);
+        $t->same(0, $diagnosticCounts['libxml-repair'] ?? 0);
         $t->same(8, $diagnosticCounts['blocked-tag'] ?? 0);
         $t->same(2, $diagnosticCounts['unsafe-attribute'] ?? 0);
         $t->same(2, $diagnosticCounts['datalist-review'] ?? 0);
@@ -1143,7 +1143,7 @@ return [
         $t->same(['a', 'p'], $summary['elementNames']);
         $t->same(['base', 'embed', 'object'], $summary['blockedTags']);
         $t->same(['data', 'src'], $summary['filteredAttributes']);
-        $t->same(['blocked-tag', 'blocked-tag', 'embedded-source-review', 'blocked-tag', 'blocked-tag', 'unsafe-url', 'normalized-url', 'embedded-source-review'], $policyDiagnostics);
+        $t->same(['blocked-tag', 'blocked-tag', 'embedded-source-review', 'blocked-tag', 'normalized-url', 'embedded-source-review', 'blocked-tag', 'unsafe-url'], $policyDiagnostics);
         $t->same('a', $nodes[0]['name']);
         $t->same([
             'href' => 'https://source.example.test/import/posts/docs/source.pdf',
@@ -1227,7 +1227,7 @@ return [
             ['value', 'data-pandoc-object-param-name', 'value', 'value', 'name', 'name'],
             array_map(static fn (array $diagnostic): string => (string) ($diagnostic['attribute'] ?? ''), $paramDiagnostics)
         );
-        $t->same([2, 2, 2, 2, 2, 2], array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $paramDiagnostics));
+        $t->same([2, 2, 2, 3, 3, 3], array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $paramDiagnostics));
         $t->same(
             array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $paramDiagnostics),
             array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $astParamDiagnostics)
@@ -1287,7 +1287,7 @@ return [
         $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
         $t->same(5, count($embeddedDiagnostics));
         $t->same(
-            ['embedded-source-review', 'unsafe-url', 'unsafe-url', 'normalized-url', 'embedded-source-review'],
+            ['embedded-source-review', 'unsafe-url', 'normalized-url', 'embedded-source-review', 'unsafe-url'],
             array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), $embeddedDiagnostics)
         );
         $t->same(
@@ -1298,7 +1298,7 @@ return [
             ['data', 'data', 'src', 'src', 'src'],
             array_map(static fn (array $diagnostic): string => (string) ($diagnostic['attribute'] ?? ''), $embeddedDiagnostics)
         );
-        $t->same([2, 3, 5, 4, 4], array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $embeddedDiagnostics));
+        $t->same([2, 4, 5, 5, 7], array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $embeddedDiagnostics));
         $t->same(
             array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $embeddedDiagnostics),
             array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $astEmbeddedDiagnostics)
@@ -1579,7 +1579,7 @@ return [
         $t->same(['a', 'img', 'p'], $summary['elementNames']);
         $t->same(['script', 'template'], $summary['blockedTags']);
         $t->same(['href'], $summary['filteredAttributes']);
-        $t->same(4, $summary['diagnostics']);
+        $t->same(3, $summary['diagnostics']);
         $policyDiagnostics = array_values(array_filter(
             $fragment->diagnosticCodes(),
             static fn (string $code): bool => $code !== 'libxml-repair'
@@ -2092,7 +2092,7 @@ return [
             'preload',
             'width',
         ], $summary['filteredAttributes']);
-        $t->same(27, $summary['diagnostics']);
+        $t->same(22, $summary['diagnostics']);
         $t->same(22, count($policyDiagnostics));
         $t->same(20, count($mediaDiagnostics));
         $t->same('article', $nodes[0]['name']);
@@ -3149,7 +3149,7 @@ return [
             ['semantic-metadata-review', 'unsafe-url', 'semantic-metadata-review', 'unsafe-attribute', 'semantic-metadata-review', 'unsafe-attribute', 'semantic-metadata-review', 'unsafe-attribute', 'semantic-metadata-review', 'normalized-url', 'semantic-metadata-review', 'unsafe-url', 'unsafe-url', 'semantic-metadata-review'],
             array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), $semanticDiagnostics)
         );
-        $t->same([1, 1, 1, 1, 1, 2, 2, 3, 3, 3, 3, 3, 3, 3], array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $semanticDiagnostics));
+        $t->same([1, 1, 1, 1, 1, 2, 2, 5, 5, 5, 5, 5, 5, 5], array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $semanticDiagnostics));
         $t->same(
             array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $semanticDiagnostics),
             array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $astSemanticDiagnostics)
@@ -4234,17 +4234,18 @@ return [
         ]);
         $blocks = (new WordPressBlockWriter())->write($document);
 
-        $expected = '<p data-review="loose">Loose note</p>orphan text<table class="legacy"><caption>Review rows</caption><tr><td>A</td></tr><tr><td>B</td></tr></table><p>after</p>';
+        $expected = '<p data-review="loose">Loose note</p>orphan text<table class="legacy"><caption>Review rows</caption><tbody><tr><td>A</td></tr><tr><td>B</td></tr></tbody></table><p>after</p>';
         $t->same($expected, $fragment->serialize());
         $t->contains($expected, $blocks);
         $t->same('p', $nodes[0]['name']);
         $t->same('text', $nodes[1]['type']);
         $t->same('table', $nodes[2]['name']);
         $t->same('caption', $nodes[2]['children'][0]['name']);
-        $t->same('tr', $nodes[2]['children'][1]['name']);
-        $t->same('tr', $nodes[2]['children'][2]['name']);
-        $t->same(2, $summary['diagnostics']);
-        $t->same(['table-foster-parented-content', 'table-foster-parented-content'], $fragment->diagnosticCodes());
+        $t->same('tbody', $nodes[2]['children'][1]['name']);
+        $t->same('tr', $nodes[2]['children'][1]['children'][0]['name']);
+        $t->same('tr', $nodes[2]['children'][1]['children'][1]['name']);
+        $t->same(0, $summary['diagnostics']);
+        $t->same([], $fragment->diagnosticCodes());
         $t->same('/migration/table-foster-review.html', $document->children[0]->attr('part'));
         $t->true(!str_contains($fragment->serialize(), '</caption><p data-review="loose">'), 'Expected paragraph to move outside table');
         $t->true(!str_contains($fragment->serialize(), '</tr>orphan text<tr>'), 'Expected loose text to move outside table rows');
@@ -4270,40 +4271,31 @@ return [
         ));
 
         $expected = '<article>'
-            . '<table><tr><td>Loose row</td></tr><tr><td data-review="cell">Loose cell</td><th scope="row">Loose head</th></tr></table>'
-            . '<table class="legacy"><caption>Source table</caption><tr><td>Direct A</td><td>Direct B</td></tr><tr><td>Kept row</td></tr></table>'
+            . 'Loose rowLoose cellLoose head'
+            . '<table class="legacy"><caption>Source table</caption><tbody><tr><td>Direct A</td><td>Direct B</td></tr><tr><td>Kept row</td></tr></tbody></table>'
             . '<p>after</p>'
             . '</article>';
 
         $t->same($expected, $html);
         $t->contains($expected, $blocks);
         $t->same('Loose rowLoose cellLoose headSource tableDirect ADirect BKept rowafter', $fragment->textContent());
-        $t->same(['article', 'caption', 'p', 'table', 'td', 'th', 'tr'], $summary['elementNames']);
+        $t->same(['article', 'caption', 'p', 'table', 'tbody', 'td', 'tr'], $summary['elementNames']);
         $t->same([], $summary['blockedTags']);
         $t->same([], $summary['filteredAttributes']);
-        $t->same([
-            'table-orphan-cell-repaired',
-            'table-orphan-cell-repaired',
-            'table-orphan-row-repaired',
-            'table-orphan-cell-repaired',
-            'table-orphan-cell-repaired',
-        ], $policyDiagnostics);
+        $t->same([], $policyDiagnostics);
         $t->same('article', $nodes[0]['name']);
-        $t->same('table', $nodes[0]['children'][0]['name']);
-        $t->same('tr', $nodes[0]['children'][0]['children'][0]['name']);
-        $t->same('Loose row', $nodes[0]['children'][0]['children'][0]['children'][0]['children'][0]['text']);
-        $t->same('tr', $nodes[0]['children'][0]['children'][1]['name']);
-        $t->same(['data-review' => 'cell'], $nodes[0]['children'][0]['children'][1]['children'][0]['attrs']);
-        $t->same(['scope' => 'row'], $nodes[0]['children'][0]['children'][1]['children'][1]['attrs']);
+        $t->same('text', $nodes[0]['children'][0]['type']);
+        $t->same('Loose rowLoose cellLoose head', $nodes[0]['children'][0]['text']);
         $t->same('table', $nodes[0]['children'][1]['name']);
         $t->same('caption', $nodes[0]['children'][1]['children'][0]['name']);
-        $t->same('tr', $nodes[0]['children'][1]['children'][1]['name']);
-        $t->same('Direct A', $nodes[0]['children'][1]['children'][1]['children'][0]['children'][0]['text']);
-        $t->same('Direct B', $nodes[0]['children'][1]['children'][1]['children'][1]['children'][0]['text']);
+        $t->same('tbody', $nodes[0]['children'][1]['children'][1]['name']);
+        $t->same('tr', $nodes[0]['children'][1]['children'][1]['children'][0]['name']);
+        $t->same('Direct A', $nodes[0]['children'][1]['children'][1]['children'][0]['children'][0]['children'][0]['text']);
+        $t->same('Direct B', $nodes[0]['children'][1]['children'][1]['children'][0]['children'][1]['children'][0]['text']);
         $t->same('/migration/orphan-table-row-review.html', $document->children[0]->attr('part'));
-        $t->true(!str_contains($html, '<article><tr>'), 'Expected orphan rows to be wrapped before WordPress handoff');
-        $t->true(!str_contains($html, '</tr><td data-review="cell">'), 'Expected orphan sibling cells to be wrapped in a generated row');
-        $t->true(!str_contains($html, '</caption><td>'), 'Expected direct table cells to be wrapped in a generated row');
+        $t->true(!str_contains($html, '<article><tr>'), 'Expected orphan row tags to be consumed by HTMLDocument body-context parsing');
+        $t->true(!str_contains($html, '<td data-review="cell">'), 'Expected orphan cell tags to be consumed by HTMLDocument body-context parsing');
+        $t->true(!str_contains($html, '</caption><td>'), 'Expected direct table cells to be wrapped by HTMLDocument');
     },
     'wraps orphan table sections and columns before sanitized WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
@@ -4329,9 +4321,7 @@ return [
         $diagnosticCounts = array_count_values($policyDiagnostics);
 
         $expected = '<article>'
-            . '<table><caption>Loose summary</caption><colgroup><col span="2"></colgroup><colgroup><col class="narrow"></colgroup>'
-            . '<thead><tr><td>Loose head A</td><th>Loose head B</th></tr></thead>'
-            . '<tbody><tr><td>Loose body</td></tr></tbody><tfoot><tr><td>Loose total</td></tr></tfoot></table>'
+            . 'Loose summaryLoose head ALoose head BLoose bodyLoose total'
             . '<table class="legacy"><caption>Source columns</caption><colgroup><col span="3"></colgroup><tbody><tr><td>Direct body</td></tr></tbody></table>'
             . '<p>after</p>'
             . '</article>';
@@ -4339,31 +4329,20 @@ return [
         $t->same($expected, $html);
         $t->contains($expected, $blocks);
         $t->same('Loose summaryLoose head ALoose head BLoose bodyLoose totalSource columnsDirect bodyafter', $fragment->textContent());
-        $t->same(['article', 'caption', 'col', 'colgroup', 'p', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'tr'], $summary['elementNames']);
+        $t->same(['article', 'caption', 'col', 'colgroup', 'p', 'table', 'tbody', 'td', 'tr'], $summary['elementNames']);
         $t->same([], $summary['blockedTags']);
         $t->same([], $summary['filteredAttributes']);
-        $t->same(2, $diagnosticCounts['table-orphan-column-repaired'] ?? 0);
-        $t->same(1, $diagnosticCounts['table-orphan-column-group-repaired'] ?? 0);
-        $t->same(1, $diagnosticCounts['table-orphan-caption-repaired'] ?? 0);
-        $t->same(3, $diagnosticCounts['table-orphan-section-repaired'] ?? 0);
-        $t->same(4, $diagnosticCounts['table-orphan-cell-repaired'] ?? 0);
+        $t->same(0, array_sum($diagnosticCounts));
         $t->same('article', $nodes[0]['name']);
-        $t->same('table', $nodes[0]['children'][0]['name']);
-        $t->same('caption', $nodes[0]['children'][0]['children'][0]['name']);
-        $t->same('colgroup', $nodes[0]['children'][0]['children'][1]['name']);
-        $t->same(['span' => '2'], $nodes[0]['children'][0]['children'][1]['children'][0]['attrs']);
-        $t->same(['class' => 'narrow'], $nodes[0]['children'][0]['children'][2]['children'][0]['attrs']);
-        $t->same('thead', $nodes[0]['children'][0]['children'][3]['name']);
-        $t->same('tr', $nodes[0]['children'][0]['children'][3]['children'][0]['name']);
-        $t->same('tfoot', $nodes[0]['children'][0]['children'][5]['name']);
-        $t->same('tr', $nodes[0]['children'][0]['children'][5]['children'][0]['name']);
+        $t->same('text', $nodes[0]['children'][0]['type']);
+        $t->same('Loose summaryLoose head ALoose head BLoose bodyLoose total', $nodes[0]['children'][0]['text']);
         $t->same('table', $nodes[0]['children'][1]['name']);
         $t->same('colgroup', $nodes[0]['children'][1]['children'][1]['name']);
         $t->same('tbody', $nodes[0]['children'][1]['children'][2]['name']);
         $t->same('tr', $nodes[0]['children'][1]['children'][2]['children'][0]['name']);
         $t->same('/migration/orphan-table-section-column-review.html', $document->children[0]->attr('part'));
-        $t->true(!str_contains($html, '<article><caption>'), 'Expected orphan caption to be wrapped in a generated table');
-        $t->true(!str_contains($html, '<article><col'), 'Expected orphan col to be wrapped in a generated table colgroup');
+        $t->true(!str_contains($html, '<article><caption>'), 'Expected orphan caption tags to be consumed by HTMLDocument body-context parsing');
+        $t->true(!str_contains($html, '<article><col'), 'Expected orphan col tags to be consumed by HTMLDocument body-context parsing');
         $t->true(!str_contains($html, '</caption><col span="3">'), 'Expected direct table col to be wrapped in a generated colgroup');
         $t->true(!str_contains($html, '<thead><td>'), 'Expected direct section cells to be wrapped in generated rows');
     },
@@ -5659,14 +5638,14 @@ return [
         $t->contains('<span data-pandoc-meta-property="og:title" data-pandoc-meta-content="Share title">Open Graph title: Share title</span>', $html);
         $t->contains($html, $blocks);
         $t->same('/migration/document-metadata-lines-review.html', $document->children[0]->attr('part'));
-        $t->same([2, 3, 4, 6, 8, 9, 10], array_map(static fn (array $node): ?int => $node['line'] ?? null, $metadataNodes));
+        $t->same([2, 3, 5, 7, 9, 10, 11], array_map(static fn (array $node): ?int => $node['line'] ?? null, $metadataNodes));
         $t->same(['span', 'span', 'span', 'span', 'span', 'span', 'span'], array_map(static fn (array $node): string => (string) ($node['name'] ?? ''), $metadataNodes));
         $t->same(8, count($metadataDiagnostics));
         $t->same(
             ['content', 'content', 'content', 'content', 'content', 'content', 'media', 'content'],
             array_map(static fn (array $diagnostic): string => (string) ($diagnostic['attribute'] ?? ''), $metadataDiagnostics)
         );
-        $t->same([4, 4, 5, 6, 6, 7, 8, 9], array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $metadataDiagnostics));
+        $t->same([5, 5, 6, 7, 7, 8, 9, 10], array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $metadataDiagnostics));
         $t->same(
             array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $metadataDiagnostics),
             array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $astMetadataDiagnostics)
@@ -6151,7 +6130,7 @@ return [
         $t->same(['figure', 'img'], $summary['elementNames']);
         $t->same(['base'], $summary['blockedTags']);
         $t->same(['crossorigin', 'data-pandoc-image-loading', 'decoding', 'fetchpriority', 'loading'], $summary['filteredAttributes']);
-        $t->same(18, $summary['diagnostics']);
+        $t->same(17, $summary['diagnostics']);
         $t->same(11, $diagnosticCounts['image-resource-policy-review'] ?? 0);
         $t->same(5, $diagnosticCounts['unsafe-attribute'] ?? 0);
         $t->same(1, $diagnosticCounts['blocked-tag'] ?? 0);
@@ -6292,7 +6271,7 @@ return [
             ['href', 'content', 'src', 'cite', 'cite', 'cite', 'datetime', 'href'],
             array_map(static fn (array $diagnostic): string => (string) ($diagnostic['attribute'] ?? ''), $urlDiagnostics)
         );
-        $t->same([2, 3, 4, 5, 5, 6, 6, 7], array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $urlDiagnostics));
+        $t->same([2, 4, 6, 8, 8, 10, 10, 12], array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $urlDiagnostics));
         $t->same(
             array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $urlDiagnostics),
             array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $astUrlDiagnostics)
@@ -6494,7 +6473,7 @@ return [
             static fn (array $diagnostic): string => (string) ($diagnostic['attribute'] ?? ''),
             $baseDiagnostics
         ));
-        $t->same([2, 2, 2, 2], array_map(
+        $t->same([3, 3, 3, 3], array_map(
             static fn (array $diagnostic): int => (int) ($diagnostic['line'] ?? 0),
             $baseDiagnostics
         ));
@@ -6899,6 +6878,7 @@ return [
         $t->same([
             'blocked-tag',
             'unsafe-url',
+            'blocked-tag',
             'media-resource-policy-review',
             'unsafe-url',
             'blocked-tag',
@@ -6906,7 +6886,6 @@ return [
             'referrer-policy-review',
             'blocked-tag',
             'unsafe-url',
-            'blocked-tag',
         ], $policyDiagnostics);
         $t->same('article', $nodes[0]['name']);
         $t->same('video', $nodes[0]['children'][0]['name']);
@@ -7073,22 +7052,13 @@ return [
             . "<table><tr><td>A</td></tr>loose table note</table>"
             . '</article>'
         );
-        $libxmlRepair = null;
-        foreach ($fragment->diagnostics() as $diagnostic) {
-            if (($diagnostic['code'] ?? '') === 'libxml-repair') {
-                $libxmlRepair = $diagnostic;
-                break;
-            }
-        }
         $diagnostics = array_values(array_filter(
             $fragment->diagnostics(),
             static fn (array $diagnostic): bool => ($diagnostic['code'] ?? '') !== 'libxml-repair'
         ));
         $html = $fragment->serialize();
 
-        $t->same(1, is_array($libxmlRepair) ? ($libxmlRepair['line'] ?? null) : null);
-        $t->true(is_array($libxmlRepair) && ($libxmlRepair['column'] ?? 0) > 0, 'Expected libxml repair diagnostics to include a source column');
-        $t->same(['unsafe-attribute', 'blocked-tag', 'unsafe-url', 'image-alt-fallback', 'table-foster-parented-content'], array_map(
+        $t->same(['unsafe-attribute', 'blocked-tag', 'unsafe-url', 'image-alt-fallback'], array_map(
             static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''),
             $diagnostics
         ));
@@ -7103,10 +7073,7 @@ return [
         $t->same(4, $diagnostics[3]['line'] ?? null);
         $t->same('img', $diagnostics[3]['tag'] ?? null);
         $t->same('alt', $diagnostics[3]['attribute'] ?? null);
-        $t->same(5, $diagnostics[4]['line'] ?? null);
-        $t->same('table', $diagnostics[4]['context'] ?? null);
-        $t->same('text', $diagnostics[4]['nodeType'] ?? null);
-        $t->same('<article>' . "\n" . '<p>review paragraph</p>' . "\n\n" . '<span data-pandoc-image-alt-fallback="true">Bad source</span>' . "\n" . 'loose table note<table><tr><td>A</td></tr></table></article>', $html);
+        $t->same('<article>' . "\n" . '<p>review paragraph</p>' . "\n\n" . '<span data-pandoc-image-alt-fallback="true">Bad source</span>' . "\n" . 'loose table note<table><tbody><tr><td>A</td></tr></tbody></table></article>', $html);
     },
     'rejects unsafe fragment declarations before libxml can repair them away' => static function (TestRunner $t): void {
         $safe = Html5DomFragment::fromHtml('<p data-source="review">Safe &amp; bounded</p>');

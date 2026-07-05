@@ -2274,6 +2274,54 @@ return [
             $removeTree($root);
         }
     },
+    'generic reader runner artifact tool writes and validates delimited text result artifact' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeDelimitedTextEvidenceTree, $writeRunnerTranscripts): void {
+        $repoRoot = dirname(__DIR__, 3);
+        $root = $makeTempDir();
+        try {
+            $writeDelimitedTextEvidenceTree($root, $repoRoot);
+            $baseReport = (new DelimitedTextUpstreamReaderEvidence($root, '.'))->report();
+            $runnerPlan = $baseReport['runnerEvidence'];
+            $writeRunnerTranscripts($root, $runnerPlan['requiredTranscripts']);
+
+            $artifactPath = '.port-libs/pandoc-runner/artifacts/delimited-text-targeted-run/result.json';
+            $command = escapeshellarg(PHP_BINARY)
+                . ' '
+                . escapeshellarg($repoRoot . '/tools/pandoc-reader-runner-artifact.php')
+                . ' --repo-root=' . escapeshellarg($root)
+                . ' --upstream-root=' . escapeshellarg($root)
+                . ' --format=delimited-text'
+                . ' --write-result-artifact=' . escapeshellarg($artifactPath)
+                . ' --result-started-at-utc=2026-07-05T00:00:00Z'
+                . ' --result-finished-at-utc=2026-07-05T00:00:01Z'
+                . ' --require-valid-result-artifact'
+                . ' --json';
+            $output = [];
+            $exitCode = 0;
+            exec($command, $output, $exitCode);
+            $decoded = json_decode(implode("\n", $output), true, 512, JSON_THROW_ON_ERROR);
+            $writtenArtifact = $root . '/' . $artifactPath;
+            $payload = json_decode((string) file_get_contents($writtenArtifact), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same(0, $exitCode);
+            $t->same('pandoc-reader-runner-artifact', $decoded['tool']);
+            $t->same('delimited-text', $decoded['format']);
+            $t->same('runner-result-artifact-valid', $decoded['status']);
+            $t->same('valid-upstream-delimited-text-reader-runner-result-artifact', $decoded['validation']['status']);
+            $t->same(true, $decoded['resultArtifact']['written']);
+            $t->same($artifactPath, $decoded['resultArtifact']['path']);
+            $t->same(['Command: csv.md #1'], $decoded['expectedTestNames']);
+            $t->same(2, $payload['schemaVersion']);
+            $t->same('Cabal/Tasty Pandoc command reader suite', $payload['runner']);
+            $t->same(true, $payload['runnerExecuted']);
+            $t->same(1, $payload['testCount']);
+            $t->same(1, $payload['passedCount']);
+            $t->same(0, $payload['failedCount']);
+            $t->same($runnerPlan['futureCommands'][2], $payload['command']);
+            $t->same($runnerPlan['requiredTranscripts'], $payload['transcriptPaths']);
+        } finally {
+            $removeTree($root);
+        }
+    },
     'cli gates generated csv native parity against explicit repo root' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $repoRoot = dirname(__DIR__, 3);
         $missingRoot = $makeTempDir();

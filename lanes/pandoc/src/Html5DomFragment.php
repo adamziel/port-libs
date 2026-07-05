@@ -152,11 +152,7 @@ final class Html5DomFragment
         self::assertSafeHtmlSource($html, 'HTML fragment');
 
         $diagnostics = XmlHtmlDom::htmlRawTextBoundaryDiagnostics($html);
-        $dom = self::loadHtmlDocument($html, $diagnostics);
-        $wrapper = self::htmlWrapper($dom);
-        if (!$wrapper instanceof \DOMElement) {
-            throw new \InvalidArgumentException('Unable to parse HTML fragment wrapper');
-        }
+        $wrapper = self::loadHtmlFragmentRoot($html, $diagnostics);
 
         $resolvedBaseUrl = self::resolveFragmentBaseUrl($wrapper, $baseUrl, $diagnostics);
         $documentMetadataNodes = self::htmlDocumentElementMetadataNodes($html, $diagnostics);
@@ -364,88 +360,21 @@ final class Html5DomFragment
     /**
      * @param list<array<string, mixed>> $diagnostics
      */
-    private static function loadHtmlDocument(string $html, array &$diagnostics): \DOMDocument
-    {
-        $previous = libxml_use_internal_errors(true);
-        libxml_clear_errors();
-
-        $dom = new \DOMDocument('1.0', 'UTF-8');
-        $flags = LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING | LIBXML_HTML_NODEFDTD | LIBXML_HTML_NOIMPLIED;
-        $source = '<html><head><meta charset="UTF-8"></head><body><div data-pandoc-fragment-root="1">'
-            . XmlHtmlDom::protectHtmlRcdataElements($html)
-            . '</div></body></html>';
-        if (
-            Html5Dom::nativeHtmlDocumentAvailable()
-            && !self::hasLineBreak($html)
-            && !self::htmlFragmentContainsTableStructure($html)
-        ) {
-            $source = Html5Dom::treeConstructedHtmlSource($source)
-                ?? throw new \InvalidArgumentException('Unable to parse HTML fragment through Dom\\HTMLDocument');
-        }
-        $loaded = $dom->loadHTML($source, $flags);
-        $errors = libxml_get_errors();
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-
-        foreach ($errors as $error) {
-            $message = trim($error->message);
-            if ($message === '') {
-                continue;
-            }
-            $diagnostics[] = [
-                'code' => 'libxml-repair',
-                'level' => $error->level,
-                'message' => $message,
-                'line' => $error->line,
-                'column' => $error->column,
-            ];
-        }
-
-        if (!$loaded) {
-            throw new \InvalidArgumentException('Unable to parse HTML fragment');
-        }
-
-        return $dom;
-    }
-
-    private static function htmlFragmentContainsTableStructure(string $html): bool
+    private static function loadHtmlFragmentRoot(string $html, array &$diagnostics): \DOMElement
     {
         try {
-            $body = Html5Dom::parseHtmlFragment($html);
-        } catch (\Throwable) {
-            return false;
+            return Html5Dom::parseHtmlFragment(
+                $html,
+                protectRawTextContentForParse: false,
+                protectTemplateContentForParse: false,
+                protectIframeContentForParse: false,
+                protectNoscriptContentForParse: false
+            );
+        } catch (\InvalidArgumentException $exception) {
+            throw $exception;
+        } catch (\Throwable $exception) {
+            throw new \InvalidArgumentException('Unable to parse HTML fragment through ' . Html5Dom::htmlFragmentTreeConstructionBackend($html), 0, $exception);
         }
-
-        foreach (Html5Dom::descendantElements($body) as $element) {
-            if (self::isHtmlTableStructureElementName(strtolower($element->localName))) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static function isHtmlTableStructureElementName(string $name): bool
-    {
-        return in_array($name, ['caption', 'col', 'colgroup', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'tr'], true);
-    }
-
-    private static function hasLineBreak(string $source): bool
-    {
-        return str_contains($source, "\n") || str_contains($source, "\r");
-    }
-
-    private static function htmlWrapper(\DOMDocument $dom): ?\DOMElement
-    {
-        $xpath = new \DOMXPath($dom);
-        $nodes = $xpath->query('//*[@data-pandoc-fragment-root="1"]');
-        if (!$nodes instanceof \DOMNodeList || $nodes->length === 0) {
-            return null;
-        }
-
-        $node = $nodes->item(0);
-
-        return $node instanceof \DOMElement ? $node : null;
     }
 
     /**
@@ -3248,7 +3177,7 @@ final class Html5DomFragment
         try {
             self::assertSafeHtmlSource($srcdoc, 'iframe srcdoc');
             $srcdocDiagnostics = [];
-            $dom = self::loadHtmlDocument($srcdoc, $srcdocDiagnostics);
+            $wrapper = self::loadHtmlFragmentRoot($srcdoc, $srcdocDiagnostics);
         } catch (\InvalidArgumentException $error) {
             $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'invalid-srcdoc',
@@ -3263,18 +3192,6 @@ final class Html5DomFragment
         foreach ($srcdocDiagnostics as $diagnostic) {
             $diagnostic['context'] ??= 'iframe-srcdoc';
             $diagnostics[] = $diagnostic;
-        }
-
-        $wrapper = self::htmlWrapper($dom);
-        if (!$wrapper instanceof \DOMElement) {
-            $diagnostics[] = self::diagnosticWithSourceLine([
-                'code' => 'invalid-srcdoc',
-                'tag' => 'iframe',
-                'attribute' => 'srcdoc',
-                'message' => 'Unable to parse iframe srcdoc wrapper',
-            ], $element);
-
-            return [];
         }
 
         $srcdocBaseUrl = self::resolveFragmentBaseUrl($wrapper, $baseUrl, $diagnostics);

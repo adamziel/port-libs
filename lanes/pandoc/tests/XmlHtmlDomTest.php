@@ -3871,7 +3871,7 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->same(
             '<section aria-label="Packet Section" class="alpha  beta alpha" contenteditable="plaintext-only" data-package-part="word/document.xml" data-review-id="A-42" dir="RTL" draggable="true" hidden="until-found" id="packet" lang="en-US" role="doc-chapter region" spellcheck="false" tabindex="-1" title="Review &amp; Source" translate="no"><p class="child">Body</p></section>'
                 . '<p contenteditable="maybe" data-review-stage="preflight" dir="sideways" draggable="maybe" spellcheck="maybe" translate="maybe">Fallback</p>'
-                . '<table class="data-grid" data-package-part="word/tables.xml" id="review-table"><tr><td>Cell</td></tr></table>',
+                . '<table class="data-grid" data-package-part="word/tables.xml" id="review-table"><tbody><tr><td>Cell</td></tr></tbody></table>',
             $html
         );
     },
@@ -7223,7 +7223,7 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->same('comment', $summary[2]['type']);
         $t->same('review', $summary[2]['text']);
         $t->same('input', $summary[3]['name']);
-        $t->same(['checked' => 'checked'], $summary[3]['attributes']);
+        $t->same(['checked' => ''], $summary[3]['attributes']);
         $t->same("Text\u{00A0}<span title=\"A &quot;quote&quot; &amp; source\">source &lt;em&gt;</span><!--review--><input checked>", $html);
     },
     'decodes bounded html5 math spacing references before raw block serialization' => static function (TestRunner $t): void {
@@ -7357,10 +7357,10 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $html = XmlHtmlDom::serializeHtmlFragment($dom);
 
         $t->same('script', $summary[0]['name']);
-        $t->same(['defer' => 'defer', 'src' => 'review.js'], $summary[0]['attributes']);
+        $t->same(['defer' => '', 'src' => 'review.js'], $summary[0]['attributes']);
         $t->same('if (a < b && c > d) { window.review = "&"; }', $summary[0]['text']);
         $t->same('style', $summary[1]['name']);
-        $t->same(['disabled' => 'disabled'], $summary[1]['attributes']);
+        $t->same(['disabled' => ''], $summary[1]['attributes']);
         $t->same('.legacy > .target::before { content: "&"; }', $summary[1]['text']);
         $t->same('<script defer src="review.js">if (a < b && c > d) { window.review = "&"; }</script><style disabled>.legacy > .target::before { content: "&"; }</style>', $html);
     },
@@ -7689,7 +7689,7 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
 
         $t->same('select', $summary[0]['name']);
         $t->same('select', $summary[0]['formControl']);
-        $t->same(['multiple' => 'multiple', 'name' => 'review-status'], $summary[0]['attributes']);
+        $t->same(['multiple' => '', 'name' => 'review-status'], $summary[0]['attributes']);
         $t->same(['review', 'Archive Two'], $summary[0]['selectedValues']);
         $t->same([
             ['value' => 'draft', 'label' => 'Draft', 'text' => 'Draft', 'selected' => false, 'disabled' => false],
@@ -8519,7 +8519,7 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->same($expectedOptions, $formatInput['datalistOptions']);
         $t->same('datalist', $datalist['formControl']);
         $t->same($expectedOptions, $datalist['datalistOptions']);
-        $t->same(['disabled' => 'disabled'], $fieldset['attributes']);
+        $t->same(['disabled' => ''], $fieldset['attributes']);
         $t->same('fieldset', $fieldset['formGroup']);
         $t->same(true, $fieldset['disabled']);
         $t->same('Batch Keep enabled', $fieldset['legendText']);
@@ -9895,7 +9895,7 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
 
         $t->same('html-server-side-image-map-review', $server['serverImageMapReviewPolicy']);
         $t->same(true, $server['serverImageMap']);
-        $t->same('ismap', $server['serverImageMapRaw']);
+        $t->same('', $server['serverImageMapRaw']);
         $t->same(true, $server['serverImageMapAnchorFound']);
         $t->same('/map?packet=42', $server['serverImageMapAnchorHref']);
         $t->same(true, $server['serverImageMapAnchorHrefUsable']);
@@ -11027,7 +11027,7 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->same('Period', $references[7]['headerTargets'][0]['text']);
         $t->same('Q2', $references[7]['headerTargets'][0]['abbr']);
         $t->same('missing', $references[8]['targetState']);
-        $t->same('<table id="review-grid" summary="Legacy summary"><caption>Import matrix</caption><thead><tr><th abbr="Reg" colspan="2" id="region" scope="col">Region</th><th abbr="Q2" id="period" scope="col">Period</th><th abbr="First" id="dup" scope="col">Duplicate One</th><th abbr="Second" id="dup" scope="colgroup">Duplicate Two</th><td id="note">Not a header</td></tr></thead><tbody><tr><th abbr="A" id="row-a" rowspan="2" scope="row">Batch A</th><td colspan="2" headers="region row-a dup dup missing note bad&lt;tag period outer" rowspan="2">Ready</td></tr></tbody></table><table><tr><th abbr="Out" id="outer" scope="col">Outer table</th></tr></table>', $html);
+        $t->same('<table id="review-grid" summary="Legacy summary"><caption>Import matrix</caption><thead><tr><th abbr="Reg" colspan="2" id="region" scope="col">Region</th><th abbr="Q2" id="period" scope="col">Period</th><th abbr="First" id="dup" scope="col">Duplicate One</th><th abbr="Second" id="dup" scope="colgroup">Duplicate Two</th><td id="note">Not a header</td></tr></thead><tbody><tr><th abbr="A" id="row-a" rowspan="2" scope="row">Batch A</th><td colspan="2" headers="region row-a dup dup missing note bad&lt;tag period outer" rowspan="2">Ready</td></tr></tbody></table><table><tbody><tr><th abbr="Out" id="outer" scope="col">Outer table</th></tr></tbody></table>', $html);
     },
     'serializes detached dom nodes and children for reader handoff' => static function (TestRunner $t): void {
         $dom = new DOMDocument('1.0', 'UTF-8');
@@ -11711,9 +11711,10 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->same('table', $summary[2]['name']);
         $t->same(['class' => 'legacy'], $summary[2]['attributes']);
         $t->same('caption', $summary[2]['children'][0]['name']);
-        $t->same('tr', $summary[2]['children'][1]['name']);
-        $t->same('tr', $summary[2]['children'][2]['name']);
-        $t->same('<p>Loose note</p>orphan text<table class="legacy"><caption>Review rows</caption><tr><td>A</td></tr><tr><td>B</td></tr></table><p>after</p>', $html);
+        $t->same('tbody', $summary[2]['children'][1]['name']);
+        $t->same('tr', $summary[2]['children'][1]['children'][0]['name']);
+        $t->same('tr', $summary[2]['children'][1]['children'][1]['name']);
+        $t->same('<p>Loose note</p>orphan text<table class="legacy"><caption>Review rows</caption><tbody><tr><td>A</td></tr><tr><td>B</td></tr></tbody></table><p>after</p>', $html);
     },
     'foster-parents nested table row-group phrasing before raw handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
@@ -11769,15 +11770,18 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $table = $summary[0];
-        $generatedRow = $table['children'][0];
-        $sourceRow = $table['children'][1];
-        $generatedColgroup = $table['children'][2];
-        $sourceBody = $table['children'][3];
+        $generatedBody = $table['children'][0];
+        $generatedRow = $generatedBody['children'][0];
+        $sourceRow = $generatedBody['children'][1];
+        $generatedColgroup = $table['children'][1];
+        $sourceBody = $table['children'][2];
 
         $t->same('table', $table['name']);
         $t->same('table', $table['tablePart']);
         $t->same('ABCD', $table['text']);
-        $t->same(['tr', 'tr', 'colgroup', 'tbody'], array_map(static fn (array $node): string => $node['name'], $table['children']));
+        $t->same(['tbody', 'colgroup', 'tbody'], array_map(static fn (array $node): string => $node['name'], $table['children']));
+        $t->same('body-group', $generatedBody['tablePart']);
+        $t->same(['tr', 'tr'], array_map(static fn (array $node): string => $node['name'], $generatedBody['children']));
         $t->same('row', $generatedRow['tablePart']);
         $t->same(['td', 'th'], array_map(static fn (array $node): string => $node['name'], $generatedRow['children']));
         $t->same(['data-col' => 'a'], $generatedRow['children'][0]['attributes']);
@@ -11794,7 +11798,7 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->same('p', $summary[1]['name']);
         $t->same('after', $summary[1]['text']);
         $t->same(
-            '<table><tr><td data-col="a">A</td><th scope="col">B</th></tr><tr><td>C</td></tr><colgroup><col span="2"></colgroup><tbody><tr><td>D</td></tr></tbody></table><p>after</p>',
+            '<table><tbody><tr><td data-col="a">A</td><th scope="col">B</th></tr><tr><td>C</td></tr></tbody><colgroup><col span="2"></colgroup><tbody><tr><td>D</td></tr></tbody></table><p>after</p>',
             $html
         );
         $t->contains($html, $blocks);

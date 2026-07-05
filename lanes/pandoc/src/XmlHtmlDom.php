@@ -714,29 +714,50 @@ final class XmlHtmlDom
         );
         self::assertNoDoctype($preflight, $label);
         self::assertNoHtmlFragmentDeclarations($preflight, $label);
-        $html = self::protectHtmlRcdataElements(
-            $html,
-            protectTemplateContent: true,
-            protectIframeContent: true,
-            protectRawTextContent: $protectRawTextContentForParse,
-            protectNoscriptContent: true
-        );
+        try {
+            $body = Html5Dom::parseHtmlFragment(
+                $html,
+                protectRawTextContentForParse: $protectRawTextContentForParse,
+                protectTemplateContentForParse: true,
+                protectIframeContentForParse: true,
+                protectNoscriptContentForParse: true
+            );
+        } catch (\InvalidArgumentException $exception) {
+            throw $exception;
+        } catch (\Throwable $exception) {
+            throw new \InvalidArgumentException('Unable to parse ' . $label, 0, $exception);
+        }
 
-        $wrapped = '<!DOCTYPE html><html><head><meta charset="utf-8"></head><body><div '
-            . self::FRAGMENT_ROOT_ATTRIBUTE . '="1">' . $html . '</div></body></html>';
+        return self::htmlFragmentDocumentFromBody($body);
+    }
 
-        $previous = libxml_use_internal_errors(true);
+    private static function htmlFragmentDocumentFromBody(\DOMElement $body): \DOMDocument
+    {
         $dom = new \DOMDocument('1.0', 'UTF-8');
         $dom->preserveWhiteSpace = true;
         $dom->resolveExternals = false;
         $dom->substituteEntities = false;
-        $loaded = $dom->loadHTML($wrapped, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
-        $errors = libxml_get_errors();
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
 
-        if (!$loaded || self::fragmentRoot($dom) === null) {
-            throw new \InvalidArgumentException(self::parseErrorMessage('Unable to parse ' . $label, $errors));
+        $htmlElement = $dom->createElement('html');
+        $headElement = $dom->createElement('head');
+        $metaElement = $dom->createElement('meta');
+        $metaElement->setAttribute('charset', 'utf-8');
+        $bodyElement = $dom->createElement('body');
+        $fragmentRoot = $dom->createElement('div');
+        $fragmentRoot->setAttribute(self::FRAGMENT_ROOT_ATTRIBUTE, '1');
+
+        $headElement->appendChild($metaElement);
+        $bodyElement->appendChild($fragmentRoot);
+        $htmlElement->appendChild($headElement);
+        $htmlElement->appendChild($bodyElement);
+        $dom->appendChild($htmlElement);
+
+        foreach (iterator_to_array($body->childNodes) as $child) {
+            if (!$child instanceof \DOMNode) {
+                continue;
+            }
+
+            $fragmentRoot->appendChild($dom->importNode($child, true));
         }
 
         return $dom;
