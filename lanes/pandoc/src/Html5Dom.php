@@ -48,8 +48,8 @@ final class Html5Dom
     }
 
     /**
-     * Keep HTML5 tree construction on Dom\HTMLDocument while preserving
-     * Pandoc-visible literal payloads such as template and textarea bodies.
+     * HTML5 tree construction must receive the original source. Literal
+     * payload preservation happens after Dom\HTMLDocument has built the tree.
      */
     public static function htmlTreeConstructionInput(
         string $html,
@@ -58,23 +58,7 @@ final class Html5Dom
         bool $protectRawTextContent = false,
         bool $protectNoscriptContent = true
     ): string {
-        if (!self::htmlSourceNeedsLiteralPayloadProtection(
-            $html,
-            protectTemplateContent: $protectTemplateContent,
-            protectIframeContent: $protectIframeContent,
-            protectRawTextContent: $protectRawTextContent,
-            protectNoscriptContent: $protectNoscriptContent
-        )) {
-            return $html;
-        }
-
-        return XmlHtmlDom::protectHtmlRcdataElements(
-            $html,
-            protectTemplateContent: $protectTemplateContent,
-            protectIframeContent: $protectIframeContent,
-            protectRawTextContent: $protectRawTextContent,
-            protectNoscriptContent: $protectNoscriptContent
-        );
+        return $html;
     }
 
     /**
@@ -99,13 +83,13 @@ final class Html5Dom
         self::assertNoHtmlFragmentDeclarations($preflight, 'HTML fragment');
 
         if (self::nativeHtmlDocumentAvailable()) {
-            $fragment = self::html5TreeConstructedFragment(self::htmlTreeConstructionInput(
+            $fragment = self::html5TreeConstructedFragment(
                 $html,
-                protectTemplateContent: $protectTemplateContentForParse,
-                protectIframeContent: $protectIframeContentForParse,
-                protectRawTextContent: $protectRawTextContentForParse,
-                protectNoscriptContent: $protectNoscriptContentForParse
-            ));
+                protectTemplateContentForBridge: $protectTemplateContentForParse,
+                protectIframeContentForBridge: $protectIframeContentForParse,
+                protectRawTextContentForBridge: $protectRawTextContentForParse,
+                protectNoscriptContentForBridge: $protectNoscriptContentForParse
+            );
             if ($fragment === null) {
                 throw new \RuntimeException('Unable to parse HTML fragment through Dom\\HTMLDocument');
             }
@@ -151,7 +135,7 @@ final class Html5Dom
             return self::HTML_FRAGMENT_CONTEXT_BODY;
         }
 
-        $fragment = self::html5TreeConstructedFragment(self::htmlTreeConstructionInput($html));
+        $fragment = self::html5TreeConstructedFragment($html);
         if ($fragment === null) {
             throw new \RuntimeException('Unable to parse HTML fragment through Dom\\HTMLDocument');
         }
@@ -603,7 +587,7 @@ final class Html5Dom
     ): \DOMDocument
     {
         if ($preferHtml5TreeConstruction && self::nativeHtmlDocumentAvailable()) {
-            $html5 = self::treeConstructedHtmlSource($protectRcdata ? self::htmlTreeConstructionInput($html) : $html);
+            $html5 = self::html5TreeConstructedBridgeSource($html);
             if ($html5 === null) {
                 throw new \RuntimeException('Unable to parse ' . $label . ' through Dom\\HTMLDocument');
             }
@@ -682,54 +666,6 @@ final class Html5Dom
                 }
             }
         } while ($moved);
-    }
-
-    private static function htmlSourceNeedsLiteralPayloadProtection(
-        string $html,
-        bool $protectTemplateContent,
-        bool $protectIframeContent,
-        bool $protectRawTextContent,
-        bool $protectNoscriptContent
-    ): bool {
-        $names = ['title', 'textarea', 'xmp', 'noembed', 'noframes', 'plaintext'];
-        if ($protectTemplateContent) {
-            $names[] = 'template';
-        }
-        if ($protectIframeContent) {
-            $names[] = 'iframe';
-        }
-        if ($protectNoscriptContent) {
-            $names[] = 'noscript';
-        }
-        if ($protectRawTextContent) {
-            $names[] = 'script';
-            $names[] = 'style';
-        }
-
-        foreach ($names as $name) {
-            if (self::htmlSourceContainsElementStart($html, $name)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static function htmlSourceContainsElementStart(string $html, string $name): bool
-    {
-        $source = strtolower($html);
-        $needle = '<' . $name;
-        $offset = 0;
-        while (($offset = strpos($source, $needle, $offset)) !== false) {
-            $afterName = $offset + strlen($needle);
-            $next = $source[$afterName] ?? '';
-            if ($next === '' || in_array($next, ["\t", "\n", "\f", "\r", ' ', '/', '>'], true)) {
-                return true;
-            }
-            $offset = $afterName;
-        }
-
-        return false;
     }
 
     private static function markdownRawHtmlBoundaryOffset(string $line, int $maxIndent): ?int
@@ -948,6 +884,32 @@ final class Html5Dom
         }
     }
 
+    private static function html5TreeConstructedBridgeSource(string $html): ?string
+    {
+        if (!self::nativeHtmlDocumentAvailable()) {
+            return null;
+        }
+
+        $previous = libxml_use_internal_errors(true);
+        try {
+            $document = \Dom\HTMLDocument::createFromString(
+                $html,
+                LIBXML_NOERROR | LIBXML_COMPACT,
+                'UTF-8'
+            );
+
+            return self::html5SerializeDocumentForLegacyBridge(
+                $document,
+                self::html5LiteralPayloadBridgeElementNames()
+            );
+        } catch (\Throwable) {
+            return null;
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+        }
+    }
+
     private static function html5TreeConstructedFragmentSource(string $html): ?string
     {
         $fragment = self::html5TreeConstructedFragment($html);
@@ -958,7 +920,13 @@ final class Html5Dom
     /**
      * @return array{source:string, context:string}|null
      */
-    private static function html5TreeConstructedFragment(string $html): ?array
+    private static function html5TreeConstructedFragment(
+        string $html,
+        bool $protectTemplateContentForBridge = true,
+        bool $protectIframeContentForBridge = true,
+        bool $protectRawTextContentForBridge = false,
+        bool $protectNoscriptContentForBridge = true
+    ): ?array
     {
         if (!self::nativeHtmlDocumentAvailable()) {
             return null;
@@ -966,12 +934,18 @@ final class Html5Dom
 
         $previous = libxml_use_internal_errors(true);
         try {
-            $normal = self::html5BodyContextFragment($html);
+            $literalPayloadElements = self::html5LiteralPayloadBridgeElementNames(
+                protectTemplateContent: $protectTemplateContentForBridge,
+                protectIframeContent: $protectIframeContentForBridge,
+                protectRawTextContent: $protectRawTextContentForBridge,
+                protectNoscriptContent: $protectNoscriptContentForBridge
+            );
+            $normal = self::html5BodyContextFragment($html, $literalPayloadElements);
             if ($normal === null) {
                 return null;
             }
 
-            $table = self::html5TableContextFragment($html);
+            $table = self::html5TableContextFragment($html, $literalPayloadElements);
             if (
                 $table !== null
                 && !self::html5ElementHasTableStructure($normal['body'])
@@ -996,12 +970,13 @@ final class Html5Dom
     }
 
     /**
+     * @param array<string, true> $literalPayloadElements
      * @return array{body:\Dom\Element, source:string}|null
      */
-    private static function html5BodyContextFragment(string $html): ?array
+    private static function html5BodyContextFragment(string $html, array $literalPayloadElements): ?array
     {
         $document = \Dom\HTMLDocument::createFromString(
-            '<!doctype html><html><body>' . $html . '</body></html>',
+            '<!doctype html><html><body></body></html>',
             LIBXML_NOERROR | LIBXML_COMPACT,
             'UTF-8'
         );
@@ -1009,17 +984,19 @@ final class Html5Dom
         if (!$body instanceof \Dom\Element) {
             return null;
         }
+        $body->insertAdjacentHTML(\Dom\AdjacentPosition::BeforeEnd, $html);
 
         return [
             'body' => $body,
-            'source' => self::html5SerializeChildren($document, $body),
+            'source' => self::html5SerializeChildren($document, $body, $literalPayloadElements),
         ];
     }
 
     /**
+     * @param array<string, true> $literalPayloadElements
      * @return array{table:\Dom\Element, source:string}|null
      */
-    private static function html5TableContextFragment(string $html): ?array
+    private static function html5TableContextFragment(string $html, array $literalPayloadElements): ?array
     {
         $document = \Dom\HTMLDocument::createFromString(
             '<!doctype html><html><body><table id="pandoc-html-fragment-context"></table></body></html>',
@@ -1035,17 +1012,28 @@ final class Html5Dom
 
         return [
             'table' => $table,
-            'source' => self::html5TableContextSource($document, $table),
+            'source' => self::html5TableContextSource($document, $table, $literalPayloadElements),
         ];
     }
 
-    private static function html5TableContextSource(\Dom\HTMLDocument $document, \Dom\Element $table): string
+    /**
+     * @param array<string, true> $literalPayloadElements
+     */
+    private static function html5TableContextSource(
+        \Dom\HTMLDocument $document,
+        \Dom\Element $table,
+        array $literalPayloadElements
+    ): string
     {
         $source = '';
         $tableChildren = '';
         foreach ($table->childNodes as $child) {
             if ($child instanceof \Dom\Element && self::isHtml5TableContextChildName(strtolower($child->localName))) {
-                $tableChildren .= $document->saveHtml($child);
+                $tableChildren .= self::html5SerializeNodeForLegacyBridge(
+                    $document,
+                    $child,
+                    $literalPayloadElements
+                );
                 continue;
             }
 
@@ -1054,7 +1042,7 @@ final class Html5Dom
                 $tableChildren = '';
             }
 
-            $source .= $document->saveHtml($child);
+            $source .= self::html5SerializeNodeForLegacyBridge($document, $child, $literalPayloadElements);
         }
 
         if ($tableChildren !== '') {
@@ -1102,14 +1090,175 @@ final class Html5Dom
         return $element instanceof \Dom\Element ? $element : null;
     }
 
-    private static function html5SerializeChildren(\Dom\HTMLDocument $document, \Dom\Element $element): string
-    {
+    /**
+     * @return array<string, true>
+     */
+    private static function html5LiteralPayloadBridgeElementNames(
+        bool $protectTemplateContent = true,
+        bool $protectIframeContent = true,
+        bool $protectRawTextContent = false,
+        bool $protectNoscriptContent = true
+    ): array {
+        $names = [
+            'noembed' => true,
+            'noframes' => true,
+            'plaintext' => true,
+            'textarea' => true,
+            'title' => true,
+            'xmp' => true,
+        ];
+        if ($protectTemplateContent) {
+            $names['template'] = true;
+        }
+        if ($protectIframeContent) {
+            $names['iframe'] = true;
+        }
+        if ($protectNoscriptContent) {
+            $names['noscript'] = true;
+        }
+        if ($protectRawTextContent) {
+            $names['script'] = true;
+            $names['style'] = true;
+        }
+
+        return $names;
+    }
+
+    /**
+     * @param array<string, true> $literalPayloadElements
+     */
+    private static function html5SerializeDocumentForLegacyBridge(
+        \Dom\HTMLDocument $document,
+        array $literalPayloadElements
+    ): string {
         $source = '';
-        foreach ($element->childNodes as $child) {
-            $source .= $document->saveHtml($child);
+        foreach ($document->childNodes as $child) {
+            $source .= self::html5SerializeNodeForLegacyBridge($document, $child, $literalPayloadElements);
         }
 
         return $source;
+    }
+
+    /**
+     * @param array<string, true> $literalPayloadElements
+     */
+    private static function html5SerializeChildren(
+        \Dom\HTMLDocument $document,
+        \Dom\Element $element,
+        array $literalPayloadElements
+    ): string
+    {
+        $source = '';
+        foreach ($element->childNodes as $child) {
+            $source .= self::html5SerializeNodeForLegacyBridge($document, $child, $literalPayloadElements);
+        }
+
+        return $source;
+    }
+
+    /**
+     * @param array<string, true> $literalPayloadElements
+     */
+    private static function html5SerializeNodeForLegacyBridge(
+        \Dom\HTMLDocument $document,
+        \Dom\Node $node,
+        array $literalPayloadElements
+    ): string {
+        if (!$node instanceof \Dom\Element) {
+            return $document->saveHtml($node);
+        }
+
+        $name = strtolower($node->localName);
+        if (!self::html5ElementIsHtmlNamespace($node)) {
+            return $document->saveHtml($node);
+        }
+        if (
+            !isset($literalPayloadElements[$name])
+            && !self::html5ElementContainsLiteralPayloadBridgeElement($node, $literalPayloadElements)
+        ) {
+            return $document->saveHtml($node);
+        }
+
+        if (isset($literalPayloadElements[$name])) {
+            $content = self::html5ElementPayloadUsesInnerHtml($name) && property_exists($node, 'innerHTML')
+                ? (string) $node->innerHTML
+                : (string) $node->textContent;
+
+            return self::html5ElementStartTagForLegacyBridge($node, $name)
+                . self::escapeHtmlTextForLegacyBridge($content)
+                . '</' . $name . '>';
+        }
+
+        $source = self::html5ElementStartTagForLegacyBridge($node, $name);
+        if (isset(self::HTML5_VOID_ELEMENTS[$name])) {
+            return $source;
+        }
+
+        foreach ($node->childNodes as $child) {
+            $source .= self::html5SerializeNodeForLegacyBridge($document, $child, $literalPayloadElements);
+        }
+
+        return $source . '</' . $name . '>';
+    }
+
+    /**
+     * @param array<string, true> $literalPayloadElements
+     */
+    private static function html5ElementContainsLiteralPayloadBridgeElement(
+        \Dom\Element $element,
+        array $literalPayloadElements
+    ): bool {
+        foreach ($element->getElementsByTagName('*') as $descendant) {
+            if ($descendant instanceof \Dom\Element && isset($literalPayloadElements[strtolower($descendant->localName)])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function html5ElementIsHtmlNamespace(\Dom\Element $element): bool
+    {
+        return $element->namespaceURI === null || $element->namespaceURI === 'http://www.w3.org/1999/xhtml';
+    }
+
+    private static function html5ElementPayloadUsesInnerHtml(string $name): bool
+    {
+        return in_array($name, [
+            'iframe',
+            'noembed',
+            'noframes',
+            'noscript',
+            'plaintext',
+            'template',
+            'xmp',
+        ], true);
+    }
+
+    private static function html5ElementStartTagForLegacyBridge(\Dom\Element $element, string $name): string
+    {
+        $source = '<' . $name;
+        foreach ($element->attributes as $attribute) {
+            if (!$attribute instanceof \Dom\Attr) {
+                continue;
+            }
+
+            $source .= ' ' . $attribute->name . '="'
+                . self::escapeHtmlAttributeForLegacyBridge($attribute->value)
+                . '"';
+        }
+
+        return $source . '>';
+    }
+
+    private static function escapeHtmlTextForLegacyBridge(string $text): string
+    {
+        return htmlspecialchars($text, ENT_NOQUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8');
+    }
+
+    private static function escapeHtmlAttributeForLegacyBridge(string $text): string
+    {
+        return htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8');
     }
 
     private static function loadXml(string $xml, string $label): \DOMDocument

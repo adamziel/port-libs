@@ -1291,31 +1291,53 @@ final class HtmlReader
      */
     private static function stripHtmlRawInlineWrapperText(string $text, array $extraWrapperTags = []): string
     {
-        $stripped = '';
-        $offset = 0;
-        $length = strlen($text);
-        while ($offset < $length) {
-            $tagStart = strpos($text, '<', $offset);
-            if ($tagStart === false) {
-                $stripped .= substr($text, $offset);
-                break;
-            }
-
-            $stripped .= substr($text, $offset, $tagStart - $offset);
-            $tagEnd = self::htmlTagSourceEndOffset($text, $tagStart);
-            if ($tagEnd === null) {
-                $stripped .= substr($text, $tagStart);
-                break;
-            }
-
-            $tagSource = substr($text, $tagStart, $tagEnd - $tagStart + 1);
-            if (!self::isHtmlRawInlineWrapperSource($tagSource, $extraWrapperTags)) {
-                $stripped .= $tagSource;
-            }
-            $offset = $tagEnd + 1;
+        if (!str_contains($text, '<')) {
+            return $text;
         }
 
-        return $stripped;
+        try {
+            $body = Html5Dom::parseHtmlFragment($text);
+        } catch (\Throwable) {
+            return $text;
+        }
+
+        return self::unwrapHtmlRawInlineWrapperElements($body, $extraWrapperTags)
+            ? Html5Dom::serializeHtmlChildren($body)
+            : $text;
+    }
+
+    /**
+     * @param list<string> $extraWrapperTags
+     */
+    private static function unwrapHtmlRawInlineWrapperElements(\DOMElement $root, array $extraWrapperTags = []): bool
+    {
+        $changed = false;
+        do {
+            $unwrapped = false;
+            foreach (iterator_to_array($root->getElementsByTagName('*')) as $element) {
+                if (
+                    !$element instanceof \DOMElement
+                    || !in_array(strtolower($element->localName), self::htmlRawInlineWrapperTagNames($extraWrapperTags), true)
+                ) {
+                    continue;
+                }
+
+                $parent = $element->parentNode;
+                if (!$parent instanceof \DOMNode) {
+                    continue;
+                }
+
+                while ($element->firstChild instanceof \DOMNode) {
+                    $parent->insertBefore($element->firstChild, $element);
+                }
+                $parent->removeChild($element);
+                $changed = true;
+                $unwrapped = true;
+                break;
+            }
+        } while ($unwrapped);
+
+        return $changed;
     }
 
     /**
@@ -1364,7 +1386,7 @@ final class HtmlReader
      */
     private static function isHtmlRawInlineWrapperSource(string $html, array $extraWrapperTags = []): bool
     {
-        $name = self::htmlRawInlineWrapperSourceName($html);
+        $name = self::htmlRawInlineWrapperSourceName($html, $extraWrapperTags);
 
         return $name !== null && in_array($name, self::htmlRawInlineWrapperTagNames($extraWrapperTags), true);
     }
@@ -1382,15 +1404,15 @@ final class HtmlReader
     /**
      * @param list<string> $extraWrapperTags
      */
-    private static function htmlRawInlineWrapperSourceName(string $html): ?string
+    private static function htmlRawInlineWrapperSourceName(string $html, array $extraWrapperTags = []): ?string
     {
         $html = trim($html);
-        if ($html === '' || $html[0] !== '<' || !str_ends_with($html, '>')) {
+        if ($html === '' || $html[0] !== '<') {
             return null;
         }
 
         if (str_starts_with($html, '</')) {
-            return self::htmlClosingTagSourceName($html);
+            return self::htmlClosingRawInlineWrapperSourceName($html, $extraWrapperTags);
         }
 
         $body = self::parseHtmlFragmentBody($html);
@@ -1414,55 +1436,44 @@ final class HtmlReader
             : null;
     }
 
-    private static function htmlClosingTagSourceName(string $html): ?string
+    /**
+     * @param list<string> $extraWrapperTags
+     */
+    private static function htmlClosingRawInlineWrapperSourceName(string $html, array $extraWrapperTags = []): ?string
     {
-        $nameStart = 2;
-        $nameEnd = $nameStart;
-        $length = strlen($html);
-        while ($nameEnd < $length && self::isHtmlTagNameChar($html[$nameEnd])) {
-            $nameEnd++;
-        }
-        if ($nameEnd === $nameStart) {
-            return null;
-        }
-
-        for ($offset = $nameEnd; $offset < $length - 1; $offset++) {
-            if (!self::isAsciiWhitespace($html[$offset])) {
-                return null;
+        foreach (self::htmlRawInlineWrapperTagNames($extraWrapperTags) as $name) {
+            try {
+                $body = Html5Dom::parseHtmlFragment(
+                    '<' . $name . ' data-pandoc-wrapper-probe="1">x'
+                    . $html
+                    . '<span id="pandoc-wrapper-tail"></span>'
+                );
+            } catch (\Throwable) {
+                continue;
             }
-        }
 
-        $name = strtolower(substr($html, $nameStart, $nameEnd - $nameStart));
-
-        return self::isSafeHtmlTagName($name) ? $name : null;
-    }
-
-    private static function htmlTagSourceEndOffset(string $text, int $start): ?int
-    {
-        $quote = null;
-        $length = strlen($text);
-        for ($offset = $start + 1; $offset < $length; $offset++) {
-            $char = $text[$offset];
-            if ($quote !== null) {
-                if ($char === $quote) {
-                    $quote = null;
+            $probe = Html5Dom::firstChildElement($body, $name);
+            $tail = null;
+            foreach ($body->getElementsByTagName('span') as $span) {
+                if ($span instanceof \DOMElement && $span->getAttribute('id') === 'pandoc-wrapper-tail') {
+                    $tail = $span;
+                    break;
                 }
-                continue;
             }
 
-            if ($char === '"' || $char === "'") {
-                $quote = $char;
-                continue;
-            }
-
-            if ($char === '>') {
-                return $offset;
+            if (
+                $probe instanceof \DOMElement
+                && $tail instanceof \DOMElement
+                && $probe->parentNode === $body
+                && $tail->parentNode === $body
+                && $probe->nextSibling === $tail
+            ) {
+                return $name;
             }
         }
 
         return null;
     }
-
     /**
      * @param list<string> $extraWrapperTags
      * @return list<string>
@@ -1497,19 +1508,9 @@ final class HtmlReader
         return true;
     }
 
-    private static function isHtmlTagNameChar(string $char): bool
-    {
-        return ctype_alpha($char) || ctype_digit($char) || in_array($char, ['-', ':'], true);
-    }
-
     private static function isAsciiLowerAlpha(string $char): bool
     {
         return $char >= 'a' && $char <= 'z';
-    }
-
-    private static function isAsciiWhitespace(string $char): bool
-    {
-        return in_array($char, ["\t", "\n", "\f", "\r", ' '], true);
     }
 
     /**

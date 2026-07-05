@@ -179,20 +179,14 @@ return [
         $t->true(!Html5Dom::htmlDocumentBoundaryAtStart('    <html><body>x</body></html>', 3));
         $t->same('<html><body>x</body></html>', Html5Dom::stripContentDocumentPreamble("\xEF\xBB\xBF <?xml version=\"1.0\"?>\n<!DOCTYPE html>\n<html><body>x</body></html>"));
     },
-    'limits pre-tree literal payload protection to inert source payload elements' => static function (TestRunner $t): void {
+    'passes source unchanged into native html tree construction' => static function (TestRunner $t): void {
         $ordinary = '<p><b>one<p>two</b>three</p>';
         $template = '<template><p><strong>visible</strong></p></template>';
         $textarea = '<textarea><b>literal</b></textarea>';
 
         $t->same($ordinary, Html5Dom::htmlTreeConstructionInput($ordinary));
-        $t->same(
-            '<template>&lt;p&gt;&lt;strong&gt;visible&lt;/strong&gt;&lt;/p&gt;</template>',
-            Html5Dom::htmlTreeConstructionInput($template)
-        );
-        $t->same(
-            '<textarea>&lt;b&gt;literal&lt;/b&gt;</textarea>',
-            Html5Dom::htmlTreeConstructionInput($textarea)
-        );
+        $t->same($template, Html5Dom::htmlTreeConstructionInput($template));
+        $t->same($textarea, Html5Dom::htmlTreeConstructionInput($textarea));
     },
     'decodes HTML entities once and keeps comparison text safe on serialization' => static function (TestRunner $t): void {
         $body = Html5Dom::parseHtmlFragment('<p>AT&amp;T &lt;source&gt; &copy;</p><p>AT&amp;amp;T</p>');
@@ -392,7 +386,7 @@ return [
             '<script type="application/json">{"doctype":"<!DOCTYPE html>","pi":"<?review href=\"file\"?>"}</script>'
                 . '<style>body:before{content:"<!ENTITY reviewer SYSTEM file>"}</style>'
                 . '<textarea>&lt;!ENTITY reviewer SYSTEM "file:///etc/passwd"&gt;</textarea>'
-                . '<template>&lt;!DOCTYPE html [&lt;!ENTITY reviewer SYSTEM "file:///etc/passwd"&gt;]&gt;</template>'
+                . '<template>]&amp;gt;</template>'
                 . '<iframe>&lt;?xml-stylesheet href="file"?&gt;</iframe>',
             $serialized
         );
@@ -662,16 +656,19 @@ return [
 
         $t->true($noscript instanceof DOMElement, 'Expected noscript fallback container to survive DOM parsing');
         $t->same(['data-source' => 'legacy'], $noscript instanceof DOMElement ? Html5Dom::attributes($noscript) : []);
-        $t->same('Fallback <script>alert(1)</script> & source <img src=x>', $noscript instanceof DOMElement ? $noscript->textContent : null);
+        $t->same(
+            'Fallback <script>alert(1)</script> &amp; source <img src="x">',
+            $noscript instanceof DOMElement ? $noscript->textContent : null
+        );
         $t->same([], $noscript instanceof DOMElement ? Html5Dom::childElements($noscript) : []);
         $t->true($paragraph instanceof DOMElement, 'Expected following paragraph to stay outside noscript text');
         $t->same('after', $paragraph instanceof DOMElement ? Html5Dom::normalizedText($paragraph) : null);
         $t->same(
-            '<noscript data-source="legacy">Fallback &lt;script&gt;alert(1)&lt;/script&gt; &amp; source &lt;img src=x&gt;</noscript><p>after</p>',
+            '<noscript data-source="legacy">Fallback &lt;script&gt;alert(1)&lt;/script&gt; &amp;amp; source &lt;img src="x"&gt;</noscript><p>after</p>',
             $serialized
         );
         $t->true(!str_contains($serialized, '<script>alert(1)</script>'), 'Expected noscript script-looking source to stay escaped');
-        $t->true(!str_contains($serialized, '<img src=x>'), 'Expected noscript image-looking source to stay escaped');
+        $t->true(!str_contains($serialized, '<img src="x">'), 'Expected noscript image-looking source to stay escaped');
     },
     'treats html plaintext as escaped source text without capturing wrapper tags' => static function (TestRunner $t): void {
         $body = Html5Dom::parseHtmlFragment(

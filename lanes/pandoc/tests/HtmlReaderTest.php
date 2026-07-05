@@ -136,6 +136,9 @@ $tests['keeps html tree construction centralized through Html5Dom'] =
             'orphanTableFragmentSourceElementNames',
             'hasHtmlTableScopeElement',
             'htmlStartTagNames',
+            'htmlTagSourceEndOffset',
+            'htmlClosingTagSourceName',
+            'isHtmlTagNameChar',
         ] as $removedScanner) {
             $t->true(!str_contains($htmlReaderSource, $removedScanner), "HtmlReader must not restore source-scanned HTML tree construction via {$removedScanner}");
             $t->true(!str_contains($html5DomFragmentSource, $removedScanner), "Html5DomFragment must not restore source-scanned HTML tree construction via {$removedScanner}");
