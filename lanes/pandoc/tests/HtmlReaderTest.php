@@ -16,6 +16,64 @@ $fixture = static function (string $name): string {
     return $bytes;
 };
 
+$methodBody = static function (string $source, string $methodName): string {
+    $tokens = token_get_all($source);
+    $count = count($tokens);
+    for ($index = 0; $index < $count; ++$index) {
+        $token = $tokens[$index];
+        if (!is_array($token) || $token[0] !== T_FUNCTION) {
+            continue;
+        }
+
+        $nameIndex = $index + 1;
+        while ($nameIndex < $count) {
+            $nameToken = $tokens[$nameIndex];
+            if (is_array($nameToken) && $nameToken[0] === T_STRING) {
+                break;
+            }
+            if ($nameToken === '(') {
+                $nameIndex = $count;
+                break;
+            }
+            ++$nameIndex;
+        }
+        if ($nameIndex >= $count || !is_array($tokens[$nameIndex]) || $tokens[$nameIndex][1] !== $methodName) {
+            continue;
+        }
+
+        while ($nameIndex < $count && $tokens[$nameIndex] !== '{') {
+            ++$nameIndex;
+        }
+        if ($nameIndex >= $count) {
+            break;
+        }
+
+        $depth = 0;
+        $body = '';
+        for ($bodyIndex = $nameIndex; $bodyIndex < $count; ++$bodyIndex) {
+            $bodyToken = $tokens[$bodyIndex];
+            $text = is_array($bodyToken) ? $bodyToken[1] : $bodyToken;
+            if ($text === '{') {
+                ++$depth;
+                if ($depth === 1) {
+                    continue;
+                }
+            }
+            if ($text === '}') {
+                --$depth;
+                if ($depth === 0) {
+                    return $body;
+                }
+            }
+            if ($depth >= 1) {
+                $body .= $text;
+            }
+        }
+    }
+
+    throw new RuntimeException("Unable to find method body for {$methodName}");
+};
+
 $tests['routes public html reader parsing through HTMLDocument when available'] =
     static function (TestRunner $t): void {
         $document = (new HtmlReader())->read(
@@ -61,7 +119,7 @@ $tests['routes public html reader HTML5 repairs through HTMLDocument when availa
     };
 
 $tests['keeps html tree construction centralized through Html5Dom'] =
-    static function (TestRunner $t): void {
+    static function (TestRunner $t) use ($methodBody): void {
         $sourceRoot = dirname(__DIR__) . '/src';
         $htmlReaderSource = (string) file_get_contents($sourceRoot . '/HtmlReader.php');
         $markdownReaderSource = (string) file_get_contents($sourceRoot . '/MarkdownReader.php');
@@ -119,6 +177,26 @@ $tests['keeps html tree construction centralized through Html5Dom'] =
         $t->contains('HTMLDocument::createFromString', $html5DomSource);
         $t->contains('Html5Dom::markdownRawHtmlOpeningTagBoundary', $markdownReaderSource);
         $t->contains('Html5Dom::rawHtmlOpeningTagAt', $markdownReaderSource);
+
+        foreach ([
+            'HtmlReader::read' => $methodBody($htmlReaderSource, 'read'),
+            'MarkdownReader::readHtml' => $methodBody($markdownReaderSource, 'readHtml'),
+            'MarkdownReader::parseHtmlDocument' => $methodBody($markdownReaderSource, 'parseHtmlDocument'),
+            'MarkdownReader::parseHtmlFragmentBodyElement' => $methodBody($markdownReaderSource, 'parseHtmlFragmentBodyElement'),
+            'MarkdownReader::parseHtmlFullDocumentDom' => $methodBody($markdownReaderSource, 'parseHtmlFullDocumentDom'),
+        ] as $method => $body) {
+            foreach (['preg_', 'rawHtmlOpeningTagAt', 'rawHtmlClosingTagAt', 'markdownRawHtml'] as $parserFragment) {
+                $t->true(!str_contains($body, $parserFragment), "{$method} must not parse HTML source via {$parserFragment}");
+            }
+        }
+
+        $t->contains('Html5Dom::parseHtmlFragment(', $methodBody($markdownReaderSource, 'parseHtmlFragmentBodyElement'));
+        $t->contains('Html5Dom::parseHtmlDocument(', $methodBody($markdownReaderSource, 'parseHtmlFullDocumentDom'));
+        $t->contains('self::loadHtml(', $methodBody($html5DomSource, 'parseHtmlDocument'));
+        $t->contains('self::requireNativeHtmlDocument(', $methodBody($html5DomSource, 'loadHtml'));
+        $t->contains('self::html5TreeConstructedBridgeSource(', $methodBody($html5DomSource, 'loadHtml'));
+        $t->contains('HTMLDocument::createFromString', $methodBody($html5DomSource, 'html5TreeConstructedBridgeSource'));
+
         foreach ([
             "preg_match('/^ {0,3}<",
             '[A-Za-z_:][A-Za-z0-9_.:-]',
