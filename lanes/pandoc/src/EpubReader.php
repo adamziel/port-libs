@@ -69,8 +69,10 @@ final class EpubReader
         $base_path = $this->dirname($rootfile);
         $metadata = $this->metadata($package);
         $manifest = $this->manifest($package);
+        $package_links = $this->packageLinks($package, $rootfile, $base_path, $manifest);
         $spine_items = $this->spineItems($package, $base_path, $manifest);
         $guide_references = $this->guideReferences($package, $base_path, $manifest);
+        $accessibility = $this->accessibilityMetadata($package, $package_links);
         $toc = $this->toc($zip, $base_path, $manifest, $this->spineTocId($package));
         $children = [];
         $resources = [];
@@ -163,6 +165,12 @@ final class EpubReader
         $metadata['epubRootfile'] = $rootfile;
         $metadata['epubManifestItemCount'] = count($manifest);
         $metadata['epubManifestItems'] = $this->manifestItemsMetadata($base_path, $manifest);
+        $metadata['epubPackageLinkCount'] = count($package_links);
+        $metadata['epubPackageLinkRelCounts'] = $this->packageLinkRelCounts($package_links);
+        $metadata['epubPackageLinkTargets'] = $this->packageLinkTargets($package_links);
+        if ($package_links !== []) {
+            $metadata['epubPackageLinks'] = $package_links;
+        }
         $metadata['epubSpineItems'] = count($spine_items);
         $metadata['epubSpineItemRefs'] = $spine_items;
         $metadata['epubGuideReferenceCount'] = count($guide_references);
@@ -170,6 +178,13 @@ final class EpubReader
         $metadata['epubGuideReferenceTypeCounts'] = $this->guideReferenceTypeCounts($guide_references);
         if ($guide_references !== []) {
             $metadata['epubGuideReferences'] = $guide_references;
+        }
+        $metadata['epubAccessibilityPresent'] = $accessibility['present'];
+        $metadata['epubAccessibilityEntryCount'] = count($accessibility['entries']);
+        $metadata['epubAccessibilityLinkedRecordCount'] = count($accessibility['linkedRecords']);
+        $metadata['epubAccessibilityPropertyCounts'] = $accessibility['propertyCounts'];
+        if ($accessibility['present'] === true) {
+            $metadata['epubAccessibility'] = $accessibility;
         }
         $metadata['epubReadableResources'] = $resources;
         $metadata['epubReferencedResources'] = array_values(array_unique($referenced_resources));
@@ -533,6 +548,150 @@ final class EpubReader
 
     /**
      * @param array<string, array{href: string, media-type: string, properties: list<string>}> $manifest
+     * @return list<array{index: int, id: ?string, rel: list<string>, href: string, target: string, path: string, external: bool, mediaType: ?string, properties: list<string>, title: ?string, hreflang: ?string, refines: ?string, subjectId: ?string, hrefHasQuery: bool, hrefQuery: ?string, hrefHasFragment: bool, hrefFragment: ?string, manifestId: ?string, manifestMediaType: ?string, manifestProperties: list<string>}>
+     */
+    private function packageLinks(\DOMElement $package, string $rootfile, string $base_path, array $manifest): array
+    {
+        $metadata = null;
+        foreach ($package->childNodes as $child) {
+            if ($child instanceof \DOMElement && $child->localName === 'metadata') {
+                $metadata = $child;
+                break;
+            }
+        }
+        if (!$metadata instanceof \DOMElement) {
+            return [];
+        }
+
+        $manifest_by_path = [];
+        foreach ($manifest as $id => $item) {
+            $href = $item['href'];
+            if ($this->isAbsoluteUrl($href)) {
+                continue;
+            }
+
+            $path = $this->packagePartPath($href, $base_path);
+            if ($path !== '' && !isset($manifest_by_path[$path])) {
+                $manifest_by_path[$path] = [
+                    'id' => $id,
+                    'media-type' => $item['media-type'],
+                    'properties' => $item['properties'],
+                ];
+            }
+        }
+
+        $links = [];
+        foreach ($metadata->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->localName !== 'link') {
+                continue;
+            }
+
+            $href = html_entity_decode(trim($child->getAttribute('href')), ENT_QUOTES | ENT_XML1, 'UTF-8');
+            $external = $href !== '' && $this->isAbsoluteUrl($href);
+            [$target, $path, $query, $fragment] = $this->packageLinkTargetParts($href, $rootfile, $base_path);
+            $manifest_item = $path !== '' ? ($manifest_by_path[$path] ?? null) : null;
+            $media_type = trim($child->getAttribute('media-type'));
+            $title = trim($child->getAttribute('title'));
+            $hreflang = trim($child->getAttribute('hreflang'));
+            $refines = trim($child->getAttribute('refines'));
+
+            $links[] = [
+                'index' => count($links),
+                'id' => trim($child->getAttribute('id')) !== '' ? trim($child->getAttribute('id')) : null,
+                'rel' => $this->tokenList($child->getAttribute('rel')),
+                'href' => $href,
+                'target' => $target,
+                'path' => $external ? '' : $path,
+                'external' => $external,
+                'mediaType' => $media_type !== '' ? $media_type : null,
+                'properties' => $this->tokenList($child->getAttribute('properties')),
+                'title' => $title !== '' ? $title : null,
+                'hreflang' => $hreflang !== '' ? $hreflang : null,
+                'refines' => $refines !== '' ? $refines : null,
+                'subjectId' => $this->metadataRefinementSubjectId($refines),
+                'hrefHasQuery' => $query !== null,
+                'hrefQuery' => $query,
+                'hrefHasFragment' => $fragment !== null,
+                'hrefFragment' => $fragment,
+                'manifestId' => is_array($manifest_item) ? (string) $manifest_item['id'] : null,
+                'manifestMediaType' => is_array($manifest_item) ? (string) $manifest_item['media-type'] : null,
+                'manifestProperties' => is_array($manifest_item) ? array_values($manifest_item['properties']) : [],
+            ];
+        }
+
+        return $links;
+    }
+
+    /**
+     * @return array{0: string, 1: string, 2: ?string, 3: ?string}
+     */
+    private function packageLinkTargetParts(string $href, string $rootfile, string $base_path): array
+    {
+        if ($href === '') {
+            return ['', '', null, null];
+        }
+
+        if ($this->isAbsoluteUrl($href)) {
+            [, $query, $fragment] = $this->splitUrlSuffix($href);
+
+            return [$href, '', $query, $fragment];
+        }
+
+        [$href_path, $query, $fragment] = $this->splitUrlSuffix($href);
+        if ($href_path === '') {
+            $path = $this->normalizeZipPath($rootfile);
+
+            return [$this->appendUrlSuffix($path, $query, $fragment), $path, $query, $fragment];
+        }
+
+        $target = $this->rewriteRelativeResourceUrl($href, $base_path);
+        $path = $this->packagePartPath($href, $base_path);
+
+        return [$target, $path, $query, $fragment];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $links
+     * @return array<string, int>
+     */
+    private function packageLinkRelCounts(array $links): array
+    {
+        $counts = [];
+        foreach ($links as $link) {
+            $rels = $link['rel'] ?? [];
+            if (!is_array($rels)) {
+                continue;
+            }
+            foreach ($rels as $rel) {
+                if (!is_string($rel) || $rel === '') {
+                    continue;
+                }
+                $counts[$rel] = ($counts[$rel] ?? 0) + 1;
+            }
+        }
+
+        return $counts;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $links
+     * @return list<string>
+     */
+    private function packageLinkTargets(array $links): array
+    {
+        $targets = [];
+        foreach ($links as $link) {
+            $target = $link['target'] ?? null;
+            if (is_string($target) && $target !== '') {
+                $targets[] = $target;
+            }
+        }
+
+        return $targets;
+    }
+
+    /**
+     * @param array<string, array{href: string, media-type: string, properties: list<string>}> $manifest
      * @return list<array{index: int, id: ?string, idref: string, href: string, path: string, mediaType: string, linear: bool, properties: list<string>, manifestProperties: list<string>, missingManifestItem: bool, external: bool, readable: bool}>
      */
     private function spineItems(\DOMElement $package, string $base_path, array $manifest): array
@@ -702,6 +861,234 @@ final class EpubReader
         }
 
         return $counts;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $package_links
+     * @return array{present: bool, entries: list<array<string, mixed>>, propertyCounts: array<string, int>, accessModes: list<string>, accessModeSufficient: list<array{text: string, modes: list<string>, source: string, id: ?string}>, accessibilityFeatures: list<string>, accessibilityHazards: list<string>, accessibilityControls: list<string>, accessibilityApis: list<string>, accessibilitySummary: ?string, certification: array{certifiedBy: ?string, certifierCredential: ?string, certifierReport: ?string, conformsTo: list<string>}, linkedRecords: list<array<string, mixed>>, diagnostics: list<array<string, mixed>>}
+     */
+    private function accessibilityMetadata(\DOMElement $package, array $package_links): array
+    {
+        $metadata = null;
+        foreach ($package->childNodes as $child) {
+            if ($child instanceof \DOMElement && $child->localName === 'metadata') {
+                $metadata = $child;
+                break;
+            }
+        }
+
+        $entries = [];
+        if ($metadata instanceof \DOMElement) {
+            foreach ($metadata->childNodes as $entry) {
+                if (!$entry instanceof \DOMElement || $entry->localName !== 'meta') {
+                    continue;
+                }
+
+                $raw_property = trim($entry->getAttribute('property'));
+                $raw_name = trim($entry->getAttribute('name'));
+                $property = $this->canonicalAccessibilityProperty($raw_property);
+                $source = 'property';
+                if ($property === null) {
+                    $property = $this->canonicalAccessibilityProperty($raw_name);
+                    $source = 'name';
+                }
+                if ($property === null) {
+                    continue;
+                }
+
+                $text = $this->metadataElementText($entry);
+                $content = trim($entry->getAttribute('content'));
+                if ($text === '' && $content !== '') {
+                    $text = $content;
+                }
+                if ($text === '') {
+                    continue;
+                }
+
+                $id = trim($entry->getAttribute('id'));
+                $refines = trim($entry->getAttribute('refines'));
+                $entries[] = [
+                    'property' => $property,
+                    'source' => $source,
+                    'rawProperty' => $raw_property !== '' ? $raw_property : null,
+                    'rawName' => $raw_name !== '' ? $raw_name : null,
+                    'text' => $text,
+                    'content' => $content !== '' ? $content : null,
+                    'id' => $id !== '' ? $id : null,
+                    'refines' => $refines !== '' ? $refines : null,
+                    'subjectId' => $this->metadataRefinementSubjectId($refines),
+                ];
+            }
+        }
+
+        $entries_by_property = [];
+        $property_counts = [];
+        foreach ($entries as $entry) {
+            $property = (string) $entry['property'];
+            $entries_by_property[$property][] = $entry;
+            $property_counts[$property] = ($property_counts[$property] ?? 0) + 1;
+        }
+
+        $linked_records = $this->accessibilityLinkedRecords($package_links);
+
+        return [
+            'present' => $entries !== [] || $linked_records !== [],
+            'entries' => $entries,
+            'propertyCounts' => $property_counts,
+            'accessModes' => $this->accessibilityValues($entries_by_property, 'accessMode'),
+            'accessModeSufficient' => $this->accessModeSufficientEntries($entries_by_property),
+            'accessibilityFeatures' => $this->accessibilityValues($entries_by_property, 'accessibilityFeature'),
+            'accessibilityHazards' => $this->accessibilityValues($entries_by_property, 'accessibilityHazard'),
+            'accessibilityControls' => $this->accessibilityValues($entries_by_property, 'accessibilityControl'),
+            'accessibilityApis' => $this->accessibilityValues($entries_by_property, 'accessibilityAPI'),
+            'accessibilitySummary' => $this->firstAccessibilityValue($entries_by_property, 'accessibilitySummary'),
+            'certification' => [
+                'certifiedBy' => $this->firstAccessibilityValue($entries_by_property, 'certifiedBy'),
+                'certifierCredential' => $this->firstAccessibilityValue($entries_by_property, 'certifierCredential'),
+                'certifierReport' => $this->firstAccessibilityValue($entries_by_property, 'certifierReport'),
+                'conformsTo' => $this->accessibilityValues($entries_by_property, 'conformsTo'),
+            ],
+            'linkedRecords' => $linked_records,
+            'diagnostics' => [],
+        ];
+    }
+
+    private function canonicalAccessibilityProperty(string $property): ?string
+    {
+        $normalized = strtolower(trim($property));
+        if ($normalized === '') {
+            return null;
+        }
+
+        return [
+            'accessmode' => 'accessMode',
+            'schema:accessmode' => 'accessMode',
+            'accessmodesufficient' => 'accessModeSufficient',
+            'schema:accessmodesufficient' => 'accessModeSufficient',
+            'accessibilityapi' => 'accessibilityAPI',
+            'schema:accessibilityapi' => 'accessibilityAPI',
+            'accessibilitycontrol' => 'accessibilityControl',
+            'schema:accessibilitycontrol' => 'accessibilityControl',
+            'accessibilityfeature' => 'accessibilityFeature',
+            'schema:accessibilityfeature' => 'accessibilityFeature',
+            'accessibilityhazard' => 'accessibilityHazard',
+            'schema:accessibilityhazard' => 'accessibilityHazard',
+            'accessibilitysummary' => 'accessibilitySummary',
+            'schema:accessibilitysummary' => 'accessibilitySummary',
+            'certifiedby' => 'certifiedBy',
+            'a11y:certifiedby' => 'certifiedBy',
+            'certifiercredential' => 'certifierCredential',
+            'a11y:certifiercredential' => 'certifierCredential',
+            'certifierreport' => 'certifierReport',
+            'a11y:certifierreport' => 'certifierReport',
+            'conformsto' => 'conformsTo',
+            'dcterms:conformsto' => 'conformsTo',
+        ][$normalized] ?? null;
+    }
+
+    /**
+     * @param array<string, list<array<string, mixed>>> $entries_by_property
+     * @return list<string>
+     */
+    private function accessibilityValues(array $entries_by_property, string $property): array
+    {
+        $values = [];
+        foreach ($entries_by_property[$property] ?? [] as $entry) {
+            $text = trim((string) ($entry['text'] ?? ''));
+            if ($text !== '' && !isset($values[$text])) {
+                $values[$text] = $text;
+            }
+        }
+
+        return array_values($values);
+    }
+
+    /**
+     * @param array<string, list<array<string, mixed>>> $entries_by_property
+     */
+    private function firstAccessibilityValue(array $entries_by_property, string $property): ?string
+    {
+        foreach ($entries_by_property[$property] ?? [] as $entry) {
+            $text = trim((string) ($entry['text'] ?? ''));
+            if ($text !== '') {
+                return $text;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, list<array<string, mixed>>> $entries_by_property
+     * @return list<array{text: string, modes: list<string>, source: string, id: ?string}>
+     */
+    private function accessModeSufficientEntries(array $entries_by_property): array
+    {
+        $entries = [];
+        foreach ($entries_by_property['accessModeSufficient'] ?? [] as $entry) {
+            $text = trim((string) ($entry['text'] ?? ''));
+            if ($text === '') {
+                continue;
+            }
+
+            $entries[] = [
+                'text' => $text,
+                'modes' => array_values(array_filter(
+                    preg_split('/[\s,]+/', $text) ?: [],
+                    static fn (string $mode): bool => $mode !== ''
+                )),
+                'source' => (string) ($entry['source'] ?? ''),
+                'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
+            ];
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $package_links
+     * @return list<array<string, mixed>>
+     */
+    private function accessibilityLinkedRecords(array $package_links): array
+    {
+        $records = [];
+        foreach ($package_links as $link) {
+            $rel = is_array($link['rel'] ?? null) ? array_values($link['rel']) : [];
+            $properties = is_array($link['properties'] ?? null) ? array_values($link['properties']) : [];
+            if (
+                !in_array('accessibility', $rel, true)
+                && !in_array('accessibility-summary', $rel, true)
+                && !in_array('accessibility-metadata', $properties, true)
+                && !in_array('a11y', $properties, true)
+            ) {
+                continue;
+            }
+
+            $records[] = [
+                'id' => is_string($link['id'] ?? null) ? $link['id'] : null,
+                'rel' => $rel,
+                'href' => is_string($link['href'] ?? null) ? $link['href'] : null,
+                'target' => is_string($link['target'] ?? null) ? $link['target'] : null,
+                'path' => is_string($link['path'] ?? null) ? $link['path'] : null,
+                'external' => ($link['external'] ?? false) === true,
+                'mediaType' => is_string($link['mediaType'] ?? null) ? $link['mediaType'] : null,
+                'properties' => $properties,
+                'manifestId' => is_string($link['manifestId'] ?? null) ? $link['manifestId'] : null,
+                'manifestMediaType' => is_string($link['manifestMediaType'] ?? null) ? $link['manifestMediaType'] : null,
+            ];
+        }
+
+        return $records;
+    }
+
+    private function metadataRefinementSubjectId(string $refines): ?string
+    {
+        $refines = trim($refines);
+        if (str_starts_with($refines, '#') && strlen($refines) > 1) {
+            return substr($refines, 1);
+        }
+
+        return null;
     }
 
     /**

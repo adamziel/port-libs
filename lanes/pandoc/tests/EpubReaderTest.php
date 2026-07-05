@@ -39,11 +39,20 @@ XML);
     <dc:creator>Port Libs</dc:creator>
     <dc:language>en</dc:language>
     <dc:description>Bounded EPUB reader smoke.</dc:description>
+    <meta property="schema:accessMode">textual</meta>
+    <meta property="schema:accessibilityFeature">alternativeText</meta>
+    <meta property="schema:accessibilityHazard" content="none"/>
+    <meta property="schema:accessModeSufficient">textual visual</meta>
+    <meta property="schema:accessibilitySummary">Images include alternate text.</meta>
+    <meta property="dcterms:conformsTo">EPUB Accessibility 1.1 - WCAG 2.2 Level AA</meta>
+    <link id="review-record" rel="record accessibility-summary" href="meta/review.json?profile=a11y#summary" media-type="application/ld+json" properties="accessibility-metadata" title="Accessibility review" hreflang="en"/>
+    <link id="remote-onix" rel="alternate" href="https://metadata.example.invalid/onix.xml" media-type="application/xml"/>
   </metadata>
   <manifest>
     <item id="chapter" href="text/chapter.xhtml" media-type="application/xhtml+xml"/>
     <item id="cover" href="images/cover.png" media-type="image/png"/>
     <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="review-json" href="meta/review.json" media-type="application/ld+json" properties="metadata"/>
   </manifest>
   <spine>
     <itemref idref="chapter"/>
@@ -87,6 +96,7 @@ HTML);
 </html>
 HTML);
         $zip->addFromString('OEBPS/images/cover.png', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII='));
+        $zip->addFromString('OEBPS/meta/review.json', '{"accessibility":"reviewed"}');
         $zip->close();
 
         try {
@@ -102,6 +112,93 @@ HTML);
         $t->same('Port Libs', $meta['author']);
         $t->same('en', $meta['lang']);
         $t->same('OEBPS/package.opf', $meta['epubRootfile']);
+        $t->same(2, $meta['epubPackageLinkCount']);
+        $t->same(['record' => 1, 'accessibility-summary' => 1, 'alternate' => 1], $meta['epubPackageLinkRelCounts']);
+        $t->same(['OEBPS/meta/review.json?profile=a11y#summary', 'https://metadata.example.invalid/onix.xml'], $meta['epubPackageLinkTargets']);
+        $t->same([
+            [
+                'index' => 0,
+                'id' => 'review-record',
+                'rel' => ['record', 'accessibility-summary'],
+                'href' => 'meta/review.json?profile=a11y#summary',
+                'target' => 'OEBPS/meta/review.json?profile=a11y#summary',
+                'path' => 'OEBPS/meta/review.json',
+                'external' => false,
+                'mediaType' => 'application/ld+json',
+                'properties' => ['accessibility-metadata'],
+                'title' => 'Accessibility review',
+                'hreflang' => 'en',
+                'refines' => null,
+                'subjectId' => null,
+                'hrefHasQuery' => true,
+                'hrefQuery' => 'profile=a11y',
+                'hrefHasFragment' => true,
+                'hrefFragment' => 'summary',
+                'manifestId' => 'review-json',
+                'manifestMediaType' => 'application/ld+json',
+                'manifestProperties' => ['metadata'],
+            ],
+            [
+                'index' => 1,
+                'id' => 'remote-onix',
+                'rel' => ['alternate'],
+                'href' => 'https://metadata.example.invalid/onix.xml',
+                'target' => 'https://metadata.example.invalid/onix.xml',
+                'path' => '',
+                'external' => true,
+                'mediaType' => 'application/xml',
+                'properties' => [],
+                'title' => null,
+                'hreflang' => null,
+                'refines' => null,
+                'subjectId' => null,
+                'hrefHasQuery' => false,
+                'hrefQuery' => null,
+                'hrefHasFragment' => false,
+                'hrefFragment' => null,
+                'manifestId' => null,
+                'manifestMediaType' => null,
+                'manifestProperties' => [],
+            ],
+        ], $meta['epubPackageLinks']);
+        $t->same(true, $meta['epubAccessibilityPresent']);
+        $t->same(6, $meta['epubAccessibilityEntryCount']);
+        $t->same(1, $meta['epubAccessibilityLinkedRecordCount']);
+        $t->same([
+            'accessMode' => 1,
+            'accessibilityFeature' => 1,
+            'accessibilityHazard' => 1,
+            'accessModeSufficient' => 1,
+            'accessibilitySummary' => 1,
+            'conformsTo' => 1,
+        ], $meta['epubAccessibilityPropertyCounts']);
+        $t->same(['textual'], $meta['epubAccessibility']['accessModes']);
+        $t->same(['alternativeText'], $meta['epubAccessibility']['accessibilityFeatures']);
+        $t->same(['none'], $meta['epubAccessibility']['accessibilityHazards']);
+        $t->same('Images include alternate text.', $meta['epubAccessibility']['accessibilitySummary']);
+        $t->same(['EPUB Accessibility 1.1 - WCAG 2.2 Level AA'], $meta['epubAccessibility']['certification']['conformsTo']);
+        $t->same([
+            [
+                'text' => 'textual visual',
+                'modes' => ['textual', 'visual'],
+                'source' => 'property',
+                'id' => null,
+            ],
+        ], $meta['epubAccessibility']['accessModeSufficient']);
+        $t->same([
+            [
+                'id' => 'review-record',
+                'rel' => ['record', 'accessibility-summary'],
+                'href' => 'meta/review.json?profile=a11y#summary',
+                'target' => 'OEBPS/meta/review.json?profile=a11y#summary',
+                'path' => 'OEBPS/meta/review.json',
+                'external' => false,
+                'mediaType' => 'application/ld+json',
+                'properties' => ['accessibility-metadata'],
+                'manifestId' => 'review-json',
+                'manifestMediaType' => 'application/ld+json',
+            ],
+        ], $meta['epubAccessibility']['linkedRecords']);
         $t->same(1, $meta['epubSpineItems']);
         $t->same(3, $meta['epubGuideReferenceCount']);
         $t->same(['text', 'bodymatter', 'cover', 'glossary'], $meta['epubGuideReferenceTypes']);
