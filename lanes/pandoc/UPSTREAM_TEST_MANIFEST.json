@@ -91,7 +91,7 @@
                 "test/command/8661.md"
             ],
             "currentCsvDirectNativePairCount": 2,
-            "currentTsvDirectNativePairCount": 1,
+            "currentTsvDirectNativePairCount": 2,
             "csvAdjacentRstFixtureCount": 2,
             "csvAdjacentRstDirectDenominatorImpact": 0
         },
@@ -126,8 +126,8 @@
             "mismatchCount": 0
         },
         "currentTsvDirectNativeParity": {
-            "sampleCount": 1,
-            "matchCount": 1,
+            "sampleCount": 2,
+            "matchCount": 2,
             "mismatchCount": 0
         },
         "pandocExecutableNativeParity": {
@@ -150,7 +150,7 @@
             "tsvDirectOutputFormat": "gfm",
             "upstreamRunnerParityClaimed": false
         },
-        "claim": "Tracks current direct CSV/TSV reader fixture denominators, the first upstream TSV command fixture at test/command/8661.md for reader AST semantics only, two embedded CSV command transcript native probes, one current TSV direct native probe, nine CSV parser-option fixtures, generated CSV/TSV-to-native parity, and installed pandoc executable subsets. This is not an upstream Haskell/Cabal/Tasty runner result, does not claim GFM pipe-table writer output for the TSV fixture, and does not claim full CSV/TSV parity beyond these direct/generated samples."
+        "claim": "Tracks current direct CSV/TSV reader fixture denominators, the first upstream TSV command fixture at test/command/8661.md for reader AST semantics only, two embedded CSV command transcript native probes, two current TSV direct native probes, nine CSV parser-option fixtures, generated CSV/TSV-to-native parity, and installed pandoc executable subsets. This is not an upstream Haskell/Cabal/Tasty runner result, does not claim GFM pipe-table writer output for the TSV fixture, and does not claim full CSV/TSV parity beyond these direct/generated samples."
     },
     "benchmarkDenominator": {
         "status": "cloned-static-inventory",

@@ -45,7 +45,7 @@ return [
 
             $statusRollup = $laneStatus['delimitedTextReaderEvidenceStatus'] ?? null;
             $t->true(is_array($statusRollup), 'lane-status.json must carry delimited text reader evidence status');
-            $t->same('first-direct-tsv-command-fixture-promoted', $statusRollup['status'] ?? null);
+            $t->same('first-direct-tsv-command-fixture-backed-by-native-reader-pair', $statusRollup['status'] ?? null);
             $t->same('test/command/8661.md', $statusRollup['upstreamFixture'] ?? null);
             $t->same('lanes/pandoc/fixtures/upstream-current-tsv-reader/8661.md', $statusRollup['checkedInFixture'] ?? null);
             $t->true(in_array('GFM pipe-table writer output for test/command/8661.md', $statusRollup['doesNotAssert'] ?? [], true));
@@ -131,7 +131,7 @@ return [
                 '--require-generated-csv-native-parity=64',
                 '--require-generated-tsv-native-parity=36',
                 '--require-current-csv-direct-native-parity=2',
-                '--require-current-tsv-direct-native-parity=1',
+                '--require-current-tsv-direct-native-parity=2',
                 '--require-pandoc-executable-csv-native-parity=45',
                 '--require-pandoc-executable-tsv-native-parity=24',
                 '--require-runner-not-run',
@@ -145,7 +145,7 @@ return [
                 '--require-parser-option-fixture-count=9',
                 '--require-generated-tsv-native-parity=36',
                 '--require-current-csv-direct-native-parity=2',
-                '--require-current-tsv-direct-native-parity=1',
+                '--require-current-tsv-direct-native-parity=2',
                 '--require-runner-result-artifact',
                 '--require-no-validation-issues',
             ] as $gate) {

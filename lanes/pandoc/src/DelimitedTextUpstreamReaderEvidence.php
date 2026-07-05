@@ -19,7 +19,7 @@ final class DelimitedTextUpstreamReaderEvidence
     public const EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT = 3;
     public const EXPECTED_STATIC_CURRENT_CSV_DIRECT_NATIVE_PAIR_COUNT = 2;
     public const EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT = 1;
-    public const EXPECTED_STATIC_CURRENT_TSV_DIRECT_NATIVE_PAIR_COUNT = 1;
+    public const EXPECTED_STATIC_CURRENT_TSV_DIRECT_NATIVE_PAIR_COUNT = 2;
     public const EXPECTED_STATIC_CSV_ADJACENT_RST_FIXTURE_COUNT = 2;
     public const EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT = 64;
     public const EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT = 36;
@@ -122,12 +122,30 @@ final class DelimitedTextUpstreamReaderEvidence
             'sha256' => 'cdfa36aef2f3046e63448694aafac953231cd1ae56748abbc16dd7b31a2d463e',
             'bytes' => 1309,
         ],
+        'upstream-8661.tsv' => [
+            'role' => 'current-tsv-direct-reader-input-fixture',
+            'sample' => 'upstream-8661',
+            'checkedInPath' => 'lanes/pandoc/fixtures/current-tsv-reader/upstream-8661.tsv',
+            'sha256' => '010ff53d678796e41afd61be409858425b85c6a965a112c48ca1931528226a93',
+            'bytes' => 10,
+        ],
+        'upstream-8661.native' => [
+            'role' => 'current-tsv-direct-reader-expected-native-output',
+            'sample' => 'upstream-8661',
+            'checkedInPath' => 'lanes/pandoc/fixtures/current-tsv-reader/upstream-8661.native',
+            'sha256' => '45acf069b2683568beef4dc2ad677e52b46cf28824e479f25351b2bfc1995f5f',
+            'bytes' => 1342,
+        ],
     ];
 
     private const CURRENT_TSV_DIRECT_NATIVE_SAMPLES = [
         'direct-tsv-basic' => [
             'inputPath' => 'lanes/pandoc/fixtures/current-tsv-reader/direct-tsv-basic.tsv',
             'expectedNativePath' => 'lanes/pandoc/fixtures/current-tsv-reader/direct-tsv-basic.native',
+        ],
+        'upstream-8661' => [
+            'inputPath' => 'lanes/pandoc/fixtures/current-tsv-reader/upstream-8661.tsv',
+            'expectedNativePath' => 'lanes/pandoc/fixtures/current-tsv-reader/upstream-8661.native',
         ],
     ];
 
@@ -2389,7 +2407,7 @@ final class DelimitedTextUpstreamReaderEvidence
                 'status' => $issues === [] ? 'valid-checked-in-current-delimited-text-reader-evidence' : 'invalid-checked-in-current-delimited-text-reader-evidence',
                 'issues' => array_values(array_unique($issues)),
             ],
-            'claim' => 'Static gate binding Pandoc current CSV command-reader fixtures, the first direct TSV command fixture, two embedded CSV command transcript native probes, one current TSV direct native probe, and generated CSV/TSV native sample fixtures to checked-in SHA-256 and byte-count snapshots.',
+            'claim' => 'Static gate binding Pandoc current CSV command-reader fixtures, the first direct TSV command fixture, two embedded CSV command transcript native probes, two current TSV direct native pairs, and generated CSV/TSV native sample fixtures to checked-in SHA-256 and byte-count snapshots.',
             'claimBoundaries' => [
                 'doesAssert' => [
                     'the checked-in csv.md, 01.csv, and 9797.md snapshots match the pinned upstream command fixture hashes',
@@ -2399,7 +2417,7 @@ final class DelimitedTextUpstreamReaderEvidence
                     'the RST csv-table fixture pair is tracked as CSV-adjacent evidence with zero direct-reader denominator impact',
                     'the CSV parser-option fixture names are pinned as local generated native parity samples',
                     'the generated CSV-to-native parity fixture pairs are present as local evidence and are not counted as extra upstream CSV direct fixtures',
-                    'the current TSV direct native probe fixture pair is present and separate from the generated TSV sample corpus',
+                    'the current TSV direct native fixture pairs are present and separate from the generated TSV sample corpus',
                     'the generated TSV-to-native parity fixture pairs are present as local evidence and are not counted as upstream TSV direct fixtures',
                 ],
                 'doesNotAssert' => [
@@ -2783,16 +2801,16 @@ final class DelimitedTextUpstreamReaderEvidence
                 'status' => $issues === [] ? 'valid-checked-in-current-tsv-direct-native-fixture-evidence' : 'invalid-checked-in-current-tsv-direct-native-fixture-evidence',
                 'issues' => array_values(array_unique($issues)),
             ],
-            'claim' => 'Static current TSV direct native fixture evidence; this local native-output probe is separate from the upstream TSV command denominator.',
+            'claim' => 'Static current TSV direct native fixture evidence; these input/native pairs include one local baseline and one exact TSV input extracted from upstream test/command/8661.md.',
             'claimBoundaries' => [
                 'doesAssert' => [
-                    'one current TSV direct input/native fixture pair is checked in with pinned SHA-256 and byte-count snapshots',
-                    'the pair is not counted as an upstream TSV command fixture',
+                    'two current TSV direct input/native fixture pairs are checked in with pinned SHA-256 and byte-count snapshots',
+                    'the upstream-8661 pair captures the TSV input embedded in test/command/8661.md',
                 ],
                 'doesNotAssert' => [
-                    'that the current TSV native-output probe is an upstream command fixture',
+                    'that the TSV 8661.md GFM writer pipe-table output is implemented by the local writer',
                     'that upstream Haskell/Cabal/Tasty tests were executed',
-                    'full TSV feature parity beyond this current direct probe and the generated TSV sample corpus',
+                    'full TSV feature parity beyond these current direct probes and the generated TSV sample corpus',
                 ],
             ],
         ];
@@ -3353,7 +3371,7 @@ final class DelimitedTextUpstreamReaderEvidence
             'kind' => 'current-tsv-direct-native-parity-evidence',
             'evidenceKind' => 'current-tsv-direct-native-parity',
             'status' => $observed ? 'completed-current-tsv-direct-native-parity-evidence' : 'incomplete-current-tsv-direct-native-parity-evidence',
-            'claim' => 'Executes the local PHP TSV reader against a checked-in current direct TSV fixture and compares native output to the checked-in native expectation.',
+            'claim' => 'Executes the local PHP TSV reader against checked-in current direct TSV fixtures and compares native output to checked-in native expectations.',
             'fixtureDirectory' => self::CHECKED_IN_CURRENT_TSV_NATIVE_FIXTURE_DIRECTORY,
             'reader' => 'tsv',
             'tsvDirectFixtureDenominator' => self::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT,
@@ -3371,14 +3389,14 @@ final class DelimitedTextUpstreamReaderEvidence
             'mismatches' => $mismatches,
             'claimBoundaries' => [
                 'doesAssert' => [
-                    'the local TSV reader can read the checked-in current TSV direct probe',
-                    'the generated native output matches the checked-in expected native fixture by normalized native token stream',
-                    'the current TSV native-output probe is separate from the upstream TSV direct fixture denominator',
+                    'the local TSV reader can read the checked-in current TSV direct probes',
+                    'the generated native output matches the checked-in expected native fixtures by normalized native token stream',
+                    'the upstream-8661 direct TSV/native pair covers the reader input embedded in test/command/8661.md',
                 ],
                 'doesNotAssert' => [
-                    'that the current TSV native-output probe is an upstream command fixture',
+                    'that the TSV 8661.md GFM writer pipe-table output is implemented by the local writer',
                     'that upstream Haskell/Cabal/Tasty tests were executed',
-                    'full TSV feature parity beyond this direct probe and the generated TSV sample corpus',
+                    'full TSV feature parity beyond these direct probes and the generated TSV sample corpus',
                 ],
             ],
         ];
@@ -4622,7 +4640,7 @@ final class DelimitedTextUpstreamReaderEvidence
 
     private static function claim(): string
     {
-        return 'Tracks the current upstream direct CSV command-reader fixtures, the first upstream direct TSV command fixture, two embedded CSV command transcript native probes, the adjacent RST csv-table fixture pair with zero direct-reader denominator impact, sixty-four generated CSV-to-native evidence samples, one current TSV direct native probe, and thirty-six generated TSV-to-native evidence samples for the delimited text reader.';
+        return 'Tracks the current upstream direct CSV command-reader fixtures, the first upstream direct TSV command fixture, two embedded CSV command transcript native probes, the adjacent RST csv-table fixture pair with zero direct-reader denominator impact, sixty-four generated CSV-to-native evidence samples, two current TSV direct native probes, and thirty-six generated TSV-to-native evidence samples for the delimited text reader.';
     }
 
     /**
@@ -4642,7 +4660,7 @@ final class DelimitedTextUpstreamReaderEvidence
                 'two current CSV embedded command transcript native probes when currentCsvDirectNativeParityEvidence is valid',
                 'nine CSV parser-option generated native fixture names covering delimiter, quote, escape, keep-space, multiline, pipe, and no-header variants',
                 'sixty-four generated CSV-to-native local samples when generatedCsvNativeParityEvidence is valid',
-                'one current TSV direct native probe when currentTsvDirectNativeParityEvidence is valid',
+                'two current TSV direct native probes when currentTsvDirectNativeParityEvidence is valid',
                 'thirty-six generated TSV-to-native local samples when generatedTsvNativeParityEvidence is valid',
                 'the non-executed upstream command-test runner plan for the pinned csv.md command fixture',
                 'that upstream Haskell runner evidence is either explicitly not-run or supplied as a validated result artifact',

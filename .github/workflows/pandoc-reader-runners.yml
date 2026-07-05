@@ -379,7 +379,7 @@ jobs:
                 --require-generated-csv-native-parity=64 \
                 --require-generated-tsv-native-parity=36 \
                 --require-current-csv-direct-native-parity=2 \
-                --require-current-tsv-direct-native-parity=1 \
+                --require-current-tsv-direct-native-parity=2 \
                 --runner-result-artifact "$artifact_root/result.json" \
                 --require-runner-result-artifact \
                 --require-no-validation-issues \
