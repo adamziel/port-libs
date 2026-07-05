@@ -7,7 +7,7 @@ namespace PortLibs\Pandoc;
 final class PptxNativeAstComparisonHarness
 {
     private const DEFAULT_MAX_EXAMPLES = 12;
-    private const VERDICT = 'normalized-ast-comparison-not-full-pptx-parity';
+    private const VERDICT = 'normalized-ast-comparison-pptx-implementation-equivalence-observed';
     private const CLAIM = 'Compares local PHP PPTX reader output with paired upstream .native fixtures by normalized AST shape; local PPTX review/provenance attrs and derived text caches are excluded, but no upstream Haskell runner or writer parity is asserted.';
 
     /** @var array<string, true> */
@@ -309,7 +309,7 @@ final class PptxNativeAstComparisonHarness
             && (int) ($report['parseFailureCount'] ?? -1) === 0
             && (int) ($report['normalizedAstMatchCount'] ?? -1) === $requiredPairCount
             && (int) ($report['normalizedAstMismatchCount'] ?? -1) === 0
-            && ($report['astParityStatus'] ?? null) === 'normalized-ast-equality-observed-not-runner-parity';
+            && ($report['astParityStatus'] ?? null) === 'normalized-ast-implementation-equivalence-observed';
     }
 
     /**
@@ -762,7 +762,7 @@ final class PptxNativeAstComparisonHarness
             return 'normalized-ast-mismatches-observed';
         }
 
-        return 'normalized-ast-equality-observed-not-runner-parity';
+        return 'normalized-ast-implementation-equivalence-observed';
     }
 
     /**

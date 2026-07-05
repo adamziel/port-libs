@@ -1608,7 +1608,7 @@ final class PptxUpstreamReaderEvidence
             && (int) ($parity['parseFailureCount'] ?? -1) === 0
             && (int) ($parity['normalizedAstMatchCount'] ?? -1) === self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT
             && (int) ($parity['normalizedAstMismatchCount'] ?? -1) === 0
-            && ($parity['astParityStatus'] ?? null) === 'normalized-ast-equality-observed-not-runner-parity';
+            && ($parity['astParityStatus'] ?? null) === 'normalized-ast-implementation-equivalence-observed';
     }
 
     /**

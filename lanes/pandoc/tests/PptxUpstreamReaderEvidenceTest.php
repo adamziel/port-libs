@@ -572,7 +572,7 @@ return [
             $nativeParity['fixtureComparisons'],
             static fn (array $row): bool => ($row['status'] ?? null) !== 'matched'
         )));
-        $t->same('normalized-ast-equality-observed-not-runner-parity', $nativeParity['astParityStatus']);
+        $t->same('normalized-ast-implementation-equivalence-observed', $nativeParity['astParityStatus']);
         $t->same(true, $nativeParity['hasRequiredMappedParity']);
         $t->same('selected-pptx-native-fixture-corpus-coverage', $nativeParity['orderedRemainingGaps'][2]['id']);
         $t->same('covered-by-current-selected-corpus-evidence', $nativeParity['orderedRemainingGaps'][2]['status']);
@@ -1495,7 +1495,7 @@ return [
         $t->true(in_array('that transition-sound-media.pptx/transition-sound-media.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('that root-relationship-root-alias.pptx/root-relationship-root-alias.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
         $t->contains('Static current evidence: valid-checked-in-current-pptx-reader-evidence comparisons=1 checkedInPairs=109', $text);
-        $t->contains('Static native AST mapped parity: normalized-ast-equality-observed-not-runner-parity matches=109 mismatches=0 required=109', $text);
+        $t->contains('Static native AST mapped parity: normalized-ast-implementation-equivalence-observed matches=109 mismatches=0 required=109', $text);
         $t->contains('Static executable native AST parity: normalized-ast-equality-observed-against-pandoc-executable matches=109 mismatches=0 required=109', $text);
         $t->contains('Static checked-in review metadata: valid-checked-in-current-pptx-review-metadata chartFixtures=2 charts=2 noteFixtures=1 notes=1 commentFixtures=1 comments=1', $text);
         $t->contains('Runner status: not-run', $text);

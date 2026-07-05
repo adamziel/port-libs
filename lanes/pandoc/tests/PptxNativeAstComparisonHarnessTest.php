@@ -98,7 +98,7 @@ return [
             $t->same('skipped', $report['status']);
             $t->same(true, $report['skipped']);
             $t->same('upstream-cache-missing', $report['reason']);
-            $t->same('normalized-ast-comparison-not-full-pptx-parity', $report['verdict']);
+            $t->same('normalized-ast-comparison-pptx-implementation-equivalence-observed', $report['verdict']);
             $t->same('pptx-native-normalized-ast-comparison', $report['evidenceKind']);
             $t->same(0, $report['comparedPairCount']);
             $t->same(0, $report['normalizedAstMatchCount']);
@@ -173,7 +173,7 @@ return [
             $t->same(0, $report['normalizedAstMismatchCount']);
             $t->same(1, count($report['fixtureComparisons']));
             $t->same('matched', $report['fixtureComparisons'][0]['status']);
-            $t->same('normalized-ast-equality-observed-not-runner-parity', $report['astParityStatus']);
+            $t->same('normalized-ast-implementation-equivalence-observed', $report['astParityStatus']);
             $t->same('covered-by-current-normalized-ast-evidence', $report['orderedRemainingGaps'][0]['status']);
             $t->same('upstream-pptx-reader-runner-results', $report['orderedRemainingGaps'][1]['id']);
             $t->same('open', $report['orderedRemainingGaps'][1]['status']);

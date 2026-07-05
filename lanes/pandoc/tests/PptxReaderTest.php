@@ -5159,6 +5159,18 @@ XML);
         <p:nvPicPr><p:cNvPr id="12" name="Grouped Picture" descr="Grouped alt"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>
         <p:blipFill><a:blip r:embed="rIdImage"/></p:blipFill>
       </p:pic>
+      <p:graphicFrame>
+        <p:nvGraphicFramePr><p:cNvPr id="15" name="Grouped Table"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+        <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl>
+          <a:tblGrid><a:gridCol w="1000"/></a:tblGrid>
+          <a:tr><a:tc><a:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Grouped table head</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
+          <a:tr><a:tc><a:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Grouped table body</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
+        </a:tbl></a:graphicData></a:graphic>
+      </p:graphicFrame>
+      <p:graphicFrame>
+        <p:nvGraphicFramePr><p:cNvPr id="16" name="Grouped Diagram"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+        <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"><dgm:relIds xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" r:dm="rIdDiagramData" r:lo="rIdDiagramLayout"/></a:graphicData></a:graphic>
+      </p:graphicFrame>
       <p:grpSp>
         <p:nvGrpSpPr><p:cNvPr id="13" name="Nested Group"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
         <p:grpSpPr/>
@@ -5175,9 +5187,27 @@ XML);
 <?xml version="1.0" encoding="UTF-8"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/grouped.png"/>
+  <Relationship Id="rIdDiagramData" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData" Target="../diagrams/grouped-data.xml"/>
+  <Relationship Id="rIdDiagramLayout" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramLayout" Target="../diagrams/grouped-layout.xml"/>
 </Relationships>
 XML);
     $zip->addFromString('ppt/media/grouped.png', 'fake-grouped-png');
+    $zip->addFromString('ppt/diagrams/grouped-layout.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<dgm:layoutDef xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" uniqueId="urn:microsoft.com/office/officeart/2005/8/layout/groupedLayout"><dgm:title val=""/></dgm:layoutDef>
+XML);
+    $zip->addFromString('ppt/diagrams/grouped-data.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<dgm:dataModel xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <dgm:ptLst>
+    <dgm:pt modelId="1"><dgm:t><a:p><a:r><a:t>Grouped diagram parent</a:t></a:r></a:p></dgm:t></dgm:pt>
+    <dgm:pt modelId="2"><dgm:t><a:p><a:r><a:t>Grouped diagram child</a:t></a:r></a:p></dgm:t></dgm:pt>
+  </dgm:ptLst>
+  <dgm:cxnLst>
+    <dgm:cxn srcId="1" destId="2"/>
+  </dgm:cxnLst>
+</dgm:dataModel>
+XML);
     $zip->close();
 
     try {
@@ -16556,59 +16586,24 @@ return [
         $t->contains('Image ( "" , [  ] , [  ] ) [ Str "Hidden picture alt" ] ( "ppt/media/hidden-shape.png" , "Hidden Picture" )', $native);
     },
 
-    'skips grouped pptx shapes to match upstream reader output' => static function (TestRunner $t) use ($buildGroupedShapesPptxPackage, $nodesOfType): void {
-        $document = (new PptxReader())->read($buildGroupedShapesPptxPackage());
-        $review = $document->attr('pptx');
-        $paragraphs = $nodesOfType($document, 'paragraph');
-        $images = $nodesOfType($document, 'image');
-        $texts = array_map(static fn (AstNode $paragraph): string => (string) $paragraph->attr('text'), $paragraphs);
-        $native = PandocConverter::write($document, 'native');
-        $issue = $review['slides'][0]['shapeIssues'][0] ?? [];
-
-        $t->same('heading', $document->children[0]->type);
-        $t->same('Grouped slide', $document->children[0]->attr('text'));
-        $t->same(false, in_array('Grouped body', $texts, true));
-        $t->same(false, in_array('Nested grouped body', $texts, true));
-        $t->same(0, count($images));
-        $t->same(0, $review['slides'][0]['imageIssueCount'] ?? null);
-        $t->same([], $review['slides'][0]['imageIssues'] ?? null);
-        $t->same(1, $review['slides'][0]['shapeIssueCount'] ?? null);
-        $t->same('unsupported-drawable-shape', $issue['issue'] ?? null);
-        $t->same('grpSp', $issue['element'] ?? null);
-        $t->same('10', $issue['id'] ?? null);
-        $t->same('Group 1', $issue['name'] ?? null);
-        $t->same(['x' => 100, 'y' => 200, 'cx' => 300, 'cy' => 400], $issue['layout'] ?? null);
-        $t->same(3, $issue['pptxGroup']['directChildShapeCount'] ?? null);
-        $t->same(4, $issue['pptxGroup']['descendantShapeCount'] ?? null);
-        $t->same(['grpSp' => 1, 'pic' => 1, 'sp' => 2], $issue['pptxGroup']['descendantShapeTypes'] ?? null);
-        $t->same('Grouped Text', $issue['pptxGroup']['directChildren'][0]['name'] ?? null);
-        $t->same('Grouped body', $issue['pptxGroup']['directChildren'][0]['text'] ?? null);
-        $t->same('Grouped Picture', $issue['pptxGroup']['directChildren'][1]['name'] ?? null);
-        $t->same('Nested Group', $issue['pptxGroup']['directChildren'][2]['name'] ?? null);
-        $t->same(1, $issue['pptxGroup']['directChildren'][2]['directChildShapeCount'] ?? null);
-        $t->same([['depth' => 1, 'element' => 'sp', 'text' => 'Grouped body'], ['depth' => 2, 'element' => 'sp', 'text' => 'Nested grouped body']], $issue['pptxGroup']['textSamples'] ?? null);
-        $t->same(['rIdImage'], $issue['pptxGroup']['relationshipIds'] ?? null);
-        $t->same('ppt/media/grouped.png', $issue['pptxGroup']['relationships'][0]['partName'] ?? null);
-        $t->true(!str_contains($native, 'Grouped body'), 'Grouped child text should stay out of upstream-compatible output');
-        $t->true(!str_contains($native, 'Nested grouped body'), 'Nested grouped child text should stay out of upstream-compatible output');
-        $t->true(!str_contains($native, 'Grouped Picture'), 'Grouped child picture should stay out of upstream-compatible output');
-    },
-
-    'can read grouped pptx shape descendants in slide order when enabled' => static function (TestRunner $t) use ($buildGroupedShapesPptxPackage, $nodesOfType): void {
+    'can read grouped pptx shape descendants in slide order when enabled' => static function (TestRunner $t) use ($buildGroupedShapesPptxPackage, $nodesOfType, $nodesWithClass): void {
         $document = (new PptxReader(['pptxReadGroupedDrawableDescendants' => true]))->read($buildGroupedShapesPptxPackage());
         $review = $document->attr('pptx');
         $paragraphs = $nodesOfType($document, 'paragraph');
         $images = $nodesOfType($document, 'image');
+        $tables = $nodesOfType($document, 'table');
+        $tableCells = $nodesOfType($document, 'table_cell');
+        $smartArtDivs = $nodesWithClass($nodesOfType($document, 'div'), 'smartart');
         $texts = array_map(static fn (AstNode $paragraph): string => (string) $paragraph->attr('text'), $paragraphs);
         $native = PandocConverter::write($document, 'native');
         $slideChildren = array_slice($document->children, 1);
 
         $t->same('heading', $document->children[0]->type);
         $t->same('Grouped slide', $document->children[0]->attr('text'));
-        $t->same(['paragraph', 'paragraph', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $slideChildren));
+        $t->same(['paragraph', 'paragraph', 'table', 'div', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $slideChildren));
         $t->same('Grouped body', $slideChildren[0]->attr('text'));
         $t->same('image', $slideChildren[1]->children[0]->type ?? null);
-        $t->same('Nested grouped body', $slideChildren[2]->attr('text'));
+        $t->same('Nested grouped body', $slideChildren[4]->attr('text'));
         $t->same(true, in_array('Grouped body', $texts, true));
         $t->same(true, in_array('Nested grouped body', $texts, true));
         $t->same(1, count($images));
@@ -16617,12 +16612,25 @@ return [
         $t->same('Grouped alt', $images[0]->attr('alt'));
         $t->same('pic', $images[0]->attr('pptxShape')['element'] ?? null);
         $t->same('Grouped Picture', $images[0]->attr('pptxShape')['name'] ?? null);
+        $t->same(1, count($tables));
+        $t->same(['Grouped table head', 'Grouped table body'], array_map(static fn (AstNode $cell): string => (string) $cell->attr('text'), $tableCells));
+        $t->same('graphicFrame', $tables[0]->attr('pptxShape')['element'] ?? null);
+        $t->same('Grouped Table', $tables[0]->attr('pptxShape')['name'] ?? null);
+        $t->same(1, count($smartArtDivs));
+        $t->same(['smartart', 'groupedLayout'], $smartArtDivs[0]->attr('classes'));
+        $t->same('graphicFrame', $smartArtDivs[0]->attr('pptxShape')['element'] ?? null);
+        $t->same('Grouped Diagram', $smartArtDivs[0]->attr('pptxShape')['name'] ?? null);
+        $t->same('strong', $smartArtDivs[0]->children[0]->children[0]->type ?? null);
+        $t->same('Grouped diagram parent', $smartArtDivs[0]->children[0]->children[0]->children[0]->attr('text') ?? null);
+        $t->same('Grouped diagram child', $smartArtDivs[0]->children[1]->children[0]->children[0]->children[0]->attr('text') ?? null);
         $t->same(0, $review['slides'][0]['imageIssueCount'] ?? null);
         $t->same([], $review['slides'][0]['imageIssues'] ?? null);
         $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
         $t->same(1, $review['mediaBag']['itemCount'] ?? null);
         $t->contains('Para [ Str "Grouped" , Space , Str "body" ]', $native);
         $t->contains('Image ( "" , [  ] , [  ] ) [ Str "Grouped alt" ] ( "ppt/media/grouped.png" , "Grouped Picture" )', $native);
+        $t->contains('Table ( "" , [  ] , [  ] )', $native);
+        $t->contains('Div ( "" , [ "smartart" , "groupedLayout" ] , [ ( "layout" , "groupedLayout" ) ] )', $native);
         $t->contains('Para [ Str "Nested" , Space , Str "grouped" , Space , Str "body" ]', $native);
     },
 
