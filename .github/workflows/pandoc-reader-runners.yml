@@ -1,0 +1,393 @@
+name: Pandoc upstream reader runners
+
+on:
+  workflow_dispatch:
+    inputs:
+      format:
+        description: Run one reader target or all reader targets.
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - html
+          - markdown
+          - epub
+          - pptx
+          - delimited-text
+      run_upstream_tasty:
+        description: Run the pinned upstream Cabal/Tasty pattern and gate result artifacts.
+        required: true
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+permissions:
+  contents: read
+
+env:
+  PANDOC_READER_RUNNER_PINNED_COMMIT: 4f5226df4faa0d66dd2c089465b13886360ab3c2
+  PANDOC_READER_RUNNER_UPSTREAM_ROOT: .upstream-cache/pandoc-current
+
+jobs:
+  targeted-reader-runner:
+    name: ${{ matrix.label }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - format: html
+            label: HTML reader runner
+            artifact_stem: html
+          - format: markdown
+            label: Markdown reader runner
+            artifact_stem: markdown
+          - format: epub
+            label: EPUB reader runner
+            artifact_stem: epub
+          - format: pptx
+            label: PPTX reader runner
+            artifact_stem: pptx
+          - format: delimited-text
+            label: Delimited text reader runner
+            artifact_stem: delimited-text
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Select reader target
+        id: reader-selection
+        run: |
+          set -euo pipefail
+          if [ "${{ inputs.format }}" = "all" ] || [ "${{ inputs.format }}" = "${{ matrix.format }}" ]; then
+            echo "selected=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "selected=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up PHP
+        if: ${{ steps.reader-selection.outputs.selected == 'true' }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: dom, intl, mbstring, zip
+          coverage: none
+
+      - name: Lint generic reader runner artifact tool
+        if: ${{ steps.reader-selection.outputs.selected == 'true' }}
+        run: |
+          php -l tools/pandoc-reader-runner-artifact.php
+          php -l tools/pandoc-html-reader-evidence.php
+          php -l tools/pandoc-markdown-reader-evidence.php
+          php -l tools/pandoc-epub-reader-evidence.php
+          php -l tools/pandoc-pptx-reader-evidence.php
+          php -l tools/pandoc-delimited-text-reader-evidence.php
+
+      - name: Hydrate pinned Pandoc runner checkout
+        if: ${{ steps.reader-selection.outputs.selected == 'true' }}
+        run: |
+          set -euo pipefail
+          target="${PANDOC_READER_RUNNER_UPSTREAM_ROOT}"
+          mkdir -p "$(dirname "$target")"
+          if [ ! -d "$target/.git" ]; then
+            git init "$target"
+            git -C "$target" remote add origin https://github.com/jgm/pandoc.git
+          fi
+          git -C "$target" fetch --depth=1 origin "$PANDOC_READER_RUNNER_PINNED_COMMIT"
+          git -C "$target" switch --detach FETCH_HEAD
+          if [ "$(git -C "$target" config --bool core.sparseCheckout || true)" = "true" ]; then
+            git -C "$target" sparse-checkout disable
+          fi
+          test "$(git -C "$target" rev-parse HEAD)" = "$PANDOC_READER_RUNNER_PINNED_COMMIT"
+          test -f "$target/cabal.project"
+          test -f "$target/pandoc.cabal"
+          test -f "$target/test/test-pandoc.hs"
+          case "${{ matrix.format }}" in
+            html)
+              test -f "$target/test/Tests/Readers/HTML.hs"
+              test -f "$target/src/Text/Pandoc/Readers/HTML.hs"
+              ;;
+            markdown)
+              test -f "$target/test/Tests/Readers/Markdown.hs"
+              test -f "$target/src/Text/Pandoc/Readers/Markdown.hs"
+              ;;
+            epub)
+              test -f "$target/test/Tests/Readers/EPUB.hs"
+              test -d "$target/test/epub"
+              test -f "$target/src/Text/Pandoc/Readers/EPUB.hs"
+              ;;
+            pptx)
+              test -f "$target/test/Tests/Readers/Pptx.hs"
+              test -d "$target/test/pptx-reader"
+              test -f "$target/src/Text/Pandoc/Readers/Pptx.hs"
+              ;;
+            delimited-text)
+              test -f "$target/test/command/csv.md"
+              test -f "$target/test/command/01.csv"
+              test -f "$target/src/Text/Pandoc/Readers/CSV.hs"
+              ;;
+          esac
+
+      - name: Generate upstream reader runner preflight plan
+        if: ${{ steps.reader-selection.outputs.selected == 'true' }}
+        run: |
+          set -euo pipefail
+          artifact_root=".port-libs/pandoc-runner/artifacts/${{ matrix.artifact_stem }}-targeted-run"
+          mkdir -p "$artifact_root" .port-libs/pandoc-runner/logs
+          php tools/pandoc-reader-runner-artifact.php \
+            --format="${{ matrix.format }}" \
+            --json \
+            --upstream-root "$PANDOC_READER_RUNNER_UPSTREAM_ROOT" \
+            --artifact-root "$artifact_root" \
+            > "$artifact_root/preflight-runner-plan.json"
+          jq -e '
+            .runner.futureCommandLines | length == 3
+          ' "$artifact_root/preflight-runner-plan.json"
+          jq -e '
+            .runner.requiredTranscripts | length == 3
+          ' "$artifact_root/preflight-runner-plan.json"
+
+      - name: Set up Haskell for targeted reader runner
+        if: ${{ steps.reader-selection.outputs.selected == 'true' && inputs.run_upstream_tasty == 'true' }}
+        uses: haskell-actions/setup@v2
+        with:
+          ghc-version: '9.10.3'
+          cabal-version: '3.12.1.0'
+
+      - name: Restore targeted reader runner Cabal cache
+        if: ${{ steps.reader-selection.outputs.selected == 'true' && inputs.run_upstream_tasty == 'true' }}
+        uses: actions/cache@v4
+        with:
+          path: |
+            .port-libs/pandoc-runner/cabal-home
+            .port-libs/pandoc-runner/cache
+            .port-libs/pandoc-runner/state
+          key: pandoc-reader-runner-cabal-${{ runner.os }}-ghc-9.10.3-cabal-3.12.1.0-${{ env.PANDOC_READER_RUNNER_PINNED_COMMIT }}
+
+      - name: Prime targeted reader runner Cabal store
+        if: ${{ steps.reader-selection.outputs.selected == 'true' && inputs.run_upstream_tasty == 'true' }}
+        run: |
+          set -euo pipefail
+          target="${PANDOC_READER_RUNNER_UPSTREAM_ROOT}"
+          build_dir=".port-libs/pandoc-runner/cabal-build/${{ matrix.artifact_stem }}-targeted-run"
+          export CABAL_DIR="$GITHUB_WORKSPACE/.port-libs/pandoc-runner/cabal-home"
+          export CABAL_CONFIG="$CABAL_DIR/config"
+          export XDG_CACHE_HOME="$GITHUB_WORKSPACE/.port-libs/pandoc-runner/cache"
+          export XDG_STATE_HOME="$GITHUB_WORKSPACE/.port-libs/pandoc-runner/state"
+          export TMPDIR="$GITHUB_WORKSPACE/.port-libs/pandoc-runner/tmp"
+          mkdir -p "$CABAL_DIR" "$(dirname "$CABAL_CONFIG")" "$XDG_CACHE_HOME" "$XDG_STATE_HOME" "$TMPDIR"
+          if [ ! -f "$CABAL_CONFIG" ]; then
+            cabal user-config init
+          fi
+          (
+            cd "$target"
+            cabal v2-update
+            cabal v2-build \
+              --project-dir=. \
+              --builddir="$build_dir" \
+              --only-dependencies \
+              --enable-tests \
+              --disable-benchmarks \
+              test:test-pandoc
+          )
+
+      - name: Run targeted upstream reader Cabal/Tasty pattern
+        id: targeted-reader-tasty
+        if: ${{ steps.reader-selection.outputs.selected == 'true' && inputs.run_upstream_tasty == 'true' }}
+        run: |
+          set -euo pipefail
+          target="${PANDOC_READER_RUNNER_UPSTREAM_ROOT}"
+          artifact_root=".port-libs/pandoc-runner/artifacts/${{ matrix.artifact_stem }}-targeted-run"
+          log_root=.port-libs/pandoc-runner/logs
+          export CABAL_DIR="$GITHUB_WORKSPACE/.port-libs/pandoc-runner/cabal-home"
+          export CABAL_CONFIG="$CABAL_DIR/config"
+          export XDG_CACHE_HOME="$GITHUB_WORKSPACE/.port-libs/pandoc-runner/cache"
+          export XDG_STATE_HOME="$GITHUB_WORKSPACE/.port-libs/pandoc-runner/state"
+          export TMPDIR="$GITHUB_WORKSPACE/.port-libs/pandoc-runner/tmp"
+
+          run_plan_command() {
+            local command_line="$1"
+            local log_file="$2"
+            set +e
+            (
+              cd "$target"
+              printf '$ %s\n' "$command_line"
+              bash -o pipefail -c "$command_line"
+              command_exit=$?
+              printf 'exitCode: %d\n' "$command_exit"
+              exit "$command_exit"
+            ) 2>&1 | tee "$log_file"
+            local status="${PIPESTATUS[0]}"
+            set -e
+            return "$status"
+          }
+
+          dependency_cmd="$(jq -r '.runner.futureCommandLines[0]' "$artifact_root/preflight-runner-plan.json")"
+          list_cmd="$(jq -r '.runner.futureCommandLines[1]' "$artifact_root/preflight-runner-plan.json")"
+          targeted_cmd="$(jq -r '.runner.futureCommandLines[2]' "$artifact_root/preflight-runner-plan.json")"
+
+          dependency_exit=not-run
+          list_exit=not-run
+          targeted_exit=not-run
+
+          if run_plan_command "$dependency_cmd" "$log_root/runner-test-dependencies.txt"; then
+            dependency_exit=0
+          else
+            dependency_exit=$?
+          fi
+          if [ "$dependency_exit" = "0" ]; then
+            if run_plan_command "$list_cmd" "$log_root/${{ matrix.artifact_stem }}-targeted-list-tests.txt"; then
+              list_exit=0
+            else
+              list_exit=$?
+            fi
+          fi
+          if [ "$dependency_exit" = "0" ] && [ "$list_exit" = "0" ]; then
+            started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            if run_plan_command "$targeted_cmd" "$log_root/${{ matrix.artifact_stem }}-targeted-run.txt"; then
+              targeted_exit=0
+            else
+              targeted_exit=$?
+            fi
+            finished_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            if [ "$targeted_exit" = "0" ]; then
+              php tools/pandoc-reader-runner-artifact.php \
+                --format="${{ matrix.format }}" \
+                --json \
+                --upstream-root "$PANDOC_READER_RUNNER_UPSTREAM_ROOT" \
+                --artifact-root "$artifact_root" \
+                --log-root "$log_root" \
+                --write-result-artifact "$artifact_root/result.json" \
+                --result-started-at-utc "$started_at" \
+                --result-finished-at-utc "$finished_at" \
+                > "$artifact_root/result-writer.json"
+            fi
+          fi
+
+          echo "dependency_exit=$dependency_exit" >> "$GITHUB_OUTPUT"
+          echo "list_exit=$list_exit" >> "$GITHUB_OUTPUT"
+          echo "targeted_exit=$targeted_exit" >> "$GITHUB_OUTPUT"
+
+      - name: Require targeted upstream reader runner artifact gate
+        if: ${{ steps.reader-selection.outputs.selected == 'true' && inputs.run_upstream_tasty == 'true' && steps.targeted-reader-tasty.outputs.targeted_exit == '0' }}
+        run: |
+          set -euo pipefail
+          artifact_root=".port-libs/pandoc-runner/artifacts/${{ matrix.artifact_stem }}-targeted-run"
+          log_root=.port-libs/pandoc-runner/logs
+          php tools/pandoc-reader-runner-artifact.php \
+            --format="${{ matrix.format }}" \
+            --json \
+            --upstream-root "$PANDOC_READER_RUNNER_UPSTREAM_ROOT" \
+            --artifact-root "$artifact_root" \
+            --log-root "$log_root" \
+            --runner-result-artifact "$artifact_root/result.json" \
+            --require-valid-result-artifact \
+            > "$artifact_root/result-artifact-gate.json"
+          jq -e '.status == "runner-result-artifact-valid"' "$artifact_root/result-artifact-gate.json"
+
+      - name: Require format-specific upstream reader runner result
+        if: ${{ steps.reader-selection.outputs.selected == 'true' && inputs.run_upstream_tasty == 'true' && steps.targeted-reader-tasty.outputs.targeted_exit == '0' }}
+        run: |
+          set -euo pipefail
+          artifact_root=".port-libs/pandoc-runner/artifacts/${{ matrix.artifact_stem }}-targeted-run"
+          case "${{ matrix.format }}" in
+            html)
+              php tools/pandoc-html-reader-evidence.php \
+                --upstream-root "$PANDOC_READER_RUNNER_UPSTREAM_ROOT" \
+                --json \
+                --require-selected-fixture-count=112 \
+                --require-static-current-evidence \
+                --require-native-mapped-parity=112 \
+                --runner-result-artifact "$artifact_root/result.json" \
+                --require-runner-result-artifact \
+                --require-no-validation-issues \
+                > "$artifact_root/format-reader-evidence-gate.json"
+              ;;
+            markdown)
+              php tools/pandoc-markdown-reader-evidence.php \
+                --upstream-root "$PANDOC_READER_RUNNER_UPSTREAM_ROOT" \
+                --json \
+                --require-selected-fixture-count=97 \
+                --require-static-current-evidence \
+                --require-native-mapped-parity=97 \
+                --runner-result-artifact "$artifact_root/result.json" \
+                --require-runner-result-artifact \
+                --require-no-validation-issues \
+                > "$artifact_root/format-reader-evidence-gate.json"
+              ;;
+            epub)
+              php tools/pandoc-epub-reader-evidence.php \
+                --upstream-root "$PANDOC_READER_RUNNER_UPSTREAM_ROOT" \
+                --json \
+                --require-test-count=6 \
+                --require-fixture-reference-count=6 \
+                --require-expected-media-item-count=10 \
+                --require-referenced-fixture-identity \
+                --require-static-current-signature \
+                --require-native-ast-package-parity \
+                --runner-result-artifact "$artifact_root/result.json" \
+                --require-runner-result-artifact \
+                --require-no-validation-issues \
+                > "$artifact_root/format-reader-evidence-gate.json"
+              ;;
+            pptx)
+              php tools/pandoc-pptx-reader-evidence.php \
+                --upstream-root "$PANDOC_READER_RUNNER_UPSTREAM_ROOT" \
+                --json \
+                --require-test-count=1 \
+                --require-fixture-pair-count=1 \
+                --require-no-validation-issues \
+                --require-static-current-evidence \
+                --require-static-native-mapped-parity \
+                --require-static-executable-native-ast-parity \
+                --runner-result-artifact "$artifact_root/result.json" \
+                --require-runner-result-artifact \
+                > "$artifact_root/format-reader-evidence-gate.json"
+              ;;
+            delimited-text)
+              php tools/pandoc-delimited-text-reader-evidence.php \
+                --repo-root=. \
+                --json \
+                --require-honest-denominators \
+                --require-generated-csv-native-parity=63 \
+                --require-generated-tsv-native-parity=36 \
+                --runner-result-artifact "$artifact_root/result.json" \
+                --require-runner-result-artifact \
+                --require-no-validation-issues \
+                > "$artifact_root/format-reader-evidence-gate.json"
+              ;;
+          esac
+
+      - name: Upload upstream reader runner artifacts
+        if: ${{ always() && steps.reader-selection.outputs.selected == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: pandoc-${{ matrix.artifact_stem }}-reader-runner
+          path: |
+            .port-libs/pandoc-runner/artifacts/${{ matrix.artifact_stem }}-targeted-run/*.json
+            .port-libs/pandoc-runner/logs/*.txt
+          if-no-files-found: warn
+
+      - name: Require targeted upstream reader Tasty pass
+        if: ${{ steps.reader-selection.outputs.selected == 'true' && inputs.run_upstream_tasty == 'true' }}
+        run: |
+          set -euo pipefail
+          test "${{ steps.targeted-reader-tasty.outputs.dependency_exit }}" = "0"
+          test "${{ steps.targeted-reader-tasty.outputs.list_exit }}" = "0"
+          test "${{ steps.targeted-reader-tasty.outputs.targeted_exit }}" = "0"
+
+      - name: Summarize upstream reader runner artifacts
+        if: ${{ always() && steps.reader-selection.outputs.selected == 'true' }}
+        run: |
+          {
+            echo "## Pandoc ${{ matrix.format }} reader runner"
+            echo ""
+            echo "- Workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo "- Runner artifact: pandoc-${{ matrix.artifact_stem }}-reader-runner"
+            echo "- Upstream commit: ${PANDOC_READER_RUNNER_PINNED_COMMIT}"
+            echo "- Cabal/Tasty executed: ${{ inputs.run_upstream_tasty }}"
+          } >> "$GITHUB_STEP_SUMMARY"
