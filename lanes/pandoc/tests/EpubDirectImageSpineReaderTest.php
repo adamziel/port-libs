@@ -184,6 +184,62 @@ return [
         $t->contains('( "images/chart.png" , "" )', $native);
     },
 
+    'keeps svg spine items marker-only like upstream pandoc' => static function (TestRunner $t) use ($containerXml): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-direct-svg-spine-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary EPUB package');
+        }
+        $zip->addFromString('META-INF/container.xml', $containerXml);
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="book-id">
+  <metadata>
+    <dc:identifier id="book-id">book-direct-svg-spine</dc:identifier>
+    <dc:title>Direct SVG Spine EPUB</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="svg" href="images/cover.svg" media-type="image/svg+xml" properties="svg"/>
+  </manifest>
+  <spine>
+    <itemref idref="svg"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('OPS/images/cover.svg', '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><title>Cover</title><rect width="16" height="16"/></svg>');
+        $zip->close();
+
+        try {
+            $document = (new EpubReader())->readEpubFile($path);
+            $meta = $document->attr('meta');
+            $native = (new NativeWriter(['blocksOnly' => true]))->write($document);
+        } finally {
+            @unlink($path);
+        }
+
+        $t->same('Direct SVG Spine EPUB', $meta['title']);
+        $t->same(['paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same('span', $document->children[0]->children[0]->type ?? null);
+        $t->same('cover.svg', $document->children[0]->children[0]->attr('id'));
+        $t->same([], $meta['epubReadableResources']);
+        $t->same([], $meta['epubReferencedResources']);
+        $t->same(['OPS/images/cover.svg'], $meta['epubImageResources']);
+        $t->same([], $meta['epubMediaBagResources']);
+        $t->same(0, $meta['epubMediaResourceCount']);
+        $t->same(false, $meta['epubManifestItems'][0]['readable'] ?? null);
+        $t->same(false, $meta['epubSpineItemRefs'][0]['readable'] ?? null);
+        $t->contains('Span ( "cover.svg"', $native);
+        $t->true(!str_contains($native, 'Image'), 'SVG spine items should not be emitted as direct image blocks');
+    },
+
     'keeps upstream cover block when cover image is also a direct image spine item' => static function (TestRunner $t) use ($containerXml): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-cover-image-spine-');
         if ($path === false) {
