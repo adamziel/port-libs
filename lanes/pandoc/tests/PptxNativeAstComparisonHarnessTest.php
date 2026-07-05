@@ -177,10 +177,38 @@ return [
             $t->same('covered-by-current-normalized-ast-evidence', $report['orderedRemainingGaps'][0]['status']);
             $t->same('upstream-pptx-reader-runner-results', $report['orderedRemainingGaps'][1]['id']);
             $t->same('open', $report['orderedRemainingGaps'][1]['status']);
-            $t->same('upstream-pptx-fixture-corpus-coverage', $report['orderedRemainingGaps'][2]['id']);
-            $t->same('open', $report['orderedRemainingGaps'][2]['status']);
+            $t->same('selected-pptx-native-fixture-corpus-coverage', $report['orderedRemainingGaps'][2]['id']);
+            $t->same('covered-by-current-selected-corpus-evidence', $report['orderedRemainingGaps'][2]['status']);
+            $t->contains('total pairs=1; compared pairs=1', $report['orderedRemainingGaps'][2]['currentEvidence']);
             $t->true(in_array('local PPTX package review attrs', $report['normalizationPolicy']['excludes'], true));
             $t->true(in_array('reader-specific adjacent Str/Space text-node segmentation', $report['normalizationPolicy']['excludes'], true));
+        } finally {
+            $removeTree($root);
+        }
+    },
+    'keeps selected corpus coverage open when unpaired fixtures remain' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writePptx): void {
+        $root = $makeTempDir();
+
+        try {
+            $writePptx($root . '/same.pptx', 'Exact deck', 'Hello body');
+            file_put_contents($root . '/same.native', '[Header 2 ("slide-1",[],[]) [Str "Exact",Space,Str "deck"],Para [Str "Hello",Space,Str "body"]]');
+            $writePptx($root . '/orphan-pptx.pptx', 'Orphan deck', 'Orphan body');
+            file_put_contents($root . '/orphan-native.native', '[Para [Str "orphan"]]');
+
+            $report = (new PptxNativeAstComparisonHarness())->run($root);
+
+            $t->same(1, $report['totalPairCount']);
+            $t->same(1, $report['comparedPairCount']);
+            $t->same(1, $report['normalizedAstMatchCount']);
+            $t->same(0, $report['normalizedAstMismatchCount']);
+            $t->same(1, $report['unpairedPptxCount']);
+            $t->same(1, $report['unpairedNativeCount']);
+            $t->same(['orphan-pptx'], $report['unpairedPptxFixtures']);
+            $t->same(['orphan-native'], $report['unpairedNativeFixtures']);
+            $t->same('covered-by-current-normalized-ast-evidence', $report['orderedRemainingGaps'][0]['status']);
+            $t->same('selected-pptx-native-fixture-corpus-coverage', $report['orderedRemainingGaps'][2]['id']);
+            $t->same('open', $report['orderedRemainingGaps'][2]['status']);
+            $t->contains('unpaired pptx=1; unpaired native=1', $report['orderedRemainingGaps'][2]['currentEvidence']);
         } finally {
             $removeTree($root);
         }
@@ -195,6 +223,10 @@ return [
         $t->same(98, $report['pptxParsedCount']);
         $t->same(98, $report['nativeParsedCount']);
         $t->same(98, $report['bothParsedCount']);
+        $t->same(0, $report['unpairedPptxCount']);
+        $t->same(0, $report['unpairedNativeCount']);
+        $t->same([], $report['unpairedPptxFixtures']);
+        $t->same([], $report['unpairedNativeFixtures']);
         $t->same(0, $report['parseFailureCount']);
         $t->same(98, $report['normalizedAstMatchCount']);
         $t->same(0, $report['normalizedAstMismatchCount']);
@@ -203,6 +235,8 @@ return [
             $report['fixtureComparisons'],
             static fn (array $row): bool => ($row['status'] ?? null) !== 'matched'
         )));
+        $t->same('selected-pptx-native-fixture-corpus-coverage', $report['orderedRemainingGaps'][2]['id']);
+        $t->same('covered-by-current-selected-corpus-evidence', $report['orderedRemainingGaps'][2]['status']);
         $t->same(true, PptxNativeAstComparisonHarness::hasRequiredMappedParity($report, 98));
     },
     'cli gates required mapped pptx parity from checked-in fixture selector' => static function (TestRunner $t): void {

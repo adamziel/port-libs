@@ -48,6 +48,10 @@ final class PptxNativeAstComparisonHarness
                 'pptxParsedCount' => 0,
                 'nativeParsedCount' => 0,
                 'bothParsedCount' => 0,
+                'unpairedPptxCount' => 0,
+                'unpairedNativeCount' => 0,
+                'unpairedPptxFixtures' => [],
+                'unpairedNativeFixtures' => [],
                 'parseFailureCount' => 0,
                 'normalizedAstMatchCount' => 0,
                 'normalizedAstMismatchCount' => 0,
@@ -57,14 +61,20 @@ final class PptxNativeAstComparisonHarness
                 'mismatchComparisons' => [],
                 'mismatchCategories' => [],
                 'fixtureComparisons' => [],
-                'orderedRemainingGaps' => self::orderedRemainingGaps(false, 0, 0, 0, 0),
+                'orderedRemainingGaps' => self::orderedRemainingGaps(false, 0, 0, 0, 0, 0),
             ];
         }
 
         $pptxFiles = $this->filesByBasename($pptxDirectory, 'pptx');
         $nativeFiles = $this->filesByBasename($pptxDirectory, 'native');
-        $pairNames = array_values(array_intersect(array_keys($pptxFiles), array_keys($nativeFiles)));
+        $pptxNames = array_keys($pptxFiles);
+        $nativeNames = array_keys($nativeFiles);
+        $pairNames = array_values(array_intersect($pptxNames, $nativeNames));
         sort($pairNames, SORT_STRING);
+        $unpairedPptxNames = array_values(array_diff($pptxNames, $nativeNames));
+        $unpairedNativeNames = array_values(array_diff($nativeNames, $pptxNames));
+        sort($unpairedPptxNames, SORT_STRING);
+        sort($unpairedNativeNames, SORT_STRING);
 
         $totalPairCount = count($pairNames);
         if ($limit > 0) {
@@ -175,6 +185,10 @@ final class PptxNativeAstComparisonHarness
             'pptxParsedCount' => $pptxParsedCount,
             'nativeParsedCount' => $nativeParsedCount,
             'bothParsedCount' => $bothParsedCount,
+            'unpairedPptxCount' => count($unpairedPptxNames),
+            'unpairedNativeCount' => count($unpairedNativeNames),
+            'unpairedPptxFixtures' => $unpairedPptxNames,
+            'unpairedNativeFixtures' => $unpairedNativeNames,
             'parseFailureCount' => count($parseFailures),
             'normalizedAstMatchCount' => $matchCount,
             'normalizedAstMismatchCount' => $mismatchCount,
@@ -186,10 +200,13 @@ final class PptxNativeAstComparisonHarness
             'fixtureComparisons' => $fixtureComparisons,
             'orderedRemainingGaps' => self::orderedRemainingGaps(
                 true,
+                $totalPairCount,
                 $comparedPairCount,
                 count($parseFailures),
                 $matchCount,
-                $mismatchCount
+                $mismatchCount,
+                count($unpairedPptxNames),
+                count($unpairedNativeNames)
             ),
         ];
     }
@@ -214,11 +231,13 @@ final class PptxNativeAstComparisonHarness
         }
 
         $lines[] = sprintf(
-            'pairs: total=%d compared=%d parsedBoth=%d parseFailures=%d',
+            'pairs: total=%d compared=%d parsedBoth=%d parseFailures=%d unpairedPptx=%d unpairedNative=%d',
             (int) ($report['totalPairCount'] ?? 0),
             (int) ($report['comparedPairCount'] ?? 0),
             (int) ($report['bothParsedCount'] ?? 0),
             (int) ($report['parseFailureCount'] ?? 0),
+            (int) ($report['unpairedPptxCount'] ?? 0),
+            (int) ($report['unpairedNativeCount'] ?? 0),
         );
         $lines[] = sprintf(
             'normalizedAst: matches=%d (%s) mismatches=%d status=%s',
@@ -721,14 +740,25 @@ final class PptxNativeAstComparisonHarness
      */
     private static function orderedRemainingGaps(
         bool $sourceDirectoryPresent,
+        int $totalPairCount,
         int $comparedPairCount,
         int $parseFailureCount,
         int $matchCount,
-        int $mismatchCount
+        int $mismatchCount,
+        int $unpairedPptxCount = 0,
+        int $unpairedNativeCount = 0
     ): array {
         $sourceEvidence = $sourceDirectoryPresent
-            ? "compared pairs={$comparedPairCount}; fixture rows={$comparedPairCount}; parse failures={$parseFailureCount}; normalized AST matches={$matchCount}; normalized AST mismatches={$mismatchCount}"
+            ? "total pairs={$totalPairCount}; compared pairs={$comparedPairCount}; fixture rows={$comparedPairCount}; unpaired pptx={$unpairedPptxCount}; unpaired native={$unpairedNativeCount}; parse failures={$parseFailureCount}; normalized AST matches={$matchCount}; normalized AST mismatches={$mismatchCount}"
             : 'optional upstream PPTX cache absent; normalized AST comparison did not run';
+        $selectedCorpusCovered = $sourceDirectoryPresent
+            && $totalPairCount > 0
+            && $comparedPairCount === $totalPairCount
+            && $parseFailureCount === 0
+            && $mismatchCount === 0
+            && $matchCount === $totalPairCount
+            && $unpairedPptxCount === 0
+            && $unpairedNativeCount === 0;
 
         return [
             [
@@ -749,10 +779,12 @@ final class PptxNativeAstComparisonHarness
             ],
             [
                 'rank' => 3,
-                'id' => 'upstream-pptx-fixture-corpus-coverage',
-                'status' => 'open',
-                'currentEvidence' => 'The harness compares only paired PPTX/native fixtures present in the selected directory.',
-                'evidenceRequired' => 'Populate and compare every upstream PPTX reader fixture, plus any generated current-upstream edge fixtures used as parity pins.',
+                'id' => 'selected-pptx-native-fixture-corpus-coverage',
+                'status' => !$sourceDirectoryPresent
+                    ? 'not-evaluated'
+                    : ($selectedCorpusCovered ? 'covered-by-current-selected-corpus-evidence' : 'open'),
+                'currentEvidence' => $sourceEvidence,
+                'evidenceRequired' => 'Run without a limit across the selected same-stem PPTX/native corpus, keep unpaired PPTX/native counts at zero, and keep parse failures and normalized AST mismatches at zero.',
             ],
         ];
     }

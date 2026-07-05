@@ -1541,7 +1541,11 @@ HTML);
             @unlink($path);
         }
 
+        $coverImage = $document->children[0]->children[0] ?? new AstNode('missing');
+
         $t->same('Href Suffix EPUB', $meta['title']);
+        $t->same('image', $coverImage->type);
+        $t->same('images/cover.png?revision=20260703#cover', $coverImage->attr('url'));
         $t->same('OPS/package.opf', $meta['epubRootfile']);
         $t->same('text/chapter.xhtml?source=archive#body', $meta['epubManifestItems'][0]['href']);
         $t->same('OPS/text/chapter.xhtml?source=archive#body', $meta['epubManifestItems'][0]['path']);
@@ -1581,6 +1585,7 @@ HTML);
         $t->same([
             ['text' => 'Chapter with suffix', 'href' => 'OPS/text/chapter.xhtml?source=nav#body', 'level' => 1],
         ], $meta['epubTocEntries']);
+        $t->contains('( "images/cover.png?revision=20260703#cover" , "" )', $native);
         $t->contains('( "#chapter.xhtml?source=archive#body" , "" )', $native);
         $t->contains('( "#chapter.xhtml?source=archive" , "" )', $native);
         $t->contains('( "images/cover.png?display=inline#pixel" , "" )', $native);

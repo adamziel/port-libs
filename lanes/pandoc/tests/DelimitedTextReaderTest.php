@@ -4822,6 +4822,56 @@ NATIVE;
         $t->contains('Plain [ Str "+prefix" , Space , Str "preserved" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
+    'matches generated tsv header width truncation native parity fixture without inflating upstream tsv direct denominator' => static function (TestRunner $t) use ($generatedTsvNativeFixture, $nativeTokenStream): void {
+        $fixture = $generatedTsvNativeFixture('header-width-truncates-extra-fields');
+        $document = (new DelimitedTextReader())->readTsv($fixture['input'], [
+            'sourcePath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/header-width-truncates-extra-fields.tsv',
+        ]);
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+        $native = PandocConverter::write($document, 'native');
+        $generatedEvidence = $packet['upstreamEvidence']['generatedNativeParityEvidence'] ?? [];
+
+        $t->same('tsv', $packet['format'] ?? null);
+        $t->same('tab', $packet['delimiter'] ?? null);
+        $t->same(null, $packet['quote'] ?? null);
+        $t->same('literal', $packet['dialect']['quoteMode'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['denominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT, $packet['upstreamEvidence']['tsvDirectFixtureDenominator'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $packet['upstreamEvidence']['generatedNativeParitySampleCount'] ?? null);
+        $t->same('valid-checked-in-generated-tsv-native-parity-evidence', $generatedEvidence['validation']['status'] ?? null);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['sampleCount'] ?? null);
+        $t->same(2 * DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $generatedEvidence['checkedInFixtureCount'] ?? null);
+        $t->same('header-width-truncates-extra-fields.tsv', $generatedEvidence['checkedInFixtures'][76]['name'] ?? null);
+        $t->same('ccb349be3f4f2f8e75e4b34ca3c93fc267bb7722f5f9500ad9bc8ed4675750fe', $generatedEvidence['checkedInFixtures'][76]['checkedInFile']['sha256'] ?? null);
+        $t->same('header-width-truncates-extra-fields.native', $generatedEvidence['checkedInFixtures'][77]['name'] ?? null);
+        $t->same('365fea12f7cbf4904d4e15db99b416c4555a997646a8cd90ec693c33c076bb4e', $generatedEvidence['checkedInFixtures'][77]['checkedInFile']['sha256'] ?? null);
+        $t->same('header-width-truncates-extra-fields', $generatedEvidence['samples'][38]['name'] ?? null);
+        $t->same([], $generatedEvidence['samples'][38]['readerOptions'] ?? null);
+        $t->same(['a', 'b'], $table->attr('columnNames'));
+        $t->same(3, $packet['rowCount'] ?? null);
+        $t->same(2, $packet['bodyRowCount'] ?? null);
+        $t->same(2, $packet['columnCount'] ?? null);
+        $t->same(3, $packet['sourceMaxFieldCount'] ?? null);
+        $t->same(6, $packet['fieldCount'] ?? null);
+        $t->same(2, $packet['raggedRowCount'] ?? null);
+        $t->same([1, 2], $packet['raggedRows'] ?? null);
+        $t->same('header-row-width', $packet['rowRepairSummary']['policy'] ?? null);
+        $t->same(1, $packet['rowRepairSummary']['truncatedRowCount'] ?? null);
+        $t->same(1, $packet['rowRepairSummary']['paddedRowCount'] ?? null);
+        $t->same(3, $packet['diagnosticCount'] ?? null);
+        $t->same([
+            'delimited-text-strict-row-width-mismatch',
+            'delimited-text-row-widths-uneven',
+            'delimited-text-header-width-mismatch',
+        ], array_column($packet['diagnostics'] ?? [], 'code'));
+        $t->same(['1', '2'], array_map(static fn (AstNode $cell): string => $cell->attr('text'), $table->children[1]->children[0]->children));
+        $t->same(['4', ''], array_map(static fn (AstNode $cell): string => $cell->attr('text'), $table->children[1]->children[1]->children));
+        $t->contains('Plain [ Str "1" ]', $native);
+        $t->contains('Plain [ Str "2" ]', $native);
+        $t->true(!str_contains($native, 'Str "3"'));
+        $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
+    },
     'matches pinned upstream csv parser option fixtures' => static function (TestRunner $t): void {
         $reader = new DelimitedTextReader();
         $commaDocument = $reader->readCsv(

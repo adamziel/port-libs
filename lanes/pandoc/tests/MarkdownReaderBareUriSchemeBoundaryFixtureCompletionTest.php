@@ -11,6 +11,10 @@ $fixture = static fn (): string => (string) file_get_contents(
     dirname(__DIR__) . '/fixtures/upstream-markdown-zzzzzzzzzzzzzzzzzzzzzzz-bare-uri-scheme-boundaries.md'
 );
 
+$unicodePathFixture = static fn (): string => (string) file_get_contents(
+    dirname(__DIR__) . '/fixtures/upstream-markdown-bare-uri-unicode-path.md'
+);
+
 $collectLinks = static function (AstNode $node) use (&$collectLinks): array {
     $links = [];
     if ($node->type === 'link') {
@@ -65,6 +69,27 @@ return [
             $t->contains('href="HTTPS://GOOGLE.COM"', $blocks);
             $t->contains('href="doi:10.1000/182"', $blocks);
             $t->contains('href="mailto:someone@somedomain.com"', $blocks);
+        },
+
+    'maps upstream markdown bare URI unicode path fixture' =>
+        static function (TestRunner $t) use ($unicodePathFixture, $collectLinks): void {
+            $document = (new MarkdownReader(['format' => 'markdown+autolink_bare_uris']))->read($unicodePathFixture());
+            $links = $collectLinks($document);
+            $blocks = (new WordPressBlockWriter())->write($document);
+            $expected = 'http://el.wikipedia.org/wiki/Τεχνολογία';
+
+            $t->same(1, count($document->children));
+            $t->same(1, count($links));
+            $t->same($expected, $links[0]->attr('url'));
+            $t->same($expected, $links[0]->children[0]->attr('text'));
+            $t->same(['uri'], $links[0]->attr('classes'));
+            $t->same(',', ($document->children[0]->children[1] ?? new AstNode('missing'))->attr('text'));
+            $t->contains('href="' . $expected . '"', $blocks);
+        },
+
+    'records upstream markdown bare URI unicode path fixture literal' =>
+        static function (TestRunner $t) use ($unicodePathFixture): void {
+            $t->same('http://el.wikipedia.org/wiki/Τεχνολογία,', trim($unicodePathFixture()));
         },
 
     'records selected upstream markdown bare URI scheme boundary fixture mapped-case count' =>

@@ -300,6 +300,82 @@ XML);
         $t->same(2, substr_count($native, '( "images/cover.png" , "" )'));
     },
 
+    'preserves direct image spine href suffixes while loading the package part media' => static function (TestRunner $t) use ($containerXml): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-direct-image-suffix-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $imageBytes = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=');
+        if (!is_string($imageBytes)) {
+            throw new RuntimeException('Unable to decode direct image suffix fixture bytes');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary EPUB package');
+        }
+        $zip->addFromString('META-INF/container.xml', $containerXml);
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="book-id">
+  <metadata>
+    <dc:identifier id="book-id">book-direct-image-suffix</dc:identifier>
+    <dc:title>Direct Image Suffix EPUB</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="chart" href="images/chart.png?view=print#panel" media-type="image/png"/>
+  </manifest>
+  <spine>
+    <itemref idref="chart"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('OPS/images/chart.png', $imageBytes);
+        $zip->close();
+
+        try {
+            $document = (new EpubReader())->readEpubFile($path);
+            $meta = $document->attr('meta');
+            $native = (new NativeWriter(['blocksOnly' => true]))->write($document);
+        } finally {
+            @unlink($path);
+        }
+
+        $image = $document->children[1]->children[0] ?? new PortLibs\Pandoc\AstNode('missing');
+
+        $t->same('Direct Image Suffix EPUB', $meta['title']);
+        $t->same('chart.png', $document->children[0]->children[0]->attr('id'));
+        $t->same('image', $image->type);
+        $t->same('images/chart.png?view=print#panel', $image->attr('url'));
+        $t->same(['OPS/images/chart.png'], $meta['epubReadableResources']);
+        $t->same(['OPS/images/chart.png#panel'], $meta['epubReferencedResources']);
+        $t->same(['OPS/images/chart.png'], $meta['epubImageResources']);
+        $t->same(['OPS/images/chart.png'], $meta['epubMediaBagResources']);
+        $t->same(1, $meta['epubMediaResourceCount']);
+        $t->same(['epub-media-resource-loaded:OPS/images/chart.png'], $meta['epubMediaResourceDiagnostics']);
+        $t->same([
+            [
+                'path' => 'images/chart.png',
+                'zipEntry' => 'OPS/images/chart.png',
+                'mimeType' => 'image/png',
+                'byteLength' => strlen($imageBytes),
+                'sha1' => sha1($imageBytes),
+            ],
+        ], array_map(static fn (array $entry): array => [
+            'path' => (string) $entry['path'],
+            'zipEntry' => (string) $entry['zipEntry'],
+            'mimeType' => (string) $entry['mimeType'],
+            'byteLength' => (int) $entry['byteLength'],
+            'sha1' => (string) $entry['sha1'],
+        ], $meta['epubMediaResourceDirectory']));
+        $t->contains('( "images/chart.png?view=print#panel" , "" )', $native);
+    },
+
     'matches upstream-style media bag evidence for direct image spine items' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile, $writeDirectImageEpub, $imageBytes): void {
         $root = $makeTempDir('pandoc-epub-direct-image-bag-');
         try {

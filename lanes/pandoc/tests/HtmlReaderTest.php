@@ -1158,6 +1158,28 @@ $tests['imports direct pandoc html optional definition-list end tags as tight de
         $t->same('After definitions.', $after->attr('text'));
     };
 
+$tests['imports direct pandoc html paragraph definition-list tree construction as repaired blocks'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-paragraph-definition-list-tree-construction.html'));
+        $list = $document->children[1];
+        $item = $list->children[0];
+        $definition = $item->children[1]->children[0];
+
+        $t->same('html', $document->attr('sourceFormat'));
+        $t->same(Html5Dom::htmlDocumentTreeConstructionBackend(), $document->attr('meta')['htmlTreeConstruction'] ?? null);
+        $t->same(
+            ['paragraph', 'definition_list', 'paragraph'],
+            array_map(static fn ($node): string => $node->type, $document->children)
+        );
+        $t->same('Before', $document->children[0]->attr('text'));
+        $t->same('Term', $item->attr('term'));
+        $t->same('plain', $definition->type);
+        $t->same('Definition one', $definition->attr('text'));
+        $t->same(['text', 'strong'], array_map(static fn ($node): string => $node->type, $definition->children));
+        $t->same('one', $definition->children[1]->children[0]->attr('text'));
+        $t->same('After', $document->children[2]->attr('text'));
+    };
+
 $tests['imports direct pandoc html multi-term definition-list optional end tags'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader())->read($fixture('upstream-html-multi-term-definition-list.html'));

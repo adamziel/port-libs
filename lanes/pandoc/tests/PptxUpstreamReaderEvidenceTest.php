@@ -550,6 +550,10 @@ return [
         $t->same(98, $nativeParity['pptxParsedCount']);
         $t->same(98, $nativeParity['nativeParsedCount']);
         $t->same(98, $nativeParity['bothParsedCount']);
+        $t->same(0, $nativeParity['unpairedPptxCount']);
+        $t->same(0, $nativeParity['unpairedNativeCount']);
+        $t->same([], $nativeParity['unpairedPptxFixtures']);
+        $t->same([], $nativeParity['unpairedNativeFixtures']);
         $t->same(0, $nativeParity['parseFailureCount']);
         $t->same(98, $nativeParity['normalizedAstMatchCount']);
         $t->same(0, $nativeParity['normalizedAstMismatchCount']);
@@ -560,6 +564,8 @@ return [
         )));
         $t->same('normalized-ast-equality-observed-not-runner-parity', $nativeParity['astParityStatus']);
         $t->same(true, $nativeParity['hasRequiredMappedParity']);
+        $t->same('selected-pptx-native-fixture-corpus-coverage', $nativeParity['orderedRemainingGaps'][2]['id']);
+        $t->same('covered-by-current-selected-corpus-evidence', $nativeParity['orderedRemainingGaps'][2]['status']);
         $t->same('checked-in-current-pptx-executable-native-normalized-ast-parity', $executableParity['kind']);
         $t->same('completed', $executableParity['status']);
         $t->same(false, $executableParity['skipped']);
@@ -1302,6 +1308,7 @@ return [
         $t->true(in_array('that upstream Haskell/Cabal/Tasty tests were executed', $static['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('local PHP PPTX reader output matches all 98 checked-in current PPTX/native pairs by normalized AST shape', $static['claimBoundaries']['doesAssert'], true));
         $t->true(in_array('checked-in executable native AST evidence shows pandoc 3.10, local PHP output, and paired .native fixtures match all 98 checked-in current PPTX fixtures by normalized AST shape', $static['claimBoundaries']['doesAssert'], true));
+        $t->true(in_array('additional PPTX fixture discovery outside the checked-in 98-pair corpus', $static['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('checked-in chart review metadata covers chart-placeholder.pptx and chart-embedded-workbook.pptx, including embedded workbook package relationships with hashed byte exposure', $static['claimBoundaries']['doesAssert'], true));
         $t->true(in_array('checked-in speaker note and comment review metadata covers speaker-notes.pptx and comments-ignored.pptx without rendering those records into native AST output', $static['claimBoundaries']['doesAssert'], true));
         $t->true(in_array('that alternate-content-skip.pptx/alternate-content-skip.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));

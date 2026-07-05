@@ -1,0 +1,11 @@
+[ Para [ Str "Before" ]
+, DefinitionList
+    [ ( [ Str "Term" ]
+      , [ [ Plain
+              [ Str "Definition" , Space , Strong [ Str "one" ] ]
+          ]
+        ]
+      )
+    ]
+, Para [ Str "After" ]
+]

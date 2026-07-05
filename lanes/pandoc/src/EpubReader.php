@@ -105,7 +105,7 @@ final class EpubReader
             }
             $children[] = new AstNode('paragraph', ['text' => ''], [
                 new AstNode('image', [
-                    'url' => $this->stripUrlQueryAndFragment($cover),
+                    'url' => $cover,
                     'title' => '',
                     'alt' => '',
                 ]),
@@ -131,11 +131,11 @@ final class EpubReader
                     continue;
                 }
                 $resources[] = $href;
-                $referenced_resources[] = $href;
+                $this->recordReferencedResource($item['href'], '', $base_path, $referenced_resources);
                 $media_bag_resources[] = $href;
                 $this->recordMediaBagSource($this->mediaBagSourceUrl($item['href']), $href, $media_bag_sources);
                 $children[] = $this->spineMarker($this->spineFilename($item['href']));
-                $children[] = $this->directImageSpineBlock($this->stripUrlQueryAndFragment($item['href']));
+                $children[] = $this->directImageSpineBlock($item['href']);
                 continue;
             }
             if (!$this->isReadablePackageXhtml($media_type)) {
@@ -2501,7 +2501,7 @@ final class EpubReader
     {
         return new AstNode('paragraph', ['text' => ''], [
             new AstNode('image', [
-                'url' => $this->normalizeZipPath($href),
+                'url' => $this->normalizeImageHrefPreservingSuffix($href),
                 'title' => '',
                 'alt' => '',
             ]),
@@ -2746,6 +2746,20 @@ final class EpubReader
         $path = $this->decodePackagePathPercentEscapes($path);
 
         return $this->appendUrlSuffix($this->normalizeZipPath($base_path . '/' . $path), $query, $fragment);
+    }
+
+    private function normalizeImageHrefPreservingSuffix(string $url): string
+    {
+        if (!$this->isPackageRelativeResourceUrl($url)) {
+            return $url;
+        }
+
+        [$path, $query, $fragment] = $this->splitUrlSuffix($url);
+        if ($path === '') {
+            return $url;
+        }
+
+        return $this->appendUrlSuffix($this->normalizeZipPath($path), $query, $fragment);
     }
 
     private function isPackageRelativeResourceUrl(string $url): bool
