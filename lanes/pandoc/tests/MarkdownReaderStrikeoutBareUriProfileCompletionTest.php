@@ -54,10 +54,6 @@ $strikeoutDisabledCases = [
 ];
 
 $bareUriEnabledCases = [
-    'default markdown' => [],
-    'markdown format' => ['format' => 'markdown'],
-    'pandoc alias' => ['format' => 'pandoc'],
-    'commonmark x underscore' => ['format' => 'commonmark_x'],
     'gfm format' => ['format' => 'gfm'],
     'commonmark plus bare uri' => ['format' => 'commonmark+bare_uri_autolinks'],
     'commonmark plus pandoc autolink bare uri' => ['format' => 'commonmark+autolink_bare_uris'],
@@ -66,6 +62,10 @@ $bareUriEnabledCases = [
 ];
 
 $bareUriDisabledCases = [
+    'default markdown' => [],
+    'markdown format' => ['format' => 'markdown'],
+    'pandoc alias' => ['format' => 'pandoc'],
+    'commonmark x underscore' => ['format' => 'commonmark_x'],
     'commonmark default' => ['format' => 'commonmark'],
     'markdown strict default' => ['format' => 'markdown_strict'],
     'markdown php extra default' => ['format' => 'markdown_phpextra'],

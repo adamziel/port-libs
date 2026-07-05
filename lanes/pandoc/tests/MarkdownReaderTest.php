@@ -1246,7 +1246,7 @@ return [
         $t->contains('<p>Reviewer source: <a href="https://example.test/review-token" id="review-token" class="source-link" data-source="batch-42" title="Review token">https://example.test/review-token</a>.</p>', $blocks);
     },
     'maps upstream markdown reader bare uri autolink extension cases' => static function (TestRunner $t): void {
-        $document = (new MarkdownReader())->read(implode("\n\n", [
+        $document = (new MarkdownReader(['format' => 'markdown+autolink_bare_uris']))->read(implode("\n\n", [
             'http://google.com is a search engine.',
             'Try this query: http://google.com?search=fish&time=hour.',
             '(http://google.com).',
@@ -1282,7 +1282,7 @@ return [
         $t->contains('<p><a href="http://en.wikipedia.org/wiki/Sprite_%5Bcomputer_graphics%5D">http://en.wikipedia.org/wiki/Sprite_[computer_graphics]</a></p>', $blocks);
     },
     'maps upstream markdown reader bare uri schemes and punctuation families' => static function (TestRunner $t): void {
-        $document = (new MarkdownReader())->read(implode("\n\n", [
+        $document = (new MarkdownReader(['format' => 'markdown+autolink_bare_uris']))->read(implode("\n\n", [
             'doi:10.1000/182,',
             'git://github.com/foo/bar.git,',
             'file:///Users/joe/joe.txt, and',
@@ -1360,7 +1360,7 @@ return [
             'http://www.mail-archive.com/ruby-talk@ruby-lang.org/',
             'https://example.org/?anchor=-lala',
         ];
-        $document = (new MarkdownReader())->read(
+        $document = (new MarkdownReader(['format' => 'markdown+autolink_bare_uris']))->read(
             '<a href="http://foo.bar.baz">http://foo.bar.baz</a>'
             . "\n\n" . implode(",\n\n", $urls)
         );

@@ -146,7 +146,7 @@ $tests = [];
 foreach ($cases as $name => $case) {
     $tests['maps upstream bare autolink escaped trailing punctuation ' . $name] =
         static function (TestRunner $t) use ($case, $firstLink, $textAfterFirstLink, $html): void {
-            $document = (new MarkdownReader())->read($case['markdown']);
+            $document = (new MarkdownReader(['format' => 'markdown+autolink_bare_uris']))->read($case['markdown']);
             $link = $firstLink($document);
             $blocks = (new WordPressBlockWriter())->write($document);
 

@@ -452,7 +452,7 @@ $tests = [];
 foreach ($cases as $name => $case) {
     $tests["maps upstream GFM bare autolink trailing attributes {$name}"] =
         static function (TestRunner $t) use ($case, $firstLink, $plainText, $html): void {
-            $document = (new MarkdownReader())->read($case['markdown']);
+            $document = (new MarkdownReader(['format' => 'markdown+autolink_bare_uris']))->read($case['markdown']);
             $link = $firstLink($document);
             $blocks = (new WordPressBlockWriter())->write($document);
             $roundTrip = (new MarkdownWriter())->write($document);
@@ -484,7 +484,7 @@ foreach ($cases as $name => $case) {
 
 $tests['keeps non-attribute curly brace bare autolink paths mapped'] =
     static function (TestRunner $t) use ($firstLink, $plainText): void {
-        $document = (new MarkdownReader())->read(implode("\n\n", [
+        $document = (new MarkdownReader(['format' => 'markdown+autolink_bare_uris']))->read(implode("\n\n", [
             'www.example.test/path{one}',
             'https://example.test/path{review}',
             'name{tag}@example.test',

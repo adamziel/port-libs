@@ -219,7 +219,7 @@ foreach ($validEmailCases as $name => $case) {
 foreach ($invalidAngleCases as $name => $case) {
     $tests["maps upstream markdown angle autolink boundary invalid {$name}"] =
         static function (TestRunner $t) use ($case, $linkUrls, $textBeforeFirstLink): void {
-            $document = (new MarkdownReader())->read($case['markdown']);
+            $document = (new MarkdownReader(['format' => 'markdown+autolink_bare_uris']))->read($case['markdown']);
             $paragraph = $document->children[0] ?? new AstNode('missing');
             $expectedLinks = $case['links'] ?? [];
 

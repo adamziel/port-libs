@@ -39,7 +39,7 @@ return [
     'maps upstream markdown angle autolink fixture completion' =>
         static function (TestRunner $t) use ($collectLinks, $plainText): void {
             $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-markdown-angle-autolinks.md');
-            $document = (new MarkdownReader())->read($fixture);
+            $document = (new MarkdownReader(['format' => 'markdown+autolink_bare_uris']))->read($fixture);
             $links = $collectLinks($document);
             $urls = array_map(static fn (AstNode $link): string => (string) $link->attr('url', ''), $links);
             $classes = array_map(static fn (AstNode $link): array => $link->attr('classes', []), $links);

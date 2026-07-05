@@ -104,7 +104,7 @@ $tests = [];
 foreach ($wwwCases as $name => $case) {
     $tests["maps upstream GFM bare www autolink {$name}"] =
         static function (TestRunner $t) use ($case, $firstLink, $textAfterFirstLink, $html): void {
-            $document = (new MarkdownReader())->read($case['markdown']);
+            $document = (new MarkdownReader(['format' => 'gfm']))->read($case['markdown']);
             $link = $firstLink($document);
             $blocks = (new WordPressBlockWriter())->write($document);
 
@@ -122,7 +122,7 @@ foreach ($wwwCases as $name => $case) {
 foreach ($emailCases as $name => $case) {
     $tests["maps upstream GFM bare email autolink {$name}"] =
         static function (TestRunner $t) use ($case, $firstLink, $textAfterFirstLink, $html): void {
-            $document = (new MarkdownReader())->read($case['markdown']);
+            $document = (new MarkdownReader(['format' => 'gfm']))->read($case['markdown']);
             $link = $firstLink($document);
             $blocks = (new WordPressBlockWriter())->write($document);
 

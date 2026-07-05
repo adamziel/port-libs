@@ -16766,8 +16766,7 @@ final class MarkdownReader
         $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
         $canonical = MarkdownFormatProfile::canonicalFormat($format);
 
-        return in_array($canonical, ['markdown', 'commonmark_x'], true)
-            || ($canonical === 'gfm' && !$this->deprecatedGithubMarkdownAlias($format));
+        return $canonical === 'gfm' && !$this->deprecatedGithubMarkdownAlias($format);
     }
 
     private function alertExtensionEnabled(): bool

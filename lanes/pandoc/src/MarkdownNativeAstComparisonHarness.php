@@ -12,6 +12,7 @@ final class MarkdownNativeAstComparisonHarness
 
     private const MARKDOWN_READER_OPTIONS_BY_BASENAME = [
         'upstream-command-gfm-details-list' => ['format' => 'gfm'],
+        'upstream-markdown-angle-autolinks' => ['format' => 'markdown+autolink_bare_uris'],
         'upstream-markdown-alerts' => ['format' => 'gfm'],
         'upstream-markdown-ascii-identifiers' => ['format' => 'markdown+ascii_identifiers'],
         'upstream-markdown-z-commonmark-x-grid-table-default' => ['format' => 'commonmark_x'],
