@@ -23,6 +23,9 @@ Options:
   --require-generated-tsv-native-parity[=N]
                                   Exit 1 unless the generated TSV-to-native
                                   samples match their native fixtures.
+  --require-current-csv-direct-native-parity[=N]
+                                  Exit 1 unless the current CSV command
+                                  transcripts match their embedded native output.
   --require-current-tsv-direct-native-parity[=N]
                                   Exit 1 unless the current TSV direct fixture
                                   matches its native output.
@@ -168,6 +171,34 @@ $validateGeneratedTsvNativeParity = static function (array $evidence, ?int $requ
     $expect(
         DelimitedTextUpstreamReaderEvidence::hasRequiredGeneratedTsvNativeParity($evidence, $expectedSampleCount),
         'Generated TSV native parity helper must recognize required evidence'
+    );
+
+    return $issues;
+};
+
+$validateCurrentCsvDirectNativeParity = static function (array $evidence, ?int $requiredSampleCount = null): array {
+    $issues = [];
+    $expect = static function (bool $condition, string $message) use (&$issues): void {
+        if (!$condition) {
+            $issues[] = $message;
+        }
+    };
+    $expectedSampleCount = $requiredSampleCount ?? DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CURRENT_CSV_DIRECT_NATIVE_PAIR_COUNT;
+    $samples = is_array($evidence['samples'] ?? null) ? $evidence['samples'] : [];
+
+    $expect(($evidence['reader'] ?? null) === 'csv', 'Current CSV direct native parity evidence reader must be csv');
+    $expect(($evidence['csvDirectFixtureDenominator'] ?? null) === DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, 'Current CSV direct native parity must keep CSV upstream direct denominator at 3');
+    $expect(($evidence['currentCsvDirectNativePairCount'] ?? null) === $expectedSampleCount, 'Current CSV direct native parity pair count must match expected current sample count');
+    $expect(($evidence['sampleCount'] ?? null) === $expectedSampleCount, 'Current CSV direct native parity sample count must match expected current sample count');
+    $expect(count($samples) === $expectedSampleCount, 'Current CSV direct native parity sample result count must match expected current sample count');
+    $expect(($evidence['comparedSampleCount'] ?? null) === $expectedSampleCount, 'Current CSV direct native parity compared sample count must match expected current sample count');
+    $expect(($evidence['parseFailureCount'] ?? null) === 0, 'Current CSV direct native parity parse failure count must be 0');
+    $expect(($evidence['currentCsvDirectNativeMatchCount'] ?? null) === $expectedSampleCount, 'Current CSV direct native parity match count must match expected current sample count');
+    $expect(($evidence['currentCsvDirectNativeMismatchCount'] ?? null) === 0, 'Current CSV direct native parity mismatch count must be 0');
+    $expect(array_column($samples, 'status') === array_fill(0, $expectedSampleCount, 'matched'), 'Current CSV direct native parity samples must be matched');
+    $expect(
+        DelimitedTextUpstreamReaderEvidence::hasRequiredCurrentCsvDirectNativeParity($evidence, $expectedSampleCount),
+        'Current CSV direct native parity helper must recognize required evidence'
     );
 
     return $issues;
@@ -363,6 +394,7 @@ $formatTextReport = static function (array $report): string {
     $tsv = $report['tsv'];
     $generatedCsvNative = $report['generatedCsvNativeParity'];
     $generatedTsvNative = $report['generatedTsvNativeParity'];
+    $currentCsvDirectNative = $report['currentCsvDirectNativeParity'];
     $currentTsvDirectNative = $report['currentTsvDirectNativeParity'];
     $generatedCsvPandocExecutableNative = is_array($report['generatedCsvPandocExecutableNativeParity'] ?? null)
         ? $report['generatedCsvPandocExecutableNativeParity']
@@ -390,6 +422,9 @@ $formatTextReport = static function (array $report): string {
         'Generated TSV native parity: ' . $generatedTsvNative['generatedNativeMatchCount']
             . '/' . $generatedTsvNative['sampleCount']
             . ' (' . $generatedTsvNative['parityStatus'] . ')',
+        'Current CSV direct native parity: ' . $currentCsvDirectNative['currentCsvDirectNativeMatchCount']
+            . '/' . $currentCsvDirectNative['sampleCount']
+            . ' (' . $currentCsvDirectNative['parityStatus'] . ')',
         'Current TSV direct native parity: ' . $currentTsvDirectNative['currentTsvDirectNativeMatchCount']
             . '/' . $currentTsvDirectNative['sampleCount']
             . ' (' . $currentTsvDirectNative['parityStatus'] . ')',
@@ -435,11 +470,13 @@ try {
     $requireParserOptionFixtures = false;
     $requireGeneratedCsvNativeParity = false;
     $requireGeneratedTsvNativeParity = false;
+    $requireCurrentCsvDirectNativeParity = false;
     $requireCurrentTsvDirectNativeParity = false;
     $requireGeneratedCsvPandocExecutableNativeParity = false;
     $requireGeneratedTsvPandocExecutableNativeParity = false;
     $requiredGeneratedCsvNativeParityCount = null;
     $requiredGeneratedTsvNativeParityCount = null;
+    $requiredCurrentCsvDirectNativeParityCount = null;
     $requiredCurrentTsvDirectNativeParityCount = null;
     $requiredParserOptionFixtureCount = null;
     $requiredGeneratedCsvPandocExecutableNativeParityCount = null;
@@ -502,6 +539,18 @@ try {
             $requiredGeneratedTsvNativeParityCount = $parseNonNegativeInt(
                 '--require-generated-tsv-native-parity',
                 substr($arg, strlen('--require-generated-tsv-native-parity='))
+            );
+            continue;
+        }
+        if ($arg === '--require-current-csv-direct-native-parity') {
+            $requireCurrentCsvDirectNativeParity = true;
+            continue;
+        }
+        if (str_starts_with($arg, '--require-current-csv-direct-native-parity=')) {
+            $requireCurrentCsvDirectNativeParity = true;
+            $requiredCurrentCsvDirectNativeParityCount = $parseNonNegativeInt(
+                '--require-current-csv-direct-native-parity',
+                substr($arg, strlen('--require-current-csv-direct-native-parity='))
             );
             continue;
         }
@@ -607,6 +656,8 @@ try {
     $parserOptionFixtureIssues = $validateParserOptionFixtures($csvEvidence, $tsvEvidence, $generatedCsvNativeParity, $requiredParserOptionFixtureCount);
     $generatedTsvNativeParity = DelimitedTextUpstreamReaderEvidence::generatedTsvNativeParityEvidence($repoRoot);
     $generatedTsvNativeIssues = $validateGeneratedTsvNativeParity($generatedTsvNativeParity, $requiredGeneratedTsvNativeParityCount);
+    $currentCsvDirectNativeParity = DelimitedTextUpstreamReaderEvidence::currentCsvDirectNativeParityEvidence($repoRoot);
+    $currentCsvDirectNativeIssues = $validateCurrentCsvDirectNativeParity($currentCsvDirectNativeParity, $requiredCurrentCsvDirectNativeParityCount);
     $currentTsvDirectNativeParity = DelimitedTextUpstreamReaderEvidence::currentTsvDirectNativeParityEvidence($repoRoot);
     $currentTsvDirectNativeIssues = $validateCurrentTsvDirectNativeParity($currentTsvDirectNativeParity, $requiredCurrentTsvDirectNativeParityCount);
     $generatedCsvPandocExecutableNativeParity = null;
@@ -655,6 +706,7 @@ try {
         'tsv' => $tsvEvidence,
         'generatedCsvNativeParity' => $generatedCsvNativeParity,
         'generatedTsvNativeParity' => $generatedTsvNativeParity,
+        'currentCsvDirectNativeParity' => $currentCsvDirectNativeParity,
         'currentTsvDirectNativeParity' => $currentTsvDirectNativeParity,
         'generatedCsvPandocExecutableNativeParity' => $generatedCsvPandocExecutableNativeParity,
         'generatedTsvPandocExecutableNativeParity' => $generatedTsvPandocExecutableNativeParity,
@@ -664,6 +716,7 @@ try {
             'parserOptionFixtures' => $parserOptionFixtureIssues === [],
             'generatedCsvNativeParity' => $generatedCsvNativeIssues === [],
             'generatedTsvNativeParity' => $generatedTsvNativeIssues === [],
+            'currentCsvDirectNativeParity' => $currentCsvDirectNativeIssues === [],
             'currentTsvDirectNativeParity' => $currentTsvDirectNativeIssues === [],
             'generatedCsvPandocExecutableNativeParity' => $requireGeneratedCsvPandocExecutableNativeParity ? $generatedCsvPandocExecutableNativeIssues === [] : null,
             'generatedTsvPandocExecutableNativeParity' => $requireGeneratedTsvPandocExecutableNativeParity ? $generatedTsvPandocExecutableNativeIssues === [] : null,
@@ -676,6 +729,7 @@ try {
             ...$parserOptionFixtureIssues,
             ...$generatedCsvNativeIssues,
             ...$generatedTsvNativeIssues,
+            ...$currentCsvDirectNativeIssues,
             ...$currentTsvDirectNativeIssues,
             ...$generatedCsvPandocExecutableNativeIssues,
             ...$generatedTsvPandocExecutableNativeIssues,
@@ -705,6 +759,10 @@ try {
     }
     if ($requireGeneratedTsvNativeParity && $generatedTsvNativeIssues !== []) {
         fwrite(STDERR, "pandoc-delimited-text-reader-evidence: generated TSV native parity validation reported issues\n");
+        exit(1);
+    }
+    if ($requireCurrentCsvDirectNativeParity && $currentCsvDirectNativeIssues !== []) {
+        fwrite(STDERR, "pandoc-delimited-text-reader-evidence: current CSV direct native parity validation reported issues\n");
         exit(1);
     }
     if ($requireCurrentTsvDirectNativeParity && $currentTsvDirectNativeIssues !== []) {

@@ -974,6 +974,28 @@ return [
         $t->same([], $evidence['generatedTsvNativeStaticEvidence']['samples'][29]['readerOptions']);
         $t->same(true, DelimitedTextUpstreamReaderEvidence::hasRequiredGeneratedCsvNativeStaticEvidence($evidence['generatedCsvNativeStaticEvidence']));
         $t->same(true, DelimitedTextUpstreamReaderEvidence::hasRequiredGeneratedTsvNativeStaticEvidence($evidence['generatedTsvNativeStaticEvidence']));
+        $t->same('static-checked-in-current-csv-direct-native-transcript-evidence', $evidence['currentCsvDirectNativeStaticEvidence']['kind']);
+        $t->same('current-csv-direct-native-transcripts', $evidence['currentCsvDirectNativeStaticEvidence']['evidenceKind']);
+        $t->same('csv', $evidence['currentCsvDirectNativeStaticEvidence']['reader']);
+        $t->same(3, $evidence['currentCsvDirectNativeStaticEvidence']['csvDirectFixtureDenominator']);
+        $t->same(2, $evidence['currentCsvDirectNativeStaticEvidence']['currentCsvDirectNativePairCount']);
+        $t->same(2, $evidence['currentCsvDirectNativeStaticEvidence']['sampleCount']);
+        $t->same(2, $evidence['currentCsvDirectNativeStaticEvidence']['checkedInFixtureCount']);
+        $t->same('csv-command-table', $evidence['currentCsvDirectNativeStaticEvidence']['samples'][0]['name']);
+        $t->same('csv.md', $evidence['currentCsvDirectNativeStaticEvidence']['samples'][0]['fixtureName']);
+        $t->same('lanes/pandoc/fixtures/upstream-current-csv-reader/csv.md', $evidence['currentCsvDirectNativeStaticEvidence']['samples'][0]['transcriptPath']);
+        $t->same('csv-command-multiline-cell', $evidence['currentCsvDirectNativeStaticEvidence']['samples'][1]['name']);
+        $t->same('9797.md', $evidence['currentCsvDirectNativeStaticEvidence']['samples'][1]['fixtureName']);
+        $t->same('lanes/pandoc/fixtures/upstream-current-csv-reader/9797.md', $evidence['currentCsvDirectNativeStaticEvidence']['samples'][1]['transcriptPath']);
+        $t->same('csv.md', $evidence['currentCsvDirectNativeStaticEvidence']['checkedInFixtures'][0]['name']);
+        $t->same('valid-current-csv-direct-native-transcript', $evidence['currentCsvDirectNativeStaticEvidence']['checkedInFixtures'][0]['transcriptStatus']);
+        $t->same('42a8bc56612d061388889a10d73b1d34fb870595785ee550ef43c6a065a77ad6', $evidence['currentCsvDirectNativeStaticEvidence']['checkedInFixtures'][0]['checkedInFile']['sha256']);
+        $t->same(2719, $evidence['currentCsvDirectNativeStaticEvidence']['checkedInFixtures'][0]['checkedInFile']['bytes']);
+        $t->same('9797.md', $evidence['currentCsvDirectNativeStaticEvidence']['checkedInFixtures'][1]['name']);
+        $t->same('valid-current-csv-direct-native-transcript', $evidence['currentCsvDirectNativeStaticEvidence']['checkedInFixtures'][1]['transcriptStatus']);
+        $t->same('5ef0f665c3f0f8eb0982c269d86cdaf9e8f0be4130bf767e2cb871a9102c6c40', $evidence['currentCsvDirectNativeStaticEvidence']['checkedInFixtures'][1]['checkedInFile']['sha256']);
+        $t->same(857, $evidence['currentCsvDirectNativeStaticEvidence']['checkedInFixtures'][1]['checkedInFile']['bytes']);
+        $t->same(true, DelimitedTextUpstreamReaderEvidence::hasRequiredCurrentCsvDirectNativeStaticEvidence($evidence['currentCsvDirectNativeStaticEvidence']));
         $t->same('static-checked-in-current-tsv-direct-native-fixture-evidence', $evidence['currentTsvDirectNativeStaticEvidence']['kind']);
         $t->same('current-tsv-direct-native-fixtures', $evidence['currentTsvDirectNativeStaticEvidence']['evidenceKind']);
         $t->same('tsv', $evidence['currentTsvDirectNativeStaticEvidence']['reader']);
@@ -2042,6 +2064,45 @@ return [
         $t->same(true, DelimitedTextUpstreamReaderEvidence::hasRequiredGeneratedTsvNativeParity($evidence));
         $t->true(in_array('that the generated TSV samples are upstream command fixtures', $evidence['claimBoundaries']['doesNotAssert'], true));
     },
+    'executes current csv direct native parity evidence' => static function (TestRunner $t): void {
+        $repoRoot = dirname(__DIR__, 3);
+        $evidence = DelimitedTextUpstreamReaderEvidence::currentCsvDirectNativeParityEvidence($repoRoot);
+
+        $t->same('current-csv-direct-native-parity-evidence', $evidence['kind']);
+        $t->same('current-csv-direct-native-parity', $evidence['evidenceKind']);
+        $t->same('completed-current-csv-direct-native-parity-evidence', $evidence['status']);
+        $t->same('csv', $evidence['reader']);
+        $t->same(3, $evidence['csvDirectFixtureDenominator']);
+        $t->same(2, $evidence['currentCsvDirectNativePairCount']);
+        $t->same(2, $evidence['sampleCount']);
+        $t->same(2, $evidence['comparedSampleCount']);
+        $t->same(0, $evidence['parseFailureCount']);
+        $t->same(2, $evidence['currentCsvDirectNativeMatchCount']);
+        $t->same(0, $evidence['currentCsvDirectNativeMismatchCount']);
+        $t->same(100.0, $evidence['currentCsvDirectNativeMatchPercent']);
+        $t->same('current-csv-direct-native-parity-observed', $evidence['parityStatus']);
+        $t->same('matched', $evidence['samples'][0]['status']);
+        $t->same('csv-command-table', $evidence['samples'][0]['name']);
+        $t->same('csv.md', $evidence['samples'][0]['fixtureName']);
+        $t->same('lanes/pandoc/fixtures/upstream-current-csv-reader/csv.md', $evidence['samples'][0]['transcriptPath']);
+        $t->same('test/command/csv.md', $evidence['samples'][0]['upstreamPath']);
+        $t->same('% pandoc -f csv -t native', $evidence['samples'][0]['command']);
+        $t->same('csv', $evidence['samples'][0]['reader']);
+        $t->same(4, $evidence['samples'][0]['rowCount']);
+        $t->same(3, $evidence['samples'][0]['columnCount']);
+        $t->same('matched', $evidence['samples'][1]['status']);
+        $t->same('csv-command-multiline-cell', $evidence['samples'][1]['name']);
+        $t->same('9797.md', $evidence['samples'][1]['fixtureName']);
+        $t->same('lanes/pandoc/fixtures/upstream-current-csv-reader/9797.md', $evidence['samples'][1]['transcriptPath']);
+        $t->same('test/command/9797.md', $evidence['samples'][1]['upstreamPath']);
+        $t->same('% pandoc -t native -f csv', $evidence['samples'][1]['command']);
+        $t->same('csv', $evidence['samples'][1]['reader']);
+        $t->same(1, $evidence['samples'][1]['rowCount']);
+        $t->same(1, $evidence['samples'][1]['columnCount']);
+        $t->same('valid-checked-in-current-csv-direct-native-transcript-evidence', $evidence['staticFixtureEvidence']['validation']['status']);
+        $t->same(true, DelimitedTextUpstreamReaderEvidence::hasRequiredCurrentCsvDirectNativeParity($evidence));
+        $t->true(in_array('that 01.csv contains an embedded native expectation', $evidence['claimBoundaries']['doesNotAssert'], true));
+    },
     'executes current tsv direct native parity evidence' => static function (TestRunner $t): void {
         $repoRoot = dirname(__DIR__, 3);
         $evidence = DelimitedTextUpstreamReaderEvidence::currentTsvDirectNativeParityEvidence($repoRoot);
@@ -2082,6 +2143,7 @@ return [
             $t->same([], $report['validation']['issues']);
             $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT, $report['denominator']['csvDirectFixtureCount']);
             $t->same(0, $report['denominator']['tsvDirectFixtureCount']);
+            $t->same(2, $report['denominator']['currentCsvDirectNativePairCount']);
             $t->same(1, $report['denominator']['currentTsvDirectNativePairCount']);
             $t->same(2, $report['denominator']['csvAdjacentRstFixtureCount']);
             $t->same(0, $report['denominator']['adjacentFixtureDenominatorImpact']);
@@ -2098,6 +2160,8 @@ return [
             $t->same('generated-csv-native-parity-observed-not-upstream-fixture', $report['generatedCsvNativeParityEvidence']['parityStatus']);
             $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $report['generatedTsvNativeParityEvidence']['generatedNativeMatchCount']);
             $t->same('generated-tsv-native-parity-observed-not-upstream-fixture', $report['generatedTsvNativeParityEvidence']['parityStatus']);
+            $t->same(2, $report['currentCsvDirectNativeParityEvidence']['currentCsvDirectNativeMatchCount']);
+            $t->same('current-csv-direct-native-parity-observed', $report['currentCsvDirectNativeParityEvidence']['parityStatus']);
             $t->same(1, $report['currentTsvDirectNativeParityEvidence']['currentTsvDirectNativeMatchCount']);
             $t->same('current-tsv-direct-native-parity-observed', $report['currentTsvDirectNativeParityEvidence']['parityStatus']);
             $t->same(true, DelimitedTextUpstreamReaderEvidence::hasNoValidationIssues($report));
@@ -2341,6 +2405,7 @@ return [
             . ' --require-parser-option-fixture-count=' . DelimitedTextUpstreamReaderEvidence::EXPECTED_CSV_PARSER_OPTION_FIXTURE_COUNT
             . ' --require-generated-csv-native-parity=' . DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_NATIVE_SAMPLE_COUNT
             . ' --require-generated-tsv-native-parity=' . DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT
+            . ' --require-current-csv-direct-native-parity=' . DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CURRENT_CSV_DIRECT_NATIVE_PAIR_COUNT
             . ' --require-current-tsv-direct-native-parity=' . DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CURRENT_TSV_DIRECT_NATIVE_PAIR_COUNT
             . ' --require-pandoc-executable-csv-native-parity=' . DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_CSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT
             . ' --require-pandoc-executable-tsv-native-parity=' . DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_PANDOC_EXECUTABLE_NATIVE_SAMPLE_COUNT
@@ -2369,6 +2434,11 @@ return [
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $decoded['tsv']['generatedNativeParitySampleCount']);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_GENERATED_TSV_NATIVE_SAMPLE_COUNT, $decoded['generatedTsvNativeParity']['generatedNativeMatchCount']);
         $t->same('generated-tsv-native-parity-observed-not-upstream-fixture', $decoded['generatedTsvNativeParity']['parityStatus']);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CURRENT_CSV_DIRECT_NATIVE_PAIR_COUNT, $decoded['currentCsvDirectNativeParity']['sampleCount']);
+        $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CURRENT_CSV_DIRECT_NATIVE_PAIR_COUNT, $decoded['currentCsvDirectNativeParity']['currentCsvDirectNativeMatchCount']);
+        $t->same('current-csv-direct-native-parity-observed', $decoded['currentCsvDirectNativeParity']['parityStatus']);
+        $t->same(true, $decoded['validation']['currentCsvDirectNativeParity']);
+        $t->same(true, DelimitedTextUpstreamReaderEvidence::hasRequiredCurrentCsvDirectNativeParity($decoded['currentCsvDirectNativeParity']));
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CURRENT_TSV_DIRECT_NATIVE_PAIR_COUNT, $decoded['currentTsvDirectNativeParity']['sampleCount']);
         $t->same(DelimitedTextUpstreamReaderEvidence::EXPECTED_STATIC_CURRENT_TSV_DIRECT_NATIVE_PAIR_COUNT, $decoded['currentTsvDirectNativeParity']['currentTsvDirectNativeMatchCount']);
         $t->same('current-tsv-direct-native-parity-observed', $decoded['currentTsvDirectNativeParity']['parityStatus']);

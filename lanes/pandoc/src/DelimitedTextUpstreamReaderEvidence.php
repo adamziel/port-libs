@@ -16,6 +16,7 @@ final class DelimitedTextUpstreamReaderEvidence
     public const CHECKED_IN_GENERATED_CSV_NATIVE_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/generated-current-csv-reader';
     public const CHECKED_IN_GENERATED_TSV_NATIVE_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/generated-current-tsv-reader';
     public const EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT = 3;
+    public const EXPECTED_STATIC_CURRENT_CSV_DIRECT_NATIVE_PAIR_COUNT = 2;
     public const EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT = 0;
     public const EXPECTED_STATIC_CURRENT_TSV_DIRECT_NATIVE_PAIR_COUNT = 1;
     public const EXPECTED_STATIC_CSV_ADJACENT_RST_FIXTURE_COUNT = 2;
@@ -79,6 +80,19 @@ final class DelimitedTextUpstreamReaderEvidence
             'checkedInPath' => 'lanes/pandoc/fixtures/upstream-current-csv-reader/9797.md',
             'sha256' => '5ef0f665c3f0f8eb0982c269d86cdaf9e8f0be4130bf767e2cb871a9102c6c40',
             'bytes' => 857,
+        ],
+    ];
+
+    private const CURRENT_CSV_DIRECT_NATIVE_SAMPLES = [
+        'csv-command-table' => [
+            'fixtureName' => 'csv.md',
+            'transcriptPath' => 'lanes/pandoc/fixtures/upstream-current-csv-reader/csv.md',
+            'upstreamPath' => 'test/command/csv.md',
+        ],
+        'csv-command-multiline-cell' => [
+            'fixtureName' => '9797.md',
+            'transcriptPath' => 'lanes/pandoc/fixtures/upstream-current-csv-reader/9797.md',
+            'upstreamPath' => 'test/command/9797.md',
         ],
     ];
 
@@ -2137,6 +2151,7 @@ final class DelimitedTextUpstreamReaderEvidence
         $root = $this->absoluteUpstreamRoot();
         $generatedCsvNativeParityEvidence = self::generatedCsvNativeParityEvidence($this->repoRoot);
         $generatedTsvNativeParityEvidence = self::generatedTsvNativeParityEvidence($this->repoRoot);
+        $currentCsvDirectNativeParityEvidence = self::currentCsvDirectNativeParityEvidence($this->repoRoot);
         $currentTsvDirectNativeParityEvidence = self::currentTsvDirectNativeParityEvidence($this->repoRoot);
         $runnerEvidence = $this->runnerEvidence();
         if (!is_dir($root)) {
@@ -2155,6 +2170,7 @@ final class DelimitedTextUpstreamReaderEvidence
                 'staticCurrentEvidence' => self::checkedInCurrentEvidence($this->repoRoot),
                 'generatedCsvNativeParityEvidence' => $generatedCsvNativeParityEvidence,
                 'generatedTsvNativeParityEvidence' => $generatedTsvNativeParityEvidence,
+                'currentCsvDirectNativeParityEvidence' => $currentCsvDirectNativeParityEvidence,
                 'currentTsvDirectNativeParityEvidence' => $currentTsvDirectNativeParityEvidence,
                 'runnerEvidence' => $runnerEvidence,
                 'validation' => [
@@ -2168,7 +2184,7 @@ final class DelimitedTextUpstreamReaderEvidence
 
         $upstreamFixtures = $this->upstreamFixtureEvidence($root);
         $sourceInventory = $this->sourceInventory($root);
-        $validationIssues = $this->validationIssues($upstreamFixtures, $sourceInventory, $generatedCsvNativeParityEvidence, $generatedTsvNativeParityEvidence, $currentTsvDirectNativeParityEvidence, $runnerEvidence);
+        $validationIssues = $this->validationIssues($upstreamFixtures, $sourceInventory, $generatedCsvNativeParityEvidence, $generatedTsvNativeParityEvidence, $currentCsvDirectNativeParityEvidence, $currentTsvDirectNativeParityEvidence, $runnerEvidence);
 
         return [
             'schemaVersion' => 1,
@@ -2198,6 +2214,11 @@ final class DelimitedTextUpstreamReaderEvidence
                 'upstreamFixtures' => $upstreamFixtures,
                 'parserOptionFixtureCount' => self::EXPECTED_CSV_PARSER_OPTION_FIXTURE_COUNT,
                 'parserOptionFixtures' => self::csvParserOptionFixtureNames(),
+                'currentCsvDirectNativePairCount' => self::EXPECTED_STATIC_CURRENT_CSV_DIRECT_NATIVE_PAIR_COUNT,
+                'currentCsvDirectNativeFixtures' => array_values(array_map(
+                    static fn (array $sample): string => (string) $sample['transcriptPath'],
+                    self::CURRENT_CSV_DIRECT_NATIVE_SAMPLES
+                )),
                 'currentTsvDirectNativePairCount' => self::EXPECTED_STATIC_CURRENT_TSV_DIRECT_NATIVE_PAIR_COUNT,
                 'currentTsvDirectNativeFixtures' => array_values(array_map(
                     static fn (array $sample): string => (string) $sample['inputPath'],
@@ -2208,6 +2229,7 @@ final class DelimitedTextUpstreamReaderEvidence
             'staticCurrentEvidence' => self::checkedInCurrentEvidence($this->repoRoot),
             'generatedCsvNativeParityEvidence' => $generatedCsvNativeParityEvidence,
             'generatedTsvNativeParityEvidence' => $generatedTsvNativeParityEvidence,
+            'currentCsvDirectNativeParityEvidence' => $currentCsvDirectNativeParityEvidence,
             'currentTsvDirectNativeParityEvidence' => $currentTsvDirectNativeParityEvidence,
             'runnerEvidence' => $runnerEvidence,
             'validation' => [
@@ -2228,6 +2250,7 @@ final class DelimitedTextUpstreamReaderEvidence
         $fixtureDirectory = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, self::CHECKED_IN_CURRENT_FIXTURE_DIRECTORY);
         $generatedCsvNativeStaticEvidence = self::checkedInGeneratedCsvNativeEvidence($root);
         $generatedTsvNativeStaticEvidence = self::checkedInGeneratedTsvNativeEvidence($root);
+        $currentCsvDirectNativeStaticEvidence = self::checkedInCurrentCsvDirectNativeEvidence($root);
         $currentTsvDirectNativeStaticEvidence = self::checkedInCurrentTsvDirectNativeEvidence($root);
         $adjacentFixtureEvidence = self::csvAdjacentRstFixtureEvidence();
         $issues = [];
@@ -2267,6 +2290,10 @@ final class DelimitedTextUpstreamReaderEvidence
             $issues[] = 'invalid-checked-in-generated-tsv-native-fixture-evidence';
         }
 
+        if (!self::hasRequiredCurrentCsvDirectNativeStaticEvidence($currentCsvDirectNativeStaticEvidence)) {
+            $issues[] = 'invalid-checked-in-current-csv-direct-native-transcript-evidence';
+        }
+
         if (!self::hasRequiredCurrentTsvDirectNativeStaticEvidence($currentTsvDirectNativeStaticEvidence)) {
             $issues[] = 'invalid-checked-in-current-tsv-direct-native-fixture-evidence';
         }
@@ -2297,6 +2324,11 @@ final class DelimitedTextUpstreamReaderEvidence
                 'adjacentFixtureDenominatorImpact' => 0,
                 'parserOptionFixtureCount' => self::EXPECTED_CSV_PARSER_OPTION_FIXTURE_COUNT,
                 'parserOptionFixtures' => self::csvParserOptionFixtureNames(),
+                'currentCsvDirectNativePairCount' => self::EXPECTED_STATIC_CURRENT_CSV_DIRECT_NATIVE_PAIR_COUNT,
+                'currentCsvDirectNativeFixtures' => array_values(array_map(
+                    static fn (array $sample): string => (string) $sample['transcriptPath'],
+                    self::CURRENT_CSV_DIRECT_NATIVE_SAMPLES
+                )),
                 'currentTsvDirectNativePairCount' => self::EXPECTED_STATIC_CURRENT_TSV_DIRECT_NATIVE_PAIR_COUNT,
                 'currentTsvDirectNativeFixtures' => array_values(array_map(
                     static fn (array $sample): string => (string) $sample['inputPath'],
@@ -2309,16 +2341,18 @@ final class DelimitedTextUpstreamReaderEvidence
             'adjacentFixtureEvidence' => $adjacentFixtureEvidence,
             'generatedCsvNativeStaticEvidence' => $generatedCsvNativeStaticEvidence,
             'generatedTsvNativeStaticEvidence' => $generatedTsvNativeStaticEvidence,
+            'currentCsvDirectNativeStaticEvidence' => $currentCsvDirectNativeStaticEvidence,
             'currentTsvDirectNativeStaticEvidence' => $currentTsvDirectNativeStaticEvidence,
             'validation' => [
                 'status' => $issues === [] ? 'valid-checked-in-current-delimited-text-reader-evidence' : 'invalid-checked-in-current-delimited-text-reader-evidence',
                 'issues' => array_values(array_unique($issues)),
             ],
-            'claim' => 'Static gate binding Pandoc current CSV command-reader fixtures, one current TSV direct native probe, and generated CSV/TSV native sample fixtures to checked-in SHA-256 and byte-count snapshots.',
+            'claim' => 'Static gate binding Pandoc current CSV command-reader fixtures, two embedded CSV command transcript native probes, one current TSV direct native probe, and generated CSV/TSV native sample fixtures to checked-in SHA-256 and byte-count snapshots.',
             'claimBoundaries' => [
                 'doesAssert' => [
                     'the checked-in csv.md, 01.csv, and 9797.md snapshots match the pinned upstream command fixture hashes',
                     'the upstream command corpus has three CSV direct-reader fixtures tracked by this PHP reader',
+                    'the checked-in csv.md and 9797.md command transcripts expose two embedded CSV input/native pairs for local reader comparison',
                     'the RST csv-table fixture pair is tracked as CSV-adjacent evidence with zero direct-reader denominator impact',
                     'the CSV parser-option fixture names are pinned as local generated native parity samples',
                     'the generated CSV-to-native parity fixture pairs are present as local evidence and are not counted as extra upstream CSV direct fixtures',
@@ -2538,6 +2572,97 @@ final class DelimitedTextUpstreamReaderEvidence
                     'that upstream provides dedicated TSV command fixtures',
                     'that upstream Haskell/Cabal/Tasty tests were executed',
                     'full CSV/TSV feature parity beyond these generated TSV-to-native samples',
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function checkedInCurrentCsvDirectNativeEvidence(string $repoRoot): array
+    {
+        $root = rtrim($repoRoot, DIRECTORY_SEPARATOR);
+        $fixtureDirectory = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, self::CHECKED_IN_CURRENT_FIXTURE_DIRECTORY);
+        $issues = [];
+        if (!is_dir($fixtureDirectory)) {
+            $issues[] = 'missing-checked-in-current-csv-direct-native-transcript-directory';
+        }
+
+        $fixtures = [];
+        foreach (self::CURRENT_CSV_DIRECT_NATIVE_SAMPLES as $sampleName => $sample) {
+            $fixtureName = (string) $sample['fixtureName'];
+            $snapshot = self::CHECKED_IN_CURRENT_CSV_FIXTURES[$fixtureName] ?? null;
+            if (!is_array($snapshot)) {
+                $issues[] = 'missing-current-csv-direct-native-snapshot-binding';
+                continue;
+            }
+
+            $file = self::snapshotFileEvidence(
+                $root,
+                (string) $snapshot['checkedInPath'],
+                (string) $snapshot['sha256'],
+                (int) $snapshot['bytes']
+            );
+            $transcript = ($file['present'] ?? false) === true ? file_get_contents($root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, (string) $snapshot['checkedInPath'])) : false;
+            $transcriptPair = is_string($transcript) ? self::csvCommandNativeTranscript($transcript) : null;
+            $fixtures[] = [
+                'name' => $fixtureName,
+                'role' => (string) $snapshot['role'],
+                'sample' => (string) $sampleName,
+                'upstreamPath' => (string) $sample['upstreamPath'],
+                'checkedInFile' => $file,
+                'transcriptStatus' => $transcriptPair === null ? 'invalid-current-csv-direct-native-transcript' : 'valid-current-csv-direct-native-transcript',
+            ];
+
+            if (($file['present'] ?? false) !== true) {
+                $issues[] = 'missing-checked-in-current-csv-direct-native-transcript';
+            } elseif (($file['sha256'] ?? null) !== $snapshot['sha256']) {
+                $issues[] = 'checked-in-current-csv-direct-native-transcript-sha256-mismatch';
+            } elseif ((int) ($file['bytes'] ?? -1) !== (int) $snapshot['bytes']) {
+                $issues[] = 'checked-in-current-csv-direct-native-transcript-byte-count-mismatch';
+            } elseif ($transcriptPair === null) {
+                $issues[] = 'checked-in-current-csv-direct-native-transcript-invalid';
+            }
+        }
+
+        $samples = [];
+        foreach (self::CURRENT_CSV_DIRECT_NATIVE_SAMPLES as $name => $sample) {
+            $samples[] = [
+                'name' => (string) $name,
+                'fixtureName' => (string) $sample['fixtureName'],
+                'transcriptPath' => (string) $sample['transcriptPath'],
+                'upstreamPath' => (string) $sample['upstreamPath'],
+                'readerOptions' => [],
+            ];
+        }
+
+        return [
+            'kind' => 'static-checked-in-current-csv-direct-native-transcript-evidence',
+            'evidenceKind' => 'current-csv-direct-native-transcripts',
+            'checkedInFixtureDirectory' => self::CHECKED_IN_CURRENT_FIXTURE_DIRECTORY,
+            'reader' => 'csv',
+            'csvDirectFixtureDenominator' => self::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT,
+            'currentCsvDirectNativePairCount' => self::EXPECTED_STATIC_CURRENT_CSV_DIRECT_NATIVE_PAIR_COUNT,
+            'sampleCount' => count($samples),
+            'samples' => $samples,
+            'checkedInFixtureCount' => count($fixtures),
+            'checkedInFixtures' => $fixtures,
+            'validation' => [
+                'status' => $issues === [] ? 'valid-checked-in-current-csv-direct-native-transcript-evidence' : 'invalid-checked-in-current-csv-direct-native-transcript-evidence',
+                'issues' => array_values(array_unique($issues)),
+            ],
+            'claim' => 'Static current CSV direct native transcript evidence; this binds embedded upstream command transcript pairs without adding new direct CSV fixture files.',
+            'claimBoundaries' => [
+                'doesAssert' => [
+                    'two current CSV command transcripts are checked in with pinned SHA-256 and byte-count snapshots',
+                    'the checked-in csv.md and 9797.md transcripts contain extractable command input and expected native output blocks',
+                    'the pair count is separate from generated CSV native parity samples',
+                ],
+                'doesNotAssert' => [
+                    'that upstream Haskell/Cabal/Tasty tests were executed',
+                    'that 01.csv contains embedded native output',
+                    'full CSV/TSV feature parity beyond these command transcript probes and the generated CSV sample corpus',
                 ],
             ],
         ];
@@ -2926,6 +3051,150 @@ final class DelimitedTextUpstreamReaderEvidence
     /**
      * @return array<string, mixed>
      */
+    public static function currentCsvDirectNativeParityEvidence(string $repoRoot): array
+    {
+        $root = rtrim($repoRoot, DIRECTORY_SEPARATOR);
+        $staticEvidence = self::checkedInCurrentCsvDirectNativeEvidence($root);
+        $sampleResults = [];
+        $parseFailures = [];
+        $mismatches = [];
+        $matchCount = 0;
+        $comparedCount = 0;
+
+        foreach (self::CURRENT_CSV_DIRECT_NATIVE_SAMPLES as $name => $sample) {
+            $transcriptPath = (string) $sample['transcriptPath'];
+            $absoluteTranscriptPath = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $transcriptPath);
+            $transcript = is_file($absoluteTranscriptPath) ? file_get_contents($absoluteTranscriptPath) : false;
+            $pair = is_string($transcript) ? self::csvCommandNativeTranscript($transcript) : null;
+            if (!is_string($transcript) || $pair === null) {
+                $failure = [
+                    'sample' => (string) $name,
+                    'fixtureName' => (string) $sample['fixtureName'],
+                    'transcriptPath' => $transcriptPath,
+                    'upstreamPath' => (string) $sample['upstreamPath'],
+                    'readerOptions' => [],
+                    'transcriptError' => is_string($transcript) ? 'missing-command-input-native-block' : 'missing-or-unreadable-current-csv-direct-transcript',
+                    'inputError' => null,
+                    'expectedNativeError' => null,
+                ];
+                $parseFailures[] = $failure;
+                $sampleResults[] = [
+                    'name' => (string) $name,
+                    'status' => 'parse-failed',
+                    ...$failure,
+                ];
+                continue;
+            }
+
+            try {
+                $document = (new DelimitedTextReader())->readCsv($pair['input']);
+                $generatedNative = PandocConverter::write($document, 'native');
+            } catch (\Throwable $throwable) {
+                $failure = [
+                    'sample' => (string) $name,
+                    'fixtureName' => (string) $sample['fixtureName'],
+                    'transcriptPath' => $transcriptPath,
+                    'upstreamPath' => (string) $sample['upstreamPath'],
+                    'readerOptions' => [],
+                    'transcriptError' => null,
+                    'inputError' => $throwable::class . ': ' . $throwable->getMessage(),
+                    'expectedNativeError' => null,
+                ];
+                $parseFailures[] = $failure;
+                $sampleResults[] = [
+                    'name' => (string) $name,
+                    'status' => 'parse-failed',
+                    ...$failure,
+                ];
+                continue;
+            }
+
+            ++$comparedCount;
+            $expectedTokens = self::nativeTokenStream($pair['expectedNative']);
+            $generatedTokens = self::nativeTokenStream($generatedNative);
+            $matched = $expectedTokens === $generatedTokens;
+            if ($matched) {
+                ++$matchCount;
+            } else {
+                $mismatches[] = [
+                    'sample' => (string) $name,
+                    'fixtureName' => (string) $sample['fixtureName'],
+                    'transcriptPath' => $transcriptPath,
+                    'upstreamPath' => (string) $sample['upstreamPath'],
+                    'firstDifference' => self::firstStringDifference($expectedTokens, $generatedTokens) ?? 'unknown-native-token-difference',
+                ];
+            }
+
+            $table = $document->children[0] ?? null;
+            $packet = $table instanceof AstNode ? $table->attr('delimitedText', []) : [];
+            $sampleResults[] = [
+                'name' => (string) $name,
+                'status' => $matched ? 'matched' : 'mismatched',
+                'fixtureName' => (string) $sample['fixtureName'],
+                'transcriptPath' => $transcriptPath,
+                'upstreamPath' => (string) $sample['upstreamPath'],
+                'command' => $pair['command'],
+                'readerOptions' => [],
+                'reader' => 'csv',
+                'inputBytes' => strlen($pair['input']),
+                'expectedNativeSha256' => hash('sha256', $pair['expectedNative']),
+                'generatedNativeSha256' => hash('sha256', $generatedNative),
+                'expectedNativeTokenSha256' => hash('sha256', $expectedTokens),
+                'generatedNativeTokenSha256' => hash('sha256', $generatedTokens),
+                'rowCount' => is_array($packet) ? ($packet['rowCount'] ?? null) : null,
+                'columnCount' => is_array($packet) ? ($packet['columnCount'] ?? null) : null,
+            ];
+        }
+
+        $sampleCount = count(self::CURRENT_CSV_DIRECT_NATIVE_SAMPLES);
+        $mismatchCount = $comparedCount - $matchCount;
+        $staticEvidenceValid = self::hasRequiredCurrentCsvDirectNativeStaticEvidence($staticEvidence);
+        $observed = $staticEvidenceValid
+            && count($parseFailures) === 0
+            && $mismatchCount === 0
+            && $comparedCount === $sampleCount
+            && $matchCount === self::EXPECTED_STATIC_CURRENT_CSV_DIRECT_NATIVE_PAIR_COUNT;
+
+        return [
+            'schemaVersion' => 1,
+            'tool' => self::TOOL_NAME,
+            'kind' => 'current-csv-direct-native-parity-evidence',
+            'evidenceKind' => 'current-csv-direct-native-parity',
+            'status' => $observed ? 'completed-current-csv-direct-native-parity-evidence' : 'incomplete-current-csv-direct-native-parity-evidence',
+            'claim' => 'Executes the local PHP CSV reader against embedded input/native pairs from checked-in upstream command transcripts.',
+            'fixtureDirectory' => self::CHECKED_IN_CURRENT_FIXTURE_DIRECTORY,
+            'reader' => 'csv',
+            'csvDirectFixtureDenominator' => self::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT,
+            'currentCsvDirectNativePairCount' => self::EXPECTED_STATIC_CURRENT_CSV_DIRECT_NATIVE_PAIR_COUNT,
+            'sampleCount' => $sampleCount,
+            'comparedSampleCount' => $comparedCount,
+            'parseFailureCount' => count($parseFailures),
+            'currentCsvDirectNativeMatchCount' => $matchCount,
+            'currentCsvDirectNativeMismatchCount' => $mismatchCount,
+            'currentCsvDirectNativeMatchPercent' => self::percent($matchCount, $sampleCount),
+            'parityStatus' => $observed ? 'current-csv-direct-native-parity-observed' : 'current-csv-direct-native-parity-incomplete',
+            'staticFixtureEvidence' => $staticEvidence,
+            'samples' => $sampleResults,
+            'parseFailures' => $parseFailures,
+            'mismatches' => $mismatches,
+            'claimBoundaries' => [
+                'doesAssert' => [
+                    'the local CSV reader can read the embedded CSV inputs from csv.md and 9797.md',
+                    'the generated native output matches the embedded expected native transcript blocks by normalized native token stream',
+                    'the upstream CSV direct fixture denominator remains three',
+                ],
+                'doesNotAssert' => [
+                    'that upstream Haskell/Cabal/Tasty tests were executed',
+                    'that 01.csv contains an embedded native expectation',
+                    'full CSV feature parity beyond these direct transcript probes and the generated CSV sample corpus',
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function currentTsvDirectNativeParityEvidence(string $repoRoot): array
     {
         $root = rtrim($repoRoot, DIRECTORY_SEPARATOR);
@@ -3107,6 +3376,7 @@ final class DelimitedTextUpstreamReaderEvidence
         $staticValidation = is_array($staticEvidence['validation'] ?? null) ? $staticEvidence['validation'] : [];
         $generatedCsvNative = is_array($report['generatedCsvNativeParityEvidence'] ?? null) ? $report['generatedCsvNativeParityEvidence'] : [];
         $generatedTsvNative = is_array($report['generatedTsvNativeParityEvidence'] ?? null) ? $report['generatedTsvNativeParityEvidence'] : [];
+        $currentCsvDirectNative = is_array($report['currentCsvDirectNativeParityEvidence'] ?? null) ? $report['currentCsvDirectNativeParityEvidence'] : [];
         $currentTsvDirectNative = is_array($report['currentTsvDirectNativeParityEvidence'] ?? null) ? $report['currentTsvDirectNativeParityEvidence'] : [];
         $runner = is_array($report['runnerEvidence'] ?? null) ? $report['runnerEvidence'] : [];
         $target = is_array($runner['target'] ?? null) ? $runner['target'] : [];
@@ -3131,6 +3401,9 @@ final class DelimitedTextUpstreamReaderEvidence
             'Generated TSV native parity: ' . (int) ($generatedTsvNative['generatedNativeMatchCount'] ?? 0)
                 . '/' . (int) ($generatedTsvNative['sampleCount'] ?? 0)
                 . ' status=' . (string) ($generatedTsvNative['parityStatus'] ?? 'unknown'),
+            'Current CSV direct native parity: ' . (int) ($currentCsvDirectNative['currentCsvDirectNativeMatchCount'] ?? 0)
+                . '/' . (int) ($currentCsvDirectNative['sampleCount'] ?? 0)
+                . ' status=' . (string) ($currentCsvDirectNative['parityStatus'] ?? 'unknown'),
             'Current TSV direct native parity: ' . (int) ($currentTsvDirectNative['currentTsvDirectNativeMatchCount'] ?? 0)
                 . '/' . (int) ($currentTsvDirectNative['sampleCount'] ?? 0)
                 . ' status=' . (string) ($currentTsvDirectNative['parityStatus'] ?? 'unknown'),
@@ -3157,11 +3430,16 @@ final class DelimitedTextUpstreamReaderEvidence
             && ($validation['issues'] ?? null) === []
             && (int) ($denominator['csvDirectFixtureCount'] ?? -1) === self::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT
             && (int) ($denominator['tsvDirectFixtureCount'] ?? -1) === self::EXPECTED_STATIC_TSV_DIRECT_FIXTURE_COUNT
+            && (int) ($denominator['currentCsvDirectNativePairCount'] ?? -1) === self::EXPECTED_STATIC_CURRENT_CSV_DIRECT_NATIVE_PAIR_COUNT
+            && (int) ($denominator['currentTsvDirectNativePairCount'] ?? -1) === self::EXPECTED_STATIC_CURRENT_TSV_DIRECT_NATIVE_PAIR_COUNT
             && self::hasRequiredGeneratedCsvNativeStaticEvidence(
                 is_array($evidence['generatedCsvNativeStaticEvidence'] ?? null) ? $evidence['generatedCsvNativeStaticEvidence'] : []
             )
             && self::hasRequiredGeneratedTsvNativeStaticEvidence(
                 is_array($evidence['generatedTsvNativeStaticEvidence'] ?? null) ? $evidence['generatedTsvNativeStaticEvidence'] : []
+            )
+            && self::hasRequiredCurrentCsvDirectNativeStaticEvidence(
+                is_array($evidence['currentCsvDirectNativeStaticEvidence'] ?? null) ? $evidence['currentCsvDirectNativeStaticEvidence'] : []
             )
             && self::hasRequiredCurrentTsvDirectNativeStaticEvidence(
                 is_array($evidence['currentTsvDirectNativeStaticEvidence'] ?? null) ? $evidence['currentTsvDirectNativeStaticEvidence'] : []
@@ -3828,6 +4106,27 @@ final class DelimitedTextUpstreamReaderEvidence
     /**
      * @param array<string, mixed> $evidence
      */
+    public static function hasRequiredCurrentCsvDirectNativeStaticEvidence(array $evidence): bool
+    {
+        $validation = is_array($evidence['validation'] ?? null) ? $evidence['validation'] : [];
+        $samples = is_array($evidence['samples'] ?? null) ? $evidence['samples'] : [];
+        $fixtures = is_array($evidence['checkedInFixtures'] ?? null) ? $evidence['checkedInFixtures'] : [];
+
+        return ($validation['status'] ?? null) === 'valid-checked-in-current-csv-direct-native-transcript-evidence'
+            && ($validation['issues'] ?? null) === []
+            && ($evidence['reader'] ?? null) === 'csv'
+            && (int) ($evidence['csvDirectFixtureDenominator'] ?? -1) === self::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT
+            && (int) ($evidence['currentCsvDirectNativePairCount'] ?? -1) === self::EXPECTED_STATIC_CURRENT_CSV_DIRECT_NATIVE_PAIR_COUNT
+            && (int) ($evidence['sampleCount'] ?? -1) === self::EXPECTED_STATIC_CURRENT_CSV_DIRECT_NATIVE_PAIR_COUNT
+            && (int) ($evidence['checkedInFixtureCount'] ?? -1) === count(self::CURRENT_CSV_DIRECT_NATIVE_SAMPLES)
+            && array_column($samples, 'name') === array_keys(self::CURRENT_CSV_DIRECT_NATIVE_SAMPLES)
+            && array_column($fixtures, 'name') === array_column(self::CURRENT_CSV_DIRECT_NATIVE_SAMPLES, 'fixtureName')
+            && array_column($fixtures, 'transcriptStatus') === array_fill(0, self::EXPECTED_STATIC_CURRENT_CSV_DIRECT_NATIVE_PAIR_COUNT, 'valid-current-csv-direct-native-transcript');
+    }
+
+    /**
+     * @param array<string, mixed> $evidence
+     */
     public static function hasRequiredCurrentTsvDirectNativeStaticEvidence(array $evidence): bool
     {
         $validation = is_array($evidence['validation'] ?? null) ? $evidence['validation'] : [];
@@ -3964,6 +4263,33 @@ final class DelimitedTextUpstreamReaderEvidence
             && ($evidence['parityStatus'] ?? null) === 'generated-tsv-native-parity-observed-not-upstream-fixture'
             && self::hasRequiredGeneratedTsvNativeStaticEvidence($staticEvidence)
             && self::hasRequiredGeneratedNativeSampleStaticBindings($evidence, 'tsv', $requiredSampleCount);
+    }
+
+    /**
+     * @param array<string, mixed> $evidence
+     */
+    public static function hasRequiredCurrentCsvDirectNativeParity(array $evidence, int $requiredSampleCount = self::EXPECTED_STATIC_CURRENT_CSV_DIRECT_NATIVE_PAIR_COUNT): bool
+    {
+        if ($requiredSampleCount < 0) {
+            throw new \InvalidArgumentException('Required current CSV direct native sample count must not be negative');
+        }
+
+        $staticEvidence = is_array($evidence['staticFixtureEvidence'] ?? null) ? $evidence['staticFixtureEvidence'] : [];
+        $samples = is_array($evidence['samples'] ?? null) ? $evidence['samples'] : [];
+
+        return ($evidence['status'] ?? null) === 'completed-current-csv-direct-native-parity-evidence'
+            && ($evidence['parityStatus'] ?? null) === 'current-csv-direct-native-parity-observed'
+            && ($evidence['reader'] ?? null) === 'csv'
+            && (int) ($evidence['csvDirectFixtureDenominator'] ?? -1) === self::EXPECTED_STATIC_CSV_DIRECT_FIXTURE_COUNT
+            && (int) ($evidence['currentCsvDirectNativePairCount'] ?? -1) === $requiredSampleCount
+            && (int) ($evidence['sampleCount'] ?? -1) === $requiredSampleCount
+            && (int) ($evidence['comparedSampleCount'] ?? -1) === $requiredSampleCount
+            && (int) ($evidence['parseFailureCount'] ?? -1) === 0
+            && (int) ($evidence['currentCsvDirectNativeMatchCount'] ?? -1) === $requiredSampleCount
+            && (int) ($evidence['currentCsvDirectNativeMismatchCount'] ?? -1) === 0
+            && array_column($samples, 'name') === array_slice(array_keys(self::CURRENT_CSV_DIRECT_NATIVE_SAMPLES), 0, $requiredSampleCount)
+            && array_column($samples, 'status') === array_fill(0, $requiredSampleCount, 'matched')
+            && self::hasRequiredCurrentCsvDirectNativeStaticEvidence($staticEvidence);
     }
 
     /**
@@ -4235,7 +4561,7 @@ final class DelimitedTextUpstreamReaderEvidence
 
     private static function claim(): string
     {
-        return 'Tracks the current upstream direct CSV command-reader fixtures, the adjacent RST csv-table fixture pair with zero direct-reader denominator impact, sixty-four generated CSV-to-native evidence samples, the absence of dedicated upstream TSV command fixtures, one current TSV direct native probe, and thirty-six generated TSV-to-native evidence samples for the delimited text reader.';
+        return 'Tracks the current upstream direct CSV command-reader fixtures, two embedded CSV command transcript native probes, the adjacent RST csv-table fixture pair with zero direct-reader denominator impact, sixty-four generated CSV-to-native evidence samples, the absence of dedicated upstream TSV command fixtures, one current TSV direct native probe, and thirty-six generated TSV-to-native evidence samples for the delimited text reader.';
     }
 
     /**
@@ -4251,6 +4577,7 @@ final class DelimitedTextUpstreamReaderEvidence
                 'that RST csv-table directives are exercised through the native RST reader integration path',
                 'that no dedicated TSV command fixture is available in the pinned direct-reader evidence set',
                 'static checked-in current csv.md, 01.csv, and 9797.md fixture identity when staticCurrentEvidence is valid',
+                'two current CSV embedded command transcript native probes when currentCsvDirectNativeParityEvidence is valid',
                 'nine CSV parser-option generated native fixture names covering delimiter, quote, escape, keep-space, multiline, pipe, and no-header variants',
                 'sixty-four generated CSV-to-native local samples when generatedCsvNativeParityEvidence is valid',
                 'one current TSV direct native probe when currentTsvDirectNativeParityEvidence is valid',
@@ -4264,6 +4591,7 @@ final class DelimitedTextUpstreamReaderEvidence
                 'that the planned Cabal/Tasty runner command has produced a result artifact unless one is explicitly supplied and validated',
                 'that local PHP output matches every upstream CSV-adjacent command fixture',
                 'that the generated CSV samples are upstream command fixtures',
+                'that 01.csv has an embedded native-output transcript',
                 'that the current TSV direct native probe is an upstream command fixture',
                 'that the generated TSV samples are upstream command fixtures',
                 'full CSV/TSV feature parity beyond the direct reader fixture evidence',
@@ -4285,6 +4613,8 @@ final class DelimitedTextUpstreamReaderEvidence
             'upstreamFixtures' => [],
             'parserOptionFixtureCount' => 0,
             'parserOptionFixtures' => [],
+            'currentCsvDirectNativePairCount' => 0,
+            'currentCsvDirectNativeFixtures' => [],
             'currentTsvDirectNativePairCount' => 0,
             'currentTsvDirectNativeFixtures' => [],
         ];
@@ -4360,11 +4690,12 @@ final class DelimitedTextUpstreamReaderEvidence
      * @param array<string, mixed> $sourceInventory
      * @param array<string, mixed> $generatedCsvNativeParityEvidence
      * @param array<string, mixed> $generatedTsvNativeParityEvidence
+     * @param array<string, mixed> $currentCsvDirectNativeParityEvidence
      * @param array<string, mixed> $currentTsvDirectNativeParityEvidence
      * @param array<string, mixed> $runnerEvidence
      * @return list<string>
      */
-    private function validationIssues(array $upstreamFixtures, array $sourceInventory, array $generatedCsvNativeParityEvidence, array $generatedTsvNativeParityEvidence, array $currentTsvDirectNativeParityEvidence, array $runnerEvidence): array
+    private function validationIssues(array $upstreamFixtures, array $sourceInventory, array $generatedCsvNativeParityEvidence, array $generatedTsvNativeParityEvidence, array $currentCsvDirectNativeParityEvidence, array $currentTsvDirectNativeParityEvidence, array $runnerEvidence): array
     {
         $issues = [];
         foreach ($upstreamFixtures as $fixture) {
@@ -4387,6 +4718,10 @@ final class DelimitedTextUpstreamReaderEvidence
 
         if (!self::hasRequiredGeneratedTsvNativeParity($generatedTsvNativeParityEvidence)) {
             $issues[] = 'generated-tsv-native-parity-not-observed';
+        }
+
+        if (!self::hasRequiredCurrentCsvDirectNativeParity($currentCsvDirectNativeParityEvidence)) {
+            $issues[] = 'current-csv-direct-native-parity-not-observed';
         }
 
         if (!self::hasRequiredCurrentTsvDirectNativeParity($currentTsvDirectNativeParityEvidence)) {
@@ -4696,6 +5031,66 @@ final class DelimitedTextUpstreamReaderEvidence
                 ],
             ],
         ];
+    }
+
+    /**
+     * @return array{command:string, input:string, expectedNative:string}|null
+     */
+    private static function csvCommandNativeTranscript(string $transcript): ?array
+    {
+        $lines = explode("\n", str_replace(["\r\n", "\r"], "\n", $transcript));
+        $lineCount = count($lines);
+        for ($index = 0; $index < $lineCount; ++$index) {
+            $line = $lines[$index];
+            if (!str_starts_with($line, '% pandoc') || !self::csvCommandTargetsNative($line)) {
+                continue;
+            }
+
+            $inputLines = [];
+            ++$index;
+            while ($index < $lineCount && $lines[$index] !== '^D') {
+                $inputLines[] = $lines[$index];
+                ++$index;
+            }
+            if ($index >= $lineCount || $lines[$index] !== '^D') {
+                return null;
+            }
+
+            $nativeLines = [];
+            ++$index;
+            while ($index < $lineCount && !str_starts_with($lines[$index], '```')) {
+                $nativeLines[] = $lines[$index];
+                ++$index;
+            }
+            while ($nativeLines !== [] && end($nativeLines) === '') {
+                array_pop($nativeLines);
+            }
+
+            return [
+                'command' => $line,
+                'input' => implode("\n", $inputLines),
+                'expectedNative' => implode("\n", $nativeLines),
+            ];
+        }
+
+        return null;
+    }
+
+    private static function csvCommandTargetsNative(string $line): bool
+    {
+        $tokens = array_values(array_filter(explode(' ', trim($line)), static fn (string $token): bool => $token !== ''));
+        $fromCsv = false;
+        $toNative = false;
+        for ($index = 0, $count = count($tokens); $index < $count; ++$index) {
+            if ($tokens[$index] === '-f' && ($tokens[$index + 1] ?? null) === 'csv') {
+                $fromCsv = true;
+            }
+            if ($tokens[$index] === '-t' && ($tokens[$index + 1] ?? null) === 'native') {
+                $toNative = true;
+            }
+        }
+
+        return $fromCsv && $toNative;
     }
 
     private static function nativeTokenStream(string $native): string

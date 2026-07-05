@@ -45,6 +45,7 @@ return [
             $csvEvidence = is_array($csvPacket['upstreamEvidence'] ?? null) ? $csvPacket['upstreamEvidence'] : [];
             $csv = DelimitedTextUpstreamReaderEvidence::generatedCsvNativeParityEvidence($repoRoot);
             $tsv = DelimitedTextUpstreamReaderEvidence::generatedTsvNativeParityEvidence($repoRoot);
+            $currentCsv = DelimitedTextUpstreamReaderEvidence::currentCsvDirectNativeParityEvidence($repoRoot);
             $currentTsv = DelimitedTextUpstreamReaderEvidence::currentTsvDirectNativeParityEvidence($repoRoot);
             $pandocCsv = DelimitedTextUpstreamReaderEvidence::generatedCsvPandocExecutableNativeParityEvidence($repoRoot);
             $pandocTsv = DelimitedTextUpstreamReaderEvidence::generatedTsvPandocExecutableNativeParityEvidence($repoRoot);
@@ -53,6 +54,7 @@ return [
             $denominator = $static['readerDenominator'] ?? [];
             $t->same($denominator['csvDirectFixtureCount'] ?? null, $direct['csvDirectFixtureCount'] ?? null);
             $t->same($denominator['tsvDirectFixtureCount'] ?? null, $direct['tsvDirectFixtureCount'] ?? null);
+            $t->same($denominator['currentCsvDirectNativePairCount'] ?? null, $direct['currentCsvDirectNativePairCount'] ?? null);
             $t->same($denominator['currentTsvDirectNativePairCount'] ?? null, $direct['currentTsvDirectNativePairCount'] ?? null);
             $t->same($denominator['csvAdjacentRstFixtureCount'] ?? null, $direct['csvAdjacentRstFixtureCount'] ?? null);
             $t->same($denominator['adjacentFixtureDenominatorImpact'] ?? null, $direct['csvAdjacentRstDirectDenominatorImpact'] ?? null);
@@ -75,6 +77,12 @@ return [
             $t->same(($csv['generatedNativeMatchCount'] ?? 0) + ($tsv['generatedNativeMatchCount'] ?? 0), $generated['totalMatchCount'] ?? null);
             $t->same(true, DelimitedTextUpstreamReaderEvidence::hasRequiredGeneratedCsvNativeParity($csv));
             $t->same(true, DelimitedTextUpstreamReaderEvidence::hasRequiredGeneratedTsvNativeParity($tsv));
+
+            $currentCsvRollup = $rollup['currentCsvDirectNativeParity'] ?? [];
+            $t->same($currentCsv['sampleCount'] ?? null, $currentCsvRollup['sampleCount'] ?? null);
+            $t->same($currentCsv['currentCsvDirectNativeMatchCount'] ?? null, $currentCsvRollup['matchCount'] ?? null);
+            $t->same($currentCsv['currentCsvDirectNativeMismatchCount'] ?? null, $currentCsvRollup['mismatchCount'] ?? null);
+            $t->same(true, DelimitedTextUpstreamReaderEvidence::hasRequiredCurrentCsvDirectNativeParity($currentCsv));
 
             $current = $rollup['currentTsvDirectNativeParity'] ?? [];
             $t->same($currentTsv['sampleCount'] ?? null, $current['sampleCount'] ?? null);
@@ -106,6 +114,7 @@ return [
                 '--require-parser-option-fixture-count=9',
                 '--require-generated-csv-native-parity=64',
                 '--require-generated-tsv-native-parity=36',
+                '--require-current-csv-direct-native-parity=2',
                 '--require-current-tsv-direct-native-parity=1',
                 '--require-pandoc-executable-csv-native-parity=45',
                 '--require-pandoc-executable-tsv-native-parity=24',
@@ -119,6 +128,7 @@ return [
                 '--require-generated-csv-native-parity=64',
                 '--require-parser-option-fixture-count=9',
                 '--require-generated-tsv-native-parity=36',
+                '--require-current-csv-direct-native-parity=2',
                 '--require-current-tsv-direct-native-parity=1',
                 '--require-runner-result-artifact',
                 '--require-no-validation-issues',

@@ -144,6 +144,7 @@ jobs:
             --require-parser-option-fixture-count=9 \
             --require-generated-csv-native-parity=64 \
             --require-generated-tsv-native-parity=36 \
+            --require-current-csv-direct-native-parity=2 \
             --require-current-tsv-direct-native-parity=1 \
             --require-pandoc-executable-csv-native-parity=45 \
             --require-pandoc-executable-tsv-native-parity=24 \
