@@ -6192,6 +6192,10 @@ final class MarkdownReader
             return $this->parseHtmlDefinitionListElement($element);
         }
         if ($name === 'table') {
+            if ($this->htmlTableElementIsEmpty($element)) {
+                return null;
+            }
+
             return $this->parseHtmlTableElement($element);
         }
         if ($name === 'figure') {
@@ -7590,6 +7594,27 @@ final class MarkdownReader
         }
 
         return '';
+    }
+
+    private function htmlTableElementIsEmpty(\DOMElement $table): bool
+    {
+        if (strtolower($table->localName) !== 'table') {
+            return false;
+        }
+
+        if (trim($this->directHtmlTableCaptionText($table)) !== '') {
+            return false;
+        }
+
+        foreach (['td', 'th'] as $name) {
+            foreach ($table->getElementsByTagName($name) as $cell) {
+                if ($cell instanceof \DOMElement) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 
     private function parseStructuredHtmlTable(string $html): ?AstNode

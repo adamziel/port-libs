@@ -1723,6 +1723,20 @@ $tests['preserves upstream html omitted table cell closures as structured table'
         $t->same('table', (new HtmlReader())->read('<!doctype html><html><body>' . $explicit . '</body></html>')->children[0]->type);
     };
 
+$tests['skips upstream html reader empty tables after HTMLDocument tree construction'] =
+    static function (TestRunner $t) use ($fixture): void {
+        $document = (new HtmlReader())->read($fixture('upstream-html-empty-tables.html'));
+
+        $t->same('html', $document->attr('sourceFormat'));
+        $t->same(Html5Dom::htmlDocumentTreeConstructionBackend(), $document->attr('meta')['htmlTreeConstruction'] ?? null);
+        $t->same(
+            ['heading', 'paragraph'],
+            array_map(static fn ($node): string => $node->type, $document->children)
+        );
+        $t->same('Empty Tables', $document->children[0]->attr('text'));
+        $t->same('This section should be empty.', $document->children[1]->attr('text'));
+    };
+
 $tests['imports upstream html transparent block containers as structural children'] =
     static function (TestRunner $t): void {
         $tags = ['address', 'article', 'center', 'dialog', 'dir', 'fieldset', 'footer', 'form', 'hgroup', 'menu', 'nav', 'search', 'summary'];

@@ -1,0 +1,16 @@
+[ Header
+    2
+    ( "empty-tables" , [] , [] )
+    [ Str "Empty" , Space , Str "Tables" ]
+, Para
+    [ Str "This"
+    , Space
+    , Str "section"
+    , Space
+    , Str "should"
+    , Space
+    , Str "be"
+    , Space
+    , Str "empty."
+    ]
+]
