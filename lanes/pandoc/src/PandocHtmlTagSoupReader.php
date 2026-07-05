@@ -13,6 +13,10 @@ final class PandocHtmlTagSoupReader
     private int $listItemDepth = 0;
     private int $quoteDepth = 0;
     private bool $inlineRunEndedAtTextBoundary = false;
+    /** @var array<string, list<AstNode>> */
+    private array $footnotes = [];
+    /** @var list<string> */
+    private array $containerIdStack = [];
 
     /**
      * @param array<string, mixed> $options
@@ -26,10 +30,13 @@ final class PandocHtmlTagSoupReader
         $parser = new TagSoupParser();
         $tokens = TagSoupParser::canonicalizeTags($parser->parse($html));
         $this->htmlBaseHref = $this->firstBaseHref($tokens);
+        $this->footnotes = (new PandocHtmlTagSoupTableReader())->footnoteDefinitionsFromTokens($tokens);
         $this->tokens = $this->focusFirstMainElement($tokens);
         $this->index = 0;
         $this->listItemDepth = 0;
         $this->quoteDepth = 0;
+        $this->inlineRunEndedAtTextBoundary = false;
+        $this->containerIdStack = [];
         $blocks = $this->parseBlocksUntil([]);
 
         return new AstNode('document', [
@@ -143,9 +150,19 @@ final class PandocHtmlTagSoupReader
 
                 return [];
             }
+            if ($this->isFootnoteContainer($token)) {
+                $this->index++;
+                $this->skipBalancedElement($name);
+
+                return [];
+            }
             $hasExplicitParagraph = $name === 'main' && $this->balancedElementContainsOpenTag('main', 'p');
             $this->index++;
+            $pushedContainerId = $this->pushContainerId($token);
             $children = $this->parseBlocksUntil([$name]);
+            if ($pushedContainerId) {
+                array_pop($this->containerIdStack);
+            }
             $this->consumeClose($name);
             $attrs = $this->nativeContainerAttrs($token);
             if ($name === 'main') {
@@ -177,7 +194,7 @@ final class PandocHtmlTagSoupReader
             $attrs = $this->pandocAttrs($token);
             $attrs['level'] = (int) $m[1];
             $attrs['text'] = $text;
-            if ($this->hasAttribute($token, 'id')) {
+            if ($this->hasAttribute($token, 'id') && in_array($this->attribute($token, 'id'), $this->containerIdStack, true)) {
                 unset($attrs['id']);
             } else {
                 $identifier = $this->htmlHeadingIdentifier($text);
@@ -242,6 +259,13 @@ final class PandocHtmlTagSoupReader
         }
 
         if (in_array($name, ['table'], true)) {
+            $result = (new PandocHtmlTagSoupTableReader())->parseTableAt($this->tokens, $this->index);
+            if (is_array($result)) {
+                $this->index = max($this->index + 1, (int) $result['nextIndex']);
+
+                return $result['blocks'];
+            }
+
             $raw = $this->renderBalancedTokenSource($name);
 
             return new AstNode('raw_html', ['format' => 'html', 'html' => $raw, 'text' => $raw]);
@@ -624,6 +648,14 @@ final class PandocHtmlTagSoupReader
         }
 
         if ($name === 'a') {
+            if ($this->isFootnoteReference($token)) {
+                $this->index++;
+                $this->skipUntilClose('a');
+                $this->consumeClose('a');
+                $id = ltrim($this->attribute($token, 'href'), '#');
+
+                return [new AstNode('note', [], $this->footnotes[$id] ?? [])];
+            }
             $this->index++;
             $children = $this->parseInlinesUntil(['a']);
             $this->consumeClose('a');
@@ -895,6 +927,31 @@ final class PandocHtmlTagSoupReader
         }
 
         return in_array('titlepage', $this->classes($tag), true);
+    }
+
+    private function isFootnoteReference(TagSoupTag $tag): bool
+    {
+        return $tag->name === 'a'
+            && strtolower(trim($this->attribute($tag, 'role'))) === 'doc-noteref'
+            && str_starts_with(trim($this->attribute($tag, 'href')), '#');
+    }
+
+    private function isFootnoteContainer(TagSoupTag $tag): bool
+    {
+        return strtolower(trim($this->attribute($tag, 'role'))) === 'doc-endnotes'
+            || in_array('footnotes', $this->classes($tag), true);
+    }
+
+    private function pushContainerId(TagSoupTag $tag): bool
+    {
+        $id = trim($this->attribute($tag, 'id'));
+        if ($id === '') {
+            return false;
+        }
+
+        $this->containerIdStack[] = $id;
+
+        return true;
     }
 
     private function consumeClose(string $name): void
