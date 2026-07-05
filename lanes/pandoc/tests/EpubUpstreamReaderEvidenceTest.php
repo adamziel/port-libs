@@ -558,6 +558,49 @@ return [
         }
     },
 
+    'rejects epub runner result artifact when upstream denominator is missing' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile, $writeRunnerTranscripts): void {
+        $root = $makeTempDir();
+        try {
+            $baseReport = (new EpubUpstreamReaderEvidence($root, 'missing-upstream'))->report();
+            $runnerPlan = $baseReport['runnerEvidence'];
+            $transcripts = $writeRunnerTranscripts($root, $runnerPlan['requiredTranscripts']);
+            $payload = [
+                'schemaVersion' => 2,
+                'runner' => 'Cabal/Tasty Pandoc EPUB reader suite',
+                'runnerExecuted' => true,
+                'upstream' => [
+                    'name' => 'jgm/pandoc',
+                    'commit' => EpubUpstreamReaderEvidence::EXPECTED_UPSTREAM_COMMIT,
+                ],
+                'target' => $runnerPlan['target'],
+                'command' => $runnerPlan['futureCommands'][2],
+                'exitCode' => 0,
+                'testCount' => 0,
+                'passedCount' => 0,
+                'failedCount' => 0,
+                'skippedCount' => 0,
+                'testNames' => [],
+                'transcriptPaths' => $runnerPlan['requiredTranscripts'],
+                'transcripts' => $transcripts,
+            ];
+            $writeFile($root, 'result.json', json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+
+            $report = (new EpubUpstreamReaderEvidence($root, 'missing-upstream', null, $root . '/result.json'))->report();
+            $issues = $report['runnerEvidence']['validation']['issues'];
+
+            $t->same(EpubUpstreamReaderEvidence::STATUS_SKIPPED_MISSING_SOURCE, $report['status']);
+            $t->same('not-evaluated-missing-upstream-root', $report['validation']['status']);
+            $t->same('invalid', $report['runnerEvidence']['status']);
+            $t->same('runner-result-artifact-invalid', $report['runnerEvidence']['commandPlanStatus']);
+            $t->same('invalid-upstream-epub-reader-runner-result-artifact', $report['runnerEvidence']['validation']['status']);
+            $t->true(in_array('runner-result-denominator-invalid', $issues, true));
+            $t->true(in_array('runner-result-denominator-empty', $issues, true));
+            $t->same(false, EpubUpstreamReaderEvidence::hasRunnerResultArtifactEvidence($report));
+        } finally {
+            $removeTree($root);
+        }
+    },
+
     'reports invalid epub reader evidence for missing fixture and bag definition' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile): void {
         $root = $makeTempDir();
         try {

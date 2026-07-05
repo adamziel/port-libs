@@ -133,7 +133,7 @@ final class EpubUpstreamReaderEvidence
                 'currentReaderStaticSignature' => self::notEvaluatedCurrentReaderStaticSignature('missing-upstream-root'),
                 'nativeAstPackageParity' => $this->currentNativeAstPackageParity(),
                 'executableNativeAstParity' => $this->currentExecutableNativeAstParity(),
-                'runnerEvidence' => $this->runnerEvidence($denominator),
+                'runnerEvidence' => $this->runnerEvidence($denominator, false),
                 'validation' => [
                     'status' => 'not-evaluated-missing-upstream-root',
                     'issues' => ['missing-upstream-root'],
@@ -185,7 +185,7 @@ final class EpubUpstreamReaderEvidence
             'currentReaderStaticSignature' => self::currentReaderStaticSignature($denominator, $validationIssues, $referencedFixtureIdentity),
             'nativeAstPackageParity' => $this->currentNativeAstPackageParity(),
             'executableNativeAstParity' => $this->currentExecutableNativeAstParity(),
-            'runnerEvidence' => $this->runnerEvidence($denominator),
+            'runnerEvidence' => $this->runnerEvidence($denominator, $validationIssues === []),
             'validation' => [
                 'status' => $validationIssues === [] ? 'valid-upstream-epub-reader-mediabag-denominator' : 'invalid-upstream-epub-reader-mediabag-denominator',
                 'issues' => $validationIssues,
@@ -572,20 +572,20 @@ final class EpubUpstreamReaderEvidence
     /**
      * @return array<string, mixed>
      */
-    private function runnerEvidence(array $denominator): array
+    private function runnerEvidence(array $denominator, bool $denominatorIsValid): array
     {
         if ($this->runnerResultArtifact === null) {
             return self::runnerNotRunEvidence();
         }
 
-        return $this->runnerResultArtifactEvidence($denominator);
+        return $this->runnerResultArtifactEvidence($denominator, $denominatorIsValid);
     }
 
     /**
      * @param array<string, mixed> $denominator
      * @return array<string, mixed>
      */
-    private function runnerResultArtifactEvidence(array $denominator): array
+    private function runnerResultArtifactEvidence(array $denominator, bool $denominatorIsValid): array
     {
         $path = $this->absoluteRunnerResultArtifact();
         $artifact = $this->runnerResultArtifactFileEvidence($path);
@@ -627,6 +627,12 @@ final class EpubUpstreamReaderEvidence
         $skippedCount = is_int($payload['skippedCount'] ?? null) ? (int) $payload['skippedCount'] : null;
 
         if ($payload !== []) {
+            if (!$denominatorIsValid) {
+                $issues[] = 'runner-result-denominator-invalid';
+            }
+            if ($expectedTestNames === []) {
+                $issues[] = 'runner-result-denominator-empty';
+            }
             if (($payload['schemaVersion'] ?? null) !== self::RUNNER_RESULT_ARTIFACT_SCHEMA_VERSION) {
                 $issues[] = 'runner-result-schema-version-mismatch';
             }
