@@ -12,9 +12,9 @@ final class MarkdownUpstreamReaderEvidence
     public const STATUS_COMPLETED = 'completed-upstream-markdown-reader-evidence';
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-markdown-root';
     public const CHECKED_IN_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures';
-    public const EXPECTED_SELECTED_FIXTURE_COUNT = 104;
-    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 104;
-    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = '6c53f4af550f71dd22eea833543dcc966fbcd8ecb38b96590d850ee7bd4a02e8';
+    public const EXPECTED_SELECTED_FIXTURE_COUNT = 105;
+    public const EXPECTED_NATIVE_MAPPED_PAIR_COUNT = 105;
+    public const EXPECTED_NATIVE_EXPECTATION_MANIFEST_SHA256 = 'd15a0a89b12e275b2d421562efba9e97d096c2e3d4bb5d42f76aa533ad0b26c8';
 
     private const SOURCE_FILES = [
         'test/Tests/Readers/Markdown.hs',
@@ -1337,6 +1337,19 @@ final class MarkdownUpstreamReaderEvidence
             ],
             'sha256' => 'f1a577d502c60ea42b20146a305234d7dbeface9f317244dd448e4561f3af3f5',
             'bytes' => 76,
+        ],
+        'upstream-command-gfm-adjacent-emoji.md' => [
+            'role' => 'command-gfm-adjacent-emoji-reader-fixture',
+            'sourceKind' => 'upstream-command-fixture',
+            'sourceReference' => 'test/command/gfm.md adjacent emoji shortcodes',
+            'formatProfile' => 'gfm adjacent emoji shortcodes',
+            'checkedInPath' => 'lanes/pandoc/fixtures/upstream-command-gfm-adjacent-emoji.md',
+            'coverageTests' => [
+                'lanes/pandoc/tests/MarkdownReaderEmojiFixtureTest.php',
+                'lanes/pandoc/tests/MarkdownNativeAstComparisonHarnessTest.php',
+            ],
+            'sha256' => '15a3812101cfabd5d2f4a2f9cff931e025e4f858dac535590c0d699a929f69ac',
+            'bytes' => 25,
         ],
     ];
 

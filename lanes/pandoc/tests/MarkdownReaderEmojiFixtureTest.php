@@ -43,4 +43,27 @@ return [
             $t->same(1, count($cases));
             $t->same(':smile: and :+1:', $cases[0]);
         },
+
+    'maps upstream command gfm adjacent emoji aliases fixture' =>
+        static function (TestRunner $t): void {
+            $source = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-command-gfm-adjacent-emoji.md');
+            $document = (new MarkdownReader(['format' => 'gfm']))->read($source);
+            $paragraph = $document->children[0] ?? new AstNode('missing');
+            $blocks = (new WordPressBlockWriter())->write($document);
+
+            $t->same(1, count($document->children));
+            $t->same('paragraph', $paragraph->type);
+            $t->same("My\u{1F44D}emoji\u{2764}\u{FE0F}", $paragraph->attr('text'));
+            $t->same(['text', 'span', 'text', 'span'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+            $t->same('My', $paragraph->children[0]->attr('text'));
+            $t->same(['emoji'], $paragraph->children[1]->attr('classes'));
+            $t->same(['data-emoji' => 'thumbsup'], $paragraph->children[1]->attr('attributes'));
+            $t->same("\u{1F44D}", $paragraph->children[1]->children[0]->attr('text'));
+            $t->same('emoji', $paragraph->children[2]->attr('text'));
+            $t->same(['emoji'], $paragraph->children[3]->attr('classes'));
+            $t->same(['data-emoji' => 'heart'], $paragraph->children[3]->attr('attributes'));
+            $t->same("\u{2764}\u{FE0F}", $paragraph->children[3]->children[0]->attr('text'));
+            $t->contains('<span class="emoji" data-emoji="thumbsup">' . "\u{1F44D}" . '</span>', $blocks);
+            $t->contains('<span class="emoji" data-emoji="heart">' . "\u{2764}\u{FE0F}" . '</span>', $blocks);
+        },
 ];
