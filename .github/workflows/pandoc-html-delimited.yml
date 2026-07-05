@@ -152,6 +152,7 @@ jobs:
       - name: Run focused HTML and delimited parity tests
         run: |
           php tools/run-tests.php \
+            lanes/pandoc/tests/DelimitedTextEvidenceStatusTest.php \
             lanes/pandoc/tests/DelimitedTextReaderTest.php \
             lanes/pandoc/tests/DelimitedTextUpstreamReaderEvidenceTest.php \
             lanes/pandoc/tests/Html5DomTest.php \

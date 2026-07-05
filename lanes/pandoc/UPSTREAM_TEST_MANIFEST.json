@@ -79,6 +79,46 @@
         "jsonWriter": "lanes/pandoc/src/JsonWriter.php",
         "jsonTest": "lanes/pandoc/tests/JsonReaderWriterTest.php"
     },
+    "delimitedTextReaderEvidence": {
+        "schemaVersion": 1,
+        "tool": "tools/pandoc-delimited-text-reader-evidence.php",
+        "status": "tracked-current-delimited-text-reader-parity-rollup",
+        "upstreamCommit": "4f5226df4faa0d66dd2c089465b13886360ab3c2",
+        "directFixtureEvidence": {
+            "csvDirectFixtureCount": 3,
+            "tsvDirectFixtureCount": 0,
+            "csvAdjacentRstFixtureCount": 2,
+            "csvAdjacentRstDirectDenominatorImpact": 0
+        },
+        "generatedNativeParity": {
+            "csvSampleCount": 64,
+            "csvMatchCount": 64,
+            "csvMismatchCount": 0,
+            "tsvSampleCount": 36,
+            "tsvMatchCount": 36,
+            "tsvMismatchCount": 0,
+            "totalSampleCount": 100,
+            "totalMatchCount": 100
+        },
+        "pandocExecutableNativeParity": {
+            "requiredPandocVersion": "pandoc 3.10",
+            "csvSampleCount": 44,
+            "csvMatchCount": 44,
+            "csvMismatchCount": 0,
+            "tsvSampleCount": 24,
+            "tsvMatchCount": 24,
+            "tsvMismatchCount": 0,
+            "totalSampleCount": 68,
+            "totalMatchCount": 68
+        },
+        "runnerEvidence": {
+            "status": "not-run",
+            "commandPlanStatus": "planned-not-run",
+            "target": "Command:/csv.md/#1",
+            "upstreamRunnerParityClaimed": false
+        },
+        "claim": "Tracks current direct CSV/TSV reader fixture denominators, generated CSV/TSV-to-native parity, and installed pandoc executable subsets. This is not an upstream Haskell/Cabal/Tasty runner result and does not claim full CSV/TSV parity beyond these direct/generated samples."
+    },
     "benchmarkDenominator": {
         "status": "cloned-static-inventory",
         "total": 2276,
