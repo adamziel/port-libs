@@ -154,6 +154,12 @@ return [
         $t->true(Html5Dom::rawHtmlOpeningTagLineIsStandalone('<hr data-review=ok />', 'hr'));
         $t->true(Html5Dom::rawHtmlLineHasOpeningAndClosingTag('<object data="x">fallback</object>', 'object'));
         $t->true(Html5Dom::rawHtmlSourceContainsOpeningTag('<pre><code>safe</code></pre>', 'code'));
+        $t->true(Html5Dom::rawHtmlSourceContainsClosingTag('<video><source src="x"></video>', 'video'));
+        $t->same(26, Html5Dom::rawHtmlClosingTagBoundaryAfter('<button data-x>ok</button>   ', 15, 'button')['next'] ?? null);
+        $t->true(Html5Dom::htmlDocumentBoundaryAtStart('   <!doctype html><html><body>x</body></html>', 3));
+        $t->true(Html5Dom::htmlDocumentBoundaryAtStart("\n\t<html><body>x</body></html>"));
+        $t->true(!Html5Dom::htmlDocumentBoundaryAtStart('    <html><body>x</body></html>', 3));
+        $t->same('<html><body>x</body></html>', Html5Dom::stripContentDocumentPreamble("\xEF\xBB\xBF <?xml version=\"1.0\"?>\n<!DOCTYPE html>\n<html><body>x</body></html>"));
     },
     'limits pre-tree literal payload protection to inert source payload elements' => static function (TestRunner $t): void {
         $ordinary = '<p><b>one<p>two</b>three</p>';

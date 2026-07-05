@@ -781,7 +781,7 @@ final class EpubReader
     private function xhtmlNavigationSectionLabel(\DOMElement $nav): string
     {
         foreach ($nav->childNodes as $child) {
-            if (!$child instanceof \DOMElement || !preg_match('/^h[1-6]$/i', $child->localName)) {
+            if (!$child instanceof \DOMElement || !$this->isHeadingElementName($child->localName)) {
                 continue;
             }
 
@@ -789,6 +789,14 @@ final class EpubReader
         }
 
         return '';
+    }
+
+    private function isHeadingElementName(string $name): bool
+    {
+        return strlen($name) === 2
+            && ($name[0] === 'h' || $name[0] === 'H')
+            && $name[1] >= '1'
+            && $name[1] <= '6';
     }
 
     /**
@@ -961,11 +969,7 @@ final class EpubReader
 
     private function contentDocumentMarkup(string $xhtml): string
     {
-        $xhtml = preg_replace('/^\xEF\xBB\xBF/', '', $xhtml) ?? $xhtml;
-        $xhtml = preg_replace('/^\s*<\?xml[^>]*>\s*/i', '', $xhtml) ?? $xhtml;
-        $xhtml = preg_replace('/^\s*<!DOCTYPE\s+html\b[^>]*>\s*/i', '', $xhtml) ?? $xhtml;
-
-        return ltrim($xhtml);
+        return Html5Dom::stripContentDocumentPreamble($xhtml);
     }
 
     private function epubContentHtmlReader(): HtmlReader
@@ -1454,17 +1458,21 @@ final class EpubReader
 
     private function isEpubOpeningRawHtmlTag(string $html, string $tag): bool
     {
-        return preg_match('/^<\s*' . preg_quote($tag, '/') . '\b/i', $html) === 1;
+        $opening = Html5Dom::rawHtmlOpeningTagAt($html);
+
+        return $opening !== null && $opening['name'] === strtolower($tag);
     }
 
     private function isEpubClosingRawHtmlTag(string $html, string $tag): bool
     {
-        return preg_match('/^<\s*\/\s*' . preg_quote($tag, '/') . '\b/i', $html) === 1;
+        $closing = Html5Dom::rawHtmlClosingTagAt($html);
+
+        return $closing !== null && $closing['name'] === strtolower($tag);
     }
 
     private function rawHtmlTagClosesElement(string $html, string $tag): bool
     {
-        return preg_match('/<\s*\/\s*' . preg_quote($tag, '/') . '\s*>/i', $html) === 1;
+        return Html5Dom::rawHtmlSourceContainsClosingTag($html, $tag);
     }
 
     /**

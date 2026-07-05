@@ -386,6 +386,24 @@ final class Html5Dom
         return null;
     }
 
+    /**
+     * @return array{name:string,source:string,next:int,offset:int}|null
+     */
+    public static function rawHtmlClosingTagBoundaryAfter(string $source, int $offset, string $name): ?array
+    {
+        $name = strtolower($name);
+        $cursor = max(0, $offset);
+        while (($candidateOffset = strpos($source, '<', $cursor)) !== false) {
+            $tag = self::rawHtmlClosingTagAt($source, $candidateOffset);
+            if ($tag !== null && $tag['name'] === $name && self::onlyHtmlSpaceAfter($source, $tag['next'])) {
+                return $tag + ['offset' => $candidateOffset];
+            }
+            $cursor = $candidateOffset + 1;
+        }
+
+        return null;
+    }
+
     public static function rawHtmlSourceContainsOpeningTag(string $source, string $name): bool
     {
         $name = strtolower($name);
@@ -401,12 +419,53 @@ final class Html5Dom
         return false;
     }
 
+    public static function rawHtmlSourceContainsClosingTag(string $source, string $name): bool
+    {
+        return self::rawHtmlClosingTagEndAfter($source, 0, $name) !== null;
+    }
+
+    public static function htmlDocumentBoundaryAtStart(string $source, ?int $maxLeadingSpaces = null): bool
+    {
+        $offset = self::htmlDocumentBoundaryOffset($source, $maxLeadingSpaces);
+        if ($offset === null) {
+            return false;
+        }
+
+        $opening = self::rawHtmlOpeningTagAt($source, $offset);
+        if ($opening !== null && $opening['name'] === 'html') {
+            return true;
+        }
+
+        return self::htmlDoctypeHtmlAt($source, $offset) !== null;
+    }
+
+    public static function stripContentDocumentPreamble(string $source): string
+    {
+        if (str_starts_with($source, "\xEF\xBB\xBF")) {
+            $source = substr($source, 3);
+        }
+
+        $offset = self::skipHtmlSpace($source, 0);
+        $xmlDeclarationEnd = self::xmlDeclarationEndAt($source, $offset);
+        if ($xmlDeclarationEnd !== null) {
+            $source = substr($source, $xmlDeclarationEnd);
+        }
+
+        $offset = self::skipHtmlSpace($source, 0);
+        $doctypeEnd = self::htmlDoctypeHtmlAt($source, $offset);
+        if ($doctypeEnd !== null) {
+            $source = substr($source, $doctypeEnd);
+        }
+
+        return ltrim($source);
+    }
+
     /**
      * Parse one or more XML fragment roots under a synthetic wrapper element.
      */
     public static function parseXmlFragment(string $xml, string $wrapperName = 'pandoc-fragment'): \DOMElement
     {
-        if (preg_match('/^[A-Za-z_][A-Za-z0-9_.-]*$/', $wrapperName) !== 1) {
+        if (!self::isSimpleXmlWrapperName($wrapperName)) {
             throw new \InvalidArgumentException('XML fragment wrapper name must be a simple XML name');
         }
 
@@ -686,6 +745,25 @@ final class Html5Dom
         return ($line[$offset] ?? '') === '<' ? $offset : null;
     }
 
+    private static function htmlDocumentBoundaryOffset(string $source, ?int $maxLeadingSpaces): ?int
+    {
+        $length = strlen($source);
+        $offset = 0;
+        if ($maxLeadingSpaces === null) {
+            while ($offset < $length && self::isHtmlSpace($source[$offset])) {
+                $offset++;
+            }
+        } else {
+            $indent = 0;
+            while ($offset < $length && $source[$offset] === ' ' && $indent < $maxLeadingSpaces) {
+                $offset++;
+                $indent++;
+            }
+        }
+
+        return ($source[$offset] ?? '') === '<' ? $offset : null;
+    }
+
     private static function onlyHtmlSpaceAfter(string $source, int $offset): bool
     {
         $length = strlen($source);
@@ -706,6 +784,72 @@ final class Html5Dom
         }
 
         return $offset;
+    }
+
+    private static function htmlDoctypeHtmlAt(string $source, int $offset): ?int
+    {
+        $length = strlen($source);
+        if (($source[$offset] ?? '') !== '<' || ($source[$offset + 1] ?? '') !== '!') {
+            return null;
+        }
+
+        $cursor = self::skipHtmlSpace($source, $offset + 2);
+        if (!self::asciiKeywordAt($source, $cursor, 'doctype')) {
+            return null;
+        }
+
+        $cursor += strlen('doctype');
+        if (!self::isHtmlSpace($source[$cursor] ?? '')) {
+            return null;
+        }
+
+        $cursor = self::skipHtmlSpace($source, $cursor);
+        if (!self::asciiKeywordAt($source, $cursor, 'html')) {
+            return null;
+        }
+
+        $cursor += strlen('html');
+        if (self::isHtmlTagNameChar($source[$cursor] ?? '')) {
+            return null;
+        }
+
+        while ($cursor < $length && $source[$cursor] !== '>') {
+            $cursor++;
+        }
+
+        return $cursor < $length ? $cursor + 1 : null;
+    }
+
+    private static function xmlDeclarationEndAt(string $source, int $offset): ?int
+    {
+        if (($source[$offset] ?? '') !== '<' || ($source[$offset + 1] ?? '') !== '?') {
+            return null;
+        }
+
+        $targetOffset = $offset + 2;
+        if (!self::asciiKeywordBoundaryAt($source, $targetOffset, 'xml')) {
+            return null;
+        }
+
+        $afterTarget = $targetOffset + strlen('xml');
+        $next = $source[$afterTarget] ?? '';
+        if ($next !== '?' && !self::isHtmlSpace($next)) {
+            return null;
+        }
+
+        $end = strpos($source, '?>', $afterTarget);
+        if ($end !== false) {
+            return $end + 2;
+        }
+
+        $legacyEnd = strpos($source, '>', $afterTarget);
+
+        return $legacyEnd === false ? null : $legacyEnd + 1;
+    }
+
+    private static function asciiKeywordAt(string $source, int $offset, string $keyword): bool
+    {
+        return strncasecmp(substr($source, $offset, strlen($keyword)), $keyword, strlen($keyword)) === 0;
     }
 
     private static function htmlDocumentAcceptsRawTagCandidate(string $candidate): bool
@@ -762,6 +906,23 @@ final class Html5Dom
     private static function isAsciiAlpha(string $char): bool
     {
         return ($char >= 'a' && $char <= 'z') || ($char >= 'A' && $char <= 'Z');
+    }
+
+    private static function isSimpleXmlWrapperName(string $name): bool
+    {
+        $length = strlen($name);
+        if ($length === 0 || (!self::isAsciiAlpha($name[0]) && $name[0] !== '_')) {
+            return false;
+        }
+
+        for ($offset = 1; $offset < $length; $offset++) {
+            $char = $name[$offset];
+            if (!self::isAsciiAlpha($char) && !ctype_digit($char) && !in_array($char, ['_', '.', '-'], true)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static function html5TreeConstructedSource(string $html): ?string
@@ -1002,13 +1163,13 @@ final class Html5Dom
     {
         self::assertNoNullByte($xml, $label);
         $declarationScanSource = self::sourceForDeclarationScan($xml);
-        if (preg_match('/<\?xml\b/i', $declarationScanSource) === 1) {
+        if (self::containsXmlDeclaration($declarationScanSource)) {
             throw new \InvalidArgumentException($label . ' must not include an XML declaration');
         }
-        if (preg_match('/<\?[A-Za-z_][A-Za-z0-9_.:-]*/', $declarationScanSource) === 1) {
+        if (self::containsProcessingInstruction($declarationScanSource)) {
             throw new \InvalidArgumentException($label . ' must not include processing instructions');
         }
-        if (preg_match('/<!\s*(?:DOCTYPE|ENTITY|ELEMENT|ATTLIST|NOTATION)\b/i', $declarationScanSource) === 1) {
+        if (self::containsMarkupDeclaration($declarationScanSource, ['DOCTYPE', 'ENTITY', 'ELEMENT', 'ATTLIST', 'NOTATION'])) {
             throw new \InvalidArgumentException($label . ' must not declare DTDs or entities');
         }
     }
@@ -1017,7 +1178,7 @@ final class Html5Dom
     {
         self::assertNoNullByte($xml, $label);
         $declarationScanSource = self::sourceForDeclarationScan($xml);
-        if (preg_match('/<!\s*(?:DOCTYPE|ENTITY|ELEMENT|ATTLIST|NOTATION)\b/i', $declarationScanSource) === 1) {
+        if (self::containsMarkupDeclaration($declarationScanSource, ['DOCTYPE', 'ENTITY', 'ELEMENT', 'ATTLIST', 'NOTATION'])) {
             throw new \InvalidArgumentException($label . ' must not declare DTDs or entities');
         }
     }
@@ -1025,10 +1186,10 @@ final class Html5Dom
     private static function assertNoHtmlFragmentDeclarations(string $html, string $label): void
     {
         $declarationScanSource = self::sourceForDeclarationScan($html);
-        if (preg_match('/<!\s*(?:DOCTYPE|ENTITY|ELEMENT|ATTLIST|NOTATION)\b/i', $declarationScanSource) === 1) {
+        if (self::containsMarkupDeclaration($declarationScanSource, ['DOCTYPE', 'ENTITY', 'ELEMENT', 'ATTLIST', 'NOTATION'])) {
             throw new \InvalidArgumentException($label . ' must not declare DTDs or entities');
         }
-        if (preg_match('/<\?[A-Za-z_][A-Za-z0-9_.:-]*/', $declarationScanSource) === 1) {
+        if (self::containsProcessingInstruction($declarationScanSource)) {
             throw new \InvalidArgumentException($label . ' must not include processing instructions');
         }
     }
@@ -1045,13 +1206,13 @@ final class Html5Dom
         );
         $declarationScanSource = self::sourceForDeclarationScan($preflight);
         self::assertSimpleHtmlDocumentDoctype($declarationScanSource, $label);
-        if (preg_match('/<!\s*DOCTYPE\b[^>]*\[/is', $declarationScanSource) === 1) {
+        if (self::containsHtmlDoctypeInternalSubset($declarationScanSource)) {
             throw new \InvalidArgumentException($label . ' must not declare DTDs or entities');
         }
-        if (preg_match('/<!\s*(?:ENTITY|ELEMENT|ATTLIST|NOTATION)\b/i', $declarationScanSource) === 1) {
+        if (self::containsMarkupDeclaration($declarationScanSource, ['ENTITY', 'ELEMENT', 'ATTLIST', 'NOTATION'])) {
             throw new \InvalidArgumentException($label . ' must not declare DTDs or entities');
         }
-        if (preg_match('/<\?[A-Za-z_][A-Za-z0-9_.:-]*/', $declarationScanSource) === 1) {
+        if (self::containsProcessingInstruction($declarationScanSource)) {
             throw new \InvalidArgumentException($label . ' must not include processing instructions');
         }
     }
@@ -1115,7 +1276,7 @@ final class Html5Dom
             ++$nameOffset;
         }
 
-        return $nameOffset < $length && preg_match('/[A-Za-z]/', $source[$nameOffset]) === 1;
+        return $nameOffset < $length && self::isAsciiAlpha($source[$nameOffset]);
     }
 
     /**
@@ -1151,16 +1312,163 @@ final class Html5Dom
         return [$tag, $offset];
     }
 
-    private static function assertSimpleHtmlDocumentDoctype(string $html, string $label): void
+    private static function containsXmlDeclaration(string $source): bool
     {
-        $doctypeCount = preg_match_all('/<!\s*DOCTYPE\b([^>]*)>/is', $html, $matches);
-        if ($doctypeCount === false) {
-            return;
+        $cursor = 0;
+        while (($offset = strpos($source, '<?', $cursor)) !== false) {
+            $targetOffset = $offset + 2;
+            if (self::asciiKeywordBoundaryAt($source, $targetOffset, 'xml')) {
+                return true;
+            }
+            $cursor = $targetOffset;
         }
 
-        if (preg_match('/<!\s*DOCTYPE\b/is', $html) === 1 && $doctypeCount === 0) {
-            throw new \InvalidArgumentException($label . ' must use a complete simple HTML doctype');
+        return false;
+    }
+
+    private static function containsProcessingInstruction(string $source): bool
+    {
+        $cursor = 0;
+        while (($offset = strpos($source, '<?', $cursor)) !== false) {
+            $targetOffset = $offset + 2;
+            if (self::isAsciiAlpha($source[$targetOffset] ?? '') || ($source[$targetOffset] ?? '') === '_') {
+                return true;
+            }
+            $cursor = $targetOffset;
         }
+
+        return false;
+    }
+
+    /**
+     * @param list<string> $keywords
+     */
+    private static function containsMarkupDeclaration(string $source, array $keywords): bool
+    {
+        $cursor = 0;
+        while (($offset = strpos($source, '<!', $cursor)) !== false) {
+            if (self::markupDeclarationKeywordOffset($source, $offset, $keywords) !== null) {
+                return true;
+            }
+            $cursor = $offset + 2;
+        }
+
+        return false;
+    }
+
+    private static function containsHtmlDoctypeInternalSubset(string $source): bool
+    {
+        foreach (self::htmlDoctypeDeclarations($source) as $doctype) {
+            if ($doctype['hasInternalSubset']) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return list<array{contents:string,complete:bool,hasInternalSubset:bool}>
+     */
+    private static function htmlDoctypeDeclarations(string $source): array
+    {
+        $declarations = [];
+        $cursor = 0;
+        while (($offset = strpos($source, '<!', $cursor)) !== false) {
+            $keywordOffset = self::markupDeclarationKeywordOffset($source, $offset, ['DOCTYPE']);
+            if ($keywordOffset === null) {
+                $cursor = $offset + 2;
+                continue;
+            }
+
+            $contentsOffset = $keywordOffset + strlen('DOCTYPE');
+            $end = strpos($source, '>', $contentsOffset);
+            if ($end === false) {
+                $contents = substr($source, $contentsOffset);
+                $declarations[] = [
+                    'contents' => $contents,
+                    'complete' => false,
+                    'hasInternalSubset' => str_contains($contents, '['),
+                ];
+                break;
+            }
+
+            $contents = substr($source, $contentsOffset, $end - $contentsOffset);
+            $declarations[] = [
+                'contents' => $contents,
+                'complete' => true,
+                'hasInternalSubset' => str_contains($contents, '['),
+            ];
+            $cursor = $end + 1;
+        }
+
+        return $declarations;
+    }
+
+    /**
+     * @param list<string> $keywords
+     */
+    private static function markupDeclarationKeywordOffset(string $source, int $offset, array $keywords): ?int
+    {
+        if (($source[$offset] ?? '') !== '<' || ($source[$offset + 1] ?? '') !== '!') {
+            return null;
+        }
+
+        $keywordOffset = self::skipHtmlSpace($source, $offset + 2);
+        foreach ($keywords as $keyword) {
+            if (self::asciiKeywordBoundaryAt($source, $keywordOffset, $keyword)) {
+                return $keywordOffset;
+            }
+        }
+
+        return null;
+    }
+
+    private static function asciiKeywordBoundaryAt(string $source, int $offset, string $keyword): bool
+    {
+        if (!self::asciiKeywordAt($source, $offset, $keyword)) {
+            return false;
+        }
+
+        return !self::isAsciiKeywordContinuation($source[$offset + strlen($keyword)] ?? '');
+    }
+
+    private static function isAsciiKeywordContinuation(string $char): bool
+    {
+        return $char !== '' && (self::isAsciiAlpha($char) || ctype_digit($char) || $char === '_');
+    }
+
+    private static function collapseHtmlSpace(string $source): string
+    {
+        $length = strlen($source);
+        $normalized = '';
+        $inSpace = false;
+        for ($offset = 0; $offset < $length; $offset++) {
+            if (self::isHtmlSpace($source[$offset])) {
+                if (!$inSpace) {
+                    $normalized .= ' ';
+                    $inSpace = true;
+                }
+                continue;
+            }
+
+            $normalized .= $source[$offset];
+            $inSpace = false;
+        }
+
+        return trim($normalized);
+    }
+
+    private static function assertSimpleHtmlDocumentDoctype(string $html, string $label): void
+    {
+        $doctypes = self::htmlDoctypeDeclarations($html);
+        foreach ($doctypes as $doctype) {
+            if (!$doctype['complete']) {
+                throw new \InvalidArgumentException($label . ' must use a complete simple HTML doctype');
+            }
+        }
+
+        $doctypeCount = count($doctypes);
         if ($doctypeCount > 1) {
             throw new \InvalidArgumentException($label . ' must not declare multiple doctypes');
         }
@@ -1168,7 +1476,7 @@ final class Html5Dom
             return;
         }
 
-        $doctypeName = preg_replace('/\s+/u', ' ', trim((string) $matches[1][0])) ?? trim((string) $matches[1][0]);
+        $doctypeName = self::collapseHtmlSpace($doctypes[0]['contents']);
         if (strcasecmp($doctypeName, 'html') !== 0) {
             throw new \InvalidArgumentException($label . ' must use a simple HTML doctype without external identifiers or subsets');
         }
