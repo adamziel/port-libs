@@ -348,7 +348,11 @@ return [
         $nativeParity = $static['nativeAstMappedParity'];
         $executableParity = $static['executableNativeAstMappedParity'];
         $reviewMetadata = $static['checkedInReviewMetadata'];
-        $reviewFixture = $reviewMetadata['fixtures'][0];
+        $reviewFixturesByStem = [];
+        foreach ($reviewMetadata['fixtures'] as $fixture) {
+            $reviewFixturesByStem[$fixture['stem']] = $fixture;
+        }
+        $reviewFixture = $reviewFixturesByStem['chart-placeholder'];
         $reviewChart = $reviewFixture['charts'][0];
         $expectedChartPlaceholderReview = [
             'graphicUri' => 'http://schemas.openxmlformats.org/drawingml/2006/chart',
@@ -361,7 +365,42 @@ return [
             'chartType' => 'unknown',
             'series' => [],
             'externalDataRelationshipIds' => [],
+            'externalDataRelationships' => [],
             'issues' => ['unknown-chart-relationship'],
+            'byteExposurePolicy' => 'chart-part-bytes-blocked',
+            'reviewPolicy' => 'chart-metadata-and-cache-values-only',
+        ];
+        $expectedChartEmbeddedWorkbookReview = [
+            'graphicUri' => 'http://schemas.openxmlformats.org/drawingml/2006/chart',
+            'relationshipId' => 'rIdChart1',
+            'relationshipType' => 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart',
+            'target' => '../charts/chart1.xml',
+            'partName' => 'ppt/charts/chart1.xml',
+            'external' => false,
+            'title' => 'Embedded Workbook Chart',
+            'chartType' => 'unknown',
+            'series' => [],
+            'externalDataRelationshipIds' => ['rIdWorkbook'],
+            'externalDataRelationships' => [
+                [
+                    'relationshipId' => 'rIdWorkbook',
+                    'relationshipType' => 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package',
+                    'target' => '../embeddings/Microsoft_Excel_Worksheet1.xlsx',
+                    'external' => false,
+                    'partName' => 'ppt/embeddings/Microsoft_Excel_Worksheet1.xlsx',
+                    'exists' => true,
+                    'zipEntry' => 'ppt/embeddings/Microsoft_Excel_Worksheet1.xlsx',
+                    'contentType' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    'packageRelationshipRole' => 'embedded-workbook',
+                    'embeddedWorkbook' => true,
+                    'byteLength' => 35,
+                    'compressedByteLength' => 35,
+                    'compressionMethod' => 0,
+                    'sha256' => '88240b7ef08d8ae0d2d98545f46f46a7fc38d4aa83749fb4b273c45d09393c3d',
+                    'byteExposurePolicy' => 'package-part-bytes-hashed-not-exposed',
+                ],
+            ],
+            'issues' => [],
             'byteExposurePolicy' => 'chart-part-bytes-blocked',
             'reviewPolicy' => 'chart-metadata-and-cache-values-only',
         ];
@@ -397,6 +436,7 @@ return [
         $centerTitlePlaceholderPair = $pairsByStem['center-title-placeholder'];
         $cdataEntityTextPair = $pairsByStem['cdata-entity-text'];
         $chartPlaceholderPair = $pairsByStem['chart-placeholder'];
+        $chartEmbeddedWorkbookPair = $pairsByStem['chart-embedded-workbook'];
         $commentsIgnoredPair = $pairsByStem['comments-ignored'];
         $contentPartSkipPair = $pairsByStem['content-part-skip'];
         $diagramMissingRelsPair = $pairsByStem['diagram-missing-rels'];
@@ -470,7 +510,7 @@ return [
         $t->same('text extraction', $static['readerDenominator']['expectedReaderCases'][0]['name']);
         $t->same('pptx-reader/basic.pptx', $static['readerDenominator']['expectedReaderCases'][0]['pptx']);
         $t->same('pptx-reader/basic.native', $static['readerDenominator']['expectedReaderCases'][0]['native']);
-        $t->same(95, $static['checkedInFixturePairCount']);
+        $t->same(96, $static['checkedInFixturePairCount']);
         $t->same(0, $static['checkedInUnpairedPptxFixtureCount']);
         $t->same(0, $static['checkedInUnpairedNativeFixtureCount']);
         $t->same([], $static['checkedInUnpairedPptxFixtures']);
@@ -478,16 +518,16 @@ return [
         $t->same('checked-in-current-pptx-native-normalized-ast-parity', $nativeParity['kind']);
         $t->same('completed', $nativeParity['status']);
         $t->same(false, $nativeParity['skipped']);
-        $t->same(95, $nativeParity['requiredPairCount']);
-        $t->same(95, $nativeParity['totalPairCount']);
-        $t->same(95, $nativeParity['comparedPairCount']);
-        $t->same(95, $nativeParity['pptxParsedCount']);
-        $t->same(95, $nativeParity['nativeParsedCount']);
-        $t->same(95, $nativeParity['bothParsedCount']);
+        $t->same(96, $nativeParity['requiredPairCount']);
+        $t->same(96, $nativeParity['totalPairCount']);
+        $t->same(96, $nativeParity['comparedPairCount']);
+        $t->same(96, $nativeParity['pptxParsedCount']);
+        $t->same(96, $nativeParity['nativeParsedCount']);
+        $t->same(96, $nativeParity['bothParsedCount']);
         $t->same(0, $nativeParity['parseFailureCount']);
-        $t->same(95, $nativeParity['normalizedAstMatchCount']);
+        $t->same(96, $nativeParity['normalizedAstMatchCount']);
         $t->same(0, $nativeParity['normalizedAstMismatchCount']);
-        $t->same(95, count($nativeParity['fixtureComparisons']));
+        $t->same(96, count($nativeParity['fixtureComparisons']));
         $t->same([], array_values(array_filter(
             $nativeParity['fixtureComparisons'],
             static fn (array $row): bool => ($row['status'] ?? null) !== 'matched'
@@ -497,27 +537,27 @@ return [
         $t->same('checked-in-current-pptx-executable-native-normalized-ast-parity', $executableParity['kind']);
         $t->same('completed', $executableParity['status']);
         $t->same(false, $executableParity['skipped']);
-        $t->same(95, $executableParity['requiredPptxCount']);
+        $t->same(96, $executableParity['requiredPptxCount']);
         $t->same('valid-checked-in-current-pptx-executable-native-ast-parity', $executableParity['validation']['status']);
         $t->same([], $executableParity['validation']['issues']);
         $t->same('lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json', $executableParity['snapshotFile']['path']);
         $t->same(true, $executableParity['snapshotFile']['present']);
-        $t->same('51a8214b7dd3b00f3331b5ebede8e3277f100354ac1364fbff64ac3053207b86', $executableParity['snapshotFile']['sha256']);
-        $t->same(41227, $executableParity['snapshotFile']['bytes']);
+        $t->same('287e626a2046f1a2acc98afb91cc765a947f3d009b3348999c6df7bc2f033d59', $executableParity['snapshotFile']['sha256']);
+        $t->same(41630, $executableParity['snapshotFile']['bytes']);
         $t->same('2026-07-05', $executableParity['capturedDate']);
         $t->same('pandoc 3.10', $executableParity['requiredPandocVersion']);
         $t->same('pandoc 3.10', $executableParity['pandocVersion']);
-        $t->same(95, $executableParity['totalPptxCount']);
-        $t->same(95, $executableParity['comparedPptxCount']);
-        $t->same(95, $executableParity['localParsedCount']);
-        $t->same(95, $executableParity['pandocParsedCount']);
-        $t->same(95, $executableParity['nativeFixtureParsedCount']);
-        $t->same(95, $executableParity['bothParsedCount']);
+        $t->same(96, $executableParity['totalPptxCount']);
+        $t->same(96, $executableParity['comparedPptxCount']);
+        $t->same(96, $executableParity['localParsedCount']);
+        $t->same(96, $executableParity['pandocParsedCount']);
+        $t->same(96, $executableParity['nativeFixtureParsedCount']);
+        $t->same(96, $executableParity['bothParsedCount']);
         $t->same(0, $executableParity['parseFailureCount']);
-        $t->same(95, $executableParity['normalizedAstMatchCount']);
+        $t->same(96, $executableParity['normalizedAstMatchCount']);
         $t->same(0, $executableParity['normalizedAstMismatchCount']);
-        $t->same(95, $executableParity['pandocNativeFixtureComparedCount']);
-        $t->same(95, $executableParity['pandocNativeFixtureMatchCount']);
+        $t->same(96, $executableParity['pandocNativeFixtureComparedCount']);
+        $t->same(96, $executableParity['pandocNativeFixtureMatchCount']);
         $t->same(0, $executableParity['pandocNativeFixtureMismatchCount']);
         $t->same('normalized-ast-equality-observed-against-pandoc-executable', $executableParity['astParityStatus']);
         $t->same(true, $executableParity['hasRequiredExecutableParity']);
@@ -527,12 +567,15 @@ return [
         $t->same('checked-in-current-pptx-review-metadata', $reviewMetadata['kind']);
         $t->same('valid-checked-in-current-pptx-review-metadata', $reviewMetadata['validation']['status']);
         $t->same([], $reviewMetadata['validation']['issues']);
-        $t->same(1, $reviewMetadata['fixtureCount']);
-        $t->same(1, $reviewMetadata['chartReviewFixtureCount']);
-        $t->same(1, $reviewMetadata['chartReviewCount']);
+        $t->same(2, $reviewMetadata['fixtureCount']);
+        $t->same(2, $reviewMetadata['chartReviewFixtureCount']);
+        $t->same(2, $reviewMetadata['chartReviewCount']);
         $t->same('chart-placeholder', $reviewFixture['stem']);
         $t->same(1, $reviewFixture['chartCount']);
         $t->same($expectedChartPlaceholderReview, $reviewChart);
+        $t->same('chart-embedded-workbook', $reviewFixturesByStem['chart-embedded-workbook']['stem']);
+        $t->same(1, $reviewFixturesByStem['chart-embedded-workbook']['chartCount']);
+        $t->same($expectedChartEmbeddedWorkbookReview, $reviewFixturesByStem['chart-embedded-workbook']['charts'][0]);
         $t->same('basic', $pair['stem']);
         $t->same('pptx-reader/basic.pptx|pptx-reader/basic.native', $pair['pairKey']);
         $t->same('e48fd9c2f8369d1792197e301d5fea676bf6e51097a24af7d85831a6f96dc2dc', $pair['checkedInPptx']['sha256']);
@@ -768,6 +811,13 @@ return [
         $t->same('c583540a28768d66ecd7aca44a211ae5ebff6cdec77eeb38b19ac10e5ad11f27', $chartPlaceholderPair['checkedInNative']['sha256']);
         $t->same(1659, $chartPlaceholderPair['checkedInPptx']['bytes']);
         $t->same(180, $chartPlaceholderPair['checkedInNative']['bytes']);
+        $t->same('chart-embedded-workbook', $chartEmbeddedWorkbookPair['stem']);
+        $t->same('generated chart embedded workbook provenance parity', $chartEmbeddedWorkbookPair['name']);
+        $t->same('pptx-reader/chart-embedded-workbook.pptx|pptx-reader/chart-embedded-workbook.native', $chartEmbeddedWorkbookPair['pairKey']);
+        $t->same('29f93cbe2fe5c2021a391acd9ae60e1a7afd68e281e6fa0304c379f527382142', $chartEmbeddedWorkbookPair['checkedInPptx']['sha256']);
+        $t->same('2693cb5ba98115bdb045788a746ee26339d6253034772feaa9beef190fc7ebf9', $chartEmbeddedWorkbookPair['checkedInNative']['sha256']);
+        $t->same(3021, $chartEmbeddedWorkbookPair['checkedInPptx']['bytes']);
+        $t->same(250, $chartEmbeddedWorkbookPair['checkedInNative']['bytes']);
         $t->same('comments-ignored', $commentsIgnoredPair['stem']);
         $t->same('generated comments ignored parity', $commentsIgnoredPair['name']);
         $t->same('pptx-reader/comments-ignored.pptx|pptx-reader/comments-ignored.native', $commentsIgnoredPair['pairKey']);
@@ -1195,8 +1245,9 @@ return [
         $t->true(in_array('.port-libs/pandoc-runner/logs/pptx-targeted-list-tests.txt', $report['runnerEvidence']['requiredTranscripts'], true));
         $t->true(in_array('.port-libs/pandoc-runner/artifacts/pptx-targeted-run/result.json', $report['runnerEvidence']['requiredArtifacts'], true));
         $t->true(in_array('that upstream Haskell/Cabal/Tasty tests were executed', $static['claimBoundaries']['doesNotAssert'], true));
-        $t->true(in_array('local PHP PPTX reader output matches all 95 checked-in current PPTX/native pairs by normalized AST shape', $static['claimBoundaries']['doesAssert'], true));
-        $t->true(in_array('checked-in executable native AST evidence shows pandoc 3.10, local PHP output, and paired .native fixtures match all 95 checked-in current PPTX fixtures by normalized AST shape', $static['claimBoundaries']['doesAssert'], true));
+        $t->true(in_array('local PHP PPTX reader output matches all 96 checked-in current PPTX/native pairs by normalized AST shape', $static['claimBoundaries']['doesAssert'], true));
+        $t->true(in_array('checked-in executable native AST evidence shows pandoc 3.10, local PHP output, and paired .native fixtures match all 96 checked-in current PPTX fixtures by normalized AST shape', $static['claimBoundaries']['doesAssert'], true));
+        $t->true(in_array('checked-in chart review metadata covers chart-placeholder.pptx and chart-embedded-workbook.pptx, including embedded workbook package relationships with hashed byte exposure', $static['claimBoundaries']['doesAssert'], true));
         $t->true(in_array('that alternate-content-skip.pptx/alternate-content-skip.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('that background-image-skip.pptx/background-image-skip.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('that body-before-title.pptx/body-before-title.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
@@ -1227,6 +1278,7 @@ return [
         $t->true(in_array('that center-title-placeholder.pptx/center-title-placeholder.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('that cdata-entity-text.pptx/cdata-entity-text.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('that chart-placeholder.pptx/chart-placeholder.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
+        $t->true(in_array('that chart-embedded-workbook.pptx/chart-embedded-workbook.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('that comments-ignored.pptx/comments-ignored.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('that content-part-skip.pptx/content-part-skip.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('that diagram-missing-rels.pptx/diagram-missing-rels.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
@@ -1289,10 +1341,10 @@ return [
         $t->true(in_array('that textbox-without-nonvisual-properties.pptx/textbox-without-nonvisual-properties.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('that transition-animation-metadata.pptx/transition-animation-metadata.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('that transition-sound-media.pptx/transition-sound-media.native is an upstream Tests.Readers.Pptx fixture', $static['claimBoundaries']['doesNotAssert'], true));
-        $t->contains('Static current evidence: valid-checked-in-current-pptx-reader-evidence comparisons=1 checkedInPairs=95', $text);
-        $t->contains('Static native AST mapped parity: normalized-ast-equality-observed-not-runner-parity matches=95 mismatches=0 required=95', $text);
-        $t->contains('Static executable native AST parity: normalized-ast-equality-observed-against-pandoc-executable matches=95 mismatches=0 required=95', $text);
-        $t->contains('Static checked-in review metadata: valid-checked-in-current-pptx-review-metadata chartFixtures=1 charts=1', $text);
+        $t->contains('Static current evidence: valid-checked-in-current-pptx-reader-evidence comparisons=1 checkedInPairs=96', $text);
+        $t->contains('Static native AST mapped parity: normalized-ast-equality-observed-not-runner-parity matches=96 mismatches=0 required=96', $text);
+        $t->contains('Static executable native AST parity: normalized-ast-equality-observed-against-pandoc-executable matches=96 mismatches=0 required=96', $text);
+        $t->contains('Static checked-in review metadata: valid-checked-in-current-pptx-review-metadata chartFixtures=2 charts=2', $text);
         $t->contains('Runner status: not-run', $text);
         $t->contains('Runner plan: planned-not-run', $text);
     },
@@ -1338,7 +1390,7 @@ HS);
             . ' --checked-in-fixtures'
             . ' --json'
             . ' --require-test-count=1'
-            . ' --require-fixture-pair-count=95'
+            . ' --require-fixture-pair-count=96'
             . ' --require-static-current-evidence'
             . ' --require-static-native-mapped-parity'
             . ' --require-static-executable-native-ast-parity'
@@ -1354,13 +1406,13 @@ HS);
         $t->same('not-evaluated-missing-upstream-root', $decoded['validation']['status']);
         $t->same('valid-checked-in-current-pptx-reader-evidence', $decoded['staticCurrentEvidence']['validation']['status']);
         $t->same(true, PptxUpstreamReaderEvidence::hasRequiredCheckedInReaderTestCount($decoded, 1));
-        $t->same(true, PptxUpstreamReaderEvidence::hasRequiredCheckedInFixturePairCount($decoded, 95));
+        $t->same(true, PptxUpstreamReaderEvidence::hasRequiredCheckedInFixturePairCount($decoded, 96));
         $t->same(true, PptxUpstreamReaderEvidence::hasRequiredStaticCurrentEvidence($decoded));
         $t->same(true, PptxUpstreamReaderEvidence::hasRequiredStaticNativeMappedParity($decoded));
         $t->same(true, PptxUpstreamReaderEvidence::hasRequiredStaticExecutableNativeAstParity($decoded));
         $t->same(true, PptxUpstreamReaderEvidence::hasRequiredStaticReviewMetadata($decoded));
         $t->same('valid-checked-in-current-pptx-review-metadata', $decoded['staticCurrentEvidence']['checkedInReviewMetadata']['validation']['status']);
-        $t->same(1, $decoded['staticCurrentEvidence']['checkedInReviewMetadata']['chartReviewCount']);
+        $t->same(2, $decoded['staticCurrentEvidence']['checkedInReviewMetadata']['chartReviewCount']);
         $t->same(true, PptxUpstreamReaderEvidence::hasRunnerNotRunEvidence($decoded));
         $t->same(true, PptxUpstreamReaderEvidence::hasRunnerPlanEvidence($decoded));
         $t->same('not-run', $decoded['runnerEvidence']['status']);
@@ -1376,12 +1428,12 @@ HS);
         $t->same(0, $summaryExitCode);
         $t->same(PptxUpstreamReaderEvidence::STATUS_SKIPPED_MISSING_SOURCE, $summary['status']);
         $t->same(0, $summary['denominator']['readerTestCompareCount']);
-        $t->same(95, $summary['staticCurrentEvidence']['checkedInFixturePairCount']);
-        $t->same(95, $summary['staticCurrentEvidence']['nativeAstMappedParity']['normalizedAstMatchCount']);
+        $t->same(96, $summary['staticCurrentEvidence']['checkedInFixturePairCount']);
+        $t->same(96, $summary['staticCurrentEvidence']['nativeAstMappedParity']['normalizedAstMatchCount']);
         $t->same(0, $summary['staticCurrentEvidence']['nativeAstMappedParity']['normalizedAstMismatchCount']);
-        $t->same(95, $summary['staticCurrentEvidence']['executableNativeAstMappedParity']['normalizedAstMatchCount']);
+        $t->same(96, $summary['staticCurrentEvidence']['executableNativeAstMappedParity']['normalizedAstMatchCount']);
         $t->same(0, $summary['staticCurrentEvidence']['executableNativeAstMappedParity']['normalizedAstMismatchCount']);
-        $t->same(95, $summary['staticCurrentEvidence']['executableNativeAstMappedParity']['pandocNativeFixtureMatchCount']);
+        $t->same(96, $summary['staticCurrentEvidence']['executableNativeAstMappedParity']['pandocNativeFixtureMatchCount']);
         $t->same('pandoc 3.10', $summary['staticCurrentEvidence']['executableNativeAstMappedParity']['requiredPandocVersion']);
         $t->same('pandoc 3.10', $summary['staticCurrentEvidence']['executableNativeAstMappedParity']['pandocVersion']);
         $t->same(true, $summary['staticCurrentEvidence']['executableNativeAstMappedParity']['hasRequiredPandocVersion']);
@@ -1422,7 +1474,7 @@ HS);
 
         $t->same(2, $conflictingExitCode);
 
-        $wrongCountCommand = str_replace('--require-fixture-pair-count=95', '--require-fixture-pair-count=92', $command) . ' 2>/dev/null';
+        $wrongCountCommand = str_replace('--require-fixture-pair-count=96', '--require-fixture-pair-count=92', $command) . ' 2>/dev/null';
         $wrongCountOutput = [];
         $wrongCountExitCode = 0;
         exec($wrongCountCommand, $wrongCountOutput, $wrongCountExitCode);
@@ -1439,8 +1491,8 @@ HS);
         $t->contains('php tools/pandoc-pptx-native-ast.php', $workflow);
         $t->contains('php tools/pandoc-pptx-executable-native-ast.php', $workflow);
         $t->contains('--checked-in-fixtures', $workflow);
-        $t->contains('--require-mapped-parity=95', $workflow);
-        $t->contains('--require-executable-parity=95', $workflow);
+        $t->contains('--require-mapped-parity=96', $workflow);
+        $t->contains('--require-executable-parity=96', $workflow);
         $t->contains('--require-pandoc-version="pandoc ${PANDOC_EXECUTABLE_VERSION}"', $workflow);
     },
     'cli gates supplied pptx reader upstream runner result artifact' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile, $writePptxEvidenceTree, $writeRunnerTranscripts): void {

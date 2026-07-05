@@ -13,11 +13,11 @@ final class PptxUpstreamReaderEvidence
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped-missing-upstream-pptx-root';
     public const CHECKED_IN_CURRENT_FIXTURE_DIRECTORY = 'lanes/pandoc/fixtures/upstream-current-pptx-reader';
     public const EXPECTED_STATIC_READER_TEST_COMPARE_COUNT = 1;
-    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 95;
+    public const EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT = 96;
 
     private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_PATH = 'lanes/pandoc/fixtures/upstream-current-pptx-reader/checked-in.executable-native-ast.json';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '51a8214b7dd3b00f3331b5ebede8e3277f100354ac1364fbff64ac3053207b86';
-    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 41227;
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_SHA256 = '287e626a2046f1a2acc98afb91cc765a947f3d009b3348999c6df7bc2f033d59';
+    private const CHECKED_IN_EXECUTABLE_NATIVE_AST_SNAPSHOT_BYTES = 41630;
     private const RUNNER_TEST_SUITE = 'test:test-pandoc';
     private const RUNNER_BUILD_DIR = '.port-libs/pandoc-runner/cabal-build/pptx-targeted-run';
     private const RUNNER_TASTY_GROUP_PATH = ['Readers', 'Pptx'];
@@ -450,6 +450,18 @@ final class PptxUpstreamReaderEvidence
             'nativeSha256' => 'c583540a28768d66ecd7aca44a211ae5ebff6cdec77eeb38b19ac10e5ad11f27',
             'pptxBytes' => 1659,
             'nativeBytes' => 180,
+        ],
+        'chart-embedded-workbook' => [
+            'name' => 'generated chart embedded workbook provenance parity',
+            'pptx' => 'pptx-reader/chart-embedded-workbook.pptx',
+            'native' => 'pptx-reader/chart-embedded-workbook.native',
+            'pairKey' => 'pptx-reader/chart-embedded-workbook.pptx|pptx-reader/chart-embedded-workbook.native',
+            'pptxPath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/chart-embedded-workbook.pptx',
+            'nativePath' => 'lanes/pandoc/fixtures/upstream-current-pptx-reader/chart-embedded-workbook.native',
+            'pptxSha256' => '29f93cbe2fe5c2021a391acd9ae60e1a7afd68e281e6fa0304c379f527382142',
+            'nativeSha256' => '2693cb5ba98115bdb045788a746ee26339d6253034772feaa9beef190fc7ebf9',
+            'pptxBytes' => 3021,
+            'nativeBytes' => 250,
         ],
         'comments-ignored' => [
             'name' => 'generated comments ignored parity',
@@ -1440,18 +1452,30 @@ final class PptxUpstreamReaderEvidence
         $review = is_array($evidence['checkedInReviewMetadata'] ?? null) ? $evidence['checkedInReviewMetadata'] : [];
         $validation = is_array($review['validation'] ?? null) ? $review['validation'] : [];
         $fixtures = is_array($review['fixtures'] ?? null) ? $review['fixtures'] : [];
-        $fixture = is_array($fixtures[0] ?? null) ? $fixtures[0] : [];
-        $charts = is_array($fixture['charts'] ?? null) ? $fixture['charts'] : [];
-        $chart = is_array($charts[0] ?? null) ? $charts[0] : [];
+        $fixturesByStem = [];
+        foreach ($fixtures as $fixture) {
+            if (!is_array($fixture) || !is_string($fixture['stem'] ?? null)) {
+                continue;
+            }
+            $fixturesByStem[$fixture['stem']] = $fixture;
+        }
+
+        $expectedReviewsByStem = self::expectedChartReviewsByStem();
+        foreach ($expectedReviewsByStem as $stem => $expectedCharts) {
+            $fixture = is_array($fixturesByStem[$stem] ?? null) ? $fixturesByStem[$stem] : [];
+            if ((int) ($fixture['chartCount'] ?? -1) !== count($expectedCharts)) {
+                return false;
+            }
+            if (($fixture['charts'] ?? null) !== $expectedCharts) {
+                return false;
+            }
+        }
 
         return ($validation['status'] ?? null) === 'valid-checked-in-current-pptx-review-metadata'
             && ($validation['issues'] ?? null) === []
-            && (int) ($review['fixtureCount'] ?? -1) === 1
-            && (int) ($review['chartReviewFixtureCount'] ?? -1) === 1
-            && (int) ($review['chartReviewCount'] ?? -1) === 1
-            && ($fixture['stem'] ?? null) === 'chart-placeholder'
-            && (int) ($fixture['chartCount'] ?? -1) === 1
-            && $chart === self::expectedChartPlaceholderReview();
+            && (int) ($review['fixtureCount'] ?? -1) === count($expectedReviewsByStem)
+            && (int) ($review['chartReviewFixtureCount'] ?? -1) === count($expectedReviewsByStem)
+            && (int) ($review['chartReviewCount'] ?? -1) === array_sum(array_map('count', $expectedReviewsByStem));
     }
 
     /**
@@ -2257,7 +2281,7 @@ final class PptxUpstreamReaderEvidence
                     'the checked-in ' . self::fixturePairNameList(self::checkedInStaticFixturePairNames()) . ' files match the expected SHA-256 hashes and byte counts for this snapshot',
                     'local PHP PPTX reader output matches all ' . self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT . ' checked-in current PPTX/native pairs by normalized AST shape',
                     'checked-in executable native AST evidence shows pandoc 3.10, local PHP output, and paired .native fixtures match all ' . self::EXPECTED_STATIC_CHECKED_IN_FIXTURE_PAIR_COUNT . ' checked-in current PPTX fixtures by normalized AST shape',
-                    'checked-in chart-placeholder.pptx exposes one chart review metadata record with metadata-only byte exposure',
+                    'checked-in chart review metadata covers chart-placeholder.pptx and chart-embedded-workbook.pptx, including embedded workbook package relationships with hashed byte exposure',
                 ],
                 'doesNotAssert' => [
                     'that upstream Haskell/Cabal/Tasty tests were executed',
@@ -2278,24 +2302,26 @@ final class PptxUpstreamReaderEvidence
      */
     private function checkedInReviewMetadataEvidence(string $fixtureDirectory): array
     {
-        $snapshot = self::CHECKED_IN_CURRENT_FIXTURE_SNAPSHOT['chart-placeholder'] ?? null;
         $issues = [];
         $fixtures = [];
         $chartReviewFixtureCount = 0;
         $chartReviewCount = 0;
 
-        if (!is_array($snapshot)) {
-            $issues[] = 'missing-chart-placeholder-static-snapshot';
-        } else {
+        foreach (self::expectedChartReviewsByStem() as $stem => $expectedCharts) {
+            $snapshot = self::CHECKED_IN_CURRENT_FIXTURE_SNAPSHOT[$stem] ?? null;
+            if (!is_array($snapshot)) {
+                $issues[] = 'missing-' . $stem . '-static-snapshot';
+                continue;
+            }
             $pptx = $this->snapshotFileEvidence(
                 (string) $snapshot['pptxPath'],
                 (string) $snapshot['pptxSha256'],
                 (int) $snapshot['pptxBytes']
             );
             $charts = [];
-            $path = $fixtureDirectory . DIRECTORY_SEPARATOR . 'chart-placeholder.pptx';
+            $path = $fixtureDirectory . DIRECTORY_SEPARATOR . $stem . '.pptx';
             if (($pptx['present'] ?? false) !== true || !is_file($path)) {
-                $issues[] = 'missing-chart-placeholder-pptx-fixture';
+                $issues[] = 'missing-' . $stem . '-pptx-fixture';
             } else {
                 try {
                     $document = (new PptxReader())->read((string) file_get_contents($path));
@@ -2308,7 +2334,7 @@ final class PptxUpstreamReaderEvidence
                         }
                     }
                 } catch (\Throwable) {
-                    $issues[] = 'chart-placeholder-pptx-review-metadata-read-failed';
+                    $issues[] = $stem . '-pptx-review-metadata-read-failed';
                 }
             }
 
@@ -2317,12 +2343,12 @@ final class PptxUpstreamReaderEvidence
                 ++$chartReviewFixtureCount;
                 $chartReviewCount += $chartCount;
             }
-            if ($charts !== [self::expectedChartPlaceholderReview()]) {
-                $issues[] = 'chart-placeholder-pptx-review-metadata-mismatch';
+            if ($charts !== $expectedCharts) {
+                $issues[] = $stem . '-pptx-review-metadata-mismatch';
             }
 
             $fixtures[] = [
-                'stem' => 'chart-placeholder',
+                'stem' => $stem,
                 'pptx' => (string) $snapshot['pptx'],
                 'checkedInPptx' => $pptx,
                 'chartCount' => $chartCount,
@@ -2362,9 +2388,58 @@ final class PptxUpstreamReaderEvidence
             'chartType' => (string) ($chart['chartType'] ?? ''),
             'series' => is_array($chart['series'] ?? null) ? $chart['series'] : [],
             'externalDataRelationshipIds' => self::stringList($chart['externalDataRelationshipIds'] ?? []),
+            'externalDataRelationships' => self::compactChartExternalDataRelationships($chart['externalDataRelationships'] ?? []),
             'issues' => self::stringList($chart['issues'] ?? []),
             'byteExposurePolicy' => (string) ($chart['byteExposurePolicy'] ?? ''),
             'reviewPolicy' => (string) ($chart['reviewPolicy'] ?? ''),
+        ];
+    }
+
+    /**
+     * @param mixed $relationships
+     * @return list<array<string, mixed>>
+     */
+    private static function compactChartExternalDataRelationships(mixed $relationships): array
+    {
+        if (!is_array($relationships)) {
+            return [];
+        }
+
+        $compact = [];
+        foreach ($relationships as $relationship) {
+            if (!is_array($relationship)) {
+                continue;
+            }
+            $compact[] = [
+                'relationshipId' => (string) ($relationship['relationshipId'] ?? ''),
+                'relationshipType' => (string) ($relationship['relationshipType'] ?? ''),
+                'target' => (string) ($relationship['target'] ?? ''),
+                'external' => (bool) ($relationship['external'] ?? false),
+                'partName' => (string) ($relationship['partName'] ?? ''),
+                'exists' => (bool) ($relationship['exists'] ?? false),
+                'zipEntry' => (string) ($relationship['zipEntry'] ?? ''),
+                'contentType' => (string) ($relationship['contentType'] ?? ''),
+                'packageRelationshipRole' => (string) ($relationship['packageRelationshipRole'] ?? ''),
+                'embeddedWorkbook' => (bool) ($relationship['embeddedWorkbook'] ?? false),
+                'byteLength' => (int) ($relationship['byteLength'] ?? -1),
+                'compressedByteLength' => (int) ($relationship['compressedByteLength'] ?? -1),
+                'compressionMethod' => (int) ($relationship['compressionMethod'] ?? -1),
+                'sha256' => (string) ($relationship['sha256'] ?? ''),
+                'byteExposurePolicy' => (string) ($relationship['byteExposurePolicy'] ?? ''),
+            ];
+        }
+
+        return $compact;
+    }
+
+    /**
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private static function expectedChartReviewsByStem(): array
+    {
+        return [
+            'chart-placeholder' => [self::expectedChartPlaceholderReview()],
+            'chart-embedded-workbook' => [self::expectedChartEmbeddedWorkbookReview()],
         ];
     }
 
@@ -2384,7 +2459,49 @@ final class PptxUpstreamReaderEvidence
             'chartType' => 'unknown',
             'series' => [],
             'externalDataRelationshipIds' => [],
+            'externalDataRelationships' => [],
             'issues' => ['unknown-chart-relationship'],
+            'byteExposurePolicy' => 'chart-part-bytes-blocked',
+            'reviewPolicy' => 'chart-metadata-and-cache-values-only',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function expectedChartEmbeddedWorkbookReview(): array
+    {
+        return [
+            'graphicUri' => 'http://schemas.openxmlformats.org/drawingml/2006/chart',
+            'relationshipId' => 'rIdChart1',
+            'relationshipType' => 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart',
+            'target' => '../charts/chart1.xml',
+            'partName' => 'ppt/charts/chart1.xml',
+            'external' => false,
+            'title' => 'Embedded Workbook Chart',
+            'chartType' => 'unknown',
+            'series' => [],
+            'externalDataRelationshipIds' => ['rIdWorkbook'],
+            'externalDataRelationships' => [
+                [
+                    'relationshipId' => 'rIdWorkbook',
+                    'relationshipType' => 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package',
+                    'target' => '../embeddings/Microsoft_Excel_Worksheet1.xlsx',
+                    'external' => false,
+                    'partName' => 'ppt/embeddings/Microsoft_Excel_Worksheet1.xlsx',
+                    'exists' => true,
+                    'zipEntry' => 'ppt/embeddings/Microsoft_Excel_Worksheet1.xlsx',
+                    'contentType' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    'packageRelationshipRole' => 'embedded-workbook',
+                    'embeddedWorkbook' => true,
+                    'byteLength' => 35,
+                    'compressedByteLength' => 35,
+                    'compressionMethod' => 0,
+                    'sha256' => '88240b7ef08d8ae0d2d98545f46f46a7fc38d4aa83749fb4b273c45d09393c3d',
+                    'byteExposurePolicy' => 'package-part-bytes-hashed-not-exposed',
+                ],
+            ],
+            'issues' => [],
             'byteExposurePolicy' => 'chart-part-bytes-blocked',
             'reviewPolicy' => 'chart-metadata-and-cache-values-only',
         ];

@@ -190,20 +190,20 @@ return [
         $report = (new PptxNativeAstComparisonHarness())->run($fixtureDir);
 
         $t->same('completed', $report['status']);
-        $t->same(95, $report['totalPairCount']);
-        $t->same(95, $report['comparedPairCount']);
-        $t->same(95, $report['pptxParsedCount']);
-        $t->same(95, $report['nativeParsedCount']);
-        $t->same(95, $report['bothParsedCount']);
+        $t->same(96, $report['totalPairCount']);
+        $t->same(96, $report['comparedPairCount']);
+        $t->same(96, $report['pptxParsedCount']);
+        $t->same(96, $report['nativeParsedCount']);
+        $t->same(96, $report['bothParsedCount']);
         $t->same(0, $report['parseFailureCount']);
-        $t->same(95, $report['normalizedAstMatchCount']);
+        $t->same(96, $report['normalizedAstMatchCount']);
         $t->same(0, $report['normalizedAstMismatchCount']);
-        $t->same(95, count($report['fixtureComparisons']));
+        $t->same(96, count($report['fixtureComparisons']));
         $t->same([], array_values(array_filter(
             $report['fixtureComparisons'],
             static fn (array $row): bool => ($row['status'] ?? null) !== 'matched'
         )));
-        $t->same(true, PptxNativeAstComparisonHarness::hasRequiredMappedParity($report, 95));
+        $t->same(true, PptxNativeAstComparisonHarness::hasRequiredMappedParity($report, 96));
     },
     'cli gates required mapped pptx parity from checked-in fixture selector' => static function (TestRunner $t): void {
         $command = escapeshellarg(PHP_BINARY)
@@ -212,7 +212,7 @@ return [
             . ' --checked-in-fixtures'
             . ' --json'
             . ' summary'
-            . ' --require-mapped-parity=95';
+            . ' --require-mapped-parity=96';
         $output = [];
         $exitCode = 0;
         exec($command, $output, $exitCode);
@@ -221,11 +221,11 @@ return [
         $t->same(0, $exitCode);
         $t->same('completed', $decoded['status']);
         $t->same(dirname(__DIR__, 3) . '/lanes/pandoc/fixtures/upstream-current-pptx-reader', $decoded['upstreamPptxDirectory']);
-        $t->same(95, $decoded['normalizedAstMatchCount']);
+        $t->same(96, $decoded['normalizedAstMatchCount']);
         $t->same(0, $decoded['normalizedAstMismatchCount']);
-        $t->same(95, count($decoded['fixtureComparisons']));
+        $t->same(96, count($decoded['fixtureComparisons']));
         $t->same('matched', $decoded['fixtureComparisons'][0]['status']);
-        $t->same(true, PptxNativeAstComparisonHarness::hasRequiredMappedParity($decoded, 95));
+        $t->same(true, PptxNativeAstComparisonHarness::hasRequiredMappedParity($decoded, 96));
     },
     'cli required mapped pptx parity fails on skipped and mismatched evidence' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writePptx): void {
         $missingRoot = $makeTempDir();
