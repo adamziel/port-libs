@@ -70,6 +70,7 @@ final class EpubReader
         $metadata = $this->metadata($package);
         $manifest = $this->manifest($package);
         $spine_items = $this->spineItems($package, $base_path, $manifest);
+        $guide_references = $this->guideReferences($package, $base_path, $manifest);
         $toc = $this->toc($zip, $base_path, $manifest, $this->spineTocId($package));
         $children = [];
         $resources = [];
@@ -164,6 +165,12 @@ final class EpubReader
         $metadata['epubManifestItems'] = $this->manifestItemsMetadata($base_path, $manifest);
         $metadata['epubSpineItems'] = count($spine_items);
         $metadata['epubSpineItemRefs'] = $spine_items;
+        $metadata['epubGuideReferenceCount'] = count($guide_references);
+        $metadata['epubGuideReferenceTypes'] = $this->guideReferenceTypes($guide_references);
+        $metadata['epubGuideReferenceTypeCounts'] = $this->guideReferenceTypeCounts($guide_references);
+        if ($guide_references !== []) {
+            $metadata['epubGuideReferences'] = $guide_references;
+        }
         $metadata['epubReadableResources'] = $resources;
         $metadata['epubReferencedResources'] = array_values(array_unique($referenced_resources));
         $metadata['epubImageResources'] = $image_resources;
@@ -577,6 +584,124 @@ final class EpubReader
         }
 
         return '';
+    }
+
+    /**
+     * @param array<string, array{href: string, media-type: string, properties: list<string>}> $manifest
+     * @return list<array{index: int, type: string, typeRaw: string, types: list<string>, title: string, href: string, target: string, path: string, fragment: ?string, hrefHasQuery: bool, hrefQuery: ?string, hrefHasFragment: bool, hrefFragment: ?string, external: bool, manifestId: ?string, manifestMediaType: ?string, manifestProperties: list<string>}>
+     */
+    private function guideReferences(\DOMElement $package, string $base_path, array $manifest): array
+    {
+        $guide = null;
+        foreach ($package->childNodes as $child) {
+            if ($child instanceof \DOMElement && $child->localName === 'guide') {
+                $guide = $child;
+                break;
+            }
+        }
+        if (!$guide instanceof \DOMElement) {
+            return [];
+        }
+
+        $manifest_by_path = [];
+        foreach ($manifest as $id => $item) {
+            $href = $item['href'];
+            if ($this->isAbsoluteUrl($href)) {
+                continue;
+            }
+
+            $path = $this->packagePartPath($href, $base_path);
+            if ($path !== '' && !isset($manifest_by_path[$path])) {
+                $manifest_by_path[$path] = [
+                    'id' => $id,
+                    'media-type' => $item['media-type'],
+                    'properties' => $item['properties'],
+                ];
+            }
+        }
+
+        $references = [];
+        foreach ($guide->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->localName !== 'reference') {
+                continue;
+            }
+
+            $href = html_entity_decode(trim($child->getAttribute('href')), ENT_QUOTES | ENT_XML1, 'UTF-8');
+            $external = $href !== '' && $this->isAbsoluteUrl($href);
+            [, $query, $fragment] = $href === '' ? ['', null, null] : $this->splitUrlSuffix($href);
+            $target = $href === '' ? '' : $this->rewriteRelativeResourceUrl($href, $base_path);
+            $path = (!$external && $href !== '') ? $this->packagePartPath($href, $base_path) : '';
+            $manifest_item = $path !== '' ? ($manifest_by_path[$path] ?? null) : null;
+            $type_raw = trim($child->getAttribute('type'));
+            $types = $this->tokenList($type_raw);
+
+            $references[] = [
+                'index' => count($references),
+                'type' => $types[0] ?? '',
+                'typeRaw' => $type_raw,
+                'types' => $types,
+                'title' => trim($child->getAttribute('title')),
+                'href' => $href,
+                'target' => $target,
+                'path' => $path,
+                'fragment' => $fragment,
+                'hrefHasQuery' => $query !== null,
+                'hrefQuery' => $query,
+                'hrefHasFragment' => $fragment !== null,
+                'hrefFragment' => $fragment,
+                'external' => $external,
+                'manifestId' => is_array($manifest_item) ? (string) $manifest_item['id'] : null,
+                'manifestMediaType' => is_array($manifest_item) ? (string) $manifest_item['media-type'] : null,
+                'manifestProperties' => is_array($manifest_item) ? array_values($manifest_item['properties']) : [],
+            ];
+        }
+
+        return $references;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $references
+     * @return list<string>
+     */
+    private function guideReferenceTypes(array $references): array
+    {
+        $types = [];
+        foreach ($references as $reference) {
+            $reference_types = $reference['types'] ?? [];
+            if (!is_array($reference_types)) {
+                continue;
+            }
+            foreach ($reference_types as $type) {
+                if (is_string($type) && $type !== '' && !isset($types[$type])) {
+                    $types[$type] = true;
+                }
+            }
+        }
+
+        return array_keys($types);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $references
+     * @return array<string, int>
+     */
+    private function guideReferenceTypeCounts(array $references): array
+    {
+        $counts = [];
+        foreach ($references as $reference) {
+            $reference_types = $reference['types'] ?? [];
+            if (!is_array($reference_types)) {
+                continue;
+            }
+            foreach ($reference_types as $type) {
+                if (!is_string($type) || $type === '') {
+                    continue;
+                }
+                $counts[$type] = ($counts[$type] ?? 0) + 1;
+            }
+        }
+
+        return $counts;
     }
 
     /**

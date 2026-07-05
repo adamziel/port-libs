@@ -48,6 +48,11 @@ XML);
   <spine>
     <itemref idref="chapter"/>
   </spine>
+  <guide>
+    <reference type="text bodymatter" title="Start reading" href="text/chapter.xhtml#main"/>
+    <reference type="cover" title="Cover image" href="images/cover.png"/>
+    <reference type="glossary" title="Remote glossary" href="https://example.invalid/glossary.xhtml"/>
+  </guide>
 </package>
 XML);
         $zip->addFromString('OEBPS/text/chapter.xhtml', <<<'HTML'
@@ -98,6 +103,68 @@ HTML);
         $t->same('en', $meta['lang']);
         $t->same('OEBPS/package.opf', $meta['epubRootfile']);
         $t->same(1, $meta['epubSpineItems']);
+        $t->same(3, $meta['epubGuideReferenceCount']);
+        $t->same(['text', 'bodymatter', 'cover', 'glossary'], $meta['epubGuideReferenceTypes']);
+        $t->same(['text' => 1, 'bodymatter' => 1, 'cover' => 1, 'glossary' => 1], $meta['epubGuideReferenceTypeCounts']);
+        $t->same([
+            [
+                'index' => 0,
+                'type' => 'text',
+                'typeRaw' => 'text bodymatter',
+                'types' => ['text', 'bodymatter'],
+                'title' => 'Start reading',
+                'href' => 'text/chapter.xhtml#main',
+                'target' => 'OEBPS/text/chapter.xhtml#main',
+                'path' => 'OEBPS/text/chapter.xhtml',
+                'fragment' => 'main',
+                'hrefHasQuery' => false,
+                'hrefQuery' => null,
+                'hrefHasFragment' => true,
+                'hrefFragment' => 'main',
+                'external' => false,
+                'manifestId' => 'chapter',
+                'manifestMediaType' => 'application/xhtml+xml',
+                'manifestProperties' => [],
+            ],
+            [
+                'index' => 1,
+                'type' => 'cover',
+                'typeRaw' => 'cover',
+                'types' => ['cover'],
+                'title' => 'Cover image',
+                'href' => 'images/cover.png',
+                'target' => 'OEBPS/images/cover.png',
+                'path' => 'OEBPS/images/cover.png',
+                'fragment' => null,
+                'hrefHasQuery' => false,
+                'hrefQuery' => null,
+                'hrefHasFragment' => false,
+                'hrefFragment' => null,
+                'external' => false,
+                'manifestId' => 'cover',
+                'manifestMediaType' => 'image/png',
+                'manifestProperties' => [],
+            ],
+            [
+                'index' => 2,
+                'type' => 'glossary',
+                'typeRaw' => 'glossary',
+                'types' => ['glossary'],
+                'title' => 'Remote glossary',
+                'href' => 'https://example.invalid/glossary.xhtml',
+                'target' => 'https://example.invalid/glossary.xhtml',
+                'path' => '',
+                'fragment' => null,
+                'hrefHasQuery' => false,
+                'hrefQuery' => null,
+                'hrefHasFragment' => false,
+                'hrefFragment' => null,
+                'external' => true,
+                'manifestId' => null,
+                'manifestMediaType' => null,
+                'manifestProperties' => [],
+            ],
+        ], $meta['epubGuideReferences']);
         $t->same(['OEBPS/text/chapter.xhtml'], $meta['epubReadableResources']);
         $t->same(['OEBPS/images/cover.png'], $meta['epubReferencedResources']);
         $t->same(['OEBPS/images/cover.png'], $meta['epubImageResources']);
