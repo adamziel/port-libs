@@ -139,6 +139,22 @@ return [
             Html5Dom::serializeHtmlChildren($body)
         );
     },
+    'recognizes raw html tag boundaries through the HTMLDocument facade' => static function (TestRunner $t): void {
+        $opening = Html5Dom::markdownRawHtmlOpeningTagBoundary('   <A data-id="7" disabled>tail');
+        $closing = Html5Dom::rawHtmlClosingTagAt('x</A >y', 1);
+
+        $t->same('a', $opening['name'] ?? null);
+        $t->same('<A data-id="7" disabled>', $opening['source'] ?? null);
+        $t->same(27, $opening['next'] ?? null);
+        $t->same(['data-id', 'disabled'], $opening['attributeNames'] ?? []);
+        $t->same('a', $closing['name'] ?? null);
+        $t->same('</A >', $closing['source'] ?? null);
+        $t->same(6, $closing['next'] ?? null);
+        $t->same(null, Html5Dom::markdownRawHtmlOpeningTagBoundary('    <div>over-indented'));
+        $t->true(Html5Dom::rawHtmlOpeningTagLineIsStandalone('<hr data-review=ok />', 'hr'));
+        $t->true(Html5Dom::rawHtmlLineHasOpeningAndClosingTag('<object data="x">fallback</object>', 'object'));
+        $t->true(Html5Dom::rawHtmlSourceContainsOpeningTag('<pre><code>safe</code></pre>', 'code'));
+    },
     'limits pre-tree literal payload protection to inert source payload elements' => static function (TestRunner $t): void {
         $ordinary = '<p><b>one<p>two</b>three</p>';
         $template = '<template><p><strong>visible</strong></p></template>';

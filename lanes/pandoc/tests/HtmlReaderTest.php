@@ -104,6 +104,22 @@ $tests['keeps html tree construction centralized through Html5Dom'] =
         $t->contains('function htmlFragmentTreeConstructionContext', $html5DomSource);
         $t->contains('function htmlTreeConstructionInput', $html5DomSource);
         $t->contains('Html5Dom::parseHtmlFragment(', $html5DomFragmentSource);
+        $t->contains('function rawHtmlOpeningTagAt', $html5DomSource);
+        $t->contains('HTMLDocument::createFromString', $html5DomSource);
+        $t->contains('Html5Dom::markdownRawHtmlOpeningTagBoundary', $markdownReaderSource);
+        $t->contains('Html5Dom::rawHtmlOpeningTagAt', $markdownReaderSource);
+        foreach ([
+            "preg_match('/^ {0,3}<",
+            '[A-Za-z_:][A-Za-z0-9_.:-]',
+            '~\\G<',
+            '<t[dh]',
+            '</?table\\b[^>]*',
+        ] as $removedRawHtmlParserFragment) {
+            $t->true(
+                !str_contains($markdownReaderSource, $removedRawHtmlParserFragment),
+                "MarkdownReader must not restore raw HTML tag parsing via {$removedRawHtmlParserFragment}"
+            );
+        }
         foreach ([
             'htmlTagTokens',
             'wrapOrphanTableScopeRuns',

@@ -1238,7 +1238,8 @@ final class MarkdownReader
      */
     private function markdownNativeDivBoundaryEndIndex(array $lines, int $index): ?int
     {
-        if (preg_match('/^ {0,3}<div(?=\s|>)(?:\s+[A-Za-z_:][A-Za-z0-9_.:-]*(?:\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s"\'=<>`]+))?)*\s*>/iu', $lines[$index] ?? '') !== 1) {
+        $opening = Html5Dom::markdownRawHtmlOpeningTagBoundary($lines[$index] ?? '');
+        if ($opening === null || $opening['name'] !== 'div' || $opening['selfClosing']) {
             return null;
         }
 
@@ -1257,7 +1258,8 @@ final class MarkdownReader
     private function markdownNativeDivContentLines(array $lines, int $index): ?array
     {
         $line = $lines[$index] ?? '';
-        if (preg_match('/^ {0,3}(<div(?=\s|>)(?:\s+[A-Za-z_:][A-Za-z0-9_.:-]*(?:\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s"\'=<>`]+))?)*\s*>)/iu', $line, $m, PREG_OFFSET_CAPTURE) !== 1) {
+        $opening = Html5Dom::markdownRawHtmlOpeningTagBoundary($line);
+        if ($opening === null || $opening['name'] !== 'div' || $opening['selfClosing']) {
             return null;
         }
 
@@ -1265,7 +1267,7 @@ final class MarkdownReader
         $depth = 1;
         $cursor = $index;
         $count = count($lines);
-        $firstLineOffset = $m[0][1] + strlen($m[0][0]);
+        $firstLineOffset = $opening['next'];
 
         while ($cursor < $count) {
             $segment = $cursor === $index ? substr($lines[$cursor], $firstLineOffset) : $lines[$cursor];
@@ -1339,19 +1341,19 @@ final class MarkdownReader
         }
 
         $line = $lines[$index] ?? '';
-        if (preg_match('/^ {0,3}<!--/', $line) === 1) {
+        if ($this->rawHtmlLineStartsWithMarker($line, '<!--')) {
             return $this->markdownRawHtmlMarkerEndIndex($lines, $index, '-->');
         }
 
-        if (preg_match('/^ {0,3}<\?/', $line) === 1) {
+        if ($this->rawHtmlLineStartsWithMarker($line, '<?')) {
             return $this->markdownRawHtmlMarkerEndIndex($lines, $index, '?>');
         }
 
-        if (preg_match('/^ {0,3}<!\[CDATA\[/', $line) === 1) {
+        if ($this->rawHtmlLineStartsWithMarker($line, '<![CDATA[')) {
             return $this->markdownRawHtmlMarkerEndIndex($lines, $index, ']]>');
         }
 
-        if (preg_match('/^ {0,3}<![A-Za-z]/', $line) === 1) {
+        if ($this->rawHtmlLineStartsWithDeclaration($line)) {
             return $this->markdownRawHtmlMarkerEndIndex($lines, $index, '>');
         }
 
@@ -1377,7 +1379,7 @@ final class MarkdownReader
                 : $this->markdownRawHtmlClosingTagEndIndex($lines, $index, $tag['name']);
         }
 
-        if ($tag !== null && $tag['name'] === 'hr' && preg_match('/^ {0,3}<hr(?:\s+[^>]*)?\/?>[ \t]*$/i', $line) === 1) {
+        if ($tag !== null && $tag['name'] === 'hr' && $this->rawHtmlOpeningTagIsStandaloneLine($line, 'hr')) {
             return $index;
         }
 
@@ -1418,10 +1420,9 @@ final class MarkdownReader
      */
     private function markdownRawHtmlClosingTagEndIndex(array $lines, int $index, string $tag): int
     {
-        $closingPattern = '/<\/' . preg_quote($tag, '/') . '\s*>/i';
         $count = count($lines);
         for ($cursor = $index; $cursor < $count; $cursor++) {
-            if (preg_match($closingPattern, $lines[$cursor]) === 1) {
+            if ($this->rawHtmlLineContainsClosingTag($lines[$cursor], $tag)) {
                 return $cursor;
             }
         }
@@ -2980,7 +2981,8 @@ final class MarkdownReader
     private function tryReadDivBlock(array $lines, int &$index): ?AstNode
     {
         $line = $lines[$index] ?? '';
-        if (preg_match('/^ {0,3}(<div(?=\s|>)(?:\s+[A-Za-z_:][A-Za-z0-9_.:-]*(?:\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s"\'=<>`]+))?)*\s*>)/iu', $line, $m, PREG_OFFSET_CAPTURE) !== 1) {
+        $opening = Html5Dom::markdownRawHtmlOpeningTagBoundary($line);
+        if ($opening === null || $opening['name'] !== 'div' || $opening['selfClosing']) {
             return null;
         }
 
@@ -2989,8 +2991,8 @@ final class MarkdownReader
         $openingIndex = $index;
         $cursor = $index;
         $count = count($lines);
-        $firstLineOffset = $m[0][1] + strlen($m[0][0]);
-        $attrs = $this->htmlNativeDivsEnabled() ? $this->htmlAttrsFromOpeningTag($m[1][0], 'div') : [];
+        $firstLineOffset = $opening['next'];
+        $attrs = $this->htmlNativeDivsEnabled() ? $this->htmlAttrsFromOpeningTag($opening['source'], 'div') : [];
 
         while ($cursor < $count) {
             $segment = $cursor === $index ? substr($lines[$cursor], $firstLineOffset) : $lines[$cursor];
@@ -3060,6 +3062,10 @@ final class MarkdownReader
             return null;
         }
 
+        if ($tag === 'pre') {
+            return null;
+        }
+
         if ($this->isMarkdownInHtmlVerbatimTag($tag)) {
             return $this->rawHtmlBlockFromCollectedHtml($collected, $index);
         }
@@ -3083,6 +3089,10 @@ final class MarkdownReader
             && $this->markdownInHtmlBlocksExtensionEnabled()
             && ($tag !== 'div' || $htmlBlocksOverride === true);
         if (!$enabledByAttribute && !$enabledByHtmlBlocks) {
+            if ($markdownAttribute === null && $this->shouldDeferMarkdownHtmlBlockToSemanticReader($tag)) {
+                return null;
+            }
+
             if ($tag === 'div' && $markdownAttribute === null && $htmlBlocksOverride === null) {
                 return null;
             }
@@ -3112,6 +3122,25 @@ final class MarkdownReader
         $index = $endIndex;
 
         return $blocks;
+    }
+
+    private function shouldDeferMarkdownHtmlBlockToSemanticReader(string $tag): bool
+    {
+        return $this->isHtmlHeadingTagName($tag)
+            || in_array($tag, [
+                'aside',
+                'blockquote',
+                'dl',
+                'figure',
+                'header',
+                'iframe',
+                'main',
+                'ol',
+                'p',
+                'section',
+                'table',
+                'ul',
+            ], true);
     }
 
     /**
@@ -3235,15 +3264,25 @@ final class MarkdownReader
      */
     private function findHtmlTag(string $line, string $tag, int $offset, bool $closing): ?array
     {
-        $pattern = $closing
-            ? '/<\/' . preg_quote($tag, '/') . '\s*>/i'
-            : '/<' . preg_quote($tag, '/') . '(?=\s|>)(?:\s+[A-Za-z_:][A-Za-z0-9_.:-]*(?:\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s"\'=<>`]+))?)*\s*>/iu';
+        $tag = strtolower($tag);
+        $cursor = $offset;
+        while (($candidateOffset = strpos($line, '<', $cursor)) !== false) {
+            if ($closing) {
+                $candidate = Html5Dom::rawHtmlClosingTagAt($line, $candidateOffset);
+                if ($candidate !== null && $candidate['name'] === $tag) {
+                    return ['offset' => $candidateOffset, 'length' => $candidate['next'] - $candidateOffset];
+                }
+            } else {
+                $candidate = Html5Dom::rawHtmlOpeningTagAt($line, $candidateOffset);
+                if ($candidate !== null && $candidate['name'] === $tag && !$candidate['selfClosing']) {
+                    return ['offset' => $candidateOffset, 'length' => $candidate['next'] - $candidateOffset];
+                }
+            }
 
-        if (preg_match($pattern, $line, $m, PREG_OFFSET_CAPTURE, $offset) !== 1) {
-            return null;
+            $cursor = $candidateOffset + 1;
         }
 
-        return ['offset' => $m[0][1], 'length' => strlen($m[0][0])];
+        return null;
     }
 
     /**
@@ -3328,17 +3367,25 @@ final class MarkdownReader
 
     private function isHtmlLineBlockOpeningTag(string $line): bool
     {
-        if (preg_match('/^ {0,3}<div\b([^>]*)>/i', $line, $m) !== 1) {
+        $opening = Html5Dom::markdownRawHtmlOpeningTagBoundary($line);
+        if ($opening === null || $opening['name'] !== 'div') {
             return false;
         }
 
-        if (preg_match('/\bclass\s*=\s*(?:"line-block"|\'line-block\'|line-block)(?:\s|$)/i', $m[1]) !== 1) {
+        try {
+            $body = Html5Dom::parseHtmlFragment($opening['source']);
+        } catch (\Throwable) {
             return false;
         }
 
-        $withoutClass = preg_replace('/\s*\bclass\s*=\s*(?:"line-block"|\'line-block\'|line-block)\s*/i', ' ', $m[1]) ?? $m[1];
+        $div = Html5Dom::firstChildElement($body, 'div');
+        if (!$div instanceof \DOMElement) {
+            return false;
+        }
 
-        return trim($withoutClass) === '';
+        $attributes = Html5Dom::attributes($div);
+
+        return ($attributes['class'] ?? '') === 'line-block' && count($attributes) === 1;
     }
 
     /**
@@ -3351,19 +3398,19 @@ final class MarkdownReader
         }
 
         $line = $lines[$index] ?? '';
-        if (preg_match('/^ {0,3}<!--/', $line) === 1) {
+        if ($this->rawHtmlLineStartsWithMarker($line, '<!--')) {
             return $this->readHtmlCommentBlock($lines, $index);
         }
 
-        if (preg_match('/^ {0,3}<\?/', $line) === 1) {
+        if ($this->rawHtmlLineStartsWithMarker($line, '<?')) {
             return $this->readRawHtmlUntilMarker($lines, $index, '?>');
         }
 
-        if (preg_match('/^ {0,3}<!\[CDATA\[/', $line) === 1) {
+        if ($this->rawHtmlLineStartsWithMarker($line, '<![CDATA[')) {
             return $this->readRawHtmlUntilMarker($lines, $index, ']]>');
         }
 
-        if (preg_match('/^ {0,3}<![A-Za-z]/', $line) === 1) {
+        if ($this->rawHtmlLineStartsWithDeclaration($line)) {
             return $this->readRawHtmlUntilMarker($lines, $index, '>');
         }
 
@@ -3383,7 +3430,7 @@ final class MarkdownReader
             return $this->readRawHtmlUntilClosingTag($lines, $index, 'table', true);
         }
 
-        if ($tag !== null && $tag['name'] === 'hr' && preg_match('/^ {0,3}<hr(?:\s+[^>]*)?\/?>[ \t]*$/i', $line) === 1) {
+        if ($tag !== null && $tag['name'] === 'hr' && $this->rawHtmlOpeningTagIsStandaloneLine($line, 'hr')) {
             return new AstNode('raw_html', ['html' => trim($line)]);
         }
 
@@ -3442,14 +3489,18 @@ final class MarkdownReader
         }
 
         if ($name === 'pre') {
-            if (preg_match('/^ {0,3}<pre\s*>[ \t]*$/i', $lines[$index] ?? '') !== 1) {
+            if (
+                !$this->rawHtmlOpeningTagIsStandaloneLine($lines[$index] ?? '', 'pre')
+                || $tag['selfClosing']
+                || $tag['attributeNames'] !== []
+            ) {
                 return null;
             }
 
             $probeIndex = $index;
             $raw = $this->readRawHtmlUntilClosingTag($lines, $probeIndex, 'pre');
             $html = (string) $raw->attr('html', '');
-            if (preg_match('/<code(?:\s|>|\/)/i', $html) === 1) {
+            if (Html5Dom::rawHtmlSourceContainsOpeningTag($html, 'code')) {
                 return null;
             }
 
@@ -3481,7 +3532,7 @@ final class MarkdownReader
             return false;
         }
 
-        return preg_match('/^ {0,3}<' . preg_quote($name, '/') . '\b[\s\S]*<\/' . preg_quote($name, '/') . '\s*>/i', $line) === 1;
+        return Html5Dom::rawHtmlLineHasOpeningAndClosingTag($this->expandTabsToSpaces($line), $name);
     }
 
     private function isPandocRawHtmlClosingBlockTag(string $name): bool
@@ -3518,10 +3569,71 @@ final class MarkdownReader
 
     private function rawHtmlOpeningTagIsStandaloneLine(string $line, string $name): bool
     {
-        return preg_match(
-            '/^ {0,3}<' . preg_quote($name, '/') . '(?:\s+[^>]*)?\/?>[ \t]*$/i',
-            $line
-        ) === 1;
+        return Html5Dom::rawHtmlOpeningTagLineIsStandalone($this->expandTabsToSpaces($line), $name);
+    }
+
+    /**
+     * @param list<string> $names
+     * @return array{name:string,selfClosing:bool,source:string,next:int,attributeNames:list<string>}|null
+     */
+    private function rawHtmlOpeningTagForLine(string $line, array $names): ?array
+    {
+        $tag = $this->tryParseRawHtmlOpeningTag($line);
+        if ($tag === null) {
+            return null;
+        }
+
+        return in_array($tag['name'], $names, true) ? $tag : null;
+    }
+
+    private function rawHtmlLineContainsClosingTag(string $line, string $name): bool
+    {
+        return Html5Dom::rawHtmlClosingTagEndAfter($this->expandTabsToSpaces($line), 0, $name) !== null;
+    }
+
+    private function rawHtmlLineStartsImplicitBlockClose(string $line): bool
+    {
+        $tag = $this->tryParseRawHtmlOpeningTag($line);
+        if ($tag === null) {
+            return false;
+        }
+
+        return in_array($tag['name'], ['p', 'ul', 'ol', 'dl', 'blockquote', 'pre', 'table', 'div', 'figure', 'hr'], true)
+            || $this->isHtmlHeadingTagName($tag['name']);
+    }
+
+    private function isHtmlHeadingTagName(string $name): bool
+    {
+        return strlen($name) === 2
+            && $name[0] === 'h'
+            && $name[1] >= '1'
+            && $name[1] <= '6';
+    }
+
+    private function rawHtmlLineStartsWithMarker(string $line, string $marker): bool
+    {
+        $line = $this->expandTabsToSpaces($line);
+        $offset = 0;
+        $length = strlen($line);
+        while ($offset < $length && $line[$offset] === ' ' && $offset < 4) {
+            $offset++;
+        }
+
+        return $offset <= 3 && str_starts_with(substr($line, $offset), $marker);
+    }
+
+    private function rawHtmlLineStartsWithDeclaration(string $line): bool
+    {
+        $line = $this->expandTabsToSpaces($line);
+        $offset = 0;
+        $length = strlen($line);
+        while ($offset < $length && $line[$offset] === ' ' && $offset < 4) {
+            $offset++;
+        }
+
+        return $offset <= 3
+            && str_starts_with(substr($line, $offset), '<!')
+            && ctype_alpha($line[$offset + 2] ?? '');
     }
 
     /**
@@ -3579,11 +3691,12 @@ final class MarkdownReader
         }
 
         $line = $lines[$index] ?? '';
-        if (preg_match('/^ {0,3}<([A-Za-z][A-Za-z0-9:-]*)\b/i', $line, $match) !== 1) {
+        $opening = $this->tryParseRawHtmlOpeningTag($line);
+        if ($opening === null) {
             return null;
         }
 
-        $tag = strtolower($match[1]);
+        $tag = $opening['name'];
         if (!$this->isHtmlTransparentBlockContainerTag($tag)) {
             return null;
         }
@@ -3624,7 +3737,7 @@ final class MarkdownReader
     private function tryReadRawHtmlDetailsBlock(array $lines, int &$index): ?array
     {
         $line = $lines[$index] ?? '';
-        if (preg_match('/^ {0,3}<details\b/i', $line) !== 1) {
+        if ($this->rawHtmlOpeningTagForLine($line, ['details']) === null) {
             return null;
         }
 
@@ -3649,20 +3762,27 @@ final class MarkdownReader
      */
     private function buildRawHtmlDetailsBlocks(string $html): array
     {
-        if (preg_match('/^\s*(<details\b[^>]*>)(.*)(<\/details\s*>)\s*$/isu', $html, $match) !== 1) {
+        $html = trim($html);
+        $opening = Html5Dom::rawHtmlOpeningTagAt($html);
+        if ($opening === null || $opening['name'] !== 'details' || $opening['selfClosing']) {
+            return [];
+        }
+
+        $closing = $this->findMatchingRawHtmlClosingTagBoundary($html, $opening['next'], 'details');
+        if ($closing === null || $closing['tag']['next'] !== strlen($html)) {
             return [];
         }
 
         $rawHtmlEnabled = $this->htmlRawHtmlEnabled();
-        $inner = (string) $match[2];
+        $inner = substr($html, $opening['next'], $closing['offset'] - $opening['next']);
         $blocks = [];
         [$summary, $body] = $this->extractRawHtmlDetailsSummary($inner);
         if ($rawHtmlEnabled && $this->rawHtmlDetailsShouldStayRaw($body)) {
-            return [new AstNode('raw_html', ['html' => trim($html)])];
+            return [new AstNode('raw_html', ['html' => $html])];
         }
 
         if ($rawHtmlEnabled) {
-            $blocks[] = new AstNode('raw_html', ['html' => trim($match[1])]);
+            $blocks[] = new AstNode('raw_html', ['html' => $opening['source']]);
         }
 
         if ($summary !== '') {
@@ -3684,7 +3804,7 @@ final class MarkdownReader
         }
 
         if ($rawHtmlEnabled) {
-            $blocks[] = new AstNode('raw_html', ['html' => trim($match[3])]);
+            $blocks[] = new AstNode('raw_html', ['html' => $closing['tag']['source']]);
         }
 
         return $blocks;
@@ -3709,13 +3829,23 @@ final class MarkdownReader
      */
     private function extractRawHtmlDetailsSummary(string $inner): array
     {
-        if (preg_match('/<summary\b[^>]*>.*?<\/summary\s*>/isu', $inner, $match, PREG_OFFSET_CAPTURE) !== 1) {
+        $offset = $this->findRawHtmlOpeningTagStart($inner, 0, 'summary');
+        if ($offset === null) {
             return ['', $inner];
         }
 
-        $summary = $match[0][0];
-        $offset = $match[0][1];
-        $body = substr($inner, 0, $offset) . substr($inner, $offset + strlen($summary));
+        $opening = Html5Dom::rawHtmlOpeningTagAt($inner, $offset);
+        if ($opening === null || $opening['selfClosing']) {
+            return ['', $inner];
+        }
+
+        $closing = $this->findMatchingRawHtmlClosingTagBoundary($inner, $opening['next'], 'summary');
+        if ($closing === null) {
+            return ['', $inner];
+        }
+
+        $summary = substr($inner, $offset, $closing['tag']['next'] - $offset);
+        $body = substr($inner, 0, $offset) . substr($inner, $closing['tag']['next']);
 
         return [$summary, $body];
     }
@@ -3953,7 +4083,7 @@ final class MarkdownReader
     private function tryReadDocBookTableBlock(array $lines, int &$index): ?AstNode
     {
         $line = $lines[$index] ?? '';
-        if (preg_match('/^ {0,3}<informaltable(?:\s+[^>]*)?>/i', $line) !== 1) {
+        if ($this->rawHtmlOpeningTagForLine($line, ['informaltable']) === null) {
             return null;
         }
 
@@ -3962,7 +4092,7 @@ final class MarkdownReader
         $count = count($lines);
         while ($cursor < $count) {
             $content[] = trim($lines[$cursor]);
-            if (preg_match('/<\/informaltable\s*>/i', $lines[$cursor]) === 1) {
+            if ($this->rawHtmlLineContainsClosingTag($lines[$cursor], 'informaltable')) {
                 $table = $this->parseDocBookInformalTable(implode("\n", $content));
                 if ($table === null) {
                     return null;
@@ -4624,7 +4754,7 @@ final class MarkdownReader
         }
 
         $line = $lines[$index] ?? '';
-        if (preg_match('/^ {0,3}<header\b/i', $line) !== 1) {
+        if ($this->rawHtmlOpeningTagForLine($line, ['header']) === null) {
             return null;
         }
 
@@ -4669,11 +4799,12 @@ final class MarkdownReader
         }
 
         $line = $lines[$index] ?? '';
-        if (preg_match('/^ {0,3}<(section|aside)\b/i', $line, $match) !== 1) {
+        $opening = $this->rawHtmlOpeningTagForLine($line, ['section', 'aside']);
+        if ($opening === null) {
             return null;
         }
 
-        $tag = strtolower($match[1]);
+        $tag = $opening['name'];
         if ($tag === 'button' && ($this->options['suppressStandaloneButtonInline'] ?? false)) {
             return null;
         }
@@ -4861,7 +4992,7 @@ final class MarkdownReader
     private function tryReadStructuredHtmlTableBlock(array $lines, int &$index): ?AstNode
     {
         $line = $lines[$index] ?? '';
-        if (preg_match('/^ {0,3}<table(?:\s+[^>]*)?>/i', $line) !== 1) {
+        if ($this->rawHtmlOpeningTagForLine($line, ['table']) === null) {
             return null;
         }
 
@@ -4892,7 +5023,7 @@ final class MarkdownReader
         }
 
         $line = $lines[$index] ?? '';
-        if (preg_match('/^ {0,3}<table(?:\s+[^>]*)?>/i', $line) !== 1) {
+        if ($this->rawHtmlOpeningTagForLine($line, ['table']) === null) {
             return null;
         }
 
@@ -4918,7 +5049,7 @@ final class MarkdownReader
     private function tryReadEmptyHtmlTableBlock(array $lines, int &$index): bool
     {
         $line = $lines[$index] ?? '';
-        if (preg_match('/^ {0,3}<table(?:\s+[^>]*)?>/i', $line) !== 1) {
+        if ($this->rawHtmlOpeningTagForLine($line, ['table']) === null) {
             return false;
         }
 
@@ -4943,7 +5074,7 @@ final class MarkdownReader
     private function tryReadHtmlParagraphBlock(array $lines, int &$index): ?AstNode
     {
         $line = $lines[$index] ?? '';
-        if (preg_match('/^ {0,3}<p(?:\s+[^>]*)?>/i', $line) !== 1) {
+        if ($this->rawHtmlOpeningTagForLine($line, ['p']) === null) {
             return null;
         }
 
@@ -4983,7 +5114,7 @@ final class MarkdownReader
             }
 
             $content[] = $line;
-            if (preg_match('/<\/p\s*>/i', $line) === 1) {
+            if ($this->rawHtmlLineContainsClosingTag($line, 'p')) {
                 return [implode("\n", $content), $cursor];
             }
         }
@@ -4993,10 +5124,7 @@ final class MarkdownReader
 
     private function htmlLineStartsImplicitParagraphClose(string $line): bool
     {
-        return preg_match(
-            '/^ {0,3}<(?:p|h[1-6]|ul|ol|dl|blockquote|pre|table|div|figure|hr)\b/i',
-            $line
-        ) === 1;
+        return $this->rawHtmlLineStartsImplicitBlockClose($line);
     }
 
     /**
@@ -5007,12 +5135,11 @@ final class MarkdownReader
     {
         $content = [];
         $count = count($lines);
-        $closingPattern = '/<\/' . preg_quote($tag, '/') . '\s*>/i';
 
         for ($cursor = $index; $cursor < $count; $cursor++) {
             $line = $this->normalizeRawHtmlLine($lines[$cursor]);
             $content[] = $line;
-            if (preg_match($closingPattern, $line) === 1) {
+            if ($this->rawHtmlLineContainsClosingTag($line, $tag)) {
                 return [implode("\n", $content), $cursor];
             }
         }
@@ -5041,23 +5168,60 @@ final class MarkdownReader
     private function tryReadHtmlInlineFragmentBlock(array $lines, int &$index): ?AstNode
     {
         $line = $lines[$index] ?? '';
-        if (preg_match('/^ {0,3}<br\b[^>]*>/i', $line) === 1) {
+        if ($this->rawHtmlOpeningTagForLine($line, ['br']) !== null) {
             return $this->parseHtmlInlineFragmentParagraph(trim($line));
         }
 
-        if (preg_match('/^ {0,3}<(abbr|applet|area|audio|b|bdo|button|cite|code|del|dfn|em|i|ins|kbd|map|mark|noscript|object|progress|q|s|samp|small|source|span|strike|strong|sub|sup|svg|time|track|tt|u|var|video|embed)\b/i', $line, $match) !== 1) {
+        $opening = $this->rawHtmlOpeningTagForLine($line, [
+            'abbr',
+            'applet',
+            'area',
+            'audio',
+            'b',
+            'bdo',
+            'button',
+            'cite',
+            'code',
+            'del',
+            'dfn',
+            'em',
+            'i',
+            'ins',
+            'kbd',
+            'map',
+            'mark',
+            'noscript',
+            'object',
+            'progress',
+            'q',
+            's',
+            'samp',
+            'small',
+            'source',
+            'span',
+            'strike',
+            'strong',
+            'sub',
+            'sup',
+            'svg',
+            'time',
+            'track',
+            'tt',
+            'u',
+            'var',
+            'video',
+            'embed',
+        ]);
+        if ($opening === null) {
             return null;
         }
 
-        $tag = strtolower($match[1]);
+        $tag = $opening['name'];
         if ($tag === 'button' && ($this->options['suppressStandaloneButtonInline'] ?? false)) {
             return null;
         }
 
-        if (
-            $this->isHtmlVoidInlineFragmentTag($tag)
-            && preg_match('/^ {0,3}<' . preg_quote($tag, '/') . '\b[^>]*>/i', $line) === 1
-        ) {
+        if ($this->isHtmlVoidInlineFragmentTag($tag)) {
             return $this->parseHtmlInlineFragmentParagraph(trim($line));
         }
 
@@ -5116,7 +5280,7 @@ final class MarkdownReader
     private function tryReadHtmlHorizontalRuleBlock(array $lines, int &$index): ?AstNode
     {
         $line = $this->normalizeRawHtmlLine($lines[$index] ?? '');
-        if (preg_match('/^ {0,3}<hr\b(?:\s+[^>]*)?\s*\/?>[ \t]*$/i', $line) !== 1) {
+        if (!$this->rawHtmlOpeningTagIsStandaloneLine($line, 'hr')) {
             return null;
         }
 
@@ -5129,7 +5293,8 @@ final class MarkdownReader
     private function tryReadHtmlBlockQuoteBlock(array $lines, int &$index): ?AstNode
     {
         $line = $lines[$index] ?? '';
-        if (preg_match('/^ {0,3}<blockquote(?:\s+[^>]*)?>/i', $line) !== 1) {
+        $tag = $this->tryParseRawHtmlOpeningTag($line);
+        if ($tag === null || $tag['name'] !== 'blockquote') {
             return null;
         }
 
@@ -5155,7 +5320,7 @@ final class MarkdownReader
     private function tryReadHtmlFigureBlock(array $lines, int &$index): ?AstNode
     {
         $line = $lines[$index] ?? '';
-        if (preg_match('/^ {0,3}<figure\b/i', $line) !== 1) {
+        if ($this->rawHtmlOpeningTagForLine($line, ['figure']) === null) {
             return null;
         }
 
@@ -5181,7 +5346,7 @@ final class MarkdownReader
     private function tryReadHtmlIframeBlock(array $lines, int &$index): ?AstNode
     {
         $line = $lines[$index] ?? '';
-        if (preg_match('/^ {0,3}<iframe\b/i', $line) !== 1) {
+        if ($this->rawHtmlOpeningTagForLine($line, ['iframe']) === null) {
             return null;
         }
 
@@ -5222,11 +5387,12 @@ final class MarkdownReader
     private function tryReadHtmlHeadingBlock(array $lines, int &$index): ?AstNode
     {
         $line = $lines[$index] ?? '';
-        if (preg_match('/^ {0,3}<h([1-6])\b/i', $line, $m) !== 1) {
+        $opening = $this->tryParseRawHtmlOpeningTag($line);
+        if ($opening === null || !$this->isHtmlHeadingTagName($opening['name'])) {
             return null;
         }
 
-        $level = (int) $m[1];
+        $level = (int) $opening['name'][1];
         $collected = $this->collectHtmlBlockUntilClosingTag($lines, $index, 'h' . $level);
         if ($collected === null) {
             $collected = $this->collectHtmlHeadingBlockWithImpliedClose($lines, $index, $level);
@@ -5278,10 +5444,7 @@ final class MarkdownReader
             return true;
         }
 
-        return preg_match(
-            '/^ {0,3}<(?:p|h[1-6]|ul|ol|dl|blockquote|pre|table|div|figure|hr)\b/i',
-            $line
-        ) === 1;
+        return $this->rawHtmlLineStartsImplicitBlockClose($line);
     }
 
     private function parseHtmlHeadingElement(string $html, int $level): ?AstNode
@@ -5331,11 +5494,12 @@ final class MarkdownReader
     private function tryReadHtmlListBlock(array $lines, int &$index): ?AstNode
     {
         $line = $lines[$index] ?? '';
-        if (preg_match('/^ {0,3}<(ol|ul)\b/i', $line, $m) !== 1) {
+        $opening = $this->rawHtmlOpeningTagForLine($line, ['ol', 'ul']);
+        if ($opening === null) {
             return null;
         }
 
-        $tag = strtolower($m[1]);
+        $tag = $opening['name'];
         $collected = $this->collectBalancedHtmlElementBlock($lines, $index, $tag);
         if ($collected === null) {
             return null;
@@ -5358,7 +5522,7 @@ final class MarkdownReader
     private function tryReadHtmlDefinitionListBlock(array $lines, int &$index): ?AstNode
     {
         $line = $lines[$index] ?? '';
-        if (preg_match('/^ {0,3}<dl\b/i', $line) !== 1) {
+        if ($this->rawHtmlOpeningTagForLine($line, ['dl']) === null) {
             return null;
         }
 
@@ -5384,7 +5548,7 @@ final class MarkdownReader
     private function tryReadHtmlPreCodeBlock(array $lines, int &$index): ?AstNode
     {
         $line = $lines[$index] ?? '';
-        if (preg_match('/^ {0,3}<pre(?:\s+[^>]*)?>/i', $line) !== 1) {
+        if ($this->rawHtmlOpeningTagForLine($line, ['pre']) === null) {
             return null;
         }
 
@@ -7048,19 +7212,27 @@ final class MarkdownReader
             $line = $this->normalizeRawHtmlLine($lines[$cursor]);
             $content[] = $line;
 
-            preg_match_all('/<\/?table\b[^>]*>/i', $line, $matches, PREG_OFFSET_CAPTURE);
-            foreach ($matches[0] as $match) {
-                $tag = strtolower($match[0]);
-                if (str_starts_with($tag, '</table')) {
+            $offset = 0;
+            while (($tagOffset = strpos($line, '<', $offset)) !== false) {
+                $closing = Html5Dom::rawHtmlClosingTagAt($line, $tagOffset);
+                if ($closing !== null && $closing['name'] === 'table') {
                     $depth--;
                     if ($started && $depth === 0) {
                         return [implode("\n", $content), $cursor];
                     }
+                    $offset = $closing['next'];
                     continue;
                 }
 
-                $started = true;
-                $depth++;
+                $opening = Html5Dom::rawHtmlOpeningTagAt($line, $tagOffset);
+                if ($opening !== null && $opening['name'] === 'table' && !$opening['selfClosing']) {
+                    $started = true;
+                    $depth++;
+                    $offset = $opening['next'];
+                    continue;
+                }
+
+                $offset = $tagOffset + 1;
             }
         }
 
@@ -7093,24 +7265,29 @@ final class MarkdownReader
      */
     private function htmlElementBalance(string $html, string $tag): array
     {
+        $tag = strtolower($tag);
         $depth = 0;
         $started = false;
-        $pattern = '/<\/?' . preg_quote($tag, '/') . '\b[^>]*>/i';
-
-        preg_match_all($pattern, $html, $matches);
-        foreach ($matches[0] as $matchedTag) {
-            $matchedTag = strtolower(trim($matchedTag));
-            if (str_starts_with($matchedTag, '</')) {
+        $offset = 0;
+        while (($tagOffset = strpos($html, '<', $offset)) !== false) {
+            $closing = Html5Dom::rawHtmlClosingTagAt($html, $tagOffset);
+            if ($closing !== null && $closing['name'] === $tag) {
                 if ($started) {
                     $depth--;
                 }
+                $offset = $closing['next'];
                 continue;
             }
 
-            $started = true;
-            if (!str_ends_with(rtrim($matchedTag), '/>')) {
+            $opening = Html5Dom::rawHtmlOpeningTagAt($html, $tagOffset);
+            if ($opening !== null && $opening['name'] === $tag && !$opening['selfClosing']) {
+                $started = true;
                 $depth++;
+                $offset = $opening['next'];
+                continue;
             }
+
+            $offset = $tagOffset + 1;
         }
 
         return [$started, $depth];
@@ -12577,12 +12754,11 @@ final class MarkdownReader
         $content = [];
         $cursor = $index;
         $count = count($lines);
-        $closingPattern = '/<\/' . preg_quote($tag, '/') . '\s*>/i';
 
         while ($cursor < $count) {
             $line = $this->normalizeRawHtmlLine($lines[$cursor]);
             $content[] = $interpretTableCells ? $this->renderMarkdownInTableCells($line) : $line;
-            if (preg_match($closingPattern, $line) === 1) {
+            if ($this->rawHtmlLineContainsClosingTag($line, $tag)) {
                 break;
             }
             $cursor++;
@@ -12594,80 +12770,11 @@ final class MarkdownReader
     }
 
     /**
-     * @return array{name:string, selfClosing:bool}|null
+     * @return array{name:string,selfClosing:bool,source:string,next:int,attributeNames:list<string>}|null
      */
     private function tryParseRawHtmlOpeningTag(string $line): ?array
     {
-        $line = $this->expandTabsToSpaces($line);
-        if (preg_match('/^ {0,3}<([A-Za-z][A-Za-z0-9:-]*)/i', $line, $match, PREG_OFFSET_CAPTURE) !== 1) {
-            return null;
-        }
-
-        $cursor = $match[1][1] + strlen($match[1][0]);
-        $length = strlen($line);
-        while ($cursor < $length) {
-            while ($cursor < $length && ($line[$cursor] === ' ' || $line[$cursor] === "\t")) {
-                $cursor++;
-            }
-
-            if ($cursor >= $length) {
-                return null;
-            }
-
-            if ($line[$cursor] === '>') {
-                return [
-                    'name' => strtolower($match[1][0]),
-                    'selfClosing' => false,
-                ];
-            }
-
-            if ($line[$cursor] === '/' && ($line[$cursor + 1] ?? '') === '>') {
-                return [
-                    'name' => strtolower($match[1][0]),
-                    'selfClosing' => true,
-                ];
-            }
-
-            if (preg_match('/\G[A-Za-z_:][A-Za-z0-9_.:-]*/', $line, $attribute, 0, $cursor) !== 1) {
-                return null;
-            }
-
-            $cursor += strlen($attribute[0]);
-            while ($cursor < $length && ($line[$cursor] === ' ' || $line[$cursor] === "\t")) {
-                $cursor++;
-            }
-
-            if (($line[$cursor] ?? '') !== '=') {
-                continue;
-            }
-
-            $cursor++;
-            while ($cursor < $length && ($line[$cursor] === ' ' || $line[$cursor] === "\t")) {
-                $cursor++;
-            }
-
-            if ($cursor >= $length) {
-                return null;
-            }
-
-            $quote = $line[$cursor];
-            if ($quote === '"' || $quote === "'") {
-                $end = strpos($line, $quote, $cursor + 1);
-                if ($end === false) {
-                    return null;
-                }
-                $cursor = $end + 1;
-                continue;
-            }
-
-            if (preg_match('/\G[^\s"\'=<>`]+/', $line, $value, 0, $cursor) !== 1) {
-                return null;
-            }
-
-            $cursor += strlen($value[0]);
-        }
-
-        return null;
+        return Html5Dom::markdownRawHtmlOpeningTagBoundary($this->expandTabsToSpaces($line));
     }
 
     private function isAngleAutolinkOnlyLine(string $line): bool
@@ -12684,35 +12791,31 @@ final class MarkdownReader
     }
 
     /**
-     * @return array{name:string}|null
+     * @return array{name:string,source:string,next:int}|null
      */
     private function tryParseRawHtmlClosingTag(string $line): ?array
     {
-        $line = $this->expandTabsToSpaces($line);
-        if (preg_match('/^ {0,3}<\/([A-Za-z][A-Za-z0-9:-]*)\s*>[ \t]*$/i', $line, $match) !== 1) {
-            return null;
-        }
-
-        return ['name' => strtolower($match[1])];
+        return Html5Dom::markdownRawHtmlClosingTagBoundary($this->expandTabsToSpaces($line));
     }
 
     private function isCommonMarkParagraphInterruptingRawHtmlBlockStart(string $line): bool
     {
         $expanded = $this->expandTabsToSpaces($line);
         if (
-            preg_match('/^ {0,3}<!--/', $expanded) === 1
-            || preg_match('/^ {0,3}<\?/', $expanded) === 1
-            || preg_match('/^ {0,3}<![A-Za-z]/', $expanded) === 1
-            || preg_match('/^ {0,3}<!\[CDATA\[/', $expanded) === 1
+            $this->rawHtmlLineStartsWithMarker($expanded, '<!--')
+            || $this->rawHtmlLineStartsWithMarker($expanded, '<?')
+            || $this->rawHtmlLineStartsWithDeclaration($expanded)
+            || $this->rawHtmlLineStartsWithMarker($expanded, '<![CDATA[')
         ) {
             return $this->htmlRawHtmlEnabled();
         }
 
-        if (preg_match('/^ {0,3}<(script|pre|style|textarea)(?:[ \t>]|\/>)/i', $expanded) === 1) {
+        $rawTag = $this->tryParseRawHtmlOpeningTag($expanded);
+        if ($rawTag !== null && in_array($rawTag['name'], ['script', 'pre', 'style', 'textarea'], true)) {
             return $this->htmlRawHtmlEnabled();
         }
 
-        $tag = $this->tryParseRawHtmlOpeningTag($expanded);
+        $tag = $rawTag;
         if ($tag === null) {
             return false;
         }
@@ -12794,13 +12897,109 @@ final class MarkdownReader
 
     private function renderMarkdownInTableCells(string $line): string
     {
-        return preg_replace_callback(
-            '/(<t[dh](?:\s+[^>]*)?>)(.*?)(<\/t[dh]>)/i',
-            function (array $matches): string {
-                return $matches[1] . $this->renderInlineHtml($this->parseInlines($matches[2])) . $matches[3];
-            },
-            $line
-        ) ?? $line;
+        $rendered = '';
+        $cursor = 0;
+        $changed = false;
+        $length = strlen($line);
+        while ($cursor < $length) {
+            $openOffset = strpos($line, '<', $cursor);
+            if ($openOffset === false) {
+                $rendered .= substr($line, $cursor);
+                break;
+            }
+
+            $tag = Html5Dom::rawHtmlOpeningTagAt($line, $openOffset);
+            if ($tag === null || !in_array($tag['name'], ['td', 'th'], true)) {
+                $rendered .= substr($line, $cursor, $openOffset - $cursor + 1);
+                $cursor = $openOffset + 1;
+                continue;
+            }
+
+            $closeOffset = $this->findRawHtmlClosingTagStart($line, $tag['next'], $tag['name']);
+            if ($closeOffset === null) {
+                $rendered .= substr($line, $cursor, $openOffset - $cursor + 1);
+                $cursor = $openOffset + 1;
+                continue;
+            }
+
+            $close = Html5Dom::rawHtmlClosingTagAt($line, $closeOffset);
+            if ($close === null) {
+                $rendered .= substr($line, $cursor, $openOffset - $cursor + 1);
+                $cursor = $openOffset + 1;
+                continue;
+            }
+
+            $rendered .= substr($line, $cursor, $tag['next'] - $cursor);
+            $inner = substr($line, $tag['next'], $closeOffset - $tag['next']);
+            $rendered .= $this->renderInlineHtml($this->parseInlines($inner));
+            $rendered .= $close['source'];
+            $cursor = $close['next'];
+            $changed = true;
+        }
+
+        return $changed ? $rendered : $line;
+    }
+
+    private function findRawHtmlClosingTagStart(string $source, int $offset, string $name): ?int
+    {
+        $name = strtolower($name);
+        $cursor = $offset;
+        while (($candidateOffset = strpos($source, '<', $cursor)) !== false) {
+            $tag = Html5Dom::rawHtmlClosingTagAt($source, $candidateOffset);
+            if ($tag !== null && $tag['name'] === $name) {
+                return $candidateOffset;
+            }
+            $cursor = $candidateOffset + 1;
+        }
+
+        return null;
+    }
+
+    private function findRawHtmlOpeningTagStart(string $source, int $offset, string $name): ?int
+    {
+        $name = strtolower($name);
+        $cursor = $offset;
+        while (($candidateOffset = strpos($source, '<', $cursor)) !== false) {
+            $tag = Html5Dom::rawHtmlOpeningTagAt($source, $candidateOffset);
+            if ($tag !== null && $tag['name'] === $name) {
+                return $candidateOffset;
+            }
+            $cursor = $candidateOffset + 1;
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{offset:int, tag:array{name:string,source:string,next:int}}|null
+     */
+    private function findMatchingRawHtmlClosingTagBoundary(string $source, int $offset, string $name): ?array
+    {
+        $name = strtolower($name);
+        $depth = 1;
+        $cursor = $offset;
+        while (($candidateOffset = strpos($source, '<', $cursor)) !== false) {
+            $closing = Html5Dom::rawHtmlClosingTagAt($source, $candidateOffset);
+            if ($closing !== null && $closing['name'] === $name) {
+                --$depth;
+                if ($depth === 0) {
+                    return ['offset' => $candidateOffset, 'tag' => $closing];
+                }
+                $cursor = $closing['next'];
+                continue;
+            }
+
+            $opening = Html5Dom::rawHtmlOpeningTagAt($source, $candidateOffset);
+            if ($opening !== null && $opening['name'] === $name && !$opening['selfClosing']) {
+                ++$depth;
+                $cursor = $opening['next'];
+                continue;
+            }
+
+            $cursor = $candidateOffset + 1;
+        }
+
+        return null;
     }
 
     /**
@@ -13500,7 +13699,7 @@ final class MarkdownReader
         int $contentIndent,
         string $firstLine
     ): ?array {
-        if (preg_match('/^ {0,3}<div(?=\s|>)/i', $this->expandTabsToSpaces($firstLine)) !== 1) {
+        if ($this->rawHtmlOpeningTagForLine($firstLine, ['div']) === null) {
             return null;
         }
 
@@ -13702,12 +13901,23 @@ final class MarkdownReader
 
     private function lineIsRawHtmlDetailsOpening(string $line): bool
     {
-        return preg_match('/^\s*<details\b[^>]*>\s*$/i', $line) === 1;
+        $trimmed = trim($this->expandTabsToSpaces($line));
+        $tag = Html5Dom::rawHtmlOpeningTagAt($trimmed);
+
+        return $tag !== null
+            && $tag['name'] === 'details'
+            && !$tag['selfClosing']
+            && $tag['next'] === strlen($trimmed);
     }
 
     private function lineIsRawHtmlDetailsClosing(string $line): bool
     {
-        return preg_match('/^\s*<\/details\s*>\s*$/i', $line) === 1;
+        $trimmed = trim($this->expandTabsToSpaces($line));
+        $tag = Html5Dom::rawHtmlClosingTagAt($trimmed);
+
+        return $tag !== null
+            && $tag['name'] === 'details'
+            && $tag['next'] === strlen($trimmed);
     }
 
     private function lineCanStartRawHtmlBlock(string $line): bool
@@ -13718,10 +13928,10 @@ final class MarkdownReader
 
         $expanded = $this->expandTabsToSpaces($line);
         if (
-            preg_match('/^ {0,3}<!--/', $expanded) === 1
-            || preg_match('/^ {0,3}<\?/', $expanded) === 1
-            || preg_match('/^ {0,3}<![A-Za-z]/', $expanded) === 1
-            || preg_match('/^ {0,3}<!\[CDATA\[/', $expanded) === 1
+            $this->rawHtmlLineStartsWithMarker($expanded, '<!--')
+            || $this->rawHtmlLineStartsWithMarker($expanded, '<?')
+            || $this->rawHtmlLineStartsWithDeclaration($expanded)
+            || $this->rawHtmlLineStartsWithMarker($expanded, '<![CDATA[')
         ) {
             return true;
         }
@@ -13843,7 +14053,8 @@ final class MarkdownReader
 
     private function isListItemBlockHtmlStart(string $text): bool
     {
-        if (preg_match('/^<(?:div|button)(?:\s+[^>]*)?>/i', $text) === 1) {
+        $initialTag = Html5Dom::rawHtmlOpeningTagAt($text);
+        if ($initialTag !== null && in_array($initialTag['name'], ['div', 'button'], true)) {
             return true;
         }
 
@@ -13853,15 +14064,11 @@ final class MarkdownReader
 
         $expanded = $this->expandTabsToSpaces($text);
         if (
-            preg_match('/^ {0,3}<!--/', $expanded) === 1
-            || preg_match('/^ {0,3}<\?/', $expanded) === 1
-            || preg_match('/^ {0,3}<![A-Za-z]/', $expanded) === 1
-            || preg_match('/^ {0,3}<!\[CDATA\[/', $expanded) === 1
+            $this->rawHtmlLineStartsWithMarker($expanded, '<!--')
+            || $this->rawHtmlLineStartsWithMarker($expanded, '<?')
+            || $this->rawHtmlLineStartsWithDeclaration($expanded)
+            || $this->rawHtmlLineStartsWithMarker($expanded, '<![CDATA[')
         ) {
-            return true;
-        }
-
-        if (preg_match('/^ {0,3}<(?:script|pre|style|textarea|noscript|xmp)(?:[ \t>]|\/>)/i', $expanded) === 1) {
             return true;
         }
 
@@ -13870,11 +14077,15 @@ final class MarkdownReader
             return $this->tryParseRawHtmlClosingTag($expanded) !== null;
         }
 
+        if (in_array($tag['name'], ['script', 'pre', 'style', 'textarea', 'noscript', 'xmp'], true)) {
+            return true;
+        }
+
         if ($tag['name'] === 'table') {
             return true;
         }
 
-        if ($tag['name'] === 'hr' && preg_match('/^ {0,3}<hr(?:\s+[^>]*)?\/?>[ \t]*$/i', $expanded) === 1) {
+        if ($tag['name'] === 'hr' && $this->rawHtmlOpeningTagIsStandaloneLine($expanded, 'hr')) {
             return true;
         }
 
@@ -14588,7 +14799,7 @@ final class MarkdownReader
         if ($trimmed === '') {
             return false;
         }
-        if (preg_match('/^ {0,3}<\/?[A-Za-z][^>]*>/', $line) === 1) {
+        if ($this->tryParseRawHtmlOpeningTag($line) !== null || $this->tryParseRawHtmlClosingTag($line) !== null) {
             return false;
         }
 
@@ -16766,7 +16977,10 @@ final class MarkdownReader
         $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
         $canonical = MarkdownFormatProfile::canonicalFormat($format);
 
-        return $canonical === 'gfm' && !$this->deprecatedGithubMarkdownAlias($format);
+        return ($canonical === 'gfm' && !$this->deprecatedGithubMarkdownAlias($format))
+            || ($overrides['wikilinks'] ?? false)
+            || ($overrides['wikilinks_title_before_pipe'] ?? false)
+            || ($overrides['wikilinks_title_after_pipe'] ?? false);
     }
 
     private function alertExtensionEnabled(): bool
@@ -17419,13 +17633,22 @@ final class MarkdownReader
 
     private static function isStandaloneClosingRawHtmlTag(string $html): bool
     {
-        return preg_match('/^\s*<\/[A-Za-z][A-Za-z0-9:-]*\s*>\s*$/', $html) === 1;
+        $html = trim($html);
+        $tag = Html5Dom::rawHtmlClosingTagAt($html);
+
+        return $tag !== null && $tag['next'] === strlen($html);
     }
 
     private static function isStandaloneRawHtmlTag(string $html): bool
     {
-        return self::isStandaloneClosingRawHtmlTag($html)
-            || preg_match('/^\s*<[A-Za-z][A-Za-z0-9:-]*(?:\s+[A-Za-z_:][A-Za-z0-9_.:-]*(?:\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s"\'=<>`]+))?)*\s*\/?>\s*$/u', $html) === 1;
+        if (self::isStandaloneClosingRawHtmlTag($html)) {
+            return true;
+        }
+
+        $html = trim($html);
+        $tag = Html5Dom::rawHtmlOpeningTagAt($html);
+
+        return $tag !== null && $tag['next'] === strlen($html);
     }
 
     /**
@@ -18183,43 +18406,50 @@ final class MarkdownReader
             return null;
         }
 
-        if (preg_match('~\G</a\s*>~iu', $text, $close, 0, $offset) === 1) {
+        $closingTag = Html5Dom::rawHtmlClosingTagAt($text, $offset);
+        if ($closingTag !== null && $closingTag['name'] === 'a') {
             return [
-                'node' => new AstNode('raw_html_inline', ['html' => $close[0]]),
-                'next' => $offset + strlen($close[0]),
+                'node' => new AstNode('raw_html_inline', ['html' => $closingTag['source']]),
+                'next' => $closingTag['next'],
             ];
         }
 
+        $openingTag = Html5Dom::rawHtmlOpeningTagAt($text, $offset);
         if (
             $this->htmlReaderModeEnabled()
-            && preg_match('~\G<a(?=\s|/>)(?:\s+[A-Za-z_:][A-Za-z0-9_.:-]*(?:\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s"\'=<>`]+))?)*\s*/>~iu', $text, $selfClosingAnchor, 0, $offset) === 1
-            && preg_match('~\s+href\s*=~iu', $selfClosingAnchor[0]) !== 1
+            && $openingTag !== null
+            && $openingTag['name'] === 'a'
+            && $openingTag['selfClosing']
+            && !in_array('href', $openingTag['attributeNames'], true)
         ) {
-            $nodes = $this->parseHtmlInlineFragmentNodes($selfClosingAnchor[0]);
+            $nodes = $this->parseHtmlInlineFragmentNodes($openingTag['source']);
             if (count($nodes) === 1 && $nodes[0]->type === 'span') {
                 return [
                     'node' => $nodes[0],
-                    'next' => $offset + strlen($selfClosingAnchor[0]),
+                    'next' => $openingTag['next'],
                 ];
             }
         }
 
-        if (preg_match('~\G<a(?=\s|>)(?:\s+(?:"[^"]*"|\'[^\']*\'|[^\'"<>])*)?>~iu', $text, $open, 0, $offset) === 1) {
-            $afterOpen = $offset + strlen($open[0]);
-            if (preg_match('~\G</a\s*>~iu', $text, $close, 0, $afterOpen) === 1) {
+        if ($openingTag !== null && $openingTag['name'] === 'a' && !$openingTag['selfClosing']) {
+            $afterOpen = $openingTag['next'];
+            $adjacentClose = Html5Dom::rawHtmlClosingTagAt($text, $afterOpen);
+            if ($adjacentClose !== null && $adjacentClose['name'] === 'a') {
                 return [
                     'nodes' => [
-                        new AstNode('raw_html_inline', ['html' => $open[0]]),
-                        new AstNode('raw_html_inline', ['html' => $close[0]]),
+                        new AstNode('raw_html_inline', ['html' => $openingTag['source']]),
+                        new AstNode('raw_html_inline', ['html' => $adjacentClose['source']]),
                     ],
-                    'next' => $afterOpen + strlen($close[0]),
+                    'next' => $adjacentClose['next'],
                 ];
             }
 
-            if (preg_match('~</a\s*>~iu', $text, $close, PREG_OFFSET_CAPTURE, $afterOpen) === 1) {
-                $closeHtml = $close[0][0];
-                $closeOffset = $close[0][1];
-                $end = $closeOffset + strlen($closeHtml);
+            $closeOffset = $this->findRawHtmlClosingTagStart($text, $afterOpen, 'a');
+            if ($closeOffset !== null) {
+                $close = Html5Dom::rawHtmlClosingTagAt($text, $closeOffset);
+                if ($close === null) {
+                    return null;
+                }
                 $children = $this->parseInlines(
                     substr($text, $afterOpen, $closeOffset - $afterOpen),
                     true,
@@ -18229,46 +18459,75 @@ final class MarkdownReader
 
                 return [
                     'nodes' => [
-                        new AstNode('raw_html_inline', ['html' => $open[0]]),
+                        new AstNode('raw_html_inline', ['html' => $openingTag['source']]),
                         ...$children,
-                        new AstNode('raw_html_inline', ['html' => $closeHtml]),
+                        new AstNode('raw_html_inline', ['html' => $close['source']]),
                     ],
-                    'next' => $end,
+                    'next' => $close['next'],
                 ];
             }
         }
 
-        foreach ([
-            '~\G<!--.*?-->~su',
-            '~\G<\?.*?\?>~su',
-            '~\G<!\[CDATA\[.*?\]\]>~su',
-            '~\G<![A-Za-z][^>]*>~su',
-        ] as $pattern) {
-            if (preg_match($pattern, $text, $match, 0, $offset) === 1) {
-                return [
-                    'node' => new AstNode('raw_html_inline', ['html' => $match[0]]),
-                    'next' => $offset + strlen($match[0]),
-                ];
-            }
+        $special = $this->tryParseSpecialRawHtmlInline($text, $offset);
+        if ($special !== null) {
+            return $special;
         }
 
-        if (
-            preg_match('~\G</([A-Za-z][A-Za-z0-9:-]*)\s*>~u', $text, $match, 0, $offset) === 1
-            && $this->isRawHtmlInlineTagName($match[1])
-        ) {
+        if ($closingTag !== null && $this->isRawHtmlInlineTagName($closingTag['name'])) {
             return [
-                'node' => new AstNode('raw_html_inline', ['html' => $match[0]]),
-                'next' => $offset + strlen($match[0]),
+                'node' => new AstNode('raw_html_inline', ['html' => $closingTag['source']]),
+                'next' => $closingTag['next'],
+            ];
+        }
+
+        if ($openingTag !== null && $this->isRawHtmlInlineTagName($openingTag['name'])) {
+            return [
+                'node' => new AstNode('raw_html_inline', ['html' => $openingTag['source']]),
+                'next' => $openingTag['next'],
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{node: AstNode, next: int}|null
+     */
+    private function tryParseSpecialRawHtmlInline(string $text, int $offset): ?array
+    {
+        foreach ([
+            '<!--' => '-->',
+            '<?' => '?>',
+            '<![CDATA[' => ']]>',
+        ] as $open => $close) {
+            if (!str_starts_with(substr($text, $offset), $open)) {
+                continue;
+            }
+            $end = strpos($text, $close, $offset + strlen($open));
+            if ($end === false) {
+                return null;
+            }
+            $next = $end + strlen($close);
+
+            return [
+                'node' => new AstNode('raw_html_inline', ['html' => substr($text, $offset, $next - $offset)]),
+                'next' => $next,
             ];
         }
 
         if (
-            preg_match('~\G<([A-Za-z][A-Za-z0-9:-]*)(?:\s+[A-Za-z_:][A-Za-z0-9_.:-]*(?:\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s"\'=<>`]+))?)*\s*/?>~u', $text, $match, 0, $offset) === 1
-            && $this->isRawHtmlInlineTagName($match[1])
+            str_starts_with(substr($text, $offset), '<!')
+            && ctype_alpha($text[$offset + 2] ?? '')
         ) {
+            $end = strpos($text, '>', $offset + 3);
+            if ($end === false) {
+                return null;
+            }
+            $next = $end + 1;
+
             return [
-                'node' => new AstNode('raw_html_inline', ['html' => $match[0]]),
-                'next' => $offset + strlen($match[0]),
+                'node' => new AstNode('raw_html_inline', ['html' => substr($text, $offset, $next - $offset)]),
+                'next' => $next,
             ];
         }
 
@@ -18284,11 +18543,12 @@ final class MarkdownReader
             return null;
         }
 
-        if (preg_match('~\G<span(?=\s|>)(?:\s+[A-Za-z_:][A-Za-z0-9_.:-]*(?:\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s"\'=<>`]+))?)*\s*>~iu', $text, $open, 0, $offset) !== 1) {
+        $open = Html5Dom::rawHtmlOpeningTagAt($text, $offset);
+        if ($open === null || $open['name'] !== 'span' || $open['selfClosing']) {
             return null;
         }
 
-        $afterOpen = $offset + strlen($open[0]);
+        $afterOpen = $open['next'];
         $end = $this->findMatchingNativeSpanClose($text, $afterOpen);
         if ($end === null) {
             return null;
@@ -18308,30 +18568,26 @@ final class MarkdownReader
     private function findMatchingNativeSpanClose(string $text, int $offset): ?int
     {
         $depth = 1;
-        if (preg_match_all(
-            '~</?span(?=\s|>|/)(?:\s+[A-Za-z_:][A-Za-z0-9_.:-]*(?:\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s"\'=<>`]+))?)*\s*/?>~iu',
-            $text,
-            $matches,
-            PREG_OFFSET_CAPTURE,
-            $offset
-        ) === false) {
-            return null;
-        }
-
-        foreach ($matches[0] as $match) {
-            $tag = $match[0];
-            $position = $match[1];
-            if (preg_match('~^</span\s*>$~iu', $tag) === 1) {
+        $cursor = $offset;
+        while (($position = strpos($text, '<', $cursor)) !== false) {
+            $closing = Html5Dom::rawHtmlClosingTagAt($text, $position);
+            if ($closing !== null && $closing['name'] === 'span') {
                 --$depth;
                 if ($depth === 0) {
-                    return $position + strlen($tag);
+                    return $closing['next'];
                 }
+                $cursor = $closing['next'];
                 continue;
             }
 
-            if (!str_ends_with(rtrim($tag), '/>')) {
+            $opening = Html5Dom::rawHtmlOpeningTagAt($text, $position);
+            if ($opening !== null && $opening['name'] === 'span' && !$opening['selfClosing']) {
                 ++$depth;
+                $cursor = $opening['next'];
+                continue;
             }
+
+            $cursor = $position + 1;
         }
 
         return null;

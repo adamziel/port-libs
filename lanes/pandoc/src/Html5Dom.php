@@ -182,6 +182,226 @@ final class Html5Dom
     }
 
     /**
+     * @return array{name:string,selfClosing:bool,source:string,next:int,attributeNames:list<string>}|null
+     */
+    public static function rawHtmlOpeningTagAt(string $source, int $offset = 0): ?array
+    {
+        $length = strlen($source);
+        if ($offset < 0 || $offset >= $length || ($source[$offset] ?? '') !== '<') {
+            return null;
+        }
+
+        $nameStart = $offset + 1;
+        if (!self::isAsciiAlpha($source[$nameStart] ?? '')) {
+            return null;
+        }
+
+        $cursor = $nameStart + 1;
+        while ($cursor < $length && self::isHtmlTagNameChar($source[$cursor])) {
+            $cursor++;
+        }
+
+        $name = strtolower(substr($source, $nameStart, $cursor - $nameStart));
+        $attributeNames = [];
+        while ($cursor < $length) {
+            $cursor = self::skipHtmlSpace($source, $cursor);
+            if ($cursor >= $length) {
+                return null;
+            }
+
+            if ($source[$cursor] === '>') {
+                $next = $cursor + 1;
+                $candidate = substr($source, $offset, $next - $offset);
+
+                return self::htmlDocumentAcceptsRawTagCandidate($candidate)
+                    ? [
+                        'name' => $name,
+                        'selfClosing' => false,
+                        'source' => $candidate,
+                        'next' => $next,
+                        'attributeNames' => array_keys($attributeNames),
+                    ]
+                    : null;
+            }
+
+            if ($source[$cursor] === '/' && ($source[$cursor + 1] ?? '') === '>') {
+                $next = $cursor + 2;
+                $candidate = substr($source, $offset, $next - $offset);
+
+                return self::htmlDocumentAcceptsRawTagCandidate($candidate)
+                    ? [
+                        'name' => $name,
+                        'selfClosing' => true,
+                        'source' => $candidate,
+                        'next' => $next,
+                        'attributeNames' => array_keys($attributeNames),
+                    ]
+                    : null;
+            }
+
+            if (!self::isHtmlAttributeNameStart($source[$cursor])) {
+                return null;
+            }
+
+            $attributeStart = $cursor;
+            $cursor++;
+            while ($cursor < $length && self::isHtmlAttributeNameChar($source[$cursor])) {
+                $cursor++;
+            }
+            $attributeNames[strtolower(substr($source, $attributeStart, $cursor - $attributeStart))] = true;
+
+            $cursor = self::skipHtmlSpace($source, $cursor);
+            if (($source[$cursor] ?? '') !== '=') {
+                continue;
+            }
+
+            $cursor++;
+            $cursor = self::skipHtmlSpace($source, $cursor);
+            if ($cursor >= $length) {
+                return null;
+            }
+
+            $quote = $source[$cursor];
+            if ($quote === '"' || $quote === "'") {
+                $end = strpos($source, $quote, $cursor + 1);
+                if ($end === false) {
+                    return null;
+                }
+                $cursor = $end + 1;
+                continue;
+            }
+
+            $valueStart = $cursor;
+            while ($cursor < $length && self::isHtmlUnquotedAttributeValueChar($source[$cursor])) {
+                $cursor++;
+            }
+            if ($cursor === $valueStart) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{name:string,source:string,next:int}|null
+     */
+    public static function rawHtmlClosingTagAt(string $source, int $offset = 0): ?array
+    {
+        $length = strlen($source);
+        if (
+            $offset < 0
+            || $offset + 2 >= $length
+            || ($source[$offset] ?? '') !== '<'
+            || ($source[$offset + 1] ?? '') !== '/'
+            || !self::isAsciiAlpha($source[$offset + 2] ?? '')
+        ) {
+            return null;
+        }
+
+        $nameStart = $offset + 2;
+        $cursor = $nameStart + 1;
+        while ($cursor < $length && self::isHtmlTagNameChar($source[$cursor])) {
+            $cursor++;
+        }
+
+        $name = strtolower(substr($source, $nameStart, $cursor - $nameStart));
+        $cursor = self::skipHtmlSpace($source, $cursor);
+        if (($source[$cursor] ?? '') !== '>') {
+            return null;
+        }
+
+        $next = $cursor + 1;
+        $candidate = '<' . $name . '></' . $name . '>';
+        if (!self::htmlDocumentAcceptsRawTagCandidate($candidate)) {
+            return null;
+        }
+
+        return [
+            'name' => $name,
+            'source' => substr($source, $offset, $next - $offset),
+            'next' => $next,
+        ];
+    }
+
+    /**
+     * @return array{name:string,selfClosing:bool,source:string,next:int,attributeNames:list<string>}|null
+     */
+    public static function markdownRawHtmlOpeningTagBoundary(string $line, int $maxIndent = 3): ?array
+    {
+        $offset = self::markdownRawHtmlBoundaryOffset($line, $maxIndent);
+
+        return $offset === null ? null : self::rawHtmlOpeningTagAt($line, $offset);
+    }
+
+    /**
+     * @return array{name:string,source:string,next:int}|null
+     */
+    public static function markdownRawHtmlClosingTagBoundary(string $line, int $maxIndent = 3): ?array
+    {
+        $offset = self::markdownRawHtmlBoundaryOffset($line, $maxIndent);
+        if ($offset === null) {
+            return null;
+        }
+
+        $tag = self::rawHtmlClosingTagAt($line, $offset);
+        if ($tag === null) {
+            return null;
+        }
+
+        return self::onlyHtmlSpaceAfter($line, $tag['next']) ? $tag : null;
+    }
+
+    public static function rawHtmlOpeningTagLineIsStandalone(string $line, string $name, int $maxIndent = 3): bool
+    {
+        $tag = self::markdownRawHtmlOpeningTagBoundary($line, $maxIndent);
+
+        return $tag !== null
+            && $tag['name'] === strtolower($name)
+            && self::onlyHtmlSpaceAfter($line, $tag['next']);
+    }
+
+    public static function rawHtmlLineHasOpeningAndClosingTag(string $line, string $name, int $maxIndent = 3): bool
+    {
+        $tag = self::markdownRawHtmlOpeningTagBoundary($line, $maxIndent);
+        if ($tag === null || $tag['name'] !== strtolower($name) || $tag['selfClosing']) {
+            return false;
+        }
+
+        return self::rawHtmlClosingTagEndAfter($line, $tag['next'], $name) !== null;
+    }
+
+    public static function rawHtmlClosingTagEndAfter(string $source, int $offset, string $name): ?int
+    {
+        $name = strtolower($name);
+        $cursor = max(0, $offset);
+        while (($candidateOffset = strpos($source, '<', $cursor)) !== false) {
+            $tag = self::rawHtmlClosingTagAt($source, $candidateOffset);
+            if ($tag !== null && $tag['name'] === $name) {
+                return $tag['next'];
+            }
+            $cursor = $candidateOffset + 1;
+        }
+
+        return null;
+    }
+
+    public static function rawHtmlSourceContainsOpeningTag(string $source, string $name): bool
+    {
+        $name = strtolower($name);
+        $cursor = 0;
+        while (($candidateOffset = strpos($source, '<', $cursor)) !== false) {
+            $tag = self::rawHtmlOpeningTagAt($source, $candidateOffset);
+            if ($tag !== null && $tag['name'] === $name) {
+                return true;
+            }
+            $cursor = $candidateOffset + 1;
+        }
+
+        return false;
+    }
+
+    /**
      * Parse one or more XML fragment roots under a synthetic wrapper element.
      */
     public static function parseXmlFragment(string $xml, string $wrapperName = 'pandoc-fragment'): \DOMElement
@@ -451,6 +671,97 @@ final class Html5Dom
         }
 
         return false;
+    }
+
+    private static function markdownRawHtmlBoundaryOffset(string $line, int $maxIndent): ?int
+    {
+        $length = strlen($line);
+        $offset = 0;
+        $indent = 0;
+        while ($offset < $length && $line[$offset] === ' ' && $indent < $maxIndent) {
+            $offset++;
+            $indent++;
+        }
+
+        return ($line[$offset] ?? '') === '<' ? $offset : null;
+    }
+
+    private static function onlyHtmlSpaceAfter(string $source, int $offset): bool
+    {
+        $length = strlen($source);
+        for ($cursor = $offset; $cursor < $length; $cursor++) {
+            if ($source[$cursor] !== ' ' && $source[$cursor] !== "\t") {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static function skipHtmlSpace(string $source, int $offset): int
+    {
+        $length = strlen($source);
+        while ($offset < $length && self::isHtmlSpace($source[$offset])) {
+            $offset++;
+        }
+
+        return $offset;
+    }
+
+    private static function htmlDocumentAcceptsRawTagCandidate(string $candidate): bool
+    {
+        if (!self::nativeHtmlDocumentAvailable()) {
+            return true;
+        }
+
+        $previous = libxml_use_internal_errors(true);
+        try {
+            \Dom\HTMLDocument::createFromString(
+                '<!doctype html><html><body>' . $candidate . '</body></html>',
+                LIBXML_NOERROR | LIBXML_COMPACT,
+                'UTF-8'
+            );
+
+            return true;
+        } catch (\Throwable) {
+            return false;
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+        }
+    }
+
+    private static function isHtmlTagNameChar(string $char): bool
+    {
+        return self::isAsciiAlpha($char) || ctype_digit($char) || in_array($char, ['-', ':'], true);
+    }
+
+    private static function isHtmlAttributeNameStart(string $char): bool
+    {
+        return self::isAsciiAlpha($char) || in_array($char, ['_', ':'], true);
+    }
+
+    private static function isHtmlAttributeNameChar(string $char): bool
+    {
+        return self::isHtmlAttributeNameStart($char)
+            || ctype_digit($char)
+            || in_array($char, ['.', '-'], true);
+    }
+
+    private static function isHtmlUnquotedAttributeValueChar(string $char): bool
+    {
+        return !self::isHtmlSpace($char)
+            && !in_array($char, ['"', "'", '=', '<', '>', '`'], true);
+    }
+
+    private static function isHtmlSpace(string $char): bool
+    {
+        return in_array($char, ["\t", "\n", "\f", "\r", ' '], true);
+    }
+
+    private static function isAsciiAlpha(string $char): bool
+    {
+        return ($char >= 'a' && $char <= 'z') || ($char >= 'A' && $char <= 'Z');
     }
 
     private static function html5TreeConstructedSource(string $html): ?string
