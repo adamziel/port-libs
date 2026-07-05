@@ -1279,10 +1279,16 @@ return [
         if ($workflow === false) {
             throw new RuntimeException('Unable to read pandoc-markdown workflow');
         }
+        $runnerWorkflow = file_get_contents($repoRoot . '/.github/workflows/pandoc-reader-runners.yml');
+        if ($runnerWorkflow === false) {
+            throw new RuntimeException('Unable to read pandoc-reader-runners workflow');
+        }
 
         $t->contains('--require-selected-fixture-count=121', $workflow);
         $t->contains('--require-native-mapped-parity=121', $workflow);
         $t->contains('--require-mapped-parity=121', $workflow);
+        $t->contains('--require-selected-fixture-count=121', $runnerWorkflow);
+        $t->contains('--require-native-mapped-parity=121', $runnerWorkflow);
         $t->contains('lanes/pandoc/tests/MarkdownReaderAtxHeadingSpaceProfileSurgeTest.php', $workflow);
         $t->contains('lanes/pandoc/tests/MarkdownReaderCodeSpanFixtureCompletionTest.php', $workflow);
         $t->contains('lanes/pandoc/tests/MarkdownReaderInlineMathFixtureCompletionTest.php', $workflow);
