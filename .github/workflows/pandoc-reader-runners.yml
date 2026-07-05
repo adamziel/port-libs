@@ -318,9 +318,9 @@ jobs:
               php tools/pandoc-html-reader-evidence.php \
                 --upstream-root "$PANDOC_READER_RUNNER_UPSTREAM_ROOT" \
                 --json \
-                --require-selected-fixture-count=112 \
+                --require-selected-fixture-count=113 \
                 --require-static-current-evidence \
-                --require-native-mapped-parity=112 \
+                --require-native-mapped-parity=113 \
                 --runner-result-artifact "$artifact_root/result.json" \
                 --require-runner-result-artifact \
                 --require-no-validation-issues \

@@ -644,6 +644,10 @@ $tests['imports direct pandoc html main that closes paragraph through HTML5 tree
         $t->same('main content', $plain->attr('text'));
         $t->same(['text'], array_map(static fn ($node): string => $node->type, $plain->children));
         $t->same('main content', $plain->children[0]->attr('text'));
+
+        $trailingText = (new HtmlReader())->read($fixture('upstream-html-main-followed-by-text.html'));
+        $t->same(['plain'], array_map(static fn ($node): string => $node->type, $trailingText->children));
+        $t->same('main content', $trailingText->children[0]->attr('text'));
     };
 
 $tests['imports upstream html main explicit role as native div'] =
